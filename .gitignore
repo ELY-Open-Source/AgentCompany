@@ -26,6 +26,10 @@ Thumbs.db
 # Local reference material
 oldreference/
 
+# Markdown docs
+*.md
+!/README.md
+
 # Package manager logs
 npm-debug.log*
 pnpm-debug.log*
