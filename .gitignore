@@ -30,6 +30,9 @@ oldreference/
 *.md
 !/README.md
 
+# Local design scratch files
+homepagedesign.html
+
 # Package manager logs
 npm-debug.log*
 pnpm-debug.log*
