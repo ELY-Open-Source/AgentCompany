@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="200" x2="824" y1="96" y2="928" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111315"/>
+      <stop offset="1" stop-color="#1b1f23"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1"
+      gradientTransform="translate(450 348) rotate(36) scale(800)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d97745" stop-opacity=".13"/>
+      <stop offset="1" stop-color="#d97745" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="896" height="896" x="64" y="64" rx="224" fill="url(#bg)"/>
+  <rect width="896" height="896" x="64" y="64" rx="224" fill="url(#glow)"/>
+  <polygon points="490,200 534,200 578,800 298,800" fill="#d97745" fill-opacity=".94"/>
+  <polygon points="490,200 534,200 726,800 446,800" fill="#d97745" fill-opacity=".94"/>
+  <rect x="400" y="419" width="224" height="42" rx="12" fill="#ffebd7"/>
+  <rect x="374" y="524" width="276" height="42" rx="12" fill="#ebb48c"/>
+  <rect x="348" y="629" width="328" height="42" rx="12" fill="#be8c69"/>
+  <circle cx="512" cy="198" r="20" fill="#ffebd7"/>
+</svg>

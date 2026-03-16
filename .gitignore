@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+out/
+build/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local reference material
+oldreference/
+
+# Package manager logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*

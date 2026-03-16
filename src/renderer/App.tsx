@@ -1,0 +1,1270 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  ArrowClockwise,
+  CaretUpDown,
+  Check,
+  Command,
+  Cpu,
+  CurrencyCircleDollar,
+  FolderOpen,
+  Gear,
+  Kanban,
+  ListChecks,
+  MagnifyingGlass,
+  Plus,
+  Pulse,
+  Robot,
+  ShieldCheck,
+  Trash,
+  SquaresFour,
+  Target,
+  TreeStructure,
+  SidebarSimple,
+  TerminalWindow,
+  WarningCircle,
+  Wrench,
+  X,
+} from "@phosphor-icons/react";
+import type {
+  CompanyRecord,
+  DesktopEvent,
+  ProfileSnapshot,
+  RunRecord,
+  SectionId,
+} from "@shared/types";
+import type { SidebarBadges } from "@shared/contracts";
+import { CompanyOnboarding } from "./components/CompanyOnboarding";
+import { ConnectorEditor } from "./components/connectors";
+import { EntityWorkspace } from "./components/EntityWorkspace";
+import {
+  ActivityList,
+  ApprovalInspector,
+  ApprovalList,
+  BudgetSummary,
+  CostList,
+  PendingReviewList,
+  SecretCreator,
+  SettingsPane,
+  TaskCreator,
+  TaskInspector,
+  TaskQueue,
+  WorkspaceCreator,
+  WorkspaceList,
+} from "./components/execution";
+import {
+  AgentCreator,
+  AgentEditor,
+  AgentRoster,
+  GoalCreator,
+  GoalEditor,
+  GoalList,
+  OrgChart,
+  ProjectCreator,
+  ProjectEditor,
+  ProjectList,
+} from "./components/organization";
+import { ActionButton, ErrorBoundary, ListFrame, ListRow, Modal, Panel, SectionButton, Select, StatusPill, useFocusTrap, useReducedMotion } from "./components/ui";
+import { unwrap } from "./lib/desktop";
+import { formatMoney, formatTime } from "./lib/formatters";
+
+type NavItem = { id: SectionId; label: string; icon: typeof SquaresFour };
+type NavGroup = { label: string; items: NavItem[] };
+
+const navGroups: NavGroup[] = [
+  {
+    label: "Overview",
+    items: [
+      { id: "overview", label: "Dashboard", icon: SquaresFour },
+    ],
+  },
+  {
+    label: "Organization",
+    items: [
+      { id: "agents", label: "Agents", icon: Robot },
+      { id: "orgchart", label: "Org Chart", icon: TreeStructure },
+      { id: "goals", label: "Goals", icon: Target },
+      { id: "projects", label: "Projects", icon: Kanban },
+      { id: "tasks", label: "Tasks", icon: ListChecks },
+    ],
+  },
+  {
+    label: "Operations",
+    items: [
+      { id: "approvals", label: "Approvals", icon: ShieldCheck },
+      { id: "costs", label: "Costs", icon: CurrencyCircleDollar },
+      { id: "activity", label: "Activity", icon: Pulse },
+    ],
+  },
+  {
+    label: "Infrastructure",
+    items: [
+      { id: "connectors", label: "Connectors", icon: Cpu },
+      { id: "workspaces", label: "Workspaces", icon: FolderOpen },
+    ],
+  },
+];
+
+const navItems: NavItem[] = navGroups.flatMap((group) => group.items).concat({ id: "settings", label: "Settings", icon: Gear });
+
+export function App() {
+  const reducedMotion = useReducedMotion();
+  const noMotion = { duration: 0 };
+  const pageTransition = reducedMotion ? noMotion : { duration: 0.24, ease: [0.16, 1, 0.3, 1] as const };
+  const panelTransition = reducedMotion ? noMotion : { duration: 0.22, ease: [0.16, 1, 0.3, 1] as const };
+
+  const [snapshot, setSnapshot] = useState<ProfileSnapshot | null>(null);
+  const [section, setSection] = useState<SectionId>("overview");
+  const [error, setError] = useState<string | null>(null);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [consoleOpen, setConsoleOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [companySwitcherOpen, setCompanySwitcherOpen] = useState(false);
+  const [confirmDeleteCompanyId, setConfirmDeleteCompanyId] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
+  const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const logBufferRef = useRef<Record<string, string>>({});
+  const [, setLogRevision] = useState(0);
+  const [badges, setBadges] = useState<SidebarBadges | null>(null);
+  const [commandPaletteSearch, setCommandPaletteSearch] = useState("");
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const next = unwrap<ProfileSnapshot>(await window.agentCompany.loadSnapshot());
+      setSnapshot(next);
+      // Tasks are opened explicitly by clicking; don't auto-select.
+      if (!selectedConnectorId && next.connectors[0]) setSelectedConnectorId(next.connectors[0].id);
+      if (!selectedApprovalId && next.approvals[0]) setSelectedApprovalId(next.approvals[0].id);
+      if (!selectedRunId && next.runs[0]) setSelectedRunId(next.runs[0].id);
+      if (next.currentCompanyId) {
+        const badgeResult = await window.agentCompany.getSidebarBadges(next.currentCompanyId);
+        if (badgeResult.ok) setBadges(badgeResult.data);
+      }
+      setError(null);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    }
+  }, [selectedApprovalId, selectedConnectorId, selectedRunId]);
+
+  useEffect(() => {
+    void refresh();
+    const unsubscribe = window.agentCompany.subscribe((event: DesktopEvent) => {
+      if (event.type === "run-log") {
+        logBufferRef.current = {
+          ...logBufferRef.current,
+          [event.runId]: `${logBufferRef.current[event.runId] ?? ""}${event.chunk}`,
+        };
+        setLogRevision((r) => r + 1);
+        return;
+      }
+      if (event.type === "shortcut") {
+        if (event.action === "toggle-command-palette") setCommandPaletteOpen((current) => !current);
+        if (event.action === "toggle-console") setConsoleOpen((current) => !current);
+        if (event.action === "refresh") void refresh();
+        return;
+      }
+      void refresh();
+    });
+    return unsubscribe;
+  }, [refresh]);
+
+  useEffect(() => {
+    if (!selectedRunId) return;
+    void (async () => {
+      const result = await window.agentCompany.getRunLog({ runId: selectedRunId });
+      if (result.ok) {
+        logBufferRef.current = { ...logBufferRef.current, [selectedRunId]: result.data };
+        setLogRevision((r) => r + 1);
+        return;
+      }
+      setError(result.error.message);
+    })();
+  }, [selectedRunId]);
+
+  useEffect(() => {
+    if (!snapshot) return;
+    const root = document.documentElement;
+    root.dataset.theme = snapshot.theme;
+    root.style.colorScheme = snapshot.theme === "system" ? "light dark" : snapshot.theme;
+  }, [snapshot]);
+
+  // Global Escape key handler for command palette
+  useEffect(() => {
+    if (!commandPaletteOpen) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setCommandPaletteOpen(false);
+        setCommandPaletteSearch("");
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [commandPaletteOpen]);
+
+  const paletteTrapRef = useFocusTrap(commandPaletteOpen);
+
+  const currentCompany = useMemo<CompanyRecord | null>(() => {
+    if (!snapshot) return null;
+    return snapshot.companies.find((company) => company.id === snapshot.currentCompanyId) ?? snapshot.companies[0] ?? null;
+  }, [snapshot]);
+
+  const tasks = useMemo(() => snapshot?.tasks.filter((task) => !currentCompany || task.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const selectedTask = selectedTaskId ? (tasks.find((task) => task.id === selectedTaskId) ?? null) : null;
+  const selectedConnector = snapshot?.connectors.find((connector) => connector.id === selectedConnectorId) ?? snapshot?.connectors[0] ?? null;
+  const approvals = useMemo(() => snapshot?.approvals.filter((approval) => !currentCompany || approval.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const selectedApproval = approvals.find((approval) => approval.id === selectedApprovalId) ?? approvals[0] ?? null;
+  const runs = useMemo(() => snapshot?.runs.filter((run) => !currentCompany || run.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const selectedRun = runs.find((run) => run.id === selectedRunId) ?? runs[0] ?? null;
+
+  // Derived selections for organization entities
+  const companyAgents = useMemo(() => snapshot?.agents.filter((a) => !currentCompany || a.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const selectedAgent = companyAgents.find((a) => a.id === selectedAgentId) ?? null;
+  const companyGoals = useMemo(() => snapshot?.goals.filter((g) => !currentCompany || g.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const selectedGoal = companyGoals.find((g) => g.id === selectedGoalId) ?? null;
+  const companyProjects = useMemo(() => snapshot?.projects.filter((p) => !currentCompany || p.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const selectedProject = companyProjects.find((p) => p.id === selectedProjectId) ?? null;
+
+  // Sidebar badge mapping
+  const navBadges = useMemo<Partial<Record<SectionId, { count: number; tone: "default" | "warn" | "danger" }>>>(() => badges ? {
+    tasks: badges.todoTasks > 0 ? { count: badges.todoTasks, tone: "default" } : undefined,
+    approvals: badges.pendingApprovals > 0 ? { count: badges.pendingApprovals, tone: "warn" } : undefined,
+    costs: badges.budgetWarnings > 0 ? { count: badges.budgetWarnings, tone: "danger" } : undefined,
+  } : {}, [badges]);
+
+  const liveRuns = useMemo(() => runs.filter((run) => run.status === "running" || run.status === "queued"), [runs]);
+  const failedRuns = useMemo(() => runs.filter((run) => ["failed", "timed_out", "interrupted"].includes(run.status)), [runs]);
+  const pendingApprovals = useMemo(() => approvals.filter((approval) => approval.state === "pending"), [approvals]);
+  const tasksInProgress = useMemo(() => tasks.filter((task) => task.status === "in_progress" || task.status === "in_review"), [tasks]);
+  const companyWorkspaces = useMemo(() => snapshot?.workspaces.filter((workspace) => !currentCompany || workspace.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const companyCosts = useMemo(() => snapshot?.costs.filter((entry) => !currentCompany || entry.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const filteredActivity = useMemo(() => snapshot?.activity.filter((entry) => !currentCompany || entry.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const companySecrets = useMemo(() => snapshot?.secrets.filter((secret) => !currentCompany || secret.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const totalSpend = useMemo(() => companyCosts.reduce((sum, entry) => sum + (entry.amountUsd ?? 0), 0), [companyCosts]);
+  const overviewRows = useMemo(() => [
+    { label: "Live runs", value: String(liveRuns.length), tone: liveRuns.length > 0 ? "text-[color:var(--success)]" : "" },
+    { label: "Pending approvals", value: String(pendingApprovals.length), tone: pendingApprovals.length > 0 ? "text-[color:var(--warn)]" : "" },
+    { label: "Active tasks", value: String(tasksInProgress.length), tone: "" },
+    { label: "Known spend", value: formatMoney(totalSpend), tone: "" },
+  ], [liveRuns, pendingApprovals, tasksInProgress, totalSpend]);
+
+  // Command palette entity search
+  const paletteQuery = commandPaletteSearch.trim().toLowerCase();
+  const paletteResults = useMemo(() => {
+    const filteredNavItems = paletteQuery
+      ? navItems.filter((item) => item.label.toLowerCase().includes(paletteQuery) || item.id.toLowerCase().includes(paletteQuery))
+      : navItems;
+    const matchedAgents = paletteQuery ? companyAgents.filter((a) => a.name.toLowerCase().includes(paletteQuery) || a.role.toLowerCase().includes(paletteQuery)).slice(0, 5) : [];
+    const matchedTasks = paletteQuery ? tasks.filter((t) => t.title.toLowerCase().includes(paletteQuery)).slice(0, 5) : [];
+    const matchedGoals = paletteQuery ? companyGoals.filter((g) => g.title.toLowerCase().includes(paletteQuery)).slice(0, 5) : [];
+    const matchedProjects = paletteQuery ? companyProjects.filter((p) => p.name.toLowerCase().includes(paletteQuery)).slice(0, 5) : [];
+    const hasEntityResults = matchedAgents.length > 0 || matchedTasks.length > 0 || matchedGoals.length > 0 || matchedProjects.length > 0;
+    return { filteredNavItems, matchedAgents, matchedTasks, matchedGoals, matchedProjects, hasEntityResults };
+  }, [paletteQuery, companyAgents, tasks, companyGoals, companyProjects]);
+  const { filteredNavItems, matchedAgents, matchedTasks, matchedGoals, matchedProjects, hasEntityResults } = paletteResults;
+
+  const setCompany = useCallback(async (companyId: string) => {
+    if (companyId === "__new__") {
+      setShowOnboarding(true);
+      return;
+    }
+    try {
+      unwrap(await window.agentCompany.setCurrentCompany(companyId));
+      await refresh();
+      setError(null);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }, [refresh]);
+
+  const deleteCompany = useCallback(async (companyId: string) => {
+    try {
+      unwrap(await window.agentCompany.deleteCompany(companyId));
+      setConfirmDeleteCompanyId(null);
+      setCompanySwitcherOpen(false);
+      await refresh();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }, [refresh]);
+
+  const startRun = useCallback(async (taskId: string) => {
+    const result = await window.agentCompany.startTaskRun({ taskId });
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    setSelectedRunId(result.data);
+    setConsoleOpen(true);
+    await refresh();
+  }, [refresh]);
+
+  const cancelRun = useCallback(async (runId: string) => {
+    try {
+      unwrap(await window.agentCompany.cancelRun({ runId }));
+      await refresh();
+      setError(null);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }, [refresh]);
+
+  const quickConnectorCheck = useCallback(async () => {
+    if (!selectedConnector) return;
+    try {
+      unwrap(await window.agentCompany.testConnector(selectedConnector.id));
+      await refresh();
+      setError(null);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }, [selectedConnector, refresh]);
+
+  if (!snapshot) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center text-[13px] text-[color:var(--muted)]">
+        Loading local profile...
+      </div>
+    );
+  }
+
+  if (snapshot.companies.length === 0 || showOnboarding) {
+    return <CompanyOnboarding connectors={snapshot.connectors} onDone={async () => { setShowOnboarding(false); await refresh(); }} />;
+  }
+
+  return (
+    <div className={`grid h-[100dvh] overflow-hidden bg-[color:var(--bg)] ${sidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[220px_minmax(0,1fr)]"}`}>
+      <aside className="flex h-[100dvh] flex-col overflow-hidden border-r border-[color:var(--line)] bg-[color:var(--panel)]">
+        {sidebarCollapsed ? (
+          <div className="sidebar-drag flex items-center justify-center px-2 pb-3 pt-[38px]">
+            <button
+              aria-label="Open command palette"
+              title="Command palette"
+              className="focus-ring flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[6px] border border-[color:var(--line)] text-[color:var(--muted)] transition hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)]"
+              onClick={() => setCommandPaletteOpen(true)}
+            >
+              <Command size={14} />
+            </button>
+          </div>
+        ) : (
+          <div className="sidebar-drag flex items-center gap-2.5 px-4 pb-4 pt-[38px]">
+            <div className="relative min-w-0 flex-1">
+              <button
+                type="button"
+                className="focus-ring flex w-full items-center gap-2 rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)] px-2.5 py-1.5 text-left text-[13px] font-medium text-[color:var(--text)] transition hover:bg-[color:var(--panel-soft)]"
+                onClick={() => setCompanySwitcherOpen((v) => !v)}
+              >
+                <span className="min-w-0 flex-1 truncate">{currentCompany?.name ?? "Select company"}</span>
+                <CaretUpDown size={14} className="shrink-0 text-[color:var(--muted)]" />
+              </button>
+              {companySwitcherOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => { setCompanySwitcherOpen(false); setConfirmDeleteCompanyId(null); }} />
+                  <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] shadow-lg">
+                    <div className="max-h-[240px] overflow-y-auto py-1">
+                      {snapshot.companies.map((company) => (
+                        <div key={company.id} className="group flex items-center">
+                          {confirmDeleteCompanyId === company.id ? (
+                            <div className="flex w-full items-center gap-2 px-3 py-2">
+                              <span className="flex-1 truncate text-[12px] text-[color:var(--danger)]">Delete {company.name}?</span>
+                              <button
+                                type="button"
+                                className="rounded px-2 py-0.5 text-[11px] font-semibold text-[color:var(--danger)] transition hover:bg-[color:var(--danger)] hover:text-white"
+                                onClick={() => void deleteCompany(company.id)}
+                              >
+                                Yes
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded px-2 py-0.5 text-[11px] font-semibold text-[color:var(--muted)] transition hover:bg-[color:var(--panel-soft)]"
+                                onClick={() => setConfirmDeleteCompanyId(null)}
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                className={`flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 text-left text-[13px] transition hover:bg-[color:var(--panel-soft)] ${
+                                  company.id === currentCompany?.id ? "font-semibold text-[color:var(--text)]" : "text-[color:var(--muted-strong)]"
+                                }`}
+                                onClick={() => { void setCompany(company.id); setCompanySwitcherOpen(false); }}
+                              >
+                                <span className="w-4 shrink-0">{company.id === currentCompany?.id ? <Check size={14} weight="bold" className="text-[color:var(--accent)]" /> : null}</span>
+                                <span className="min-w-0 flex-1 truncate">{company.name}</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="mr-2 rounded p-1 text-[color:var(--muted)] opacity-0 transition hover:bg-[color:var(--danger)] hover:text-white group-hover:opacity-100"
+                                title={`Delete ${company.name}`}
+                                onClick={() => setConfirmDeleteCompanyId(company.id)}
+                              >
+                                <Trash size={13} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-t border-[color:var(--line)]">
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-[color:var(--muted-strong)] transition hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)]"
+                        onClick={() => { void setCompany("__new__"); setCompanySwitcherOpen(false); }}
+                      >
+                        <Plus size={14} />
+                        <span>New company</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            <button
+              aria-label="Open command palette"
+              className="focus-ring flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[6px] border border-[color:var(--line)] text-[color:var(--muted)] transition hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)]"
+              onClick={() => setCommandPaletteOpen(true)}
+            >
+              <Command size={14} />
+            </button>
+          </div>
+        )}
+        <nav aria-label="Main navigation" className={`flex-1 overflow-y-auto pb-3 ${sidebarCollapsed ? "px-1.5" : "px-3"}`}>
+          {navGroups.map((group) => (
+            <div key={group.label} className="mb-1">
+              {!sidebarCollapsed ? (
+                <div className="px-3 pb-1.5 pt-4 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{group.label}</div>
+              ) : (
+                <div className="pb-1 pt-3" />
+              )}
+              <div className="space-y-0.5">
+                {group.items.map((item) => (
+                  <SectionButton
+                    key={item.id}
+                    active={section === item.id}
+                    label={item.label}
+                    icon={item.icon}
+                    onClick={() => setSection(item.id)}
+                    badge={navBadges[item.id]?.count}
+                    badgeTone={navBadges[item.id]?.tone}
+                    collapsed={sidebarCollapsed}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </nav>
+        <div className={`border-t border-[color:var(--line)] py-2 ${sidebarCollapsed ? "px-1.5" : "px-3"}`}>
+          <SectionButton
+            active={section === "settings"}
+            label="Settings"
+            icon={Gear}
+            onClick={() => setSection("settings")}
+            collapsed={sidebarCollapsed}
+          />
+          <button
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={`focus-ring mt-1 flex w-full items-center rounded-[6px] py-[7px] text-[color:var(--muted)] transition duration-150 hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)] ${sidebarCollapsed ? "justify-center p-2" : "gap-2.5 px-3"}`}
+            onClick={() => setSidebarCollapsed((c) => !c)}
+          >
+            <SidebarSimple size={sidebarCollapsed ? 18 : 17} className={sidebarCollapsed ? "" : ""} />
+            {!sidebarCollapsed ? <span className="text-[13px] font-medium tracking-[0.005em]">Collapse</span> : null}
+          </button>
+        </div>
+      </aside>
+
+      <main aria-label="Content" className="flex min-w-0 flex-col overflow-hidden">
+        <div className="flex-1 overflow-auto">
+        <div className="mx-auto flex w-full max-w-[1040px] flex-col px-6 py-6 lg:px-10 lg:py-8">
+        <header className="mb-8 flex items-start justify-between gap-4 border-b border-[color:var(--line)] pb-5 lg:mb-10 lg:gap-6">
+          <h1 className="text-[24px] tracking-[-0.03em] text-[color:var(--text)] lg:text-[31px]">
+            {navItems.find((item) => item.id === section)?.label}
+          </h1>
+          <div className="flex shrink-0 items-center gap-3 lg:gap-5">
+            <button
+              type="button"
+              aria-label="Refresh"
+              title="Refresh"
+              className="focus-ring inline-flex items-center gap-2 py-1 text-[12px] font-semibold text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
+              onClick={() => void refresh()}
+            >
+              <ArrowClockwise size={16} />
+              <span className="hidden lg:inline">Refresh</span>
+            </button>
+            <button
+              type="button"
+              aria-label={consoleOpen ? "Hide console" : "Show console"}
+              title={consoleOpen ? "Hide console" : "Show console"}
+              className="focus-ring inline-flex items-center gap-2 py-1 text-[12px] font-semibold text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
+              onClick={() => setConsoleOpen((current) => !current)}
+            >
+              <TerminalWindow size={16} />
+              <span className="hidden lg:inline">{consoleOpen ? "Hide console" : "Show console"}</span>
+            </button>
+          </div>
+        </header>
+
+        {error ? (
+          <div className="mb-6 flex items-center gap-3 rounded-[10px] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
+            <WarningCircle size={18} />
+            <span>{error}</span>
+          </div>
+        ) : null}
+
+        <div className="min-h-0 flex-1">
+          <ErrorBoundary>
+            <AnimatePresence mode="wait">
+            <motion.div
+              key={section}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={pageTransition}
+              className="space-y-14"
+            >
+              {section === "overview" ? (
+                <>
+                  {/* Status metrics */}
+                  <section className="space-y-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Current status</div>
+                    <div className="grid grid-cols-2 border-y border-[color:var(--line)] lg:grid-cols-4">
+                      {overviewRows.map((row, index) => (
+                        <div
+                          key={row.label}
+                          className={`px-4 py-4 lg:px-5 lg:first:pl-0 lg:last:pr-0 ${
+                            index > 0 ? "border-l border-[color:var(--line)]" : ""
+                          } ${index >= 2 ? "border-t border-[color:var(--line)] lg:border-t-0" : ""}`}
+                        >
+                          <div className="text-[12px] font-medium text-[color:var(--muted)]">{row.label}</div>
+                          <div className={`mono text-[18px] font-semibold tracking-[-0.01em] sm:mt-2 ${row.tone || "text-[color:var(--text)]"}`}>{row.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  {/* Live runs */}
+                  {liveRuns.length > 0 ? (
+                    <section className="space-y-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--success)]">Live runs</div>
+                      <ListFrame>
+                        {liveRuns.slice(0, 5).map((run) => {
+                          const agent = companyAgents.find((a) => a.id === run.agentId);
+                          const task = tasks.find((t) => t.id === run.taskId);
+                          return (
+                            <ListRow key={run.id} onClick={() => { setSelectedRunId(run.id); setConsoleOpen(true); }}>
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="min-w-0">
+                                  <div className="truncate text-[14px] font-medium text-[color:var(--text)]">{task?.title ?? run.id.slice(0, 8)}</div>
+                                  <div className="mt-1 flex items-center gap-3 text-[11px] uppercase tracking-[0.12em] text-[color:var(--muted)]">
+                                    {agent ? <span>{agent.name}</span> : null}
+                                    <span>{run.connectorId.replace("_local", "")}</span>
+                                    {run.model ? <span className="mono text-[10px] normal-case tracking-normal">{run.model}</span> : null}
+                                  </div>
+                                </div>
+                                <StatusPill status={run.status} />
+                              </div>
+                            </ListRow>
+                          );
+                        })}
+                      </ListFrame>
+                    </section>
+                  ) : null}
+
+                  {/* Needs attention: pending approvals + failed runs */}
+                  {(pendingApprovals.length > 0 || failedRuns.length > 0) ? (
+                    <section className="space-y-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--warn)]">Needs attention</div>
+                      <ListFrame>
+                        {pendingApprovals.slice(0, 4).map((approval) => {
+                          const requester = companyAgents.find((a) => a.id === approval.requestedByAgentId);
+                          return (
+                            <ListRow key={approval.id} onClick={() => { setSelectedApprovalId(approval.id); setSection("approvals"); }}>
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="min-w-0">
+                                  <div className="truncate text-[14px] font-medium text-[color:var(--text)]">{approval.payloadSummary}</div>
+                                  <div className="mt-1 flex items-center gap-3 text-[11px] uppercase tracking-[0.12em] text-[color:var(--muted)]">
+                                    <span>{approval.type.replaceAll("_", " ")}</span>
+                                    {requester ? <span>by {requester.name}</span> : null}
+                                  </div>
+                                </div>
+                                <StatusPill status={approval.state} />
+                              </div>
+                            </ListRow>
+                          );
+                        })}
+                        {failedRuns.slice(0, 3).map((run) => {
+                          const agent = companyAgents.find((a) => a.id === run.agentId);
+                          return (
+                            <ListRow key={run.id} onClick={() => { setSelectedRunId(run.id); setConsoleOpen(true); }}>
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="min-w-0">
+                                  <div className="truncate text-[14px] font-medium text-[color:var(--text)]">{run.summary || "Run ended with an error"}</div>
+                                  <div className="mt-1 flex items-center gap-3 text-[11px] text-[color:var(--danger)]">
+                                    {agent ? <span className="uppercase tracking-[0.12em]">{agent.name}</span> : null}
+                                    {run.errorMessage ? <span className="truncate">{run.errorMessage}</span> : null}
+                                  </div>
+                                </div>
+                                <StatusPill status={run.status} />
+                              </div>
+                            </ListRow>
+                          );
+                        })}
+                      </ListFrame>
+                    </section>
+                  ) : null}
+
+                  {/* Budget alerts */}
+                  {(() => {
+                    const budgetWarningAgents = companyAgents.filter(
+                      (a) => a.budgetMonthlyUsd > 0 && (a.spentMonthlyUsd / a.budgetMonthlyUsd) >= 0.8,
+                    );
+                    if (budgetWarningAgents.length === 0) return null;
+                    return (
+                      <section className="space-y-3">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--danger)]">Budget alerts</div>
+                        <ListFrame>
+                          {budgetWarningAgents.map((agent) => {
+                            const pct = agent.budgetMonthlyUsd > 0 ? Math.round((agent.spentMonthlyUsd / agent.budgetMonthlyUsd) * 100) : 0;
+                            const overBudget = agent.spentMonthlyUsd >= agent.budgetMonthlyUsd;
+                            return (
+                              <ListRow key={agent.id} onClick={() => { setSelectedAgentId(agent.id); setSection("agents"); }}>
+                                <div className="flex items-center justify-between gap-4">
+                                  <div className="min-w-0">
+                                    <div className="text-[14px] font-medium text-[color:var(--text)]">{agent.name}</div>
+                                    <div className="mt-1 flex items-center gap-3 text-[11px] text-[color:var(--muted)]">
+                                      <span className="uppercase tracking-[0.12em]">{agent.role}</span>
+                                      <span className={overBudget ? "text-[color:var(--danger)]" : "text-[color:var(--warn)]"}>
+                                        {formatMoney(agent.spentMonthlyUsd)} / {formatMoney(agent.budgetMonthlyUsd)} ({pct}%)
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <StatusPill status={overBudget ? "error" : "degraded"} />
+                                </div>
+                              </ListRow>
+                            );
+                          })}
+                        </ListFrame>
+                      </section>
+                    );
+                  })()}
+
+                  {/* Connector health */}
+                  <section className="space-y-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Connector health</div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {snapshot.connectors.map((connector) => {
+                        const isReady = connector.status === "ready" || connector.status === "degraded";
+                        const isError = connector.status === "error" || connector.status === "auth_required";
+                        return (
+                          <button
+                            key={connector.id}
+                            type="button"
+                            onClick={() => { setSelectedConnectorId(connector.id); setSection("connectors"); }}
+                            className={`focus-ring flex items-center gap-3 rounded-[10px] border px-4 py-3 text-left transition duration-150 hover:bg-[color:var(--panel-soft)] ${
+                              isError ? "border-[color:var(--danger)] border-opacity-30" : "border-[color:var(--line)]"
+                            }`}
+                          >
+                            <div className={`h-2 w-2 shrink-0 rounded-full ${
+                              isReady ? "bg-[color:var(--success)]" : isError ? "bg-[color:var(--danger)]" : "bg-[color:var(--muted)]"
+                            }`} />
+                            <div className="min-w-0">
+                              <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{connector.label}</div>
+                              <div className="truncate text-[11px] text-[color:var(--muted)]">{connector.status.replaceAll("_", " ")}</div>
+                            </div>
+                            {!connector.capabilityMatrix.costAttribution ? (
+                              <span className="ml-auto shrink-0 rounded bg-[color:var(--panel-soft)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[color:var(--muted)]">no cost</span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  {/* Open work */}
+                  <section className="space-y-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Open work</div>
+                    <ListFrame>
+                      {tasks.length === 0 ? (
+                        <div className="py-8 text-center text-[13px] text-[color:var(--muted)]">No work queued</div>
+                      ) : (
+                        tasks.slice(0, 8).map((task) => {
+                          const run = runs.find((entry) => entry.id === task.activeRunId) ?? null;
+                          const assignee = companyAgents.find((agent) => agent.id === task.assigneeAgentId) ?? null;
+                          return (
+                            <ListRow key={task.id} onClick={() => { setSection("tasks"); setSelectedTaskId(task.id); }}>
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="min-w-0">
+                                  <div className="truncate text-[14px] font-medium text-[color:var(--text)]">{task.title}</div>
+                                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] uppercase tracking-[0.12em] text-[color:var(--muted)]">
+                                    <span className={task.priority === "critical" ? "text-[color:var(--danger)]" : task.priority === "high" ? "text-[color:var(--warn)]" : ""}>{task.priority}</span>
+                                    {assignee ? <span>{assignee.name}</span> : null}
+                                  </div>
+                                </div>
+                                <StatusPill status={run?.status ?? task.status} />
+                              </div>
+                            </ListRow>
+                          );
+                        })
+                      )}
+                    </ListFrame>
+                  </section>
+
+                  {/* Workspace issues */}
+                  {(() => {
+                    const problemWorkspaces = companyWorkspaces.filter(
+                      (w) => w.state !== "ready",
+                    );
+                    if (problemWorkspaces.length === 0) return null;
+                    return (
+                      <section className="space-y-3">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--warn)]">Workspace issues</div>
+                        <ListFrame>
+                          {problemWorkspaces.map((ws) => (
+                            <ListRow key={ws.id} onClick={() => setSection("workspaces")}>
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="min-w-0">
+                                  <div className="text-[14px] font-medium text-[color:var(--text)]">{ws.name}</div>
+                                  <div className="mt-1 truncate text-[11px] text-[color:var(--muted)] mono">{ws.localPath}</div>
+                                </div>
+                                <StatusPill status={ws.state} />
+                              </div>
+                            </ListRow>
+                          ))}
+                        </ListFrame>
+                      </section>
+                    );
+                  })()}
+                </>
+              ) : null}
+
+              {section === "connectors" && selectedConnector ? (
+                <div className="space-y-10">
+                  <Panel title="Connector registry">
+                    <ListFrame>
+                      {snapshot.connectors.map((connector) => (
+                        <ListRow
+                          key={connector.id}
+                          onClick={() => setSelectedConnectorId(connector.id)}
+                          className={`cursor-pointer transition-colors duration-100 ${
+                            selectedConnector.id === connector.id
+                              ? "bg-[color:var(--accent-soft)]"
+                              : "hover:bg-[color:var(--panel-soft)]"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0">
+                              <div className="text-[14px] font-medium text-[color:var(--text)]">{connector.label}</div>
+                              <div className="mt-1 truncate text-[11px] uppercase tracking-[0.12em] text-[color:var(--muted)]">{connector.command}</div>
+                            </div>
+                            <StatusPill status={connector.status} />
+                          </div>
+                        </ListRow>
+                      ))}
+                    </ListFrame>
+                  </Panel>
+                  <Panel
+                    title={selectedConnector.label}
+                    eyebrow={undefined}
+                    action={<ActionButton label="Run health check" onClick={() => void quickConnectorCheck()} icon={Wrench} tone="accent" />}
+                  >
+                    <ConnectorEditor connector={selectedConnector} onSaved={refresh} />
+                  </Panel>
+                </div>
+              ) : null}
+
+              {section === "agents" ? (
+                <>
+                  <Panel title="Agent roster" action={<ActionButton label="New agent" icon={Robot} tone="accent" onClick={() => setSelectedAgentId("__new__")} />}>
+                    <AgentRoster
+                      agents={companyAgents}
+                      connectors={snapshot.connectors}
+                      workspaces={companyWorkspaces}
+                      selectedAgentId={selectedAgentId}
+                      onSelect={setSelectedAgentId}
+                    />
+                  </Panel>
+                  <Modal open={selectedAgentId === "__new__"} title="New agent" onClose={() => setSelectedAgentId(null)}>
+                    <AgentCreator companyId={currentCompany!.id} connectors={snapshot.connectors} workspaces={companyWorkspaces} agents={companyAgents} onSaved={async () => { setSelectedAgentId(null); await refresh(); }} />
+                  </Modal>
+                  <Modal open={!!selectedAgent} title={selectedAgent ? `Edit: ${selectedAgent.name}` : ""} onClose={() => setSelectedAgentId(null)}>
+                    {selectedAgent ? (
+                      <AgentEditor
+                        key={selectedAgentId}
+                        agent={selectedAgent}
+                        connectors={snapshot.connectors}
+                        workspaces={companyWorkspaces}
+                        agents={companyAgents}
+                        companyId={currentCompany!.id}
+                        onSaved={async () => { setSelectedAgentId(null); await refresh(); }}
+                        onDeleted={async () => { setSelectedAgentId(null); await refresh(); }}
+                      />
+                    ) : null}
+                  </Modal>
+                </>
+              ) : null}
+
+              {section === "orgchart" ? (
+                <OrgChart agents={companyAgents} onSelectAgent={(id) => { setSelectedAgentId(id); setSection("agents"); }} />
+              ) : null}
+
+              {section === "goals" ? (
+                <>
+                  <Panel title="Goal stack" action={<ActionButton label="New goal" icon={Target} tone="accent" onClick={() => setSelectedGoalId("__new__")} />}>
+                    <GoalList goals={companyGoals} agents={companyAgents} selectedGoalId={selectedGoalId} onSelect={setSelectedGoalId} />
+                  </Panel>
+                  <Modal open={selectedGoalId === "__new__"} title="New goal" onClose={() => setSelectedGoalId(null)}>
+                    <GoalCreator companyId={currentCompany!.id} agents={companyAgents} goals={companyGoals} onSaved={async () => { setSelectedGoalId(null); await refresh(); }} />
+                  </Modal>
+                  <Modal open={!!selectedGoal} title={selectedGoal ? `Edit: ${selectedGoal.title}` : ""} onClose={() => setSelectedGoalId(null)}>
+                    {selectedGoal ? (
+                      <GoalEditor
+                        key={selectedGoalId}
+                        goal={selectedGoal}
+                        goals={companyGoals}
+                        agents={companyAgents}
+                        companyId={currentCompany!.id}
+                        onSaved={async () => { setSelectedGoalId(null); await refresh(); }}
+                        onDeleted={async () => { setSelectedGoalId(null); await refresh(); }}
+                      />
+                    ) : null}
+                  </Modal>
+                </>
+              ) : null}
+
+              {section === "projects" ? (
+                <>
+                  <Panel title="Projects" action={<ActionButton label="New project" icon={Kanban} tone="accent" onClick={() => setSelectedProjectId("__new__")} />}>
+                    <ProjectList projects={companyProjects} goals={companyGoals} agents={companyAgents} workspaces={companyWorkspaces} selectedProjectId={selectedProjectId} onSelect={setSelectedProjectId} />
+                  </Panel>
+                  <Modal open={selectedProjectId === "__new__"} title="New project" onClose={() => setSelectedProjectId(null)}>
+                    <ProjectCreator companyId={currentCompany!.id} goals={companyGoals} agents={companyAgents} onSaved={async () => { setSelectedProjectId(null); await refresh(); }} />
+                  </Modal>
+                  <Modal open={!!selectedProject} title={selectedProject ? `Edit: ${selectedProject.name}` : ""} onClose={() => setSelectedProjectId(null)}>
+                    {selectedProject ? (
+                      <ProjectEditor
+                        key={selectedProjectId}
+                        project={selectedProject}
+                        goals={companyGoals}
+                        agents={companyAgents}
+                        companyId={currentCompany!.id}
+                        onSaved={async () => { setSelectedProjectId(null); await refresh(); }}
+                        onDeleted={async () => { setSelectedProjectId(null); await refresh(); }}
+                      />
+                    ) : null}
+                  </Modal>
+                </>
+              ) : null}
+
+              {section === "tasks" ? (
+                <>
+                  <Panel title="Task queue" action={<ActionButton label="New task" icon={ListChecks} tone="accent" onClick={() => setSelectedTaskId("__new__")} />}>
+                    <TaskQueue tasks={tasks} runs={runs} onSelect={setSelectedTaskId} selectedTaskId={selectedTask?.id ?? null} />
+                  </Panel>
+                  <Modal open={selectedTaskId === "__new__"} title="New task" onClose={() => setSelectedTaskId(null)}>
+                    <TaskCreator companyId={currentCompany!.id} goals={companyGoals} projects={companyProjects} agents={companyAgents} workspaces={companyWorkspaces} onSaved={async () => { setSelectedTaskId(null); await refresh(); }} />
+                  </Modal>
+                  <Modal open={!!selectedTask} title={selectedTask?.title ?? ""} onClose={() => setSelectedTaskId(null)} width="720px">
+                    {selectedTask ? (
+                      <TaskInspector
+                        task={selectedTask}
+                        tasks={tasks}
+                        runs={runs.filter((run) => run.taskId === selectedTask.id)}
+                        agents={companyAgents}
+                        goals={companyGoals}
+                        projects={companyProjects}
+                        workspaces={companyWorkspaces}
+                        companyId={currentCompany!.id}
+                        onRun={startRun}
+                        onCancelRun={cancelRun}
+                        onCreateApproval={async () => {
+                          const isBlocked = selectedTask.status === "blocked";
+                          const approvalId = unwrap(await window.agentCompany.requestApproval({
+                            companyId: currentCompany!.id,
+                            relatedTaskId: selectedTask.id,
+                            requestedByAgentId: selectedTask.assigneeAgentId,
+                            type: isBlocked ? "secret_access" : "approve_ceo_strategy",
+                            payloadSummary: isBlocked
+                              ? `Blocker: ${selectedTask.title} — needs operator assistance`
+                              : `Review needed: ${selectedTask.title}`,
+                            impactSummary: isBlocked
+                              ? "Agent is blocked and needs operator input (credentials, access, or decision)."
+                              : "No automated reviewer available. Operator review required.",
+                          }));
+                          setSelectedApprovalId(approvalId);
+                          await refresh();
+                        }}
+                        onDeleted={async () => { setSelectedTaskId(null); await refresh(); }}
+                      />
+                    ) : null}
+                  </Modal>
+                </>
+              ) : null}
+
+              {section === "approvals" ? (
+                <>
+                  <Panel title="Agent reviews in progress">
+                    <PendingReviewList tasks={tasks} agents={companyAgents} />
+                  </Panel>
+                  <Panel title="Pending approvals">
+                    <ApprovalList approvals={approvals} selectedApprovalId={selectedApproval?.id ?? null} onSelect={setSelectedApprovalId} />
+                  </Panel>
+                  <Modal open={!!selectedApproval} title={selectedApproval?.payloadSummary ?? "Approval detail"} onClose={() => setSelectedApprovalId(null)}>
+                    {selectedApproval ? (
+                      <ApprovalInspector
+                        approval={selectedApproval}
+                        agents={companyAgents}
+                        tasks={tasks}
+                        companyId={currentCompany!.id}
+                        onDecide={async (state, note) => {
+                          unwrap(await window.agentCompany.decideApproval({ approvalId: selectedApproval.id, state, decisionNote: note ?? `${state} from desktop control surface.` }));
+                          await refresh();
+                        }}
+                        onDeleted={async () => { setSelectedApprovalId(null); await refresh(); }}
+                      />
+                    ) : null}
+                  </Modal>
+                </>
+              ) : null}
+
+              {section === "costs" ? (
+                <EntityWorkspace
+                  title="Costs"
+                  eyebrow={undefined}
+                  primary={
+                    <Panel title="Recent cost entries">
+                      <CostList costs={companyCosts} agents={companyAgents} runs={runs} />
+                    </Panel>
+                  }
+                  secondary={
+                    <Panel title="Budget posture">
+                      <BudgetSummary agents={companyAgents} costs={companyCosts} />
+                    </Panel>
+                  }
+                />
+              ) : null}
+
+              {section === "activity" ? (
+                <Panel title="Activity timeline">
+                  <ActivityList activity={filteredActivity} />
+                </Panel>
+              ) : null}
+
+              {section === "workspaces" ? (
+                <EntityWorkspace
+                  title="Workspaces"
+                  eyebrow={undefined}
+                  primary={
+                    <Panel title="Workspace registry">
+                      <WorkspaceList
+                        workspaces={companyWorkspaces}
+                        projects={companyProjects}
+                        companyId={currentCompany!.id}
+                        onOpen={(path) => window.agentCompany.openPath(path).then(() => undefined)}
+                        onDeleted={refresh}
+                      />
+                    </Panel>
+                  }
+                  secondary={
+                    <Panel title="Add workspace">
+                      <WorkspaceCreator companyId={currentCompany!.id} projects={companyProjects} onSaved={refresh} />
+                    </Panel>
+                  }
+                />
+              ) : null}
+
+              {section === "settings" ? (
+                <div className="space-y-10">
+                  <Panel title="Profile and release">
+                    <SettingsPane snapshot={snapshot} secrets={companySecrets} companyId={currentCompany!.id} onSaved={refresh} />
+                  </Panel>
+                  <Panel title="Secret bindings">
+                    <SecretCreator companyId={currentCompany!.id} onSaved={refresh} />
+                  </Panel>
+                </div>
+              ) : null}
+            </motion.div>
+          </AnimatePresence>
+          </ErrorBoundary>
+        </div>
+        </div>
+        </div>
+
+        <AnimatePresence>
+          {consoleOpen ? (
+            <motion.section
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={panelTransition}
+              className="shrink-0 overflow-hidden border-t border-[color:var(--line)] bg-[color:var(--panel)]"
+            >
+              <div className="flex items-center justify-between px-5 py-2.5">
+                <div className="flex items-center gap-3">
+                  <TerminalWindow size={15} className="text-[color:var(--muted)]" />
+                  <span className="text-[13px] font-semibold text-[color:var(--text)]">Console</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Select
+                    compact
+                    value={selectedRun?.id ?? ""}
+                    onChange={setSelectedRunId}
+                    options={(runs.length > 0 ? runs : [{ id: "", summary: "No runs" } as RunRecord]).map((run) => ({
+                      value: run.id,
+                      label: run.summary || `Run ${run.id.slice(0, 8)}`,
+                    }))}
+                  />
+                  <button
+                    type="button"
+                    className="focus-ring rounded-[6px] p-1 text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
+                    onClick={() => setConsoleOpen(false)}
+                    aria-label="Close console"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+              <div className="grid border-t border-[color:var(--line)] xl:grid-cols-[240px_minmax(0,1fr)]">
+                <div className="border-b border-[color:var(--line)] px-5 py-3 xl:border-b-0 xl:border-r">
+                  {selectedRun ? (
+                    <div className="space-y-2.5 text-[12px] text-[color:var(--muted-strong)]">
+                      <div className="flex items-center justify-between">
+                        <span>Status</span>
+                        <StatusPill status={selectedRun.status} />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Started</span>
+                        <span className="mono text-[11px]">{formatTime(selectedRun.startedAt)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Finished</span>
+                        <span className="mono text-[11px]">{formatTime(selectedRun.finishedAt)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Cost</span>
+                        <span className="mono text-[11px]">{formatMoney(selectedRun.costUsd)}</span>
+                      </div>
+                      {selectedRun.logPath ? (
+                        <div className="pt-1">
+                          <ActionButton label="Open log" onClick={() => void window.agentCompany.openPath(selectedRun.logPath!)} icon={FolderOpen} />
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="py-4 text-center text-[12px] text-[color:var(--muted)]">No run selected</div>
+                  )}
+                </div>
+                <div className="h-[200px] overflow-auto px-5 py-3">
+                  <pre className="mono whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--muted-strong)]">
+                    {selectedRun ? logBufferRef.current[selectedRun.id] ?? "Waiting for log output..." : "No run selected."}
+                  </pre>
+                </div>
+              </div>
+            </motion.section>
+          ) : null}
+        </AnimatePresence>
+      </main>
+
+      <AnimatePresence>
+        {commandPaletteOpen ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-start justify-center bg-[color:var(--bg)]/72 px-4 pt-24 backdrop-blur-sm"
+            onClick={() => { setCommandPaletteOpen(false); setCommandPaletteSearch(""); }}
+          >
+            <motion.div
+              ref={paletteTrapRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Command palette"
+              initial={{ opacity: 0, y: 14, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.98 }}
+              transition={panelTransition}
+              className="w-full max-w-[560px] rounded-[12px] border border-[color:var(--line)] bg-[color:var(--panel)] px-5 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-3 flex items-center gap-3">
+                <MagnifyingGlass size={18} className="text-[color:var(--accent)]" />
+                <input
+                  type="text"
+                  aria-label="Search"
+                  className="flex-1 bg-transparent text-[14px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] outline-none"
+                  placeholder="Search sections, agents, tasks, goals, projects..."
+                  value={commandPaletteSearch}
+                  onChange={(e) => setCommandPaletteSearch(e.target.value)}
+                  autoFocus
+                />
+                {commandPaletteSearch && (
+                  <button
+                    className="text-[12px] text-[color:var(--muted)] hover:text-[color:var(--text)]"
+                    onClick={() => setCommandPaletteSearch("")}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {filteredNavItems.length > 0 ? (
+                <>
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Sections</div>
+                  <ListFrame>
+                    {filteredNavItems.map((item) => (
+                      <ListRow
+                        key={item.id}
+                        className="py-3"
+                        onClick={() => {
+                          setSection(item.id);
+                          setCommandPaletteOpen(false);
+                          setCommandPaletteSearch("");
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 text-[color:var(--text)]">
+                            <item.icon size={16} />
+                            <span className="text-[13px] tracking-[0.005em]">{item.label}</span>
+                          </div>
+                          <span className="mono text-[11px] text-[color:var(--muted)]">{item.id}</span>
+                        </div>
+                      </ListRow>
+                    ))}
+                  </ListFrame>
+                </>
+              ) : null}
+
+              {hasEntityResults ? (
+                <div className="mt-3 space-y-3">
+                  {matchedAgents.length > 0 ? (
+                    <>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Agents</div>
+                      <ListFrame>
+                        {matchedAgents.map((agent) => (
+                          <ListRow
+                            key={agent.id}
+                            className="py-3"
+                            onClick={() => {
+                              setSection("agents");
+                              setSelectedAgentId(agent.id);
+                              setCommandPaletteOpen(false);
+                              setCommandPaletteSearch("");
+                            }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3 text-[color:var(--text)]">
+                                <Robot size={16} />
+                                <span className="text-[13px] tracking-[0.005em]">{agent.name}</span>
+                                <span className="text-[11px] text-[color:var(--muted)]">{agent.role}</span>
+                              </div>
+                              <StatusPill status={agent.status} />
+                            </div>
+                          </ListRow>
+                        ))}
+                      </ListFrame>
+                    </>
+                  ) : null}
+
+                  {matchedTasks.length > 0 ? (
+                    <>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Tasks</div>
+                      <ListFrame>
+                        {matchedTasks.map((task) => (
+                          <ListRow
+                            key={task.id}
+                            className="py-3"
+                            onClick={() => {
+                              setSection("tasks");
+                              setSelectedTaskId(task.id);
+                              setCommandPaletteOpen(false);
+                              setCommandPaletteSearch("");
+                            }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3 text-[color:var(--text)]">
+                                <ListChecks size={16} />
+                                <span className="text-[13px] tracking-[0.005em]">{task.title}</span>
+                              </div>
+                              <StatusPill status={task.status} />
+                            </div>
+                          </ListRow>
+                        ))}
+                      </ListFrame>
+                    </>
+                  ) : null}
+
+                  {matchedGoals.length > 0 ? (
+                    <>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Goals</div>
+                      <ListFrame>
+                        {matchedGoals.map((goal) => (
+                          <ListRow
+                            key={goal.id}
+                            className="py-3"
+                            onClick={() => {
+                              setSection("goals");
+                              setSelectedGoalId(goal.id);
+                              setCommandPaletteOpen(false);
+                              setCommandPaletteSearch("");
+                            }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3 text-[color:var(--text)]">
+                                <Target size={16} />
+                                <span className="text-[13px] tracking-[0.005em]">{goal.title}</span>
+                              </div>
+                              <StatusPill status={goal.status} />
+                            </div>
+                          </ListRow>
+                        ))}
+                      </ListFrame>
+                    </>
+                  ) : null}
+
+                  {matchedProjects.length > 0 ? (
+                    <>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Projects</div>
+                      <ListFrame>
+                        {matchedProjects.map((project) => (
+                          <ListRow
+                            key={project.id}
+                            className="py-3"
+                            onClick={() => {
+                              setSection("projects");
+                              setSelectedProjectId(project.id);
+                              setCommandPaletteOpen(false);
+                              setCommandPaletteSearch("");
+                            }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3 text-[color:var(--text)]">
+                                <Kanban size={16} />
+                                <span className="text-[13px] tracking-[0.005em]">{project.name}</span>
+                              </div>
+                              <StatusPill status={project.status} />
+                            </div>
+                          </ListRow>
+                        ))}
+                      </ListFrame>
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {paletteQuery && filteredNavItems.length === 0 && !hasEntityResults ? (
+                <div className="py-6 text-center text-[13px] text-[color:var(--muted)]">No results for "{commandPaletteSearch}"</div>
+              ) : null}
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+    </div>
+  );
+}
