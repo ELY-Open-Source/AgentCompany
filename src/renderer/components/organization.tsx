@@ -1028,8 +1028,8 @@ export function ProjectEditor({
 /*  OrgChart – tree layout with pan & zoom */
 /* ------------------------------------------------------------------ */
 
-const CARD_W = 200;
-const CARD_H = 100;
+const CARD_W = 220;
+const CARD_H = 110;
 const GAP_X = 32;
 const GAP_Y = 80;
 const CHART_PADDING = 60;
@@ -1252,13 +1252,16 @@ export function OrgChart({
             const x2 = child.x + CARD_W / 2;
             const y2 = child.y;
             const midY = (y1 + y2) / 2;
+            const isChildRunning = child.agent.status === "running";
             return (
               <path
                 key={`${parent.agent.id}-${child.agent.id}`}
-                d={`M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`}
+                d={`M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`}
                 fill="none"
-                stroke="var(--line-strong)"
-                strokeWidth={1.5}
+                stroke={isChildRunning ? "var(--success)" : "var(--line-strong)"}
+                strokeWidth={isChildRunning ? 2 : 1.5}
+                strokeDasharray={isChildRunning ? "6 3" : "none"}
+                opacity={isChildRunning ? 0.8 : 0.5}
               />
             );
           })}
@@ -1273,32 +1276,65 @@ export function OrgChart({
         {allNodes.map((node) => {
           const dotColor = statusDotColor[node.agent.status] ?? "#a3a3a3";
           const connectorLabel = adapterLabels[node.agent.connectorId] ?? node.agent.connectorId;
+          const initials = node.agent.name.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+          const isRunning = node.agent.status === "running";
+          const isActive = node.agent.status === "active" || isRunning;
+          const isError = node.agent.status === "error";
+          const isPending = node.agent.status === "pending_approval";
+          const isCEO = node.children.length > 0 && !node.agent.reportsTo;
           return (
             <div
               key={node.agent.id}
               data-org-card
-              className="absolute cursor-pointer select-none rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] shadow-sm transition-[box-shadow,border-color] duration-150 hover:border-[color:var(--line-strong)] hover:shadow-md"
+              className={`absolute cursor-pointer select-none rounded-[10px] border bg-[color:var(--panel)] shadow-sm transition-all duration-200 hover:shadow-lg ${
+                isRunning ? "border-[color:var(--success)] shadow-[0_0_12px_rgba(74,222,128,0.15)]" :
+                isError ? "border-[color:var(--danger)] border-opacity-50" :
+                isPending ? "border-[color:var(--warn)] border-dashed" :
+                "border-[color:var(--line)] hover:border-[color:var(--line-strong)]"
+              }`}
               style={{ left: node.x, top: node.y, width: CARD_W, minHeight: CARD_H }}
               onClick={() => onSelectAgent?.(node.agent.id)}
             >
+              {/* Top accent bar for role hierarchy */}
+              <div className={`h-[3px] rounded-t-[9px] ${
+                isCEO ? "bg-[color:var(--accent)]" :
+                node.children.length > 0 ? "bg-[color:var(--warn)]" :
+                "bg-[color:var(--muted)] opacity-30"
+              }`} />
               <div className="flex items-center gap-3 px-4 py-3">
                 <div className="relative shrink-0">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--panel-soft)]">
-                    <Robot size={18} className="text-[color:var(--muted-strong)]" />
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-full text-[13px] font-bold ${
+                    isActive ? "bg-[color:var(--success-soft)] text-[color:var(--success)]" :
+                    isError ? "bg-[color:var(--danger-soft)] text-[color:var(--danger)]" :
+                    "bg-[color:var(--panel-soft)] text-[color:var(--muted-strong)]"
+                  }`}>
+                    {initials}
                   </div>
-                  <span
-                    className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[color:var(--panel)]"
-                    style={{ backgroundColor: dotColor }}
-                  />
+                  {isRunning ? (
+                    <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40" style={{ backgroundColor: dotColor }} />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full border-2 border-[color:var(--panel)]" style={{ backgroundColor: dotColor }} />
+                    </span>
+                  ) : (
+                    <span
+                      className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[color:var(--panel)]"
+                      style={{ backgroundColor: dotColor }}
+                    />
+                  )}
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col items-start">
                   <span className="text-[13px] font-semibold leading-tight text-[color:var(--text)]">{node.agent.name}</span>
                   <span className="mt-0.5 text-[11px] leading-tight text-[color:var(--muted)]">
                     {node.agent.title || node.agent.role}
                   </span>
-                  <span className="mono mt-1 text-[10px] leading-tight text-[color:var(--muted)]">
-                    {connectorLabel}
-                  </span>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className="rounded bg-[color:var(--panel-soft)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+                      {connectorLabel}
+                    </span>
+                    {node.agent.heartbeatEnabled ? (
+                      <Heartbeat size={10} className="text-[color:var(--success)]" />
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </div>

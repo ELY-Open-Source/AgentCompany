@@ -168,8 +168,8 @@ describe("Step 2: CEO phased prompts", () => {
 
     const prompt = buildSystemPrompt(ctx);
     expect(prompt).toContain("Team Building Phase");
-    expect(prompt).toContain("Design Organization");
-    expect(prompt).toContain("Submit Org Plan for Approval");
+    expect(prompt).toContain("Design the Organization Structure");
+    expect(prompt).toContain("Submit Org Strategy for Approval");
     expect(prompt).not.toContain("Awaiting Org Approval");
     expect(prompt).not.toContain("Goal Decomposition");
   });
@@ -239,7 +239,7 @@ describe("Step 2: CEO phased prompts", () => {
     expect(prompt).toContain("Executive / CEO");
     expect(prompt).toContain("Goal Decomposition");
     expect(prompt).toContain("Delegation");
-    expect(prompt).toContain("Credential Escalation");
+    expect(prompt).toContain("Unblock & Coordinate");
     expect(prompt).not.toContain("Team Building Phase");
     expect(prompt).not.toContain("Awaiting Org Approval");
   });
@@ -289,8 +289,8 @@ describe("Step 2: CEO phased prompts", () => {
     });
 
     const prompt = buildSystemPrompt(ctx);
-    expect(prompt).toContain("Do NOT create secret_access approvals directly");
-    expect(prompt).toContain("escalate upward");
+    expect(prompt).toContain("escalate by commenting on YOUR parent task");
+    expect(prompt).toContain("Break down work and delegate it");
   });
 
   it("IC prompt includes credential escalation guidance", () => {
@@ -305,8 +305,8 @@ describe("Step 2: CEO phased prompts", () => {
     });
 
     const prompt = buildSystemPrompt(ctx);
-    expect(prompt).toContain("Your manager will be notified and help resolve it");
-    expect(prompt).toContain("Only create a secret_access approval directly if you have NO manager");
+    expect(prompt).toContain("Your manager is auto-notified and will help");
+    expect(prompt).toContain("comment explaining what API key/account you need");
   });
 });
 

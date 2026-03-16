@@ -36,6 +36,7 @@ import type {
 import type { SidebarBadges } from "@shared/contracts";
 import { CompanyOnboarding } from "./components/CompanyOnboarding";
 import { ConnectorEditor } from "./components/connectors";
+import { Dashboard, KanbanBoard } from "./components/dashboard";
 import { EntityWorkspace } from "./components/EntityWorkspace";
 import {
   ActivityList,
@@ -128,6 +129,7 @@ export function App() {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [taskViewMode, setTaskViewMode] = useState<"list" | "kanban">("list");
   const logBufferRef = useRef<Record<string, string>>({});
   const [, setLogRevision] = useState(0);
   const [badges, setBadges] = useState<SidebarBadges | null>(null);
@@ -530,218 +532,27 @@ export function App() {
               className="space-y-14"
             >
               {section === "overview" ? (
-                <>
-                  {/* Status metrics */}
-                  <section className="space-y-3">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Current status</div>
-                    <div className="grid grid-cols-2 border-y border-[color:var(--line)] lg:grid-cols-4">
-                      {overviewRows.map((row, index) => (
-                        <div
-                          key={row.label}
-                          className={`px-4 py-4 lg:px-5 lg:first:pl-0 lg:last:pr-0 ${
-                            index > 0 ? "border-l border-[color:var(--line)]" : ""
-                          } ${index >= 2 ? "border-t border-[color:var(--line)] lg:border-t-0" : ""}`}
-                        >
-                          <div className="text-[12px] font-medium text-[color:var(--muted)]">{row.label}</div>
-                          <div className={`mono text-[18px] font-semibold tracking-[-0.01em] sm:mt-2 ${row.tone || "text-[color:var(--text)]"}`}>{row.value}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-
-                  {/* Live runs */}
-                  {liveRuns.length > 0 ? (
-                    <section className="space-y-3">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--success)]">Live runs</div>
-                      <ListFrame>
-                        {liveRuns.slice(0, 5).map((run) => {
-                          const agent = companyAgents.find((a) => a.id === run.agentId);
-                          const task = tasks.find((t) => t.id === run.taskId);
-                          return (
-                            <ListRow key={run.id} onClick={() => { setSelectedRunId(run.id); setConsoleOpen(true); }}>
-                              <div className="flex items-center justify-between gap-4">
-                                <div className="min-w-0">
-                                  <div className="truncate text-[14px] font-medium text-[color:var(--text)]">{task?.title ?? run.id.slice(0, 8)}</div>
-                                  <div className="mt-1 flex items-center gap-3 text-[11px] uppercase tracking-[0.12em] text-[color:var(--muted)]">
-                                    {agent ? <span>{agent.name}</span> : null}
-                                    <span>{run.connectorId.replace("_local", "")}</span>
-                                    {run.model ? <span className="mono text-[10px] normal-case tracking-normal">{run.model}</span> : null}
-                                  </div>
-                                </div>
-                                <StatusPill status={run.status} />
-                              </div>
-                            </ListRow>
-                          );
-                        })}
-                      </ListFrame>
-                    </section>
-                  ) : null}
-
-                  {/* Needs attention: pending approvals + failed runs */}
-                  {(pendingApprovals.length > 0 || failedRuns.length > 0) ? (
-                    <section className="space-y-3">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--warn)]">Needs attention</div>
-                      <ListFrame>
-                        {pendingApprovals.slice(0, 4).map((approval) => {
-                          const requester = companyAgents.find((a) => a.id === approval.requestedByAgentId);
-                          return (
-                            <ListRow key={approval.id} onClick={() => { setSelectedApprovalId(approval.id); setSection("approvals"); }}>
-                              <div className="flex items-center justify-between gap-4">
-                                <div className="min-w-0">
-                                  <div className="truncate text-[14px] font-medium text-[color:var(--text)]">{approval.payloadSummary}</div>
-                                  <div className="mt-1 flex items-center gap-3 text-[11px] uppercase tracking-[0.12em] text-[color:var(--muted)]">
-                                    <span>{approval.type.replaceAll("_", " ")}</span>
-                                    {requester ? <span>by {requester.name}</span> : null}
-                                  </div>
-                                </div>
-                                <StatusPill status={approval.state} />
-                              </div>
-                            </ListRow>
-                          );
-                        })}
-                        {failedRuns.slice(0, 3).map((run) => {
-                          const agent = companyAgents.find((a) => a.id === run.agentId);
-                          return (
-                            <ListRow key={run.id} onClick={() => { setSelectedRunId(run.id); setConsoleOpen(true); }}>
-                              <div className="flex items-center justify-between gap-4">
-                                <div className="min-w-0">
-                                  <div className="truncate text-[14px] font-medium text-[color:var(--text)]">{run.summary || "Run ended with an error"}</div>
-                                  <div className="mt-1 flex items-center gap-3 text-[11px] text-[color:var(--danger)]">
-                                    {agent ? <span className="uppercase tracking-[0.12em]">{agent.name}</span> : null}
-                                    {run.errorMessage ? <span className="truncate">{run.errorMessage}</span> : null}
-                                  </div>
-                                </div>
-                                <StatusPill status={run.status} />
-                              </div>
-                            </ListRow>
-                          );
-                        })}
-                      </ListFrame>
-                    </section>
-                  ) : null}
-
-                  {/* Budget alerts */}
-                  {(() => {
-                    const budgetWarningAgents = companyAgents.filter(
-                      (a) => a.budgetMonthlyUsd > 0 && (a.spentMonthlyUsd / a.budgetMonthlyUsd) >= 0.8,
-                    );
-                    if (budgetWarningAgents.length === 0) return null;
-                    return (
-                      <section className="space-y-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--danger)]">Budget alerts</div>
-                        <ListFrame>
-                          {budgetWarningAgents.map((agent) => {
-                            const pct = agent.budgetMonthlyUsd > 0 ? Math.round((agent.spentMonthlyUsd / agent.budgetMonthlyUsd) * 100) : 0;
-                            const overBudget = agent.spentMonthlyUsd >= agent.budgetMonthlyUsd;
-                            return (
-                              <ListRow key={agent.id} onClick={() => { setSelectedAgentId(agent.id); setSection("agents"); }}>
-                                <div className="flex items-center justify-between gap-4">
-                                  <div className="min-w-0">
-                                    <div className="text-[14px] font-medium text-[color:var(--text)]">{agent.name}</div>
-                                    <div className="mt-1 flex items-center gap-3 text-[11px] text-[color:var(--muted)]">
-                                      <span className="uppercase tracking-[0.12em]">{agent.role}</span>
-                                      <span className={overBudget ? "text-[color:var(--danger)]" : "text-[color:var(--warn)]"}>
-                                        {formatMoney(agent.spentMonthlyUsd)} / {formatMoney(agent.budgetMonthlyUsd)} ({pct}%)
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <StatusPill status={overBudget ? "error" : "degraded"} />
-                                </div>
-                              </ListRow>
-                            );
-                          })}
-                        </ListFrame>
-                      </section>
-                    );
-                  })()}
-
-                  {/* Connector health */}
-                  <section className="space-y-3">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Connector health</div>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                      {snapshot.connectors.map((connector) => {
-                        const isReady = connector.status === "ready" || connector.status === "degraded";
-                        const isError = connector.status === "error" || connector.status === "auth_required";
-                        return (
-                          <button
-                            key={connector.id}
-                            type="button"
-                            onClick={() => { setSelectedConnectorId(connector.id); setSection("connectors"); }}
-                            className={`focus-ring flex items-center gap-3 rounded-[10px] border px-4 py-3 text-left transition duration-150 hover:bg-[color:var(--panel-soft)] ${
-                              isError ? "border-[color:var(--danger)] border-opacity-30" : "border-[color:var(--line)]"
-                            }`}
-                          >
-                            <div className={`h-2 w-2 shrink-0 rounded-full ${
-                              isReady ? "bg-[color:var(--success)]" : isError ? "bg-[color:var(--danger)]" : "bg-[color:var(--muted)]"
-                            }`} />
-                            <div className="min-w-0">
-                              <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{connector.label}</div>
-                              <div className="truncate text-[11px] text-[color:var(--muted)]">{connector.status.replaceAll("_", " ")}</div>
-                            </div>
-                            {!connector.capabilityMatrix.costAttribution ? (
-                              <span className="ml-auto shrink-0 rounded bg-[color:var(--panel-soft)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[color:var(--muted)]">no cost</span>
-                            ) : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </section>
-
-                  {/* Open work */}
-                  <section className="space-y-3">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Open work</div>
-                    <ListFrame>
-                      {tasks.length === 0 ? (
-                        <div className="py-8 text-center text-[13px] text-[color:var(--muted)]">No work queued</div>
-                      ) : (
-                        tasks.slice(0, 8).map((task) => {
-                          const run = runs.find((entry) => entry.id === task.activeRunId) ?? null;
-                          const assignee = companyAgents.find((agent) => agent.id === task.assigneeAgentId) ?? null;
-                          return (
-                            <ListRow key={task.id} onClick={() => { setSection("tasks"); setSelectedTaskId(task.id); }}>
-                              <div className="flex items-center justify-between gap-4">
-                                <div className="min-w-0">
-                                  <div className="truncate text-[14px] font-medium text-[color:var(--text)]">{task.title}</div>
-                                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] uppercase tracking-[0.12em] text-[color:var(--muted)]">
-                                    <span className={task.priority === "critical" ? "text-[color:var(--danger)]" : task.priority === "high" ? "text-[color:var(--warn)]" : ""}>{task.priority}</span>
-                                    {assignee ? <span>{assignee.name}</span> : null}
-                                  </div>
-                                </div>
-                                <StatusPill status={run?.status ?? task.status} />
-                              </div>
-                            </ListRow>
-                          );
-                        })
-                      )}
-                    </ListFrame>
-                  </section>
-
-                  {/* Workspace issues */}
-                  {(() => {
-                    const problemWorkspaces = companyWorkspaces.filter(
-                      (w) => w.state !== "ready",
-                    );
-                    if (problemWorkspaces.length === 0) return null;
-                    return (
-                      <section className="space-y-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--warn)]">Workspace issues</div>
-                        <ListFrame>
-                          {problemWorkspaces.map((ws) => (
-                            <ListRow key={ws.id} onClick={() => setSection("workspaces")}>
-                              <div className="flex items-center justify-between gap-4">
-                                <div className="min-w-0">
-                                  <div className="text-[14px] font-medium text-[color:var(--text)]">{ws.name}</div>
-                                  <div className="mt-1 truncate text-[11px] text-[color:var(--muted)] mono">{ws.localPath}</div>
-                                </div>
-                                <StatusPill status={ws.state} />
-                              </div>
-                            </ListRow>
-                          ))}
-                        </ListFrame>
-                      </section>
-                    );
-                  })()}
-                </>
+                <Dashboard
+                  agents={companyAgents}
+                  tasks={tasks}
+                  runs={runs}
+                  approvals={approvals}
+                  goals={companyGoals}
+                  projects={companyProjects}
+                  activity={filteredActivity}
+                  costs={companyCosts}
+                  connectors={snapshot.connectors}
+                  onNavigate={(targetSection, entityId) => {
+                    setSection(targetSection);
+                    if (entityId) {
+                      if (targetSection === "agents") setSelectedAgentId(entityId);
+                      else if (targetSection === "tasks") setSelectedTaskId(entityId);
+                      else if (targetSection === "approvals") setSelectedApprovalId(entityId);
+                      else if (targetSection === "goals") setSelectedGoalId(entityId);
+                      else if (targetSection === "projects") setSelectedProjectId(entityId);
+                    }
+                  }}
+                />
               ) : null}
 
               {section === "connectors" && selectedConnector ? (
@@ -864,8 +675,35 @@ export function App() {
 
               {section === "tasks" ? (
                 <>
-                  <Panel title="Task queue" action={<ActionButton label="New task" icon={ListChecks} tone="accent" onClick={() => setSelectedTaskId("__new__")} />}>
-                    <TaskQueue tasks={tasks} runs={runs} onSelect={setSelectedTaskId} selectedTaskId={selectedTask?.id ?? null} />
+                  <Panel
+                    title="Task queue"
+                    action={
+                      <div className="flex items-center gap-2">
+                        <div className="flex rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)]">
+                          <button
+                            type="button"
+                            onClick={() => setTaskViewMode("list")}
+                            className={`px-2.5 py-1.5 text-[11px] font-medium transition ${taskViewMode === "list" ? "bg-[color:var(--panel-soft)] text-[color:var(--text)]" : "text-[color:var(--muted)] hover:text-[color:var(--text)]"}`}
+                          >
+                            <ListChecks size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setTaskViewMode("kanban")}
+                            className={`px-2.5 py-1.5 text-[11px] font-medium transition ${taskViewMode === "kanban" ? "bg-[color:var(--panel-soft)] text-[color:var(--text)]" : "text-[color:var(--muted)] hover:text-[color:var(--text)]"}`}
+                          >
+                            <Kanban size={14} />
+                          </button>
+                        </div>
+                        <ActionButton label="New task" icon={ListChecks} tone="accent" onClick={() => setSelectedTaskId("__new__")} />
+                      </div>
+                    }
+                  >
+                    {taskViewMode === "kanban" ? (
+                      <KanbanBoard tasks={tasks} agents={companyAgents} runs={runs} onSelectTask={setSelectedTaskId} />
+                    ) : (
+                      <TaskQueue tasks={tasks} runs={runs} onSelect={setSelectedTaskId} selectedTaskId={selectedTask?.id ?? null} />
+                    )}
                   </Panel>
                   <Modal open={selectedTaskId === "__new__"} title="New task" onClose={() => setSelectedTaskId(null)}>
                     <TaskCreator companyId={currentCompany!.id} goals={companyGoals} projects={companyProjects} agents={companyAgents} workspaces={companyWorkspaces} onSaved={async () => { setSelectedTaskId(null); await refresh(); }} />

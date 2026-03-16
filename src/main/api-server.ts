@@ -835,5 +835,106 @@ export class AgentApiServer {
       const projects = snapshot.projects.filter((p) => p.companyId === params.companyId);
       this.json(res, 200, projects);
     });
+
+    // GET /api/agents/me/standup — Standup summary for the current agent
+    // Returns a comprehensive view of the agent's team status, pending reviews,
+    // blocked tasks, and recent activity — like a daily standup briefing.
+    this.addRoute("GET", "/api/agents/me/standup", (_req, res, _params, token) => {
+      const snapshot = this.db.listSnapshot();
+      const agent = snapshot.agents.find((a) => a.id === token.agentId);
+      if (!agent) {
+        this.json(res, 404, { error: "Agent not found" });
+        return;
+      }
+
+      const myTasks = snapshot.tasks.filter((t) => t.assigneeAgentId === token.agentId && t.companyId === token.companyId);
+      const directReports = snapshot.agents.filter((a) => a.reportsTo === token.agentId && a.companyId === token.companyId);
+      const reportIds = new Set(directReports.map((a) => a.id));
+      const reportTasks = snapshot.tasks.filter((t) => t.assigneeAgentId && reportIds.has(t.assigneeAgentId) && t.companyId === token.companyId);
+
+      const tasksAwaitingMyReview = reportTasks.filter((t) => t.status === "in_review");
+      const blockedReportTasks = reportTasks.filter((t) => t.status === "blocked");
+      const myBlockedTasks = myTasks.filter((t) => t.status === "blocked");
+      const myInProgressTasks = myTasks.filter((t) => t.status === "in_progress");
+      const myTodoTasks = myTasks.filter((t) => t.status === "todo");
+
+      // Recent activity: comments on my tasks in last 2 hours
+      const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+      const recentComments = snapshot.comments
+        .filter((c) => {
+          const isMyTask = myTasks.some((t) => t.id === c.taskId);
+          const isReportTask = reportTasks.some((t) => t.id === c.taskId);
+          return (isMyTask || isReportTask) && new Date(c.createdAt).getTime() > twoHoursAgo;
+        })
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 20);
+
+      // Pending approvals I requested
+      const myPendingApprovals = snapshot.approvals.filter(
+        (a) => a.requestedByAgentId === token.agentId && a.state === "pending" && a.companyId === token.companyId,
+      );
+      // Recently resolved approvals
+      const myResolvedApprovals = snapshot.approvals.filter(
+        (a) => a.requestedByAgentId === token.agentId && a.state !== "pending" && a.companyId === token.companyId,
+      ).slice(0, 5);
+
+      this.json(res, 200, {
+        agent: { id: agent.id, name: agent.name, role: agent.role, status: agent.status },
+        summary: {
+          tasksAwaitingReview: tasksAwaitingMyReview.length,
+          blockedReportTasks: blockedReportTasks.length,
+          myBlockedTasks: myBlockedTasks.length,
+          myInProgress: myInProgressTasks.length,
+          myTodo: myTodoTasks.length,
+          pendingApprovals: myPendingApprovals.length,
+          directReports: directReports.length,
+        },
+        tasksAwaitingReview: tasksAwaitingMyReview.map((t) => ({
+          id: t.id,
+          title: t.title,
+          assignee: snapshot.agents.find((a) => a.id === t.assigneeAgentId)?.name ?? "Unknown",
+          priority: t.priority,
+        })),
+        blockedTasks: [...blockedReportTasks, ...myBlockedTasks].map((t) => ({
+          id: t.id,
+          title: t.title,
+          assignee: snapshot.agents.find((a) => a.id === t.assigneeAgentId)?.name ?? "Unknown",
+          priority: t.priority,
+        })),
+        recentComments: recentComments.map((c) => ({
+          taskId: c.taskId,
+          taskTitle: snapshot.tasks.find((t) => t.id === c.taskId)?.title ?? "",
+          author: c.authorName,
+          body: c.body.slice(0, 200),
+          createdAt: c.createdAt,
+        })),
+        pendingApprovals: myPendingApprovals.map((a) => ({
+          id: a.id,
+          type: a.type,
+          summary: a.payloadSummary,
+          state: a.state,
+        })),
+        resolvedApprovals: myResolvedApprovals.map((a) => ({
+          id: a.id,
+          type: a.type,
+          summary: a.payloadSummary,
+          state: a.state,
+          decisionNote: a.decisionNote,
+        })),
+        reportStatuses: directReports.map((r) => {
+          const rTasks = snapshot.tasks.filter((t) => t.assigneeAgentId === r.id && t.companyId === token.companyId);
+          return {
+            id: r.id,
+            name: r.name,
+            role: r.role,
+            status: r.status,
+            tasksInProgress: rTasks.filter((t) => t.status === "in_progress").length,
+            tasksInReview: rTasks.filter((t) => t.status === "in_review").length,
+            tasksBlocked: rTasks.filter((t) => t.status === "blocked").length,
+            tasksDone: rTasks.filter((t) => t.status === "done").length,
+          };
+        }),
+      });
+    });
   }
 }
