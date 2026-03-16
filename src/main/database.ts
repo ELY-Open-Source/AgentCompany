@@ -7,18 +7,25 @@ import { getConnectorDefinition, buildDefaultConnectorRows, parseEnvBindingText 
 import { SecretVault } from "./vault";
 import type {
   ActivityRecord,
+  AgentMetrics,
   AgentRecord,
   ApprovalRecord,
+  BrowserActionRecord,
   CommentRecord,
+  CompanyMetrics,
   CompanyRecord,
   ConnectorId,
   ConnectorRecord,
   CostRecord,
   GoalRecord,
+  InboxItem,
   ProfileSnapshot,
   ProjectRecord,
   RunRecord,
+  RunStatus,
   SecretRecord,
+  SocialAccountRecord,
+  StandupReport,
   TaskRecord,
   WorkspaceRecord,
 } from "@shared/types";
@@ -430,7 +437,7 @@ export class AppDatabase {
         "select id, company_id as companyId, name, local_path as localPath, repo_url as repoUrl, repo_ref as repoRef, project_id as projectId, state, is_primary as isPrimary, created_at as createdAt, updated_at as updatedAt from workspaces order by created_at desc",
       ).map((record) => ({ ...record, isPrimary: toBoolean(record.isPrimary) })) as WorkspaceRecord[],
       agents: this.readAll<AgentRecord>(
-        "select id, company_id as companyId, name, role, title, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents order by created_at asc",
+        "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents order by created_at asc",
       ).map((record) => ({ ...record, heartbeatEnabled: toBoolean(record.heartbeatEnabled) })) as AgentRecord[],
       goals: this.readAll<GoalRecord>(
         "select id, company_id as companyId, title, description, parent_id as parentId, owner_agent_id as ownerAgentId, status, created_at as createdAt, updated_at as updatedAt from goals order by created_at asc",
@@ -459,6 +466,83 @@ export class AppDatabase {
       comments: this.readAll<CommentRecord>(
         "select id, company_id as companyId, task_id as taskId, author_agent_id as authorAgentId, author_name as authorName, body, created_at as createdAt from task_comments order by created_at asc",
       ),
+      socialAccounts: this.readAll<any>(
+        "select id, company_id, platform, account_name, display_name, profile_url, credential_secret_id, status, require_approval, metadata_json, last_used_at, created_at, updated_at from social_accounts order by created_at desc",
+      ).map((r: any) => ({
+        id: r.id,
+        companyId: r.company_id,
+        platform: r.platform,
+        accountName: r.account_name,
+        displayName: r.display_name,
+        profileUrl: r.profile_url,
+        credentialSecretId: r.credential_secret_id,
+        status: r.status,
+        requireApproval: toBoolean(r.require_approval),
+        metadataJson: r.metadata_json,
+        lastUsedAt: r.last_used_at,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      })) as SocialAccountRecord[],
+      browserActions: [],
+      meetings: this.readAll<any>(
+        "select id, company_id, type, title, organizer_agent_id, participant_agent_ids, scheduled_at, duration_minutes, agenda_json, notes_json, decisions_json, action_items_json, status, created_at, updated_at from meetings order by scheduled_at desc",
+      ).map((r: any) => ({
+        id: r.id, companyId: r.company_id, type: r.type, title: r.title, organizerAgentId: r.organizer_agent_id,
+        participantAgentIds: r.participant_agent_ids, scheduledAt: r.scheduled_at, durationMinutes: r.duration_minutes,
+        agendaJson: r.agenda_json, notesJson: r.notes_json, decisionsJson: r.decisions_json,
+        actionItemsJson: r.action_items_json, status: r.status, createdAt: r.created_at, updatedAt: r.updated_at,
+      })),
+      documents: this.readAll<any>(
+        "select id, company_id, type, title, content, author_agent_id, reviewer_agent_id, project_id, goal_id, parent_doc_id, version, status, tags_json, created_at, updated_at from documents order by updated_at desc",
+      ).map((r: any) => ({
+        id: r.id, companyId: r.company_id, type: r.type, title: r.title, content: r.content,
+        authorAgentId: r.author_agent_id, reviewerAgentId: r.reviewer_agent_id, projectId: r.project_id,
+        goalId: r.goal_id, parentDocId: r.parent_doc_id, version: r.version, status: r.status,
+        tagsJson: r.tags_json, createdAt: r.created_at, updatedAt: r.updated_at,
+      })),
+      knowledgeBase: this.readAll<any>(
+        "select id, company_id, category, topic, content, author_agent_id, importance, tags_json, referenced_entity_type, referenced_entity_id, created_at, updated_at from knowledge_base order by updated_at desc",
+      ).map((r: any) => ({
+        id: r.id, companyId: r.company_id, category: r.category, topic: r.topic, content: r.content,
+        authorAgentId: r.author_agent_id, importance: r.importance, tagsJson: r.tags_json,
+        referencedEntityType: r.referenced_entity_type, referencedEntityId: r.referenced_entity_id,
+        createdAt: r.created_at, updatedAt: r.updated_at,
+      })),
+      sprints: this.readAll<any>(
+        "select id, company_id, name, goal, start_date, end_date, status, retrospective_notes, velocity_points, completed_points, created_at, updated_at from sprints order by start_date desc",
+      ).map((r: any) => ({
+        id: r.id, companyId: r.company_id, name: r.name, goal: r.goal,
+        startDate: r.start_date, endDate: r.end_date, status: r.status,
+        retrospectiveNotes: r.retrospective_notes, velocityPoints: r.velocity_points,
+        completedPoints: r.completed_points, createdAt: r.created_at, updatedAt: r.updated_at,
+      })),
+      automationRules: this.readAll<any>(
+        "select id, company_id, name, description, trigger, conditions_json, action, action_config_json, source_department, target_department, priority, status, execution_count, last_executed_at, created_at, updated_at from automation_rules order by priority desc, created_at desc",
+      ).map((r: any) => ({
+        id: r.id, companyId: r.company_id, name: r.name, description: r.description,
+        trigger: r.trigger, conditionsJson: r.conditions_json, action: r.action,
+        actionConfigJson: r.action_config_json, sourceDepartment: r.source_department,
+        targetDepartment: r.target_department, priority: r.priority, status: r.status,
+        executionCount: r.execution_count, lastExecutedAt: r.last_executed_at,
+        createdAt: r.created_at, updatedAt: r.updated_at,
+      })),
+      agentMessages: this.readAll<any>(
+        "select id, company_id, from_agent_id, to_agent_id, channel, channel_target_id, subject, body, priority, read_at, parent_message_id, attachments_json, created_at from agent_messages order by created_at desc limit 200",
+      ).map((r: any) => ({
+        id: r.id, companyId: r.company_id, fromAgentId: r.from_agent_id,
+        toAgentId: r.to_agent_id, channel: r.channel, channelTargetId: r.channel_target_id,
+        subject: r.subject, body: r.body, priority: r.priority, readAt: r.read_at,
+        parentMessageId: r.parent_message_id, attachmentsJson: r.attachments_json,
+        createdAt: r.created_at,
+      })),
+      workflows: this.readAll<any>(
+        "select id, company_id, name, description, steps_json, trigger_type, trigger_config_json, status, current_step_index, run_count, last_run_at, created_at, updated_at from workflow_pipelines order by created_at desc",
+      ).map((r: any) => ({
+        id: r.id, companyId: r.company_id, name: r.name, description: r.description,
+        stepsJson: r.steps_json, triggerType: r.trigger_type, triggerConfigJson: r.trigger_config_json,
+        status: r.status, currentStepIndex: r.current_step_index, runCount: r.run_count,
+        lastRunAt: r.last_run_at, createdAt: r.created_at, updatedAt: r.updated_at,
+      })),
     };
   }
 
@@ -549,6 +633,7 @@ export class AppDatabase {
     name: string;
     role: string;
     title: string;
+    department?: string | null;
     status: AgentRecord["status"];
     reportsTo?: string | null;
     connectorId: ConnectorId;
@@ -561,6 +646,7 @@ export class AppDatabase {
     const id = ensureId(input.id ?? null);
     const ts = nowIso();
     const metadataJson = input.metadataJson ?? "{}";
+    const department = input.department ?? null;
     const reportsTo = normalizeOptionalId(input.reportsTo);
     if (this.wouldCreateAgentCycle(id, reportsTo)) {
       throw new Error("Agent reporting relationship would create a cycle.");
@@ -569,12 +655,13 @@ export class AppDatabase {
     if (existing) {
       this.db
         .prepare(
-          "update agents set name = ?, role = ?, title = ?, status = ?, reports_to = ?, connector_id = ?, workspace_id = ?, model = ?, metadata_json = ?, capabilities = ?, budget_monthly_usd = ?, updated_at = ? where id = ? and company_id = ?",
+          "update agents set name = ?, role = ?, title = ?, department = ?, status = ?, reports_to = ?, connector_id = ?, workspace_id = ?, model = ?, metadata_json = ?, capabilities = ?, budget_monthly_usd = ?, updated_at = ? where id = ? and company_id = ?",
         )
         .run(
           input.name,
           input.role,
           input.title,
+          department,
           input.status,
           reportsTo,
           input.connectorId,
@@ -590,7 +677,7 @@ export class AppDatabase {
     } else {
       this.db
         .prepare(
-          "insert into agents (id, company_id, name, role, title, status, reports_to, connector_id, workspace_id, model, capabilities, budget_monthly_usd, spent_monthly_usd, metadata_json, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)",
+          "insert into agents (id, company_id, name, role, title, department, status, reports_to, connector_id, workspace_id, model, capabilities, budget_monthly_usd, spent_monthly_usd, metadata_json, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)",
         )
         .run(
           id,
@@ -598,6 +685,7 @@ export class AppDatabase {
           input.name,
           input.role,
           input.title,
+          department,
           input.status,
           reportsTo,
           input.connectorId,
@@ -824,7 +912,7 @@ export class AppDatabase {
   getAgent(id: string): AgentRecord {
     const row = this.db
       .prepare(
-        "select id, company_id as companyId, name, role, title, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where id = ?",
+        "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where id = ?",
       )
       .get(id) as AgentRecord | undefined;
     if (!row) throw new Error(`Agent not found: ${id}`);
@@ -1020,6 +1108,15 @@ export class AppDatabase {
       this.db.prepare("delete from agents where company_id = ?").run(companyId);
       this.db.prepare("delete from secrets where company_id = ?").run(companyId);
       this.db.prepare("delete from workspaces where company_id = ?").run(companyId);
+      // Clean up tables added by migrations (safe to call — migrations run on init)
+      for (const table of ["automation_rules", "automation_log", "agent_messages", "workflow_pipelines", "meetings", "documents", "knowledge_base", "sprints"]) {
+        try {
+          this.db.prepare(`delete from ${table} where company_id = ?`).run(companyId);
+        } catch (err) {
+          // Only tolerate "no such table" — re-throw anything else (disk error, etc.)
+          if (!(err instanceof Error) || !err.message.includes("no such table")) throw err;
+        }
+      }
       this.db.prepare("delete from companies where id = ?").run(companyId);
       // Switch to another company if the deleted one was current
       if (this.getCurrentCompanyId() === companyId) {
@@ -1104,6 +1201,138 @@ export class AppDatabase {
     this.db.prepare("delete from secrets where id = ? and company_id = ?").run(id, companyId);
   }
 
+  /* ─── Social Accounts ────────────────────────────────────────────── */
+
+  saveSocialAccount(input: {
+    id?: string | null;
+    companyId: string;
+    platform: string;
+    accountName: string;
+    displayName?: string;
+    profileUrl?: string;
+    credentialSecretId?: string | null;
+    status?: string;
+    requireApproval?: boolean;
+    metadataJson?: string;
+  }): string {
+    const id = ensureId(input.id);
+    const now = nowIso();
+    this.db.prepare(`INSERT INTO social_accounts (id, company_id, platform, account_name, display_name, profile_url, credential_secret_id, status, require_approval, metadata_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        platform = excluded.platform,
+        account_name = excluded.account_name,
+        display_name = excluded.display_name,
+        profile_url = excluded.profile_url,
+        credential_secret_id = excluded.credential_secret_id,
+        status = excluded.status,
+        require_approval = excluded.require_approval,
+        metadata_json = excluded.metadata_json,
+        updated_at = excluded.updated_at`).run(
+      id, input.companyId, input.platform, input.accountName,
+      input.displayName ?? "", input.profileUrl ?? "",
+      input.credentialSecretId ?? null, input.status ?? "login_required",
+      input.requireApproval !== false ? 1 : 0,
+      input.metadataJson ?? "{}", now, now,
+    );
+    return id;
+  }
+
+  deleteSocialAccount(id: string, companyId: string) {
+    this.db.prepare("DELETE FROM social_accounts WHERE id = ? AND company_id = ?").run(id, companyId);
+  }
+
+  listSocialAccounts(companyId: string): SocialAccountRecord[] {
+    const rows = this.db.prepare("SELECT * FROM social_accounts WHERE company_id = ? ORDER BY created_at DESC").all(companyId) as any[];
+    return rows.map((r: any) => ({
+      id: r.id,
+      companyId: r.company_id,
+      platform: r.platform,
+      accountName: r.account_name,
+      displayName: r.display_name,
+      profileUrl: r.profile_url,
+      credentialSecretId: r.credential_secret_id,
+      status: r.status,
+      requireApproval: toBoolean(r.require_approval),
+      metadataJson: r.metadata_json,
+      lastUsedAt: r.last_used_at,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+  }
+
+  /* ─── Browser Actions ────────────────────────────────────────────── */
+
+  saveBrowserAction(input: {
+    companyId: string;
+    socialAccountId: string;
+    agentId: string;
+    taskId?: string | null;
+    actionType: string;
+    payloadJson: string;
+    status?: string;
+    approvalId?: string | null;
+  }): string {
+    const id = randomUUID();
+    const now = nowIso();
+    this.db.prepare(`INSERT INTO browser_actions (id, company_id, social_account_id, agent_id, task_id, action_type, payload_json, status, approval_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      id, input.companyId, input.socialAccountId, input.agentId,
+      input.taskId ?? null, input.actionType, input.payloadJson,
+      input.status ?? "queued", input.approvalId ?? null, now, now,
+    );
+    return id;
+  }
+
+  updateBrowserAction(id: string, updates: { status?: string; resultSummary?: string; screenshotPath?: string | null; errorMessage?: string | null; startedAt?: string; finishedAt?: string }) {
+    const now = nowIso();
+    const sets: string[] = ["updated_at = ?"];
+    const values: SQLInputValue[] = [now];
+    if (updates.status) { sets.push("status = ?"); values.push(updates.status); }
+    if (updates.resultSummary !== undefined) { sets.push("result_summary = ?"); values.push(updates.resultSummary); }
+    if (updates.screenshotPath !== undefined) { sets.push("screenshot_path = ?"); values.push(updates.screenshotPath); }
+    if (updates.errorMessage !== undefined) { sets.push("error_message = ?"); values.push(updates.errorMessage); }
+    if (updates.startedAt) { sets.push("started_at = ?"); values.push(updates.startedAt); }
+    if (updates.finishedAt) { sets.push("finished_at = ?"); values.push(updates.finishedAt); }
+    values.push(id);
+    this.db.prepare(`UPDATE browser_actions SET ${sets.join(", ")} WHERE id = ?`).run(...values);
+  }
+
+  listBrowserActions(companyId: string, filters?: { socialAccountId?: string; status?: string; limit?: number }): BrowserActionRecord[] {
+    let sql = "SELECT * FROM browser_actions WHERE company_id = ?";
+    const params: SQLInputValue[] = [companyId];
+    if (filters?.socialAccountId) { sql += " AND social_account_id = ?"; params.push(filters.socialAccountId); }
+    if (filters?.status) {
+      const statuses = filters.status.split(",").filter(Boolean);
+      if (statuses.length > 0) {
+        sql += ` AND status IN (${statuses.map(() => "?").join(",")})`;
+        params.push(...statuses);
+      }
+    }
+    sql += " ORDER BY created_at DESC";
+    if (filters?.limit) { sql += " LIMIT ?"; params.push(filters.limit); }
+
+    const rows = this.db.prepare(sql).all(...params) as any[];
+    return rows.map((r: any) => ({
+      id: r.id,
+      companyId: r.company_id,
+      socialAccountId: r.social_account_id,
+      agentId: r.agent_id,
+      taskId: r.task_id,
+      status: r.status,
+      actionType: r.action_type,
+      payloadJson: r.payload_json,
+      resultSummary: r.result_summary,
+      screenshotPath: r.screenshot_path,
+      approvalId: r.approval_id,
+      errorMessage: r.error_message,
+      startedAt: r.started_at,
+      finishedAt: r.finished_at,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+  }
+
   getSidebarBadges(companyId: string): { pendingApprovals: number; activeRuns: number; failedRuns: number; todoTasks: number; budgetWarnings: number } {
     const pendingApprovals = (this.db.prepare("select count(*) as c from approvals where company_id = ? and state = 'pending'").get(companyId) as { c: number })?.c ?? 0;
     const activeRuns = (this.db.prepare("select count(*) as c from runs where company_id = ? and status in ('queued', 'running')").get(companyId) as { c: number })?.c ?? 0;
@@ -1149,7 +1378,7 @@ export class AppDatabase {
 
   listHeartbeatEligibleAgents(companyId: string): AgentRecord[] {
     return this.readAll<AgentRecord>(
-      "select id, company_id as companyId, name, role, title, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? and heartbeat_enabled = 1 and status not in ('terminated', 'paused', 'error', 'pending_approval')",
+      "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? and heartbeat_enabled = 1 and status not in ('terminated', 'paused', 'error', 'pending_approval')",
       companyId,
     ).map((record) => ({ ...record, heartbeatEnabled: toBoolean(record.heartbeatEnabled) })) as AgentRecord[];
   }
@@ -1231,7 +1460,7 @@ export class AppDatabase {
 
   getDirectReports(agentId: string, companyId: string): AgentRecord[] {
     return this.readAll<AgentRecord>(
-      "select id, company_id as companyId, name, role, title, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? and reports_to = ?",
+      "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? and reports_to = ?",
       companyId, agentId,
     ).map((record) => ({ ...record, heartbeatEnabled: toBoolean(record.heartbeatEnabled) })) as AgentRecord[];
   }
@@ -1460,6 +1689,50 @@ export class AppDatabase {
       create index if not exists idx_comments_task on task_comments(task_id);
       create index if not exists idx_comments_company on task_comments(company_id);
     `);
+
+    // Social media accounts table
+    this.db.exec(`
+      create table if not exists social_accounts (
+        id text primary key,
+        company_id text not null references companies(id) on delete cascade,
+        platform text not null default 'other',
+        account_name text not null,
+        display_name text not null default '',
+        profile_url text not null default '',
+        credential_secret_id text,
+        status text not null default 'login_required',
+        require_approval integer not null default 1,
+        metadata_json text not null default '{}',
+        last_used_at text,
+        created_at text not null default (datetime('now')),
+        updated_at text not null default (datetime('now'))
+      );
+      create index if not exists idx_social_accounts_company on social_accounts(company_id);
+    `);
+
+    // Browser actions table
+    this.db.exec(`
+      create table if not exists browser_actions (
+        id text primary key,
+        company_id text not null references companies(id) on delete cascade,
+        social_account_id text not null references social_accounts(id) on delete cascade,
+        agent_id text not null references agents(id) on delete cascade,
+        task_id text,
+        action_type text not null default 'custom_script',
+        payload_json text not null default '{}',
+        status text not null default 'queued',
+        result_summary text not null default '',
+        screenshot_path text,
+        approval_id text,
+        error_message text,
+        started_at text,
+        finished_at text,
+        created_at text not null default (datetime('now')),
+        updated_at text not null default (datetime('now'))
+      );
+      create index if not exists idx_browser_actions_company on browser_actions(company_id);
+      create index if not exists idx_browser_actions_account on browser_actions(social_account_id);
+    `);
   }
 
   /**
@@ -1587,6 +1860,279 @@ export class AppDatabase {
     );
   }
 
+  /* ─── Meetings CRUD ────────────────────────────────────────────── */
+
+  saveMeeting(input: {
+    id?: string | null; companyId: string; type: string; title: string; organizerAgentId?: string | null;
+    participantAgentIds?: string; scheduledAt: string; durationMinutes?: number;
+    agendaJson?: string; notesJson?: string; decisionsJson?: string; actionItemsJson?: string;
+    status?: string;
+  }) {
+    const id = ensureId(input.id ?? null);
+    const ts = nowIso();
+    const existing = this.db.prepare("select id from meetings where id = ?").get(id) as { id: string } | undefined;
+    if (existing) {
+      this.db.prepare(
+        "update meetings set type = ?, title = ?, organizer_agent_id = ?, participant_agent_ids = ?, scheduled_at = ?, duration_minutes = ?, agenda_json = ?, notes_json = ?, decisions_json = ?, action_items_json = ?, status = ?, updated_at = ? where id = ?",
+      ).run(input.type, input.title, input.organizerAgentId ?? null, input.participantAgentIds ?? "[]", input.scheduledAt, input.durationMinutes ?? 30, input.agendaJson ?? "[]", input.notesJson ?? "[]", input.decisionsJson ?? "[]", input.actionItemsJson ?? "[]", input.status ?? "scheduled", ts, id);
+    } else {
+      this.db.prepare(
+        "insert into meetings (id, company_id, type, title, organizer_agent_id, participant_agent_ids, scheduled_at, duration_minutes, agenda_json, notes_json, decisions_json, action_items_json, status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ).run(id, input.companyId, input.type, input.title, input.organizerAgentId ?? null, input.participantAgentIds ?? "[]", input.scheduledAt, input.durationMinutes ?? 30, input.agendaJson ?? "[]", input.notesJson ?? "[]", input.decisionsJson ?? "[]", input.actionItemsJson ?? "[]", input.status ?? "scheduled", ts, ts);
+    }
+    return id;
+  }
+
+  deleteMeeting(id: string, companyId: string) {
+    this.db.prepare("delete from meetings where id = ? and company_id = ?").run(id, companyId);
+  }
+
+  /* ─── Documents CRUD ──────────────────────────────────────────── */
+
+  saveDocument(input: {
+    id?: string | null; companyId: string; type: string; title: string; content?: string;
+    authorAgentId?: string | null; reviewerAgentId?: string | null; projectId?: string | null;
+    goalId?: string | null; parentDocId?: string | null; version?: number; status?: string; tagsJson?: string;
+  }) {
+    const id = ensureId(input.id ?? null);
+    const ts = nowIso();
+    const existing = this.db.prepare("select id from documents where id = ?").get(id) as { id: string } | undefined;
+    if (existing) {
+      this.db.prepare(
+        "update documents set type = ?, title = ?, content = ?, author_agent_id = ?, reviewer_agent_id = ?, project_id = ?, goal_id = ?, parent_doc_id = ?, version = ?, status = ?, tags_json = ?, updated_at = ? where id = ?",
+      ).run(input.type, input.title, input.content ?? "", input.authorAgentId ?? null, input.reviewerAgentId ?? null, input.projectId ?? null, input.goalId ?? null, input.parentDocId ?? null, input.version ?? 1, input.status ?? "draft", input.tagsJson ?? "[]", ts, id);
+    } else {
+      this.db.prepare(
+        "insert into documents (id, company_id, type, title, content, author_agent_id, reviewer_agent_id, project_id, goal_id, parent_doc_id, version, status, tags_json, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ).run(id, input.companyId, input.type, input.title, input.content ?? "", input.authorAgentId ?? null, input.reviewerAgentId ?? null, input.projectId ?? null, input.goalId ?? null, input.parentDocId ?? null, input.version ?? 1, input.status ?? "draft", input.tagsJson ?? "[]", ts, ts);
+    }
+    return id;
+  }
+
+  deleteDocument(id: string, companyId: string) {
+    this.db.prepare("delete from documents where id = ? and company_id = ?").run(id, companyId);
+  }
+
+  /* ─── Knowledge Base CRUD ─────────────────────────────────────── */
+
+  saveKnowledgeEntry(input: {
+    id?: string | null; companyId: string; category: string; topic: string; content: string;
+    authorAgentId?: string | null; importance?: string; tagsJson?: string;
+    referencedEntityType?: string | null; referencedEntityId?: string | null;
+  }) {
+    const id = ensureId(input.id ?? null);
+    const ts = nowIso();
+    const existing = this.db.prepare("select id from knowledge_base where id = ?").get(id) as { id: string } | undefined;
+    if (existing) {
+      this.db.prepare(
+        "update knowledge_base set category = ?, topic = ?, content = ?, author_agent_id = ?, importance = ?, tags_json = ?, referenced_entity_type = ?, referenced_entity_id = ?, updated_at = ? where id = ?",
+      ).run(input.category, input.topic, input.content, input.authorAgentId ?? null, input.importance ?? "medium", input.tagsJson ?? "[]", input.referencedEntityType ?? null, input.referencedEntityId ?? null, ts, id);
+    } else {
+      this.db.prepare(
+        "insert into knowledge_base (id, company_id, category, topic, content, author_agent_id, importance, tags_json, referenced_entity_type, referenced_entity_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ).run(id, input.companyId, input.category, input.topic, input.content, input.authorAgentId ?? null, input.importance ?? "medium", input.tagsJson ?? "[]", input.referencedEntityType ?? null, input.referencedEntityId ?? null, ts, ts);
+    }
+    return id;
+  }
+
+  deleteKnowledgeEntry(id: string, companyId: string) {
+    this.db.prepare("delete from knowledge_base where id = ? and company_id = ?").run(id, companyId);
+  }
+
+  /* ─── Sprints CRUD ────────────────────────────────────────────── */
+
+  saveSprint(input: {
+    id?: string | null; companyId: string; name: string; goal?: string;
+    startDate: string; endDate: string; status?: string; retrospectiveNotes?: string;
+    velocityPoints?: number; completedPoints?: number;
+  }) {
+    const id = ensureId(input.id ?? null);
+    const ts = nowIso();
+    const existing = this.db.prepare("select id from sprints where id = ?").get(id) as { id: string } | undefined;
+    if (existing) {
+      this.db.prepare(
+        "update sprints set name = ?, goal = ?, start_date = ?, end_date = ?, status = ?, retrospective_notes = ?, velocity_points = ?, completed_points = ?, updated_at = ? where id = ?",
+      ).run(input.name, input.goal ?? "", input.startDate, input.endDate, input.status ?? "planning", input.retrospectiveNotes ?? "", input.velocityPoints ?? 0, input.completedPoints ?? 0, ts, id);
+    } else {
+      this.db.prepare(
+        "insert into sprints (id, company_id, name, goal, start_date, end_date, status, retrospective_notes, velocity_points, completed_points, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ).run(id, input.companyId, input.name, input.goal ?? "", input.startDate, input.endDate, input.status ?? "planning", input.retrospectiveNotes ?? "", input.velocityPoints ?? 0, input.completedPoints ?? 0, ts, ts);
+    }
+    return id;
+  }
+
+  deleteSprint(id: string, companyId: string) {
+    this.db.prepare("delete from sprints where id = ? and company_id = ?").run(id, companyId);
+  }
+
+  // ── Automation Rules ──────────────────────────────────────────────
+
+  saveAutomationRule(input: {
+    id?: string | null; companyId: string; name: string; description?: string;
+    trigger: string; conditionsJson?: string; action: string; actionConfigJson?: string;
+    sourceDepartment?: string | null; targetDepartment?: string | null;
+    priority?: number; status?: string;
+  }) {
+    const id = ensureId(input.id ?? null);
+    const ts = nowIso();
+    const existing = this.db.prepare("select id from automation_rules where id = ?").get(id) as { id: string } | undefined;
+    if (existing) {
+      this.db.prepare(
+        "update automation_rules set name = ?, description = ?, trigger = ?, conditions_json = ?, action = ?, action_config_json = ?, source_department = ?, target_department = ?, priority = ?, status = ?, updated_at = ? where id = ?",
+      ).run(input.name, input.description ?? "", input.trigger, input.conditionsJson ?? "{}", input.action, input.actionConfigJson ?? "{}", input.sourceDepartment ?? null, input.targetDepartment ?? null, input.priority ?? 50, input.status ?? "active", ts, id);
+    } else {
+      this.db.prepare(
+        "insert into automation_rules (id, company_id, name, description, trigger, conditions_json, action, action_config_json, source_department, target_department, priority, status, execution_count, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
+      ).run(id, input.companyId, input.name, input.description ?? "", input.trigger, input.conditionsJson ?? "{}", input.action, input.actionConfigJson ?? "{}", input.sourceDepartment ?? null, input.targetDepartment ?? null, input.priority ?? 50, input.status ?? "active", ts, ts);
+    }
+    this.addActivity({ companyId: input.companyId, actor: "system", action: existing ? "updated" : "created", entityType: "automation_rule", entityId: id, detail: `${existing ? "Updated" : "Created"} automation rule: ${input.name}` });
+    return id;
+  }
+
+  deleteAutomationRule(id: string, companyId: string) {
+    this.db.prepare("delete from automation_rules where id = ? and company_id = ?").run(id, companyId);
+  }
+
+  toggleAutomationRule(id: string, companyId: string, status: "active" | "paused") {
+    this.db.prepare("update automation_rules set status = ?, updated_at = ? where id = ? and company_id = ?").run(status, nowIso(), id, companyId);
+  }
+
+  recordAutomationExecution(ruleId: string, companyId: string, ruleName: string, trigger: string, action: string, detail: string) {
+    const id = randomUUID();
+    this.db.prepare("insert into automation_log (id, company_id, rule_id, rule_name, trigger, action, detail, executed_at) values (?, ?, ?, ?, ?, ?, ?, ?)").run(id, companyId, ruleId, ruleName, trigger, action, detail, nowIso());
+    this.db.prepare("update automation_rules set execution_count = execution_count + 1, last_executed_at = ? where id = ?").run(nowIso(), ruleId);
+  }
+
+  getAutomationLog(companyId: string) {
+    return this.readAll<{ ruleId: string; ruleName: string; trigger: string; action: string; executedAt: string }>(
+      "select rule_id as ruleId, rule_name as ruleName, trigger, action, executed_at as executedAt from automation_log where company_id = ? order by executed_at desc limit 100",
+      companyId,
+    );
+  }
+
+  // ── Agent Messages ──────────────────────────────────────────────
+
+  sendAgentMessage(input: {
+    companyId: string; fromAgentId: string; toAgentId?: string | null;
+    channel?: string; channelTargetId?: string | null; subject: string; body: string;
+    priority?: string; parentMessageId?: string | null; attachmentsJson?: string;
+  }) {
+    const id = randomUUID();
+    this.db.prepare(
+      "insert into agent_messages (id, company_id, from_agent_id, to_agent_id, channel, channel_target_id, subject, body, priority, parent_message_id, attachments_json, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).run(id, input.companyId, input.fromAgentId, input.toAgentId ?? null, input.channel ?? "direct", input.channelTargetId ?? null, input.subject, input.body, input.priority ?? "normal", input.parentMessageId ?? null, input.attachmentsJson ?? "[]", nowIso());
+    this.addActivity({ companyId: input.companyId, actor: input.fromAgentId, action: "sent_message", entityType: "agent_message", entityId: id, detail: `Message: ${input.subject}` });
+    return id;
+  }
+
+  listAgentMessages(companyId: string, opts?: { agentId?: string; channel?: string; unreadOnly?: boolean; limit?: number }) {
+    let sql = "select id, company_id as companyId, from_agent_id as fromAgentId, to_agent_id as toAgentId, channel, channel_target_id as channelTargetId, subject, body, priority, read_at as readAt, parent_message_id as parentMessageId, attachments_json as attachmentsJson, created_at as createdAt from agent_messages where company_id = ?";
+    const params: SQLInputValue[] = [companyId];
+    if (opts?.agentId) { sql += " and (to_agent_id = ? or from_agent_id = ? or to_agent_id is null)"; params.push(opts.agentId, opts.agentId); }
+    if (opts?.channel) { sql += " and channel = ?"; params.push(opts.channel); }
+    if (opts?.unreadOnly) { sql += " and read_at is null"; }
+    sql += ` order by created_at desc limit ${opts?.limit ?? 50}`;
+    return this.db.prepare(sql).all(...params) as any[];
+  }
+
+  markMessageRead(messageId: string, companyId: string) {
+    this.db.prepare("update agent_messages set read_at = ? where id = ? and company_id = ?").run(nowIso(), messageId, companyId);
+  }
+
+  // ── Workflow Pipelines ────────────────────────────────────────────
+
+  saveWorkflow(input: {
+    id?: string | null; companyId: string; name: string; description?: string;
+    stepsJson?: string; triggerType: string; triggerConfigJson?: string; status?: string;
+  }) {
+    const id = ensureId(input.id ?? null);
+    const ts = nowIso();
+    const existing = this.db.prepare("select id from workflow_pipelines where id = ?").get(id) as { id: string } | undefined;
+    if (existing) {
+      this.db.prepare(
+        "update workflow_pipelines set name = ?, description = ?, steps_json = ?, trigger_type = ?, trigger_config_json = ?, status = ?, updated_at = ? where id = ?",
+      ).run(input.name, input.description ?? "", input.stepsJson ?? "[]", input.triggerType, input.triggerConfigJson ?? "{}", input.status ?? "draft", ts, id);
+    } else {
+      this.db.prepare(
+        "insert into workflow_pipelines (id, company_id, name, description, steps_json, trigger_type, trigger_config_json, status, current_step_index, run_count, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)",
+      ).run(id, input.companyId, input.name, input.description ?? "", input.stepsJson ?? "[]", input.triggerType, input.triggerConfigJson ?? "{}", input.status ?? "draft", ts, ts);
+    }
+    this.addActivity({ companyId: input.companyId, actor: "system", action: existing ? "updated" : "created", entityType: "workflow", entityId: id, detail: `${existing ? "Updated" : "Created"} workflow: ${input.name}` });
+    return id;
+  }
+
+  deleteWorkflow(id: string, companyId: string) {
+    this.db.prepare("delete from workflow_pipelines where id = ? and company_id = ?").run(id, companyId);
+  }
+
+  activateWorkflow(id: string, companyId: string) {
+    const row = this.db.prepare("select name, status from workflow_pipelines where id = ? and company_id = ?").get(id, companyId) as { name: string; status: string } | undefined;
+    if (!row) throw new Error(`Workflow not found: ${id}`);
+    if (row.status === "active") throw new Error("Workflow is already running.");
+    const ts = nowIso();
+    this.db.prepare(
+      "update workflow_pipelines set status = 'active', current_step_index = 0, run_count = run_count + 1, last_run_at = ?, updated_at = ? where id = ?",
+    ).run(ts, ts, id);
+    this.addActivity({ companyId, actor: "system", action: "started", entityType: "workflow", entityId: id, detail: `Started workflow: ${row.name}` });
+  }
+
+  // ── Auto Task Assignment ──────────────────────────────────────────
+
+  autoAssignTask(taskId: string, companyId: string): string | null {
+    const task = this.db.prepare(
+      "select id, title, description, project_id, assignee_agent_id from tasks where id = ? and company_id = ?",
+    ).get(taskId, companyId) as { id: string; title: string; description: string; project_id: string | null; assignee_agent_id: string | null } | undefined;
+    if (!task) return null;
+    if (task.assignee_agent_id) return task.assignee_agent_id;
+
+    // Find available agents (active/idle with remaining budget, exclude managers with direct reports)
+    const agents = this.readAll<{ id: string; department: string | null; capabilities: string; budget_monthly_usd: number; spent_monthly_usd: number }>(
+      "select id, department, capabilities, budget_monthly_usd, spent_monthly_usd from agents where company_id = ? and status in ('idle', 'active') and budget_monthly_usd > spent_monthly_usd",
+      companyId,
+    );
+    if (agents.length === 0) return null;
+
+    // Extract keywords from task title + description for capability matching
+    const taskText = `${task.title} ${task.description}`.toLowerCase();
+    const taskKeywords = taskText.split(/\W+/).filter(w => w.length > 3);
+
+    let bestAgent: typeof agents[0] | null = null;
+    let bestScore = -Infinity;
+
+    for (const agent of agents) {
+      // Workload: fewer active tasks = higher score
+      const activeTasks = this.readAll<{ cnt: number }>(
+        "select count(*) as cnt from tasks where assignee_agent_id = ? and status in ('todo', 'in_progress')",
+        agent.id,
+      )[0]?.cnt ?? 0;
+
+      // Budget: more remaining = higher score
+      const budgetRemaining = agent.budget_monthly_usd - agent.spent_monthly_usd;
+
+      // Capability match: count overlapping keywords between task and agent capabilities
+      const capText = (agent.capabilities ?? "").toLowerCase();
+      let capMatchCount = 0;
+      for (const kw of taskKeywords) {
+        if (capText.includes(kw)) capMatchCount++;
+      }
+
+      // Composite score: capability match (strongest signal), then workload, then budget
+      const score = (capMatchCount * 100) + budgetRemaining - (activeTasks * 50);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestAgent = agent;
+      }
+    }
+
+    if (bestAgent) {
+      this.db.prepare("update tasks set assignee_agent_id = ?, updated_at = ? where id = ?").run(bestAgent.id, nowIso(), taskId);
+      this.addActivity({ companyId, actor: "system", action: "auto_assigned", entityType: "task", entityId: taskId, detail: `Auto-assigned to ${bestAgent.id} (score: ${bestScore})` });
+      return bestAgent.id;
+    }
+    return null;
+  }
+
   /* ─── Forward-Only Migration System ──────────────────────────────── */
 
   private runMigrations() {
@@ -1639,6 +2185,180 @@ export class AppDatabase {
       // and renderer all treat monetary values as dollars. Converting stored data to
       // cents without updating every consumer would cause 100x display errors.
       // Dollar float values are sufficient for a local-first desktop app.
+      {
+        version: 6,
+        name: "add_agent_department",
+        sql: `alter table agents add column department text`,
+      },
+      {
+        version: 7,
+        name: "add_meetings_table",
+        sql: `
+          create table if not exists meetings (
+            id text primary key,
+            company_id text not null,
+            type text not null,
+            title text not null,
+            organizer_agent_id text,
+            participant_agent_ids text not null default '[]',
+            scheduled_at text not null,
+            duration_minutes integer not null default 30,
+            agenda_json text not null default '[]',
+            notes_json text not null default '[]',
+            decisions_json text not null default '[]',
+            action_items_json text not null default '[]',
+            status text not null default 'scheduled',
+            created_at text not null,
+            updated_at text not null
+          );
+          create index if not exists idx_meetings_company on meetings(company_id);
+          create index if not exists idx_meetings_organizer on meetings(organizer_agent_id)
+        `,
+      },
+      {
+        version: 8,
+        name: "add_documents_table",
+        sql: `
+          create table if not exists documents (
+            id text primary key,
+            company_id text not null,
+            type text not null,
+            title text not null,
+            content text not null default '',
+            author_agent_id text,
+            reviewer_agent_id text,
+            project_id text,
+            goal_id text,
+            parent_doc_id text,
+            version integer not null default 1,
+            status text not null default 'draft',
+            tags_json text not null default '[]',
+            created_at text not null,
+            updated_at text not null
+          );
+          create index if not exists idx_documents_company on documents(company_id);
+          create index if not exists idx_documents_author on documents(author_agent_id);
+          create index if not exists idx_documents_project on documents(project_id)
+        `,
+      },
+      {
+        version: 9,
+        name: "add_knowledge_base_table",
+        sql: `
+          create table if not exists knowledge_base (
+            id text primary key,
+            company_id text not null,
+            category text not null,
+            topic text not null,
+            content text not null,
+            author_agent_id text,
+            importance text not null default 'medium',
+            tags_json text not null default '[]',
+            referenced_entity_type text,
+            referenced_entity_id text,
+            created_at text not null,
+            updated_at text not null
+          );
+          create index if not exists idx_knowledge_company on knowledge_base(company_id);
+          create index if not exists idx_knowledge_category on knowledge_base(category)
+        `,
+      },
+      {
+        version: 10,
+        name: "add_sprints_table",
+        sql: `
+          create table if not exists sprints (
+            id text primary key,
+            company_id text not null,
+            name text not null,
+            goal text not null default '',
+            start_date text not null,
+            end_date text not null,
+            status text not null default 'planning',
+            retrospective_notes text not null default '',
+            velocity_points integer not null default 0,
+            completed_points integer not null default 0,
+            created_at text not null,
+            updated_at text not null
+          );
+          create index if not exists idx_sprints_company on sprints(company_id)
+        `,
+      },
+      {
+        version: 11,
+        name: "add_automation_messages_workflows",
+        sql: `
+          create table if not exists automation_rules (
+            id text primary key,
+            company_id text not null,
+            name text not null,
+            description text not null default '',
+            trigger text not null,
+            conditions_json text not null default '{}',
+            action text not null,
+            action_config_json text not null default '{}',
+            source_department text,
+            target_department text,
+            priority integer not null default 50,
+            status text not null default 'active',
+            execution_count integer not null default 0,
+            last_executed_at text,
+            created_at text not null,
+            updated_at text not null
+          );
+          create index if not exists idx_automation_rules_company on automation_rules(company_id);
+          create index if not exists idx_automation_rules_trigger on automation_rules(trigger);
+
+          create table if not exists agent_messages (
+            id text primary key,
+            company_id text not null,
+            from_agent_id text not null,
+            to_agent_id text,
+            channel text not null default 'direct',
+            channel_target_id text,
+            subject text not null,
+            body text not null,
+            priority text not null default 'normal',
+            read_at text,
+            parent_message_id text,
+            attachments_json text not null default '[]',
+            created_at text not null
+          );
+          create index if not exists idx_agent_messages_company on agent_messages(company_id);
+          create index if not exists idx_agent_messages_to on agent_messages(to_agent_id);
+          create index if not exists idx_agent_messages_from on agent_messages(from_agent_id);
+          create index if not exists idx_agent_messages_channel on agent_messages(channel);
+
+          create table if not exists workflow_pipelines (
+            id text primary key,
+            company_id text not null,
+            name text not null,
+            description text not null default '',
+            steps_json text not null default '[]',
+            trigger_type text not null,
+            trigger_config_json text not null default '{}',
+            status text not null default 'draft',
+            current_step_index integer not null default 0,
+            run_count integer not null default 0,
+            last_run_at text,
+            created_at text not null,
+            updated_at text not null
+          );
+          create index if not exists idx_workflows_company on workflow_pipelines(company_id);
+
+          create table if not exists automation_log (
+            id text primary key,
+            company_id text not null,
+            rule_id text not null,
+            rule_name text not null,
+            trigger text not null,
+            action text not null,
+            detail text not null default '',
+            executed_at text not null
+          );
+          create index if not exists idx_automation_log_company on automation_log(company_id)
+        `,
+      },
     ];
 
     for (const migration of migrations) {
@@ -1759,6 +2479,270 @@ export class AppDatabase {
 
     this.db = this.openConnection();
     this.init();
+  }
+
+  // ── Inbox ──────────────────────────────────────────────────────────
+  getInbox(companyId: string): InboxItem[] {
+    const items: InboxItem[] = [];
+    const snapshot = this.listSnapshot();
+    const agents = snapshot.agents.filter(a => a.companyId === companyId);
+    const agentMap = new Map(agents.map(a => [a.id, a]));
+
+    // Pending approvals
+    for (const approval of snapshot.approvals.filter(a => a.companyId === companyId && a.state === "pending")) {
+      const requester = agentMap.get(approval.requestedByAgentId ?? "");
+      items.push({
+        id: `approval-${approval.id}`,
+        type: "pending_approval",
+        title: approval.payloadSummary,
+        subtitle: `${approval.type.replaceAll("_", " ")} — requested by ${requester?.name ?? "Unknown"}`,
+        severity: approval.type === "dangerous_command" ? "critical" : "high",
+        entityType: "approval",
+        entityId: approval.id,
+        agentId: approval.requestedByAgentId,
+        agentName: requester?.name ?? null,
+        createdAt: approval.createdAt,
+        dismissed: false,
+      });
+    }
+
+    // Failed runs (last 24h)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    for (const run of snapshot.runs.filter(r => r.companyId === companyId && (r.status === "failed" || r.status === "timed_out") && r.createdAt > oneDayAgo)) {
+      const agent = agentMap.get(run.agentId);
+      items.push({
+        id: `run-${run.id}`,
+        type: "failed_run",
+        title: run.summary || "Run failed",
+        subtitle: `${agent?.name ?? "Unknown agent"} — ${run.errorMessage?.slice(0, 100) ?? "Unknown error"}`,
+        severity: "high",
+        entityType: "run",
+        entityId: run.id,
+        agentId: run.agentId,
+        agentName: agent?.name ?? null,
+        createdAt: run.createdAt,
+        dismissed: false,
+      });
+    }
+
+    // Budget warnings (agents at >80% budget)
+    for (const agent of agents.filter(a => a.budgetMonthlyUsd > 0 && a.spentMonthlyUsd / a.budgetMonthlyUsd > 0.8)) {
+      const pct = Math.round((agent.spentMonthlyUsd / agent.budgetMonthlyUsd) * 100);
+      items.push({
+        id: `budget-${agent.id}`,
+        type: "budget_warning",
+        title: `${agent.name} at ${pct}% budget`,
+        subtitle: `$${agent.spentMonthlyUsd.toFixed(2)} of $${agent.budgetMonthlyUsd.toFixed(2)} monthly limit`,
+        severity: pct >= 100 ? "critical" : "high",
+        entityType: "agent",
+        entityId: agent.id,
+        agentId: agent.id,
+        agentName: agent.name,
+        createdAt: agent.updatedAt,
+        dismissed: false,
+      });
+    }
+
+    // Blocked tasks
+    for (const task of snapshot.tasks.filter(t => t.companyId === companyId && t.status === "blocked")) {
+      const assignee = agentMap.get(task.assigneeAgentId ?? "");
+      items.push({
+        id: `blocked-${task.id}`,
+        type: "blocked_task",
+        title: task.title,
+        subtitle: `Assigned to ${assignee?.name ?? "Unassigned"} — blocked`,
+        severity: task.priority === "critical" ? "critical" : "medium",
+        entityType: "task",
+        entityId: task.id,
+        agentId: task.assigneeAgentId,
+        agentName: assignee?.name ?? null,
+        createdAt: task.updatedAt,
+        dismissed: false,
+      });
+    }
+
+    // Tasks needing review
+    for (const task of snapshot.tasks.filter(t => t.companyId === companyId && t.status === "in_review")) {
+      const assignee = agentMap.get(task.assigneeAgentId ?? "");
+      items.push({
+        id: `review-${task.id}`,
+        type: "review_needed",
+        title: task.title,
+        subtitle: `Submitted by ${assignee?.name ?? "Unknown"} — awaiting review`,
+        severity: task.priority === "critical" ? "high" : "medium",
+        entityType: "task",
+        entityId: task.id,
+        agentId: task.assigneeAgentId,
+        agentName: assignee?.name ?? null,
+        createdAt: task.updatedAt,
+        dismissed: false,
+      });
+    }
+
+    // Sort by severity then date
+    const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+    items.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity] || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return items;
+  }
+
+  // ── Company Metrics ────────────────────────────────────────────────
+  getCompanyMetrics(companyId: string, days: number = 30): CompanyMetrics {
+    const snapshot = this.listSnapshot();
+    const agents = snapshot.agents.filter(a => a.companyId === companyId);
+    const tasks = snapshot.tasks.filter(t => t.companyId === companyId);
+    const runs = snapshot.runs.filter(r => r.companyId === companyId);
+    const costs = snapshot.costs.filter(c => c.companyId === companyId);
+
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    const recentRuns = runs.filter(r => r.createdAt > cutoff);
+    const recentTasks = tasks.filter(t => t.status === "done" && t.updatedAt > cutoff);
+
+    const successfulRuns = recentRuns.filter(r => r.status === "succeeded").length;
+    const failedRuns = recentRuns.filter(r => r.status === "failed" || r.status === "timed_out").length;
+    const totalCost = costs.reduce((sum, c) => sum + (c.amountUsd ?? 0), 0);
+    const completedTasks = tasks.filter(t => t.status === "done").length;
+
+    const agentMetrics: AgentMetrics[] = agents
+      .filter(a => a.status !== "pending_approval" && a.status !== "terminated")
+      .map(agent => {
+        const agentTasks = tasks.filter(t => t.assigneeAgentId === agent.id);
+        const agentRuns = runs.filter(r => r.agentId === agent.id);
+        const agentRecentRuns = agentRuns.filter(r => r.createdAt > cutoff);
+        const agentCosts = costs.filter(c => c.agentId === agent.id);
+
+        const agentSucceeded = agentRecentRuns.filter(r => r.status === "succeeded").length;
+        const agentFailed = agentRecentRuns.filter(r => r.status === "failed" || r.status === "timed_out").length;
+
+        // Avg run duration
+        const finishedRuns = agentRuns.filter(r => r.startedAt && r.finishedAt);
+        const avgDuration = finishedRuns.length > 0
+          ? finishedRuns.reduce((sum, r) => sum + (new Date(r.finishedAt!).getTime() - new Date(r.startedAt!).getTime()) / 1000, 0) / finishedRuns.length
+          : 0;
+
+        // Review cycles: count tasks that went from in_review back to in_progress
+        // Approximation: count activity entries with action "task.status_changed" and detail containing "in_progress"
+        const reviewCycles = snapshot.activity.filter(
+          a => a.companyId === companyId && a.actor === agent.id && a.action === "task.status_changed"
+        ).length;
+
+        const lastRun = agentRuns.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+        return {
+          agentId: agent.id,
+          agentName: agent.name,
+          tasksCompleted: agentTasks.filter(t => t.status === "done").length,
+          tasksAssigned: agentTasks.filter(t => t.status !== "done" && t.status !== "cancelled").length,
+          tasksFailed: agentTasks.filter(t => t.status === "cancelled").length,
+          successRate: agentRecentRuns.length > 0 ? Math.round((agentSucceeded / agentRecentRuns.length) * 100) : 0,
+          avgRunDurationSec: Math.round(avgDuration),
+          totalCostUsd: agentCosts.reduce((sum, c) => sum + (c.amountUsd ?? 0), 0),
+          runsTotal: agentRecentRuns.length,
+          runsSucceeded: agentSucceeded,
+          runsFailed: agentFailed,
+          reviewCycles,
+          lastActiveAt: lastRun?.createdAt ?? null,
+        };
+      });
+
+    return {
+      totalAgents: agents.filter(a => a.status !== "pending_approval" && a.status !== "terminated").length,
+      activeAgents: agents.filter(a => a.status === "active" || a.status === "running").length,
+      totalTasks: tasks.length,
+      completedTasks,
+      blockedTasks: tasks.filter(t => t.status === "blocked").length,
+      totalRuns: recentRuns.length,
+      successfulRuns,
+      failedRuns,
+      overallSuccessRate: recentRuns.length > 0 ? Math.round((successfulRuns / recentRuns.length) * 100) : 0,
+      totalCostUsd: totalCost,
+      avgCostPerTask: completedTasks > 0 ? totalCost / completedTasks : 0,
+      throughputTasksPerDay: days > 0 ? recentTasks.length / days : 0,
+      agentMetrics,
+    };
+  }
+
+  // ── Standup Report ─────────────────────────────────────────────────
+  getStandupReport(companyId: string): StandupReport {
+    const snapshot = this.listSnapshot();
+    const agents = snapshot.agents.filter(a => a.companyId === companyId && a.status !== "terminated" && a.status !== "pending_approval");
+    const tasks = snapshot.tasks.filter(t => t.companyId === companyId);
+    const runs = snapshot.runs.filter(r => r.companyId === companyId);
+    const costs = snapshot.costs.filter(c => c.companyId === companyId);
+
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const recentActivity = snapshot.activity.filter(a => a.companyId === companyId && a.createdAt > oneDayAgo);
+
+    const companyHighlights: string[] = [];
+    const blockers: string[] = [];
+
+    const recentCompletedTasks = tasks.filter(t => t.status === "done" && t.updatedAt > oneDayAgo);
+    if (recentCompletedTasks.length > 0) {
+      companyHighlights.push(`${recentCompletedTasks.length} task(s) completed in last 24h`);
+    }
+
+    const recentRuns = runs.filter(r => r.createdAt > oneDayAgo);
+    const successfulRuns = recentRuns.filter(r => r.status === "succeeded").length;
+    const failedRuns = recentRuns.filter(r => r.status === "failed" || r.status === "timed_out").length;
+    if (recentRuns.length > 0) {
+      companyHighlights.push(`${recentRuns.length} runs (${successfulRuns} succeeded, ${failedRuns} failed)`);
+    }
+
+    const blockedTasks = tasks.filter(t => t.status === "blocked");
+    for (const task of blockedTasks) {
+      const assignee = agents.find(a => a.id === task.assigneeAgentId);
+      blockers.push(`${task.title} — blocked (${assignee?.name ?? "unassigned"})`);
+    }
+
+    const pendingApprovals = snapshot.approvals.filter(a => a.companyId === companyId && a.state === "pending").length;
+    const totalBudget = agents.reduce((sum, a) => sum + a.budgetMonthlyUsd, 0);
+    const totalSpent = agents.reduce((sum, a) => sum + a.spentMonthlyUsd, 0);
+    const budgetUtilization = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+
+    const agentReports = agents.map(agent => {
+      const agentTasks = tasks.filter(t => t.assigneeAgentId === agent.id);
+      const agentRuns = runs.filter(r => r.agentId === agent.id);
+      const agentRecentRuns = agentRuns.filter(r => r.createdAt > oneDayAgo);
+      const agentCosts = costs.filter(c => c.agentId === agent.id && c.createdAt > oneDayAgo);
+      const lastRun = agentRecentRuns.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+      const highlights: string[] = [];
+      const completedRecently = agentTasks.filter(t => t.status === "done" && t.updatedAt > oneDayAgo);
+      if (completedRecently.length > 0) highlights.push(`Completed ${completedRecently.length} task(s)`);
+      if (agentRecentRuns.length > 0) highlights.push(`${agentRecentRuns.length} run(s) in last 24h`);
+      const reviewedTasks = recentActivity.filter(a => a.actor === agent.id && a.action.includes("status_changed")).length;
+      if (reviewedTasks > 0) highlights.push(`${reviewedTasks} status update(s)`);
+
+      return {
+        agentId: agent.id,
+        agentName: agent.name,
+        role: agent.role,
+        status: agent.status,
+        tasksInProgress: agentTasks.filter(t => t.status === "in_progress").length,
+        tasksCompleted24h: completedRecently.length,
+        tasksBlocked: agentTasks.filter(t => t.status === "blocked").length,
+        lastRunStatus: (lastRun?.status ?? null) as RunStatus | null,
+        lastRunAt: lastRun?.createdAt ?? null,
+        costLast24h: agentCosts.reduce((sum, c) => sum + (c.amountUsd ?? 0), 0),
+        highlights,
+      };
+    });
+
+    const summaryParts: string[] = [];
+    if (agents.length > 0) summaryParts.push(`${agents.length} active agents`);
+    summaryParts.push(`${recentCompletedTasks.length} tasks done`);
+    if (blockedTasks.length > 0) summaryParts.push(`${blockedTasks.length} blocked`);
+    if (pendingApprovals > 0) summaryParts.push(`${pendingApprovals} pending approvals`);
+
+    return {
+      companyId,
+      generatedAt: new Date().toISOString(),
+      summary: summaryParts.join(" · "),
+      agentReports,
+      companyHighlights,
+      blockers,
+      pendingApprovals,
+      budgetUtilization,
+    };
   }
 
   private openConnection(): SqliteDatabase {

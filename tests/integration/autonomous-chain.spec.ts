@@ -93,6 +93,10 @@ function buildCtx(overrides: Record<string, unknown> = {}): Parameters<typeof bu
     pendingApprovals: overrides.pendingApprovals as ApprovalRecord[] ?? [],
     tasksAwaitingReview: overrides.tasksAwaitingReview as TaskRecord[] ?? [],
     wakeReason: overrides.wakeReason as string | null ?? null,
+    allTasks: [],
+    recentComments: [],
+    companyDescription: "",
+    socialAccounts: [],
     ...overrides,
   } as Parameters<typeof buildSystemPrompt>[0];
 }
@@ -1052,5 +1056,280 @@ describe("Review Fix: Root task completion notification", () => {
     const chain = db.getChainOfCommand(ctoId);
     expect(chain).toHaveLength(1);
     expect(chain[0].id).toBe(ceoId);
+  });
+});
+
+// ── Automation Rules CRUD ──────────────────────────────────────────────
+
+describe("Automation Rules CRUD", () => {
+  it("creates, reads, toggles, and deletes an automation rule", () => {
+    const ruleId = db.saveAutomationRule({
+      companyId,
+      name: "Auto-escalate blocked tasks",
+      description: "When a task is blocked, notify the manager",
+      trigger: "task_blocked",
+      conditionsJson: JSON.stringify({ department: "engineering" }),
+      action: "escalate_to_manager",
+      actionConfigJson: JSON.stringify({ message: "Task blocked" }),
+      sourceDepartment: "engineering",
+      targetDepartment: "executive",
+      priority: 80,
+      status: "active",
+    });
+
+    expect(ruleId).toBeTruthy();
+
+    // Rule appears in snapshot
+    const snapshot = db.listSnapshot();
+    const rule = snapshot.automationRules.find(r => r.id === ruleId);
+    expect(rule).toBeTruthy();
+    expect(rule!.name).toBe("Auto-escalate blocked tasks");
+    expect(rule!.trigger).toBe("task_blocked");
+    expect(rule!.action).toBe("escalate_to_manager");
+    expect(rule!.status).toBe("active");
+    expect(rule!.priority).toBe(80);
+    expect(rule!.executionCount).toBe(0);
+
+    // Toggle to paused
+    db.toggleAutomationRule(ruleId, companyId, "paused");
+    const updated = db.listSnapshot().automationRules.find(r => r.id === ruleId);
+    expect(updated!.status).toBe("paused");
+
+    // Record execution
+    db.recordAutomationExecution(ruleId, companyId, "Auto-escalate blocked tasks", "task_blocked", "escalate_to_manager", "Escalated task-123");
+    const afterExec = db.listSnapshot().automationRules.find(r => r.id === ruleId);
+    expect(afterExec!.executionCount).toBe(1);
+    expect(afterExec!.lastExecutedAt).toBeTruthy();
+
+    // Automation log
+    const log = db.getAutomationLog(companyId);
+    expect(log).toHaveLength(1);
+    expect(log[0].ruleName).toBe("Auto-escalate blocked tasks");
+
+    // Delete
+    db.deleteAutomationRule(ruleId, companyId);
+    const afterDelete = db.listSnapshot().automationRules.find(r => r.id === ruleId);
+    expect(afterDelete).toBeUndefined();
+  });
+
+  it("updates an existing rule", () => {
+    const ruleId = db.saveAutomationRule({
+      companyId,
+      name: "Original name",
+      trigger: "task_created",
+      action: "assign_task",
+    });
+
+    db.saveAutomationRule({
+      id: ruleId,
+      companyId,
+      name: "Updated name",
+      trigger: "task_created",
+      action: "notify_agent",
+      priority: 90,
+    });
+
+    const rule = db.listSnapshot().automationRules.find(r => r.id === ruleId);
+    expect(rule!.name).toBe("Updated name");
+    expect(rule!.action).toBe("notify_agent");
+    expect(rule!.priority).toBe(90);
+  });
+});
+
+// ── Agent Messages ─────────────────────────────────────────────────────
+
+describe("Agent Messages", () => {
+  let agentAId: string;
+  let agentBId: string;
+
+  beforeEach(() => {
+    agentAId = db.saveAgent({
+      companyId, name: "Alice", role: "Engineer", title: "Senior Engineer",
+      department: "engineering", connectorId: "claude_local", status: "active",
+      capabilities: "Backend development, API design, code review",
+      budgetMonthlyUsd: 100,
+    });
+    agentBId = db.saveAgent({
+      companyId, name: "Bob", role: "Designer", title: "UX Designer",
+      department: "design", connectorId: "claude_local", status: "active",
+      capabilities: "UI design, wireframing, user research",
+      budgetMonthlyUsd: 100,
+    });
+  });
+
+  it("sends and retrieves direct messages", () => {
+    const msgId = db.sendAgentMessage({
+      companyId,
+      fromAgentId: agentAId,
+      toAgentId: agentBId,
+      channel: "direct",
+      subject: "Need design review",
+      body: "Can you review the login page mockup?",
+      priority: "normal",
+    });
+
+    expect(msgId).toBeTruthy();
+
+    const messages = db.listAgentMessages(companyId);
+    expect(messages).toHaveLength(1);
+    expect(messages[0].subject).toBe("Need design review");
+    expect(messages[0].fromAgentId).toBe(agentAId);
+    expect(messages[0].toAgentId).toBe(agentBId);
+    expect(messages[0].readAt).toBeNull();
+  });
+
+  it("marks messages as read", () => {
+    const msgId = db.sendAgentMessage({
+      companyId,
+      fromAgentId: agentAId,
+      toAgentId: agentBId,
+      subject: "Test",
+      body: "Hello",
+    });
+
+    db.markMessageRead(msgId, companyId);
+    const messages = db.listAgentMessages(companyId);
+    expect(messages[0].readAt).toBeTruthy();
+  });
+
+  it("filters messages by channel", () => {
+    db.sendAgentMessage({ companyId, fromAgentId: agentAId, subject: "Dept update", body: "All good", channel: "department", channelTargetId: "engineering" });
+    db.sendAgentMessage({ companyId, fromAgentId: agentAId, toAgentId: agentBId, subject: "DM", body: "Hey", channel: "direct" });
+
+    const deptMsgs = db.listAgentMessages(companyId, { channel: "department" });
+    expect(deptMsgs).toHaveLength(1);
+    expect(deptMsgs[0].subject).toBe("Dept update");
+
+    const directMsgs = db.listAgentMessages(companyId, { channel: "direct" });
+    expect(directMsgs).toHaveLength(1);
+    expect(directMsgs[0].subject).toBe("DM");
+  });
+
+  it("appears in snapshot", () => {
+    db.sendAgentMessage({ companyId, fromAgentId: agentAId, subject: "Snapshot test", body: "Hi" });
+    const snapshot = db.listSnapshot();
+    expect(snapshot.agentMessages.length).toBeGreaterThanOrEqual(1);
+    expect(snapshot.agentMessages[0].subject).toBe("Snapshot test");
+  });
+});
+
+// ── Auto Task Assignment ───────────────────────────────────────────────
+
+describe("Auto Task Assignment", () => {
+  let backendId: string;
+  let frontendId: string;
+
+  beforeEach(() => {
+    backendId = db.saveAgent({
+      companyId, name: "Backend Dev", role: "Backend Engineer", title: "Senior Backend",
+      department: "engineering", connectorId: "codex_local", status: "active",
+      capabilities: "API development, database design, Node.js, PostgreSQL, backend testing",
+      budgetMonthlyUsd: 200,
+    });
+    frontendId = db.saveAgent({
+      companyId, name: "Frontend Dev", role: "Frontend Engineer", title: "Senior Frontend",
+      department: "engineering", connectorId: "codex_local", status: "active",
+      capabilities: "React, TypeScript, CSS, Tailwind, responsive design, frontend testing, UI components",
+      budgetMonthlyUsd: 200,
+    });
+  });
+
+  it("assigns to the best-matching agent by capability keywords", () => {
+    const taskId = db.saveTask({
+      companyId, title: "Build React component for user dashboard",
+      description: "Create a responsive React component with Tailwind CSS styling",
+      priority: "medium", status: "todo",
+    });
+
+    const assignedId = db.autoAssignTask(taskId, companyId);
+    expect(assignedId).toBe(frontendId); // "React", "responsive", "Tailwind" match frontend
+  });
+
+  it("assigns backend task to backend agent", () => {
+    const taskId = db.saveTask({
+      companyId, title: "Design database schema for orders",
+      description: "PostgreSQL database design with API endpoints for order management",
+      priority: "high", status: "todo",
+    });
+
+    const assignedId = db.autoAssignTask(taskId, companyId);
+    expect(assignedId).toBe(backendId); // "database", "PostgreSQL", "API" match backend
+  });
+
+  it("returns existing assignee if task already assigned", () => {
+    const taskId = db.saveTask({
+      companyId, title: "Already assigned task",
+      description: "This task has an assignee",
+      assigneeAgentId: frontendId,
+      priority: "medium", status: "todo",
+    });
+
+    const result = db.autoAssignTask(taskId, companyId);
+    expect(result).toBe(frontendId);
+  });
+
+  it("returns null if no agents have remaining budget", () => {
+    // Exhaust both agents' budgets
+    db.saveAgent({ id: backendId, companyId, name: "Backend Dev", role: "Backend", title: "Backend", connectorId: "codex_local", status: "active", capabilities: "backend", budgetMonthlyUsd: 0 });
+    db.saveAgent({ id: frontendId, companyId, name: "Frontend Dev", role: "Frontend", title: "Frontend", connectorId: "codex_local", status: "active", capabilities: "frontend", budgetMonthlyUsd: 0 });
+
+    const taskId = db.saveTask({ companyId, title: "No budget task", description: "Test", priority: "low", status: "todo" });
+    const result = db.autoAssignTask(taskId, companyId);
+    expect(result).toBeNull();
+  });
+
+  it("penalizes agents with many active tasks", () => {
+    // Give backend agent 5 active tasks
+    for (let i = 0; i < 5; i++) {
+      db.saveTask({ companyId, title: `Backend task ${i}`, description: "", assigneeAgentId: backendId, priority: "medium", status: "in_progress" });
+    }
+
+    // Generic task with no strong keyword match — should go to less busy frontend agent
+    const taskId = db.saveTask({ companyId, title: "Implement feature", description: "Build the feature", priority: "medium", status: "todo" });
+    const assignedId = db.autoAssignTask(taskId, companyId);
+    expect(assignedId).toBe(frontendId); // Frontend has 0 active tasks vs backend's 5
+  });
+});
+
+// ── Workflow Pipelines ─────────────────────────────────────────────────
+
+describe("Workflow Pipelines", () => {
+  it("creates, activates, and deletes a workflow", () => {
+    const wfId = db.saveWorkflow({
+      companyId,
+      name: "Code Review Pipeline",
+      description: "Auto-review flow for PRs",
+      triggerType: "task_status_changed",
+      triggerConfigJson: JSON.stringify({ toStatus: "in_review" }),
+      stepsJson: JSON.stringify([
+        { id: "s1", name: "Run tests", action: "run_task", status: "pending" },
+        { id: "s2", name: "Notify reviewer", action: "notify_agent", status: "pending" },
+      ]),
+      status: "draft",
+    });
+
+    expect(wfId).toBeTruthy();
+    const snapshot = db.listSnapshot();
+    const wf = snapshot.workflows.find(w => w.id === wfId);
+    expect(wf!.name).toBe("Code Review Pipeline");
+    expect(wf!.status).toBe("draft");
+    expect(wf!.runCount).toBe(0);
+
+    // Activate
+    db.activateWorkflow(wfId, companyId);
+    const activated = db.listSnapshot().workflows.find(w => w.id === wfId);
+    expect(activated!.status).toBe("active");
+    expect(activated!.runCount).toBe(1);
+    expect(activated!.lastRunAt).toBeTruthy();
+
+    // Delete
+    db.deleteWorkflow(wfId, companyId);
+    expect(db.listSnapshot().workflows.find(w => w.id === wfId)).toBeUndefined();
+  });
+
+  it("rejects activating an already-active workflow", () => {
+    const wfId = db.saveWorkflow({ companyId, name: "Test", triggerType: "schedule", status: "draft" });
+    db.activateWorkflow(wfId, companyId);
+    expect(() => db.activateWorkflow(wfId, companyId)).toThrow("already running");
   });
 });

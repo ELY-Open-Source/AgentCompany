@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CommentRecord, DesktopEvent, ProfileSnapshot } from "./types";
+import type { AgentMessageRecord, AgentMetrics, AutomationRuleRecord, BrowserActionRecord, CommentRecord, CompanyMetrics, CompanyTemplate, DesktopEvent, DocumentRecord, InboxItem, KnowledgeEntryRecord, MeetingRecord, ProfileSnapshot, SocialAccountRecord, SprintRecord, StandupReport, WorkflowPipelineRecord } from "./types";
 
 export const IPC_CHANNELS = {
   loadSnapshot: "agent-company:load-snapshot",
@@ -40,6 +40,45 @@ export const IPC_CHANNELS = {
   triggerHeartbeat: "agent-company:trigger-heartbeat",
   getApiPort: "agent-company:get-api-port",
   rendererEvent: "agent-company:event",
+  getInbox: "agent-company:get-inbox",
+  dismissInboxItem: "agent-company:dismiss-inbox-item",
+  getCompanyMetrics: "agent-company:get-company-metrics",
+  getAgentMetrics: "agent-company:get-agent-metrics",
+  getStandupReport: "agent-company:get-standup-report",
+  applyCompanyTemplate: "agent-company:apply-company-template",
+  listCompanyTemplates: "agent-company:list-company-templates",
+  saveSocialAccount: "agent-company:save-social-account",
+  deleteSocialAccount: "agent-company:delete-social-account",
+  listBrowserActions: "agent-company:list-browser-actions",
+  cancelBrowserAction: "agent-company:cancel-browser-action",
+  triggerBrowserLogin: "agent-company:trigger-browser-login",
+  // Meetings
+  saveMeeting: "agent-company:save-meeting",
+  deleteMeeting: "agent-company:delete-meeting",
+  // Documents
+  saveDocument: "agent-company:save-document",
+  deleteDocument: "agent-company:delete-document",
+  // Knowledge Base
+  saveKnowledgeEntry: "agent-company:save-knowledge-entry",
+  deleteKnowledgeEntry: "agent-company:delete-knowledge-entry",
+  // Sprints
+  saveSprint: "agent-company:save-sprint",
+  deleteSprint: "agent-company:delete-sprint",
+  // Automation
+  saveAutomationRule: "agent-company:save-automation-rule",
+  deleteAutomationRule: "agent-company:delete-automation-rule",
+  toggleAutomationRule: "agent-company:toggle-automation-rule",
+  getAutomationLog: "agent-company:get-automation-log",
+  // Agent Messages
+  sendAgentMessage: "agent-company:send-agent-message",
+  listAgentMessages: "agent-company:list-agent-messages",
+  markMessageRead: "agent-company:mark-message-read",
+  // Workflows
+  saveWorkflow: "agent-company:save-workflow",
+  deleteWorkflow: "agent-company:delete-workflow",
+  runWorkflow: "agent-company:run-workflow",
+  // Auto-assign
+  autoAssignTask: "agent-company:auto-assign-task",
 } as const;
 
 const optionalId = z.preprocess(
@@ -80,6 +119,7 @@ export const agentInputSchema = z.object({
   name: z.string().min(2).max(80),
   role: z.string().min(2).max(80),
   title: z.string().default(""),
+  department: z.enum(["executive", "engineering", "product", "marketing", "sales", "hr", "finance", "legal", "operations", "customer_support", "research", "design"]).nullable().optional(),
   reportsTo: optionalId,
   connectorId: connectorInputSchema.shape.id,
   workspaceId: optionalId,
@@ -129,7 +169,7 @@ export const approvalInputSchema = z.object({
   companyId: z.string().uuid(),
   relatedTaskId: optionalId,
   requestedByAgentId: optionalId,
-  type: z.enum(["hire_agent", "approve_ceo_strategy", "dangerous_command", "secret_access"]),
+  type: z.enum(["hire_agent", "approve_ceo_strategy", "dangerous_command", "secret_access", "budget_request", "promotion", "termination", "vendor_approval", "document_review", "production_deploy", "incident_escalation"]),
   payloadSummary: z.string().min(2).max(280),
   impactSummary: z.string().min(2).max(400),
 });
@@ -202,7 +242,178 @@ export const heartbeatSettingsSchema = z.object({
 export const triggerHeartbeatSchema = z.object({
   agentId: z.string().uuid(),
   companyId: z.string().uuid(),
-  trigger: z.enum(["manual", "timer", "assignment", "goal_activated", "approval_resolved", "subtask_completed", "comment", "report_blocked", "report_failed", "recovery"]).default("manual"),
+  trigger: z.enum(["manual", "timer", "assignment", "goal_activated", "approval_resolved", "subtask_completed", "comment", "report_blocked", "report_failed", "recovery", "message", "peer_request"]).default("manual"),
+});
+
+export const inboxDismissSchema = z.object({
+  itemId: z.string(),
+  companyId: z.string().uuid(),
+});
+
+export const metricsQuerySchema = z.object({
+  companyId: z.string().uuid(),
+  agentId: z.string().uuid().optional(),
+  days: z.number().int().min(1).max(90).default(30),
+});
+
+export const templateApplySchema = z.object({
+  templateId: z.string(),
+  companyName: z.string().min(2).max(80),
+  companyDescription: z.string().max(500).default(""),
+  workspaceId: z.string().uuid().optional(),
+  connectorId: z.enum(["codex_local", "claude_local", "gemini_local", "opencode_local", "kimi_local"]).optional(),
+});
+
+export const socialAccountInputSchema = z.object({
+  id: optionalId,
+  companyId: z.string().uuid(),
+  platform: z.enum(["twitter", "linkedin", "instagram", "facebook", "reddit", "youtube", "tiktok", "bluesky", "other"]),
+  accountName: z.string().min(1).max(120),
+  displayName: z.string().max(120).default(""),
+  profileUrl: z.string().max(500).default(""),
+  credentialSecretId: optionalId,
+  status: z.enum(["active", "logged_in", "login_required", "suspended", "paused"]).default("login_required"),
+  requireApproval: z.boolean().default(true),
+  metadataJson: z.string().default("{}"),
+});
+
+export const meetingInputSchema = z.object({
+  id: optionalId,
+  companyId: z.string().uuid(),
+  type: z.enum(["standup", "sprint_planning", "sprint_review", "retrospective", "one_on_one", "all_hands", "department_sync", "incident_review", "hiring_committee", "budget_review", "design_review", "architecture_review"]),
+  title: z.string().min(2).max(160),
+  organizerAgentId: optionalId,
+  participantAgentIds: z.string().default("[]"),
+  scheduledAt: z.string(),
+  durationMinutes: z.number().int().min(5).max(480).default(30),
+  agendaJson: z.string().default("[]"),
+  notesJson: z.string().default("[]"),
+  decisionsJson: z.string().default("[]"),
+  actionItemsJson: z.string().default("[]"),
+  status: z.enum(["scheduled", "in_progress", "completed", "cancelled"]).default("scheduled"),
+});
+
+export const documentInputSchema = z.object({
+  id: optionalId,
+  companyId: z.string().uuid(),
+  type: z.enum(["prd", "technical_spec", "design_doc", "test_plan", "post_mortem", "meeting_notes", "budget_proposal", "hiring_requisition", "performance_review_doc", "sop", "knowledge_article", "project_brief", "sprint_report", "incident_report", "onboarding_guide", "architecture_decision", "status_report", "contract", "proposal"]),
+  title: z.string().min(2).max(200),
+  content: z.string().default(""),
+  authorAgentId: optionalId,
+  reviewerAgentId: optionalId,
+  projectId: optionalId,
+  goalId: optionalId,
+  parentDocId: optionalId,
+  version: z.number().int().min(1).default(1),
+  status: z.enum(["draft", "in_review", "approved", "archived", "superseded"]).default("draft"),
+  tagsJson: z.string().default("[]"),
+});
+
+export const knowledgeEntryInputSchema = z.object({
+  id: optionalId,
+  companyId: z.string().uuid(),
+  category: z.enum(["lesson_learned", "best_practice", "decision", "process", "technical", "business", "onboarding", "incident"]),
+  topic: z.string().min(2).max(200),
+  content: z.string().min(1),
+  authorAgentId: optionalId,
+  importance: z.enum(["critical", "high", "medium", "low"]).default("medium"),
+  tagsJson: z.string().default("[]"),
+  referencedEntityType: z.string().nullable().optional(),
+  referencedEntityId: z.string().nullable().optional(),
+});
+
+export const sprintInputSchema = z.object({
+  id: optionalId,
+  companyId: z.string().uuid(),
+  name: z.string().min(2).max(120),
+  goal: z.string().default(""),
+  startDate: z.string(),
+  endDate: z.string(),
+  status: z.enum(["planning", "active", "review", "completed", "cancelled"]).default("planning"),
+  retrospectiveNotes: z.string().default(""),
+  velocityPoints: z.number().int().min(0).default(0),
+  completedPoints: z.number().int().min(0).default(0),
+});
+
+export const browserActionQuerySchema = z.object({
+  companyId: z.string().uuid(),
+  socialAccountId: z.string().uuid().optional(),
+  status: z.string().optional(),
+  limit: z.number().int().min(1).max(100).default(50),
+});
+
+// ── Automation Schemas ──────────────────────────────────────────────────
+export const automationRuleInputSchema = z.object({
+  id: z.preprocess((v) => (v === "" ? null : v), z.string().uuid().nullable().optional()),
+  companyId: z.string().uuid(),
+  name: z.string().min(2).max(120),
+  description: z.string().max(500).default(""),
+  trigger: z.enum([
+    "task_status_changed", "task_created", "task_blocked", "run_completed",
+    "run_failed", "approval_resolved", "budget_threshold", "agent_idle",
+    "comment_posted", "document_created", "schedule", "hire_approved",
+    "sprint_started", "sprint_ended",
+  ]),
+  conditionsJson: z.string().default("{}"),
+  action: z.enum([
+    "assign_task", "create_task", "notify_agent", "send_message",
+    "trigger_heartbeat", "create_approval", "update_task_status",
+    "escalate_to_manager", "cross_department_notify", "schedule_meeting",
+    "create_document", "auto_approve", "reassign_task", "run_task",
+  ]),
+  actionConfigJson: z.string().default("{}"),
+  sourceDepartment: z.enum([
+    "executive", "engineering", "product", "marketing", "sales",
+    "hr", "finance", "legal", "operations", "customer_support", "research", "design",
+  ]).nullable().optional(),
+  targetDepartment: z.enum([
+    "executive", "engineering", "product", "marketing", "sales",
+    "hr", "finance", "legal", "operations", "customer_support", "research", "design",
+  ]).nullable().optional(),
+  priority: z.number().int().min(0).max(100).default(50),
+  status: z.enum(["active", "paused", "disabled", "error"]).default("active"),
+});
+
+export const agentMessageInputSchema = z.object({
+  companyId: z.string().uuid(),
+  fromAgentId: z.string().uuid(),
+  toAgentId: z.preprocess((v) => (v === "" ? null : v), z.string().uuid().nullable().optional()),
+  channel: z.enum(["direct", "department", "company", "project", "incident"]).default("direct"),
+  channelTargetId: z.string().nullable().optional(),
+  subject: z.string().min(1).max(200),
+  body: z.string().min(1).max(8000),
+  priority: z.enum(["urgent", "normal", "low"]).default("normal"),
+  parentMessageId: z.preprocess((v) => (v === "" ? null : v), z.string().uuid().nullable().optional()),
+  attachmentsJson: z.string().default("[]"),
+});
+
+export const messageQuerySchema = z.object({
+  companyId: z.string().uuid(),
+  agentId: z.string().uuid().optional(),
+  channel: z.enum(["direct", "department", "company", "project", "incident"]).optional(),
+  unreadOnly: z.boolean().optional(),
+  limit: z.number().int().min(1).max(200).default(50),
+});
+
+export const workflowInputSchema = z.object({
+  id: z.preprocess((v) => (v === "" ? null : v), z.string().uuid().nullable().optional()),
+  companyId: z.string().uuid(),
+  name: z.string().min(2).max(120),
+  description: z.string().max(500).default(""),
+  stepsJson: z.string().default("[]"),
+  triggerType: z.enum([
+    "task_status_changed", "task_created", "task_blocked", "run_completed",
+    "run_failed", "approval_resolved", "budget_threshold", "agent_idle",
+    "comment_posted", "document_created", "schedule", "hire_approved",
+    "sprint_started", "sprint_ended",
+  ]),
+  triggerConfigJson: z.string().default("{}"),
+  status: z.enum(["draft", "active", "paused", "completed", "failed"]).default("draft"),
+});
+
+export const autoAssignSchema = z.object({
+  taskId: z.string().uuid(),
+  companyId: z.string().uuid(),
 });
 
 export type DesktopResult<T> =
@@ -247,5 +458,44 @@ export type DesktopApi = {
   setHeartbeat: (input: z.infer<typeof heartbeatSettingsSchema>) => Promise<DesktopResult<boolean>>;
   triggerHeartbeat: (input: z.infer<typeof triggerHeartbeatSchema>) => Promise<DesktopResult<string>>;
   getApiPort: () => Promise<DesktopResult<number>>;
+  getInbox: (companyId: string) => Promise<DesktopResult<InboxItem[]>>;
+  dismissInboxItem: (input: z.infer<typeof inboxDismissSchema>) => Promise<DesktopResult<boolean>>;
+  getCompanyMetrics: (input: z.infer<typeof metricsQuerySchema>) => Promise<DesktopResult<CompanyMetrics>>;
+  getAgentMetrics: (input: z.infer<typeof metricsQuerySchema>) => Promise<DesktopResult<AgentMetrics>>;
+  getStandupReport: (companyId: string) => Promise<DesktopResult<StandupReport>>;
+  applyCompanyTemplate: (input: z.infer<typeof templateApplySchema>) => Promise<DesktopResult<string>>;
+  listCompanyTemplates: () => Promise<DesktopResult<CompanyTemplate[]>>;
+  saveSocialAccount: (input: z.infer<typeof socialAccountInputSchema>) => Promise<DesktopResult<string>>;
+  deleteSocialAccount: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
+  listBrowserActions: (input: z.infer<typeof browserActionQuerySchema>) => Promise<DesktopResult<BrowserActionRecord[]>>;
+  cancelBrowserAction: (input: z.infer<typeof cancelRunSchema>) => Promise<DesktopResult<boolean>>;
+  triggerBrowserLogin: (socialAccountId: string) => Promise<DesktopResult<boolean>>;
+  // Meetings
+  saveMeeting: (input: z.infer<typeof meetingInputSchema>) => Promise<DesktopResult<string>>;
+  deleteMeeting: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
+  // Documents
+  saveDocument: (input: z.infer<typeof documentInputSchema>) => Promise<DesktopResult<string>>;
+  deleteDocument: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
+  // Knowledge Base
+  saveKnowledgeEntry: (input: z.infer<typeof knowledgeEntryInputSchema>) => Promise<DesktopResult<string>>;
+  deleteKnowledgeEntry: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
+  // Sprints
+  saveSprint: (input: z.infer<typeof sprintInputSchema>) => Promise<DesktopResult<string>>;
+  deleteSprint: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
+  // Automation
+  saveAutomationRule: (input: z.infer<typeof automationRuleInputSchema>) => Promise<DesktopResult<string>>;
+  deleteAutomationRule: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
+  toggleAutomationRule: (input: { id: string; companyId: string; status: "active" | "paused" }) => Promise<DesktopResult<boolean>>;
+  getAutomationLog: (companyId: string) => Promise<DesktopResult<Array<{ ruleId: string; ruleName: string; trigger: string; action: string; executedAt: string }>>>;
+  // Agent Messages
+  sendAgentMessage: (input: z.infer<typeof agentMessageInputSchema>) => Promise<DesktopResult<string>>;
+  listAgentMessages: (input: z.infer<typeof messageQuerySchema>) => Promise<DesktopResult<AgentMessageRecord[]>>;
+  markMessageRead: (input: { messageId: string; companyId: string }) => Promise<DesktopResult<boolean>>;
+  // Workflows
+  saveWorkflow: (input: z.infer<typeof workflowInputSchema>) => Promise<DesktopResult<string>>;
+  deleteWorkflow: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
+  runWorkflow: (input: { id: string; companyId: string }) => Promise<DesktopResult<boolean>>;
+  // Auto-assign
+  autoAssignTask: (input: z.infer<typeof autoAssignSchema>) => Promise<DesktopResult<string>>;
   subscribe: (callback: (event: DesktopEvent) => void) => () => void;
 };

@@ -3,15 +3,22 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   Briefcase,
+  Buildings,
+  CalendarCheck,
+  ChartLineUp,
   CheckCircle,
+  Clock,
   Cpu,
   CurrencyCircleDollar,
   Heartbeat,
   Lightning,
   Robot,
+  Rocket,
   ShieldCheck,
   Target,
   TreeStructure,
+  TrendUp,
+  Users,
   Warning,
   XCircle,
 } from "@phosphor-icons/react";
@@ -21,10 +28,13 @@ import type {
   ApprovalRecord,
   ConnectorRecord,
   CostRecord,
+  DepartmentId,
   GoalRecord,
+  MeetingRecord,
   ProjectRecord,
   RunRecord,
   SectionId,
+  SprintRecord,
   TaskRecord,
 } from "@shared/types";
 import { formatMoney } from "../lib/formatters";
@@ -44,6 +54,8 @@ interface DashboardProps {
   activity: ActivityRecord[];
   costs: CostRecord[];
   connectors: ConnectorRecord[];
+  meetings?: MeetingRecord[];
+  sprints?: SprintRecord[];
   onNavigate: (section: SectionId, entityId?: string) => void;
 }
 
@@ -394,11 +406,240 @@ function TaskPipeline({ tasks }: { tasks: TaskRecord[] }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Department Overview                                                */
+/* ------------------------------------------------------------------ */
+
+const DEPARTMENT_INFO: Record<string, { label: string; icon: React.ElementType; color: string }> = {
+  executive: { label: "Executive", icon: Buildings, color: "var(--accent)" },
+  engineering: { label: "Engineering", icon: Cpu, color: "#6366f1" },
+  product: { label: "Product", icon: Rocket, color: "#8b5cf6" },
+  design: { label: "Design", icon: Target, color: "#ec4899" },
+  marketing: { label: "Marketing", icon: TrendUp, color: "#f59e0b" },
+  sales: { label: "Sales", icon: ChartLineUp, color: "#10b981" },
+  hr: { label: "People", icon: Users, color: "#06b6d4" },
+  finance: { label: "Finance", icon: CurrencyCircleDollar, color: "#14b8a6" },
+  legal: { label: "Legal", icon: ShieldCheck, color: "#64748b" },
+  operations: { label: "Operations", icon: Lightning, color: "#f97316" },
+  customer_support: { label: "Support", icon: Heartbeat, color: "#3b82f6" },
+  research: { label: "Research", icon: Target, color: "#a855f7" },
+};
+
+function DepartmentOverview({
+  agents,
+  tasks,
+  runs,
+  onNavigate,
+}: {
+  agents: AgentRecord[];
+  tasks: TaskRecord[];
+  runs: RunRecord[];
+  onNavigate: (section: SectionId) => void;
+}) {
+  const departments = useMemo(() => {
+    const depts = new Map<string, { agents: AgentRecord[]; tasks: TaskRecord[]; activeRuns: number }>();
+    for (const agent of agents) {
+      if (agent.status === "terminated") continue;
+      const dept = agent.department ?? "unassigned";
+      if (!depts.has(dept)) depts.set(dept, { agents: [], tasks: [], activeRuns: 0 });
+      depts.get(dept)!.agents.push(agent);
+    }
+    for (const task of tasks) {
+      if (task.assigneeAgentId) {
+        const agent = agents.find((a) => a.id === task.assigneeAgentId);
+        if (agent?.department) {
+          const dept = depts.get(agent.department);
+          if (dept) dept.tasks.push(task);
+        }
+      }
+    }
+    for (const run of runs) {
+      if (run.status === "running") {
+        const agent = agents.find((a) => a.id === run.agentId);
+        if (agent?.department) {
+          const dept = depts.get(agent.department);
+          if (dept) dept.activeRuns++;
+        }
+      }
+    }
+    return Array.from(depts.entries())
+      .filter(([key]) => key !== "unassigned")
+      .sort((a, b) => b[1].agents.length - a[1].agents.length);
+  }, [agents, tasks, runs]);
+
+  if (departments.length <= 1) return null;
+
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+      {departments.map(([deptId, data]) => {
+        const info = DEPARTMENT_INFO[deptId] ?? { label: deptId, icon: Buildings, color: "var(--muted)" };
+        const Icon = info.icon;
+        const activeTasks = data.tasks.filter((t) => t.status === "in_progress" || t.status === "in_review").length;
+        const doneTasks = data.tasks.filter((t) => t.status === "done").length;
+        const blockedTasks = data.tasks.filter((t) => t.status === "blocked").length;
+        const runningAgents = data.agents.filter((a) => a.status === "running").length;
+
+        return (
+          <button
+            key={deptId}
+            type="button"
+            onClick={() => onNavigate("agents")}
+            className="focus-ring group relative overflow-hidden rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-3 text-left transition hover:border-[color:var(--line-strong)] hover:shadow-sm"
+          >
+            {/* Accent bar */}
+            <div className="absolute left-0 top-0 h-full w-[3px]" style={{ backgroundColor: info.color }} />
+
+            <div className="flex items-center gap-2 pl-1">
+              <Icon size={14} style={{ color: info.color }} />
+              <span className="text-[11px] font-semibold text-[color:var(--text)]">{info.label}</span>
+              {runningAgents > 0 && (
+                <span className="ml-auto flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[color:var(--success)]" />
+                  <span className="text-[9px] text-[color:var(--success)]">{runningAgents}</span>
+                </span>
+              )}
+            </div>
+
+            <div className="mt-2 grid grid-cols-3 gap-1 pl-1">
+              <div>
+                <div className="text-[14px] font-bold text-[color:var(--text)]">{data.agents.length}</div>
+                <div className="text-[8px] uppercase tracking-[0.1em] text-[color:var(--muted)]">People</div>
+              </div>
+              <div>
+                <div className="text-[14px] font-bold text-[color:var(--accent)]">{activeTasks}</div>
+                <div className="text-[8px] uppercase tracking-[0.1em] text-[color:var(--muted)]">Active</div>
+              </div>
+              <div>
+                <div className={`text-[14px] font-bold ${blockedTasks > 0 ? "text-[color:var(--danger)]" : "text-[color:var(--success)]"}`}>
+                  {blockedTasks > 0 ? blockedTasks : doneTasks}
+                </div>
+                <div className="text-[8px] uppercase tracking-[0.1em] text-[color:var(--muted)]">
+                  {blockedTasks > 0 ? "Blocked" : "Done"}
+                </div>
+              </div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Sprint Progress                                                    */
+/* ------------------------------------------------------------------ */
+
+function SprintProgress({ sprint, tasks }: { sprint: SprintRecord; tasks: TaskRecord[] }) {
+  const progress = useMemo(() => {
+    if (sprint.velocityPoints === 0) return 0;
+    return Math.min(100, Math.round((sprint.completedPoints / sprint.velocityPoints) * 100));
+  }, [sprint]);
+
+  const daysLeft = useMemo(() => {
+    const end = new Date(sprint.endDate).getTime();
+    const now = Date.now();
+    return Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
+  }, [sprint]);
+
+  const sprintTasks = useMemo(() => {
+    const done = tasks.filter((t) => t.status === "done").length;
+    const active = tasks.filter((t) => t.status === "in_progress" || t.status === "in_review").length;
+    const total = tasks.length;
+    return { done, active, total };
+  }, [tasks]);
+
+  return (
+    <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <CalendarCheck size={16} className="text-[color:var(--accent)]" />
+          <span className="text-[12px] font-semibold text-[color:var(--text)]">{sprint.name}</span>
+          <StatusPill status={sprint.status} />
+        </div>
+        <div className="flex items-center gap-1 text-[11px] text-[color:var(--muted)]">
+          <Clock size={12} />
+          {daysLeft} days left
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[color:var(--panel-soft)]">
+        <motion.div
+          className="h-full rounded-full bg-[color:var(--accent)]"
+          initial={{ width: 0 }}
+          animate={{ width: `${progress}%` }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+        />
+      </div>
+
+      <div className="mt-2 flex items-center justify-between text-[10px] text-[color:var(--muted)]">
+        <span>{sprint.completedPoints}/{sprint.velocityPoints} points ({progress}%)</span>
+        <div className="flex items-center gap-3">
+          <span className="text-[color:var(--success)]">{sprintTasks.done} done</span>
+          <span className="text-[color:var(--accent)]">{sprintTasks.active} active</span>
+          <span>{sprintTasks.total} total</span>
+        </div>
+      </div>
+
+      {sprint.goal && (
+        <div className="mt-2 text-[11px] italic text-[color:var(--muted)]">"{sprint.goal}"</div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Goal Progress Bars                                                 */
+/* ------------------------------------------------------------------ */
+
+function GoalProgress({ goals, tasks, onNavigate }: { goals: GoalRecord[]; tasks: TaskRecord[]; onNavigate: (section: SectionId) => void }) {
+  const activeGoals = useMemo(() => goals.filter((g) => g.status === "active"), [goals]);
+
+  if (activeGoals.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      {activeGoals.slice(0, 5).map((goal) => {
+        const goalTasks = tasks.filter((t) => t.goalId === goal.id);
+        const done = goalTasks.filter((t) => t.status === "done").length;
+        const total = goalTasks.length;
+        const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+
+        return (
+          <button
+            key={goal.id}
+            type="button"
+            onClick={() => onNavigate("goals")}
+            className="focus-ring w-full rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3 text-left transition hover:border-[color:var(--line-strong)]"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Target size={14} className="text-[color:var(--accent)]" />
+                <span className="text-[12px] font-medium text-[color:var(--text)]">{goal.title}</span>
+              </div>
+              <span className="text-[11px] font-bold text-[color:var(--accent)]">{pct}%</span>
+            </div>
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[color:var(--panel-soft)]">
+              <motion.div
+                className="h-full rounded-full bg-[color:var(--accent)]"
+                initial={{ width: 0 }}
+                animate={{ width: `${pct}%` }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
+              />
+            </div>
+            <div className="mt-1 text-[10px] text-[color:var(--muted)]">{done}/{total} tasks complete</div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main Dashboard                                                     */
 /* ------------------------------------------------------------------ */
 
 export function Dashboard(props: DashboardProps) {
-  const { agents, tasks, runs, approvals, goals, projects, activity, costs, connectors, onNavigate } = props;
+  const { agents, tasks, runs, approvals, goals, projects, activity, costs, connectors, meetings = [], sprints = [], onNavigate } = props;
 
   const healthScore = useMemo(
     () => computeHealthScore({ agents, tasks, runs, approvals, connectors }),
@@ -413,6 +654,13 @@ export function Dashboard(props: DashboardProps) {
   const totalSpend = useMemo(() => costs.reduce((sum, c) => sum + (c.amountUsd ?? 0), 0), [costs]);
   const activeAgents = useMemo(() => agents.filter((a) => a.status !== "terminated" && a.status !== "pending_approval"), [agents]);
   const readyConnectors = useMemo(() => connectors.filter((c) => c.status === "ready"), [connectors]);
+  const activeSprint = useMemo(() => sprints.find((s) => s.status === "active"), [sprints]);
+  const completionRate = useMemo(() => {
+    const total = runs.length;
+    if (total === 0) return 0;
+    const succeeded = runs.filter((r) => r.status === "succeeded").length;
+    return Math.round((succeeded / total) * 100);
+  }, [runs]);
 
   return (
     <div className="space-y-8">
@@ -488,7 +736,55 @@ export function Dashboard(props: DashboardProps) {
         </div>
       </div>
 
-      {/* Row 2: Task Pipeline */}
+      {/* Row 2: Department Overview */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Departments</div>
+          <button
+            type="button"
+            onClick={() => onNavigate("orgchart")}
+            className="flex items-center gap-1 text-[11px] font-medium text-[color:var(--accent)] transition hover:underline"
+          >
+            Org chart <TreeStructure size={12} />
+          </button>
+        </div>
+        <DepartmentOverview agents={agents} tasks={tasks} runs={runs} onNavigate={onNavigate} />
+      </section>
+
+      {/* Row 3: Sprint + Goals side by side */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {activeSprint ? (
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Current Sprint</div>
+              <button
+                type="button"
+                onClick={() => onNavigate("sprints")}
+                className="flex items-center gap-1 text-[11px] font-medium text-[color:var(--accent)] transition hover:underline"
+              >
+                Manage <ArrowRight size={12} />
+              </button>
+            </div>
+            <SprintProgress sprint={activeSprint} tasks={tasks} />
+          </section>
+        ) : null}
+
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Goal Progress</div>
+            <button
+              type="button"
+              onClick={() => onNavigate("goals")}
+              className="flex items-center gap-1 text-[11px] font-medium text-[color:var(--accent)] transition hover:underline"
+            >
+              All goals <ArrowRight size={12} />
+            </button>
+          </div>
+          <GoalProgress goals={goals} tasks={tasks} onNavigate={onNavigate} />
+        </section>
+      </div>
+
+      {/* Row 4: Task Pipeline */}
       <section>
         <div className="mb-3 flex items-center justify-between">
           <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Task Pipeline</div>
@@ -505,7 +801,7 @@ export function Dashboard(props: DashboardProps) {
         </div>
       </section>
 
-      {/* Row 3: Workforce + Activity */}
+      {/* Row 5: Workforce + Activity */}
       <div className="grid gap-6 lg:grid-cols-5">
         {/* Workforce */}
         <section className="lg:col-span-3">

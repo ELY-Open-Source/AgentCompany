@@ -1,6 +1,6 @@
 {
   "name": "agent-company",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Cross-platform Electron desktop control plane for local-first AI agent companies.",

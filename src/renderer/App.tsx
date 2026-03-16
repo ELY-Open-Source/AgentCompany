@@ -2,21 +2,33 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowClockwise,
+  Bell,
+  BookOpen,
+  Brain,
+  CalendarBlank,
   CaretUpDown,
+  ChartBar,
+  ChatCircle,
   Check,
   Command,
   Cpu,
   CurrencyCircleDollar,
+  FileText,
   FolderOpen,
   Gear,
+  Heartbeat,
   Kanban,
+  Lightning,
   ListChecks,
   MagnifyingGlass,
+  Megaphone,
   Plus,
   Pulse,
   Robot,
+  Rows,
   ShieldCheck,
   Trash,
+  UserPlus,
   SquaresFour,
   Target,
   TreeStructure,
@@ -27,14 +39,23 @@ import {
   X,
 } from "@phosphor-icons/react";
 import type {
+  AgentMessageRecord,
+  AutomationRuleRecord,
   CompanyRecord,
+  CompanyMetrics,
   DesktopEvent,
+  InboxItem,
   ProfileSnapshot,
   RunRecord,
   SectionId,
+  SocialAccountRecord,
+  BrowserActionRecord,
+  StandupReport,
+  WorkflowPipelineRecord,
 } from "@shared/types";
 import type { SidebarBadges } from "@shared/contracts";
 import { CompanyOnboarding } from "./components/CompanyOnboarding";
+import { Inbox, StandupView, PerformanceView } from "./components/inbox";
 import { ConnectorEditor } from "./components/connectors";
 import { Dashboard, KanbanBoard } from "./components/dashboard";
 import { EntityWorkspace } from "./components/EntityWorkspace";
@@ -65,6 +86,10 @@ import {
   ProjectEditor,
   ProjectList,
 } from "./components/organization";
+import { SocialAccountsPanel } from "./components/social";
+import { AutomationPanel } from "./components/automation";
+import { CommunicationHub } from "./components/communication";
+import { HiringPipeline } from "./components/hiring";
 import { ActionButton, ErrorBoundary, ListFrame, ListRow, Modal, Panel, SectionButton, Select, StatusPill, useFocusTrap, useReducedMotion } from "./components/ui";
 import { unwrap } from "./lib/desktop";
 import { formatMoney, formatTime } from "./lib/formatters";
@@ -77,6 +102,9 @@ const navGroups: NavGroup[] = [
     label: "Overview",
     items: [
       { id: "overview", label: "Dashboard", icon: SquaresFour },
+      { id: "inbox", label: "Inbox", icon: Bell },
+      { id: "standup", label: "Standup", icon: Heartbeat },
+      { id: "performance", label: "Performance", icon: ChartBar },
     ],
   },
   {
@@ -84,17 +112,35 @@ const navGroups: NavGroup[] = [
     items: [
       { id: "agents", label: "Agents", icon: Robot },
       { id: "orgchart", label: "Org Chart", icon: TreeStructure },
+      { id: "hiring", label: "Hiring", icon: UserPlus },
+      { id: "communication", label: "Messages", icon: ChatCircle },
       { id: "goals", label: "Goals", icon: Target },
       { id: "projects", label: "Projects", icon: Kanban },
       { id: "tasks", label: "Tasks", icon: ListChecks },
+      { id: "sprints", label: "Sprints", icon: Rows },
+    ],
+  },
+  {
+    label: "Automation",
+    items: [
+      { id: "automation", label: "Automation", icon: Lightning },
+      { id: "approvals", label: "Approvals", icon: ShieldCheck },
+    ],
+  },
+  {
+    label: "Knowledge",
+    items: [
+      { id: "documents", label: "Documents", icon: FileText },
+      { id: "knowledge", label: "Knowledge", icon: Brain },
+      { id: "meetings", label: "Meetings", icon: CalendarBlank },
     ],
   },
   {
     label: "Operations",
     items: [
-      { id: "approvals", label: "Approvals", icon: ShieldCheck },
       { id: "costs", label: "Costs", icon: CurrencyCircleDollar },
       { id: "activity", label: "Activity", icon: Pulse },
+      { id: "social", label: "Social Media", icon: Megaphone },
     ],
   },
   {
@@ -135,6 +181,11 @@ export function App() {
   const [badges, setBadges] = useState<SidebarBadges | null>(null);
   const [commandPaletteSearch, setCommandPaletteSearch] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
+  const [companyMetrics, setCompanyMetrics] = useState<CompanyMetrics | null>(null);
+  const [standupReport, setStandupReport] = useState<StandupReport | null>(null);
+  const [socialAccounts, setSocialAccounts] = useState<SocialAccountRecord[]>([]);
+  const [browserActions, setBrowserActions] = useState<BrowserActionRecord[]>([]);
 
   const refresh = useCallback(async () => {
     try {
@@ -147,6 +198,7 @@ export function App() {
       if (next.currentCompanyId) {
         const badgeResult = await window.agentCompany.getSidebarBadges(next.currentCompanyId);
         if (badgeResult.ok) setBadges(badgeResult.data);
+        setSocialAccounts(next.socialAccounts?.filter(a => a.companyId === next.currentCompanyId) ?? []);
       }
       setError(null);
     } catch (nextError) {
@@ -196,6 +248,36 @@ export function App() {
     root.style.colorScheme = snapshot.theme === "system" ? "light dark" : snapshot.theme;
   }, [snapshot]);
 
+  useEffect(() => {
+    if (!snapshot?.currentCompanyId) return;
+    const companyId = snapshot.currentCompanyId;
+
+    if (section === "inbox") {
+      void window.agentCompany.getInbox(companyId).then((result) => {
+        if (result.ok) setInboxItems(result.data);
+      });
+    }
+
+    if (section === "performance") {
+      void window.agentCompany.getCompanyMetrics({ companyId, days: 30 }).then((result) => {
+        if (result.ok) setCompanyMetrics(result.data);
+      });
+    }
+
+    if (section === "standup") {
+      void window.agentCompany.getStandupReport(companyId).then((result) => {
+        if (result.ok) setStandupReport(result.data);
+      });
+    }
+
+    if (section === "social") {
+      setSocialAccounts(snapshot.socialAccounts?.filter(a => a.companyId === companyId) ?? []);
+      void window.agentCompany.listBrowserActions({ companyId, limit: 50 }).then(result => {
+        if (result.ok) setBrowserActions(result.data);
+      });
+    }
+  }, [section, snapshot?.currentCompanyId]);
+
   // Global Escape key handler for command palette
   useEffect(() => {
     if (!commandPaletteOpen) return;
@@ -233,11 +315,13 @@ export function App() {
   const selectedProject = companyProjects.find((p) => p.id === selectedProjectId) ?? null;
 
   // Sidebar badge mapping
+  const activeInboxCount = useMemo(() => inboxItems.filter((item) => !item.dismissed).length, [inboxItems]);
   const navBadges = useMemo<Partial<Record<SectionId, { count: number; tone: "default" | "warn" | "danger" }>>>(() => badges ? {
+    inbox: activeInboxCount > 0 ? { count: activeInboxCount, tone: "warn" } : undefined,
     tasks: badges.todoTasks > 0 ? { count: badges.todoTasks, tone: "default" } : undefined,
     approvals: badges.pendingApprovals > 0 ? { count: badges.pendingApprovals, tone: "warn" } : undefined,
     costs: badges.budgetWarnings > 0 ? { count: badges.budgetWarnings, tone: "danger" } : undefined,
-  } : {}, [badges]);
+  } : {}, [badges, activeInboxCount]);
 
   const liveRuns = useMemo(() => runs.filter((run) => run.status === "running" || run.status === "queued"), [runs]);
   const failedRuns = useMemo(() => runs.filter((run) => ["failed", "timed_out", "interrupted"].includes(run.status)), [runs]);
@@ -542,6 +626,57 @@ export function App() {
                   activity={filteredActivity}
                   costs={companyCosts}
                   connectors={snapshot.connectors}
+                  meetings={snapshot.meetings?.filter((m) => !currentCompany || m.companyId === currentCompany.id)}
+                  sprints={snapshot.sprints?.filter((s) => !currentCompany || s.companyId === currentCompany.id)}
+                  onNavigate={(targetSection, entityId) => {
+                    setSection(targetSection);
+                    if (entityId) {
+                      if (targetSection === "agents") setSelectedAgentId(entityId);
+                      else if (targetSection === "tasks") setSelectedTaskId(entityId);
+                      else if (targetSection === "approvals") setSelectedApprovalId(entityId);
+                      else if (targetSection === "goals") setSelectedGoalId(entityId);
+                      else if (targetSection === "projects") setSelectedProjectId(entityId);
+                    }
+                  }}
+                />
+              ) : null}
+
+              {section === "inbox" ? (
+                <Inbox
+                  items={inboxItems}
+                  onNavigate={(targetSection, entityId) => {
+                    setSection(targetSection);
+                    if (entityId) {
+                      if (targetSection === "agents") setSelectedAgentId(entityId);
+                      else if (targetSection === "tasks") setSelectedTaskId(entityId);
+                      else if (targetSection === "approvals") setSelectedApprovalId(entityId);
+                      else if (targetSection === "goals") setSelectedGoalId(entityId);
+                      else if (targetSection === "projects") setSelectedProjectId(entityId);
+                    }
+                  }}
+                  onDismiss={(_itemId) => { /* no-op for now */ }}
+                />
+              ) : null}
+
+              {section === "standup" ? (
+                <StandupView
+                  report={standupReport}
+                  onNavigate={(targetSection, entityId) => {
+                    setSection(targetSection);
+                    if (entityId) {
+                      if (targetSection === "agents") setSelectedAgentId(entityId);
+                      else if (targetSection === "tasks") setSelectedTaskId(entityId);
+                      else if (targetSection === "approvals") setSelectedApprovalId(entityId);
+                      else if (targetSection === "goals") setSelectedGoalId(entityId);
+                      else if (targetSection === "projects") setSelectedProjectId(entityId);
+                    }
+                  }}
+                />
+              ) : null}
+
+              {section === "performance" ? (
+                <PerformanceView
+                  metrics={companyMetrics}
                   onNavigate={(targetSection, entityId) => {
                     setSection(targetSection);
                     if (entityId) {
@@ -623,6 +758,16 @@ export function App() {
 
               {section === "orgchart" ? (
                 <OrgChart agents={companyAgents} onSelectAgent={(id) => { setSelectedAgentId(id); setSection("agents"); }} />
+              ) : null}
+
+              {section === "hiring" && currentCompany ? (
+                <HiringPipeline
+                  companyId={currentCompany.id}
+                  agents={companyAgents}
+                  approvals={(snapshot?.approvals ?? []).filter(a => a.companyId === currentCompany!.id)}
+                  onRefresh={refresh}
+                  onNavigateToAgent={(id) => { setSelectedAgentId(id); setSection("agents"); }}
+                />
               ) : null}
 
               {section === "goals" ? (
@@ -791,6 +936,192 @@ export function App() {
               {section === "activity" ? (
                 <Panel title="Activity timeline">
                   <ActivityList activity={filteredActivity} />
+                </Panel>
+              ) : null}
+
+              {section === "social" && snapshot?.currentCompanyId && (
+                <SocialAccountsPanel
+                  accounts={socialAccounts}
+                  actions={browserActions}
+                  agents={companyAgents.map(a => ({ id: a.id, name: a.name }))}
+                  companyId={snapshot.currentCompanyId}
+                  onSave={async (input) => {
+                    await window.agentCompany.saveSocialAccount({
+                      companyId: input.companyId,
+                      platform: input.platform,
+                      accountName: input.accountName,
+                      displayName: input.displayName,
+                      requireApproval: input.requireApproval,
+                      profileUrl: "",
+                      status: "login_required",
+                      metadataJson: "{}",
+                    });
+                    await refresh();
+                  }}
+                  onDelete={async (id) => {
+                    if (!snapshot?.currentCompanyId) return;
+                    await window.agentCompany.deleteSocialAccount({ id, companyId: snapshot.currentCompanyId });
+                    await refresh();
+                  }}
+                  onLogin={async (accountId) => {
+                    await window.agentCompany.triggerBrowserLogin(accountId);
+                  }}
+                  onNavigate={(s, id) => {
+                    setSection(s);
+                    if (id) {
+                      if (s === "agents") setSelectedAgentId(id);
+                      else if (s === "tasks") setSelectedTaskId(id);
+                      else if (s === "approvals") setSelectedApprovalId(id);
+                      else if (s === "goals") setSelectedGoalId(id);
+                      else if (s === "projects") setSelectedProjectId(id);
+                    }
+                  }}
+                />
+              )}
+
+              {section === "automation" && currentCompany ? (
+                <AutomationPanel
+                  rules={snapshot.automationRules?.filter(r => r.companyId === currentCompany.id) ?? []}
+                  workflows={snapshot.workflows?.filter(w => w.companyId === currentCompany.id) ?? []}
+                  agents={companyAgents}
+                  companyId={currentCompany.id}
+                  onRefresh={refresh}
+                />
+              ) : null}
+
+              {section === "communication" && currentCompany ? (
+                <CommunicationHub
+                  messages={snapshot.agentMessages?.filter(m => m.companyId === currentCompany.id) ?? []}
+                  agents={companyAgents}
+                  companyId={currentCompany.id}
+                  onRefresh={refresh}
+                />
+              ) : null}
+
+              {section === "documents" && currentCompany ? (
+                <Panel title="Company Documents" action={<span className="text-[11px] text-[color:var(--muted)]">{(snapshot.documents?.filter(d => d.companyId === currentCompany.id) ?? []).length} documents</span>}>
+                  {(snapshot.documents?.filter(d => d.companyId === currentCompany.id) ?? []).length === 0 ? (
+                    <div className="py-10 text-center text-[13px] text-[color:var(--muted)]">
+                      <FileText size={32} className="mx-auto mb-3 opacity-40" />
+                      <p>No documents yet. Agents will create PRDs, specs, and reports as they work.</p>
+                    </div>
+                  ) : (
+                    <ListFrame>
+                      {(snapshot.documents?.filter(d => d.companyId === currentCompany.id) ?? []).map(doc => (
+                        <ListRow key={doc.id}>
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <FileText size={14} className="text-[color:var(--accent)]" />
+                                <span className="text-[13px] font-medium text-[color:var(--text)]">{doc.title}</span>
+                              </div>
+                              <div className="mt-1 flex items-center gap-3 text-[11px] text-[color:var(--muted)]">
+                                <span className="uppercase tracking-wider">{doc.type.replace(/_/g, " ")}</span>
+                                <span>v{doc.version}</span>
+                                {doc.authorAgentId && <span>by {companyAgents.find(a => a.id === doc.authorAgentId)?.name ?? "Unknown"}</span>}
+                              </div>
+                            </div>
+                            <StatusPill status={doc.status} />
+                          </div>
+                        </ListRow>
+                      ))}
+                    </ListFrame>
+                  )}
+                </Panel>
+              ) : null}
+
+              {section === "knowledge" && currentCompany ? (
+                <Panel title="Knowledge Base" action={<span className="text-[11px] text-[color:var(--muted)]">{(snapshot.knowledgeBase?.filter(k => k.companyId === currentCompany.id) ?? []).length} entries</span>}>
+                  {(snapshot.knowledgeBase?.filter(k => k.companyId === currentCompany.id) ?? []).length === 0 ? (
+                    <div className="py-10 text-center text-[13px] text-[color:var(--muted)]">
+                      <Brain size={32} className="mx-auto mb-3 opacity-40" />
+                      <p>No knowledge entries yet. Agents learn and document lessons as they work.</p>
+                    </div>
+                  ) : (
+                    <ListFrame>
+                      {(snapshot.knowledgeBase?.filter(k => k.companyId === currentCompany.id) ?? []).map(entry => (
+                        <ListRow key={entry.id}>
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <Brain size={14} className="text-[color:var(--accent)]" />
+                                <span className="text-[13px] font-medium text-[color:var(--text)]">{entry.topic}</span>
+                              </div>
+                              <div className="mt-1 text-[11px] text-[color:var(--muted)]">
+                                <span className="uppercase tracking-wider">{entry.category.replace(/_/g, " ")}</span>
+                                <span className="mx-2">-</span>
+                                <span>{entry.content.slice(0, 100)}{entry.content.length > 100 ? "..." : ""}</span>
+                              </div>
+                            </div>
+                            <StatusPill status={entry.importance} />
+                          </div>
+                        </ListRow>
+                      ))}
+                    </ListFrame>
+                  )}
+                </Panel>
+              ) : null}
+
+              {section === "meetings" && currentCompany ? (
+                <Panel title="Meetings" action={<span className="text-[11px] text-[color:var(--muted)]">{(snapshot.meetings?.filter(m => m.companyId === currentCompany.id) ?? []).length} meetings</span>}>
+                  {(snapshot.meetings?.filter(m => m.companyId === currentCompany.id) ?? []).length === 0 ? (
+                    <div className="py-10 text-center text-[13px] text-[color:var(--muted)]">
+                      <CalendarBlank size={32} className="mx-auto mb-3 opacity-40" />
+                      <p>No meetings scheduled. Agents will schedule standups, reviews, and planning sessions.</p>
+                    </div>
+                  ) : (
+                    <ListFrame>
+                      {(snapshot.meetings?.filter(m => m.companyId === currentCompany.id) ?? []).map(meeting => (
+                        <ListRow key={meeting.id}>
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <CalendarBlank size={14} className="text-[color:var(--accent)]" />
+                                <span className="text-[13px] font-medium text-[color:var(--text)]">{meeting.title}</span>
+                              </div>
+                              <div className="mt-1 flex items-center gap-3 text-[11px] text-[color:var(--muted)]">
+                                <span className="uppercase tracking-wider">{meeting.type.replace(/_/g, " ")}</span>
+                                <span>{new Date(meeting.scheduledAt).toLocaleString()}</span>
+                                <span>{meeting.durationMinutes}min</span>
+                              </div>
+                            </div>
+                            <StatusPill status={meeting.status} />
+                          </div>
+                        </ListRow>
+                      ))}
+                    </ListFrame>
+                  )}
+                </Panel>
+              ) : null}
+
+              {section === "sprints" && currentCompany ? (
+                <Panel title="Sprint Board" action={<span className="text-[11px] text-[color:var(--muted)]">{(snapshot.sprints?.filter(s => s.companyId === currentCompany.id) ?? []).length} sprints</span>}>
+                  {(snapshot.sprints?.filter(s => s.companyId === currentCompany.id) ?? []).length === 0 ? (
+                    <div className="py-10 text-center text-[13px] text-[color:var(--muted)]">
+                      <Rows size={32} className="mx-auto mb-3 opacity-40" />
+                      <p>No sprints yet. Start a sprint to organize work into focused cycles.</p>
+                    </div>
+                  ) : (
+                    <ListFrame>
+                      {(snapshot.sprints?.filter(s => s.companyId === currentCompany.id) ?? []).map(sprint => (
+                        <ListRow key={sprint.id}>
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <Rows size={14} className="text-[color:var(--accent)]" />
+                                <span className="text-[13px] font-medium text-[color:var(--text)]">{sprint.name}</span>
+                              </div>
+                              <div className="mt-1 flex items-center gap-3 text-[11px] text-[color:var(--muted)]">
+                                <span>{sprint.startDate} - {sprint.endDate}</span>
+                                <span>{sprint.completedPoints}/{sprint.velocityPoints} pts</span>
+                              </div>
+                            </div>
+                            <StatusPill status={sprint.status} />
+                          </div>
+                        </ListRow>
+                      ))}
+                    </ListFrame>
+                  )}
                 </Panel>
               ) : null}
 

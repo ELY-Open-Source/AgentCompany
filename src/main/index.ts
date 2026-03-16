@@ -26,6 +26,7 @@ import {
   approvalDecisionSchema,
   approvalInputSchema,
   agentInputSchema,
+  browserActionQuerySchema,
   cancelRunSchema,
   commentInputSchema,
   companyInputSchema,
@@ -33,16 +34,29 @@ import {
   deleteEntitySchema,
   goalInputSchema,
   heartbeatSettingsSchema,
+  inboxDismissSchema,
   listCommentsSchema,
+  metricsQuerySchema,
   type DesktopResult,
   projectInputSchema,
   runLogSchema,
   secretInputSchema,
   settingsSchema,
+  socialAccountInputSchema,
   startRunSchema,
   taskInputSchema,
+  templateApplySchema,
   triggerHeartbeatSchema,
   workspaceInputSchema,
+  meetingInputSchema,
+  documentInputSchema,
+  knowledgeEntryInputSchema,
+  sprintInputSchema,
+  automationRuleInputSchema,
+  agentMessageInputSchema,
+  messageQuerySchema,
+  workflowInputSchema,
+  autoAssignSchema,
 } from "@shared/contracts";
 import type { DesktopEvent } from "@shared/types";
 import { getConnectorDefinition } from "./connectors";
@@ -50,6 +64,8 @@ import { AppDatabase } from "./database";
 import { AgentApiServer } from "./api-server";
 import { createAgentToken } from "./agent-auth";
 import { buildTaskPrompt } from "./prompt-builder";
+import { COMPANY_TEMPLATES, getTemplate } from "./templates";
+import { BrowserManager } from "./browser-manager";
 
 app.name = "AgentCompany";
 
@@ -105,6 +121,7 @@ let mainWindow: BrowserWindow | null = null;
 let db: AppDatabase;
 let worker: ReturnType<typeof utilityProcess.fork> | null = null;
 let apiServer: AgentApiServer | null = null;
+let browserManager: BrowserManager | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let isQuitting = false;
 let backgroundCloseNoticeShown = false;
@@ -304,17 +321,32 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+function isSocialBrowserSession(contents: Electron.WebContents): boolean {
+  // Social login windows use partitioned sessions named "persist:social-..."
+  const partition = (contents.session as { getStoragePath?: () => string })?.getStoragePath?.() ?? "";
+  // Simpler: check the session object reference — social sessions are never the default session
+  return contents.session !== session.defaultSession;
+}
+
 function installSecurityGuards() {
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
     callback(false);
   });
   app.on("web-contents-created", (_event, contents) => {
-    contents.setWindowOpenHandler(() => ({ action: "deny" }));
+    contents.setWindowOpenHandler(({ url }) => {
+      // Allow social browser windows to open popups (OAuth flows etc.)
+      if (isSocialBrowserSession(contents)) {
+        return { action: "allow" };
+      }
+      return { action: "deny" };
+    });
     contents.on("will-attach-webview", (event) => {
       event.preventDefault();
     });
     contents.on("will-navigate", (event) => {
+      // Allow navigation in social login browser windows
+      if (isSocialBrowserSession(contents)) return;
       event.preventDefault();
     });
   });
@@ -464,13 +496,26 @@ function createWorker() {
           const recoveryApiUrl = recoveryApiPort ? `http://127.0.0.1:${recoveryApiPort}` : "";
           const recoveryApiKey = recoveryApiUrl ? createAgentToken(agent.id, candidate.companyId, candidate.id) : "";
 
+          const recoveryAgentTasks = recoverySnapshot.tasks.filter((t) => t.companyId === candidate.companyId && t.assigneeAgentId === agent.id);
+          const recoveryCompany = recoverySnapshot.companies.find((c) => c.id === candidate.companyId);
+          const recoveryRecentComments = recoverySnapshot.comments
+            .filter((c) => recoveryAgentTasks.some((t) => t.id === c.taskId))
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+            .slice(0, 20)
+            .map((c) => ({
+              taskId: c.taskId,
+              taskTitle: recoveryAgentTasks.find((t) => t.id === c.taskId)?.title ?? c.taskId,
+              authorName: c.authorName,
+              body: c.body,
+              createdAt: c.createdAt,
+            }));
           const recoveryPrompt = recoveryApiUrl ? buildTaskPrompt({
             agent,
             apiUrl: recoveryApiUrl,
             apiKey: recoveryApiKey,
             runId: candidate.id,
             task,
-            companyName: recoverySnapshot.companies.find((c) => c.id === candidate.companyId)?.name ?? "Company",
+            companyName: recoveryCompany?.name ?? "Company",
             goals: recoverySnapshot.goals.filter((g) => g.companyId === candidate.companyId),
             projects: recoverySnapshot.projects.filter((p) => p.companyId === candidate.companyId),
             directReports: db.getDirectReports(agent.id, candidate.companyId),
@@ -484,6 +529,30 @@ function createWorker() {
             ),
             tasksAwaitingReview: db.listReviewTasksForManager(agent.id, candidate.companyId),
             wakeReason: "recovery",
+            allTasks: recoverySnapshot.tasks.filter((t) => t.companyId === candidate.companyId),
+            recentComments: recoveryRecentComments,
+            companyDescription: recoveryCompany?.description ?? "",
+            socialAccounts: db.listSocialAccounts(candidate.companyId).map(a => ({
+              id: a.id,
+              platform: a.platform,
+              accountName: a.accountName,
+              status: a.status,
+              requireApproval: a.requireApproval,
+            })),
+            recentMessages: db.listAgentMessages(candidate.companyId, { agentId: agent.id, limit: 15 }),
+            upcomingMeetings: recoverySnapshot.meetings
+              .filter((m: any) => m.companyId === candidate.companyId && (m.status === "scheduled" || m.status === "in_progress"))
+              .filter((m: any) => {
+                try { const ids = JSON.parse(m.participantAgentIds); return ids.includes(agent.id) || m.organizerAgentId === agent.id; } catch { return false; }
+              })
+              .slice(0, 5),
+            relevantKnowledge: recoverySnapshot.knowledgeBase
+              .filter((k: any) => k.companyId === candidate.companyId && (k.importance === "critical" || k.importance === "high"))
+              .slice(0, 8),
+            activeSprint: recoverySnapshot.sprints.find((s: any) => s.companyId === candidate.companyId && s.status === "active") ?? null,
+            recentDocuments: recoverySnapshot.documents
+              .filter((d: any) => d.companyId === candidate.companyId && (d.authorAgentId === agent.id || d.reviewerAgentId === agent.id || d.status === "in_review"))
+              .slice(0, 5),
           }) : null;
 
           // Inject API credentials exactly like the normal path
@@ -935,6 +1004,17 @@ function startAgentHeartbeatRun(agentId: string, companyId: string, trigger: str
   const apiUrl = apiPort ? `http://127.0.0.1:${apiPort}` : "";
   const apiKey = apiUrl ? createAgentToken(agent.id, companyId, run.id) : "";
 
+  const heartbeatRecentComments = snapshot.comments
+    .filter((c) => assignedTasks.some((t) => t.id === c.taskId))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 20)
+    .map((c) => ({
+      taskId: c.taskId,
+      taskTitle: assignedTasks.find((t) => t.id === c.taskId)?.title ?? c.taskId,
+      authorName: c.authorName,
+      body: c.body,
+      createdAt: c.createdAt,
+    }));
   const systemPrompt = apiUrl ? buildTaskPrompt({
     agent,
     apiUrl,
@@ -955,6 +1035,30 @@ function startAgentHeartbeatRun(agentId: string, companyId: string, trigger: str
     ),
     tasksAwaitingReview: db.listReviewTasksForManager(agent.id, companyId),
     wakeReason: trigger,
+    allTasks: snapshot.tasks.filter((t) => t.companyId === companyId),
+    recentComments: heartbeatRecentComments,
+    companyDescription: company.description ?? "",
+    socialAccounts: db.listSocialAccounts(companyId).map(a => ({
+      id: a.id,
+      platform: a.platform,
+      accountName: a.accountName,
+      status: a.status,
+      requireApproval: a.requireApproval,
+    })),
+    recentMessages: db.listAgentMessages(companyId, { agentId: agent.id, limit: 15 }),
+    upcomingMeetings: snapshot.meetings
+      .filter((m: any) => m.companyId === companyId && (m.status === "scheduled" || m.status === "in_progress"))
+      .filter((m: any) => {
+        try { const ids = JSON.parse(m.participantAgentIds); return ids.includes(agent.id) || m.organizerAgentId === agent.id; } catch { return false; }
+      })
+      .slice(0, 5),
+    relevantKnowledge: snapshot.knowledgeBase
+      .filter((k: any) => k.companyId === companyId && (k.importance === "critical" || k.importance === "high"))
+      .slice(0, 8),
+    activeSprint: snapshot.sprints.find((s: any) => s.companyId === companyId && s.status === "active") ?? null,
+    recentDocuments: snapshot.documents
+      .filter((d: any) => d.companyId === companyId && (d.authorAgentId === agent.id || d.reviewerAgentId === agent.id || d.status === "in_review"))
+      .slice(0, 5),
   }) : null;
 
   // Add API credentials to env
@@ -1468,18 +1572,31 @@ function registerHandlers() {
     const apiUrl = apiPort ? `http://127.0.0.1:${apiPort}` : "";
     const apiKey = apiUrl ? createAgentToken(agent.id, task.companyId, run.id) : "";
 
+    const manualAgentTasks = db.listAgentTasks(agent.id, task.companyId, ["todo", "in_progress", "blocked"]);
+    const manualCompany = snapshot.companies.find((c) => c.id === task.companyId);
+    const manualRecentComments = snapshot.comments
+      .filter((c) => manualAgentTasks.some((t) => t.id === c.taskId))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 20)
+      .map((c) => ({
+        taskId: c.taskId,
+        taskTitle: manualAgentTasks.find((t) => t.id === c.taskId)?.title ?? c.taskId,
+        authorName: c.authorName,
+        body: c.body,
+        createdAt: c.createdAt,
+      }));
     const systemPrompt = apiUrl ? buildTaskPrompt({
       agent,
       apiUrl,
       apiKey,
       runId: run.id,
       task,
-      companyName: snapshot.companies.find((c) => c.id === task.companyId)?.name ?? "Company",
+      companyName: manualCompany?.name ?? "Company",
       goals: snapshot.goals.filter((g) => g.companyId === task.companyId),
       projects: snapshot.projects.filter((p) => p.companyId === task.companyId),
       directReports: db.getDirectReports(agent.id, task.companyId),
       chainOfCommand: db.getChainOfCommand(agent.id),
-      assignedTasks: db.listAgentTasks(agent.id, task.companyId, ["todo", "in_progress", "blocked"]),
+      assignedTasks: manualAgentTasks,
       allAgents: snapshot.agents.filter((a) => a.companyId === task.companyId),
       pendingApprovals: snapshot.approvals.filter(
         (a) => a.companyId === task.companyId &&
@@ -1488,6 +1605,30 @@ function registerHandlers() {
       ),
       tasksAwaitingReview: db.listReviewTasksForManager(agent.id, task.companyId),
       wakeReason: "manual",
+      allTasks: snapshot.tasks.filter((t) => t.companyId === task.companyId),
+      recentComments: manualRecentComments,
+      companyDescription: manualCompany?.description ?? "",
+      socialAccounts: db.listSocialAccounts(task.companyId).map(a => ({
+        id: a.id,
+        platform: a.platform,
+        accountName: a.accountName,
+        status: a.status,
+        requireApproval: a.requireApproval,
+      })),
+      recentMessages: db.listAgentMessages(task.companyId, { agentId: agent.id, limit: 15 }),
+      upcomingMeetings: snapshot.meetings
+        .filter((m: any) => m.companyId === task.companyId && (m.status === "scheduled" || m.status === "in_progress"))
+        .filter((m: any) => {
+          try { const ids = JSON.parse(m.participantAgentIds); return ids.includes(agent.id) || m.organizerAgentId === agent.id; } catch { return false; }
+        })
+        .slice(0, 5),
+      relevantKnowledge: snapshot.knowledgeBase
+        .filter((k: any) => k.companyId === task.companyId && (k.importance === "critical" || k.importance === "high"))
+        .slice(0, 8),
+      activeSprint: snapshot.sprints.find((s: any) => s.companyId === task.companyId && s.status === "active") ?? null,
+      recentDocuments: snapshot.documents
+        .filter((d: any) => d.companyId === task.companyId && (d.authorAgentId === agent.id || d.reviewerAgentId === agent.id || d.status === "in_review"))
+        .slice(0, 5),
     }) : null;
 
     // Add API credentials to env
@@ -1791,6 +1932,366 @@ function registerHandlers() {
       return ok([]);
     }
   });
+
+  // ── Inbox ──────────────────────────────────────────────────────────
+  registerHandle(IPC_CHANNELS.getInbox, (_event, ...args) => {
+    const companyId = companyIdSchema.parse(args[0]);
+    const err = ensureCompanyExists(companyId);
+    if (err) return err;
+    return ok(db.getInbox(companyId));
+  });
+
+  registerHandle(IPC_CHANNELS.dismissInboxItem, (_event, ...args) => {
+    const input = inboxDismissSchema.parse(args[0]);
+    const err = ensureCompanyExists(input.companyId);
+    if (err) return err;
+    // Dismiss is a no-op for now (items are computed on the fly)
+    return ok(true);
+  });
+
+  // ── Metrics ────────────────────────────────────────────────────────
+  registerHandle(IPC_CHANNELS.getCompanyMetrics, (_event, ...args) => {
+    const input = metricsQuerySchema.parse(args[0]);
+    const err = ensureCompanyExists(input.companyId);
+    if (err) return err;
+    return ok(db.getCompanyMetrics(input.companyId, input.days));
+  });
+
+  registerHandle(IPC_CHANNELS.getAgentMetrics, (_event, ...args) => {
+    const input = metricsQuerySchema.parse(args[0]);
+    const err = ensureCompanyExists(input.companyId);
+    if (err) return err;
+    if (!input.agentId) return fail("MISSING_AGENT_ID", "agentId is required");
+    const metrics = db.getCompanyMetrics(input.companyId, input.days);
+    const agentMetric = metrics.agentMetrics.find(m => m.agentId === input.agentId);
+    if (!agentMetric) return fail("AGENT_NOT_FOUND", "Agent metrics not found");
+    return ok(agentMetric);
+  });
+
+  // ── Standup ────────────────────────────────────────────────────────
+  registerHandle(IPC_CHANNELS.getStandupReport, (_event, ...args) => {
+    const companyId = companyIdSchema.parse(args[0]);
+    const err = ensureCompanyExists(companyId);
+    if (err) return err;
+    return ok(db.getStandupReport(companyId));
+  });
+
+  // ── Templates ──────────────────────────────────────────────────────
+  registerHandle(IPC_CHANNELS.listCompanyTemplates, () => {
+    return ok(COMPANY_TEMPLATES);
+  });
+
+  registerHandle(IPC_CHANNELS.applyCompanyTemplate, (_event, ...args) => {
+    const input = templateApplySchema.parse(args[0]);
+    const template = getTemplate(input.templateId);
+    if (!template) return fail("TEMPLATE_NOT_FOUND", "Company template not found");
+
+    // Create the company
+    const companyId = db.saveCompany({
+      name: input.companyName,
+      description: input.companyDescription || template.description,
+      status: "active",
+      autoApproveHires: true,
+    });
+
+    // Create agents in order (so we can resolve reportsTo by index)
+    const agentIds: string[] = [];
+    const connectors = db.listSnapshot().connectors;
+    const readyConnectors = connectors.filter(c => c.status === "ready");
+    const fallbackConnector = readyConnectors[0]?.id ?? input.connectorId ?? "claude_local";
+
+    for (const agentDef of template.agents) {
+      const connectorToUse = readyConnectors.find(c => c.id === agentDef.connectorPreference)
+        ? agentDef.connectorPreference
+        : fallbackConnector;
+
+      const reportsTo = agentDef.reportsToIndex !== null ? agentIds[agentDef.reportsToIndex] ?? null : null;
+
+      const agentId = db.saveAgent({
+        companyId,
+        name: agentDef.name,
+        role: agentDef.role,
+        title: agentDef.title,
+        department: agentDef.department ?? null,
+        capabilities: agentDef.capabilities,
+        reportsTo,
+        connectorId: connectorToUse,
+        workspaceId: input.workspaceId ?? null,
+        model: null,
+        budgetMonthlyUsd: agentDef.budgetMonthlyUsd,
+        status: "active",
+      });
+      agentIds.push(agentId);
+    }
+
+    // Create goals owned by the CEO (first agent)
+    const ceoId = agentIds[0];
+    for (const goalDef of template.goals) {
+      db.saveGoal({
+        companyId,
+        title: goalDef.title,
+        description: goalDef.description,
+        ownerAgentId: ceoId ?? null,
+        parentId: null,
+        status: "active",
+      });
+    }
+
+    // Set current company
+    db.setCurrentCompany(companyId);
+
+    // Enable heartbeat for CEO to kick off autonomous operation
+    if (ceoId) {
+      db.setHeartbeat(ceoId, true, 120);
+    }
+
+    // Activity log
+    db.addActivity({
+      companyId,
+      actor: "board",
+      action: "company.created_from_template",
+      entityType: "company",
+      entityId: companyId,
+      detail: `Created from template: ${template.name}`,
+    });
+
+    emitEvent({ type: "domain-changed" });
+
+    return ok(companyId);
+  });
+
+  // ── Social Accounts ────────────────────────────────────────────────
+  registerHandle(IPC_CHANNELS.saveSocialAccount, (_event, ...args) => {
+    const input = socialAccountInputSchema.parse(args[0]);
+    const err = ensureCompanyExists(input.companyId);
+    if (err) return err;
+    const id = db.saveSocialAccount(input);
+    emitEvent({ type: "domain-changed" });
+    return ok(id);
+  });
+
+  registerHandle(IPC_CHANNELS.deleteSocialAccount, (_event, ...args) => {
+    const input = deleteEntitySchema.parse(args[0]);
+    const err = ensureCompanyExists(input.companyId);
+    if (err) return err;
+    db.deleteSocialAccount(input.id, input.companyId);
+    emitEvent({ type: "domain-changed" });
+    return ok(true);
+  });
+
+  registerHandle(IPC_CHANNELS.listBrowserActions, (_event, ...args) => {
+    const input = browserActionQuerySchema.parse(args[0]);
+    const err = ensureCompanyExists(input.companyId);
+    if (err) return err;
+    const actions = db.listBrowserActions(input.companyId, {
+      socialAccountId: input.socialAccountId,
+      status: input.status,
+      limit: input.limit,
+    });
+    return ok(actions);
+  });
+
+  registerHandle(IPC_CHANNELS.cancelBrowserAction, (_event, ...args) => {
+    const input = cancelRunSchema.parse(args[0]);
+    db.updateBrowserAction(input.runId, { status: "cancelled" });
+    emitEvent({ type: "domain-changed" });
+    return ok(true);
+  });
+
+  registerHandle(IPC_CHANNELS.triggerBrowserLogin, async (_event, ...args) => {
+    const socialAccountId = z.string().uuid().parse(args[0]);
+    if (!browserManager) {
+      return fail("BROWSER_NOT_READY", "Browser manager not initialized");
+    }
+
+    // Find the social account to get its platform
+    const snapshot = db.listSnapshot();
+    const account = snapshot.socialAccounts.find(a => a.id === socialAccountId);
+    if (!account) {
+      return fail("ACCOUNT_NOT_FOUND", "Social account not found");
+    }
+
+    // Launch login browser (this runs async - the browser stays open for user to login)
+    // We run it in background and don't block the IPC response
+    browserManager.launchLoginBrowser(socialAccountId, account.platform).then(result => {
+      if (result.success) {
+        db.saveSocialAccount({
+          id: account.id,
+          companyId: account.companyId,
+          platform: account.platform,
+          accountName: account.accountName,
+          displayName: account.displayName,
+          profileUrl: account.profileUrl,
+          credentialSecretId: account.credentialSecretId,
+          status: "logged_in",
+          requireApproval: account.requireApproval,
+        });
+        emitEvent({ type: "domain-changed" });
+      }
+    }).catch(err => {
+      log.error(`[browser] Login failed: ${err}`);
+    });
+
+    return ok(true);
+  });
+
+  // ── Meetings ──────────────────────────────────────────────────────
+  registerHandle(IPC_CHANNELS.saveMeeting, async (_event, payload) => {
+    const parsed = meetingInputSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    const id = db.saveMeeting(parsed);
+    emitEvent({ type: "domain-changed" });
+    return ok(id);
+  });
+
+  registerHandle(IPC_CHANNELS.deleteMeeting, async (_event, payload) => {
+    const parsed = deleteEntitySchema.parse(payload);
+    db.deleteMeeting(parsed.id, parsed.companyId);
+    emitEvent({ type: "domain-changed" });
+    return ok(true);
+  });
+
+  // ── Documents ─────────────────────────────────────────────────────
+  registerHandle(IPC_CHANNELS.saveDocument, async (_event, payload) => {
+    const parsed = documentInputSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    const id = db.saveDocument(parsed);
+    emitEvent({ type: "domain-changed" });
+    return ok(id);
+  });
+
+  registerHandle(IPC_CHANNELS.deleteDocument, async (_event, payload) => {
+    const parsed = deleteEntitySchema.parse(payload);
+    db.deleteDocument(parsed.id, parsed.companyId);
+    emitEvent({ type: "domain-changed" });
+    return ok(true);
+  });
+
+  // ── Knowledge Base ────────────────────────────────────────────────
+  registerHandle(IPC_CHANNELS.saveKnowledgeEntry, async (_event, payload) => {
+    const parsed = knowledgeEntryInputSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    const id = db.saveKnowledgeEntry(parsed);
+    emitEvent({ type: "domain-changed" });
+    return ok(id);
+  });
+
+  registerHandle(IPC_CHANNELS.deleteKnowledgeEntry, async (_event, payload) => {
+    const parsed = deleteEntitySchema.parse(payload);
+    db.deleteKnowledgeEntry(parsed.id, parsed.companyId);
+    emitEvent({ type: "domain-changed" });
+    return ok(true);
+  });
+
+  // ── Sprints ───────────────────────────────────────────────────────
+  registerHandle(IPC_CHANNELS.saveSprint, async (_event, payload) => {
+    const parsed = sprintInputSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    const id = db.saveSprint(parsed);
+    emitEvent({ type: "domain-changed" });
+    return ok(id);
+  });
+
+  registerHandle(IPC_CHANNELS.deleteSprint, async (_event, payload) => {
+    const parsed = deleteEntitySchema.parse(payload);
+    db.deleteSprint(parsed.id, parsed.companyId);
+    emitEvent({ type: "domain-changed" });
+    return ok(true);
+  });
+
+  // ── Automation Rules ───────────────────────────────────────────────
+  registerHandle(IPC_CHANNELS.saveAutomationRule, async (_event, payload) => {
+    const parsed = automationRuleInputSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    const id = db.saveAutomationRule(parsed);
+    emitEvent({ type: "domain-changed" });
+    return ok(id);
+  });
+
+  registerHandle(IPC_CHANNELS.deleteAutomationRule, async (_event, payload) => {
+    const parsed = deleteEntitySchema.parse(payload);
+    db.deleteAutomationRule(parsed.id, parsed.companyId);
+    emitEvent({ type: "domain-changed" });
+    return ok(true);
+  });
+
+  registerHandle(IPC_CHANNELS.toggleAutomationRule, async (_event, payload) => {
+    const parsed = z.object({ id: z.string().uuid(), companyId: z.string().uuid(), status: z.enum(["active", "paused"]) }).parse(payload);
+    db.toggleAutomationRule(parsed.id, parsed.companyId, parsed.status);
+    emitEvent({ type: "domain-changed" });
+    return ok(true);
+  });
+
+  registerHandle(IPC_CHANNELS.getAutomationLog, async (_event, companyId) => {
+    const parsed = companyIdSchema.parse(companyId);
+    return ok(db.getAutomationLog(parsed));
+  });
+
+  // ── Agent Messages ─────────────────────────────────────────────────
+  registerHandle(IPC_CHANNELS.sendAgentMessage, async (_event, payload) => {
+    const parsed = agentMessageInputSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    const id = db.sendAgentMessage(parsed);
+    // Notify recipient via event
+    const msg = db.listAgentMessages(parsed.companyId, { limit: 1 })?.[0];
+    if (msg) emitEvent({ type: "new-message", message: msg });
+    emitEvent({ type: "domain-changed" });
+    return ok(id);
+  });
+
+  registerHandle(IPC_CHANNELS.listAgentMessages, async (_event, payload) => {
+    const parsed = messageQuerySchema.parse(payload);
+    return ok(db.listAgentMessages(parsed.companyId, parsed));
+  });
+
+  registerHandle(IPC_CHANNELS.markMessageRead, async (_event, payload) => {
+    const parsed = z.object({ messageId: z.string().uuid(), companyId: z.string().uuid() }).parse(payload);
+    db.markMessageRead(parsed.messageId, parsed.companyId);
+    return ok(true);
+  });
+
+  // ── Workflows ──────────────────────────────────────────────────────
+  registerHandle(IPC_CHANNELS.saveWorkflow, async (_event, payload) => {
+    const parsed = workflowInputSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    const id = db.saveWorkflow(parsed);
+    emitEvent({ type: "domain-changed" });
+    return ok(id);
+  });
+
+  registerHandle(IPC_CHANNELS.deleteWorkflow, async (_event, payload) => {
+    const parsed = deleteEntitySchema.parse(payload);
+    db.deleteWorkflow(parsed.id, parsed.companyId);
+    emitEvent({ type: "domain-changed" });
+    return ok(true);
+  });
+
+  registerHandle(IPC_CHANNELS.runWorkflow, async (_event, payload) => {
+    const parsed = z.object({ id: z.string().uuid(), companyId: z.string().uuid() }).parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    db.activateWorkflow(parsed.id, parsed.companyId);
+    emitEvent({ type: "domain-changed" });
+    return ok(true);
+  });
+
+  // ── Auto-Assign ────────────────────────────────────────────────────
+  registerHandle(IPC_CHANNELS.autoAssignTask, async (_event, payload) => {
+    const parsed = autoAssignSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    const agentId = db.autoAssignTask(parsed.taskId, parsed.companyId);
+    if (!agentId) return fail("NO_AVAILABLE_AGENT", "No available agent could be found for this task.");
+    emitEvent({ type: "domain-changed" });
+    return ok(agentId);
+  });
 }
 
 async function checkForUpdates() {
@@ -1869,6 +2370,43 @@ async function bootstrap() {
   });
   await apiServer.start();
 
+  // Initialize browser manager for social media automation
+  browserManager = new BrowserManager(join(app.getPath("userData"), "browser-data"));
+
+  // Wire browser action handler
+  if (apiServer && browserManager) {
+    const bm = browserManager;
+    apiServer.setBrowserActionHandler(async (actionId, socialAccountId, actionType, payload) => {
+      try {
+        db.updateBrowserAction(actionId, { status: "running", startedAt: new Date().toISOString() });
+        emitEvent({ type: "domain-changed" });
+
+        const result = await bm.executeAction({
+          id: actionId,
+          socialAccountId,
+          actionType,
+          payload,
+        });
+
+        db.updateBrowserAction(actionId, {
+          status: result.success ? "succeeded" : "failed",
+          resultSummary: result.summary,
+          screenshotPath: result.screenshotPath,
+          errorMessage: result.error,
+          finishedAt: new Date().toISOString(),
+        });
+        emitEvent({ type: "domain-changed" });
+      } catch (error) {
+        db.updateBrowserAction(actionId, {
+          status: "failed",
+          errorMessage: error instanceof Error ? error.message : String(error),
+          finishedAt: new Date().toISOString(),
+        });
+        emitEvent({ type: "domain-changed" });
+      }
+    });
+  }
+
   // Start heartbeat scheduler for continuous agent operation
   startHeartbeatScheduler();
 
@@ -1923,6 +2461,8 @@ app.on("before-quit", () => {
   heartbeatTimer = null;
   apiServer?.stop();
   apiServer = null;
+  browserManager?.shutdown();
+  browserManager = null;
   worker?.kill();
   worker = null;
   db?.close();

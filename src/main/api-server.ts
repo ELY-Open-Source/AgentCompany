@@ -49,12 +49,17 @@ export class AgentApiServer {
   private db: AppDatabase;
   private onDomainChanged: () => void;
   private onWakeAgent: (agentId: string, companyId: string, trigger: string) => void;
+  private onBrowserAction: ((actionId: string, socialAccountId: string, actionType: string, payload: Record<string, unknown>) => void) | null = null;
 
   constructor(db: AppDatabase, onDomainChanged: () => void, onWakeAgent: (agentId: string, companyId: string, trigger: string) => void) {
     this.db = db;
     this.onDomainChanged = onDomainChanged;
     this.onWakeAgent = onWakeAgent;
     this.registerRoutes();
+  }
+
+  setBrowserActionHandler(handler: (actionId: string, socialAccountId: string, actionType: string, payload: Record<string, unknown>) => void) {
+    this.onBrowserAction = handler;
   }
 
   getPort(): number {
@@ -960,7 +965,430 @@ export class AgentApiServer {
             tasksDone: rTasks.filter((t) => t.status === "done").length,
           };
         }),
+        socialAccounts: snapshot.socialAccounts
+          .filter((a) => a.companyId === token.companyId)
+          .map((a) => ({
+            id: a.id,
+            platform: a.platform,
+            accountName: a.accountName,
+            displayName: a.displayName,
+            status: a.status,
+            requireApproval: a.requireApproval,
+          })),
       });
+    });
+
+    // ── Browser Automation API (for agents) ────────────────────────────
+
+    // POST /api/companies/:companyId/browser/action — Submit a browser action
+    this.addRoute("POST", "/api/companies/:companyId/browser/action", async (_req, res, params, token, body) => {
+      const companyId = params.companyId!;
+      if (companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+
+      const actionSchema = z.object({
+        socialAccountId: z.string().uuid(),
+        actionType: z.enum(["post", "reply", "like", "follow", "browse_feed", "screenshot", "navigate", "search", "dm", "custom_script"]),
+        payload: z.record(z.string(), z.unknown()).default({}),
+      });
+
+      const parsed = actionSchema.safeParse(body);
+      if (!parsed.success) {
+        this.json(res, 400, { error: "Invalid browser action payload", details: parsed.error.issues });
+        return;
+      }
+
+      const input = parsed.data;
+
+      // Verify the social account belongs to this company
+      const snapshot = this.db.listSnapshot();
+      const account = snapshot.socialAccounts.find(a => a.id === input.socialAccountId && a.companyId === companyId);
+      if (!account) {
+        this.json(res, 404, { error: "Social account not found" });
+        return;
+      }
+
+      // Check if approval is required for posting actions
+      const postActions = ["post", "reply", "dm"];
+      if (account.requireApproval && postActions.includes(input.actionType)) {
+        // Create an approval request
+        const approvalId = this.db.requestApproval({
+          companyId,
+          type: "dangerous_command",
+          relatedTaskId: null,
+          requestedByAgentId: token.agentId,
+          payloadSummary: `${input.actionType} on ${account.platform}/@${account.accountName}: ${String(input.payload.content || "").slice(0, 100)}`,
+          impactSummary: `Will ${input.actionType} on ${account.displayName || account.accountName}'s ${account.platform} account. Content will be publicly visible.`,
+        });
+
+        // Save the action in approval_required state
+        const actionId = this.db.saveBrowserAction({
+          companyId,
+          socialAccountId: input.socialAccountId,
+          agentId: token.agentId,
+          actionType: input.actionType,
+          payloadJson: JSON.stringify(input.payload),
+          status: "approval_required",
+          approvalId,
+        });
+
+        this.db.addActivity({
+          companyId,
+          actor: token.agentId,
+          action: "browser.action_pending_approval",
+          entityType: "browser_action",
+          entityId: actionId,
+          detail: `${input.actionType} on ${account.platform} requires approval`,
+        });
+
+        this.onDomainChanged();
+        this.json(res, 202, { id: actionId, status: "approval_required", approvalId, message: "Action requires Board approval before execution" });
+        return;
+      }
+
+      // Save the action
+      const actionId = this.db.saveBrowserAction({
+        companyId,
+        socialAccountId: input.socialAccountId,
+        agentId: token.agentId,
+        actionType: input.actionType,
+        payloadJson: JSON.stringify(input.payload),
+        status: "queued",
+      });
+
+      this.db.addActivity({
+        companyId,
+        actor: token.agentId,
+        action: "browser.action_queued",
+        entityType: "browser_action",
+        entityId: actionId,
+        detail: `${input.actionType} on ${account.platform}/@${account.accountName}`,
+      });
+
+      this.onDomainChanged();
+
+      // Execute the action asynchronously via the browser manager callback
+      if (this.onBrowserAction) {
+        this.onBrowserAction(actionId, input.socialAccountId, input.actionType, input.payload as Record<string, unknown>);
+      }
+
+      this.json(res, 201, { id: actionId, status: "queued", message: "Browser action queued for execution" });
+    });
+
+    // GET /api/companies/:companyId/social-accounts — List social accounts
+    this.addRoute("GET", "/api/companies/:companyId/social-accounts", (_req, res, params, token) => {
+      if (params.companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+      const accounts = this.db.listSocialAccounts(params.companyId!);
+      // Don't expose credential secret IDs to agents
+      const sanitized = accounts.map(a => ({
+        id: a.id,
+        platform: a.platform,
+        accountName: a.accountName,
+        displayName: a.displayName,
+        profileUrl: a.profileUrl,
+        status: a.status,
+        requireApproval: a.requireApproval,
+      }));
+      this.json(res, 200, sanitized);
+    });
+
+    // GET /api/companies/:companyId/browser/actions — List browser action history
+    this.addRoute("GET", "/api/companies/:companyId/browser/actions", (req, res, params, token) => {
+      if (params.companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+      const url = new URL(req.url ?? "/", `http://127.0.0.1:${this.port}`);
+      const socialAccountId = url.searchParams.get("socialAccountId") ?? undefined;
+      const status = url.searchParams.get("status") ?? undefined;
+      const limit = Number(url.searchParams.get("limit") || 50);
+
+      const actions = this.db.listBrowserActions(params.companyId!, { socialAccountId, status, limit });
+      this.json(res, 200, actions);
+    });
+
+    // ── Documents API ─────────────────────────────────────────────────
+
+    // POST /api/companies/:companyId/documents — Create a document
+    this.addRoute("POST", "/api/companies/:companyId/documents", (_req, res, params, token, body) => {
+      if (params.companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+      const data = body as Record<string, unknown>;
+      const id = this.db.saveDocument({
+        companyId: token.companyId,
+        type: String(data.type ?? "knowledge_article"),
+        title: String(data.title ?? "Untitled"),
+        content: String(data.content ?? ""),
+        authorAgentId: token.agentId,
+        reviewerAgentId: data.reviewerAgentId ? String(data.reviewerAgentId) : null,
+        projectId: data.projectId ? String(data.projectId) : null,
+        goalId: data.goalId ? String(data.goalId) : null,
+        status: String(data.status ?? "draft"),
+        tagsJson: data.tagsJson ? String(data.tagsJson) : "[]",
+      });
+      this.onDomainChanged();
+      this.json(res, 201, { id });
+    });
+
+    // GET /api/companies/:companyId/documents — List documents
+    this.addRoute("GET", "/api/companies/:companyId/documents", (req, res, params, token) => {
+      if (params.companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+      const snapshot = this.db.listSnapshot();
+      const docs = snapshot.documents.filter(d => d.companyId === token.companyId);
+      this.json(res, 200, docs);
+    });
+
+    // ── Meetings API ──────────────────────────────────────────────────
+
+    // POST /api/companies/:companyId/meetings — Schedule a meeting
+    this.addRoute("POST", "/api/companies/:companyId/meetings", (_req, res, params, token, body) => {
+      if (params.companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+      const data = body as Record<string, unknown>;
+      const id = this.db.saveMeeting({
+        companyId: token.companyId,
+        type: String(data.type ?? "department_sync"),
+        title: String(data.title ?? "Meeting"),
+        organizerAgentId: token.agentId,
+        participantAgentIds: data.participantAgentIds ? String(data.participantAgentIds) : "[]",
+        scheduledAt: String(data.scheduledAt ?? new Date().toISOString()),
+        durationMinutes: Number(data.durationMinutes ?? 30),
+        agendaJson: data.agendaJson ? String(data.agendaJson) : "[]",
+        status: "scheduled",
+      });
+      this.onDomainChanged();
+      this.json(res, 201, { id });
+    });
+
+    // GET /api/companies/:companyId/meetings — List meetings
+    this.addRoute("GET", "/api/companies/:companyId/meetings", (_req, res, params, token) => {
+      if (params.companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+      const snapshot = this.db.listSnapshot();
+      const meetings = snapshot.meetings.filter(m => m.companyId === token.companyId);
+      this.json(res, 200, meetings);
+    });
+
+    // PATCH /api/meetings/:meetingId — Update meeting (add notes, decisions, etc.)
+    this.addRoute("PATCH", "/api/meetings/:meetingId", (_req, res, params, token, body) => {
+      const data = body as Record<string, unknown>;
+      this.db.saveMeeting({
+        id: params.meetingId,
+        companyId: token.companyId,
+        type: data.type ? String(data.type) : "department_sync",
+        title: data.title ? String(data.title) : "Meeting",
+        notesJson: data.notesJson ? String(data.notesJson) : undefined,
+        decisionsJson: data.decisionsJson ? String(data.decisionsJson) : undefined,
+        actionItemsJson: data.actionItemsJson ? String(data.actionItemsJson) : undefined,
+        status: data.status ? String(data.status) : undefined,
+        scheduledAt: data.scheduledAt ? String(data.scheduledAt) : new Date().toISOString(),
+      });
+      this.onDomainChanged();
+      this.json(res, 200, { updated: true });
+    });
+
+    // ── Knowledge Base API ────────────────────────────────────────────
+
+    // POST /api/companies/:companyId/knowledge — Add knowledge entry
+    this.addRoute("POST", "/api/companies/:companyId/knowledge", (_req, res, params, token, body) => {
+      if (params.companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+      const data = body as Record<string, unknown>;
+      const id = this.db.saveKnowledgeEntry({
+        companyId: token.companyId,
+        category: String(data.category ?? "lesson_learned"),
+        topic: String(data.topic ?? ""),
+        content: String(data.content ?? ""),
+        authorAgentId: token.agentId,
+        importance: String(data.importance ?? "medium"),
+        tagsJson: data.tagsJson ? String(data.tagsJson) : "[]",
+        referencedEntityType: data.referencedEntityType ? String(data.referencedEntityType) : null,
+        referencedEntityId: data.referencedEntityId ? String(data.referencedEntityId) : null,
+      });
+      this.onDomainChanged();
+      this.json(res, 201, { id });
+    });
+
+    // GET /api/companies/:companyId/knowledge — List knowledge entries
+    this.addRoute("GET", "/api/companies/:companyId/knowledge", (_req, res, params, token) => {
+      if (params.companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+      const snapshot = this.db.listSnapshot();
+      const entries = snapshot.knowledgeBase.filter(k => k.companyId === token.companyId);
+      this.json(res, 200, entries);
+    });
+
+    // ── Agent Messaging API ──────────────────────────────────────────────
+
+    // POST /api/companies/:companyId/messages — Send a message to another agent
+    this.addRoute("POST", "/api/companies/:companyId/messages", (_req, res, params, token, body) => {
+      const companyId = params.companyId!;
+      if (companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+
+      const messageSchema = z.object({
+        toAgentId: z.string().uuid().nullable().optional(),
+        channel: z.enum(["direct", "department", "company", "project", "incident"]).default("direct"),
+        channelTargetId: z.string().nullable().optional(),
+        subject: z.string().min(1).max(200),
+        body: z.string().min(1).max(8000),
+        priority: z.enum(["urgent", "normal", "low"]).default("normal"),
+        parentMessageId: z.string().uuid().nullable().optional(),
+        attachmentsJson: z.string().default("[]"),
+      });
+
+      const parsed = messageSchema.safeParse(body);
+      if (!parsed.success) {
+        this.json(res, 400, { error: "Invalid input", details: parsed.error.flatten() });
+        return;
+      }
+
+      const msg = parsed.data;
+      const messageId = this.db.sendAgentMessage({
+        companyId,
+        fromAgentId: token.agentId,
+        toAgentId: msg.toAgentId,
+        channel: msg.channel,
+        channelTargetId: msg.channelTargetId,
+        subject: msg.subject,
+        body: msg.body,
+        priority: msg.priority,
+        parentMessageId: msg.parentMessageId,
+        attachmentsJson: msg.attachmentsJson,
+      });
+
+      // Wake the recipient if it's a direct message
+      if (msg.toAgentId && msg.channel === "direct") {
+        this.onWakeAgent(msg.toAgentId, companyId, "message");
+      }
+
+      // Wake all agents in the department if it's a department broadcast
+      if (msg.channel === "department" && msg.channelTargetId) {
+        const snapshot = this.db.listSnapshot();
+        const deptAgents = snapshot.agents.filter(
+          (a) => a.department === msg.channelTargetId && a.companyId === companyId && a.id !== token.agentId && a.status !== "terminated",
+        );
+        for (const a of deptAgents) {
+          this.onWakeAgent(a.id, companyId, "message");
+        }
+      }
+
+      this.onDomainChanged();
+      this.json(res, 201, { id: messageId });
+    });
+
+    // GET /api/companies/:companyId/messages — List messages for the calling agent
+    this.addRoute("GET", "/api/companies/:companyId/messages", (req, res, params, token) => {
+      const companyId = params.companyId!;
+      if (companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+
+      const url = new URL(req.url ?? "/", `http://127.0.0.1:${this.port}`);
+      const channel = url.searchParams.get("channel") ?? undefined;
+      const unreadOnly = url.searchParams.get("unreadOnly") === "true";
+      const limitStr = url.searchParams.get("limit");
+      const limit = limitStr ? Math.min(Math.max(parseInt(limitStr, 10) || 50, 1), 200) : 50;
+
+      const messages = this.db.listAgentMessages(companyId, {
+        agentId: token.agentId,
+        channel,
+        unreadOnly,
+        limit,
+      });
+      this.json(res, 200, messages);
+    });
+
+    // POST /api/companies/:companyId/messages/:messageId/read — Mark message as read
+    this.addRoute("POST", "/api/companies/:companyId/messages/:messageId/read", (_req, res, params, token) => {
+      const companyId = params.companyId!;
+      if (companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+      this.db.markMessageRead(params.messageId!, companyId);
+      this.json(res, 200, { ok: true });
+    });
+
+    // ── Sprint API ───────────────────────────────────────────────────────
+
+    // GET /api/companies/:companyId/sprints — List sprints
+    this.addRoute("GET", "/api/companies/:companyId/sprints", (_req, res, params, token) => {
+      const companyId = params.companyId!;
+      if (companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+      const snapshot = this.db.listSnapshot();
+      const sprints = snapshot.sprints.filter(s => s.companyId === companyId);
+      this.json(res, 200, sprints);
+    });
+
+    // ── Performance Metrics API ──────────────────────────────────────────
+
+    // GET /api/agents/me/metrics — Get the calling agent's performance metrics
+    this.addRoute("GET", "/api/agents/me/metrics", (_req, res, _params, token) => {
+      const companyMetrics = this.db.getCompanyMetrics(token.companyId, 30);
+      const agentMetric = companyMetrics.agentMetrics.find(m => m.agentId === token.agentId);
+      if (!agentMetric) {
+        this.json(res, 404, { error: "Metrics not found" });
+        return;
+      }
+      this.json(res, 200, agentMetric);
+    });
+
+    // ── Org Chart / Agent Details API ────────────────────────────────────
+
+    // GET /api/agents/:agentId — Get a specific agent's details
+    this.addRoute("GET", "/api/agents/:agentId", (_req, res, params, token) => {
+      const snapshot = this.db.listSnapshot();
+      const agent = snapshot.agents.find(a => a.id === params.agentId && a.companyId === token.companyId);
+      if (!agent) {
+        this.json(res, 404, { error: "Agent not found" });
+        return;
+      }
+      const directReports = snapshot.agents.filter(a => a.reportsTo === agent.id && a.companyId === token.companyId);
+      const manager = agent.reportsTo ? snapshot.agents.find(a => a.id === agent.reportsTo) : null;
+      this.json(res, 200, {
+        ...agent,
+        manager: manager ? { id: manager.id, name: manager.name, role: manager.role } : null,
+        directReports: directReports.map(r => ({ id: r.id, name: r.name, role: r.role, status: r.status })),
+      });
+    });
+
+    // ── Wake / Heartbeat API ─────────────────────────────────────────────
+
+    // POST /api/agents/:agentId/wake — Request to wake another agent
+    this.addRoute("POST", "/api/agents/:agentId/wake", (_req, res, params, token, body) => {
+      const targetAgentId = params.agentId!;
+      const wakeSchema = z.object({
+        reason: z.string().min(1).max(200).default("peer_request"),
+      });
+      const parsed = wakeSchema.safeParse(body);
+      const reason = parsed.success ? parsed.data.reason : "peer_request";
+      this.onWakeAgent(targetAgentId, token.companyId, reason);
+      this.json(res, 200, { ok: true, message: `Wake requested for agent ${targetAgentId}` });
     });
   }
 }
