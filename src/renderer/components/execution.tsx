@@ -473,6 +473,53 @@ export function TaskInspector({
         </>
       )}
 
+      {/* Subtask tree */}
+      {(() => {
+        const subtasks = tasks.filter((t) => t.parentId === task.id);
+        if (subtasks.length === 0) return null;
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <ListChecks size={14} className="text-[color:var(--muted)]" />
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Subtasks ({subtasks.length})</span>
+              <span className="text-[10px] text-[color:var(--success)]">
+                {subtasks.filter((t) => t.status === "done").length}/{subtasks.length} done
+              </span>
+            </div>
+            {/* Progress bar */}
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-[color:var(--panel-soft)]">
+              <div
+                className="h-full rounded-full bg-[color:var(--success)] transition-all duration-300"
+                style={{ width: `${subtasks.length > 0 ? (subtasks.filter((t) => t.status === "done").length / subtasks.length) * 100 : 0}%` }}
+              />
+            </div>
+            <div className="space-y-1">
+              {subtasks.map((sub) => {
+                const subAssignee = agents.find((a) => a.id === sub.assigneeAgentId);
+                return (
+                  <div key={sub.id} className="flex items-center gap-2 rounded-[6px] px-3 py-2 text-[12px] bg-[color:var(--panel-soft)]">
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                      sub.status === "done" ? "bg-[color:var(--success)]" :
+                      sub.status === "in_progress" ? "bg-[color:var(--accent)]" :
+                      sub.status === "blocked" ? "bg-[color:var(--danger)]" :
+                      sub.status === "in_review" ? "bg-[color:var(--warn)]" :
+                      "bg-[color:var(--muted)]"
+                    }`} />
+                    <span className={`flex-1 truncate ${sub.status === "done" ? "line-through text-[color:var(--muted)]" : "text-[color:var(--text)]"}`}>
+                      {sub.title}
+                    </span>
+                    {subAssignee ? (
+                      <span className="shrink-0 text-[10px] text-[color:var(--muted)]">{subAssignee.name}</span>
+                    ) : null}
+                    <StatusPill status={sub.status} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Communication */}
       <TaskComments taskId={task.id} companyId={task.companyId} agents={agents} />
 
@@ -481,17 +528,42 @@ export function TaskInspector({
         <div className="space-y-2">
           <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--muted)]">Run history</div>
           <div className="space-y-2">
-            {runs.slice(0, 5).map((run) => (
-              <div key={run.id} className="flex items-center justify-between rounded-md bg-[color:var(--panel-soft)] px-3 py-2">
-                <div>
-                  <div className="text-[13px] text-[color:var(--text)]">{run.summary || "Run"}</div>
-                  <div className="text-[11px] text-[color:var(--muted)]">{formatTime(run.startedAt)}{run.finishedAt ? ` · ${formatTime(run.finishedAt)}` : ""}</div>
-                  {run.errorMessage ? <div className="mt-1 text-[11px] text-[color:var(--danger)]">{run.errorMessage}</div> : null}
+            {runs.slice(0, 8).map((run) => {
+              const runAgent = agents.find((a) => a.id === run.agentId);
+              const isActive = run.status === "running" || run.status === "queued";
+              return (
+                <div key={run.id} className={`rounded-[8px] border px-3 py-2.5 ${
+                  isActive ? "border-[color:var(--success)] bg-[color:var(--success-soft)]" :
+                  run.status === "failed" || run.status === "timed_out" ? "border-[color:var(--danger)] border-opacity-30 bg-[color:var(--danger-soft)]" :
+                  "border-[color:var(--line)] bg-[color:var(--panel-soft)]"
+                }`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        {isActive ? <span className="h-2 w-2 animate-pulse rounded-full bg-[color:var(--success)]" /> : null}
+                        <span className="truncate text-[13px] font-medium text-[color:var(--text)]">
+                          {run.summary || (isActive ? "Running..." : "Completed run")}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-[color:var(--muted)]">
+                        {runAgent ? <span>{runAgent.name}</span> : null}
+                        <span>{run.connectorId.replace("_local", "")}</span>
+                        {run.model ? <span className="mono">{run.model}</span> : null}
+                        <span>{formatTime(run.startedAt)}</span>
+                        {run.costUsd != null && run.costUsd > 0 ? <span className="mono">{formatMoney(run.costUsd)}</span> : null}
+                      </div>
+                    </div>
+                    <StatusPill status={run.status} />
+                  </div>
+                  {run.errorMessage ? (
+                    <div className="mt-1.5 rounded bg-[color:var(--danger-soft)] px-2 py-1 text-[11px] text-[color:var(--danger)]">
+                      {run.errorMessage}
+                    </div>
+                  ) : null}
                 </div>
-                <StatusPill status={run.status} />
-              </div>
-            ))}
-            {runs.length > 5 && <div className="text-[11px] text-[color:var(--muted)] text-center">+{runs.length - 5} more runs</div>}
+              );
+            })}
+            {runs.length > 8 && <div className="text-[11px] text-[color:var(--muted)] text-center">+{runs.length - 8} more runs</div>}
           </div>
         </div>
       )}
@@ -797,15 +869,87 @@ export function ApprovalInspector({
 
       {actionError && !confirmDelete ? <InlineNotice message={actionError} /> : null}
 
-      <div className="border-y border-[color:var(--line)] py-4 text-[13px] leading-relaxed text-[color:var(--muted)]">
-        <div className="mb-3 text-[color:var(--text)]">{approval.payloadSummary}</div>
-        <div className="mb-3">{approval.impactSummary}</div>
-        <div className="grid gap-2 md:grid-cols-2">
-          <div>Requested by: <span className="text-[color:var(--text)]">{requestingAgent?.name ?? "Unknown agent"}</span></div>
-          <div>Related task: <span className="text-[color:var(--text)]">{relatedTask?.title ?? "None"}</span></div>
-          <div>Type: <span className="text-[color:var(--text)]">{approval.type.replaceAll("_", " ")}</span></div>
-          <div>State: <StatusPill status={approval.state} /></div>
+      {/* Approval context */}
+      <div className="border-y border-[color:var(--line)] py-4 space-y-4">
+        {/* Type badge + state */}
+        <div className="flex items-center gap-3">
+          <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] ${
+            approval.type === "hire_agent" ? "bg-[color:var(--accent-soft)] text-[color:var(--accent)]" :
+            approval.type === "approve_ceo_strategy" ? "bg-[color:var(--warn-soft)] text-[color:var(--warn)]" :
+            approval.type === "secret_access" ? "bg-[color:var(--danger-soft)] text-[color:var(--danger)]" :
+            "bg-[color:var(--panel-soft)] text-[color:var(--muted)]"
+          }`}>
+            {approval.type.replaceAll("_", " ")}
+          </span>
+          <StatusPill status={approval.state} />
         </div>
+
+        {/* Summary */}
+        <div className="text-[14px] font-medium text-[color:var(--text)]">{approval.payloadSummary}</div>
+        {approval.impactSummary ? (
+          <div className="text-[13px] text-[color:var(--muted)]">{approval.impactSummary}</div>
+        ) : null}
+
+        {/* Metadata grid */}
+        <div className="grid gap-2 text-[13px] md:grid-cols-2">
+          <div className="flex items-center gap-2 text-[color:var(--muted)]">
+            <Robot size={14} />
+            Requested by: <span className="font-medium text-[color:var(--text)]">{requestingAgent?.name ?? "Unknown"}</span>
+            {requestingAgent?.role ? <span className="text-[10px] text-[color:var(--muted)]">({requestingAgent.role})</span> : null}
+          </div>
+          {relatedTask ? (
+            <div className="flex items-center gap-2 text-[color:var(--muted)]">
+              <Briefcase size={14} />
+              Task: <span className="font-medium text-[color:var(--text)]">{relatedTask.title}</span>
+            </div>
+          ) : null}
+          <div className="text-[color:var(--muted)]">
+            Created: <span className="mono text-[color:var(--text)]">{formatTime(approval.createdAt)}</span>
+          </div>
+          {approval.updatedAt !== approval.createdAt ? (
+            <div className="text-[color:var(--muted)]">
+              Updated: <span className="mono text-[color:var(--text)]">{formatTime(approval.updatedAt)}</span>
+            </div>
+          ) : null}
+        </div>
+
+        {/* Hire agent payload details */}
+        {approval.type === "hire_agent" ? (() => {
+          // Find the agent that was proposed for hiring (look for pending_approval agents)
+          const proposedAgent = agents.find(
+            (a) => a.status === "pending_approval" && a.reportsTo === approval.requestedByAgentId
+          ) ?? agents.find(
+            (a) => a.name.toLowerCase().includes("pending") || a.status === "pending_approval"
+          );
+          if (!proposedAgent) return null;
+          return (
+            <div className="rounded-[8px] border border-[color:var(--accent)] border-opacity-30 bg-[color:var(--accent-soft)] px-4 py-3">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--accent)]">Proposed Hire</div>
+              <div className="grid gap-1.5 text-[12px]">
+                <div><span className="text-[color:var(--muted)]">Name:</span> <span className="font-medium text-[color:var(--text)]">{proposedAgent.name}</span></div>
+                <div><span className="text-[color:var(--muted)]">Role:</span> <span className="text-[color:var(--text)]">{proposedAgent.role}</span></div>
+                {proposedAgent.title ? <div><span className="text-[color:var(--muted)]">Title:</span> <span className="text-[color:var(--text)]">{proposedAgent.title}</span></div> : null}
+                {proposedAgent.capabilities ? <div><span className="text-[color:var(--muted)]">Capabilities:</span> <span className="text-[color:var(--text)]">{proposedAgent.capabilities}</span></div> : null}
+                <div><span className="text-[color:var(--muted)]">Connector:</span> <span className="mono text-[color:var(--text)]">{proposedAgent.connectorId}</span></div>
+                <div><span className="text-[color:var(--muted)]">Budget:</span> <span className="mono text-[color:var(--text)]">{formatMoney(proposedAgent.budgetMonthlyUsd)}/mo</span></div>
+                {proposedAgent.reportsTo ? (() => {
+                  const manager = agents.find((a) => a.id === proposedAgent.reportsTo);
+                  return manager ? <div><span className="text-[color:var(--muted)]">Reports to:</span> <span className="text-[color:var(--text)]">{manager.name}</span></div> : null;
+                })() : null}
+              </div>
+            </div>
+          );
+        })() : null}
+
+        {/* CEO strategy payload details */}
+        {approval.type === "approve_ceo_strategy" ? (
+          <div className="rounded-[8px] border border-[color:var(--warn)] border-opacity-30 bg-[color:var(--warn-soft)] px-4 py-3">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--warn)]">Organization Strategy</div>
+            <div className="whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--text)]">
+              {approval.payloadSummary}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {/* Decision note input */}
@@ -1329,6 +1473,44 @@ export function SettingsPane({
           </label>
         </div>
       </div>
+
+      {/* Company autonomy */}
+      {(() => {
+        const company = snapshot.companies.find((c) => c.id === companyId);
+        if (!company) return null;
+        return (
+          <div>
+            <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">Company autonomy</div>
+            <div className="rounded-[8px] border border-[color:var(--line)] px-4 py-3">
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={company.autoApproveHires}
+                  onChange={async (e) => {
+                    try {
+                      unwrap(await window.agentCompany.saveCompany({
+                        id: company.id,
+                        name: company.name,
+                        description: company.description,
+                        status: company.status,
+                        autoApproveHires: e.target.checked,
+                      }));
+                      await onSaved();
+                    } catch { /* ignore */ }
+                  }}
+                  className="h-4 w-4 rounded accent-[color:var(--accent)]"
+                />
+                <div>
+                  <div className="text-[13px] font-medium text-[color:var(--text)]">Full Autonomy Mode</div>
+                  <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
+                    Auto-approve agent hires and CEO strategies. Agents will build the team and start operations without Board approval.
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Actions */}
       <div>

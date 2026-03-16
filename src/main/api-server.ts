@@ -759,6 +759,32 @@ export class AgentApiServer {
         detail: input.payloadSummary,
       });
 
+      // Auto-approve hire requests if company has auto_approve_hires enabled
+      const snapshot = this.db.listSnapshot();
+      const company = snapshot.companies.find((c) => c.id === companyId);
+      if (company?.autoApproveHires && (input.type === "hire_agent" || input.type === "approve_ceo_strategy")) {
+        this.db.decideApproval({ approvalId: id, state: "approved", decisionNote: "Auto-approved by company policy" });
+        this.db.addActivity({
+          companyId,
+          actor: "board",
+          action: "approval.approved",
+          entityType: "approval",
+          entityId: id,
+          detail: "Auto-approved by company policy",
+        });
+        // Wake the requesting agent so they know the hire was approved
+        this.onWakeAgent(token.agentId, companyId, "approval_resolved");
+        // Wake the newly hired agent
+        try {
+          const fullApproval = this.db.getApprovalRecord(id);
+          const payload = JSON.parse(fullApproval.payloadJson || "{}") as { agentId?: string };
+          if (payload.agentId) {
+            this.onWakeAgent(payload.agentId, companyId, "assignment");
+          }
+        } catch { /* ignore if payload is malformed */ }
+        log.info(`[auto-approve] Auto-approved hire request: ${input.payloadSummary}`);
+      }
+
       this.onDomainChanged();
       this.json(res, 201, { id });
     });

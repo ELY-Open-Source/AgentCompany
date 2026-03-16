@@ -63,6 +63,7 @@ export interface CompanyRecord {
   name: string;
   description: string;
   status: CompanyStatus;
+  autoApproveHires: boolean;
   createdAt: string;
   updatedAt: string;
 }

@@ -52,6 +52,7 @@ export const companyInputSchema = z.object({
   name: z.string().min(2).max(80),
   description: z.string().max(500).default(""),
   status: z.enum(["active", "paused", "archived"]).default("active"),
+  autoApproveHires: z.boolean().default(false),
 });
 
 export const connectorInputSchema = z.object({

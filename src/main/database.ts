@@ -423,8 +423,8 @@ export class AppDatabase {
         secretBackend: this.vault.getBackendLabel(),
       },
       companies: this.readAll<CompanyRecord>(
-        "select id, name, description, status, created_at as createdAt, updated_at as updatedAt from companies order by created_at asc",
-      ),
+        "select id, name, description, status, auto_approve_hires as autoApproveHires, created_at as createdAt, updated_at as updatedAt from companies order by created_at asc",
+      ).map((record) => ({ ...record, autoApproveHires: toBoolean(record.autoApproveHires) })) as CompanyRecord[],
       connectors,
       workspaces: this.readAll<WorkspaceRecord>(
         "select id, company_id as companyId, name, local_path as localPath, repo_url as repoUrl, repo_ref as repoRef, project_id as projectId, state, is_primary as isPrimary, created_at as createdAt, updated_at as updatedAt from workspaces order by created_at desc",
@@ -462,18 +462,19 @@ export class AppDatabase {
     };
   }
 
-  saveCompany(input: { id?: string | null; name: string; description: string; status: string }) {
+  saveCompany(input: { id?: string | null; name: string; description: string; status: string; autoApproveHires?: boolean }) {
     const id = ensureId(input.id ?? null);
     const ts = nowIso();
+    const autoApprove = input.autoApproveHires ? 1 : 0;
     const existing = this.db.prepare("select id from companies where id = ?").get(id) as { id: string } | undefined;
     if (existing) {
       this.db
-        .prepare("update companies set name = ?, description = ?, status = ?, updated_at = ? where id = ?")
-        .run(input.name, input.description, input.status, ts, id);
+        .prepare("update companies set name = ?, description = ?, status = ?, auto_approve_hires = ?, updated_at = ? where id = ?")
+        .run(input.name, input.description, input.status, autoApprove, ts, id);
     } else {
       this.db
-        .prepare("insert into companies (id, name, description, status, created_at, updated_at) values (?, ?, ?, ?, ?, ?)")
-        .run(id, input.name, input.description, input.status, ts, ts);
+        .prepare("insert into companies (id, name, description, status, auto_approve_hires, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)")
+        .run(id, input.name, input.description, input.status, autoApprove, ts, ts);
       if (!this.getCurrentCompanyId()) {
         this.setCurrentCompany(id);
       }
@@ -1438,6 +1439,12 @@ export class AppDatabase {
       } catch {
         // Column already exists.
       }
+    }
+    // Auto-approve column on companies
+    try {
+      this.db.prepare("alter table companies add column auto_approve_hires integer not null default 0").run();
+    } catch {
+      // Column already exists.
     }
     // Comments table
     this.db.exec(`
