@@ -17,7 +17,7 @@ import type {
   ProjectRecord,
   WorkspaceRecord,
 } from "@shared/types";
-import { formatMoney, formatTime } from "../lib/formatters";
+import { formatMoney, formatTime, getAgentInitials } from "../lib/formatters";
 import { unwrap } from "../lib/desktop";
 import {
   ActionButton,
@@ -29,10 +29,6 @@ import {
   StatusPill,
   TextArea,
 } from "./ui";
-
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                           */
-/* ------------------------------------------------------------------ */
 
 function BudgetBar({ spent, budget }: { spent: number; budget: number }) {
   const pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
@@ -69,10 +65,6 @@ function ConfirmDelete({
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  AgentRoster                                                       */
-/* ------------------------------------------------------------------ */
 
 export function AgentRoster({
   agents,
@@ -131,10 +123,6 @@ export function AgentRoster({
     </ListFrame>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  AgentCreator                                                      */
-/* ------------------------------------------------------------------ */
 
 export function AgentCreator({
   companyId,
@@ -261,7 +249,7 @@ export function AgentCreator({
               setReportsTo("");
               await onSaved();
             } catch (error) {
-              console.error("Failed to create agent:", error);
+              void error;
             }
           })()
         }
@@ -270,10 +258,6 @@ export function AgentCreator({
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  AgentEditor                                                       */
-/* ------------------------------------------------------------------ */
 
 export function AgentEditor({
   agent,
@@ -532,10 +516,6 @@ export function AgentEditor({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  GoalList                                                          */
-/* ------------------------------------------------------------------ */
-
 export function GoalList({
   goals,
   agents,
@@ -584,10 +564,6 @@ export function GoalList({
     </ListFrame>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  GoalCreator                                                       */
-/* ------------------------------------------------------------------ */
 
 export function GoalCreator({
   companyId,
@@ -649,7 +625,7 @@ export function GoalCreator({
             setDescription("");
             await onSaved();
             } catch (error) {
-              console.error("Failed to create goal:", error);
+              void error;
             }
           })()
         }
@@ -658,10 +634,6 @@ export function GoalCreator({
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  GoalEditor                                                        */
-/* ------------------------------------------------------------------ */
 
 export function GoalEditor({
   goal,
@@ -741,7 +713,7 @@ export function GoalEditor({
               });
               await onSaved();
               } catch (error) {
-                console.error("Failed to save goal:", error);
+                void error;
               }
             })()
           }
@@ -769,10 +741,6 @@ export function GoalEditor({
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  ProjectList                                                       */
-/* ------------------------------------------------------------------ */
 
 export function ProjectList({
   projects,
@@ -833,10 +801,6 @@ export function ProjectList({
     </ListFrame>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  ProjectCreator                                                    */
-/* ------------------------------------------------------------------ */
 
 export function ProjectCreator({
   companyId,
@@ -902,7 +866,7 @@ export function ProjectCreator({
             setTargetDate("");
             await onSaved();
             } catch (error) {
-              console.error("Failed to create project:", error);
+              void error;
             }
           })()
         }
@@ -911,10 +875,6 @@ export function ProjectCreator({
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  ProjectEditor                                                     */
-/* ------------------------------------------------------------------ */
 
 export function ProjectEditor({
   project,
@@ -995,7 +955,7 @@ export function ProjectEditor({
               });
               await onSaved();
               } catch (error) {
-                console.error("Failed to save project:", error);
+                void error;
               }
             })()
           }
@@ -1023,10 +983,6 @@ export function ProjectEditor({
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  OrgChart – tree layout with pan & zoom */
-/* ------------------------------------------------------------------ */
 
 const CARD_W = 220;
 const CARD_H = 110;
@@ -1276,7 +1232,7 @@ export function OrgChart({
         {allNodes.map((node) => {
           const dotColor = statusDotColor[node.agent.status] ?? "#a3a3a3";
           const connectorLabel = adapterLabels[node.agent.connectorId] ?? node.agent.connectorId;
-          const initials = node.agent.name.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+          const initials = getAgentInitials(node.agent.name);
           const isRunning = node.agent.status === "running";
           const isActive = node.agent.status === "active" || isRunning;
           const isError = node.agent.status === "error";

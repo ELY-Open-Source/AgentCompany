@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowRight,
   Browser,
+  ArrowSquareOut,
   Camera,
+  ClockCounterClockwise,
   ChatCircle,
   Eye,
   Globe,
@@ -17,15 +18,11 @@ import {
   SignIn,
   Trash,
   UserPlus,
-  Warning,
   X,
 } from "@phosphor-icons/react";
-import type { BrowserActionRecord, SectionId, SocialAccountRecord, SocialPlatform } from "@shared/types";
+import type { BrowserActionRecord, SocialAccountRecord, SocialPlatform } from "@shared/types";
+import { timeAgo } from "../lib/formatters";
 import { ActionButton, Input } from "./ui";
-
-/* ------------------------------------------------------------------ */
-/*  Platform Config                                                    */
-/* ------------------------------------------------------------------ */
 
 const platformConfig: Record<SocialPlatform, { label: string; color: string; bgColor: string; icon: string }> = {
   twitter: { label: "Twitter / X", color: "#1DA1F2", bgColor: "#1DA1F210", icon: "𝕏" },
@@ -49,26 +46,8 @@ const actionTypeLabels: Record<string, { label: string; icon: React.ElementType 
   navigate: { label: "Navigate", icon: Globe },
   search: { label: "Search", icon: MagnifyingGlass },
   dm: { label: "Direct Message", icon: ChatCircle },
-  custom_script: { label: "Custom Script", icon: Browser },
+  custom_script: { label: "Legacy Action", icon: Browser },
 };
-
-function timeAgo(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diff = Math.max(0, now - then);
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Social Account Card                                                */
-/* ------------------------------------------------------------------ */
 
 function AccountCard({
   account,
@@ -86,7 +65,6 @@ function AccountCard({
 
   return (
     <div className="group flex items-center gap-3 rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3 transition hover:border-[color:var(--line-strong)] hover:shadow-sm">
-      {/* Platform icon */}
       <div
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] text-[14px] font-bold"
         style={{ backgroundColor: platform.bgColor, color: platform.color }}
@@ -94,7 +72,6 @@ function AccountCard({
         {platform.icon}
       </div>
 
-      {/* Info */}
       <button type="button" onClick={onClick} className="min-w-0 flex-1 text-left">
         <div className="flex items-center gap-2">
           <span className="text-[13px] font-semibold text-[color:var(--text)]">{account.displayName || account.accountName}</span>
@@ -117,7 +94,6 @@ function AccountCard({
         </div>
       </button>
 
-      {/* Status + Actions */}
       <div className="flex items-center gap-2">
         <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
           isLoggedIn
@@ -160,10 +136,6 @@ function AccountCard({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Add Account Dialog                                                 */
-/* ------------------------------------------------------------------ */
-
 function AddAccountDialog({
   onAdd,
   onClose,
@@ -199,7 +171,6 @@ function AddAccountDialog({
         </div>
 
         <div className="space-y-4">
-          {/* Platform selector */}
           <div>
             <label className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]">Platform</label>
             <div className="grid grid-cols-3 gap-1.5">
@@ -235,7 +206,6 @@ function AddAccountDialog({
             placeholder="Your display name"
           />
 
-          {/* Approval toggle */}
           <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
             <label className="flex items-center gap-3">
               <input
@@ -279,11 +249,19 @@ function AddAccountDialog({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Browser Action History                                             */
-/* ------------------------------------------------------------------ */
-
-function ActionHistory({ actions, agents }: { actions: BrowserActionRecord[]; agents: Array<{ id: string; name: string }> }) {
+function ActionHistory({
+  actions,
+  agents,
+  onOpenPath,
+  onCancelAction,
+  onNavigate,
+}: {
+  actions: BrowserActionRecord[];
+  agents: Array<{ id: string; name: string }>;
+  onOpenPath: (path: string) => Promise<void>;
+  onCancelAction: (actionId: string) => Promise<void>;
+  onNavigate: (section: "tasks" | "approvals", entityId: string) => void;
+}) {
   if (actions.length === 0) {
     return (
       <div className="py-8 text-center text-[13px] text-[color:var(--muted)]">
@@ -329,6 +307,46 @@ function ActionHistory({ actions, agents }: { actions: BrowserActionRecord[]; ag
               {action.errorMessage ? (
                 <div className="mt-0.5 truncate text-[11px] text-[color:var(--danger)]">{action.errorMessage}</div>
               ) : null}
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                {action.taskId ? (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate("tasks", action.taskId!)}
+                    className="rounded-[5px] bg-[color:var(--panel-soft)] px-2 py-1 text-[10px] font-medium text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
+                  >
+                    Open task
+                  </button>
+                ) : null}
+                {action.approvalId ? (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate("approvals", action.approvalId!)}
+                    className="rounded-[5px] bg-[color:var(--panel-soft)] px-2 py-1 text-[10px] font-medium text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
+                  >
+                    Open approval
+                  </button>
+                ) : null}
+                {action.screenshotPath ? (
+                  <button
+                    type="button"
+                    onClick={() => void onOpenPath(action.screenshotPath!)}
+                    className="inline-flex items-center gap-1 rounded-[5px] bg-[color:var(--panel-soft)] px-2 py-1 text-[10px] font-medium text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
+                  >
+                    <ArrowSquareOut size={10} />
+                    Screenshot
+                  </button>
+                ) : null}
+                {["queued", "running", "approval_required"].includes(action.status) ? (
+                  <button
+                    type="button"
+                    onClick={() => void onCancelAction(action.id)}
+                    className="inline-flex items-center gap-1 rounded-[5px] bg-[color:var(--danger-soft)] px-2 py-1 text-[10px] font-medium text-[color:var(--danger)] transition hover:brightness-95"
+                  >
+                    <ClockCounterClockwise size={10} />
+                    Cancel
+                  </button>
+                ) : null}
+              </div>
             </div>
             <div className="shrink-0 text-[10px] text-[color:var(--muted)]">
               {timeAgo(action.createdAt)}
@@ -349,10 +367,6 @@ function ActionHistory({ actions, agents }: { actions: BrowserActionRecord[]; ag
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Main Social Accounts Panel                                         */
-/* ------------------------------------------------------------------ */
-
 interface SocialPanelProps {
   accounts: SocialAccountRecord[];
   actions: BrowserActionRecord[];
@@ -367,7 +381,9 @@ interface SocialPanelProps {
   }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onLogin: (accountId: string) => Promise<void>;
-  onNavigate: (section: SectionId, entityId?: string) => void;
+  onOpenPath: (path: string) => Promise<void>;
+  onCancelAction: (actionId: string) => Promise<void>;
+  onNavigate: (section: "tasks" | "approvals", entityId: string) => void;
 }
 
 export function SocialAccountsPanel({
@@ -378,6 +394,8 @@ export function SocialAccountsPanel({
   onSave,
   onDelete,
   onLogin,
+  onOpenPath,
+  onCancelAction,
   onNavigate,
 }: SocialPanelProps) {
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -390,7 +408,6 @@ export function SocialAccountsPanel({
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[color:var(--accent-soft)]">
@@ -411,7 +428,6 @@ export function SocialAccountsPanel({
         />
       </div>
 
-      {/* Info banner */}
       <div className="rounded-[10px] border border-[color:var(--accent)] border-opacity-20 bg-[color:var(--accent-soft)] px-4 py-3">
         <div className="flex items-start gap-2 text-[12px] text-[color:var(--accent)]">
           <Browser size={16} className="mt-0.5 shrink-0" />
@@ -420,13 +436,12 @@ export function SocialAccountsPanel({
             <div className="mt-1 text-[11px] opacity-80">
               Add your social media accounts here. Click "Login" to open a browser where you can sign in.
               Your session is saved locally so marketing agents can post content, reply to users, and browse feeds
-              using Playwright browser automation. All actions are logged and can require Board approval.
+              using browser automation. All actions are logged and can require Board approval.
             </div>
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 rounded-[8px] bg-[color:var(--panel-soft)] p-1">
         <button
           type="button"
@@ -452,7 +467,6 @@ export function SocialAccountsPanel({
         </button>
       </div>
 
-      {/* Content */}
       {activeTab === "accounts" ? (
         accounts.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-[color:var(--line)] py-16 text-center">
@@ -478,16 +492,21 @@ export function SocialAccountsPanel({
                 account={account}
                 onLogin={() => void onLogin(account.id)}
                 onDelete={() => void onDelete(account.id)}
-                onClick={() => {/* future: account detail view */}}
+                onClick={() => {}}
               />
             ))}
           </div>
         )
       ) : (
-        <ActionHistory actions={actions} agents={agents} />
+        <ActionHistory
+          actions={actions}
+          agents={agents}
+          onOpenPath={onOpenPath}
+          onCancelAction={onCancelAction}
+          onNavigate={onNavigate}
+        />
       )}
 
-      {/* Add Account Dialog */}
       <AnimatePresence>
         {showAddDialog ? (
           <AddAccountDialog

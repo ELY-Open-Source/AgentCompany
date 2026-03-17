@@ -263,10 +263,6 @@ const CONNECTORS: ConnectorDefinition[] = [
   },
 ];
 
-export function listConnectorDefinitions(): ConnectorDefinition[] {
-  return CONNECTORS;
-}
-
 export function getConnectorDefinition(id: ConnectorId): ConnectorDefinition {
   const definition = CONNECTORS.find((entry) => entry.id === id);
   if (!definition) {

@@ -7,6 +7,7 @@ import { getConnectorDefinition, buildDefaultConnectorRows, parseEnvBindingText 
 import { SecretVault } from "./vault";
 import type {
   ActivityRecord,
+  AgentMessageRecord,
   AgentMetrics,
   AgentRecord,
   ApprovalRecord,
@@ -27,10 +28,12 @@ import type {
   SocialAccountRecord,
   StandupReport,
   TaskRecord,
+  WorkflowPipelineRecord,
   WorkspaceRecord,
 } from "@shared/types";
 
 type SqliteDatabase = DatabaseSync;
+type SqliteRow = Record<string, any>;
 
 function nowIso() {
   return new Date().toISOString();
@@ -284,9 +287,13 @@ export class AppDatabase {
       create index if not exists idx_cost_entries_company on cost_entries(company_id);
       create index if not exists idx_cost_entries_run on cost_entries(run_id);
       create index if not exists idx_activity_company on activity(company_id);
+      create index if not exists idx_tasks_company_status on tasks(company_id, status);
+      create index if not exists idx_agents_company_status on agents(company_id, status);
+      create index if not exists idx_agents_reports_to on agents(reports_to);
+      create index if not exists idx_runs_company_status on runs(company_id, status);
+      create index if not exists idx_approvals_company_state on approvals(company_id, state);
     `);
 
-    // Step 3: Deferred wake queue — prevents silent wake loss when agent is busy
     this.db.exec(`
       create table if not exists pending_wakes (
         id text primary key,
@@ -301,25 +308,24 @@ export class AppDatabase {
     this.migrateSecretsTable();
     this.ensureOptionalColumns();
 
-    // secrets index must run AFTER migrateSecretsTable adds company_id column
     this.db.exec(`create index if not exists idx_secrets_company on secrets(company_id);`);
 
-    // Forward-only migration system
     this.runMigrations();
+
+    // Create indexes that depend on columns added by migrations (e.g., department)
+    try {
+      this.db.exec(`create index if not exists idx_agents_department on agents(company_id, department);`);
+    } catch { /* column may not exist if migrations failed */ }
 
     this.seedSettings();
     this.seedConnectors();
     this.interruptStaleRuns();
-    // Purge expired run logs based on retention setting
     this.purgeExpiredRunLogs();
+    this.purgeExpiredPendingWakes();
   }
 
   close() {
     this.db.close();
-  }
-
-  getProfilePath() {
-    return this.profileDir;
   }
 
   getCurrentCompanyId() {
@@ -335,7 +341,7 @@ export class AppDatabase {
     return Boolean(row);
   }
 
-  belongsToCompany(table: "workspaces" | "agents" | "goals" | "projects" | "tasks" | "approvals" | "runs" | "secrets", id: string, companyId: string) {
+  belongsToCompany(table: "workspaces" | "agents" | "goals" | "projects" | "tasks" | "approvals" | "runs" | "secrets" | "meetings" | "documents" | "knowledge_base" | "sprints" | "automation_rules" | "workflow_pipelines", id: string, companyId: string) {
     const queries: Record<string, string> = {
       workspaces: "select 1 as present from workspaces where id = ? and company_id = ?",
       agents: "select 1 as present from agents where id = ? and company_id = ?",
@@ -345,10 +351,33 @@ export class AppDatabase {
       approvals: "select 1 as present from approvals where id = ? and company_id = ?",
       runs: "select 1 as present from runs where id = ? and company_id = ?",
       secrets: "select 1 as present from secrets where id = ? and company_id = ?",
+      meetings: "select 1 as present from meetings where id = ? and company_id = ?",
+      documents: "select 1 as present from documents where id = ? and company_id = ?",
+      knowledge_base: "select 1 as present from knowledge_base where id = ? and company_id = ?",
+      sprints: "select 1 as present from sprints where id = ? and company_id = ?",
+      automation_rules: "select 1 as present from automation_rules where id = ? and company_id = ?",
+      workflow_pipelines: "select 1 as present from workflow_pipelines where id = ? and company_id = ?",
     };
     const sql = queries[table];
     if (!sql) throw new Error(`Unknown table: ${table}`);
     const row = this.db.prepare(sql).get(id, companyId) as { present: number } | undefined;
+    return Boolean(row?.present);
+  }
+
+  hasActiveRun(filter: { companyId: string; taskId?: string; agentId?: string }) {
+    const whereClauses = ["company_id = ?", "status in ('queued', 'running')"];
+    const params: SQLInputValue[] = [filter.companyId];
+    if (filter.taskId) {
+      whereClauses.push("task_id = ?");
+      params.push(filter.taskId);
+    }
+    if (filter.agentId) {
+      whereClauses.push("agent_id = ?");
+      params.push(filter.agentId);
+    }
+    const row = this.db.prepare(
+      `select 1 as present from runs where ${whereClauses.join(" and ")} limit 1`,
+    ).get(...params) as { present: number } | undefined;
     return Boolean(row?.present);
   }
 
@@ -389,11 +418,6 @@ export class AppDatabase {
     return Number.isFinite(parsed) && parsed >= 1 ? parsed : 90; // default 90 days
   }
 
-  /**
-   * Purge run logs older than the retention window.
-   * Deletes the log file and clears the log_path column.
-   * Returns the number of runs purged.
-   */
   purgeExpiredRunLogs(): number {
     const retentionDays = this.getLogRetentionDays();
     const cutoff = new Date(Date.now() - retentionDays * 86_400_000).toISOString();
@@ -407,7 +431,7 @@ export class AppDatabase {
         try {
           unlinkSync(run.logPath);
         } catch {
-          // File may already be gone — that's fine
+          // Log files may already be gone; continue clearing DB references.
         }
       }
       this.db
@@ -466,9 +490,9 @@ export class AppDatabase {
       comments: this.readAll<CommentRecord>(
         "select id, company_id as companyId, task_id as taskId, author_agent_id as authorAgentId, author_name as authorName, body, created_at as createdAt from task_comments order by created_at asc",
       ),
-      socialAccounts: this.readAll<any>(
+      socialAccounts: this.readAll<SqliteRow>(
         "select id, company_id, platform, account_name, display_name, profile_url, credential_secret_id, status, require_approval, metadata_json, last_used_at, created_at, updated_at from social_accounts order by created_at desc",
-      ).map((r: any) => ({
+      ).map((r) => ({
         id: r.id,
         companyId: r.company_id,
         platform: r.platform,
@@ -483,42 +507,41 @@ export class AppDatabase {
         createdAt: r.created_at,
         updatedAt: r.updated_at,
       })) as SocialAccountRecord[],
-      browserActions: [],
-      meetings: this.readAll<any>(
+      meetings: this.readAll<SqliteRow>(
         "select id, company_id, type, title, organizer_agent_id, participant_agent_ids, scheduled_at, duration_minutes, agenda_json, notes_json, decisions_json, action_items_json, status, created_at, updated_at from meetings order by scheduled_at desc",
-      ).map((r: any) => ({
+      ).map((r) => ({
         id: r.id, companyId: r.company_id, type: r.type, title: r.title, organizerAgentId: r.organizer_agent_id,
         participantAgentIds: r.participant_agent_ids, scheduledAt: r.scheduled_at, durationMinutes: r.duration_minutes,
         agendaJson: r.agenda_json, notesJson: r.notes_json, decisionsJson: r.decisions_json,
         actionItemsJson: r.action_items_json, status: r.status, createdAt: r.created_at, updatedAt: r.updated_at,
       })),
-      documents: this.readAll<any>(
+      documents: this.readAll<SqliteRow>(
         "select id, company_id, type, title, content, author_agent_id, reviewer_agent_id, project_id, goal_id, parent_doc_id, version, status, tags_json, created_at, updated_at from documents order by updated_at desc",
-      ).map((r: any) => ({
+      ).map((r) => ({
         id: r.id, companyId: r.company_id, type: r.type, title: r.title, content: r.content,
         authorAgentId: r.author_agent_id, reviewerAgentId: r.reviewer_agent_id, projectId: r.project_id,
         goalId: r.goal_id, parentDocId: r.parent_doc_id, version: r.version, status: r.status,
         tagsJson: r.tags_json, createdAt: r.created_at, updatedAt: r.updated_at,
       })),
-      knowledgeBase: this.readAll<any>(
+      knowledgeBase: this.readAll<SqliteRow>(
         "select id, company_id, category, topic, content, author_agent_id, importance, tags_json, referenced_entity_type, referenced_entity_id, created_at, updated_at from knowledge_base order by updated_at desc",
-      ).map((r: any) => ({
+      ).map((r) => ({
         id: r.id, companyId: r.company_id, category: r.category, topic: r.topic, content: r.content,
         authorAgentId: r.author_agent_id, importance: r.importance, tagsJson: r.tags_json,
         referencedEntityType: r.referenced_entity_type, referencedEntityId: r.referenced_entity_id,
         createdAt: r.created_at, updatedAt: r.updated_at,
       })),
-      sprints: this.readAll<any>(
+      sprints: this.readAll<SqliteRow>(
         "select id, company_id, name, goal, start_date, end_date, status, retrospective_notes, velocity_points, completed_points, created_at, updated_at from sprints order by start_date desc",
-      ).map((r: any) => ({
+      ).map((r) => ({
         id: r.id, companyId: r.company_id, name: r.name, goal: r.goal,
         startDate: r.start_date, endDate: r.end_date, status: r.status,
         retrospectiveNotes: r.retrospective_notes, velocityPoints: r.velocity_points,
         completedPoints: r.completed_points, createdAt: r.created_at, updatedAt: r.updated_at,
       })),
-      automationRules: this.readAll<any>(
+      automationRules: this.readAll<SqliteRow>(
         "select id, company_id, name, description, trigger, conditions_json, action, action_config_json, source_department, target_department, priority, status, execution_count, last_executed_at, created_at, updated_at from automation_rules order by priority desc, created_at desc",
-      ).map((r: any) => ({
+      ).map((r) => ({
         id: r.id, companyId: r.company_id, name: r.name, description: r.description,
         trigger: r.trigger, conditionsJson: r.conditions_json, action: r.action,
         actionConfigJson: r.action_config_json, sourceDepartment: r.source_department,
@@ -526,23 +549,54 @@ export class AppDatabase {
         executionCount: r.execution_count, lastExecutedAt: r.last_executed_at,
         createdAt: r.created_at, updatedAt: r.updated_at,
       })),
-      agentMessages: this.readAll<any>(
-        "select id, company_id, from_agent_id, to_agent_id, channel, channel_target_id, subject, body, priority, read_at, parent_message_id, attachments_json, created_at from agent_messages order by created_at desc limit 200",
-      ).map((r: any) => ({
+      agentMessages: this.readAll<SqliteRow>(
+        "select id, company_id, from_agent_id, to_agent_id, channel, channel_target_id, subject, body, priority, read_at, parent_message_id, attachments_json, created_at from agent_messages order by created_at desc limit 500",
+      ).map((r) => ({
         id: r.id, companyId: r.company_id, fromAgentId: r.from_agent_id,
         toAgentId: r.to_agent_id, channel: r.channel, channelTargetId: r.channel_target_id,
         subject: r.subject, body: r.body, priority: r.priority, readAt: r.read_at,
         parentMessageId: r.parent_message_id, attachmentsJson: r.attachments_json,
         createdAt: r.created_at,
       })),
-      workflows: this.readAll<any>(
+      workflows: this.readAll<SqliteRow>(
         "select id, company_id, name, description, steps_json, trigger_type, trigger_config_json, status, current_step_index, run_count, last_run_at, created_at, updated_at from workflow_pipelines order by created_at desc",
-      ).map((r: any) => ({
+      ).map((r) => ({
         id: r.id, companyId: r.company_id, name: r.name, description: r.description,
         stepsJson: r.steps_json, triggerType: r.trigger_type, triggerConfigJson: r.trigger_config_json,
         status: r.status, currentStepIndex: r.current_step_index, runCount: r.run_count,
         lastRunAt: r.last_run_at, createdAt: r.created_at, updatedAt: r.updated_at,
       })),
+    };
+  }
+
+  listRendererSnapshot(): ProfileSnapshot {
+    const snapshot = this.listSnapshot();
+    const companyId = snapshot.currentCompanyId;
+    if (!companyId) {
+      return snapshot;
+    }
+
+    return {
+      ...snapshot,
+      workspaces: snapshot.workspaces.filter((workspace) => workspace.companyId === companyId),
+      agents: snapshot.agents.filter((agent) => agent.companyId === companyId),
+      goals: snapshot.goals.filter((goal) => goal.companyId === companyId),
+      projects: snapshot.projects.filter((project) => project.companyId === companyId),
+      tasks: snapshot.tasks.filter((task) => task.companyId === companyId),
+      approvals: snapshot.approvals.filter((approval) => approval.companyId === companyId),
+      runs: snapshot.runs.filter((run) => run.companyId === companyId),
+      costs: snapshot.costs.filter((cost) => cost.companyId === companyId),
+      activity: snapshot.activity.filter((entry) => entry.companyId === companyId),
+      secrets: snapshot.secrets.filter((secret) => secret.companyId === companyId),
+      comments: snapshot.comments.filter((comment) => comment.companyId === companyId),
+      socialAccounts: snapshot.socialAccounts.filter((account) => account.companyId === companyId),
+      meetings: snapshot.meetings.filter((meeting) => meeting.companyId === companyId),
+      documents: snapshot.documents.filter((document) => document.companyId === companyId),
+      knowledgeBase: snapshot.knowledgeBase.filter((entry) => entry.companyId === companyId),
+      sprints: snapshot.sprints.filter((sprint) => sprint.companyId === companyId),
+      automationRules: snapshot.automationRules.filter((rule) => rule.companyId === companyId),
+      agentMessages: snapshot.agentMessages.filter((message) => message.companyId === companyId),
+      workflows: snapshot.workflows.filter((workflow) => workflow.companyId === companyId),
     };
   }
 
@@ -573,12 +627,11 @@ export class AppDatabase {
     envBindingText: string;
     notes: string;
   }) {
-    const definition = getConnectorDefinition(input.id);
     this.db
       .prepare(
         "update connectors set command = ?, model = ?, env_binding_text = ?, notes = ?, updated_at = ? where id = ?",
       )
-      .run(definition.defaultCommand, input.model, input.envBindingText, input.notes, nowIso(), input.id);
+      .run(input.command, input.model, input.envBindingText, input.notes, nowIso(), input.id);
   }
 
   updateConnectorHealth(input: {
@@ -789,7 +842,6 @@ export class AppDatabase {
   }) {
     const id = randomUUID();
     const ts = nowIso();
-    // Extract relatedAgentId from payload for hire_agent approvals if not explicitly set
     let relatedAgentId = normalizeOptionalId(input.relatedAgentId);
     if (!relatedAgentId && input.type === "hire_agent" && input.payloadJson) {
       try {
@@ -810,16 +862,19 @@ export class AppDatabase {
         input.type,
         input.payloadSummary,
         input.impactSummary,
-        normalizeOptionalId(input.payloadJson),
+        input.payloadJson ?? null,
         ts,
         ts,
       );
     return id;
   }
 
-  decideApproval(input: { approvalId: string; state: string; decisionNote: string }) {
+  decideApproval(input: { companyId?: string | null; approvalId: string; state: string; decisionNote: string }) {
     const approval = this.getApprovalRecord(input.approvalId);
-    if (approval.state !== "pending") {
+    if (input.companyId && approval.companyId !== input.companyId) {
+      throw new Error(`Approval ${input.approvalId} does not belong to company ${input.companyId}.`);
+    }
+    if (!["pending", "revision_requested"].includes(approval.state)) {
       throw new Error(`Approval ${input.approvalId} is already ${approval.state} and cannot be re-decided.`);
     }
     const ts = nowIso();
@@ -828,21 +883,21 @@ export class AppDatabase {
         .prepare("update approvals set state = ?, decision_note = ?, updated_at = ? where id = ?")
         .run(input.state, input.decisionNote, ts, input.approvalId);
       if (approval.type === "hire_agent") {
-        // Prefer structured related_agent_id; fall back to payload_json for legacy records
         const agentId = approval.relatedAgentId
           ?? parseJson<{ agentId?: string } | null>(approval.payloadJson, null)?.agentId
           ?? null;
-        if (agentId) {
-          if (input.state === "approved") {
-            this.db
-              .prepare("update agents set status = 'idle', updated_at = ? where id = ? and company_id = ? and status = 'pending_approval'")
-              .run(ts, agentId, approval.companyId);
-          }
-          if (input.state === "rejected") {
-            this.db
-              .prepare("update agents set status = 'terminated', updated_at = ? where id = ? and company_id = ? and status = 'pending_approval'")
-              .run(ts, agentId, approval.companyId);
-          }
+        if (!agentId) {
+          throw new Error(`hire_agent approval ${input.approvalId} has no linked agent — cannot resolve hire target. Ensure relatedAgentId or payloadJson.agentId is set.`);
+        }
+        if (input.state === "approved") {
+          this.db
+            .prepare("update agents set status = 'idle', updated_at = ? where id = ? and company_id = ? and status = 'pending_approval'")
+            .run(ts, agentId, approval.companyId);
+        }
+        if (input.state === "rejected") {
+          this.db
+            .prepare("update agents set status = 'terminated', updated_at = ? where id = ? and company_id = ? and status = 'pending_approval'")
+            .run(ts, agentId, approval.companyId);
         }
       }
     });
@@ -929,16 +984,19 @@ export class AppDatabase {
     return row ? { ...row, isPrimary: toBoolean(row.isPrimary) } : null;
   }
 
-  getProjectPrimaryWorkspace(companyId: string): WorkspaceRecord | null {
+  getProjectPrimaryWorkspace(projectId: string | null | undefined, companyId: string): WorkspaceRecord | null {
+    if (!projectId) {
+      return null;
+    }
+
     const row = this.db
       .prepare(
-        "select id, company_id as companyId, name, local_path as localPath, repo_url as repoUrl, repo_ref as repoRef, project_id as projectId, state, is_primary as isPrimary, created_at as createdAt, updated_at as updatedAt from workspaces where company_id = ? and is_primary = 1 order by created_at asc limit 1",
+        "select id, company_id as companyId, name, local_path as localPath, repo_url as repoUrl, repo_ref as repoRef, project_id as projectId, state, is_primary as isPrimary, created_at as createdAt, updated_at as updatedAt from workspaces where company_id = ? and project_id = ? order by is_primary desc, created_at asc limit 1",
       )
-      .get(companyId) as WorkspaceRecord | undefined;
+      .get(companyId, projectId) as WorkspaceRecord | undefined;
     return row ? { ...row, isPrimary: toBoolean(row.isPrimary) } : null;
   }
 
-  /** Get any workspace in the company (last resort fallback). */
   getAnyCompanyWorkspace(companyId: string): WorkspaceRecord | null {
     const row = this.db
       .prepare(
@@ -1072,6 +1130,25 @@ export class AppDatabase {
     return { budgetHardStopped };
   }
 
+  private cancelRunForDeletion(runId: string, taskId: string, workspaceId: string | null, summary: string) {
+    const ts = nowIso();
+    this.db
+      .prepare(
+        "update runs set status = 'cancelled', summary = ?, error_message = null, exit_code = null, signal = null, model = null, session_display_id = null, cost_usd = null, unattributed_cost = 1, finished_at = ?, updated_at = ? where id = ?",
+      )
+      .run(summary, ts, ts, runId);
+    this.db.prepare("update tasks set active_run_id = null, updated_at = ? where id = ?").run(ts, taskId);
+    if (workspaceId) {
+      this.db
+        .prepare(
+          `update workspaces
+             set lock_holder_run_id = null, lock_acquired_at = null, state = 'ready', updated_at = ?
+           where id = ? and lock_holder_run_id = ?`,
+        )
+        .run(ts, workspaceId, runId);
+    }
+  }
+
   updateTaskSession(taskId: string, sessionJson: Record<string, unknown> | null, sessionDisplayId: string | null) {
     this.db
       .prepare("update tasks set session_json = ?, session_display_id = ?, updated_at = ? where id = ?")
@@ -1096,6 +1173,13 @@ export class AppDatabase {
 
   deleteCompany(companyId: string) {
     this.transaction(() => {
+      try {
+        this.db.prepare(
+          "delete from agent_message_reads where message_id in (select id from agent_messages where company_id = ?)",
+        ).run(companyId);
+      } catch (err) {
+        if (!(err instanceof Error) || !err.message.includes("no such table")) throw err;
+      }
       this.db.prepare("delete from pending_wakes where company_id = ?").run(companyId);
       this.db.prepare("delete from cost_entries where company_id = ?").run(companyId);
       this.db.prepare("delete from activity where company_id = ?").run(companyId);
@@ -1108,7 +1192,6 @@ export class AppDatabase {
       this.db.prepare("delete from agents where company_id = ?").run(companyId);
       this.db.prepare("delete from secrets where company_id = ?").run(companyId);
       this.db.prepare("delete from workspaces where company_id = ?").run(companyId);
-      // Clean up tables added by migrations (safe to call — migrations run on init)
       for (const table of ["automation_rules", "automation_log", "agent_messages", "workflow_pipelines", "meetings", "documents", "knowledge_base", "sprints"]) {
         try {
           this.db.prepare(`delete from ${table} where company_id = ?`).run(companyId);
@@ -1118,7 +1201,6 @@ export class AppDatabase {
         }
       }
       this.db.prepare("delete from companies where id = ?").run(companyId);
-      // Switch to another company if the deleted one was current
       if (this.getCurrentCompanyId() === companyId) {
         const next = this.db.prepare("select id from companies order by created_at asc limit 1").get() as { id: string } | undefined;
         if (next) {
@@ -1131,64 +1213,71 @@ export class AppDatabase {
   }
 
   deleteAgent(id: string, companyId: string) {
+    const activeAgentRuns = this.readAll<{ id: string; taskId: string; workspaceId: string | null }>(
+      "select id, task_id as taskId, workspace_id as workspaceId from runs where agent_id = ? and company_id = ? and status in ('queued', 'running')",
+      id, companyId,
+    );
     this.transaction(() => {
-      // Clear references from tasks
+      for (const run of activeAgentRuns) {
+        this.cancelRunForDeletion(run.id, run.taskId, run.workspaceId, "Agent deleted.");
+      }
       this.db.prepare("update tasks set assignee_agent_id = null where assignee_agent_id = ? and company_id = ?").run(id, companyId);
-      // Clear references from goals
       this.db.prepare("update goals set owner_agent_id = null where owner_agent_id = ? and company_id = ?").run(id, companyId);
-      // Clear references from projects
       this.db.prepare("update projects set lead_agent_id = null where lead_agent_id = ? and company_id = ?").run(id, companyId);
-      // Clear reports-to references
       this.db.prepare("update agents set reports_to = null where reports_to = ? and company_id = ?").run(id, companyId);
-      // Delete the agent
+      // Clean up orphaned approvals referencing this agent
+      this.db.prepare("update approvals set requested_by_agent_id = null where requested_by_agent_id = ? and company_id = ?").run(id, companyId);
+      this.db.prepare("update approvals set related_agent_id = null where related_agent_id = ? and company_id = ?").run(id, companyId);
+      // Clean up meetings organized by this agent
+      this.db.prepare("update meetings set organizer_agent_id = null where organizer_agent_id = ? and company_id = ?").run(id, companyId);
+      // Clean up documents authored/reviewed by this agent
+      this.db.prepare("update documents set author_agent_id = null where author_agent_id = ? and company_id = ?").run(id, companyId);
+      this.db.prepare("update documents set reviewer_agent_id = null where reviewer_agent_id = ? and company_id = ?").run(id, companyId);
+      // Clean up knowledge entries authored by this agent
+      this.db.prepare("update knowledge_base set author_agent_id = null where author_agent_id = ? and company_id = ?").run(id, companyId);
+      // Remove pending wakes for this agent
+      this.db.prepare("delete from pending_wakes where agent_id = ? and company_id = ?").run(id, companyId);
       this.db.prepare("delete from agents where id = ? and company_id = ?").run(id, companyId);
     });
   }
 
   deleteTask(id: string, companyId: string) {
+    const activeTaskRuns = this.readAll<{ id: string; taskId: string; workspaceId: string | null }>(
+      "select id, task_id as taskId, workspace_id as workspaceId from runs where task_id = ? and company_id = ? and status in ('queued', 'running')",
+      id, companyId,
+    );
     this.transaction(() => {
-      // Clear parent references
+      for (const run of activeTaskRuns) {
+        this.cancelRunForDeletion(run.id, run.taskId, run.workspaceId, "Task deleted.");
+      }
       this.db.prepare("update tasks set parent_id = null where parent_id = ? and company_id = ?").run(id, companyId);
-      // Delete related approvals
       this.db.prepare("delete from approvals where related_task_id = ? and company_id = ?").run(id, companyId);
-      // Delete related comments
       this.db.prepare("delete from task_comments where task_id = ? and company_id = ?").run(id, companyId);
-      // Delete the task
       this.db.prepare("delete from tasks where id = ? and company_id = ?").run(id, companyId);
     });
   }
 
   deleteGoal(id: string, companyId: string) {
     this.transaction(() => {
-      // Clear parent references
       this.db.prepare("update goals set parent_id = null where parent_id = ? and company_id = ?").run(id, companyId);
-      // Clear goal references from projects
       this.db.prepare("update projects set goal_id = null where goal_id = ? and company_id = ?").run(id, companyId);
-      // Clear goal references from tasks
       this.db.prepare("update tasks set goal_id = null where goal_id = ? and company_id = ?").run(id, companyId);
-      // Delete the goal
       this.db.prepare("delete from goals where id = ? and company_id = ?").run(id, companyId);
     });
   }
 
   deleteProject(id: string, companyId: string) {
     this.transaction(() => {
-      // Clear project references from tasks
       this.db.prepare("update tasks set project_id = null where project_id = ? and company_id = ?").run(id, companyId);
-      // Clear project references from workspaces
       this.db.prepare("update workspaces set project_id = null where project_id = ? and company_id = ?").run(id, companyId);
-      // Delete the project
       this.db.prepare("delete from projects where id = ? and company_id = ?").run(id, companyId);
     });
   }
 
   deleteWorkspace(id: string, companyId: string) {
     this.transaction(() => {
-      // Clear workspace references from agents
       this.db.prepare("update agents set workspace_id = null where workspace_id = ? and company_id = ?").run(id, companyId);
-      // Clear workspace references from tasks
       this.db.prepare("update tasks set workspace_id = null where workspace_id = ? and company_id = ?").run(id, companyId);
-      // Delete the workspace
       this.db.prepare("delete from workspaces where id = ? and company_id = ?").run(id, companyId);
     });
   }
@@ -1200,8 +1289,6 @@ export class AppDatabase {
   deleteSecret(id: string, companyId: string) {
     this.db.prepare("delete from secrets where id = ? and company_id = ?").run(id, companyId);
   }
-
-  /* ─── Social Accounts ────────────────────────────────────────────── */
 
   saveSocialAccount(input: {
     id?: string | null;
@@ -1243,8 +1330,8 @@ export class AppDatabase {
   }
 
   listSocialAccounts(companyId: string): SocialAccountRecord[] {
-    const rows = this.db.prepare("SELECT * FROM social_accounts WHERE company_id = ? ORDER BY created_at DESC").all(companyId) as any[];
-    return rows.map((r: any) => ({
+    const rows = this.db.prepare("SELECT * FROM social_accounts WHERE company_id = ? ORDER BY created_at DESC").all(companyId) as SqliteRow[];
+    return rows.map((r) => ({
       id: r.id,
       companyId: r.company_id,
       platform: r.platform,
@@ -1260,8 +1347,6 @@ export class AppDatabase {
       updatedAt: r.updated_at,
     }));
   }
-
-  /* ─── Browser Actions ────────────────────────────────────────────── */
 
   saveBrowserAction(input: {
     companyId: string;
@@ -1312,8 +1397,8 @@ export class AppDatabase {
     sql += " ORDER BY created_at DESC";
     if (filters?.limit) { sql += " LIMIT ?"; params.push(filters.limit); }
 
-    const rows = this.db.prepare(sql).all(...params) as any[];
-    return rows.map((r: any) => ({
+    const rows = this.db.prepare(sql).all(...params) as SqliteRow[];
+    return rows.map((r) => ({
       id: r.id,
       companyId: r.company_id,
       socialAccountId: r.social_account_id,
@@ -1333,19 +1418,95 @@ export class AppDatabase {
     }));
   }
 
-  getSidebarBadges(companyId: string): { pendingApprovals: number; activeRuns: number; failedRuns: number; todoTasks: number; budgetWarnings: number } {
+  getBrowserAction(id: string, companyId: string): BrowserActionRecord | null {
+    const row = this.db
+      .prepare("SELECT * FROM browser_actions WHERE id = ? AND company_id = ?")
+      .get(id, companyId) as SqliteRow | undefined;
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      companyId: row.company_id,
+      socialAccountId: row.social_account_id,
+      agentId: row.agent_id,
+      taskId: row.task_id,
+      status: row.status,
+      actionType: row.action_type,
+      payloadJson: row.payload_json,
+      resultSummary: row.result_summary,
+      screenshotPath: row.screenshot_path,
+      approvalId: row.approval_id,
+      errorMessage: row.error_message,
+      startedAt: row.started_at,
+      finishedAt: row.finished_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  getBrowserActionByApprovalId(approvalId: string, companyId: string): BrowserActionRecord | null {
+    const row = this.db
+      .prepare("SELECT * FROM browser_actions WHERE approval_id = ? AND company_id = ? ORDER BY created_at DESC LIMIT 1")
+      .get(approvalId, companyId) as SqliteRow | undefined;
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      companyId: row.company_id,
+      socialAccountId: row.social_account_id,
+      agentId: row.agent_id,
+      taskId: row.task_id,
+      status: row.status,
+      actionType: row.action_type,
+      payloadJson: row.payload_json,
+      resultSummary: row.result_summary,
+      screenshotPath: row.screenshot_path,
+      approvalId: row.approval_id,
+      errorMessage: row.error_message,
+      startedAt: row.started_at,
+      finishedAt: row.finished_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  getSocialAccount(id: string, companyId: string): SocialAccountRecord | null {
+    const row = this.db
+      .prepare("SELECT * FROM social_accounts WHERE id = ? AND company_id = ?")
+      .get(id, companyId) as SqliteRow | undefined;
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      companyId: row.company_id,
+      platform: row.platform,
+      accountName: row.account_name,
+      displayName: row.display_name,
+      profileUrl: row.profile_url,
+      credentialSecretId: row.credential_secret_id,
+      status: row.status,
+      requireApproval: toBoolean(row.require_approval),
+      metadataJson: row.metadata_json,
+      lastUsedAt: row.last_used_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  getSidebarBadges(companyId: string): { pendingApprovals: number; activeRuns: number; failedRuns: number; todoTasks: number; budgetWarnings: number; unreadMessages: number } {
     const pendingApprovals = (this.db.prepare("select count(*) as c from approvals where company_id = ? and state = 'pending'").get(companyId) as { c: number })?.c ?? 0;
     const activeRuns = (this.db.prepare("select count(*) as c from runs where company_id = ? and status in ('queued', 'running')").get(companyId) as { c: number })?.c ?? 0;
     const failedRuns = (this.db.prepare("select count(*) as c from runs where company_id = ? and status in ('failed', 'timed_out', 'interrupted')").get(companyId) as { c: number })?.c ?? 0;
     const todoTasks = (this.db.prepare("select count(*) as c from tasks where company_id = ? and status in ('todo', 'in_progress', 'in_review')").get(companyId) as { c: number })?.c ?? 0;
     const budgetWarnings = (this.db.prepare("select count(*) as c from agents where company_id = ? and budget_monthly_usd > 0 and (spent_monthly_usd * 1.0 / budget_monthly_usd) >= 0.8").get(companyId) as { c: number })?.c ?? 0;
-    return { pendingApprovals, activeRuns, failedRuns, todoTasks, budgetWarnings };
+    const unreadMessages = (this.db.prepare("select count(*) as c from agent_messages where company_id = ? and read_at is null and (channel = 'company' or channel = 'incident' or priority = 'urgent')").get(companyId) as { c: number })?.c ?? 0;
+    return { pendingApprovals, activeRuns, failedRuns, todoTasks, budgetWarnings, unreadMessages };
   }
 
-  /* ─── Comments ────────────────────────────────────────────────────── */
-
   addComment(input: { companyId: string; taskId: string; authorAgentId: string | null; authorName: string; body: string }): CommentRecord {
-    // Validate task belongs to the specified company
     const taskRow = this.db.prepare("select company_id from tasks where id = ?").get(input.taskId) as { company_id: string } | undefined;
     if (!taskRow) throw new Error("Task not found.");
     if (taskRow.company_id !== input.companyId) throw new Error("Task does not belong to this company.");
@@ -1364,8 +1525,6 @@ export class AppDatabase {
     );
   }
 
-  /* ─── Heartbeat ──────────────────────────────────────────────────── */
-
   setHeartbeat(agentId: string, enabled: boolean, intervalSec: number) {
     this.db.prepare(
       "update agents set heartbeat_enabled = ?, heartbeat_interval_sec = ?, updated_at = ? where id = ?",
@@ -1376,14 +1535,26 @@ export class AppDatabase {
     this.db.prepare("update agents set last_heartbeat_at = ? where id = ?").run(nowIso(), agentId);
   }
 
+  resetMonthlyBudgets(companyId: string) {
+    this.db.prepare(
+      "update agents set spent_monthly_usd = 0, updated_at = ? where company_id = ? and spent_monthly_usd > 0",
+    ).run(nowIso(), companyId);
+  }
+
+  getLastBudgetResetMonth(companyId: string): string | null {
+    return this.getSetting(`budget_reset_month_${companyId}`);
+  }
+
+  setLastBudgetResetMonth(companyId: string, month: string) {
+    this.setSetting(`budget_reset_month_${companyId}`, month);
+  }
+
   listHeartbeatEligibleAgents(companyId: string): AgentRecord[] {
     return this.readAll<AgentRecord>(
       "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? and heartbeat_enabled = 1 and status not in ('terminated', 'paused', 'error', 'pending_approval')",
       companyId,
     ).map((record) => ({ ...record, heartbeatEnabled: toBoolean(record.heartbeatEnabled) })) as AgentRecord[];
   }
-
-  /* ─── Task Checkout (for agent API) ──────────────────────────────── */
 
   checkoutTask(taskId: string, agentId: string): boolean {
     const result = this.db
@@ -1438,8 +1609,6 @@ export class AppDatabase {
     );
   }
 
-  /* ─── Org helpers for agent API ──────────────────────────────────── */
-
   getChainOfCommand(agentId: string): AgentRecord[] {
     const chain: AgentRecord[] = [];
     const visited = new Set<string>();
@@ -1465,24 +1634,35 @@ export class AppDatabase {
     ).map((record) => ({ ...record, heartbeatEnabled: toBoolean(record.heartbeatEnabled) })) as AgentRecord[];
   }
 
-  /* ─── Deferred Wake Queue (Step 3) ─────────────────────────────── */
-
   enqueuePendingWake(companyId: string, agentId: string, trigger: string) {
+    const existing = this.db
+      .prepare("select id from pending_wakes where company_id = ? and agent_id = ? limit 1")
+      .get(companyId, agentId) as { id: string } | undefined;
+    const ts = nowIso();
+    if (existing) {
+      this.db
+        .prepare("update pending_wakes set trigger_reason = ?, created_at = ? where id = ?")
+        .run(trigger, ts, existing.id);
+      return;
+    }
     this.db
       .prepare(
         "insert into pending_wakes (id, company_id, agent_id, trigger_reason, created_at) values (?, ?, ?, ?, ?)",
       )
-      .run(randomUUID(), companyId, agentId, trigger, nowIso());
+      .run(randomUUID(), companyId, agentId, trigger, ts);
   }
 
   consumePendingWakes(agentId: string): Array<{ id: string; companyId: string; trigger: string }> {
-    const rows = this.readAll<{ id: string; companyId: string; trigger: string }>(
-      "select id, company_id as companyId, trigger_reason as trigger from pending_wakes where agent_id = ? order by created_at asc",
-      agentId,
-    );
-    if (rows.length > 0) {
-      this.db.prepare("delete from pending_wakes where agent_id = ?").run(agentId);
-    }
+    let rows: Array<{ id: string; companyId: string; trigger: string }> = [];
+    this.transaction(() => {
+      rows = this.readAll<{ id: string; companyId: string; trigger: string }>(
+        "select id, company_id as companyId, trigger_reason as trigger from pending_wakes where agent_id = ? order by created_at asc",
+        agentId,
+      );
+      if (rows.length > 0) {
+        this.db.prepare("delete from pending_wakes where agent_id = ?").run(agentId);
+      }
+    });
     return rows;
   }
 
@@ -1598,6 +1778,12 @@ export class AppDatabase {
     }
   }
 
+  private purgeExpiredPendingWakes() {
+    // Remove pending wakes older than 2 hours — if agent hasn't woken by then, the wake is stale
+    const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    this.db.prepare("delete from pending_wakes where created_at < ?").run(cutoff);
+  }
+
   private interruptStaleRuns() {
     const ts = nowIso();
     this.transaction(() => {
@@ -1607,7 +1793,6 @@ export class AppDatabase {
         )
         .run(ts, ts);
       this.db.prepare("update tasks set active_run_id = null where active_run_id is not null").run();
-      // Release all workspace locks that were held by interrupted runs
       this.releaseAllWorkspaceLocks();
     });
   }
@@ -1647,35 +1832,16 @@ export class AppDatabase {
   }
 
   private ensureOptionalColumns() {
-    try {
-      this.db.prepare("alter table connectors add column updated_at text").run();
-    } catch {
-      // Column already exists.
-    }
-    try {
-      this.db.prepare("alter table approvals add column payload_json text").run();
-    } catch {
-      // Column already exists.
-    }
-    // Heartbeat columns on agents
-    for (const col of [
-      "alter table agents add column heartbeat_enabled integer not null default 0",
-      "alter table agents add column heartbeat_interval_sec integer not null default 120",
-      "alter table agents add column last_heartbeat_at text",
-    ]) {
-      try {
-        this.db.prepare(col).run();
-      } catch {
-        // Column already exists.
-      }
-    }
-    // Auto-approve column on companies
-    try {
-      this.db.prepare("alter table companies add column auto_approve_hires integer not null default 0").run();
-    } catch {
-      // Column already exists.
-    }
-    // Comments table
+    const addColumnIfMissing = (sql: string) => {
+      try { this.db.prepare(sql).run(); } catch { /* column already exists */ }
+    };
+
+    addColumnIfMissing("alter table connectors add column updated_at text");
+    addColumnIfMissing("alter table approvals add column payload_json text");
+    addColumnIfMissing("alter table agents add column heartbeat_enabled integer not null default 0");
+    addColumnIfMissing("alter table agents add column heartbeat_interval_sec integer not null default 120");
+    addColumnIfMissing("alter table agents add column last_heartbeat_at text");
+    addColumnIfMissing("alter table companies add column auto_approve_hires integer not null default 0");
     this.db.exec(`
       create table if not exists task_comments (
         id text primary key,
@@ -1690,7 +1856,6 @@ export class AppDatabase {
       create index if not exists idx_comments_company on task_comments(company_id);
     `);
 
-    // Social media accounts table
     this.db.exec(`
       create table if not exists social_accounts (
         id text primary key,
@@ -1710,7 +1875,6 @@ export class AppDatabase {
       create index if not exists idx_social_accounts_company on social_accounts(company_id);
     `);
 
-    // Browser actions table
     this.db.exec(`
       create table if not exists browser_actions (
         id text primary key,
@@ -1733,6 +1897,16 @@ export class AppDatabase {
       create index if not exists idx_browser_actions_company on browser_actions(company_id);
       create index if not exists idx_browser_actions_account on browser_actions(social_account_id);
     `);
+
+    // Add composite indexes for tables created in migrations (safe: uses IF NOT EXISTS)
+    try {
+      this.db.exec(`
+        create index if not exists idx_messages_company on agent_messages(company_id);
+        create index if not exists idx_messages_channel on agent_messages(channel, channel_target_id);
+        create index if not exists idx_automation_rules_company_status on automation_rules(company_id, status);
+        create index if not exists idx_automation_log_company on automation_log(company_id);
+      `);
+    } catch { /* tables may not exist yet - indexes will be created by migrations */ }
   }
 
   /**
@@ -1743,62 +1917,39 @@ export class AppDatabase {
    * instead of fragile payload_json LIKE matching.
    */
   getBlockingApproval(companyId: string, agentId: string, taskId: string | null): ApprovalRecord | null {
+    const taskCondition = taskId != null
+      ? "(related_task_id = ? or requested_by_agent_id = ?)"
+      : "requested_by_agent_id = ?";
+    const taskParams: SQLInputValue[] = taskId != null ? [taskId, agentId] : [agentId];
     const rows = this.readAll<ApprovalRecord>(
       `select id, company_id as companyId, related_task_id as relatedTaskId,
-              requested_by_agent_id as requestedByAgentId, type,
-              payload_summary as payloadSummary, impact_summary as impactSummary,
-              decision_note as decisionNote, state,
+              requested_by_agent_id as requestedByAgentId, related_agent_id as relatedAgentId,
+              type, payload_summary as payloadSummary, impact_summary as impactSummary,
+              payload_json as payloadJson, decision_note as decisionNote, state,
               created_at as createdAt, updated_at as updatedAt
        from approvals
        where company_id = ? and state = 'pending'
          and (
            (type = 'hire_agent' and related_agent_id = ?)
-           or (type = 'dangerous_command' and (related_task_id = ? or requested_by_agent_id = ?))
-           or (type = 'secret_access' and (related_task_id = ? or requested_by_agent_id = ?))
-           or (type = 'approve_ceo_strategy' and (related_task_id = ? or requested_by_agent_id = ?))
+           or (type = 'dangerous_command' and ${taskCondition})
+           or (type = 'secret_access' and ${taskCondition})
+           or (type = 'approve_ceo_strategy' and ${taskCondition})
          )
        order by created_at asc limit 1`,
       companyId,
       agentId,
-      taskId ?? "",
-      agentId,
-      taskId ?? "",
-      agentId,
-      taskId ?? "",
-      agentId,
+      ...taskParams,
+      ...taskParams,
+      ...taskParams,
     );
     return rows.length > 0 ? rows[0] : null;
   }
 
-  /**
-   * Check if an agent is pending hire approval (status = pending_approval).
-   * Runs must not start for agents that haven't been approved yet.
-   */
   isAgentPendingApproval(agentId: string): boolean {
     const row = this.db
       .prepare("select status from agents where id = ?")
       .get(agentId) as { status: string } | undefined;
     return row?.status === "pending_approval";
-  }
-
-  /**
-   * Check if an agent's budget is exhausted (would trigger hard stop).
-   */
-  isAgentBudgetExhausted(agentId: string): boolean {
-    const row = this.db
-      .prepare("select budget_monthly_usd as budget, spent_monthly_usd as spent from agents where id = ?")
-      .get(agentId) as { budget: number; spent: number } | undefined;
-    if (!row || row.budget <= 0) return false;
-    return row.spent >= row.budget;
-  }
-
-  /**
-   * Update workspace state (ready/busy/blocked/missing/error).
-   */
-  setWorkspaceState(workspaceId: string, state: WorkspaceRecord["state"]) {
-    this.db
-      .prepare("update workspaces set state = ?, updated_at = ? where id = ?")
-      .run(state, nowIso(), workspaceId);
   }
 
   /**
@@ -1818,9 +1969,31 @@ export class AppDatabase {
     return result.changes > 0;
   }
 
-  /**
-   * Release a workspace write lock. Only the holding run can release it.
-   */
+  claimWorkspaceLock(workspaceId: string, runId: string): boolean {
+    const holder = this.db
+      .prepare("select lock_holder_run_id as lockHolderRunId from workspaces where id = ?")
+      .get(workspaceId) as { lockHolderRunId: string | null } | undefined;
+    if (!holder) return false;
+    if (!holder.lockHolderRunId || holder.lockHolderRunId === runId) {
+      return this.acquireWorkspaceLock(workspaceId, runId);
+    }
+    const blockingRun = this.db
+      .prepare("select status from runs where id = ?")
+      .get(holder.lockHolderRunId) as { status: RunStatus } | undefined;
+    if (blockingRun && (blockingRun.status === "queued" || blockingRun.status === "running")) {
+      return false;
+    }
+    const ts = nowIso();
+    const result = this.db
+      .prepare(
+        `update workspaces
+           set lock_holder_run_id = ?, lock_acquired_at = ?, state = 'busy', updated_at = ?
+         where id = ? and lock_holder_run_id = ?`,
+      )
+      .run(runId, ts, ts, workspaceId, holder.lockHolderRunId);
+    return result.changes > 0;
+  }
+
   releaseWorkspaceLock(workspaceId: string, runId: string) {
     this.db
       .prepare(
@@ -1842,25 +2015,29 @@ export class AppDatabase {
       .run(nowIso());
   }
 
-  /**
-   * Persist a run to the deferred queue so it survives worker restarts.
-   */
-  enqueueDeferredRun(runId: string) {
-    this.db
-      .prepare("update runs set status = 'queued', updated_at = ? where id = ? and status = 'queued'")
-      .run(nowIso(), runId);
+  releaseStaleWorkspaceLocks(): number {
+    const result = this.db
+      .prepare(
+        `update workspaces
+            set lock_holder_run_id = null, lock_acquired_at = null, state = 'ready', updated_at = ?
+          where lock_holder_run_id is not null
+            and not exists (
+              select 1
+                from runs
+               where runs.id = workspaces.lock_holder_run_id
+                 and runs.status in ('queued', 'running')
+            )`,
+      )
+      .run(nowIso());
+    return Number(result.changes);
   }
 
-  /**
-   * List runs that were queued but never finished (for crash recovery re-enqueue).
-   */
-  listRecoverableQueuedRuns(): Array<{ id: string; taskId: string; agentId: string; companyId: string; workspaceId: string | null; connectorId: ConnectorId }> {
-    return this.readAll<{ id: string; taskId: string; agentId: string; companyId: string; workspaceId: string | null; connectorId: ConnectorId }>(
-      "select id, task_id as taskId, agent_id as agentId, company_id as companyId, workspace_id as workspaceId, connector_id as connectorId from runs where status = 'queued' order by created_at asc",
-    );
+  isWorkspaceLocked(workspaceId: string): boolean {
+    const row = this.db
+      .prepare("select lock_holder_run_id from workspaces where id = ?")
+      .get(workspaceId) as { lock_holder_run_id: string | null } | undefined;
+    return Boolean(row?.lock_holder_run_id);
   }
-
-  /* ─── Meetings CRUD ────────────────────────────────────────────── */
 
   saveMeeting(input: {
     id?: string | null; companyId: string; type: string; title: string; organizerAgentId?: string | null;
@@ -1887,8 +2064,6 @@ export class AppDatabase {
     this.db.prepare("delete from meetings where id = ? and company_id = ?").run(id, companyId);
   }
 
-  /* ─── Documents CRUD ──────────────────────────────────────────── */
-
   saveDocument(input: {
     id?: string | null; companyId: string; type: string; title: string; content?: string;
     authorAgentId?: string | null; reviewerAgentId?: string | null; projectId?: string | null;
@@ -1912,8 +2087,6 @@ export class AppDatabase {
   deleteDocument(id: string, companyId: string) {
     this.db.prepare("delete from documents where id = ? and company_id = ?").run(id, companyId);
   }
-
-  /* ─── Knowledge Base CRUD ─────────────────────────────────────── */
 
   saveKnowledgeEntry(input: {
     id?: string | null; companyId: string; category: string; topic: string; content: string;
@@ -1939,8 +2112,6 @@ export class AppDatabase {
     this.db.prepare("delete from knowledge_base where id = ? and company_id = ?").run(id, companyId);
   }
 
-  /* ─── Sprints CRUD ────────────────────────────────────────────── */
-
   saveSprint(input: {
     id?: string | null; companyId: string; name: string; goal?: string;
     startDate: string; endDate: string; status?: string; retrospectiveNotes?: string;
@@ -1964,8 +2135,6 @@ export class AppDatabase {
   deleteSprint(id: string, companyId: string) {
     this.db.prepare("delete from sprints where id = ? and company_id = ?").run(id, companyId);
   }
-
-  // ── Automation Rules ──────────────────────────────────────────────
 
   saveAutomationRule(input: {
     id?: string | null; companyId: string; name: string; description?: string;
@@ -2010,36 +2179,126 @@ export class AppDatabase {
     );
   }
 
-  // ── Agent Messages ──────────────────────────────────────────────
-
   sendAgentMessage(input: {
     companyId: string; fromAgentId: string; toAgentId?: string | null;
     channel?: string; channelTargetId?: string | null; subject: string; body: string;
     priority?: string; parentMessageId?: string | null; attachmentsJson?: string;
   }) {
+    const channel = input.channel ?? "direct";
+    if (channel === "direct" && !input.toAgentId) {
+      throw new Error("Direct messages require a recipient.");
+    }
     const id = randomUUID();
     this.db.prepare(
       "insert into agent_messages (id, company_id, from_agent_id, to_agent_id, channel, channel_target_id, subject, body, priority, parent_message_id, attachments_json, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).run(id, input.companyId, input.fromAgentId, input.toAgentId ?? null, input.channel ?? "direct", input.channelTargetId ?? null, input.subject, input.body, input.priority ?? "normal", input.parentMessageId ?? null, input.attachmentsJson ?? "[]", nowIso());
+    ).run(id, input.companyId, input.fromAgentId, input.toAgentId ?? null, channel, input.channelTargetId ?? null, input.subject, input.body, input.priority ?? "normal", input.parentMessageId ?? null, input.attachmentsJson ?? "[]", nowIso());
     this.addActivity({ companyId: input.companyId, actor: input.fromAgentId, action: "sent_message", entityType: "agent_message", entityId: id, detail: `Message: ${input.subject}` });
     return id;
   }
 
-  listAgentMessages(companyId: string, opts?: { agentId?: string; channel?: string; unreadOnly?: boolean; limit?: number }) {
+  getAgentMessage(messageId: string, companyId: string): AgentMessageRecord | null {
+    const row = this.db.prepare(
+      "select id, company_id as companyId, from_agent_id as fromAgentId, to_agent_id as toAgentId, channel, channel_target_id as channelTargetId, subject, body, priority, read_at as readAt, parent_message_id as parentMessageId, attachments_json as attachmentsJson, created_at as createdAt from agent_messages where id = ? and company_id = ?",
+    ).get(messageId, companyId) as AgentMessageRecord | undefined;
+    return row ?? null;
+  }
+
+  listAgentMessages(companyId: string, opts?: { agentId?: string; channel?: string; channelTargetId?: string | null; unreadOnly?: boolean; limit?: number }) {
     let sql = "select id, company_id as companyId, from_agent_id as fromAgentId, to_agent_id as toAgentId, channel, channel_target_id as channelTargetId, subject, body, priority, read_at as readAt, parent_message_id as parentMessageId, attachments_json as attachmentsJson, created_at as createdAt from agent_messages where company_id = ?";
     const params: SQLInputValue[] = [companyId];
-    if (opts?.agentId) { sql += " and (to_agent_id = ? or from_agent_id = ? or to_agent_id is null)"; params.push(opts.agentId, opts.agentId); }
     if (opts?.channel) { sql += " and channel = ?"; params.push(opts.channel); }
-    if (opts?.unreadOnly) { sql += " and read_at is null"; }
-    sql += ` order by created_at desc limit ${opts?.limit ?? 50}`;
-    return this.db.prepare(sql).all(...params) as any[];
+    if (opts?.channelTargetId !== undefined && opts?.channelTargetId !== null) {
+      sql += " and channel_target_id = ?"; params.push(opts.channelTargetId);
+    }
+    sql += " order by created_at asc";
+
+    let messages = this.readAll<AgentMessageRecord>(sql, ...params);
+    if (opts?.agentId) {
+      let department: string | null = null;
+      try {
+        const agent = this.getAgent(opts.agentId);
+        if (agent.companyId === companyId) {
+          department = agent.department;
+        }
+      } catch {
+        department = null;
+      }
+
+      const relevantProjectIds = new Set<string>();
+      for (const row of this.readAll<{ projectId: string | null }>(
+        "select distinct project_id as projectId from tasks where company_id = ? and assignee_agent_id = ? and project_id is not null",
+        companyId,
+        opts.agentId,
+      )) {
+        if (row.projectId) relevantProjectIds.add(row.projectId);
+      }
+      for (const row of this.readAll<{ id: string }>(
+        "select id from projects where company_id = ? and lead_agent_id = ?",
+        companyId,
+        opts.agentId,
+      )) {
+        relevantProjectIds.add(row.id);
+      }
+
+      const readReceiptMap = new Map(
+        this.readAll<{ messageId: string; readAt: string }>(
+          `select reads.message_id as messageId, reads.read_at as readAt
+             from agent_message_reads reads
+             join agent_messages messages on messages.id = reads.message_id
+            where reads.agent_id = ? and messages.company_id = ?`,
+          opts.agentId,
+          companyId,
+        ).map((row) => [row.messageId, row.readAt]),
+      );
+
+      messages = messages.filter((message) => {
+        if (message.fromAgentId === opts.agentId) {
+          return true;
+        }
+        if (message.channel === "direct") {
+          return message.toAgentId === opts.agentId;
+        }
+        if (message.channel === "company" || message.channel === "incident") {
+          return true;
+        }
+        if (message.channel === "department") {
+          return Boolean(department) && message.channelTargetId === department;
+        }
+        if (message.channel === "project") {
+          return Boolean(message.channelTargetId && relevantProjectIds.has(message.channelTargetId));
+        }
+        return false;
+      }).map((message) => {
+        if (message.fromAgentId === opts.agentId) {
+          return { ...message, readAt: message.createdAt };
+        }
+        return {
+          ...message,
+          readAt: readReceiptMap.get(message.id) ?? null,
+        };
+      });
+    }
+    if (opts?.unreadOnly) {
+      messages = messages.filter((message) => !message.readAt);
+    }
+    const limit = opts?.limit ?? 200;
+    return limit > 0 ? messages.slice(-limit) : messages;
   }
 
   markMessageRead(messageId: string, companyId: string) {
     this.db.prepare("update agent_messages set read_at = ? where id = ? and company_id = ?").run(nowIso(), messageId, companyId);
   }
 
-  // ── Workflow Pipelines ────────────────────────────────────────────
+  markAgentMessageRead(messageId: string, companyId: string, agentId: string) {
+    const ts = nowIso();
+    this.db.prepare(
+      `insert into agent_message_reads (message_id, agent_id, read_at)
+       select id, ?, ?
+         from agent_messages
+        where id = ? and company_id = ?
+       on conflict(message_id, agent_id) do update set read_at = excluded.read_at`,
+    ).run(agentId, ts, messageId, companyId);
+  }
 
   saveWorkflow(input: {
     id?: string | null; companyId: string; name: string; description?: string;
@@ -2061,8 +2320,94 @@ export class AppDatabase {
     return id;
   }
 
+  getWorkflowRecord(id: string, companyId: string): WorkflowPipelineRecord | null {
+    const row = this.db.prepare(
+      "select id, company_id as companyId, name, description, steps_json as stepsJson, trigger_type as triggerType, trigger_config_json as triggerConfigJson, status, current_step_index as currentStepIndex, run_count as runCount, last_run_at as lastRunAt, created_at as createdAt, updated_at as updatedAt from workflow_pipelines where id = ? and company_id = ?",
+    ).get(id, companyId) as WorkflowPipelineRecord | undefined;
+    return row ?? null;
+  }
+
+  updateWorkflowExecution(input: {
+    id: string;
+    companyId: string;
+    status: string;
+    currentStepIndex: number;
+    stepsJson: string;
+    incrementRunCount?: boolean;
+    lastRunAt?: string | null;
+  }) {
+    const ts = nowIso();
+    const runCountClause = input.incrementRunCount ? ", run_count = run_count + 1" : "";
+    const lastRunAt = input.lastRunAt ?? null;
+    this.db.prepare(
+      `update workflow_pipelines
+         set status = ?, current_step_index = ?, steps_json = ?, last_run_at = ?, updated_at = ?${runCountClause}
+       where id = ? and company_id = ?`,
+    ).run(input.status, input.currentStepIndex, input.stepsJson, lastRunAt, ts, input.id, input.companyId);
+  }
+
   deleteWorkflow(id: string, companyId: string) {
     this.db.prepare("delete from workflow_pipelines where id = ? and company_id = ?").run(id, companyId);
+  }
+
+  listActiveAutomationRules(companyId: string, trigger: string): Array<{
+    id: string; name: string; trigger: string; conditionsJson: string;
+    action: string; actionConfigJson: string; sourceDepartment: string | null;
+    targetDepartment: string | null; priority: number;
+  }> {
+    return this.readAll(
+      "select id, name, trigger, conditions_json as conditionsJson, action, action_config_json as actionConfigJson, source_department as sourceDepartment, target_department as targetDepartment, priority from automation_rules where company_id = ? and trigger = ? and status = 'active' order by priority desc",
+      companyId, trigger,
+    );
+  }
+
+  advanceTaskStatus(taskId: string, newStatus: string, comment?: string): { previousStatus: string } {
+    const task = this.db.prepare("select status, company_id from tasks where id = ?").get(taskId) as { status: string; company_id: string } | undefined;
+    if (!task) throw new Error(`Task not found: ${taskId}`);
+    const previousStatus = task.status;
+    if (previousStatus === newStatus) return { previousStatus };
+    const ts = nowIso();
+    this.db.prepare("update tasks set status = ?, updated_at = ? where id = ?").run(newStatus, ts, taskId);
+    if (comment) {
+      this.addComment({
+        companyId: task.company_id,
+        taskId,
+        authorAgentId: null,
+        authorName: "System",
+        body: comment,
+      });
+    }
+    // Track sprint velocity: increment completed_points when task moves to "done"
+    if (newStatus === "done" && previousStatus !== "done") {
+      this.incrementActiveSprintVelocity(task.company_id, 1);
+    }
+    // Decrement if task moves back from done
+    if (previousStatus === "done" && newStatus !== "done") {
+      this.incrementActiveSprintVelocity(task.company_id, -1);
+    }
+    return { previousStatus };
+  }
+
+  private incrementActiveSprintVelocity(companyId: string, delta: number) {
+    const ts = nowIso();
+    const today = ts.slice(0, 10);
+    this.db.prepare(
+      "update sprints set completed_points = max(0, completed_points + ?), updated_at = ? where company_id = ? and status = 'active' and start_date <= ? and end_date >= ?",
+    ).run(delta, ts, companyId, today, today);
+  }
+
+  getIdleAgentsForDepartment(companyId: string, department: string): Array<{ id: string; name: string }> {
+    return this.readAll(
+      "select id, name from agents where company_id = ? and department = ? and status in ('idle', 'active') order by spent_monthly_usd asc",
+      companyId, department,
+    );
+  }
+
+  getManagerForAgent(agentId: string): { id: string; name: string; companyId: string } | null {
+    const agent = this.db.prepare("select reports_to, company_id from agents where id = ?").get(agentId) as { reports_to: string | null; company_id: string } | undefined;
+    if (!agent || !agent.reports_to) return null;
+    const manager = this.db.prepare("select id, name from agents where id = ?").get(agent.reports_to) as { id: string; name: string } | undefined;
+    return manager ? { ...manager, companyId: agent.company_id } : null;
   }
 
   activateWorkflow(id: string, companyId: string) {
@@ -2076,67 +2421,93 @@ export class AppDatabase {
     this.addActivity({ companyId, actor: "system", action: "started", entityType: "workflow", entityId: id, detail: `Started workflow: ${row.name}` });
   }
 
-  // ── Auto Task Assignment ──────────────────────────────────────────
+  listTriggerableWorkflows(companyId: string, triggerType: string): WorkflowPipelineRecord[] {
+    return this.readAll<SqliteRow>(
+      "select id, company_id as companyId, name, description, steps_json as stepsJson, trigger_type as triggerType, trigger_config_json as triggerConfigJson, status, current_step_index as currentStepIndex, run_count as runCount, last_run_at as lastRunAt, created_at as createdAt, updated_at as updatedAt from workflow_pipelines where company_id = ? and trigger_type = ? and status = 'active' order by created_at asc",
+      companyId,
+      triggerType,
+    ) as WorkflowPipelineRecord[];
+  }
 
   autoAssignTask(taskId: string, companyId: string): string | null {
     const task = this.db.prepare(
-      "select id, title, description, project_id, assignee_agent_id from tasks where id = ? and company_id = ?",
-    ).get(taskId, companyId) as { id: string; title: string; description: string; project_id: string | null; assignee_agent_id: string | null } | undefined;
+      "select id, title, description, project_id as projectId, assignee_agent_id as assigneeAgentId from tasks where id = ? and company_id = ?",
+    ).get(taskId, companyId) as { id: string; title: string; description: string; projectId: string | null; assigneeAgentId: string | null } | undefined;
     if (!task) return null;
-    if (task.assignee_agent_id) return task.assignee_agent_id;
 
-    // Find available agents (active/idle with remaining budget, exclude managers with direct reports)
-    const agents = this.readAll<{ id: string; department: string | null; capabilities: string; budget_monthly_usd: number; spent_monthly_usd: number }>(
-      "select id, department, capabilities, budget_monthly_usd, spent_monthly_usd from agents where company_id = ? and status in ('idle', 'active') and budget_monthly_usd > spent_monthly_usd",
+    // If task already has an assignee, return them (don't reassign)
+    if (task.assigneeAgentId) return task.assigneeAgentId;
+
+    // Get eligible agents: active/idle with remaining budget
+    const candidates = this.readAll<{ id: string; name: string; department: string | null; capabilities: string; taskCount: number; budgetMonthlyUsd: number; spentMonthlyUsd: number }>(
+      `select a.id, a.name, a.department, a.capabilities,
+        a.budget_monthly_usd as budgetMonthlyUsd, a.spent_monthly_usd as spentMonthlyUsd,
+        (select count(*) from tasks t where t.assignee_agent_id = a.id and t.status in ('todo', 'in_progress')) as taskCount
+      from agents a
+      where a.company_id = ? and a.status in ('idle', 'active')
+      order by taskCount asc`,
       companyId,
     );
-    if (agents.length === 0) return null;
 
-    // Extract keywords from task title + description for capability matching
-    const taskText = `${task.title} ${task.description}`.toLowerCase();
-    const taskKeywords = taskText.split(/\W+/).filter(w => w.length > 3);
+    // Filter out agents who have exhausted their budget (budget=0 means unlimited)
+    const eligible = candidates.filter((a) => {
+      if (a.budgetMonthlyUsd > 0 && a.spentMonthlyUsd >= a.budgetMonthlyUsd) return false;
+      return true;
+    });
 
-    let bestAgent: typeof agents[0] | null = null;
+    if (eligible.length === 0) return null;
+
+    // Score candidates by capability match, department relevance, project context, and workload
+    const words = `${task.title} ${task.description}`.toLowerCase().split(/\W+/).filter(w => w.length > 3);
+
+    // If task belongs to a project, prefer agents who lead that project or its department
+    let projectDept: string | null = null;
+    let projectLeadId: string | null = null;
+    if (task.projectId) {
+      const project = this.db.prepare("select lead_agent_id, goal_id from projects where id = ? and company_id = ?").get(task.projectId, companyId) as { lead_agent_id: string | null; goal_id: string | null } | undefined;
+      projectLeadId = project?.lead_agent_id ?? null;
+      if (projectLeadId) {
+        const lead = this.db.prepare("select department from agents where id = ? and company_id = ?").get(projectLeadId, companyId) as { department: string | null } | undefined;
+        projectDept = lead?.department ?? null;
+      }
+    }
+
+    let bestAgent: string | null = null;
     let bestScore = -Infinity;
 
-    for (const agent of agents) {
-      // Workload: fewer active tasks = higher score
-      const activeTasks = this.readAll<{ cnt: number }>(
-        "select count(*) as cnt from tasks where assignee_agent_id = ? and status in ('todo', 'in_progress')",
-        agent.id,
-      )[0]?.cnt ?? 0;
-
-      // Budget: more remaining = higher score
-      const budgetRemaining = agent.budget_monthly_usd - agent.spent_monthly_usd;
-
-      // Capability match: count overlapping keywords between task and agent capabilities
-      const capText = (agent.capabilities ?? "").toLowerCase();
-      let capMatchCount = 0;
-      for (const kw of taskKeywords) {
-        if (capText.includes(kw)) capMatchCount++;
-      }
-
-      // Composite score: capability match (strongest signal), then workload, then budget
-      const score = (capMatchCount * 100) + budgetRemaining - (activeTasks * 50);
-
-      if (score > bestScore) {
+    for (const agent of eligible) {
+      const capWords = agent.capabilities.toLowerCase().split(/\W+/).filter(w => w.length > 3);
+      const overlap = words.filter(w => capWords.includes(w)).length;
+      let score = (overlap * 10) - (agent.taskCount * 5);
+      // Bonus for same department as project lead
+      if (projectDept && agent.department === projectDept) score += 15;
+      // Bonus for agents who are not managers (ICs should do the work)
+      const hasReports = this.readAll<{ id: string }>("select id from agents where reports_to = ? limit 1", agent.id);
+      if (hasReports.length === 0) score += 5;
+      if (score > bestScore || (score === bestScore && agent.taskCount < (eligible.find(c => c.id === bestAgent)?.taskCount ?? 999))) {
         bestScore = score;
-        bestAgent = agent;
+        bestAgent = agent.id;
       }
     }
 
-    if (bestAgent) {
-      this.db.prepare("update tasks set assignee_agent_id = ?, updated_at = ? where id = ?").run(bestAgent.id, nowIso(), taskId);
-      this.addActivity({ companyId, actor: "system", action: "auto_assigned", entityType: "task", entityId: taskId, detail: `Auto-assigned to ${bestAgent.id} (score: ${bestScore})` });
-      return bestAgent.id;
+    // Fallback: pick least loaded agent
+    if (!bestAgent && eligible.length > 0) {
+      bestAgent = eligible[0].id; // Already sorted by taskCount asc
     }
-    return null;
+
+    this.db.prepare("update tasks set assignee_agent_id = ?, updated_at = ? where id = ? and company_id = ?").run(bestAgent, nowIso(), taskId, companyId);
+    this.addActivity({
+      companyId,
+      actor: "system",
+      action: "task.auto_assigned",
+      entityType: "task",
+      entityId: taskId,
+      detail: `Auto-assigned to ${eligible.find(c => c.id === bestAgent)?.name ?? bestAgent}`,
+    });
+    return bestAgent;
   }
 
-  /* ─── Forward-Only Migration System ──────────────────────────────── */
-
   private runMigrations() {
-    // Create migration tracking table
     this.db.exec(`
       create table if not exists schema_migrations (
         version integer primary key,
@@ -2181,10 +2552,6 @@ export class AppDatabase {
           alter table connectors add column capability_json text;
         `,
       },
-      // Migration 5 (convert_usd_to_cents) was removed: the runtime, shared types,
-      // and renderer all treat monetary values as dollars. Converting stored data to
-      // cents without updating every consumer would cause 100x display errors.
-      // Dollar float values are sufficient for a local-first desktop app.
       {
         version: 6,
         name: "add_agent_department",
@@ -2359,6 +2726,19 @@ export class AppDatabase {
           create index if not exists idx_automation_log_company on automation_log(company_id)
         `,
       },
+      {
+        version: 12,
+        name: "add_agent_message_reads",
+        sql: `
+          create table if not exists agent_message_reads (
+            message_id text not null,
+            agent_id text not null,
+            read_at text not null,
+            primary key (message_id, agent_id)
+          );
+          create index if not exists idx_agent_message_reads_agent on agent_message_reads(agent_id);
+        `,
+      },
     ];
 
     for (const migration of migrations) {
@@ -2481,7 +2861,6 @@ export class AppDatabase {
     this.init();
   }
 
-  // ── Inbox ──────────────────────────────────────────────────────────
   getInbox(companyId: string): InboxItem[] {
     const items: InboxItem[] = [];
     const snapshot = this.listSnapshot();
@@ -2502,7 +2881,6 @@ export class AppDatabase {
         agentId: approval.requestedByAgentId,
         agentName: requester?.name ?? null,
         createdAt: approval.createdAt,
-        dismissed: false,
       });
     }
 
@@ -2521,7 +2899,6 @@ export class AppDatabase {
         agentId: run.agentId,
         agentName: agent?.name ?? null,
         createdAt: run.createdAt,
-        dismissed: false,
       });
     }
 
@@ -2539,7 +2916,6 @@ export class AppDatabase {
         agentId: agent.id,
         agentName: agent.name,
         createdAt: agent.updatedAt,
-        dismissed: false,
       });
     }
 
@@ -2557,7 +2933,6 @@ export class AppDatabase {
         agentId: task.assigneeAgentId,
         agentName: assignee?.name ?? null,
         createdAt: task.updatedAt,
-        dismissed: false,
       });
     }
 
@@ -2575,17 +2950,35 @@ export class AppDatabase {
         agentId: task.assigneeAgentId,
         agentName: assignee?.name ?? null,
         createdAt: task.updatedAt,
-        dismissed: false,
       });
     }
 
-    // Sort by severity then date
+    // Unread urgent agent messages (company-wide or incident channels that the Board should see)
+    for (const msg of snapshot.agentMessages.filter(m =>
+      m.companyId === companyId &&
+      !m.readAt &&
+      (m.channel === "company" || m.channel === "incident" || m.priority === "urgent"),
+    )) {
+      const sender = agentMap.get(msg.fromAgentId);
+      items.push({
+        id: `message-${msg.id}`,
+        type: "agent_message",
+        title: msg.subject,
+        subtitle: `${sender?.name ?? "Unknown"} — ${msg.channel === "incident" ? "INCIDENT" : msg.channel} ${msg.priority === "urgent" ? "(urgent)" : ""}`,
+        severity: msg.priority === "urgent" || msg.channel === "incident" ? "critical" : "medium",
+        entityType: "message",
+        entityId: msg.id,
+        agentId: msg.fromAgentId,
+        agentName: sender?.name ?? null,
+        createdAt: msg.createdAt,
+      });
+    }
+
     const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
     items.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity] || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return items;
   }
 
-  // ── Company Metrics ────────────────────────────────────────────────
   getCompanyMetrics(companyId: string, days: number = 30): CompanyMetrics {
     const snapshot = this.listSnapshot();
     const agents = snapshot.agents.filter(a => a.companyId === companyId);
@@ -2619,10 +3012,11 @@ export class AppDatabase {
           ? finishedRuns.reduce((sum, r) => sum + (new Date(r.finishedAt!).getTime() - new Date(r.startedAt!).getTime()) / 1000, 0) / finishedRuns.length
           : 0;
 
-        // Review cycles: count tasks that went from in_review back to in_progress
-        // Approximation: count activity entries with action "task.status_changed" and detail containing "in_progress"
+        // Review cycles: count task status transitions by this agent
+        // Actual action strings: "task.status_changed" (api-server), "task.updated" (index.ts), "task.auto_assigned" (database)
         const reviewCycles = snapshot.activity.filter(
-          a => a.companyId === companyId && a.actor === agent.id && a.action === "task.status_changed"
+          a => a.companyId === companyId && a.actor === agent.id
+            && (a.action === "task.status_changed" || a.action === "task.updated" || a.action === "task.auto_assigned")
         ).length;
 
         const lastRun = agentRuns.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
@@ -2661,7 +3055,6 @@ export class AppDatabase {
     };
   }
 
-  // ── Standup Report ─────────────────────────────────────────────────
   getStandupReport(companyId: string): StandupReport {
     const snapshot = this.listSnapshot();
     const agents = snapshot.agents.filter(a => a.companyId === companyId && a.status !== "terminated" && a.status !== "pending_approval");
@@ -2698,6 +3091,19 @@ export class AppDatabase {
     const totalSpent = agents.reduce((sum, a) => sum + a.spentMonthlyUsd, 0);
     const budgetUtilization = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
 
+    // Active sprint progress
+    const activeSprint = snapshot.sprints.find(s => s.companyId === companyId && s.status === "active");
+    if (activeSprint) {
+      const pct = activeSprint.velocityPoints > 0 ? Math.round((activeSprint.completedPoints / activeSprint.velocityPoints) * 100) : 0;
+      companyHighlights.push(`Sprint "${activeSprint.name}": ${activeSprint.completedPoints}/${activeSprint.velocityPoints} pts (${pct}%)`);
+    }
+
+    // Unread messages requiring attention
+    const urgentUnread = snapshot.agentMessages.filter(m => m.companyId === companyId && !m.readAt && (m.priority === "urgent" || m.channel === "incident")).length;
+    if (urgentUnread > 0) {
+      blockers.push(`${urgentUnread} urgent unread message(s) need attention`);
+    }
+
     const agentReports = agents.map(agent => {
       const agentTasks = tasks.filter(t => t.assigneeAgentId === agent.id);
       const agentRuns = runs.filter(r => r.agentId === agent.id);
@@ -2709,7 +3115,7 @@ export class AppDatabase {
       const completedRecently = agentTasks.filter(t => t.status === "done" && t.updatedAt > oneDayAgo);
       if (completedRecently.length > 0) highlights.push(`Completed ${completedRecently.length} task(s)`);
       if (agentRecentRuns.length > 0) highlights.push(`${agentRecentRuns.length} run(s) in last 24h`);
-      const reviewedTasks = recentActivity.filter(a => a.actor === agent.id && a.action.includes("status_changed")).length;
+      const reviewedTasks = recentActivity.filter(a => a.actor === agent.id && (a.action === "task.status_changed" || a.action === "task.updated" || a.action === "task.auto_assigned")).length;
       if (reviewedTasks > 0) highlights.push(`${reviewedTasks} status update(s)`);
 
       return {

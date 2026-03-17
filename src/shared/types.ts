@@ -122,7 +122,6 @@ export interface WorkspaceRecord {
   updatedAt: string;
 }
 
-// ── Departments ────────────────────────────────────────────────────────
 export type DepartmentId =
   | "executive"
   | "engineering"
@@ -298,7 +297,6 @@ export interface ProfileSnapshot {
   secrets: SecretRecord[];
   comments: CommentRecord[];
   socialAccounts: SocialAccountRecord[];
-  browserActions: BrowserActionRecord[];
   meetings: MeetingRecord[];
   documents: DocumentRecord[];
   knowledgeBase: KnowledgeEntryRecord[];
@@ -331,8 +329,6 @@ export interface RunStatusEvent {
   message: string;
 }
 
-export type HeartbeatTrigger = "manual" | "timer" | "assignment" | "goal_activated" | "approval_resolved" | "subtask_completed" | "comment" | "report_blocked" | "report_failed" | "recovery" | "message" | "peer_request";
-
 export interface CommentRecord {
   id: string;
   companyId: string;
@@ -341,11 +337,6 @@ export interface CommentRecord {
   authorName: string;
   body: string;
   createdAt: string;
-}
-
-export interface OrgChartNode {
-  agent: AgentRecord;
-  children: OrgChartNode[];
 }
 
 export interface HeartbeatStatusEvent {
@@ -384,7 +375,6 @@ export type DesktopEvent =
   | AutomationFiredEvent
   | NewMessageEvent;
 
-// ── Inbox ──────────────────────────────────────────────────────────────
 export type InboxItemType = "pending_approval" | "failed_run" | "budget_warning" | "blocked_task" | "review_needed" | "agent_message";
 
 export interface InboxItem {
@@ -398,23 +388,21 @@ export interface InboxItem {
   agentId: string | null;
   agentName: string | null;
   createdAt: string;
-  dismissed: boolean;
 }
 
-// ── Performance Metrics ────────────────────────────────────────────────
 export interface AgentMetrics {
   agentId: string;
   agentName: string;
   tasksCompleted: number;
   tasksAssigned: number;
   tasksFailed: number;
-  successRate: number; // 0-100
+  successRate: number;
   avgRunDurationSec: number;
   totalCostUsd: number;
   runsTotal: number;
   runsSucceeded: number;
   runsFailed: number;
-  reviewCycles: number; // how many times work was sent back for revision
+  reviewCycles: number;
   lastActiveAt: string | null;
 }
 
@@ -434,7 +422,6 @@ export interface CompanyMetrics {
   agentMetrics: AgentMetrics[];
 }
 
-// ── Company Template ───────────────────────────────────────────────────
 export interface CompanyTemplate {
   id: string;
   name: string;
@@ -461,10 +448,9 @@ export interface CompanyTemplate {
   }>;
 }
 
-// ── Social Media / Browser Automation ──────────────────────────────
 export type SocialPlatform = "twitter" | "linkedin" | "instagram" | "facebook" | "reddit" | "youtube" | "tiktok" | "bluesky" | "other";
 export type SocialAccountStatus = "active" | "logged_in" | "login_required" | "suspended" | "paused";
-export type BrowserActionType = "post" | "reply" | "like" | "follow" | "browse_feed" | "screenshot" | "navigate" | "search" | "dm" | "custom_script";
+export type BrowserActionType = "post" | "reply" | "like" | "follow" | "browse_feed" | "screenshot" | "navigate" | "search";
 export type BrowserActionStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled" | "approval_required";
 
 export interface SocialAccountRecord {
@@ -474,12 +460,9 @@ export interface SocialAccountRecord {
   accountName: string;
   displayName: string;
   profileUrl: string;
-  /** Secret ID for stored credentials (username/password/cookies) */
   credentialSecretId: string | null;
   status: SocialAccountStatus;
-  /** Whether posts require Board approval before publishing */
   requireApproval: boolean;
-  /** JSON metadata: bio, follower count, etc. */
   metadataJson: string;
   lastUsedAt: string | null;
   createdAt: string;
@@ -493,14 +476,10 @@ export interface BrowserActionRecord {
   agentId: string;
   taskId: string | null;
   actionType: BrowserActionType;
-  /** JSON payload: content, targetUrl, selector, script, etc. */
   payloadJson: string;
   status: BrowserActionStatus;
-  /** Result summary after execution */
   resultSummary: string;
-  /** Screenshot path after execution */
   screenshotPath: string | null;
-  /** Approval ID if approval was required */
   approvalId: string | null;
   errorMessage: string | null;
   startedAt: string | null;
@@ -509,7 +488,6 @@ export interface BrowserActionRecord {
   updatedAt: string;
 }
 
-// ── Meetings ──────────────────────────────────────────────────────────
 export type MeetingType =
   | "standup"
   | "sprint_planning"
@@ -544,7 +522,6 @@ export interface MeetingRecord {
   updatedAt: string;
 }
 
-// ── Documents ─────────────────────────────────────────────────────────
 export type DocumentType =
   | "prd"
   | "technical_spec"
@@ -586,7 +563,6 @@ export interface DocumentRecord {
   updatedAt: string;
 }
 
-// ── Knowledge Base ────────────────────────────────────────────────────
 export type KnowledgeCategory =
   | "lesson_learned"
   | "best_practice"
@@ -612,7 +588,6 @@ export interface KnowledgeEntryRecord {
   updatedAt: string;
 }
 
-// ── Sprints ───────────────────────────────────────────────────────────
 export type SprintStatus = "planning" | "active" | "review" | "completed" | "cancelled";
 
 export interface SprintRecord {
@@ -630,25 +605,6 @@ export interface SprintRecord {
   updatedAt: string;
 }
 
-// ── Performance Reviews ───────────────────────────────────────────────
-export type ReviewStatus = "draft" | "submitted" | "acknowledged";
-
-export interface PerformanceReviewRecord {
-  id: string;
-  companyId: string;
-  agentId: string;
-  reviewerAgentId: string;
-  period: string; // e.g., "2026-Q1"
-  rating: number; // 1-5
-  strengths: string;
-  areasForImprovement: string;
-  goals: string;
-  status: ReviewStatus;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// ── Standup Report ─────────────────────────────────────────────────────
 export interface StandupReport {
   companyId: string;
   generatedAt: string;
@@ -669,10 +625,9 @@ export interface StandupReport {
   companyHighlights: string[];
   blockers: string[];
   pendingApprovals: number;
-  budgetUtilization: number; // 0-100
+  budgetUtilization: number;
 }
 
-// ── Automation Engine ─────────────────────────────────────────────────
 export type AutomationTrigger =
   | "task_status_changed"
   | "task_created"
@@ -713,25 +668,19 @@ export interface AutomationRuleRecord {
   name: string;
   description: string;
   trigger: AutomationTrigger;
-  /** JSON conditions: e.g., {"status": "blocked", "department": "engineering"} */
   conditionsJson: string;
   action: AutomationAction;
-  /** JSON action config: e.g., {"targetAgentId": "...", "message": "..."} */
   actionConfigJson: string;
-  /** Source department that triggers (null = any) */
   sourceDepartment: DepartmentId | null;
-  /** Target department for cross-department rules (null = same) */
   targetDepartment: DepartmentId | null;
   priority: number;
   status: AutomationStatus;
-  /** How many times this rule has fired */
   executionCount: number;
   lastExecutedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-// ── Agent Messages (Direct Communication) ─────────────────────────────
 export type MessageChannel = "direct" | "department" | "company" | "project" | "incident";
 export type MessagePriority = "urgent" | "normal" | "low";
 
@@ -739,24 +688,18 @@ export interface AgentMessageRecord {
   id: string;
   companyId: string;
   fromAgentId: string;
-  /** null = broadcast to channel */
   toAgentId: string | null;
   channel: MessageChannel;
-  /** Department/project/incident ID for channel messages */
   channelTargetId: string | null;
   subject: string;
   body: string;
   priority: MessagePriority;
-  /** Whether the recipient has read this message */
   readAt: string | null;
-  /** Parent message ID for threads */
   parentMessageId: string | null;
-  /** JSON: attached entity references [{type, id, title}] */
   attachmentsJson: string;
   createdAt: string;
 }
 
-// ── Workflow Pipeline ──────────────────────────────────────────────────
 export type WorkflowStatus = "draft" | "active" | "paused" | "completed" | "failed";
 
 export interface WorkflowPipelineRecord {
@@ -764,13 +707,11 @@ export interface WorkflowPipelineRecord {
   companyId: string;
   name: string;
   description: string;
-  /** JSON array of pipeline steps */
   stepsJson: string;
   triggerType: AutomationTrigger;
   triggerConfigJson: string;
   status: WorkflowStatus;
   currentStepIndex: number;
-  /** How many times this pipeline has run */
   runCount: number;
   lastRunAt: string | null;
   createdAt: string;
@@ -784,19 +725,7 @@ export interface WorkflowStep {
   configJson: string;
   assigneeDepartment: DepartmentId | null;
   assigneeAgentId: string | null;
-  /** Wait for approval before proceeding */
   requiresApproval: boolean;
-  /** Timeout in seconds (0 = no timeout) */
   timeoutSec: number;
-  /** Status of this step */
   status: "pending" | "running" | "completed" | "failed" | "skipped";
-}
-
-// ── Cross-Department Trigger Table ────────────────────────────────────
-export interface CrossDeptTrigger {
-  sourceEvent: string;
-  sourceDepartment: DepartmentId;
-  targetDepartment: DepartmentId;
-  targetAction: string;
-  description: string;
 }

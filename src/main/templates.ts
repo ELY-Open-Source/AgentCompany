@@ -1,10 +1,5 @@
-import type { CompanyTemplate, DepartmentId } from "@shared/types";
+import type { CompanyTemplate } from "@shared/types";
 
-/**
- * Pre-built company templates for one-click company setup.
- * Each template defines a complete organizational structure with
- * agents, goals, and role definitions.
- */
 export const COMPANY_TEMPLATES: CompanyTemplate[] = [
   {
     id: "software-startup",
@@ -313,10 +308,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
     ],
   },
 
-  // ── Fortune 500 Enterprise ────────────────────────────────────────────
-  // A truly realistic, fully-staffed company with 37 agents across 12
-  // departments. Modeled after a mature tech company or Fortune 500 org
-  // with every function needed to operate at scale.
   {
     id: "fortune500-enterprise",
     name: "Fortune 500 Enterprise",
@@ -337,11 +328,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
       { id: "research", name: "Research & Innovation", description: "Applied research, competitive intelligence, prototyping, and publication of thought-leadership papers." },
     ],
     agents: [
-      // ────────────────────────────────────────────────────────────────────
-      // EXECUTIVE SUITE — indices 0-4
-      // ────────────────────────────────────────────────────────────────────
       {
-        // index 0
         name: "Victoria Sterling",
         role: "CEO",
         title: "Chief Executive Officer",
@@ -352,7 +339,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 250,
       },
       {
-        // index 1
         name: "James Whitfield",
         role: "COO",
         title: "Chief Operating Officer",
@@ -363,7 +349,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 220,
       },
       {
-        // index 2
         name: "Marcus Chen",
         role: "CTO",
         title: "Chief Technology Officer",
@@ -374,7 +359,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 250,
       },
       {
-        // index 3
         name: "Priya Sharma",
         role: "CFO",
         title: "Chief Financial Officer",
@@ -385,7 +369,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 200,
       },
       {
-        // index 4
         name: "Nadira Osei-Mensah",
         role: "CHRO",
         title: "Chief Human Resources Officer",
@@ -396,11 +379,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 180,
       },
 
-      // ────────────────────────────────────────────────────────────────────
-      // ENGINEERING — indices 5-12
-      // ────────────────────────────────────────────────────────────────────
       {
-        // index 5
         name: "Elena Rodriguez",
         role: "VP Engineering",
         title: "Vice President of Engineering",
@@ -411,7 +390,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 220,
       },
       {
-        // index 6
         name: "Tomasz Kowalski",
         role: "Principal Engineer",
         title: "Principal Software Engineer",
@@ -422,7 +400,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 280,
       },
       {
-        // index 7
         name: "Kai Nakamura",
         role: "Senior Backend Engineer",
         title: "Senior Backend Engineer",
@@ -433,7 +410,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 250,
       },
       {
-        // index 8
         name: "Sofia Andersson",
         role: "Senior Frontend Engineer",
         title: "Senior Frontend Engineer",
@@ -444,7 +420,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 250,
       },
       {
-        // index 9
         name: "Omar Hassan",
         role: "Platform / DevOps Engineer",
         title: "Senior Platform Engineer",
@@ -455,7 +430,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 230,
       },
       {
-        // index 10
         name: "Yuki Tanaka",
         role: "QA Lead",
         title: "Quality Assurance Lead",
@@ -466,7 +440,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 200,
       },
       {
-        // index 11
         name: "Amina Diallo",
         role: "Security Engineer",
         title: "Application Security Engineer",
@@ -477,7 +450,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 230,
       },
       {
-        // index 12
         name: "Ravi Krishnamurthy",
         role: "Data Engineer",
         title: "Senior Data Engineer",
@@ -488,11 +460,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 230,
       },
 
-      // ────────────────────────────────────────────────────────────────────
-      // PRODUCT & DESIGN — indices 13-16
-      // ────────────────────────────────────────────────────────────────────
       {
-        // index 13
         name: "Amara Okafor",
         role: "VP Product",
         title: "Vice President of Product",
@@ -503,7 +471,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 200,
       },
       {
-        // index 14
         name: "Daniel Okonkwo",
         role: "Senior Product Manager",
         title: "Senior Product Manager",
@@ -514,7 +481,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 180,
       },
       {
-        // index 15
         name: "Ingrid Johansson",
         role: "UX Director",
         title: "Director of User Experience",
@@ -525,7 +491,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 180,
       },
       {
-        // index 16
         name: "Leo Moretti",
         role: "UI Designer",
         title: "Senior UI Designer",
@@ -536,11 +501,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 160,
       },
 
-      // ────────────────────────────────────────────────────────────────────
-      // MARKETING — indices 17-20
-      // ────────────────────────────────────────────────────────────────────
       {
-        // index 17
         name: "Jasmine Delacroix",
         role: "CMO",
         title: "Chief Marketing Officer",
@@ -551,7 +512,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 200,
       },
       {
-        // index 18
         name: "Noah Park",
         role: "Content Director",
         title: "Director of Content",
@@ -562,7 +522,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 180,
       },
       {
-        // index 19
         name: "Zara Ahmed",
         role: "Growth Marketing Manager",
         title: "Growth Marketing Manager",
@@ -573,7 +532,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 170,
       },
       {
-        // index 20
         name: "Clara Dubois",
         role: "Brand & PR Manager",
         title: "Brand & Public Relations Manager",
@@ -584,11 +542,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 150,
       },
 
-      // ────────────────────────────────────────────────────────────────────
-      // SALES — indices 21-23
-      // ────────────────────────────────────────────────────────────────────
       {
-        // index 21
         name: "Daniel Brooks",
         role: "VP Sales",
         title: "Vice President of Sales",
@@ -599,7 +553,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 200,
       },
       {
-        // index 22
         name: "Grace Kimura",
         role: "Enterprise Account Executive",
         title: "Enterprise Account Executive",
@@ -610,7 +563,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 180,
       },
       {
-        // index 23
         name: "Marcus Adebayo",
         role: "SDR Manager",
         title: "Sales Development Representative Manager",
@@ -621,11 +573,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 150,
       },
 
-      // ────────────────────────────────────────────────────────────────────
-      // HR / PEOPLE — indices 24-26
-      // ────────────────────────────────────────────────────────────────────
       {
-        // index 24
         name: "Olivia Nguyen",
         role: "VP People",
         title: "Vice President of People",
@@ -636,7 +584,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 170,
       },
       {
-        // index 25
         name: "Farid Al-Rashidi",
         role: "Recruiting Lead",
         title: "Head of Talent Acquisition",
@@ -647,7 +594,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 140,
       },
       {
-        // index 26
         name: "Hannah Johansson",
         role: "People Operations Manager",
         title: "People Operations Manager",
@@ -658,11 +604,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 120,
       },
 
-      // ────────────────────────────────────────────────────────────────────
-      // FINANCE & LEGAL — indices 27-29
-      // ────────────────────────────────────────────────────────────────────
       {
-        // index 27
         name: "Richard Okonkwo",
         role: "VP Finance",
         title: "Vice President of Finance",
@@ -673,7 +615,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 180,
       },
       {
-        // index 28
         name: "Mei-Ling Wu",
         role: "Financial Controller",
         title: "Financial Controller",
@@ -684,7 +625,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 140,
       },
       {
-        // index 29
         name: "Alejandro Vega",
         role: "General Counsel",
         title: "General Counsel",
@@ -695,11 +635,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 200,
       },
 
-      // ────────────────────────────────────────────────────────────────────
-      // CUSTOMER SUCCESS — indices 30-32
-      // ────────────────────────────────────────────────────────────────────
       {
-        // index 30
         name: "Aisha Williams",
         role: "VP Customer Success",
         title: "Vice President of Customer Success",
@@ -710,7 +646,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 180,
       },
       {
-        // index 31
         name: "Sergei Volkov",
         role: "Senior Support Engineer",
         title: "Senior Technical Support Engineer",
@@ -721,7 +656,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 160,
       },
       {
-        // index 32
         name: "Camila Reyes",
         role: "Customer Success Manager",
         title: "Customer Success Manager",
@@ -732,11 +666,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 140,
       },
 
-      // ────────────────────────────────────────────────────────────────────
-      // OPERATIONS — indices 33-34
-      // ────────────────────────────────────────────────────────────────────
       {
-        // index 33
         name: "Kenji Watanabe",
         role: "Director of Operations",
         title: "Director of Operations",
@@ -747,7 +677,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 160,
       },
       {
-        // index 34
         name: "Laura Petrov",
         role: "Program Manager",
         title: "Senior Program Manager",
@@ -758,11 +687,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 150,
       },
 
-      // ────────────────────────────────────────────────────────────────────
-      // RESEARCH — indices 35-36
-      // ────────────────────────────────────────────────────────────────────
       {
-        // index 35
         name: "Dr. Lena Hoffmann",
         role: "Director of Research",
         title: "Director of Research & Innovation",
@@ -773,7 +698,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 200,
       },
       {
-        // index 36
         name: "Dr. Aarav Mehta",
         role: "Research Scientist",
         title: "Research Scientist",
@@ -828,7 +752,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
     ],
   },
 
-  // ── E-Commerce Company ──────────────────────────────────────────────
   {
     id: "ecommerce-company",
     name: "E-Commerce Business",
@@ -922,7 +845,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
     ],
   },
 
-  // ── Consulting Firm ──────────────────────────────────────────────────
   {
     id: "consulting-firm",
     name: "Consulting Firm",
@@ -992,9 +914,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
     ],
   },
 
-  // ── AI Research Company ───────────────────────────────────────────────
-  // Modeled after organizations like OpenAI, Anthropic, and DeepMind.
-  // Research-first with strong engineering to ship models into production.
   {
     id: "ai-research-company",
     name: "AI Research Company",
@@ -1013,9 +932,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
       { id: "legal", name: "Legal & Policy", description: "IP strategy, regulatory affairs, AI governance, data licensing, and compliance." },
     ],
     agents: [
-      // ── Executive (0-1) ──
       {
-        // index 0
         name: "Dr. Julian Crane",
         role: "CEO",
         title: "Chief Executive Officer",
@@ -1026,7 +943,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 250,
       },
       {
-        // index 1
         name: "Dr. Mei-Xing Zhou",
         role: "Chief Scientist",
         title: "Chief Scientist",
@@ -1036,10 +952,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "claude_local",
         budgetMonthlyUsd: 280,
       },
-
-      // ── Research (2-6) ──
       {
-        // index 2
         name: "Dr. Sasha Petrov",
         role: "Research Lead — Pre-training",
         title: "Senior Research Scientist — Pre-training",
@@ -1050,7 +963,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 260,
       },
       {
-        // index 3
         name: "Dr. Nneka Adeyemi",
         role: "Research Lead — Post-training",
         title: "Senior Research Scientist — RLHF & Fine-tuning",
@@ -1061,7 +973,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 260,
       },
       {
-        // index 4
         name: "Dr. Hiroshi Takeda",
         role: "Research Scientist — Reasoning",
         title: "Research Scientist — Reasoning & Agents",
@@ -1072,7 +983,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 240,
       },
       {
-        // index 5
         name: "Dr. Amara Osei",
         role: "Research Scientist — Safety",
         title: "Research Scientist — AI Safety",
@@ -1083,7 +993,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 240,
       },
       {
-        // index 6
         name: "Lila Fernandez",
         role: "Research Engineer",
         title: "Senior Research Engineer",
@@ -1093,10 +1002,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "codex_local",
         budgetMonthlyUsd: 250,
       },
-
-      // ── Engineering (7-10) ──
       {
-        // index 7
         name: "Rajiv Sundaram",
         role: "VP Engineering",
         title: "Vice President of Engineering",
@@ -1107,7 +1013,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 220,
       },
       {
-        // index 8
         name: "Christine Bergstrom",
         role: "ML Infrastructure Engineer",
         title: "Senior ML Infrastructure Engineer",
@@ -1118,7 +1023,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 250,
       },
       {
-        // index 9
         name: "Andre Williams",
         role: "Backend Engineer",
         title: "Senior Backend Engineer",
@@ -1129,7 +1033,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 230,
       },
       {
-        // index 10
         name: "Yuna Kim",
         role: "Frontend Engineer",
         title: "Senior Frontend Engineer",
@@ -1139,10 +1042,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "codex_local",
         budgetMonthlyUsd: 220,
       },
-
-      // ── Product & Design (11-13) ──
       {
-        // index 11
         name: "Tara Blackwell",
         role: "VP Product",
         title: "Vice President of Product",
@@ -1153,7 +1053,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 200,
       },
       {
-        // index 12
         name: "Omar Khalil",
         role: "Product Manager — Developer Platform",
         title: "Product Manager — Developer Platform",
@@ -1164,7 +1063,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 160,
       },
       {
-        // index 13
         name: "Vera Lindqvist",
         role: "Product Designer",
         title: "Senior Product Designer",
@@ -1174,10 +1072,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "claude_local",
         budgetMonthlyUsd: 160,
       },
-
-      // ── Marketing & DevRel (14-15) ──
       {
-        // index 14
         name: "Marcus Rhodes",
         role: "Head of Marketing",
         title: "Head of Marketing & Communications",
@@ -1188,7 +1083,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 170,
       },
       {
-        // index 15
         name: "Priya Khatri",
         role: "Developer Advocate",
         title: "Senior Developer Advocate",
@@ -1198,10 +1092,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "codex_local",
         budgetMonthlyUsd: 170,
       },
-
-      // ── People & Finance & Legal (16-17) ──
       {
-        // index 16
         name: "Danielle Moreau",
         role: "Head of People",
         title: "Head of People",
@@ -1212,7 +1103,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 150,
       },
       {
-        // index 17
         name: "Gabriel Souza",
         role: "Head of Legal & Policy",
         title: "Head of Legal & Policy",
@@ -1251,9 +1141,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
     ],
   },
 
-  // ── Digital Agency ────────────────────────────────────────────────────
-  // A full-service digital agency that designs, builds, and markets
-  // digital products for clients.
   {
     id: "digital-agency",
     name: "Full-Service Digital Agency",
@@ -1268,9 +1155,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
       { id: "operations", name: "Operations", description: "Resource planning, process management, and quality assurance." },
     ],
     agents: [
-      // ── Leadership (0-1) ──
       {
-        // index 0
         name: "Isabelle Fontaine",
         role: "Managing Director",
         title: "Managing Director",
@@ -1281,7 +1166,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 200,
       },
       {
-        // index 1
         name: "Victor Nascimento",
         role: "Account Director",
         title: "Account Director",
@@ -1291,10 +1175,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "claude_local",
         budgetMonthlyUsd: 170,
       },
-
-      // ── Creative & Design (2-4) ──
       {
-        // index 2
         name: "Saoirse O'Brien",
         role: "Creative Director",
         title: "Creative Director",
@@ -1305,7 +1186,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 200,
       },
       {
-        // index 3
         name: "Mateo Cruz",
         role: "UX/UI Designer",
         title: "Senior UX/UI Designer",
@@ -1316,7 +1196,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 170,
       },
       {
-        // index 4
         name: "Yuki Aoyama",
         role: "Motion & Visual Designer",
         title: "Motion & Visual Designer",
@@ -1326,10 +1205,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "claude_local",
         budgetMonthlyUsd: 140,
       },
-
-      // ── Development (5-7) ──
       {
-        // index 5
         name: "Nadia Kowalczyk",
         role: "Technical Director",
         title: "Technical Director",
@@ -1340,7 +1216,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 220,
       },
       {
-        // index 6
         name: "Kwame Asante",
         role: "Full-Stack Developer",
         title: "Senior Full-Stack Developer",
@@ -1351,7 +1226,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 230,
       },
       {
-        // index 7
         name: "Elina Koskinen",
         role: "Frontend Developer",
         title: "Frontend Developer",
@@ -1361,10 +1235,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "codex_local",
         budgetMonthlyUsd: 180,
       },
-
-      // ── Digital Marketing (8-10) ──
       {
-        // index 8
         name: "Tariq Benali",
         role: "Head of Digital",
         title: "Head of Digital Marketing",
@@ -1375,7 +1246,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 180,
       },
       {
-        // index 9
         name: "Jessica Torres",
         role: "SEO & Content Specialist",
         title: "SEO & Content Specialist",
@@ -1386,7 +1256,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 150,
       },
       {
-        // index 10
         name: "Ryan Gallagher",
         role: "Paid Media Specialist",
         title: "Paid Media Specialist",
@@ -1396,10 +1265,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "claude_local",
         budgetMonthlyUsd: 150,
       },
-
-      // ── Strategy & Content (11-12) ──
       {
-        // index 11
         name: "Ananya Chakraborty",
         role: "Strategy Lead",
         title: "Digital Strategy Lead",
@@ -1410,7 +1276,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 180,
       },
       {
-        // index 12
         name: "Liam O'Sullivan",
         role: "Copywriter",
         title: "Senior Copywriter",
@@ -1420,10 +1285,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "claude_local",
         budgetMonthlyUsd: 160,
       },
-
-      // ── Operations (13) ──
       {
-        // index 13
         name: "Sandra Muller",
         role: "Project Manager",
         title: "Senior Project Manager",
@@ -1454,9 +1316,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
     ],
   },
 
-  // ── B2B SaaS Company ──────────────────────────────────────────────────
-  // A product-led B2B SaaS company with the complete set of functions
-  // needed to build, sell, and support a subscription software product.
   {
     id: "saas-company",
     name: "B2B SaaS Company",
@@ -1474,9 +1333,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
       { id: "hr", name: "People", description: "Recruiting, onboarding, culture, and people operations." },
     ],
     agents: [
-      // ── Executive (0-1) ──
       {
-        // index 0
         name: "Nathan Cross",
         role: "CEO",
         title: "Chief Executive Officer",
@@ -1487,7 +1344,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 230,
       },
       {
-        // index 1
         name: "Samira Rostami",
         role: "CTO",
         title: "Chief Technology Officer",
@@ -1497,10 +1353,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "claude_local",
         budgetMonthlyUsd: 240,
       },
-
-      // ── Engineering (2-6) ──
       {
-        // index 2
         name: "Derek Johansson",
         role: "VP Engineering",
         title: "Vice President of Engineering",
@@ -1511,7 +1364,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 210,
       },
       {
-        // index 3
         name: "Priya Venkatesh",
         role: "Senior Backend Engineer",
         title: "Senior Backend Engineer",
@@ -1522,7 +1374,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 250,
       },
       {
-        // index 4
         name: "Luis Mendoza",
         role: "Senior Frontend Engineer",
         title: "Senior Frontend Engineer",
@@ -1533,7 +1384,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 240,
       },
       {
-        // index 5
         name: "Anika Bergman",
         role: "Platform Engineer",
         title: "Senior Platform Engineer",
@@ -1544,7 +1394,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 230,
       },
       {
-        // index 6
         name: "Tomoko Sato",
         role: "QA Engineer",
         title: "Quality Assurance Engineer",
@@ -1554,10 +1403,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "codex_local",
         budgetMonthlyUsd: 180,
       },
-
-      // ── Product & Design (7-9) ──
       {
-        // index 7
         name: "Rachel Abrams",
         role: "VP Product",
         title: "Vice President of Product",
@@ -1568,7 +1414,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 200,
       },
       {
-        // index 8
         name: "Jake Morrison",
         role: "Product Manager",
         title: "Product Manager",
@@ -1579,7 +1424,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 170,
       },
       {
-        // index 9
         name: "Chloe Laurent",
         role: "Product Designer",
         title: "Senior Product Designer",
@@ -1589,10 +1433,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "claude_local",
         budgetMonthlyUsd: 170,
       },
-
-      // ── Marketing (10-12) ──
       {
-        // index 10
         name: "Ava Richardson",
         role: "VP Marketing",
         title: "Vice President of Marketing",
@@ -1603,7 +1444,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 190,
       },
       {
-        // index 11
         name: "Benjamin Hart",
         role: "Content Marketing Manager",
         title: "Content Marketing Manager",
@@ -1614,7 +1454,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 160,
       },
       {
-        // index 12
         name: "Daria Volkov",
         role: "Growth & Demand Gen Manager",
         title: "Growth & Demand Generation Manager",
@@ -1624,10 +1463,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "claude_local",
         budgetMonthlyUsd: 160,
       },
-
-      // ── Sales (13-15) ──
       {
-        // index 13
         name: "Carter Ellison",
         role: "VP Sales",
         title: "Vice President of Sales",
@@ -1638,7 +1474,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 200,
       },
       {
-        // index 14
         name: "Nina Johansson",
         role: "Enterprise Account Executive",
         title: "Enterprise Account Executive",
@@ -1649,7 +1484,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 180,
       },
       {
-        // index 15
         name: "Travis Chen",
         role: "SDR Lead",
         title: "Sales Development Representative Lead",
@@ -1659,10 +1493,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "claude_local",
         budgetMonthlyUsd: 130,
       },
-
-      // ── Customer Success & Support (16-18) ──
       {
-        // index 16
         name: "Miriam Okafor",
         role: "VP Customer Success",
         title: "Vice President of Customer Success",
@@ -1673,7 +1504,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 180,
       },
       {
-        // index 17
         name: "Alex Petridis",
         role: "Customer Success Manager",
         title: "Customer Success Manager",
@@ -1684,7 +1514,6 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         budgetMonthlyUsd: 140,
       },
       {
-        // index 18
         name: "Rina Tanaka",
         role: "Support Engineer",
         title: "Technical Support Engineer",
@@ -1694,10 +1523,7 @@ export const COMPANY_TEMPLATES: CompanyTemplate[] = [
         connectorPreference: "codex_local",
         budgetMonthlyUsd: 140,
       },
-
-      // ── Finance & People (19) ──
       {
-        // index 19
         name: "Henrik Larsen",
         role: "Head of Finance",
         title: "Head of Finance",

@@ -1,13 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
-/**
- * Lightweight HMAC-based agent token system.
- * Tokens are short-lived and scoped to a specific agent + company + run.
- * No external JWT library needed.
- */
-
 const SIGNING_KEY = randomBytes(32);
-const TOKEN_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+const TOKEN_TTL_MS = 48 * 60 * 60 * 1000; // 48 hours
 
 interface TokenPayload {
   agentId: string;

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AgentMessageRecord, AgentMetrics, AutomationRuleRecord, BrowserActionRecord, CommentRecord, CompanyMetrics, CompanyTemplate, DesktopEvent, DocumentRecord, InboxItem, KnowledgeEntryRecord, MeetingRecord, ProfileSnapshot, SocialAccountRecord, SprintRecord, StandupReport, WorkflowPipelineRecord } from "./types";
+import type { AgentMessageRecord, AgentMetrics, BrowserActionRecord, CommentRecord, CompanyMetrics, CompanyTemplate, DesktopEvent, InboxItem, ProfileSnapshot, StandupReport } from "./types";
 
 export const IPC_CHANNELS = {
   loadSnapshot: "agent-company:load-snapshot",
@@ -41,7 +41,6 @@ export const IPC_CHANNELS = {
   getApiPort: "agent-company:get-api-port",
   rendererEvent: "agent-company:event",
   getInbox: "agent-company:get-inbox",
-  dismissInboxItem: "agent-company:dismiss-inbox-item",
   getCompanyMetrics: "agent-company:get-company-metrics",
   getAgentMetrics: "agent-company:get-agent-metrics",
   getStandupReport: "agent-company:get-standup-report",
@@ -52,32 +51,24 @@ export const IPC_CHANNELS = {
   listBrowserActions: "agent-company:list-browser-actions",
   cancelBrowserAction: "agent-company:cancel-browser-action",
   triggerBrowserLogin: "agent-company:trigger-browser-login",
-  // Meetings
   saveMeeting: "agent-company:save-meeting",
   deleteMeeting: "agent-company:delete-meeting",
-  // Documents
   saveDocument: "agent-company:save-document",
   deleteDocument: "agent-company:delete-document",
-  // Knowledge Base
   saveKnowledgeEntry: "agent-company:save-knowledge-entry",
   deleteKnowledgeEntry: "agent-company:delete-knowledge-entry",
-  // Sprints
   saveSprint: "agent-company:save-sprint",
   deleteSprint: "agent-company:delete-sprint",
-  // Automation
   saveAutomationRule: "agent-company:save-automation-rule",
   deleteAutomationRule: "agent-company:delete-automation-rule",
   toggleAutomationRule: "agent-company:toggle-automation-rule",
   getAutomationLog: "agent-company:get-automation-log",
-  // Agent Messages
   sendAgentMessage: "agent-company:send-agent-message",
   listAgentMessages: "agent-company:list-agent-messages",
   markMessageRead: "agent-company:mark-message-read",
-  // Workflows
   saveWorkflow: "agent-company:save-workflow",
   deleteWorkflow: "agent-company:delete-workflow",
   runWorkflow: "agent-company:run-workflow",
-  // Auto-assign
   autoAssignTask: "agent-company:auto-assign-task",
 } as const;
 
@@ -175,6 +166,7 @@ export const approvalInputSchema = z.object({
 });
 
 export const approvalDecisionSchema = z.object({
+  companyId: z.string().uuid(),
   approvalId: z.string().uuid(),
   state: z.enum(["approved", "rejected", "revision_requested"]),
   decisionNote: z.string().max(400).default(""),
@@ -211,6 +203,7 @@ export const sidebarBadgesSchema = z.object({
   failedRuns: z.number(),
   todoTasks: z.number(),
   budgetWarnings: z.number(),
+  unreadMessages: z.number(),
 });
 export type SidebarBadges = z.infer<typeof sidebarBadgesSchema>;
 
@@ -243,11 +236,6 @@ export const triggerHeartbeatSchema = z.object({
   agentId: z.string().uuid(),
   companyId: z.string().uuid(),
   trigger: z.enum(["manual", "timer", "assignment", "goal_activated", "approval_resolved", "subtask_completed", "comment", "report_blocked", "report_failed", "recovery", "message", "peer_request"]).default("manual"),
-});
-
-export const inboxDismissSchema = z.object({
-  itemId: z.string(),
-  companyId: z.string().uuid(),
 });
 
 export const metricsQuerySchema = z.object({
@@ -342,7 +330,6 @@ export const browserActionQuerySchema = z.object({
   limit: z.number().int().min(1).max(100).default(50),
 });
 
-// ── Automation Schemas ──────────────────────────────────────────────────
 export const automationRuleInputSchema = z.object({
   id: z.preprocess((v) => (v === "" ? null : v), z.string().uuid().nullable().optional()),
   companyId: z.string().uuid(),
@@ -391,8 +378,9 @@ export const messageQuerySchema = z.object({
   companyId: z.string().uuid(),
   agentId: z.string().uuid().optional(),
   channel: z.enum(["direct", "department", "company", "project", "incident"]).optional(),
+  channelTargetId: z.string().nullable().optional(),
   unreadOnly: z.boolean().optional(),
-  limit: z.number().int().min(1).max(200).default(50),
+  limit: z.number().int().min(1).max(500).default(200),
 });
 
 export const workflowInputSchema = z.object({
@@ -409,6 +397,22 @@ export const workflowInputSchema = z.object({
   ]),
   triggerConfigJson: z.string().default("{}"),
   status: z.enum(["draft", "active", "paused", "completed", "failed"]).default("draft"),
+});
+
+export const toggleAutomationRuleSchema = z.object({
+  id: z.string().uuid(),
+  companyId: z.string().uuid(),
+  status: z.enum(["active", "paused"]),
+});
+
+export const markMessageReadSchema = z.object({
+  messageId: z.string().uuid(),
+  companyId: z.string().uuid(),
+});
+
+export const runWorkflowSchema = z.object({
+  id: z.string().uuid(),
+  companyId: z.string().uuid(),
 });
 
 export const autoAssignSchema = z.object({
@@ -459,7 +463,6 @@ export type DesktopApi = {
   triggerHeartbeat: (input: z.infer<typeof triggerHeartbeatSchema>) => Promise<DesktopResult<string>>;
   getApiPort: () => Promise<DesktopResult<number>>;
   getInbox: (companyId: string) => Promise<DesktopResult<InboxItem[]>>;
-  dismissInboxItem: (input: z.infer<typeof inboxDismissSchema>) => Promise<DesktopResult<boolean>>;
   getCompanyMetrics: (input: z.infer<typeof metricsQuerySchema>) => Promise<DesktopResult<CompanyMetrics>>;
   getAgentMetrics: (input: z.infer<typeof metricsQuerySchema>) => Promise<DesktopResult<AgentMetrics>>;
   getStandupReport: (companyId: string) => Promise<DesktopResult<StandupReport>>;
@@ -470,32 +473,24 @@ export type DesktopApi = {
   listBrowserActions: (input: z.infer<typeof browserActionQuerySchema>) => Promise<DesktopResult<BrowserActionRecord[]>>;
   cancelBrowserAction: (input: z.infer<typeof cancelRunSchema>) => Promise<DesktopResult<boolean>>;
   triggerBrowserLogin: (socialAccountId: string) => Promise<DesktopResult<boolean>>;
-  // Meetings
   saveMeeting: (input: z.infer<typeof meetingInputSchema>) => Promise<DesktopResult<string>>;
   deleteMeeting: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
-  // Documents
   saveDocument: (input: z.infer<typeof documentInputSchema>) => Promise<DesktopResult<string>>;
   deleteDocument: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
-  // Knowledge Base
   saveKnowledgeEntry: (input: z.infer<typeof knowledgeEntryInputSchema>) => Promise<DesktopResult<string>>;
   deleteKnowledgeEntry: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
-  // Sprints
   saveSprint: (input: z.infer<typeof sprintInputSchema>) => Promise<DesktopResult<string>>;
   deleteSprint: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
-  // Automation
   saveAutomationRule: (input: z.infer<typeof automationRuleInputSchema>) => Promise<DesktopResult<string>>;
   deleteAutomationRule: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
-  toggleAutomationRule: (input: { id: string; companyId: string; status: "active" | "paused" }) => Promise<DesktopResult<boolean>>;
+  toggleAutomationRule: (input: z.infer<typeof toggleAutomationRuleSchema>) => Promise<DesktopResult<boolean>>;
   getAutomationLog: (companyId: string) => Promise<DesktopResult<Array<{ ruleId: string; ruleName: string; trigger: string; action: string; executedAt: string }>>>;
-  // Agent Messages
   sendAgentMessage: (input: z.infer<typeof agentMessageInputSchema>) => Promise<DesktopResult<string>>;
   listAgentMessages: (input: z.infer<typeof messageQuerySchema>) => Promise<DesktopResult<AgentMessageRecord[]>>;
-  markMessageRead: (input: { messageId: string; companyId: string }) => Promise<DesktopResult<boolean>>;
-  // Workflows
+  markMessageRead: (input: z.infer<typeof markMessageReadSchema>) => Promise<DesktopResult<boolean>>;
   saveWorkflow: (input: z.infer<typeof workflowInputSchema>) => Promise<DesktopResult<string>>;
   deleteWorkflow: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
-  runWorkflow: (input: { id: string; companyId: string }) => Promise<DesktopResult<boolean>>;
-  // Auto-assign
+  runWorkflow: (input: z.infer<typeof runWorkflowSchema>) => Promise<DesktopResult<boolean>>;
   autoAssignTask: (input: z.infer<typeof autoAssignSchema>) => Promise<DesktopResult<string>>;
   subscribe: (callback: (event: DesktopEvent) => void) => () => void;
 };

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -25,10 +25,11 @@ import {
 import type {
   ActivityRecord,
   AgentRecord,
+  AgentMessageRecord,
   ApprovalRecord,
+  BrowserActionRecord,
   ConnectorRecord,
   CostRecord,
-  DepartmentId,
   GoalRecord,
   MeetingRecord,
   ProjectRecord,
@@ -36,13 +37,10 @@ import type {
   SectionId,
   SprintRecord,
   TaskRecord,
+  WorkflowPipelineRecord,
 } from "@shared/types";
-import { formatMoney } from "../lib/formatters";
+import { formatMoney, getAgentInitials, timeAgo } from "../lib/formatters";
 import { StatusPill } from "./ui";
-
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
 
 interface DashboardProps {
   agents: AgentRecord[];
@@ -54,42 +52,44 @@ interface DashboardProps {
   activity: ActivityRecord[];
   costs: CostRecord[];
   connectors: ConnectorRecord[];
+  messages?: AgentMessageRecord[];
+  browserActions?: BrowserActionRecord[];
+  workflows?: WorkflowPipelineRecord[];
   meetings?: MeetingRecord[];
   sprints?: SprintRecord[];
   onNavigate: (section: SectionId, entityId?: string) => void;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Health Score Computation                                           */
-/* ------------------------------------------------------------------ */
-
-function computeHealthScore(props: Pick<DashboardProps, "agents" | "tasks" | "runs" | "approvals" | "connectors">): number {
+function computeHealthScore(props: Pick<DashboardProps, "agents" | "tasks" | "runs" | "approvals" | "connectors" | "messages" | "browserActions" | "workflows">): number {
   let score = 100;
-  const { agents, tasks, runs, approvals, connectors } = props;
+  const { agents, tasks, runs, approvals, connectors, messages = [], browserActions = [], workflows = [] } = props;
 
-  // Penalize for failed runs (recent)
   const failedRuns = runs.filter((r) => r.status === "failed" || r.status === "timed_out");
   score -= Math.min(failedRuns.length * 5, 25);
 
-  // Penalize for blocked tasks
   const blockedTasks = tasks.filter((t) => t.status === "blocked");
   score -= Math.min(blockedTasks.length * 8, 20);
 
-  // Penalize for pending approvals (bottleneck)
   const pendingApprovals = approvals.filter((a) => a.state === "pending");
   score -= Math.min(pendingApprovals.length * 5, 15);
 
-  // Penalize for agents in error state
   const errorAgents = agents.filter((a) => a.status === "error");
   score -= Math.min(errorAgents.length * 10, 20);
 
-  // Penalize for no ready connectors
   const readyConnectors = connectors.filter((c) => c.status === "ready");
   if (readyConnectors.length === 0 && connectors.length > 0) score -= 15;
 
-  // Penalize for overbudget agents
   const overBudget = agents.filter((a) => a.budgetMonthlyUsd > 0 && a.spentMonthlyUsd >= a.budgetMonthlyUsd);
   score -= Math.min(overBudget.length * 5, 10);
+
+  const urgentMessages = messages.filter((message) => !message.readAt && (message.priority === "urgent" || message.channel === "incident"));
+  score -= Math.min(urgentMessages.length * 4, 12);
+
+  const blockedBrowserActions = browserActions.filter((action) => action.status === "approval_required" || action.status === "failed");
+  score -= Math.min(blockedBrowserActions.length * 4, 12);
+
+  const stalledWorkflows = workflows.filter((workflow) => workflow.status === "paused" || workflow.status === "failed");
+  score -= Math.min(stalledWorkflows.length * 5, 15);
 
   return Math.max(0, Math.min(100, score));
 }
@@ -101,10 +101,6 @@ function healthLabel(score: number): { label: string; tone: string } {
   if (score >= 30) return { label: "Poor", tone: "text-[color:var(--warn)]" };
   return { label: "Critical", tone: "text-[color:var(--danger)]" };
 }
-
-/* ------------------------------------------------------------------ */
-/*  Health Ring                                                        */
-/* ------------------------------------------------------------------ */
 
 function HealthRing({ score }: { score: number }) {
   const radius = 38;
@@ -148,10 +144,6 @@ function HealthRing({ score }: { score: number }) {
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Metric Card                                                        */
-/* ------------------------------------------------------------------ */
 
 function MetricCard({
   label,
@@ -201,10 +193,6 @@ function MetricCard({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Agent Workforce Grid                                               */
-/* ------------------------------------------------------------------ */
-
 const statusGlow: Record<string, string> = {
   running: "ring-2 ring-[color:var(--success)] ring-opacity-50",
   active: "ring-1 ring-[color:var(--success)] ring-opacity-30",
@@ -216,12 +204,7 @@ const statusGlow: Record<string, string> = {
 };
 
 function AgentCard({ agent, onClick }: { agent: AgentRecord; onClick: () => void }) {
-  const initials = agent.name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
+  const initials = getAgentInitials(agent.name);
 
   const isActive = agent.status === "running" || agent.status === "active";
 
@@ -287,10 +270,6 @@ function WorkforceGrid({ agents, onSelectAgent }: { agents: AgentRecord[]; onSel
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Activity Stream                                                    */
-/* ------------------------------------------------------------------ */
-
 const actionIcons: Record<string, React.ElementType> = {
   created: CheckCircle,
   updated: Lightning,
@@ -301,20 +280,6 @@ const actionIcons: Record<string, React.ElementType> = {
   approved: ShieldCheck,
   rejected: XCircle,
 };
-
-function timeAgo(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diff = Math.max(0, now - then);
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 function ActivityFeed({ activity, agents, limit = 15 }: { activity: ActivityRecord[]; agents: AgentRecord[]; limit?: number }) {
   const recentActivity = useMemo(() => {
@@ -368,10 +333,6 @@ function ActivityFeed({ activity, agents, limit = 15 }: { activity: ActivityReco
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Workflow Pipeline (visual task flow)                                */
-/* ------------------------------------------------------------------ */
-
 function TaskPipeline({ tasks }: { tasks: TaskRecord[] }) {
   const stages = useMemo(() => {
     const counts = { backlog: 0, todo: 0, in_progress: 0, in_review: 0, done: 0, blocked: 0 };
@@ -404,10 +365,6 @@ function TaskPipeline({ tasks }: { tasks: TaskRecord[] }) {
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Department Overview                                                */
-/* ------------------------------------------------------------------ */
 
 const DEPARTMENT_INFO: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   executive: { label: "Executive", icon: Buildings, color: "var(--accent)" },
@@ -485,7 +442,6 @@ function DepartmentOverview({
             onClick={() => onNavigate("agents")}
             className="focus-ring group relative overflow-hidden rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-3 text-left transition hover:border-[color:var(--line-strong)] hover:shadow-sm"
           >
-            {/* Accent bar */}
             <div className="absolute left-0 top-0 h-full w-[3px]" style={{ backgroundColor: info.color }} />
 
             <div className="flex items-center gap-2 pl-1">
@@ -524,11 +480,13 @@ function DepartmentOverview({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Sprint Progress                                                    */
-/* ------------------------------------------------------------------ */
-
 function SprintProgress({ sprint, tasks }: { sprint: SprintRecord; tasks: TaskRecord[] }) {
+  const [nowMs, setNowMs] = useState<number | null>(null);
+
+  useEffect(() => {
+    setNowMs(Date.now());
+  }, []);
+
   const progress = useMemo(() => {
     if (sprint.velocityPoints === 0) return 0;
     return Math.min(100, Math.round((sprint.completedPoints / sprint.velocityPoints) * 100));
@@ -536,9 +494,9 @@ function SprintProgress({ sprint, tasks }: { sprint: SprintRecord; tasks: TaskRe
 
   const daysLeft = useMemo(() => {
     const end = new Date(sprint.endDate).getTime();
-    const now = Date.now();
+    const now = nowMs ?? end;
     return Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
-  }, [sprint]);
+  }, [sprint, nowMs]);
 
   const sprintTasks = useMemo(() => {
     const done = tasks.filter((t) => t.status === "done").length;
@@ -561,7 +519,6 @@ function SprintProgress({ sprint, tasks }: { sprint: SprintRecord; tasks: TaskRe
         </div>
       </div>
 
-      {/* Progress bar */}
       <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[color:var(--panel-soft)]">
         <motion.div
           className="h-full rounded-full bg-[color:var(--accent)]"
@@ -586,10 +543,6 @@ function SprintProgress({ sprint, tasks }: { sprint: SprintRecord; tasks: TaskRe
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Goal Progress Bars                                                 */
-/* ------------------------------------------------------------------ */
 
 function GoalProgress({ goals, tasks, onNavigate }: { goals: GoalRecord[]; tasks: TaskRecord[]; onNavigate: (section: SectionId) => void }) {
   const activeGoals = useMemo(() => goals.filter((g) => g.status === "active"), [goals]);
@@ -634,16 +587,12 @@ function GoalProgress({ goals, tasks, onNavigate }: { goals: GoalRecord[]; tasks
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Main Dashboard                                                     */
-/* ------------------------------------------------------------------ */
-
 export function Dashboard(props: DashboardProps) {
-  const { agents, tasks, runs, approvals, goals, projects, activity, costs, connectors, meetings = [], sprints = [], onNavigate } = props;
+  const { agents, tasks, runs, approvals, goals, projects, activity, costs, connectors, messages = [], browserActions = [], workflows = [], sprints = [], onNavigate } = props;
 
   const healthScore = useMemo(
-    () => computeHealthScore({ agents, tasks, runs, approvals, connectors }),
-    [agents, tasks, runs, approvals, connectors],
+    () => computeHealthScore({ agents, tasks, runs, approvals, connectors, messages, browserActions, workflows }),
+    [agents, tasks, runs, approvals, connectors, messages, browserActions, workflows],
   );
 
   const liveRuns = useMemo(() => runs.filter((r) => r.status === "running" || r.status === "queued"), [runs]);
@@ -655,16 +604,14 @@ export function Dashboard(props: DashboardProps) {
   const activeAgents = useMemo(() => agents.filter((a) => a.status !== "terminated" && a.status !== "pending_approval"), [agents]);
   const readyConnectors = useMemo(() => connectors.filter((c) => c.status === "ready"), [connectors]);
   const activeSprint = useMemo(() => sprints.find((s) => s.status === "active"), [sprints]);
-  const completionRate = useMemo(() => {
-    const total = runs.length;
-    if (total === 0) return 0;
-    const succeeded = runs.filter((r) => r.status === "succeeded").length;
-    return Math.round((succeeded / total) * 100);
-  }, [runs]);
+  const unreadMessages = useMemo(() => messages.filter((message) => !message.readAt), [messages]);
+  const urgentMessages = useMemo(() => messages.filter((message) => !message.readAt && (message.priority === "urgent" || message.channel === "incident")), [messages]);
+  const blockedBrowserActions = useMemo(() => browserActions.filter((action) => action.status === "approval_required" || action.status === "failed"), [browserActions]);
+  const stalledWorkflows = useMemo(() => workflows.filter((workflow) => workflow.status === "paused" || workflow.status === "failed"), [workflows]);
 
   return (
     <div className="space-y-8">
-      {/* Row 1: Health + Metrics */}
+      {/* Health + Metrics */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         {/* Health Ring */}
         <div className="shrink-0 rounded-[12px] border border-[color:var(--line)] bg-[color:var(--panel)] p-5">
@@ -733,10 +680,34 @@ export function Dashboard(props: DashboardProps) {
             onClick={() => onNavigate("projects")}
             subtitle={`${projects.length} total`}
           />
+          <MetricCard
+            label="Unread Messages"
+            value={unreadMessages.length}
+            icon={Users}
+            tone={urgentMessages.length > 0 ? "warn" : unreadMessages.length > 0 ? "accent" : "default"}
+            onClick={() => onNavigate("communication")}
+            subtitle={urgentMessages.length > 0 ? `${urgentMessages.length} urgent` : unreadMessages.length > 0 ? "Needs triage" : "All read"}
+          />
+          <MetricCard
+            label="Browser Ops"
+            value={blockedBrowserActions.length}
+            icon={Cpu}
+            tone={blockedBrowserActions.length > 0 ? "warn" : "default"}
+            onClick={() => onNavigate("social")}
+            subtitle={blockedBrowserActions.length > 0 ? "Blocked or failed" : "Nominal"}
+          />
+          <MetricCard
+            label="Workflow Stalls"
+            value={stalledWorkflows.length}
+            icon={Lightning}
+            tone={stalledWorkflows.length > 0 ? "warn" : "default"}
+            onClick={() => onNavigate("automation")}
+            subtitle={stalledWorkflows.length > 0 ? "Paused or failed" : "Healthy"}
+          />
         </div>
       </div>
 
-      {/* Row 2: Department Overview */}
+      {/* Department Overview */}
       <section>
         <div className="mb-3 flex items-center justify-between">
           <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Departments</div>
@@ -751,7 +722,7 @@ export function Dashboard(props: DashboardProps) {
         <DepartmentOverview agents={agents} tasks={tasks} runs={runs} onNavigate={onNavigate} />
       </section>
 
-      {/* Row 3: Sprint + Goals side by side */}
+      {/* Sprint + Goals */}
       <div className="grid gap-6 lg:grid-cols-2">
         {activeSprint ? (
           <section>
@@ -784,7 +755,7 @@ export function Dashboard(props: DashboardProps) {
         </section>
       </div>
 
-      {/* Row 4: Task Pipeline */}
+      {/* Task Pipeline */}
       <section>
         <div className="mb-3 flex items-center justify-between">
           <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Task Pipeline</div>
@@ -801,7 +772,7 @@ export function Dashboard(props: DashboardProps) {
         </div>
       </section>
 
-      {/* Row 5: Workforce + Activity */}
+      {/* Workforce + Activity */}
       <div className="grid gap-6 lg:grid-cols-5">
         {/* Workforce */}
         <section className="lg:col-span-3">
@@ -836,7 +807,7 @@ export function Dashboard(props: DashboardProps) {
         </section>
       </div>
 
-      {/* Row 4: Connector health (compact) */}
+      {/* Connector Health */}
       <section>
         <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Infrastructure</div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -867,8 +838,8 @@ export function Dashboard(props: DashboardProps) {
         </div>
       </section>
 
-      {/* Row 5: Quick Actions / Needs Attention */}
-      {(pendingApprovals.length > 0 || failedRuns.length > 0) ? (
+      {/* Needs Attention */}
+      {(pendingApprovals.length > 0 || failedRuns.length > 0 || urgentMessages.length > 0 || blockedBrowserActions.length > 0 || stalledWorkflows.length > 0) ? (
         <section>
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--warn)]">Needs Attention</div>
           <div className="space-y-1.5">
@@ -913,16 +884,62 @@ export function Dashboard(props: DashboardProps) {
                 </button>
               );
             })}
+            {urgentMessages.slice(0, 3).map((message) => {
+              const sender = agents.find((agent) => agent.id === message.fromAgentId);
+              return (
+                <button
+                  key={message.id}
+                  type="button"
+                  onClick={() => onNavigate("communication")}
+                  className="focus-ring flex w-full items-center gap-3 rounded-[8px] border border-[color:var(--warn)] border-opacity-20 bg-[color:var(--warn-soft)] px-4 py-3 text-left transition hover:border-opacity-40"
+                >
+                  <Users size={18} className="shrink-0 text-[color:var(--warn)]" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{message.subject}</div>
+                    <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
+                      {sender?.name ?? "Unknown"} — {message.channel} {message.priority === "urgent" ? "· urgent" : ""}
+                    </div>
+                  </div>
+                  <ArrowRight size={14} className="shrink-0 text-[color:var(--muted)]" />
+                </button>
+              );
+            })}
+            {blockedBrowserActions.slice(0, 3).map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                onClick={() => onNavigate("social")}
+                className="focus-ring flex w-full items-center gap-3 rounded-[8px] border border-[color:var(--warn)] border-opacity-20 bg-[color:var(--warn-soft)] px-4 py-3 text-left transition hover:border-opacity-40"
+              >
+                <Cpu size={18} className="shrink-0 text-[color:var(--warn)]" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{action.resultSummary || action.actionType}</div>
+                  <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">Browser action {action.status.replaceAll("_", " ")}</div>
+                </div>
+                <ArrowRight size={14} className="shrink-0 text-[color:var(--muted)]" />
+              </button>
+            ))}
+            {stalledWorkflows.slice(0, 3).map((workflow) => (
+              <button
+                key={workflow.id}
+                type="button"
+                onClick={() => onNavigate("automation")}
+                className="focus-ring flex w-full items-center gap-3 rounded-[8px] border border-[color:var(--warn)] border-opacity-20 bg-[color:var(--warn-soft)] px-4 py-3 text-left transition hover:border-opacity-40"
+              >
+                <Lightning size={18} className="shrink-0 text-[color:var(--warn)]" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{workflow.name}</div>
+                  <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">Workflow {workflow.status}</div>
+                </div>
+                <ArrowRight size={14} className="shrink-0 text-[color:var(--muted)]" />
+              </button>
+            ))}
           </div>
         </section>
       ) : null}
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Kanban Board                                                       */
-/* ------------------------------------------------------------------ */
 
 interface KanbanProps {
   tasks: TaskRecord[];
@@ -957,7 +974,6 @@ export function KanbanBoard({ tasks, agents, runs, onSelectTask }: KanbanProps) 
       if (bucket) bucket.push(task);
       else grouped.backlog?.push(task);
     }
-    // Sort each column by priority
     const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
     for (const col of Object.values(grouped)) {
       col.sort((a, b) => (priorityOrder[a.priority] ?? 9) - (priorityOrder[b.priority] ?? 9));
@@ -981,7 +997,6 @@ export function KanbanBoard({ tasks, agents, runs, onSelectTask }: KanbanProps) 
         const colTasks = tasksByStatus[col.status] ?? [];
         return (
           <div key={col.status} className="flex w-[220px] shrink-0 flex-col">
-            {/* Column header */}
             <div className="mb-2 flex items-center gap-2 px-1">
               <span className={`h-2 w-2 rounded-full ${col.dotColor}`} />
               <span className={`text-[11px] font-semibold uppercase tracking-[0.08em] ${col.tone}`}>{col.label}</span>
@@ -989,7 +1004,6 @@ export function KanbanBoard({ tasks, agents, runs, onSelectTask }: KanbanProps) 
                 {colTasks.length}
               </span>
             </div>
-            {/* Cards */}
             <div className="flex flex-1 flex-col gap-1.5 rounded-[8px] bg-[color:var(--panel-soft)] p-1.5" style={{ minHeight: 120 }}>
               {colTasks.map((task) => {
                 const assignee = agents.find((a) => a.id === task.assigneeAgentId);

@@ -10,19 +10,14 @@ import {
   CheckCircle,
   Clock,
   Eye,
-  FunnelSimple,
   Robot,
   Heartbeat,
   Target,
   ChatCircle,
   Tray,
 } from "@phosphor-icons/react";
-import type { InboxItem, InboxItemType, SectionId, StandupReport, AgentMetrics, CompanyMetrics } from "@shared/types";
-import { formatMoney } from "../lib/formatters";
-
-/* ------------------------------------------------------------------ */
-/*  Inbox Panel                                                        */
-/* ------------------------------------------------------------------ */
+import type { InboxItem, InboxItemType, SectionId, StandupReport, CompanyMetrics } from "@shared/types";
+import { formatMoney, timeAgo, getAgentInitials, formatDuration } from "../lib/formatters";
 
 const typeConfig: Record<InboxItemType, { icon: React.ElementType; color: string; bg: string; label: string }> = {
   pending_approval: { icon: ShieldCheck, color: "var(--warn)", bg: "var(--warn-soft)", label: "Approval" },
@@ -40,49 +35,28 @@ const severityColors: Record<string, string> = {
   low: "border-l-[color:var(--line)]",
 };
 
-function timeAgo(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diff = Math.max(0, now - then);
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
 interface InboxProps {
   items: InboxItem[];
   onNavigate: (section: SectionId, entityId?: string) => void;
-  onDismiss: (itemId: string) => void;
 }
 
-export function Inbox({ items, onNavigate, onDismiss }: InboxProps) {
+export function Inbox({ items, onNavigate }: InboxProps) {
   const [filter, setFilter] = useState<InboxItemType | "all">("all");
-  const [showDismissed, setShowDismissed] = useState(false);
 
   const filteredItems = useMemo(() => {
-    let result = items;
-    if (!showDismissed) result = result.filter(i => !i.dismissed);
-    if (filter !== "all") result = result.filter(i => i.type === filter);
-    return result;
-  }, [items, filter, showDismissed]);
+    if (filter === "all") return items;
+    return items.filter(i => i.type === filter);
+  }, [items, filter]);
 
-  const counts = useMemo(() => {
-    const active = items.filter(i => !i.dismissed);
-    return {
-      all: active.length,
-      pending_approval: active.filter(i => i.type === "pending_approval").length,
-      failed_run: active.filter(i => i.type === "failed_run").length,
-      budget_warning: active.filter(i => i.type === "budget_warning").length,
-      blocked_task: active.filter(i => i.type === "blocked_task").length,
-      review_needed: active.filter(i => i.type === "review_needed").length,
-      agent_message: active.filter(i => i.type === "agent_message").length,
-    };
-  }, [items]);
+  const counts = useMemo(() => ({
+    all: items.length,
+    pending_approval: items.filter(i => i.type === "pending_approval").length,
+    failed_run: items.filter(i => i.type === "failed_run").length,
+    budget_warning: items.filter(i => i.type === "budget_warning").length,
+    blocked_task: items.filter(i => i.type === "blocked_task").length,
+    review_needed: items.filter(i => i.type === "review_needed").length,
+    agent_message: items.filter(i => i.type === "agent_message").length,
+  }), [items]);
 
   const handleItemClick = (item: InboxItem) => {
     const sectionMap: Record<string, SectionId> = {
@@ -90,6 +64,7 @@ export function Inbox({ items, onNavigate, onDismiss }: InboxProps) {
       run: "tasks",
       agent: "agents",
       task: "tasks",
+      message: "communication",
     };
     const section = sectionMap[item.entityType] ?? "overview";
     onNavigate(section, item.entityId);
@@ -102,11 +77,11 @@ export function Inbox({ items, onNavigate, onDismiss }: InboxProps) {
     { key: "failed_run", label: "Failed", count: counts.failed_run },
     { key: "blocked_task", label: "Blocked", count: counts.blocked_task },
     { key: "budget_warning", label: "Budget", count: counts.budget_warning },
+    { key: "agent_message", label: "Messages", count: counts.agent_message },
   ];
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[color:var(--accent-soft)]">
@@ -121,7 +96,6 @@ export function Inbox({ items, onNavigate, onDismiss }: InboxProps) {
         </div>
       </div>
 
-      {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-1.5">
         {filterButtons.map(btn => (
           <button
@@ -146,7 +120,6 @@ export function Inbox({ items, onNavigate, onDismiss }: InboxProps) {
         ))}
       </div>
 
-      {/* Items */}
       {filteredItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-[color:var(--line)] py-16 text-center">
           <Tray size={32} className="mb-3 text-[color:var(--muted)]" />
@@ -209,9 +182,6 @@ export function Inbox({ items, onNavigate, onDismiss }: InboxProps) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Standup Report View                                                */
-/* ------------------------------------------------------------------ */
 
 interface StandupProps {
   report: StandupReport | null;
@@ -231,7 +201,6 @@ export function StandupView({ report, onNavigate }: StandupProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="rounded-[12px] border border-[color:var(--line)] bg-[color:var(--panel)] p-5">
         <div className="flex items-center gap-3 mb-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[color:var(--accent-soft)]">
@@ -270,7 +239,6 @@ export function StandupView({ report, onNavigate }: StandupProps) {
         </div>
       </div>
 
-      {/* Company Highlights */}
       {report.companyHighlights.length > 0 ? (
         <section>
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Highlights</div>
@@ -285,7 +253,6 @@ export function StandupView({ report, onNavigate }: StandupProps) {
         </section>
       ) : null}
 
-      {/* Blockers */}
       {report.blockers.length > 0 ? (
         <section>
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--danger)]">Blockers</div>
@@ -300,7 +267,6 @@ export function StandupView({ report, onNavigate }: StandupProps) {
         </section>
       ) : null}
 
-      {/* Agent Reports */}
       <section>
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Agent Status</div>
         <div className="space-y-2">
@@ -317,7 +283,7 @@ export function StandupView({ report, onNavigate }: StandupProps) {
                   : ar.status === "error" ? "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"
                   : "bg-[color:var(--panel-soft)] text-[color:var(--muted-strong)]"
                 }`}>
-                  {ar.agentName.split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase()}
+                  {getAgentInitials(ar.agentName)}
                 </div>
                 {ar.status === "running" ? (
                   <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
@@ -350,9 +316,6 @@ export function StandupView({ report, onNavigate }: StandupProps) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Performance Metrics View                                           */
-/* ------------------------------------------------------------------ */
 
 interface PerformanceProps {
   metrics: CompanyMetrics | null;
@@ -372,7 +335,6 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
 
   return (
     <div className="space-y-6">
-      {/* Company Overview Metrics */}
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <CompactMetric
           label="Success Rate"
@@ -398,7 +360,6 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
         />
       </div>
 
-      {/* Run Stats */}
       <div className="rounded-[12px] border border-[color:var(--line)] bg-[color:var(--panel)] p-5">
         <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Run Activity (30d)</div>
         <div className="flex items-center gap-6">
@@ -422,7 +383,6 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
         </div>
       </div>
 
-      {/* Agent Performance Table */}
       <section>
         <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Agent Performance</div>
         <div className="overflow-x-auto rounded-[10px] border border-[color:var(--line)]">
@@ -449,7 +409,7 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
                         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[color:var(--panel-soft)] text-[10px] font-bold text-[color:var(--muted-strong)]">
-                          {am.agentName.split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase()}
+                          {getAgentInitials(am.agentName)}
                         </div>
                         <span className="text-[12px] font-medium text-[color:var(--text)]">{am.agentName}</span>
                       </div>
@@ -477,9 +437,6 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                            */
-/* ------------------------------------------------------------------ */
 
 function CompactMetric({ label, value, tone = "default", subtitle }: {
   label: string;
@@ -525,13 +482,4 @@ function RunProgressBar({ succeeded, failed, total }: { succeeded: number; faile
       />
     </div>
   );
-}
-
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  if (minutes < 60) return `${minutes}m ${secs}s`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h ${minutes % 60}m`;
 }

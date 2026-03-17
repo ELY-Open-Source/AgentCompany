@@ -16,6 +16,7 @@ import {
   net,
   session,
   shell,
+  Tray,
   utilityProcess,
 } from "electron";
 import electronUpdater from "electron-updater";
@@ -34,7 +35,6 @@ import {
   deleteEntitySchema,
   goalInputSchema,
   heartbeatSettingsSchema,
-  inboxDismissSchema,
   listCommentsSchema,
   metricsQuerySchema,
   type DesktopResult,
@@ -57,8 +57,11 @@ import {
   messageQuerySchema,
   workflowInputSchema,
   autoAssignSchema,
+  toggleAutomationRuleSchema,
+  markMessageReadSchema,
+  runWorkflowSchema,
 } from "@shared/contracts";
-import type { DesktopEvent } from "@shared/types";
+import type { DesktopEvent, RunRecord } from "@shared/types";
 import { getConnectorDefinition } from "./connectors";
 import { AppDatabase } from "./database";
 import { AgentApiServer } from "./api-server";
@@ -69,11 +72,8 @@ import { BrowserManager } from "./browser-manager";
 
 app.name = "AgentCompany";
 
-// ── Fix PATH for packaged macOS/Linux apps ──────────────────────────────────
-// Packaged Electron apps on macOS launched from Finder inherit a minimal PATH
-// (/usr/bin:/bin:/usr/sbin:/sbin) that doesn't include Homebrew, nvm, cargo, etc.
-// We prepend common installation directories so connectors like claude, codex,
-// gemini, opencode, kimi can be found.
+// Packaged Electron apps inherit a minimal PATH; prepend common tool directories
+// so CLI connectors (claude, codex, gemini, etc.) can be found.
 {
   const extra = [
     "/usr/local/bin",
@@ -85,7 +85,6 @@ app.name = "AgentCompany";
     `${process.env.HOME}/.volta/bin`,
     `${process.env.HOME}/.bun/bin`,
     "/usr/local/sbin",
-    // Common Linux snap/flatpak paths
     "/snap/bin",
   ].filter((p) => p && !p.includes("undefined"));
   const current = process.env.PATH ?? "";
@@ -123,6 +122,11 @@ let worker: ReturnType<typeof utilityProcess.fork> | null = null;
 let apiServer: AgentApiServer | null = null;
 let browserManager: BrowserManager | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let appTray: Tray | null = null;
+const scheduleLastFiredMap = new Map<string, number>();
+const activeAutomationExecutions = new Set<string>();
+const activeWorkflowTriggerExecutions = new Set<string>();
+// Budget reset tracking moved to database (db.getLastBudgetResetMonth / db.setLastBudgetResetMonth)
 let isQuitting = false;
 let backgroundCloseNoticeShown = false;
 
@@ -158,6 +162,13 @@ const workerMessageSchema = z.union([
 ]);
 
 type CompanyScopedTable = "workspaces" | "agents" | "goals" | "projects" | "tasks" | "approvals" | "runs" | "secrets";
+type WorkspaceLockMode = "exclusive" | "shared" | "none";
+
+interface WorkspaceResolution {
+  workspace: ReturnType<typeof db.getWorkspace>;
+  lockMode: WorkspaceLockMode;
+  source: "task" | "agent" | "project" | "company_fallback" | "none";
+}
 
 function ok<T>(data: T): DesktopResult<T> {
   return { ok: true, data };
@@ -165,6 +176,38 @@ function ok<T>(data: T): DesktopResult<T> {
 
 function fail(code: string, message: string): DesktopResult<never> {
   return { ok: false, error: { code, message } };
+}
+
+function hasActiveRun(_snapshot: ReturnType<typeof db.listSnapshot>, filter: { taskId?: string; agentId?: string; companyId: string }) {
+  return db.hasActiveRun(filter);
+}
+
+function resolveWorkspace(
+  task: { workspaceId: string | null; projectId?: string | null },
+  agent: { workspaceId: string | null },
+  companyId: string,
+): WorkspaceResolution {
+  const taskWorkspace = db.getWorkspace(task.workspaceId);
+  if (taskWorkspace) {
+    return { workspace: taskWorkspace, lockMode: "exclusive", source: "task" };
+  }
+
+  const agentWorkspace = db.getWorkspace(agent.workspaceId);
+  if (agentWorkspace) {
+    return { workspace: agentWorkspace, lockMode: "exclusive", source: "agent" };
+  }
+
+  const projectWorkspace = db.getProjectPrimaryWorkspace(task.projectId ?? null, companyId);
+  if (projectWorkspace) {
+    return { workspace: projectWorkspace, lockMode: "exclusive", source: "project" };
+  }
+
+  const fallbackWorkspace = db.getAnyCompanyWorkspace(companyId);
+  if (fallbackWorkspace) {
+    return { workspace: fallbackWorkspace, lockMode: "shared", source: "company_fallback" };
+  }
+
+  return { workspace: null, lockMode: "none", source: "none" };
 }
 
 function isTrustedRendererUrl(url: string) {
@@ -224,6 +267,277 @@ function notify(title: string, body: string) {
   if (Notification.isSupported()) {
     new Notification({ title, body }).show();
   }
+}
+
+function normalizeWorkflowSteps(raw: unknown) {
+  if (!Array.isArray(raw)) {
+    throw new Error("Workflow steps must be a JSON array.");
+  }
+  return raw.map((entry, index) => {
+    const step = (entry ?? {}) as Record<string, unknown>;
+    const action = typeof step.action === "string" ? step.action : "send_message";
+    return {
+      id: typeof step.id === "string" && step.id ? step.id : `step-${index + 1}`,
+      name: typeof step.name === "string" && step.name ? step.name : `Step ${index + 1}`,
+      action,
+      configJson: typeof step.configJson === "string" ? step.configJson : "{}",
+      assigneeDepartment: typeof step.assigneeDepartment === "string" ? step.assigneeDepartment : null,
+      assigneeAgentId: typeof step.assigneeAgentId === "string" ? step.assigneeAgentId : null,
+      requiresApproval: step.requiresApproval === true,
+      timeoutSec: typeof step.timeoutSec === "number" ? step.timeoutSec : 0,
+      status: ["pending", "running", "completed", "failed", "skipped"].includes(String(step.status)) ? String(step.status) : "pending",
+    };
+  });
+}
+
+function resolveWorkflowStepActor(step: ReturnType<typeof normalizeWorkflowSteps>[number], companyId: string) {
+  if (step.assigneeAgentId) {
+    const agent = db.getAgent(step.assigneeAgentId);
+    if (agent.companyId !== companyId) {
+      throw new Error(`Workflow step assignee ${step.assigneeAgentId} does not belong to company ${companyId}.`);
+    }
+    return agent;
+  }
+
+  if (step.assigneeDepartment) {
+    const idleAgents = db.getIdleAgentsForDepartment(companyId, step.assigneeDepartment);
+    if (idleAgents.length > 0) {
+      return db.getAgent(idleAgents[0]!.id);
+    }
+  }
+
+  const snapshot = db.listSnapshot();
+  return snapshot.agents.find((agent) => agent.companyId === companyId && !agent.reportsTo && agent.status !== "terminated") ?? null;
+}
+
+function buildWorkflowActionContext(
+  companyId: string,
+  step: ReturnType<typeof normalizeWorkflowSteps>[number],
+  actor: ReturnType<typeof resolveWorkflowStepActor>,
+) {
+  let config: Record<string, unknown> = {};
+  try {
+    config = JSON.parse(step.configJson) as Record<string, unknown>;
+  } catch {
+    throw new Error(`Workflow step "${step.name}" has invalid config JSON.`);
+  }
+
+  return {
+    config,
+    ctx: {
+      companyId,
+      agentId: actor?.id,
+      department: actor?.department ?? step.assigneeDepartment ?? undefined,
+      taskId: typeof config.taskId === "string" ? config.taskId : undefined,
+      runId: typeof config.runId === "string" ? config.runId : undefined,
+      projectId: typeof config.projectId === "string" ? config.projectId : undefined,
+      newStatus: typeof config.status === "string" ? config.status : undefined,
+    },
+  };
+}
+
+async function runWorkflowPipeline(workflowId: string, companyId: string) {
+  const workflow = db.getWorkflowRecord(workflowId, companyId);
+  if (!workflow) {
+    throw new Error("Workflow not found.");
+  }
+  const previousWorkflowStatus = workflow.status;
+  const parsedSteps = normalizeWorkflowSteps(JSON.parse(workflow.stepsJson || "[]"));
+  const hasRunningStep = parsedSteps.some((step) => step.status === "running");
+  if (hasRunningStep) {
+    throw new Error("Workflow is already running.");
+  }
+  if (parsedSteps.length === 0) {
+    throw new Error("Workflow has no steps.");
+  }
+
+  const resumeFrom = workflow.status === "paused" ? workflow.currentStepIndex : 0;
+  const steps = parsedSteps.map((step, index) => {
+    if (workflow.status !== "paused") {
+      return { ...step, status: index < resumeFrom ? "completed" : "pending" };
+    }
+    return step;
+  });
+
+  db.updateWorkflowExecution({
+    id: workflowId,
+    companyId,
+    status: "active",
+    currentStepIndex: resumeFrom,
+    stepsJson: JSON.stringify(steps),
+    incrementRunCount: true,
+    lastRunAt: new Date().toISOString(),
+  });
+  publishDomainChanged();
+
+  for (let index = resumeFrom; index < steps.length; index += 1) {
+    const step = steps[index]!;
+    step.status = "running";
+    db.updateWorkflowExecution({
+      id: workflowId,
+      companyId,
+      status: "active",
+      currentStepIndex: index,
+      stepsJson: JSON.stringify(steps),
+      lastRunAt: new Date().toISOString(),
+    });
+    publishDomainChanged();
+
+    const actor = resolveWorkflowStepActor(step, companyId);
+    const { config, ctx } = buildWorkflowActionContext(companyId, step, actor);
+
+    if (step.requiresApproval) {
+      const approvalId = db.requestApproval({
+        companyId,
+        requestedByAgentId: actor?.id ?? null,
+        relatedTaskId: ctx.taskId ?? null,
+        type: "dangerous_command",
+        payloadSummary: `Workflow approval required: ${workflow.name} / ${step.name}`,
+        impactSummary: `Workflow step "${step.name}" requires board approval before ${step.action}.`,
+        payloadJson: JSON.stringify({ workflowId, stepId: step.id, stepName: step.name }),
+      });
+      step.status = "pending";
+      db.updateWorkflowExecution({
+        id: workflowId,
+        companyId,
+        status: "paused",
+        currentStepIndex: index,
+        stepsJson: JSON.stringify(steps),
+        lastRunAt: new Date().toISOString(),
+      });
+      db.addActivity({
+        companyId,
+        actor: actor?.id ?? "system",
+        action: "workflow.paused_for_approval",
+        entityType: "workflow",
+        entityId: workflowId,
+        detail: `Paused on step "${step.name}" with approval ${approvalId}.`,
+      });
+      publishDomainChanged();
+      return;
+    }
+
+    try {
+      executeAutomationAction(
+        {
+          action: step.action,
+          actionConfigJson: JSON.stringify(config),
+          targetDepartment: step.assigneeDepartment,
+          trigger: "workflow_step",
+        },
+        ctx,
+      );
+      step.status = "completed";
+      db.addActivity({
+        companyId,
+        actor: actor?.id ?? "system",
+        action: "workflow.step_completed",
+        entityType: "workflow",
+        entityId: workflowId,
+        detail: step.name,
+      });
+      const completionStatus = index === steps.length - 1
+        ? (previousWorkflowStatus === "draft" ? "draft" : "active")
+        : "active";
+      db.updateWorkflowExecution({
+        id: workflowId,
+        companyId,
+        status: completionStatus,
+        currentStepIndex: index + 1,
+        stepsJson: JSON.stringify(steps),
+        lastRunAt: new Date().toISOString(),
+      });
+      publishDomainChanged();
+    } catch (error) {
+      step.status = "failed";
+      db.updateWorkflowExecution({
+        id: workflowId,
+        companyId,
+        status: "failed",
+        currentStepIndex: index,
+        stepsJson: JSON.stringify(steps),
+        lastRunAt: new Date().toISOString(),
+      });
+      db.addActivity({
+        companyId,
+        actor: actor?.id ?? "system",
+        action: "workflow.step_failed",
+        entityType: "workflow",
+        entityId: workflowId,
+        detail: `${step.name}: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      publishDomainChanged();
+      throw error;
+    }
+  }
+}
+
+async function dispatchBrowserAction(actionId: string, companyId: string) {
+  if (!browserManager) {
+    throw new Error("Browser manager not initialized");
+  }
+
+  const action = db.getBrowserAction(actionId, companyId);
+  if (!action) {
+    throw new Error(`Browser action not found: ${actionId}`);
+  }
+
+  const account = db.getSocialAccount(action.socialAccountId, companyId);
+  if (!account) {
+    db.updateBrowserAction(actionId, {
+      status: "failed",
+      errorMessage: "Social account no longer exists.",
+      finishedAt: new Date().toISOString(),
+    });
+    publishDomainChanged();
+    return;
+  }
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(action.payloadJson) as Record<string, unknown>;
+  } catch {
+    db.updateBrowserAction(actionId, {
+      status: "failed",
+      errorMessage: "Browser action payload is not valid JSON.",
+      finishedAt: new Date().toISOString(),
+    });
+    publishDomainChanged();
+    return;
+  }
+
+  db.updateBrowserAction(actionId, {
+    status: "running",
+    startedAt: new Date().toISOString(),
+    errorMessage: null,
+  });
+  publishDomainChanged();
+
+  try {
+    const result = await browserManager.executeAction({
+      id: actionId,
+      socialAccountId: account.id,
+      platform: account.platform,
+      actionType: action.actionType,
+      payload,
+    });
+
+    db.updateBrowserAction(actionId, {
+      status: result.success ? "succeeded" : "failed",
+      resultSummary: result.summary,
+      screenshotPath: result.screenshotPath,
+      errorMessage: result.error,
+      finishedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    db.updateBrowserAction(actionId, {
+      status: "failed",
+      errorMessage: error instanceof Error ? error.message : String(error),
+      finishedAt: new Date().toISOString(),
+    });
+  }
+
+  publishDomainChanged();
 }
 
 function buildMenu() {
@@ -321,10 +635,60 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+function createTray() {
+  if (process.platform === "darwin" || appTray) {
+    return;
+  }
+
+  const trayIcon = nativeImage.createFromPath(ICON_PATH);
+  appTray = new Tray(trayIcon.isEmpty() ? nativeImage.createEmpty() : trayIcon);
+  appTray.setToolTip("AgentCompany");
+  appTray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: "Show AgentCompany",
+        click: () => {
+          if (!mainWindow || mainWindow.isDestroyed()) {
+            void createWindow();
+            return;
+          }
+          mainWindow.show();
+          mainWindow.focus();
+        },
+      },
+      {
+        label: "Hide AgentCompany",
+        click: () => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.hide();
+          }
+        },
+      },
+      { type: "separator" },
+      {
+        label: "Quit",
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
+  appTray.on("click", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      void createWindow();
+      return;
+    }
+    if (mainWindow.isVisible()) {
+      mainWindow.hide();
+      return;
+    }
+    mainWindow.show();
+    mainWindow.focus();
+  });
+}
+
 function isSocialBrowserSession(contents: Electron.WebContents): boolean {
-  // Social login windows use partitioned sessions named "persist:social-..."
-  const partition = (contents.session as { getStoragePath?: () => string })?.getStoragePath?.() ?? "";
-  // Simpler: check the session object reference — social sessions are never the default session
   return contents.session !== session.defaultSession;
 }
 
@@ -334,8 +698,7 @@ function installSecurityGuards() {
     callback(false);
   });
   app.on("web-contents-created", (_event, contents) => {
-    contents.setWindowOpenHandler(({ url }) => {
-      // Allow social browser windows to open popups (OAuth flows etc.)
+    contents.setWindowOpenHandler(() => {
       if (isSocialBrowserSession(contents)) {
         return { action: "allow" };
       }
@@ -345,7 +708,6 @@ function installSecurityGuards() {
       event.preventDefault();
     });
     contents.on("will-navigate", (event) => {
-      // Allow navigation in social login browser windows
       if (isSocialBrowserSession(contents)) return;
       event.preventDefault();
     });
@@ -416,21 +778,17 @@ function createWorker() {
   worker.stdout?.on("data", (chunk) => log.info(`[worker] ${String(chunk).trim()}`));
   worker.stderr?.on("data", (chunk) => log.error(`[worker] ${String(chunk).trim()}`));
 
-  // Step 7: Worker crash recovery
   worker.on("exit", (code) => {
     if (isQuitting) return;
 
     log.warn(`[worker] Worker exited with code ${code}, recovering...`);
 
-    // Separate running runs (truly executing — mark interrupted) from queued runs
-    // (never started — eligible for re-enqueue after worker restarts).
     const snapshot = db.listSnapshot();
     const affectedAgentIds = new Set<string>();
     const requeueCandidates: Array<{ id: string; taskId: string; agentId: string; companyId: string; workspaceId: string | null; connectorId: string }> = [];
 
     for (const run of snapshot.runs) {
       if (run.status === "running") {
-        // Running runs were actually executing — mark interrupted
         db.finishRun({
           runId: run.id,
           status: "interrupted",
@@ -453,7 +811,6 @@ function createWorker() {
           wakeAgentIfPossible(chain[0].id, run.companyId, "report_failed");
         }
       } else if (run.status === "queued") {
-        // Queued runs never started — collect for re-enqueue
         requeueCandidates.push({
           id: run.id,
           taskId: run.taskId,
@@ -465,18 +822,15 @@ function createWorker() {
       }
     }
 
-    // Drain deferred wakes for affected agents
     for (const agentId of affectedAgentIds) {
       const pendingWakes = db.consumePendingWakes(agentId);
-      if (pendingWakes.length > 0) {
-        const wake = pendingWakes[0];
+      for (const wake of pendingWakes) {
         wakeAgentIfPossible(agentId, wake.companyId, wake.trigger);
       }
     }
 
     publishDomainChanged();
 
-    // Restart the worker, then re-enqueue queued runs that never started
     createWorker();
 
     if (requeueCandidates.length > 0 && worker) {
@@ -486,119 +840,24 @@ function createWorker() {
         try {
           const task = db.getTask(candidate.taskId);
           const agent = db.getAgent(candidate.agentId);
-          const connector = db.getConnector(agent.connectorId as import("@shared/types").ConnectorId);
-          const workspace = db.getWorkspace(candidate.workspaceId);
-          const env = db.resolveSecretEnv(connector.envBindingText, candidate.companyId);
-          const session = db.getTaskSession(task.id);
-
-          // Build systemPrompt exactly like the normal heartbeat path
-          const recoveryApiPort = apiServer?.getPort() ?? 0;
-          const recoveryApiUrl = recoveryApiPort ? `http://127.0.0.1:${recoveryApiPort}` : "";
-          const recoveryApiKey = recoveryApiUrl ? createAgentToken(agent.id, candidate.companyId, candidate.id) : "";
-
-          const recoveryAgentTasks = recoverySnapshot.tasks.filter((t) => t.companyId === candidate.companyId && t.assigneeAgentId === agent.id);
+          const connector = db.getConnector(agent.connectorId);
+          const workspaceResolution = resolveWorkspace(task, agent, candidate.companyId);
           const recoveryCompany = recoverySnapshot.companies.find((c) => c.id === candidate.companyId);
-          const recoveryRecentComments = recoverySnapshot.comments
-            .filter((c) => recoveryAgentTasks.some((t) => t.id === c.taskId))
-            .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-            .slice(0, 20)
-            .map((c) => ({
-              taskId: c.taskId,
-              taskTitle: recoveryAgentTasks.find((t) => t.id === c.taskId)?.title ?? c.taskId,
-              authorName: c.authorName,
-              body: c.body,
-              createdAt: c.createdAt,
-            }));
-          const recoveryPrompt = recoveryApiUrl ? buildTaskPrompt({
-            agent,
-            apiUrl: recoveryApiUrl,
-            apiKey: recoveryApiKey,
+
+          dispatchRunToWorker({
             runId: candidate.id,
+            companyId: candidate.companyId,
+            agent,
             task,
+            connector,
+            workspace: workspaceResolution.workspace,
+            workspaceMode: workspaceResolution.lockMode,
             companyName: recoveryCompany?.name ?? "Company",
-            goals: recoverySnapshot.goals.filter((g) => g.companyId === candidate.companyId),
-            projects: recoverySnapshot.projects.filter((p) => p.companyId === candidate.companyId),
-            directReports: db.getDirectReports(agent.id, candidate.companyId),
-            chainOfCommand: db.getChainOfCommand(agent.id),
-            assignedTasks: db.listAgentTasks(agent.id, candidate.companyId, ["todo", "in_progress", "blocked"]),
-            allAgents: recoverySnapshot.agents.filter((a) => a.companyId === candidate.companyId),
-            pendingApprovals: recoverySnapshot.approvals.filter(
-              (a) => a.companyId === candidate.companyId &&
-                a.requestedByAgentId === agent.id &&
-                (a.state === "pending" || a.state === "revision_requested"),
-            ),
-            tasksAwaitingReview: db.listReviewTasksForManager(agent.id, candidate.companyId),
-            wakeReason: "recovery",
-            allTasks: recoverySnapshot.tasks.filter((t) => t.companyId === candidate.companyId),
-            recentComments: recoveryRecentComments,
             companyDescription: recoveryCompany?.description ?? "",
-            socialAccounts: db.listSocialAccounts(candidate.companyId).map(a => ({
-              id: a.id,
-              platform: a.platform,
-              accountName: a.accountName,
-              status: a.status,
-              requireApproval: a.requireApproval,
-            })),
-            recentMessages: db.listAgentMessages(candidate.companyId, { agentId: agent.id, limit: 15 }),
-            upcomingMeetings: recoverySnapshot.meetings
-              .filter((m: any) => m.companyId === candidate.companyId && (m.status === "scheduled" || m.status === "in_progress"))
-              .filter((m: any) => {
-                try { const ids = JSON.parse(m.participantAgentIds); return ids.includes(agent.id) || m.organizerAgentId === agent.id; } catch { return false; }
-              })
-              .slice(0, 5),
-            relevantKnowledge: recoverySnapshot.knowledgeBase
-              .filter((k: any) => k.companyId === candidate.companyId && (k.importance === "critical" || k.importance === "high"))
-              .slice(0, 8),
-            activeSprint: recoverySnapshot.sprints.find((s: any) => s.companyId === candidate.companyId && s.status === "active") ?? null,
-            recentDocuments: recoverySnapshot.documents
-              .filter((d: any) => d.companyId === candidate.companyId && (d.authorAgentId === agent.id || d.reviewerAgentId === agent.id || d.status === "in_review"))
-              .slice(0, 5),
-          }) : null;
-
-          // Inject API credentials exactly like the normal path
-          if (recoveryApiUrl) {
-            env.AGENT_COMPANY_API_URL = recoveryApiUrl;
-            env.AGENT_COMPANY_API_KEY = recoveryApiKey;
-            env.AGENT_COMPANY_AGENT_ID = agent.id;
-            env.AGENT_COMPANY_COMPANY_ID = candidate.companyId;
-            env.AGENT_COMPANY_RUN_ID = candidate.id;
-            env.AGENT_COMPANY_TASK_ID = task.id;
-            env.AGENT_COMPANY_WAKE_REASON = "recovery";
-          }
-
-          // Parse thinkingEffort exactly like the normal path
-          let recoveryThinkingEffort: string | null = null;
-          try {
-            const meta = JSON.parse(agent.metadataJson || "{}");
-            if (typeof meta.thinkingEffort === "string" && meta.thinkingEffort) {
-              recoveryThinkingEffort = meta.thinkingEffort;
-            }
-          } catch { /* ignore malformed json */ }
-
-          worker.postMessage({
-            type: "enqueue-run",
-            payload: {
-              runId: candidate.id,
-              companyId: candidate.companyId,
-              taskId: task.id,
-              taskTitle: task.title,
-              taskDescription: task.description,
-              agentId: agent.id,
-              agentName: agent.name,
-              connectorId: agent.connectorId,
-              workspaceId: workspace?.id ?? null,
-              workspacePath: workspace?.localPath ?? null,
-              command: connector.command,
-              model: connector.model ?? agent.model,
-              thinkingEffort: recoveryThinkingEffort,
-              env,
-              sessionParams: session.sessionParams,
-              systemPrompt: recoveryPrompt,
-              trigger: "recovery",
-            },
+            snapshot: recoverySnapshot,
+            trigger: "recovery",
           });
         } catch (error) {
-          // Re-enqueue failed — mark interrupted AND release workspace lock
           log.warn(`[worker] Failed to re-enqueue run ${candidate.id}: ${error instanceof Error ? error.message : String(error)}`);
           db.finishRun({
             runId: candidate.id,
@@ -637,6 +896,13 @@ function createWorker() {
 
     if (event.type === "run-status") {
       db.markRunStatus(event.runId, event.status, event.message);
+      if (event.status === "running") {
+        const run = db.listSnapshot().runs.find((entry) => entry.id === event.runId);
+        if (run?.workspaceId && !db.claimWorkspaceLock(run.workspaceId, run.id)) {
+          log.error(`[workspace] Failed to claim lock for workspace ${run.workspaceId} when run ${run.id} entered running state. Cancelling run.`);
+          worker?.postMessage({ type: "cancel-run", runId: run.id });
+        }
+      }
       emitEvent(event);
       publishDomainChanged();
       return;
@@ -647,9 +913,8 @@ function createWorker() {
     if (run) {
       const connector = getConnectorDefinition(run.connectorId);
 
-      // Guard: task/agent may have been deleted while the run was active
       let task: ReturnType<typeof db.getTask> | null = null;
-      try { task = db.getTask(run.taskId); } catch { /* task deleted mid-run */ }
+      try { task = db.getTask(run.taskId); } catch { /* deleted mid-run */ }
 
       if (task) {
         if (event.sessionParams && connector.module.sessionCodec) {
@@ -662,7 +927,6 @@ function createWorker() {
       }
 
       const runOutcome = db.finishRun(event);
-      // Release workspace lock now that the run is finished
       if (run.workspaceId) {
         db.releaseWorkspaceLock(run.workspaceId, run.id);
       }
@@ -685,15 +949,13 @@ function createWorker() {
         notify("Run attention required", task.title);
       }
 
-      // Guard: agent may have been deleted while the run was active
       let updatedAgent: ReturnType<typeof db.getAgent> | null = null;
-      try { updatedAgent = db.getAgent(run.agentId); } catch { /* agent deleted mid-run */ }
+      try { updatedAgent = db.getAgent(run.agentId); } catch { /* deleted mid-run */ }
 
       if (updatedAgent && runOutcome.budgetHardStopped) {
         autoPauseBudgetExceededAgent(updatedAgent);
       }
 
-      // Step 6: Run failure escalation — wake agent's manager via org hierarchy
       if (event.status === "failed" || event.status === "timed_out") {
         try {
           const chain = db.getChainOfCommand(run.agentId);
@@ -703,15 +965,14 @@ function createWorker() {
         } catch { /* agent deleted, skip escalation */ }
       }
 
-      // Step 3c: Consume deferred wakes — re-wake agent for each pending trigger
       const pendingWakes = db.consumePendingWakes(run.agentId);
       if (pendingWakes.length > 0) {
-        // Process the first wake immediately; additional wakes will be
-        // re-enqueued by wakeAgentIfPossible if the agent is still busy.
         for (const wake of pendingWakes) {
           wakeAgentIfPossible(run.agentId, wake.companyId, wake.trigger);
         }
       }
+
+      processRunCompletion(run, event as z.infer<typeof workerMessageSchema> & { type: "run-finished" });
     }
   });
 }
@@ -742,7 +1003,6 @@ async function checkConnector(id: Parameters<typeof db.getConnector>[0]) {
   const connector = db.getConnector(id);
   const definition = getConnectorDefinition(id);
 
-  // Set "detected" (checking) state immediately so the UI shows progress
   db.updateConnectorHealth({
     id,
     status: "detected",
@@ -759,31 +1019,22 @@ async function checkConnector(id: Parameters<typeof db.getConnector>[0]) {
       command: connector.command,
       model: connector.model,
       cwd: process.cwd(),
-      // These flags allow the health probe to run non-interactively.
-      // Without them, CLIs like Codex/Gemini enter interactive approval mode
-      // and the probe hangs or fails.
-      dangerouslyBypassApprovalsAndSandbox: true,  // Codex
-      dangerouslySkipPermissions: true,              // Claude
-      approvalMode: "yolo",                          // Gemini
-      sandbox: false,                                // Gemini
-      yolo: true,                                    // Gemini fallback
+      dangerouslyBypassApprovalsAndSandbox: true,
+      dangerouslySkipPermissions: true,
+      approvalMode: "yolo",
+      sandbox: false,
+      yolo: true,
       extraArgs: id === "codex_local" ? ["--skip-git-repo-check"] : [],
     },
   });
 
-  const authState =
-    result.checks.some((check) => check.code.includes("auth") || check.code.includes("login"))
-      ? result.status === "fail"
-        ? "required"
-        : "ok"
-      : result.status === "fail"
-        ? "error"
-        : "ok";
+  let authState: "ok" | "required" | "error" = "ok";
+  if (result.status === "fail") {
+    const hasAuthCheck = result.checks.some((check) => check.code.includes("auth") || check.code.includes("login"));
+    authState = hasAuthCheck ? "required" : "error";
+  }
   const version = await parseVersion(connector.command);
 
-  // Map adapter status to connector state: pass/warn → ready, fail → error/auth_required
-  // "warn" means the connector works but has non-fatal issues (e.g. missing API key that
-  // might be set at runtime) — still usable, so map to "ready" not "degraded"
   db.updateConnectorHealth({
     id,
     status:
@@ -839,22 +1090,25 @@ function ensureAgentHeartbeatEnabled(agentId: string) {
 function wakeAgentIfPossible(agentId: string | null | undefined, companyId: string, trigger: string) {
   if (!agentId) return null;
   try {
+    const agent = db.getAgent(agentId);
+    if (agent.companyId !== companyId) {
+      log.warn(`[wake] Refusing cross-company wake for agent ${agentId}: ${agent.companyId} !== ${companyId}`);
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  try {
     ensureAgentHeartbeatEnabled(agentId);
   } catch {
     return null;
   }
 
-  // Check if agent is specifically busy (has active run) before attempting wake.
-  // Only enqueue deferred wakes for the "busy" case, not for other skip reasons
-  // (inactive company, paused agent, budget exhaustion, connector not ready).
   const snapshot = db.listSnapshot();
-  const hasActiveRun = snapshot.runs.some(
-    (run) => run.companyId === companyId && run.agentId === agentId && (run.status === "queued" || run.status === "running"),
-  );
+  const agentBusy = hasActiveRun(snapshot, { agentId, companyId });
 
   const runId = startAgentHeartbeatRun(agentId, companyId, trigger);
-  if (!runId && hasActiveRun) {
-    // Agent is busy with an active run — defer the wake so it's not lost
+  if (!runId && agentBusy) {
     db.enqueuePendingWake(companyId, agentId, trigger);
   }
   return runId;
@@ -888,29 +1142,26 @@ function startAgentHeartbeatRun(agentId: string, companyId: string, trigger: str
     return null;
   }
   const agent = db.getAgent(agentId);
+  if (agent.companyId !== companyId) {
+    log.warn(`[heartbeat] Refusing cross-company run for agent ${agentId}: ${agent.companyId} !== ${companyId}`);
+    return null;
+  }
   const connector = db.getConnector(agent.connectorId);
   if (getRunEligibilityFailure(agent, connector)) {
     return null;
   }
-  if (
-    snapshot.runs.some(
-      (run) => run.companyId === companyId && run.agentId === agent.id && (run.status === "queued" || run.status === "running"),
-    )
-  ) {
+  if (hasActiveRun(snapshot, { agentId: agent.id, companyId })) {
     log.info(`[heartbeat] Skipping ${agent.name} because it already has an active run.`);
     return null;
   }
 
-  // Phase 3: Approval hard gate — don't start heartbeat runs for pending-approval agents
   if (db.isAgentPendingApproval(agentId)) {
     log.info(`[heartbeat] Skipping ${agent.name} because agent is pending hire approval.`);
     return null;
   }
 
-  // Find an existing assigned task to run against
   const assignedTasks = db.listAgentTasks(agentId, companyId, ["todo", "in_progress", "blocked"]);
 
-  // For timer-triggered heartbeats, only pick up real user-created tasks (not old heartbeat tasks)
   const isTimer = trigger === "timer";
   const candidateTasks = isTimer
     ? assignedTasks.filter((entry) => !entry.title.startsWith("[Heartbeat]"))
@@ -920,188 +1171,84 @@ function startAgentHeartbeatRun(agentId: string, companyId: string, trigger: str
 
   if (!task) {
     const hasActiveAssignedRun = candidateTasks.some(
-      (entry) =>
-        entry.activeRunId &&
-        snapshot.runs.some(
-          (run) => run.id === entry.activeRunId && run.companyId === companyId && (run.status === "queued" || run.status === "running"),
-        ),
+      (entry) => entry.activeRunId && hasActiveRun(snapshot, { taskId: entry.id, companyId }),
     );
     if (hasActiveAssignedRun) {
       return null;
     }
-    // Timer should never create new heartbeat tasks — only explicit triggers can
-    if (isTimer) {
+
+    // Even on timer triggers, the CEO/executives should wake up to create work
+    // when there are active goals. This is the bootstrap mechanism — goals exist
+    // but nobody has broken them into tasks yet.
+    const isCeo = !agent.reportsTo;
+    const isManager = snapshot.agents.some((a) => a.reportsTo === agent.id && a.companyId === companyId);
+    const activeGoals = snapshot.goals.filter((g) => g.companyId === companyId && (g.status === "active" || g.status === "planned"));
+    const companyTasks = snapshot.tasks.filter((t) => t.companyId === companyId && t.status !== "done" && t.status !== "cancelled");
+    const hasUnassignedGoals = activeGoals.length > 0;
+    const companyNeedsBootstrap = hasUnassignedGoals && companyTasks.length < activeGoals.length;
+
+    if (isTimer && !isCeo && !isManager && !companyNeedsBootstrap) {
       log.info(`[heartbeat] Skipping ${agent.name} — no actionable tasks and trigger is timer.`);
       return null;
     }
-    // Create a heartbeat check task (inherit workspace from agent)
+
+    // Create a work-check task. For CEO/managers this drives planning.
+    // For ICs this only happens when the company is bootstrapping.
+    const taskTitle = isCeo
+      ? `[Heartbeat] ${agent.name} — Strategic planning & task delegation`
+      : isManager
+        ? `[Heartbeat] ${agent.name} — Review team & delegate work`
+        : `[Heartbeat] ${agent.name} — Check for work`;
+    const taskDesc = isCeo
+      ? `Review active company goals. Break each goal into projects and actionable tasks. Assign tasks to department leads and team members. Create tasks using the API. This is your primary responsibility as CEO — ensure every goal has a clear execution plan with assigned owners.`
+      : isManager
+        ? `Review your department's goals and your team's workload. Create tasks for your direct reports if they have capacity. Review any work submitted for your approval. Ensure your team is productive and unblocked.`
+        : `Automated heartbeat run for ${agent.name}. Review assigned tasks, check goals, and take action as needed.`;
+
     const taskId = db.saveTask({
       companyId,
-      title: `[Heartbeat] ${agent.name} — Check for work`,
-      description: `Automated heartbeat run for ${agent.name}. Review assigned tasks, check goals, and take action as needed.`,
+      title: taskTitle,
+      description: taskDesc,
       assigneeAgentId: agentId,
       workspaceId: agent.workspaceId ?? undefined,
       status: "in_progress",
-      priority: "medium",
+      priority: isCeo ? "high" : "medium",
     });
     task = db.getTask(taskId);
+    log.info(`[heartbeat] Created bootstrap task for ${agent.name}: ${taskTitle}`);
   }
-  if (
-    task.activeRunId ||
-    snapshot.runs.some(
-      (run) => run.taskId === task.id && run.companyId === companyId && (run.status === "queued" || run.status === "running"),
-    )
-  ) {
+  if (task.activeRunId || hasActiveRun(snapshot, { taskId: task.id, companyId })) {
     log.info(`[heartbeat] Skipping ${agent.name} because task ${task.title} already has an active run.`);
     return null;
   }
 
-  const workspace =
-    db.getWorkspace(task.workspaceId) ??
-    db.getWorkspace(agent.workspaceId) ??
-    db.getProjectPrimaryWorkspace(companyId) ??
-    db.getAnyCompanyWorkspace(companyId);
+  const workspaceResolution = resolveWorkspace(task, agent, companyId);
+  const workspace = workspaceResolution.workspace;
 
   log.info(
-    `[heartbeat] Workspace resolution for ${agent.name}: task.workspaceId=${task.workspaceId ?? "null"}, agent.workspaceId=${agent.workspaceId ?? "null"}, resolved=${workspace?.name ?? "NONE"}, localPath=${workspace?.localPath ?? "NONE"}`,
+    `[heartbeat] Workspace resolution for ${agent.name}: task.workspaceId=${task.workspaceId ?? "null"}, agent.workspaceId=${agent.workspaceId ?? "null"}, projectId=${task.projectId ?? "null"}, source=${workspaceResolution.source}, mode=${workspaceResolution.lockMode}, resolved=${workspace?.name ?? "NONE"}, localPath=${workspace?.localPath ?? "NONE"}`,
   );
-
-  // Attempt workspace lock BEFORE creating the run — if another run holds it, defer
-  if (workspace && !db.acquireWorkspaceLock(workspace.id, `pre-check-${agent.id}`)) {
-    log.info(`[heartbeat] Skipping ${agent.name} because workspace ${workspace.name} is locked by another run.`);
-    // Release the pre-check placeholder
-    db.releaseWorkspaceLock(workspace.id, `pre-check-${agent.id}`);
-    return null;
-  }
-  // Release pre-check — the real lock will be acquired with the actual run ID below
-  if (workspace) {
-    db.releaseWorkspaceLock(workspace.id, `pre-check-${agent.id}`);
-  }
 
   const run = db.createRun({
     companyId,
     taskId: task.id,
     agentId: agent.id,
-    workspaceId: workspace?.id ?? null,
+    workspaceId: workspaceResolution.lockMode === "exclusive" ? (workspace?.id ?? null) : null,
     connectorId: connector.id,
   });
 
-  // Acquire workspace lock with the real run ID
-  if (workspace) {
-    const locked = db.acquireWorkspaceLock(workspace.id, run.id);
-    if (!locked) {
-      // Race condition: someone else grabbed the lock between pre-check and here
-      log.warn(`[heartbeat] Workspace lock race for ${workspace.name}, aborting run ${run.id}`);
-      db.finishRun({ runId: run.id, status: "cancelled", summary: "Workspace lock contention.", errorMessage: null, exitCode: null, signal: null, model: null, sessionDisplayId: null, costUsd: null, unattributedCost: true });
-      return null;
-    }
-  }
-
-  const env = db.resolveSecretEnv(connector.envBindingText, companyId);
-
-  // Build rich prompt with API context
-  const apiPort = apiServer?.getPort() ?? 0;
-  const apiUrl = apiPort ? `http://127.0.0.1:${apiPort}` : "";
-  const apiKey = apiUrl ? createAgentToken(agent.id, companyId, run.id) : "";
-
-  const heartbeatRecentComments = snapshot.comments
-    .filter((c) => assignedTasks.some((t) => t.id === c.taskId))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 20)
-    .map((c) => ({
-      taskId: c.taskId,
-      taskTitle: assignedTasks.find((t) => t.id === c.taskId)?.title ?? c.taskId,
-      authorName: c.authorName,
-      body: c.body,
-      createdAt: c.createdAt,
-    }));
-  const systemPrompt = apiUrl ? buildTaskPrompt({
-    agent,
-    apiUrl,
-    apiKey,
+  dispatchRunToWorker({
     runId: run.id,
+    companyId,
+    agent,
     task,
+    connector,
+    workspace,
+    workspaceMode: workspaceResolution.lockMode,
     companyName: company.name,
-    goals: snapshot.goals.filter((g) => g.companyId === companyId),
-    projects: snapshot.projects.filter((p) => p.companyId === companyId),
-    directReports: db.getDirectReports(agent.id, companyId),
-    chainOfCommand: db.getChainOfCommand(agent.id),
-    assignedTasks: assignedTasks,
-    allAgents: snapshot.agents.filter((a) => a.companyId === companyId),
-    pendingApprovals: snapshot.approvals.filter(
-      (a) => a.companyId === companyId &&
-        a.requestedByAgentId === agent.id &&
-        (a.state === "pending" || a.state === "revision_requested"),
-    ),
-    tasksAwaitingReview: db.listReviewTasksForManager(agent.id, companyId),
-    wakeReason: trigger,
-    allTasks: snapshot.tasks.filter((t) => t.companyId === companyId),
-    recentComments: heartbeatRecentComments,
     companyDescription: company.description ?? "",
-    socialAccounts: db.listSocialAccounts(companyId).map(a => ({
-      id: a.id,
-      platform: a.platform,
-      accountName: a.accountName,
-      status: a.status,
-      requireApproval: a.requireApproval,
-    })),
-    recentMessages: db.listAgentMessages(companyId, { agentId: agent.id, limit: 15 }),
-    upcomingMeetings: snapshot.meetings
-      .filter((m: any) => m.companyId === companyId && (m.status === "scheduled" || m.status === "in_progress"))
-      .filter((m: any) => {
-        try { const ids = JSON.parse(m.participantAgentIds); return ids.includes(agent.id) || m.organizerAgentId === agent.id; } catch { return false; }
-      })
-      .slice(0, 5),
-    relevantKnowledge: snapshot.knowledgeBase
-      .filter((k: any) => k.companyId === companyId && (k.importance === "critical" || k.importance === "high"))
-      .slice(0, 8),
-    activeSprint: snapshot.sprints.find((s: any) => s.companyId === companyId && s.status === "active") ?? null,
-    recentDocuments: snapshot.documents
-      .filter((d: any) => d.companyId === companyId && (d.authorAgentId === agent.id || d.reviewerAgentId === agent.id || d.status === "in_review"))
-      .slice(0, 5),
-  }) : null;
-
-  // Add API credentials to env
-  if (apiUrl) {
-    env.AGENT_COMPANY_API_URL = apiUrl;
-    env.AGENT_COMPANY_API_KEY = apiKey;
-    env.AGENT_COMPANY_AGENT_ID = agent.id;
-    env.AGENT_COMPANY_COMPANY_ID = companyId;
-    env.AGENT_COMPANY_RUN_ID = run.id;
-    env.AGENT_COMPANY_TASK_ID = task.id;
-    env.AGENT_COMPANY_WAKE_REASON = trigger;
-  }
-
-  const session = db.getTaskSession(task.id);
-  let thinkingEffort: string | null = null;
-  try {
-    const meta = JSON.parse(agent.metadataJson || "{}");
-    if (typeof meta.thinkingEffort === "string" && meta.thinkingEffort) {
-      thinkingEffort = meta.thinkingEffort;
-    }
-  } catch { /* ignore malformed json */ }
-
-  worker.postMessage({
-    type: "enqueue-run",
-    payload: {
-      runId: run.id,
-      companyId,
-      taskId: task.id,
-      taskTitle: task.title,
-      taskDescription: task.description,
-      agentId: agent.id,
-      agentName: agent.name,
-      connectorId: connector.id,
-      workspaceId: workspace?.id ?? null,
-      workspacePath: workspace?.localPath ?? null,
-      command: connector.command,
-      model: connector.model ?? agent.model,
-      thinkingEffort,
-      env,
-      sessionParams: session.sessionParams,
-      systemPrompt,
-      trigger,
-    },
+    snapshot,
+    trigger,
   });
 
   db.markHeartbeatAt(agentId);
@@ -1117,11 +1264,849 @@ function startAgentHeartbeatRun(agentId: string, companyId: string, trigger: str
   return run.id;
 }
 
+// ── Automation Engine ──────────────────────────────────────────────────
+
+interface AutomationEventContext {
+  companyId: string;
+  taskId?: string;
+  agentId?: string;
+  runId?: string;
+  projectId?: string;
+  department?: string;
+  previousStatus?: string;
+  newStatus?: string;
+  costUsd?: number;
+}
+
+function evaluateAutomationRules(trigger: string, ctx: AutomationEventContext) {
+  try {
+    const rules = db.listActiveAutomationRules(ctx.companyId, trigger);
+    for (const rule of rules) {
+      if (!matchesConditions(rule, ctx)) continue;
+      const executionKey = [
+        rule.id,
+        trigger,
+        ctx.companyId,
+        ctx.taskId ?? "-",
+        ctx.agentId ?? "-",
+        ctx.runId ?? "-",
+        ctx.previousStatus ?? "-",
+        ctx.newStatus ?? "-",
+      ].join(":");
+      if (activeAutomationExecutions.has(executionKey)) {
+        log.warn(`[automation] Skipping re-entrant execution for rule "${rule.name}" (${executionKey})`);
+        continue;
+      }
+      activeAutomationExecutions.add(executionKey);
+      try {
+        executeAutomationAction(rule, ctx);
+        db.recordAutomationExecution(
+          rule.id, ctx.companyId, rule.name, trigger, rule.action,
+          `Fired for ${trigger} in context: taskId=${ctx.taskId ?? "n/a"}, agentId=${ctx.agentId ?? "n/a"}`,
+        );
+        emitEvent({
+          type: "automation-fired",
+          ruleId: rule.id,
+          ruleName: rule.name,
+          trigger: trigger as import("@shared/types").AutomationTrigger,
+          action: rule.action as import("@shared/types").AutomationAction,
+        });
+        log.info(`[automation] Fired rule "${rule.name}" (${trigger} → ${rule.action})`);
+      } catch (err) {
+        log.error(`[automation] Failed to execute action for rule "${rule.name}": ${err instanceof Error ? err.message : String(err)}`);
+        db.recordAutomationExecution(
+          rule.id, ctx.companyId, rule.name, trigger, rule.action,
+          `FAILED: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      } finally {
+        activeAutomationExecutions.delete(executionKey);
+      }
+    }
+  } catch (err) {
+    log.error(`[automation] Error evaluating rules for trigger "${trigger}": ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+function matchesEventConfig(configJson: string, sourceDepartment: string | null, ctx: AutomationEventContext): boolean {
+  if (sourceDepartment && ctx.department && sourceDepartment !== ctx.department) {
+    return false;
+  }
+  try {
+    const conditions = JSON.parse(configJson) as Record<string, unknown>;
+    if (Object.keys(conditions).length === 0) return true;
+    if (conditions.status && ctx.newStatus && conditions.status !== ctx.newStatus) return false;
+    if (conditions.previousStatus && ctx.previousStatus && conditions.previousStatus !== ctx.previousStatus) return false;
+    if (conditions.priority) {
+      try {
+        const task = ctx.taskId ? db.getTask(ctx.taskId) : null;
+        if (task && task.priority !== conditions.priority) return false;
+      } catch {
+        return false;
+      }
+    }
+    if (typeof conditions.budgetThresholdPct === "number" && ctx.agentId) {
+      try {
+        const agent = db.getAgent(ctx.agentId);
+        if (agent.budgetMonthlyUsd > 0) {
+          const utilization = agent.spentMonthlyUsd / agent.budgetMonthlyUsd;
+          if (utilization < (conditions.budgetThresholdPct as number) / 100) return false;
+        } else {
+          return false;
+        }
+      } catch {
+        return false;
+      }
+    }
+    if (conditions.taskId && ctx.taskId && conditions.taskId !== ctx.taskId) return false;
+    if (conditions.projectId && ctx.projectId && conditions.projectId !== ctx.projectId) return false;
+    if (conditions.agentId && ctx.agentId && conditions.agentId !== ctx.agentId) return false;
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+function matchesConditions(
+  rule: { conditionsJson: string; sourceDepartment: string | null; targetDepartment: string | null },
+  ctx: AutomationEventContext,
+): boolean {
+  void rule.targetDepartment;
+  return matchesEventConfig(rule.conditionsJson, rule.sourceDepartment, ctx);
+}
+
+function evaluateWorkflowTriggers(trigger: string, ctx: AutomationEventContext) {
+  try {
+    const workflows = db.listTriggerableWorkflows(ctx.companyId, trigger);
+    for (const workflow of workflows) {
+      if (!matchesEventConfig(workflow.triggerConfigJson, null, ctx)) continue;
+      const executionKey = [
+        workflow.id,
+        trigger,
+        ctx.companyId,
+        ctx.taskId ?? "-",
+        ctx.agentId ?? "-",
+        ctx.runId ?? "-",
+        ctx.previousStatus ?? "-",
+        ctx.newStatus ?? "-",
+      ].join(":");
+      if (activeWorkflowTriggerExecutions.has(executionKey)) {
+        log.warn(`[workflow] Skipping re-entrant trigger for workflow "${workflow.name}" (${executionKey})`);
+        continue;
+      }
+      activeWorkflowTriggerExecutions.add(executionKey);
+      void runWorkflowPipeline(workflow.id, ctx.companyId)
+        .then(() => {
+          log.info(`[workflow] Triggered workflow "${workflow.name}" via ${trigger}`);
+        })
+        .catch((error) => {
+          log.error(`[workflow] Trigger failed for "${workflow.name}": ${error instanceof Error ? error.message : String(error)}`);
+        })
+        .finally(() => {
+          activeWorkflowTriggerExecutions.delete(executionKey);
+        });
+    }
+  } catch (error) {
+    log.error(`[workflow] Error evaluating workflow triggers for "${trigger}": ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function dispatchAutomation(trigger: string, ctx: AutomationEventContext) {
+  evaluateAutomationRules(trigger, ctx);
+  evaluateWorkflowTriggers(trigger, ctx);
+}
+
+function executeAutomationAction(
+  rule: { action: string; actionConfigJson: string; targetDepartment: string | null; trigger?: string },
+  ctx: AutomationEventContext,
+) {
+  const config = (() => { try { return JSON.parse(rule.actionConfigJson) as Record<string, unknown>; } catch { return {}; } })();
+
+  switch (rule.action) {
+    case "assign_task": {
+      if (ctx.taskId) {
+        const assignedId = db.autoAssignTask(ctx.taskId, ctx.companyId);
+        if (assignedId) {
+          wakeAgentIfPossible(assignedId, ctx.companyId, "assignment");
+        }
+      } else if (ctx.agentId) {
+        // No specific task — find unassigned tasks and assign to the idle agent
+        const snapshot = db.listSnapshot();
+        const unassigned = snapshot.tasks
+          .filter((t) => t.companyId === ctx.companyId && !t.assigneeAgentId && ["backlog", "todo"].includes(t.status))
+          .sort((a, b) => {
+            const prio = { critical: 4, high: 3, medium: 2, low: 1 } as Record<string, number>;
+            return (prio[b.priority] ?? 0) - (prio[a.priority] ?? 0);
+          });
+        if (unassigned.length > 0) {
+          const task = unassigned[0];
+          try {
+            db.saveTask({
+              id: task.id,
+              companyId: task.companyId,
+              projectId: task.projectId,
+              goalId: task.goalId,
+              parentId: task.parentId,
+              title: task.title,
+              description: task.description,
+              assigneeAgentId: ctx.agentId,
+              workspaceId: task.workspaceId,
+              priority: task.priority,
+              status: "todo",
+            });
+            wakeAgentIfPossible(ctx.agentId, ctx.companyId, "assignment");
+            log.info(`[automation] Auto-assigned task "${task.title}" to idle agent ${ctx.agentId}`);
+          } catch (err) {
+            log.warn(`[automation] Failed to auto-assign task to idle agent: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+      }
+      break;
+    }
+    case "create_task": {
+      const title = (config.title as string) ?? `[Auto] Task from automation rule`;
+      const description = (config.description as string) ?? "";
+      const priority = (config.priority as string) ?? "medium";
+      const assigneeAgentId = (config.assigneeAgentId as string) ?? null;
+      const taskId = db.saveTask({
+        companyId: ctx.companyId,
+        projectId: ctx.projectId ?? (config.projectId as string) ?? null,
+        title,
+        description,
+        assigneeAgentId,
+        priority,
+        status: assigneeAgentId ? "todo" : "backlog",
+      });
+      if (assigneeAgentId) {
+        wakeAgentIfPossible(assigneeAgentId, ctx.companyId, "assignment");
+      } else {
+        // No explicit assignee — try to auto-assign without triggering automation recursion
+        const autoAssigned = db.autoAssignTask(taskId, ctx.companyId);
+        if (autoAssigned) {
+          wakeAgentIfPossible(autoAssigned, ctx.companyId, "assignment");
+        }
+      }
+      log.info(`[automation] Created task: ${title} (${taskId})`);
+      break;
+    }
+    case "notify_agent":
+    case "send_message": {
+      const toAgentId = (config.toAgentId as string) ?? ctx.agentId ?? null;
+      const fromAgentId = (config.fromAgentId as string) ?? ctx.agentId ?? toAgentId;
+      if (!fromAgentId) break;
+      const channel = (config.channel as string) ?? (toAgentId ? "direct" : "company");
+      // For department channel, auto-resolve dept from the agent if not specified
+      let channelTargetId: string | null = (config.channelTargetId as string) ?? (config.department as string) ?? ctx.department ?? null;
+      if (channel === "department" && !channelTargetId && fromAgentId) {
+        try {
+          const sender = db.getAgent(fromAgentId);
+          channelTargetId = sender.department ?? null;
+        } catch { /* ok */ }
+      }
+      db.sendAgentMessage({
+        companyId: ctx.companyId,
+        fromAgentId,
+        toAgentId: channel === "direct" ? toAgentId : null,
+        channel,
+        channelTargetId,
+        subject: (config.subject as string) ?? `Automation notification`,
+        body: (config.body as string) ?? `Automation rule triggered for task ${ctx.taskId ?? "n/a"}`,
+        priority: (config.priority as string) ?? "normal",
+      });
+      // Emit event so renderer updates in real-time
+      const newMsg = db.listAgentMessages(ctx.companyId, { limit: 1 })?.[0];
+      if (newMsg) emitEvent({ type: "new-message", message: newMsg });
+      publishDomainChanged();
+      if (toAgentId && channel === "direct") {
+        wakeAgentIfPossible(toAgentId, ctx.companyId, "message");
+      }
+      break;
+    }
+    case "trigger_heartbeat": {
+      let targetAgentId = (config.agentId as string) ?? null;
+      if (!targetAgentId && ctx.agentId) {
+        // If no explicit target, wake the agent from context.
+        // But for run_completed/run_failed triggers, the context agent already just ran —
+        // waking them again is redundant. Instead, wake their manager if possible.
+        const triggerType = rule.trigger ?? "";
+        if (triggerType === "run_completed" || triggerType === "run_failed") {
+          const manager = db.getManagerForAgent(ctx.agentId);
+          targetAgentId = manager?.id ?? ctx.agentId;
+        } else {
+          targetAgentId = ctx.agentId;
+        }
+      }
+      if (targetAgentId) {
+        wakeAgentIfPossible(targetAgentId, ctx.companyId, "manual");
+      }
+      break;
+    }
+    case "create_approval": {
+      const approvalType = (config.approvalType as string) ?? "document_review";
+      db.requestApproval({
+        companyId: ctx.companyId,
+        relatedTaskId: ctx.taskId ?? null,
+        requestedByAgentId: ctx.agentId ?? null,
+        type: approvalType,
+        payloadSummary: (config.summary as string) ?? `Auto-generated approval request`,
+        impactSummary: (config.impact as string) ?? `Triggered by automation rule`,
+      });
+      break;
+    }
+    case "update_task_status": {
+      if (!ctx.taskId) break;
+      const newStatus = (config.status as string) ?? "todo";
+      db.advanceTaskStatus(ctx.taskId, newStatus, `Status changed by automation rule`);
+      publishDomainChanged();
+      // Propagate essential downstream effects without re-triggering automation (to prevent loops)
+      try {
+        const updatedTask = db.getTask(ctx.taskId);
+        if (newStatus === "blocked" && updatedTask.assigneeAgentId) {
+          const manager = db.getManagerForAgent(updatedTask.assigneeAgentId);
+          if (manager) wakeAgentIfPossible(manager.id, ctx.companyId, "report_blocked");
+        }
+        if (newStatus === "in_review" && updatedTask.assigneeAgentId) {
+          const manager = db.getManagerForAgent(updatedTask.assigneeAgentId);
+          if (manager) wakeAgentIfPossible(manager.id, ctx.companyId, "subtask_completed");
+        }
+        if (newStatus === "todo" && updatedTask.assigneeAgentId) {
+          wakeAgentIfPossible(updatedTask.assigneeAgentId, ctx.companyId, "assignment");
+        }
+        if (newStatus === "done" && updatedTask.parentId) {
+          const snapshot = db.listSnapshot();
+          const siblings = snapshot.tasks.filter((t) => t.parentId === updatedTask.parentId && t.companyId === ctx.companyId);
+          const allDone = siblings.every((t) => t.id === ctx.taskId ? true : t.status === "done");
+          if (allDone) {
+            const parent = db.getTask(updatedTask.parentId);
+            if (parent.assigneeAgentId) wakeAgentIfPossible(parent.assigneeAgentId, ctx.companyId, "subtask_completed");
+          }
+        }
+      } catch { /* task may not exist */ }
+      break;
+    }
+    case "escalate_to_manager": {
+      const targetAgentId = ctx.agentId;
+      if (!targetAgentId) break;
+      const manager = db.getManagerForAgent(targetAgentId);
+      if (manager) {
+        let agentName = "an agent";
+        try { agentName = db.getAgent(targetAgentId).name; } catch { /* ok */ }
+        let taskTitle = ctx.taskId ?? "unknown";
+        try { if (ctx.taskId) taskTitle = db.getTask(ctx.taskId).title; } catch { /* ok */ }
+        db.sendAgentMessage({
+          companyId: ctx.companyId,
+          fromAgentId: targetAgentId,
+          toAgentId: manager.id,
+          channel: "direct",
+          subject: `Escalation from ${agentName}: ${taskTitle}`,
+          body: (config.body as string) ?? `Task "${taskTitle}" needs your attention. ${agentName} has flagged this as requiring manager intervention.`,
+          priority: "urgent",
+        });
+        publishDomainChanged();
+        wakeAgentIfPossible(manager.id, ctx.companyId, "report_blocked");
+      }
+      break;
+    }
+    case "cross_department_notify": {
+      const targetDept = rule.targetDepartment ?? (config.department as string);
+      if (!targetDept) break;
+      const deptAgents = db.getIdleAgentsForDepartment(ctx.companyId, targetDept);
+      // Send a single channel message visible to entire department
+      const senderAgentId = ctx.agentId ?? deptAgents[0]?.id;
+      if (senderAgentId) {
+        db.sendAgentMessage({
+          companyId: ctx.companyId,
+          fromAgentId: senderAgentId,
+          toAgentId: null,
+          channel: "department",
+          channelTargetId: targetDept,
+          subject: (config.subject as string) ?? `Cross-department notification`,
+          body: (config.body as string) ?? `Automation triggered a cross-department alert.`,
+          priority: "normal",
+        });
+        publishDomainChanged();
+      }
+      // Wake agents in the target department
+      for (const agent of deptAgents.slice(0, 5)) {
+        wakeAgentIfPossible(agent.id, ctx.companyId, "message");
+      }
+      break;
+    }
+    case "schedule_meeting": {
+      const meetingType = (config.meetingType as string) ?? "department_sync";
+      const title = (config.title as string) ?? `Auto-scheduled meeting`;
+      db.saveMeeting({
+        companyId: ctx.companyId,
+        type: meetingType,
+        title,
+        organizerAgentId: ctx.agentId ?? null,
+        participantAgentIds: (config.participantAgentIds as string) ?? "[]",
+        scheduledAt: new Date(Date.now() + 3600_000).toISOString(),
+        durationMinutes: (config.durationMinutes as number) ?? 30,
+      });
+      break;
+    }
+    case "create_document": {
+      const docType = (config.documentType as string) ?? "status_report";
+      const title = (config.title as string) ?? `Auto-generated document`;
+      db.saveDocument({
+        companyId: ctx.companyId,
+        type: docType,
+        title,
+        content: (config.content as string) ?? "",
+        authorAgentId: ctx.agentId ?? null,
+        projectId: ctx.projectId ?? null,
+      });
+      break;
+    }
+    case "auto_approve": {
+      const snapshot = db.listSnapshot();
+      const pendingApprovals = snapshot.approvals.filter(
+        (a) => a.companyId === ctx.companyId && a.state === "pending",
+      );
+      for (const approval of pendingApprovals.slice(0, 5)) {
+        db.decideApproval({ companyId: ctx.companyId, approvalId: approval.id, state: "approved", decisionNote: "Auto-approved by automation rule." });
+        handleApprovalResolved(approval.id, ctx.companyId, "approved");
+      }
+      break;
+    }
+    case "reassign_task": {
+      if (!ctx.taskId) break;
+      const newAssignee = db.autoAssignTask(ctx.taskId, ctx.companyId);
+      if (newAssignee) {
+        wakeAgentIfPossible(newAssignee, ctx.companyId, "assignment");
+      }
+      break;
+    }
+    case "run_task": {
+      const targetTaskId = (config.taskId as string) ?? ctx.taskId;
+      if (!targetTaskId) break;
+      try {
+        const task = db.getTask(targetTaskId);
+        if (!task.assigneeAgentId) break;
+        wakeAgentIfPossible(task.assigneeAgentId, ctx.companyId, "assignment");
+      } catch { /* task may not exist */ }
+      break;
+    }
+    default:
+      log.warn(`[automation] Unknown action: ${rule.action}`);
+  }
+}
+
+// ── Run Result Processing ─────────────────────────────────────────────
+
+function processRunCompletion(run: RunRecord, event: z.infer<typeof workerMessageSchema> & { type: "run-finished" }) {
+  let task: ReturnType<typeof db.getTask> | null = null;
+  try { task = db.getTask(run.taskId); } catch { return; }
+  if (!task) return;
+
+  const isSuccess = event.status === "succeeded";
+  const isFailed = event.status === "failed" || event.status === "timed_out";
+
+  // Auto-advance task on successful run: in_progress → in_review
+  if (isSuccess && task.status === "in_progress") {
+    db.advanceTaskStatus(task.id, "in_review", `Run completed successfully. Awaiting review.`);
+    publishDomainChanged();
+
+    // Wake the manager to review the work
+    if (task.assigneeAgentId) {
+      const manager = db.getManagerForAgent(task.assigneeAgentId);
+      if (manager) {
+        db.sendAgentMessage({
+          companyId: run.companyId,
+          fromAgentId: task.assigneeAgentId,
+          toAgentId: manager.id,
+          channel: "direct",
+          subject: `Review requested: ${task.title}`,
+          body: `Task "${task.title}" has been completed and is ready for review.\n\nRun summary: ${event.summary ?? "No summary available."}`,
+          priority: "normal",
+        });
+        wakeAgentIfPossible(manager.id, run.companyId, "subtask_completed");
+      }
+    }
+  }
+
+  // On successful heartbeat check-work task, clean up if no real work done
+  if (isSuccess && task.title.startsWith("[Heartbeat]") && task.status !== "done") {
+    db.advanceTaskStatus(task.id, "done", "Heartbeat check completed.");
+  }
+
+  const automationCtx: AutomationEventContext = {
+    companyId: run.companyId,
+    taskId: run.taskId,
+    agentId: run.agentId,
+    runId: run.id,
+    costUsd: event.costUsd ?? undefined,
+  };
+  try {
+    const agent = db.getAgent(run.agentId);
+    automationCtx.department = agent.department ?? undefined;
+  } catch { /* agent may be deleted */ }
+
+  if (isSuccess) {
+    dispatchAutomation("run_completed", automationCtx);
+
+    // Check if all subtasks of a parent task are done — use fresh snapshot since task status just changed
+    if (task.parentId) {
+      try {
+        const freshSnapshot = db.listSnapshot();
+        const siblings = freshSnapshot.tasks.filter((t) => t.parentId === task!.parentId && t.companyId === run.companyId);
+        const allSiblingsDoneOrReview = siblings.every((t) => t.status === "done" || t.status === "in_review");
+        if (allSiblingsDoneOrReview) {
+          const parent = db.getTask(task.parentId);
+          if (parent.assigneeAgentId) {
+            wakeAgentIfPossible(parent.assigneeAgentId, run.companyId, "subtask_completed");
+          } else {
+            // Parent has no assignee — auto-assign to the agent who would be responsible
+            const assignedId = db.autoAssignTask(parent.id, run.companyId);
+            if (assignedId) {
+              wakeAgentIfPossible(assignedId, run.companyId, "subtask_completed");
+            }
+          }
+        }
+      } catch { /* parent may be deleted */ }
+    }
+  }
+
+  if (isFailed) {
+    dispatchAutomation("run_failed", automationCtx);
+  }
+
+  // Budget threshold check after cost is recorded
+  if (event.costUsd && event.costUsd > 0) {
+    try {
+      const agent = db.getAgent(run.agentId);
+      if (agent.budgetMonthlyUsd > 0) {
+        const utilization = agent.spentMonthlyUsd / agent.budgetMonthlyUsd;
+        if (utilization >= 0.8) {
+          dispatchAutomation("budget_threshold", {
+            ...automationCtx,
+            agentId: agent.id,
+          });
+        }
+      }
+    } catch { /* agent deleted */ }
+  }
+}
+
+function handleApprovalResolved(approvalId: string, companyId: string, decision: string) {
+  const snapshot = db.listSnapshot();
+  const approval = snapshot.approvals.find((a) => a.id === approvalId);
+  if (!approval) return;
+
+  dispatchAutomation("approval_resolved", {
+    companyId,
+    agentId: approval.requestedByAgentId ?? undefined,
+    taskId: approval.relatedTaskId ?? undefined,
+  });
+
+  // `db.decideApproval` already updates the hire target. This path only emits
+  // post-resolution side effects once the DB state is committed.
+  if (approval.type === "hire_agent" && decision === "approved" && approval.relatedAgentId) {
+    try {
+      const agent = db.getAgent(approval.relatedAgentId);
+      if (agent.status === "idle") {
+        db.addActivity({
+          companyId,
+          actor: "system",
+          action: "agent.hired",
+          entityType: "agent",
+          entityId: agent.id,
+          detail: `${agent.name} hire approved and activated.`,
+        });
+        dispatchAutomation("hire_approved", {
+          companyId,
+          agentId: agent.id,
+        });
+        // Wake the new agent so they check in
+        wakeAgentIfPossible(agent.id, companyId, "assignment");
+        publishDomainChanged();
+        notify("New agent hired", `${agent.name} (${agent.role}) has joined the company.`);
+      }
+    } catch { /* agent may be deleted */ }
+  }
+
+  const browserAction = db.getBrowserActionByApprovalId(approvalId, companyId);
+  if (browserAction) {
+    if (decision === "approved") {
+      db.updateBrowserAction(browserAction.id, {
+        status: "queued",
+        resultSummary: "Approval granted. Dispatching browser action.",
+        errorMessage: null,
+      });
+      publishDomainChanged();
+      void dispatchBrowserAction(browserAction.id, companyId).catch((error) => {
+        log.error(`[browser] Failed to dispatch approved browser action ${browserAction.id}: ${error instanceof Error ? error.message : String(error)}`);
+      });
+    } else if (decision === "rejected") {
+      db.updateBrowserAction(browserAction.id, {
+        status: "cancelled",
+        resultSummary: "Browser action was rejected during approval.",
+        errorMessage: "Approval rejected by board.",
+        finishedAt: new Date().toISOString(),
+      });
+      publishDomainChanged();
+    } else if (decision === "revision_requested") {
+      db.updateBrowserAction(browserAction.id, {
+        status: "approval_required",
+        resultSummary: "Board requested revisions before execution.",
+        errorMessage: "Approval requires revisions before the browser action can run.",
+      });
+      publishDomainChanged();
+    }
+  }
+
+  if (approval.payloadJson) {
+    try {
+      const payload = JSON.parse(approval.payloadJson) as { workflowId?: string; stepId?: string };
+      if (payload.workflowId && payload.stepId) {
+        const workflow = db.getWorkflowRecord(payload.workflowId, companyId);
+        if (workflow) {
+          const steps = normalizeWorkflowSteps(JSON.parse(workflow.stepsJson || "[]"));
+          const stepIndex = steps.findIndex((step) => step.id === payload.stepId);
+          if (stepIndex >= 0) {
+            if (decision === "approved") {
+              steps[stepIndex]!.status = "pending";
+              db.updateWorkflowExecution({
+                id: workflow.id,
+                companyId,
+                status: "paused",
+                currentStepIndex: stepIndex,
+                stepsJson: JSON.stringify(steps),
+                lastRunAt: workflow.lastRunAt,
+              });
+              publishDomainChanged();
+              void runWorkflowPipeline(workflow.id, companyId).catch((error) => {
+                log.error(`[workflow] Failed to resume workflow ${workflow.id} after approval ${approvalId}: ${error instanceof Error ? error.message : String(error)}`);
+              });
+            } else {
+              steps[stepIndex]!.status = decision === "revision_requested" ? "pending" : "failed";
+              db.updateWorkflowExecution({
+                id: workflow.id,
+                companyId,
+                status: decision === "revision_requested" ? "paused" : "failed",
+                currentStepIndex: stepIndex,
+                stepsJson: JSON.stringify(steps),
+                lastRunAt: workflow.lastRunAt,
+              });
+              publishDomainChanged();
+            }
+          }
+        }
+      }
+    } catch {
+      // Non-workflow approvals may use payloadJson for other purposes.
+    }
+  }
+
+  // Wake the requesting agent to inform them of the decision
+  if (approval.requestedByAgentId) {
+    wakeAgentIfPossible(approval.requestedByAgentId, companyId, "approval_resolved");
+  }
+}
+
+function handleTaskStatusChange(taskId: string, companyId: string, previousStatus: string, newStatus: string) {
+  if (previousStatus === newStatus) return;
+
+  let task: ReturnType<typeof db.getTask> | null = null;
+  try { task = db.getTask(taskId); } catch { return; }
+  if (!task) return;
+
+  db.addActivity({
+    companyId,
+    actor: task.assigneeAgentId ?? "board",
+    action: "task.status_changed",
+    entityType: "task",
+    entityId: taskId,
+    detail: `${previousStatus} → ${newStatus}`,
+  });
+
+  const ctx: AutomationEventContext = {
+    companyId,
+    taskId,
+    agentId: task.assigneeAgentId ?? undefined,
+    previousStatus,
+    newStatus,
+  };
+  try {
+    if (task.assigneeAgentId) {
+      const agent = db.getAgent(task.assigneeAgentId);
+      ctx.department = agent.department ?? undefined;
+    }
+  } catch { /* agent deleted */ }
+
+  dispatchAutomation("task_status_changed", ctx);
+
+  if (newStatus === "blocked") {
+    dispatchAutomation("task_blocked", ctx);
+    // Auto-escalate blocked tasks to manager
+    if (task.assigneeAgentId) {
+      const manager = db.getManagerForAgent(task.assigneeAgentId);
+      if (manager) {
+        wakeAgentIfPossible(manager.id, companyId, "report_blocked");
+      }
+    }
+  }
+
+  // When task enters in_review, wake the manager to review
+  if (newStatus === "in_review" && task.assigneeAgentId) {
+    const manager = db.getManagerForAgent(task.assigneeAgentId);
+    if (manager) {
+      wakeAgentIfPossible(manager.id, companyId, "subtask_completed");
+    }
+  }
+
+  // When task is assigned (status change to todo with an assignee), wake the agent
+  if (newStatus === "todo" && task.assigneeAgentId) {
+    wakeAgentIfPossible(task.assigneeAgentId, companyId, "assignment");
+  }
+
+  // When a subtask is completed (done), check if all sibling subtasks are also done.
+  // If so, wake the parent task's assignee — this enables the full task completion cascade
+  // even when tasks are approved manually (not just via agent run completion).
+  if (newStatus === "done" && task.parentId) {
+    try {
+      const snapshot = db.listSnapshot();
+      const siblings = snapshot.tasks.filter((t) => t.parentId === task!.parentId && t.companyId === companyId);
+      const allDone = siblings.every((t) => t.id === taskId ? true : t.status === "done");
+      if (allDone) {
+        const parent = db.getTask(task.parentId);
+        if (parent.assigneeAgentId) {
+          wakeAgentIfPossible(parent.assigneeAgentId, companyId, "subtask_completed");
+        } else {
+          const assignedId = db.autoAssignTask(parent.id, companyId);
+          if (assignedId) {
+            wakeAgentIfPossible(assignedId, companyId, "subtask_completed");
+          }
+        }
+      }
+    } catch { /* parent may be deleted */ }
+  }
+}
+
+function handleTaskCreated(taskId: string, companyId: string) {
+  let task: ReturnType<typeof db.getTask> | null = null;
+  try { task = db.getTask(taskId); } catch { return; }
+  if (!task) return;
+
+  dispatchAutomation("task_created", {
+    companyId,
+    taskId,
+    agentId: task.assigneeAgentId ?? undefined,
+  });
+
+  if (!task.assigneeAgentId) {
+    const assignedId = db.autoAssignTask(taskId, companyId);
+    if (assignedId) {
+      wakeAgentIfPossible(assignedId, companyId, "assignment");
+    }
+  } else {
+    wakeAgentIfPossible(task.assigneeAgentId, companyId, "assignment");
+  }
+}
+
+function generateInitialCompanyMessages(
+  companyId: string,
+  template: { name: string; agents: Array<{ name: string; role: string; title: string; department: string }> },
+  agentIds: string[],
+) {
+  try {
+    const ceoId = agentIds[0];
+    const ceoName = template.agents[0]?.name ?? "CEO";
+
+    // CEO sends company-wide welcome
+    db.sendAgentMessage({
+      companyId,
+      fromAgentId: ceoId,
+      toAgentId: null,
+      channel: "company",
+      subject: `Welcome to ${template.name}`,
+      body: `Team, I'm ${ceoName} and I'm excited to kick off our company. Our mission is clear and our team is assembled. Each department lead: please introduce your team in your department channel and outline your initial priorities. Let's build something great together.`,
+      priority: "normal",
+    });
+
+    // Group agents by department and have leads introduce themselves
+    const deptAgents = new Map<string, Array<{ id: string; name: string; role: string; title: string; index: number }>>();
+    for (let i = 0; i < template.agents.length; i++) {
+      const def = template.agents[i];
+      const dept = def.department;
+      if (!deptAgents.has(dept)) deptAgents.set(dept, []);
+      deptAgents.get(dept)!.push({ id: agentIds[i], name: def.name, role: def.role, title: def.title, index: i });
+    }
+
+    for (const [dept, members] of deptAgents) {
+      if (dept === "executive" && members.length <= 1) continue; // Skip if only CEO
+      const lead = members[0]; // First agent in department is the lead
+      const otherMembers = members.slice(1);
+      const memberList = otherMembers.length > 0
+        ? `Our team: ${otherMembers.map((m) => `${m.name} (${m.title})`).join(", ")}.`
+        : "I'm currently the sole member of this department.";
+
+      db.sendAgentMessage({
+        companyId,
+        fromAgentId: lead.id,
+        toAgentId: null,
+        channel: "department",
+        channelTargetId: dept,
+        subject: `${dept.charAt(0).toUpperCase() + dept.slice(1).replace("_", " ")} department reporting in`,
+        body: `I'm ${lead.name}, ${lead.title}. ${memberList} We're ready to start executing on our goals. I'll be coordinating our work and reporting progress here.`,
+        priority: "normal",
+      });
+
+      // Each non-lead member sends a brief introduction
+      for (const member of otherMembers) {
+        db.sendAgentMessage({
+          companyId,
+          fromAgentId: member.id,
+          toAgentId: null,
+          channel: "department",
+          channelTargetId: dept,
+          subject: `Introduction`,
+          body: `Hello team, I'm ${member.name}, ${member.title}. Ready to contribute. Looking forward to working with everyone.`,
+          priority: "low",
+        });
+      }
+    }
+
+    // CEO sends a strategy message
+    db.sendAgentMessage({
+      companyId,
+      fromAgentId: ceoId,
+      toAgentId: null,
+      channel: "company",
+      subject: "Initial priorities and next steps",
+      body: `Here's our immediate game plan:\n\n1. All department leads: review our company goals and identify your department's top 3 priorities\n2. Engineering: set up workspaces and assess our technical infrastructure\n3. Product: draft initial requirements for our first deliverable\n4. All agents: check your assigned tasks and begin execution\n\nI'll be reviewing progress and providing direction. Don't hesitate to escalate blockers — speed matters more than perfection right now.`,
+      priority: "normal",
+    });
+
+    // Department leads report back to CEO with initial priorities
+    for (const [dept, members] of deptAgents) {
+      if (dept === "executive") continue;
+      const lead = members[0];
+      if (!lead) continue;
+
+      db.sendAgentMessage({
+        companyId,
+        fromAgentId: lead.id,
+        toAgentId: ceoId,
+        channel: "direct",
+        subject: `${dept.replace("_", " ")} department initial assessment`,
+        body: `${ceoName}, this is ${lead.name} from the ${dept.replace("_", " ")} department. I've reviewed our company goals and I'm ready to break them down into actionable tasks for my team. I'll start creating tasks and assigning work to my direct reports immediately. Will report back with our sprint plan shortly.`,
+        priority: "normal",
+      });
+    }
+
+    log.info(`[company] Generated initial messages for company ${companyId}`);
+  } catch (err) {
+    log.error(`[company] Failed to generate initial messages: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 function startHeartbeatScheduler() {
   if (heartbeatTimer) clearInterval(heartbeatTimer);
 
   heartbeatTimer = setInterval(() => {
     try {
+      if (!worker) return;
       const snapshot = db.listSnapshot();
       const now = Date.now();
 
@@ -1129,10 +2114,7 @@ function startHeartbeatScheduler() {
         try {
           const eligibleAgents = db.listHeartbeatEligibleAgents(company.id);
           for (const agent of eligibleAgents) {
-            const hasActiveRun = snapshot.runs.some(
-              (r) => r.agentId === agent.id && (r.status === "running" || r.status === "queued"),
-            );
-            if (hasActiveRun) continue;
+            if (hasActiveRun(snapshot, { agentId: agent.id, companyId: company.id })) continue;
 
             const lastHeartbeat = agent.lastHeartbeatAt ? new Date(agent.lastHeartbeatAt).getTime() : 0;
             const intervalMs = agent.heartbeatIntervalSec * 1000;
@@ -1141,18 +2123,208 @@ function startHeartbeatScheduler() {
             log.info(`[heartbeat] Waking agent ${agent.name} (interval: ${agent.heartbeatIntervalSec}s)`);
             startAgentHeartbeatRun(agent.id, company.id, "timer");
           }
+          // Company bootstrap: if goals exist but no active tasks, force-wake the CEO
+          // This ensures the company starts running even without manual intervention
+          const companyGoals = snapshot.goals.filter((g) => g.companyId === company.id && (g.status === "active" || g.status === "planned"));
+          const companyActiveTasks = snapshot.tasks.filter((t) => t.companyId === company.id && !["done", "cancelled"].includes(t.status) && !t.title.startsWith("[Heartbeat]"));
+          if (companyGoals.length > 0 && companyActiveTasks.length === 0) {
+            const ceo = snapshot.agents.find((a) => a.companyId === company.id && !a.reportsTo && a.status !== "terminated");
+            const ceoLastWake = ceo?.lastHeartbeatAt ? new Date(ceo.lastHeartbeatAt).getTime() : 0;
+            const bootstrapCooldown = 120_000; // 2 minutes between bootstrap attempts
+            if (ceo && !hasActiveRun(snapshot, { agentId: ceo.id, companyId: company.id }) && (now - ceoLastWake > bootstrapCooldown)) {
+              log.info(`[heartbeat] Company ${company.name} has ${companyGoals.length} goals but no tasks — bootstrapping CEO ${ceo.name}`);
+              startAgentHeartbeatRun(ceo.id, company.id, "bootstrap");
+            }
+          }
+
+          // Rate-limit schedule rules to once per 60 seconds per company
+          const scheduleKey = `schedule-${company.id}`;
+          const lastScheduleFired = (scheduleLastFiredMap as Map<string, number>).get(scheduleKey) ?? 0;
+          if (now - lastScheduleFired >= 60_000) {
+            dispatchAutomation("schedule", { companyId: company.id });
+            (scheduleLastFiredMap as Map<string, number>).set(scheduleKey, now);
+          }
+
+          // Check for idle agents — agents with no tasks and no recent runs
+          const companyAgents = snapshot.agents.filter((a) => a.companyId === company.id && a.status !== "terminated" && a.status !== "paused" && a.status !== "pending_approval");
+          for (const agent of companyAgents) {
+            const hasAssigned = snapshot.tasks.some(
+              (t) => t.assigneeAgentId === agent.id && t.companyId === company.id && ["todo", "in_progress", "blocked"].includes(t.status),
+            );
+            if (!hasAssigned) {
+              const lastActive = agent.lastHeartbeatAt ? new Date(agent.lastHeartbeatAt).getTime() : 0;
+              const idleThreshold = 20 * 60 * 1000; // 20 minutes (must exceed 2x max heartbeat interval to avoid false positives)
+              if (now - lastActive > idleThreshold) {
+                dispatchAutomation("agent_idle", {
+                  companyId: company.id,
+                  agentId: agent.id,
+                  department: agent.department ?? undefined,
+                });
+              }
+            }
+          }
+
+          // Monthly budget reset — persisted in database to survive app restarts
+          const currentMonth = new Date().toISOString().slice(0, 7); // "2026-03"
+          const lastResetMonth = db.getLastBudgetResetMonth(company.id) ?? "";
+          if (currentMonth !== lastResetMonth) {
+            db.resetMonthlyBudgets(company.id);
+            db.setLastBudgetResetMonth(company.id, currentMonth);
+            log.info(`[heartbeat] Reset monthly budgets for company ${company.name} (${currentMonth})`);
+          }
         } catch (companyError) {
           log.error(`[heartbeat] Error processing company ${company.id}: ${companyError instanceof Error ? companyError.message : String(companyError)}`);
         }
       }
+      // Periodic cleanup: release stale workspace locks (held >2h) and expired pending wakes
+      try {
+        const staleReleased = db.releaseStaleWorkspaceLocks();
+        if (staleReleased > 0) {
+          log.info(`[heartbeat] Released ${staleReleased} stale workspace lock(s)`);
+          publishDomainChanged();
+        }
+      } catch (cleanupErr) {
+        log.error(`[heartbeat] Stale lock cleanup failed: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}`);
+      }
     } catch (error) {
       log.error(`[heartbeat] Scheduler error: ${error instanceof Error ? error.message : String(error)}`);
     }
-  }, 15_000); // Check every 15 seconds
+  }, 15_000);
+}
+
+function dispatchRunToWorker(params: {
+  runId: string;
+  companyId: string;
+  agent: ReturnType<typeof db.getAgent>;
+  task: ReturnType<typeof db.getTask>;
+  connector: ReturnType<typeof db.getConnector>;
+  workspace: ReturnType<typeof db.getWorkspace> | null;
+  workspaceMode: WorkspaceLockMode;
+  companyName: string;
+  companyDescription: string;
+  snapshot: ReturnType<typeof db.listSnapshot>;
+  trigger: string;
+}) {
+  const { runId, companyId, agent, task, connector, workspace, workspaceMode, companyName, companyDescription, snapshot, trigger } = params;
+  if (!worker) {
+    throw new Error("Orchestration worker is not ready.");
+  }
+
+  const env = db.resolveSecretEnv(connector.envBindingText, companyId);
+  const apiPort = apiServer?.getPort() ?? 0;
+  const apiUrl = apiPort ? `http://127.0.0.1:${apiPort}` : "";
+  const apiKey = apiUrl ? createAgentToken(agent.id, companyId, runId) : "";
+
+  const assignedTasks = db.listAgentTasks(agent.id, companyId, ["todo", "in_progress", "blocked"]);
+  const recentComments = snapshot.comments
+    .filter((c) => assignedTasks.some((t) => t.id === c.taskId))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 20)
+    .map((c) => ({
+      taskId: c.taskId,
+      taskTitle: assignedTasks.find((t) => t.id === c.taskId)?.title ?? c.taskId,
+      authorName: c.authorName,
+      body: c.body,
+      createdAt: c.createdAt,
+    }));
+
+  const systemPrompt = apiUrl ? buildTaskPrompt({
+    agent,
+    apiUrl,
+    apiKey,
+    runId,
+    task,
+    companyName,
+    goals: snapshot.goals.filter((g) => g.companyId === companyId),
+    projects: snapshot.projects.filter((p) => p.companyId === companyId),
+    directReports: db.getDirectReports(agent.id, companyId),
+    chainOfCommand: db.getChainOfCommand(agent.id),
+    assignedTasks,
+    allAgents: snapshot.agents.filter((a) => a.companyId === companyId),
+    pendingApprovals: snapshot.approvals.filter(
+      (a) => a.companyId === companyId &&
+        a.requestedByAgentId === agent.id &&
+        (a.state === "pending" || a.state === "revision_requested"),
+    ),
+    tasksAwaitingReview: db.listReviewTasksForManager(agent.id, companyId),
+    wakeReason: trigger,
+    allTasks: snapshot.tasks.filter((t) => t.companyId === companyId),
+    recentComments,
+    companyDescription,
+    socialAccounts: db.listSocialAccounts(companyId).map((a) => ({
+      id: a.id,
+      platform: a.platform,
+      accountName: a.accountName,
+      status: a.status,
+      requireApproval: a.requireApproval,
+    })),
+    recentMessages: db.listAgentMessages(companyId, { agentId: agent.id, limit: 15 }),
+    upcomingMeetings: snapshot.meetings
+      .filter((m) => m.companyId === companyId && (m.status === "scheduled" || m.status === "in_progress"))
+      .filter((m) => {
+        try {
+          const ids: string[] = JSON.parse(m.participantAgentIds);
+          return ids.includes(agent.id) || m.organizerAgentId === agent.id;
+        } catch {
+          return false;
+        }
+      })
+      .slice(0, 5),
+    relevantKnowledge: snapshot.knowledgeBase
+      .filter((k) => k.companyId === companyId && (k.importance === "critical" || k.importance === "high"))
+      .slice(0, 8),
+    activeSprint: snapshot.sprints.find((s) => s.companyId === companyId && s.status === "active") ?? null,
+    recentDocuments: snapshot.documents
+      .filter((d) => d.companyId === companyId && (d.authorAgentId === agent.id || d.reviewerAgentId === agent.id || d.status === "in_review"))
+      .slice(0, 5),
+  }) : null;
+
+  if (apiUrl) {
+    env.AGENT_COMPANY_API_URL = apiUrl;
+    env.AGENT_COMPANY_API_KEY = apiKey;
+    env.AGENT_COMPANY_AGENT_ID = agent.id;
+    env.AGENT_COMPANY_COMPANY_ID = companyId;
+    env.AGENT_COMPANY_RUN_ID = runId;
+    env.AGENT_COMPANY_TASK_ID = task.id;
+    env.AGENT_COMPANY_WAKE_REASON = trigger;
+  }
+
+  const taskSession = db.getTaskSession(task.id);
+  let thinkingEffort: string | null = null;
+  try {
+    const meta = JSON.parse(agent.metadataJson || "{}");
+    if (typeof meta.thinkingEffort === "string" && meta.thinkingEffort) {
+      thinkingEffort = meta.thinkingEffort;
+    }
+  } catch { /* malformed metadata */ }
+
+  worker.postMessage({
+    type: "enqueue-run",
+    payload: {
+      runId,
+      companyId,
+      taskId: task.id,
+      taskTitle: task.title,
+      taskDescription: task.description,
+      agentId: agent.id,
+      agentName: agent.name,
+      connectorId: connector.id,
+      workspaceId: workspace?.id ?? null,
+      workspacePath: workspace?.localPath ?? null,
+      workspaceMode,
+      command: connector.command,
+      model: connector.model ?? agent.model,
+      thinkingEffort,
+      env,
+      sessionParams: taskSession.sessionParams,
+      systemPrompt,
+      trigger,
+    },
+  });
 }
 
 function registerHandlers() {
-  registerHandle(IPC_CHANNELS.loadSnapshot, async () => ok(db.listSnapshot()));
+  registerHandle(IPC_CHANNELS.loadSnapshot, () => ok(db.listRendererSnapshot()));
 
   registerHandle(IPC_CHANNELS.pickDirectory, async () => {
     const result = await dialog.showOpenDialog({
@@ -1273,6 +2445,7 @@ function registerHandlers() {
         name: parsed.name,
         role: parsed.role,
         title: parsed.title,
+        department: parsed.department ?? null,
         status: parsed.status,
         reportsTo: parsed.reportsTo ?? null,
         connectorId: parsed.connectorId,
@@ -1319,7 +2492,6 @@ function registerHandlers() {
     });
     publishDomainChanged();
 
-    // Auto-cascade: when a goal becomes active with an owner agent, enable heartbeat and wake immediately
     if (parsed.status === "active" && parsed.ownerAgentId) {
       wakeAgentIfPossible(parsed.ownerAgentId, parsed.companyId, "goal_activated");
     }
@@ -1368,6 +2540,14 @@ function registerHandlers() {
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
+    const isNew = !parsed.id;
+    let previousStatus: string | null = null;
+    if (!isNew) {
+      try {
+        const existing = db.getTask(parsed.id!);
+        previousStatus = existing.status;
+      } catch { /* task is new */ }
+    }
     let id: string;
     try {
       id = db.saveTask(parsed);
@@ -1377,13 +2557,15 @@ function registerHandlers() {
     db.addActivity({
       companyId: parsed.companyId,
       actor: "board",
-      action: parsed.id ? "task.updated" : "task.created",
+      action: isNew ? "task.created" : "task.updated",
       entityType: "task",
       entityId: id,
       detail: parsed.title,
     });
-    if (parsed.assigneeAgentId) {
-      wakeAgentIfPossible(parsed.assigneeAgentId, parsed.companyId, "assignment");
+    if (isNew) {
+      handleTaskCreated(id, parsed.companyId);
+    } else if (previousStatus && previousStatus !== parsed.status) {
+      handleTaskStatusChange(id, parsed.companyId, previousStatus, parsed.status);
     }
     publishDomainChanged();
     return ok(id);
@@ -1418,7 +2600,7 @@ function registerHandlers() {
     const parsed = approvalDecisionSchema.parse(payload);
     db.decideApproval(parsed);
     const snapshot = db.listSnapshot();
-    const approval = snapshot.approvals.find((entry) => entry.id === parsed.approvalId);
+    const approval = snapshot.approvals.find((entry) => entry.id === parsed.approvalId && entry.companyId === parsed.companyId);
     if (approval) {
       db.addActivity({
         companyId: approval.companyId,
@@ -1428,29 +2610,7 @@ function registerHandlers() {
         entityId: approval.id,
         detail: parsed.decisionNote,
       });
-      if (parsed.state === "approved" || parsed.state === "revision_requested" || parsed.state === "rejected") {
-        wakeAgentIfPossible(approval.requestedByAgentId, approval.companyId, "approval_resolved");
-      }
-
-      // Step 4: Wake newly hired agent when hire is approved
-      if (approval.type === "hire_agent" && parsed.state === "approved") {
-        try {
-          const fullApproval = db.getApprovalRecord(parsed.approvalId);
-          const payload = JSON.parse(fullApproval.payloadJson || "{}") as { agentId?: string };
-          if (payload.agentId) {
-            // Don't wake new hires if org-strategy is still pending approval
-            const hasPendingOrgApproval = snapshot.approvals.some(
-              (a) =>
-                a.companyId === approval.companyId &&
-                a.type === "approve_ceo_strategy" &&
-                (a.state === "pending" || a.state === "revision_requested"),
-            );
-            if (!hasPendingOrgApproval) {
-              wakeAgentIfPossible(payload.agentId, approval.companyId, "assignment");
-            }
-          }
-        } catch { /* ignore if approval payload is malformed */ }
-      }
+      handleApprovalResolved(parsed.approvalId, approval.companyId, parsed.state);
     }
     publishDomainChanged();
     return ok(true);
@@ -1482,12 +2642,7 @@ function registerHandlers() {
     if (!company || company.status !== "active") {
       return fail("COMPANY_NOT_ACTIVE", "Runs can only start while the company is active.");
     }
-    if (
-      task.activeRunId ||
-      snapshot.runs.some(
-        (run) => run.taskId === task.id && run.companyId === task.companyId && (run.status === "queued" || run.status === "running"),
-      )
-    ) {
+    if (task.activeRunId || hasActiveRun(snapshot, { taskId: task.id, companyId: task.companyId })) {
       return fail("TASK_ALREADY_RUNNING", "This task already has an active run.");
     }
     if (!task.assigneeAgentId) return fail("TASK_UNASSIGNED", "Assign an agent before starting a run.");
@@ -1506,15 +2661,10 @@ function registerHandlers() {
     if (eligibilityFailure === "CONNECTOR_NOT_READY") {
       return fail("CONNECTOR_NOT_READY", "The assigned agent connector is not ready.");
     }
-    if (
-      snapshot.runs.some(
-        (run) => run.companyId === task.companyId && run.agentId === agent.id && (run.status === "queued" || run.status === "running"),
-      )
-    ) {
+    if (hasActiveRun(snapshot, { agentId: agent.id, companyId: task.companyId })) {
       return fail("AGENT_ALREADY_RUNNING", "The assigned agent already has an active run.");
     }
 
-    // Phase 3: Approval hard gate — block runs when relevant approvals are pending
     if (db.isAgentPendingApproval(agent.id)) {
       return fail("AGENT_PENDING_APPROVAL", "This agent is pending hire approval and cannot run tasks.");
     }
@@ -1526,151 +2676,38 @@ function registerHandlers() {
       );
     }
 
-    const workspace =
-      db.getWorkspace(task.workspaceId) ??
-      db.getWorkspace(agent.workspaceId) ??
-      db.getProjectPrimaryWorkspace(task.companyId) ??
-      db.getAnyCompanyWorkspace(task.companyId);
+    const workspaceResolution = resolveWorkspace(task, agent, task.companyId);
+    const workspace = workspaceResolution.workspace;
 
     log.info(
-      `[run] Workspace resolution for ${agent.name}: task.workspaceId=${task.workspaceId ?? "null"}, agent.workspaceId=${agent.workspaceId ?? "null"}, resolved=${workspace?.name ?? "NONE"}, localPath=${workspace?.localPath ?? "NONE"}`,
+      `[run] Workspace resolution for ${agent.name}: task.workspaceId=${task.workspaceId ?? "null"}, agent.workspaceId=${agent.workspaceId ?? "null"}, projectId=${task.projectId ?? "null"}, source=${workspaceResolution.source}, mode=${workspaceResolution.lockMode}, resolved=${workspace?.name ?? "NONE"}, localPath=${workspace?.localPath ?? "NONE"}`,
     );
 
     if (workspace && workspace.companyId !== task.companyId) {
       return fail("WORKSPACE_COMPANY_MISMATCH", "The selected workspace does not belong to the task company.");
     }
 
-    // Check workspace lock BEFORE creating the run — fail if another run holds it
-    if (workspace && !db.acquireWorkspaceLock(workspace.id, `pre-check-manual-${agent.id}`)) {
-      return fail("WORKSPACE_LOCKED", `Workspace "${workspace.name}" is locked by another active run. Wait for it to finish or cancel it.`);
-    }
-    if (workspace) {
-      db.releaseWorkspaceLock(workspace.id, `pre-check-manual-${agent.id}`);
-    }
-
     const run = db.createRun({
       companyId: task.companyId,
       taskId: task.id,
       agentId: agent.id,
-      workspaceId: workspace?.id ?? null,
+      workspaceId: workspaceResolution.lockMode === "exclusive" ? (workspace?.id ?? null) : null,
       connectorId: connector.id,
     });
 
-    // Acquire workspace lock with real run ID — if race condition, cancel the run
-    if (workspace) {
-      const locked = db.acquireWorkspaceLock(workspace.id, run.id);
-      if (!locked) {
-        db.finishRun({ runId: run.id, status: "cancelled", summary: "Workspace lock contention.", errorMessage: null, exitCode: null, signal: null, model: null, sessionDisplayId: null, costUsd: null, unattributedCost: true });
-        return fail("WORKSPACE_LOCKED", `Workspace "${workspace.name}" was locked by another run during startup.`);
-      }
-    }
-
-    const env = db.resolveSecretEnv(connector.envBindingText, task.companyId);
-
-    // Build rich prompt with API context
-    const apiPort = apiServer?.getPort() ?? 0;
-    const apiUrl = apiPort ? `http://127.0.0.1:${apiPort}` : "";
-    const apiKey = apiUrl ? createAgentToken(agent.id, task.companyId, run.id) : "";
-
-    const manualAgentTasks = db.listAgentTasks(agent.id, task.companyId, ["todo", "in_progress", "blocked"]);
     const manualCompany = snapshot.companies.find((c) => c.id === task.companyId);
-    const manualRecentComments = snapshot.comments
-      .filter((c) => manualAgentTasks.some((t) => t.id === c.taskId))
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .slice(0, 20)
-      .map((c) => ({
-        taskId: c.taskId,
-        taskTitle: manualAgentTasks.find((t) => t.id === c.taskId)?.title ?? c.taskId,
-        authorName: c.authorName,
-        body: c.body,
-        createdAt: c.createdAt,
-      }));
-    const systemPrompt = apiUrl ? buildTaskPrompt({
-      agent,
-      apiUrl,
-      apiKey,
+    dispatchRunToWorker({
       runId: run.id,
+      companyId: task.companyId,
+      agent,
       task,
+      connector,
+      workspace,
+      workspaceMode: workspaceResolution.lockMode,
       companyName: manualCompany?.name ?? "Company",
-      goals: snapshot.goals.filter((g) => g.companyId === task.companyId),
-      projects: snapshot.projects.filter((p) => p.companyId === task.companyId),
-      directReports: db.getDirectReports(agent.id, task.companyId),
-      chainOfCommand: db.getChainOfCommand(agent.id),
-      assignedTasks: manualAgentTasks,
-      allAgents: snapshot.agents.filter((a) => a.companyId === task.companyId),
-      pendingApprovals: snapshot.approvals.filter(
-        (a) => a.companyId === task.companyId &&
-          a.requestedByAgentId === agent.id &&
-          (a.state === "pending" || a.state === "revision_requested"),
-      ),
-      tasksAwaitingReview: db.listReviewTasksForManager(agent.id, task.companyId),
-      wakeReason: "manual",
-      allTasks: snapshot.tasks.filter((t) => t.companyId === task.companyId),
-      recentComments: manualRecentComments,
       companyDescription: manualCompany?.description ?? "",
-      socialAccounts: db.listSocialAccounts(task.companyId).map(a => ({
-        id: a.id,
-        platform: a.platform,
-        accountName: a.accountName,
-        status: a.status,
-        requireApproval: a.requireApproval,
-      })),
-      recentMessages: db.listAgentMessages(task.companyId, { agentId: agent.id, limit: 15 }),
-      upcomingMeetings: snapshot.meetings
-        .filter((m: any) => m.companyId === task.companyId && (m.status === "scheduled" || m.status === "in_progress"))
-        .filter((m: any) => {
-          try { const ids = JSON.parse(m.participantAgentIds); return ids.includes(agent.id) || m.organizerAgentId === agent.id; } catch { return false; }
-        })
-        .slice(0, 5),
-      relevantKnowledge: snapshot.knowledgeBase
-        .filter((k: any) => k.companyId === task.companyId && (k.importance === "critical" || k.importance === "high"))
-        .slice(0, 8),
-      activeSprint: snapshot.sprints.find((s: any) => s.companyId === task.companyId && s.status === "active") ?? null,
-      recentDocuments: snapshot.documents
-        .filter((d: any) => d.companyId === task.companyId && (d.authorAgentId === agent.id || d.reviewerAgentId === agent.id || d.status === "in_review"))
-        .slice(0, 5),
-    }) : null;
-
-    // Add API credentials to env
-    if (apiUrl) {
-      env.AGENT_COMPANY_API_URL = apiUrl;
-      env.AGENT_COMPANY_API_KEY = apiKey;
-      env.AGENT_COMPANY_AGENT_ID = agent.id;
-      env.AGENT_COMPANY_COMPANY_ID = task.companyId;
-      env.AGENT_COMPANY_RUN_ID = run.id;
-      env.AGENT_COMPANY_TASK_ID = task.id;
-      env.AGENT_COMPANY_WAKE_REASON = "manual";
-    }
-
-    const session = db.getTaskSession(task.id);
-    let thinkingEffort: string | null = null;
-    try {
-      const meta = JSON.parse(agent.metadataJson || "{}");
-      if (typeof meta.thinkingEffort === "string" && meta.thinkingEffort) {
-        thinkingEffort = meta.thinkingEffort;
-      }
-    } catch { /* ignore malformed json */ }
-    worker.postMessage({
-      type: "enqueue-run",
-      payload: {
-        runId: run.id,
-        companyId: task.companyId,
-        taskId: task.id,
-        taskTitle: task.title,
-        taskDescription: task.description,
-        agentId: agent.id,
-        agentName: agent.name,
-        connectorId: connector.id,
-        workspaceId: workspace?.id ?? null,
-        workspacePath: workspace?.localPath ?? null,
-        command: connector.command,
-        model: connector.model ?? agent.model,
-        thinkingEffort,
-        env,
-        sessionParams: session.sessionParams,
-        systemPrompt,
-        trigger: "manual",
-      },
+      snapshot,
+      trigger: "manual",
     });
     db.addActivity({
       companyId: task.companyId,
@@ -1684,13 +2721,13 @@ function registerHandlers() {
     return ok(run.id);
   });
 
-  registerHandle(IPC_CHANNELS.cancelRun, async (_event, payload) => {
+  registerHandle(IPC_CHANNELS.cancelRun, (_event, payload) => {
     const parsed = cancelRunSchema.parse(payload);
     worker?.postMessage({ type: "cancel-run", runId: parsed.runId });
     return ok(true);
   });
 
-  registerHandle(IPC_CHANNELS.getRunLog, async (_event, payload) => {
+  registerHandle(IPC_CHANNELS.getRunLog, (_event, payload) => {
     const parsed = runLogSchema.parse(payload);
     return ok(db.readRunLog(parsed.runId));
   });
@@ -1706,6 +2743,10 @@ function registerHandlers() {
   });
 
   registerHandle(IPC_CHANNELS.restoreProfile, async () => {
+    const hasActiveRuns = db.listSnapshot().runs.some((run) => run.status === "queued" || run.status === "running");
+    if (hasActiveRuns) {
+      return fail("RESTORE_BLOCKED", "Stop all active runs before restoring a profile backup.");
+    }
     const result = await dialog.showOpenDialog({
       properties: ["openDirectory"],
     });
@@ -1739,96 +2780,34 @@ function registerHandlers() {
     return ok(true);
   });
 
-  registerHandle(IPC_CHANNELS.deleteAgent, async (_event, payload) => {
-    const parsed = deleteEntitySchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    if (!db.belongsToCompany("agents", parsed.id, parsed.companyId)) {
-      return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
-    }
-    db.deleteAgent(parsed.id, parsed.companyId);
-    db.addActivity({ companyId: parsed.companyId, actor: "board", action: "agent.deleted", entityType: "agent", entityId: parsed.id, detail: "" });
-    publishDomainChanged();
-    return ok(true);
-  });
-
-  registerHandle(IPC_CHANNELS.deleteTask, async (_event, payload) => {
-    const parsed = deleteEntitySchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    if (!db.belongsToCompany("tasks", parsed.id, parsed.companyId)) {
-      return fail("TASK_NOT_FOUND", "Task not found in the current company.");
-    }
-    db.deleteTask(parsed.id, parsed.companyId);
-    db.addActivity({ companyId: parsed.companyId, actor: "board", action: "task.deleted", entityType: "task", entityId: parsed.id, detail: "" });
-    publishDomainChanged();
-    return ok(true);
-  });
-
-  registerHandle(IPC_CHANNELS.deleteGoal, async (_event, payload) => {
-    const parsed = deleteEntitySchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    if (!db.belongsToCompany("goals", parsed.id, parsed.companyId)) {
-      return fail("GOAL_NOT_FOUND", "Goal not found in the current company.");
-    }
-    db.deleteGoal(parsed.id, parsed.companyId);
-    db.addActivity({ companyId: parsed.companyId, actor: "board", action: "goal.deleted", entityType: "goal", entityId: parsed.id, detail: "" });
-    publishDomainChanged();
-    return ok(true);
-  });
-
-  registerHandle(IPC_CHANNELS.deleteProject, async (_event, payload) => {
-    const parsed = deleteEntitySchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    if (!db.belongsToCompany("projects", parsed.id, parsed.companyId)) {
-      return fail("PROJECT_NOT_FOUND", "Project not found in the current company.");
-    }
-    db.deleteProject(parsed.id, parsed.companyId);
-    db.addActivity({ companyId: parsed.companyId, actor: "board", action: "project.deleted", entityType: "project", entityId: parsed.id, detail: "" });
-    publishDomainChanged();
-    return ok(true);
-  });
-
-  registerHandle(IPC_CHANNELS.deleteWorkspace, async (_event, payload) => {
-    const parsed = deleteEntitySchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    if (!db.belongsToCompany("workspaces", parsed.id, parsed.companyId)) {
-      return fail("WORKSPACE_NOT_FOUND", "Workspace not found in the current company.");
-    }
-    db.deleteWorkspace(parsed.id, parsed.companyId);
-    db.addActivity({ companyId: parsed.companyId, actor: "board", action: "workspace.deleted", entityType: "workspace", entityId: parsed.id, detail: "" });
-    publishDomainChanged();
-    return ok(true);
-  });
-
-  registerHandle(IPC_CHANNELS.deleteApproval, async (_event, payload) => {
-    const parsed = deleteEntitySchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    if (!db.belongsToCompany("approvals", parsed.id, parsed.companyId)) {
-      return fail("APPROVAL_NOT_FOUND", "Approval not found in the current company.");
-    }
-    db.deleteApproval(parsed.id, parsed.companyId);
-    db.addActivity({ companyId: parsed.companyId, actor: "board", action: "approval.deleted", entityType: "approval", entityId: parsed.id, detail: "" });
-    publishDomainChanged();
-    return ok(true);
-  });
-
-  registerHandle(IPC_CHANNELS.deleteSecret, async (_event, payload) => {
-    const parsed = deleteEntitySchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    if (!db.belongsToCompany("secrets", parsed.id, parsed.companyId)) {
-      return fail("SECRET_NOT_FOUND", "Secret not found in the current company.");
-    }
-    db.deleteSecret(parsed.id, parsed.companyId);
-    db.addActivity({ companyId: parsed.companyId, actor: "board", action: "secret.deleted", entityType: "secret", entityId: parsed.id, detail: "" });
-    publishDomainChanged();
-    return ok(true);
-  });
+  const deleteHandlers: Array<{
+    channel: string;
+    table: CompanyScopedTable;
+    entity: string;
+    deleteFn: (id: string, companyId: string) => void;
+  }> = [
+    { channel: IPC_CHANNELS.deleteAgent, table: "agents", entity: "agent", deleteFn: (id, cid) => db.deleteAgent(id, cid) },
+    { channel: IPC_CHANNELS.deleteTask, table: "tasks", entity: "task", deleteFn: (id, cid) => db.deleteTask(id, cid) },
+    { channel: IPC_CHANNELS.deleteGoal, table: "goals", entity: "goal", deleteFn: (id, cid) => db.deleteGoal(id, cid) },
+    { channel: IPC_CHANNELS.deleteProject, table: "projects", entity: "project", deleteFn: (id, cid) => db.deleteProject(id, cid) },
+    { channel: IPC_CHANNELS.deleteWorkspace, table: "workspaces", entity: "workspace", deleteFn: (id, cid) => db.deleteWorkspace(id, cid) },
+    { channel: IPC_CHANNELS.deleteApproval, table: "approvals", entity: "approval", deleteFn: (id, cid) => db.deleteApproval(id, cid) },
+    { channel: IPC_CHANNELS.deleteSecret, table: "secrets", entity: "secret", deleteFn: (id, cid) => db.deleteSecret(id, cid) },
+  ];
+  for (const { channel, table, entity, deleteFn } of deleteHandlers) {
+    registerHandle(channel, async (_event, payload) => {
+      const parsed = deleteEntitySchema.parse(payload);
+      const companyError = ensureCompanyExists(parsed.companyId);
+      if (companyError) return companyError;
+      if (!db.belongsToCompany(table, parsed.id, parsed.companyId)) {
+        return fail(`${entity.toUpperCase()}_NOT_FOUND`, `${entity.charAt(0).toUpperCase() + entity.slice(1)} not found in the current company.`);
+      }
+      deleteFn(parsed.id, parsed.companyId);
+      db.addActivity({ companyId: parsed.companyId, actor: "board", action: `${entity}.deleted`, entityType: entity, entityId: parsed.id, detail: "" });
+      publishDomainChanged();
+      return ok(true);
+    });
+  }
 
   registerHandle(IPC_CHANNELS.getSidebarBadges, async (_event, companyId) => {
     let parsedCompanyId: string;
@@ -1839,8 +2818,6 @@ function registerHandlers() {
     }
     return ok(db.getSidebarBadges(parsedCompanyId));
   });
-
-  /* ─── Comments ────────────────────────────────────────────────────── */
 
   registerHandle(IPC_CHANNELS.addComment, async (_event, payload) => {
     const parsed = commentInputSchema.parse(payload);
@@ -1864,12 +2841,16 @@ function registerHandlers() {
     emitEvent({ type: "agent-message", taskId: parsed.taskId, comment });
     publishDomainChanged();
 
-    // Step 5c: Wake task assignee when Board/UI posts a comment
     try {
       const task = db.getTask(parsed.taskId);
       if (task.assigneeAgentId) {
         wakeAgentIfPossible(task.assigneeAgentId, task.companyId, "comment");
       }
+      dispatchAutomation("comment_posted", {
+        companyId: parsed.companyId,
+        taskId: parsed.taskId,
+        agentId: parsed.authorAgentId ?? undefined,
+      });
     } catch { /* ignore if task not found */ }
 
     return ok(comment.id);
@@ -1879,8 +2860,6 @@ function registerHandlers() {
     const parsed = listCommentsSchema.parse(payload);
     return ok(db.listComments(parsed.taskId));
   });
-
-  /* ─── Heartbeat ──────────────────────────────────────────────────── */
 
   registerHandle(IPC_CHANNELS.setHeartbeat, async (_event, payload) => {
     const parsed = heartbeatSettingsSchema.parse(payload);
@@ -1915,7 +2894,7 @@ function registerHandlers() {
     return ok(runId);
   });
 
-  registerHandle(IPC_CHANNELS.getApiPort, async () => {
+  registerHandle(IPC_CHANNELS.getApiPort, () => {
     return ok(apiServer?.getPort() ?? 0);
   });
 
@@ -1933,32 +2912,22 @@ function registerHandlers() {
     }
   });
 
-  // ── Inbox ──────────────────────────────────────────────────────────
-  registerHandle(IPC_CHANNELS.getInbox, (_event, ...args) => {
-    const companyId = companyIdSchema.parse(args[0]);
+  registerHandle(IPC_CHANNELS.getInbox, (_event, payload) => {
+    const companyId = companyIdSchema.parse(payload);
     const err = ensureCompanyExists(companyId);
     if (err) return err;
     return ok(db.getInbox(companyId));
   });
 
-  registerHandle(IPC_CHANNELS.dismissInboxItem, (_event, ...args) => {
-    const input = inboxDismissSchema.parse(args[0]);
-    const err = ensureCompanyExists(input.companyId);
-    if (err) return err;
-    // Dismiss is a no-op for now (items are computed on the fly)
-    return ok(true);
-  });
-
-  // ── Metrics ────────────────────────────────────────────────────────
-  registerHandle(IPC_CHANNELS.getCompanyMetrics, (_event, ...args) => {
-    const input = metricsQuerySchema.parse(args[0]);
+  registerHandle(IPC_CHANNELS.getCompanyMetrics, (_event, payload) => {
+    const input = metricsQuerySchema.parse(payload);
     const err = ensureCompanyExists(input.companyId);
     if (err) return err;
     return ok(db.getCompanyMetrics(input.companyId, input.days));
   });
 
-  registerHandle(IPC_CHANNELS.getAgentMetrics, (_event, ...args) => {
-    const input = metricsQuerySchema.parse(args[0]);
+  registerHandle(IPC_CHANNELS.getAgentMetrics, (_event, payload) => {
+    const input = metricsQuerySchema.parse(payload);
     const err = ensureCompanyExists(input.companyId);
     if (err) return err;
     if (!input.agentId) return fail("MISSING_AGENT_ID", "agentId is required");
@@ -1968,25 +2937,20 @@ function registerHandlers() {
     return ok(agentMetric);
   });
 
-  // ── Standup ────────────────────────────────────────────────────────
-  registerHandle(IPC_CHANNELS.getStandupReport, (_event, ...args) => {
-    const companyId = companyIdSchema.parse(args[0]);
+  registerHandle(IPC_CHANNELS.getStandupReport, (_event, payload) => {
+    const companyId = companyIdSchema.parse(payload);
     const err = ensureCompanyExists(companyId);
     if (err) return err;
     return ok(db.getStandupReport(companyId));
   });
 
-  // ── Templates ──────────────────────────────────────────────────────
-  registerHandle(IPC_CHANNELS.listCompanyTemplates, () => {
-    return ok(COMPANY_TEMPLATES);
-  });
+  registerHandle(IPC_CHANNELS.listCompanyTemplates, () => ok(COMPANY_TEMPLATES));
 
-  registerHandle(IPC_CHANNELS.applyCompanyTemplate, (_event, ...args) => {
-    const input = templateApplySchema.parse(args[0]);
+  registerHandle(IPC_CHANNELS.applyCompanyTemplate, (_event, payload) => {
+    const input = templateApplySchema.parse(payload);
     const template = getTemplate(input.templateId);
     if (!template) return fail("TEMPLATE_NOT_FOUND", "Company template not found");
 
-    // Create the company
     const companyId = db.saveCompany({
       name: input.companyName,
       description: input.companyDescription || template.description,
@@ -1994,7 +2958,6 @@ function registerHandlers() {
       autoApproveHires: true,
     });
 
-    // Create agents in order (so we can resolve reportsTo by index)
     const agentIds: string[] = [];
     const connectors = db.listSnapshot().connectors;
     const readyConnectors = connectors.filter(c => c.status === "ready");
@@ -2024,7 +2987,6 @@ function registerHandlers() {
       agentIds.push(agentId);
     }
 
-    // Create goals owned by the CEO (first agent)
     const ceoId = agentIds[0];
     for (const goalDef of template.goals) {
       db.saveGoal({
@@ -2037,15 +2999,12 @@ function registerHandlers() {
       });
     }
 
-    // Set current company
     db.setCurrentCompany(companyId);
 
-    // Enable heartbeat for CEO to kick off autonomous operation
     if (ceoId) {
-      db.setHeartbeat(ceoId, true, 120);
+      db.setHeartbeat(ceoId, true, 60);
     }
 
-    // Activity log
     db.addActivity({
       companyId,
       actor: "board",
@@ -2055,78 +3014,202 @@ function registerHandlers() {
       detail: `Created from template: ${template.name}`,
     });
 
-    emitEvent({ type: "domain-changed" });
+    const defaultRules: Array<{ name: string; description: string; trigger: string; action: string; conditionsJson?: string; actionConfigJson?: string; priority?: number }> = [
+      {
+        name: "Auto-assign new tasks",
+        description: "Automatically assign new unassigned tasks to the best-fit agent based on capabilities and workload.",
+        trigger: "task_created",
+        action: "assign_task",
+        priority: 90,
+      },
+      {
+        name: "Escalate blocked tasks",
+        description: "When a task is blocked, escalate to the assignee's manager.",
+        trigger: "task_blocked",
+        action: "escalate_to_manager",
+        actionConfigJson: JSON.stringify({ body: "A task assigned to your report is blocked and needs your attention." }),
+        priority: 85,
+      },
+      {
+        name: "Escalate completed work to manager",
+        description: "When a run completes successfully, escalate to the assignee's manager so they review the work.",
+        trigger: "run_completed",
+        action: "escalate_to_manager",
+        actionConfigJson: JSON.stringify({ body: "A task run has completed successfully. Please review the work and approve or send back for changes." }),
+        priority: 80,
+      },
+      {
+        name: "Reassign on run failure",
+        description: "When a run fails, attempt to reassign the task to another capable agent.",
+        trigger: "run_failed",
+        action: "reassign_task",
+        priority: 75,
+      },
+      {
+        name: "Budget alert at 80%",
+        description: "Send an alert when an agent reaches 80% of their monthly budget.",
+        trigger: "budget_threshold",
+        action: "send_message",
+        actionConfigJson: JSON.stringify({ subject: "Budget warning", body: "Agent is approaching budget limit (80% utilized).", priority: "urgent" }),
+        priority: 70,
+      },
+      {
+        name: "Notify department on task completion",
+        description: "When a run completes successfully, send a status update to the agent's department channel.",
+        trigger: "run_completed",
+        action: "send_message",
+        actionConfigJson: JSON.stringify({ channel: "department", subject: "Task completed", body: "A task has been completed successfully. Check the task details for more information.", priority: "low" }),
+        priority: 40,
+      },
+      {
+        name: "Wake new hire on approval",
+        description: "When a new agent hire is approved, immediately wake the new agent to start onboarding.",
+        trigger: "hire_approved",
+        action: "trigger_heartbeat",
+        actionConfigJson: JSON.stringify({}),
+        priority: 90,
+      },
+      {
+        name: "Auto-run assigned tasks",
+        description: "When a task transitions to 'todo' status, automatically wake the assigned agent to start working on it.",
+        trigger: "task_status_changed",
+        conditionsJson: JSON.stringify({ status: "todo" }),
+        action: "run_task",
+        actionConfigJson: JSON.stringify({}),
+        priority: 65,
+      },
+      {
+        name: "Notify company on sprint start",
+        description: "When a sprint starts, notify the entire company.",
+        trigger: "sprint_started",
+        action: "send_message",
+        actionConfigJson: JSON.stringify({ channel: "company", subject: "Sprint started", body: "A new sprint has begun. Check your assigned tasks and start execution.", priority: "normal" }),
+        priority: 50,
+      },
+      {
+        name: "Schedule retrospective on sprint end",
+        description: "When a sprint ends, schedule a retrospective meeting.",
+        trigger: "sprint_ended",
+        action: "schedule_meeting",
+        actionConfigJson: JSON.stringify({ meetingType: "retrospective", title: "Sprint Retrospective", durationMinutes: 45 }),
+        priority: 55,
+      },
+      {
+        name: "Create status report on schedule",
+        description: "Periodically create a status report document for the company.",
+        trigger: "schedule",
+        action: "create_document",
+        actionConfigJson: JSON.stringify({ documentType: "status_report", title: "Automated Status Report" }),
+        priority: 30,
+      },
+      {
+        name: "Auto-assign work to idle agents",
+        description: "When an agent has been idle for 10+ minutes, automatically assign available unassigned tasks from the backlog.",
+        trigger: "agent_idle",
+        action: "assign_task",
+        priority: 60,
+      },
+      {
+        name: "Wake idle agents to check for work",
+        description: "When an agent has no tasks and is idle, wake them so they can check for available work and coordinate with their team.",
+        trigger: "agent_idle",
+        action: "trigger_heartbeat",
+        priority: 45,
+      },
+    ];
+    for (const rule of defaultRules) {
+      db.saveAutomationRule({
+        companyId,
+        name: rule.name,
+        description: rule.description,
+        trigger: rule.trigger,
+        conditionsJson: rule.conditionsJson ?? "{}",
+        action: rule.action,
+        actionConfigJson: rule.actionConfigJson ?? "{}",
+        priority: rule.priority ?? 50,
+        status: "active",
+      });
+    }
+
+    for (const agentId of agentIds) {
+      if (agentId !== ceoId) {
+        db.setHeartbeat(agentId, true, 120); // 2 min interval for non-CEO
+      }
+    }
+
+    // Generate initial company messages so channels are populated from day one
+    generateInitialCompanyMessages(companyId, template, agentIds);
+
+    publishDomainChanged();
 
     return ok(companyId);
   });
 
-  // ── Social Accounts ────────────────────────────────────────────────
-  registerHandle(IPC_CHANNELS.saveSocialAccount, (_event, ...args) => {
-    const input = socialAccountInputSchema.parse(args[0]);
+  registerHandle(IPC_CHANNELS.saveSocialAccount, (_event, payload) => {
+    const input = socialAccountInputSchema.parse(payload);
     const err = ensureCompanyExists(input.companyId);
     if (err) return err;
     const id = db.saveSocialAccount(input);
-    emitEvent({ type: "domain-changed" });
+    publishDomainChanged();
     return ok(id);
   });
 
-  registerHandle(IPC_CHANNELS.deleteSocialAccount, (_event, ...args) => {
-    const input = deleteEntitySchema.parse(args[0]);
+  registerHandle(IPC_CHANNELS.deleteSocialAccount, (_event, payload) => {
+    const input = deleteEntitySchema.parse(payload);
     const err = ensureCompanyExists(input.companyId);
     if (err) return err;
     db.deleteSocialAccount(input.id, input.companyId);
-    emitEvent({ type: "domain-changed" });
+    publishDomainChanged();
     return ok(true);
   });
 
-  registerHandle(IPC_CHANNELS.listBrowserActions, (_event, ...args) => {
-    const input = browserActionQuerySchema.parse(args[0]);
+  registerHandle(IPC_CHANNELS.listBrowserActions, (_event, payload) => {
+    const input = browserActionQuerySchema.parse(payload);
     const err = ensureCompanyExists(input.companyId);
     if (err) return err;
-    const actions = db.listBrowserActions(input.companyId, {
+    return ok(db.listBrowserActions(input.companyId, {
       socialAccountId: input.socialAccountId,
       status: input.status,
       limit: input.limit,
-    });
-    return ok(actions);
+    }));
   });
 
-  registerHandle(IPC_CHANNELS.cancelBrowserAction, (_event, ...args) => {
-    const input = cancelRunSchema.parse(args[0]);
+  registerHandle(IPC_CHANNELS.cancelBrowserAction, (_event, payload) => {
+    const input = cancelRunSchema.parse(payload);
     db.updateBrowserAction(input.runId, { status: "cancelled" });
-    emitEvent({ type: "domain-changed" });
+    publishDomainChanged();
     return ok(true);
   });
 
-  registerHandle(IPC_CHANNELS.triggerBrowserLogin, async (_event, ...args) => {
-    const socialAccountId = z.string().uuid().parse(args[0]);
+  registerHandle(IPC_CHANNELS.triggerBrowserLogin, async (_event, payload) => {
+    const socialAccountId = z.string().uuid().parse(payload);
     if (!browserManager) {
       return fail("BROWSER_NOT_READY", "Browser manager not initialized");
     }
 
-    // Find the social account to get its platform
-    const snapshot = db.listSnapshot();
-    const account = snapshot.socialAccounts.find(a => a.id === socialAccountId);
+    const account = db.getSocialAccount(socialAccountId, db.getCurrentCompanyId() ?? randomFallbackCompanyId());
     if (!account) {
       return fail("ACCOUNT_NOT_FOUND", "Social account not found");
     }
 
-    // Launch login browser (this runs async - the browser stays open for user to login)
-    // We run it in background and don't block the IPC response
     browserManager.launchLoginBrowser(socialAccountId, account.platform).then(result => {
       if (result.success) {
+        const latestAccount = db.getSocialAccount(socialAccountId, account.companyId);
+        if (!latestAccount) {
+          return;
+        }
         db.saveSocialAccount({
-          id: account.id,
-          companyId: account.companyId,
-          platform: account.platform,
-          accountName: account.accountName,
-          displayName: account.displayName,
-          profileUrl: account.profileUrl,
-          credentialSecretId: account.credentialSecretId,
+          id: latestAccount.id,
+          companyId: latestAccount.companyId,
+          platform: latestAccount.platform,
+          accountName: latestAccount.accountName,
+          displayName: latestAccount.displayName,
+          profileUrl: latestAccount.profileUrl,
+          credentialSecretId: latestAccount.credentialSecretId,
           status: "logged_in",
-          requireApproval: account.requireApproval,
+          requireApproval: latestAccount.requireApproval,
         });
-        emitEvent({ type: "domain-changed" });
+        publishDomainChanged();
       }
     }).catch(err => {
       log.error(`[browser] Login failed: ${err}`);
@@ -2135,95 +3218,104 @@ function registerHandlers() {
     return ok(true);
   });
 
-  // ── Meetings ──────────────────────────────────────────────────────
   registerHandle(IPC_CHANNELS.saveMeeting, async (_event, payload) => {
     const parsed = meetingInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
     const id = db.saveMeeting(parsed);
-    emitEvent({ type: "domain-changed" });
+    publishDomainChanged();
     return ok(id);
   });
 
-  registerHandle(IPC_CHANNELS.deleteMeeting, async (_event, payload) => {
-    const parsed = deleteEntitySchema.parse(payload);
-    db.deleteMeeting(parsed.id, parsed.companyId);
-    emitEvent({ type: "domain-changed" });
-    return ok(true);
-  });
+  const simpleDeleteHandlers: Array<{ channel: string; table: Parameters<typeof db.belongsToCompany>[0]; entity: string; deleteFn: (id: string, companyId: string) => void }> = [
+    { channel: IPC_CHANNELS.deleteMeeting, table: "meetings", entity: "meeting", deleteFn: (id, cid) => db.deleteMeeting(id, cid) },
+    { channel: IPC_CHANNELS.deleteDocument, table: "documents", entity: "document", deleteFn: (id, cid) => db.deleteDocument(id, cid) },
+    { channel: IPC_CHANNELS.deleteKnowledgeEntry, table: "knowledge_base", entity: "knowledge entry", deleteFn: (id, cid) => db.deleteKnowledgeEntry(id, cid) },
+    { channel: IPC_CHANNELS.deleteSprint, table: "sprints", entity: "sprint", deleteFn: (id, cid) => db.deleteSprint(id, cid) },
+    { channel: IPC_CHANNELS.deleteAutomationRule, table: "automation_rules", entity: "automation rule", deleteFn: (id, cid) => db.deleteAutomationRule(id, cid) },
+    { channel: IPC_CHANNELS.deleteWorkflow, table: "workflow_pipelines", entity: "workflow", deleteFn: (id, cid) => db.deleteWorkflow(id, cid) },
+  ];
+  for (const { channel, table, entity, deleteFn } of simpleDeleteHandlers) {
+    registerHandle(channel, async (_event, payload) => {
+      const parsed = deleteEntitySchema.parse(payload);
+      const companyError = ensureCompanyExists(parsed.companyId);
+      if (companyError) return companyError;
+      if (!db.belongsToCompany(table, parsed.id, parsed.companyId)) {
+        return fail("ENTITY_NOT_FOUND", `${entity.charAt(0).toUpperCase() + entity.slice(1)} not found in the current company.`);
+      }
+      deleteFn(parsed.id, parsed.companyId);
+      publishDomainChanged();
+      return ok(true);
+    });
+  }
 
-  // ── Documents ─────────────────────────────────────────────────────
   registerHandle(IPC_CHANNELS.saveDocument, async (_event, payload) => {
     const parsed = documentInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
+    const isNew = !parsed.id;
     const id = db.saveDocument(parsed);
-    emitEvent({ type: "domain-changed" });
+    if (isNew) {
+      dispatchAutomation("document_created", {
+        companyId: parsed.companyId,
+        agentId: parsed.authorAgentId ?? undefined,
+        projectId: parsed.projectId ?? undefined,
+      });
+      // Wake document reviewer if specified
+      if (parsed.authorAgentId && parsed.reviewerAgentId) {
+        wakeAgentIfPossible(parsed.reviewerAgentId, parsed.companyId, "assignment");
+      }
+    }
+    publishDomainChanged();
     return ok(id);
   });
 
-  registerHandle(IPC_CHANNELS.deleteDocument, async (_event, payload) => {
-    const parsed = deleteEntitySchema.parse(payload);
-    db.deleteDocument(parsed.id, parsed.companyId);
-    emitEvent({ type: "domain-changed" });
-    return ok(true);
-  });
-
-  // ── Knowledge Base ────────────────────────────────────────────────
   registerHandle(IPC_CHANNELS.saveKnowledgeEntry, async (_event, payload) => {
     const parsed = knowledgeEntryInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
     const id = db.saveKnowledgeEntry(parsed);
-    emitEvent({ type: "domain-changed" });
+    publishDomainChanged();
     return ok(id);
   });
 
-  registerHandle(IPC_CHANNELS.deleteKnowledgeEntry, async (_event, payload) => {
-    const parsed = deleteEntitySchema.parse(payload);
-    db.deleteKnowledgeEntry(parsed.id, parsed.companyId);
-    emitEvent({ type: "domain-changed" });
-    return ok(true);
-  });
-
-  // ── Sprints ───────────────────────────────────────────────────────
   registerHandle(IPC_CHANNELS.saveSprint, async (_event, payload) => {
     const parsed = sprintInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
+    let previousSprintStatus: string | null = null;
+    if (parsed.id) {
+      try {
+        const existing = db.listSnapshot().sprints.find(s => s.id === parsed.id);
+        previousSprintStatus = existing?.status ?? null;
+      } catch { /* sprint is new */ }
+    }
     const id = db.saveSprint(parsed);
-    emitEvent({ type: "domain-changed" });
+    // Fire sprint_started when transitioning to active (not just on new sprints)
+    if (parsed.status === "active" && previousSprintStatus !== "active") {
+      dispatchAutomation("sprint_started", { companyId: parsed.companyId });
+    }
+    // Fire sprint_ended when transitioning to completed
+    if (parsed.status === "completed" && previousSprintStatus !== "completed") {
+      dispatchAutomation("sprint_ended", { companyId: parsed.companyId });
+    }
+    publishDomainChanged();
     return ok(id);
   });
 
-  registerHandle(IPC_CHANNELS.deleteSprint, async (_event, payload) => {
-    const parsed = deleteEntitySchema.parse(payload);
-    db.deleteSprint(parsed.id, parsed.companyId);
-    emitEvent({ type: "domain-changed" });
-    return ok(true);
-  });
-
-  // ── Automation Rules ───────────────────────────────────────────────
   registerHandle(IPC_CHANNELS.saveAutomationRule, async (_event, payload) => {
     const parsed = automationRuleInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
     const id = db.saveAutomationRule(parsed);
-    emitEvent({ type: "domain-changed" });
+    publishDomainChanged();
     return ok(id);
   });
 
-  registerHandle(IPC_CHANNELS.deleteAutomationRule, async (_event, payload) => {
-    const parsed = deleteEntitySchema.parse(payload);
-    db.deleteAutomationRule(parsed.id, parsed.companyId);
-    emitEvent({ type: "domain-changed" });
-    return ok(true);
-  });
-
   registerHandle(IPC_CHANNELS.toggleAutomationRule, async (_event, payload) => {
-    const parsed = z.object({ id: z.string().uuid(), companyId: z.string().uuid(), status: z.enum(["active", "paused"]) }).parse(payload);
+    const parsed = toggleAutomationRuleSchema.parse(payload);
     db.toggleAutomationRule(parsed.id, parsed.companyId, parsed.status);
-    emitEvent({ type: "domain-changed" });
+    publishDomainChanged();
     return ok(true);
   });
 
@@ -2232,64 +3324,88 @@ function registerHandlers() {
     return ok(db.getAutomationLog(parsed));
   });
 
-  // ── Agent Messages ─────────────────────────────────────────────────
   registerHandle(IPC_CHANNELS.sendAgentMessage, async (_event, payload) => {
     const parsed = agentMessageInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
+    if (parsed.channel === "direct" && !parsed.toAgentId) {
+      return fail("DIRECT_MESSAGE_RECIPIENT_REQUIRED", "Direct messages require a recipient agent.");
+    }
+    const invalidReference = findInvalidReference(parsed.companyId, [
+      { id: parsed.toAgentId, table: "agents", label: "message recipient" },
+      { id: parsed.channel === "project" ? parsed.channelTargetId : null, table: "projects", label: "project channel" },
+    ]);
+    if (invalidReference) {
+      return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
+    }
     const id = db.sendAgentMessage(parsed);
-    // Notify recipient via event
     const msg = db.listAgentMessages(parsed.companyId, { limit: 1 })?.[0];
     if (msg) emitEvent({ type: "new-message", message: msg });
-    emitEvent({ type: "domain-changed" });
+    publishDomainChanged();
+    // Wake the recipient agent so they can respond
+    if (parsed.toAgentId) {
+      wakeAgentIfPossible(parsed.toAgentId, parsed.companyId, "message");
+    }
+    // For department messages, wake agents in the department
+    if (parsed.channel === "department" && parsed.channelTargetId) {
+      const deptAgents = db.getIdleAgentsForDepartment(parsed.companyId, parsed.channelTargetId);
+      for (const agent of deptAgents.filter((a) => a.id !== parsed.fromAgentId).slice(0, 3)) {
+        wakeAgentIfPossible(agent.id, parsed.companyId, "message");
+      }
+    }
+    // For company-wide messages, wake the CEO so leadership responds
+    if (parsed.channel === "company") {
+      const snapshot = db.listSnapshot();
+      const ceo = snapshot.agents.find((a) => a.companyId === parsed.companyId && !a.reportsTo && a.status !== "terminated");
+      if (ceo && ceo.id !== parsed.fromAgentId) {
+        wakeAgentIfPossible(ceo.id, parsed.companyId, "message");
+      }
+    }
     return ok(id);
   });
 
   registerHandle(IPC_CHANNELS.listAgentMessages, async (_event, payload) => {
     const parsed = messageQuerySchema.parse(payload);
-    return ok(db.listAgentMessages(parsed.companyId, parsed));
+    return ok(db.listAgentMessages(parsed.companyId, {
+      agentId: parsed.agentId,
+      channel: parsed.channel,
+      channelTargetId: parsed.channelTargetId,
+      unreadOnly: parsed.unreadOnly,
+      limit: parsed.limit,
+    }));
   });
 
   registerHandle(IPC_CHANNELS.markMessageRead, async (_event, payload) => {
-    const parsed = z.object({ messageId: z.string().uuid(), companyId: z.string().uuid() }).parse(payload);
+    const parsed = markMessageReadSchema.parse(payload);
     db.markMessageRead(parsed.messageId, parsed.companyId);
     return ok(true);
   });
 
-  // ── Workflows ──────────────────────────────────────────────────────
   registerHandle(IPC_CHANNELS.saveWorkflow, async (_event, payload) => {
     const parsed = workflowInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
     const id = db.saveWorkflow(parsed);
-    emitEvent({ type: "domain-changed" });
+    publishDomainChanged();
     return ok(id);
   });
 
-  registerHandle(IPC_CHANNELS.deleteWorkflow, async (_event, payload) => {
-    const parsed = deleteEntitySchema.parse(payload);
-    db.deleteWorkflow(parsed.id, parsed.companyId);
-    emitEvent({ type: "domain-changed" });
-    return ok(true);
-  });
-
   registerHandle(IPC_CHANNELS.runWorkflow, async (_event, payload) => {
-    const parsed = z.object({ id: z.string().uuid(), companyId: z.string().uuid() }).parse(payload);
+    const parsed = runWorkflowSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    db.activateWorkflow(parsed.id, parsed.companyId);
-    emitEvent({ type: "domain-changed" });
+    await runWorkflowPipeline(parsed.id, parsed.companyId);
+    publishDomainChanged();
     return ok(true);
   });
 
-  // ── Auto-Assign ────────────────────────────────────────────────────
   registerHandle(IPC_CHANNELS.autoAssignTask, async (_event, payload) => {
     const parsed = autoAssignSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
     const agentId = db.autoAssignTask(parsed.taskId, parsed.companyId);
     if (!agentId) return fail("NO_AVAILABLE_AGENT", "No available agent could be found for this task.");
-    emitEvent({ type: "domain-changed" });
+    publishDomainChanged();
     return ok(agentId);
   });
 }
@@ -2314,9 +3430,7 @@ async function bootstrap() {
   await app.whenReady();
   log.initialize();
 
-  // Resolve the user's full shell PATH for packaged apps.
-  // The static PATH fix above covers common directories, but the login shell
-  // may have additional paths from .zshrc, .bashrc, nvm, pyenv, etc.
+  // Resolve additional PATH entries from the user's login shell
   if (process.platform !== "win32") {
     try {
       const userShell = process.env.SHELL || "/bin/zsh";
@@ -2340,12 +3454,9 @@ async function bootstrap() {
           log.info(`[path] Added ${toAdd.length} shell PATH entries.`);
         }
       }
-    } catch {
-      // Non-fatal — static PATH fix is already in place
-    }
+    } catch { /* non-fatal */ }
   }
 
-  // Set app icon for dock/taskbar (applies even during dev)
   const appIcon = nativeImage.createFromPath(ICON_PATH);
   if (!appIcon.isEmpty()) {
     if (process.platform === "darwin" && app.dock) {
@@ -2361,53 +3472,39 @@ async function bootstrap() {
   db = new AppDatabase(process.env.AGENTCOMPANY_PROFILE_DIR ?? join(app.getPath("userData"), "profile"));
   db.init();
   buildMenu();
+  createTray();
   createWorker();
   registerHandlers();
 
-  // Start local API server for agent-to-system interaction
   apiServer = new AgentApiServer(db, publishDomainChanged, (agentId, companyId, trigger) => {
-    wakeAgentIfPossible(agentId, companyId, trigger);
+    return wakeAgentIfPossible(agentId, companyId, trigger);
+  }, {
+    onDomainChanged: publishDomainChanged,
+    onWakeAgent: (agentId, companyId, trigger) => wakeAgentIfPossible(agentId, companyId, trigger),
+    onTaskCreated: (taskId, companyId) => handleTaskCreated(taskId, companyId),
+    onTaskStatusChanged: (taskId, companyId, prev, next) => handleTaskStatusChange(taskId, companyId, prev, next),
+    onCommentPosted: (taskId, companyId, authorAgentId) => {
+      dispatchAutomation("comment_posted", { companyId, taskId, agentId: authorAgentId ?? undefined });
+    },
+    onApprovalResolved: (approvalId, companyId, decision) => handleApprovalResolved(approvalId, companyId, decision),
+    onDocumentCreated: (companyId, authorAgentId, projectId) => {
+      dispatchAutomation("document_created", { companyId, agentId: authorAgentId ?? undefined, projectId: projectId ?? undefined });
+    },
+    onAutoAssignTask: (taskId, companyId) => db.autoAssignTask(taskId, companyId),
   });
   await apiServer.start();
 
-  // Initialize browser manager for social media automation
   browserManager = new BrowserManager(join(app.getPath("userData"), "browser-data"));
 
-  // Wire browser action handler
   if (apiServer && browserManager) {
-    const bm = browserManager;
-    apiServer.setBrowserActionHandler(async (actionId, socialAccountId, actionType, payload) => {
-      try {
-        db.updateBrowserAction(actionId, { status: "running", startedAt: new Date().toISOString() });
-        emitEvent({ type: "domain-changed" });
-
-        const result = await bm.executeAction({
-          id: actionId,
-          socialAccountId,
-          actionType,
-          payload,
-        });
-
-        db.updateBrowserAction(actionId, {
-          status: result.success ? "succeeded" : "failed",
-          resultSummary: result.summary,
-          screenshotPath: result.screenshotPath,
-          errorMessage: result.error,
-          finishedAt: new Date().toISOString(),
-        });
-        emitEvent({ type: "domain-changed" });
-      } catch (error) {
-        db.updateBrowserAction(actionId, {
-          status: "failed",
-          errorMessage: error instanceof Error ? error.message : String(error),
-          finishedAt: new Date().toISOString(),
-        });
-        emitEvent({ type: "domain-changed" });
-      }
+    apiServer.setBrowserActionHandler(async (actionId, companyId, socialAccountId, actionType, payload) => {
+      void socialAccountId;
+      void actionType;
+      void payload;
+      await dispatchBrowserAction(actionId, companyId);
     });
   }
 
-  // Start heartbeat scheduler for continuous agent operation
   startHeartbeatScheduler();
 
   await createWindow();
@@ -2451,9 +3548,7 @@ app.on("second-instance", () => {
   mainWindow.focus();
 });
 
-app.on("window-all-closed", () => {
-  // Keep the process alive so scheduled automation and background runs continue.
-});
+app.on("window-all-closed", () => {});
 
 app.on("before-quit", () => {
   isQuitting = true;
@@ -2463,6 +3558,8 @@ app.on("before-quit", () => {
   apiServer = null;
   browserManager?.shutdown();
   browserManager = null;
+  appTray?.destroy();
+  appTray = null;
   worker?.kill();
   worker = null;
   db?.close();

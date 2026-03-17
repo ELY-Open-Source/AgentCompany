@@ -27,9 +27,12 @@ test("first launch onboarding creates a company and opens the desktop shell", as
   try {
     const page = await app.firstWindow();
     await expect(page.getByText("AgentCompany Desktop")).toBeVisible();
+    await page.getByRole("button", { name: /Custom Setup/i }).click();
     await page.getByLabel("Company name").fill("Orbit Foundry");
     await page.getByLabel("Workspace folder").fill(workspaceDir);
-    await page.getByRole("button", { name: /Continue to dashboard/i }).click();
+    await page.getByRole("button", { name: /^Continue$/i }).click();
+    await page.getByLabel("Goal").fill("Launch the company");
+    await page.getByRole("button", { name: /Launch your company/i }).click();
 
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
     // Company name is rendered in a custom dropdown trigger button in the sidebar.

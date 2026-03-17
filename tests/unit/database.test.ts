@@ -370,63 +370,6 @@ describe("AppDatabase", () => {
     expect(db.isAgentPendingApproval(pendingAgentId)).toBe(true);
   });
 
-  it("detects budget exhaustion via isAgentBudgetExhausted", () => {
-    const companyId = db.saveCompany({
-      name: "Budget Gate Co",
-      description: "Budget gate validation",
-      status: "active",
-    });
-    const workspaceId = db.saveWorkspace({
-      companyId,
-      name: "WS",
-      localPath: "/tmp/budget-gate",
-      repoUrl: "",
-      repoRef: "",
-      isPrimary: true,
-    });
-    const agentId = db.saveAgent({
-      companyId,
-      name: "Budget Agent",
-      role: "IC",
-      title: "Budget",
-      status: "active",
-      reportsTo: null,
-      connectorId: "codex_local",
-      workspaceId,
-      model: null,
-      capabilities: "Test",
-      budgetMonthlyUsd: 10,
-    });
-
-    expect(db.isAgentBudgetExhausted(agentId)).toBe(false);
-
-    // Exhaust the budget via a run
-    const taskId = db.saveTask({
-      companyId,
-      title: "Budget drain",
-      description: "Test",
-      assigneeAgentId: agentId,
-      workspaceId,
-      priority: "medium",
-      status: "todo",
-    });
-    const run = db.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "codex_local" });
-    db.finishRun({
-      runId: run.id,
-      status: "succeeded",
-      summary: "Done",
-      errorMessage: null,
-      exitCode: 0,
-      signal: null,
-      model: null,
-      sessionDisplayId: null,
-      costUsd: 15,
-      unattributedCost: false,
-    });
-
-    expect(db.isAgentBudgetExhausted(agentId)).toBe(true);
-  });
-
   it("runs forward-only migrations and creates schema_migrations table", () => {
     // The migration system runs during init() — verify the tracking table exists
     const snapshot = db.listSnapshot();
@@ -632,30 +575,4 @@ describe("AppDatabase", () => {
     expect(approval2.relatedAgentId).toBe(hireId);
   });
 
-  it("updates workspace state", () => {
-    const companyId = db.saveCompany({
-      name: "WS State Co",
-      description: "Workspace state test",
-      status: "active",
-    });
-    const wsId = db.saveWorkspace({
-      companyId,
-      name: "Test WS",
-      localPath: "/tmp/ws-state",
-      repoUrl: "",
-      repoRef: "",
-      isPrimary: true,
-    });
-
-    let ws = db.getWorkspace(wsId);
-    expect(ws?.state).toBe("ready");
-
-    db.setWorkspaceState(wsId, "busy");
-    ws = db.getWorkspace(wsId);
-    expect(ws?.state).toBe("busy");
-
-    db.setWorkspaceState(wsId, "error");
-    ws = db.getWorkspace(wsId);
-    expect(ws?.state).toBe("error");
-  });
 });

@@ -5,7 +5,6 @@ import {
   EnvelopeSimple,
   At,
   Hash,
-  UserCircle,
   PaperPlaneTilt,
   MagnifyingGlass,
   Funnel,
@@ -19,21 +18,20 @@ import {
   Plus,
   X,
   CaretDown,
-  Robot,
   Tray,
 } from "@phosphor-icons/react"
 import type {
   AgentMessageRecord,
   AgentRecord,
+  CommentRecord,
   DepartmentId,
   MessageChannel,
   MessagePriority,
+  TaskRecord,
 } from "@shared/types"
-import { ActionButton, Modal, Select, Input, TextArea } from "./ui"
-
-/* ------------------------------------------------------------------ */
-/*  Constants & Config                                                  */
-/* ------------------------------------------------------------------ */
+import { getAgentInitials, formatMessageTime } from "../lib/formatters"
+import { DEPARTMENT_COLORS } from "@shared/constants"
+import { Modal, Select, Input, TextArea } from "./ui"
 
 const TERRACOTTA = "#d97745"
 const TERRACOTTA_SOFT = "#d9774518"
@@ -52,88 +50,26 @@ const priorityConfig: Record<MessagePriority, { label: string; color: string; bg
   low: { label: "Low", color: "var(--muted)", bg: "var(--panel-soft)" },
 }
 
-const departmentColors: Record<string, string> = {
-  executive: "#8b5cf6",
-  engineering: "#3b82f6",
-  product: "#f59e0b",
-  marketing: "#ec4899",
-  sales: "#10b981",
-  hr: "#6366f1",
-  finance: "#14b8a6",
-  legal: "#a78bfa",
-  operations: "#f97316",
-  customer_support: "#06b6d4",
-  research: "#8b5cf6",
-  design: "#f43f5e",
-}
-
 function getDepartmentColor(department: DepartmentId | null | undefined): string {
   if (!department) return "var(--muted)"
-  return departmentColors[department] ?? "var(--muted)"
+  return DEPARTMENT_COLORS[department] ?? "var(--muted)"
 }
-
-function getAgentInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-}
-
-function timeAgo(dateStr: string): string {
-  const now = Date.now()
-  const then = new Date(dateStr).getTime()
-  const diff = Math.max(0, now - then)
-  const seconds = Math.floor(diff / 1000)
-  if (seconds < 60) return "just now"
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
-
-function formatMessageTime(dateStr: string): string {
-  const d = new Date(dateStr)
-  const now = new Date()
-  const isToday =
-    d.getDate() === now.getDate() &&
-    d.getMonth() === now.getMonth() &&
-    d.getFullYear() === now.getFullYear()
-
-  if (isToday) {
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  }
-
-  const yesterday = new Date(now)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const isYesterday =
-    d.getDate() === yesterday.getDate() &&
-    d.getMonth() === yesterday.getMonth() &&
-    d.getFullYear() === yesterday.getFullYear()
-
-  if (isYesterday) {
-    return `Yesterday ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-  }
-
-  return d.toLocaleDateString([], { month: "short", day: "numeric" }) +
-    " " +
-    d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-}
-
-/* ------------------------------------------------------------------ */
-/*  Channel Derivation                                                  */
-/* ------------------------------------------------------------------ */
 
 interface ChannelDescriptor {
   key: string
+  kind: "message"
   channel: MessageChannel
   label: string
   targetId: string | null
   /** Agent ID for DM channels */
   agentId: string | null
+}
+
+interface TaskDiscussionDescriptor {
+  key: string
+  kind: "task"
+  taskId: string
+  label: string
 }
 
 function deriveChannels(
@@ -143,6 +79,37 @@ function deriveChannels(
   const channelMap = new Map<string, ChannelDescriptor>()
   const agentMap = new Map(agents.map((a) => [a.id, a]))
 
+  // Always create company-wide channel
+  channelMap.set("company-all", {
+    key: "company-all",
+    kind: "message",
+    channel: "company",
+    label: "#company-wide",
+    targetId: null,
+    agentId: null,
+  })
+
+  // Create permanent department channels for all departments that have agents
+  const activeDepts = new Set<string>()
+  for (const agent of agents) {
+    if (agent.department && agent.status !== "terminated") {
+      activeDepts.add(agent.department)
+    }
+  }
+  for (const dept of activeDepts) {
+    const key = `department-${dept}`
+    const deptLabel = dept.replace(/_/g, "-")
+    channelMap.set(key, {
+        key,
+        kind: "message",
+        channel: "department",
+      label: `#${deptLabel}`,
+      targetId: dept,
+      agentId: null,
+    })
+  }
+
+  // Add channels derived from existing messages (DMs, projects, incidents)
   for (const msg of messages) {
     let key: string
     let label: string
@@ -166,7 +133,7 @@ function deriveChannels(
       case "department": {
         const dept = msg.channelTargetId ?? "general"
         key = `department-${dept}`
-        label = `#${dept.replace("_", "-")}`
+        label = `#${dept.replace(/_/g, "-")}`
         break
       }
       case "company": {
@@ -191,23 +158,13 @@ function deriveChannels(
     if (!channelMap.has(key)) {
       channelMap.set(key, {
         key,
+        kind: "message",
         channel: msg.channel,
         label,
         targetId: msg.channelTargetId,
         agentId,
       })
     }
-  }
-
-  // Ensure at least one company-wide channel exists
-  if (!channelMap.has("company-all")) {
-    channelMap.set("company-all", {
-      key: "company-all",
-      channel: "company",
-      label: "#company-wide",
-      targetId: null,
-      agentId: null,
-    })
   }
 
   const order: MessageChannel[] = ["company", "department", "project", "incident", "direct"]
@@ -217,6 +174,25 @@ function deriveChannels(
     if (ai !== bi) return ai - bi
     return a.label.localeCompare(b.label)
   })
+}
+
+function deriveTaskDiscussionChannels(
+  comments: CommentRecord[],
+  tasks: TaskRecord[],
+): TaskDiscussionDescriptor[] {
+  const taskMap = new Map(tasks.map((task) => [task.id, task]))
+  const discussedTaskIds = new Set(comments.map((comment) => comment.taskId))
+  return Array.from(discussedTaskIds)
+    .map((taskId) => {
+      const task = taskMap.get(taskId)
+      return {
+        key: `task-${taskId}`,
+        kind: "task" as const,
+        taskId,
+        label: task?.title ?? `Task ${taskId.slice(0, 8)}`,
+      }
+    })
+    .sort((a, b) => a.label.localeCompare(b.label))
 }
 
 function getChannelMessages(
@@ -244,10 +220,6 @@ function getChannelMessages(
   })
 }
 
-/* ------------------------------------------------------------------ */
-/*  Agent Avatar                                                        */
-/* ------------------------------------------------------------------ */
-
 function AgentAvatar({
   agent,
   size = "md",
@@ -268,10 +240,6 @@ function AgentAvatar({
     </div>
   )
 }
-
-/* ------------------------------------------------------------------ */
-/*  Channel Sidebar Item                                                */
-/* ------------------------------------------------------------------ */
 
 function ChannelItem({
   descriptor,
@@ -346,35 +314,22 @@ function ChannelItem({
   )
 }
 
-/* ------------------------------------------------------------------ */
-/*  Message Bubble                                                      */
-/* ------------------------------------------------------------------ */
-
 function MessageBubble({
   message,
   agent,
   isThread,
   replyCount,
   onReply,
-  onMarkRead,
 }: {
   message: AgentMessageRecord
   agent: AgentRecord | undefined
   isThread: boolean
   replyCount: number
   onReply: () => void
-  onMarkRead: () => void
 }) {
   const isUnread = !message.readAt
   const isUrgent = message.priority === "urgent"
   const deptColor = agent ? getDepartmentColor(agent.department) : "var(--muted)"
-
-  useEffect(() => {
-    if (isUnread) {
-      const timer = setTimeout(onMarkRead, 1500)
-      return () => clearTimeout(timer)
-    }
-  }, [isUnread, onMarkRead])
 
   return (
     <motion.div
@@ -466,14 +421,12 @@ function MessageBubble({
           )}
         </div>
 
-        {/* Subject */}
         {message.subject ? (
           <div className="mt-0.5 text-[13px] font-medium text-[color:var(--text)]">
             {message.subject}
           </div>
         ) : null}
 
-        {/* Body */}
         <div className="mt-1 whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--muted-strong)]">
           {message.body}
         </div>
@@ -510,9 +463,102 @@ function MessageBubble({
   )
 }
 
-/* ------------------------------------------------------------------ */
-/*  Attachment List                                                     */
-/* ------------------------------------------------------------------ */
+function TaskCommentBubble({
+  comment,
+  agent,
+}: {
+  comment: CommentRecord
+  agent: AgentRecord | undefined
+}) {
+  const isBoard = !comment.authorAgentId
+  const deptColor = agent ? getDepartmentColor(agent.department) : "var(--muted)"
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18 }}
+      className="group relative flex gap-3 rounded-[10px] border-l-[3px] bg-[color:var(--panel)] px-4 py-3"
+      style={{ borderLeftColor: isBoard ? TERRACOTTA : deptColor }}
+    >
+      <AgentAvatar agent={agent} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] font-semibold" style={{ color: isBoard ? TERRACOTTA : deptColor }}>
+            {comment.authorName}
+          </span>
+          {agent?.title ? <span className="text-[10px] text-[color:var(--muted)]">{agent.title}</span> : null}
+          <span className="text-[10px] text-[color:var(--muted)]">{formatMessageTime(comment.createdAt)}</span>
+        </div>
+        <div className="mt-1 whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--muted-strong)]">
+          {comment.body}
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+function TaskDiscussionComposer({
+  companyId,
+  taskId,
+  onSent,
+}: {
+  companyId: string
+  taskId: string
+  onSent: () => void
+}) {
+  const [body, setBody] = useState("")
+  const [sending, setSending] = useState(false)
+
+  const handleSend = useCallback(async () => {
+    if (!body.trim()) return
+    setSending(true)
+    try {
+      await window.agentCompany.addComment({
+        companyId,
+        taskId,
+        authorName: "Board",
+        body: body.trim(),
+      })
+      setBody("")
+      onSent()
+    } finally {
+      setSending(false)
+    }
+  }, [body, companyId, taskId, onSent])
+
+  return (
+    <div className="border-t border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3">
+      <div className="flex items-end gap-2">
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder="Reply in task discussion..."
+          rows={2}
+          className="min-h-[40px] min-w-0 flex-1 resize-none rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-3 py-2 text-[12px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:border-transparent focus:outline-none focus:ring-2"
+          style={{ focusRingColor: TERRACOTTA } as React.CSSProperties}
+        />
+        <button
+          type="button"
+          onClick={() => void handleSend()}
+          disabled={!body.trim() || sending}
+          className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[8px] text-white transition hover:brightness-90 active:translate-y-px disabled:opacity-40 disabled:pointer-events-none"
+          style={{ backgroundColor: TERRACOTTA }}
+          aria-label="Send task comment"
+        >
+          {sending ? (
+            <svg className="h-4 w-4 animate-spin" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.3" />
+              <path d="M14 8a6 6 0 0 0-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <PaperPlaneTilt size={18} weight="fill" />
+          )}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function AttachmentList({ json }: { json: string }) {
   let items: Array<{ type: string; id: string; title: string }> = []
@@ -537,10 +583,6 @@ function AttachmentList({ json }: { json: string }) {
     </div>
   )
 }
-
-/* ------------------------------------------------------------------ */
-/*  Message Composer                                                    */
-/* ------------------------------------------------------------------ */
 
 interface MessageComposerProps {
   agents: AgentRecord[]
@@ -595,7 +637,7 @@ function MessageComposer({
       setSubject("")
       onSent()
     } catch (err) {
-      console.error("[MessageComposer] send failed:", err)
+      void err
     } finally {
       setSending(false)
     }
@@ -615,7 +657,6 @@ function MessageComposer({
 
   return (
     <div className="border-t border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3">
-      {/* Reply indicator */}
       <AnimatePresence>
         {replyTo ? (
           <motion.div
@@ -640,7 +681,6 @@ function MessageComposer({
         ) : null}
       </AnimatePresence>
 
-      {/* Sender selector row */}
       <div className="mb-2 flex items-center gap-2">
         <AgentAvatar agent={fromAgent} size="sm" />
         <select
@@ -665,7 +705,6 @@ function MessageComposer({
         ) : null}
       </div>
 
-      {/* Body input */}
       <div className="flex items-end gap-2">
         <textarea
           ref={textareaRef}
@@ -701,10 +740,6 @@ function MessageComposer({
     </div>
   )
 }
-
-/* ------------------------------------------------------------------ */
-/*  Compose New Message Modal                                           */
-/* ------------------------------------------------------------------ */
 
 interface ComposeModalProps {
   open: boolean
@@ -748,14 +783,13 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
         parentMessageId: null,
         attachmentsJson: "[]",
       })
-      // Reset form
       setSubject("")
       setBody("")
       setPriority("normal")
       onSent()
       onClose()
     } catch (err) {
-      console.error("[ComposeModal] send failed:", err)
+      void err
     } finally {
       setSending(false)
     }
@@ -764,7 +798,6 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
   return (
     <Modal open={open} title="Compose Message" onClose={onClose} width="560px">
       <div className="space-y-4">
-        {/* From */}
         <Select
           label="From Agent"
           value={fromAgentId}
@@ -775,7 +808,6 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
           }))}
         />
 
-        {/* Channel type */}
         <Select
           label="Channel"
           value={channel}
@@ -789,7 +821,6 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
           ]}
         />
 
-        {/* Channel target */}
         {channel === "direct" ? (
           <Select
             label="To Agent"
@@ -827,7 +858,6 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
           />
         ) : null}
 
-        {/* Subject */}
         <Input
           label="Subject"
           value={subject}
@@ -835,7 +865,6 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
           placeholder="Message subject"
         />
 
-        {/* Body */}
         <TextArea
           label="Message"
           value={body}
@@ -844,7 +873,6 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
           rows={5}
         />
 
-        {/* Priority */}
         <Select
           label="Priority"
           value={priority}
@@ -856,7 +884,6 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
           ]}
         />
 
-        {/* Actions */}
         <div className="flex justify-end gap-3 pt-2">
           <button
             type="button"
@@ -887,10 +914,6 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
     </Modal>
   )
 }
-
-/* ------------------------------------------------------------------ */
-/*  Search & Filter Bar                                                 */
-/* ------------------------------------------------------------------ */
 
 interface FilterState {
   search: string
@@ -1030,27 +1053,29 @@ function FilterBar({
   )
 }
 
-/* ------------------------------------------------------------------ */
-/*  Main: CommunicationHub                                              */
-/* ------------------------------------------------------------------ */
-
 interface CommunicationHubProps {
   messages: AgentMessageRecord[]
+  comments: CommentRecord[]
+  tasks: TaskRecord[]
   agents: AgentRecord[]
   companyId: string
+  selectedEntityId?: string | null
   onRefresh: () => void
 }
 
 export function CommunicationHub({
   messages,
+  comments,
+  tasks,
   agents,
   companyId,
+  selectedEntityId,
   onRefresh,
 }: CommunicationHubProps) {
   const [selectedChannelKey, setSelectedChannelKey] = useState<string | null>(null)
-  const [replyTo, setReplyTo] = useState<AgentMessageRecord | null>(null)
-  const [showCompose, setShowCompose] = useState(false)
   const [showSidebar, setShowSidebar] = useState(true)
+  const [showCompose, setShowCompose] = useState(false)
+  const [replyTo, setReplyTo] = useState<AgentMessageRecord | null>(null)
   const [filters, setFilters] = useState<FilterState>({
     search: "",
     channelType: "all",
@@ -1062,7 +1087,9 @@ export function CommunicationHub({
   const agentMap = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents])
 
   // Derive channels from messages
-  const channels = useMemo(() => deriveChannels(messages, agents), [messages, agents])
+  const messageChannels = useMemo(() => deriveChannels(messages, agents), [messages, agents])
+  const taskDiscussionChannels = useMemo(() => deriveTaskDiscussionChannels(comments, tasks), [comments, tasks])
+  const channels = useMemo(() => [...messageChannels, ...taskDiscussionChannels], [messageChannels, taskDiscussionChannels])
 
   // Auto-select first channel
   useEffect(() => {
@@ -1071,6 +1098,27 @@ export function CommunicationHub({
     }
   }, [channels, selectedChannelKey])
 
+  useEffect(() => {
+    if (!selectedEntityId) return
+    const matchingMessage = messages.find((message) => message.id === selectedEntityId)
+    if (matchingMessage) {
+      const matchingChannel = messageChannels.find((channel) => getChannelMessages(messages, channel).some((message) => message.id === selectedEntityId))
+      if (matchingChannel) {
+        setSelectedChannelKey(matchingChannel.key)
+      }
+      return
+    }
+    const matchingComment = comments.find((comment) => comment.id === selectedEntityId)
+    if (matchingComment) {
+      setSelectedChannelKey(`task-${matchingComment.taskId}`)
+      return
+    }
+    const matchingTaskDiscussion = taskDiscussionChannels.find((discussion) => discussion.taskId === selectedEntityId)
+    if (matchingTaskDiscussion) {
+      setSelectedChannelKey(matchingTaskDiscussion.key)
+    }
+  }, [selectedEntityId, messages, comments, messageChannels, taskDiscussionChannels])
+
   const activeChannel = useMemo(
     () => channels.find((c) => c.key === selectedChannelKey) ?? null,
     [channels, selectedChannelKey],
@@ -1078,15 +1126,31 @@ export function CommunicationHub({
 
   // Messages for the selected channel
   const channelMessages = useMemo(() => {
-    if (!activeChannel) return []
+    if (!activeChannel || activeChannel.kind !== "message") return []
     return getChannelMessages(messages, activeChannel).sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     )
   }, [messages, activeChannel])
 
+  const taskDiscussionComments = useMemo(() => {
+    if (!activeChannel || activeChannel.kind !== "task") return []
+    return comments
+      .filter((comment) => comment.taskId === activeChannel.taskId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+  }, [comments, activeChannel])
+
+  const activeTask = useMemo(() => {
+    if (!activeChannel || activeChannel.kind !== "task") return null
+    return tasks.find((task) => task.id === activeChannel.taskId) ?? null
+  }, [tasks, activeChannel])
+
   // Apply filters to visible messages
   const filteredMessages = useMemo(() => {
     let result = channelMessages
+
+    if (filters.channelType !== "all") {
+      result = result.filter((m) => m.channel === filters.channelType)
+    }
 
     if (filters.search) {
       const q = filters.search.toLowerCase()
@@ -1127,6 +1191,10 @@ export function CommunicationHub({
   const unreadByChannel = useMemo(() => {
     const counts = new Map<string, { unread: number; hasUrgent: boolean }>()
     for (const ch of channels) {
+      if (ch.kind !== "message") {
+        counts.set(ch.key, { unread: 0, hasUrgent: false })
+        continue
+      }
       const msgs = getChannelMessages(messages, ch)
       const unread = msgs.filter((m) => !m.readAt).length
       const hasUrgent = msgs.some((m) => !m.readAt && m.priority === "urgent")
@@ -1139,22 +1207,6 @@ export function CommunicationHub({
     return messages.filter((m) => !m.readAt).length
   }, [messages])
 
-  // Mark message read
-  const handleMarkRead = useCallback(
-    (messageId: string) => {
-      void window.agentCompany.markMessageRead({ messageId, companyId })
-    },
-    [companyId],
-  )
-
-  // After sending, refresh and scroll
-  const handleSent = useCallback(() => {
-    onRefresh()
-    setTimeout(() => {
-      messageEndRef.current?.scrollIntoView({ behavior: "smooth" })
-    }, 200)
-  }, [onRefresh])
-
   // Scroll to bottom when channel changes
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "auto" })
@@ -1165,7 +1217,7 @@ export function CommunicationHub({
     const groups: Array<{ type: MessageChannel; label: string; items: ChannelDescriptor[] }> = []
     const typeOrder: MessageChannel[] = ["company", "department", "project", "incident", "direct"]
     for (const type of typeOrder) {
-      const items = channels.filter((c) => c.channel === type)
+      const items = channels.filter((c): c is ChannelDescriptor => c.kind === "message" && c.channel === type)
       if (items.length > 0) {
         groups.push({
           type,
@@ -1200,12 +1252,15 @@ export function CommunicationHub({
             </p>
           </div>
         </div>
-        <ActionButton
-          label="Compose"
+        <button
+          type="button"
           onClick={() => setShowCompose(true)}
-          icon={Plus}
-          tone="accent"
-        />
+          className="inline-flex items-center gap-2 rounded-[8px] px-3 py-2 text-[11px] font-semibold text-white transition hover:brightness-90"
+          style={{ backgroundColor: TERRACOTTA }}
+        >
+          <Plus size={13} weight="bold" />
+          New message
+        </button>
       </div>
 
       {/* Main layout: sidebar + messages */}
@@ -1213,7 +1268,6 @@ export function CommunicationHub({
         className="flex overflow-hidden rounded-[12px] border border-[color:var(--line)]"
         style={{ height: "calc(100vh - 220px)", minHeight: "480px" }}
       >
-        {/* ── Sidebar ────────────────────────────────────────── */}
         <AnimatePresence initial={false}>
           {showSidebar ? (
             <motion.div
@@ -1258,7 +1312,6 @@ export function CommunicationHub({
                           agents={agents}
                           onClick={() => {
                             setSelectedChannelKey(ch.key)
-                            setReplyTo(null)
                           }}
                         />
                       )
@@ -1266,9 +1319,34 @@ export function CommunicationHub({
                   </div>
                 ))}
 
+                {taskDiscussionChannels.length > 0 ? (
+                  <div className="mb-3">
+                    <div className="mb-1 px-2 text-[9px] font-bold uppercase tracking-[0.1em] text-[color:var(--muted)]">
+                      Task Discussions
+                    </div>
+                    {taskDiscussionChannels.map((discussion) => (
+                      <button
+                        key={discussion.key}
+                        type="button"
+                        onClick={() => setSelectedChannelKey(discussion.key)}
+                        className={`group flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2 text-left transition duration-150 ${
+                          selectedChannelKey === discussion.key ? "bg-[color:var(--panel-soft)]" : "hover:bg-[color:var(--panel-soft)]/50"
+                        }`}
+                      >
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px]" style={{ backgroundColor: `${TERRACOTTA}18` }}>
+                          <Hash size={14} weight={selectedChannelKey === discussion.key ? "fill" : "regular"} style={{ color: TERRACOTTA }} />
+                        </div>
+                        <span className={`min-w-0 flex-1 truncate text-[12px] ${selectedChannelKey === discussion.key ? "font-semibold text-[color:var(--text)]" : "font-medium text-[color:var(--muted-strong)]"}`}>
+                          {discussion.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+
                 {channels.length === 0 ? (
                   <div className="px-3 py-6 text-center text-[11px] text-[color:var(--muted)]">
-                    No channels yet. Send a message to create one.
+                    No active departments yet.
                   </div>
                 ) : null}
               </div>
@@ -1284,7 +1362,6 @@ export function CommunicationHub({
           ) : null}
         </AnimatePresence>
 
-        {/* ── Main content ─────────────────────────────────── */}
         <div className="flex min-w-0 flex-1 flex-col bg-[color:var(--bg)]">
           {/* Channel header */}
           <div className="flex items-center gap-3 border-b border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-2.5">
@@ -1301,7 +1378,7 @@ export function CommunicationHub({
 
             {activeChannel ? (
               <>
-                {(() => {
+                {activeChannel.kind === "message" ? (() => {
                   const Icon = channelConfig[activeChannel.channel].icon
                   return (
                     <Icon
@@ -1312,19 +1389,20 @@ export function CommunicationHub({
                       }}
                     />
                   )
-                })()}
+                })() : (
+                  <Hash size={16} weight="fill" style={{ color: TERRACOTTA }} />
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="text-[13px] font-semibold text-[color:var(--text)]">
                     {activeChannel.label}
                   </div>
                   <div className="text-[10px] text-[color:var(--muted)]">
-                    {channelMessages.length} message{channelMessages.length !== 1 ? "s" : ""}
-                    {(() => {
-                      const stats = unreadByChannel.get(activeChannel.key)
-                      return stats?.unread
-                        ? ` (${stats.unread} unread)`
-                        : ""
-                    })()}
+                    {activeChannel.kind === "message"
+                      ? `${channelMessages.length} message${channelMessages.length !== 1 ? "s" : ""}${(() => {
+                        const stats = unreadByChannel.get(activeChannel.key)
+                        return stats?.unread ? ` (${stats.unread} unread)` : ""
+                      })()}`
+                      : `${taskDiscussionComments.length} comment${taskDiscussionComments.length !== 1 ? "s" : ""}${activeTask ? ` · ${activeTask.status.replaceAll("_", " ")}` : ""}`}
                   </div>
                 </div>
               </>
@@ -1352,9 +1430,32 @@ export function CommunicationHub({
                   Select a channel to view messages
                 </div>
                 <div className="mt-1 text-[12px] text-[color:var(--muted)]">
-                  Or compose a new message to get started
+                  Monitor internal agent communications across departments
                 </div>
               </div>
+            ) : activeChannel.kind === "task" ? (
+              taskDiscussionComments.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center text-center">
+                  <Tray size={36} className="mb-3 text-[color:var(--muted)]" />
+                  <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">
+                    No discussion yet
+                  </div>
+                  <div className="mt-1 text-[12px] text-[color:var(--muted)]">
+                    Comments for this task will appear here as agents and the board coordinate.
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {taskDiscussionComments.map((comment) => (
+                    <TaskCommentBubble
+                      key={comment.id}
+                      comment={comment}
+                      agent={comment.authorAgentId ? (agentMap.get(comment.authorAgentId) ?? undefined) : undefined}
+                    />
+                  ))}
+                  <div ref={messageEndRef} />
+                </div>
+              )
             ) : filteredMessages.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-center">
                 <Tray size={36} className="mb-3 text-[color:var(--muted)]" />
@@ -1366,7 +1467,7 @@ export function CommunicationHub({
                 <div className="mt-1 text-[12px] text-[color:var(--muted)]">
                   {filters.search || filters.unreadOnly || filters.priority !== "all"
                     ? "Try adjusting your search or filters"
-                    : "Be the first to send a message"}
+                    : "Messages will appear here as agents work and communicate"}
                 </div>
               </div>
             ) : (
@@ -1381,7 +1482,6 @@ export function CommunicationHub({
                         isThread={false}
                         replyCount={replies.length}
                         onReply={() => setReplyTo(msg)}
-                        onMarkRead={() => handleMarkRead(msg.id)}
                       />
                       {/* Thread replies */}
                       {replies.length > 0 ? (
@@ -1394,7 +1494,6 @@ export function CommunicationHub({
                               isThread={true}
                               replyCount={0}
                               onReply={() => setReplyTo(reply)}
-                              onMarkRead={() => handleMarkRead(reply.id)}
                             />
                           ))}
                         </div>
@@ -1407,31 +1506,44 @@ export function CommunicationHub({
             )}
           </div>
 
-          {/* Composer */}
           {activeChannel ? (
-            <MessageComposer
-              agents={agents}
-              companyId={companyId}
-              channel={activeChannel.channel}
-              channelTargetId={activeChannel.targetId}
-              replyTo={replyTo}
-              onSent={handleSent}
-              onCancelReply={() => setReplyTo(null)}
-            />
-          ) : null}
+            activeChannel.kind === "message" ? (
+              <MessageComposer
+                agents={agents}
+                companyId={companyId}
+                channel={activeChannel.channel}
+                channelTargetId={activeChannel.channel === "direct" ? null : activeChannel.targetId}
+                replyTo={replyTo}
+                onSent={() => {
+                  setReplyTo(null)
+                  onRefresh()
+                }}
+                onCancelReply={() => setReplyTo(null)}
+              />
+            ) : (
+              <TaskDiscussionComposer
+                companyId={companyId}
+                taskId={activeChannel.taskId}
+                onSent={onRefresh}
+              />
+            )
+          ) : (
+            <div className="border-t border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-2.5">
+              <div className="flex items-center gap-2 text-[11px] text-[color:var(--muted)]">
+                <ChatCircle size={14} />
+                <span>Select a channel to read and send messages.</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Compose modal */}
       <ComposeModal
         open={showCompose}
         onClose={() => setShowCompose(false)}
         agents={agents}
         companyId={companyId}
-        onSent={() => {
-          onRefresh()
-          setShowCompose(false)
-        }}
+        onSent={onRefresh}
       />
     </div>
   )

@@ -3,19 +3,10 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import log from "electron-log/main.js";
 
-/**
- * Browser Automation Manager — Electron-native edition.
- *
- * Uses Electron's own BrowserWindow and persistent sessions instead of
- * external Playwright, so it works in packaged apps with zero extra deps.
- *
- * Each social account gets its own Electron session partition so cookies,
- * localStorage, and login state are isolated and persisted across app restarts.
- */
-
 export interface BrowserAction {
   id: string;
   socialAccountId: string;
+  platform: string;
   actionType: string;
   payload: Record<string, unknown>;
 }
@@ -33,56 +24,116 @@ interface QueuedAction {
   reject: (error: Error) => void;
 }
 
+interface PlatformRule {
+  loginUrl: string;
+  authCheckUrl: string;
+  allowedHosts: string[];
+  cookieOrigins: string[];
+  unauthenticatedUrlMarkers: string[];
+}
+
+const PLATFORM_RULES: Record<string, PlatformRule> = {
+  twitter: {
+    loginUrl: "https://x.com/i/flow/login",
+    authCheckUrl: "https://x.com/home",
+    allowedHosts: ["x.com", "twitter.com"],
+    cookieOrigins: ["https://x.com", "https://twitter.com"],
+    unauthenticatedUrlMarkers: ["/i/flow/login", "/login"],
+  },
+  linkedin: {
+    loginUrl: "https://www.linkedin.com/login",
+    authCheckUrl: "https://www.linkedin.com/feed/",
+    allowedHosts: ["linkedin.com"],
+    cookieOrigins: ["https://www.linkedin.com"],
+    unauthenticatedUrlMarkers: ["/login", "/checkpoint"],
+  },
+  instagram: {
+    loginUrl: "https://www.instagram.com/accounts/login/",
+    authCheckUrl: "https://www.instagram.com/",
+    allowedHosts: ["instagram.com"],
+    cookieOrigins: ["https://www.instagram.com"],
+    unauthenticatedUrlMarkers: ["/accounts/login"],
+  },
+  facebook: {
+    loginUrl: "https://www.facebook.com/login",
+    authCheckUrl: "https://www.facebook.com/",
+    allowedHosts: ["facebook.com"],
+    cookieOrigins: ["https://www.facebook.com"],
+    unauthenticatedUrlMarkers: ["/login"],
+  },
+  reddit: {
+    loginUrl: "https://www.reddit.com/login",
+    authCheckUrl: "https://www.reddit.com/",
+    allowedHosts: ["reddit.com"],
+    cookieOrigins: ["https://www.reddit.com"],
+    unauthenticatedUrlMarkers: ["/login"],
+  },
+  youtube: {
+    loginUrl: "https://accounts.google.com/signin",
+    authCheckUrl: "https://www.youtube.com/",
+    allowedHosts: ["youtube.com", "google.com"],
+    cookieOrigins: ["https://www.youtube.com", "https://accounts.google.com"],
+    unauthenticatedUrlMarkers: ["/signin", "/ServiceLogin"],
+  },
+  tiktok: {
+    loginUrl: "https://www.tiktok.com/login",
+    authCheckUrl: "https://www.tiktok.com/foryou",
+    allowedHosts: ["tiktok.com"],
+    cookieOrigins: ["https://www.tiktok.com"],
+    unauthenticatedUrlMarkers: ["/login"],
+  },
+  bluesky: {
+    loginUrl: "https://bsky.app",
+    authCheckUrl: "https://bsky.app/",
+    allowedHosts: ["bsky.app"],
+    cookieOrigins: ["https://bsky.app"],
+    unauthenticatedUrlMarkers: ["/login"],
+  },
+  other: {
+    loginUrl: "https://google.com",
+    authCheckUrl: "https://google.com",
+    allowedHosts: ["google.com"],
+    cookieOrigins: ["https://google.com"],
+    unauthenticatedUrlMarkers: ["/login"],
+  },
+};
+
 export class BrowserManager {
   private screenshotDir: string;
   private queues = new Map<string, QueuedAction[]>();
   private processing = new Set<string>();
-  /** Track open login windows so we don't open duplicates */
   private loginWindows = new Map<string, BrowserWindow>();
+  private initializedSessions = new Set<string>();
 
   constructor(profileDir: string) {
     this.screenshotDir = join(profileDir, "browser-screenshots");
     if (!existsSync(this.screenshotDir)) mkdirSync(this.screenshotDir, { recursive: true });
   }
 
-  /**
-   * Get a persistent Electron session for a social account.
-   * Using `persist:` prefix ensures data survives app restarts.
-   */
   private getSession(socialAccountId: string): Electron.Session {
-    return session.fromPartition(`persist:social-${socialAccountId}`);
+    const partition = `persist:social-${socialAccountId}`;
+    const socialSession = session.fromPartition(partition);
+    if (!this.initializedSessions.has(partition)) {
+      socialSession.setPermissionCheckHandler(() => false);
+      socialSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+      this.initializedSessions.add(partition);
+    }
+    return socialSession;
   }
 
-  /**
-   * Launch a real browser window for manual login.
-   * The window uses a persistent session so cookies are saved.
-   * Returns a promise that resolves when the user closes the window.
-   */
   async launchLoginBrowser(
     socialAccountId: string,
     platform: string,
     loginUrl?: string,
   ): Promise<BrowserActionResult> {
-    // Don't open duplicate login windows for the same account
     const existing = this.loginWindows.get(socialAccountId);
     if (existing && !existing.isDestroyed()) {
       existing.focus();
       return { success: true, summary: "Login window already open", screenshotPath: null, error: null };
     }
 
-    const defaultUrls: Record<string, string> = {
-      twitter: "https://x.com/i/flow/login",
-      linkedin: "https://www.linkedin.com/login",
-      instagram: "https://www.instagram.com/accounts/login/",
-      facebook: "https://www.facebook.com/login",
-      reddit: "https://www.reddit.com/login",
-      youtube: "https://accounts.google.com/signin",
-      tiktok: "https://www.tiktok.com/login",
-      bluesky: "https://bsky.app",
-      other: "https://google.com",
-    };
-
-    const url = loginUrl || defaultUrls[platform] || defaultUrls.other;
+    const rules = this.getPlatformRules(platform);
+    const url = loginUrl || rules.loginUrl;
     const ses = this.getSession(socialAccountId);
 
     log.info(`[browser] Opening login window for ${platform} → ${url}`);
@@ -93,7 +144,6 @@ export class BrowserManager {
       title: `Login to ${platform} — AgentCompany`,
       webPreferences: {
         session: ses,
-        // Standard web page — no node integration, no preload
         nodeIntegration: false,
         contextIsolation: true,
         sandbox: true,
@@ -102,43 +152,32 @@ export class BrowserManager {
 
     this.loginWindows.set(socialAccountId, win);
 
-    // Remove menu bar for a cleaner look
     win.setMenuBarVisibility(false);
 
-    // Load the login page
     try {
       await win.loadURL(url);
     } catch (err) {
       log.error(`[browser] Failed to load ${url}: ${err}`);
-      // Don't fail — the page might redirect or have an expected error
     }
 
-    // Wait for the user to close the window
     return new Promise<BrowserActionResult>((resolve) => {
       win.on("closed", () => {
         this.loginWindows.delete(socialAccountId);
-        log.info(`[browser] Login window closed for ${platform} — session saved`);
-        resolve({
-          success: true,
-          summary: `Login session saved for ${platform}`,
-          screenshotPath: null,
-          error: null,
+        void this.verifyLoginSession(socialAccountId, platform).then((verified) => {
+          log.info(`[browser] Login window closed for ${platform} — verified=${verified}`);
+          resolve({
+            success: verified,
+            summary: verified
+              ? `Authenticated session detected for ${platform}`
+              : `No authenticated ${platform} session detected`,
+            screenshotPath: null,
+            error: verified ? null : `Authentication for ${platform} was not completed.`,
+          });
         });
       });
     });
   }
 
-  /**
-   * Check if browser automation is available.
-   * Always true — we use Electron's own Chromium.
-   */
-  async checkPlaywright(): Promise<boolean> {
-    return true;
-  }
-
-  /**
-   * Queue a browser action for execution.
-   */
   async executeAction(action: BrowserAction): Promise<BrowserActionResult> {
     return new Promise((resolve, reject) => {
       const queue = this.queues.get(action.socialAccountId) ?? [];
@@ -166,17 +205,14 @@ export class BrowserManager {
     this.processing.delete(socialAccountId);
   }
 
-  /**
-   * Execute a single browser action using an Electron BrowserWindow.
-   */
   private async runAction(action: BrowserAction): Promise<BrowserActionResult> {
     const ses = this.getSession(action.socialAccountId);
     const payload = action.payload;
     const screenshotPath = join(this.screenshotDir, `${action.id}.png`);
+    const platform = action.platform;
 
-    log.info(`[browser] Executing ${action.actionType} for account ${action.socialAccountId}`);
+    log.info(`[browser] Executing ${action.actionType} for ${platform}/${action.socialAccountId}`);
 
-    // Create a visible browser window for the action
     const win = new BrowserWindow({
       width: 1280,
       height: 860,
@@ -197,6 +233,7 @@ export class BrowserManager {
       switch (action.actionType) {
         case "navigate": {
           const url = String(payload.url || "https://google.com");
+          this.assertAllowedUrl(platform, url, "navigate");
           await win.loadURL(url);
           await this.waitForLoad(win);
           const title = await win.webContents.executeJavaScript("document.title");
@@ -205,7 +242,6 @@ export class BrowserManager {
         }
 
         case "post": {
-          const platform = String(payload.platform || "twitter");
           const content = String(payload.content || "");
           const postUrl = this.getComposeUrl(platform);
           await win.loadURL(postUrl);
@@ -213,7 +249,6 @@ export class BrowserManager {
           await this.delay(2000);
 
           if (platform === "twitter") {
-            // Type into tweet composer
             await win.webContents.executeJavaScript(`
               (async () => {
                 const editor = document.querySelector('[data-testid="tweetTextarea_0"], [role="textbox"]');
@@ -224,7 +259,6 @@ export class BrowserManager {
               })()
             `);
             await this.delay(1000);
-            // Click post button
             await win.webContents.executeJavaScript(`
               (() => {
                 const btn = document.querySelector('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]');
@@ -264,6 +298,7 @@ export class BrowserManager {
 
         case "reply": {
           const targetUrl = String(payload.targetUrl || "");
+          this.assertAllowedUrl(platform, targetUrl, "reply");
           const replyContent = String(payload.content || "");
           await win.loadURL(targetUrl);
           await this.waitForLoad(win);
@@ -292,6 +327,7 @@ export class BrowserManager {
 
         case "like": {
           const targetUrl = String(payload.targetUrl || "");
+          this.assertAllowedUrl(platform, targetUrl, "like");
           await win.loadURL(targetUrl);
           await this.waitForLoad(win);
           await this.delay(2000);
@@ -308,6 +344,7 @@ export class BrowserManager {
 
         case "follow": {
           const targetUrl = String(payload.targetUrl || payload.profileUrl || "");
+          this.assertAllowedUrl(platform, targetUrl, "follow");
           await win.loadURL(targetUrl);
           await this.waitForLoad(win);
           await this.delay(2000);
@@ -323,14 +360,13 @@ export class BrowserManager {
         }
 
         case "browse_feed": {
-          const platform = String(payload.platform || "twitter");
           const feedUrl = String(payload.url || this.getFeedUrl(platform));
+          this.assertAllowedUrl(platform, feedUrl, "browse_feed");
           const maxPosts = Number(payload.maxPosts || 10);
           await win.loadURL(feedUrl);
           await this.waitForLoad(win);
           await this.delay(3000);
 
-          // Scroll to load content
           for (let i = 0; i < 3; i++) {
             await win.webContents.executeJavaScript("window.scrollBy(0, window.innerHeight)");
             await this.delay(1500);
@@ -348,8 +384,8 @@ export class BrowserManager {
 
         case "search": {
           const query = String(payload.query || "");
-          const platform = String(payload.platform || "twitter");
           const searchUrl = this.getSearchUrl(platform, query);
+          this.assertAllowedUrl(platform, searchUrl, "search");
           await win.loadURL(searchUrl);
           await this.waitForLoad(win);
           await this.delay(3000);
@@ -367,6 +403,7 @@ export class BrowserManager {
         case "screenshot": {
           const url = String(payload.url || "about:blank");
           if (url !== "about:blank") {
+            this.assertAllowedUrl(platform, url, "screenshot");
             await win.loadURL(url);
             await this.waitForLoad(win);
             await this.delay(2000);
@@ -377,10 +414,9 @@ export class BrowserManager {
         }
 
         default:
-          summary = `Unknown action type: ${action.actionType}`;
+          throw new Error(`Unsupported browser action type: ${action.actionType}`);
       }
 
-      // Capture screenshot
       try {
         const image: NativeImage = await win.webContents.capturePage();
         if (!image.isEmpty()) {
@@ -390,7 +426,6 @@ export class BrowserManager {
         log.warn(`[browser] Screenshot failed: ${err}`);
       }
 
-      // Close the action window after a brief pause so user can see result
       await this.delay(1000);
       if (!win.isDestroyed()) win.close();
 
@@ -401,7 +436,6 @@ export class BrowserManager {
         error: null,
       };
     } catch (error) {
-      // Try to capture error screenshot
       try {
         const image: NativeImage = await win.webContents.capturePage();
         if (!image.isEmpty()) writeFileSync(screenshotPath, image.toPNG());
@@ -419,8 +453,6 @@ export class BrowserManager {
       };
     }
   }
-
-  // ── Helpers ──────────────────────────────────────────────────────
 
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -440,6 +472,69 @@ export class BrowserManager {
     });
   }
 
+  private getPlatformRules(platform: string): PlatformRule {
+    return PLATFORM_RULES[platform] ?? PLATFORM_RULES.other;
+  }
+
+  private assertAllowedUrl(platform: string, rawUrl: string, actionType: string) {
+    const allowedHosts = this.getPlatformRules(platform).allowedHosts;
+    let url: URL;
+    try {
+      url = new URL(rawUrl);
+    } catch {
+      throw new Error(`Invalid URL for ${actionType}: ${rawUrl}`);
+    }
+    const host = url.hostname.toLowerCase();
+    const isAllowed = allowedHosts.some((allowedHost) => host === allowedHost || host.endsWith(`.${allowedHost}`));
+    if (!isAllowed) {
+      throw new Error(`Navigation blocked for ${actionType}. ${host} is outside the allowed ${platform} domains.`);
+    }
+  }
+
+  private async verifyLoginSession(socialAccountId: string, platform: string): Promise<boolean> {
+    const ses = this.getSession(socialAccountId);
+    const rules = this.getPlatformRules(platform);
+    const cookieSets = await Promise.all(
+      rules.cookieOrigins.map(async (origin) => {
+        try {
+          return await ses.cookies.get({ url: origin });
+        } catch {
+          return [];
+        }
+      }),
+    );
+    const hasCookies = cookieSets.some((cookies) => cookies.length > 0);
+    if (!hasCookies) {
+      return false;
+    }
+
+    const verificationWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        session: ses,
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true,
+      },
+    });
+
+    try {
+      await verificationWindow.loadURL(rules.authCheckUrl);
+      await this.waitForLoad(verificationWindow, 10000);
+      const finalUrl = verificationWindow.webContents.getURL();
+      const finalUrlLower = finalUrl.toLowerCase();
+      const bouncedToLogin = rules.unauthenticatedUrlMarkers.some((marker) => finalUrlLower.includes(marker.toLowerCase()));
+      return !bouncedToLogin;
+    } catch (error) {
+      log.warn(`[browser] Login verification failed for ${platform}: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    } finally {
+      if (!verificationWindow.isDestroyed()) {
+        verificationWindow.close();
+      }
+    }
+  }
+
   private getComposeUrl(platform: string): string {
     const urls: Record<string, string> = {
       twitter: "https://x.com/compose/post",
@@ -448,8 +543,10 @@ export class BrowserManager {
       facebook: "https://www.facebook.com/",
       reddit: "https://www.reddit.com/submit",
       bluesky: "https://bsky.app/",
+      youtube: "https://www.youtube.com/",
+      tiktok: "https://www.tiktok.com/",
     };
-    return urls[platform] || "https://google.com";
+    return urls[platform] || this.getPlatformRules(platform).loginUrl;
   }
 
   private getFeedUrl(platform: string): string {
@@ -457,10 +554,13 @@ export class BrowserManager {
       twitter: "https://x.com/home",
       linkedin: "https://www.linkedin.com/feed/",
       instagram: "https://www.instagram.com/",
+      facebook: "https://www.facebook.com/",
       reddit: "https://www.reddit.com/",
       bluesky: "https://bsky.app/",
+      youtube: "https://www.youtube.com/",
+      tiktok: "https://www.tiktok.com/",
     };
-    return urls[platform] || "https://google.com";
+    return urls[platform] || this.getPlatformRules(platform).loginUrl;
   }
 
   private getSearchUrl(platform: string, query: string): string {
@@ -474,7 +574,6 @@ export class BrowserManager {
   }
 
   shutdown() {
-    // Close any open login windows
     for (const [, win] of this.loginWindows) {
       if (!win.isDestroyed()) win.close();
     }

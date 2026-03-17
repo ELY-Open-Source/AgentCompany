@@ -28,6 +28,7 @@ import type {
   ActivityRecord,
   AgentRecord,
   ApprovalRecord,
+  DocumentRecord,
   GoalRecord,
   ProfileSnapshot,
   ProjectRecord,
@@ -39,76 +40,12 @@ import type {
 } from "@shared/types";
 import { formatMoney, formatTime } from "../lib/formatters";
 import { unwrap } from "../lib/desktop";
-import { ActionButton, EmptyState, Field, Input, ListFrame, ListRow, Select, StatusPill, TextArea, useFocusTrap } from "./ui";
+import { ActionButton, ConfirmDialog, EmptyState, Field, InlineNotice, Input, ListFrame, ListRow, Select, StatusPill, TextArea } from "./ui";
 
 function describeActionError(error: unknown) {
   return error instanceof Error ? error.message : "The action could not be completed.";
 }
 
-function InlineNotice({
-  message,
-  tone = "danger",
-}: {
-  message: string;
-  tone?: "danger" | "success" | "warn";
-}) {
-  const toneClass = tone === "success"
-    ? "border-[color:var(--success)] bg-[color:var(--success-soft)] text-[color:var(--success)]"
-    : tone === "warn"
-      ? "border-[color:var(--warn)] bg-[color:var(--warn-soft)] text-[color:var(--warn)]"
-      : "border-[color:var(--danger)] bg-[color:var(--danger-soft)] text-[color:var(--danger)]";
-  return (
-    <div className={`rounded-[10px] border px-4 py-3 text-[13px] ${toneClass}`} role={tone === "danger" ? "alert" : "status"}>
-      {message}
-    </div>
-  );
-}
-
-/* ─── Confirm Dialog ─────────────────────────────────────────────────── */
-
-export function ConfirmDialog({ open, title, message, errorMessage, onConfirm, onCancel }: {
-  open: boolean;
-  title: string;
-  message: string;
-  errorMessage?: string | null;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  const trapRef = useFocusTrap(open);
-
-  useEffect(() => {
-    if (!open) return;
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onCancel();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onCancel]);
-
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color:var(--text)]/45" onClick={onCancel}>
-      <div
-        ref={trapRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
-        className="w-full max-w-[400px] rounded-[12px] bg-[color:var(--panel)] border border-[color:var(--line)] p-6 shadow-lg"
-        onClick={e => e.stopPropagation()}
-      >
-        <div id="confirm-dialog-title" className="text-[16px] font-semibold text-[color:var(--text)] mb-2">{title}</div>
-        <div className="text-[13px] text-[color:var(--muted)] mb-6">{message}</div>
-        {errorMessage ? <div className="mb-4"><InlineNotice message={errorMessage} /></div> : null}
-        <div className="flex gap-3 justify-end">
-          <ActionButton label="Cancel" onClick={onCancel} />
-          <ActionButton label="Confirm" tone="danger" onClick={onConfirm} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Entity-type icon lookup ────────────────────────────────────────── */
 
 const ENTITY_ICONS: Record<string, typeof Robot> = {
   agent: Robot,
@@ -127,7 +64,6 @@ const ENTITY_TYPE_OPTIONS = [
   "all", "agent", "task", "run", "approval", "connector", "workspace", "secret", "goal", "project", "company",
 ] as const;
 
-/* ─── Workspace state pills ──────────────────────────────────────────── */
 
 function WorkspaceStatePill({ state }: { state: string }) {
   const colorMap: Record<string, string> = {
@@ -144,7 +80,6 @@ function WorkspaceStatePill({ state }: { state: string }) {
   );
 }
 
-/* ─── Priority indicator ─────────────────────────────────────────────── */
 
 function PriorityDot({ priority }: { priority: string }) {
   const color = priority === "critical"
@@ -157,7 +92,6 @@ function PriorityDot({ priority }: { priority: string }) {
   return <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${color}`} aria-label={`${priority} priority`} />;
 }
 
-/* ─── Task Queue ─────────────────────────────────────────────────────── */
 
 export function TaskQueue({
   tasks,
@@ -204,7 +138,6 @@ export function TaskQueue({
   );
 }
 
-/* ─── Task Inspector ─────────────────────────────────────────────────── */
 
 export function TaskInspector({
   task,
@@ -571,7 +504,6 @@ export function TaskInspector({
   );
 }
 
-/* ─── Task Comments ──────────────────────────────────────────────────── */
 
 function TaskComments({
   taskId,
@@ -666,7 +598,6 @@ function TaskComments({
   );
 }
 
-/* ─── Task Creator ───────────────────────────────────────────────────── */
 
 export function TaskCreator({
   companyId,
@@ -741,7 +672,6 @@ export function TaskCreator({
   );
 }
 
-/* ─── Pending Review List ────────────────────────────────────────────── */
 
 export function PendingReviewList({ tasks, agents }: { tasks: TaskRecord[]; agents: AgentRecord[] }) {
   const reviewTasks = tasks.filter((t) => t.status === "in_review");
@@ -770,7 +700,6 @@ export function PendingReviewList({ tasks, agents }: { tasks: TaskRecord[]; agen
   );
 }
 
-/* ─── Approval List ──────────────────────────────────────────────────── */
 
 export function ApprovalList({ approvals, selectedApprovalId, onSelect }: { approvals: ApprovalRecord[]; selectedApprovalId: string | null; onSelect: (id: string) => void }) {
   if (approvals.length === 0) {
@@ -801,7 +730,6 @@ export function ApprovalList({ approvals, selectedApprovalId, onSelect }: { appr
   );
 }
 
-/* ─── Approval Inspector ─────────────────────────────────────────────── */
 
 export function ApprovalInspector({
   approval,
@@ -915,7 +843,6 @@ export function ApprovalInspector({
 
         {/* Hire agent payload details */}
         {approval.type === "hire_agent" ? (() => {
-          // Find the agent that was proposed for hiring (look for pending_approval agents)
           const proposedAgent = agents.find(
             (a) => a.status === "pending_approval" && a.reportsTo === approval.requestedByAgentId
           ) ?? agents.find(
@@ -982,7 +909,6 @@ export function ApprovalInspector({
   );
 }
 
-/* ─── Cost List ──────────────────────────────────────────────────────── */
 
 export function CostList({ costs, agents, runs }: { costs: ProfileSnapshot["costs"]; agents: ProfileSnapshot["agents"]; runs: ProfileSnapshot["runs"] }) {
   const [connectorFilter, setConnectorFilter] = useState("all");
@@ -1035,7 +961,6 @@ export function CostList({ costs, agents, runs }: { costs: ProfileSnapshot["cost
   );
 }
 
-/* ─── Budget Summary ─────────────────────────────────────────────────── */
 
 export function BudgetSummary({ agents, costs }: { agents: ProfileSnapshot["agents"]; costs: ProfileSnapshot["costs"] }) {
   const knownSpend = costs.reduce((sum, entry) => sum + (entry.amountUsd ?? 0), 0);
@@ -1101,7 +1026,6 @@ export function BudgetSummary({ agents, costs }: { agents: ProfileSnapshot["agen
   );
 }
 
-/* ─── Activity List ──────────────────────────────────────────────────── */
 
 export function ActivityList({ activity }: { activity: ActivityRecord[] }) {
   const [search, setSearch] = useState("");
@@ -1187,18 +1111,21 @@ export function ActivityList({ activity }: { activity: ActivityRecord[] }) {
   );
 }
 
-/* ─── Workspace List ─────────────────────────────────────────────────── */
 
 export function WorkspaceList({
   workspaces,
   projects,
   companyId,
+  selectedWorkspaceId,
+  onSelect,
   onOpen,
   onDeleted,
 }: {
   workspaces: WorkspaceRecord[];
   projects: ProjectRecord[];
   companyId: string;
+  selectedWorkspaceId: string | null;
+  onSelect: (workspaceId: string) => void;
   onOpen: (path: string) => Promise<void>;
   onDeleted: () => Promise<void>;
 }) {
@@ -1238,7 +1165,8 @@ export function WorkspaceList({
           const linkedProject = projects.find((p) => p.id === workspace.projectId) ?? null;
           return (
             <ListRow key={workspace.id}>
-              <div className="mb-2 flex items-center justify-between">
+              <div className={`mb-2 rounded-[8px] p-1 ${selectedWorkspaceId === workspace.id ? "bg-[color:var(--accent-soft)]" : ""}`}>
+              <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
                     <div className="text-[14px] text-[color:var(--text)]">{workspace.name}</div>
@@ -1248,6 +1176,7 @@ export function WorkspaceList({
                 </div>
                 <div className="flex items-center gap-2">
                   {workspace.isPrimary ? <StatusPill status="ready" /> : null}
+                  <ActionButton label="Inspect" onClick={() => onSelect(workspace.id)} icon={FolderOpen} />
                   <ActionButton label="Reveal" onClick={() => void onOpen(workspace.localPath)} icon={ArrowSquareOut} />
                   <ActionButton label="Delete" onClick={() => setConfirmDeleteId(workspace.id)} icon={Trash} tone="danger" />
                 </div>
@@ -1255,6 +1184,7 @@ export function WorkspaceList({
               <div className="text-[12px] text-[color:var(--muted)]">
                 {workspace.repoUrl || "No remote URL"} {workspace.repoRef ? `· ${workspace.repoRef}` : ""}
                 {linkedProject ? <span> · Project: <span className="text-[color:var(--text)]">{linkedProject.name}</span></span> : null}
+              </div>
               </div>
             </ListRow>
           );
@@ -1264,7 +1194,133 @@ export function WorkspaceList({
   );
 }
 
-/* ─── Workspace Creator ──────────────────────────────────────────────── */
+export function WorkspaceInspector({
+  workspace,
+  agents,
+  tasks,
+  runs,
+  documents,
+  project,
+  onOpen,
+}: {
+  workspace: WorkspaceRecord | null;
+  agents: AgentRecord[];
+  tasks: TaskRecord[];
+  runs: RunRecord[];
+  documents: DocumentRecord[];
+  project: ProjectRecord | null;
+  onOpen: (path: string) => Promise<void>;
+}) {
+  if (!workspace) {
+    return <EmptyState title="Select a workspace" detail="Choose a workspace to inspect the agents, tasks, runs, and documents bound to it." />;
+  }
+
+  const workspaceAgents = agents.filter((agent) => agent.workspaceId === workspace.id);
+  const workspaceTasks = tasks.filter((task) => task.workspaceId === workspace.id);
+  const workspaceRuns = runs.filter((run) => run.workspaceId === workspace.id);
+  const workspaceDocuments = documents.filter((document) => document.projectId && project && document.projectId === project.id);
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <div className="text-[15px] font-semibold text-[color:var(--text)]">{workspace.name}</div>
+              <WorkspaceStatePill state={workspace.state} />
+            </div>
+            <div className="mono mt-1 text-[11px] text-[color:var(--muted)]">{workspace.localPath}</div>
+            <div className="mt-2 text-[12px] text-[color:var(--muted)]">
+              {project ? <>Project: <span className="text-[color:var(--text)]">{project.name}</span></> : "No linked project"}
+              {workspace.repoUrl ? <span> · Repo: <span className="text-[color:var(--text)]">{workspace.repoUrl}</span></span> : null}
+              {workspace.repoRef ? <span> · Ref: <span className="text-[color:var(--text)]">{workspace.repoRef}</span></span> : null}
+            </div>
+          </div>
+          <ActionButton label="Reveal in Finder" onClick={() => void onOpen(workspace.localPath)} icon={ArrowSquareOut} />
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
+          <div className="text-[11px] uppercase tracking-[0.08em] text-[color:var(--muted)]">Agents</div>
+          <div className="mt-2 text-[24px] font-semibold text-[color:var(--text)]">{workspaceAgents.length}</div>
+        </div>
+        <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
+          <div className="text-[11px] uppercase tracking-[0.08em] text-[color:var(--muted)]">Tasks</div>
+          <div className="mt-2 text-[24px] font-semibold text-[color:var(--text)]">{workspaceTasks.length}</div>
+        </div>
+        <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
+          <div className="text-[11px] uppercase tracking-[0.08em] text-[color:var(--muted)]">Runs</div>
+          <div className="mt-2 text-[24px] font-semibold text-[color:var(--text)]">{workspaceRuns.length}</div>
+        </div>
+        <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
+          <div className="text-[11px] uppercase tracking-[0.08em] text-[color:var(--muted)]">Docs</div>
+          <div className="mt-2 text-[24px] font-semibold text-[color:var(--text)]">{workspaceDocuments.length}</div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-3">
+        <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
+          <div className="mb-3 text-[12px] font-semibold text-[color:var(--text)]">Assigned Agents</div>
+          {workspaceAgents.length === 0 ? (
+            <div className="text-[12px] text-[color:var(--muted)]">No agents are currently bound to this workspace.</div>
+          ) : (
+            <div className="space-y-2">
+              {workspaceAgents.map((agent) => (
+                <div key={agent.id} className="flex items-center justify-between rounded-[8px] bg-[color:var(--panel-soft)] px-3 py-2">
+                  <div>
+                    <div className="text-[12px] font-medium text-[color:var(--text)]">{agent.name}</div>
+                    <div className="text-[11px] text-[color:var(--muted)]">{agent.role}</div>
+                  </div>
+                  <StatusPill status={agent.status} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
+          <div className="mb-3 text-[12px] font-semibold text-[color:var(--text)]">Open Tasks</div>
+          {workspaceTasks.length === 0 ? (
+            <div className="text-[12px] text-[color:var(--muted)]">No tasks target this workspace yet.</div>
+          ) : (
+            <div className="space-y-2">
+              {workspaceTasks.slice(0, 6).map((task) => (
+                <div key={task.id} className="rounded-[8px] bg-[color:var(--panel-soft)] px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <PriorityDot priority={task.priority} />
+                    <span className="text-[12px] font-medium text-[color:var(--text)]">{task.title}</span>
+                  </div>
+                  <div className="mt-1 text-[11px] text-[color:var(--muted)]">{task.status.replaceAll("_", " ")}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
+          <div className="mb-3 text-[12px] font-semibold text-[color:var(--text)]">Recent Runs</div>
+          {workspaceRuns.length === 0 ? (
+            <div className="text-[12px] text-[color:var(--muted)]">No runs have executed in this workspace.</div>
+          ) : (
+            <div className="space-y-2">
+              {workspaceRuns.slice(0, 6).map((run) => (
+                <div key={run.id} className="rounded-[8px] bg-[color:var(--panel-soft)] px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-medium text-[color:var(--text)]">{run.summary || `Run ${run.id.slice(0, 8)}`}</span>
+                    <StatusPill status={run.status} />
+                  </div>
+                  <div className="mt-1 text-[11px] text-[color:var(--muted)]">{formatTime(run.startedAt)} → {formatTime(run.finishedAt)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 export function WorkspaceCreator({ companyId, projects, onSaved }: { companyId: string; projects: ProjectRecord[]; onSaved: () => Promise<void> }) {
   const [name, setName] = useState("");
@@ -1332,7 +1388,6 @@ export function WorkspaceCreator({ companyId, projects, onSaved }: { companyId: 
   );
 }
 
-/* ─── Settings Pane ──────────────────────────────────────────────────── */
 
 export function SettingsPane({
   snapshot,
@@ -1569,7 +1624,6 @@ export function SettingsPane({
   );
 }
 
-/* ─── Secret Creator ─────────────────────────────────────────────────── */
 
 export function SecretCreator({ companyId, onSaved }: { companyId: string; onSaved: () => Promise<void> }) {
   const [name, setName] = useState("");

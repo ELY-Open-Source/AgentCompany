@@ -20,6 +20,7 @@ import {
 } from "@phosphor-icons/react";
 import type { CompanyTemplate, ProfileSnapshot } from "@shared/types";
 import { unwrap } from "../lib/desktop";
+import { getAgentInitials } from "../lib/formatters";
 import { ActionButton, Input, TextArea } from "./ui";
 
 type Step = "choose" | "template" | "company" | "goal" | "launch";
@@ -56,7 +57,6 @@ export function CompanyOnboarding({
   const bestConnector = readyConnectors[0] ?? null;
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) ?? null;
 
-  // Load templates
   useEffect(() => {
     window.agentCompany.listCompanyTemplates().then((result) => {
       if (result.ok) setTemplates(result.data);
@@ -75,7 +75,6 @@ export function CompanyOnboarding({
     }
   }
 
-  // Template launch
   const launchFromTemplate = useCallback(async () => {
     if (loading || !selectedTemplate) return;
     if (!companyName.trim()) {
@@ -98,7 +97,6 @@ export function CompanyOnboarding({
         }),
       );
 
-      // Create workspace for the company if path provided
       if (workspacePath) {
         unwrap(
           await window.agentCompany.saveWorkspace({
@@ -122,7 +120,6 @@ export function CompanyOnboarding({
     }
   }, [loading, selectedTemplate, companyName, hasReadyConnector, workspacePath, bestConnector, onDone]);
 
-  // Custom company creation (existing flow)
   const createCompany = useCallback(async () => {
     if (loading) return;
     if (!companyName.trim()) {
@@ -166,66 +163,77 @@ export function CompanyOnboarding({
     }
   }, [loading, companyName, hasReadyConnector, autoApproveHires, workspacePath]);
 
+  const bootstrapInitialCompany = useCallback(async (companyId: string, seedGoal?: { title?: string; description?: string }) => {
+    if (seedGoal?.title?.trim()) {
+      unwrap(
+        await window.agentCompany.saveGoal({
+          companyId,
+          title: seedGoal.title.trim(),
+          description: seedGoal.description?.trim() || `Achieve: ${seedGoal.title.trim()}`,
+          status: "active",
+          parentId: null,
+          ownerAgentId: null,
+        }),
+      );
+    }
+
+    if (bestConnector) {
+      const ceoId = unwrap(
+        await window.agentCompany.saveAgent({
+          companyId,
+          name: "CEO",
+          role: "CEO",
+          title: "Chief Executive Officer",
+          reportsTo: null,
+          connectorId: bestConnector.id,
+          workspaceId: null,
+          model: null,
+          capabilities: "Executive leadership, strategic planning, team building, goal decomposition, delegation, and organizational management. Responsible for hiring the leadership team, setting strategy, and coordinating all company operations.",
+          budgetMonthlyUsd: 250,
+          status: "idle",
+        }),
+      );
+      unwrap(await window.agentCompany.setHeartbeat({ agentId: ceoId, companyId, enabled: true, intervalSec: 120 }));
+      setStep("launch");
+      setTimeout(async () => {
+        try {
+          await window.agentCompany.triggerHeartbeat({ agentId: ceoId, companyId, trigger: "assignment" });
+        } catch {
+          // Non-fatal. The CEO will wake on the next scheduled heartbeat.
+        }
+      }, 1500);
+    }
+
+    await onDone();
+  }, [bestConnector, onDone]);
+
   const createGoalAndLaunch = useCallback(async () => {
     if (loading || !createdCompanyId) return;
     setLoading(true);
     setError(null);
     try {
-      if (goalTitle.trim()) {
-        unwrap(
-          await window.agentCompany.saveGoal({
-            companyId: createdCompanyId,
-            title: goalTitle.trim(),
-            description: goalDescription.trim() || `Achieve: ${goalTitle.trim()}`,
-            status: "active",
-            parentId: null,
-            ownerAgentId: null,
-          }),
-        );
-      }
-      if (bestConnector) {
-        const ceoId = unwrap(
-          await window.agentCompany.saveAgent({
-            companyId: createdCompanyId,
-            name: "CEO",
-            role: "CEO",
-            title: "Chief Executive Officer",
-            reportsTo: null,
-            connectorId: bestConnector.id,
-            workspaceId: null,
-            model: null,
-            capabilities: "Executive leadership, strategic planning, team building, goal decomposition, delegation, and organizational management. Responsible for hiring the leadership team, setting strategy, and coordinating all company operations.",
-            budgetMonthlyUsd: 250,
-            status: "idle",
-          }),
-        );
-        unwrap(await window.agentCompany.setHeartbeat({ agentId: ceoId, companyId: createdCompanyId, enabled: true, intervalSec: 120 }));
-        setStep("launch");
-        setTimeout(async () => {
-          try {
-            await window.agentCompany.triggerHeartbeat({ agentId: ceoId, companyId: createdCompanyId, trigger: "assignment" });
-          } catch { /* Non-fatal */ }
-        }, 1500);
-      }
-      await onDone();
+      await bootstrapInitialCompany(createdCompanyId, {
+        title: goalTitle,
+        description: goalDescription,
+      });
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Unable to set up the company.");
       setLoading(false);
     }
-  }, [loading, createdCompanyId, goalTitle, goalDescription, bestConnector, onDone]);
+  }, [loading, createdCompanyId, goalTitle, goalDescription, bootstrapInitialCompany]);
 
   const skipGoalAndFinish = useCallback(async () => {
-    if (loading) return;
+    if (loading || !createdCompanyId) return;
     setLoading(true);
     setError(null);
     try {
-      await onDone();
+      await bootstrapInitialCompany(createdCompanyId);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Unable to continue.");
     } finally {
       setLoading(false);
     }
-  }, [loading, onDone]);
+  }, [loading, createdCompanyId, bootstrapInitialCompany]);
 
   const stepLabels = step === "choose" || step === "template"
     ? [
@@ -242,14 +250,13 @@ export function CompanyOnboarding({
   const stepIndex = step === "choose" ? 0 : step === "template" ? 1 : step === "company" ? 0 : step === "goal" ? 1 : 2;
 
   return (
-    <div className="grid min-h-[100dvh] grid-cols-1 bg-[color:var(--bg)] md:grid-cols-[minmax(0,1fr)_520px]">
-      {/* Left panel — branding */}
-      <div className="flex items-center px-8 py-12 md:px-16">
+    <div className="grid h-[100dvh] overflow-hidden grid-cols-1 bg-[color:var(--bg)] md:grid-cols-[minmax(0,1fr)_520px]">
+      <div className="flex min-h-0 items-center justify-center overflow-y-auto px-8 py-12 md:px-16">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-          className="max-w-[440px]"
+          className="mx-auto w-full max-w-[440px]"
         >
           <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">AgentCompany Desktop</div>
           <h1 className="text-[38px] leading-[0.98] tracking-[-0.03em] text-[color:var(--text)] md:text-[48px]">
@@ -259,7 +266,7 @@ export function CompanyOnboarding({
             Set up a fully autonomous AI-powered organization. Your agents will hire, delegate, execute, review, and coordinate — just like a real company.
           </p>
 
-          {/* Step indicators */}
+
           <div className="mt-10 flex items-center gap-3">
             {stepLabels.map((s, i) => (
               <div key={s.label} className="flex items-center gap-2">
@@ -278,7 +285,7 @@ export function CompanyOnboarding({
             ))}
           </div>
 
-          {/* Detected connectors */}
+
           <div className="mt-10">
             <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Detected agents</div>
             <div className="space-y-2.5">
@@ -313,10 +320,9 @@ export function CompanyOnboarding({
         </motion.div>
       </div>
 
-      {/* Right panel — form steps */}
-      <div className="flex items-center border-l border-[color:var(--line)] bg-[color:var(--bg-subtle)] px-6 py-10 md:px-10">
+      <div className="min-h-0 overflow-y-auto border-l border-[color:var(--line)] bg-[color:var(--bg-subtle)]">
+        <div className="flex min-h-full items-center px-6 py-10 md:px-10">
         <AnimatePresence mode="wait">
-          {/* ── Step: Choose Mode ────────────────────────── */}
           {step === "choose" ? (
             <motion.div
               key="choose"
@@ -331,7 +337,7 @@ export function CompanyOnboarding({
                 <div className="text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text)]">Choose your setup</div>
               </div>
 
-              {/* Template cards */}
+
               <div className="space-y-2">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--accent)]">Quick Start — Choose a template</div>
                 <div className="grid grid-cols-1 gap-2">
@@ -378,7 +384,7 @@ export function CompanyOnboarding({
                 <div className="h-px flex-1 bg-[color:var(--line)]" />
               </div>
 
-              {/* Custom option */}
+
               <button
                 type="button"
                 onClick={() => setStep("company")}
@@ -395,7 +401,6 @@ export function CompanyOnboarding({
               </button>
             </motion.div>
           ) : step === "template" && selectedTemplate ? (
-            /* ── Step: Template Configuration ─────────────── */
             <motion.div
               key="template"
               initial={{ opacity: 0, y: 18 }}
@@ -421,7 +426,7 @@ export function CompanyOnboarding({
                 </div>
               </div>
 
-              {/* Team preview */}
+
               <div className="mt-5 rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
                 <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">Team that will be created</div>
                 <div className="space-y-1.5">
@@ -430,7 +435,7 @@ export function CompanyOnboarding({
                       <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[8px] font-bold ${
                         agent.reportsToIndex === null ? "bg-[color:var(--accent-soft)] text-[color:var(--accent)]" : "bg-[color:var(--panel)] text-[color:var(--muted-strong)]"
                       }`}>
-                        {agent.name.split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase()}
+                        {getAgentInitials(agent.name)}
                       </div>
                       <span className="font-medium text-[color:var(--text)]">{agent.name}</span>
                       <span className="text-[color:var(--muted)]">— {agent.title}</span>
@@ -449,7 +454,7 @@ export function CompanyOnboarding({
                 </div>
               </div>
 
-              {/* What happens */}
+
               <div className="mt-4 rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
                 <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">What happens next</div>
                 <div className="space-y-2 text-[12px] text-[color:var(--muted)]">
@@ -492,7 +497,6 @@ export function CompanyOnboarding({
               </div>
             </motion.div>
           ) : step === "company" ? (
-            /* ── Step: Custom Company ─────────────────────── */
             <motion.div
               key="company"
               initial={{ opacity: 0, y: 18 }}
@@ -568,7 +572,6 @@ export function CompanyOnboarding({
               </div>
             </motion.div>
           ) : step === "goal" ? (
-            /* ── Step: Goal ───────────────────────────────── */
             <motion.div
               key="goal"
               initial={{ opacity: 0, y: 18 }}
@@ -639,7 +642,6 @@ export function CompanyOnboarding({
               </div>
             </motion.div>
           ) : (
-            /* ── Step: Launch Success ─────────────────────── */
             <motion.div
               key="launch"
               initial={{ opacity: 0, scale: 0.95 }}
@@ -677,6 +679,7 @@ export function CompanyOnboarding({
             </motion.div>
           )}
         </AnimatePresence>
+        </div>
       </div>
     </div>
   );

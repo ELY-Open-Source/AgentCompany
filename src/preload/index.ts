@@ -44,7 +44,6 @@ const api: DesktopApi = {
   triggerHeartbeat: (input) => ipcRenderer.invoke(IPC_CHANNELS.triggerHeartbeat, input),
   getApiPort: () => ipcRenderer.invoke(IPC_CHANNELS.getApiPort),
   getInbox: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.getInbox, companyId),
-  dismissInboxItem: (input) => ipcRenderer.invoke(IPC_CHANNELS.dismissInboxItem, input),
   getCompanyMetrics: (input) => ipcRenderer.invoke(IPC_CHANNELS.getCompanyMetrics, input),
   getAgentMetrics: (input) => ipcRenderer.invoke(IPC_CHANNELS.getAgentMetrics, input),
   getStandupReport: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.getStandupReport, companyId),
@@ -55,32 +54,24 @@ const api: DesktopApi = {
   listBrowserActions: (input) => ipcRenderer.invoke(IPC_CHANNELS.listBrowserActions, input),
   cancelBrowserAction: (input) => ipcRenderer.invoke(IPC_CHANNELS.cancelBrowserAction, input),
   triggerBrowserLogin: (id) => ipcRenderer.invoke(IPC_CHANNELS.triggerBrowserLogin, id),
-  // Meetings
   saveMeeting: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveMeeting, input),
   deleteMeeting: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteMeeting, input),
-  // Documents
   saveDocument: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveDocument, input),
   deleteDocument: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteDocument, input),
-  // Knowledge Base
   saveKnowledgeEntry: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveKnowledgeEntry, input),
   deleteKnowledgeEntry: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteKnowledgeEntry, input),
-  // Sprints
   saveSprint: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveSprint, input),
   deleteSprint: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteSprint, input),
-  // Automation
   saveAutomationRule: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveAutomationRule, input),
   deleteAutomationRule: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteAutomationRule, input),
   toggleAutomationRule: (input) => ipcRenderer.invoke(IPC_CHANNELS.toggleAutomationRule, input),
   getAutomationLog: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.getAutomationLog, companyId),
-  // Agent Messages
   sendAgentMessage: (input) => ipcRenderer.invoke(IPC_CHANNELS.sendAgentMessage, input),
   listAgentMessages: (input) => ipcRenderer.invoke(IPC_CHANNELS.listAgentMessages, input),
   markMessageRead: (input) => ipcRenderer.invoke(IPC_CHANNELS.markMessageRead, input),
-  // Workflows
   saveWorkflow: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveWorkflow, input),
   deleteWorkflow: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteWorkflow, input),
   runWorkflow: (input) => ipcRenderer.invoke(IPC_CHANNELS.runWorkflow, input),
-  // Auto-assign
   autoAssignTask: (input) => ipcRenderer.invoke(IPC_CHANNELS.autoAssignTask, input),
   subscribe: (callback: (event: DesktopEvent) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: DesktopEvent) => callback(payload);

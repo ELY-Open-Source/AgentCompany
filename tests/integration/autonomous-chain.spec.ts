@@ -293,7 +293,6 @@ describe("Step 2: CEO phased prompts", () => {
     });
 
     const prompt = buildSystemPrompt(ctx);
-    expect(prompt).toContain("escalate by commenting on YOUR parent task");
     expect(prompt).toContain("Break down work and delegate it");
   });
 
@@ -310,7 +309,7 @@ describe("Step 2: CEO phased prompts", () => {
 
     const prompt = buildSystemPrompt(ctx);
     expect(prompt).toContain("Your manager is auto-notified and will help");
-    expect(prompt).toContain("comment explaining what API key/account you need");
+    expect(prompt).toContain("explain what API key/account you need");
   });
 });
 
@@ -320,15 +319,15 @@ describe("Step 3: Deferred wake queue (database)", () => {
   it("enqueue and consume pending wakes", () => {
     const agentId = createAgent({ name: "TestAgent" });
 
-    // Enqueue two wakes
+    // Enqueue two wakes for the same busy agent. The queue deduplicates by agent
+    // so only the freshest trigger is retained.
     db.enqueuePendingWake(companyId, agentId, "subtask_completed");
     db.enqueuePendingWake(companyId, agentId, "comment");
 
-    // Consume returns them in order
+    // Consume returns the latest retained wake
     const wakes = db.consumePendingWakes(agentId);
-    expect(wakes).toHaveLength(2);
-    expect(wakes[0].trigger).toBe("subtask_completed");
-    expect(wakes[1].trigger).toBe("comment");
+    expect(wakes).toHaveLength(1);
+    expect(wakes[0].trigger).toBe("comment");
     expect(wakes[0].companyId).toBe(companyId);
 
     // Second consume returns empty (they've been deleted)
@@ -640,10 +639,10 @@ describe("Step 8: Wake reason injection", () => {
 
     const prompt = buildTaskPrompt(ctx);
     expect(prompt).toContain("Wake Reason");
-    expect(prompt).toContain("subtask assigned to one of your reports has been completed");
+    expect(prompt).toContain("subtask you delegated has been completed");
   });
 
-  it("does not include wake reason for timer triggers", () => {
+  it("includes wake reason for timer triggers", () => {
     const agentId = createAgent({ name: "Agent" });
 
     const ctx = buildCtx({
@@ -652,10 +651,11 @@ describe("Step 8: Wake reason injection", () => {
     });
 
     const prompt = buildTaskPrompt(ctx);
-    expect(prompt).not.toContain("Wake Reason");
+    expect(prompt).toContain("Wake Reason");
+    expect(prompt).toContain("Regular heartbeat check-in");
   });
 
-  it("does not include wake reason for manual triggers", () => {
+  it("includes wake reason for manual triggers", () => {
     const agentId = createAgent({ name: "Agent" });
 
     const ctx = buildCtx({
@@ -664,17 +664,18 @@ describe("Step 8: Wake reason injection", () => {
     });
 
     const prompt = buildTaskPrompt(ctx);
-    expect(prompt).not.toContain("Wake Reason");
+    expect(prompt).toContain("Wake Reason");
+    expect(prompt).toContain("manually triggered by the human operator");
   });
 
   it("includes correct message for each wake reason", () => {
     const agentId = createAgent({ name: "Agent" });
 
     const reasons: Record<string, string> = {
-      assignment: "assigned new work",
+      assignment: "You have been assigned a new task",
       goal_activated: "goal you own has been activated",
-      approval_resolved: "approval you requested has been resolved",
-      subtask_completed: "subtask assigned to one of your reports has been completed",
+      approval_resolved: "approval you requested has been decided",
+      subtask_completed: "subtask you delegated has been completed",
       comment: "new comment has been posted",
       report_blocked: "reports is blocked",
       report_failed: "reports has failed",
@@ -887,7 +888,7 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
     });
     const icPrompt = buildTaskPrompt(icPromptCtx);
     expect(icPrompt).toContain("Wake Reason");
-    expect(icPrompt).toContain("assigned new work");
+    expect(icPrompt).toContain("You have been assigned a new task");
     expect(icPrompt).toContain("Implement auth");
   });
 });
@@ -898,17 +899,16 @@ describe("E2E: Deferred wake queue with run lifecycle", () => {
   it("wake enqueue + run finish + consume cycle", () => {
     const agentId = createAgent({ name: "Agent" });
 
-    // Simulate: agent is running, wakes come in
+    // Simulate: agent is running, wakes come in. Only the freshest reason is
+    // retained so the agent gets one consolidated follow-up wake.
     db.enqueuePendingWake(companyId, agentId, "subtask_completed");
     db.enqueuePendingWake(companyId, agentId, "comment");
     db.enqueuePendingWake(companyId, agentId, "report_blocked");
 
     // Agent finishes run → consume pending wakes
     const wakes = db.consumePendingWakes(agentId);
-    expect(wakes).toHaveLength(3);
-    expect(wakes[0].trigger).toBe("subtask_completed");
-    expect(wakes[1].trigger).toBe("comment");
-    expect(wakes[2].trigger).toBe("report_blocked");
+    expect(wakes).toHaveLength(1);
+    expect(wakes[0].trigger).toBe("report_blocked");
 
     // All consumed
     expect(db.consumePendingWakes(agentId)).toHaveLength(0);
@@ -1192,6 +1192,81 @@ describe("Agent Messages", () => {
     expect(messages[0].readAt).toBeTruthy();
   });
 
+  it("tracks read state per agent without marking the sender unread", () => {
+    const msgId = db.sendAgentMessage({
+      companyId,
+      fromAgentId: agentAId,
+      toAgentId: agentBId,
+      subject: "Test",
+      body: "Hello",
+    });
+
+    const senderView = db.listAgentMessages(companyId, { agentId: agentAId });
+    expect(senderView).toHaveLength(1);
+    expect(senderView[0].id).toBe(msgId);
+    expect(senderView[0].readAt).toBeTruthy();
+
+    const recipientViewBefore = db.listAgentMessages(companyId, { agentId: agentBId, unreadOnly: true });
+    expect(recipientViewBefore).toHaveLength(1);
+    expect(recipientViewBefore[0].id).toBe(msgId);
+
+    db.markAgentMessageRead(msgId, companyId, agentBId);
+
+    const recipientViewAfter = db.listAgentMessages(companyId, { agentId: agentBId, unreadOnly: true });
+    expect(recipientViewAfter).toHaveLength(0);
+
+    const thirdAgentId = createAgent({ name: "Agent C" });
+    const thirdView = db.listAgentMessages(companyId, { agentId: thirdAgentId });
+    expect(thirdView).toHaveLength(0);
+  });
+
+  it("limits department and project messages to relevant members", () => {
+    const engineeringLeadId = createAgent({ name: "Engineering Lead", role: "Lead", department: "engineering" });
+    const productLeadId = createAgent({ name: "Product Lead", role: "Lead", department: "product" });
+
+    const projectId = db.saveProject({
+      companyId,
+      name: "Cross-team Project",
+      description: "Scope",
+      leadAgentId: engineeringLeadId,
+      status: "active",
+    });
+    db.saveTask({
+      companyId,
+      title: "Project task",
+      description: "Do work",
+      assigneeAgentId: engineeringLeadId,
+      projectId,
+      status: "todo",
+      priority: "medium",
+    });
+
+    const deptMessageId = db.sendAgentMessage({
+      companyId,
+      fromAgentId: engineeringLeadId,
+      channel: "department",
+      channelTargetId: "engineering",
+      subject: "Engineering update",
+      body: "Only engineering should see this",
+    });
+    const projectMessageId = db.sendAgentMessage({
+      companyId,
+      fromAgentId: engineeringLeadId,
+      channel: "project",
+      channelTargetId: projectId,
+      subject: "Project update",
+      body: "Only project members should see this",
+    });
+
+    const engineeringView = db.listAgentMessages(companyId, { agentId: engineeringLeadId });
+    expect(engineeringView.some((message) => message.id === deptMessageId)).toBe(true);
+    expect(engineeringView.some((message) => message.id === projectMessageId)).toBe(true);
+
+    const productView = db.listAgentMessages(companyId, { agentId: productLeadId });
+    expect(productView.some((message) => message.id === deptMessageId)).toBe(false);
+    expect(productView.some((message) => message.id === projectMessageId)).toBe(false);
+  });
+
   it("filters messages by channel", () => {
     db.sendAgentMessage({ companyId, fromAgentId: agentAId, subject: "Dept update", body: "All good", channel: "department", channelTargetId: "engineering" });
     db.sendAgentMessage({ companyId, fromAgentId: agentAId, toAgentId: agentBId, subject: "DM", body: "Hey", channel: "direct" });
@@ -1206,7 +1281,7 @@ describe("Agent Messages", () => {
   });
 
   it("appears in snapshot", () => {
-    db.sendAgentMessage({ companyId, fromAgentId: agentAId, subject: "Snapshot test", body: "Hi" });
+    db.sendAgentMessage({ companyId, fromAgentId: agentAId, channel: "company", subject: "Snapshot test", body: "Hi" });
     const snapshot = db.listSnapshot();
     expect(snapshot.agentMessages.length).toBeGreaterThanOrEqual(1);
     expect(snapshot.agentMessages[0].subject).toBe("Snapshot test");
@@ -1268,10 +1343,13 @@ describe("Auto Task Assignment", () => {
     expect(result).toBe(frontendId);
   });
 
-  it("returns null if no agents have remaining budget", () => {
-    // Exhaust both agents' budgets
-    db.saveAgent({ id: backendId, companyId, name: "Backend Dev", role: "Backend", title: "Backend", connectorId: "codex_local", status: "active", capabilities: "backend", budgetMonthlyUsd: 0 });
-    db.saveAgent({ id: frontendId, companyId, name: "Frontend Dev", role: "Frontend", title: "Frontend", connectorId: "codex_local", status: "active", capabilities: "frontend", budgetMonthlyUsd: 0 });
+  it("returns null if all agents have exhausted their budget", () => {
+    // Set positive budgets that are fully spent
+    db.saveAgent({ id: backendId, companyId, name: "Backend Dev", role: "Backend", title: "Backend", connectorId: "codex_local", status: "active", capabilities: "backend", budgetMonthlyUsd: 100 });
+    db.saveAgent({ id: frontendId, companyId, name: "Frontend Dev", role: "Frontend", title: "Frontend", connectorId: "codex_local", status: "active", capabilities: "frontend", budgetMonthlyUsd: 100 });
+    // Exhaust budgets by recording spending via direct SQL (since finishRun would need a real run)
+    (db as any).db.prepare("update agents set spent_monthly_usd = 100 where id = ?").run(backendId);
+    (db as any).db.prepare("update agents set spent_monthly_usd = 100 where id = ?").run(frontendId);
 
     const taskId = db.saveTask({ companyId, title: "No budget task", description: "Test", priority: "low", status: "todo" });
     const result = db.autoAssignTask(taskId, companyId);

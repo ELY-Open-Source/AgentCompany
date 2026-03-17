@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowClockwise,
   Bell,
-  BookOpen,
   Brain,
   CalendarBlank,
   CaretUpDown,
@@ -39,8 +38,6 @@ import {
   X,
 } from "@phosphor-icons/react";
 import type {
-  AgentMessageRecord,
-  AutomationRuleRecord,
   CompanyRecord,
   CompanyMetrics,
   DesktopEvent,
@@ -51,7 +48,6 @@ import type {
   SocialAccountRecord,
   BrowserActionRecord,
   StandupReport,
-  WorkflowPipelineRecord,
 } from "@shared/types";
 import type { SidebarBadges } from "@shared/contracts";
 import { CompanyOnboarding } from "./components/CompanyOnboarding";
@@ -72,6 +68,7 @@ import {
   TaskInspector,
   TaskQueue,
   WorkspaceCreator,
+  WorkspaceInspector,
   WorkspaceList,
 } from "./components/execution";
 import {
@@ -90,6 +87,7 @@ import { SocialAccountsPanel } from "./components/social";
 import { AutomationPanel } from "./components/automation";
 import { CommunicationHub } from "./components/communication";
 import { HiringPipeline } from "./components/hiring";
+import { DocumentCenter, KnowledgeBaseManager, MeetingsManager, SprintManager } from "./components/company-operations";
 import { ActionButton, ErrorBoundary, ListFrame, ListRow, Modal, Panel, SectionButton, Select, StatusPill, useFocusTrap, useReducedMotion } from "./components/ui";
 import { unwrap } from "./lib/desktop";
 import { formatMoney, formatTime } from "./lib/formatters";
@@ -175,12 +173,15 @@ export function App() {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
+  const [selectedCommunicationEntityId, setSelectedCommunicationEntityId] = useState<string | null>(null);
   const [taskViewMode, setTaskViewMode] = useState<"list" | "kanban">("list");
   const logBufferRef = useRef<Record<string, string>>({});
   const [, setLogRevision] = useState(0);
   const [badges, setBadges] = useState<SidebarBadges | null>(null);
   const [commandPaletteSearch, setCommandPaletteSearch] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [initialOnboardingLocked, setInitialOnboardingLocked] = useState(false);
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
   const [companyMetrics, setCompanyMetrics] = useState<CompanyMetrics | null>(null);
   const [standupReport, setStandupReport] = useState<StandupReport | null>(null);
@@ -191,23 +192,46 @@ export function App() {
     try {
       const next = unwrap<ProfileSnapshot>(await window.agentCompany.loadSnapshot());
       setSnapshot(next);
-      // Tasks are opened explicitly by clicking; don't auto-select.
+      if (next.companies.length === 0) {
+        setInitialOnboardingLocked(true);
+      }
       if (!selectedConnectorId && next.connectors[0]) setSelectedConnectorId(next.connectors[0].id);
-      if (!selectedApprovalId && next.approvals[0]) setSelectedApprovalId(next.approvals[0].id);
       if (!selectedRunId && next.runs[0]) setSelectedRunId(next.runs[0].id);
       if (next.currentCompanyId) {
         const badgeResult = await window.agentCompany.getSidebarBadges(next.currentCompanyId);
         if (badgeResult.ok) setBadges(badgeResult.data);
         setSocialAccounts(next.socialAccounts?.filter(a => a.companyId === next.currentCompanyId) ?? []);
+        const browserActionResult = await window.agentCompany.listBrowserActions({ companyId: next.currentCompanyId, limit: 50 });
+        if (browserActionResult.ok) {
+          setBrowserActions(browserActionResult.data);
+        }
       }
       setError(null);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     }
-  }, [selectedApprovalId, selectedConnectorId, selectedRunId]);
+  }, [selectedConnectorId, selectedRunId]);
+
+  // Stable ref so the subscribe callback always calls the latest refresh
+  // without tearing down the subscription when refresh identity changes.
+  const refreshRef = useRef(refresh);
+  useEffect(() => {
+    refreshRef.current = refresh;
+  }, [refresh]);
+
+  // Debounce timer ref for coalescing rapid real-time events
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const debouncedRefresh = useCallback(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null;
+      void refreshRef.current();
+    }, 500);
+  }, []);
 
   useEffect(() => {
-    void refresh();
+    void refreshRef.current();
     const unsubscribe = window.agentCompany.subscribe((event: DesktopEvent) => {
       if (event.type === "run-log") {
         logBufferRef.current = {
@@ -220,13 +244,18 @@ export function App() {
       if (event.type === "shortcut") {
         if (event.action === "toggle-command-palette") setCommandPaletteOpen((current) => !current);
         if (event.action === "toggle-console") setConsoleOpen((current) => !current);
-        if (event.action === "refresh") void refresh();
+        if (event.action === "refresh") void refreshRef.current();
         return;
       }
-      void refresh();
+      // All data-mutating events trigger a debounced snapshot reload:
+      // domain-changed, run-status, new-message, automation-fired, heartbeat-status
+      debouncedRefresh();
     });
-    return unsubscribe;
-  }, [refresh]);
+    return () => {
+      unsubscribe();
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [debouncedRefresh]);
 
   useEffect(() => {
     if (!selectedRunId) return;
@@ -272,13 +301,9 @@ export function App() {
 
     if (section === "social") {
       setSocialAccounts(snapshot.socialAccounts?.filter(a => a.companyId === companyId) ?? []);
-      void window.agentCompany.listBrowserActions({ companyId, limit: 50 }).then(result => {
-        if (result.ok) setBrowserActions(result.data);
-      });
     }
-  }, [section, snapshot?.currentCompanyId]);
+  }, [section, snapshot]);
 
-  // Global Escape key handler for command palette
   useEffect(() => {
     if (!commandPaletteOpen) return;
     function onKey(event: KeyboardEvent) {
@@ -302,11 +327,10 @@ export function App() {
   const selectedTask = selectedTaskId ? (tasks.find((task) => task.id === selectedTaskId) ?? null) : null;
   const selectedConnector = snapshot?.connectors.find((connector) => connector.id === selectedConnectorId) ?? snapshot?.connectors[0] ?? null;
   const approvals = useMemo(() => snapshot?.approvals.filter((approval) => !currentCompany || approval.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
-  const selectedApproval = approvals.find((approval) => approval.id === selectedApprovalId) ?? approvals[0] ?? null;
+  const selectedApproval = selectedApprovalId ? (approvals.find((approval) => approval.id === selectedApprovalId) ?? null) : null;
   const runs = useMemo(() => snapshot?.runs.filter((run) => !currentCompany || run.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
   const selectedRun = runs.find((run) => run.id === selectedRunId) ?? runs[0] ?? null;
 
-  // Derived selections for organization entities
   const companyAgents = useMemo(() => snapshot?.agents.filter((a) => !currentCompany || a.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
   const selectedAgent = companyAgents.find((a) => a.id === selectedAgentId) ?? null;
   const companyGoals = useMemo(() => snapshot?.goals.filter((g) => !currentCompany || g.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
@@ -314,32 +338,24 @@ export function App() {
   const companyProjects = useMemo(() => snapshot?.projects.filter((p) => !currentCompany || p.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
   const selectedProject = companyProjects.find((p) => p.id === selectedProjectId) ?? null;
 
-  // Sidebar badge mapping
-  const activeInboxCount = useMemo(() => inboxItems.filter((item) => !item.dismissed).length, [inboxItems]);
+  const activeInboxCount = inboxItems.length;
   const navBadges = useMemo<Partial<Record<SectionId, { count: number; tone: "default" | "warn" | "danger" }>>>(() => badges ? {
     inbox: activeInboxCount > 0 ? { count: activeInboxCount, tone: "warn" } : undefined,
     tasks: badges.todoTasks > 0 ? { count: badges.todoTasks, tone: "default" } : undefined,
     approvals: badges.pendingApprovals > 0 ? { count: badges.pendingApprovals, tone: "warn" } : undefined,
     costs: badges.budgetWarnings > 0 ? { count: badges.budgetWarnings, tone: "danger" } : undefined,
+    communication: badges.unreadMessages > 0 ? { count: badges.unreadMessages, tone: "warn" } : undefined,
   } : {}, [badges, activeInboxCount]);
 
-  const liveRuns = useMemo(() => runs.filter((run) => run.status === "running" || run.status === "queued"), [runs]);
-  const failedRuns = useMemo(() => runs.filter((run) => ["failed", "timed_out", "interrupted"].includes(run.status)), [runs]);
-  const pendingApprovals = useMemo(() => approvals.filter((approval) => approval.state === "pending"), [approvals]);
-  const tasksInProgress = useMemo(() => tasks.filter((task) => task.status === "in_progress" || task.status === "in_review"), [tasks]);
   const companyWorkspaces = useMemo(() => snapshot?.workspaces.filter((workspace) => !currentCompany || workspace.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const selectedWorkspace = companyWorkspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? companyWorkspaces[0] ?? null;
   const companyCosts = useMemo(() => snapshot?.costs.filter((entry) => !currentCompany || entry.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
   const filteredActivity = useMemo(() => snapshot?.activity.filter((entry) => !currentCompany || entry.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
   const companySecrets = useMemo(() => snapshot?.secrets.filter((secret) => !currentCompany || secret.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
-  const totalSpend = useMemo(() => companyCosts.reduce((sum, entry) => sum + (entry.amountUsd ?? 0), 0), [companyCosts]);
-  const overviewRows = useMemo(() => [
-    { label: "Live runs", value: String(liveRuns.length), tone: liveRuns.length > 0 ? "text-[color:var(--success)]" : "" },
-    { label: "Pending approvals", value: String(pendingApprovals.length), tone: pendingApprovals.length > 0 ? "text-[color:var(--warn)]" : "" },
-    { label: "Active tasks", value: String(tasksInProgress.length), tone: "" },
-    { label: "Known spend", value: formatMoney(totalSpend), tone: "" },
-  ], [liveRuns, pendingApprovals, tasksInProgress, totalSpend]);
-
-  // Command palette entity search
+  const companyDocuments = useMemo(() => snapshot?.documents?.filter((d) => !currentCompany || d.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const companyKnowledge = useMemo(() => snapshot?.knowledgeBase?.filter((k) => !currentCompany || k.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const companyMeetings = useMemo(() => snapshot?.meetings?.filter((m) => !currentCompany || m.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const companySprints = useMemo(() => snapshot?.sprints?.filter((s) => !currentCompany || s.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
   const paletteQuery = commandPaletteSearch.trim().toLowerCase();
   const paletteResults = useMemo(() => {
     const filteredNavItems = paletteQuery
@@ -353,6 +369,18 @@ export function App() {
     return { filteredNavItems, matchedAgents, matchedTasks, matchedGoals, matchedProjects, hasEntityResults };
   }, [paletteQuery, companyAgents, tasks, companyGoals, companyProjects]);
   const { filteredNavItems, matchedAgents, matchedTasks, matchedGoals, matchedProjects, hasEntityResults } = paletteResults;
+
+  const navigateTo = useCallback((targetSection: SectionId, entityId?: string) => {
+    setSection(targetSection);
+    if (entityId) {
+      if (targetSection === "agents") setSelectedAgentId(entityId);
+      else if (targetSection === "tasks") setSelectedTaskId(entityId);
+      else if (targetSection === "approvals") setSelectedApprovalId(entityId);
+      else if (targetSection === "goals") setSelectedGoalId(entityId);
+      else if (targetSection === "projects") setSelectedProjectId(entityId);
+      else if (targetSection === "communication") setSelectedCommunicationEntityId(entityId);
+    }
+  }, []);
 
   const setCompany = useCallback(async (companyId: string) => {
     if (companyId === "__new__") {
@@ -419,8 +447,12 @@ export function App() {
     );
   }
 
-  if (snapshot.companies.length === 0 || showOnboarding) {
-    return <CompanyOnboarding connectors={snapshot.connectors} onDone={async () => { setShowOnboarding(false); await refresh(); }} />;
+  if (snapshot.companies.length === 0 || showOnboarding || initialOnboardingLocked) {
+    return <CompanyOnboarding connectors={snapshot.connectors} onDone={async () => {
+      setShowOnboarding(false);
+      setInitialOnboardingLocked(false);
+      await refresh();
+    }} />;
   }
 
   return (
@@ -560,7 +592,7 @@ export function App() {
             className={`focus-ring mt-1 flex w-full items-center rounded-[6px] py-[7px] text-[color:var(--muted)] transition duration-150 hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)] ${sidebarCollapsed ? "justify-center p-2" : "gap-2.5 px-3"}`}
             onClick={() => setSidebarCollapsed((c) => !c)}
           >
-            <SidebarSimple size={sidebarCollapsed ? 18 : 17} className={sidebarCollapsed ? "" : ""} />
+            <SidebarSimple size={sidebarCollapsed ? 18 : 17} />
             {!sidebarCollapsed ? <span className="text-[13px] font-medium tracking-[0.005em]">Collapse</span> : null}
           </button>
         </div>
@@ -626,67 +658,33 @@ export function App() {
                   activity={filteredActivity}
                   costs={companyCosts}
                   connectors={snapshot.connectors}
-                  meetings={snapshot.meetings?.filter((m) => !currentCompany || m.companyId === currentCompany.id)}
-                  sprints={snapshot.sprints?.filter((s) => !currentCompany || s.companyId === currentCompany.id)}
-                  onNavigate={(targetSection, entityId) => {
-                    setSection(targetSection);
-                    if (entityId) {
-                      if (targetSection === "agents") setSelectedAgentId(entityId);
-                      else if (targetSection === "tasks") setSelectedTaskId(entityId);
-                      else if (targetSection === "approvals") setSelectedApprovalId(entityId);
-                      else if (targetSection === "goals") setSelectedGoalId(entityId);
-                      else if (targetSection === "projects") setSelectedProjectId(entityId);
-                    }
-                  }}
+                  meetings={companyMeetings}
+                  sprints={companySprints}
+                  messages={snapshot.agentMessages?.filter((message) => !currentCompany || message.companyId === currentCompany.id) ?? []}
+                  browserActions={browserActions}
+                  workflows={snapshot.workflows?.filter((workflow) => !currentCompany || workflow.companyId === currentCompany.id) ?? []}
+                  onNavigate={navigateTo}
                 />
               ) : null}
 
               {section === "inbox" ? (
                 <Inbox
                   items={inboxItems}
-                  onNavigate={(targetSection, entityId) => {
-                    setSection(targetSection);
-                    if (entityId) {
-                      if (targetSection === "agents") setSelectedAgentId(entityId);
-                      else if (targetSection === "tasks") setSelectedTaskId(entityId);
-                      else if (targetSection === "approvals") setSelectedApprovalId(entityId);
-                      else if (targetSection === "goals") setSelectedGoalId(entityId);
-                      else if (targetSection === "projects") setSelectedProjectId(entityId);
-                    }
-                  }}
-                  onDismiss={(_itemId) => { /* no-op for now */ }}
+                  onNavigate={navigateTo}
                 />
               ) : null}
 
               {section === "standup" ? (
                 <StandupView
                   report={standupReport}
-                  onNavigate={(targetSection, entityId) => {
-                    setSection(targetSection);
-                    if (entityId) {
-                      if (targetSection === "agents") setSelectedAgentId(entityId);
-                      else if (targetSection === "tasks") setSelectedTaskId(entityId);
-                      else if (targetSection === "approvals") setSelectedApprovalId(entityId);
-                      else if (targetSection === "goals") setSelectedGoalId(entityId);
-                      else if (targetSection === "projects") setSelectedProjectId(entityId);
-                    }
-                  }}
+                  onNavigate={navigateTo}
                 />
               ) : null}
 
               {section === "performance" ? (
                 <PerformanceView
                   metrics={companyMetrics}
-                  onNavigate={(targetSection, entityId) => {
-                    setSection(targetSection);
-                    if (entityId) {
-                      if (targetSection === "agents") setSelectedAgentId(entityId);
-                      else if (targetSection === "tasks") setSelectedTaskId(entityId);
-                      else if (targetSection === "approvals") setSelectedApprovalId(entityId);
-                      else if (targetSection === "goals") setSelectedGoalId(entityId);
-                      else if (targetSection === "projects") setSelectedProjectId(entityId);
-                    }
-                  }}
+                  onNavigate={navigateTo}
                 />
               ) : null}
 
@@ -717,7 +715,7 @@ export function App() {
                   </Panel>
                   <Panel
                     title={selectedConnector.label}
-                    eyebrow={undefined}
+
                     action={<ActionButton label="Run health check" onClick={() => void quickConnectorCheck()} icon={Wrench} tone="accent" />}
                   >
                     <ConnectorEditor connector={selectedConnector} onSaved={refresh} />
@@ -762,7 +760,6 @@ export function App() {
 
               {section === "hiring" && currentCompany ? (
                 <HiringPipeline
-                  companyId={currentCompany.id}
                   agents={companyAgents}
                   approvals={(snapshot?.approvals ?? []).filter(a => a.companyId === currentCompany!.id)}
                   onRefresh={refresh}
@@ -906,7 +903,7 @@ export function App() {
                         tasks={tasks}
                         companyId={currentCompany!.id}
                         onDecide={async (state, note) => {
-                          unwrap(await window.agentCompany.decideApproval({ approvalId: selectedApproval.id, state, decisionNote: note ?? `${state} from desktop control surface.` }));
+                          unwrap(await window.agentCompany.decideApproval({ companyId: currentCompany!.id, approvalId: selectedApproval.id, state, decisionNote: note ?? `${state} from desktop control surface.` }));
                           await refresh();
                         }}
                         onDeleted={async () => { setSelectedApprovalId(null); await refresh(); }}
@@ -965,16 +962,19 @@ export function App() {
                   }}
                   onLogin={async (accountId) => {
                     await window.agentCompany.triggerBrowserLogin(accountId);
+                    await refresh();
                   }}
-                  onNavigate={(s, id) => {
-                    setSection(s);
-                    if (id) {
-                      if (s === "agents") setSelectedAgentId(id);
-                      else if (s === "tasks") setSelectedTaskId(id);
-                      else if (s === "approvals") setSelectedApprovalId(id);
-                      else if (s === "goals") setSelectedGoalId(id);
-                      else if (s === "projects") setSelectedProjectId(id);
-                    }
+                  onOpenPath={async (path) => {
+                    await window.agentCompany.openPath(path);
+                  }}
+                  onCancelAction={async (actionId) => {
+                    await window.agentCompany.cancelBrowserAction({ runId: actionId });
+                    await refresh();
+                  }}
+                  onNavigate={(sectionName, entityId) => {
+                    setSection(sectionName);
+                    if (sectionName === "tasks") setSelectedTaskId(entityId);
+                    if (sectionName === "approvals") setSelectedApprovalId(entityId);
                   }}
                 />
               )}
@@ -983,7 +983,6 @@ export function App() {
                 <AutomationPanel
                   rules={snapshot.automationRules?.filter(r => r.companyId === currentCompany.id) ?? []}
                   workflows={snapshot.workflows?.filter(w => w.companyId === currentCompany.id) ?? []}
-                  agents={companyAgents}
                   companyId={currentCompany.id}
                   onRefresh={refresh}
                 />
@@ -992,137 +991,36 @@ export function App() {
               {section === "communication" && currentCompany ? (
                 <CommunicationHub
                   messages={snapshot.agentMessages?.filter(m => m.companyId === currentCompany.id) ?? []}
+                  comments={snapshot.comments?.filter((comment) => comment.companyId === currentCompany.id) ?? []}
+                  tasks={tasks}
                   agents={companyAgents}
                   companyId={currentCompany.id}
+                  selectedEntityId={selectedCommunicationEntityId}
                   onRefresh={refresh}
                 />
               ) : null}
 
               {section === "documents" && currentCompany ? (
-                <Panel title="Company Documents" action={<span className="text-[11px] text-[color:var(--muted)]">{(snapshot.documents?.filter(d => d.companyId === currentCompany.id) ?? []).length} documents</span>}>
-                  {(snapshot.documents?.filter(d => d.companyId === currentCompany.id) ?? []).length === 0 ? (
-                    <div className="py-10 text-center text-[13px] text-[color:var(--muted)]">
-                      <FileText size={32} className="mx-auto mb-3 opacity-40" />
-                      <p>No documents yet. Agents will create PRDs, specs, and reports as they work.</p>
-                    </div>
-                  ) : (
-                    <ListFrame>
-                      {(snapshot.documents?.filter(d => d.companyId === currentCompany.id) ?? []).map(doc => (
-                        <ListRow key={doc.id}>
-                          <div className="flex items-center justify-between">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <FileText size={14} className="text-[color:var(--accent)]" />
-                                <span className="text-[13px] font-medium text-[color:var(--text)]">{doc.title}</span>
-                              </div>
-                              <div className="mt-1 flex items-center gap-3 text-[11px] text-[color:var(--muted)]">
-                                <span className="uppercase tracking-wider">{doc.type.replace(/_/g, " ")}</span>
-                                <span>v{doc.version}</span>
-                                {doc.authorAgentId && <span>by {companyAgents.find(a => a.id === doc.authorAgentId)?.name ?? "Unknown"}</span>}
-                              </div>
-                            </div>
-                            <StatusPill status={doc.status} />
-                          </div>
-                        </ListRow>
-                      ))}
-                    </ListFrame>
-                  )}
-                </Panel>
+                <DocumentCenter
+                  companyId={currentCompany.id}
+                  documents={companyDocuments}
+                  agents={companyAgents}
+                  projects={companyProjects}
+                  goals={companyGoals}
+                  onRefresh={refresh}
+                />
               ) : null}
 
               {section === "knowledge" && currentCompany ? (
-                <Panel title="Knowledge Base" action={<span className="text-[11px] text-[color:var(--muted)]">{(snapshot.knowledgeBase?.filter(k => k.companyId === currentCompany.id) ?? []).length} entries</span>}>
-                  {(snapshot.knowledgeBase?.filter(k => k.companyId === currentCompany.id) ?? []).length === 0 ? (
-                    <div className="py-10 text-center text-[13px] text-[color:var(--muted)]">
-                      <Brain size={32} className="mx-auto mb-3 opacity-40" />
-                      <p>No knowledge entries yet. Agents learn and document lessons as they work.</p>
-                    </div>
-                  ) : (
-                    <ListFrame>
-                      {(snapshot.knowledgeBase?.filter(k => k.companyId === currentCompany.id) ?? []).map(entry => (
-                        <ListRow key={entry.id}>
-                          <div className="flex items-center justify-between">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <Brain size={14} className="text-[color:var(--accent)]" />
-                                <span className="text-[13px] font-medium text-[color:var(--text)]">{entry.topic}</span>
-                              </div>
-                              <div className="mt-1 text-[11px] text-[color:var(--muted)]">
-                                <span className="uppercase tracking-wider">{entry.category.replace(/_/g, " ")}</span>
-                                <span className="mx-2">-</span>
-                                <span>{entry.content.slice(0, 100)}{entry.content.length > 100 ? "..." : ""}</span>
-                              </div>
-                            </div>
-                            <StatusPill status={entry.importance} />
-                          </div>
-                        </ListRow>
-                      ))}
-                    </ListFrame>
-                  )}
-                </Panel>
+                <KnowledgeBaseManager companyId={currentCompany.id} entries={companyKnowledge} onRefresh={refresh} />
               ) : null}
 
               {section === "meetings" && currentCompany ? (
-                <Panel title="Meetings" action={<span className="text-[11px] text-[color:var(--muted)]">{(snapshot.meetings?.filter(m => m.companyId === currentCompany.id) ?? []).length} meetings</span>}>
-                  {(snapshot.meetings?.filter(m => m.companyId === currentCompany.id) ?? []).length === 0 ? (
-                    <div className="py-10 text-center text-[13px] text-[color:var(--muted)]">
-                      <CalendarBlank size={32} className="mx-auto mb-3 opacity-40" />
-                      <p>No meetings scheduled. Agents will schedule standups, reviews, and planning sessions.</p>
-                    </div>
-                  ) : (
-                    <ListFrame>
-                      {(snapshot.meetings?.filter(m => m.companyId === currentCompany.id) ?? []).map(meeting => (
-                        <ListRow key={meeting.id}>
-                          <div className="flex items-center justify-between">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <CalendarBlank size={14} className="text-[color:var(--accent)]" />
-                                <span className="text-[13px] font-medium text-[color:var(--text)]">{meeting.title}</span>
-                              </div>
-                              <div className="mt-1 flex items-center gap-3 text-[11px] text-[color:var(--muted)]">
-                                <span className="uppercase tracking-wider">{meeting.type.replace(/_/g, " ")}</span>
-                                <span>{new Date(meeting.scheduledAt).toLocaleString()}</span>
-                                <span>{meeting.durationMinutes}min</span>
-                              </div>
-                            </div>
-                            <StatusPill status={meeting.status} />
-                          </div>
-                        </ListRow>
-                      ))}
-                    </ListFrame>
-                  )}
-                </Panel>
+                <MeetingsManager companyId={currentCompany.id} meetings={companyMeetings} agents={companyAgents} onRefresh={refresh} />
               ) : null}
 
               {section === "sprints" && currentCompany ? (
-                <Panel title="Sprint Board" action={<span className="text-[11px] text-[color:var(--muted)]">{(snapshot.sprints?.filter(s => s.companyId === currentCompany.id) ?? []).length} sprints</span>}>
-                  {(snapshot.sprints?.filter(s => s.companyId === currentCompany.id) ?? []).length === 0 ? (
-                    <div className="py-10 text-center text-[13px] text-[color:var(--muted)]">
-                      <Rows size={32} className="mx-auto mb-3 opacity-40" />
-                      <p>No sprints yet. Start a sprint to organize work into focused cycles.</p>
-                    </div>
-                  ) : (
-                    <ListFrame>
-                      {(snapshot.sprints?.filter(s => s.companyId === currentCompany.id) ?? []).map(sprint => (
-                        <ListRow key={sprint.id}>
-                          <div className="flex items-center justify-between">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <Rows size={14} className="text-[color:var(--accent)]" />
-                                <span className="text-[13px] font-medium text-[color:var(--text)]">{sprint.name}</span>
-                              </div>
-                              <div className="mt-1 flex items-center gap-3 text-[11px] text-[color:var(--muted)]">
-                                <span>{sprint.startDate} - {sprint.endDate}</span>
-                                <span>{sprint.completedPoints}/{sprint.velocityPoints} pts</span>
-                              </div>
-                            </div>
-                            <StatusPill status={sprint.status} />
-                          </div>
-                        </ListRow>
-                      ))}
-                    </ListFrame>
-                  )}
-                </Panel>
+                <SprintManager companyId={currentCompany.id} sprints={companySprints} onRefresh={refresh} />
               ) : null}
 
               {section === "workspaces" ? (
@@ -1135,15 +1033,30 @@ export function App() {
                         workspaces={companyWorkspaces}
                         projects={companyProjects}
                         companyId={currentCompany!.id}
+                        selectedWorkspaceId={selectedWorkspace?.id ?? null}
+                        onSelect={setSelectedWorkspaceId}
                         onOpen={(path) => window.agentCompany.openPath(path).then(() => undefined)}
                         onDeleted={refresh}
                       />
                     </Panel>
                   }
                   secondary={
-                    <Panel title="Add workspace">
-                      <WorkspaceCreator companyId={currentCompany!.id} projects={companyProjects} onSaved={refresh} />
-                    </Panel>
+                    <div className="space-y-6">
+                      <Panel title="Workspace control center">
+                        <WorkspaceInspector
+                          workspace={selectedWorkspace}
+                          agents={companyAgents}
+                          tasks={tasks}
+                          runs={runs}
+                          documents={companyDocuments}
+                          project={selectedWorkspace ? (companyProjects.find((project) => project.id === selectedWorkspace.projectId) ?? null) : null}
+                          onOpen={(path) => window.agentCompany.openPath(path).then(() => undefined)}
+                        />
+                      </Panel>
+                      <Panel title="Add workspace">
+                        <WorkspaceCreator companyId={currentCompany!.id} projects={companyProjects} onSaved={refresh} />
+                      </Panel>
+                    </div>
                   }
                 />
               ) : null}

@@ -17,7 +17,6 @@ import {
   X,
 } from "@phosphor-icons/react"
 import type {
-  AgentRecord,
   AutomationAction,
   AutomationRuleRecord,
   AutomationStatus,
@@ -27,14 +26,12 @@ import type {
   WorkflowStatus,
   WorkflowStep,
 } from "@shared/types"
+import { timeAgo } from "../lib/formatters"
+import { DEPARTMENT_OPTIONS } from "@shared/constants"
 import { ActionButton, Select } from "./ui"
 
-/* ------------------------------------------------------------------ */
-/*  Constants & Config                                                  */
-/* ------------------------------------------------------------------ */
-
-const ACCENT = "#d97745"
-const LINE = "rgba(15,23,42,0.08)"
+const ACCENT = "var(--accent)"
+const LINE = "var(--line)"
 
 const triggerConfig: Record<AutomationTrigger, { label: string; description: string; icon: typeof Lightning }> = {
   task_status_changed: { label: "Task Status Changed", description: "When a task transitions to a new status", icon: ArrowsClockwise },
@@ -70,21 +67,7 @@ const actionConfig: Record<AutomationAction, { label: string; description: strin
   run_task: { label: "Run Task", description: "Immediately execute the task with an agent" },
 }
 
-const departmentOptions: Array<{ value: string; label: string }> = [
-  { value: "", label: "Any department" },
-  { value: "executive", label: "Executive" },
-  { value: "engineering", label: "Engineering" },
-  { value: "product", label: "Product" },
-  { value: "marketing", label: "Marketing" },
-  { value: "sales", label: "Sales" },
-  { value: "hr", label: "Human Resources" },
-  { value: "finance", label: "Finance" },
-  { value: "legal", label: "Legal" },
-  { value: "operations", label: "Operations" },
-  { value: "customer_support", label: "Customer Support" },
-  { value: "research", label: "Research" },
-  { value: "design", label: "Design" },
-]
+const departmentOptions = DEPARTMENT_OPTIONS
 
 const statusColors: Record<AutomationStatus, { bg: string; text: string; dot: string }> = {
   active: { bg: "var(--success-soft)", text: "var(--success)", dot: "var(--success)" },
@@ -109,25 +92,6 @@ const stepStatusConfig: Record<WorkflowStep["status"], { bg: string; border: str
   skipped: { bg: "var(--panel-soft)", border: "var(--line)", text: "var(--muted)" },
 }
 
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                             */
-/* ------------------------------------------------------------------ */
-
-function timeAgo(dateStr: string | null): string {
-  if (!dateStr) return "never"
-  const now = Date.now()
-  const then = new Date(dateStr).getTime()
-  const diff = Math.max(0, now - then)
-  const seconds = Math.floor(diff / 1000)
-  if (seconds < 60) return "just now"
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
-
 function safeJsonParse(json: string): unknown {
   try {
     return JSON.parse(json)
@@ -145,10 +109,6 @@ function safeJsonStringify(value: string): string {
   }
 }
 
-/* ------------------------------------------------------------------ */
-/*  Automation Log Entry Type                                           */
-/* ------------------------------------------------------------------ */
-
 interface AutomationLogEntry {
   ruleId: string
   ruleName: string
@@ -156,10 +116,6 @@ interface AutomationLogEntry {
   action: string
   executedAt: string
 }
-
-/* ------------------------------------------------------------------ */
-/*  Automation Rule Card                                                */
-/* ------------------------------------------------------------------ */
 
 function RuleCard({
   rule,
@@ -187,7 +143,6 @@ function RuleCard({
       style={{ borderColor: LINE }}
     >
       <div className="flex items-center gap-3 px-4 py-3.5">
-        {/* Trigger icon */}
         <div
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]"
           style={{ backgroundColor: `${ACCENT}12`, color: ACCENT }}
@@ -195,7 +150,6 @@ function RuleCard({
           <TriggerIcon size={20} weight="fill" />
         </div>
 
-        {/* Main info */}
         <button
           type="button"
           onClick={onEdit}
@@ -217,18 +171,15 @@ function RuleCard({
             </span>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--muted)]">
-            {/* Trigger label */}
             <span className="inline-flex items-center gap-1 rounded-[4px] bg-[color:var(--panel-soft)] px-1.5 py-0.5 font-medium text-[color:var(--muted-strong)]">
               <Lightning size={10} weight="fill" />
               {triggerInfo?.label ?? rule.trigger}
             </span>
             <ArrowRight size={10} className="text-[color:var(--muted)]" />
-            {/* Action label */}
             <span className="inline-flex items-center gap-1 rounded-[4px] bg-[color:var(--panel-soft)] px-1.5 py-0.5 font-medium text-[color:var(--muted-strong)]">
               <Gear size={10} />
               {actionInfo?.label ?? rule.action}
             </span>
-            {/* Department flow */}
             {rule.sourceDepartment || rule.targetDepartment ? (
               <>
                 <span className="text-[color:var(--line-strong)]">|</span>
@@ -244,7 +195,6 @@ function RuleCard({
               </>
             ) : null}
           </div>
-          {/* Execution stats */}
           <div className="mt-1 flex items-center gap-3 text-[10px] text-[color:var(--muted)]">
             <span>{rule.executionCount} execution{rule.executionCount !== 1 ? "s" : ""}</span>
             <span className="h-0.5 w-0.5 rounded-full bg-[color:var(--muted)]" />
@@ -254,7 +204,6 @@ function RuleCard({
           </div>
         </button>
 
-        {/* Actions */}
         <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
@@ -279,10 +228,6 @@ function RuleCard({
     </motion.div>
   )
 }
-
-/* ------------------------------------------------------------------ */
-/*  Rule Creation / Edit Modal                                          */
-/* ------------------------------------------------------------------ */
 
 interface RuleFormState {
   name: string
@@ -356,7 +301,6 @@ function RuleFormModal({
       setError("Rule name is required")
       return
     }
-    // Validate JSON fields
     try { JSON.parse(form.conditionsJson) } catch {
       setError("Conditions must be valid JSON")
       return
@@ -428,7 +372,6 @@ function RuleFormModal({
         style={{ borderColor: LINE, maxHeight: "85vh" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b px-6 py-4" style={{ borderColor: LINE }}>
           <div className="flex items-center gap-3">
             <div
@@ -451,17 +394,14 @@ function RuleFormModal({
           </button>
         </div>
 
-        {/* Body */}
         <div className="overflow-y-auto px-6 py-5">
           <div className="space-y-5">
-            {/* Error */}
             {error ? (
               <div className="rounded-[8px] bg-[color:var(--danger-soft)] px-3.5 py-2.5 text-[12px] font-medium text-[color:var(--danger)]">
                 {error}
               </div>
             ) : null}
 
-            {/* Name */}
             <div>
               <label className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]">
                 Rule Name
@@ -476,7 +416,6 @@ function RuleFormModal({
               />
             </div>
 
-            {/* Description */}
             <div>
               <label className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]">
                 Description
@@ -491,7 +430,6 @@ function RuleFormModal({
               />
             </div>
 
-            {/* Trigger */}
             <div>
               <label className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]">
                 Trigger
@@ -508,7 +446,6 @@ function RuleFormModal({
               ) : null}
             </div>
 
-            {/* Conditions */}
             <div>
               <label className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]">
                 Conditions (JSON)
@@ -524,7 +461,6 @@ function RuleFormModal({
               />
             </div>
 
-            {/* Action */}
             <div>
               <label className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]">
                 Action
@@ -541,7 +477,6 @@ function RuleFormModal({
               ) : null}
             </div>
 
-            {/* Action Config */}
             <div>
               <label className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]">
                 Action Configuration (JSON)
@@ -557,7 +492,6 @@ function RuleFormModal({
               />
             </div>
 
-            {/* Department selectors */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]">
@@ -581,7 +515,6 @@ function RuleFormModal({
               </div>
             </div>
 
-            {/* Priority slider */}
             <div>
               <div className="mb-1.5 flex items-center justify-between">
                 <label className="text-[12px] font-medium text-[color:var(--muted-strong)]">
@@ -607,7 +540,6 @@ function RuleFormModal({
           </div>
         </div>
 
-        {/* Footer */}
         <div className="flex shrink-0 justify-end gap-3 border-t px-6 py-4" style={{ borderColor: LINE }}>
           <button
             type="button"
@@ -629,10 +561,6 @@ function RuleFormModal({
     </motion.div>
   )
 }
-
-/* ------------------------------------------------------------------ */
-/*  Delete Confirmation Dialog                                          */
-/* ------------------------------------------------------------------ */
 
 function DeleteConfirmDialog({
   open,
@@ -693,10 +621,6 @@ function DeleteConfirmDialog({
   )
 }
 
-/* ------------------------------------------------------------------ */
-/*  Activity Log                                                        */
-/* ------------------------------------------------------------------ */
-
 function AutomationActivityLog({ entries }: { entries: AutomationLogEntry[] }) {
   if (entries.length === 0) {
     return (
@@ -743,10 +667,6 @@ function AutomationActivityLog({ entries }: { entries: AutomationLogEntry[] }) {
   )
 }
 
-/* ------------------------------------------------------------------ */
-/*  AutomationRulesPanel                                                */
-/* ------------------------------------------------------------------ */
-
 function AutomationRulesPanel({
   rules,
   companyId,
@@ -763,7 +683,6 @@ function AutomationRulesPanel({
   const [activeTab, setActiveTab] = useState<"rules" | "activity">("rules")
   const [filterStatus, setFilterStatus] = useState<AutomationStatus | "all">("all")
 
-  // Fetch activity log
   useEffect(() => {
     void window.agentCompany.getAutomationLog(companyId).then((result) => {
       if (result.ok) setActivityLog(result.data)
@@ -782,29 +701,62 @@ function AutomationRulesPanel({
     error: rules.filter((r) => r.status === "error").length,
   }), [rules])
 
+  const [actionError, setActionError] = useState<string | null>(null)
+
   const handleToggle = useCallback(async (rule: AutomationRuleRecord) => {
+    setActionError(null)
     const newStatus = rule.status === "active" ? "paused" : "active"
-    await window.agentCompany.toggleAutomationRule({
-      id: rule.id,
-      companyId,
-      status: newStatus as "active" | "paused",
-    })
-    onRefresh()
+    try {
+      const result = await window.agentCompany.toggleAutomationRule({
+        id: rule.id,
+        companyId,
+        status: newStatus as "active" | "paused",
+      })
+      if (!result.ok) {
+        setActionError(result.error.message)
+        return
+      }
+      onRefresh()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to toggle rule")
+    }
   }, [companyId, onRefresh])
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return
-    await window.agentCompany.deleteAutomationRule({
-      id: deleteTarget.id,
-      companyId,
-    })
-    setDeleteTarget(null)
-    onRefresh()
+    setActionError(null)
+    try {
+      const result = await window.agentCompany.deleteAutomationRule({
+        id: deleteTarget.id,
+        companyId,
+      })
+      if (!result.ok) {
+        setActionError(result.error.message)
+        setDeleteTarget(null)
+        return
+      }
+      setDeleteTarget(null)
+      onRefresh()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to delete rule")
+      setDeleteTarget(null)
+    }
   }, [deleteTarget, companyId, onRefresh])
 
   return (
     <div className="space-y-5">
-      {/* Header */}
+      {actionError ? (
+        <div className="flex items-center justify-between rounded-[8px] bg-[color:var(--danger-soft)] px-3.5 py-2.5 text-[12px] font-medium text-[color:var(--danger)]">
+          <span>{actionError}</span>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="ml-2 rounded p-0.5 hover:bg-[color:var(--danger)] hover:text-white"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      ) : null}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div
@@ -828,7 +780,6 @@ function AutomationRulesPanel({
         />
       </div>
 
-      {/* Stats bar */}
       {rules.length > 0 ? (
         <div className="grid grid-cols-3 gap-2">
           <div className="rounded-[10px] border bg-[color:var(--panel)] px-4 py-3" style={{ borderColor: LINE }}>
@@ -850,7 +801,6 @@ function AutomationRulesPanel({
         </div>
       ) : null}
 
-      {/* Tabs */}
       <div className="flex gap-1 rounded-[8px] bg-[color:var(--panel-soft)] p-1">
         <button
           type="button"
@@ -876,10 +826,8 @@ function AutomationRulesPanel({
         </button>
       </div>
 
-      {/* Rules content */}
       {activeTab === "rules" ? (
         <>
-          {/* Filter */}
           {rules.length > 0 ? (
             <div className="flex flex-wrap items-center gap-1.5">
               {(["all", "active", "paused", "error"] as const).map((status) => (
@@ -900,7 +848,6 @@ function AutomationRulesPanel({
             </div>
           ) : null}
 
-          {/* Rule list */}
           {filteredRules.length === 0 && rules.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed py-16 text-center" style={{ borderColor: LINE }}>
               <Lightning size={36} className="mb-3 text-[color:var(--muted)]" />
@@ -941,7 +888,6 @@ function AutomationRulesPanel({
         <AutomationActivityLog entries={activityLog} />
       )}
 
-      {/* Create / Edit modal */}
       <AnimatePresence>
         {showCreateModal ? (
           <RuleFormModal
@@ -963,7 +909,6 @@ function AutomationRulesPanel({
         ) : null}
       </AnimatePresence>
 
-      {/* Delete confirmation */}
       <AnimatePresence>
         {deleteTarget ? (
           <DeleteConfirmDialog
@@ -978,10 +923,6 @@ function AutomationRulesPanel({
   )
 }
 
-/* ------------------------------------------------------------------ */
-/*  Workflow Step Timeline                                               */
-/* ------------------------------------------------------------------ */
-
 function StepTimeline({ steps }: { steps: WorkflowStep[] }) {
   if (steps.length === 0) {
     return (
@@ -993,7 +934,6 @@ function StepTimeline({ steps }: { steps: WorkflowStep[] }) {
 
   return (
     <div className="relative pl-5">
-      {/* Vertical line */}
       <div
         className="absolute left-[9px] top-2 w-px"
         style={{
@@ -1009,7 +949,6 @@ function StepTimeline({ steps }: { steps: WorkflowStep[] }) {
 
           return (
             <div key={step.id} className="relative flex items-start gap-3">
-              {/* Dot */}
               <div
                 className="absolute -left-5 top-1.5 z-10 h-[10px] w-[10px] rounded-full border-2"
                 style={{
@@ -1018,7 +957,6 @@ function StepTimeline({ steps }: { steps: WorkflowStep[] }) {
                 }}
               />
 
-              {/* Content */}
               <div
                 className="flex-1 rounded-[8px] border px-3 py-2.5"
                 style={{ borderColor: step.status === "running" ? ACCENT : LINE }}
@@ -1069,18 +1007,18 @@ function StepTimeline({ steps }: { steps: WorkflowStep[] }) {
   )
 }
 
-/* ------------------------------------------------------------------ */
-/*  Workflow Card                                                       */
-/* ------------------------------------------------------------------ */
-
 function WorkflowCard({
   workflow,
+  isRunning,
   onDelete,
   onEdit,
+  onRun,
 }: {
   workflow: WorkflowPipelineRecord
+  isRunning: boolean
   onDelete: () => void
   onEdit: () => void
+  onRun: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const colors = workflowStatusColors[workflow.status]
@@ -1102,7 +1040,6 @@ function WorkflowCard({
       style={{ borderColor: LINE }}
     >
       <div className="flex items-center gap-3 px-4 py-3.5">
-        {/* Icon */}
         <div
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]"
           style={{ backgroundColor: `${ACCENT}12`, color: ACCENT }}
@@ -1110,7 +1047,6 @@ function WorkflowCard({
           <TriggerIcon size={20} weight="fill" />
         </div>
 
-        {/* Main info */}
         <button
           type="button"
           onClick={() => setExpanded((prev) => !prev)}
@@ -1149,7 +1085,6 @@ function WorkflowCard({
           </div>
         </button>
 
-        {/* Actions */}
         <div className="flex shrink-0 items-center gap-1">
           <motion.div
             animate={{ rotate: expanded ? 90 : 0 }}
@@ -1164,6 +1099,16 @@ function WorkflowCard({
               <CaretRight size={14} />
             </button>
           </motion.div>
+          <button
+            type="button"
+            onClick={onRun}
+            aria-label="Run workflow"
+            title="Run workflow"
+            disabled={isRunning}
+            className="rounded-[6px] p-2 text-[color:var(--muted)] transition hover:bg-[color:var(--success-soft)] hover:text-[color:var(--success)] disabled:pointer-events-none disabled:opacity-50"
+          >
+            {isRunning ? <ArrowsClockwise size={15} className="animate-spin" /> : <Play size={15} />}
+          </button>
           <button
             type="button"
             onClick={onEdit}
@@ -1185,7 +1130,6 @@ function WorkflowCard({
         </div>
       </div>
 
-      {/* Expanded: step timeline */}
       <AnimatePresence>
         {expanded ? (
           <motion.div
@@ -1209,10 +1153,6 @@ function WorkflowCard({
     </motion.div>
   )
 }
-
-/* ------------------------------------------------------------------ */
-/*  Workflow Creation Modal                                             */
-/* ------------------------------------------------------------------ */
 
 interface WorkflowFormState {
   name: string
@@ -1342,7 +1282,6 @@ function WorkflowFormModal({
         style={{ borderColor: LINE, maxHeight: "85vh" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b px-6 py-4" style={{ borderColor: LINE }}>
           <div className="flex items-center gap-3">
             <div
@@ -1365,7 +1304,6 @@ function WorkflowFormModal({
           </button>
         </div>
 
-        {/* Body */}
         <div className="overflow-y-auto px-6 py-5">
           <div className="space-y-5">
             {error ? (
@@ -1374,7 +1312,6 @@ function WorkflowFormModal({
               </div>
             ) : null}
 
-            {/* Name */}
             <div>
               <label className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]">
                 Workflow Name
@@ -1389,7 +1326,6 @@ function WorkflowFormModal({
               />
             </div>
 
-            {/* Description */}
             <div>
               <label className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]">
                 Description
@@ -1404,7 +1340,6 @@ function WorkflowFormModal({
               />
             </div>
 
-            {/* Trigger + Status */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]">
@@ -1428,7 +1363,6 @@ function WorkflowFormModal({
               </div>
             </div>
 
-            {/* Trigger Config */}
             <div>
               <label className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]">
                 Trigger Configuration (JSON)
@@ -1444,7 +1378,6 @@ function WorkflowFormModal({
               />
             </div>
 
-            {/* Steps */}
             <div>
               <label className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]">
                 Pipeline Steps (JSON Array)
@@ -1474,7 +1407,6 @@ function WorkflowFormModal({
           </div>
         </div>
 
-        {/* Footer */}
         <div className="flex shrink-0 justify-end gap-3 border-t px-6 py-4" style={{ borderColor: LINE }}>
           <button
             type="button"
@@ -1497,10 +1429,6 @@ function WorkflowFormModal({
   )
 }
 
-/* ------------------------------------------------------------------ */
-/*  WorkflowsPanel                                                      */
-/* ------------------------------------------------------------------ */
-
 function WorkflowsPanel({
   workflows,
   companyId,
@@ -1513,16 +1441,49 @@ function WorkflowsPanel({
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingWorkflow, setEditingWorkflow] = useState<WorkflowPipelineRecord | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<WorkflowPipelineRecord | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [runningId, setRunningId] = useState<string | null>(null)
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return
-    await window.agentCompany.deleteWorkflow({
-      id: deleteTarget.id,
-      companyId,
-    })
-    setDeleteTarget(null)
-    onRefresh()
+    setActionError(null)
+    try {
+      const result = await window.agentCompany.deleteWorkflow({
+        id: deleteTarget.id,
+        companyId,
+      })
+      if (!result.ok) {
+        setActionError(result.error.message)
+        setDeleteTarget(null)
+        return
+      }
+      setDeleteTarget(null)
+      onRefresh()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to delete workflow")
+      setDeleteTarget(null)
+    }
   }, [deleteTarget, companyId, onRefresh])
+
+  const handleRun = useCallback(async (workflow: WorkflowPipelineRecord) => {
+    setActionError(null)
+    setRunningId(workflow.id)
+    try {
+      const result = await window.agentCompany.runWorkflow({
+        id: workflow.id,
+        companyId,
+      })
+      if (!result.ok) {
+        setActionError(result.error.message)
+        return
+      }
+      onRefresh()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to run workflow")
+    } finally {
+      setRunningId(null)
+    }
+  }, [companyId, onRefresh])
 
   const counts = useMemo(() => ({
     total: workflows.length,
@@ -1532,7 +1493,18 @@ function WorkflowsPanel({
 
   return (
     <div className="space-y-5">
-      {/* Header */}
+      {actionError ? (
+        <div className="flex items-center justify-between rounded-[8px] bg-[color:var(--danger-soft)] px-3.5 py-2.5 text-[12px] font-medium text-[color:var(--danger)]">
+          <span>{actionError}</span>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="ml-2 rounded p-0.5 hover:bg-[color:var(--danger)] hover:text-white"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      ) : null}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div
@@ -1556,7 +1528,6 @@ function WorkflowsPanel({
         />
       </div>
 
-      {/* Workflow list */}
       {workflows.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed py-16 text-center" style={{ borderColor: LINE }}>
           <ArrowsClockwise size={36} className="mb-3 text-[color:var(--muted)]" />
@@ -1580,15 +1551,16 @@ function WorkflowsPanel({
               <WorkflowCard
                 key={wf.id}
                 workflow={wf}
+                isRunning={runningId === wf.id}
                 onDelete={() => setDeleteTarget(wf)}
                 onEdit={() => setEditingWorkflow(wf)}
+                onRun={() => void handleRun(wf)}
               />
             ))}
           </AnimatePresence>
         </div>
       )}
 
-      {/* Create / Edit modal */}
       <AnimatePresence>
         {showCreateModal ? (
           <WorkflowFormModal
@@ -1610,7 +1582,6 @@ function WorkflowsPanel({
         ) : null}
       </AnimatePresence>
 
-      {/* Delete confirmation */}
       <AnimatePresence>
         {deleteTarget ? (
           <DeleteConfirmDialog
@@ -1625,14 +1596,9 @@ function WorkflowsPanel({
   )
 }
 
-/* ------------------------------------------------------------------ */
-/*  Main Automation Panel (exported)                                    */
-/* ------------------------------------------------------------------ */
-
 interface AutomationPanelProps {
   rules: AutomationRuleRecord[]
   workflows: WorkflowPipelineRecord[]
-  agents: AgentRecord[]
   companyId: string
   onRefresh: () => void
 }
@@ -1640,7 +1606,6 @@ interface AutomationPanelProps {
 export function AutomationPanel({
   rules,
   workflows,
-  agents,
   companyId,
   onRefresh,
 }: AutomationPanelProps) {
@@ -1648,7 +1613,6 @@ export function AutomationPanel({
 
   return (
     <div className="space-y-6">
-      {/* Top banner */}
       <div
         className="rounded-[12px] border px-5 py-4"
         style={{
@@ -1674,7 +1638,6 @@ export function AutomationPanel({
         </div>
       </div>
 
-      {/* Section tabs */}
       <div className="flex gap-1 rounded-[10px] bg-[color:var(--panel-soft)] p-1">
         <button
           type="button"
@@ -1702,7 +1665,6 @@ export function AutomationPanel({
         </button>
       </div>
 
-      {/* Content */}
       <AnimatePresence mode="wait">
         <motion.div
           key={activeSection}

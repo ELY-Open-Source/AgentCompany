@@ -353,6 +353,67 @@ export function StatusPill({ status }: { status: string }) {
   );
 }
 
+export function InlineNotice({
+  message,
+  tone = "danger",
+}: {
+  message: string;
+  tone?: "danger" | "success" | "warn";
+}) {
+  const toneClass = tone === "success"
+    ? "border-[color:var(--success)] bg-[color:var(--success-soft)] text-[color:var(--success)]"
+    : tone === "warn"
+      ? "border-[color:var(--warn)] bg-[color:var(--warn-soft)] text-[color:var(--warn)]"
+      : "border-[color:var(--danger)] bg-[color:var(--danger-soft)] text-[color:var(--danger)]";
+  return (
+    <div className={`rounded-[10px] border px-4 py-3 text-[13px] ${toneClass}`} role={tone === "danger" ? "alert" : "status"}>
+      {message}
+    </div>
+  );
+}
+
+export function ConfirmDialog({ open, title, message, errorMessage, onConfirm, onCancel }: {
+  open: boolean;
+  title: string;
+  message: string;
+  errorMessage?: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const trapRef = useFocusTrap(open);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") onCancel();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onCancel]);
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color:var(--text)]/45" onClick={onCancel}>
+      <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+        className="w-full max-w-[400px] rounded-[12px] bg-[color:var(--panel)] border border-[color:var(--line)] p-6 shadow-lg"
+        onClick={e => e.stopPropagation()}
+      >
+        <div id="confirm-dialog-title" className="text-[16px] font-semibold text-[color:var(--text)] mb-2">{title}</div>
+        <div className="text-[13px] text-[color:var(--muted)] mb-6">{message}</div>
+        {errorMessage ? <div className="mb-4"><InlineNotice message={errorMessage} /></div> : null}
+        <div className="flex gap-3 justify-end">
+          <ActionButton label="Cancel" onClick={onCancel} />
+          <ActionButton label="Confirm" tone="danger" onClick={onConfirm} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function EmptyState({
   title,
   detail,
@@ -404,8 +465,6 @@ export function ListRow({
   return <div className={`border-b border-[color:var(--line)] px-5 py-4 last:border-b-0 ${className}`}>{children}</div>;
 }
 
-/* ── Focus Trap Hook ────────────────────────────────────────────────── */
-
 export function useFocusTrap(active: boolean) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -415,7 +474,6 @@ export function useFocusTrap(active: boolean) {
     const container = ref.current;
     const previouslyFocused = document.activeElement as HTMLElement | null;
 
-    // Focus first focusable element
     const focusable = container.querySelectorAll<HTMLElement>(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
     );
@@ -453,8 +511,6 @@ export function useFocusTrap(active: boolean) {
 
   return ref;
 }
-
-/* ── Reduced Motion Hook ────────────────────────────────────────────── */
 
 export function useReducedMotion() {
   const query = typeof window !== "undefined" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;

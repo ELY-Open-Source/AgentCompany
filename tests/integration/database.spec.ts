@@ -147,4 +147,100 @@ describe("AppDatabase", () => {
 
     db.close();
   });
+
+  it("returns a renderer snapshot scoped to the current company while preserving global selectors", async () => {
+    const profileDir = await createTempDir("agentcompany-renderer-snapshot-");
+    const db = new AppDatabase(profileDir);
+    db.init();
+
+    const alphaCompanyId = db.saveCompany({
+      name: "Alpha",
+      description: "Alpha company",
+      status: "active",
+    });
+
+    const betaCompanyId = db.saveCompany({
+      name: "Beta",
+      description: "Beta company",
+      status: "active",
+    });
+
+    const alphaWorkspaceId = db.saveWorkspace({
+      companyId: alphaCompanyId,
+      name: "Alpha Workspace",
+      localPath: profileDir,
+      repoUrl: "",
+      repoRef: "",
+      isPrimary: true,
+    });
+
+    const betaWorkspaceId = db.saveWorkspace({
+      companyId: betaCompanyId,
+      name: "Beta Workspace",
+      localPath: profileDir,
+      repoUrl: "",
+      repoRef: "",
+      isPrimary: true,
+    });
+
+    const alphaAgentId = db.saveAgent({
+      companyId: alphaCompanyId,
+      name: "Alpha CEO",
+      role: "CEO",
+      title: "",
+      status: "active",
+      reportsTo: null,
+      connectorId: "codex_local",
+      workspaceId: alphaWorkspaceId,
+      model: null,
+      capabilities: "Lead alpha",
+      budgetMonthlyUsd: 100,
+    });
+
+    db.saveAgent({
+      companyId: betaCompanyId,
+      name: "Beta CEO",
+      role: "CEO",
+      title: "",
+      status: "active",
+      reportsTo: null,
+      connectorId: "codex_local",
+      workspaceId: betaWorkspaceId,
+      model: null,
+      capabilities: "Lead beta",
+      budgetMonthlyUsd: 100,
+    });
+
+    db.saveTask({
+      companyId: alphaCompanyId,
+      title: "Alpha task",
+      description: "Alpha work",
+      assigneeAgentId: alphaAgentId,
+      workspaceId: alphaWorkspaceId,
+      priority: "medium",
+      status: "todo",
+    });
+
+    db.saveTask({
+      companyId: betaCompanyId,
+      title: "Beta task",
+      description: "Beta work",
+      assigneeAgentId: null,
+      workspaceId: betaWorkspaceId,
+      priority: "medium",
+      status: "todo",
+    });
+
+    db.setCurrentCompany(alphaCompanyId);
+
+    const rendererSnapshot = db.listRendererSnapshot();
+    expect(rendererSnapshot.currentCompanyId).toBe(alphaCompanyId);
+    expect(rendererSnapshot.companies).toHaveLength(2);
+    expect(rendererSnapshot.connectors.length).toBeGreaterThan(0);
+    expect(rendererSnapshot.workspaces.map((workspace) => workspace.companyId)).toEqual([alphaCompanyId]);
+    expect(rendererSnapshot.agents.every((agent) => agent.companyId === alphaCompanyId)).toBe(true);
+    expect(rendererSnapshot.tasks.every((task) => task.companyId === alphaCompanyId)).toBe(true);
+
+    db.close();
+  });
 });

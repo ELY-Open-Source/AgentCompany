@@ -2,37 +2,19 @@ import { runningProcesses } from "@agentcompany/adapter-utils/server-utils";
 import { getConnectorDefinition } from "@main/connectors";
 import type { ConnectorId, RunStatus } from "@shared/types";
 
-/**
- * Environment variables allowed to propagate from the host process to connector
- * child processes. Any env var NOT in this list is stripped. Secret bindings
- * resolved from the vault are always injected regardless of this allowlist.
- */
 const ENV_ALLOWLIST: ReadonlySet<string> = new Set([
-  // PATH is required for command resolution
   "PATH",
-  // Basic locale / terminal
   "HOME", "USER", "SHELL", "LANG", "LC_ALL", "LC_CTYPE", "TERM", "TMPDIR",
-  // macOS-specific
   "DEVELOPER_DIR", "SDKROOT",
-  // Node
   "NODE_ENV", "NODE_OPTIONS",
-  // Git
   "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL",
   "GIT_SSH_COMMAND", "GIT_ASKPASS", "GIT_TERMINAL_PROMPT",
-  // XDG
   "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR",
-  // Platform / display (Linux)
   "DISPLAY", "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS",
-  // Windows
   "APPDATA", "LOCALAPPDATA", "USERPROFILE", "SYSTEMROOT", "COMSPEC", "PROGRAMFILES",
-  // AgentCompany injected
   "AGENT_COMPANY_API_URL", "AGENT_COMPANY_API_KEY", "AGENT_COMPANY_RUN_ID",
 ]);
 
-/**
- * Build a sanitized environment for a connector child process.
- * Only allowlisted host vars + explicitly resolved secret bindings are included.
- */
 function buildSanitizedEnv(
   hostEnv: Record<string, string>,
   secretBindings: Record<string, string>,
@@ -43,25 +25,18 @@ function buildSanitizedEnv(
       result[key] = hostEnv[key];
     }
   }
-  // Secret bindings always override — they are resolved from the vault
   Object.assign(result, secretBindings);
   return result;
 }
 
-/**
- * Build a log redaction function that masks any secret values present in the env.
- * Only values that look like secrets (length >= 8, not PATH-like) are redacted.
- */
 function buildRedactor(env: Record<string, string>): (text: string) => string {
   const sensitivePatterns: string[] = [];
   for (const [key, value] of Object.entries(env)) {
-    // Skip short values, PATH, HOME, and other system vars unlikely to be secrets
     if (value.length < 8) continue;
     if (["PATH", "HOME", "USER", "SHELL", "LANG", "TMPDIR", "TERM"].includes(key)) continue;
     sensitivePatterns.push(value);
   }
   if (sensitivePatterns.length === 0) return (text) => text;
-  // Sort by length descending so longer patterns are replaced first
   sensitivePatterns.sort((a, b) => b.length - a.length);
   return (text: string) => {
     let result = text;
@@ -85,14 +60,13 @@ interface RunJob {
   connectorId: ConnectorId;
   workspaceId: string | null;
   workspacePath: string | null;
+  workspaceMode: "exclusive" | "shared" | "none";
   command: string;
   model: string | null;
   thinkingEffort: string | null;
   env: Record<string, string>;
   sessionParams: Record<string, unknown> | null;
-  /** Rich system prompt with API instructions for autonomous operation */
   systemPrompt: string | null;
-  /** Heartbeat trigger that caused this run */
   trigger: string | null;
 }
 
@@ -134,6 +108,9 @@ function post(message: ChildMessage) {
 }
 
 function workspaceKey(job: RunJob) {
+  if (job.workspaceMode !== "exclusive") {
+    return null;
+  }
   return job.workspaceId ?? job.workspacePath ?? `task:${job.taskId}`;
 }
 
@@ -152,7 +129,8 @@ async function maybeStartQueuedRuns() {
   const readyJobs = [...queue];
   for (const job of readyJobs) {
     if (activeByAgent.has(job.agentId)) continue;
-    if (activeByWorkspace.has(workspaceKey(job))) continue;
+    const lockKey = workspaceKey(job);
+    if (lockKey && activeByWorkspace.has(lockKey)) continue;
     const index = queue.findIndex((entry) => entry.runId === job.runId);
     if (index >= 0) queue.splice(index, 1);
     void startRun(job);
@@ -163,7 +141,9 @@ async function startRun(job: RunJob) {
   const definition = getConnectorDefinition(job.connectorId);
   const lockKey = workspaceKey(job);
   activeByAgent.set(job.agentId, job.runId);
-  activeByWorkspace.set(lockKey, job.runId);
+  if (lockKey) {
+    activeByWorkspace.set(lockKey, job.runId);
+  }
   post({
     type: "run-status",
     runId: job.runId,
@@ -171,7 +151,6 @@ async function startRun(job: RunJob) {
     message: `Running with ${definition.label}.`,
   });
 
-  // Build sanitized env: only allowlisted host vars + resolved secret bindings
   const sanitizedEnv = buildSanitizedEnv(
     Object.fromEntries(
       Object.entries(process.env).filter((e): e is [string, string] => typeof e[1] === "string"),
@@ -179,7 +158,6 @@ async function startRun(job: RunJob) {
     job.env,
   );
 
-  // Build log redactor from secret bindings to prevent accidental secret leakage
   const redact = buildRedactor(job.env);
 
   try {
@@ -205,13 +183,9 @@ async function startRun(job: RunJob) {
         cwd: job.workspacePath ?? process.cwd(),
         model: job.model,
         env: sanitizedEnv,
-        // Claude: thinking effort
         effort: job.connectorId === "claude_local" ? (job.thinkingEffort ?? "") : "",
-        // Codex: reasoning effort
         modelReasoningEffort: job.connectorId === "codex_local" ? (job.thinkingEffort ?? "") : "",
-        // Claude: run without permission prompts — required for headless operation
         dangerouslySkipPermissions: true,
-        // Codex: bypass sandbox and approval prompts, skip git trust check
         dangerouslyBypassApprovalsAndSandbox: true,
         extraArgs: job.connectorId === "codex_local" ? ["--skip-git-repo-check"] : [],
       },
@@ -276,7 +250,9 @@ async function startRun(job: RunJob) {
   } finally {
     cancelledRuns.delete(job.runId);
     activeByAgent.delete(job.agentId);
-    activeByWorkspace.delete(lockKey);
+    if (lockKey) {
+      activeByWorkspace.delete(lockKey);
+    }
     void maybeStartQueuedRuns();
   }
 }
