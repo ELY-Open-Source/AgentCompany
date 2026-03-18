@@ -787,6 +787,53 @@ export class AppDatabase {
     return id;
   }
 
+  createHireRequest(input: {
+    companyId: string;
+    requestedByAgentId?: string | null;
+    name: string;
+    role: string;
+    title: string;
+    department?: string | null;
+    reportsTo?: string | null;
+    connectorId: ConnectorId;
+    workspaceId?: string | null;
+    model?: string | null;
+    metadataJson?: string;
+    capabilities: string;
+    budgetMonthlyUsd: number;
+    payloadSummary: string;
+    impactSummary: string;
+    payloadJson?: string | null;
+  }) {
+    return this.transaction(() => {
+      const agentId = this.saveAgent({
+        companyId: input.companyId,
+        name: input.name,
+        role: input.role,
+        title: input.title,
+        department: input.department ?? null,
+        status: "pending_approval",
+        reportsTo: input.reportsTo ?? null,
+        connectorId: input.connectorId,
+        workspaceId: input.workspaceId ?? null,
+        model: input.model ?? null,
+        metadataJson: input.metadataJson ?? "{}",
+        capabilities: input.capabilities,
+        budgetMonthlyUsd: input.budgetMonthlyUsd,
+      });
+      const approvalId = this.requestApproval({
+        companyId: input.companyId,
+        requestedByAgentId: input.requestedByAgentId ?? null,
+        relatedAgentId: agentId,
+        type: "hire_agent",
+        payloadSummary: input.payloadSummary,
+        impactSummary: input.impactSummary,
+        payloadJson: input.payloadJson ?? null,
+      });
+      return { agentId, approvalId };
+    });
+  }
+
   saveGoal(input: { id?: string | null; companyId: string; title: string; description: string; parentId?: string | null; ownerAgentId?: string | null; status: string }) {
     const id = ensureId(input.id ?? null);
     const ts = nowIso();
@@ -882,6 +929,18 @@ export class AppDatabase {
         relatedAgentId = payload.agentId ?? null;
       } catch { /* ignore malformed payload */ }
     }
+    if (input.type === "hire_agent") {
+      if (!relatedAgentId) {
+        throw new Error("hire_agent approvals require a linked pending agent.");
+      }
+      const agent = this.getAgent(relatedAgentId);
+      if (agent.companyId !== input.companyId) {
+        throw new Error(`Agent ${relatedAgentId} does not belong to company ${input.companyId}.`);
+      }
+      if (agent.status !== "pending_approval") {
+        throw new Error(`hire_agent approvals can only target agents pending approval. Current status: ${agent.status}.`);
+      }
+    }
     this.db
       .prepare(
         "insert into approvals (id, company_id, related_task_id, requested_by_agent_id, related_agent_id, type, payload_summary, impact_summary, payload_json, decision_note, state, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, '', 'pending', ?, ?)",
@@ -923,14 +982,20 @@ export class AppDatabase {
           throw new Error(`hire_agent approval ${input.approvalId} has no linked agent — cannot resolve hire target. Ensure relatedAgentId or payloadJson.agentId is set.`);
         }
         if (input.state === "approved") {
-          this.db
+          const result = this.db
             .prepare("update agents set status = 'idle', updated_at = ? where id = ? and company_id = ? and status = 'pending_approval'")
             .run(ts, agentId, approval.companyId);
+          if (result.changes === 0) {
+            throw new Error(`hire_agent approval ${input.approvalId} could not activate agent ${agentId}; the agent is missing or no longer pending approval.`);
+          }
         }
         if (input.state === "rejected") {
-          this.db
+          const result = this.db
             .prepare("update agents set status = 'terminated', updated_at = ? where id = ? and company_id = ? and status = 'pending_approval'")
             .run(ts, agentId, approval.companyId);
+          if (result.changes === 0) {
+            throw new Error(`hire_agent approval ${input.approvalId} could not reject agent ${agentId}; the agent is missing or no longer pending approval.`);
+          }
         }
       }
     });
@@ -2349,9 +2414,20 @@ export class AppDatabase {
     return row ?? null;
   }
 
-  listAgentMessages(companyId: string, opts?: { agentId?: string; channel?: string; channelTargetId?: string | null; unreadOnly?: boolean; limit?: number }) {
+  listAgentMessages(companyId: string, opts?: {
+    agentId?: string;
+    messageId?: string;
+    channel?: string;
+    channelTargetId?: string | null;
+    unreadOnly?: boolean;
+    limit?: number;
+  }) {
     let sql = "select id, company_id as companyId, from_agent_id as fromAgentId, to_agent_id as toAgentId, channel, channel_target_id as channelTargetId, subject, body, priority, read_at as readAt, parent_message_id as parentMessageId, attachments_json as attachmentsJson, created_at as createdAt from agent_messages where company_id = ?";
     const params: SQLInputValue[] = [companyId];
+    if (opts?.messageId) {
+      sql += " and id = ?";
+      params.push(opts.messageId);
+    }
     if (opts?.channel) { sql += " and channel = ?"; params.push(opts.channel); }
     if (opts?.channelTargetId !== undefined && opts?.channelTargetId !== null) {
       sql += " and channel_target_id = ?"; params.push(opts.channelTargetId);

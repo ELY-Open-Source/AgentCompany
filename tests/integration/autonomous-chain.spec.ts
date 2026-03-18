@@ -410,19 +410,20 @@ describe("Step 4: Hire approval + decideApproval", () => {
 
   it("getApprovalRecord includes payloadJson", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
+    const hireId = createAgent({ name: "CTO", role: "CTO", reportsTo: ceoId, status: "pending_approval" as "idle" });
     const approvalId = db.requestApproval({
       companyId,
       requestedByAgentId: ceoId,
       type: "hire_agent",
       payloadSummary: "Hire CTO",
       impactSummary: "Test",
-      payloadJson: JSON.stringify({ agentId: "some-agent-id", config: { connector: "codex_local" } }),
+      payloadJson: JSON.stringify({ agentId: hireId, config: { connector: "codex_local" } }),
     });
 
     const approval = db.getApprovalRecord(approvalId);
     expect(approval.payloadJson).toBeTruthy();
     const payload = JSON.parse(approval.payloadJson!);
-    expect(payload.agentId).toBe("some-agent-id");
+    expect(payload.agentId).toBe(hireId);
   });
 });
 

@@ -11,11 +11,14 @@ const runtimeConfigPath = join(buildDir, "electron-builder.runtime.json");
 
 const extraArgs = process.argv.slice(2);
 const env = { ...process.env };
+const requestedUpdateUrl = env.AGENTCOMPANY_UPDATE_URL?.trim() ?? "";
+const strictRelease = env.AGENTCOMPANY_STRICT_RELEASE === "true";
 const hasMacSigningMaterial = Boolean(
   env.CSC_LINK?.trim() ||
   env.CSC_NAME?.trim() ||
   env.APPLE_API_KEY?.trim(),
 );
+const isDirBuild = extraArgs.includes("--dir");
 
 function bumpPatchVersion(currentVersion) {
   const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(currentVersion);
@@ -43,11 +46,24 @@ async function writeRuntimeConfig(buildVersion) {
       version: buildVersion,
     },
   };
+  if (requestedUpdateUrl) {
+    runtimeConfig.publish = [
+      {
+        provider: "generic",
+        url: requestedUpdateUrl,
+      },
+    ];
+  }
   if (process.platform === "darwin" && !hasMacSigningMaterial && env.AGENTCOMPANY_ENABLE_LOCAL_DMG !== "true") {
+    if (strictRelease) {
+      throw new Error("[build-desktop] Strict release mode requires macOS signing/notarization material.");
+    }
     runtimeConfig.mac = {
-      target: ["zip"],
       hardenedRuntime: false,
     };
+    if (!isDirBuild) {
+      runtimeConfig.mac.target = ["zip"];
+    }
   } else if (process.platform === "darwin") {
     runtimeConfig.mac = {
       hardenedRuntime: true,
@@ -91,18 +107,33 @@ const builderArgs = ["exec", "electron-builder", "--config", runtimeConfigPath];
 if (!explicitPublishArg) {
   builderArgs.push("--publish", publishMode);
 }
-if (process.platform === "darwin" && !hasMacSigningMaterial && env.AGENTCOMPANY_ENABLE_LOCAL_DMG !== "true" && !explicitPlatformArg) {
+if (
+  process.platform === "darwin" &&
+  !hasMacSigningMaterial &&
+  env.AGENTCOMPANY_ENABLE_LOCAL_DMG !== "true" &&
+  !explicitPlatformArg &&
+  !isDirBuild
+) {
   builderArgs.push("--mac", "zip");
 }
 builderArgs.push(...extraArgs);
 
+if (strictRelease && !requestedUpdateUrl) {
+  throw new Error("[build-desktop] Strict release mode requires AGENTCOMPANY_UPDATE_URL to be configured.");
+}
+
 await rm(buildDir, { recursive: true, force: true });
 await mkdir(buildDir, { recursive: true });
 const buildVersion = env.AGENTCOMPANY_BUILD_VERSION?.trim() || await resolveBuildVersion();
+const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
+if (packageJson.version !== buildVersion) {
+  packageJson.version = buildVersion;
+  await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`, "utf8");
+}
 await writeRuntimeConfig(buildVersion);
 env.AGENTCOMPANY_BUILD_VERSION = buildVersion;
 env.npm_package_version = buildVersion;
-console.log(`[build-desktop] Cleaned ${buildDir} and staged non-mutating build version ${buildVersion}.`);
+console.log(`[build-desktop] Cleaned ${buildDir} and staged build version ${buildVersion}.`);
 
 const child = spawn("pnpm", builderArgs, {
   stdio: "inherit",

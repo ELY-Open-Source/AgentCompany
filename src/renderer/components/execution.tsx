@@ -1486,8 +1486,8 @@ export function SettingsPane({
     setActionNotice(null);
     setLoadingAction("check");
     try {
-      unwrap(await window.agentCompany.checkForUpdates());
-      setActionNotice("Update check started.");
+      const started = unwrap(await window.agentCompany.checkForUpdates());
+      setActionNotice(started ? "Update check started." : "Update check skipped because no release update feed is configured.");
     } catch (error) {
       setActionError(describeActionError(error));
     } finally {

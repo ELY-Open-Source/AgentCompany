@@ -7,6 +7,7 @@ import type {
   RunRecord,
   RunStatus,
 } from "@shared/types";
+import { dispatchAgentMessage } from "./message-dispatch";
 
 const WORKFLOW_ACTIONS: ReadonlySet<AutomationAction> = new Set([
   "assign_task",
@@ -198,7 +199,14 @@ export function createAutomationService({
   }
 
   function executeAutomationAction(
-    rule: { action: string; actionConfigJson: string; targetDepartment: string | null; trigger?: string },
+    rule: {
+      id?: string;
+      name?: string;
+      action: string;
+      actionConfigJson: string;
+      targetDepartment: string | null;
+      trigger?: string;
+    },
     ctx: AutomationEventContext,
   ) {
     const config = (() => {
@@ -268,7 +276,11 @@ export function createAutomationService({
         const toAgentId = (config.toAgentId as string) ?? ctx.agentId ?? null;
         const fromAgentId = (config.fromAgentId as string) ?? ctx.agentId ?? toAgentId;
         if (!fromAgentId) break;
-        const channel = (config.channel as string) ?? (toAgentId ? "direct" : "company");
+        const defaultChannel = toAgentId ? "direct" : "company";
+        const requestedChannel = (config.channel as string) ?? defaultChannel;
+        const channel = ["direct", "department", "company", "project", "incident"].includes(requestedChannel)
+          ? requestedChannel
+          : defaultChannel;
         let channelTargetId: string | null = (config.channelTargetId as string) ?? (config.department as string) ?? ctx.department ?? null;
         if (channel === "department" && !channelTargetId && fromAgentId) {
           try {
@@ -278,23 +290,29 @@ export function createAutomationService({
             channelTargetId = null;
           }
         }
-        const messageId = db.sendAgentMessage({
-          companyId: ctx.companyId,
-          fromAgentId,
-          toAgentId: channel === "direct" ? toAgentId : null,
-          channel,
-          channelTargetId,
-          subject: (config.subject as string) ?? "Automation notification",
-          body: (config.body as string) ?? `Automation rule triggered for task ${ctx.taskId ?? "n/a"}`,
-          priority: (config.priority as string) ?? "normal",
-        });
-        const message = db.getAgentMessage(messageId, ctx.companyId);
-        if (message) {
-          emitEvent({ type: "new-message", message });
-        }
-        publishDomainChanged();
-        if (toAgentId && channel === "direct") {
-          wakeAgentIfPossible(toAgentId, ctx.companyId, "message");
+        const dispatchResult = dispatchAgentMessage(
+          {
+            db,
+            emitEvent,
+            publishDomainChanged,
+            wakeAgentIfPossible,
+          },
+          {
+            companyId: ctx.companyId,
+            fromAgentId,
+            toAgentId: channel === "direct" ? toAgentId : null,
+            channel: channel as "direct" | "department" | "company" | "project" | "incident",
+            channelTargetId,
+            subject: (config.subject as string) ?? "Automation notification",
+            body: (config.body as string) ?? `Automation rule triggered for task ${ctx.taskId ?? "n/a"}`,
+            priority: (config.priority as "urgent" | "normal" | "low") ?? "normal",
+          },
+          "message",
+        );
+        if (!dispatchResult.ok) {
+          logger.warn(
+            `[automation] Failed to dispatch message for rule ${rule.name} (${rule.id}): ${dispatchResult.error.code} ${dispatchResult.error.message}`,
+          );
         }
         break;
       }
@@ -374,30 +392,55 @@ export function createAutomationService({
                 ? "report_failed"
                 : "report_blocked";
         if (manager) {
-          db.sendAgentMessage({
-            companyId: ctx.companyId,
-            fromAgentId: targetAgentId,
-            toAgentId: manager.id,
-            channel: "direct",
-            subject: `Escalation from ${agentName}: ${taskTitle}`,
-            body: escalationBody,
-            priority: "urgent",
-          });
-          publishDomainChanged();
-          wakeAgentIfPossible(manager.id, ctx.companyId, wakeTrigger);
+          const escalationResult = dispatchAgentMessage(
+            {
+              db,
+              emitEvent,
+              publishDomainChanged,
+              wakeAgentIfPossible,
+            },
+            {
+              companyId: ctx.companyId,
+              fromAgentId: targetAgentId,
+              toAgentId: manager.id,
+              channel: "direct",
+              subject: `Escalation from ${agentName}: ${taskTitle}`,
+              body: escalationBody,
+              priority: "urgent",
+            },
+            wakeTrigger,
+          );
+          if (!escalationResult.ok) {
+            logger.warn(
+              `[automation] Failed to escalate "${taskTitle}" to manager: ${escalationResult.error.code} ${escalationResult.error.message}`,
+            );
+          }
         } else {
           // No manager found — agent is likely the CEO or top-level.
           // Post as company-wide message so the board and other leaders see it.
-          db.sendAgentMessage({
-            companyId: ctx.companyId,
-            fromAgentId: targetAgentId,
-            toAgentId: null,
-            channel: "company",
-            subject: `Escalation: ${taskTitle}`,
-            body: escalationBody,
-            priority: "urgent",
-          });
-          publishDomainChanged();
+          const escalationResult = dispatchAgentMessage(
+            {
+              db,
+              emitEvent,
+              publishDomainChanged,
+              wakeAgentIfPossible,
+            },
+            {
+              companyId: ctx.companyId,
+              fromAgentId: targetAgentId,
+              toAgentId: null,
+              channel: "company",
+              subject: `Escalation: ${taskTitle}`,
+              body: escalationBody,
+              priority: "urgent",
+            },
+            wakeTrigger,
+          );
+          if (!escalationResult.ok) {
+            logger.warn(
+              `[automation] Failed to escalate "${taskTitle}" to company channel: ${escalationResult.error.code} ${escalationResult.error.message}`,
+            );
+          }
         }
         break;
       }
@@ -407,20 +450,30 @@ export function createAutomationService({
         const departmentAgents = db.getIdleAgentsForDepartment(ctx.companyId, targetDepartment);
         const senderAgentId = ctx.agentId ?? departmentAgents[0]?.id;
         if (senderAgentId) {
-          db.sendAgentMessage({
-            companyId: ctx.companyId,
-            fromAgentId: senderAgentId,
-            toAgentId: null,
-            channel: "department",
-            channelTargetId: targetDepartment,
-            subject: (config.subject as string) ?? "Cross-department notification",
-            body: (config.body as string) ?? "Automation triggered a cross-department alert.",
-            priority: "normal",
-          });
-          publishDomainChanged();
-        }
-        for (const agent of departmentAgents.slice(0, 5)) {
-          wakeAgentIfPossible(agent.id, ctx.companyId, "message");
+          const dispatchResult = dispatchAgentMessage(
+            {
+              db,
+              emitEvent,
+              publishDomainChanged,
+              wakeAgentIfPossible,
+            },
+            {
+              companyId: ctx.companyId,
+              fromAgentId: senderAgentId,
+              toAgentId: null,
+              channel: "department",
+              channelTargetId: targetDepartment,
+              subject: (config.subject as string) ?? "Cross-department notification",
+              body: (config.body as string) ?? "Automation triggered a cross-department alert.",
+              priority: "normal",
+            },
+            "message",
+          );
+          if (!dispatchResult.ok) {
+            logger.warn(
+              `[automation] Failed cross-department notification for ${targetDepartment}: ${dispatchResult.error.code} ${dispatchResult.error.message}`,
+            );
+          }
         }
         break;
       }

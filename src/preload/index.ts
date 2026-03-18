@@ -15,6 +15,7 @@ const api: DesktopApi = {
   testConnector: (id) => ipcRenderer.invoke(IPC_CHANNELS.testConnector, id),
   saveWorkspace: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveWorkspace, input),
   saveAgent: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveAgent, input),
+  requestHire: (input) => ipcRenderer.invoke(IPC_CHANNELS.requestHire, input),
   saveGoal: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveGoal, input),
   saveProject: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveProject, input),
   saveTask: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveTask, input),

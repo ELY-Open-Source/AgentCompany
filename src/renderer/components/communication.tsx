@@ -27,6 +27,7 @@ import type {
   DepartmentId,
   MessageChannel,
   MessagePriority,
+  ProjectRecord,
   TaskRecord,
 } from "@shared/types"
 import { getAgentInitials, formatMessageTime } from "../lib/formatters"
@@ -64,6 +65,8 @@ interface ChannelDescriptor {
   targetId: string | null
   /** Agent ID for DM channels */
   agentId: string | null
+  /** Participant IDs for DM channels */
+  participantIds: string[]
 }
 
 interface TaskDiscussionDescriptor {
@@ -76,9 +79,11 @@ interface TaskDiscussionDescriptor {
 function deriveChannels(
   messages: AgentMessageRecord[],
   agents: AgentRecord[],
+  projects?: ProjectRecord[],
 ): ChannelDescriptor[] {
   const channelMap = new Map<string, ChannelDescriptor>()
   const agentMap = new Map(agents.map((a) => [a.id, a]))
+  const projectMap = new Map((projects ?? []).map((project) => [project.id, project]))
 
   // Always create company-wide channel
   channelMap.set("company-all", {
@@ -88,6 +93,7 @@ function deriveChannels(
     label: "#company-wide",
     targetId: null,
     agentId: null,
+    participantIds: [],
   })
 
   // Create permanent department channels for all departments that have agents
@@ -107,6 +113,7 @@ function deriveChannels(
       label: `#${deptLabel}`,
       targetId: dept,
       agentId: null,
+      participantIds: [],
     })
   }
 
@@ -122,12 +129,14 @@ function deriveChannels(
         if (!otherId) {
           key = `direct-broadcast`
           label = "Broadcast DMs"
+          agentId = null
         } else {
           const ids = [msg.fromAgentId, otherId].sort()
           key = `direct-${ids.join("-")}`
-          const other = agentMap.get(otherId)
-          label = other ? other.name : "Unknown Agent"
-          agentId = otherId
+          const first = agentMap.get(ids[0] ?? "")
+          const second = agentMap.get(ids[1] ?? "")
+          label = `${first?.name ?? (ids[0] ? ids[0].slice(0, 8) : "Unknown")} ↔ ${second?.name ?? (ids[1] ? ids[1].slice(0, 8) : "Unknown")}`
+          agentId = ids[1] ?? null
         }
         break
       }
@@ -145,13 +154,13 @@ function deriveChannels(
       case "project": {
         const projId = msg.channelTargetId ?? "general"
         key = `project-${projId}`
-        label = `#project-${projId.slice(0, 8)}`
+        label = projectMap.get(projId)?.name ?? `#project-${projId.slice(0, 8)}`
         break
       }
       case "incident": {
-        const incId = msg.channelTargetId ?? "general"
+        const incId = msg.channelTargetId ?? "room"
         key = `incident-${incId}`
-        label = `#incident-${incId.slice(0, 8)}`
+        label = incId === "room" ? "#incident-room" : `#incident-${incId.slice(0, 8)}`
         break
       }
     }
@@ -164,6 +173,9 @@ function deriveChannels(
         label,
         targetId: msg.channelTargetId,
         agentId,
+        participantIds: msg.channel === "direct" && msg.toAgentId
+          ? [msg.fromAgentId, msg.toAgentId].sort()
+          : [],
       })
     }
   }
@@ -180,12 +192,17 @@ function deriveChannels(
 function deriveTaskDiscussionChannels(
   comments: CommentRecord[],
   tasks: TaskRecord[],
+  forcedTaskId?: string | null,
 ): TaskDiscussionDescriptor[] {
   const taskMap = new Map(tasks.map((task) => [task.id, task]))
   const activeTaskIds = tasks
     .filter((task) => ["todo", "in_progress", "in_review", "blocked"].includes(task.status))
     .map((task) => task.id)
-  const discussionTaskIds = new Set([...comments.map((comment) => comment.taskId), ...activeTaskIds])
+  const discussionTaskIds = new Set([
+    ...comments.map((comment) => comment.taskId),
+    ...activeTaskIds,
+    ...(forcedTaskId ? [forcedTaskId] : []),
+  ])
 
   return Array.from(discussionTaskIds)
     .map((taskId) => {
@@ -227,9 +244,9 @@ function getChannelMessages(
     }
     if (channel.channel === "direct" && msg.channel === "direct") {
       if (channel.key === "direct-broadcast") return !msg.toAgentId
-      if (!channel.agentId) return false
-      const ids = [msg.fromAgentId, msg.toAgentId ?? ""].sort()
-      return channel.key === `direct-${ids.join("-")}`
+      if (!msg.toAgentId || channel.participantIds.length < 2) return false
+      const ids = [msg.fromAgentId, msg.toAgentId].sort()
+      return ids[0] === channel.participantIds[0] && ids[1] === channel.participantIds[1]
     }
     return false
   })
@@ -355,22 +372,12 @@ function MessageBubble({
         isThread ? "ml-11" : ""
       } ${
         isUnread
-          ? "border-l-[3px] bg-[color:var(--panel)]"
-          : "border-l-[3px] border-l-transparent hover:bg-[color:var(--panel-soft)]/40"
+          ? "bg-[color:var(--panel)]"
+          : "hover:bg-[color:var(--panel-soft)]/40"
       } ${
-        isUrgent
-          ? "border-l-[color:var(--danger)]"
-          : isUnread
-            ? `border-l-[${TERRACOTTA}]`
-            : ""
+        isUrgent ? "border-l-[3px]" : ""
       }`}
-      style={
-        isUnread && !isUrgent
-          ? { borderLeftColor: TERRACOTTA }
-          : isUrgent
-            ? { borderLeftColor: "var(--danger)" }
-            : undefined
-      }
+      style={isUrgent ? { borderLeftColor: "var(--danger)" } : undefined}
     >
       <AgentAvatar agent={agent} />
 
@@ -610,6 +617,8 @@ interface MessageComposerProps {
   /** Pre-fill channel context */
   channel: MessageChannel
   channelTargetId: string | null
+  /** Participant IDs for a direct channel */
+  directParticipantIds?: string[]
   /** Pre-fill as a reply to a message */
   replyTo: AgentMessageRecord | null
   onSent: () => void
@@ -621,6 +630,7 @@ function MessageComposer({
   companyId,
   channel,
   channelTargetId,
+  directParticipantIds = [],
   replyTo,
   onSent,
   onCancelReply,
@@ -638,15 +648,41 @@ function MessageComposer({
     }
   }, [replyTo])
 
+  useEffect(() => {
+    if (agents.length === 0) {
+      if (fromAgentId) setFromAgentId("")
+      return
+    }
+    if (!agents.some((agent) => agent.id === fromAgentId)) {
+      setFromAgentId(agents[0]?.id ?? "")
+    }
+  }, [agents, fromAgentId])
+
+  const directRecipientId = useMemo(() => {
+    if (channel !== "direct") return null
+    if (replyTo?.fromAgentId) return replyTo.fromAgentId
+    if (directParticipantIds.length === 0) return null
+    if (directParticipantIds.length === 1) return directParticipantIds[0] ?? null
+    if (fromAgentId && directParticipantIds.includes(fromAgentId)) {
+      return directParticipantIds.find((agentId) => agentId !== fromAgentId) ?? null
+    }
+    return directParticipantIds[0] ?? null
+  }, [channel, replyTo, directParticipantIds, fromAgentId])
+
   const handleSend = useCallback(async () => {
     if (!body.trim() || !fromAgentId) return
+    if (channel === "direct" && !directRecipientId) return
+    if (!agents.some((agent) => agent.id === fromAgentId)) {
+      setSendError("Select a valid sender from the current company before sending.")
+      return
+    }
     setSending(true)
     setSendError(null)
     try {
       unwrap(await window.agentCompany.sendAgentMessage({
         companyId,
         fromAgentId,
-        toAgentId: replyTo ? replyTo.fromAgentId : null,
+        toAgentId: channel === "direct" ? directRecipientId : null,
         channel,
         channelTargetId,
         subject: subject.trim() || (replyTo ? `Re: ${replyTo.subject}` : ""),
@@ -663,7 +699,7 @@ function MessageComposer({
     } finally {
       setSending(false)
     }
-  }, [body, fromAgentId, companyId, channel, channelTargetId, replyTo, subject, onSent])
+  }, [agents, body, channel, channelTargetId, companyId, directRecipientId, fromAgentId, onSent, replyTo, subject])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -680,6 +716,11 @@ function MessageComposer({
   return (
     <div className="border-t border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3">
       {sendError ? <div className="mb-3"><InlineNotice message={sendError} /></div> : null}
+      {channel === "direct" && !directRecipientId ? (
+        <div className="mb-2">
+          <InlineNotice message="Select a direct conversation partner before sending a DM." />
+        </div>
+      ) : null}
       <AnimatePresence>
         {replyTo ? (
           <motion.div
@@ -742,7 +783,7 @@ function MessageComposer({
         <button
           type="button"
           onClick={() => void handleSend()}
-          disabled={!body.trim() || !fromAgentId || sending}
+          disabled={!body.trim() || !fromAgentId || sending || (channel === "direct" && !directRecipientId)}
           className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[8px] text-white transition hover:brightness-90 active:translate-y-px disabled:opacity-40 disabled:pointer-events-none"
           style={{ backgroundColor: TERRACOTTA }}
           aria-label="Send message"
@@ -768,11 +809,12 @@ interface ComposeModalProps {
   open: boolean
   onClose: () => void
   agents: AgentRecord[]
+  projects?: ProjectRecord[]
   companyId: string
   onSent: () => void
 }
 
-function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModalProps) {
+function ComposeModal({ open, onClose, agents, projects, companyId, onSent }: ComposeModalProps) {
   const [fromAgentId, setFromAgentId] = useState(agents[0]?.id ?? "")
   const [toAgentId, setToAgentId] = useState("")
   const [channel, setChannel] = useState<MessageChannel>("company")
@@ -791,8 +833,38 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
     return Array.from(depts).sort()
   }, [agents])
 
+  useEffect(() => {
+    if (channel !== "direct") {
+      setToAgentId("")
+    }
+    if (channel !== "department" && channel !== "project") {
+      setChannelTargetId("")
+    }
+  }, [channel])
+
+  useEffect(() => {
+    if (agents.length === 0) {
+      if (fromAgentId) setFromAgentId("")
+      return
+    }
+    if (!agents.some((agent) => agent.id === fromAgentId)) {
+      setFromAgentId(agents[0]?.id ?? "")
+    }
+  }, [agents, fromAgentId])
+
   const handleSend = useCallback(async () => {
-    if (!body.trim() || !fromAgentId || !subject.trim() || (channel === "direct" && !toAgentId)) return
+    const requiresTarget = channel === "department" || channel === "project"
+    if (
+      !body.trim()
+      || !fromAgentId
+      || !subject.trim()
+      || (channel === "direct" && !toAgentId)
+      || (requiresTarget && !channelTargetId)
+    ) return
+    if (!agents.some((agent) => agent.id === fromAgentId)) {
+      setSendError("Select a valid sender from the current company before sending.")
+      return
+    }
     setSending(true)
     setSendError(null)
     try {
@@ -801,7 +873,7 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
         fromAgentId,
         toAgentId: channel === "direct" && toAgentId ? toAgentId : null,
         channel,
-        channelTargetId: channelTargetId || null,
+        channelTargetId: channel === "department" || channel === "project" ? channelTargetId || null : null,
         subject: subject.trim(),
         body: body.trim(),
         priority,
@@ -818,7 +890,7 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
     } finally {
       setSending(false)
     }
-  }, [body, fromAgentId, toAgentId, channel, channelTargetId, subject, priority, companyId, onSent, onClose])
+  }, [agents, body, channel, channelTargetId, companyId, fromAgentId, onClose, onSent, priority, subject, toAgentId])
 
   return (
     <Modal open={open} title="Compose Message" onClose={onClose} width="560px">
@@ -875,12 +947,18 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
               })),
             ]}
           />
-        ) : channel === "project" || channel === "incident" ? (
-          <Input
-            label={channel === "project" ? "Project ID" : "Incident ID"}
+        ) : channel === "project" ? (
+          <Select
+            label="Project"
             value={channelTargetId}
             onChange={setChannelTargetId}
-            placeholder={`Enter ${channel} identifier`}
+            options={[
+              { value: "", label: "Select project..." },
+              ...(projects ?? []).map((p) => ({
+                value: p.id,
+                label: p.name,
+              })),
+            ]}
           />
         ) : null}
 
@@ -921,7 +999,14 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
           <button
             type="button"
             onClick={() => void handleSend()}
-            disabled={!body.trim() || !subject.trim() || !fromAgentId || (channel === "direct" && !toAgentId) || sending}
+            disabled={
+              !body.trim()
+              || !subject.trim()
+              || !fromAgentId
+              || (channel === "direct" && !toAgentId)
+              || ((channel === "department" || channel === "project") && !channelTargetId)
+              || sending
+            }
             className="inline-flex items-center gap-2 rounded-[8px] px-4 py-2 text-[12px] font-semibold text-white transition hover:brightness-90 active:translate-y-px disabled:opacity-40 disabled:pointer-events-none"
             style={{ backgroundColor: TERRACOTTA }}
           >
@@ -1084,6 +1169,7 @@ interface CommunicationHubProps {
   comments: CommentRecord[]
   tasks: TaskRecord[]
   agents: AgentRecord[]
+  projects?: ProjectRecord[]
   companyId: string
   selectedEntityId?: string | null
   onEntityConsumed?: () => void
@@ -1096,6 +1182,7 @@ export function CommunicationHub({
   comments,
   tasks,
   agents,
+  projects,
   companyId,
   selectedEntityId,
   onEntityConsumed,
@@ -1136,8 +1223,15 @@ export function CommunicationHub({
   }, [effectiveMessages])
 
   // Derive channels from messages
-  const messageChannels = useMemo(() => deriveChannels(effectiveMessages, agents), [effectiveMessages, agents])
-  const taskDiscussionChannels = useMemo(() => deriveTaskDiscussionChannels(comments, tasks), [comments, tasks])
+  const messageChannels = useMemo(() => deriveChannels(effectiveMessages, agents, projects), [effectiveMessages, agents, projects])
+  const forcedTaskDiscussionId = useMemo(
+    () => (selectedEntityId && tasks.some((task) => task.id === selectedEntityId) ? selectedEntityId : null),
+    [selectedEntityId, tasks],
+  )
+  const taskDiscussionChannels = useMemo(
+    () => deriveTaskDiscussionChannels(comments, tasks, forcedTaskDiscussionId),
+    [comments, forcedTaskDiscussionId, tasks],
+  )
   const channels = useMemo(() => [...messageChannels, ...taskDiscussionChannels], [messageChannels, taskDiscussionChannels])
 
   // Auto-select first valid channel
@@ -1633,6 +1727,7 @@ export function CommunicationHub({
                 companyId={companyId}
                 channel={activeChannel.channel}
                 channelTargetId={activeChannel.channel === "direct" ? null : activeChannel.targetId}
+                directParticipantIds={activeChannel.channel === "direct" ? activeChannel.participantIds : []}
                 replyTo={replyTo}
                 onSent={() => {
                   setReplyTo(null)
@@ -1662,6 +1757,7 @@ export function CommunicationHub({
         open={showCompose}
         onClose={() => setShowCompose(false)}
         agents={agents}
+        projects={projects}
         companyId={companyId}
         onSent={onRefresh}
       />

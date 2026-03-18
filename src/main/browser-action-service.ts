@@ -25,6 +25,30 @@ export function createBrowserActionService({
     if (!action) {
       throw new Error(`Browser action not found: ${actionId}`);
     }
+    if (action.status !== "queued") {
+      throw new Error(`Browser action ${actionId} is ${action.status} and cannot be dispatched.`);
+    }
+    if (action.approvalId) {
+      const approval = (() => {
+        try {
+          return db.getApprovalRecord(action.approvalId);
+        } catch {
+          return null;
+        }
+      })();
+      if (!approval || approval.companyId !== companyId) {
+        throw new Error(`Browser action approval ${action.approvalId} does not belong to company ${companyId}.`);
+      }
+      if (approval.state !== "approved") {
+        db.updateBrowserAction(actionId, {
+          status: "approval_required",
+          resultSummary: "Browser action is still waiting for approval.",
+          errorMessage: "Approval must be granted before execution.",
+        });
+        publishDomainChanged();
+        return;
+      }
+    }
 
     const account = db.getSocialAccount(action.socialAccountId, companyId);
     if (!account) {

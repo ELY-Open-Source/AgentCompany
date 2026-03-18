@@ -16,6 +16,24 @@ function managesAgent(db: AppDatabase, managerId: string, targetAgentId: string)
   return db.getChainOfCommand(targetAgentId).some((agent) => agent.id === managerId);
 }
 
+export function canControlAgent(db: AppDatabase, companyId: string, actorAgentId: string, targetAgentId: string): boolean {
+  const actor = safeGetAgent(db, actorAgentId);
+  const target = safeGetAgent(db, targetAgentId);
+  if (!actor || !target) {
+    return false;
+  }
+  if (actor.companyId !== companyId || target.companyId !== companyId) {
+    return false;
+  }
+  if (actor.id === target.id) {
+    return true;
+  }
+  if (canManageOrganization(db, companyId, actorAgentId)) {
+    return true;
+  }
+  return managesAgent(db, actorAgentId, targetAgentId);
+}
+
 export function canManageOrganization(db: AppDatabase, companyId: string, agentId: string): boolean {
   const agent = safeGetAgent(db, agentId);
   if (!agent || agent.companyId !== companyId) {

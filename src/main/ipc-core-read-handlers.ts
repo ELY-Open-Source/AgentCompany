@@ -86,8 +86,7 @@ export function registerCoreReadHandlers({
   });
 
   registerHandle(IPC_CHANNELS.checkForUpdates, async () => {
-    await checkForUpdates();
-    return ok(true);
+    return ok(await checkForUpdates());
   });
 
   registerHandle(IPC_CHANNELS.getSidebarBadges, async (_event, companyId) => {

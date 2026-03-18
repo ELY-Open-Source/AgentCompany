@@ -239,6 +239,15 @@ export function App() {
     }
   }, [selectedConnectorId, selectedRunId]);
 
+  const openPathWithFeedback = useCallback(async (path: string) => {
+    try {
+      unwrap(await window.agentCompany.openPath(path));
+      setError(null);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }, []);
+
   // Stable ref so the subscribe callback always calls the latest refresh
   // without tearing down the subscription when refresh identity changes.
   const refreshRef = useRef(refresh);
@@ -863,7 +872,7 @@ export function App() {
                     setSelectedRunId(runId);
                   }}
                   onOpenLogPath={async (path: string) => {
-                    unwrap(await window.agentCompany.openPath(path));
+                    await openPathWithFeedback(path);
                   }}
                   onCancelRun={cancelRun}
                   onOpenConsole={(runId: string) => {
@@ -908,7 +917,7 @@ export function App() {
 
               {section === "agents" ? (
                 <>
-                  <Panel title="Agent roster" action={<ActionButton label="New agent" icon={Robot} tone="accent" onClick={() => setSelectedAgentId("__new__")} />}>
+                  <Panel title="Agent roster" action={<ActionButton label="New hire request" icon={UserPlus} tone="accent" onClick={() => setSelectedAgentId("__new__")} />}>
                     <AgentRoster
                       agents={companyAgents}
                       connectors={snapshot.connectors}
@@ -917,8 +926,18 @@ export function App() {
                       onSelect={setSelectedAgentId}
                     />
                   </Panel>
-                  <Modal open={selectedAgentId === "__new__"} title="New agent" onClose={() => setSelectedAgentId(null)}>
-                    <AgentCreator companyId={currentCompany!.id} connectors={snapshot.connectors} workspaces={companyWorkspaces} agents={companyAgents} onSaved={async () => { setSelectedAgentId(null); await refresh(); }} />
+                  <Modal open={selectedAgentId === "__new__"} title="Request new hire" onClose={() => setSelectedAgentId(null)}>
+                    <AgentCreator
+                      companyId={currentCompany!.id}
+                      connectors={snapshot.connectors}
+                      workspaces={companyWorkspaces}
+                      agents={companyAgents}
+                      onSaved={async () => {
+                        setSelectedAgentId(null);
+                        setSection("hiring");
+                        await refresh();
+                      }}
+                    />
                   </Modal>
                   <Modal open={!!selectedAgent} title={selectedAgent ? `Edit: ${selectedAgent.name}` : ""} onClose={() => setSelectedAgentId(null)}>
                     {selectedAgent ? (
@@ -1198,6 +1217,7 @@ export function App() {
 
               {section === "automation" && currentCompany ? (
                 <AutomationPanel
+                  key={currentCompany.id}
                   rules={snapshot.automationRules?.filter(r => r.companyId === currentCompany.id) ?? []}
                   workflows={snapshot.workflows?.filter(w => w.companyId === currentCompany.id) ?? []}
                   companyId={currentCompany.id}
@@ -1211,6 +1231,7 @@ export function App() {
                   comments={snapshot.comments?.filter((comment) => comment.companyId === currentCompany.id) ?? []}
                   tasks={tasks}
                   agents={companyAgents}
+                  projects={companyProjects}
                   companyId={currentCompany.id}
                   selectedEntityId={selectedCommunicationEntityId}
                   onEntityConsumed={() => setSelectedCommunicationEntityId(null)}
@@ -1257,7 +1278,7 @@ export function App() {
                         companyId={currentCompany!.id}
                         selectedWorkspaceId={selectedWorkspace?.id ?? null}
                         onSelect={setSelectedWorkspaceId}
-                        onOpen={(path) => window.agentCompany.openPath(path).then(() => undefined)}
+                        onOpen={openPathWithFeedback}
                         onDeleted={refresh}
                       />
                     </Panel>
@@ -1272,7 +1293,7 @@ export function App() {
                           runs={runs}
                           documents={companyDocuments}
                           project={selectedWorkspace ? (companyProjects.find((project) => project.id === selectedWorkspace.projectId) ?? null) : null}
-                          onOpen={(path) => window.agentCompany.openPath(path).then(() => undefined)}
+                          onOpen={openPathWithFeedback}
                         />
                       </Panel>
                       <Panel title="Add workspace">
@@ -1356,7 +1377,7 @@ export function App() {
                       </div>
                       {selectedRun.logPath ? (
                         <div className="pt-1">
-                          <ActionButton label="Open log" onClick={() => void window.agentCompany.openPath(selectedRun.logPath!)} icon={FolderOpen} />
+                          <ActionButton label="Open log" onClick={() => void openPathWithFeedback(selectedRun.logPath!)} icon={FolderOpen} />
                         </div>
                       ) : null}
                     </div>

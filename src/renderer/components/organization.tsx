@@ -148,6 +148,7 @@ export function AgentCreator({
   const [capabilities, setCapabilities] = useState("");
   const [reportsTo, setReportsTo] = useState("");
   const [thinkingEffort, setThinkingEffort] = useState("");
+  const [requestError, setRequestError] = useState<string | null>(null);
   const supportsEffort = connectorId === "claude_local" || connectorId === "codex_local";
 
   useEffect(() => {
@@ -220,19 +221,25 @@ export function AgentCreator({
         onChange={setCapabilities}
         placeholder="What this agent is expected to do and when it becomes relevant."
       />
+      <p className="text-[12px] text-[color:var(--muted)]">
+        New agents enter the hiring pipeline first. Approval activates the agent and keeps onboarding, budgets, and org history linked to the same record.
+      </p>
       <ActionButton
-        label="Create agent"
+        label="Submit hire request"
         tone="accent"
         onClick={() =>
           void (async () => {
             try {
+              setRequestError(null);
               const meta: Record<string, string> = {};
               if (thinkingEffort) meta.thinkingEffort = thinkingEffort;
-              await window.agentCompany.saveAgent({
+              unwrap(await window.agentCompany.requestHire({
                 companyId,
+                requestedByAgentId: null,
                 name,
                 role,
                 title,
+                department: null,
                 connectorId: connectorId as ConnectorRecord["id"],
                 workspaceId: workspaceId || null,
                 reportsTo: reportsTo || null,
@@ -240,21 +247,22 @@ export function AgentCreator({
                 metadataJson: JSON.stringify(meta),
                 capabilities,
                 budgetMonthlyUsd: Number(budget || 0),
-                status: "idle",
-              });
+              }));
               setName("");
               setRole("");
               setTitle("");
               setCapabilities("");
               setReportsTo("");
+              setRequestError(null);
               await onSaved();
             } catch (error) {
-              void error;
+              setRequestError(error instanceof Error ? error.message : "Hire request failed.");
             }
           })()
         }
         icon={Robot}
       />
+      {requestError ? <p className="text-[12px] text-[color:var(--danger)]">{requestError}</p> : null}
     </div>
   );
 }
@@ -292,6 +300,7 @@ export function AgentEditor({
   const existingMeta = useMemo(() => { try { return JSON.parse(agent.metadataJson || "{}"); } catch { return {}; } }, [agent.metadataJson]);
   const [thinkingEffort, setThinkingEffort] = useState<string>(existingMeta.thinkingEffort ?? "");
   const supportsEffort = connectorId === "claude_local" || connectorId === "codex_local";
+  const pendingApproval = agent.status === "pending_approval";
 
   useEffect(() => {
     void (async () => {
@@ -314,27 +323,35 @@ export function AgentEditor({
 
   return (
     <div className="grid gap-4">
-      <Input label="Agent name" value={name} onChange={setName} placeholder="Agent name" />
-      <Input label="Role" value={role} onChange={setRole} placeholder="Role" />
-      <Input label="Title" value={title} onChange={setTitle} placeholder="Title" />
+      <Input label="Agent name" value={name} onChange={setName} placeholder="Agent name" readOnly={pendingApproval} disabled={pendingApproval} />
+      <Input label="Role" value={role} onChange={setRole} placeholder="Role" readOnly={pendingApproval} disabled={pendingApproval} />
+      <Input label="Title" value={title} onChange={setTitle} placeholder="Title" readOnly={pendingApproval} disabled={pendingApproval} />
       <Select
         label="Status"
         value={status}
         onChange={(v) => setStatus(v as AgentRecord["status"])}
-        options={[
-          { value: "idle", label: "Idle" },
-          { value: "active", label: "Active" },
-          { value: "running", label: "Running" },
-          { value: "paused", label: "Paused" },
-          { value: "error", label: "Error" },
-          { value: "pending_approval", label: "Pending Approval" },
-          { value: "terminated", label: "Terminated" },
-        ]}
+        disabled={pendingApproval}
+        options={pendingApproval
+          ? [{ value: "pending_approval", label: "Pending Approval" }]
+          : [
+            { value: "idle", label: "Idle" },
+            { value: "active", label: "Active" },
+            { value: "running", label: "Running" },
+            { value: "paused", label: "Paused" },
+            { value: "error", label: "Error" },
+            { value: "terminated", label: "Terminated" },
+          ]}
       />
+      {pendingApproval ? (
+        <p className="text-[12px] text-[color:var(--muted)]">
+          Pending hires must be approved or rejected from Hiring or Approvals. Status changes are intentionally locked here.
+        </p>
+      ) : null}
       <Select
         label="Connector"
         value={connectorId}
         onChange={(v) => setConnectorId(v as ConnectorRecord["id"])}
+        disabled={pendingApproval}
         options={connectors.map((c) => ({ value: c.id, label: c.label }))}
       />
       {availableModels.length > 0 ? (
@@ -342,6 +359,7 @@ export function AgentEditor({
           label="Model"
           value={model}
           onChange={setModel}
+          disabled={pendingApproval}
           options={availableModels.map((m) => ({ value: m.id, label: m.label }))}
         />
       ) : null}
@@ -350,6 +368,7 @@ export function AgentEditor({
           label="Thinking effort"
           value={thinkingEffort}
           onChange={setThinkingEffort}
+          disabled={pendingApproval}
           options={[
             { value: "", label: "Default" },
             { value: "low", label: "Low" },
@@ -362,6 +381,7 @@ export function AgentEditor({
         label="Workspace"
         value={workspaceId}
         onChange={setWorkspaceId}
+        disabled={pendingApproval}
         options={[
           { value: "", label: "No workspace" },
           ...workspaces.map((w) => ({ value: w.id, label: w.name })),
@@ -371,13 +391,14 @@ export function AgentEditor({
         label="Reports to"
         value={reportsTo}
         onChange={setReportsTo}
+        disabled={pendingApproval}
         options={[
           { value: "", label: "No manager" },
           ...managerCandidates.map((a) => ({ value: a.id, label: a.name })),
         ]}
       />
-      <Input label="Monthly budget (USD)" value={budget} onChange={setBudget} placeholder="120" type="number" />
-      <TextArea label="Capabilities" value={capabilities} onChange={setCapabilities} placeholder="Capabilities" />
+      <Input label="Monthly budget (USD)" value={budget} onChange={setBudget} placeholder="120" type="number" readOnly={pendingApproval} disabled={pendingApproval} />
+      <TextArea label="Capabilities" value={capabilities} onChange={setCapabilities} placeholder="Capabilities" readOnly={pendingApproval} disabled={pendingApproval} />
 
       {/* Heartbeat / Continuous Execution */}
       <div className="rounded-lg border border-[color:var(--line)] p-3">
@@ -390,6 +411,7 @@ export function AgentEditor({
             <input
               type="checkbox"
               checked={agent.heartbeatEnabled}
+              disabled={pendingApproval}
               onChange={(e) =>
                 void (async () => {
                   await window.agentCompany.setHeartbeat({
@@ -427,6 +449,7 @@ export function AgentEditor({
                 await onSaved();
               })()
             }
+            disabled={pendingApproval}
             options={[
               { value: "30", label: "30 seconds" },
               { value: "60", label: "1 minute" },
@@ -443,6 +466,7 @@ export function AgentEditor({
             label="Wake now"
             tone="accent"
             icon={Lightning}
+            disabled={pendingApproval}
             onClick={() =>
               void (async () => {
                 await window.agentCompany.triggerHeartbeat({
@@ -462,6 +486,7 @@ export function AgentEditor({
           label="Save changes"
           tone="accent"
           icon={Pencil}
+          disabled={pendingApproval}
           onClick={() =>
             void (async () => {
               setSaveError(null);
@@ -507,10 +532,16 @@ export function AgentEditor({
             label="Delete"
             tone="danger"
             icon={Trash}
+            disabled={pendingApproval}
             onClick={() => setConfirmingDelete(true)}
           />
         )}
       </div>
+      {pendingApproval ? (
+        <p className="text-[12px] text-[color:var(--muted)]">
+          Pending hires are read-only here. Use Hiring or Approvals to approve or reject the request before editing the agent profile.
+        </p>
+      ) : null}
       {saveError ? <p className="text-[12px] text-[color:var(--danger)]">{saveError}</p> : null}
     </div>
   );

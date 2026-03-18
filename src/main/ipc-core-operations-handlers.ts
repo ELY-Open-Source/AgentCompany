@@ -11,6 +11,7 @@ import {
   startRunSchema,
   triggerHeartbeatSchema,
 } from "@shared/contracts";
+import { resolveApprovalDecision, shouldAutoApproveApproval } from "./approval-policy";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
 
 export function registerCoreOperationHandlers({
@@ -43,10 +44,16 @@ export function registerCoreOperationHandlers({
     if (companyError) return companyError;
     const invalidTask = parsed.relatedTaskId && !db.belongsToCompany("tasks", parsed.relatedTaskId, parsed.companyId);
     const invalidAgent = parsed.requestedByAgentId && !db.belongsToCompany("agents", parsed.requestedByAgentId, parsed.companyId);
-    if (invalidTask || invalidAgent) {
+    const invalidRelatedAgent = parsed.relatedAgentId && !db.belongsToCompany("agents", parsed.relatedAgentId, parsed.companyId);
+    if (invalidTask || invalidAgent || invalidRelatedAgent) {
       return fail("INVALID_COMPANY_REFERENCE", "The approval references data outside the current company.");
     }
-    const id = db.requestApproval(parsed);
+    let id: string;
+    try {
+      id = db.requestApproval(parsed);
+    } catch (error) {
+      return fail("APPROVAL_INVALID", error instanceof Error ? error.message : "Approval could not be created.");
+    }
     db.addActivity({
       companyId: parsed.companyId,
       actor: parsed.requestedByAgentId ?? "board",
@@ -55,6 +62,20 @@ export function registerCoreOperationHandlers({
       entityId: id,
       detail: parsed.payloadSummary,
     });
+    if (shouldAutoApproveApproval(db, parsed.companyId, parsed.type)) {
+      resolveApprovalDecision({
+        db,
+        handleApprovalResolved,
+        companyId: parsed.companyId,
+        approvalId: id,
+        state: "approved",
+        decisionNote: "Auto-approved by company policy",
+        detail: "Auto-approved by company policy",
+      });
+      publishDomainChanged();
+      return ok(id);
+    }
+    publishDomainChanged();
     return ok(id);
   });
 
@@ -69,16 +90,15 @@ export function registerCoreOperationHandlers({
     if (!approval || approval.companyId !== parsed.companyId) {
       return fail("APPROVAL_NOT_FOUND", "Approval not found in the current company.");
     }
-    db.decideApproval(parsed);
-    db.addActivity({
+    resolveApprovalDecision({
+      db,
+      handleApprovalResolved,
       companyId: approval.companyId,
-      actor: "board",
-      action: `approval.${parsed.state}`,
-      entityType: "approval",
-      entityId: approval.id,
+      approvalId: approval.id,
+      state: parsed.state,
+      decisionNote: parsed.decisionNote,
       detail: parsed.decisionNote,
     });
-    handleApprovalResolved(parsed.approvalId, approval.companyId, parsed.state);
     publishDomainChanged();
     return ok(true);
   });

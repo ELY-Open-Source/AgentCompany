@@ -641,7 +641,7 @@ export function Dashboard(props: DashboardProps) {
             value={liveRuns.length}
             icon={Heartbeat}
             tone={liveRuns.length > 0 ? "success" : "default"}
-            onClick={() => onNavigate("tasks")}
+            onClick={() => onNavigate("runs")}
             subtitle={liveRuns.length > 0 ? `${liveRuns.filter((r) => r.status === "running").length} running` : "All quiet"}
           />
           <MetricCard
@@ -665,7 +665,7 @@ export function Dashboard(props: DashboardProps) {
             value={failedRuns.length}
             icon={Warning}
             tone={failedRuns.length > 0 ? "danger" : "default"}
-            onClick={() => onNavigate("tasks")}
+            onClick={() => onNavigate("runs")}
           />
           <MetricCard
             label="Total Spend"

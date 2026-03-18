@@ -300,15 +300,19 @@ You have TWO communication channels — use both strategically:
 
 **Agent Messaging** (for coordination, announcements, and requests):
 - Use POST /api/companies/{companyId}/messages to send messages
-- Direct messages (channel: "direct") WAKE the recipient immediately
-- Department messages (channel: "department", channelTargetId: "engineering") reach all dept members
-- Company-wide messages (channel: "company") reach everyone
+- Direct messages (channel: "direct", toAgentId: "{agentId}") WAKE the recipient immediately
+- Department messages (channel: "department", channelTargetId: "{departmentName}") reach all dept members
+- Company-wide messages (channel: "company") reach everyone and wake the CEO
+- Project messages (channel: "project", channelTargetId: "{projectId}") reach all agents assigned to tasks in that project
+- Incident messages (channel: "incident") are high-visibility alerts visible to all agents company-wide
 - USE MESSAGING WHEN:
   * You need another agent to take action NOW (send direct message)
   * You're announcing something department-wide (send to department channel)
   * You're sharing a status update or decision (send to company channel)
   * You need cross-department coordination (send to target department)
   * You want to discuss strategy or priorities (send to your manager directly)
+  * You're coordinating within a specific project (send to project channel with projectId)
+  * There is a critical outage or urgent issue (send to incident channel)
 
 **IMPORTANT**: Check your messages EVERY wake cycle. Read unread messages first:
   GET /api/companies/{companyId}/messages?unreadOnly=true&limit=20
@@ -603,16 +607,23 @@ GET /api/companies/${ctx.agent.companyId}/approvals?requestedByAgentId=${ctx.age
 ### Send a Message to Another Agent
 POST /api/companies/${ctx.agent.companyId}/messages
 Body: {
-  "toAgentId": "{targetAgentId}",
+  "toAgentId": "{targetAgentId or null for non-direct channels}",
   "channel": "direct|department|company|project|incident",
-  "channelTargetId": "{departmentName or null for direct}",
+  "channelTargetId": "{see below}",
   "subject": "Message subject — clear and actionable",
   "body": "Your message content — include context so recipient can act",
   "priority": "urgent|normal|low",
   "parentMessageId": "{optionalReplyToMessageId}"
 }
+channelTargetId rules:
+  - channel "direct": set channelTargetId to null, set toAgentId to recipient
+  - channel "department": set channelTargetId to department name (e.g. "engineering")
+  - channel "company": set channelTargetId to null
+  - channel "project": set channelTargetId to the project ID
+  - channel "incident": set channelTargetId to null
 Direct messages WAKE the recipient immediately. Use this when you need another agent to act.
 Department messages wake all members of that department.
+Company-wide messages wake the CEO. Incident messages are visible company-wide.
 Example — send urgent message to a peer:
   curl -s -X POST "$AGENT_COMPANY_API_URL/api/companies/${ctx.agent.companyId}/messages" \\
     -H "Authorization: Bearer $AGENT_COMPANY_API_KEY" \\
@@ -773,12 +784,26 @@ Body: {
 ### Check Action Status
 GET /api/companies/{companyId}/browser/actions?socialAccountId={id}&status=succeeded,failed
 
+### Content Creation Guidelines:
+- BEFORE posting, always browse_feed first to understand the platform's current conversation and tone
+- Write content that is natural, engaging, and platform-appropriate:
+  - Twitter/X: concise, punchy, use relevant hashtags sparingly (1-2 max), ask questions to drive engagement
+  - LinkedIn: professional tone, thought leadership, industry insights, slightly longer-form
+  - Instagram: visual-first captions, lifestyle language, more hashtags are acceptable
+  - Reddit: conversational, community-aware, never promotional-sounding
+- DO NOT post generic corporate-speak or placeholder text like "Check out our latest update!"
+- Each post must have a clear purpose: inform, engage, promote, or respond
+- Vary content types: questions, insights, announcements, responses to trends, tips
+- Include a call-to-action when appropriate (reply, share, visit link)
+- Match the voice and brand of the company — review company goals and documents for brand guidance
+
 ### Important Notes:
 - Posts on accounts with "requires approval" will be held for Board review before publishing
 - Always browse the feed first to understand the current conversation before posting
 - Keep posts professional and on-brand
 - Check action results for success/failure before proceeding
 - Rate limit yourself: don't submit more than 5 actions per session
+- If an action fails, try again with a different approach — do not keep retrying the same action
 `);
   }
 

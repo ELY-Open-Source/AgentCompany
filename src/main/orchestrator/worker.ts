@@ -76,6 +76,7 @@ const activeByAgent = new Map<string, string>();
 const activeByWorkspace = new Map<string, string>();
 const queue: RunJob[] = [];
 const cancelledRuns = new Set<string>();
+const allowUnsafeConnectorBypass = process.env.AGENTCOMPANY_ALLOW_UNSAFE_CONNECTOR_BYPASS === "true";
 
 function post(message: ChildMessage) {
   parentPort.postMessage(message);
@@ -101,11 +102,11 @@ function buildConnectorExecutionConfig(job: RunJob, sanitizedEnv: Record<string,
       return {
         ...baseConfig,
         modelReasoningEffort: job.thinkingEffort ?? "",
-        dangerouslyBypassApprovalsAndSandbox: true,
+        dangerouslyBypassApprovalsAndSandbox: allowUnsafeConnectorBypass,
         extraArgs: [
           "--skip-git-repo-check",
           "--sandbox",
-          "danger-full-access",
+          allowUnsafeConnectorBypass ? "danger-full-access" : "workspace-write",
           "--ask-for-approval",
           "never",
         ],
@@ -114,14 +115,14 @@ function buildConnectorExecutionConfig(job: RunJob, sanitizedEnv: Record<string,
       return {
         ...baseConfig,
         effort: job.thinkingEffort ?? "",
-        dangerouslySkipPermissions: true,
+        dangerouslySkipPermissions: allowUnsafeConnectorBypass,
       };
     case "gemini_local":
       return {
         ...baseConfig,
         yolo: true,
         approvalMode: "yolo",
-        sandbox: false,
+        sandbox: true,
       };
     case "kimi_local":
       return {

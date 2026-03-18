@@ -27,6 +27,3 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
-publish:
-  provider: generic
-  url: ${AGENTCOMPANY_UPDATE_URL:-https://updates.example.invalid/agentcompany}

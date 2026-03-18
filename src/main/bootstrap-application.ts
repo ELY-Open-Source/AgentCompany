@@ -30,6 +30,7 @@ interface BootstrapApplicationDependencies {
     onApprovalResolved: (approvalId: string, companyId: string, decision: string) => void;
     onDocumentCreated: (companyId: string, authorAgentId: string | null, projectId: string | null) => void;
     onAutoAssignTask: (taskId: string, companyId: string) => string | null;
+    emitEvent: (event: DesktopEvent) => void;
   }, allowedOrigins: string[]) => AgentApiServer;
   createRunToken: (agentId: string, companyId: string, runId: string) => string;
   seedDefaultAutomationRules: (companyId: string) => void;
@@ -155,6 +156,7 @@ export async function bootstrapApplication({
       dispatchAutomation("document_created", { companyId, agentId: authorAgentId ?? undefined, projectId: projectId ?? undefined });
     },
     onAutoAssignTask: (taskId, companyId) => db.autoAssignTask(taskId, companyId),
+    emitEvent,
   }, [isDev && devServerUrl ? new URL(devServerUrl).origin : null, "app://-"].filter((origin): origin is string => Boolean(origin)));
 
   apiServerRef.current = apiServer;

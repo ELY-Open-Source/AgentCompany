@@ -327,45 +327,63 @@ export class BrowserManager {
           assertNotCancelled();
 
           if (platform === "twitter") {
+            // Use clipboard-based approach since Twitter's React editor ignores execCommand
             await win.webContents.executeJavaScript(`
               (async () => {
-                const editor = document.querySelector('[data-testid="tweetTextarea_0"], [role="textbox"]');
-                if (editor) {
-                  editor.focus();
-                  document.execCommand('insertText', false, ${JSON.stringify(content)});
+                const editor = document.querySelector('[data-testid="tweetTextarea_0"], [role="textbox"][contenteditable="true"]');
+                if (!editor) return;
+                editor.focus();
+                // Write content to clipboard and paste it — this triggers React's input handlers
+                const dt = new DataTransfer();
+                dt.setData('text/plain', ${JSON.stringify(content)});
+                const pasteEvent = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
+                editor.dispatchEvent(pasteEvent);
+                // Fallback: if paste didn't work, set innerHTML and dispatch input
+                await new Promise(r => setTimeout(r, 500));
+                if (!editor.textContent || editor.textContent.trim().length === 0) {
+                  editor.textContent = ${JSON.stringify(content)};
+                  editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ${JSON.stringify(content)} }));
                 }
               })()
             `);
-            await this.delay(1000);
+            await this.delay(1500);
             await win.webContents.executeJavaScript(`
               (() => {
                 const btn = document.querySelector('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]');
-                if (btn) btn.click();
+                if (btn && !btn.disabled) btn.click();
               })()
             `);
             await this.delay(3000);
           } else if (platform === "linkedin") {
             await win.webContents.executeJavaScript(`
               (() => {
-                const btn = document.querySelector('button.share-box-feed-entry__trigger');
+                const btn = document.querySelector('button.share-box-feed-entry__trigger, button.artdeco-button--muted');
                 if (btn) btn.click();
               })()
             `);
             await this.delay(2000);
             await win.webContents.executeJavaScript(`
               (async () => {
-                const editor = document.querySelector('[role="textbox"][contenteditable="true"]');
+                const editor = document.querySelector('[role="textbox"][contenteditable="true"], .ql-editor[contenteditable="true"]');
                 if (editor) {
                   editor.focus();
-                  document.execCommand('insertText', false, ${JSON.stringify(content)});
+                  const dt = new DataTransfer();
+                  dt.setData('text/plain', ${JSON.stringify(content)});
+                  const pasteEvent = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
+                  editor.dispatchEvent(pasteEvent);
+                  await new Promise(r => setTimeout(r, 500));
+                  if (!editor.textContent || editor.textContent.trim().length === 0) {
+                    editor.textContent = ${JSON.stringify(content)};
+                    editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+                  }
                 }
               })()
             `);
-            await this.delay(1000);
+            await this.delay(1500);
             await win.webContents.executeJavaScript(`
               (() => {
-                const btn = document.querySelector('button.share-actions__primary-action');
-                if (btn) btn.click();
+                const btn = document.querySelector('button.share-actions__primary-action, button.artdeco-button--primary[type="submit"]');
+                if (btn && !btn.disabled) btn.click();
               })()
             `);
             await this.delay(3000);
@@ -386,18 +404,26 @@ export class BrowserManager {
 
           await win.webContents.executeJavaScript(`
             (async () => {
-              const editor = document.querySelector('[data-testid="tweetTextarea_0"], [role="textbox"]');
+              const editor = document.querySelector('[data-testid="tweetTextarea_0"], [role="textbox"][contenteditable="true"]');
               if (editor) {
                 editor.focus();
-                document.execCommand('insertText', false, ${JSON.stringify(replyContent)});
+                const dt = new DataTransfer();
+                dt.setData('text/plain', ${JSON.stringify(replyContent)});
+                const pasteEvent = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
+                editor.dispatchEvent(pasteEvent);
+                await new Promise(r => setTimeout(r, 500));
+                if (!editor.textContent || editor.textContent.trim().length === 0) {
+                  editor.textContent = ${JSON.stringify(replyContent)};
+                  editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ${JSON.stringify(replyContent)} }));
+                }
               }
             })()
           `);
-          await this.delay(1000);
+          await this.delay(1500);
           await win.webContents.executeJavaScript(`
             (() => {
               const btn = document.querySelector('[data-testid="tweetButton"], [data-testid="tweetButtonInline"], button[type="submit"]');
-              if (btn) btn.click();
+              if (btn && !btn.disabled) btn.click();
             })()
           `);
           await this.delay(3000);
@@ -675,7 +701,7 @@ export class BrowserManager {
 
   private getComposeUrl(platform: string): string {
     const urls: Record<string, string> = {
-      twitter: "https://x.com/compose/post",
+      twitter: "https://x.com/compose/tweet",
       linkedin: "https://www.linkedin.com/feed/",
       instagram: "https://www.instagram.com/",
       facebook: "https://www.facebook.com/",

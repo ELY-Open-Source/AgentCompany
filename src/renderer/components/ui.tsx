@@ -208,19 +208,25 @@ export function TextArea({
   placeholder,
   rows = 4,
   label,
+  readOnly = false,
+  disabled = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   rows?: number;
   label?: string;
+  readOnly?: boolean;
+  disabled?: boolean;
 }) {
   const textarea = (
     <textarea
-      className="focus-ring w-full rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-3.5 py-2.5 text-[14px] text-[color:var(--text)] placeholder:text-[color:var(--muted)]"
+      className="focus-ring w-full rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-3.5 py-2.5 text-[14px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] disabled:cursor-not-allowed disabled:opacity-60"
       value={value}
       rows={rows}
       placeholder={placeholder}
+      readOnly={readOnly}
+      disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
     />
   );
@@ -241,12 +247,14 @@ export function Select({
   options,
   compact = false,
   label,
+  disabled = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   options: Array<{ value: string; label: string }>;
   compact?: boolean;
   label?: string;
+  disabled?: boolean;
 }) {
   const select = (
     <select
@@ -254,8 +262,9 @@ export function Select({
         compact
           ? "rounded-[6px] border-[color:var(--line)] px-2.5 py-1.5 text-[13px] font-medium"
           : "rounded-[8px] border-[color:var(--line)] px-3.5 py-2.5 text-[14px]"
-      }`}
+      } disabled:cursor-not-allowed disabled:opacity-60`}
       value={value}
+      disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
     >
       {options.map((option) => (

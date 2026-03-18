@@ -6,6 +6,7 @@ import {
   messageQuerySchema,
 } from "@shared/contracts";
 import { fail, ok, type RegisterDomainHandlersDependencies } from "./ipc-domain-common";
+import { dispatchAgentMessage } from "./message-dispatch";
 
 export function registerAgentCoordinationHandlers({
   registerHandle,
@@ -29,41 +30,20 @@ export function registerAgentCoordinationHandlers({
     const parsed = agentMessageInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (parsed.channel === "direct" && !parsed.toAgentId) {
-      return fail("DIRECT_MESSAGE_RECIPIENT_REQUIRED", "Direct messages require a recipient agent.");
+    const dispatchResult = dispatchAgentMessage(
+      {
+        db,
+        emitEvent,
+        publishDomainChanged,
+        wakeAgentIfPossible,
+      },
+      parsed,
+      "message",
+    );
+    if (!dispatchResult.ok) {
+      return fail(dispatchResult.error.code, dispatchResult.error.message);
     }
-    const invalidReference = findInvalidReference(parsed.companyId, [
-      { id: parsed.fromAgentId, table: "agents", label: "message sender" },
-      { id: parsed.toAgentId, table: "agents", label: "message recipient" },
-      { id: parsed.channel === "project" ? parsed.channelTargetId : null, table: "projects", label: "project channel" },
-    ]);
-    if (invalidReference) {
-      return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
-    }
-    const id = db.sendAgentMessage(parsed);
-    const message = db.getAgentMessage(id, parsed.companyId);
-    if (message) {
-      emitEvent({ type: "new-message", message });
-    }
-    publishDomainChanged();
-    if (parsed.toAgentId) {
-      wakeAgentIfPossible(parsed.toAgentId, parsed.companyId, "message");
-    }
-    if (parsed.channel === "department" && parsed.channelTargetId) {
-      const departmentAgents = db.getIdleAgentsForDepartment(parsed.companyId, parsed.channelTargetId);
-      for (const agent of departmentAgents.filter((entry: { id: string }) => entry.id !== parsed.fromAgentId)) {
-        wakeAgentIfPossible(agent.id, parsed.companyId, "message");
-      }
-    }
-    if (parsed.channel === "company") {
-      const ceo = db.listSnapshot().agents.find((agent: { companyId: string; reportsTo: string | null; status: string }) =>
-        agent.companyId === parsed.companyId && !agent.reportsTo && agent.status !== "terminated",
-      );
-      if (ceo && ceo.id !== parsed.fromAgentId) {
-        wakeAgentIfPossible(ceo.id, parsed.companyId, "message");
-      }
-    }
-    return ok(id);
+    return ok(dispatchResult.data.id);
   });
 
   registerHandle(IPC_CHANNELS.listAgentMessages, async (_event, payload) => {
@@ -90,13 +70,27 @@ export function registerAgentCoordinationHandlers({
     const parsed = markMessageReadSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.getAgentMessage(parsed.messageId, parsed.companyId)) {
+    const message = db.getAgentMessage(parsed.messageId, parsed.companyId);
+    if (!message) {
       return fail("MESSAGE_NOT_FOUND", "Message not found in the current company.");
     }
     if (parsed.readerAgentId && !db.belongsToCompany("agents", parsed.readerAgentId, parsed.companyId)) {
       return fail("INVALID_COMPANY_REFERENCE", "The selected message reader does not belong to the current company.");
     }
+    if (parsed.readerAgentId) {
+      const visibleToReader = db
+        .listAgentMessages(parsed.companyId, {
+          agentId: parsed.readerAgentId,
+          messageId: parsed.messageId,
+          limit: 1,
+        })
+        .some((entry) => entry.id === parsed.messageId);
+      if (!visibleToReader) {
+        return fail("MESSAGE_NOT_VISIBLE", "This message is not visible to the selected reader.");
+      }
+    }
     db.markMessageReadForReader(parsed.messageId, parsed.companyId, parsed.readerAgentId ?? null);
+    publishDomainChanged();
     return ok(true);
   });
 

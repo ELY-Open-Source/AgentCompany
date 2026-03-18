@@ -1,10 +1,13 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import log from "electron-log/main.js";
 import { z } from "zod";
+import { agentMessageInputSchema, approvalInputSchema, goalInputSchema, hireRequestSchema, projectInputSchema, taskInputSchema } from "@shared/contracts";
 import { validateAgentToken, type TokenPayload } from "./agent-auth";
-import { canAssignTask, canManageGoal, canManageOrganization, canManageProject, canUpdateTask } from "./agent-permissions";
+import { canAssignTask, canControlAgent, canManageGoal, canManageOrganization, canManageProject, canUpdateTask } from "./agent-permissions";
+import { resolveApprovalDecision, shouldAutoApproveApproval } from "./approval-policy";
 import type { AppDatabase } from "./database";
-import { agentInputSchema, approvalInputSchema, goalInputSchema, projectInputSchema, taskInputSchema } from "@shared/contracts";
+import { dispatchAgentMessage } from "./message-dispatch";
+import type { DesktopEvent } from "@shared/types";
 
 type RequestHandler = (
   req: IncomingMessage,
@@ -49,6 +52,7 @@ export interface ApiServerEventCallbacks {
   onApprovalResolved: (approvalId: string, companyId: string, decision: string) => void;
   onDocumentCreated: (companyId: string, authorAgentId: string | null, projectId: string | null) => void;
   onAutoAssignTask: (taskId: string, companyId: string) => string | null;
+  emitEvent: (event: DesktopEvent) => void;
 }
 
 export class AgentApiServer {
@@ -58,6 +62,7 @@ export class AgentApiServer {
   private db: AppDatabase;
   private onDomainChanged: () => void;
   private onWakeAgent: (agentId: string, companyId: string, trigger: string) => string | null;
+  private emitEvent: (event: DesktopEvent) => void;
   private callbacks: ApiServerEventCallbacks;
   private allowedOrigins: Set<string>;
   private onBrowserAction: ((actionId: string, companyId: string, socialAccountId: string, actionType: string, payload: Record<string, unknown>) => void) | null = null;
@@ -72,6 +77,7 @@ export class AgentApiServer {
     this.db = db;
     this.onDomainChanged = onDomainChanged;
     this.onWakeAgent = onWakeAgent;
+    this.emitEvent = callbacks?.emitEvent ?? (() => {});
     this.allowedOrigins = new Set(Array.from(allowedOrigins).filter(Boolean));
     this.callbacks = {
       onDomainChanged,
@@ -82,6 +88,7 @@ export class AgentApiServer {
       onApprovalResolved: callbacks?.onApprovalResolved ?? (() => {}),
       onDocumentCreated: callbacks?.onDocumentCreated ?? (() => {}),
       onAutoAssignTask: callbacks?.onAutoAssignTask ?? (() => null),
+      emitEvent: callbacks?.emitEvent ?? (() => {}),
     };
     this.registerRoutes();
   }
@@ -202,7 +209,7 @@ export class AgentApiServer {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         log.error(`[api] ${method} ${pathname}: ${message}`);
-        this.json(res, 500, { error: message });
+        this.json(res, 500, { error: "Internal server error" });
       }
       return;
     }
@@ -728,9 +735,9 @@ export class AgentApiServer {
         this.json(res, 403, { error: "Current agent is not allowed to request hires" });
         return;
       }
-      const parsed = agentInputSchema.safeParse({
+      const parsed = hireRequestSchema.safeParse({
         companyId,
-        status: "pending_approval",
+        requestedByAgentId: token.agentId,
         ...(typeof body === "object" && body ? body : {}),
         reportsTo:
           typeof body === "object" && body && "reportsTo" in body
@@ -743,85 +750,87 @@ export class AgentApiServer {
       }
       const input = parsed.data;
       if (this.companyRefError(res, companyId, [
+        { id: input.requestedByAgentId, table: "agents", label: "requesting agent" },
         { id: input.reportsTo, table: "agents", label: "manager" },
         { id: input.workspaceId, table: "workspaces", label: "workspace" },
       ])) {
         return;
       }
 
-      let agentId: string;
+      const managerLabel = input.reportsTo
+        ? (() => {
+          try {
+            return this.db.getAgent(input.reportsTo).name;
+          } catch {
+            return input.reportsTo;
+          }
+        })()
+        : "the company board";
+
+      let result: { agentId: string; approvalId: string };
       try {
-        agentId = this.db.saveAgent({
-          id: input.id ?? null,
+        result = this.db.createHireRequest({
           companyId,
+          requestedByAgentId: input.requestedByAgentId ?? token.agentId,
           name: input.name,
           role: input.role,
           title: input.title,
           department: input.department ?? null,
-          status: "pending_approval",
           reportsTo: input.reportsTo ?? token.agentId,
           connectorId: input.connectorId,
           workspaceId: input.workspaceId ?? null,
           model: input.model ?? null,
-          metadataJson: input.metadataJson,
+          metadataJson: input.metadataJson ?? "{}",
           capabilities: input.capabilities,
           budgetMonthlyUsd: input.budgetMonthlyUsd,
+          payloadSummary: `Hire ${input.name} as ${input.role}`,
+          impactSummary: input.capabilities || `${input.name} will report to ${managerLabel}.`,
+          payloadJson: JSON.stringify({
+            requestedByAgentId: input.requestedByAgentId ?? token.agentId,
+            requestedConfigurationSnapshot: {
+              connectorId: input.connectorId,
+              workspaceId: input.workspaceId ?? null,
+              model: input.model ?? null,
+              metadataJson: input.metadataJson ?? "{}",
+              capabilities: input.capabilities,
+              budgetMonthlyUsd: input.budgetMonthlyUsd,
+              reportsTo: input.reportsTo ?? token.agentId,
+              department: input.department ?? null,
+              title: input.title,
+            },
+          }),
         });
       } catch (error) {
         this.json(res, 422, { error: error instanceof Error ? error.message : "Hire could not be created" });
         return;
       }
 
-      const approvalId = this.db.requestApproval({
-        companyId,
-        requestedByAgentId: token.agentId,
-        relatedAgentId: agentId,
-        type: "hire_agent",
-        payloadSummary: `Hire ${input.name} as ${input.role}`,
-        impactSummary: input.capabilities || `${input.name} will report to ${input.reportsTo ?? token.agentId}.`,
-        payloadJson: JSON.stringify({
-          agentId,
-          requestedByAgentId: token.agentId,
-          requestedConfigurationSnapshot: {
-            connectorId: input.connectorId,
-            workspaceId: input.workspaceId ?? null,
-            model: input.model ?? null,
-            metadataJson: input.metadataJson,
-            capabilities: input.capabilities,
-            budgetMonthlyUsd: input.budgetMonthlyUsd,
-            reportsTo: input.reportsTo ?? token.agentId,
-          },
-        }),
-      });
-
       this.db.addActivity({
         companyId,
         actor: token.agentId,
         action: "agent.hire_requested",
         entityType: "agent",
-        entityId: agentId,
+        entityId: result.agentId,
         detail: input.name,
       });
 
-      // Auto-approve hire if company policy allows it
-      const snapshot = this.db.listSnapshot();
-      const company = snapshot.companies.find((c) => c.id === companyId);
-      if (company?.autoApproveHires) {
-        this.db.decideApproval({ companyId, approvalId, state: "approved", decisionNote: "Auto-approved by company policy" });
-        this.callbacks.onApprovalResolved(approvalId, companyId, "approved");
-        this.db.addActivity({
+      let autoApproved = false;
+      if (shouldAutoApproveApproval(this.db, companyId, "hire_agent")) {
+        resolveApprovalDecision({
+          db: this.db,
+          handleApprovalResolved: this.callbacks.onApprovalResolved,
           companyId,
-          actor: "board",
-          action: "approval.approved",
-          entityType: "approval",
-          entityId: approvalId,
+          approvalId: result.approvalId,
+          state: "approved",
+          decisionNote: "Auto-approved by company policy",
           detail: `Auto-approved hire: ${input.name}`,
         });
+        autoApproved = true;
         log.info(`[auto-approve] Auto-approved hire of ${input.name} via agent API`);
       }
 
       this.onDomainChanged();
-      this.json(res, 201, { agentId, approvalId });
+      this.json(res, 201, { ...result, autoApproved });
     });
 
     this.addRoute("POST", "/api/issues/:issueId/comments", (_req, res, params, token, body) => {
@@ -904,18 +913,27 @@ export class AgentApiServer {
       if (this.companyRefError(res, companyId, [
         { id: input.relatedTaskId, table: "tasks", label: "related task" },
         { id: token.agentId, table: "agents", label: "requesting agent" },
+        { id: input.relatedAgentId, table: "agents", label: "related agent" },
       ])) {
         return;
       }
 
-      const id = this.db.requestApproval({
-        companyId,
-        type: input.type,
-        relatedTaskId: input.relatedTaskId ?? null,
-        requestedByAgentId: token.agentId,
-        payloadSummary: input.payloadSummary,
-        impactSummary: input.impactSummary,
-      });
+      let id: string;
+      try {
+        id = this.db.requestApproval({
+          companyId,
+          type: input.type,
+          relatedTaskId: input.relatedTaskId ?? null,
+          requestedByAgentId: token.agentId,
+          relatedAgentId: input.relatedAgentId ?? null,
+          payloadSummary: input.payloadSummary,
+          impactSummary: input.impactSummary,
+          payloadJson: input.payloadJson ?? null,
+        });
+      } catch (error) {
+        this.json(res, 422, { error: error instanceof Error ? error.message : "Approval could not be created" });
+        return;
+      }
 
       this.db.addActivity({
         companyId,
@@ -926,20 +944,17 @@ export class AgentApiServer {
         detail: input.payloadSummary,
       });
 
-      const snapshot = this.db.listSnapshot();
-      const company = snapshot.companies.find((c) => c.id === companyId);
-      if (company?.autoApproveHires && (input.type === "hire_agent" || input.type === "approve_ceo_strategy")) {
-        this.db.decideApproval({ companyId, approvalId: id, state: "approved", decisionNote: "Auto-approved by company policy" });
-        this.callbacks.onApprovalResolved(id, companyId, "approved");
-        this.db.addActivity({
+      if (shouldAutoApproveApproval(this.db, companyId, input.type)) {
+        resolveApprovalDecision({
+          db: this.db,
+          handleApprovalResolved: this.callbacks.onApprovalResolved,
           companyId,
-          actor: "board",
-          action: "approval.approved",
-          entityType: "approval",
-          entityId: id,
+          approvalId: id,
+          state: "approved",
+          decisionNote: "Auto-approved by company policy",
           detail: "Auto-approved by company policy",
         });
-        log.info(`[auto-approve] Auto-approved hire request: ${input.payloadSummary}`);
+        log.info(`[auto-approve] Auto-approved approval ${id}: ${input.payloadSummary}`);
       }
 
       this.onDomainChanged();
@@ -1437,74 +1452,35 @@ export class AgentApiServer {
         return;
       }
 
-      const messageSchema = z.object({
-        toAgentId: z.string().uuid().nullable().optional(),
-        channel: z.enum(["direct", "department", "company", "project", "incident"]).default("direct"),
-        channelTargetId: z.string().nullable().optional(),
-        subject: z.string().min(1).max(200),
-        body: z.string().min(1).max(8000),
-        priority: z.enum(["urgent", "normal", "low"]).default("normal"),
-        parentMessageId: z.string().uuid().nullable().optional(),
-        attachmentsJson: z.string().default("[]"),
+      const parsed = agentMessageInputSchema.safeParse({
+        ...(body as Record<string, unknown>),
+        companyId,
+        fromAgentId: token.agentId,
       });
-
-      const parsed = messageSchema.safeParse(body);
       if (!parsed.success) {
         this.json(res, 400, { error: "Invalid input", details: parsed.error.flatten() });
         return;
       }
 
-      const msg = parsed.data;
-      if (msg.channel === "direct" && !msg.toAgentId) {
-        this.json(res, 400, { error: "Direct messages require a recipient" });
+      const dispatchResult = dispatchAgentMessage(
+        {
+          db: this.db,
+          emitEvent: this.emitEvent,
+          publishDomainChanged: this.onDomainChanged,
+          wakeAgentIfPossible: (agentId, companyId, trigger) => {
+            if (!agentId) return null;
+            return this.onWakeAgent(agentId, companyId, trigger);
+          },
+        },
+        parsed.data,
+        "message",
+      );
+      if (!dispatchResult.ok) {
+        this.json(res, 400, { error: dispatchResult.error.message, code: dispatchResult.error.code });
         return;
       }
-      if (msg.toAgentId && !this.db.belongsToCompany("agents", msg.toAgentId, companyId)) {
-        this.json(res, 400, { error: "Direct-message recipient does not belong to the current company" });
-        return;
-      }
-      if (msg.channel === "project" && msg.channelTargetId && !this.db.belongsToCompany("projects", msg.channelTargetId, companyId)) {
-        this.json(res, 400, { error: "Project message target does not belong to the current company" });
-        return;
-      }
-      const messageId = this.db.sendAgentMessage({
-        companyId,
-        fromAgentId: token.agentId,
-        toAgentId: msg.toAgentId,
-        channel: msg.channel,
-        channelTargetId: msg.channelTargetId,
-        subject: msg.subject,
-        body: msg.body,
-        priority: msg.priority,
-        parentMessageId: msg.parentMessageId,
-        attachmentsJson: msg.attachmentsJson,
-      });
 
-      if (msg.toAgentId && msg.channel === "direct") {
-        this.onWakeAgent(msg.toAgentId, companyId, "message");
-      }
-
-      if (msg.channel === "department" && msg.channelTargetId) {
-        const snapshot = this.db.listSnapshot();
-        const deptAgents = snapshot.agents.filter(
-          (a) => a.department === msg.channelTargetId && a.companyId === companyId && a.id !== token.agentId && a.status !== "terminated",
-        );
-        for (const a of deptAgents) {
-          this.onWakeAgent(a.id, companyId, "message");
-        }
-      }
-
-      // For company-wide messages, wake the CEO so leadership responds
-      if (msg.channel === "company") {
-        const snapshot = this.db.listSnapshot();
-        const ceo = snapshot.agents.find((a) => a.companyId === companyId && !a.reportsTo && a.status !== "terminated");
-        if (ceo && ceo.id !== token.agentId) {
-          this.onWakeAgent(ceo.id, companyId, "message");
-        }
-      }
-
-      this.onDomainChanged();
-      this.json(res, 201, { id: messageId });
+      this.json(res, 201, { id: dispatchResult.data.id });
     });
 
     this.addRoute("GET", "/api/companies/:companyId/messages", (req, res, params, token) => {
@@ -1515,14 +1491,21 @@ export class AgentApiServer {
       }
 
       const url = new URL(req.url ?? "/", `http://127.0.0.1:${this.port}`);
-      const channel = url.searchParams.get("channel") ?? undefined;
+      const channelParam = url.searchParams.get("channel");
+      const channelTargetId = url.searchParams.get("channelTargetId");
       const unreadOnly = url.searchParams.get("unreadOnly") === "true";
       const limitStr = url.searchParams.get("limit");
       const limit = limitStr ? Math.min(Math.max(parseInt(limitStr, 10) || 50, 1), 200) : 50;
+      const allowedChannels = new Set(["direct", "department", "company", "project", "incident"]);
+      if (channelParam && !allowedChannels.has(channelParam)) {
+        this.json(res, 400, { error: `Invalid channel filter: ${channelParam}` });
+        return;
+      }
 
       const messages = this.db.listAgentMessages(companyId, {
         agentId: token.agentId,
-        channel,
+        channel: channelParam ?? undefined,
+        channelTargetId: channelTargetId && channelTargetId.length > 0 ? channelTargetId : undefined,
         unreadOnly,
         limit,
       });
@@ -1540,16 +1523,17 @@ export class AgentApiServer {
         this.json(res, 404, { error: "Message not found" });
         return;
       }
-      const visibleToAgent = this.db.listAgentMessages(companyId, { agentId: token.agentId }).some((entry) => entry.id === message.id);
+      const visibleToAgent = this.db.listAgentMessages(companyId, {
+        agentId: token.agentId,
+        messageId: message.id,
+        limit: 1,
+      }).some((entry) => entry.id === message.id);
       if (!visibleToAgent) {
         this.json(res, 403, { error: "This message is not visible to the current agent" });
         return;
       }
-      if (message.channel === "direct" && message.toAgentId !== token.agentId) {
-        this.json(res, 403, { error: "Only the direct recipient can mark this message as read" });
-        return;
-      }
       this.db.markAgentMessageRead(params.messageId!, companyId, token.agentId);
+      this.onDomainChanged();
       this.json(res, 200, { ok: true });
     });
 
@@ -1634,6 +1618,21 @@ export class AgentApiServer {
 
     this.addRoute("POST", "/api/agents/:agentId/wake", (_req, res, params, token, body) => {
       const targetAgentId = params.agentId!;
+      const targetAgent = (() => {
+        try {
+          return this.db.getAgent(targetAgentId);
+        } catch {
+          return null;
+        }
+      })();
+      if (!targetAgent || targetAgent.companyId !== token.companyId) {
+        this.json(res, 404, { error: "Agent not found" });
+        return;
+      }
+      if (!canControlAgent(this.db, token.companyId, token.agentId, targetAgentId)) {
+        this.json(res, 403, { error: "Current agent is not allowed to wake this agent" });
+        return;
+      }
       const wakeSchema = z.object({
         reason: z.string().min(1).max(200).default("peer_request"),
       });
@@ -1664,6 +1663,10 @@ export class AgentApiServer {
       );
       if (!targetAgent) {
         this.json(res, 404, { error: "Agent not found or not in the same company" });
+        return;
+      }
+      if (!canControlAgent(this.db, token.companyId, token.agentId, targetAgentId)) {
+        this.json(res, 403, { error: "Current agent is not allowed to trigger heartbeat for this agent" });
         return;
       }
       const alreadyActive = this.db.hasActiveRun({ companyId: token.companyId, agentId: targetAgentId });

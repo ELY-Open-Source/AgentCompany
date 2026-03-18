@@ -11,6 +11,7 @@ export const IPC_CHANNELS = {
   testConnector: "agent-company:test-connector",
   saveWorkspace: "agent-company:save-workspace",
   saveAgent: "agent-company:save-agent",
+  requestHire: "agent-company:request-hire",
   saveGoal: "agent-company:save-goal",
   saveProject: "agent-company:save-project",
   saveTask: "agent-company:save-task",
@@ -122,6 +123,22 @@ export const agentInputSchema = z.object({
   status: z.enum(["idle", "active", "running", "paused", "error", "pending_approval", "terminated"]).default("idle"),
 });
 
+export const hireRequestSchema = z.object({
+  companyId: z.string().uuid(),
+  requestedByAgentId: optionalId,
+  name: z.string().min(2).max(80),
+  role: z.string().min(2).max(80),
+  title: z.string().default(""),
+  department: z.enum(["executive", "engineering", "product", "marketing", "sales", "hr", "finance", "legal", "operations", "customer_support", "research", "design"]).nullable().optional(),
+  reportsTo: optionalId,
+  connectorId: connectorInputSchema.shape.id,
+  workspaceId: optionalId,
+  model: z.string().nullable().optional(),
+  metadataJson: z.string().default("{}").optional(),
+  capabilities: z.string().default(""),
+  budgetMonthlyUsd: z.number().min(0).default(0),
+});
+
 export const goalInputSchema = z.object({
   id: optionalId,
   companyId: z.string().uuid(),
@@ -161,9 +178,11 @@ export const approvalInputSchema = z.object({
   companyId: z.string().uuid(),
   relatedTaskId: optionalId,
   requestedByAgentId: optionalId,
+  relatedAgentId: optionalId,
   type: z.enum(["hire_agent", "approve_ceo_strategy", "dangerous_command", "secret_access", "budget_request", "promotion", "termination", "vendor_approval", "document_review", "production_deploy", "incident_escalation"]),
   payloadSummary: z.string().min(2).max(280),
   impactSummary: z.string().min(2).max(400),
+  payloadJson: z.string().nullable().optional(),
 });
 
 export const approvalDecisionSchema = z.object({
@@ -405,11 +424,35 @@ export const agentMessageInputSchema = z.object({
   toAgentId: z.preprocess((v) => (v === "" ? null : v), z.string().uuid().nullable().optional()),
   channel: z.enum(["direct", "department", "company", "project", "incident"]).default("direct"),
   channelTargetId: z.string().nullable().optional(),
-  subject: z.string().min(1).max(200),
+  subject: z.preprocess((v) => (v === "" ? "(no subject)" : v), z.string().min(1).max(200)),
   body: z.string().min(1).max(8000),
   priority: z.enum(["urgent", "normal", "low"]).default("normal"),
   parentMessageId: z.preprocess((v) => (v === "" ? null : v), z.string().uuid().nullable().optional()),
   attachmentsJson: z.string().default("[]"),
+}).superRefine((value, ctx) => {
+  if (value.channel === "direct" && !value.toAgentId) {
+    ctx.addIssue({
+      path: ["toAgentId"],
+      code: z.ZodIssueCode.custom,
+      message: "Direct messages require toAgentId.",
+    });
+  }
+
+  if ((value.channel === "department" || value.channel === "project") && !value.channelTargetId) {
+    ctx.addIssue({
+      path: ["channelTargetId"],
+      code: z.ZodIssueCode.custom,
+      message: `${value.channel} messages require channelTargetId.`,
+    });
+  }
+
+  if (value.channel !== "direct" && value.toAgentId) {
+    ctx.addIssue({
+      path: ["toAgentId"],
+      code: z.ZodIssueCode.custom,
+      message: "Only direct messages may set toAgentId.",
+    });
+  }
 });
 
 export const messageQuerySchema = z.object({
@@ -473,6 +516,7 @@ export type DesktopApi = {
   testConnector: (id: z.infer<typeof connectorInputSchema.shape.id>) => Promise<DesktopResult<boolean>>;
   saveWorkspace: (input: z.infer<typeof workspaceInputSchema>) => Promise<DesktopResult<string>>;
   saveAgent: (input: z.infer<typeof agentInputSchema>) => Promise<DesktopResult<string>>;
+  requestHire: (input: z.infer<typeof hireRequestSchema>) => Promise<DesktopResult<{ agentId: string; approvalId: string; autoApproved: boolean }>>;
   saveGoal: (input: z.infer<typeof goalInputSchema>) => Promise<DesktopResult<string>>;
   saveProject: (input: z.infer<typeof projectInputSchema>) => Promise<DesktopResult<string>>;
   saveTask: (input: z.infer<typeof taskInputSchema>) => Promise<DesktopResult<string>>;

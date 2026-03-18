@@ -11,7 +11,6 @@ const ENV_ALLOWLIST: ReadonlySet<string> = new Set([
   "DEVELOPER_DIR",
   "SDKROOT",
   "NODE_ENV",
-  "NODE_OPTIONS",
   "GIT_AUTHOR_NAME",
   "GIT_AUTHOR_EMAIL",
   "GIT_COMMITTER_NAME",
