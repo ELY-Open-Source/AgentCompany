@@ -324,7 +324,13 @@ export class AppDatabase {
 
     // Create indexes that depend on columns added by migrations (e.g., department)
     try {
-      this.db.exec(`create index if not exists idx_agents_department on agents(company_id, department);`);
+      this.db.exec(`
+        create index if not exists idx_agents_department on agents(company_id, department);
+        create index if not exists idx_runs_company_created_at on runs(company_id, created_at desc);
+        create index if not exists idx_cost_entries_company_created_at on cost_entries(company_id, created_at desc);
+        create index if not exists idx_activity_company_created_at on activity(company_id, created_at desc);
+        create index if not exists idx_agent_messages_company_created_at on agent_messages(company_id, created_at desc);
+      `);
     } catch { /* column may not exist if migrations failed */ }
 
     this.seedSettings();
@@ -466,7 +472,11 @@ export class AppDatabase {
     return purged;
   }
 
-  listSnapshot(): ProfileSnapshot {
+  listSnapshot(options: { companyId?: string | null } = {}): ProfileSnapshot {
+    const companyId = options.companyId ?? null;
+    const companyWhere = companyId ? " where company_id = ?" : "";
+    const companyArgs: SQLInputValue[] = companyId ? [companyId] : [];
+    const boardReadReceiptParams: SQLInputValue[] = companyId ? [BOARD_READER_ID, companyId] : [BOARD_READER_ID];
     const connectors = this.readConnectors();
     const theme = (this.getSetting("theme") as "system" | "light" | "dark" | null) ?? "system";
     const boardReadReceiptMap = new Map(
@@ -474,8 +484,8 @@ export class AppDatabase {
         `select reads.message_id as messageId, reads.read_at as readAt
            from agent_message_reads reads
            join agent_messages messages on messages.id = reads.message_id
-          where reads.agent_id = ?`,
-        BOARD_READER_ID,
+          where reads.agent_id = ?${companyId ? " and messages.company_id = ?" : ""}`,
+        ...boardReadReceiptParams,
       ).map((row) => [row.messageId, row.readAt]),
     );
     return {
@@ -491,40 +501,52 @@ export class AppDatabase {
       ).map((record) => ({ ...record, autoApproveHires: toBoolean(record.autoApproveHires) })) as CompanyRecord[],
       connectors,
       workspaces: this.readAll<WorkspaceRecord>(
-        "select id, company_id as companyId, name, local_path as localPath, repo_url as repoUrl, repo_ref as repoRef, project_id as projectId, state, is_primary as isPrimary, created_at as createdAt, updated_at as updatedAt from workspaces order by created_at desc",
+        `select id, company_id as companyId, name, local_path as localPath, repo_url as repoUrl, repo_ref as repoRef, project_id as projectId, state, is_primary as isPrimary, created_at as createdAt, updated_at as updatedAt from workspaces${companyWhere} order by created_at desc`,
+        ...companyArgs,
       ).map((record) => ({ ...record, isPrimary: toBoolean(record.isPrimary) })) as WorkspaceRecord[],
       agents: this.readAll<AgentRecord>(
-        "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents order by created_at asc",
+        `select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents${companyWhere} order by created_at asc`,
+        ...companyArgs,
       ).map((record) => ({ ...record, heartbeatEnabled: toBoolean(record.heartbeatEnabled) })) as AgentRecord[],
       goals: this.readAll<GoalRecord>(
-        "select id, company_id as companyId, title, description, parent_id as parentId, owner_agent_id as ownerAgentId, status, created_at as createdAt, updated_at as updatedAt from goals order by created_at asc",
+        `select id, company_id as companyId, title, description, parent_id as parentId, owner_agent_id as ownerAgentId, status, created_at as createdAt, updated_at as updatedAt from goals${companyWhere} order by created_at asc`,
+        ...companyArgs,
       ),
       projects: this.readAll<ProjectRecord>(
-        "select id, company_id as companyId, goal_id as goalId, name, description, lead_agent_id as leadAgentId, status, target_date as targetDate, created_at as createdAt, updated_at as updatedAt from projects order by created_at desc",
+        `select id, company_id as companyId, goal_id as goalId, name, description, lead_agent_id as leadAgentId, status, target_date as targetDate, created_at as createdAt, updated_at as updatedAt from projects${companyWhere} order by created_at desc`,
+        ...companyArgs,
       ),
       tasks: this.readAll<TaskRecord>(
-        "select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, created_at as createdAt, updated_at as updatedAt from tasks order by created_at desc",
+        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, created_at as createdAt, updated_at as updatedAt from tasks${companyWhere} order by created_at desc`,
+        ...companyArgs,
       ),
       approvals: this.readAll<ApprovalRecord>(
-        "select id, company_id as companyId, related_task_id as relatedTaskId, related_agent_id as relatedAgentId, requested_by_agent_id as requestedByAgentId, type, payload_summary as payloadSummary, impact_summary as impactSummary, payload_json as payloadJson, decision_note as decisionNote, state, created_at as createdAt, updated_at as updatedAt from approvals order by created_at desc",
+        `select id, company_id as companyId, related_task_id as relatedTaskId, related_agent_id as relatedAgentId, requested_by_agent_id as requestedByAgentId, type, payload_summary as payloadSummary, impact_summary as impactSummary, payload_json as payloadJson, decision_note as decisionNote, state, created_at as createdAt, updated_at as updatedAt from approvals${companyWhere} order by created_at desc`,
+        ...companyArgs,
       ),
       runs: this.readAll<RunRecord>(
-        "select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId, connector_id as connectorId, status, summary, error_message as errorMessage, exit_code as exitCode, signal, model, session_display_id as sessionDisplayId, cost_usd as costUsd, unattributed_cost as unattributedCost, started_at as startedAt, finished_at as finishedAt, log_path as logPath, created_at as createdAt, updated_at as updatedAt from runs order by created_at desc limit 500",
+        `select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId, connector_id as connectorId, status, summary, error_message as errorMessage, exit_code as exitCode, signal, model, session_display_id as sessionDisplayId, cost_usd as costUsd, unattributed_cost as unattributedCost, started_at as startedAt, finished_at as finishedAt, log_path as logPath, created_at as createdAt, updated_at as updatedAt from runs${companyWhere} order by created_at desc${companyId ? "" : " limit 500"}`,
+        ...companyArgs,
       ).map((record) => ({ ...record, unattributedCost: Boolean(record.unattributedCost) })) as RunRecord[],
       costs: this.readAll<CostRecord>(
-        "select id, company_id as companyId, run_id as runId, task_id as taskId, agent_id as agentId, connector_id as connectorId, amount_usd as amountUsd, unattributed, created_at as createdAt from cost_entries order by created_at desc limit 500",
+        `select id, company_id as companyId, run_id as runId, task_id as taskId, agent_id as agentId, connector_id as connectorId, amount_usd as amountUsd, unattributed, created_at as createdAt from cost_entries${companyWhere} order by created_at desc${companyId ? "" : " limit 500"}`,
+        ...companyArgs,
       ).map((entry) => ({ ...entry, unattributed: Boolean(entry.unattributed) })) as CostRecord[],
       activity: this.readAll<ActivityRecord>(
-        "select id, company_id as companyId, actor, action, entity_type as entityType, entity_id as entityId, detail, created_at as createdAt from activity order by created_at desc limit 250",
+        `select id, company_id as companyId, actor, action, entity_type as entityType, entity_id as entityId, detail, created_at as createdAt from activity${companyWhere} order by created_at desc${companyId ? "" : " limit 250"}`,
+        ...companyArgs,
       ),
       secrets: this.readAll<SecretRecord>(
-        "select id, company_id as companyId, name, description, backend, updated_at as updatedAt from secrets order by updated_at desc",
+        `select id, company_id as companyId, name, description, backend, updated_at as updatedAt from secrets${companyWhere} order by updated_at desc`,
+        ...companyArgs,
       ),
       comments: this.readAll<CommentRecord>(
-        "select id, company_id as companyId, task_id as taskId, author_agent_id as authorAgentId, author_name as authorName, body, created_at as createdAt from task_comments order by created_at asc",
+        `select id, company_id as companyId, task_id as taskId, author_agent_id as authorAgentId, author_name as authorName, body, created_at as createdAt from task_comments${companyWhere} order by created_at asc`,
+        ...companyArgs,
       ),
       socialAccounts: this.readAll<SqliteRow>(
-        "select id, company_id, platform, account_name, display_name, profile_url, credential_secret_id, status, require_approval, metadata_json, last_used_at, created_at, updated_at from social_accounts order by created_at desc",
+        `select id, company_id, platform, account_name, display_name, profile_url, credential_secret_id, status, require_approval, metadata_json, last_used_at, created_at, updated_at from social_accounts${companyWhere} order by created_at desc`,
+        ...companyArgs,
       ).map((r) => ({
         id: r.id,
         companyId: r.company_id,
@@ -541,7 +563,8 @@ export class AppDatabase {
         updatedAt: r.updated_at,
       })) as SocialAccountRecord[],
       meetings: this.readAll<SqliteRow>(
-        "select id, company_id, type, title, organizer_agent_id, participant_agent_ids, scheduled_at, duration_minutes, agenda_json, notes_json, decisions_json, action_items_json, status, created_at, updated_at from meetings order by scheduled_at desc",
+        `select id, company_id, type, title, organizer_agent_id, participant_agent_ids, scheduled_at, duration_minutes, agenda_json, notes_json, decisions_json, action_items_json, status, created_at, updated_at from meetings${companyWhere} order by scheduled_at desc`,
+        ...companyArgs,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, type: r.type, title: r.title, organizerAgentId: r.organizer_agent_id,
         participantAgentIds: r.participant_agent_ids, scheduledAt: r.scheduled_at, durationMinutes: r.duration_minutes,
@@ -549,7 +572,8 @@ export class AppDatabase {
         actionItemsJson: r.action_items_json, status: r.status, createdAt: r.created_at, updatedAt: r.updated_at,
       })),
       documents: this.readAll<SqliteRow>(
-        "select id, company_id, type, title, content, author_agent_id, reviewer_agent_id, project_id, goal_id, parent_doc_id, version, status, tags_json, created_at, updated_at from documents order by updated_at desc",
+        `select id, company_id, type, title, content, author_agent_id, reviewer_agent_id, project_id, goal_id, parent_doc_id, version, status, tags_json, created_at, updated_at from documents${companyWhere} order by updated_at desc`,
+        ...companyArgs,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, type: r.type, title: r.title, content: r.content,
         authorAgentId: r.author_agent_id, reviewerAgentId: r.reviewer_agent_id, projectId: r.project_id,
@@ -557,7 +581,8 @@ export class AppDatabase {
         tagsJson: r.tags_json, createdAt: r.created_at, updatedAt: r.updated_at,
       })),
       knowledgeBase: this.readAll<SqliteRow>(
-        "select id, company_id, category, topic, content, author_agent_id, importance, tags_json, referenced_entity_type, referenced_entity_id, created_at, updated_at from knowledge_base order by updated_at desc",
+        `select id, company_id, category, topic, content, author_agent_id, importance, tags_json, referenced_entity_type, referenced_entity_id, created_at, updated_at from knowledge_base${companyWhere} order by updated_at desc`,
+        ...companyArgs,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, category: r.category, topic: r.topic, content: r.content,
         authorAgentId: r.author_agent_id, importance: r.importance, tagsJson: r.tags_json,
@@ -565,7 +590,8 @@ export class AppDatabase {
         createdAt: r.created_at, updatedAt: r.updated_at,
       })),
       sprints: this.readAll<SqliteRow>(
-        "select id, company_id, name, goal, start_date, end_date, status, retrospective_notes, velocity_points, completed_points, created_at, updated_at from sprints order by start_date desc",
+        `select id, company_id, name, goal, start_date, end_date, status, retrospective_notes, velocity_points, completed_points, created_at, updated_at from sprints${companyWhere} order by start_date desc`,
+        ...companyArgs,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, name: r.name, goal: r.goal,
         startDate: r.start_date, endDate: r.end_date, status: r.status,
@@ -573,7 +599,8 @@ export class AppDatabase {
         completedPoints: r.completed_points, createdAt: r.created_at, updatedAt: r.updated_at,
       })),
       automationRules: this.readAll<SqliteRow>(
-        "select id, company_id, name, description, trigger, conditions_json, action, action_config_json, source_department, target_department, priority, status, execution_count, last_executed_at, created_at, updated_at from automation_rules order by priority desc, created_at desc",
+        `select id, company_id, name, description, trigger, conditions_json, action, action_config_json, source_department, target_department, priority, status, execution_count, last_executed_at, created_at, updated_at from automation_rules${companyWhere} order by priority desc, created_at desc`,
+        ...companyArgs,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, name: r.name, description: r.description,
         trigger: r.trigger, conditionsJson: r.conditions_json, action: r.action,
@@ -583,7 +610,8 @@ export class AppDatabase {
         createdAt: r.created_at, updatedAt: r.updated_at,
       })),
       agentMessages: this.readAll<SqliteRow>(
-        "select id, company_id, from_agent_id, to_agent_id, channel, channel_target_id, subject, body, priority, read_at, parent_message_id, attachments_json, created_at from agent_messages order by created_at desc limit 500",
+        `select id, company_id, from_agent_id, to_agent_id, channel, channel_target_id, subject, body, priority, read_at, parent_message_id, attachments_json, created_at from agent_messages${companyWhere} order by created_at desc${companyId ? "" : " limit 500"}`,
+        ...companyArgs,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, fromAgentId: r.from_agent_id,
         toAgentId: r.to_agent_id, channel: r.channel, channelTargetId: r.channel_target_id,
@@ -592,7 +620,8 @@ export class AppDatabase {
         createdAt: r.created_at,
       })),
       workflows: this.readAll<SqliteRow>(
-        "select id, company_id, name, description, steps_json, trigger_type, trigger_config_json, status, current_step_index, run_count, last_run_at, created_at, updated_at from workflow_pipelines order by created_at desc",
+        `select id, company_id, name, description, steps_json, trigger_type, trigger_config_json, status, current_step_index, run_count, last_run_at, created_at, updated_at from workflow_pipelines${companyWhere} order by created_at desc`,
+        ...companyArgs,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, name: r.name, description: r.description,
         stepsJson: r.steps_json, triggerType: r.trigger_type, triggerConfigJson: r.trigger_config_json,
@@ -603,34 +632,16 @@ export class AppDatabase {
   }
 
   listRendererSnapshot(): ProfileSnapshot {
-    const snapshot = this.listSnapshot();
+    const currentCompanyId = this.getCurrentCompanyId();
+    if (!currentCompanyId) {
+      return this.listSnapshot();
+    }
+    const snapshot = this.listSnapshot({ companyId: currentCompanyId });
     const companyId = snapshot.currentCompanyId;
     if (!companyId) {
       return snapshot;
     }
-
-    return {
-      ...snapshot,
-      workspaces: snapshot.workspaces.filter((workspace) => workspace.companyId === companyId),
-      agents: snapshot.agents.filter((agent) => agent.companyId === companyId),
-      goals: snapshot.goals.filter((goal) => goal.companyId === companyId),
-      projects: snapshot.projects.filter((project) => project.companyId === companyId),
-      tasks: snapshot.tasks.filter((task) => task.companyId === companyId),
-      approvals: snapshot.approvals.filter((approval) => approval.companyId === companyId),
-      runs: snapshot.runs.filter((run) => run.companyId === companyId),
-      costs: snapshot.costs.filter((cost) => cost.companyId === companyId),
-      activity: snapshot.activity.filter((entry) => entry.companyId === companyId),
-      secrets: snapshot.secrets.filter((secret) => secret.companyId === companyId),
-      comments: snapshot.comments.filter((comment) => comment.companyId === companyId),
-      socialAccounts: snapshot.socialAccounts.filter((account) => account.companyId === companyId),
-      meetings: snapshot.meetings.filter((meeting) => meeting.companyId === companyId),
-      documents: snapshot.documents.filter((document) => document.companyId === companyId),
-      knowledgeBase: snapshot.knowledgeBase.filter((entry) => entry.companyId === companyId),
-      sprints: snapshot.sprints.filter((sprint) => sprint.companyId === companyId),
-      automationRules: snapshot.automationRules.filter((rule) => rule.companyId === companyId),
-      agentMessages: snapshot.agentMessages.filter((message) => message.companyId === companyId),
-      workflows: snapshot.workflows.filter((workflow) => workflow.companyId === companyId),
-    };
+    return snapshot;
   }
 
   saveCompany(input: { id?: string | null; name: string; description: string; status: string; autoApproveHires?: boolean }) {
@@ -3175,8 +3186,8 @@ export class AppDatabase {
 
   getInbox(companyId: string): InboxItem[] {
     const items: InboxItem[] = [];
-    const snapshot = this.listSnapshot();
-    const agents = snapshot.agents.filter(a => a.companyId === companyId);
+    const snapshot = this.listSnapshot({ companyId });
+    const agents = snapshot.agents;
     const agentMap = new Map(agents.map(a => [a.id, a]));
 
     // Pending approvals
@@ -3292,11 +3303,11 @@ export class AppDatabase {
   }
 
   getCompanyMetrics(companyId: string, days: number = 30): CompanyMetrics {
-    const snapshot = this.listSnapshot();
-    const agents = snapshot.agents.filter(a => a.companyId === companyId);
-    const tasks = snapshot.tasks.filter(t => t.companyId === companyId);
-    const runs = snapshot.runs.filter(r => r.companyId === companyId);
-    const costs = snapshot.costs.filter(c => c.companyId === companyId);
+    const snapshot = this.listSnapshot({ companyId });
+    const agents = snapshot.agents;
+    const tasks = snapshot.tasks;
+    const runs = snapshot.runs;
+    const costs = snapshot.costs;
 
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
     const recentRuns = runs.filter(r => r.createdAt > cutoff);
@@ -3368,11 +3379,11 @@ export class AppDatabase {
   }
 
   getStandupReport(companyId: string): StandupReport {
-    const snapshot = this.listSnapshot();
-    const agents = snapshot.agents.filter(a => a.companyId === companyId && a.status !== "terminated" && a.status !== "pending_approval");
-    const tasks = snapshot.tasks.filter(t => t.companyId === companyId);
-    const runs = snapshot.runs.filter(r => r.companyId === companyId);
-    const costs = snapshot.costs.filter(c => c.companyId === companyId);
+    const snapshot = this.listSnapshot({ companyId });
+    const agents = snapshot.agents.filter(a => a.status !== "terminated" && a.status !== "pending_approval");
+    const tasks = snapshot.tasks;
+    const runs = snapshot.runs;
+    const costs = snapshot.costs;
 
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const recentActivity = snapshot.activity.filter(a => a.companyId === companyId && a.createdAt > oneDayAgo);

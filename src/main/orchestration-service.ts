@@ -1,6 +1,8 @@
 import { buildTaskPrompt } from "./prompt-builder";
 import type { AppDatabase } from "./database";
+import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
 import type { DesktopResult } from "@shared/contracts";
+import type { ConnectorRecord } from "@shared/types";
 
 type WorkspaceLockMode = "exclusive" | "shared" | "none";
 
@@ -140,7 +142,7 @@ export function createOrchestrationService({
 
   function getRunEligibilityFailure(
     agent: { status: string; budgetMonthlyUsd: number; spentMonthlyUsd: number; name: string; connectorId: string; id: string; companyId: string },
-    connector: { id: string; status: string },
+    connector: Pick<ConnectorRecord, "id" | "label" | "status" | "capabilityMatrix">,
   ) {
     if (["terminated", "paused", "pending_approval"].includes(agent.status)) {
       return "AGENT_NOT_RUNNABLE";
@@ -150,8 +152,10 @@ export function createOrchestrationService({
       logger.info(`[run] Agent ${agent.name} budget exhausted, skipping`);
       return "AGENT_BUDGET_EXHAUSTED";
     }
-    if (connector.status !== "ready" && connector.status !== "degraded") {
-      logger.info(`[run] Agent ${agent.name} connector ${connector.id} not ready (${connector.status})`);
+    const connectorIssue = getConnectorExecutionReadinessIssue(connector);
+    if (connectorIssue) {
+      const issue = connectorIssue ?? `Connector ${connector.id} is not execution-ready.`;
+      logger.info(`[run] Agent ${agent.name} connector ${connector.id} blocked: ${issue}`);
       return "CONNECTOR_NOT_READY";
     }
     return null;
@@ -173,6 +177,10 @@ export function createOrchestrationService({
     const { runId, companyId, agent, task, connector, workspace, workspaceMode, companyName, companyDescription, snapshot, trigger } = params;
     if (!hasWorkerReady()) {
       throw new Error("Orchestration worker is not ready.");
+    }
+    const connectorIssue = getConnectorExecutionReadinessIssue(connector);
+    if (connectorIssue) {
+      throw new Error(connectorIssue);
     }
 
     const env = db.resolveSecretEnv(connector.envBindingText, companyId);

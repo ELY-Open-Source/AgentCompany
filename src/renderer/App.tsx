@@ -43,7 +43,6 @@ import type {
   InboxItem,
   OnboardingBootstrapResult,
   ProfileSnapshot,
-  RunRecord,
   SectionId,
   SocialAccountRecord,
   BrowserActionRecord,

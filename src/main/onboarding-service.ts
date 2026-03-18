@@ -1,5 +1,6 @@
 import type { AppDatabase } from "./database";
-import type { ConnectorId } from "@shared/types";
+import { getConnectorExecutionReadinessIssue, isConnectorExecutionReady } from "@shared/connector-policy";
+import type { ConnectorId, ConnectorRecord } from "@shared/types";
 
 interface OnboardingBootstrapSummary {
   companyId: string;
@@ -39,11 +40,27 @@ const DEFERRABLE_RUN_ERRORS = new Set([
   "AGENT_ALREADY_RUNNING",
 ]);
 
-function resolveFallbackConnector(
-  readyConnectors: Array<{ id: ConnectorId }>,
+function resolveOnboardingConnector(
+  connectors: Array<Pick<ConnectorRecord, "id" | "label" | "status" | "capabilityMatrix">>,
   preferredConnectorId?: ConnectorId,
 ) {
-  return preferredConnectorId ?? readyConnectors[0]!.id;
+  if (preferredConnectorId) {
+    const preferredConnector = connectors.find((connector) => connector.id === preferredConnectorId);
+    if (!preferredConnector) {
+      throw new Error(`Selected connector ${preferredConnectorId} is not available.`);
+    }
+    const issue = getConnectorExecutionReadinessIssue(preferredConnector);
+    if (issue) {
+      throw new Error(issue);
+    }
+    return preferredConnector.id;
+  }
+
+  const defaultConnector = connectors.find((connector) => isConnectorExecutionReady(connector));
+  if (!defaultConnector) {
+    throw new Error("At least one execution-ready connector is required before onboarding can continue.");
+  }
+  return defaultConnector.id;
 }
 
 export function createOnboardingService({
@@ -164,13 +181,7 @@ export function createOnboardingService({
 
   function bootstrapOnboarding(input: BootstrapInput): OnboardingBootstrapSummary {
     const snapshot = db.listSnapshot();
-    const readyConnectors = snapshot.connectors.filter(
-      (connector) => connector.status === "ready" || connector.status === "degraded",
-    );
-    if (readyConnectors.length === 0) {
-      throw new Error("At least one ready connector is required before onboarding can continue.");
-    }
-    const selectedConnectorId = resolveFallbackConnector(readyConnectors, input.connectorId);
+    const selectedConnectorId = resolveOnboardingConnector(snapshot.connectors, input.connectorId);
 
     const companyId = db.saveCompany({
       name: input.companyName.trim(),

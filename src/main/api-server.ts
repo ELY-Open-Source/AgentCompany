@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import log from "electron-log/main.js";
 import { z } from "zod";
 import { agentMessageInputSchema, approvalInputSchema, goalInputSchema, hireRequestSchema, projectInputSchema, taskInputSchema } from "@shared/contracts";
+import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
 import { validateAgentToken, type TokenPayload } from "./agent-auth";
 import { canAssignTask, canControlAgent, canManageGoal, canManageOrganization, canManageProject, canUpdateTask } from "./agent-permissions";
 import { resolveApprovalDecision, shouldAutoApproveApproval } from "./approval-policy";
@@ -754,6 +755,22 @@ export class AgentApiServer {
         { id: input.reportsTo, table: "agents", label: "manager" },
         { id: input.workspaceId, table: "workspaces", label: "workspace" },
       ])) {
+        return;
+      }
+      const connectorRecord = (() => {
+        try {
+          return this.db.getConnector(input.connectorId);
+        } catch {
+          return null;
+        }
+      })();
+      if (!connectorRecord) {
+        this.json(res, 422, { error: "The selected connector does not exist." });
+        return;
+      }
+      const connectorIssue = getConnectorExecutionReadinessIssue(connectorRecord);
+      if (connectorIssue) {
+        this.json(res, 422, { error: connectorIssue });
         return;
       }
 

@@ -8,6 +8,7 @@ import {
   taskInputSchema,
   workspaceInputSchema,
 } from "@shared/contracts";
+import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
 import { resolveApprovalDecision, shouldAutoApproveApproval } from "./approval-policy";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
 
@@ -96,6 +97,20 @@ export function registerCoreWorkGraphHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
+    const connectorRecord = (() => {
+      try {
+        return db.getConnector(parsed.connectorId);
+      } catch {
+        return null;
+      }
+    })();
+    if (!connectorRecord) {
+      return fail("CONNECTOR_NOT_FOUND", "The selected connector does not exist.");
+    }
+    const connectorIssue = getConnectorExecutionReadinessIssue(connectorRecord);
+    if (connectorIssue) {
+      return fail("CONNECTOR_NOT_READY", connectorIssue);
+    }
     let id: string;
     try {
       id = db.saveAgent({
@@ -140,6 +155,20 @@ export function registerCoreWorkGraphHandlers({
     ]);
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
+    }
+    const connectorRecord = (() => {
+      try {
+        return db.getConnector(parsed.connectorId);
+      } catch {
+        return null;
+      }
+    })();
+    if (!connectorRecord) {
+      return fail("CONNECTOR_NOT_FOUND", "The selected connector does not exist.");
+    }
+    const connectorIssue = getConnectorExecutionReadinessIssue(connectorRecord);
+    if (connectorIssue) {
+      return fail("CONNECTOR_NOT_READY", connectorIssue);
     }
     const managerLabel = parsed.reportsTo
       ? (() => {

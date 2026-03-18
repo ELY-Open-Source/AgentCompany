@@ -17,6 +17,7 @@ import type {
   ProjectRecord,
   WorkspaceRecord,
 } from "@shared/types";
+import { getConnectorExecutionReadinessIssue, isConnectorExecutionReady } from "@shared/connector-policy";
 import { formatMoney, formatTime, getAgentInitials } from "../lib/formatters";
 import { unwrap } from "../lib/desktop";
 import {
@@ -137,10 +138,14 @@ export function AgentCreator({
   agents: AgentRecord[];
   onSaved: () => Promise<void>;
 }) {
+  const executionReadyConnectors = useMemo(
+    () => connectors.filter((connector) => isConnectorExecutionReady(connector)),
+    [connectors],
+  );
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [title, setTitle] = useState("");
-  const [connectorId, setConnectorId] = useState(connectors[0]?.id ?? "codex_local");
+  const [connectorId, setConnectorId] = useState(executionReadyConnectors[0]?.id ?? "");
   const [model, setModel] = useState("");
   const [availableModels, setAvailableModels] = useState<Array<{ id: string; label: string }>>([]);
   const [workspaceId, setWorkspaceId] = useState(workspaces[0]?.id ?? "");
@@ -150,8 +155,14 @@ export function AgentCreator({
   const [thinkingEffort, setThinkingEffort] = useState("");
   const [requestError, setRequestError] = useState<string | null>(null);
   const supportsEffort = connectorId === "claude_local" || connectorId === "codex_local";
+  const selectedConnector = executionReadyConnectors.find((connector) => connector.id === connectorId) ?? null;
 
   useEffect(() => {
+    if (!connectorId) {
+      setAvailableModels([]);
+      setModel("");
+      return;
+    }
     void (async () => {
       const result = await window.agentCompany.listConnectorModels(connectorId);
       if (result.ok) {
@@ -164,6 +175,16 @@ export function AgentCreator({
     }
   }, [connectorId]);
 
+  useEffect(() => {
+    if (!connectorId && executionReadyConnectors[0]) {
+      setConnectorId(executionReadyConnectors[0].id);
+      return;
+    }
+    if (connectorId && !executionReadyConnectors.some((connector) => connector.id === connectorId)) {
+      setConnectorId(executionReadyConnectors[0]?.id ?? "");
+    }
+  }, [executionReadyConnectors, connectorId]);
+
   return (
     <div className="grid gap-4">
       <Input label="Agent name" value={name} onChange={setName} placeholder="Agent name" />
@@ -173,8 +194,13 @@ export function AgentCreator({
         label="Connector"
         value={connectorId}
         onChange={(value) => setConnectorId(value as ConnectorRecord["id"])}
-        options={connectors.map((connector) => ({ value: connector.id, label: connector.label }))}
+        options={executionReadyConnectors.map((connector) => ({ value: connector.id, label: connector.label }))}
       />
+      {executionReadyConnectors.length === 0 ? (
+        <p className="text-[12px] text-[color:var(--warn)]">
+          No execution-ready connector is available. Fix connector health before requesting hires.
+        </p>
+      ) : null}
       {availableModels.length > 0 ? (
         <Select
           label="Model"
@@ -231,6 +257,10 @@ export function AgentCreator({
           void (async () => {
             try {
               setRequestError(null);
+              if (!selectedConnector) {
+                setRequestError("Select an execution-ready connector before requesting a hire.");
+                return;
+              }
               const meta: Record<string, string> = {};
               if (thinkingEffort) meta.thinkingEffort = thinkingEffort;
               unwrap(await window.agentCompany.requestHire({
@@ -261,6 +291,7 @@ export function AgentCreator({
           })()
         }
         icon={Robot}
+        disabled={!selectedConnector}
       />
       {requestError ? <p className="text-[12px] text-[color:var(--danger)]">{requestError}</p> : null}
     </div>
@@ -301,6 +332,24 @@ export function AgentEditor({
   const [thinkingEffort, setThinkingEffort] = useState<string>(existingMeta.thinkingEffort ?? "");
   const supportsEffort = connectorId === "claude_local" || connectorId === "codex_local";
   const pendingApproval = agent.status === "pending_approval";
+  const executionReadyConnectors = useMemo(
+    () => connectors.filter((connector) => isConnectorExecutionReady(connector)),
+    [connectors],
+  );
+  const selectedConnectorRecord = connectors.find((connector) => connector.id === connectorId) ?? null;
+  const selectedConnectorIssue = selectedConnectorRecord ? getConnectorExecutionReadinessIssue(selectedConnectorRecord) : "Select a connector.";
+  const persistedConnectorRecord = connectors.find((connector) => connector.id === agent.connectorId) ?? null;
+  const persistedConnectorIssue = persistedConnectorRecord ? getConnectorExecutionReadinessIssue(persistedConnectorRecord) : "Current connector is unavailable.";
+  const connectorOptions = useMemo(() => {
+    const readyOptions = executionReadyConnectors.map((connector) => ({ value: connector.id, label: connector.label }));
+    if (!selectedConnectorRecord || isConnectorExecutionReady(selectedConnectorRecord)) {
+      return readyOptions;
+    }
+    return [
+      { value: selectedConnectorRecord.id, label: `${selectedConnectorRecord.label} (current, blocked)` },
+      ...readyOptions.filter((option) => option.value !== selectedConnectorRecord.id),
+    ];
+  }, [executionReadyConnectors, selectedConnectorRecord]);
 
   useEffect(() => {
     void (async () => {
@@ -352,8 +401,13 @@ export function AgentEditor({
         value={connectorId}
         onChange={(v) => setConnectorId(v as ConnectorRecord["id"])}
         disabled={pendingApproval}
-        options={connectors.map((c) => ({ value: c.id, label: c.label }))}
+        options={connectorOptions}
       />
+      {selectedConnectorIssue ? (
+        <p className="text-[12px] text-[color:var(--warn)]">
+          {selectedConnectorIssue}
+        </p>
+      ) : null}
       {availableModels.length > 0 ? (
         <Select
           label="Model"
@@ -466,7 +520,7 @@ export function AgentEditor({
             label="Wake now"
             tone="accent"
             icon={Lightning}
-            disabled={pendingApproval}
+            disabled={pendingApproval || !!persistedConnectorIssue}
             onClick={() =>
               void (async () => {
                 await window.agentCompany.triggerHeartbeat({
@@ -478,6 +532,11 @@ export function AgentEditor({
               })()
             }
           />
+          {persistedConnectorIssue ? (
+            <p className="mt-2 text-[12px] text-[color:var(--warn)]">
+              {persistedConnectorIssue} Save a ready connector before waking this agent again.
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -486,7 +545,7 @@ export function AgentEditor({
           label="Save changes"
           tone="accent"
           icon={Pencil}
-          disabled={pendingApproval}
+          disabled={pendingApproval || !!selectedConnectorIssue}
           onClick={() =>
             void (async () => {
               setSaveError(null);

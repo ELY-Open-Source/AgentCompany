@@ -11,6 +11,7 @@ import {
   WarningCircle,
   XCircle,
 } from "@phosphor-icons/react";
+import { getConnectorExecutionReadinessIssue, isConnectorExecutionReady } from "@shared/connector-policy";
 import type { OnboardingBootstrapResult, ProfileSnapshot } from "@shared/types";
 import { unwrap } from "../lib/desktop";
 import { ActionButton, Input, Select, TextArea } from "./ui";
@@ -39,23 +40,24 @@ export function CompanyOnboarding({
   const [error, setError] = useState<string | null>(null);
   const [launchSummary, setLaunchSummary] = useState<OnboardingBootstrapResult | null>(null);
 
-  const readyConnectors = useMemo(
-    () => connectors.filter((connector) => connector.status === "ready" || connector.status === "degraded"),
+  const executionReadyConnectors = useMemo(
+    () => connectors.filter((connector) => isConnectorExecutionReady(connector)),
     [connectors],
   );
-  const [selectedConnectorId, setSelectedConnectorId] = useState<string>(readyConnectors[0]?.id ?? "");
-  const hasRunnableConnector = readyConnectors.length > 0;
-  const selectedConnector = readyConnectors.find((connector) => connector.id === selectedConnectorId) ?? readyConnectors[0] ?? null;
+  const [selectedConnectorId, setSelectedConnectorId] = useState<string>(executionReadyConnectors[0]?.id ?? "");
+  const hasRunnableConnector = executionReadyConnectors.length > 0;
+  const selectedConnector =
+    executionReadyConnectors.find((connector) => connector.id === selectedConnectorId) ?? executionReadyConnectors[0] ?? null;
 
   useEffect(() => {
-    if (!selectedConnectorId && readyConnectors[0]) {
-      setSelectedConnectorId(readyConnectors[0].id);
+    if (!selectedConnectorId && executionReadyConnectors[0]) {
+      setSelectedConnectorId(executionReadyConnectors[0].id);
       return;
     }
-    if (selectedConnectorId && !readyConnectors.some((connector) => connector.id === selectedConnectorId)) {
-      setSelectedConnectorId(readyConnectors[0]?.id ?? "");
+    if (selectedConnectorId && !executionReadyConnectors.some((connector) => connector.id === selectedConnectorId)) {
+      setSelectedConnectorId(executionReadyConnectors[0]?.id ?? "");
     }
-  }, [readyConnectors, selectedConnectorId]);
+  }, [executionReadyConnectors, selectedConnectorId]);
 
   const stepLabels = [
     { label: "Company", icon: Buildings },
@@ -105,7 +107,7 @@ export function CompanyOnboarding({
       return;
     }
     if (!selectedConnector) {
-      setError("At least one ready connector is required before you can continue.");
+      setError("At least one execution-ready connector is required before you can continue.");
       return;
     }
     setError(null);
@@ -160,8 +162,8 @@ export function CompanyOnboarding({
             agent company.
           </h1>
           <p className="mt-4 max-w-[400px] text-[14px] leading-relaxed text-[color:var(--muted)]">
-            This flow creates one company, binds a real connector, links an optional workspace, writes the first goal,
-            creates the operating project, and queues the first execution task.
+            This flow creates one company, binds one execution-ready connector, links an optional workspace, writes
+            the first goal, creates the operating project, and queues the first execution task.
           </p>
 
           <div className="mt-10 flex items-center gap-3">
@@ -192,10 +194,11 @@ export function CompanyOnboarding({
             </div>
             <div className="space-y-2.5">
               {connectors.map((connector) => {
-                const isRunnable = connector.status === "ready" || connector.status === "degraded";
+                const issue = getConnectorExecutionReadinessIssue(connector);
+                const isRunnable = !issue;
                 const isMissing = connector.status === "not_installed";
                 return (
-                  <div key={connector.id} className="flex items-center gap-2.5 text-[13px]">
+                  <div key={connector.id} className="flex items-start gap-2.5 text-[13px]">
                     {isRunnable ? (
                       <CheckCircle size={16} weight="fill" className="shrink-0 text-[color:var(--success)]" />
                     ) : isMissing ? (
@@ -203,19 +206,28 @@ export function CompanyOnboarding({
                     ) : (
                       <WarningCircle size={16} weight="fill" className="shrink-0 text-[color:var(--warn)]" />
                     )}
-                    <span className={isRunnable ? "font-medium text-[color:var(--text)]" : "text-[color:var(--muted)]"}>
-                      {connector.label}
-                    </span>
-                    <span className="text-[11px] text-[color:var(--muted)]">
-                      {connector.status.replaceAll("_", " ")}
-                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={isRunnable ? "font-medium text-[color:var(--text)]" : "text-[color:var(--muted)]"}>
+                          {connector.label}
+                        </span>
+                        <span className="text-[11px] text-[color:var(--muted)]">
+                          {connector.status.replaceAll("_", " ")}
+                        </span>
+                      </div>
+                      {issue ? (
+                        <div className="mt-0.5 text-[11px] leading-relaxed text-[color:var(--muted)]">
+                          {issue}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}
             </div>
             {!hasRunnableConnector ? (
               <div className="mt-4 rounded-[10px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-4 py-3 text-[12px] text-[color:var(--warn)]">
-                Install and authenticate at least one supported CLI runtime before creating the company.
+                Install, authenticate, and fully validate at least one supported CLI runtime before creating the company.
               </div>
             ) : null}
           </div>
@@ -270,11 +282,15 @@ export function CompanyOnboarding({
                     label="Primary connector"
                     value={selectedConnector?.id ?? ""}
                     onChange={setSelectedConnectorId}
-                    options={readyConnectors.map((connector) => ({
+                    options={executionReadyConnectors.map((connector) => ({
                       value: connector.id,
-                      label: `${connector.label} (${connector.status.replaceAll("_", " ")})`,
+                      label: connector.label,
                     }))}
                   />
+                  <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3 text-[12px] leading-relaxed text-[color:var(--muted)]">
+                    Only connectors in `ready` state with session resume and structured transcripts are offered here.
+                    Re-run connector health checks from Settings if the list is empty.
+                  </div>
                   <div>
                     <label
                       htmlFor="onboarding-workspace-path"

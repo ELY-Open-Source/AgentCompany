@@ -39,6 +39,7 @@ import type {
   TaskRecord,
   WorkflowPipelineRecord,
 } from "@shared/types";
+import { isConnectorExecutionReady } from "@shared/connector-policy";
 import { formatMoney, getAgentInitials, timeAgo } from "../lib/formatters";
 import { StatusPill } from "./ui";
 
@@ -76,7 +77,7 @@ function computeHealthScore(props: Pick<DashboardProps, "agents" | "tasks" | "ru
   const errorAgents = agents.filter((a) => a.status === "error");
   score -= Math.min(errorAgents.length * 10, 20);
 
-  const readyConnectors = connectors.filter((c) => c.status === "ready");
+  const readyConnectors = connectors.filter((connector) => isConnectorExecutionReady(connector));
   if (readyConnectors.length === 0 && connectors.length > 0) score -= 15;
 
   const overBudget = agents.filter((a) => a.budgetMonthlyUsd > 0 && a.spentMonthlyUsd >= a.budgetMonthlyUsd);
@@ -602,7 +603,7 @@ export function Dashboard(props: DashboardProps) {
   const activeGoals = useMemo(() => goals.filter((g) => g.status === "active"), [goals]);
   const totalSpend = useMemo(() => costs.reduce((sum, c) => sum + (c.amountUsd ?? 0), 0), [costs]);
   const activeAgents = useMemo(() => agents.filter((a) => a.status !== "terminated" && a.status !== "pending_approval"), [agents]);
-  const readyConnectors = useMemo(() => connectors.filter((c) => c.status === "ready"), [connectors]);
+  const readyConnectors = useMemo(() => connectors.filter((connector) => isConnectorExecutionReady(connector)), [connectors]);
   const activeSprint = useMemo(() => sprints.find((s) => s.status === "active"), [sprints]);
   const unreadMessages = useMemo(() => messages.filter((message) => !message.readAt), [messages]);
   const urgentMessages = useMemo(() => messages.filter((message) => !message.readAt && (message.priority === "urgent" || message.channel === "incident")), [messages]);
@@ -812,7 +813,7 @@ export function Dashboard(props: DashboardProps) {
         <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Infrastructure</div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           {connectors.map((connector) => {
-            const isReady = connector.status === "ready";
+            const isReady = isConnectorExecutionReady(connector);
             const isError = connector.status === "error" || connector.status === "auth_required";
             const agentsUsing = agents.filter((a) => a.connectorId === connector.id).length;
             return (
