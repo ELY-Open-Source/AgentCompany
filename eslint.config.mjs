@@ -15,6 +15,7 @@ export default tseslint.config(
       "test-results/**",
       "playwright-report/**",
       "coverage/**",
+      "electron.vite.config.*.mjs",
     ],
   },
   js.configs.recommended,

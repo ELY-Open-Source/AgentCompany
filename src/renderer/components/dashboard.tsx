@@ -819,7 +819,7 @@ export function Dashboard(props: DashboardProps) {
               <button
                 key={connector.id}
                 type="button"
-                onClick={() => onNavigate("connectors")}
+                onClick={() => onNavigate("connectors", connector.id)}
                 className={`focus-ring flex items-center gap-2.5 rounded-[8px] border px-3 py-2.5 text-left transition duration-150 hover:bg-[color:var(--panel-soft)] ${
                   isError ? "border-[color:var(--danger)] border-opacity-30" : "border-[color:var(--line)]"
                 }`}
@@ -870,7 +870,7 @@ export function Dashboard(props: DashboardProps) {
                 <button
                   key={run.id}
                   type="button"
-                  onClick={() => onNavigate("tasks")}
+                  onClick={() => onNavigate("runs", run.id)}
                   className="focus-ring flex w-full items-center gap-3 rounded-[8px] border border-[color:var(--danger)] border-opacity-20 bg-[color:var(--danger-soft)] px-4 py-3 text-left transition hover:border-opacity-40"
                 >
                   <XCircle size={18} className="shrink-0 text-[color:var(--danger)]" />
@@ -890,7 +890,7 @@ export function Dashboard(props: DashboardProps) {
                 <button
                   key={message.id}
                   type="button"
-                  onClick={() => onNavigate("communication")}
+                  onClick={() => onNavigate("communication", message.id)}
                   className="focus-ring flex w-full items-center gap-3 rounded-[8px] border border-[color:var(--warn)] border-opacity-20 bg-[color:var(--warn-soft)] px-4 py-3 text-left transition hover:border-opacity-40"
                 >
                   <Users size={18} className="shrink-0 text-[color:var(--warn)]" />

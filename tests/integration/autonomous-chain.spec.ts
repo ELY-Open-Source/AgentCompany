@@ -1189,7 +1189,8 @@ describe("Agent Messages", () => {
 
     db.markMessageRead(msgId, companyId);
     const messages = db.listAgentMessages(companyId);
-    expect(messages[0].readAt).toBeTruthy();
+    const updatedMessage = messages.find((message) => message.id === msgId);
+    expect(updatedMessage?.readAt).toBeTruthy();
   });
 
   it("tracks read state per agent without marking the sender unread", () => {

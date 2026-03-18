@@ -1,33 +1,7 @@
 import { runningProcesses } from "@agentcompany/adapter-utils/server-utils";
 import { getConnectorDefinition } from "@main/connectors";
+import { buildSanitizedRuntimeEnv } from "@main/runtime-env";
 import type { ConnectorId, RunStatus } from "@shared/types";
-
-const ENV_ALLOWLIST: ReadonlySet<string> = new Set([
-  "PATH",
-  "HOME", "USER", "SHELL", "LANG", "LC_ALL", "LC_CTYPE", "TERM", "TMPDIR",
-  "DEVELOPER_DIR", "SDKROOT",
-  "NODE_ENV", "NODE_OPTIONS",
-  "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL",
-  "GIT_SSH_COMMAND", "GIT_ASKPASS", "GIT_TERMINAL_PROMPT",
-  "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR",
-  "DISPLAY", "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS",
-  "APPDATA", "LOCALAPPDATA", "USERPROFILE", "SYSTEMROOT", "COMSPEC", "PROGRAMFILES",
-  "AGENT_COMPANY_API_URL", "AGENT_COMPANY_API_KEY", "AGENT_COMPANY_RUN_ID",
-]);
-
-function buildSanitizedEnv(
-  hostEnv: Record<string, string>,
-  secretBindings: Record<string, string>,
-): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const key of ENV_ALLOWLIST) {
-    if (key in hostEnv) {
-      result[key] = hostEnv[key];
-    }
-  }
-  Object.assign(result, secretBindings);
-  return result;
-}
 
 function buildRedactor(env: Record<string, string>): (text: string) => string {
   const sensitivePatterns: string[] = [];
@@ -114,6 +88,52 @@ function workspaceKey(job: RunJob) {
   return job.workspaceId ?? job.workspacePath ?? `task:${job.taskId}`;
 }
 
+function buildConnectorExecutionConfig(job: RunJob, sanitizedEnv: Record<string, string>) {
+  const baseConfig: Record<string, unknown> = {
+    command: job.command,
+    cwd: job.workspacePath ?? process.cwd(),
+    model: job.model,
+    env: sanitizedEnv,
+  };
+
+  switch (job.connectorId) {
+    case "codex_local":
+      return {
+        ...baseConfig,
+        modelReasoningEffort: job.thinkingEffort ?? "",
+        dangerouslyBypassApprovalsAndSandbox: true,
+        extraArgs: [
+          "--skip-git-repo-check",
+          "--sandbox",
+          "danger-full-access",
+          "--ask-for-approval",
+          "never",
+        ],
+      };
+    case "claude_local":
+      return {
+        ...baseConfig,
+        effort: job.thinkingEffort ?? "",
+        dangerouslySkipPermissions: true,
+      };
+    case "gemini_local":
+      return {
+        ...baseConfig,
+        yolo: true,
+        approvalMode: "yolo",
+        sandbox: false,
+      };
+    case "kimi_local":
+      return {
+        ...baseConfig,
+        extraArgs: ["--yolo"],
+      };
+    case "opencode_local":
+    default:
+      return baseConfig;
+  }
+}
+
 function enqueue(job: RunJob) {
   queue.push(job);
   post({
@@ -151,7 +171,7 @@ async function startRun(job: RunJob) {
     message: `Running with ${definition.label}.`,
   });
 
-  const sanitizedEnv = buildSanitizedEnv(
+  const sanitizedEnv = buildSanitizedRuntimeEnv(
     Object.fromEntries(
       Object.entries(process.env).filter((e): e is [string, string] => typeof e[1] === "string"),
     ),
@@ -178,17 +198,7 @@ async function startRun(job: RunJob) {
           typeof job.sessionParams?.sessionId === "string" ? job.sessionParams.sessionId : null,
         taskKey: job.taskId,
       },
-      config: {
-        command: job.command,
-        cwd: job.workspacePath ?? process.cwd(),
-        model: job.model,
-        env: sanitizedEnv,
-        effort: job.connectorId === "claude_local" ? (job.thinkingEffort ?? "") : "",
-        modelReasoningEffort: job.connectorId === "codex_local" ? (job.thinkingEffort ?? "") : "",
-        dangerouslySkipPermissions: true,
-        dangerouslyBypassApprovalsAndSandbox: true,
-        extraArgs: job.connectorId === "codex_local" ? ["--skip-git-repo-check"] : [],
-      },
+      config: buildConnectorExecutionConfig(job, sanitizedEnv),
       context: {
         taskId: job.taskId,
         taskTitle: job.systemPrompt ?? job.taskTitle,

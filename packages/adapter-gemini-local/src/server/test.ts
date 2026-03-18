@@ -70,7 +70,7 @@ export async function testEnvironment(
   for (const [key, value] of Object.entries(envConfig)) {
     if (typeof value === "string") env[key] = value;
   }
-  const runtimeEnv = ensurePathInEnv({ ...process.env, ...env });
+  const runtimeEnv = ensurePathInEnv(env);
   try {
     await ensureCommandResolvable(command, cwd, runtimeEnv);
     checks.push({
@@ -88,22 +88,16 @@ export async function testEnvironment(
   }
 
   const configGeminiApiKey = env.GEMINI_API_KEY;
-  const hostGeminiApiKey = process.env.GEMINI_API_KEY;
   const configGoogleApiKey = env.GOOGLE_API_KEY;
-  const hostGoogleApiKey = process.env.GOOGLE_API_KEY;
-  const hasGca = env.GOOGLE_GENAI_USE_GCA === "true" || process.env.GOOGLE_GENAI_USE_GCA === "true";
+  const hasGca = env.GOOGLE_GENAI_USE_GCA === "true";
   if (
     isNonEmpty(configGeminiApiKey) ||
-    isNonEmpty(hostGeminiApiKey) ||
     isNonEmpty(configGoogleApiKey) ||
-    isNonEmpty(hostGoogleApiKey) ||
     hasGca
   ) {
     const source = hasGca
       ? "Google account login (GCA)"
-      : isNonEmpty(configGeminiApiKey) || isNonEmpty(configGoogleApiKey)
-        ? "adapter config env"
-        : "server environment";
+      : "adapter runtime env";
     checks.push({
       code: "gemini_api_key_present",
       level: "info",
@@ -115,7 +109,7 @@ export async function testEnvironment(
       code: "gemini_api_key_missing",
       level: "info",
       message: "No explicit API key detected. Gemini CLI may still authenticate via `gemini auth login` (OAuth).",
-      hint: "If the hello probe fails with an auth error, set GEMINI_API_KEY or GOOGLE_API_KEY in adapter env, or run `gemini auth login`.",
+      hint: "If the hello probe fails with an auth error, set GEMINI_API_KEY or GOOGLE_API_KEY in connector secret bindings, or run `gemini auth login`.",
     });
   }
 

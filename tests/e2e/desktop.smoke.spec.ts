@@ -27,25 +27,31 @@ test("first launch onboarding creates a company and opens the desktop shell", as
   try {
     const page = await app.firstWindow();
     await expect(page.getByText("AgentCompany Desktop")).toBeVisible();
-    await page.getByRole("button", { name: /Custom Setup/i }).click();
     await page.getByLabel("Company name").fill("Orbit Foundry");
     await page.getByLabel("Workspace folder").fill(workspaceDir);
-    await page.getByRole("button", { name: /^Continue$/i }).click();
+    const continueButton = page.getByRole("button", { name: /^Continue$/i });
+    await expect(continueButton).toBeEnabled();
+    await continueButton.click();
     await page.getByLabel("Goal").fill("Launch the company");
-    await page.getByRole("button", { name: /Launch your company/i }).click();
+    await page.getByRole("button", { name: /Launch Company/i }).click();
+    await expect(page.getByRole("heading", { name: /Orbit Foundry is live/i })).toBeVisible();
+    await expect(page.getByText("Initial run")).toBeVisible();
+    await page.getByRole("button", { name: /Open control center/i }).click();
 
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Runs" })).toBeVisible();
     // Company name is rendered in a custom dropdown trigger button in the sidebar.
     await expect(page.locator("aside button", { hasText: "Orbit Foundry" }).first()).toBeVisible();
     const showConsoleButton = page.getByRole("button", { name: /show console/i });
-    await expect(showConsoleButton).toBeVisible();
+    const hideConsoleButton = page.getByRole("button", { name: /hide console/i });
+    if (await hideConsoleButton.isVisible().catch(() => false)) {
+      await expect(page.getByText("Console", { exact: true })).toBeVisible();
+      await hideConsoleButton.click();
+      await expect(page.getByText("Console", { exact: true })).toBeHidden();
+    } else {
+      await expect(showConsoleButton).toBeVisible();
+    }
     await showConsoleButton.click();
     await expect(page.getByText("Console", { exact: true })).toBeVisible();
-    const hideConsoleButton = page.getByRole("button", { name: /hide console/i });
-    await expect(hideConsoleButton).toBeVisible();
-    await hideConsoleButton.click();
-    await expect(page.getByText("Console", { exact: true })).toBeHidden();
-    await expect(showConsoleButton).toBeVisible();
   } finally {
     await app.close();
     await rm(profileDir, { recursive: true, force: true });

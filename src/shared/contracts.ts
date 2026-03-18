@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AgentMessageRecord, AgentMetrics, BrowserActionRecord, CommentRecord, CompanyMetrics, CompanyTemplate, DesktopEvent, InboxItem, ProfileSnapshot, StandupReport } from "./types";
+import type { AgentMessageRecord, AgentMetrics, BrowserActionRecord, CommentRecord, CompanyMetrics, DesktopEvent, InboxItem, OnboardingBootstrapResult, ProfileSnapshot, RunLogChunk, StandupReport } from "./types";
 
 export const IPC_CHANNELS = {
   loadSnapshot: "agent-company:load-snapshot",
@@ -20,6 +20,7 @@ export const IPC_CHANNELS = {
   startTaskRun: "agent-company:start-task-run",
   cancelRun: "agent-company:cancel-run",
   getRunLog: "agent-company:get-run-log",
+  getRunLogChunk: "agent-company:get-run-log-chunk",
   backupProfile: "agent-company:backup-profile",
   restoreProfile: "agent-company:restore-profile",
   updateSettings: "agent-company:update-settings",
@@ -34,6 +35,7 @@ export const IPC_CHANNELS = {
   deleteSecret: "agent-company:delete-secret",
   getSidebarBadges: "agent-company:get-sidebar-badges",
   listConnectorModels: "agent-company:list-connector-models",
+  openConnectorAuthTerminal: "agent-company:open-connector-auth-terminal",
   addComment: "agent-company:add-comment",
   listComments: "agent-company:list-comments",
   setHeartbeat: "agent-company:set-heartbeat",
@@ -44,8 +46,7 @@ export const IPC_CHANNELS = {
   getCompanyMetrics: "agent-company:get-company-metrics",
   getAgentMetrics: "agent-company:get-agent-metrics",
   getStandupReport: "agent-company:get-standup-report",
-  applyCompanyTemplate: "agent-company:apply-company-template",
-  listCompanyTemplates: "agent-company:list-company-templates",
+  bootstrapOnboarding: "agent-company:bootstrap-onboarding",
   saveSocialAccount: "agent-company:save-social-account",
   deleteSocialAccount: "agent-company:delete-social-account",
   listBrowserActions: "agent-company:list-browser-actions",
@@ -181,15 +182,30 @@ export const secretInputSchema = z.object({
 });
 
 export const startRunSchema = z.object({
+  companyId: z.string().uuid(),
   taskId: z.string().uuid(),
 });
 
 export const cancelRunSchema = z.object({
+  companyId: z.string().uuid(),
   runId: z.string().uuid(),
 });
 
 export const runLogSchema = z.object({
+  companyId: z.string().uuid(),
   runId: z.string().uuid(),
+});
+
+export const runLogChunkSchema = z.object({
+  companyId: z.string().uuid(),
+  runId: z.string().uuid(),
+  offset: z.number().int().min(0).default(0),
+  limit: z.number().int().min(1024).max(262_144).default(65_536),
+});
+
+export const triggerBrowserLoginSchema = z.object({
+  companyId: z.string().uuid(),
+  socialAccountId: z.string().uuid(),
 });
 
 export const deleteEntitySchema = z.object({
@@ -222,6 +238,7 @@ export const commentInputSchema = z.object({
 });
 
 export const listCommentsSchema = z.object({
+  companyId: z.string().uuid(),
   taskId: z.string().uuid(),
 });
 
@@ -244,11 +261,13 @@ export const metricsQuerySchema = z.object({
   days: z.number().int().min(1).max(90).default(30),
 });
 
-export const templateApplySchema = z.object({
-  templateId: z.string(),
+export const bootstrapOnboardingSchema = z.object({
   companyName: z.string().min(2).max(80),
   companyDescription: z.string().max(500).default(""),
-  workspaceId: z.string().uuid().optional(),
+  workspacePath: z.string().default(""),
+  autoApproveHires: z.boolean().default(true),
+  goalTitle: z.string().default(""),
+  goalDescription: z.string().default(""),
   connectorId: z.enum(["codex_local", "claude_local", "gemini_local", "opencode_local", "kimi_local"]).optional(),
 });
 
@@ -306,7 +325,21 @@ export const knowledgeEntryInputSchema = z.object({
   authorAgentId: optionalId,
   importance: z.enum(["critical", "high", "medium", "low"]).default("medium"),
   tagsJson: z.string().default("[]"),
-  referencedEntityType: z.string().nullable().optional(),
+  referencedEntityType: z.enum([
+    "agents",
+    "goals",
+    "projects",
+    "tasks",
+    "approvals",
+    "runs",
+    "secrets",
+    "meetings",
+    "documents",
+    "knowledge_base",
+    "sprints",
+    "automation_rules",
+    "workflow_pipelines",
+  ]).nullable().optional(),
   referencedEntityId: z.string().nullable().optional(),
 });
 
@@ -328,6 +361,11 @@ export const browserActionQuerySchema = z.object({
   socialAccountId: z.string().uuid().optional(),
   status: z.string().optional(),
   limit: z.number().int().min(1).max(100).default(50),
+});
+
+export const cancelBrowserActionSchema = z.object({
+  actionId: z.string().uuid(),
+  companyId: z.string().uuid(),
 });
 
 export const automationRuleInputSchema = z.object({
@@ -408,6 +446,7 @@ export const toggleAutomationRuleSchema = z.object({
 export const markMessageReadSchema = z.object({
   messageId: z.string().uuid(),
   companyId: z.string().uuid(),
+  readerAgentId: optionalId,
 });
 
 export const runWorkflowSchema = z.object({
@@ -443,6 +482,7 @@ export type DesktopApi = {
   startTaskRun: (input: z.infer<typeof startRunSchema>) => Promise<DesktopResult<string>>;
   cancelRun: (input: z.infer<typeof cancelRunSchema>) => Promise<DesktopResult<boolean>>;
   getRunLog: (input: z.infer<typeof runLogSchema>) => Promise<DesktopResult<string>>;
+  getRunLogChunk: (input: z.infer<typeof runLogChunkSchema>) => Promise<DesktopResult<RunLogChunk>>;
   backupProfile: () => Promise<DesktopResult<string | null>>;
   restoreProfile: () => Promise<DesktopResult<boolean>>;
   updateSettings: (input: z.infer<typeof settingsSchema>) => Promise<DesktopResult<boolean>>;
@@ -457,6 +497,7 @@ export type DesktopApi = {
   deleteSecret: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
   getSidebarBadges: (companyId: string) => Promise<DesktopResult<SidebarBadges>>;
   listConnectorModels: (connectorId: string) => Promise<DesktopResult<Array<{ id: string; label: string }>>>;
+  openConnectorAuthTerminal: (connectorId: z.infer<typeof connectorInputSchema.shape.id>) => Promise<DesktopResult<boolean>>;
   addComment: (input: z.infer<typeof commentInputSchema>) => Promise<DesktopResult<string>>;
   listComments: (input: z.infer<typeof listCommentsSchema>) => Promise<DesktopResult<CommentRecord[]>>;
   setHeartbeat: (input: z.infer<typeof heartbeatSettingsSchema>) => Promise<DesktopResult<boolean>>;
@@ -466,13 +507,12 @@ export type DesktopApi = {
   getCompanyMetrics: (input: z.infer<typeof metricsQuerySchema>) => Promise<DesktopResult<CompanyMetrics>>;
   getAgentMetrics: (input: z.infer<typeof metricsQuerySchema>) => Promise<DesktopResult<AgentMetrics>>;
   getStandupReport: (companyId: string) => Promise<DesktopResult<StandupReport>>;
-  applyCompanyTemplate: (input: z.infer<typeof templateApplySchema>) => Promise<DesktopResult<string>>;
-  listCompanyTemplates: () => Promise<DesktopResult<CompanyTemplate[]>>;
+  bootstrapOnboarding: (input: z.infer<typeof bootstrapOnboardingSchema>) => Promise<DesktopResult<OnboardingBootstrapResult>>;
   saveSocialAccount: (input: z.infer<typeof socialAccountInputSchema>) => Promise<DesktopResult<string>>;
   deleteSocialAccount: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
   listBrowserActions: (input: z.infer<typeof browserActionQuerySchema>) => Promise<DesktopResult<BrowserActionRecord[]>>;
-  cancelBrowserAction: (input: z.infer<typeof cancelRunSchema>) => Promise<DesktopResult<boolean>>;
-  triggerBrowserLogin: (socialAccountId: string) => Promise<DesktopResult<boolean>>;
+  cancelBrowserAction: (input: z.infer<typeof cancelBrowserActionSchema>) => Promise<DesktopResult<boolean>>;
+  triggerBrowserLogin: (input: z.infer<typeof triggerBrowserLoginSchema>) => Promise<DesktopResult<boolean>>;
   saveMeeting: (input: z.infer<typeof meetingInputSchema>) => Promise<DesktopResult<string>>;
   deleteMeeting: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
   saveDocument: (input: z.infer<typeof documentInputSchema>) => Promise<DesktopResult<string>>;

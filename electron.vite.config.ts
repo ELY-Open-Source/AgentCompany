@@ -7,6 +7,7 @@ const bundledMainDependencies = [
   "@agentcompany/adapter-claude-local",
   "@agentcompany/adapter-codex-local",
   "@agentcompany/adapter-gemini-local",
+  "@agentcompany/adapter-kimi-local",
   "@agentcompany/adapter-opencode-local",
   "@agentcompany/adapter-utils",
 ];

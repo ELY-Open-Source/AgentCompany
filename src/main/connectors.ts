@@ -1,11 +1,4 @@
-import type {
-  AdapterExecutionContext,
-  AdapterExecutionResult,
-  AdapterEnvironmentTestContext,
-  AdapterEnvironmentTestResult,
-  ServerAdapterModule,
-} from "@agentcompany/adapter-utils";
-import { asNumber, asString, ensureAbsoluteDirectory, ensureCommandResolvable, ensurePathInEnv, runChildProcess } from "@agentcompany/adapter-utils/server-utils";
+import type { ServerAdapterModule } from "@agentcompany/adapter-utils";
 import { agentConfigurationDoc as claudeDoc, models as claudeModels } from "@agentcompany/adapter-claude-local";
 import { execute as claudeExecute, sessionCodec as claudeSessionCodec, testEnvironment as claudeTestEnvironment } from "@agentcompany/adapter-claude-local/server";
 import {
@@ -16,15 +9,23 @@ import {
 import { execute as codexExecute, sessionCodec as codexSessionCodec, testEnvironment as codexTestEnvironment } from "@agentcompany/adapter-codex-local/server";
 import { agentConfigurationDoc as geminiDoc, DEFAULT_GEMINI_LOCAL_MODEL, models as geminiModels } from "@agentcompany/adapter-gemini-local";
 import { execute as geminiExecute, sessionCodec as geminiSessionCodec, testEnvironment as geminiTestEnvironment } from "@agentcompany/adapter-gemini-local/server";
+import { agentConfigurationDoc as kimiDoc, DEFAULT_KIMI_LOCAL_MODEL, models as kimiModels } from "@agentcompany/adapter-kimi-local";
+import { execute as kimiExecute, testEnvironment as kimiTestEnvironment } from "@agentcompany/adapter-kimi-local/server";
 import { agentConfigurationDoc as opencodeDoc } from "@agentcompany/adapter-opencode-local";
 import { execute as opencodeExecute, listOpenCodeModels, sessionCodec as opencodeSessionCodec, testEnvironment as opencodeTestEnvironment } from "@agentcompany/adapter-opencode-local/server";
 import type { CapabilityMatrix, ConnectorId, ConnectorRecord } from "@shared/types";
 
-function normalizeEnv(input: NodeJS.ProcessEnv): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(input).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
-  );
-}
+const RESERVED_ENV_BINDING_KEYS = new Set([
+  "PATH",
+  "HOME",
+  "USER",
+  "SHELL",
+  "NODE_OPTIONS",
+  "ELECTRON_RUN_AS_NODE",
+  "DYLD_INSERT_LIBRARIES",
+  "LD_PRELOAD",
+  "PWD",
+]);
 
 interface ConnectorDefinition {
   id: ConnectorId;
@@ -38,98 +39,6 @@ interface ConnectorDefinition {
   module: ServerAdapterModule;
   listModels?: () => Promise<Array<{ id: string; label: string }>>;
 }
-
-const kimiModule: ServerAdapterModule = {
-  type: "kimi_local",
-  async testEnvironment(ctx: AdapterEnvironmentTestContext): Promise<AdapterEnvironmentTestResult> {
-    const command = asString(ctx.config.command, "kimi");
-    const cwd = asString(ctx.config.cwd, process.cwd());
-    const env = normalizeEnv(ensurePathInEnv({ ...(ctx.config.env as Record<string, string> ?? process.env) }));
-    try {
-      await ensureCommandResolvable(command, cwd, env);
-      return {
-        adapterType: "kimi_local",
-        status: "warn",
-        checks: [
-          {
-            code: "kimi_command_detected",
-            level: "info",
-            message: `Detected Kimi Code command "${command}".`,
-          },
-          {
-            code: "kimi_runtime_generic_mode",
-            level: "warn",
-            message:
-              "Kimi integration is running in generic CLI mode. Session resume, model discovery, and structured transcript are not guaranteed.",
-          },
-        ],
-        testedAt: new Date().toISOString(),
-      };
-    } catch (error) {
-      return {
-        adapterType: "kimi_local",
-        status: "fail",
-        checks: [
-          {
-            code: "kimi_command_missing",
-            level: "error",
-            message: error instanceof Error ? error.message : "Kimi command is not available.",
-            hint: "Install Kimi Code and ensure the CLI is available on PATH.",
-          },
-        ],
-        testedAt: new Date().toISOString(),
-      };
-    }
-  },
-  async execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
-    const command = asString(ctx.config.command, "kimi");
-    const cwd = asString(ctx.config.cwd, process.cwd());
-    const model = asString(ctx.config.model, "kimi-for-coding");
-    const timeoutSec = asNumber(ctx.config.timeoutSec, 0);
-    const graceSec = asNumber(ctx.config.graceSec, 20);
-    await ensureAbsoluteDirectory(cwd, { createIfMissing: true });
-
-    const prompt = typeof ctx.context.taskTitle === "string" && ctx.context.taskTitle.length > 0
-      ? [
-          ctx.context.taskTitle,
-          typeof ctx.context.taskDescription === "string" && ctx.context.taskDescription.length > 0
-            ? ctx.context.taskDescription
-            : "",
-        ].filter(Boolean).join("\n\n")
-      : [
-          `You are agent ${ctx.agent.name}.`,
-          "Respond with a concise execution summary when complete.",
-        ].join("\n\n");
-
-    const env = normalizeEnv(ensurePathInEnv({ ...(ctx.config.env as Record<string, string> ?? process.env) }));
-    await ensureCommandResolvable(command, cwd, env);
-    const result = await runChildProcess(ctx.runId, command, [], {
-      cwd,
-      env,
-      timeoutSec,
-      graceSec,
-      stdin: prompt,
-      onLog: ctx.onLog,
-    });
-
-    const summary =
-      result.stdout
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .slice(-8)
-        .join("\n") || null;
-
-    return {
-      exitCode: result.exitCode,
-      signal: result.signal,
-      timedOut: result.timedOut,
-      summary,
-      model,
-      billingType: "unknown",
-    };
-  },
-};
 
 const CONNECTORS: ConnectorDefinition[] = [
   {
@@ -234,7 +143,7 @@ const CONNECTORS: ConnectorDefinition[] = [
     label: "Kimi Code",
     description: "Official Kimi Code CLI surfaced through a generic execution contract with explicit capability downgrade.",
     defaultCommand: "kimi",
-    defaultModel: "kimi-for-coding",
+    defaultModel: DEFAULT_KIMI_LOCAL_MODEL,
     notes: "MVP support is explicit generic mode until richer runtime contract evidence is implemented.",
     capabilityMatrix: {
       sessionResume: false,
@@ -243,23 +152,14 @@ const CONNECTORS: ConnectorDefinition[] = [
       structuredTranscript: false,
       costAttribution: false,
     },
-    configurationDoc: [
-      "# kimi_local agent configuration",
-      "",
-      "Core fields:",
-      "- command (string, optional): defaults to \"kimi\"",
-      "- cwd (string, optional): working directory for the Kimi CLI process",
-      "- model (string, optional): default kimi-for-coding",
-      "- timeoutSec (number, optional)",
-      "- graceSec (number, optional)",
-      "",
-      "Notes:",
-      "- This connector currently runs Kimi in generic CLI mode.",
-      "- Session resume, model discovery, structured transcript, and cost attribution are declared unsupported.",
-      "- The UI must surface these limitations explicitly.",
-    ].join("\n"),
-    module: kimiModule,
-    listModels: async () => [{ id: "kimi-for-coding", label: "kimi-for-coding" }],
+    configurationDoc: kimiDoc,
+    module: {
+      type: "kimi_local",
+      execute: kimiExecute,
+      testEnvironment: kimiTestEnvironment,
+      models: kimiModels,
+    },
+    listModels: async () => kimiModels,
   },
 ];
 
@@ -285,6 +185,12 @@ export function parseEnvBindingText(text: string): Record<string, string> {
   return bindings;
 }
 
+export function listInvalidEnvBindingKeys(text: string): string[] {
+  return Object.keys(parseEnvBindingText(text)).filter((key) => {
+    return RESERVED_ENV_BINDING_KEYS.has(key) || key.startsWith("AGENT_COMPANY_");
+  });
+}
+
 export function buildDefaultConnectorRows(existing: Array<Partial<ConnectorRecord>> = []): ConnectorRecord[] {
   const byId = new Map(existing.map((record) => [record.id, record]));
   return CONNECTORS.map((definition) => {
@@ -294,7 +200,7 @@ export function buildDefaultConnectorRows(existing: Array<Partial<ConnectorRecor
       label: definition.label,
       description: definition.description,
       status: existingRecord?.status ?? "not_installed",
-      command: definition.defaultCommand,
+      command: existingRecord?.command ?? definition.defaultCommand,
       version: existingRecord?.version ?? null,
       authState: existingRecord?.authState ?? "unknown",
       lastCheckedAt: existingRecord?.lastCheckedAt ?? null,

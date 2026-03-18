@@ -18,18 +18,21 @@ pnpm typecheck
 pnpm lint
 pnpm test:unit
 pnpm test:integration
-pnpm build
+pnpm test:packages
+pnpm test:e2e
+pnpm build:verify
 ```
 
 ## Packaging
 
 ```sh
-pnpm build        # Compile + package (DMG/NSIS/AppImage)
+pnpm build        # Compile + package the current host platform into /build/release
 pnpm build:dir    # Compile + unpackaged directory
 ```
 
 - Supported targets: macOS, Windows, Linux
 - Packaging uses `electron-builder`
+- Local packaging cleans `/build` and injects a non-mutating build version
 - Local builds use ad-hoc signing (`CSC_IDENTITY_AUTO_DISCOVERY=false`)
 - Defaults to `--publish never`; override with `AGENTCOMPANY_ELECTRON_PUBLISH` env var
 

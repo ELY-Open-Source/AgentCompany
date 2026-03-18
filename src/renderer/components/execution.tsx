@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   ArrowClockwise,
   ArrowSquareOut,
@@ -28,6 +28,7 @@ import type {
   ActivityRecord,
   AgentRecord,
   ApprovalRecord,
+  CommentRecord,
   DocumentRecord,
   GoalRecord,
   ProfileSnapshot,
@@ -44,6 +45,21 @@ import { ActionButton, ConfirmDialog, EmptyState, Field, InlineNotice, Input, Li
 
 function describeActionError(error: unknown) {
   return error instanceof Error ? error.message : "The action could not be completed.";
+}
+
+function parseApprovalPayloadJson(approval: ApprovalRecord): Record<string, unknown> | null {
+  if (!approval.payloadJson) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(approval.payloadJson);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 
@@ -151,6 +167,9 @@ export function TaskInspector({
   onRun,
   onCancelRun,
   onCreateApproval,
+  onOpenDiscussion,
+  comments,
+  onRefresh,
   onDeleted,
 }: {
   task: TaskRecord;
@@ -164,6 +183,9 @@ export function TaskInspector({
   onRun: (taskId: string) => Promise<void>;
   onCancelRun: (runId: string) => Promise<void>;
   onCreateApproval: () => Promise<void>;
+  onOpenDiscussion: (taskId: string) => void;
+  comments: CommentRecord[];
+  onRefresh: () => Promise<void>;
   onDeleted: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
@@ -226,6 +248,7 @@ export function TaskInspector({
         projectId: editProject || null,
         goalId: editGoal || null,
       }));
+      await onRefresh();
       setEditing(false);
       setActionNotice("Task changes saved.");
     } catch (error) {
@@ -252,6 +275,7 @@ export function TaskInspector({
         projectId: task.projectId,
         goalId: task.goalId,
       }));
+      await onRefresh();
       setActionNotice(`Task moved to ${status.replaceAll("_", " ")}.`);
     } catch (error) {
       setActionError(describeActionError(error));
@@ -400,6 +424,7 @@ export function TaskInspector({
                 )}
               </>
             )}
+            <ActionButton label="Discussion" onClick={() => onOpenDiscussion(task.id)} icon={ArrowRight} />
             <ActionButton label="Edit" onClick={startEdit} icon={Pencil} />
             <ActionButton label="Delete" onClick={() => setConfirmDelete(true)} icon={Trash} tone="danger" />
           </div>
@@ -454,7 +479,13 @@ export function TaskInspector({
       })()}
 
       {/* Communication */}
-      <TaskComments taskId={task.id} companyId={task.companyId} agents={agents} />
+      <TaskComments
+        taskId={task.id}
+        companyId={task.companyId}
+        agents={agents}
+        comments={comments}
+        onRefresh={onRefresh}
+      />
 
       {/* Run history — only if there are runs */}
       {runs.length > 0 && (
@@ -509,35 +540,32 @@ function TaskComments({
   taskId,
   companyId,
   agents,
+  comments,
+  onRefresh,
 }: {
   taskId: string;
   companyId: string;
   agents: ProfileSnapshot["agents"];
+  comments: CommentRecord[];
+  onRefresh: () => Promise<void>;
 }) {
-  const [comments, setComments] = useState<Array<{ id: string; authorAgentId: string | null; authorName: string; body: string; createdAt: string }>>([]);
   const [newComment, setNewComment] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const loadComments = useCallback(async () => {
-    const result = await window.agentCompany.listComments({ taskId });
-    if (result.ok) setComments(result.data);
-    setLoading(false);
-  }, [taskId]);
-
   useEffect(() => {
-    void loadComments();
     const unsubscribe = window.agentCompany.subscribe((event) => {
       if (event.type === "agent-message" && event.taskId === taskId) {
-        setComments((prev) => [...prev, event.comment]);
+        void onRefresh();
       }
     });
     return unsubscribe;
-  }, [taskId, loadComments]);
+  }, [onRefresh, taskId]);
 
   const handleSubmit = async () => {
     if (!newComment.trim()) return;
     setSubmitError(null);
+    setSubmitting(true);
     try {
       unwrap(await window.agentCompany.addComment({
         companyId,
@@ -546,9 +574,11 @@ function TaskComments({
         body: newComment.trim(),
       }));
       setNewComment("");
-      await loadComments();
+      await onRefresh();
     } catch (error) {
       setSubmitError(describeActionError(error));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -559,9 +589,7 @@ function TaskComments({
         <span className="text-[13px] font-semibold text-[color:var(--text)]">Communication</span>
         <span className="text-[11px] text-[color:var(--muted)]">({comments.length})</span>
       </div>
-      {loading ? (
-        <div className="text-[12px] text-[color:var(--muted)]">Loading...</div>
-      ) : comments.length === 0 ? (
+      {comments.length === 0 ? (
         <div className="text-[12px] text-[color:var(--muted)]">No messages yet. Agents will post updates here during runs.</div>
       ) : (
         <div className="max-h-[240px] space-y-2 overflow-y-auto rounded-lg border border-[color:var(--line)] p-3">
@@ -592,7 +620,7 @@ function TaskComments({
           onChange={(e) => setNewComment(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSubmit(); } }}
         />
-        <ActionButton label="Send" tone="accent" onClick={() => void handleSubmit()} icon={ArrowRight} />
+        <ActionButton label="Send" tone="accent" onClick={() => void handleSubmit()} icon={ArrowRight} loading={submitting} />
       </div>
     </div>
   );
@@ -843,26 +871,36 @@ export function ApprovalInspector({
 
         {/* Hire agent payload details */}
         {approval.type === "hire_agent" ? (() => {
-          const proposedAgent = agents.find(
-            (a) => a.status === "pending_approval" && a.reportsTo === approval.requestedByAgentId
-          ) ?? agents.find(
-            (a) => a.name.toLowerCase().includes("pending") || a.status === "pending_approval"
-          );
-          if (!proposedAgent) return null;
+          const payload = parseApprovalPayloadJson(approval);
+          const payloadAgentId = typeof payload?.agentId === "string" ? payload.agentId : null;
+          const requestedSnapshot =
+            payload?.requestedConfigurationSnapshot &&
+            typeof payload.requestedConfigurationSnapshot === "object" &&
+            !Array.isArray(payload.requestedConfigurationSnapshot)
+              ? payload.requestedConfigurationSnapshot as Record<string, unknown>
+              : null;
+          const proposedAgent =
+            (approval.relatedAgentId ? (agents.find((agent) => agent.id === approval.relatedAgentId) ?? null) : null) ??
+            (payloadAgentId ? (agents.find((agent) => agent.id === payloadAgentId) ?? null) : null);
+          const proposedManagerId =
+            proposedAgent?.reportsTo ??
+            (typeof requestedSnapshot?.reportsTo === "string" ? requestedSnapshot.reportsTo : null);
+          const proposedManager = proposedManagerId
+            ? (agents.find((agent) => agent.id === proposedManagerId) ?? null)
+            : null;
+
+          if (!proposedAgent && !requestedSnapshot) return null;
           return (
             <div className="rounded-[8px] border border-[color:var(--accent)] border-opacity-30 bg-[color:var(--accent-soft)] px-4 py-3">
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--accent)]">Proposed Hire</div>
               <div className="grid gap-1.5 text-[12px]">
-                <div><span className="text-[color:var(--muted)]">Name:</span> <span className="font-medium text-[color:var(--text)]">{proposedAgent.name}</span></div>
-                <div><span className="text-[color:var(--muted)]">Role:</span> <span className="text-[color:var(--text)]">{proposedAgent.role}</span></div>
-                {proposedAgent.title ? <div><span className="text-[color:var(--muted)]">Title:</span> <span className="text-[color:var(--text)]">{proposedAgent.title}</span></div> : null}
-                {proposedAgent.capabilities ? <div><span className="text-[color:var(--muted)]">Capabilities:</span> <span className="text-[color:var(--text)]">{proposedAgent.capabilities}</span></div> : null}
-                <div><span className="text-[color:var(--muted)]">Connector:</span> <span className="mono text-[color:var(--text)]">{proposedAgent.connectorId}</span></div>
-                <div><span className="text-[color:var(--muted)]">Budget:</span> <span className="mono text-[color:var(--text)]">{formatMoney(proposedAgent.budgetMonthlyUsd)}/mo</span></div>
-                {proposedAgent.reportsTo ? (() => {
-                  const manager = agents.find((a) => a.id === proposedAgent.reportsTo);
-                  return manager ? <div><span className="text-[color:var(--muted)]">Reports to:</span> <span className="text-[color:var(--text)]">{manager.name}</span></div> : null;
-                })() : null}
+                <div><span className="text-[color:var(--muted)]">Name:</span> <span className="font-medium text-[color:var(--text)]">{proposedAgent?.name ?? approval.payloadSummary.replace(/^Hire\s+/i, "").split(/\s+as\s+/i)[0] ?? "Pending hire"}</span></div>
+                <div><span className="text-[color:var(--muted)]">Role:</span> <span className="text-[color:var(--text)]">{proposedAgent?.role ?? (typeof requestedSnapshot?.role === "string" ? requestedSnapshot.role : "Unspecified")}</span></div>
+                {(proposedAgent?.title || typeof requestedSnapshot?.title === "string") ? <div><span className="text-[color:var(--muted)]">Title:</span> <span className="text-[color:var(--text)]">{proposedAgent?.title || requestedSnapshot?.title as string}</span></div> : null}
+                {(proposedAgent?.capabilities || typeof requestedSnapshot?.capabilities === "string") ? <div><span className="text-[color:var(--muted)]">Capabilities:</span> <span className="text-[color:var(--text)]">{proposedAgent?.capabilities || requestedSnapshot?.capabilities as string}</span></div> : null}
+                <div><span className="text-[color:var(--muted)]">Connector:</span> <span className="mono text-[color:var(--text)]">{proposedAgent?.connectorId ?? (typeof requestedSnapshot?.connectorId === "string" ? requestedSnapshot.connectorId : "Unknown")}</span></div>
+                <div><span className="text-[color:var(--muted)]">Budget:</span> <span className="mono text-[color:var(--text)]">{formatMoney(proposedAgent?.budgetMonthlyUsd ?? (typeof requestedSnapshot?.budgetMonthlyUsd === "number" ? requestedSnapshot.budgetMonthlyUsd : 0))}/mo</span></div>
+                {proposedManager ? <div><span className="text-[color:var(--muted)]">Reports to:</span> <span className="text-[color:var(--text)]">{proposedManager.name}</span></div> : null}
               </div>
             </div>
           );
@@ -1236,7 +1274,7 @@ export function WorkspaceInspector({
               {workspace.repoRef ? <span> · Ref: <span className="text-[color:var(--text)]">{workspace.repoRef}</span></span> : null}
             </div>
           </div>
-          <ActionButton label="Reveal in Finder" onClick={() => void onOpen(workspace.localPath)} icon={ArrowSquareOut} />
+          <ActionButton label="Open folder" onClick={() => void onOpen(workspace.localPath)} icon={ArrowSquareOut} />
         </div>
       </div>
 
@@ -1542,6 +1580,7 @@ export function SettingsPane({
                   type="checkbox"
                   checked={company.autoApproveHires}
                   onChange={async (e) => {
+                    setActionError(null);
                     try {
                       unwrap(await window.agentCompany.saveCompany({
                         id: company.id,
@@ -1551,14 +1590,16 @@ export function SettingsPane({
                         autoApproveHires: e.target.checked,
                       }));
                       await onSaved();
-                    } catch { /* ignore */ }
+                    } catch (error) {
+                      setActionError(describeActionError(error));
+                    }
                   }}
                   className="h-4 w-4 rounded accent-[color:var(--accent)]"
                 />
                 <div>
-                  <div className="text-[13px] font-medium text-[color:var(--text)]">Full Autonomy Mode</div>
+                  <div className="text-[13px] font-medium text-[color:var(--text)]">Auto-approve hire and strategy approvals</div>
                   <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
-                    Auto-approve agent hires and CEO strategies. Agents will build the team and start operations without Board approval.
+                    Automatically approve agent hiring requests and CEO strategy approvals so the company can continue operating without waiting on the board for those specific approval types.
                   </div>
                 </div>
               </label>

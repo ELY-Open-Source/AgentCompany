@@ -1,6 +1,7 @@
 import { BrowserWindow, session, type NativeImage } from "electron";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { rm } from "node:fs/promises";
+import { join, resolve, sep } from "node:path";
 import log from "electron-log/main.js";
 
 export interface BrowserAction {
@@ -13,6 +14,7 @@ export interface BrowserAction {
 
 export interface BrowserActionResult {
   success: boolean;
+  cancelled: boolean;
   summary: string;
   screenshotPath: string | null;
   error: string | null;
@@ -104,6 +106,8 @@ export class BrowserManager {
   private processing = new Set<string>();
   private loginWindows = new Map<string, BrowserWindow>();
   private initializedSessions = new Set<string>();
+  private activeActionWindows = new Map<string, BrowserWindow>();
+  private cancelledActionIds = new Set<string>();
 
   constructor(profileDir: string) {
     this.screenshotDir = join(profileDir, "browser-screenshots");
@@ -121,6 +125,36 @@ export class BrowserManager {
     return socialSession;
   }
 
+  async clearSocialAccountData(socialAccountId: string, screenshotPaths: string[] = []) {
+    const existing = this.loginWindows.get(socialAccountId);
+    if (existing && !existing.isDestroyed()) {
+      existing.close();
+    }
+    this.loginWindows.delete(socialAccountId);
+    this.queues.delete(socialAccountId);
+    this.processing.delete(socialAccountId);
+
+    const ses = this.getSession(socialAccountId);
+    try {
+      await ses.clearStorageData();
+      await ses.clearCache();
+      await ses.clearAuthCache();
+    } catch (error) {
+      log.warn(`[browser] Failed to fully clear session for ${socialAccountId}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    await Promise.all(
+      screenshotPaths
+        .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+        .filter((screenshotPath) => {
+          const resolvedPath = resolve(screenshotPath);
+          const resolvedRoot = resolve(this.screenshotDir);
+          return resolvedPath === resolvedRoot || resolvedPath.startsWith(`${resolvedRoot}${sep}`);
+        })
+        .map((screenshotPath) => rm(screenshotPath, { force: true }).catch(() => undefined)),
+    );
+  }
+
   async launchLoginBrowser(
     socialAccountId: string,
     platform: string,
@@ -129,12 +163,13 @@ export class BrowserManager {
     const existing = this.loginWindows.get(socialAccountId);
     if (existing && !existing.isDestroyed()) {
       existing.focus();
-      return { success: true, summary: "Login window already open", screenshotPath: null, error: null };
+      return { success: true, cancelled: false, summary: "Login window already open", screenshotPath: null, error: null };
     }
 
     const rules = this.getPlatformRules(platform);
     const url = loginUrl || rules.loginUrl;
     const ses = this.getSession(socialAccountId);
+    this.assertAllowedUrl(platform, url, "login");
 
     log.info(`[browser] Opening login window for ${platform} → ${url}`);
 
@@ -151,6 +186,7 @@ export class BrowserManager {
     });
 
     this.loginWindows.set(socialAccountId, win);
+    this.attachWindowSecurity(win, platform);
 
     win.setMenuBarVisibility(false);
 
@@ -167,6 +203,7 @@ export class BrowserManager {
           log.info(`[browser] Login window closed for ${platform} — verified=${verified}`);
           resolve({
             success: verified,
+            cancelled: false,
             summary: verified
               ? `Authenticated session detected for ${platform}`
               : `No authenticated ${platform} session detected`,
@@ -185,6 +222,36 @@ export class BrowserManager {
       this.queues.set(action.socialAccountId, queue);
       void this.processQueue(action.socialAccountId);
     });
+  }
+
+  cancelAction(actionId: string): boolean {
+    this.cancelledActionIds.add(actionId);
+    const activeWindow = this.activeActionWindows.get(actionId);
+    if (activeWindow && !activeWindow.isDestroyed()) {
+      activeWindow.close();
+      return true;
+    }
+
+    for (const [socialAccountId, queue] of this.queues.entries()) {
+      const index = queue.findIndex((item) => item.action.id === actionId);
+      if (index < 0) {
+        continue;
+      }
+      const [item] = queue.splice(index, 1);
+      item?.resolve({
+        success: false,
+        cancelled: true,
+        summary: "Action cancelled before execution.",
+        screenshotPath: null,
+        error: "Action cancelled.",
+      });
+      if (queue.length === 0) {
+        this.queues.delete(socialAccountId);
+      }
+      return true;
+    }
+
+    return false;
   }
 
   private async processQueue(socialAccountId: string) {
@@ -225,28 +292,39 @@ export class BrowserManager {
         sandbox: true,
       },
     });
+    this.activeActionWindows.set(action.id, win);
+    this.attachWindowSecurity(win, platform);
     win.setMenuBarVisibility(false);
 
     try {
       let summary = "Action completed";
+      const assertNotCancelled = () => {
+        if (this.cancelledActionIds.has(action.id)) {
+          throw new Error("BROWSER_ACTION_CANCELLED");
+        }
+      };
 
       switch (action.actionType) {
         case "navigate": {
+          assertNotCancelled();
           const url = String(payload.url || "https://google.com");
           this.assertAllowedUrl(platform, url, "navigate");
           await win.loadURL(url);
           await this.waitForLoad(win);
+          assertNotCancelled();
           const title = await win.webContents.executeJavaScript("document.title");
           summary = `Navigated to ${title}`;
           break;
         }
 
         case "post": {
+          assertNotCancelled();
           const content = String(payload.content || "");
           const postUrl = this.getComposeUrl(platform);
           await win.loadURL(postUrl);
           await this.waitForLoad(win);
           await this.delay(2000);
+          assertNotCancelled();
 
           if (platform === "twitter") {
             await win.webContents.executeJavaScript(`
@@ -297,12 +375,14 @@ export class BrowserManager {
         }
 
         case "reply": {
+          assertNotCancelled();
           const targetUrl = String(payload.targetUrl || "");
           this.assertAllowedUrl(platform, targetUrl, "reply");
           const replyContent = String(payload.content || "");
           await win.loadURL(targetUrl);
           await this.waitForLoad(win);
           await this.delay(2000);
+          assertNotCancelled();
 
           await win.webContents.executeJavaScript(`
             (async () => {
@@ -326,11 +406,13 @@ export class BrowserManager {
         }
 
         case "like": {
+          assertNotCancelled();
           const targetUrl = String(payload.targetUrl || "");
           this.assertAllowedUrl(platform, targetUrl, "like");
           await win.loadURL(targetUrl);
           await this.waitForLoad(win);
           await this.delay(2000);
+          assertNotCancelled();
           await win.webContents.executeJavaScript(`
             (() => {
               const btn = document.querySelector('[data-testid="like"], button[aria-label*="Like"]');
@@ -343,11 +425,13 @@ export class BrowserManager {
         }
 
         case "follow": {
+          assertNotCancelled();
           const targetUrl = String(payload.targetUrl || payload.profileUrl || "");
           this.assertAllowedUrl(platform, targetUrl, "follow");
           await win.loadURL(targetUrl);
           await this.waitForLoad(win);
           await this.delay(2000);
+          assertNotCancelled();
           await win.webContents.executeJavaScript(`
             (() => {
               const btn = document.querySelector('[data-testid*="follow"], button[aria-label*="Follow"]');
@@ -360,12 +444,14 @@ export class BrowserManager {
         }
 
         case "browse_feed": {
+          assertNotCancelled();
           const feedUrl = String(payload.url || this.getFeedUrl(platform));
           this.assertAllowedUrl(platform, feedUrl, "browse_feed");
           const maxPosts = Number(payload.maxPosts || 10);
           await win.loadURL(feedUrl);
           await this.waitForLoad(win);
           await this.delay(3000);
+          assertNotCancelled();
 
           for (let i = 0; i < 3; i++) {
             await win.webContents.executeJavaScript("window.scrollBy(0, window.innerHeight)");
@@ -383,12 +469,14 @@ export class BrowserManager {
         }
 
         case "search": {
+          assertNotCancelled();
           const query = String(payload.query || "");
           const searchUrl = this.getSearchUrl(platform, query);
           this.assertAllowedUrl(platform, searchUrl, "search");
           await win.loadURL(searchUrl);
           await this.waitForLoad(win);
           await this.delay(3000);
+          assertNotCancelled();
 
           const results: string[] = await win.webContents.executeJavaScript(`
             (() => {
@@ -401,6 +489,7 @@ export class BrowserManager {
         }
 
         case "screenshot": {
+          assertNotCancelled();
           const url = String(payload.url || "about:blank");
           if (url !== "about:blank") {
             this.assertAllowedUrl(platform, url, "screenshot");
@@ -408,6 +497,7 @@ export class BrowserManager {
             await this.waitForLoad(win);
             await this.delay(2000);
           }
+          assertNotCancelled();
           const title = await win.webContents.executeJavaScript("document.title");
           summary = `Screenshot captured: ${title}`;
           break;
@@ -431,11 +521,13 @@ export class BrowserManager {
 
       return {
         success: true,
+        cancelled: false,
         summary,
         screenshotPath: existsSync(screenshotPath) ? screenshotPath : null,
         error: null,
       };
     } catch (error) {
+      const wasCancelled = this.cancelledActionIds.has(action.id) || (error instanceof Error && error.message === "BROWSER_ACTION_CANCELLED");
       try {
         const image: NativeImage = await win.webContents.capturePage();
         if (!image.isEmpty()) writeFileSync(screenshotPath, image.toPNG());
@@ -443,14 +535,20 @@ export class BrowserManager {
 
       if (!win.isDestroyed()) win.close();
 
-      const msg = error instanceof Error ? error.message : String(error);
-      log.error(`[browser] Action ${action.actionType} failed: ${msg}`);
+      const msg = wasCancelled ? "Action cancelled." : error instanceof Error ? error.message : String(error);
+      if (!wasCancelled) {
+        log.error(`[browser] Action ${action.actionType} failed: ${msg}`);
+      }
       return {
         success: false,
-        summary: "Action failed",
+        cancelled: wasCancelled,
+        summary: wasCancelled ? "Action cancelled" : "Action failed",
         screenshotPath: existsSync(screenshotPath) ? screenshotPath : null,
         error: msg,
       };
+    } finally {
+      this.activeActionWindows.delete(action.id);
+      this.cancelledActionIds.delete(action.id);
     }
   }
 
@@ -476,6 +574,43 @@ export class BrowserManager {
     return PLATFORM_RULES[platform] ?? PLATFORM_RULES.other;
   }
 
+  private isAllowedNavigation(platform: string, rawUrl: string) {
+    try {
+      this.assertAllowedUrl(platform, rawUrl, "navigate");
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private attachWindowSecurity(win: BrowserWindow, platform: string) {
+    win.webContents.setWindowOpenHandler(({ url }) => {
+      if (!this.isAllowedNavigation(platform, url)) {
+        return { action: "deny" };
+      }
+      setImmediate(() => {
+        void win.loadURL(url).catch((error) => {
+          log.warn(`[browser] Failed to open allowed popup target for ${platform}: ${error instanceof Error ? error.message : String(error)}`);
+        });
+      });
+      return { action: "deny" };
+    });
+    win.webContents.on("will-navigate", (event, navigationUrl) => {
+      if (this.isAllowedNavigation(platform, navigationUrl)) {
+        return;
+      }
+      event.preventDefault();
+      log.warn(`[browser] Blocked navigation outside allowlist for ${platform}: ${navigationUrl}`);
+    });
+    win.webContents.on("will-redirect", (event, navigationUrl) => {
+      if (this.isAllowedNavigation(platform, navigationUrl)) {
+        return;
+      }
+      event.preventDefault();
+      log.warn(`[browser] Blocked redirect outside allowlist for ${platform}: ${navigationUrl}`);
+    });
+  }
+
   private assertAllowedUrl(platform: string, rawUrl: string, actionType: string) {
     const allowedHosts = this.getPlatformRules(platform).allowedHosts;
     let url: URL;
@@ -483,6 +618,9 @@ export class BrowserManager {
       url = new URL(rawUrl);
     } catch {
       throw new Error(`Invalid URL for ${actionType}: ${rawUrl}`);
+    }
+    if (url.protocol !== "https:") {
+      throw new Error(`Navigation blocked for ${actionType}. Only https URLs are allowed.`);
     }
     const host = url.hostname.toLowerCase();
     const isAllowed = allowedHosts.some((allowedHost) => host === allowedHost || host.endsWith(`.${allowedHost}`));
@@ -578,6 +716,8 @@ export class BrowserManager {
       if (!win.isDestroyed()) win.close();
     }
     this.loginWindows.clear();
+    this.activeActionWindows.clear();
+    this.cancelledActionIds.clear();
     this.queues.clear();
     this.processing.clear();
   }

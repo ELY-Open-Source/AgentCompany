@@ -14,9 +14,7 @@ mac:
   target:
     - dmg
     - zip
-  # hardenedRuntime requires a real code signing identity.
-  # For local/unsigned builds, keep it off. Enable when signing is configured.
-  hardenedRuntime: false
+  hardenedRuntime: true
 win:
   icon: assets/icon.ico
   target:

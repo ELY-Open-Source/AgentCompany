@@ -1,9 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, realpathSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { appendFile, copyFile, cp, rm } from "node:fs/promises";
-import { join, resolve, sep } from "node:path";
+import { extname, join, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync, backup as backupDatabase, type SQLInputValue } from "node:sqlite";
-import { getConnectorDefinition, buildDefaultConnectorRows, parseEnvBindingText } from "./connectors";
+import { getConnectorDefinition, buildDefaultConnectorRows, listInvalidEnvBindingKeys, parseEnvBindingText } from "./connectors";
 import { SecretVault } from "./vault";
 import type {
   ActivityRecord,
@@ -22,6 +22,7 @@ import type {
   InboxItem,
   ProfileSnapshot,
   ProjectRecord,
+  RunLogChunk,
   RunRecord,
   RunStatus,
   SecretRecord,
@@ -34,6 +35,7 @@ import type {
 
 type SqliteDatabase = DatabaseSync;
 type SqliteRow = Record<string, any>;
+const BOARD_READER_ID = "__board__";
 
 function nowIso() {
   return new Date().toISOString();
@@ -64,6 +66,14 @@ function isWithinOrEqual(targetPath: string, rootPath: string) {
   const resolvedTarget = resolve(targetPath);
   const resolvedRoot = resolve(rootPath);
   return resolvedTarget === resolvedRoot || resolvedTarget.startsWith(`${resolvedRoot}${sep}`);
+}
+
+function safeRealpath(targetPath: string) {
+  try {
+    return realpathSync(targetPath);
+  } catch {
+    return resolve(targetPath);
+  }
 }
 
 function taskPriorityOrderSql(columnName: string) {
@@ -387,17 +397,31 @@ export class AppDatabase {
     }
 
     const managedRoots = [this.profileDir, this.logsDir, this.artifactsDir, this.backupsDir];
-    if (managedRoots.some((rootPath) => isWithinOrEqual(targetPath, rootPath))) {
+    const sensitiveProfileExtensions = new Set([".sqlite", ".db", ".key"]);
+    const forbiddenExecutableExtensions = new Set([".app", ".exe", ".bat", ".cmd", ".sh", ".command", ".desktop", ".msi", ".com", ".scr"]);
+    const resolvedTarget = safeRealpath(targetPath);
+    const targetStats = lstatSync(targetPath);
+    const targetExtension = extname(resolvedTarget).toLowerCase();
+    if (
+      managedRoots.some((rootPath) => isWithinOrEqual(resolvedTarget, rootPath)) &&
+      sensitiveProfileExtensions.has(targetExtension)
+    ) {
+      return false;
+    }
+    if (!targetStats.isDirectory() && forbiddenExecutableExtensions.has(targetExtension)) {
+      return false;
+    }
+    if (managedRoots.some((rootPath) => isWithinOrEqual(resolvedTarget, safeRealpath(rootPath)))) {
       return true;
     }
 
     const workspaces = this.readAll<{ localPath: string }>("select local_path as localPath from workspaces");
-    if (workspaces.some((workspace) => isWithinOrEqual(targetPath, workspace.localPath))) {
+    if (workspaces.some((workspace) => isWithinOrEqual(resolvedTarget, safeRealpath(workspace.localPath)))) {
       return true;
     }
 
     const runLogs = this.readAll<{ logPath: string | null }>("select log_path as logPath from runs where log_path is not null");
-    return runLogs.some((run) => run.logPath ? resolve(run.logPath) === resolve(targetPath) : false);
+    return runLogs.some((run) => run.logPath ? safeRealpath(run.logPath) === resolvedTarget : false);
   }
 
   updateSettings(input: { theme?: "system" | "light" | "dark"; updatesEnabled?: boolean; logRetentionDays?: number }) {
@@ -445,6 +469,15 @@ export class AppDatabase {
   listSnapshot(): ProfileSnapshot {
     const connectors = this.readConnectors();
     const theme = (this.getSetting("theme") as "system" | "light" | "dark" | null) ?? "system";
+    const boardReadReceiptMap = new Map(
+      this.readAll<{ messageId: string; readAt: string }>(
+        `select reads.message_id as messageId, reads.read_at as readAt
+           from agent_message_reads reads
+           join agent_messages messages on messages.id = reads.message_id
+          where reads.agent_id = ?`,
+        BOARD_READER_ID,
+      ).map((row) => [row.messageId, row.readAt]),
+    );
     return {
       currentCompanyId: this.getCurrentCompanyId(),
       profilePath: this.profileDir,
@@ -554,7 +587,7 @@ export class AppDatabase {
       ).map((r) => ({
         id: r.id, companyId: r.company_id, fromAgentId: r.from_agent_id,
         toAgentId: r.to_agent_id, channel: r.channel, channelTargetId: r.channel_target_id,
-        subject: r.subject, body: r.body, priority: r.priority, readAt: r.read_at,
+        subject: r.subject, body: r.body, priority: r.priority, readAt: boardReadReceiptMap.get(r.id) ?? null,
         parentMessageId: r.parent_message_id, attachmentsJson: r.attachments_json,
         createdAt: r.created_at,
       })),
@@ -926,9 +959,13 @@ export class AppDatabase {
   }
 
   resolveSecretEnv(bindingText: string, companyId: string): Record<string, string> {
+    const invalidKeys = new Set(listInvalidEnvBindingKeys(bindingText));
     const bindings = parseEnvBindingText(bindingText);
     const result: Record<string, string> = {};
     for (const [envKey, secretName] of Object.entries(bindings)) {
+      if (invalidKeys.has(envKey)) {
+        continue;
+      }
       const row = this.db.prepare("select backend, ciphertext from secrets where company_id = ? and name = ?").get(companyId, secretName) as
         | { backend: "safe_storage" | "vault"; ciphertext: Uint8Array }
         | undefined;
@@ -1006,6 +1043,13 @@ export class AppDatabase {
     return row ? { ...row, isPrimary: toBoolean(row.isPrimary) } : null;
   }
 
+  getRunAuthState(runId: string): { id: string; companyId: string; agentId: string; status: RunRecord["status"] } | null {
+    const row = this.db
+      .prepare("select id, company_id as companyId, agent_id as agentId, status from runs where id = ?")
+      .get(runId) as { id: string; companyId: string; agentId: string; status: RunRecord["status"] } | undefined;
+    return row ?? null;
+  }
+
   createRun(input: {
     companyId: string;
     taskId: string;
@@ -1044,14 +1088,69 @@ export class AppDatabase {
     }
   }
 
+  readRunLogChunk(runId: string, offset = 0, limit = 65_536): RunLogChunk {
+    const run = this.db.prepare("select log_path as logPath from runs where id = ?").get(runId) as { logPath: string | null } | undefined;
+    if (!run?.logPath || !existsSync(run.logPath)) {
+      return {
+        content: "",
+        offset: 0,
+        nextOffset: 0,
+        totalBytes: 0,
+        eof: true,
+      };
+    }
+
+    const totalBytes = statSync(run.logPath).size;
+    const safeOffset = Math.max(0, Math.min(offset, totalBytes));
+    const safeLimit = Math.max(1_024, Math.min(limit, 262_144));
+    const bytesToRead = Math.max(0, Math.min(safeLimit, totalBytes - safeOffset));
+
+    if (bytesToRead === 0) {
+      return {
+        content: "",
+        offset: safeOffset,
+        nextOffset: safeOffset,
+        totalBytes,
+        eof: true,
+      };
+    }
+
+    const fileDescriptor = openSync(run.logPath, "r");
+    try {
+      const buffer = Buffer.allocUnsafe(bytesToRead);
+      const bytesRead = readSync(fileDescriptor, buffer, 0, bytesToRead, safeOffset);
+      const nextOffset = safeOffset + bytesRead;
+      return {
+        content: buffer.subarray(0, bytesRead).toString("utf8"),
+        offset: safeOffset,
+        nextOffset,
+        totalBytes,
+        eof: nextOffset >= totalBytes,
+      };
+    } finally {
+      closeSync(fileDescriptor);
+    }
+  }
+
   markRunStatus(runId: string, status: RunRecord["status"], message: string) {
     const ts = nowIso();
     const startedAt = status === "running" ? ts : null;
-    this.db
-      .prepare(
-        "update runs set status = ?, summary = case when ? != '' then ? else summary end, started_at = coalesce(started_at, ?), updated_at = ? where id = ?",
-      )
-      .run(status, message, message, startedAt, ts, runId);
+    this.transaction(() => {
+      this.db
+        .prepare(
+          "update runs set status = ?, summary = case when ? != '' then ? else summary end, started_at = coalesce(started_at, ?), updated_at = ? where id = ?",
+        )
+        .run(status, message, message, startedAt, ts, runId);
+
+      if (status === "running") {
+        const run = this.db.prepare("select agent_id from runs where id = ?").get(runId) as { agent_id: string } | undefined;
+        if (run) {
+          this.db
+            .prepare("update agents set status = 'running', updated_at = ? where id = ? and status in ('idle', 'active')")
+            .run(ts, run.agent_id);
+        }
+      }
+    });
   }
 
   finishRun(input: {
@@ -1125,6 +1224,11 @@ export class AppDatabase {
         this.db
           .prepare("update agents set status = 'paused', updated_at = ? where id = ?")
           .run(ts, run.agentId);
+      } else {
+        // Reset agent status from "running" back to "idle" unless paused/terminated/pending_approval
+        this.db
+          .prepare("update agents set status = 'idle', updated_at = ? where id = ? and status = 'running'")
+          .run(ts, run.agentId);
       }
     });
     return { budgetHardStopped };
@@ -1192,7 +1296,7 @@ export class AppDatabase {
       this.db.prepare("delete from agents where company_id = ?").run(companyId);
       this.db.prepare("delete from secrets where company_id = ?").run(companyId);
       this.db.prepare("delete from workspaces where company_id = ?").run(companyId);
-      for (const table of ["automation_rules", "automation_log", "agent_messages", "workflow_pipelines", "meetings", "documents", "knowledge_base", "sprints"]) {
+      for (const table of ["automation_rules", "automation_log", "agent_messages", "workflow_pipelines", "meetings", "documents", "knowledge_base", "sprints", "browser_actions", "social_accounts"]) {
         try {
           this.db.prepare(`delete from ${table} where company_id = ?`).run(companyId);
         } catch (err) {
@@ -1326,7 +1430,10 @@ export class AppDatabase {
   }
 
   deleteSocialAccount(id: string, companyId: string) {
-    this.db.prepare("DELETE FROM social_accounts WHERE id = ? AND company_id = ?").run(id, companyId);
+    this.transaction(() => {
+      this.db.prepare("DELETE FROM social_accounts WHERE id = ? AND company_id = ?").run(id, companyId);
+      this.db.prepare("DELETE FROM browser_actions WHERE social_account_id = ? AND company_id = ?").run(id, companyId);
+    });
   }
 
   listSocialAccounts(companyId: string): SocialAccountRecord[] {
@@ -1502,7 +1609,18 @@ export class AppDatabase {
     const failedRuns = (this.db.prepare("select count(*) as c from runs where company_id = ? and status in ('failed', 'timed_out', 'interrupted')").get(companyId) as { c: number })?.c ?? 0;
     const todoTasks = (this.db.prepare("select count(*) as c from tasks where company_id = ? and status in ('todo', 'in_progress', 'in_review')").get(companyId) as { c: number })?.c ?? 0;
     const budgetWarnings = (this.db.prepare("select count(*) as c from agents where company_id = ? and budget_monthly_usd > 0 and (spent_monthly_usd * 1.0 / budget_monthly_usd) >= 0.8").get(companyId) as { c: number })?.c ?? 0;
-    const unreadMessages = (this.db.prepare("select count(*) as c from agent_messages where company_id = ? and read_at is null and (channel = 'company' or channel = 'incident' or priority = 'urgent')").get(companyId) as { c: number })?.c ?? 0;
+    const unreadMessages = (
+      this.db.prepare(
+        `select count(*) as c
+           from agent_messages messages
+           left join agent_message_reads reads
+             on reads.message_id = messages.id
+            and reads.agent_id = ?
+          where messages.company_id = ?
+            and reads.read_at is null
+            and (messages.channel = 'company' or messages.channel = 'incident' or messages.priority = 'urgent')`,
+      ).get(BOARD_READER_ID, companyId) as { c: number }
+    )?.c ?? 0;
     return { pendingApprovals, activeRuns, failedRuns, todoTasks, budgetWarnings, unreadMessages };
   }
 
@@ -1674,6 +1792,7 @@ export class AppDatabase {
       cp(this.logsDir, join(targetDir, "logs"), { recursive: true, force: true }),
       cp(this.artifactsDir, join(targetDir, "artifacts"), { recursive: true, force: true }),
       copyIfExists(join(this.profileDir, "vault.key"), join(targetDir, "vault.key")),
+      copyIfExists(join(this.profileDir, "agent-api-signing.key"), join(targetDir, "agent-api-signing.key")),
       copyIfExists(`${this.dbPath}-wal`, join(targetDir, "profile.sqlite-wal")),
       copyIfExists(`${this.dbPath}-shm`, join(targetDir, "profile.sqlite-shm")),
     ];
@@ -1778,10 +1897,11 @@ export class AppDatabase {
     }
   }
 
-  private purgeExpiredPendingWakes() {
+  purgeExpiredPendingWakes() {
     // Remove pending wakes older than 2 hours — if agent hasn't woken by then, the wake is stale
     const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    this.db.prepare("delete from pending_wakes where created_at < ?").run(cutoff);
+    const result = this.db.prepare("delete from pending_wakes where created_at < ?").run(cutoff);
+    return Number(result.changes);
   }
 
   private interruptStaleRuns() {
@@ -1789,10 +1909,14 @@ export class AppDatabase {
     this.transaction(() => {
       this.db
         .prepare(
-          "update runs set status = 'interrupted', error_message = 'AgentCompany restarted before the run could report completion.', finished_at = ?, updated_at = ? where status in ('queued', 'running')",
+          "update runs set status = 'interrupted', error_message = 'AgentCompany restarted before the run could report completion.', finished_at = ?, updated_at = ? where status = 'running'",
         )
         .run(ts, ts);
-      this.db.prepare("update tasks set active_run_id = null where active_run_id is not null").run();
+      this.db.prepare("update tasks set active_run_id = null where active_run_id in (select id from runs where status = 'interrupted')").run();
+      // Reset any agents stuck in "running" status back to "idle"
+      this.db
+        .prepare("update agents set status = 'idle', updated_at = ? where status = 'running'")
+        .run(ts);
       this.releaseAllWorkspaceLocks();
     });
   }
@@ -2032,6 +2156,19 @@ export class AppDatabase {
     return Number(result.changes);
   }
 
+  listQueuedRuns() {
+    return this.readAll<RunRecord>(
+      `select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId,
+              connector_id as connectorId, status, summary, error_message as errorMessage, exit_code as exitCode,
+              signal, model, session_display_id as sessionDisplayId, cost_usd as costUsd,
+              unattributed_cost as unattributedCost, started_at as startedAt, finished_at as finishedAt,
+              log_path as logPath, created_at as createdAt, updated_at as updatedAt
+         from runs
+        where status = 'queued'
+        order by created_at asc`,
+    ).map((record) => ({ ...record, unattributedCost: toBoolean(record.unattributedCost) })) as RunRecord[];
+  }
+
   isWorkspaceLocked(workspaceId: string): boolean {
     const row = this.db
       .prepare("select lock_holder_run_id from workspaces where id = ?")
@@ -2162,6 +2299,15 @@ export class AppDatabase {
     this.db.prepare("delete from automation_rules where id = ? and company_id = ?").run(id, companyId);
   }
 
+  listAutomationRuleNames(companyId: string): Set<string> {
+    return new Set(
+      this.readAll<{ name: string }>(
+        "select name from automation_rules where company_id = ?",
+        companyId,
+      ).map((row) => row.name),
+    );
+  }
+
   toggleAutomationRule(id: string, companyId: string, status: "active" | "paused") {
     this.db.prepare("update automation_rules set status = ?, updated_at = ? where id = ? and company_id = ?").run(status, nowIso(), id, companyId);
   }
@@ -2213,6 +2359,22 @@ export class AppDatabase {
     sql += " order by created_at asc";
 
     let messages = this.readAll<AgentMessageRecord>(sql, ...params);
+    if (!opts?.agentId) {
+      const boardReadReceiptMap = new Map(
+        this.readAll<{ messageId: string; readAt: string }>(
+          `select reads.message_id as messageId, reads.read_at as readAt
+             from agent_message_reads reads
+             join agent_messages messages on messages.id = reads.message_id
+            where reads.agent_id = ? and messages.company_id = ?`,
+          BOARD_READER_ID,
+          companyId,
+        ).map((row) => [row.messageId, row.readAt]),
+      );
+      messages = messages.map((message) => ({
+        ...message,
+        readAt: boardReadReceiptMap.get(message.id) ?? null,
+      }));
+    }
     if (opts?.agentId) {
       let department: string | null = null;
       try {
@@ -2286,7 +2448,11 @@ export class AppDatabase {
   }
 
   markMessageRead(messageId: string, companyId: string) {
-    this.db.prepare("update agent_messages set read_at = ? where id = ? and company_id = ?").run(nowIso(), messageId, companyId);
+    this.markAgentMessageRead(messageId, companyId, BOARD_READER_ID);
+  }
+
+  markMessageReadForReader(messageId: string, companyId: string, readerAgentId?: string | null) {
+    this.markAgentMessageRead(messageId, companyId, readerAgentId ?? BOARD_READER_ID);
   }
 
   markAgentMessageRead(messageId: string, companyId: string, agentId: string) {
@@ -2856,6 +3022,13 @@ export class AppDatabase {
       await cp(join(sourceDir, "artifacts"), this.artifactsDir, { recursive: true, force: true });
     }
     await copyIfExists(join(sourceDir, "vault.key"), join(this.profileDir, "vault.key"));
+    await copyIfExists(join(sourceDir, "agent-api-signing.key"), join(this.profileDir, "agent-api-signing.key"));
+    if (existsSync(join(this.profileDir, "vault.key"))) {
+      chmodSync(join(this.profileDir, "vault.key"), 0o600);
+    }
+    if (existsSync(join(this.profileDir, "agent-api-signing.key"))) {
+      chmodSync(join(this.profileDir, "agent-api-signing.key"), 0o600);
+    }
 
     this.db = this.openConnection();
     this.init();

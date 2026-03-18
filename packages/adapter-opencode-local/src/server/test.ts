@@ -90,7 +90,7 @@ export async function testEnvironment(
     });
   }
 
-  const runtimeEnv = normalizeEnv(ensurePathInEnv({ ...process.env, ...env }));
+  const runtimeEnv = normalizeEnv(ensurePathInEnv(env));
 
   const cwdInvalid = checks.some((check) => check.code === "opencode_cwd_invalid");
   if (cwdInvalid) {
@@ -191,9 +191,13 @@ export async function testEnvironment(
     }
   }
 
-  const modelUnavailable = checks.some((check) => check.code === "opencode_hello_probe_model_unavailable");
-  if (!configuredModel && !modelUnavailable) {
-    // No model configured – skip model requirement if no model-related checks exist
+  if (!configuredModel) {
+    checks.push({
+      code: "opencode_model_missing",
+      level: "warn",
+      message: "OpenCode requires a configured provider/model ID before runs can start.",
+      hint: "Run `opencode models`, choose a provider/model, and save it in the connector settings.",
+    });
   } else if (configuredModel && canRunProbe) {
     try {
       await ensureOpenCodeModelConfiguredAndAvailable({

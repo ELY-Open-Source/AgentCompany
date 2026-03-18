@@ -243,7 +243,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     env.AGENT_COMPANY_API_KEY = authToken;
   }
   const billingType = resolveCodexBillingType(env);
-  const runtimeEnv = ensurePathInEnv({ ...process.env, ...env });
+  const runtimeEnv = ensurePathInEnv(env);
   await ensureCommandResolvable(command, cwd, runtimeEnv);
 
   const timeoutSec = asNumber(config.timeoutSec, 0);

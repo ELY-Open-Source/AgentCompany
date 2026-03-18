@@ -204,15 +204,28 @@ ${ctx.assignedTasks.map((t) => `- [${t.id}] ${t.title} (status: ${t.status}, pri
   }
 
   if (ctx.tasksAwaitingReview.length > 0) {
-    sections.push(`# Tasks Awaiting Your Review
-${ctx.tasksAwaitingReview.map((t) => {
-  const assigneeName = ctx.allAgents.find((a) => a.id === t.assigneeAgentId)?.name ?? "Unknown";
-  return `- [${t.id}] ${t.title} (by ${assigneeName}, priority: ${t.priority})`;
-}).join("\n")}
+    const reviewDetails = ctx.tasksAwaitingReview.map((t) => {
+      const assigneeName = ctx.allAgents.find((a) => a.id === t.assigneeAgentId)?.name ?? "Unknown";
+      const desc = t.description ? `\n  Description: ${t.description.slice(0, 300)}${t.description.length > 300 ? "..." : ""}` : "";
+      const taskComments = ctx.recentComments
+        .filter((c) => c.taskId === t.id)
+        .slice(-3)
+        .map((c) => `    - ${c.authorName}: "${c.body.slice(0, 150)}${c.body.length > 150 ? "..." : ""}"`)
+        .join("\n");
+      const commentSection = taskComments ? `\n  Recent comments:\n${taskComments}` : "\n  No comments yet.";
+      return `- [${t.id}] ${t.title} (by ${assigneeName}, priority: ${t.priority})${desc}${commentSection}`;
+    }).join("\n\n");
 
-These tasks have been submitted for your review by your direct reports. Read their comments, then either:
-- Approve: PATCH /api/issues/{issueId} with status "done" and an approving comment
-- Request changes: PATCH /api/issues/{issueId} with status "in_progress" and feedback comment
+    sections.push(`# Tasks Awaiting Your Review (${ctx.tasksAwaitingReview.length} pending)
+
+${reviewDetails}
+
+REVIEW WORKFLOW — This is your HIGHEST PRIORITY after resolving blockers:
+1. For EACH task above, first read ALL comments: GET /api/issues/{issueId}/comments
+2. Evaluate whether the work meets the task description and acceptance criteria
+3. To APPROVE: PATCH /api/issues/{issueId} with {"status": "done", "comment": "Approved. <your feedback>"}
+4. To REQUEST CHANGES: PATCH /api/issues/{issueId} with {"status": "in_progress", "comment": "Changes needed: <specific feedback>"}
+5. Do NOT ignore review requests — your team is blocked until you respond
 `);
   }
 

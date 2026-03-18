@@ -29,6 +29,7 @@ oldreference/
 # Markdown docs
 *.md
 !/README.md
+!/docs/*.md
 
 # Local design scratch files
 homepagedesign.html

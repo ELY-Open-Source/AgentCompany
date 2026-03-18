@@ -31,7 +31,8 @@ import type {
 } from "@shared/types"
 import { getAgentInitials, formatMessageTime } from "../lib/formatters"
 import { DEPARTMENT_COLORS } from "@shared/constants"
-import { Modal, Select, Input, TextArea } from "./ui"
+import { unwrap } from "../lib/desktop"
+import { InlineNotice, Modal, Select, Input, TextArea } from "./ui"
 
 const TERRACOTTA = "#d97745"
 const TERRACOTTA_SOFT = "#d9774518"
@@ -181,18 +182,32 @@ function deriveTaskDiscussionChannels(
   tasks: TaskRecord[],
 ): TaskDiscussionDescriptor[] {
   const taskMap = new Map(tasks.map((task) => [task.id, task]))
-  const discussedTaskIds = new Set(comments.map((comment) => comment.taskId))
-  return Array.from(discussedTaskIds)
+  const activeTaskIds = tasks
+    .filter((task) => ["todo", "in_progress", "in_review", "blocked"].includes(task.status))
+    .map((task) => task.id)
+  const discussionTaskIds = new Set([...comments.map((comment) => comment.taskId), ...activeTaskIds])
+
+  return Array.from(discussionTaskIds)
     .map((taskId) => {
       const task = taskMap.get(taskId)
       return {
         key: `task-${taskId}`,
         kind: "task" as const,
         taskId,
-        label: task?.title ?? `Task ${taskId.slice(0, 8)}`,
+        label: task
+          ? `${task.title}${task.status === "blocked" ? " · blocked" : task.status === "in_review" ? " · review" : ""}`
+          : `Task ${taskId.slice(0, 8)}`,
       }
     })
-    .sort((a, b) => a.label.localeCompare(b.label))
+    .sort((left, right) => {
+      const leftTask = taskMap.get(left.taskId)
+      const rightTask = taskMap.get(right.taskId)
+      const priorityWeight: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 }
+      const leftWeight = leftTask ? priorityWeight[leftTask.priority] ?? 0 : 0
+      const rightWeight = rightTask ? priorityWeight[rightTask.priority] ?? 0 : 0
+      if (leftWeight !== rightWeight) return rightWeight - leftWeight
+      return left.label.localeCompare(right.label)
+    })
 }
 
 function getChannelMessages(
@@ -509,19 +524,23 @@ function TaskDiscussionComposer({
 }) {
   const [body, setBody] = useState("")
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
 
   const handleSend = useCallback(async () => {
     if (!body.trim()) return
     setSending(true)
+    setSendError(null)
     try {
-      await window.agentCompany.addComment({
+      unwrap(await window.agentCompany.addComment({
         companyId,
         taskId,
         authorName: "Board",
         body: body.trim(),
-      })
+      }))
       setBody("")
       onSent()
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : "Failed to send task discussion reply.")
     } finally {
       setSending(false)
     }
@@ -529,6 +548,7 @@ function TaskDiscussionComposer({
 
   return (
     <div className="border-t border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3">
+      {sendError ? <div className="mb-3"><InlineNotice message={sendError} /></div> : null}
       <div className="flex items-end gap-2">
         <textarea
           value={body}
@@ -609,6 +629,7 @@ function MessageComposer({
   const [body, setBody] = useState("")
   const [subject, setSubject] = useState("")
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -620,8 +641,9 @@ function MessageComposer({
   const handleSend = useCallback(async () => {
     if (!body.trim() || !fromAgentId) return
     setSending(true)
+    setSendError(null)
     try {
-      await window.agentCompany.sendAgentMessage({
+      unwrap(await window.agentCompany.sendAgentMessage({
         companyId,
         fromAgentId,
         toAgentId: replyTo ? replyTo.fromAgentId : null,
@@ -632,12 +654,12 @@ function MessageComposer({
         priority: "normal",
         parentMessageId: replyTo?.id ?? null,
         attachmentsJson: "[]",
-      })
+      }))
       setBody("")
       setSubject("")
       onSent()
-    } catch (err) {
-      void err
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : "Failed to send message.")
     } finally {
       setSending(false)
     }
@@ -657,6 +679,7 @@ function MessageComposer({
 
   return (
     <div className="border-t border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3">
+      {sendError ? <div className="mb-3"><InlineNotice message={sendError} /></div> : null}
       <AnimatePresence>
         {replyTo ? (
           <motion.div
@@ -758,6 +781,7 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
   const [body, setBody] = useState("")
   const [priority, setPriority] = useState<MessagePriority>("normal")
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
 
   const departmentOptions = useMemo(() => {
     const depts = new Set<string>()
@@ -768,10 +792,11 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
   }, [agents])
 
   const handleSend = useCallback(async () => {
-    if (!body.trim() || !fromAgentId || !subject.trim()) return
+    if (!body.trim() || !fromAgentId || !subject.trim() || (channel === "direct" && !toAgentId)) return
     setSending(true)
+    setSendError(null)
     try {
-      await window.agentCompany.sendAgentMessage({
+      unwrap(await window.agentCompany.sendAgentMessage({
         companyId,
         fromAgentId,
         toAgentId: channel === "direct" && toAgentId ? toAgentId : null,
@@ -782,14 +807,14 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
         priority,
         parentMessageId: null,
         attachmentsJson: "[]",
-      })
+      }))
       setSubject("")
       setBody("")
       setPriority("normal")
       onSent()
       onClose()
-    } catch (err) {
-      void err
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : "Failed to send message.")
     } finally {
       setSending(false)
     }
@@ -798,6 +823,7 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
   return (
     <Modal open={open} title="Compose Message" onClose={onClose} width="560px">
       <div className="space-y-4">
+        {sendError ? <InlineNotice message={sendError} /> : null}
         <Select
           label="From Agent"
           value={fromAgentId}
@@ -827,7 +853,7 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
             value={toAgentId}
             onChange={setToAgentId}
             options={[
-              { value: "", label: "Broadcast to all" },
+              { value: "", label: "Select a recipient..." },
               ...agents
                 .filter((a) => a.id !== fromAgentId)
                 .map((a) => ({
@@ -895,7 +921,7 @@ function ComposeModal({ open, onClose, agents, companyId, onSent }: ComposeModal
           <button
             type="button"
             onClick={() => void handleSend()}
-            disabled={!body.trim() || !subject.trim() || !fromAgentId || sending}
+            disabled={!body.trim() || !subject.trim() || !fromAgentId || (channel === "direct" && !toAgentId) || sending}
             className="inline-flex items-center gap-2 rounded-[8px] px-4 py-2 text-[12px] font-semibold text-white transition hover:brightness-90 active:translate-y-px disabled:opacity-40 disabled:pointer-events-none"
             style={{ backgroundColor: TERRACOTTA }}
           >
@@ -1060,6 +1086,8 @@ interface CommunicationHubProps {
   agents: AgentRecord[]
   companyId: string
   selectedEntityId?: string | null
+  onEntityConsumed?: () => void
+  onNavigateToTask: (taskId: string) => void
   onRefresh: () => void
 }
 
@@ -1070,12 +1098,16 @@ export function CommunicationHub({
   agents,
   companyId,
   selectedEntityId,
+  onEntityConsumed,
+  onNavigateToTask,
   onRefresh,
 }: CommunicationHubProps) {
   const [selectedChannelKey, setSelectedChannelKey] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)
   const [showCompose, setShowCompose] = useState(false)
   const [replyTo, setReplyTo] = useState<AgentMessageRecord | null>(null)
+  const [optimisticReadIds, setOptimisticReadIds] = useState<Set<string>>(new Set())
+  const pendingReadIdsRef = useRef<Set<string>>(new Set())
   const [filters, setFilters] = useState<FilterState>({
     search: "",
     channelType: "all",
@@ -1085,39 +1117,65 @@ export function CommunicationHub({
 
   const messageEndRef = useRef<HTMLDivElement>(null)
   const agentMap = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents])
+  const effectiveMessages = useMemo(
+    () =>
+      messages.map((message) =>
+        optimisticReadIds.has(message.id)
+          ? { ...message, readAt: message.readAt ?? new Date().toISOString() }
+          : message,
+      ),
+    [messages, optimisticReadIds],
+  )
+
+  useEffect(() => {
+    setOptimisticReadIds((current) => {
+      if (current.size === 0) return current
+      const next = new Set(Array.from(current).filter((messageId) => effectiveMessages.some((message) => message.id === messageId)))
+      return next.size === current.size ? current : next
+    })
+  }, [effectiveMessages])
 
   // Derive channels from messages
-  const messageChannels = useMemo(() => deriveChannels(messages, agents), [messages, agents])
+  const messageChannels = useMemo(() => deriveChannels(effectiveMessages, agents), [effectiveMessages, agents])
   const taskDiscussionChannels = useMemo(() => deriveTaskDiscussionChannels(comments, tasks), [comments, tasks])
   const channels = useMemo(() => [...messageChannels, ...taskDiscussionChannels], [messageChannels, taskDiscussionChannels])
 
-  // Auto-select first channel
+  // Auto-select first valid channel
   useEffect(() => {
-    if (!selectedChannelKey && channels.length > 0) {
+    if (channels.length === 0) {
+      if (selectedChannelKey) {
+        setSelectedChannelKey(null)
+      }
+      return
+    }
+    if (!selectedChannelKey || !channels.some((channel) => channel.key === selectedChannelKey)) {
       setSelectedChannelKey(channels[0].key)
     }
   }, [channels, selectedChannelKey])
 
   useEffect(() => {
     if (!selectedEntityId) return
-    const matchingMessage = messages.find((message) => message.id === selectedEntityId)
+    const matchingMessage = effectiveMessages.find((message) => message.id === selectedEntityId)
     if (matchingMessage) {
-      const matchingChannel = messageChannels.find((channel) => getChannelMessages(messages, channel).some((message) => message.id === selectedEntityId))
+      const matchingChannel = messageChannels.find((channel) => getChannelMessages(effectiveMessages, channel).some((message) => message.id === selectedEntityId))
       if (matchingChannel) {
         setSelectedChannelKey(matchingChannel.key)
+        onEntityConsumed?.()
       }
       return
     }
     const matchingComment = comments.find((comment) => comment.id === selectedEntityId)
     if (matchingComment) {
       setSelectedChannelKey(`task-${matchingComment.taskId}`)
+      onEntityConsumed?.()
       return
     }
     const matchingTaskDiscussion = taskDiscussionChannels.find((discussion) => discussion.taskId === selectedEntityId)
     if (matchingTaskDiscussion) {
       setSelectedChannelKey(matchingTaskDiscussion.key)
+      onEntityConsumed?.()
     }
-  }, [selectedEntityId, messages, comments, messageChannels, taskDiscussionChannels])
+  }, [selectedEntityId, effectiveMessages, comments, messageChannels, onEntityConsumed, taskDiscussionChannels])
 
   const activeChannel = useMemo(
     () => channels.find((c) => c.key === selectedChannelKey) ?? null,
@@ -1127,10 +1185,10 @@ export function CommunicationHub({
   // Messages for the selected channel
   const channelMessages = useMemo(() => {
     if (!activeChannel || activeChannel.kind !== "message") return []
-    return getChannelMessages(messages, activeChannel).sort(
+    return getChannelMessages(effectiveMessages, activeChannel).sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     )
-  }, [messages, activeChannel])
+  }, [effectiveMessages, activeChannel])
 
   const taskDiscussionComments = useMemo(() => {
     if (!activeChannel || activeChannel.kind !== "task") return []
@@ -1173,6 +1231,58 @@ export function CommunicationHub({
     return result
   }, [channelMessages, filters, agentMap])
 
+  useEffect(() => {
+    if (!activeChannel || activeChannel.kind !== "message") return
+    const unreadMessageIds = filteredMessages
+      .filter((message) => !message.readAt && !pendingReadIdsRef.current.has(message.id))
+      .map((message) => message.id)
+    if (unreadMessageIds.length === 0) return
+
+    let cancelled = false
+    void (async () => {
+      for (const messageId of unreadMessageIds) {
+        pendingReadIdsRef.current.add(messageId)
+      }
+      setOptimisticReadIds((current) => {
+        const next = new Set(current)
+        for (const messageId of unreadMessageIds) {
+          next.add(messageId)
+        }
+        return next
+      })
+
+      const results = await Promise.all(
+        unreadMessageIds.map(async (messageId) => {
+          try {
+            unwrap(await window.agentCompany.markMessageRead({ messageId, companyId }))
+            return { messageId, ok: true as const }
+          } catch {
+            return { messageId, ok: false as const }
+          }
+        }),
+      )
+
+      const failedIds = results.filter((result) => !result.ok).map((result) => result.messageId)
+      for (const messageId of unreadMessageIds) {
+        pendingReadIdsRef.current.delete(messageId)
+      }
+
+      if (!cancelled && failedIds.length > 0) {
+        setOptimisticReadIds((current) => {
+          const next = new Set(current)
+          for (const messageId of failedIds) {
+            next.delete(messageId)
+          }
+          return next
+        })
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeChannel, companyId, filteredMessages])
+
   // Build thread structure: top-level messages + their replies
   const threadedMessages = useMemo(() => {
     const topLevel = filteredMessages.filter((m) => !m.parentMessageId)
@@ -1195,22 +1305,23 @@ export function CommunicationHub({
         counts.set(ch.key, { unread: 0, hasUrgent: false })
         continue
       }
-      const msgs = getChannelMessages(messages, ch)
-      const unread = msgs.filter((m) => !m.readAt).length
-      const hasUrgent = msgs.some((m) => !m.readAt && m.priority === "urgent")
+      const visibleMessages = getChannelMessages(effectiveMessages, ch)
+      const unread = visibleMessages.filter((m) => !m.readAt).length
+      const hasUrgent = visibleMessages.some((m) => !m.readAt && m.priority === "urgent")
       counts.set(ch.key, { unread, hasUrgent })
     }
     return counts
-  }, [channels, messages])
+  }, [channels, effectiveMessages])
 
   const totalUnread = useMemo(() => {
-    return messages.filter((m) => !m.readAt).length
-  }, [messages])
+    return effectiveMessages.filter((m) => !m.readAt).length
+  }, [effectiveMessages])
 
-  // Scroll to bottom when channel changes
+  // Scroll to bottom when channel changes or new messages arrive
+  const messageCount = useMemo(() => effectiveMessages.length, [effectiveMessages])
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "auto" })
-  }, [selectedChannelKey])
+  }, [selectedChannelKey, messageCount])
 
   // Group channels by type for sidebar sections
   const channelGroups = useMemo(() => {
@@ -1405,6 +1516,15 @@ export function CommunicationHub({
                       : `${taskDiscussionComments.length} comment${taskDiscussionComments.length !== 1 ? "s" : ""}${activeTask ? ` · ${activeTask.status.replaceAll("_", " ")}` : ""}`}
                   </div>
                 </div>
+                {activeChannel.kind === "task" && activeTask ? (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToTask(activeTask.id)}
+                    className="rounded-[6px] border border-[color:var(--line)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--muted-strong)] transition hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)]"
+                  >
+                    Open task
+                  </button>
+                ) : null}
               </>
             ) : (
               <span className="text-[13px] text-[color:var(--muted)]">

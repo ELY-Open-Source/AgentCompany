@@ -1,0 +1,1020 @@
+import type { AppDatabase } from "./database";
+import type {
+  AgentRecord,
+  AutomationAction,
+  AutomationTrigger,
+  DesktopEvent,
+  RunRecord,
+  RunStatus,
+} from "@shared/types";
+
+const WORKFLOW_ACTIONS: ReadonlySet<AutomationAction> = new Set([
+  "assign_task",
+  "create_task",
+  "notify_agent",
+  "send_message",
+  "trigger_heartbeat",
+  "create_approval",
+  "update_task_status",
+  "escalate_to_manager",
+  "cross_department_notify",
+  "schedule_meeting",
+  "create_document",
+  "auto_approve",
+  "reassign_task",
+  "run_task",
+]);
+
+interface WorkflowStepState {
+  id: string;
+  name: string;
+  action: AutomationAction;
+  configJson: string;
+  assigneeDepartment: string | null;
+  assigneeAgentId: string | null;
+  requiresApproval: boolean;
+  timeoutSec: number;
+  status: "pending" | "running" | "completed" | "failed" | "skipped";
+}
+
+export interface AutomationEventContext {
+  companyId: string;
+  taskId?: string;
+  agentId?: string;
+  runId?: string;
+  projectId?: string;
+  department?: string;
+  previousStatus?: string;
+  newStatus?: string;
+  costUsd?: number;
+}
+
+interface AutomationDependencies {
+  db: AppDatabase;
+  logger: {
+    info: (...args: unknown[]) => void;
+    warn: (...args: unknown[]) => void;
+    error: (...args: unknown[]) => void;
+  };
+  emitEvent: (event: DesktopEvent) => void;
+  publishDomainChanged: () => void;
+  notify: (title: string, body: string) => void;
+  wakeAgentIfPossible: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
+  dispatchBrowserAction: (actionId: string, companyId: string) => Promise<void>;
+}
+
+interface RunFinishedEvent {
+  status: RunStatus;
+  summary: string | null;
+  errorMessage: string | null;
+  costUsd: number | null;
+}
+
+export function createAutomationService({
+  db,
+  logger,
+  emitEvent,
+  publishDomainChanged,
+  notify,
+  wakeAgentIfPossible,
+  dispatchBrowserAction,
+}: AutomationDependencies) {
+  const activeAutomationExecutions = new Set<string>();
+  const activeWorkflowTriggerExecutions = new Set<string>();
+
+  function normalizeWorkflowSteps(raw: unknown): WorkflowStepState[] {
+    if (!Array.isArray(raw)) {
+      throw new Error("Workflow steps must be a JSON array.");
+    }
+    return raw.map((entry, index) => {
+      const step = (entry ?? {}) as Record<string, unknown>;
+      const rawAction = typeof step.action === "string" ? step.action : "send_message";
+      if (!WORKFLOW_ACTIONS.has(rawAction as AutomationAction)) {
+        throw new Error(`Workflow step ${index + 1} has unsupported action "${rawAction}".`);
+      }
+      return {
+        id: typeof step.id === "string" && step.id ? step.id : `step-${index + 1}`,
+        name: typeof step.name === "string" && step.name ? step.name : `Step ${index + 1}`,
+        action: rawAction as AutomationAction,
+        configJson: typeof step.configJson === "string" ? step.configJson : "{}",
+        assigneeDepartment: typeof step.assigneeDepartment === "string" ? step.assigneeDepartment : null,
+        assigneeAgentId: typeof step.assigneeAgentId === "string" ? step.assigneeAgentId : null,
+        requiresApproval: step.requiresApproval === true,
+        timeoutSec: typeof step.timeoutSec === "number" ? step.timeoutSec : 0,
+        status: ["pending", "running", "completed", "failed", "skipped"].includes(String(step.status))
+          ? (String(step.status) as WorkflowStepState["status"])
+          : "pending",
+      };
+    });
+  }
+
+  function resolveWorkflowStepActor(step: WorkflowStepState, companyId: string): AgentRecord | null {
+    if (step.assigneeAgentId) {
+      const agent = db.getAgent(step.assigneeAgentId);
+      if (agent.companyId !== companyId) {
+        throw new Error(`Workflow step assignee ${step.assigneeAgentId} does not belong to company ${companyId}.`);
+      }
+      return agent;
+    }
+
+    if (step.assigneeDepartment) {
+      const idleAgents = db.getIdleAgentsForDepartment(companyId, step.assigneeDepartment);
+      if (idleAgents.length > 0) {
+        return db.getAgent(idleAgents[0]!.id);
+      }
+    }
+
+    const snapshot = db.listSnapshot();
+    return snapshot.agents.find((agent) => agent.companyId === companyId && !agent.reportsTo && agent.status !== "terminated") ?? null;
+  }
+
+  function buildWorkflowActionContext(companyId: string, step: WorkflowStepState, actor: AgentRecord | null) {
+    let config: Record<string, unknown> = {};
+    try {
+      config = JSON.parse(step.configJson) as Record<string, unknown>;
+    } catch {
+      throw new Error(`Workflow step "${step.name}" has invalid config JSON.`);
+    }
+
+    return {
+      config,
+      ctx: {
+        companyId,
+        agentId: actor?.id,
+        department: actor?.department ?? step.assigneeDepartment ?? undefined,
+        taskId: typeof config.taskId === "string" ? config.taskId : undefined,
+        runId: typeof config.runId === "string" ? config.runId : undefined,
+        projectId: typeof config.projectId === "string" ? config.projectId : undefined,
+        newStatus: typeof config.status === "string" ? config.status : undefined,
+      } satisfies AutomationEventContext,
+    };
+  }
+
+  function matchesEventConfig(configJson: string, sourceDepartment: string | null, ctx: AutomationEventContext): boolean {
+    if (sourceDepartment && ctx.department && sourceDepartment !== ctx.department) {
+      return false;
+    }
+    try {
+      const conditions = JSON.parse(configJson) as Record<string, unknown>;
+      if (Object.keys(conditions).length === 0) return true;
+      if (conditions.status && ctx.newStatus && conditions.status !== ctx.newStatus) return false;
+      if (conditions.previousStatus && ctx.previousStatus && conditions.previousStatus !== ctx.previousStatus) return false;
+      if (conditions.priority) {
+        try {
+          const task = ctx.taskId ? db.getTask(ctx.taskId) : null;
+          if (task && task.priority !== conditions.priority) return false;
+          // If task was deleted, skip this condition instead of rejecting the rule.
+        } catch {
+          // Entity missing — treat as condition not applicable, continue matching.
+        }
+      }
+      if (typeof conditions.budgetThresholdPct === "number" && ctx.agentId) {
+        try {
+          const agent = db.getAgent(ctx.agentId);
+          if (agent.budgetMonthlyUsd > 0) {
+            const utilization = agent.spentMonthlyUsd / agent.budgetMonthlyUsd;
+            if (utilization < (conditions.budgetThresholdPct as number) / 100) return false;
+          }
+          // If budget is 0 (unlimited), skip budget condition instead of rejecting.
+        } catch {
+          // Agent missing — treat as condition not applicable, continue matching.
+        }
+      }
+      if (conditions.taskId && ctx.taskId && conditions.taskId !== ctx.taskId) return false;
+      if (conditions.projectId && ctx.projectId && conditions.projectId !== ctx.projectId) return false;
+      if (conditions.agentId && ctx.agentId && conditions.agentId !== ctx.agentId) return false;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function matchesConditions(
+    rule: { conditionsJson: string; sourceDepartment: string | null; targetDepartment: string | null },
+    ctx: AutomationEventContext,
+  ) {
+    void rule.targetDepartment;
+    return matchesEventConfig(rule.conditionsJson, rule.sourceDepartment, ctx);
+  }
+
+  function executeAutomationAction(
+    rule: { action: string; actionConfigJson: string; targetDepartment: string | null; trigger?: string },
+    ctx: AutomationEventContext,
+  ) {
+    const config = (() => {
+      try {
+        return JSON.parse(rule.actionConfigJson) as Record<string, unknown>;
+      } catch {
+        return {};
+      }
+    })();
+
+    switch (rule.action as AutomationAction) {
+      case "assign_task": {
+        if (ctx.taskId) {
+          const assignedId = db.autoAssignTask(ctx.taskId, ctx.companyId);
+          if (assignedId) {
+            wakeAgentIfPossible(assignedId, ctx.companyId, "assignment");
+          }
+        } else if (ctx.agentId) {
+          const snapshot = db.listSnapshot();
+          const unassigned = snapshot.tasks
+            .filter((task) => task.companyId === ctx.companyId && !task.assigneeAgentId && ["backlog", "todo"].includes(task.status))
+            .sort((a, b) => {
+              const priorityScore = { critical: 4, high: 3, medium: 2, low: 1 } as Record<string, number>;
+              return (priorityScore[b.priority] ?? 0) - (priorityScore[a.priority] ?? 0);
+            });
+          if (unassigned.length > 0) {
+            const task = unassigned[0]!;
+            db.saveTask({
+              id: task.id,
+              companyId: task.companyId,
+              projectId: task.projectId,
+              goalId: task.goalId,
+              parentId: task.parentId,
+              title: task.title,
+              description: task.description,
+              assigneeAgentId: ctx.agentId,
+              workspaceId: task.workspaceId,
+              priority: task.priority,
+              status: "todo",
+            });
+            wakeAgentIfPossible(ctx.agentId, ctx.companyId, "assignment");
+            logger.info(`[automation] Auto-assigned task "${task.title}" to idle agent ${ctx.agentId}`);
+          }
+        }
+        break;
+      }
+      case "create_task": {
+        const title = (config.title as string) ?? "[Auto] Task from automation rule";
+        const description = (config.description as string) ?? "";
+        const priority = (config.priority as string) ?? "medium";
+        const assigneeAgentId = (config.assigneeAgentId as string) ?? null;
+        const taskId = db.saveTask({
+          companyId: ctx.companyId,
+          projectId: ctx.projectId ?? (config.projectId as string) ?? null,
+          title,
+          description,
+          assigneeAgentId,
+          priority,
+          status: assigneeAgentId ? "todo" : "backlog",
+        });
+        handleTaskCreated(taskId, ctx.companyId);
+        logger.info(`[automation] Created task: ${title} (${taskId})`);
+        break;
+      }
+      case "notify_agent":
+      case "send_message": {
+        const toAgentId = (config.toAgentId as string) ?? ctx.agentId ?? null;
+        const fromAgentId = (config.fromAgentId as string) ?? ctx.agentId ?? toAgentId;
+        if (!fromAgentId) break;
+        const channel = (config.channel as string) ?? (toAgentId ? "direct" : "company");
+        let channelTargetId: string | null = (config.channelTargetId as string) ?? (config.department as string) ?? ctx.department ?? null;
+        if (channel === "department" && !channelTargetId && fromAgentId) {
+          try {
+            const sender = db.getAgent(fromAgentId);
+            channelTargetId = sender.department ?? null;
+          } catch {
+            channelTargetId = null;
+          }
+        }
+        const messageId = db.sendAgentMessage({
+          companyId: ctx.companyId,
+          fromAgentId,
+          toAgentId: channel === "direct" ? toAgentId : null,
+          channel,
+          channelTargetId,
+          subject: (config.subject as string) ?? "Automation notification",
+          body: (config.body as string) ?? `Automation rule triggered for task ${ctx.taskId ?? "n/a"}`,
+          priority: (config.priority as string) ?? "normal",
+        });
+        const message = db.getAgentMessage(messageId, ctx.companyId);
+        if (message) {
+          emitEvent({ type: "new-message", message });
+        }
+        publishDomainChanged();
+        if (toAgentId && channel === "direct") {
+          wakeAgentIfPossible(toAgentId, ctx.companyId, "message");
+        }
+        break;
+      }
+      case "trigger_heartbeat": {
+        let targetAgentId = (config.agentId as string) ?? null;
+        if (!targetAgentId && ctx.agentId) {
+          const triggerType = rule.trigger ?? "";
+          if (triggerType === "run_completed" || triggerType === "run_failed") {
+            const manager = db.getManagerForAgent(ctx.agentId);
+            targetAgentId = manager?.id ?? ctx.agentId;
+          } else {
+            targetAgentId = ctx.agentId;
+          }
+        }
+        if (targetAgentId) {
+          // Derive a descriptive wake trigger from the automation context
+          const triggerType = rule.trigger ?? "";
+          const wakeTrigger =
+            triggerType === "task_status_changed" && ctx.previousStatus === "in_review" ? "comment"
+              : triggerType === "run_completed" ? "subtask_completed"
+                : triggerType === "run_failed" ? "report_failed"
+                  : triggerType === "hire_approved" ? "assignment"
+                    : triggerType === "agent_idle" ? "timer"
+                      : "manual";
+          wakeAgentIfPossible(targetAgentId, ctx.companyId, wakeTrigger);
+        }
+        break;
+      }
+      case "create_approval": {
+        const approvalType = (config.approvalType as string) ?? "document_review";
+        db.requestApproval({
+          companyId: ctx.companyId,
+          relatedTaskId: ctx.taskId ?? null,
+          requestedByAgentId: ctx.agentId ?? null,
+          type: approvalType,
+          payloadSummary: (config.summary as string) ?? "Auto-generated approval request",
+          impactSummary: (config.impact as string) ?? "Triggered by automation rule",
+        });
+        break;
+      }
+      case "update_task_status": {
+        if (!ctx.taskId) break;
+        const newStatus = (config.status as string) ?? "todo";
+        const previousTask = db.getTask(ctx.taskId);
+        db.advanceTaskStatus(ctx.taskId, newStatus, "Status changed by automation rule");
+        publishDomainChanged();
+        if (previousTask.status !== newStatus && rule.trigger !== "task_status_changed") {
+          handleTaskStatusChange(ctx.taskId, ctx.companyId, previousTask.status, newStatus);
+        }
+        break;
+      }
+      case "escalate_to_manager": {
+        const targetAgentId = ctx.agentId;
+        if (!targetAgentId) break;
+        let agentName = "an agent";
+        try {
+          agentName = db.getAgent(targetAgentId).name;
+        } catch {
+          // Fall back to the generic label when the agent was deleted mid-flight.
+        }
+        let taskTitle = ctx.taskId ?? "unknown";
+        try {
+          if (ctx.taskId) taskTitle = db.getTask(ctx.taskId).title;
+        } catch {
+          // Keep the fallback title when the task no longer exists.
+        }
+        const manager = db.getManagerForAgent(targetAgentId);
+        const escalationBody = (config.body as string) ?? `Task "${taskTitle}" needs your attention. ${agentName} has flagged this as requiring manager intervention.`;
+        // Pick the most descriptive wake trigger based on the originating event
+        const wakeTrigger = ctx.newStatus === "in_review"
+          ? "subtask_completed"
+          : ctx.newStatus === "blocked"
+            ? "report_blocked"
+            : rule.trigger === "run_completed"
+              ? "subtask_completed"
+              : rule.trigger === "run_failed"
+                ? "report_failed"
+                : "report_blocked";
+        if (manager) {
+          db.sendAgentMessage({
+            companyId: ctx.companyId,
+            fromAgentId: targetAgentId,
+            toAgentId: manager.id,
+            channel: "direct",
+            subject: `Escalation from ${agentName}: ${taskTitle}`,
+            body: escalationBody,
+            priority: "urgent",
+          });
+          publishDomainChanged();
+          wakeAgentIfPossible(manager.id, ctx.companyId, wakeTrigger);
+        } else {
+          // No manager found — agent is likely the CEO or top-level.
+          // Post as company-wide message so the board and other leaders see it.
+          db.sendAgentMessage({
+            companyId: ctx.companyId,
+            fromAgentId: targetAgentId,
+            toAgentId: null,
+            channel: "company",
+            subject: `Escalation: ${taskTitle}`,
+            body: escalationBody,
+            priority: "urgent",
+          });
+          publishDomainChanged();
+        }
+        break;
+      }
+      case "cross_department_notify": {
+        const targetDepartment = rule.targetDepartment ?? (config.department as string);
+        if (!targetDepartment) break;
+        const departmentAgents = db.getIdleAgentsForDepartment(ctx.companyId, targetDepartment);
+        const senderAgentId = ctx.agentId ?? departmentAgents[0]?.id;
+        if (senderAgentId) {
+          db.sendAgentMessage({
+            companyId: ctx.companyId,
+            fromAgentId: senderAgentId,
+            toAgentId: null,
+            channel: "department",
+            channelTargetId: targetDepartment,
+            subject: (config.subject as string) ?? "Cross-department notification",
+            body: (config.body as string) ?? "Automation triggered a cross-department alert.",
+            priority: "normal",
+          });
+          publishDomainChanged();
+        }
+        for (const agent of departmentAgents.slice(0, 5)) {
+          wakeAgentIfPossible(agent.id, ctx.companyId, "message");
+        }
+        break;
+      }
+      case "schedule_meeting": {
+        const meetingType = (config.meetingType as string) ?? "department_sync";
+        const title = (config.title as string) ?? "Auto-scheduled meeting";
+        db.saveMeeting({
+          companyId: ctx.companyId,
+          type: meetingType,
+          title,
+          organizerAgentId: ctx.agentId ?? null,
+          participantAgentIds: (config.participantAgentIds as string) ?? "[]",
+          scheduledAt: new Date(Date.now() + 3600_000).toISOString(),
+          durationMinutes: (config.durationMinutes as number) ?? 30,
+        });
+        break;
+      }
+      case "create_document": {
+        const documentType = (config.documentType as string) ?? "status_report";
+        const title = (config.title as string) ?? "Auto-generated document";
+        db.saveDocument({
+          companyId: ctx.companyId,
+          type: documentType,
+          title,
+          content: (config.content as string) ?? "",
+          authorAgentId: ctx.agentId ?? null,
+          projectId: ctx.projectId ?? null,
+        });
+        break;
+      }
+      case "auto_approve": {
+        const snapshot = db.listSnapshot();
+        const pendingApprovals = snapshot.approvals.filter(
+          (approval) => approval.companyId === ctx.companyId && approval.state === "pending",
+        );
+        for (const approval of pendingApprovals.slice(0, 5)) {
+          db.decideApproval({
+            companyId: ctx.companyId,
+            approvalId: approval.id,
+            state: "approved",
+            decisionNote: "Auto-approved by automation rule.",
+          });
+          handleApprovalResolved(approval.id, ctx.companyId, "approved");
+        }
+        break;
+      }
+      case "reassign_task": {
+        if (!ctx.taskId) break;
+        const newAssignee = db.autoAssignTask(ctx.taskId, ctx.companyId);
+        if (newAssignee) {
+          wakeAgentIfPossible(newAssignee, ctx.companyId, "assignment");
+        }
+        break;
+      }
+      case "run_task": {
+        const targetTaskId = (config.taskId as string) ?? ctx.taskId;
+        if (!targetTaskId) break;
+        const task = db.getTask(targetTaskId);
+        if (!task.assigneeAgentId) break;
+        wakeAgentIfPossible(task.assigneeAgentId, ctx.companyId, "assignment");
+        break;
+      }
+      default:
+        throw new Error(`Unknown automation action: ${rule.action}`);
+    }
+  }
+
+  function evaluateAutomationRules(trigger: string, ctx: AutomationEventContext) {
+    try {
+      const rules = db.listActiveAutomationRules(ctx.companyId, trigger);
+      for (const rule of rules) {
+        if (!matchesConditions(rule, ctx)) continue;
+        const executionKey = [
+          rule.id,
+          trigger,
+          ctx.companyId,
+          ctx.taskId ?? "-",
+          ctx.agentId ?? "-",
+          ctx.runId ?? "-",
+          ctx.previousStatus ?? "-",
+          ctx.newStatus ?? "-",
+        ].join(":");
+        if (activeAutomationExecutions.has(executionKey)) {
+          logger.warn(`[automation] Skipping re-entrant execution for rule "${rule.name}" (${executionKey})`);
+          continue;
+        }
+        activeAutomationExecutions.add(executionKey);
+        try {
+          executeAutomationAction(rule, ctx);
+          db.recordAutomationExecution(
+            rule.id,
+            ctx.companyId,
+            rule.name,
+            trigger,
+            rule.action,
+            `Fired for ${trigger} in context: taskId=${ctx.taskId ?? "n/a"}, agentId=${ctx.agentId ?? "n/a"}`,
+          );
+          emitEvent({
+            type: "automation-fired",
+            ruleId: rule.id,
+            ruleName: rule.name,
+            trigger: trigger as AutomationTrigger,
+            action: rule.action as AutomationAction,
+          });
+          logger.info(`[automation] Fired rule "${rule.name}" (${trigger} → ${rule.action})`);
+        } catch (error) {
+          logger.error(`[automation] Failed to execute action for rule "${rule.name}": ${error instanceof Error ? error.message : String(error)}`);
+          db.recordAutomationExecution(
+            rule.id,
+            ctx.companyId,
+            rule.name,
+            trigger,
+            rule.action,
+            `FAILED: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        } finally {
+          activeAutomationExecutions.delete(executionKey);
+        }
+      }
+    } catch (error) {
+      logger.error(`[automation] Error evaluating rules for trigger "${trigger}": ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  function evaluateWorkflowTriggers(trigger: string, ctx: AutomationEventContext) {
+    try {
+      const workflows = db.listTriggerableWorkflows(ctx.companyId, trigger);
+      for (const workflow of workflows) {
+        if (!matchesEventConfig(workflow.triggerConfigJson, null, ctx)) continue;
+        const executionKey = [
+          workflow.id,
+          trigger,
+          ctx.companyId,
+          ctx.taskId ?? "-",
+          ctx.agentId ?? "-",
+          ctx.runId ?? "-",
+          ctx.previousStatus ?? "-",
+          ctx.newStatus ?? "-",
+        ].join(":");
+        if (activeWorkflowTriggerExecutions.has(executionKey)) {
+          logger.warn(`[workflow] Skipping re-entrant trigger for workflow "${workflow.name}" (${executionKey})`);
+          continue;
+        }
+        activeWorkflowTriggerExecutions.add(executionKey);
+        void runWorkflowPipeline(workflow.id, ctx.companyId)
+          .then(() => {
+            logger.info(`[workflow] Triggered workflow "${workflow.name}" via ${trigger}`);
+          })
+          .catch((error) => {
+            logger.error(`[workflow] Trigger failed for "${workflow.name}": ${error instanceof Error ? error.message : String(error)}`);
+          })
+          .finally(() => {
+            activeWorkflowTriggerExecutions.delete(executionKey);
+          });
+      }
+    } catch (error) {
+      logger.error(`[workflow] Error evaluating workflow triggers for "${trigger}": ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  function dispatchAutomation(trigger: string, ctx: AutomationEventContext) {
+    evaluateAutomationRules(trigger, ctx);
+    evaluateWorkflowTriggers(trigger, ctx);
+  }
+
+  async function runWorkflowPipeline(workflowId: string, companyId: string) {
+    const workflow = db.getWorkflowRecord(workflowId, companyId);
+    if (!workflow) {
+      throw new Error("Workflow not found.");
+    }
+    const parsedSteps = normalizeWorkflowSteps(JSON.parse(workflow.stepsJson || "[]"));
+    if (parsedSteps.some((step) => step.status === "running")) {
+      throw new Error("Workflow is already running.");
+    }
+    if (parsedSteps.length === 0) {
+      throw new Error("Workflow has no steps.");
+    }
+
+    const resumeFrom = workflow.status === "paused" ? workflow.currentStepIndex : 0;
+    const steps: WorkflowStepState[] = parsedSteps.map((step, index) => {
+      if (workflow.status !== "paused") {
+        return { ...step, status: index < resumeFrom ? "completed" : "pending" };
+      }
+      return step;
+    });
+
+    db.updateWorkflowExecution({
+      id: workflowId,
+      companyId,
+      status: "active",
+      currentStepIndex: resumeFrom,
+      stepsJson: JSON.stringify(steps),
+      incrementRunCount: workflow.status !== "paused",
+      lastRunAt: new Date().toISOString(),
+    });
+    publishDomainChanged();
+
+    for (let index = resumeFrom; index < steps.length; index += 1) {
+      const step = steps[index]!;
+      step.status = "running";
+      db.updateWorkflowExecution({
+        id: workflowId,
+        companyId,
+        status: "active",
+        currentStepIndex: index,
+        stepsJson: JSON.stringify(steps),
+        lastRunAt: new Date().toISOString(),
+      });
+      publishDomainChanged();
+
+      const actor = resolveWorkflowStepActor(step, companyId);
+      const { config, ctx } = buildWorkflowActionContext(companyId, step, actor);
+
+      if (step.requiresApproval) {
+        const approvalId = db.requestApproval({
+          companyId,
+          requestedByAgentId: actor?.id ?? null,
+          relatedTaskId: ctx.taskId ?? null,
+          type: "dangerous_command",
+          payloadSummary: `Workflow approval required: ${workflow.name} / ${step.name}`,
+          impactSummary: `Workflow step "${step.name}" requires board approval before ${step.action}.`,
+          payloadJson: JSON.stringify({ workflowId, stepId: step.id, stepName: step.name }),
+        });
+        step.status = "pending";
+        db.updateWorkflowExecution({
+          id: workflowId,
+          companyId,
+          status: "paused",
+          currentStepIndex: index,
+          stepsJson: JSON.stringify(steps),
+          lastRunAt: new Date().toISOString(),
+        });
+        db.addActivity({
+          companyId,
+          actor: actor?.id ?? "system",
+          action: "workflow.paused_for_approval",
+          entityType: "workflow",
+          entityId: workflowId,
+          detail: `Paused on step "${step.name}" with approval ${approvalId}.`,
+        });
+        publishDomainChanged();
+        return;
+      }
+
+      try {
+        executeAutomationAction({
+          action: step.action,
+          actionConfigJson: JSON.stringify(config),
+          targetDepartment: step.assigneeDepartment,
+          trigger: "workflow_step",
+        }, ctx);
+        step.status = "completed";
+        db.addActivity({
+          companyId,
+          actor: actor?.id ?? "system",
+          action: "workflow.step_completed",
+          entityType: "workflow",
+          entityId: workflowId,
+          detail: step.name,
+        });
+        const isLastStep = index === steps.length - 1;
+        const completionStatus = isLastStep ? "completed" : "active";
+        db.updateWorkflowExecution({
+          id: workflowId,
+          companyId,
+          status: completionStatus,
+          currentStepIndex: index + 1,
+          stepsJson: JSON.stringify(steps),
+          lastRunAt: new Date().toISOString(),
+        });
+        publishDomainChanged();
+      } catch (error) {
+        step.status = "failed";
+        db.updateWorkflowExecution({
+          id: workflowId,
+          companyId,
+          status: "failed",
+          currentStepIndex: index,
+          stepsJson: JSON.stringify(steps),
+          lastRunAt: new Date().toISOString(),
+        });
+        db.addActivity({
+          companyId,
+          actor: actor?.id ?? "system",
+          action: "workflow.step_failed",
+          entityType: "workflow",
+          entityId: workflowId,
+          detail: `${step.name}: ${error instanceof Error ? error.message : String(error)}`,
+        });
+        publishDomainChanged();
+        throw error;
+      }
+    }
+  }
+
+  function processRunCompletion(run: RunRecord, event: RunFinishedEvent) {
+    let task: ReturnType<typeof db.getTask> | null = null;
+    try {
+      task = db.getTask(run.taskId);
+    } catch {
+      return;
+    }
+    if (!task) return;
+
+    const isSuccess = event.status === "succeeded";
+    const isFailed = event.status === "failed" || event.status === "timed_out";
+
+    if (isSuccess && task.status === "in_progress") {
+      db.advanceTaskStatus(task.id, "in_review", "Run completed successfully. Awaiting review.");
+      handleTaskStatusChange(task.id, run.companyId, "in_progress", "in_review");
+      publishDomainChanged();
+    }
+
+    if (isSuccess && task.title.startsWith("[Heartbeat]") && task.status !== "done") {
+      const previousStatus = task.status;
+      db.advanceTaskStatus(task.id, "done", "Heartbeat check completed.");
+      handleTaskStatusChange(task.id, run.companyId, previousStatus, "done");
+    }
+
+    const automationContext: AutomationEventContext = {
+      companyId: run.companyId,
+      taskId: run.taskId,
+      agentId: run.agentId,
+      runId: run.id,
+      costUsd: event.costUsd ?? undefined,
+    };
+    try {
+      const agent = db.getAgent(run.agentId);
+      automationContext.department = agent.department ?? undefined;
+    } catch {
+      // Agent can disappear after a run completes; keep the context without department.
+    }
+
+    if (isSuccess) {
+      dispatchAutomation("run_completed", automationContext);
+      if (task.parentId) {
+        try {
+          const freshSnapshot = db.listSnapshot();
+          const siblings = freshSnapshot.tasks.filter((entry) => entry.parentId === task!.parentId && entry.companyId === run.companyId);
+          const allSiblingsDoneOrReview = siblings.every((entry) => entry.status === "done" || entry.status === "in_review");
+          if (allSiblingsDoneOrReview) {
+            const parent = db.getTask(task.parentId);
+            if (parent.assigneeAgentId) {
+              wakeAgentIfPossible(parent.assigneeAgentId, run.companyId, "subtask_completed");
+            } else {
+              const assignedId = db.autoAssignTask(parent.id, run.companyId);
+              if (assignedId) {
+                wakeAgentIfPossible(assignedId, run.companyId, "subtask_completed");
+              }
+            }
+          }
+        } catch {
+          // Parent task may have been deleted or reassigned during cascade evaluation.
+        }
+      }
+    }
+
+    if (isFailed) {
+      dispatchAutomation("run_failed", automationContext);
+    }
+
+    if (event.costUsd && event.costUsd > 0) {
+      try {
+        const agent = db.getAgent(run.agentId);
+        if (agent.budgetMonthlyUsd > 0) {
+          const utilization = agent.spentMonthlyUsd / agent.budgetMonthlyUsd;
+          if (utilization >= 0.8) {
+            dispatchAutomation("budget_threshold", {
+              ...automationContext,
+              agentId: agent.id,
+            });
+          }
+        }
+      } catch {
+        // Budget follow-up is best-effort; do not fail run completion if the agent disappeared.
+      }
+    }
+  }
+
+  function handleApprovalResolved(approvalId: string, companyId: string, decision: string) {
+    const snapshot = db.listSnapshot();
+    const approval = snapshot.approvals.find((entry) => entry.id === approvalId);
+    if (!approval) return;
+
+    dispatchAutomation("approval_resolved", {
+      companyId,
+      agentId: approval.requestedByAgentId ?? undefined,
+      taskId: approval.relatedTaskId ?? undefined,
+    });
+
+    if (approval.type === "hire_agent" && decision === "approved" && approval.relatedAgentId) {
+      try {
+        const agent = db.getAgent(approval.relatedAgentId);
+        if (agent.status === "idle") {
+          db.addActivity({
+            companyId,
+            actor: "system",
+            action: "agent.hired",
+            entityType: "agent",
+            entityId: agent.id,
+            detail: `${agent.name} hire approved and activated.`,
+          });
+          dispatchAutomation("hire_approved", {
+            companyId,
+            agentId: agent.id,
+          });
+          wakeAgentIfPossible(agent.id, companyId, "assignment");
+          publishDomainChanged();
+          notify("New agent hired", `${agent.name} (${agent.role}) has joined the company.`);
+        }
+      } catch {
+        // Hire follow-up is best-effort; approval state is already committed in storage.
+      }
+    }
+
+    const browserAction = db.getBrowserActionByApprovalId(approvalId, companyId);
+    if (browserAction) {
+      if (decision === "approved") {
+        db.updateBrowserAction(browserAction.id, {
+          status: "queued",
+          resultSummary: "Approval granted. Dispatching browser action.",
+          errorMessage: null,
+        });
+        publishDomainChanged();
+        void dispatchBrowserAction(browserAction.id, companyId).catch((error) => {
+          logger.error(`[browser] Failed to dispatch approved browser action ${browserAction.id}: ${error instanceof Error ? error.message : String(error)}`);
+        });
+      } else if (decision === "rejected") {
+        db.updateBrowserAction(browserAction.id, {
+          status: "cancelled",
+          resultSummary: "Browser action was rejected during approval.",
+          errorMessage: "Approval rejected by board.",
+          finishedAt: new Date().toISOString(),
+        });
+        publishDomainChanged();
+      } else if (decision === "revision_requested") {
+        db.updateBrowserAction(browserAction.id, {
+          status: "approval_required",
+          resultSummary: "Board requested revisions before execution.",
+          errorMessage: "Approval requires revisions before the browser action can run.",
+        });
+        publishDomainChanged();
+      }
+    }
+
+    if (approval.payloadJson) {
+      try {
+        const payload = JSON.parse(approval.payloadJson) as { workflowId?: string; stepId?: string };
+        if (payload.workflowId && payload.stepId) {
+          const workflow = db.getWorkflowRecord(payload.workflowId, companyId);
+          if (workflow) {
+            const steps = normalizeWorkflowSteps(JSON.parse(workflow.stepsJson || "[]"));
+            const stepIndex = steps.findIndex((step) => step.id === payload.stepId);
+            if (stepIndex >= 0) {
+              if (decision === "approved") {
+                steps[stepIndex]!.status = "pending";
+                db.updateWorkflowExecution({
+                  id: workflow.id,
+                  companyId,
+                  status: "paused",
+                  currentStepIndex: stepIndex,
+                  stepsJson: JSON.stringify(steps),
+                  lastRunAt: workflow.lastRunAt,
+                });
+                publishDomainChanged();
+                void runWorkflowPipeline(workflow.id, companyId).catch((error) => {
+                  logger.error(`[workflow] Failed to resume workflow ${workflow.id} after approval ${approvalId}: ${error instanceof Error ? error.message : String(error)}`);
+                });
+              } else {
+                steps[stepIndex]!.status = decision === "revision_requested" ? "pending" : "failed";
+                db.updateWorkflowExecution({
+                  id: workflow.id,
+                  companyId,
+                  status: decision === "revision_requested" ? "paused" : "failed",
+                  currentStepIndex: stepIndex,
+                  stepsJson: JSON.stringify(steps),
+                  lastRunAt: workflow.lastRunAt,
+                });
+                publishDomainChanged();
+              }
+            }
+          }
+        }
+      } catch {
+        // Non-workflow approvals may use payloadJson for unrelated metadata.
+      }
+    }
+
+    if (approval.requestedByAgentId) {
+      wakeAgentIfPossible(approval.requestedByAgentId, companyId, "approval_resolved");
+    }
+  }
+
+  function handleTaskStatusChange(taskId: string, companyId: string, previousStatus: string, newStatus: string) {
+    if (previousStatus === newStatus) return;
+
+    let task: ReturnType<typeof db.getTask> | null = null;
+    try {
+      task = db.getTask(taskId);
+    } catch {
+      return;
+    }
+    if (!task) return;
+
+    db.addActivity({
+      companyId,
+      actor: task.assigneeAgentId ?? "board",
+      action: "task.status_changed",
+      entityType: "task",
+      entityId: taskId,
+      detail: `${previousStatus} → ${newStatus}`,
+    });
+
+    const context: AutomationEventContext = {
+      companyId,
+      taskId,
+      agentId: task.assigneeAgentId ?? undefined,
+      previousStatus,
+      newStatus,
+    };
+    try {
+      if (task.assigneeAgentId) {
+        const agent = db.getAgent(task.assigneeAgentId);
+        context.department = agent.department ?? undefined;
+      }
+    } catch {
+      // Agent may have been deleted after the task update; keep the transition without department context.
+    }
+
+    dispatchAutomation("task_status_changed", context);
+
+    if (newStatus === "blocked") {
+      dispatchAutomation("task_blocked", context);
+      if (task.assigneeAgentId) {
+        const manager = db.getManagerForAgent(task.assigneeAgentId);
+        if (manager) {
+          wakeAgentIfPossible(manager.id, companyId, "report_blocked");
+        }
+      }
+    }
+
+    if (newStatus === "done" && task.parentId) {
+      try {
+        const snapshot = db.listSnapshot();
+        const siblings = snapshot.tasks.filter((entry) => entry.parentId === task!.parentId && entry.companyId === companyId);
+        const allDone = siblings.every((entry) => entry.id === taskId ? true : entry.status === "done");
+        if (allDone) {
+          const parent = db.getTask(task.parentId);
+          if (parent.assigneeAgentId) {
+            wakeAgentIfPossible(parent.assigneeAgentId, companyId, "subtask_completed");
+          } else {
+            const assignedId = db.autoAssignTask(parent.id, companyId);
+            if (assignedId) {
+              wakeAgentIfPossible(assignedId, companyId, "subtask_completed");
+            }
+          }
+        }
+      } catch {
+        // Parent task may have been deleted or reassigned during completion cascade evaluation.
+      }
+    }
+  }
+
+  function handleTaskCreated(taskId: string, companyId: string) {
+    let task: ReturnType<typeof db.getTask> | null = null;
+    try {
+      task = db.getTask(taskId);
+    } catch {
+      return;
+    }
+    if (!task) return;
+
+    dispatchAutomation("task_created", {
+      companyId,
+      taskId,
+      agentId: task.assigneeAgentId ?? undefined,
+    });
+
+    if (!task.assigneeAgentId) {
+      const assignedId = db.autoAssignTask(taskId, companyId);
+      if (assignedId) {
+        wakeAgentIfPossible(assignedId, companyId, "assignment");
+      }
+    } else {
+      wakeAgentIfPossible(task.assigneeAgentId, companyId, "assignment");
+    }
+  }
+
+  return {
+    runWorkflowPipeline,
+    dispatchAutomation,
+    processRunCompletion,
+    handleApprovalResolved,
+    handleTaskStatusChange,
+    handleTaskCreated,
+  };
+}

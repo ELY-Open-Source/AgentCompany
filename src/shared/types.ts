@@ -3,6 +3,7 @@ export type SectionId =
   | "inbox"
   | "standup"
   | "performance"
+  | "runs"
   | "connectors"
   | "agents"
   | "orgchart"
@@ -243,6 +244,14 @@ export interface RunRecord {
   updatedAt: string;
 }
 
+export interface RunLogChunk {
+  content: string;
+  offset: number;
+  nextOffset: number;
+  totalBytes: number;
+  eof: boolean;
+}
+
 export interface CostRecord {
   id: string;
   companyId: string;
@@ -422,30 +431,14 @@ export interface CompanyMetrics {
   agentMetrics: AgentMetrics[];
 }
 
-export interface CompanyTemplate {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  agents: Array<{
-    name: string;
-    role: string;
-    title: string;
-    department: DepartmentId;
-    capabilities: string;
-    reportsToIndex: number | null; // index in this array, null = CEO
-    connectorPreference: ConnectorId;
-    budgetMonthlyUsd: number;
-  }>;
-  goals: Array<{
-    title: string;
-    description: string;
-  }>;
-  departments?: Array<{
-    id: DepartmentId;
-    name: string;
-    description: string;
-  }>;
+export interface OnboardingBootstrapResult {
+  companyId: string;
+  companyName: string;
+  workspaceId: string | null;
+  leadAgentId: string | null;
+  projectId: string | null;
+  taskId: string | null;
+  runId: string | null;
 }
 
 export type SocialPlatform = "twitter" | "linkedin" | "instagram" | "facebook" | "reddit" | "youtube" | "tiktok" | "bluesky" | "other";
@@ -582,7 +575,21 @@ export interface KnowledgeEntryRecord {
   authorAgentId: string | null;
   importance: "critical" | "high" | "medium" | "low";
   tagsJson: string;
-  referencedEntityType: string | null;
+  referencedEntityType:
+    | "agents"
+    | "goals"
+    | "projects"
+    | "tasks"
+    | "approvals"
+    | "runs"
+    | "secrets"
+    | "meetings"
+    | "documents"
+    | "knowledge_base"
+    | "sprints"
+    | "automation_rules"
+    | "workflow_pipelines"
+    | null;
   referencedEntityId: string | null;
   createdAt: string;
   updatedAt: string;

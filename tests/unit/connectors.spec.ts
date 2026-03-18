@@ -18,7 +18,7 @@ describe("parseEnvBindingText", () => {
 });
 
 describe("buildDefaultConnectorRows", () => {
-  it("keeps security-sensitive commands pinned to connector defaults", () => {
+  it("preserves previously saved connector commands", () => {
     const [codex] = buildDefaultConnectorRows([
       {
         id: "codex_local",
@@ -29,7 +29,7 @@ describe("buildDefaultConnectorRows", () => {
     ]);
 
     expect(codex.id).toBe("codex_local");
-    expect(codex.command).toBe("codex");
+    expect(codex.command).toBe("/usr/local/bin/codex");
     expect(codex.status).toBe("ready");
     expect(codex.notes).toBe("custom note");
     expect(codex.capabilityMatrix.structuredTranscript).toBe(true);

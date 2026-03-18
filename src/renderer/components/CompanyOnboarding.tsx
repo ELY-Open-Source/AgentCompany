@@ -1,69 +1,70 @@
-import { useCallback, useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Buildings,
   CheckCircle,
-  Code,
   Cpu,
-  Flask,
   FolderOpen,
   Lightning,
-  Megaphone,
-  Robot,
   Rocket,
-  Stack,
   Target,
-  TreeStructure,
-  Users,
   WarningCircle,
   XCircle,
 } from "@phosphor-icons/react";
-import type { CompanyTemplate, ProfileSnapshot } from "@shared/types";
+import type { OnboardingBootstrapResult, ProfileSnapshot } from "@shared/types";
 import { unwrap } from "../lib/desktop";
-import { getAgentInitials } from "../lib/formatters";
-import { ActionButton, Input, TextArea } from "./ui";
+import { ActionButton, Input, Select, TextArea } from "./ui";
 
-type Step = "choose" | "template" | "company" | "goal" | "launch";
-
-const templateIcons: Record<string, React.ElementType> = {
-  Cpu: Cpu,
-  Megaphone: Megaphone,
-  Flask: Flask,
-  Stack: Stack,
-  Code: Code,
-};
+type Step = "company" | "mission" | "launch";
 
 export function CompanyOnboarding({
   connectors,
   onDone,
+  canCancel = false,
+  onCancel,
 }: {
   connectors: ProfileSnapshot["connectors"];
-  onDone: () => Promise<void>;
+  onDone: (summary: OnboardingBootstrapResult) => Promise<void>;
+  canCancel?: boolean;
+  onCancel?: () => void;
 }) {
-  const [step, setStep] = useState<Step>("choose");
+  const [step, setStep] = useState<Step>("company");
   const [companyName, setCompanyName] = useState("");
+  const [companyDescription, setCompanyDescription] = useState("");
   const [workspacePath, setWorkspacePath] = useState("");
   const [autoApproveHires, setAutoApproveHires] = useState(true);
   const [goalTitle, setGoalTitle] = useState("");
   const [goalDescription, setGoalDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [createdCompanyId, setCreatedCompanyId] = useState<string | null>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
-  const [templates, setTemplates] = useState<CompanyTemplate[]>([]);
+  const [launchSummary, setLaunchSummary] = useState<OnboardingBootstrapResult | null>(null);
 
-  const hasReadyConnector = connectors.some((c) => c.status === "ready" || c.status === "degraded");
-  const readyConnectors = connectors.filter((c) => c.status === "ready" || c.status === "degraded");
-  const bestConnector = readyConnectors[0] ?? null;
-  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) ?? null;
+  const readyConnectors = useMemo(
+    () => connectors.filter((connector) => connector.status === "ready" || connector.status === "degraded"),
+    [connectors],
+  );
+  const [selectedConnectorId, setSelectedConnectorId] = useState<string>(readyConnectors[0]?.id ?? "");
+  const hasRunnableConnector = readyConnectors.length > 0;
+  const selectedConnector = readyConnectors.find((connector) => connector.id === selectedConnectorId) ?? readyConnectors[0] ?? null;
 
   useEffect(() => {
-    window.agentCompany.listCompanyTemplates().then((result) => {
-      if (result.ok) setTemplates(result.data);
-    });
-  }, []);
+    if (!selectedConnectorId && readyConnectors[0]) {
+      setSelectedConnectorId(readyConnectors[0].id);
+      return;
+    }
+    if (selectedConnectorId && !readyConnectors.some((connector) => connector.id === selectedConnectorId)) {
+      setSelectedConnectorId(readyConnectors[0]?.id ?? "");
+    }
+  }, [readyConnectors, selectedConnectorId]);
 
-  async function pickDirectory() {
+  const stepLabels = [
+    { label: "Company", icon: Buildings },
+    { label: "Mission", icon: Target },
+    { label: "Launch", icon: Rocket },
+  ] as const;
+  const stepIndex = step === "company" ? 0 : step === "mission" ? 1 : 2;
+
+  const pickDirectory = useCallback(async () => {
     setError(null);
     const result = await window.agentCompany.pickDirectory();
     if (!result.ok) {
@@ -73,612 +74,407 @@ export function CompanyOnboarding({
     if (result.data) {
       setWorkspacePath(result.data);
     }
-  }
+  }, []);
 
-  const launchFromTemplate = useCallback(async () => {
-    if (loading || !selectedTemplate) return;
-    if (!companyName.trim()) {
-      setError("Enter a company name.");
-      return;
-    }
-    if (!hasReadyConnector) {
-      setError("At least one connector must be ready.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const companyId = unwrap(
-        await window.agentCompany.applyCompanyTemplate({
-          templateId: selectedTemplate.id,
-          companyName: companyName.trim(),
-          companyDescription: "",
-          connectorId: bestConnector?.id,
-        }),
-      );
+  const bootstrap = useCallback(async () => {
+    const result = unwrap(await window.agentCompany.bootstrapOnboarding({
+      companyName: companyName.trim(),
+      companyDescription: companyDescription.trim(),
+      workspacePath: workspacePath.trim(),
+      autoApproveHires,
+      goalTitle: goalTitle.trim(),
+      goalDescription: goalDescription.trim(),
+      connectorId: selectedConnector?.id,
+    }));
+    setLaunchSummary(result);
+    setStep("launch");
+  }, [
+    autoApproveHires,
+    companyDescription,
+    companyName,
+    goalDescription,
+    goalTitle,
+    selectedConnector?.id,
+    workspacePath,
+  ]);
 
-      if (workspacePath) {
-        unwrap(
-          await window.agentCompany.saveWorkspace({
-            companyId,
-            name: "Default Workspace",
-            localPath: workspacePath,
-            repoUrl: "",
-            repoRef: "",
-            isPrimary: true,
-          }),
-        );
-      }
-
-      setCreatedCompanyId(companyId);
-      setStep("launch");
-      await onDone();
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Unable to create the company.");
-    } finally {
-      setLoading(false);
-    }
-  }, [loading, selectedTemplate, companyName, hasReadyConnector, workspacePath, bestConnector, onDone]);
-
-  const createCompany = useCallback(async () => {
+  const continueToMission = useCallback(async () => {
     if (loading) return;
     if (!companyName.trim()) {
       setError("Enter a company name.");
       return;
     }
-    if (!hasReadyConnector) {
-      setError("At least one connector must be detected before creating a company.");
+    if (!selectedConnector) {
+      setError("At least one ready connector is required before you can continue.");
+      return;
+    }
+    setError(null);
+    setStep("mission");
+  }, [companyName, loading, selectedConnector]);
+
+  const launchCompany = useCallback(async () => {
+    if (loading) return;
+    if (!goalTitle.trim()) {
+      setError("Describe the first real company goal.");
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const companyId = unwrap(
-        await window.agentCompany.saveCompany({
-          name: companyName.trim(),
-          description: "",
-          status: "active",
-          autoApproveHires,
-        }),
-      );
-      if (workspacePath) {
-        unwrap(
-          await window.agentCompany.saveWorkspace({
-            companyId,
-            name: "Default Workspace",
-            localPath: workspacePath,
-            repoUrl: "",
-            repoRef: "",
-            isPrimary: true,
-          }),
-        );
-      }
-      unwrap(await window.agentCompany.setCurrentCompany(companyId));
-      setCreatedCompanyId(companyId);
-      setStep("goal");
+      await bootstrap();
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Unable to create the company.");
+      setError(submitError instanceof Error ? submitError.message : "Unable to bootstrap the company.");
     } finally {
       setLoading(false);
     }
-  }, [loading, companyName, hasReadyConnector, autoApproveHires, workspacePath]);
+  }, [bootstrap, goalTitle, loading]);
 
-  const bootstrapInitialCompany = useCallback(async (companyId: string, seedGoal?: { title?: string; description?: string }) => {
-    if (seedGoal?.title?.trim()) {
-      unwrap(
-        await window.agentCompany.saveGoal({
-          companyId,
-          title: seedGoal.title.trim(),
-          description: seedGoal.description?.trim() || `Achieve: ${seedGoal.title.trim()}`,
-          status: "active",
-          parentId: null,
-          ownerAgentId: null,
-        }),
-      );
-    }
-
-    if (bestConnector) {
-      const ceoId = unwrap(
-        await window.agentCompany.saveAgent({
-          companyId,
-          name: "CEO",
-          role: "CEO",
-          title: "Chief Executive Officer",
-          reportsTo: null,
-          connectorId: bestConnector.id,
-          workspaceId: null,
-          model: null,
-          capabilities: "Executive leadership, strategic planning, team building, goal decomposition, delegation, and organizational management. Responsible for hiring the leadership team, setting strategy, and coordinating all company operations.",
-          budgetMonthlyUsd: 250,
-          status: "idle",
-        }),
-      );
-      unwrap(await window.agentCompany.setHeartbeat({ agentId: ceoId, companyId, enabled: true, intervalSec: 120 }));
-      setStep("launch");
-      setTimeout(async () => {
-        try {
-          await window.agentCompany.triggerHeartbeat({ agentId: ceoId, companyId, trigger: "assignment" });
-        } catch {
-          // Non-fatal. The CEO will wake on the next scheduled heartbeat.
-        }
-      }, 1500);
-    }
-
-    await onDone();
-  }, [bestConnector, onDone]);
-
-  const createGoalAndLaunch = useCallback(async () => {
-    if (loading || !createdCompanyId) return;
+  const finishLaunch = useCallback(async () => {
+    if (!launchSummary) return;
     setLoading(true);
     setError(null);
     try {
-      await bootstrapInitialCompany(createdCompanyId, {
-        title: goalTitle,
-        description: goalDescription,
-      });
+      await onDone(launchSummary);
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Unable to set up the company.");
-      setLoading(false);
-    }
-  }, [loading, createdCompanyId, goalTitle, goalDescription, bootstrapInitialCompany]);
-
-  const skipGoalAndFinish = useCallback(async () => {
-    if (loading || !createdCompanyId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      await bootstrapInitialCompany(createdCompanyId);
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Unable to continue.");
+      setError(submitError instanceof Error ? submitError.message : "Unable to open the control center.");
     } finally {
       setLoading(false);
     }
-  }, [loading, createdCompanyId, bootstrapInitialCompany]);
-
-  const stepLabels = step === "choose" || step === "template"
-    ? [
-        { label: "Choose Setup", icon: Lightning },
-        { label: "Configure", icon: Buildings },
-        { label: "Launch", icon: Rocket },
-      ]
-    : [
-        { label: "Create Company", icon: Buildings },
-        { label: "Set Mission", icon: Target },
-        { label: "Launch", icon: Rocket },
-      ];
-
-  const stepIndex = step === "choose" ? 0 : step === "template" ? 1 : step === "company" ? 0 : step === "goal" ? 1 : 2;
+  }, [launchSummary, onDone]);
 
   return (
-    <div className="grid h-[100dvh] overflow-hidden grid-cols-1 bg-[color:var(--bg)] md:grid-cols-[minmax(0,1fr)_520px]">
+    <div className="grid min-h-[100dvh] overflow-hidden bg-[color:var(--bg)] md:grid-cols-[minmax(0,1fr)_540px]">
       <div className="flex min-h-0 items-center justify-center overflow-y-auto px-8 py-12 md:px-16">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-          className="mx-auto w-full max-w-[440px]"
+          transition={{ duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
+          className="mx-auto w-full max-w-[460px]"
         >
-          <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">AgentCompany Desktop</div>
+          <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+            AgentCompany Desktop
+          </div>
           <h1 className="text-[38px] leading-[0.98] tracking-[-0.03em] text-[color:var(--text)] md:text-[48px]">
-            Build your<br />AI company.
+            Start a real local-first
+            <br />
+            agent company.
           </h1>
-          <p className="mt-4 max-w-[380px] text-[14px] leading-relaxed text-[color:var(--muted)]">
-            Set up a fully autonomous AI-powered organization. Your agents will hire, delegate, execute, review, and coordinate — just like a real company.
+          <p className="mt-4 max-w-[400px] text-[14px] leading-relaxed text-[color:var(--muted)]">
+            This flow creates one company, binds a real connector, links an optional workspace, writes the first goal,
+            creates the operating project, and queues the first execution task.
           </p>
 
-
           <div className="mt-10 flex items-center gap-3">
-            {stepLabels.map((s, i) => (
-              <div key={s.label} className="flex items-center gap-2">
-                {i > 0 ? <div className={`h-px w-6 ${i <= stepIndex ? "bg-[color:var(--accent)]" : "bg-[color:var(--line)]"}`} /> : null}
-                <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-medium ${
-                  i < stepIndex
-                    ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
-                    : i === stepIndex
-                      ? "bg-[color:var(--accent-soft)] text-[color:var(--accent)]"
-                      : "bg-[color:var(--panel-soft)] text-[color:var(--muted)]"
-                }`}>
-                  {i < stepIndex ? <CheckCircle size={14} weight="fill" /> : <s.icon size={14} />}
-                  {s.label}
+            {stepLabels.map((entry, index) => (
+              <div key={entry.label} className="flex items-center gap-2">
+                {index > 0 ? (
+                  <div className={`h-px w-6 ${index <= stepIndex ? "bg-[color:var(--accent)]" : "bg-[color:var(--line)]"}`} />
+                ) : null}
+                <div
+                  className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-medium ${
+                    index < stepIndex
+                      ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
+                      : index === stepIndex
+                        ? "bg-[color:var(--accent-soft)] text-[color:var(--accent)]"
+                        : "bg-[color:var(--panel-soft)] text-[color:var(--muted)]"
+                  }`}
+                >
+                  {index < stepIndex ? <CheckCircle size={14} weight="fill" /> : <entry.icon size={14} />}
+                  {entry.label}
                 </div>
               </div>
             ))}
           </div>
 
-
           <div className="mt-10">
-            <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Detected agents</div>
+            <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+              Connector readiness
+            </div>
             <div className="space-y-2.5">
-              {connectors.map((c) => {
-                const isOk = c.status === "ready" || c.status === "degraded";
-                const isFail = c.status === "not_installed";
+              {connectors.map((connector) => {
+                const isRunnable = connector.status === "ready" || connector.status === "degraded";
+                const isMissing = connector.status === "not_installed";
                 return (
-                  <div key={c.id} className="flex items-center gap-2.5 text-[13px]">
-                    {isOk ? (
+                  <div key={connector.id} className="flex items-center gap-2.5 text-[13px]">
+                    {isRunnable ? (
                       <CheckCircle size={16} weight="fill" className="shrink-0 text-[color:var(--success)]" />
-                    ) : isFail ? (
+                    ) : isMissing ? (
                       <XCircle size={16} weight="fill" className="shrink-0 text-[color:var(--muted)]" />
                     ) : (
                       <WarningCircle size={16} weight="fill" className="shrink-0 text-[color:var(--warn)]" />
                     )}
-                    <span className={isOk ? "font-medium text-[color:var(--text)]" : "text-[color:var(--muted)]"}>
-                      {c.label}
+                    <span className={isRunnable ? "font-medium text-[color:var(--text)]" : "text-[color:var(--muted)]"}>
+                      {connector.label}
                     </span>
                     <span className="text-[11px] text-[color:var(--muted)]">
-                      {c.status.replaceAll("_", " ")}
+                      {connector.status.replaceAll("_", " ")}
                     </span>
                   </div>
                 );
               })}
             </div>
-            {!hasReadyConnector && (
+            {!hasRunnableConnector ? (
               <div className="mt-4 rounded-[10px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-4 py-3 text-[12px] text-[color:var(--warn)]">
-                No connector detected. Install at least one supported CLI tool (Claude Code, Codex, Gemini CLI, OpenCode, or Kimi Code) and restart.
+                Install and authenticate at least one supported CLI runtime before creating the company.
               </div>
-            )}
+            ) : null}
           </div>
         </motion.div>
       </div>
 
       <div className="min-h-0 overflow-y-auto border-l border-[color:var(--line)] bg-[color:var(--bg-subtle)]">
-        <div className="flex min-h-full items-center px-6 py-10 md:px-10">
-        <AnimatePresence mode="wait">
-          {step === "choose" ? (
-            <motion.div
-              key="choose"
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -18 }}
-              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              className="w-full space-y-5"
+        <div className="relative flex min-h-full items-center px-6 py-10 md:px-10">
+          {canCancel && onCancel ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="absolute right-6 top-6 text-[12px] font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
             >
-              <div>
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">How would you like to start?</div>
-                <div className="text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text)]">Choose your setup</div>
-              </div>
+              Cancel
+            </button>
+          ) : null}
 
-
-              <div className="space-y-2">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--accent)]">Quick Start — Choose a template</div>
-                <div className="grid grid-cols-1 gap-2">
-                  {templates.map((template) => {
-                    const Icon = templateIcons[template.icon] ?? Cpu;
-                    return (
-                      <button
-                        key={template.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedTemplateId(template.id);
-                          setCompanyName(template.name);
-                          setStep("template");
-                        }}
-                        disabled={!hasReadyConnector}
-                        className="focus-ring flex items-start gap-3 rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3 text-left transition hover:border-[color:var(--accent)] hover:shadow-sm disabled:opacity-50"
-                      >
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[color:var(--accent-soft)]">
-                          <Icon size={18} className="text-[color:var(--accent)]" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[13px] font-semibold text-[color:var(--text)]">{template.name}</div>
-                          <div className="mt-0.5 text-[11px] leading-relaxed text-[color:var(--muted)]">{template.description}</div>
-                          <div className="mt-1.5 flex gap-3 text-[10px] text-[color:var(--muted)]">
-                            <span className="flex items-center gap-1">
-                              <Users size={10} />
-                              {template.agents.length} agent{template.agents.length !== 1 ? "s" : ""}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Target size={10} />
-                              {template.goals.length} goal{template.goals.length !== 1 ? "s" : ""}
-                            </span>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="h-px flex-1 bg-[color:var(--line)]" />
-                <span className="text-[10px] font-medium text-[color:var(--muted)]">OR</span>
-                <div className="h-px flex-1 bg-[color:var(--line)]" />
-              </div>
-
-
-              <button
-                type="button"
-                onClick={() => setStep("company")}
-                disabled={!hasReadyConnector}
-                className="focus-ring flex w-full items-center gap-3 rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-4 text-left transition hover:border-[color:var(--line-strong)] hover:shadow-sm disabled:opacity-50"
+          <AnimatePresence mode="wait">
+            {step === "company" ? (
+              <motion.div
+                key="company"
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -18 }}
+                transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+                className="surface w-full rounded-[12px] p-7"
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[color:var(--panel-soft)]">
-                  <Buildings size={18} className="text-[color:var(--muted-strong)]" />
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+                  Step 1 of 3
                 </div>
-                <div>
-                  <div className="text-[13px] font-semibold text-[color:var(--text)]">Custom Setup</div>
-                  <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">Create a company from scratch. Set your own name, goals, and let the CEO build the team.</div>
+                <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text)]">
+                  Create the operating boundary
                 </div>
-              </button>
-            </motion.div>
-          ) : step === "template" && selectedTemplate ? (
-            <motion.div
-              key="template"
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -18 }}
-              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              className="surface w-full rounded-[12px] p-7"
-            >
-              <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Template: {selectedTemplate.name}</div>
-              <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text)]">Configure & Launch</div>
-              <div className="mb-6 h-px bg-[color:var(--line)]" />
+                <div className="mb-6 h-px bg-[color:var(--line)]" />
 
-              <div className="space-y-4">
-                <Input label="Company name" value={companyName} onChange={setCompanyName} placeholder="e.g. Acme AI Labs" />
-                <div>
-                  <label className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]">
-                    Workspace folder <span className="font-normal text-[color:var(--muted)]">(optional)</span>
-                  </label>
-                  <div className="flex gap-3">
-                    <Input ariaLabel="Workspace folder" value={workspacePath} onChange={setWorkspacePath} placeholder="/Users/you/project" />
-                    <ActionButton label="Choose" onClick={() => void pickDirectory()} icon={FolderOpen} />
-                  </div>
-                </div>
-              </div>
-
-
-              <div className="mt-5 rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
-                <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">Team that will be created</div>
-                <div className="space-y-1.5">
-                  {selectedTemplate.agents.map((agent, i) => (
-                    <div key={i} className="flex items-center gap-2 text-[12px]">
-                      <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[8px] font-bold ${
-                        agent.reportsToIndex === null ? "bg-[color:var(--accent-soft)] text-[color:var(--accent)]" : "bg-[color:var(--panel)] text-[color:var(--muted-strong)]"
-                      }`}>
-                        {getAgentInitials(agent.name)}
-                      </div>
-                      <span className="font-medium text-[color:var(--text)]">{agent.name}</span>
-                      <span className="text-[color:var(--muted)]">— {agent.title}</span>
+                <div className="space-y-4">
+                  <Input
+                    label="Company name"
+                    value={companyName}
+                    onChange={setCompanyName}
+                    placeholder="e.g. Northline Systems"
+                  />
+                  <TextArea
+                    label="Company description"
+                    value={companyDescription}
+                    onChange={setCompanyDescription}
+                    placeholder="Optional context for the company operating model."
+                    rows={3}
+                  />
+                  <Select
+                    label="Primary connector"
+                    value={selectedConnector?.id ?? ""}
+                    onChange={setSelectedConnectorId}
+                    options={readyConnectors.map((connector) => ({
+                      value: connector.id,
+                      label: `${connector.label} (${connector.status.replaceAll("_", " ")})`,
+                    }))}
+                  />
+                  <div>
+                    <label
+                      htmlFor="onboarding-workspace-path"
+                      className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]"
+                    >
+                      Workspace folder <span className="font-normal text-[color:var(--muted)]">(optional)</span>
+                    </label>
+                    <div className="flex gap-3">
+                      <Input
+                        id="onboarding-workspace-path"
+                        ariaLabel="Workspace folder"
+                        value={workspacePath}
+                        onChange={setWorkspacePath}
+                        placeholder="/Users/you/project"
+                      />
+                      <ActionButton label="Choose" onClick={() => void pickDirectory()} icon={FolderOpen} />
                     </div>
-                  ))}
-                </div>
-                <div className="mt-3 flex gap-3 text-[11px] text-[color:var(--muted)]">
-                  <span className="flex items-center gap-1">
-                    <TreeStructure size={12} />
-                    {selectedTemplate.agents.length} agents
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Target size={12} />
-                    {selectedTemplate.goals.length} goals
-                  </span>
-                </div>
-              </div>
-
-
-              <div className="mt-4 rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
-                <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">What happens next</div>
-                <div className="space-y-2 text-[12px] text-[color:var(--muted)]">
-                  <div className="flex items-start gap-2">
-                    <Users size={14} className="mt-0.5 shrink-0 text-[color:var(--accent)]" />
-                    <span>All <strong className="text-[color:var(--text)]">{selectedTemplate.agents.length} agents</strong> are created with roles and budgets</span>
+                    <div className="mt-1.5 text-[11px] text-[color:var(--muted)]">
+                      If set, the first execution task will be bound to this path and the path will be registered as the primary workspace.
+                    </div>
                   </div>
-                  <div className="flex items-start gap-2">
-                    <Target size={14} className="mt-0.5 shrink-0 text-[color:var(--accent)]" />
-                    <span>Goals are set and assigned to the <strong className="text-[color:var(--text)]">{selectedTemplate.agents[0]?.role ?? "CEO"}</strong></span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Lightning size={14} className="mt-0.5 shrink-0 text-[color:var(--accent)]" />
-                    <span>The team leader starts working <strong className="text-[color:var(--text)]">immediately</strong></span>
+                  <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={autoApproveHires}
+                        onChange={(event) => setAutoApproveHires(event.target.checked)}
+                        className="h-4 w-4 rounded border-[color:var(--line)] accent-[color:var(--accent)]"
+                      />
+                      <div>
+                        <div className="text-[13px] font-medium text-[color:var(--text)]">Auto-approve hire and strategy approvals</div>
+                        <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
+                          Useful for single-operator flows. Leave it off if you want the board to gate organization changes explicitly.
+                        </div>
+                      </div>
+                    </label>
                   </div>
                 </div>
-              </div>
 
-              {error ? (
-                <div className="mt-5 rounded-[10px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]" role="alert">
-                  {error}
+                {error ? (
+                  <div className="mt-5 rounded-[10px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
+                    {error}
+                  </div>
+                ) : null}
+
+                <div className="mt-8 flex items-center justify-end">
+                  <ActionButton
+                    label="Continue"
+                    onClick={() => void continueToMission()}
+                    icon={Buildings}
+                    tone="accent"
+                    disabled={!companyName.trim() || !selectedConnector}
+                  />
                 </div>
-              ) : null}
-              <div className="mt-8 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => { setStep("choose"); setSelectedTemplateId(null); }}
-                  className="text-[12px] font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
-                >
-                  Back
-                </button>
-                <ActionButton
-                  label={loading ? "Launching..." : "Launch Company"}
-                  onClick={() => void launchFromTemplate()}
-                  icon={Rocket}
-                  tone="accent"
-                  loading={loading}
-                  disabled={!companyName.trim() || !hasReadyConnector}
-                />
-              </div>
-            </motion.div>
-          ) : step === "company" ? (
-            <motion.div
-              key="company"
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -18 }}
-              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              className="surface w-full rounded-[12px] p-7"
-            >
-              <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Custom Setup — Step 1 of 3</div>
-              <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text)]">Create your company</div>
-              <div className="mb-6 h-px bg-[color:var(--line)]" />
-              <div className="space-y-4">
-                <Input label="Company name" value={companyName} onChange={setCompanyName} placeholder="e.g. Acme AI Labs" />
-                <div>
-                  <label
-                    htmlFor="onboarding-workspace-path"
-                    className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]"
+              </motion.div>
+            ) : null}
+
+            {step === "mission" ? (
+              <motion.div
+                key="mission"
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -18 }}
+                transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+                className="surface w-full rounded-[12px] p-7"
+              >
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+                  Step 2 of 3
+                </div>
+                <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text)]">
+                  Define the first real goal
+                </div>
+                <div className="mb-2 text-[13px] text-[color:var(--muted)]">
+                  The first goal seeds the operating project and the first task. This should be specific enough that the CEO agent can decompose it into concrete work.
+                </div>
+                <div className="mb-6 h-px bg-[color:var(--line)]" />
+
+                <div className="space-y-4">
+                  <Input
+                    label="Goal"
+                    value={goalTitle}
+                    onChange={setGoalTitle}
+                    placeholder="e.g. Ship the first customer-ready desktop demo"
+                  />
+                  <TextArea
+                    label="Acceptance criteria"
+                    value={goalDescription}
+                    onChange={setGoalDescription}
+                    placeholder="Describe what successful execution looks like, what cannot be skipped, and any delivery constraints."
+                    rows={5}
+                  />
+                  <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3 text-[12px] text-[color:var(--muted)]">
+                    <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">
+                      <Cpu size={12} />
+                      Execution handoff
+                    </div>
+                    <div className="space-y-2">
+                      <div>The selected connector becomes the CEO agent runtime for the first launch.</div>
+                      <div>The app will create the company, the primary workspace, the CEO agent, the kickoff project, and the first task.</div>
+                      <div>If the worker is already ready, the first run will be queued immediately; otherwise the scheduler will pick it up once the runtime is available.</div>
+                    </div>
+                  </div>
+                </div>
+
+                {error ? (
+                  <div className="mt-5 rounded-[10px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
+                    {error}
+                  </div>
+                ) : null}
+
+                <div className="mt-8 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setStep("company")}
+                    className="text-[12px] font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
                   >
-                    Workspace folder <span className="font-normal text-[color:var(--muted)]">(optional)</span>
-                  </label>
-                  <div className="flex gap-3">
-                    <Input
-                      id="onboarding-workspace-path"
-                      ariaLabel="Workspace folder"
-                      value={workspacePath}
-                      onChange={setWorkspacePath}
-                      placeholder="/Users/you/project"
-                    />
-                    <ActionButton label="Choose" onClick={() => void pickDirectory()} icon={FolderOpen} />
-                  </div>
-                  <div className="mt-1.5 text-[11px] text-[color:var(--muted)]">
-                    The directory where your agents will work. You can add more later.
-                  </div>
+                    Back
+                  </button>
+                  <ActionButton
+                    label={loading ? "Launching..." : "Launch Company"}
+                    onClick={() => void launchCompany()}
+                    icon={Lightning}
+                    tone="accent"
+                    loading={loading}
+                    disabled={!goalTitle.trim()}
+                  />
                 </div>
-                <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
-                  <label className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={autoApproveHires}
-                      onChange={(e) => setAutoApproveHires(e.target.checked)}
-                      className="h-4 w-4 rounded border-[color:var(--line)] accent-[color:var(--accent)]"
-                    />
-                    <div>
-                      <div className="text-[13px] font-medium text-[color:var(--text)]">Full Autonomy Mode</div>
-                      <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
-                        Auto-approve agent hires and org strategies. Agents will build the team without waiting for Board approval.
-                      </div>
+              </motion.div>
+            ) : null}
+
+            {step === "launch" && launchSummary ? (
+              <motion.div
+                key="launch"
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
+                className="surface w-full rounded-[12px] p-7"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[color:var(--success-soft)] text-[color:var(--success)]">
+                  <CheckCircle size={24} weight="fill" />
+                </div>
+                <h2 className="mt-5 text-[28px] tracking-[-0.03em] text-[color:var(--text)]">
+                  {launchSummary.companyName} is live.
+                </h2>
+                <p className="mt-3 text-[14px] leading-relaxed text-[color:var(--muted)]">
+                  The company shell is created. The first project and task are registered, and the kickoff execution is
+                  {launchSummary.runId ? " queued." : " prepared for deferred execution once the runtime is ready."}
+                </p>
+
+                <div className="mt-6 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Connector</div>
+                    <div className="mt-1 text-[13px] font-medium text-[color:var(--text)]">
+                      {selectedConnector?.label ?? "Unavailable"}
                     </div>
-                  </label>
-                </div>
-              </div>
-              {error ? (
-                <div className="mt-5 rounded-[10px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]" role="alert">
-                  {error}
-                </div>
-              ) : null}
-              <div className="mt-8 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setStep("choose")}
-                  className="text-[12px] font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
-                >
-                  Back
-                </button>
-                <ActionButton
-                  label={loading ? "Creating..." : "Continue"}
-                  onClick={() => void createCompany()}
-                  icon={Buildings}
-                  tone="accent"
-                  loading={loading}
-                  disabled={!hasReadyConnector || !companyName.trim()}
-                />
-              </div>
-            </motion.div>
-          ) : step === "goal" ? (
-            <motion.div
-              key="goal"
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -18 }}
-              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              className="surface w-full rounded-[12px] p-7"
-            >
-              <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Custom Setup — Step 2 of 3</div>
-              <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text)]">Set your company's mission</div>
-              <div className="mb-2 text-[13px] text-[color:var(--muted)]">
-                What should your AI company accomplish? The CEO agent will use this to build a team and start working.
-              </div>
-              <div className="mb-6 h-px bg-[color:var(--line)]" />
-              <div className="space-y-4">
-                <Input
-                  label="Goal"
-                  value={goalTitle}
-                  onChange={setGoalTitle}
-                  placeholder="e.g. Build a SaaS landing page with marketing copy"
-                />
-                <TextArea
-                  label="Description (acceptance criteria)"
-                  value={goalDescription}
-                  onChange={setGoalDescription}
-                  placeholder="Describe what 'done' looks like. The more specific, the better."
-                  rows={4}
-                />
-              </div>
-              <div className="mt-5 rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
-                <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">What happens next</div>
-                <div className="space-y-2 text-[12px] text-[color:var(--muted)]">
-                  <div className="flex items-start gap-2">
-                    <Robot size={14} className="mt-0.5 shrink-0 text-[color:var(--accent)]" />
-                    <span>A <strong className="text-[color:var(--text)]">CEO agent</strong> will be created using {bestConnector?.label ?? "your best connector"}</span>
                   </div>
-                  <div className="flex items-start gap-2">
-                    <Target size={14} className="mt-0.5 shrink-0 text-[color:var(--accent)]" />
-                    <span>The CEO will read your goal and <strong className="text-[color:var(--text)]">design an organization structure</strong></span>
+                  <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Lead agent</div>
+                    <div className="mt-1 text-[13px] font-medium text-[color:var(--text)]">
+                      {launchSummary.leadAgentId ? "CEO agent created" : "Lead agent unavailable"}
+                    </div>
                   </div>
-                  <div className="flex items-start gap-2">
-                    <Lightning size={14} className="mt-0.5 shrink-0 text-[color:var(--accent)]" />
-                    <span>Agents will be hired, tasks delegated, and work will begin <strong className="text-[color:var(--text)]">autonomously</strong></span>
+                  <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Primary workspace</div>
+                    <div className="mt-1 text-[13px] font-medium text-[color:var(--text)]">
+                      {launchSummary.workspaceId ? "Registered" : "Not bound"}
+                    </div>
+                  </div>
+                  <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Kickoff project</div>
+                    <div className="mt-1 text-[13px] font-medium text-[color:var(--text)]">
+                      {launchSummary.projectId ? "Created" : "Unavailable"}
+                    </div>
+                  </div>
+                  <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Initial run</div>
+                    <div className="mt-1 text-[13px] font-medium text-[color:var(--text)]">
+                      {launchSummary.runId ? "Queued in orchestration" : "Deferred until runtime is ready"}
+                    </div>
                   </div>
                 </div>
-              </div>
-              {error ? (
-                <div className="mt-5 rounded-[10px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]" role="alert">
-                  {error}
-                </div>
-              ) : null}
-              <div className="mt-8 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => void skipGoalAndFinish()}
-                  className="text-[12px] font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
-                >
-                  Skip for now
-                </button>
-                <ActionButton
-                  label={loading ? "Launching..." : "Launch your company"}
-                  onClick={() => void createGoalAndLaunch()}
-                  icon={Rocket}
-                  tone="accent"
-                  loading={loading}
-                  disabled={!goalTitle.trim()}
-                />
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="launch"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              className="w-full text-center"
-            >
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.2, duration: 0.6, type: "spring", bounce: 0.4 }}
-                className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-[color:var(--success-soft)]"
-              >
-                <Rocket size={36} weight="fill" className="text-[color:var(--success)]" />
-              </motion.div>
-              <h2 className="text-[24px] font-bold tracking-[-0.02em] text-[color:var(--text)]">
-                {companyName} is live!
-              </h2>
-              <p className="mx-auto mt-3 max-w-[340px] text-[14px] leading-relaxed text-[color:var(--muted)]">
-                {selectedTemplate
-                  ? `Your ${selectedTemplate.agents.length}-agent team is starting up. Watch the dashboard as your company comes to life.`
-                  : "Your CEO agent is starting up. Watch the dashboard as your company comes to life."}
-              </p>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1.5 }}
-                className="mt-8"
-              >
-                <div className="flex items-center justify-center gap-2 text-[12px] text-[color:var(--muted)]">
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-[color:var(--success)]" />
-                  {selectedTemplate ? "Team initializing..." : "CEO agent initializing..."}
+
+                {error ? (
+                  <div className="mt-5 rounded-[10px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
+                    {error}
+                  </div>
+                ) : null}
+
+                <div className="mt-8 flex items-center justify-end">
+                  <ActionButton
+                    label={loading ? "Opening..." : "Open Control Center"}
+                    onClick={() => void finishLaunch()}
+                    icon={Rocket}
+                    tone="accent"
+                    loading={loading}
+                  />
                 </div>
               </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            ) : null}
+          </AnimatePresence>
         </div>
       </div>
     </div>

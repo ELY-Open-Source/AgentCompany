@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { type ElementType, useCallback, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Browser,
@@ -18,22 +18,30 @@ import {
   SignIn,
   Trash,
   UserPlus,
+  FacebookLogo,
+  GlobeHemisphereWest,
+  InstagramLogo,
+  LinkedinLogo,
+  RedditLogo,
+  TiktokLogo,
+  XLogo,
   X,
+  YoutubeLogo,
 } from "@phosphor-icons/react";
 import type { BrowserActionRecord, SocialAccountRecord, SocialPlatform } from "@shared/types";
 import { timeAgo } from "../lib/formatters";
 import { ActionButton, Input } from "./ui";
 
-const platformConfig: Record<SocialPlatform, { label: string; color: string; bgColor: string; icon: string }> = {
-  twitter: { label: "Twitter / X", color: "#1DA1F2", bgColor: "#1DA1F210", icon: "𝕏" },
-  linkedin: { label: "LinkedIn", color: "#0A66C2", bgColor: "#0A66C210", icon: "in" },
-  instagram: { label: "Instagram", color: "#E4405F", bgColor: "#E4405F10", icon: "IG" },
-  facebook: { label: "Facebook", color: "#1877F2", bgColor: "#1877F210", icon: "fb" },
-  reddit: { label: "Reddit", color: "#FF4500", bgColor: "#FF450010", icon: "r/" },
-  youtube: { label: "YouTube", color: "#FF0000", bgColor: "#FF000010", icon: "YT" },
-  tiktok: { label: "TikTok", color: "#000000", bgColor: "#00000010", icon: "TT" },
-  bluesky: { label: "Bluesky", color: "#0085FF", bgColor: "#0085FF10", icon: "🦋" },
-  other: { label: "Other", color: "#6B7280", bgColor: "#6B728010", icon: "🌐" },
+const platformConfig: Record<SocialPlatform, { label: string; color: string; bgColor: string; icon: ElementType }> = {
+  twitter: { label: "Twitter / X", color: "#1D9BF0", bgColor: "#1D9BF014", icon: XLogo },
+  linkedin: { label: "LinkedIn", color: "#0A66C2", bgColor: "#0A66C214", icon: LinkedinLogo },
+  instagram: { label: "Instagram", color: "#E4405F", bgColor: "#E4405F14", icon: InstagramLogo },
+  facebook: { label: "Facebook", color: "#1877F2", bgColor: "#1877F214", icon: FacebookLogo },
+  reddit: { label: "Reddit", color: "#FF4500", bgColor: "#FF450014", icon: RedditLogo },
+  youtube: { label: "YouTube", color: "#FF0000", bgColor: "#FF000014", icon: YoutubeLogo },
+  tiktok: { label: "TikTok", color: "#111315", bgColor: "#11131514", icon: TiktokLogo },
+  bluesky: { label: "Bluesky", color: "#0085FF", bgColor: "#0085FF14", icon: GlobeHemisphereWest },
+  other: { label: "Other", color: "#6B7280", bgColor: "#6B728014", icon: GlobeHemisphereWest },
 };
 
 const actionTypeLabels: Record<string, { label: string; icon: React.ElementType }> = {
@@ -58,41 +66,51 @@ function AccountCard({
   account: SocialAccountRecord;
   onLogin: () => void;
   onDelete: () => void;
-  onClick: () => void;
+  onClick?: () => void;
 }) {
   const platform = platformConfig[account.platform] ?? platformConfig.other;
   const isLoggedIn = account.status === "logged_in" || account.status === "active";
+  const PlatformIcon = platform.icon;
+  const cardContent = (
+    <>
+      <div className="flex items-center gap-2">
+        <span className="text-[13px] font-semibold text-[color:var(--text)]">{account.displayName || account.accountName}</span>
+        <span
+          className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em]"
+          style={{ backgroundColor: platform.bgColor, color: platform.color }}
+        >
+          {platform.label}
+        </span>
+      </div>
+      <div className="mt-0.5 flex items-center gap-2 text-[11px] text-[color:var(--muted)]">
+        <span>@{account.accountName}</span>
+        {account.requireApproval ? (
+          <span className="flex items-center gap-1 text-[color:var(--warn)]">
+            <ShieldCheck size={10} />
+            Approval required
+          </span>
+        ) : null}
+        {account.lastUsedAt ? <span>Last used {timeAgo(account.lastUsedAt)}</span> : null}
+      </div>
+    </>
+  );
 
   return (
     <div className="group flex items-center gap-3 rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3 transition hover:border-[color:var(--line-strong)] hover:shadow-sm">
       <div
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] text-[14px] font-bold"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px]"
         style={{ backgroundColor: platform.bgColor, color: platform.color }}
       >
-        {platform.icon}
+        <PlatformIcon size={18} weight="fill" />
       </div>
 
-      <button type="button" onClick={onClick} className="min-w-0 flex-1 text-left">
-        <div className="flex items-center gap-2">
-          <span className="text-[13px] font-semibold text-[color:var(--text)]">{account.displayName || account.accountName}</span>
-          <span
-            className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em]"
-            style={{ backgroundColor: platform.bgColor, color: platform.color }}
-          >
-            {platform.label}
-          </span>
-        </div>
-        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-[color:var(--muted)]">
-          <span>@{account.accountName}</span>
-          {account.requireApproval ? (
-            <span className="flex items-center gap-1 text-[color:var(--warn)]">
-              <ShieldCheck size={10} />
-              Approval required
-            </span>
-          ) : null}
-          {account.lastUsedAt ? <span>Last used {timeAgo(account.lastUsedAt)}</span> : null}
-        </div>
-      </button>
+      {onClick ? (
+        <button type="button" onClick={onClick} className="min-w-0 flex-1 text-left">
+          {cardContent}
+        </button>
+      ) : (
+        <div className="min-w-0 flex-1 text-left">{cardContent}</div>
+      )}
 
       <div className="flex items-center gap-2">
         <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
@@ -185,7 +203,9 @@ function AddAccountDialog({
                       : "border-[color:var(--line)] text-[color:var(--muted)] hover:border-[color:var(--line-strong)]"
                   }`}
                 >
-                  <span style={{ color: config.color }}>{config.icon}</span>
+                  <span style={{ color: config.color }}>
+                    <config.icon size={14} />
+                  </span>
                   {config.label}
                 </button>
               ))}
@@ -492,7 +512,6 @@ export function SocialAccountsPanel({
                 account={account}
                 onLogin={() => void onLogin(account.id)}
                 onDelete={() => void onDelete(account.id)}
-                onClick={() => {}}
               />
             ))}
           </div>

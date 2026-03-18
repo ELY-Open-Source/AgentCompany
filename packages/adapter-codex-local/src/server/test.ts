@@ -80,7 +80,7 @@ export async function testEnvironment(
   for (const [key, value] of Object.entries(envConfig)) {
     if (typeof value === "string") env[key] = value;
   }
-  const runtimeEnv = ensurePathInEnv({ ...process.env, ...env });
+  const runtimeEnv = ensurePathInEnv(env);
   try {
     await ensureCommandResolvable(command, cwd, runtimeEnv);
     checks.push({
@@ -98,21 +98,19 @@ export async function testEnvironment(
   }
 
   const configOpenAiKey = env.OPENAI_API_KEY;
-  const hostOpenAiKey = process.env.OPENAI_API_KEY;
-  if (isNonEmpty(configOpenAiKey) || isNonEmpty(hostOpenAiKey)) {
-    const source = isNonEmpty(configOpenAiKey) ? "adapter config env" : "server environment";
+  if (isNonEmpty(configOpenAiKey)) {
     checks.push({
       code: "codex_openai_api_key_present",
       level: "info",
       message: "OPENAI_API_KEY is set for Codex authentication.",
-      detail: `Detected in ${source}.`,
+      detail: "Detected in adapter runtime env.",
     });
   } else {
     checks.push({
       code: "codex_openai_api_key_missing",
       level: "warn",
       message: "OPENAI_API_KEY is not set. Codex runs may fail until authentication is configured.",
-      hint: "Set OPENAI_API_KEY in adapter env, shell environment, or Codex auth configuration.",
+      hint: "Set OPENAI_API_KEY in connector secret bindings or Codex auth configuration.",
     });
   }
 
@@ -145,6 +143,7 @@ export async function testEnvironment(
       })();
 
       const args = ["exec", "--json"];
+      args.push("--skip-git-repo-check");
       if (search) args.unshift("--search");
       if (bypass) args.push("--dangerously-bypass-approvals-and-sandbox");
       if (model) args.push("--model", model);

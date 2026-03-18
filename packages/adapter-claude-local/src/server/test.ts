@@ -78,7 +78,7 @@ export async function testEnvironment(
   for (const [key, value] of Object.entries(envConfig)) {
     if (typeof value === "string") env[key] = value;
   }
-  const runtimeEnv = ensurePathInEnv({ ...process.env, ...env });
+  const runtimeEnv = ensurePathInEnv(env);
   try {
     await ensureCommandResolvable(command, cwd, runtimeEnv);
     checks.push({
@@ -96,15 +96,13 @@ export async function testEnvironment(
   }
 
   const configApiKey = env.ANTHROPIC_API_KEY;
-  const hostApiKey = process.env.ANTHROPIC_API_KEY;
-  if (isNonEmpty(configApiKey) || isNonEmpty(hostApiKey)) {
-    const source = isNonEmpty(configApiKey) ? "adapter config env" : "server environment";
+  if (isNonEmpty(configApiKey)) {
     checks.push({
       code: "claude_anthropic_api_key_overrides_subscription",
       level: "warn",
       message:
         "ANTHROPIC_API_KEY is set. Claude will use API-key auth instead of subscription credentials.",
-      detail: `Detected in ${source}.`,
+      detail: "Detected in adapter runtime env.",
       hint: "Unset ANTHROPIC_API_KEY if you want subscription-based Claude login behavior.",
     });
   } else {

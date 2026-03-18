@@ -17,6 +17,9 @@ importers:
       '@agentcompany/adapter-gemini-local':
         specifier: workspace:*
         version: link:packages/adapter-gemini-local
+      '@agentcompany/adapter-kimi-local':
+        specifier: workspace:*
+        version: link:packages/adapter-kimi-local
       '@agentcompany/adapter-opencode-local':
         specifier: workspace:*
         version: link:packages/adapter-opencode-local
@@ -24,9 +27,6 @@ importers:
         specifier: workspace:*
         version: link:packages/adapter-utils
       '@fontsource-variable/jetbrains-mono':
-        specifier: 5.2.8
-        version: 5.2.8
-      '@fontsource-variable/outfit':
         specifier: 5.2.8
         version: 5.2.8
       '@phosphor-icons/react':
@@ -148,6 +148,22 @@ importers:
         version: 5.9.3
 
   packages/adapter-gemini-local:
+    dependencies:
+      '@agentcompany/adapter-utils':
+        specifier: workspace:*
+        version: link:../adapter-utils
+      picocolors:
+        specifier: ^1.1.1
+        version: 1.1.1
+    devDependencies:
+      '@types/node':
+        specifier: ^24.6.0
+        version: 24.12.0
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  packages/adapter-kimi-local:
     dependencies:
       '@agentcompany/adapter-utils':
         specifier: workspace:*
@@ -682,9 +698,6 @@ packages:
 
   '@fontsource-variable/jetbrains-mono@5.2.8':
     resolution: {integrity: sha512-WBA9elru6Jdp5df2mES55wuOO0WIrn3kpXnI4+W2ek5u3ZgLS9XS4gmIlcQhiZOWEKl95meYdvK7xI+ETLCq/Q==}
-
-  '@fontsource-variable/outfit@5.2.8':
-    resolution: {integrity: sha512-4oUDCZx/Tcz6HZP423w/niqEH31Gks5IsqHV2ZZz1qKHaVIZdj2f0/S1IK2n8jl6Xo0o3N+3RjNHlV9R73ozQA==}
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -3342,8 +3355,6 @@ snapshots:
       levn: 0.4.1
 
   '@fontsource-variable/jetbrains-mono@5.2.8': {}
-
-  '@fontsource-variable/outfit@5.2.8': {}
 
   '@humanfs/core@0.19.1': {}
 

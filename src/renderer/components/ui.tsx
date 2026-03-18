@@ -322,8 +322,8 @@ export function ActionButton({
 export function StatusPill({ status }: { status: string }) {
   const positive = ["ready", "active", "running", "succeeded", "approved", "achieved", "done"].includes(status);
   const negative = ["error", "failed", "cancelled", "blocked", "rejected", "interrupted"].includes(status);
-  const warning = ["auth_required", "degraded", "pending", "in_review", "todo", "queued"].includes(status);
-  const checking = status === "detected" || status === "not_installed";
+  const warning = ["auth_required", "degraded", "pending", "in_review", "todo", "queued", "not_installed"].includes(status);
+  const checking = status === "detected";
   const toneClass = positive
     ? "text-[color:var(--success)]"
     : negative

@@ -1,7 +1,10 @@
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 
+const require = createRequire(import.meta.url);
+
 export function getElectronExecutablePath() {
-  return resolve(process.cwd(), process.platform === "win32" ? "node_modules/.bin/electron.cmd" : "node_modules/.bin/electron");
+  return require("electron");
 }
 
 export function getMainEntryPath() {

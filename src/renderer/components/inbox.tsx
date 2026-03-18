@@ -61,7 +61,7 @@ export function Inbox({ items, onNavigate }: InboxProps) {
   const handleItemClick = (item: InboxItem) => {
     const sectionMap: Record<string, SectionId> = {
       approval: "approvals",
-      run: "tasks",
+      run: "runs",
       agent: "agents",
       task: "tasks",
       message: "communication",

@@ -34,7 +34,6 @@ import {
   SidebarSimple,
   TerminalWindow,
   WarningCircle,
-  Wrench,
   X,
 } from "@phosphor-icons/react";
 import type {
@@ -42,6 +41,7 @@ import type {
   CompanyMetrics,
   DesktopEvent,
   InboxItem,
+  OnboardingBootstrapResult,
   ProfileSnapshot,
   RunRecord,
   SectionId,
@@ -55,6 +55,7 @@ import { Inbox, StandupView, PerformanceView } from "./components/inbox";
 import { ConnectorEditor } from "./components/connectors";
 import { Dashboard, KanbanBoard } from "./components/dashboard";
 import { EntityWorkspace } from "./components/EntityWorkspace";
+import { RunCenter } from "./components/runs";
 import {
   ActivityList,
   ApprovalInspector,
@@ -94,6 +95,11 @@ import { formatMoney, formatTime } from "./lib/formatters";
 
 type NavItem = { id: SectionId; label: string; icon: typeof SquaresFour };
 type NavGroup = { label: string; items: NavItem[] };
+type PaletteAction = {
+  key: string;
+  section: SectionId;
+  entityId?: string;
+};
 
 const navGroups: NavGroup[] = [
   {
@@ -103,6 +109,7 @@ const navGroups: NavGroup[] = [
       { id: "inbox", label: "Inbox", icon: Bell },
       { id: "standup", label: "Standup", icon: Heartbeat },
       { id: "performance", label: "Performance", icon: ChartBar },
+      { id: "runs", label: "Runs", icon: TerminalWindow },
     ],
   },
   {
@@ -180,6 +187,7 @@ export function App() {
   const [, setLogRevision] = useState(0);
   const [badges, setBadges] = useState<SidebarBadges | null>(null);
   const [commandPaletteSearch, setCommandPaletteSearch] = useState("");
+  const [selectedPaletteIndex, setSelectedPaletteIndex] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [initialOnboardingLocked, setInitialOnboardingLocked] = useState(false);
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
@@ -187,6 +195,23 @@ export function App() {
   const [standupReport, setStandupReport] = useState<StandupReport | null>(null);
   const [socialAccounts, setSocialAccounts] = useState<SocialAccountRecord[]>([]);
   const [browserActions, setBrowserActions] = useState<BrowserActionRecord[]>([]);
+
+  const clearCompanyScopedUiState = useCallback(() => {
+    setSelectedTaskId(null);
+    setSelectedApprovalId(null);
+    setSelectedRunId(null);
+    setSelectedAgentId(null);
+    setSelectedGoalId(null);
+    setSelectedProjectId(null);
+    setSelectedWorkspaceId(null);
+    setSelectedCommunicationEntityId(null);
+    setInboxItems([]);
+    setCompanyMetrics(null);
+    setStandupReport(null);
+    setSocialAccounts([]);
+    setBrowserActions([]);
+    setBadges(null);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -200,6 +225,8 @@ export function App() {
       if (next.currentCompanyId) {
         const badgeResult = await window.agentCompany.getSidebarBadges(next.currentCompanyId);
         if (badgeResult.ok) setBadges(badgeResult.data);
+        const inboxResult = await window.agentCompany.getInbox(next.currentCompanyId);
+        if (inboxResult.ok) setInboxItems(inboxResult.data);
         setSocialAccounts(next.socialAccounts?.filter(a => a.companyId === next.currentCompanyId) ?? []);
         const browserActionResult = await window.agentCompany.listBrowserActions({ companyId: next.currentCompanyId, limit: 50 });
         if (browserActionResult.ok) {
@@ -234,10 +261,19 @@ export function App() {
     void refreshRef.current();
     const unsubscribe = window.agentCompany.subscribe((event: DesktopEvent) => {
       if (event.type === "run-log") {
-        logBufferRef.current = {
-          ...logBufferRef.current,
-          [event.runId]: `${logBufferRef.current[event.runId] ?? ""}${event.chunk}`,
-        };
+        const MAX_LOG_BYTES_PER_RUN = 512_000;
+        const MAX_TRACKED_RUNS = 50;
+        const existing = logBufferRef.current[event.runId] ?? "";
+        const updated = existing.length < MAX_LOG_BYTES_PER_RUN
+          ? existing + event.chunk
+          : existing.slice(-MAX_LOG_BYTES_PER_RUN / 2) + event.chunk;
+        logBufferRef.current[event.runId] = updated;
+        const runIds = Object.keys(logBufferRef.current);
+        if (runIds.length > MAX_TRACKED_RUNS) {
+          for (const oldId of runIds.slice(0, runIds.length - MAX_TRACKED_RUNS)) {
+            delete logBufferRef.current[oldId];
+          }
+        }
         setLogRevision((r) => r + 1);
         return;
       }
@@ -258,19 +294,6 @@ export function App() {
   }, [debouncedRefresh]);
 
   useEffect(() => {
-    if (!selectedRunId) return;
-    void (async () => {
-      const result = await window.agentCompany.getRunLog({ runId: selectedRunId });
-      if (result.ok) {
-        logBufferRef.current = { ...logBufferRef.current, [selectedRunId]: result.data };
-        setLogRevision((r) => r + 1);
-        return;
-      }
-      setError(result.error.message);
-    })();
-  }, [selectedRunId]);
-
-  useEffect(() => {
     if (!snapshot) return;
     const root = document.documentElement;
     root.dataset.theme = snapshot.theme;
@@ -280,41 +303,50 @@ export function App() {
   useEffect(() => {
     if (!snapshot?.currentCompanyId) return;
     const companyId = snapshot.currentCompanyId;
+    let cancelled = false;
+
+    if (section === "inbox") {
+      setInboxItems([]);
+    }
+
+    if (section === "performance") {
+      setCompanyMetrics(null);
+    }
+
+    if (section === "standup") {
+      setStandupReport(null);
+    }
+
+    if (section === "social") {
+      setSocialAccounts([]);
+    }
 
     if (section === "inbox") {
       void window.agentCompany.getInbox(companyId).then((result) => {
-        if (result.ok) setInboxItems(result.data);
+        if (!cancelled && result.ok) setInboxItems(result.data);
       });
     }
 
     if (section === "performance") {
       void window.agentCompany.getCompanyMetrics({ companyId, days: 30 }).then((result) => {
-        if (result.ok) setCompanyMetrics(result.data);
+        if (!cancelled && result.ok) setCompanyMetrics(result.data);
       });
     }
 
     if (section === "standup") {
       void window.agentCompany.getStandupReport(companyId).then((result) => {
-        if (result.ok) setStandupReport(result.data);
+        if (!cancelled && result.ok) setStandupReport(result.data);
       });
     }
 
     if (section === "social") {
-      setSocialAccounts(snapshot.socialAccounts?.filter(a => a.companyId === companyId) ?? []);
+      setSocialAccounts(snapshot.socialAccounts?.filter((a) => a.companyId === companyId) ?? []);
     }
-  }, [section, snapshot]);
 
-  useEffect(() => {
-    if (!commandPaletteOpen) return;
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setCommandPaletteOpen(false);
-        setCommandPaletteSearch("");
-      }
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [commandPaletteOpen]);
+    return () => {
+      cancelled = true;
+    };
+  }, [section, snapshot]);
 
   const paletteTrapRef = useFocusTrap(commandPaletteOpen);
 
@@ -327,9 +359,35 @@ export function App() {
   const selectedTask = selectedTaskId ? (tasks.find((task) => task.id === selectedTaskId) ?? null) : null;
   const selectedConnector = snapshot?.connectors.find((connector) => connector.id === selectedConnectorId) ?? snapshot?.connectors[0] ?? null;
   const approvals = useMemo(() => snapshot?.approvals.filter((approval) => !currentCompany || approval.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const pendingApprovals = useMemo(() => approvals.filter((approval) => approval.state === "pending"), [approvals]);
   const selectedApproval = selectedApprovalId ? (approvals.find((approval) => approval.id === selectedApprovalId) ?? null) : null;
   const runs = useMemo(() => snapshot?.runs.filter((run) => !currentCompany || run.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
   const selectedRun = runs.find((run) => run.id === selectedRunId) ?? runs[0] ?? null;
+
+  useEffect(() => {
+    if (selectedRunId && !runs.some((run) => run.id === selectedRunId)) {
+      setSelectedRunId(runs[0]?.id ?? null);
+    }
+  }, [runs, selectedRunId]);
+
+  const activeRunId = selectedRun?.id ?? null;
+
+  useEffect(() => {
+    if (!activeRunId) return;
+    void (async () => {
+      const activeRun = runs.find((run) => run.id === activeRunId);
+      if (!activeRun) {
+        return;
+      }
+      const result = await window.agentCompany.getRunLog({ companyId: activeRun.companyId, runId: activeRunId });
+      if (result.ok) {
+        logBufferRef.current = { ...logBufferRef.current, [activeRunId]: result.data };
+        setLogRevision((r) => r + 1);
+        return;
+      }
+      setError(result.error.message);
+    })();
+  }, [activeRunId, runs]);
 
   const companyAgents = useMemo(() => snapshot?.agents.filter((a) => !currentCompany || a.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
   const selectedAgent = companyAgents.find((a) => a.id === selectedAgentId) ?? null;
@@ -341,6 +399,12 @@ export function App() {
   const activeInboxCount = inboxItems.length;
   const navBadges = useMemo<Partial<Record<SectionId, { count: number; tone: "default" | "warn" | "danger" }>>>(() => badges ? {
     inbox: activeInboxCount > 0 ? { count: activeInboxCount, tone: "warn" } : undefined,
+    runs:
+      badges.failedRuns > 0
+        ? { count: badges.failedRuns, tone: "danger" }
+        : badges.activeRuns > 0
+          ? { count: badges.activeRuns, tone: "default" }
+          : undefined,
     tasks: badges.todoTasks > 0 ? { count: badges.todoTasks, tone: "default" } : undefined,
     approvals: badges.pendingApprovals > 0 ? { count: badges.pendingApprovals, tone: "warn" } : undefined,
     costs: badges.budgetWarnings > 0 ? { count: badges.budgetWarnings, tone: "danger" } : undefined,
@@ -363,24 +427,99 @@ export function App() {
       : navItems;
     const matchedAgents = paletteQuery ? companyAgents.filter((a) => a.name.toLowerCase().includes(paletteQuery) || a.role.toLowerCase().includes(paletteQuery)).slice(0, 5) : [];
     const matchedTasks = paletteQuery ? tasks.filter((t) => t.title.toLowerCase().includes(paletteQuery)).slice(0, 5) : [];
+    const matchedRuns = paletteQuery ? runs.filter((run) => {
+      const matchingTask = tasks.find((task) => task.id === run.taskId);
+      return [
+        run.id,
+        run.summary ?? "",
+        run.errorMessage ?? "",
+        matchingTask?.title ?? "",
+        run.connectorId,
+      ].some((value) => value.toLowerCase().includes(paletteQuery));
+    }).slice(0, 5) : [];
     const matchedGoals = paletteQuery ? companyGoals.filter((g) => g.title.toLowerCase().includes(paletteQuery)).slice(0, 5) : [];
     const matchedProjects = paletteQuery ? companyProjects.filter((p) => p.name.toLowerCase().includes(paletteQuery)).slice(0, 5) : [];
-    const hasEntityResults = matchedAgents.length > 0 || matchedTasks.length > 0 || matchedGoals.length > 0 || matchedProjects.length > 0;
-    return { filteredNavItems, matchedAgents, matchedTasks, matchedGoals, matchedProjects, hasEntityResults };
-  }, [paletteQuery, companyAgents, tasks, companyGoals, companyProjects]);
-  const { filteredNavItems, matchedAgents, matchedTasks, matchedGoals, matchedProjects, hasEntityResults } = paletteResults;
+    const hasEntityResults = matchedAgents.length > 0 || matchedTasks.length > 0 || matchedRuns.length > 0 || matchedGoals.length > 0 || matchedProjects.length > 0;
+    return { filteredNavItems, matchedAgents, matchedTasks, matchedRuns, matchedGoals, matchedProjects, hasEntityResults };
+  }, [paletteQuery, companyAgents, companyGoals, companyProjects, runs, tasks]);
+  const { filteredNavItems, matchedAgents, matchedTasks, matchedRuns, matchedGoals, matchedProjects, hasEntityResults } = paletteResults;
+  const paletteActions = useMemo<PaletteAction[]>(() => ([
+    ...filteredNavItems.map((item) => ({ key: `section:${item.id}`, section: item.id })),
+    ...matchedAgents.map((agent) => ({ key: `agent:${agent.id}`, section: "agents" as const, entityId: agent.id })),
+    ...matchedTasks.map((task) => ({ key: `task:${task.id}`, section: "tasks" as const, entityId: task.id })),
+    ...matchedRuns.map((run) => ({ key: `run:${run.id}`, section: "runs" as const, entityId: run.id })),
+    ...matchedGoals.map((goal) => ({ key: `goal:${goal.id}`, section: "goals" as const, entityId: goal.id })),
+    ...matchedProjects.map((project) => ({ key: `project:${project.id}`, section: "projects" as const, entityId: project.id })),
+  ]), [filteredNavItems, matchedAgents, matchedTasks, matchedRuns, matchedGoals, matchedProjects]);
+  const paletteActionIndex = useMemo(() => new Map(paletteActions.map((action, index) => [action.key, index])), [paletteActions]);
 
   const navigateTo = useCallback((targetSection: SectionId, entityId?: string) => {
     setSection(targetSection);
     if (entityId) {
       if (targetSection === "agents") setSelectedAgentId(entityId);
-      else if (targetSection === "tasks") setSelectedTaskId(entityId);
+      else if (targetSection === "connectors") setSelectedConnectorId(entityId);
+      else if (targetSection === "runs") {
+        setSelectedRunId(entityId);
+        setConsoleOpen(true);
+      }
+      else if (targetSection === "tasks") {
+        const matchingTask = tasks.find((task) => task.id === entityId) ?? null;
+        if (matchingTask) {
+          setSelectedTaskId(matchingTask.id);
+        } else {
+          const matchingRun = runs.find((run) => run.id === entityId) ?? null;
+          if (matchingRun) {
+            setSelectedRunId(matchingRun.id);
+            setSelectedTaskId(matchingRun.taskId);
+            setConsoleOpen(true);
+          }
+        }
+      }
       else if (targetSection === "approvals") setSelectedApprovalId(entityId);
       else if (targetSection === "goals") setSelectedGoalId(entityId);
       else if (targetSection === "projects") setSelectedProjectId(entityId);
       else if (targetSection === "communication") setSelectedCommunicationEntityId(entityId);
     }
-  }, []);
+  }, [runs, tasks]);
+
+  useEffect(() => {
+    if (!commandPaletteOpen) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setCommandPaletteOpen(false);
+        setCommandPaletteSearch("");
+        setSelectedPaletteIndex(0);
+        return;
+      }
+      if (paletteActions.length === 0) return;
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setSelectedPaletteIndex((current) => (current + 1) % paletteActions.length);
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setSelectedPaletteIndex((current) => (current - 1 + paletteActions.length) % paletteActions.length);
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const selectedAction = paletteActions[Math.min(selectedPaletteIndex, paletteActions.length - 1)];
+        if (!selectedAction) return;
+        navigateTo(selectedAction.section, selectedAction.entityId);
+        setCommandPaletteOpen(false);
+        setCommandPaletteSearch("");
+        setSelectedPaletteIndex(0);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [commandPaletteOpen, navigateTo, paletteActions, selectedPaletteIndex]);
+
+  useEffect(() => {
+    if (!commandPaletteOpen) return;
+    setSelectedPaletteIndex(0);
+  }, [commandPaletteOpen, commandPaletteSearch]);
 
   const setCompany = useCallback(async (companyId: string) => {
     if (companyId === "__new__") {
@@ -389,12 +528,13 @@ export function App() {
     }
     try {
       unwrap(await window.agentCompany.setCurrentCompany(companyId));
+      clearCompanyScopedUiState();
       await refresh();
       setError(null);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
-  }, [refresh]);
+  }, [clearCompanyScopedUiState, refresh]);
 
   const deleteCompany = useCallback(async (companyId: string) => {
     try {
@@ -408,7 +548,11 @@ export function App() {
   }, [refresh]);
 
   const startRun = useCallback(async (taskId: string) => {
-    const result = await window.agentCompany.startTaskRun({ taskId });
+    if (!currentCompany) {
+      setError("Select a company before starting a run.");
+      return;
+    }
+    const result = await window.agentCompany.startTaskRun({ companyId: currentCompany.id, taskId });
     if (!result.ok) {
       setError(result.error.message);
       return;
@@ -416,28 +560,48 @@ export function App() {
     setSelectedRunId(result.data);
     setConsoleOpen(true);
     await refresh();
-  }, [refresh]);
+  }, [currentCompany, refresh]);
 
   const cancelRun = useCallback(async (runId: string) => {
     try {
-      unwrap(await window.agentCompany.cancelRun({ runId }));
+      const run = runs.find((entry) => entry.id === runId);
+      if (!run) {
+        throw new Error("Selected run is no longer available.");
+      }
+      unwrap(await window.agentCompany.cancelRun({ companyId: run.companyId, runId }));
       await refresh();
       setError(null);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
+    }
+  }, [refresh, runs]);
+
+  const handleOnboardingDone = useCallback(async (summary: OnboardingBootstrapResult) => {
+    setShowOnboarding(false);
+    setInitialOnboardingLocked(false);
+    await refresh();
+    setError(null);
+    if (summary.runId) {
+      setSection("runs");
+      setSelectedRunId(summary.runId);
+      setConsoleOpen(true);
+      return;
+    }
+    if (summary.taskId) {
+      setSection("tasks");
+      setSelectedTaskId(summary.taskId);
+      return;
+    }
+    if (summary.projectId) {
+      setSection("projects");
+      setSelectedProjectId(summary.projectId);
+      return;
+    }
+    if (summary.leadAgentId) {
+      setSection("agents");
+      setSelectedAgentId(summary.leadAgentId);
     }
   }, [refresh]);
-
-  const quickConnectorCheck = useCallback(async () => {
-    if (!selectedConnector) return;
-    try {
-      unwrap(await window.agentCompany.testConnector(selectedConnector.id));
-      await refresh();
-      setError(null);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-    }
-  }, [selectedConnector, refresh]);
 
   if (!snapshot) {
     return (
@@ -448,10 +612,10 @@ export function App() {
   }
 
   if (snapshot.companies.length === 0 || showOnboarding || initialOnboardingLocked) {
-    return <CompanyOnboarding connectors={snapshot.connectors} onDone={async () => {
+    return <CompanyOnboarding connectors={snapshot.connectors} onDone={handleOnboardingDone} canCancel={snapshot.companies.length > 0 && !initialOnboardingLocked} onCancel={() => {
       setShowOnboarding(false);
       setInitialOnboardingLocked(false);
-      await refresh();
+      setError(null);
     }} />;
   }
 
@@ -688,6 +852,27 @@ export function App() {
                 />
               ) : null}
 
+              {section === "runs" ? (
+                <RunCenter
+                  runs={runs}
+                  tasks={tasks}
+                  agents={companyAgents}
+                  workspaces={companyWorkspaces}
+                  selectedRunId={selectedRun?.id ?? null}
+                  onSelectRun={(runId: string) => {
+                    setSelectedRunId(runId);
+                  }}
+                  onOpenLogPath={async (path: string) => {
+                    unwrap(await window.agentCompany.openPath(path));
+                  }}
+                  onCancelRun={cancelRun}
+                  onOpenConsole={(runId: string) => {
+                    setSelectedRunId(runId);
+                    setConsoleOpen(true);
+                  }}
+                />
+              ) : null}
+
               {section === "connectors" && selectedConnector ? (
                 <div className="space-y-10">
                   <Panel title="Connector registry">
@@ -715,8 +900,6 @@ export function App() {
                   </Panel>
                   <Panel
                     title={selectedConnector.label}
-
-                    action={<ActionButton label="Run health check" onClick={() => void quickConnectorCheck()} icon={Wrench} tone="accent" />}
                   >
                     <ConnectorEditor connector={selectedConnector} onSaved={refresh} />
                   </Panel>
@@ -746,7 +929,7 @@ export function App() {
                         workspaces={companyWorkspaces}
                         agents={companyAgents}
                         companyId={currentCompany!.id}
-                        onSaved={async () => { setSelectedAgentId(null); await refresh(); }}
+                        onSaved={refresh}
                         onDeleted={async () => { setSelectedAgentId(null); await refresh(); }}
                       />
                     ) : null}
@@ -861,6 +1044,8 @@ export function App() {
                         projects={companyProjects}
                         workspaces={companyWorkspaces}
                         companyId={currentCompany!.id}
+                        comments={(snapshot.comments ?? []).filter((comment) => comment.taskId === selectedTask.id)}
+                        onRefresh={refresh}
                         onRun={startRun}
                         onCancelRun={cancelRun}
                         onCreateApproval={async () => {
@@ -880,6 +1065,11 @@ export function App() {
                           setSelectedApprovalId(approvalId);
                           await refresh();
                         }}
+                        onOpenDiscussion={(taskId) => {
+                          setSelectedTaskId(null);
+                          setSection("communication");
+                          setSelectedCommunicationEntityId(taskId);
+                        }}
                         onDeleted={async () => { setSelectedTaskId(null); await refresh(); }}
                       />
                     ) : null}
@@ -893,7 +1083,7 @@ export function App() {
                     <PendingReviewList tasks={tasks} agents={companyAgents} />
                   </Panel>
                   <Panel title="Pending approvals">
-                    <ApprovalList approvals={approvals} selectedApprovalId={selectedApproval?.id ?? null} onSelect={setSelectedApprovalId} />
+                    <ApprovalList approvals={pendingApprovals} selectedApprovalId={selectedApproval?.id ?? null} onSelect={setSelectedApprovalId} />
                   </Panel>
                   <Modal open={!!selectedApproval} title={selectedApproval?.payloadSummary ?? "Approval detail"} onClose={() => setSelectedApprovalId(null)}>
                     {selectedApproval ? (
@@ -943,33 +1133,60 @@ export function App() {
                   agents={companyAgents.map(a => ({ id: a.id, name: a.name }))}
                   companyId={snapshot.currentCompanyId}
                   onSave={async (input) => {
-                    await window.agentCompany.saveSocialAccount({
-                      companyId: input.companyId,
-                      platform: input.platform,
-                      accountName: input.accountName,
-                      displayName: input.displayName,
-                      requireApproval: input.requireApproval,
-                      profileUrl: "",
-                      status: "login_required",
-                      metadataJson: "{}",
-                    });
-                    await refresh();
+                    try {
+                      unwrap(await window.agentCompany.saveSocialAccount({
+                        companyId: input.companyId,
+                        platform: input.platform,
+                        accountName: input.accountName,
+                        displayName: input.displayName,
+                        requireApproval: input.requireApproval,
+                        profileUrl: "",
+                        status: "login_required",
+                        metadataJson: "{}",
+                      }));
+                      await refresh();
+                      setError(null);
+                    } catch (error) {
+                      setError(error instanceof Error ? error.message : String(error));
+                    }
                   }}
                   onDelete={async (id) => {
                     if (!snapshot?.currentCompanyId) return;
-                    await window.agentCompany.deleteSocialAccount({ id, companyId: snapshot.currentCompanyId });
-                    await refresh();
+                    try {
+                      unwrap(await window.agentCompany.deleteSocialAccount({ id, companyId: snapshot.currentCompanyId }));
+                      await refresh();
+                      setError(null);
+                    } catch (error) {
+                      setError(error instanceof Error ? error.message : String(error));
+                    }
                   }}
                   onLogin={async (accountId) => {
-                    await window.agentCompany.triggerBrowserLogin(accountId);
-                    await refresh();
+                    if (!snapshot?.currentCompanyId) return;
+                    try {
+                      unwrap(await window.agentCompany.triggerBrowserLogin({ companyId: snapshot.currentCompanyId, socialAccountId: accountId }));
+                      await refresh();
+                      setError(null);
+                    } catch (error) {
+                      setError(error instanceof Error ? error.message : String(error));
+                    }
                   }}
                   onOpenPath={async (path) => {
-                    await window.agentCompany.openPath(path);
+                    try {
+                      unwrap(await window.agentCompany.openPath(path));
+                      setError(null);
+                    } catch (error) {
+                      setError(error instanceof Error ? error.message : String(error));
+                    }
                   }}
                   onCancelAction={async (actionId) => {
-                    await window.agentCompany.cancelBrowserAction({ runId: actionId });
-                    await refresh();
+                    if (!snapshot?.currentCompanyId) return;
+                    try {
+                      unwrap(await window.agentCompany.cancelBrowserAction({ actionId, companyId: snapshot.currentCompanyId }));
+                      await refresh();
+                      setError(null);
+                    } catch (error) {
+                      setError(error instanceof Error ? error.message : String(error));
+                    }
                   }}
                   onNavigate={(sectionName, entityId) => {
                     setSection(sectionName);
@@ -996,6 +1213,11 @@ export function App() {
                   agents={companyAgents}
                   companyId={currentCompany.id}
                   selectedEntityId={selectedCommunicationEntityId}
+                  onEntityConsumed={() => setSelectedCommunicationEntityId(null)}
+                  onNavigateToTask={(taskId) => {
+                    setSection("tasks");
+                    setSelectedTaskId(taskId);
+                  }}
                   onRefresh={refresh}
                 />
               ) : null}
@@ -1202,11 +1424,12 @@ export function App() {
                     {filteredNavItems.map((item) => (
                       <ListRow
                         key={item.id}
-                        className="py-3"
+                        className={`py-3 ${paletteActionIndex.get(`section:${item.id}`) === selectedPaletteIndex ? "bg-[color:var(--panel-soft)]" : ""}`}
                         onClick={() => {
-                          setSection(item.id);
+                          navigateTo(item.id);
                           setCommandPaletteOpen(false);
                           setCommandPaletteSearch("");
+                          setSelectedPaletteIndex(0);
                         }}
                       >
                         <div className="flex items-center justify-between">
@@ -1231,12 +1454,12 @@ export function App() {
                         {matchedAgents.map((agent) => (
                           <ListRow
                             key={agent.id}
-                            className="py-3"
+                            className={`py-3 ${paletteActionIndex.get(`agent:${agent.id}`) === selectedPaletteIndex ? "bg-[color:var(--panel-soft)]" : ""}`}
                             onClick={() => {
-                              setSection("agents");
-                              setSelectedAgentId(agent.id);
+                              navigateTo("agents", agent.id);
                               setCommandPaletteOpen(false);
                               setCommandPaletteSearch("");
+                              setSelectedPaletteIndex(0);
                             }}
                           >
                             <div className="flex items-center justify-between">
@@ -1260,12 +1483,12 @@ export function App() {
                         {matchedTasks.map((task) => (
                           <ListRow
                             key={task.id}
-                            className="py-3"
+                            className={`py-3 ${paletteActionIndex.get(`task:${task.id}`) === selectedPaletteIndex ? "bg-[color:var(--panel-soft)]" : ""}`}
                             onClick={() => {
-                              setSection("tasks");
-                              setSelectedTaskId(task.id);
+                              navigateTo("tasks", task.id);
                               setCommandPaletteOpen(false);
                               setCommandPaletteSearch("");
+                              setSelectedPaletteIndex(0);
                             }}
                           >
                             <div className="flex items-center justify-between">
@@ -1281,6 +1504,36 @@ export function App() {
                     </>
                   ) : null}
 
+                  {matchedRuns.length > 0 ? (
+                    <>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Runs</div>
+                      <ListFrame>
+                        {matchedRuns.map((run) => (
+                          <ListRow
+                            key={run.id}
+                            className={`py-3 ${paletteActionIndex.get(`run:${run.id}`) === selectedPaletteIndex ? "bg-[color:var(--panel-soft)]" : ""}`}
+                            onClick={() => {
+                              navigateTo("runs", run.id);
+                              setCommandPaletteOpen(false);
+                              setCommandPaletteSearch("");
+                              setSelectedPaletteIndex(0);
+                            }}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0 flex items-center gap-3 text-[color:var(--text)]">
+                                <TerminalWindow size={16} />
+                                <span className="truncate text-[13px] tracking-[0.005em]">
+                                  {run.summary || runs.find((entry) => entry.id === run.id)?.id.slice(0, 8) || run.id.slice(0, 8)}
+                                </span>
+                              </div>
+                              <StatusPill status={run.status} />
+                            </div>
+                          </ListRow>
+                        ))}
+                      </ListFrame>
+                    </>
+                  ) : null}
+
                   {matchedGoals.length > 0 ? (
                     <>
                       <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Goals</div>
@@ -1288,12 +1541,12 @@ export function App() {
                         {matchedGoals.map((goal) => (
                           <ListRow
                             key={goal.id}
-                            className="py-3"
+                            className={`py-3 ${paletteActionIndex.get(`goal:${goal.id}`) === selectedPaletteIndex ? "bg-[color:var(--panel-soft)]" : ""}`}
                             onClick={() => {
-                              setSection("goals");
-                              setSelectedGoalId(goal.id);
+                              navigateTo("goals", goal.id);
                               setCommandPaletteOpen(false);
                               setCommandPaletteSearch("");
+                              setSelectedPaletteIndex(0);
                             }}
                           >
                             <div className="flex items-center justify-between">
@@ -1316,12 +1569,12 @@ export function App() {
                         {matchedProjects.map((project) => (
                           <ListRow
                             key={project.id}
-                            className="py-3"
+                            className={`py-3 ${paletteActionIndex.get(`project:${project.id}`) === selectedPaletteIndex ? "bg-[color:var(--panel-soft)]" : ""}`}
                             onClick={() => {
-                              setSection("projects");
-                              setSelectedProjectId(project.id);
+                              navigateTo("projects", project.id);
                               setCommandPaletteOpen(false);
                               setCommandPaletteSearch("");
+                              setSelectedPaletteIndex(0);
                             }}
                           >
                             <div className="flex items-center justify-between">

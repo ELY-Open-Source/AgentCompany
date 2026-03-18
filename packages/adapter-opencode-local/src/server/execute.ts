@@ -159,7 +159,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     env.AGENT_COMPANY_API_KEY = authToken;
   }
   const runtimeEnv = Object.fromEntries(
-    Object.entries(ensurePathInEnv({ ...process.env, ...env })).filter(
+    Object.entries(ensurePathInEnv(env)).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string",
     ),
   );
