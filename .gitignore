@@ -3,7 +3,7 @@ node_modules/
 
 # Build outputs
 out/
-build/
+mac-arm64/
 dist/
 coverage/
 *.tsbuildinfo
@@ -30,6 +30,8 @@ oldreference/
 *.md
 !/README.md
 !/docs/*.md
+*.zip
+*.blockmap
 
 # Local design scratch files
 homepagedesign.html
