@@ -781,16 +781,18 @@ export function createAutomationService({
     const isSuccess = event.status === "succeeded";
     const isFailed = event.status === "failed" || event.status === "timed_out";
 
-    if (isSuccess && task.status === "in_progress") {
+    let effectiveStatus = task.status;
+
+    if (isSuccess && effectiveStatus === "in_progress") {
       db.advanceTaskStatus(task.id, "in_review", "Run completed successfully. Awaiting review.");
       handleTaskStatusChange(task.id, run.companyId, "in_progress", "in_review");
+      effectiveStatus = "in_review";
       publishDomainChanged();
     }
 
-    if (isSuccess && task.title.startsWith("[Heartbeat]") && task.status !== "done") {
-      const previousStatus = task.status;
+    if (isSuccess && task.title.startsWith("[Heartbeat]") && effectiveStatus !== "done") {
       db.advanceTaskStatus(task.id, "done", "Heartbeat check completed.");
-      handleTaskStatusChange(task.id, run.companyId, previousStatus, "done");
+      handleTaskStatusChange(task.id, run.companyId, effectiveStatus, "done");
     }
 
     const automationContext: AutomationEventContext = {
@@ -811,8 +813,7 @@ export function createAutomationService({
       dispatchAutomation("run_completed", automationContext);
       if (task.parentId) {
         try {
-          const freshSnapshot = db.listSnapshot();
-          const siblings = freshSnapshot.tasks.filter((entry) => entry.parentId === task!.parentId && entry.companyId === run.companyId);
+          const siblings = db.listChildTasks(task.parentId, run.companyId);
           const allSiblingsDoneOrReview = siblings.every((entry) => entry.status === "done" || entry.status === "in_review");
           if (allSiblingsDoneOrReview) {
             const parent = db.getTask(task.parentId);
@@ -1017,8 +1018,7 @@ export function createAutomationService({
 
     if (newStatus === "done" && task.parentId) {
       try {
-        const snapshot = db.listSnapshot();
-        const siblings = snapshot.tasks.filter((entry) => entry.parentId === task!.parentId && entry.companyId === companyId);
+        const siblings = db.listChildTasks(task.parentId, companyId);
         const allDone = siblings.every((entry) => entry.id === taskId ? true : entry.status === "done");
         if (allDone) {
           const parent = db.getTask(task.parentId);

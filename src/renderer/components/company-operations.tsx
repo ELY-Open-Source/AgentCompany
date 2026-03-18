@@ -501,10 +501,11 @@ export function DocumentCenter({
         title="Delete document"
         message="This removes the document from the company knowledge surface."
         onCancel={() => setDeleteId(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (!deleteId) return;
-          void window.agentCompany.deleteDocument({ id: deleteId, companyId }).then(() => onRefresh());
+          const result = await window.agentCompany.deleteDocument({ id: deleteId, companyId });
           setDeleteId(null);
+          if (result.ok) await onRefresh();
         }}
       />
     </div>
@@ -568,10 +569,11 @@ export function KnowledgeBaseManager({
         title="Delete knowledge entry"
         message="This removes the entry from the shared company knowledge base."
         onCancel={() => setDeleteId(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (!deleteId) return;
-          void window.agentCompany.deleteKnowledgeEntry({ id: deleteId, companyId }).then(() => onRefresh());
+          const result = await window.agentCompany.deleteKnowledgeEntry({ id: deleteId, companyId });
           setDeleteId(null);
+          if (result.ok) await onRefresh();
         }}
       />
     </div>
@@ -638,10 +640,11 @@ export function MeetingsManager({
         title="Delete meeting"
         message="This removes the meeting and its operational context from the company timeline."
         onCancel={() => setDeleteId(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (!deleteId) return;
-          void window.agentCompany.deleteMeeting({ id: deleteId, companyId }).then(() => onRefresh());
+          const result = await window.agentCompany.deleteMeeting({ id: deleteId, companyId });
           setDeleteId(null);
+          if (result.ok) await onRefresh();
         }}
       />
     </div>
@@ -705,10 +708,11 @@ export function SprintManager({
         title="Delete sprint"
         message="This removes the sprint board entry. Historical run and task records remain."
         onCancel={() => setDeleteId(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (!deleteId) return;
-          void window.agentCompany.deleteSprint({ id: deleteId, companyId }).then(() => onRefresh());
+          const result = await window.agentCompany.deleteSprint({ id: deleteId, companyId });
           setDeleteId(null);
+          if (result.ok) await onRefresh();
         }}
       />
     </div>

@@ -271,7 +271,7 @@ export const heartbeatSettingsSchema = z.object({
 export const triggerHeartbeatSchema = z.object({
   agentId: z.string().uuid(),
   companyId: z.string().uuid(),
-  trigger: z.enum(["manual", "timer", "assignment", "goal_activated", "approval_resolved", "subtask_completed", "comment", "report_blocked", "report_failed", "recovery", "message", "peer_request"]).default("manual"),
+  trigger: z.enum(["manual", "timer", "assignment", "goal_activated", "approval_resolved", "subtask_completed", "comment", "report_blocked", "report_failed", "recovery", "message", "peer_request", "task_continuation"]).default("manual"),
 });
 
 export const metricsQuerySchema = z.object({
@@ -393,10 +393,10 @@ export const automationRuleInputSchema = z.object({
   name: z.string().min(2).max(120),
   description: z.string().max(500).default(""),
   trigger: z.enum([
-    "task_status_changed", "task_created", "task_blocked", "run_completed",
-    "run_failed", "approval_resolved", "budget_threshold", "agent_idle",
-    "comment_posted", "document_created", "schedule", "hire_approved",
-    "sprint_started", "sprint_ended",
+    "task_status_changed", "task_created", "task_blocked", "task_reassigned",
+    "run_completed", "run_failed", "approval_created", "approval_resolved",
+    "budget_threshold", "agent_idle", "comment_posted", "document_created",
+    "schedule", "hire_approved", "sprint_started", "sprint_ended",
   ]),
   conditionsJson: z.string().default("{}"),
   action: z.enum([
@@ -471,10 +471,10 @@ export const workflowInputSchema = z.object({
   description: z.string().max(500).default(""),
   stepsJson: z.string().default("[]"),
   triggerType: z.enum([
-    "task_status_changed", "task_created", "task_blocked", "run_completed",
-    "run_failed", "approval_resolved", "budget_threshold", "agent_idle",
-    "comment_posted", "document_created", "schedule", "hire_approved",
-    "sprint_started", "sprint_ended",
+    "task_status_changed", "task_created", "task_blocked", "task_reassigned",
+    "run_completed", "run_failed", "approval_created", "approval_resolved",
+    "budget_threshold", "agent_idle", "comment_posted", "document_created",
+    "schedule", "hire_approved", "sprint_started", "sprint_ended",
   ]),
   triggerConfigJson: z.string().default("{}"),
   status: z.enum(["draft", "active", "paused", "completed", "failed"]).default("draft"),

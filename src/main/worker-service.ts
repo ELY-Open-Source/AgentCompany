@@ -321,6 +321,18 @@ export function createWorkerService({
       }
 
       processRunCompletion(run, event as z.infer<typeof workerMessageSchema> & { type: "run-finished" });
+
+      // Self-wake: pick up next assigned task immediately instead of waiting for heartbeat timer
+      if (pendingWakes.length === 0) {
+        try {
+          const actionableTasks = db.listAgentTasks(run.agentId, run.companyId, ["todo", "in_progress"]);
+          if (actionableTasks.length > 0) {
+            wakeAgentIfPossible(run.agentId, run.companyId, "task_continuation");
+          }
+        } catch {
+          // Best-effort self-wake; agent will pick up work on the next heartbeat cycle.
+        }
+      }
     });
   }
 

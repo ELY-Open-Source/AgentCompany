@@ -76,7 +76,18 @@ export async function openConnectorAuthTerminal(connectorId: ConnectorId, comman
   }
 
   if (process.platform === "win32") {
-    const child = spawn("cmd.exe", ["/c", "start", "", "cmd.exe", "/k", script], {
+    const spec = connectorAuthSpec(connectorId, command);
+    const winScript = [
+      `@echo off`,
+      `echo ${spec.intro}`,
+      `echo.`,
+      `cd /d "${targetCwd}"`,
+      spec.shellCommand,
+      `echo.`,
+      `echo You can close this terminal after the login flow completes.`,
+      `pause`,
+    ].join(" & ");
+    const child = spawn("cmd.exe", ["/c", "start", "", "cmd.exe", "/k", winScript], {
       detached: true,
       stdio: "ignore",
       shell: false,

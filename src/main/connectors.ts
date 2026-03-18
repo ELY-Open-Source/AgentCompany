@@ -125,7 +125,7 @@ const CONNECTORS: ConnectorDefinition[] = [
       gracefulCancel: true,
       modelDiscovery: true,
       structuredTranscript: true,
-      costAttribution: false,
+      costAttribution: true,
     },
     configurationDoc: opencodeDoc,
     module: {

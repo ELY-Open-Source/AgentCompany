@@ -1986,6 +1986,69 @@ export class AppDatabase {
     });
   }
 
+  getCompanyStatus(companyId: string): string | null {
+    const row = this.db.prepare("select status from companies where id = ?").get(companyId) as { status: string } | undefined;
+    return row?.status ?? null;
+  }
+
+  getCompanyBasic(companyId: string): { name: string; description: string } | null {
+    const row = this.db.prepare("select name, description from companies where id = ?").get(companyId) as { name: string; description: string } | undefined;
+    return row ?? null;
+  }
+
+  listActiveCompanyIds(): Array<{ id: string; name: string }> {
+    return this.readAll<{ id: string; name: string }>(
+      "select id, name from companies where status = 'active'",
+    );
+  }
+
+  countActiveTasksForCompany(companyId: string): number {
+    const row = this.db.prepare(
+      "select count(*) as cnt from tasks where company_id = ? and status not in ('done', 'cancelled') and title not like '[Heartbeat]%'",
+    ).get(companyId) as { cnt: number };
+    return row.cnt;
+  }
+
+  countActiveGoalsForCompany(companyId: string): number {
+    const row = this.db.prepare(
+      "select count(*) as cnt from goals where company_id = ? and status in ('active', 'planned')",
+    ).get(companyId) as { cnt: number };
+    return row.cnt;
+  }
+
+  getCeoForCompany(companyId: string): { id: string; name: string; lastHeartbeatAt: string | null } | null {
+    const row = this.db.prepare(
+      "select id, name, last_heartbeat_at as lastHeartbeatAt from agents where company_id = ? and reports_to is null and status != 'terminated' limit 1",
+    ).get(companyId) as { id: string; name: string; lastHeartbeatAt: string | null } | undefined;
+    return row ?? null;
+  }
+
+  listActiveAgentsForCompany(companyId: string): Array<{ id: string; name: string; department: string | null; lastHeartbeatAt: string | null }> {
+    return this.readAll<{ id: string; name: string; department: string | null; lastHeartbeatAt: string | null }>(
+      "select id, name, department, last_heartbeat_at as lastHeartbeatAt from agents where company_id = ? and status not in ('terminated', 'paused', 'pending_approval')",
+      companyId,
+    );
+  }
+
+  hasAgentAssignedTasks(agentId: string, companyId: string): boolean {
+    const row = this.db.prepare(
+      "select 1 from tasks where assignee_agent_id = ? and company_id = ? and status in ('todo', 'in_progress', 'blocked') limit 1",
+    ).get(agentId, companyId);
+    return !!row;
+  }
+
+  listChildTasks(parentId: string, companyId: string): Array<{ id: string; status: string; assigneeAgentId: string | null }> {
+    return this.readAll<{ id: string; status: string; assigneeAgentId: string | null }>(
+      `select id, status, assignee_agent_id as assigneeAgentId from tasks where parent_id = ? and company_id = ?`,
+      parentId, companyId,
+    );
+  }
+
+  updateAgentStatus(agentId: string, status: string) {
+    const ts = new Date().toISOString();
+    this.db.prepare("update agents set status = ?, updated_at = ? where id = ?").run(status, ts, agentId);
+  }
+
   private getSetting(key: string): string | null {
     const row = this.db.prepare("select value from settings where key = ?").get(key) as { value: string } | undefined;
     return row?.value ?? null;

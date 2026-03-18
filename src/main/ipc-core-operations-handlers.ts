@@ -75,6 +75,12 @@ export function registerCoreOperationHandlers({
       publishDomainChanged();
       return ok(id);
     }
+    // Approval was NOT auto-approved — wake decision-makers to review it
+    dispatchAutomation("approval_created", {
+      companyId: parsed.companyId,
+      agentId: parsed.requestedByAgentId ?? undefined,
+      taskId: parsed.relatedTaskId ?? undefined,
+    });
     publishDomainChanged();
     return ok(id);
   });

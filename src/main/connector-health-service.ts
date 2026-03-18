@@ -37,7 +37,7 @@ export function createConnectorHealthService({
     return new Promise((resolve) => {
       let resolved = false;
       const child = spawn(command, ["--version"], {
-        env: process.env,
+        env: buildSanitizedRuntimeEnv(process.env, {}),
         shell: false,
         stdio: ["ignore", "pipe", "pipe"],
       });

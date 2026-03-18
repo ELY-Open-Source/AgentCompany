@@ -24,10 +24,10 @@ export const DEFAULT_AUTOMATION_RULES: ReadonlyArray<{
   },
   {
     name: "Escalate completed work to manager",
-    description: "When a run completes successfully, escalate to the assignee's manager so they review the work.",
+    description: "When a run completes successfully, escalate to the assignee's manager so they can review the completed work.",
     trigger: "run_completed",
     action: "escalate_to_manager",
-    actionConfigJson: JSON.stringify({ body: "A task run has completed successfully. Please review the work and approve or send back for changes." }),
+    actionConfigJson: JSON.stringify({ body: "A task run has completed successfully. The task has moved to review status. Please review and either approve (mark as done) or send back with feedback." }),
     priority: 80,
   },
   {
@@ -125,6 +125,14 @@ export const DEFAULT_AUTOMATION_RULES: ReadonlyArray<{
     action: "trigger_heartbeat",
     actionConfigJson: JSON.stringify({}),
     priority: 78,
+  },
+  {
+    name: "Wake approvers on new approval",
+    description: "When a new approval request is created and not auto-approved, escalate to the requesting agent's manager for review.",
+    trigger: "approval_created",
+    action: "escalate_to_manager",
+    actionConfigJson: JSON.stringify({ body: "A new approval request needs your review. Please check the Approvals section." }),
+    priority: 88,
   },
 ];
 

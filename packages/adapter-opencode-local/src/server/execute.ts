@@ -41,8 +41,8 @@ function parseModelProvider(model: string | null): string | null {
   return trimmed.slice(0, trimmed.indexOf("/")).trim() || null;
 }
 
-function claudeSkillsHome(): string {
-  return path.join(os.homedir(), ".claude", "skills");
+function openCodeSkillsHome(): string {
+  return path.join(os.homedir(), ".opencode", "skills");
 }
 
 async function resolveAgentCompanySkillsDir(): Promise<string | null> {
@@ -57,7 +57,7 @@ async function ensureOpenCodeSkillsInjected(onLog: AdapterExecutionContext["onLo
   const skillsDir = await resolveAgentCompanySkillsDir();
   if (!skillsDir) return;
 
-  const skillsHome = claudeSkillsHome();
+  const skillsHome = openCodeSkillsHome();
   await fs.mkdir(skillsHome, { recursive: true });
   const entries = await fs.readdir(skillsDir, { withFileTypes: true });
   for (const entry of entries) {

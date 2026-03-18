@@ -286,11 +286,15 @@ export function registerCoreWorkGraphHandlers({
     }
     const isNew = !parsed.id;
     let previousStatus: string | null = null;
+    let previousAssigneeAgentId: string | null = null;
     if (!isNew) {
       try {
-        previousStatus = db.getTask(parsed.id!).status;
+        const existingTask = db.getTask(parsed.id!);
+        previousStatus = existingTask.status;
+        previousAssigneeAgentId = existingTask.assigneeAgentId;
       } catch {
         previousStatus = null;
+        previousAssigneeAgentId = null;
       }
     }
     let id: string;
@@ -309,8 +313,14 @@ export function registerCoreWorkGraphHandlers({
     });
     if (isNew) {
       handleTaskCreated(id, parsed.companyId);
-    } else if (previousStatus && previousStatus !== parsed.status) {
-      handleTaskStatusChange(id, parsed.companyId, previousStatus, parsed.status);
+    } else {
+      if (previousStatus && previousStatus !== parsed.status) {
+        handleTaskStatusChange(id, parsed.companyId, previousStatus, parsed.status);
+      }
+      // Wake new assignee when task is reassigned (matches api-server.ts behavior)
+      if (parsed.assigneeAgentId && parsed.assigneeAgentId !== previousAssigneeAgentId) {
+        wakeAgentIfPossible(parsed.assigneeAgentId, parsed.companyId, "assignment");
+      }
     }
     publishDomainChanged();
     return ok(id);

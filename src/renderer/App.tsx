@@ -315,22 +315,6 @@ export function App() {
     let cancelled = false;
 
     if (section === "inbox") {
-      setInboxItems([]);
-    }
-
-    if (section === "performance") {
-      setCompanyMetrics(null);
-    }
-
-    if (section === "standup") {
-      setStandupReport(null);
-    }
-
-    if (section === "social") {
-      setSocialAccounts([]);
-    }
-
-    if (section === "inbox") {
       void window.agentCompany.getInbox(companyId).then((result) => {
         if (!cancelled && result.ok) setInboxItems(result.data);
       });
@@ -1266,7 +1250,7 @@ export function App() {
                 <SprintManager companyId={currentCompany.id} sprints={companySprints} onRefresh={refresh} />
               ) : null}
 
-              {section === "workspaces" ? (
+              {section === "workspaces" && currentCompany ? (
                 <EntityWorkspace
                   title="Workspaces"
                   eyebrow={undefined}
@@ -1304,7 +1288,7 @@ export function App() {
                 />
               ) : null}
 
-              {section === "settings" ? (
+              {section === "settings" && currentCompany ? (
                 <div className="space-y-10">
                   <Panel title="Profile and release">
                     <SettingsPane snapshot={snapshot} secrets={companySecrets} companyId={currentCompany!.id} onSaved={refresh} />
@@ -1340,10 +1324,10 @@ export function App() {
                     compact
                     value={selectedRun?.id ?? ""}
                     onChange={setSelectedRunId}
-                    options={(runs.length > 0 ? runs : [{ id: "", summary: "No runs" } as RunRecord]).map((run) => ({
-                      value: run.id,
-                      label: run.summary || `Run ${run.id.slice(0, 8)}`,
-                    }))}
+                    options={runs.length > 0
+                      ? runs.map((run) => ({ value: run.id, label: run.summary || `Run ${run.id.slice(0, 8)}` }))
+                      : [{ value: "", label: "No runs" }]
+                    }
                   />
                   <button
                     type="button"

@@ -7,6 +7,7 @@ import {
 } from "@phosphor-icons/react";
 import type { AgentRecord, ApprovalRecord } from "@shared/types";
 import { getAgentInitials } from "../lib/formatters";
+import { unwrap } from "../lib/desktop";
 import { ActionButton, EmptyState, Panel, StatusPill } from "./ui";
 
 interface HiringPipelineProps {
@@ -189,12 +190,12 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
                             icon={Check}
                             tone="accent"
                             onClick={async () => {
-                              await window.agentCompany.decideApproval({
+                              unwrap(await window.agentCompany.decideApproval({
                                 companyId: a.companyId,
                                 approvalId: a.id,
                                 state: "approved",
                                 decisionNote: "Hire approved via hiring pipeline",
-                              });
+                              }));
                               await onRefresh();
                             }}
                           />
@@ -203,12 +204,12 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
                             icon={X}
                             tone="danger"
                             onClick={async () => {
-                              await window.agentCompany.decideApproval({
+                              unwrap(await window.agentCompany.decideApproval({
                                 companyId: a.companyId,
                                 approvalId: a.id,
                                 state: "rejected",
                                 decisionNote: "Hire rejected via hiring pipeline",
-                              });
+                              }));
                               await onRefresh();
                             }}
                           />

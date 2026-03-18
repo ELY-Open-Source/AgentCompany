@@ -117,6 +117,7 @@ export function createOrchestrationService({
     if (!(agent.budgetMonthlyUsd > 0) || agent.spentMonthlyUsd < agent.budgetMonthlyUsd) {
       return false;
     }
+    db.updateAgentStatus(agent.id, "paused");
     db.addActivity({
       companyId: agent.companyId,
       actor: "system",
@@ -294,9 +295,8 @@ export function createOrchestrationService({
 
   function startAgentHeartbeatRun(agentId: string, companyId: string, trigger: string): string | null {
     if (!hasWorkerReady()) return null;
-    const snapshot = db.listSnapshot();
-    const company = snapshot.companies.find((entry) => entry.id === companyId) ?? null;
-    if (!company || company.status !== "active") {
+    const companyStatus = db.getCompanyStatus(companyId);
+    if (companyStatus !== "active") {
       logger.info(`[heartbeat] Skipping ${agentId} because company ${companyId} is not active.`);
       return null;
     }
@@ -335,10 +335,10 @@ export function createOrchestrationService({
       }
 
       const isCeo = !agent.reportsTo;
-      const isManager = snapshot.agents.some((entry) => entry.reportsTo === agent.id && entry.companyId === companyId);
-      const activeGoals = snapshot.goals.filter((goal) => goal.companyId === companyId && (goal.status === "active" || goal.status === "planned"));
-      const companyTasks = snapshot.tasks.filter((entry) => entry.companyId === companyId && entry.status !== "done" && entry.status !== "cancelled");
-      const companyNeedsBootstrap = activeGoals.length > 0 && companyTasks.length < activeGoals.length;
+      const isManager = db.getDirectReports(agent.id, companyId).length > 0;
+      const goalCount = db.countActiveGoalsForCompany(companyId);
+      const taskCount = db.countActiveTasksForCompany(companyId);
+      const companyNeedsBootstrap = goalCount > 0 && taskCount < goalCount;
 
       if (isTimer && !isCeo && !isManager && !companyNeedsBootstrap) {
         logger.info(`[heartbeat] Skipping ${agent.name} — no actionable tasks and trigger is timer.`);
@@ -388,6 +388,7 @@ export function createOrchestrationService({
       connectorId: connector.id,
     });
 
+    const companyBasic = db.getCompanyBasic(companyId);
     dispatchRunToWorker({
       runId: run.id,
       companyId,
@@ -396,9 +397,9 @@ export function createOrchestrationService({
       connector,
       workspace,
       workspaceMode: workspaceResolution.lockMode,
-      companyName: company.name,
-      companyDescription: company.description ?? "",
-      snapshot,
+      companyName: companyBasic?.name ?? "Unknown",
+      companyDescription: companyBasic?.description ?? "",
+      snapshot: db.listSnapshot(),
       trigger,
     });
 
@@ -446,9 +447,8 @@ export function createOrchestrationService({
       return fail("WORKER_UNAVAILABLE", "Orchestration worker is not ready.");
     }
     const task = db.getTask(taskId);
-    const snapshot = db.listSnapshot();
-    const company = snapshot.companies.find((entry) => entry.id === task.companyId) ?? null;
-    if (!company || company.status !== "active") {
+    const companyStatus = db.getCompanyStatus(task.companyId);
+    if (companyStatus !== "active") {
       return fail("COMPANY_NOT_ACTIVE", "Runs can only start while the company is active.");
     }
     if (task.activeRunId || hasActiveRun({ taskId: task.id, companyId: task.companyId })) {
@@ -498,6 +498,7 @@ export function createOrchestrationService({
       connectorId: connector.id,
     });
 
+    const companyBasic = db.getCompanyBasic(task.companyId);
     dispatchRunToWorker({
       runId: run.id,
       companyId: task.companyId,
@@ -506,9 +507,9 @@ export function createOrchestrationService({
       connector,
       workspace,
       workspaceMode: workspaceResolution.lockMode,
-      companyName: company.name,
-      companyDescription: company.description,
-      snapshot,
+      companyName: companyBasic?.name ?? "Unknown",
+      companyDescription: companyBasic?.description ?? "",
+      snapshot: db.listSnapshot(),
       trigger,
     });
     db.addActivity({
@@ -579,10 +580,10 @@ export function createOrchestrationService({
     heartbeatTimer = setInterval(() => {
       try {
         if (!hasWorkerReady()) return;
-        const snapshot = db.listSnapshot();
+        const activeCompanies = db.listActiveCompanyIds();
         const now = Date.now();
 
-        for (const company of snapshot.companies.filter((entry) => entry.status === "active")) {
+        for (const company of activeCompanies) {
           try {
             const eligibleAgents = db.listHeartbeatEligibleAgents(company.id);
             for (const agent of eligibleAgents) {
@@ -596,14 +597,14 @@ export function createOrchestrationService({
               startAgentHeartbeatRun(agent.id, company.id, "timer");
             }
 
-            const companyGoals = snapshot.goals.filter((goal) => goal.companyId === company.id && (goal.status === "active" || goal.status === "planned"));
-            const companyActiveTasks = snapshot.tasks.filter((task) => task.companyId === company.id && !["done", "cancelled"].includes(task.status) && !task.title.startsWith("[Heartbeat]"));
-            if (companyGoals.length > 0 && companyActiveTasks.length === 0) {
-              const ceo = snapshot.agents.find((agent) => agent.companyId === company.id && !agent.reportsTo && agent.status !== "terminated");
+            const goalCount = db.countActiveGoalsForCompany(company.id);
+            const taskCount = db.countActiveTasksForCompany(company.id);
+            if (goalCount > 0 && taskCount === 0) {
+              const ceo = db.getCeoForCompany(company.id);
               const ceoLastWake = ceo?.lastHeartbeatAt ? new Date(ceo.lastHeartbeatAt).getTime() : 0;
               const bootstrapCooldown = 120_000;
               if (ceo && !hasActiveRun({ agentId: ceo.id, companyId: company.id }) && (now - ceoLastWake > bootstrapCooldown)) {
-                logger.info(`[heartbeat] Company ${company.name} has ${companyGoals.length} goals but no tasks — bootstrapping CEO ${ceo.name}`);
+                logger.info(`[heartbeat] Company ${company.name} has ${goalCount} goals but no tasks — bootstrapping CEO ${ceo.name}`);
                 startAgentHeartbeatRun(ceo.id, company.id, "bootstrap");
               }
             }
@@ -615,12 +616,9 @@ export function createOrchestrationService({
               scheduleLastFiredMap.set(scheduleKey, now);
             }
 
-            const companyAgents = snapshot.agents.filter((agent) => agent.companyId === company.id && agent.status !== "terminated" && agent.status !== "paused" && agent.status !== "pending_approval");
+            const companyAgents = db.listActiveAgentsForCompany(company.id);
             for (const agent of companyAgents) {
-              const hasAssigned = snapshot.tasks.some(
-                (task) => task.assigneeAgentId === agent.id && task.companyId === company.id && ["todo", "in_progress", "blocked"].includes(task.status),
-              );
-              if (!hasAssigned) {
+              if (!db.hasAgentAssignedTasks(agent.id, company.id)) {
                 const lastActive = agent.lastHeartbeatAt ? new Date(agent.lastHeartbeatAt).getTime() : 0;
                 const idleThreshold = 20 * 60 * 1000;
                 if (now - lastActive > idleThreshold) {
