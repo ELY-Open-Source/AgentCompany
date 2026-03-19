@@ -1043,15 +1043,22 @@ export class AppDatabase {
     const invalidKeys = new Set(listInvalidEnvBindingKeys(bindingText));
     const bindings = parseEnvBindingText(bindingText);
     const result: Record<string, string> = {};
-    for (const [envKey, secretName] of Object.entries(bindings)) {
+    for (const [envKey, rawValue] of Object.entries(bindings)) {
       if (invalidKeys.has(envKey)) {
         continue;
       }
-      const row = this.db.prepare("select backend, ciphertext from secrets where company_id = ? and name = ?").get(companyId, secretName) as
+      // First try to resolve as a secret name from the vault.
+      const row = this.db.prepare("select backend, ciphertext from secrets where company_id = ? and name = ?").get(companyId, rawValue) as
         | { backend: "safe_storage" | "vault"; ciphertext: Uint8Array }
         | undefined;
-      if (!row) continue;
-      result[envKey] = this.vault.decrypt(row.backend, Buffer.from(row.ciphertext));
+      if (row) {
+        result[envKey] = this.vault.decrypt(row.backend, Buffer.from(row.ciphertext));
+      } else {
+        // No matching secret — use the value literally.
+        // This allows direct env bindings like ANTHROPIC_API_KEY=sk-ant-xxx
+        // without requiring a stored secret entry.
+        result[envKey] = rawValue;
+      }
     }
     return result;
   }
@@ -1902,7 +1909,7 @@ export class AppDatabase {
 
   private readConnectors(): ConnectorRecord[] {
     const rows = this.readAll<{
-      id: ConnectorId;
+      id: string;
       label: string;
       description: string;
       status: ConnectorRecord["status"];
@@ -1917,10 +1924,17 @@ export class AppDatabase {
     }>(
       "select id, label, description, status, command, version, auth_state, last_checked_at, last_error, model, env_binding_text, notes from connectors order by label asc",
     );
-    return rows.map((row) => {
-      const definition = getConnectorDefinition(row.id);
-      return {
-        id: row.id,
+    const result: ConnectorRecord[] = [];
+    for (const row of rows) {
+      let definition;
+      try {
+        definition = getConnectorDefinition(row.id as ConnectorId);
+      } catch {
+        // Connector was removed (e.g. kimi_local, opencode_local) — skip it.
+        continue;
+      }
+      result.push({
+        id: row.id as ConnectorId,
         label: row.label,
         description: row.description,
         status: row.status,
@@ -1934,11 +1948,14 @@ export class AppDatabase {
         notes: row.notes,
         configurationDoc: definition.configurationDoc,
         capabilityMatrix: definition.capabilityMatrix,
-      };
-    });
+      });
+    }
+    return result;
   }
 
   private seedConnectors() {
+    // Remove connector rows for adapters that have been removed from the codebase.
+    this.db.prepare("delete from connectors where id not in ('codex_local', 'claude_local', 'gemini_local')").run();
     const currentRows = this.readAll<Partial<ConnectorRecord>>(
       "select id, label, description, status, command, version, auth_state as authState, last_checked_at as lastCheckedAt, last_error as lastError, model, env_binding_text as envBindingText, notes from connectors",
     );
