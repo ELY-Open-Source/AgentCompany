@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import {
   ArrowClockwise,
   ArrowSquareOut,
@@ -39,6 +39,9 @@ import type {
   TaskStatus,
   WorkspaceRecord,
 } from "@shared/types";
+import type { AppLocale } from "@shared/locale";
+import { APP_LOCALES, LOCALE_LABELS } from "@shared/locale";
+import { useLocale, useT } from "../i18n";
 import { formatMoney, formatTime } from "../lib/formatters";
 import { unwrap } from "../lib/desktop";
 import { ActionButton, ConfirmDialog, EmptyState, Field, InlineNotice, Input, ListFrame, ListRow, Select, StatusPill, TextArea } from "./ui";
@@ -120,8 +123,9 @@ export function TaskQueue({
   selectedTaskId: string | null;
   onSelect: (taskId: string) => void;
 }) {
+  const t = useT();
   if (tasks.length === 0) {
-    return <EmptyState title="Task queue is empty" />;
+    return <EmptyState title={t("exec.taskQueueEmpty")} />;
   }
   return (
     <ListFrame>
@@ -188,6 +192,7 @@ export function TaskInspector({
   onRefresh: () => Promise<void>;
   onDeleted: () => Promise<void>;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(task.title);
   const [editDescription, setEditDescription] = useState(task.description);
@@ -313,8 +318,8 @@ export function TaskInspector({
     <div className="space-y-5">
       <ConfirmDialog
         open={confirmDelete}
-        title="Delete task"
-        message={`Permanently delete "${task.title}"? This cannot be undone.`}
+        title={t("exec.deleteTask")}
+        message={`${t("exec.deleteTaskConfirm").replace("{0}", task.title)}`}
         errorMessage={deleteError}
         onConfirm={() => void handleDelete()}
         onCancel={() => {
@@ -342,20 +347,20 @@ export function TaskInspector({
       {editing ? (
         <div className="grid gap-3 border-y border-[color:var(--line)] py-4 md:grid-cols-2">
           <div className="md:col-span-2">
-            <Input label="Title" value={editTitle} onChange={setEditTitle} placeholder="Task title" />
+            <Input label={t("exec.title")} value={editTitle} onChange={setEditTitle} placeholder={t("exec.taskTitle")} />
           </div>
           <div className="md:col-span-2">
-            <TextArea label="Description" value={editDescription} onChange={setEditDescription} placeholder="Description" rows={4} />
+            <TextArea label={t("exec.description")} value={editDescription} onChange={setEditDescription} placeholder={t("exec.description")} rows={4} />
           </div>
-          <Select label="Priority" value={editPriority} onChange={v => setEditPriority(v as TaskRecord["priority"])} options={["critical", "high", "medium", "low"].map(v => ({ value: v, label: v }))} />
-          <Select label="Status" value={editStatus} onChange={v => setEditStatus(v as TaskStatus)} options={["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"].map(v => ({ value: v, label: v.replaceAll("_", " ") }))} />
-          <Select label="Assignee" value={editAssignee} onChange={setEditAssignee} options={[{ value: "", label: "Unassigned" }, ...agents.map(a => ({ value: a.id, label: a.name }))]} />
-          <Select label="Workspace" value={editWorkspace} onChange={setEditWorkspace} options={[{ value: "", label: "No workspace" }, ...workspaces.map(w => ({ value: w.id, label: w.name }))]} />
-          <Select label="Project" value={editProject} onChange={setEditProject} options={[{ value: "", label: "No project" }, ...projects.map(p => ({ value: p.id, label: p.name }))]} />
-          <Select label="Goal" value={editGoal} onChange={setEditGoal} options={[{ value: "", label: "No goal" }, ...goals.map(g => ({ value: g.id, label: g.title }))]} />
+          <Select label={t("exec.priority")} value={editPriority} onChange={v => setEditPriority(v as TaskRecord["priority"])} options={["critical", "high", "medium", "low"].map(v => ({ value: v, label: v }))} />
+          <Select label={t("exec.status")} value={editStatus} onChange={v => setEditStatus(v as TaskStatus)} options={["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"].map(v => ({ value: v, label: v.replaceAll("_", " ") }))} />
+          <Select label={t("exec.assignee")} value={editAssignee} onChange={setEditAssignee} options={[{ value: "", label: t("exec.unassigned") }, ...agents.map(a => ({ value: a.id, label: a.name }))]} />
+          <Select label={t("exec.workspace")} value={editWorkspace} onChange={setEditWorkspace} options={[{ value: "", label: t("exec.noWorkspace") }, ...workspaces.map(w => ({ value: w.id, label: w.name }))]} />
+          <Select label={t("exec.project")} value={editProject} onChange={setEditProject} options={[{ value: "", label: t("exec.noProject") }, ...projects.map(p => ({ value: p.id, label: p.name }))]} />
+          <Select label={t("exec.goal")} value={editGoal} onChange={setEditGoal} options={[{ value: "", label: t("exec.noGoal") }, ...goals.map(g => ({ value: g.id, label: g.title }))]} />
           <div className="md:col-span-2 flex gap-3">
-            <ActionButton label="Save" tone="accent" onClick={() => void saveChanges()} icon={CheckCircle} loading={savingChanges} />
-            <ActionButton label="Cancel" onClick={() => setEditing(false)} icon={XCircle} />
+            <ActionButton label={t("exec.save")} tone="accent" onClick={() => void saveChanges()} icon={CheckCircle} loading={savingChanges} />
+            <ActionButton label={t("exec.cancel")} onClick={() => setEditing(false)} icon={XCircle} />
           </div>
         </div>
       ) : (
@@ -389,16 +394,16 @@ export function TaskInspector({
             <div className="rounded-[10px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-4 py-3">
               <div className="flex items-center gap-2 text-[13px] font-semibold text-[color:var(--warn)]">
                 <ShieldCheck size={16} weight="fill" />
-                {task.status === "blocked" ? "Governance action required" : "Task is waiting on review"}
+                {task.status === "blocked" ? t("exec.governanceRequired") : t("exec.waitingOnReview")}
               </div>
               <div className="mt-1 text-[13px] leading-relaxed text-[color:var(--muted-strong)]">
                 {task.status === "blocked"
-                  ? "Create an approval so leadership can resolve the blocker, provide credentials, or authorize the next privileged action."
-                  : "Create an approval entry if this task needs an explicit operator decision before it can move forward."}
+                  ? t("exec.blockedGovernance")
+                  : t("exec.reviewGovernance")}
               </div>
               <div className="mt-3">
                 <ActionButton
-                  label={task.status === "blocked" ? "Create unblock approval" : "Create review approval"}
+                  label={task.status === "blocked" ? t("exec.createUnblockApproval") : t("exec.createReviewApproval")}
                   onClick={() => void handleCreateApproval()}
                   icon={ShieldCheck}
                   loading={creatingApproval}
@@ -410,23 +415,23 @@ export function TaskInspector({
           {/* Contextual actions — only show what makes sense for current state */}
           <div className="flex items-center gap-2 pt-1">
             {activeRun ? (
-              <ActionButton label="Cancel run" onClick={() => void onCancelRun(activeRun.id)} icon={XCircle} tone="danger" />
+              <ActionButton label={t("exec.cancelRun")} onClick={() => void onCancelRun(activeRun.id)} icon={XCircle} tone="danger" />
             ) : (
               <>
                 {["todo", "in_progress", "blocked"].includes(task.status) && (
-                  <ActionButton label="Run" onClick={() => void onRun(task.id)} icon={Play} tone="accent" />
+                  <ActionButton label={t("exec.run")} onClick={() => void onRun(task.id)} icon={Play} tone="accent" />
                 )}
                 {task.status === "in_review" && (
-                  <ActionButton label="Done" onClick={() => void quickStatus("done")} icon={CheckCircle} tone="accent" loading={updatingStatus === "done"} />
+                  <ActionButton label={t("exec.done")} onClick={() => void quickStatus("done")} icon={CheckCircle} tone="accent" loading={updatingStatus === "done"} />
                 )}
                 {task.status === "blocked" && (
-                  <ActionButton label="Unblock" onClick={() => void quickStatus("in_progress")} icon={Play} loading={updatingStatus === "in_progress"} />
+                  <ActionButton label={t("exec.unblock")} onClick={() => void quickStatus("in_progress")} icon={Play} loading={updatingStatus === "in_progress"} />
                 )}
               </>
             )}
-            <ActionButton label="Discussion" onClick={() => onOpenDiscussion(task.id)} icon={ArrowRight} />
-            <ActionButton label="Edit" onClick={startEdit} icon={Pencil} />
-            <ActionButton label="Delete" onClick={() => setConfirmDelete(true)} icon={Trash} tone="danger" />
+            <ActionButton label={t("exec.discussion")} onClick={() => onOpenDiscussion(task.id)} icon={ArrowRight} />
+            <ActionButton label={t("exec.edit")} onClick={startEdit} icon={Pencil} />
+            <ActionButton label={t("exec.delete")} onClick={() => setConfirmDelete(true)} icon={Trash} tone="danger" />
           </div>
         </>
       )}
@@ -439,7 +444,7 @@ export function TaskInspector({
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <ListChecks size={14} className="text-[color:var(--muted)]" />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Subtasks ({subtasks.length})</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("exec.subtasks")} ({subtasks.length})</span>
               <span className="text-[10px] text-[color:var(--success)]">
                 {subtasks.filter((t) => t.status === "done").length}/{subtasks.length} done
               </span>
@@ -490,7 +495,7 @@ export function TaskInspector({
       {/* Run history — only if there are runs */}
       {runs.length > 0 && (
         <div className="space-y-2">
-          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--muted)]">Run history</div>
+          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("exec.runHistory")}</div>
           <div className="space-y-2">
             {runs.slice(0, 8).map((run) => {
               const runAgent = agents.find((a) => a.id === run.agentId);
@@ -549,6 +554,7 @@ function TaskComments({
   comments: CommentRecord[];
   onRefresh: () => Promise<void>;
 }) {
+  const t = useT();
   const [newComment, setNewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -586,11 +592,11 @@ function TaskComments({
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <Robot size={16} className="text-[color:var(--muted)]" />
-        <span className="text-[13px] font-semibold text-[color:var(--text)]">Communication</span>
+        <span className="text-[13px] font-semibold text-[color:var(--text)]">{t("exec.communication")}</span>
         <span className="text-[11px] text-[color:var(--muted)]">({comments.length})</span>
       </div>
       {comments.length === 0 ? (
-        <div className="text-[12px] text-[color:var(--muted)]">No messages yet. Agents will post updates here during runs.</div>
+        <div className="text-[12px] text-[color:var(--muted)]">{t("exec.noMessagesYet")}</div>
       ) : (
         <div className="max-h-[240px] space-y-2 overflow-y-auto rounded-lg border border-[color:var(--line)] p-3">
           {comments.map((comment) => {
@@ -615,12 +621,12 @@ function TaskComments({
       <div className="flex gap-2">
         <input
           className="flex-1 rounded-md border border-[color:var(--line)] bg-[color:var(--panel)] px-3 py-2 text-[13px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:border-[color:var(--accent)] focus:outline-none"
-          placeholder="Send a message to the team..."
+          placeholder={t("exec.sendMessage")}
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSubmit(); } }}
         />
-        <ActionButton label="Send" tone="accent" onClick={() => void handleSubmit()} icon={ArrowRight} loading={submitting} />
+        <ActionButton label={t("exec.send")} tone="accent" onClick={() => void handleSubmit()} icon={ArrowRight} loading={submitting} />
       </div>
     </div>
   );
@@ -642,6 +648,7 @@ export function TaskCreator({
   workspaces: WorkspaceRecord[];
   onSaved: () => Promise<void>;
 }) {
+  const t = useT();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [goalId, setGoalId] = useState(goals[0]?.id ?? "");
@@ -679,17 +686,17 @@ export function TaskCreator({
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <Input label="Title" value={title} onChange={setTitle} placeholder="Task title" />
-      <Select label="Priority" value={priority} onChange={setPriority} options={["critical", "high", "medium", "low"].map((value) => ({ value, label: value }))} />
+      <Input label={t("exec.title")} value={title} onChange={setTitle} placeholder={t("exec.taskTitle")} />
+      <Select label={t("exec.priority")} value={priority} onChange={setPriority} options={["critical", "high", "medium", "low"].map((value) => ({ value, label: value }))} />
       <div className="md:col-span-2"><TextArea label="Description" value={description} onChange={setDescription} placeholder="What should the agent do, and what result should come back into the run summary?" rows={5} /></div>
-      <Select label="Goal" value={goalId} onChange={setGoalId} options={[{ value: "", label: "No goal" }, ...goals.map((goal) => ({ value: goal.id, label: goal.title }))]} />
-      <Select label="Project" value={projectId} onChange={setProjectId} options={[{ value: "", label: "No project" }, ...projects.map((project) => ({ value: project.id, label: project.name }))]} />
-      <Select label="Assignee" value={assigneeAgentId} onChange={setAssigneeAgentId} options={[{ value: "", label: "Unassigned" }, ...agents.map((agent) => ({ value: agent.id, label: agent.name }))]} />
-      <Select label="Workspace" value={workspaceId} onChange={setWorkspaceId} options={[{ value: "", label: "No workspace" }, ...workspaces.map((workspace) => ({ value: workspace.id, label: workspace.name }))]} />
+      <Select label={t("exec.goal")} value={goalId} onChange={setGoalId} options={[{ value: "", label: t("exec.noGoal") }, ...goals.map((goal) => ({ value: goal.id, label: goal.title }))]} />
+      <Select label={t("exec.project")} value={projectId} onChange={setProjectId} options={[{ value: "", label: t("exec.noProject") }, ...projects.map((project) => ({ value: project.id, label: project.name }))]} />
+      <Select label={t("exec.assignee")} value={assigneeAgentId} onChange={setAssigneeAgentId} options={[{ value: "", label: t("exec.unassigned") }, ...agents.map((agent) => ({ value: agent.id, label: agent.name }))]} />
+      <Select label={t("exec.workspace")} value={workspaceId} onChange={setWorkspaceId} options={[{ value: "", label: t("exec.noWorkspace") }, ...workspaces.map((workspace) => ({ value: workspace.id, label: workspace.name }))]} />
       {submitError ? <div className="md:col-span-2"><InlineNotice message={submitError} /></div> : null}
       <div className="md:col-span-2">
         <ActionButton
-          label="Create task"
+          label={t("exec.createTask")}
           tone="accent"
           onClick={() => void handleCreateTask()}
           icon={ListChecks}
@@ -702,9 +709,10 @@ export function TaskCreator({
 
 
 export function PendingReviewList({ tasks, agents }: { tasks: TaskRecord[]; agents: AgentRecord[] }) {
+  const t = useT();
   const reviewTasks = tasks.filter((t) => t.status === "in_review");
   if (reviewTasks.length === 0) {
-    return <EmptyState title="No agent reviews in progress" />;
+    return <EmptyState title={t("exec.noReviewsInProgress")} />;
   }
   return (
     <ListFrame>
@@ -730,8 +738,9 @@ export function PendingReviewList({ tasks, agents }: { tasks: TaskRecord[]; agen
 
 
 export function ApprovalList({ approvals, selectedApprovalId, onSelect }: { approvals: ApprovalRecord[]; selectedApprovalId: string | null; onSelect: (id: string) => void }) {
+  const t = useT();
   if (approvals.length === 0) {
-    return <EmptyState title="No approvals" />;
+    return <EmptyState title={t("exec.noApprovals")} />;
   }
   return (
     <ListFrame>
@@ -774,6 +783,7 @@ export function ApprovalInspector({
   onDecide: (state: "approved" | "rejected" | "revision_requested", note?: string) => Promise<void>;
   onDeleted: () => Promise<void>;
 }) {
+  const t = useT();
   const [decisionNote, setDecisionNote] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -813,8 +823,8 @@ export function ApprovalInspector({
     <div className="space-y-5">
       <ConfirmDialog
         open={confirmDelete}
-        title="Delete approval"
-        message={`Permanently delete this approval? This cannot be undone.`}
+        title={t("exec.deleteApproval")}
+        message={t("exec.deleteApprovalConfirm")}
         errorMessage={actionError}
         onConfirm={() => void handleDelete()}
         onCancel={() => {
@@ -928,9 +938,9 @@ export function ApprovalInspector({
       <div className="flex flex-wrap gap-3">
         {!isDecided ? (
           <>
-            <ActionButton label="Approve" tone="accent" onClick={() => void handleDecision("approved")} icon={CheckCircle} loading={acting === "approved"} />
-            <ActionButton label="Request revision" onClick={() => void handleDecision("revision_requested")} icon={ClockCounterClockwise} loading={acting === "revision_requested"} />
-            <ActionButton label="Reject" tone="danger" onClick={() => void handleDecision("rejected")} icon={XCircle} loading={acting === "rejected"} />
+            <ActionButton label={t("exec.approve")} tone="accent" onClick={() => void handleDecision("approved")} icon={CheckCircle} loading={acting === "approved"} />
+            <ActionButton label={t("exec.requestRevision")} onClick={() => void handleDecision("revision_requested")} icon={ClockCounterClockwise} loading={acting === "revision_requested"} />
+            <ActionButton label={t("exec.reject")} tone="danger" onClick={() => void handleDecision("rejected")} icon={XCircle} loading={acting === "rejected"} />
           </>
         ) : null}
         {isDecided ? (
@@ -949,6 +959,7 @@ export function ApprovalInspector({
 
 
 export function CostList({ costs, agents, runs }: { costs: ProfileSnapshot["costs"]; agents: ProfileSnapshot["agents"]; runs: ProfileSnapshot["runs"] }) {
+  const t = useT();
   const [connectorFilter, setConnectorFilter] = useState("all");
 
   const connectorIds = useMemo(() => {
@@ -964,7 +975,7 @@ export function CostList({ costs, agents, runs }: { costs: ProfileSnapshot["cost
   const total = useMemo(() => filtered.reduce((sum, c) => sum + (c.amountUsd ?? 0), 0), [filtered]);
 
   if (costs.length === 0) {
-    return <EmptyState title="No cost data yet" />;
+    return <EmptyState title={t("exec.noCostData")} />;
   }
 
   return (
@@ -973,7 +984,7 @@ export function CostList({ costs, agents, runs }: { costs: ProfileSnapshot["cost
         <Select
           value={connectorFilter}
           onChange={setConnectorFilter}
-          options={[{ value: "all", label: "All connectors" }, ...connectorIds.map((id) => ({ value: id, label: id }))]}
+          options={[{ value: "all", label: t("exec.allConnectors") }, ...connectorIds.map((id) => ({ value: id, label: id }))]}
         />
       </div>
       <ListFrame>
@@ -1066,6 +1077,7 @@ export function BudgetSummary({ agents, costs }: { agents: ProfileSnapshot["agen
 
 
 export function ActivityList({ activity }: { activity: ActivityRecord[] }) {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [entityFilter, setEntityFilter] = useState<string>("all");
   const [visibleCount, setVisibleCount] = useState(100);
@@ -1090,7 +1102,7 @@ export function ActivityList({ activity }: { activity: ActivityRecord[] }) {
   const visible = filtered.slice(0, visibleCount);
 
   if (activity.length === 0) {
-    return <EmptyState title="No activity yet" />;
+    return <EmptyState title={t("exec.noActivityYet")} />;
   }
   return (
     <div className="space-y-3">
@@ -1103,18 +1115,18 @@ export function ActivityList({ activity }: { activity: ActivityRecord[] }) {
             className="focus-ring w-full rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] py-2.5 pl-8 pr-3.5 text-[13px] text-[color:var(--text)] placeholder:text-[color:var(--muted)]"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search activity..."
+            placeholder={t("exec.searchActivity")}
           />
         </div>
         <Select
           value={entityFilter}
           onChange={setEntityFilter}
-          options={ENTITY_TYPE_OPTIONS.map((v) => ({ value: v, label: v === "all" ? "All types" : v }))}
+          options={ENTITY_TYPE_OPTIONS.map((v) => ({ value: v, label: v === "all" ? t("exec.allTypes") : v }))}
         />
       </div>
 
       {visible.length === 0 ? (
-        <EmptyState title="No matching activity" />
+        <EmptyState title={t("exec.noMatchingActivity")} />
       ) : (
         <>
           <ListFrame>
@@ -1167,6 +1179,7 @@ export function WorkspaceList({
   onOpen: (path: string) => Promise<void>;
   onDeleted: () => Promise<void>;
 }) {
+  const t = useT();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const toDelete = workspaces.find((w) => w.id === confirmDeleteId) ?? null;
@@ -1183,14 +1196,14 @@ export function WorkspaceList({
   }
 
   if (workspaces.length === 0) {
-    return <EmptyState title="No workspaces yet" />;
+    return <EmptyState title={t("exec.noWorkspacesYet")} />;
   }
   return (
     <>
       <ConfirmDialog
         open={confirmDeleteId !== null}
-        title="Delete workspace"
-        message={`Delete workspace "${toDelete?.name ?? ""}"? This only removes it from the company registry; files on disk are not affected.`}
+        title={t("exec.deleteWorkspace")}
+        message={t("exec.deleteWorkspaceConfirm").replace("{0}", toDelete?.name ?? "")}
         errorMessage={deleteError}
         onConfirm={() => confirmDeleteId && void handleDelete(confirmDeleteId)}
         onCancel={() => {
@@ -1214,9 +1227,9 @@ export function WorkspaceList({
                 </div>
                 <div className="flex items-center gap-2">
                   {workspace.isPrimary ? <StatusPill status="ready" /> : null}
-                  <ActionButton label="Inspect" onClick={() => onSelect(workspace.id)} icon={FolderOpen} />
-                  <ActionButton label="Reveal" onClick={() => void onOpen(workspace.localPath)} icon={ArrowSquareOut} />
-                  <ActionButton label="Delete" onClick={() => setConfirmDeleteId(workspace.id)} icon={Trash} tone="danger" />
+                  <ActionButton label={t("exec.inspect")} onClick={() => onSelect(workspace.id)} icon={FolderOpen} />
+                  <ActionButton label={t("exec.reveal")} onClick={() => void onOpen(workspace.localPath)} icon={ArrowSquareOut} />
+                  <ActionButton label={t("exec.delete")} onClick={() => setConfirmDeleteId(workspace.id)} icon={Trash} tone="danger" />
                 </div>
               </div>
               <div className="text-[12px] text-[color:var(--muted)]">
@@ -1249,8 +1262,9 @@ export function WorkspaceInspector({
   project: ProjectRecord | null;
   onOpen: (path: string) => Promise<void>;
 }) {
+  const t = useT();
   if (!workspace) {
-    return <EmptyState title="Select a workspace" detail="Choose a workspace to inspect the agents, tasks, runs, and documents bound to it." />;
+    return <EmptyState title={t("exec.selectWorkspace")} detail={t("exec.selectWorkspaceDetail")} />;
   }
 
   const workspaceAgents = agents.filter((agent) => agent.workspaceId === workspace.id);
@@ -1274,34 +1288,34 @@ export function WorkspaceInspector({
               {workspace.repoRef ? <span> · Ref: <span className="text-[color:var(--text)]">{workspace.repoRef}</span></span> : null}
             </div>
           </div>
-          <ActionButton label="Open folder" onClick={() => void onOpen(workspace.localPath)} icon={ArrowSquareOut} />
+          <ActionButton label={t("exec.openFolder")} onClick={() => void onOpen(workspace.localPath)} icon={ArrowSquareOut} />
         </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
-          <div className="text-[11px] uppercase tracking-[0.08em] text-[color:var(--muted)]">Agents</div>
+          <div className="text-[11px] uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("exec.agents")}</div>
           <div className="mt-2 text-[24px] font-semibold text-[color:var(--text)]">{workspaceAgents.length}</div>
         </div>
         <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
-          <div className="text-[11px] uppercase tracking-[0.08em] text-[color:var(--muted)]">Tasks</div>
+          <div className="text-[11px] uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("exec.tasks")}</div>
           <div className="mt-2 text-[24px] font-semibold text-[color:var(--text)]">{workspaceTasks.length}</div>
         </div>
         <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
-          <div className="text-[11px] uppercase tracking-[0.08em] text-[color:var(--muted)]">Runs</div>
+          <div className="text-[11px] uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("exec.runs")}</div>
           <div className="mt-2 text-[24px] font-semibold text-[color:var(--text)]">{workspaceRuns.length}</div>
         </div>
         <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
-          <div className="text-[11px] uppercase tracking-[0.08em] text-[color:var(--muted)]">Docs</div>
+          <div className="text-[11px] uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("exec.docs")}</div>
           <div className="mt-2 text-[24px] font-semibold text-[color:var(--text)]">{workspaceDocuments.length}</div>
         </div>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
         <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
-          <div className="mb-3 text-[12px] font-semibold text-[color:var(--text)]">Assigned Agents</div>
+          <div className="mb-3 text-[12px] font-semibold text-[color:var(--text)]">{t("exec.assignedAgents")}</div>
           {workspaceAgents.length === 0 ? (
-            <div className="text-[12px] text-[color:var(--muted)]">No agents are currently bound to this workspace.</div>
+            <div className="text-[12px] text-[color:var(--muted)]">{t("exec.noAgentsBound")}</div>
           ) : (
             <div className="space-y-2">
               {workspaceAgents.map((agent) => (
@@ -1318,9 +1332,9 @@ export function WorkspaceInspector({
         </div>
 
         <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
-          <div className="mb-3 text-[12px] font-semibold text-[color:var(--text)]">Open Tasks</div>
+          <div className="mb-3 text-[12px] font-semibold text-[color:var(--text)]">{t("exec.openTasks")}</div>
           {workspaceTasks.length === 0 ? (
-            <div className="text-[12px] text-[color:var(--muted)]">No tasks target this workspace yet.</div>
+            <div className="text-[12px] text-[color:var(--muted)]">{t("exec.noTasksTarget")}</div>
           ) : (
             <div className="space-y-2">
               {workspaceTasks.slice(0, 6).map((task) => (
@@ -1337,9 +1351,9 @@ export function WorkspaceInspector({
         </div>
 
         <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-4">
-          <div className="mb-3 text-[12px] font-semibold text-[color:var(--text)]">Recent Runs</div>
+          <div className="mb-3 text-[12px] font-semibold text-[color:var(--text)]">{t("exec.recentRuns")}</div>
           {workspaceRuns.length === 0 ? (
-            <div className="text-[12px] text-[color:var(--muted)]">No runs have executed in this workspace.</div>
+            <div className="text-[12px] text-[color:var(--muted)]">{t("exec.noRunsExecuted")}</div>
           ) : (
             <div className="space-y-2">
               {workspaceRuns.slice(0, 6).map((run) => (
@@ -1361,6 +1375,7 @@ export function WorkspaceInspector({
 
 
 export function WorkspaceCreator({ companyId, projects, onSaved }: { companyId: string; projects: ProjectRecord[]; onSaved: () => Promise<void> }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [localPath, setLocalPath] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
@@ -1400,23 +1415,23 @@ export function WorkspaceCreator({ companyId, projects, onSaved }: { companyId: 
 
   return (
     <div className="grid gap-4">
-      <Input label="Workspace name" value={name} onChange={setName} placeholder="Workspace name" />
-      <Field label="Local path">
+      <Input label={t("exec.workspaceName")} value={name} onChange={setName} placeholder={t("exec.workspaceName")} />
+      <Field label={t("exec.localPath")}>
         <div className="flex gap-3">
           <Input value={localPath} onChange={setLocalPath} placeholder="/Users/you/project" />
           <ActionButton
-            label="Choose"
+            label={t("exec.choose")}
             onClick={() => void handleChooseDirectory()}
             icon={FolderOpen}
           />
         </div>
       </Field>
-      <Input label="Repository URL" value={repoUrl} onChange={setRepoUrl} placeholder="https://github.com/org/repo" />
-      <Input label="Branch / ref" value={repoRef} onChange={setRepoRef} placeholder="main" />
-      <Select label="Project" value={projectId} onChange={setProjectId} options={[{ value: "", label: "No project binding" }, ...projects.map((project) => ({ value: project.id, label: project.name }))]} />
+      <Input label={t("exec.repoUrl")} value={repoUrl} onChange={setRepoUrl} placeholder="https://github.com/org/repo" />
+      <Input label={t("exec.branchRef")} value={repoRef} onChange={setRepoRef} placeholder="main" />
+      <Select label={t("exec.project")} value={projectId} onChange={setProjectId} options={[{ value: "", label: t("exec.noProjectBinding") }, ...projects.map((project) => ({ value: project.id, label: project.name }))]} />
       {submitError ? <InlineNotice message={submitError} /> : null}
       <ActionButton
-        label="Add workspace"
+        label={t("exec.addWorkspace")}
         tone="accent"
         onClick={() => void handleSaveWorkspace()}
         icon={FolderOpen}
@@ -1438,7 +1453,10 @@ export function SettingsPane({
   companyId: string;
   onSaved: () => Promise<void>;
 }) {
+  const t = useT();
+  const currentLocale = useLocale();
   const [theme, setTheme] = useState(snapshot.theme);
+  const [selectedLocale, setSelectedLocale] = useState<AppLocale>(snapshot.locale ?? currentLocale);
   const [updatesEnabled, setUpdatesEnabled] = useState(snapshot.updatesEnabled);
   const [confirmDeleteSecretId, setConfirmDeleteSecretId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -1450,7 +1468,8 @@ export function SettingsPane({
   useEffect(() => {
     setTheme(snapshot.theme);
     setUpdatesEnabled(snapshot.updatesEnabled);
-  }, [snapshot.theme, snapshot.updatesEnabled]);
+    if (snapshot.locale) setSelectedLocale(snapshot.locale);
+  }, [snapshot.theme, snapshot.updatesEnabled, snapshot.locale]);
 
   async function handleDeleteSecret(id: string) {
     setDeleteSecretError(null);
@@ -1471,7 +1490,7 @@ export function SettingsPane({
     setActionNotice(null);
     setLoadingAction("save");
     try {
-      unwrap(await window.agentCompany.updateSettings({ theme, updatesEnabled }));
+      unwrap(await window.agentCompany.updateSettings({ theme, locale: selectedLocale, updatesEnabled }));
       await onSaved();
       setActionNotice("Settings saved.");
     } catch (error) {
@@ -1548,20 +1567,23 @@ export function SettingsPane({
 
       {/* Profile info */}
       <div>
-        <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">Profile</div>
+        <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">{t("exec.profile")}</div>
         <div className="border-y border-[color:var(--line)] py-4">
-          <div className="mb-2 text-[12px] text-[color:var(--muted)]">Profile path</div>
+          <div className="mb-2 text-[12px] text-[color:var(--muted)]">{t("exec.profilePath")}</div>
           <div className="mono text-[12px] text-[color:var(--muted-strong)]">{snapshot.profilePath}</div>
         </div>
       </div>
 
       {/* Theme & updates */}
       <div>
-        <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">Preferences</div>
-        <Select value={theme} onChange={(value) => setTheme(value as ProfileSnapshot["theme"])} options={[{ value: "system", label: "System" }, { value: "dark", label: "Dark" }, { value: "light", label: "Light" }]} />
+        <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">{t("exec.preferences")}</div>
+        <Select label={t("settings.theme")} value={theme} onChange={(value) => setTheme(value as ProfileSnapshot["theme"])} options={[{ value: "system", label: t("settings.system") }, { value: "dark", label: t("settings.dark") }, { value: "light", label: t("settings.light") }]} />
+        <div className="mt-3">
+          <Select label={t("settings.language")} value={selectedLocale} onChange={(value) => setSelectedLocale(value as AppLocale)} options={APP_LOCALES.map((loc) => ({ value: loc, label: LOCALE_LABELS[loc] }))} />
+        </div>
         <div className="border-y border-[color:var(--line)] py-4 mt-3">
           <label className="flex items-center justify-between text-[13px] text-[color:var(--muted-strong)]">
-            <span>Enable updater checks</span>
+            <span>{t("exec.enableUpdater")}</span>
             <input type="checkbox" checked={updatesEnabled} onChange={(event) => setUpdatesEnabled(event.target.checked)} />
           </label>
         </div>
@@ -1573,7 +1595,7 @@ export function SettingsPane({
         if (!company) return null;
         return (
           <div>
-            <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">Company autonomy</div>
+            <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">{t("exec.companyAutonomy")}</div>
             <div className="rounded-[8px] border border-[color:var(--line)] px-4 py-3">
               <label className="flex items-center gap-3">
                 <input
@@ -1597,9 +1619,9 @@ export function SettingsPane({
                   className="h-4 w-4 rounded accent-[color:var(--accent)]"
                 />
                 <div>
-                  <div className="text-[13px] font-medium text-[color:var(--text)]">Auto-approve hire and strategy approvals</div>
+                  <div className="text-[13px] font-medium text-[color:var(--text)]">{t("exec.autoApproveLabel")}</div>
                   <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
-                    Automatically approve agent hiring requests and CEO strategy approvals so the company can continue operating without waiting on the board for those specific approval types.
+                    {t("exec.autoApproveDesc")}
                   </div>
                 </div>
               </label>
@@ -1610,18 +1632,18 @@ export function SettingsPane({
 
       {/* Actions */}
       <div>
-        <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">Actions</div>
+        <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">{t("exec.actions")}</div>
         <div className="grid gap-3 md:grid-cols-2">
-          <ActionButton label="Save settings" tone="accent" onClick={() => void handleSaveSettings()} icon={CheckCircle} loading={loadingAction === "save"} />
-          <ActionButton label="Check for updates" onClick={() => void handleCheckForUpdates()} icon={Download} loading={loadingAction === "check"} />
-          <ActionButton label="Backup profile" onClick={() => void handleBackupProfile()} icon={ClockCounterClockwise} loading={loadingAction === "backup"} />
-          <ActionButton label="Restore profile" onClick={() => void handleRestoreProfile()} icon={ArrowClockwise} loading={loadingAction === "restore"} />
+          <ActionButton label={t("exec.saveSettings")} tone="accent" onClick={() => void handleSaveSettings()} icon={CheckCircle} loading={loadingAction === "save"} />
+          <ActionButton label={t("exec.checkForUpdates")} onClick={() => void handleCheckForUpdates()} icon={Download} loading={loadingAction === "check"} />
+          <ActionButton label={t("exec.backupProfile")} onClick={() => void handleBackupProfile()} icon={ClockCounterClockwise} loading={loadingAction === "backup"} />
+          <ActionButton label={t("exec.restoreProfile")} onClick={() => void handleRestoreProfile()} icon={ArrowClockwise} loading={loadingAction === "restore"} />
         </div>
       </div>
 
       {/* Secret backend info */}
       <div>
-        <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">Secret backend</div>
+        <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">{t("exec.secretBackend")}</div>
         <div className="border-y border-[color:var(--line)] py-3 text-[13px] text-[color:var(--muted-strong)]">
           {snapshot.backend.secretBackend}
         </div>
@@ -1629,18 +1651,18 @@ export function SettingsPane({
 
       {/* Secrets table */}
       <div>
-        <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">Secrets ({secrets.length})</div>
+        <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">{t("exec.secrets")} ({secrets.length})</div>
         {secrets.length === 0 ? (
-          <EmptyState title="No secrets stored" />
+          <EmptyState title={t("exec.noSecretsStored")} />
         ) : (
           <div className="border-y border-[color:var(--line)] overflow-x-auto">
             <table className="w-full text-left text-[13px]">
               <thead>
                 <tr className="border-b border-[color:var(--line)]">
-                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">Name</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">Description</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">Backend</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">Updated</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">{t("exec.secretName")}</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">{t("exec.secretDescription")}</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">{t("exec.secretBackendCol")}</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">{t("exec.secretUpdated")}</th>
                   <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]" />
                 </tr>
               </thead>
@@ -1667,6 +1689,7 @@ export function SettingsPane({
 
 
 export function SecretCreator({ companyId, onSaved }: { companyId: string; onSaved: () => Promise<void> }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [value, setValue] = useState("");
@@ -1686,7 +1709,7 @@ export function SecretCreator({ companyId, onSaved }: { companyId: string; onSav
   return (
     <div className="grid gap-4">
       <div>
-        <Input label="Secret name" value={name} onChange={(v) => { setName(v); if (errors.name) setErrors((e) => ({ ...e, name: undefined })); }} placeholder="e.g. ANTHROPIC_API_KEY" />
+        <Input label={t("exec.secretNameLabel")} value={name} onChange={(v) => { setName(v); if (errors.name) setErrors((e) => ({ ...e, name: undefined })); }} placeholder="e.g. ANTHROPIC_API_KEY" />
         {errors.name ? <div className="mt-1 text-[12px] text-[color:var(--danger)]" role="alert">{errors.name}</div> : null}
       </div>
       <Input label="Description" value={description} onChange={setDescription} placeholder="What this secret is used for" />
@@ -1696,7 +1719,7 @@ export function SecretCreator({ companyId, onSaved }: { companyId: string; onSav
       </div>
       {submitError ? <InlineNotice message={submitError} /> : null}
       <ActionButton
-        label="Store secret"
+        label={t("exec.storeSecret")}
         tone="accent"
         onClick={() => void (async () => {
           if (!validate()) return;

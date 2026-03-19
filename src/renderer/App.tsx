@@ -48,7 +48,10 @@ import type {
   BrowserActionRecord,
   StandupReport,
 } from "@shared/types";
+import type { AppLocale } from "@shared/locale";
+import { DEFAULT_LOCALE } from "@shared/locale";
 import type { SidebarBadges } from "@shared/contracts";
+import { createTranslator, LocaleContext, TranslationContext } from "./i18n";
 import { CompanyOnboarding } from "./components/CompanyOnboarding";
 import { Inbox, StandupView, PerformanceView } from "./components/inbox";
 import { ConnectorEditor } from "./components/connectors";
@@ -92,6 +95,8 @@ import { ActionButton, ErrorBoundary, ListFrame, ListRow, Modal, Panel, SectionB
 import { unwrap } from "./lib/desktop";
 import { formatMoney, formatTime } from "./lib/formatters";
 
+type NavItemDef = { id: SectionId; labelKey: string; icon: typeof SquaresFour };
+type NavGroupDef = { labelKey: string; items: NavItemDef[] };
 type NavItem = { id: SectionId; label: string; icon: typeof SquaresFour };
 type NavGroup = { label: string; items: NavItem[] };
 type PaletteAction = {
@@ -100,69 +105,76 @@ type PaletteAction = {
   entityId?: string;
 };
 
-const navGroups: NavGroup[] = [
+const navGroupDefs: NavGroupDef[] = [
   {
-    label: "Overview",
+    labelKey: "nav.group.overview",
     items: [
-      { id: "overview", label: "Dashboard", icon: SquaresFour },
-      { id: "inbox", label: "Inbox", icon: Bell },
-      { id: "standup", label: "Standup", icon: Heartbeat },
-      { id: "performance", label: "Performance", icon: ChartBar },
-      { id: "runs", label: "Runs", icon: TerminalWindow },
+      { id: "overview", labelKey: "nav.overview", icon: SquaresFour },
+      { id: "inbox", labelKey: "nav.inbox", icon: Bell },
+      { id: "standup", labelKey: "nav.standup", icon: Heartbeat },
+      { id: "performance", labelKey: "nav.performance", icon: ChartBar },
+      { id: "runs", labelKey: "nav.runs", icon: TerminalWindow },
     ],
   },
   {
-    label: "Organization",
+    labelKey: "nav.group.organization",
     items: [
-      { id: "agents", label: "Agents", icon: Robot },
-      { id: "orgchart", label: "Org Chart", icon: TreeStructure },
-      { id: "hiring", label: "Hiring", icon: UserPlus },
-      { id: "communication", label: "Messages", icon: ChatCircle },
-      { id: "goals", label: "Goals", icon: Target },
-      { id: "projects", label: "Projects", icon: Kanban },
-      { id: "tasks", label: "Tasks", icon: ListChecks },
-      { id: "sprints", label: "Sprints", icon: Rows },
+      { id: "agents", labelKey: "nav.agents", icon: Robot },
+      { id: "orgchart", labelKey: "nav.orgchart", icon: TreeStructure },
+      { id: "hiring", labelKey: "nav.hiring", icon: UserPlus },
+      { id: "communication", labelKey: "nav.communication", icon: ChatCircle },
+      { id: "goals", labelKey: "nav.goals", icon: Target },
+      { id: "projects", labelKey: "nav.projects", icon: Kanban },
+      { id: "tasks", labelKey: "nav.tasks", icon: ListChecks },
+      { id: "sprints", labelKey: "nav.sprints", icon: Rows },
     ],
   },
   {
-    label: "Automation",
+    labelKey: "nav.group.automation",
     items: [
-      { id: "automation", label: "Automation", icon: Lightning },
-      { id: "approvals", label: "Approvals", icon: ShieldCheck },
+      { id: "automation", labelKey: "nav.automation", icon: Lightning },
+      { id: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
     ],
   },
   {
-    label: "Knowledge",
+    labelKey: "nav.group.knowledge",
     items: [
-      { id: "documents", label: "Documents", icon: FileText },
-      { id: "knowledge", label: "Knowledge", icon: Brain },
-      { id: "meetings", label: "Meetings", icon: CalendarBlank },
+      { id: "documents", labelKey: "nav.documents", icon: FileText },
+      { id: "knowledge", labelKey: "nav.knowledge", icon: Brain },
+      { id: "meetings", labelKey: "nav.meetings", icon: CalendarBlank },
     ],
   },
   {
-    label: "Operations",
+    labelKey: "nav.group.operations",
     items: [
-      { id: "costs", label: "Costs", icon: CurrencyCircleDollar },
-      { id: "activity", label: "Activity", icon: Pulse },
-      { id: "social", label: "Social Media", icon: Megaphone },
+      { id: "costs", labelKey: "nav.costs", icon: CurrencyCircleDollar },
+      { id: "activity", labelKey: "nav.activity", icon: Pulse },
+      { id: "social", labelKey: "nav.social", icon: Megaphone },
     ],
   },
   {
-    label: "Infrastructure",
+    labelKey: "nav.group.infrastructure",
     items: [
-      { id: "connectors", label: "Connectors", icon: Cpu },
-      { id: "workspaces", label: "Workspaces", icon: FolderOpen },
+      { id: "connectors", labelKey: "nav.connectors", icon: Cpu },
+      { id: "workspaces", labelKey: "nav.workspaces", icon: FolderOpen },
     ],
   },
 ];
-
-const navItems: NavItem[] = navGroups.flatMap((group) => group.items).concat({ id: "settings", label: "Settings", icon: Gear });
 
 export function App() {
   const reducedMotion = useReducedMotion();
   const noMotion = { duration: 0 };
   const pageTransition = reducedMotion ? noMotion : { duration: 0.24, ease: [0.16, 1, 0.3, 1] as const };
   const panelTransition = reducedMotion ? noMotion : { duration: 0.22, ease: [0.16, 1, 0.3, 1] as const };
+
+  const [locale, setLocale] = useState<AppLocale>(DEFAULT_LOCALE);
+  const t = useMemo(() => createTranslator(locale), [locale]);
+
+  const navGroups: NavGroup[] = useMemo(() => navGroupDefs.map((group) => ({
+    label: t(group.labelKey),
+    items: group.items.map((item) => ({ id: item.id, label: t(item.labelKey), icon: item.icon })),
+  })), [t]);
+  const navItems: NavItem[] = useMemo(() => navGroups.flatMap((group) => group.items).concat({ id: "settings", label: t("nav.settings"), icon: Gear }), [navGroups, t]);
 
   const [snapshot, setSnapshot] = useState<ProfileSnapshot | null>(null);
   const [section, setSection] = useState<SectionId>("overview");
@@ -306,7 +318,19 @@ export function App() {
     const root = document.documentElement;
     root.dataset.theme = snapshot.theme;
     root.style.colorScheme = snapshot.theme === "system" ? "light dark" : snapshot.theme;
-  }, [snapshot]);
+    if (snapshot.locale && snapshot.locale !== locale) {
+      setLocale(snapshot.locale);
+    }
+  }, [snapshot, locale]);
+
+  const handleLocaleChange = useCallback(async (newLocale: AppLocale) => {
+    setLocale(newLocale);
+    try {
+      await window.agentCompany.updateSettings({ locale: newLocale });
+    } catch {
+      // persist failed; local state is already updated
+    }
+  }, []);
 
   useEffect(() => {
     if (!snapshot?.currentCompanyId) return;
@@ -597,21 +621,41 @@ export function App() {
 
   if (!snapshot) {
     return (
-      <div className="flex min-h-[100dvh] items-center justify-center text-[13px] text-[color:var(--muted)]">
-        Loading local profile...
-      </div>
+      <LocaleContext.Provider value={locale}>
+        <TranslationContext.Provider value={t}>
+          <div className="flex min-h-[100dvh] items-center justify-center text-[13px] text-[color:var(--muted)]">
+            {t("app.loading")}
+          </div>
+        </TranslationContext.Provider>
+      </LocaleContext.Provider>
     );
   }
 
   if (snapshot.companies.length === 0 || showOnboarding || initialOnboardingLocked) {
-    return <CompanyOnboarding connectors={snapshot.connectors} onDone={handleOnboardingDone} canCancel={snapshot.companies.length > 0 && !initialOnboardingLocked} onCancel={() => {
-      setShowOnboarding(false);
-      setInitialOnboardingLocked(false);
-      setError(null);
-    }} />;
+    return (
+      <LocaleContext.Provider value={locale}>
+        <TranslationContext.Provider value={t}>
+          <CompanyOnboarding
+            connectors={snapshot.connectors}
+            onDone={handleOnboardingDone}
+            canCancel={snapshot.companies.length > 0 && !initialOnboardingLocked}
+            onCancel={() => {
+              setShowOnboarding(false);
+              setInitialOnboardingLocked(false);
+              setError(null);
+            }}
+            currentLocale={locale}
+            onLocaleChange={handleLocaleChange}
+            isFirstLaunch={snapshot.companies.length === 0}
+          />
+        </TranslationContext.Provider>
+      </LocaleContext.Provider>
+    );
   }
 
   return (
+    <LocaleContext.Provider value={locale}>
+    <TranslationContext.Provider value={t}>
     <div className={`grid h-[100dvh] overflow-hidden bg-[color:var(--bg)] ${sidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[220px_minmax(0,1fr)]"}`}>
       <aside className="flex h-[100dvh] flex-col overflow-hidden border-r border-[color:var(--line)] bg-[color:var(--panel)]">
         {sidebarCollapsed ? (
@@ -633,7 +677,7 @@ export function App() {
                 className="focus-ring flex w-full items-center gap-2 rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)] px-2.5 py-1.5 text-left text-[13px] font-medium text-[color:var(--text)] transition hover:bg-[color:var(--panel-soft)]"
                 onClick={() => setCompanySwitcherOpen((v) => !v)}
               >
-                <span className="min-w-0 flex-1 truncate">{currentCompany?.name ?? "Select company"}</span>
+                <span className="min-w-0 flex-1 truncate">{currentCompany?.name ?? t("app.selectCompany")}</span>
                 <CaretUpDown size={14} className="shrink-0 text-[color:var(--muted)]" />
               </button>
               {companySwitcherOpen && (
@@ -693,7 +737,7 @@ export function App() {
                         onClick={() => { void setCompany("__new__"); setCompanySwitcherOpen(false); }}
                       >
                         <Plus size={14} />
-                        <span>New company</span>
+                        <span>{t("app.newCompany")}</span>
                       </button>
                     </div>
                   </div>
@@ -749,7 +793,7 @@ export function App() {
             onClick={() => setSidebarCollapsed((c) => !c)}
           >
             <SidebarSimple size={sidebarCollapsed ? 18 : 17} />
-            {!sidebarCollapsed ? <span className="text-[13px] font-medium tracking-[0.005em]">Collapse</span> : null}
+            {!sidebarCollapsed ? <span className="text-[13px] font-medium tracking-[0.005em]">{t("app.collapse")}</span> : null}
           </button>
         </div>
       </aside>
@@ -770,7 +814,7 @@ export function App() {
               onClick={() => void refresh()}
             >
               <ArrowClockwise size={16} />
-              <span className="hidden lg:inline">Refresh</span>
+              <span className="hidden lg:inline">{t("app.refresh")}</span>
             </button>
             <button
               type="button"
@@ -780,7 +824,7 @@ export function App() {
               onClick={() => setConsoleOpen((current) => !current)}
             >
               <TerminalWindow size={16} />
-              <span className="hidden lg:inline">{consoleOpen ? "Hide console" : "Show console"}</span>
+              <span className="hidden lg:inline">{consoleOpen ? t("app.hideConsole") : t("app.showConsole")}</span>
             </button>
           </div>
         </header>
@@ -1316,7 +1360,7 @@ export function App() {
               <div className="flex items-center justify-between px-5 py-2.5">
                 <div className="flex items-center gap-3">
                   <TerminalWindow size={15} className="text-[color:var(--muted)]" />
-                  <span className="text-[13px] font-semibold text-[color:var(--text)]">Console</span>
+                  <span className="text-[13px] font-semibold text-[color:var(--text)]">{t("console.title")}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Select
@@ -1325,7 +1369,7 @@ export function App() {
                     onChange={setSelectedRunId}
                     options={runs.length > 0
                       ? runs.map((run) => ({ value: run.id, label: run.summary || `Run ${run.id.slice(0, 8)}` }))
-                      : [{ value: "", label: "No runs" }]
+                      : [{ value: "", label: t("console.noRuns") }]
                     }
                   />
                   <button
@@ -1343,34 +1387,34 @@ export function App() {
                   {selectedRun ? (
                     <div className="space-y-2.5 text-[12px] text-[color:var(--muted-strong)]">
                       <div className="flex items-center justify-between">
-                        <span>Status</span>
+                        <span>{t("common.status")}</span>
                         <StatusPill status={selectedRun.status} />
                       </div>
                       <div className="flex items-center justify-between">
-                        <span>Started</span>
+                        <span>{t("common.started")}</span>
                         <span className="mono text-[11px]">{formatTime(selectedRun.startedAt)}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span>Finished</span>
+                        <span>{t("common.finished")}</span>
                         <span className="mono text-[11px]">{formatTime(selectedRun.finishedAt)}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span>Cost</span>
+                        <span>{t("common.cost")}</span>
                         <span className="mono text-[11px]">{formatMoney(selectedRun.costUsd)}</span>
                       </div>
                       {selectedRun.logPath ? (
                         <div className="pt-1">
-                          <ActionButton label="Open log" onClick={() => void openPathWithFeedback(selectedRun.logPath!)} icon={FolderOpen} />
+                          <ActionButton label={t("common.openLog")} onClick={() => void openPathWithFeedback(selectedRun.logPath!)} icon={FolderOpen} />
                         </div>
                       ) : null}
                     </div>
                   ) : (
-                    <div className="py-4 text-center text-[12px] text-[color:var(--muted)]">No run selected</div>
+                    <div className="py-4 text-center text-[12px] text-[color:var(--muted)]">{t("common.noRunSelected")}</div>
                   )}
                 </div>
                 <div className="h-[200px] overflow-auto px-5 py-3">
                   <pre className="mono whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--muted-strong)]">
-                    {selectedRun ? logBufferRef.current[selectedRun.id] ?? "Waiting for log output..." : "No run selected."}
+                    {selectedRun ? logBufferRef.current[selectedRun.id] ?? t("common.waitingForLog") : t("common.noRunSelected")}
                   </pre>
                 </div>
               </div>
@@ -1406,7 +1450,7 @@ export function App() {
                   type="text"
                   aria-label="Search"
                   className="flex-1 bg-transparent text-[14px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] outline-none"
-                  placeholder="Search sections, agents, tasks, goals, projects..."
+                  placeholder={t("app.search")}
                   value={commandPaletteSearch}
                   onChange={(e) => setCommandPaletteSearch(e.target.value)}
                   autoFocus
@@ -1416,14 +1460,14 @@ export function App() {
                     className="text-[12px] text-[color:var(--muted)] hover:text-[color:var(--text)]"
                     onClick={() => setCommandPaletteSearch("")}
                   >
-                    Clear
+                    {t("app.clear")}
                   </button>
                 )}
               </div>
 
               {filteredNavItems.length > 0 ? (
                 <>
-                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Sections</div>
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("entity.sections")}</div>
                   <ListFrame>
                     {filteredNavItems.map((item) => (
                       <ListRow
@@ -1453,7 +1497,7 @@ export function App() {
                 <div className="mt-3 space-y-3">
                   {matchedAgents.length > 0 ? (
                     <>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Agents</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("entity.agents")}</div>
                       <ListFrame>
                         {matchedAgents.map((agent) => (
                           <ListRow
@@ -1482,7 +1526,7 @@ export function App() {
 
                   {matchedTasks.length > 0 ? (
                     <>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Tasks</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("entity.tasks")}</div>
                       <ListFrame>
                         {matchedTasks.map((task) => (
                           <ListRow
@@ -1510,7 +1554,7 @@ export function App() {
 
                   {matchedRuns.length > 0 ? (
                     <>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Runs</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("entity.runs")}</div>
                       <ListFrame>
                         {matchedRuns.map((run) => (
                           <ListRow
@@ -1540,7 +1584,7 @@ export function App() {
 
                   {matchedGoals.length > 0 ? (
                     <>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Goals</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("entity.goals")}</div>
                       <ListFrame>
                         {matchedGoals.map((goal) => (
                           <ListRow
@@ -1568,7 +1612,7 @@ export function App() {
 
                   {matchedProjects.length > 0 ? (
                     <>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Projects</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("entity.projects")}</div>
                       <ListFrame>
                         {matchedProjects.map((project) => (
                           <ListRow
@@ -1597,7 +1641,7 @@ export function App() {
               ) : null}
 
               {paletteQuery && filteredNavItems.length === 0 && !hasEntityResults ? (
-                <div className="py-6 text-center text-[13px] text-[color:var(--muted)]">No results for "{commandPaletteSearch}"</div>
+                <div className="py-6 text-center text-[13px] text-[color:var(--muted)]">{t("app.noResults")} "{commandPaletteSearch}"</div>
               ) : null}
             </motion.div>
           </motion.div>
@@ -1605,5 +1649,7 @@ export function App() {
       </AnimatePresence>
 
     </div>
+    </TranslationContext.Provider>
+    </LocaleContext.Provider>
   );
 }

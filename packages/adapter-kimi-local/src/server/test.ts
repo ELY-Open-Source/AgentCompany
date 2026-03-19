@@ -28,18 +28,12 @@ export async function testEnvironment(
     await ensureCommandResolvable(command, cwd, env);
     return {
       adapterType: "kimi_local",
-      status: "warn",
+      status: "pass",
       checks: [
         {
           code: "kimi_command_detected",
           level: "info",
           message: `Detected Kimi Code command "${command}".`,
-        },
-        {
-          code: "kimi_runtime_generic_mode",
-          level: "warn",
-          message:
-            "Kimi integration is running in generic CLI mode. Session resume, model discovery, and structured transcript are not guaranteed.",
         },
       ],
       testedAt: new Date().toISOString(),

@@ -214,6 +214,7 @@ export function createOrchestrationService({
       runId,
       task,
       companyName,
+      locale: snapshot.locale,
       goals: snapshot.goals.filter((goal) => goal.companyId === companyId),
       projects: snapshot.projects.filter((project) => project.companyId === companyId),
       directReports: db.getDirectReports(agent.id, companyId),

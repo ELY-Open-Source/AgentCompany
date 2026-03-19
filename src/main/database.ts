@@ -430,9 +430,12 @@ export class AppDatabase {
     return runLogs.some((run) => run.logPath ? safeRealpath(run.logPath) === resolvedTarget : false);
   }
 
-  updateSettings(input: { theme?: "system" | "light" | "dark"; updatesEnabled?: boolean; logRetentionDays?: number }) {
+  updateSettings(input: { theme?: "system" | "light" | "dark"; locale?: "en" | "zh"; updatesEnabled?: boolean; logRetentionDays?: number }) {
     if (input.theme) {
       this.setSetting("theme", input.theme);
+    }
+    if (input.locale) {
+      this.setSetting("locale", input.locale);
     }
     if (typeof input.updatesEnabled === "boolean") {
       this.setSetting("updates_enabled", input.updatesEnabled ? "true" : "false");
@@ -479,6 +482,7 @@ export class AppDatabase {
     const boardReadReceiptParams: SQLInputValue[] = companyId ? [BOARD_READER_ID, companyId] : [BOARD_READER_ID];
     const connectors = this.readConnectors();
     const theme = (this.getSetting("theme") as "system" | "light" | "dark" | null) ?? "system";
+    const locale = (this.getSetting("locale") as "en" | "zh" | null) ?? "en";
     const boardReadReceiptMap = new Map(
       this.readAll<{ messageId: string; readAt: string }>(
         `select reads.message_id as messageId, reads.read_at as readAt
@@ -493,6 +497,7 @@ export class AppDatabase {
       profilePath: this.profileDir,
       updatesEnabled: this.getSetting("updates_enabled") !== "false",
       theme,
+      locale,
       backend: {
         secretBackend: this.vault.getBackendLabel(),
       },

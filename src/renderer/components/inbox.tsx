@@ -18,6 +18,7 @@ import {
 } from "@phosphor-icons/react";
 import type { InboxItem, InboxItemType, SectionId, StandupReport, CompanyMetrics } from "@shared/types";
 import { formatMoney, timeAgo, getAgentInitials, formatDuration } from "../lib/formatters";
+import { useT } from "../i18n";
 
 const typeConfig: Record<InboxItemType, { icon: React.ElementType; color: string; bg: string; label: string }> = {
   pending_approval: { icon: ShieldCheck, color: "var(--warn)", bg: "var(--warn-soft)", label: "Approval" },
@@ -41,6 +42,7 @@ interface InboxProps {
 }
 
 export function Inbox({ items, onNavigate }: InboxProps) {
+  const t = useT();
   const [filter, setFilter] = useState<InboxItemType | "all">("all");
 
   const filteredItems = useMemo(() => {
@@ -88,7 +90,7 @@ export function Inbox({ items, onNavigate }: InboxProps) {
             <Bell size={20} weight="fill" className="text-[color:var(--accent)]" />
           </div>
           <div>
-            <h2 className="text-[16px] font-bold text-[color:var(--text)]">Inbox</h2>
+            <h2 className="text-[16px] font-bold text-[color:var(--text)]">{t("inbox.title")}</h2>
             <p className="text-[12px] text-[color:var(--muted)]">
               {counts.all} item{counts.all !== 1 ? "s" : ""} need{counts.all === 1 ? "s" : ""} your attention
             </p>
@@ -123,8 +125,8 @@ export function Inbox({ items, onNavigate }: InboxProps) {
       {filteredItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-[color:var(--line)] py-16 text-center">
           <Tray size={32} className="mb-3 text-[color:var(--muted)]" />
-          <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">All clear!</div>
-          <div className="mt-1 text-[12px] text-[color:var(--muted)]">No items need your attention right now</div>
+          <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">{t("inbox.allClear")}</div>
+          <div className="mt-1 text-[12px] text-[color:var(--muted)]">{t("inbox.noItemsNow")}</div>
         </div>
       ) : (
         <div className="space-y-1.5">
@@ -189,12 +191,13 @@ interface StandupProps {
 }
 
 export function StandupView({ report, onNavigate }: StandupProps) {
+  const t = useT();
   if (!report) {
     return (
       <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-[color:var(--line)] py-16 text-center">
         <Clock size={32} className="mb-3 text-[color:var(--muted)]" />
-        <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">No standup data</div>
-        <div className="mt-1 text-[12px] text-[color:var(--muted)]">Company needs active agents to generate standup reports</div>
+        <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">{t("standup.noData")}</div>
+        <div className="mt-1 text-[12px] text-[color:var(--muted)]">{t("standup.noDataDesc")}</div>
       </div>
     );
   }
@@ -207,7 +210,7 @@ export function StandupView({ report, onNavigate }: StandupProps) {
             <Heartbeat size={20} weight="fill" className="text-[color:var(--accent)]" />
           </div>
           <div>
-            <h2 className="text-[16px] font-bold text-[color:var(--text)]">Daily Standup</h2>
+            <h2 className="text-[16px] font-bold text-[color:var(--text)]">{t("standup.dailyStandup")}</h2>
             <p className="text-[12px] text-[color:var(--muted)]">
               Generated {new Date(report.generatedAt).toLocaleString()}
             </p>
@@ -217,31 +220,31 @@ export function StandupView({ report, onNavigate }: StandupProps) {
         <div className="mt-3 flex gap-4">
           <div className="text-center">
             <div className="text-[18px] font-bold text-[color:var(--success)]">{report.agentReports.filter(r => r.tasksCompleted24h > 0).length}</div>
-            <div className="text-[10px] text-[color:var(--muted)]">Productive</div>
+            <div className="text-[10px] text-[color:var(--muted)]">{t("standup.productive")}</div>
           </div>
           <div className="h-10 w-px bg-[color:var(--line)]" />
           <div className="text-center">
             <div className="text-[18px] font-bold text-[color:var(--danger)]">{report.blockers.length}</div>
-            <div className="text-[10px] text-[color:var(--muted)]">Blockers</div>
+            <div className="text-[10px] text-[color:var(--muted)]">{t("standup.blockers")}</div>
           </div>
           <div className="h-10 w-px bg-[color:var(--line)]" />
           <div className="text-center">
             <div className="text-[18px] font-bold text-[color:var(--warn)]">{report.pendingApprovals}</div>
-            <div className="text-[10px] text-[color:var(--muted)]">Approvals</div>
+            <div className="text-[10px] text-[color:var(--muted)]">{t("standup.pendingApprovals")}</div>
           </div>
           <div className="h-10 w-px bg-[color:var(--line)]" />
           <div className="text-center">
             <div className={`text-[18px] font-bold ${report.budgetUtilization > 80 ? "text-[color:var(--danger)]" : "text-[color:var(--text)]"}`}>
               {report.budgetUtilization}%
             </div>
-            <div className="text-[10px] text-[color:var(--muted)]">Budget Used</div>
+            <div className="text-[10px] text-[color:var(--muted)]">{t("standup.budgetUsed")}</div>
           </div>
         </div>
       </div>
 
       {report.companyHighlights.length > 0 ? (
         <section>
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Highlights</div>
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("standup.highlights")}</div>
           <div className="space-y-1.5">
             {report.companyHighlights.map((h, i) => (
               <div key={i} className="flex items-center gap-2 rounded-[6px] bg-[color:var(--success-soft)] px-3 py-2 text-[12px] text-[color:var(--success)]">
@@ -268,7 +271,7 @@ export function StandupView({ report, onNavigate }: StandupProps) {
       ) : null}
 
       <section>
-        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Agent Status</div>
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("standup.agentStatus")}</div>
         <div className="space-y-2">
           {report.agentReports.map((ar) => (
             <button
@@ -323,12 +326,13 @@ interface PerformanceProps {
 }
 
 export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
+  const t = useT();
   if (!metrics) {
     return (
       <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-[color:var(--line)] py-16 text-center">
         <Target size={32} className="mb-3 text-[color:var(--muted)]" />
-        <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">No metrics yet</div>
-        <div className="mt-1 text-[12px] text-[color:var(--muted)]">Metrics will appear after agents start working</div>
+        <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">{t("perf.noMetrics")}</div>
+        <div className="mt-1 text-[12px] text-[color:var(--muted)]">{t("perf.noMetricsDesc")}</div>
       </div>
     );
   }
@@ -337,24 +341,24 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <CompactMetric
-          label="Success Rate"
+          label={t("perf.successRate")}
           value={`${metrics.overallSuccessRate}%`}
           tone={metrics.overallSuccessRate >= 80 ? "success" : metrics.overallSuccessRate >= 50 ? "warn" : "danger"}
         />
         <CompactMetric
-          label="Tasks Done"
+          label={t("perf.tasksDone")}
           value={metrics.completedTasks}
           tone="success"
           subtitle={`of ${metrics.totalTasks} total`}
         />
         <CompactMetric
-          label="Throughput"
+          label={t("perf.throughput")}
           value={`${metrics.throughputTasksPerDay.toFixed(1)}`}
           tone="accent"
-          subtitle="tasks/day"
+          subtitle={t("perf.tasksPerDay")}
         />
         <CompactMetric
-          label="Avg Cost/Task"
+          label={t("perf.avgCostTask")}
           value={formatMoney(metrics.avgCostPerTask)}
           tone="default"
         />

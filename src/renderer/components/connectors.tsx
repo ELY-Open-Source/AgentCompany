@@ -3,6 +3,7 @@ import { CheckCircle, SignIn } from "@phosphor-icons/react";
 import type { ConnectorRecord } from "@shared/types";
 import { unwrap } from "../lib/desktop";
 import { ActionButton, InlineNotice, Input, Select, StatusPill, TextArea } from "./ui";
+import { useT } from "../i18n";
 
 function getAuthActionCopy(connector: ConnectorRecord) {
   switch (connector.id) {
@@ -40,6 +41,7 @@ function getAuthActionCopy(connector: ConnectorRecord) {
 }
 
 export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRecord; onSaved: () => Promise<void> }) {
+  const t = useT();
   const [model, setModel] = useState(connector.model ?? "");
   const [envBindingText, setEnvBindingText] = useState(connector.envBindingText);
   const [notes, setNotes] = useState(connector.notes);
@@ -173,14 +175,14 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
       ) : null}
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <div className="mb-1.5 text-[12px] font-medium text-[color:var(--muted-strong)]">Status</div>
+          <div className="mb-1.5 text-[12px] font-medium text-[color:var(--muted-strong)]">{t("conn.status")}</div>
           <div className="flex items-center gap-3">
             <StatusPill status={connector.status} />
             <span className="text-[12px] text-[color:var(--muted)]">{connector.version ?? "version unknown"}</span>
           </div>
         </div>
         <div>
-          <div className="mb-1.5 text-[12px] font-medium text-[color:var(--muted-strong)]">Capability matrix</div>
+          <div className="mb-1.5 text-[12px] font-medium text-[color:var(--muted-strong)]">{t("conn.capabilityMatrix")}</div>
           <div className="grid grid-cols-2 gap-2">
             {Object.entries(connector.capabilityMatrix).map(([key, value]) => (
               <div key={key} className={`rounded-[6px] border px-3 py-2 text-[12px] ${value ? "border-[color:var(--accent)] border-opacity-20 bg-[color:var(--accent-soft)] text-[color:var(--accent)]" : "border-[color:var(--line)] bg-[color:var(--panel-soft)] text-[color:var(--muted)]"}`}>
@@ -233,7 +235,7 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
       ) : null}
       <div className="flex gap-3">
         <ActionButton
-          label="Save connector"
+          label={t("conn.saveConnector")}
           tone="accent"
           onClick={() => void (async () => {
             setSaving(true);

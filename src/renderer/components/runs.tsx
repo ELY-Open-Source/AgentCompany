@@ -10,6 +10,7 @@ import {
 import type { AgentRecord, RunRecord, TaskRecord, WorkspaceRecord } from "@shared/types";
 import { formatMoney, formatTime, timeAgo } from "../lib/formatters";
 import { ActionButton, EmptyState, Input, ListFrame, ListRow, Panel, Select, StatusPill } from "./ui";
+import { useT } from "../i18n";
 
 const LOG_CHUNK_BYTES = 65_536;
 
@@ -64,6 +65,7 @@ export function RunCenter({
   onOpenLogPath,
   onOpenConsole,
 }: RunCenterProps) {
+  const t = useT();
   const [statusFilter, setStatusFilter] = useState<"all" | RunRecord["status"]>("all");
   const [search, setSearch] = useState("");
   const [logState, setLogState] = useState<RunLogState>(initialLogState);
@@ -265,8 +267,8 @@ export function RunCenter({
   if (runs.length === 0) {
     return (
       <EmptyState
-        title="No runs yet"
-        detail="Start a task run from the task queue or onboarding handoff. This surface becomes the operator console for queue state, failures, and live log tails."
+        title={t("runs.noRunsYet")}
+        detail={t("runs.noRunsDetail")}
       />
     );
   }
@@ -275,22 +277,22 @@ export function RunCenter({
     <div className="space-y-10">
       <div className="grid gap-3 md:grid-cols-3">
         <RunSummaryCard
-          label="Active"
+          label={t("runs.activeLabel")}
           value={groupedCounts.active}
-          detail="Queued or running right now"
+          detail={t("runs.queuedOrRunning")}
           icon={PlayCircle}
         />
         <RunSummaryCard
-          label="Needs attention"
+          label={t("runs.needsAttention")}
           value={groupedCounts.attention}
-          detail="Failed, timed out, or interrupted"
+          detail={t("runs.failedTimedInterrupted")}
           icon={WarningCircle}
           tone="danger"
         />
         <RunSummaryCard
-          label="Completed"
+          label={t("runs.completedLabel")}
           value={groupedCounts.completed}
-          detail="Finished without current intervention"
+          detail={t("runs.finishedWithout")}
           icon={ListChecks}
         />
       </div>
@@ -298,7 +300,7 @@ export function RunCenter({
       <div className="grid gap-8 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <div className="space-y-5">
           <Panel
-            title="Run queue"
+            title={t("runs.runQueue")}
             action={(
               <Select
                 compact
@@ -322,7 +324,7 @@ export function RunCenter({
                 ariaLabel="Search runs"
                 value={search}
                 onChange={setSearch}
-                placeholder="Search by task, agent, connector, workspace, or error"
+                placeholder={t("runs.searchRuns")}
               />
             </div>
             <ListFrame>
@@ -359,8 +361,8 @@ export function RunCenter({
             </ListFrame>
             {filteredRuns.length === 0 ? (
               <EmptyState
-                title="No runs match this filter"
-                detail="Widen the status filter or clear the search query to inspect the full run history."
+                title={t("runs.noRunsMatch")}
+                detail={t("runs.noRunsMatchDetail")}
               />
             ) : null}
           </Panel>
@@ -370,17 +372,17 @@ export function RunCenter({
           {selectedRun ? (
             <>
               <Panel
-                title="Run detail"
+                title={t("runs.runDetail")}
                 action={(
                   <div className="flex items-center gap-2">
                     <ActionButton
-                      label="Open console"
+                      label={t("runs.openConsole")}
                       icon={Lightning}
                       onClick={() => onOpenConsole(selectedRun.id)}
                     />
                     {isActiveStatus(selectedRun.status) ? (
                       <ActionButton
-                        label="Cancel run"
+                        label={t("runs.cancelRun")}
                         tone="danger"
                         icon={WarningCircle}
                         onClick={() => void onCancelRun(selectedRun.id)}
@@ -409,7 +411,7 @@ export function RunCenter({
                 {selectedRun.logPath ? (
                   <div className="mt-5">
                     <ActionButton
-                      label="Open log file"
+                      label={t("runs.openLogFile")}
                       icon={FolderOpen}
                       onClick={() => void onOpenLogPath(selectedRun.logPath!)}
                     />
@@ -418,18 +420,18 @@ export function RunCenter({
               </Panel>
 
               <Panel
-                title="Log tail"
-                eyebrow="Incremental reader"
+                title={t("runs.logTail")}
+                eyebrow={t("runs.incrementalReader")}
                 action={(
                   <div className="flex items-center gap-2">
                     <ActionButton
-                      label="Reload tail"
+                      label={t("runs.reloadTail")}
                       icon={ArrowClockwise}
                       onClick={() => setLogReloadKey((current) => current + 1)}
                     />
                     {logState.offset > 0 ? (
                       <ActionButton
-                        label="Load older"
+                        label={t("runs.loadOlder")}
                         icon={ListChecks}
                         onClick={() => void loadOlderLogs()}
                         disabled={logState.loading}

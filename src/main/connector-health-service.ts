@@ -30,7 +30,7 @@ export function createConnectorHealthService({
     const preferredWorkspace = snapshot.workspaces.find((workspace) => workspace.companyId === currentCompanyId)
       ?? snapshot.workspaces[0]
       ?? null;
-    return preferredWorkspace?.localPath ?? process.env.HOME ?? homedir() ?? process.cwd();
+    return preferredWorkspace?.localPath ?? process.env.USERPROFILE ?? process.env.HOME ?? homedir() ?? process.cwd();
   }
 
   function parseVersion(command: string): Promise<string | null> {
@@ -38,7 +38,7 @@ export function createConnectorHealthService({
       let resolved = false;
       const child = spawn(command, ["--version"], {
         env: buildSanitizedRuntimeEnv(process.env, {}),
-        shell: false,
+        shell: process.platform === "win32",
         stdio: ["ignore", "pipe", "pipe"],
       });
       let buffer = "";
@@ -62,7 +62,7 @@ export function createConnectorHealthService({
       setTimeout(() => {
         if (!resolved) {
           resolved = true;
-          child.kill("SIGKILL");
+          try { child.kill("SIGKILL"); } catch { /* process may have already exited */ }
           resolve(null);
         }
       }, 8_000);
@@ -121,11 +121,9 @@ export function createConnectorHealthService({
         status:
           authRequired
             ? "auth_required"
-            : result.status === "pass"
+            : result.status === "pass" || result.status === "warn"
             ? "ready"
-            : result.status === "warn"
-              ? "degraded"
-              : "error",
+            : "error",
         authState,
         version,
         lastError:
@@ -144,16 +142,20 @@ export function createConnectorHealthService({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       _logger.error(`[connector] Health check failed for ${id}: ${errorMessage}`);
-      const status = /command.*not found|not executable/i.test(errorMessage)
+      const isNotInstalled = /command.*not found|not executable|ENOENT/i.test(errorMessage);
+      const isTimeout = /timed out/i.test(errorMessage);
+      // If the command exists on PATH but the probe failed (timeout, unexpected output, etc.),
+      // still treat it as ready — the user configured it and it's resolvable.
+      const status = isNotInstalled
         ? "not_installed"
-        : /timed out/i.test(errorMessage)
-          ? "degraded"
+        : isTimeout
+          ? "ready"
           : "error";
       db.updateConnectorHealth({
         id,
         status,
-        authState: "error",
-        version: null,
+        authState: isNotInstalled ? "error" : "unknown",
+        version: isTimeout ? connector.version : null,
         lastError: errorMessage,
       });
     }

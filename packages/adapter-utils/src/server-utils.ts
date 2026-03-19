@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { constants as fsConstants, promises as fs } from "node:fs";
 import path from "node:path";
+import { StringDecoder } from "node:string_decoder";
 
 export interface RunProcessResult {
   exitCode: number | null;
@@ -125,7 +126,20 @@ export function buildAgentCompanyEnv(agent: { id: string; companyId: string }): 
 
 export function defaultPathForPlatform() {
   if (process.platform === "win32") {
-    return "C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem";
+    const home = process.env.USERPROFILE ?? process.env.HOME ?? "";
+    const appData = process.env.APPDATA ?? (home ? `${home}\\AppData\\Roaming` : "");
+    const localAppData = process.env.LOCALAPPDATA ?? (home ? `${home}\\AppData\\Local` : "");
+    const parts = [
+      "C:\\Windows\\System32",
+      "C:\\Windows",
+      "C:\\Windows\\System32\\Wbem",
+      appData ? `${appData}\\npm` : "",
+      localAppData ? `${localAppData}\\pnpm` : "",
+      home ? `${home}\\.local\\bin` : "",
+      home ? `${home}\\.cargo\\bin` : "",
+      "C:\\Program Files\\nodejs",
+    ].filter(Boolean);
+    return parts.join(";");
   }
   return "/usr/local/bin:/opt/homebrew/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin";
 }
@@ -311,6 +325,11 @@ export async function runChildProcess(
         let stderr = "";
         let logChain: Promise<void> = Promise.resolve();
 
+        // Use StringDecoder to correctly handle multi-byte UTF-8 characters
+        // that may be split across chunk boundaries (e.g. Chinese characters).
+        const stdoutDecoder = new StringDecoder("utf8");
+        const stderrDecoder = new StringDecoder("utf8");
+
         const timeout =
           opts.timeoutSec > 0
             ? setTimeout(() => {
@@ -325,7 +344,7 @@ export async function runChildProcess(
             : null;
 
         child.stdout?.on("data", (chunk: unknown) => {
-          const text = String(chunk);
+          const text = chunk instanceof Buffer ? stdoutDecoder.write(chunk) : String(chunk);
           stdout = appendWithCap(stdout, text);
           logChain = logChain
             .then(() => opts.onLog("stdout", text))
@@ -333,7 +352,7 @@ export async function runChildProcess(
         });
 
         child.stderr?.on("data", (chunk: unknown) => {
-          const text = String(chunk);
+          const text = chunk instanceof Buffer ? stderrDecoder.write(chunk) : String(chunk);
           stderr = appendWithCap(stderr, text);
           logChain = logChain
             .then(() => opts.onLog("stderr", text))
@@ -355,6 +374,11 @@ export async function runChildProcess(
         child.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
           if (timeout) clearTimeout(timeout);
           runningProcesses.delete(runId);
+          // Flush any remaining partial multi-byte characters from the decoders.
+          const stdoutTail = stdoutDecoder.end();
+          const stderrTail = stderrDecoder.end();
+          if (stdoutTail) stdout = appendWithCap(stdout, stdoutTail);
+          if (stderrTail) stderr = appendWithCap(stderr, stderrTail);
           void logChain.finally(() => {
             resolve({
               exitCode: code,

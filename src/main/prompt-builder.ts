@@ -1,5 +1,7 @@
 import type { AgentRecord, AgentMessageRecord, ApprovalRecord, DocumentRecord, GoalRecord, KnowledgeEntryRecord, MeetingRecord, ProjectRecord, SprintRecord, TaskRecord } from "@shared/types";
+import type { AppLocale } from "@shared/locale";
 import { DEPARTMENT_LABELS } from "@shared/constants";
+import { getLocalePromptInstruction } from "@shared/localization";
 
 interface PromptContext {
   agent: AgentRecord;
@@ -8,6 +10,7 @@ interface PromptContext {
   runId: string;
   task: TaskRecord | null;
   companyName: string;
+  locale?: AppLocale;
   goals: GoalRecord[];
   projects: ProjectRecord[];
   directReports: AgentRecord[];
@@ -33,6 +36,11 @@ export function buildSystemPrompt(ctx: PromptContext): string {
 
   const isCEO = ctx.chainOfCommand.length === 0;
   const isManager = !isCEO && ctx.directReports.length > 0;
+
+  const localeInstruction = getLocalePromptInstruction(ctx.locale ?? "en");
+  if (localeInstruction) {
+    sections.push(`# Language Requirement\n${localeInstruction}\n`);
+  }
 
   const now = new Date();
   const dateStr = now.toISOString().split("T")[0];

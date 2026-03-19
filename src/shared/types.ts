@@ -289,6 +289,7 @@ export interface ProfileSnapshot {
   profilePath: string;
   updatesEnabled: boolean;
   theme: "system" | "light" | "dark";
+  locale: "en" | "zh";
   backend: {
     secretBackend: string;
   };

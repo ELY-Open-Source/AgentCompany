@@ -6,6 +6,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import type { AgentRecord, ApprovalRecord } from "@shared/types";
+import { useT } from "../i18n";
 import { getAgentInitials } from "../lib/formatters";
 import { unwrap } from "../lib/desktop";
 import { ActionButton, EmptyState, Panel, StatusPill } from "./ui";
@@ -39,17 +40,6 @@ function getHiringStage(agent: AgentRecord, approval: ApprovalRecord | null): Hi
   return "active";
 }
 
-function stageLabel(stage: HiringStage): string {
-  switch (stage) {
-    case "requisition": return "Requisition";
-    case "pending_approval": return "Pending Approval";
-    case "approved": return "Approved";
-    case "onboarding": return "Onboarding";
-    case "active": return "Active";
-    case "rejected": return "Rejected";
-  }
-}
-
 function stageColor(stage: HiringStage): string {
   switch (stage) {
     case "requisition": return "bg-[color:var(--warn-soft)] text-[color:var(--warn)]";
@@ -64,7 +54,17 @@ function stageColor(stage: HiringStage): string {
 const STAGE_ORDER: HiringStage[] = ["requisition", "pending_approval", "approved", "onboarding", "active", "rejected"];
 
 export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent }: HiringPipelineProps) {
+  const t = useT();
   const [filterStage, setFilterStage] = useState<HiringStage | "all">("all");
+
+  const stageLabelMap: Record<HiringStage, string> = {
+    requisition: t("hiring.requisition"),
+    pending_approval: t("hiring.pendingApproval"),
+    approved: t("hiring.approved"),
+    onboarding: t("hiring.onboarding"),
+    active: t("hiring.active"),
+    rejected: t("status.rejected"),
+  };
 
   const hireApprovals = approvals.filter(a => a.type === "hire_agent");
 
@@ -108,7 +108,7 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
 
   return (
     <div className="space-y-4">
-      <Panel title="Hiring Pipeline" eyebrow={`${activeHires} active hiring processes`}>
+      <Panel title={t("hiring.title")} eyebrow={`${activeHires} ${t("hiring.activeProcesses")}`}>
         <div className="flex items-center gap-1 px-4 py-3 overflow-x-auto">
           {STAGE_ORDER.filter(s => s !== "rejected").map((stage, idx) => (
             <div key={stage} className="flex items-center gap-1">
@@ -118,7 +118,7 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
                   filterStage === stage ? "ring-1 ring-[color:var(--accent)]/40 bg-[color:var(--panel-soft)]" : "hover:bg-[color:var(--panel-soft)]"
                 } ${stageColor(stage)}`}
               >
-                {stageLabel(stage)}
+                {stageLabelMap[stage]}
                 <span className="ml-1.5 inline-flex items-center justify-center h-5 w-5 rounded-full bg-[color:var(--line)] text-[10px]">
                   {stageCounts[stage]}
                 </span>
@@ -135,7 +135,7 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
                 filterStage === "rejected" ? "ring-1 ring-[color:var(--danger)]/40 bg-[color:var(--panel-soft)]" : "hover:bg-[color:var(--panel-soft)]"
               } ${stageColor("rejected")}`}
             >
-              Rejected
+              {stageLabelMap.rejected}
               <span className="ml-1.5 inline-flex items-center justify-center h-5 w-5 rounded-full bg-[color:var(--line)] text-[10px]">
                 {stageCounts.rejected}
               </span>
@@ -145,7 +145,7 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
       </Panel>
 
       {pendingCount > 0 && (
-        <Panel title="Awaiting Board Decision" eyebrow={`${pendingCount} hire requests need your review`}>
+        <Panel title={t("hiring.pendingApproval")}>
           <div className="divide-y divide-[color:var(--line)]">
             {allCandidates
               .filter(c => c.stage === "requisition" || c.stage === "pending_approval")
@@ -159,25 +159,14 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm text-[color:var(--text)]">{ag?.name ?? "Proposed Agent"}</span>
+                        <span className="font-medium text-sm text-[color:var(--text)]">{ag?.name ?? t("hiring.pendingHires")}</span>
                         <span className={`text-[10px] px-1.5 py-0.5 rounded ${stageColor(candidate.stage)}`}>
-                          {stageLabel(candidate.stage)}
+                          {stageLabelMap[candidate.stage]}
                         </span>
                       </div>
                       <div className="text-xs text-[color:var(--muted)] mt-0.5">
                         {ag ? `${ag.role} — ${ag.title}` : a?.payloadSummary}
                       </div>
-                      {ag?.department && (
-                        <div className="text-xs text-[color:var(--muted)] mt-0.5">
-                          Dept: {ag.department} | Budget: ${ag.budgetMonthlyUsd}/mo | Connector: {ag.connectorId}
-                        </div>
-                      )}
-                      {a?.payloadSummary && (
-                        <div className="text-xs text-[color:var(--muted)] mt-1">{a.payloadSummary}</div>
-                      )}
-                      {a?.impactSummary && (
-                        <div className="text-xs text-[color:var(--muted)]">{a.impactSummary}</div>
-                      )}
                       {ag?.capabilities && (
                         <div className="text-xs text-[color:var(--muted)] mt-1 line-clamp-2">{ag.capabilities}</div>
                       )}
@@ -186,7 +175,7 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
                       {a && a.state === "pending" && (
                         <>
                           <ActionButton
-                            label="Approve"
+                            label={t("hiring.approved")}
                             icon={Check}
                             tone="accent"
                             onClick={async () => {
@@ -200,7 +189,7 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
                             }}
                           />
                           <ActionButton
-                            label="Reject"
+                            label={t("status.rejected")}
                             icon={X}
                             tone="danger"
                             onClick={async () => {
@@ -224,18 +213,15 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
       )}
 
       <Panel
-        title={filterStage === "all" ? "All Agents" : `${stageLabel(filterStage)} (${filteredCandidates.length})`}
+        title={filterStage === "all" ? t("hiring.allAgents") : `${stageLabelMap[filterStage]} (${filteredCandidates.length})`}
         action={
           filterStage !== "all" ? (
-            <ActionButton label="Show all" icon={X} onClick={() => setFilterStage("all")} />
+            <ActionButton label={t("hiring.allAgents")} icon={X} onClick={() => setFilterStage("all")} />
           ) : undefined
         }
       >
         {filteredCandidates.length === 0 ? (
-          <EmptyState
-            title="No hiring activity"
-            detail="When agents propose new hires via the API, they will appear here for your review."
-          />
+          <EmptyState title={t("panel.noData")} />
         ) : (
           <div className="divide-y divide-[color:var(--line)]">
             {filteredCandidates.map((candidate) => {
@@ -258,7 +244,7 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm text-[color:var(--text)] truncate">{ag.name}</span>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded ${stageColor(candidate.stage)}`}>
-                        {stageLabel(candidate.stage)}
+                        {stageLabelMap[candidate.stage]}
                       </span>
                       <StatusPill status={ag.status} />
                     </div>
@@ -268,10 +254,10 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
                   </div>
                   <div className="flex-shrink-0 text-right">
                     <div className="text-xs text-[color:var(--muted)]">
-                      {manager ? `Reports to ${manager.name}` : "Top level"}
+                      {manager ? `${t("hiring.reportsTo")} ${manager.name}` : t("hiring.topLevel")}
                     </div>
                     {requestedBy && (
-                      <div className="text-[10px] text-[color:var(--muted)]">Proposed by {requestedBy.name}</div>
+                      <div className="text-[10px] text-[color:var(--muted)]">{t("hiring.proposedBy")} {requestedBy.name}</div>
                     )}
                     <div className="text-xs text-[color:var(--muted)]">${ag.budgetMonthlyUsd}/mo</div>
                   </div>
@@ -284,28 +270,28 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
 
       <div className="grid grid-cols-4 gap-3">
         <div className="rounded-lg px-4 py-3 border border-[color:var(--line)] bg-[color:var(--panel)]">
-          <div className="text-[10px] uppercase text-[color:var(--muted)] tracking-wider">Total Agents</div>
+          <div className="text-[10px] uppercase text-[color:var(--muted)] tracking-wider">{t("hiring.totalAgents")}</div>
           <div className="text-2xl font-bold text-[color:var(--text)] mt-1">{agents.filter(a => a.status !== "terminated").length}</div>
         </div>
         <div className="rounded-lg px-4 py-3 border border-[color:var(--line)] bg-[color:var(--panel)]">
-          <div className="text-[10px] uppercase text-[color:var(--muted)] tracking-wider">Pending Hires</div>
+          <div className="text-[10px] uppercase text-[color:var(--muted)] tracking-wider">{t("hiring.pendingHires")}</div>
           <div className="text-2xl font-bold text-[color:var(--warn)] mt-1">{agents.filter(a => a.status === "pending_approval").length}</div>
         </div>
         <div className="rounded-lg px-4 py-3 border border-[color:var(--line)] bg-[color:var(--panel)]">
-          <div className="text-[10px] uppercase text-[color:var(--muted)] tracking-wider">Departments</div>
+          <div className="text-[10px] uppercase text-[color:var(--muted)] tracking-wider">{t("hiring.departments")}</div>
           <div className="text-2xl font-bold text-[color:var(--text)] mt-1">
             {new Set(agents.filter(a => a.department && a.status !== "terminated").map(a => a.department)).size}
           </div>
         </div>
         <div className="rounded-lg px-4 py-3 border border-[color:var(--line)] bg-[color:var(--panel)]">
-          <div className="text-[10px] uppercase text-[color:var(--muted)] tracking-wider">Monthly Payroll</div>
+          <div className="text-[10px] uppercase text-[color:var(--muted)] tracking-wider">{t("hiring.monthlyPayroll")}</div>
           <div className="text-2xl font-bold text-[color:var(--text)] mt-1">
             ${agents.filter(a => a.status !== "terminated" && a.status !== "pending_approval").reduce((s, a) => s + a.budgetMonthlyUsd, 0).toLocaleString()}
           </div>
         </div>
       </div>
 
-      <Panel title="Department Headcount">
+      <Panel title={t("hiring.departmentHeadcount")}>
         <div className="grid grid-cols-3 gap-2 p-4">
           {(["executive", "engineering", "product", "design", "marketing", "sales", "hr", "finance", "legal", "customer_support", "operations", "research"] as const).map(dept => {
             const deptAgents = agents.filter(a => a.department === dept && a.status !== "terminated");
@@ -317,11 +303,11 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
                 <div className="text-xs font-medium text-[color:var(--text)] capitalize">{dept.replace("_", " ")}</div>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-sm font-bold text-[color:var(--text)]">{active}</span>
-                  <span className="text-[10px] text-[color:var(--muted)]">active</span>
+                  <span className="text-[10px] text-[color:var(--muted)]">{t("hiring.active")}</span>
                   {pending > 0 && (
                     <>
                       <span className="text-sm font-bold text-[color:var(--warn)]">+{pending}</span>
-                      <span className="text-[10px] text-[color:var(--warn)]">pending</span>
+                      <span className="text-[10px] text-[color:var(--warn)]">{t("hiring.pendingApproval")}</span>
                     </>
                   )}
                 </div>

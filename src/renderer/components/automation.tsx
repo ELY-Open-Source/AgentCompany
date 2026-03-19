@@ -29,6 +29,7 @@ import type {
 import { timeAgo } from "../lib/formatters"
 import { DEPARTMENT_OPTIONS } from "@shared/constants"
 import { ActionButton, Select } from "./ui"
+import { useT } from "../i18n"
 
 const ACCENT = "var(--accent)"
 const LINE = "var(--line)"
@@ -1611,6 +1612,7 @@ export function AutomationPanel({
   companyId,
   onRefresh,
 }: AutomationPanelProps) {
+  const t = useT()
   const [activeSection, setActiveSection] = useState<"rules" | "workflows">("rules")
 
   return (
@@ -1630,7 +1632,7 @@ export function AutomationPanel({
             <Robot size={20} weight="fill" />
           </div>
           <div>
-            <div className="text-[13px] font-semibold text-[color:var(--text)]">Automation Engine</div>
+            <div className="text-[13px] font-semibold text-[color:var(--text)]">{t("auto.automationEngine")}</div>
             <div className="mt-0.5 text-[11px] leading-relaxed text-[color:var(--muted)]">
               Rules trigger actions based on company events. Workflows chain multiple steps into pipelines.
               Together, they let your AI company run fully autonomously -- responding to changes, routing work,

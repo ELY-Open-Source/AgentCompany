@@ -5,6 +5,7 @@ import {
   CheckCircle,
   Cpu,
   FolderOpen,
+  GlobeSimple,
   Lightning,
   Rocket,
   Target,
@@ -13,23 +14,33 @@ import {
 } from "@phosphor-icons/react";
 import { getConnectorExecutionReadinessIssue, isConnectorExecutionReady } from "@shared/connector-policy";
 import type { OnboardingBootstrapResult, ProfileSnapshot } from "@shared/types";
+import type { AppLocale } from "@shared/locale";
+import { APP_LOCALES, LOCALE_LABELS } from "@shared/locale";
+import { useT } from "../i18n";
 import { unwrap } from "../lib/desktop";
 import { ActionButton, Input, Select, TextArea } from "./ui";
 
-type Step = "company" | "mission" | "launch";
+type Step = "language" | "company" | "mission" | "launch";
 
 export function CompanyOnboarding({
   connectors,
   onDone,
   canCancel = false,
   onCancel,
+  currentLocale,
+  onLocaleChange,
+  isFirstLaunch = false,
 }: {
   connectors: ProfileSnapshot["connectors"];
   onDone: (summary: OnboardingBootstrapResult) => Promise<void>;
   canCancel?: boolean;
   onCancel?: () => void;
+  currentLocale: AppLocale;
+  onLocaleChange: (locale: AppLocale) => void;
+  isFirstLaunch?: boolean;
 }) {
-  const [step, setStep] = useState<Step>("company");
+  const t = useT();
+  const [step, setStep] = useState<Step>(isFirstLaunch ? "language" : "company");
   const [companyName, setCompanyName] = useState("");
   const [companyDescription, setCompanyDescription] = useState("");
   const [workspacePath, setWorkspacePath] = useState("");
@@ -60,11 +71,11 @@ export function CompanyOnboarding({
   }, [executionReadyConnectors, selectedConnectorId]);
 
   const stepLabels = [
-    { label: "Company", icon: Buildings },
-    { label: "Mission", icon: Target },
-    { label: "Launch", icon: Rocket },
+    { label: t("onboarding.stepLabel1"), icon: Buildings },
+    { label: t("onboarding.stepLabel2"), icon: Target },
+    { label: t("onboarding.stepLabel3"), icon: Rocket },
   ] as const;
-  const stepIndex = step === "company" ? 0 : step === "mission" ? 1 : 2;
+  const stepIndex = step === "language" ? -1 : step === "company" ? 0 : step === "mission" ? 1 : 2;
 
   const pickDirectory = useCallback(async () => {
     setError(null);
@@ -103,21 +114,21 @@ export function CompanyOnboarding({
   const continueToMission = useCallback(async () => {
     if (loading) return;
     if (!companyName.trim()) {
-      setError("Enter a company name.");
+      setError(t("onboarding.enterCompanyName"));
       return;
     }
     if (!selectedConnector) {
-      setError("At least one execution-ready connector is required before you can continue.");
+      setError(t("onboarding.connectorRequired"));
       return;
     }
     setError(null);
     setStep("mission");
-  }, [companyName, loading, selectedConnector]);
+  }, [companyName, loading, selectedConnector, t]);
 
   const launchCompany = useCallback(async () => {
     if (loading) return;
     if (!goalTitle.trim()) {
-      setError("Describe the first real company goal.");
+      setError(t("onboarding.describeFirstGoal"));
       return;
     }
     setLoading(true);
@@ -125,11 +136,11 @@ export function CompanyOnboarding({
     try {
       await bootstrap();
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Unable to bootstrap the company.");
+      setError(submitError instanceof Error ? submitError.message : t("onboarding.unableToBootstrap"));
     } finally {
       setLoading(false);
     }
-  }, [bootstrap, goalTitle, loading]);
+  }, [bootstrap, goalTitle, loading, t]);
 
   const finishLaunch = useCallback(async () => {
     if (!launchSummary) return;
@@ -138,11 +149,11 @@ export function CompanyOnboarding({
     try {
       await onDone(launchSummary);
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Unable to open the control center.");
+      setError(submitError instanceof Error ? submitError.message : t("onboarding.unableToOpenControlCenter"));
     } finally {
       setLoading(false);
     }
-  }, [launchSummary, onDone]);
+  }, [launchSummary, onDone, t]);
 
   return (
     <div className="grid min-h-[100dvh] overflow-hidden bg-[color:var(--bg)] md:grid-cols-[minmax(0,1fr)_540px]">
@@ -154,52 +165,56 @@ export function CompanyOnboarding({
           className="mx-auto w-full max-w-[460px]"
         >
           <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
-            AgentCompany Desktop
+            {t("onboarding.subtitle")}
           </div>
           <h1 className="text-[38px] leading-[0.98] tracking-[-0.03em] text-[color:var(--text)] md:text-[48px]">
-            Start a real local-first
-            <br />
-            agent company.
+            {t("onboarding.title").split("\n").map((line, i) => (
+              <span key={i}>{line}{i === 0 ? <br /> : null}</span>
+            ))}
           </h1>
           <p className="mt-4 max-w-[400px] text-[14px] leading-relaxed text-[color:var(--muted)]">
-            This flow creates one company, binds one execution-ready connector, links an optional workspace, writes
-            the first goal, creates the operating project, and queues the first execution task.
+            {t("onboarding.description")}
           </p>
 
-          <div className="mt-10 flex items-center gap-3">
-            {stepLabels.map((entry, index) => (
-              <div key={entry.label} className="flex items-center gap-2">
-                {index > 0 ? (
-                  <div className={`h-px w-6 ${index <= stepIndex ? "bg-[color:var(--accent)]" : "bg-[color:var(--line)]"}`} />
-                ) : null}
-                <div
-                  className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-medium ${
-                    index < stepIndex
-                      ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
-                      : index === stepIndex
-                        ? "bg-[color:var(--accent-soft)] text-[color:var(--accent)]"
-                        : "bg-[color:var(--panel-soft)] text-[color:var(--muted)]"
-                  }`}
-                >
-                  {index < stepIndex ? <CheckCircle size={14} weight="fill" /> : <entry.icon size={14} />}
-                  {entry.label}
+          {step !== "language" ? (
+            <div className="mt-10 flex items-center gap-3">
+              {stepLabels.map((entry, index) => (
+                <div key={entry.label} className="flex items-center gap-2">
+                  {index > 0 ? (
+                    <div className={`h-px w-6 ${index <= stepIndex ? "bg-[color:var(--accent)]" : "bg-[color:var(--line)]"}`} />
+                  ) : null}
+                  <div
+                    className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-medium ${
+                      index < stepIndex
+                        ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
+                        : index === stepIndex
+                          ? "bg-[color:var(--accent-soft)] text-[color:var(--accent)]"
+                          : "bg-[color:var(--panel-soft)] text-[color:var(--muted)]"
+                    }`}
+                  >
+                    {index < stepIndex ? <CheckCircle size={14} weight="fill" /> : <entry.icon size={14} />}
+                    {entry.label}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : null}
 
           <div className="mt-10">
             <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
-              Connector readiness
+              {t("onboarding.connectorReadiness")}
             </div>
             <div className="space-y-2.5">
               {connectors.map((connector) => {
-                const issue = getConnectorExecutionReadinessIssue(connector);
-                const isRunnable = !issue;
+                const isChecking = connector.status === "detected";
+                const isReady = connector.status === "ready";
                 const isMissing = connector.status === "not_installed";
+                const issue = !isChecking ? getConnectorExecutionReadinessIssue(connector) : null;
                 return (
                   <div key={connector.id} className="flex items-start gap-2.5 text-[13px]">
-                    {isRunnable ? (
+                    {isChecking ? (
+                      <span className="mt-0.5 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[color:var(--muted)] border-t-[color:var(--accent)]" />
+                    ) : isReady ? (
                       <CheckCircle size={16} weight="fill" className="shrink-0 text-[color:var(--success)]" />
                     ) : isMissing ? (
                       <XCircle size={16} weight="fill" className="shrink-0 text-[color:var(--muted)]" />
@@ -208,11 +223,11 @@ export function CompanyOnboarding({
                     )}
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className={isRunnable ? "font-medium text-[color:var(--text)]" : "text-[color:var(--muted)]"}>
+                        <span className={isReady ? "font-medium text-[color:var(--text)]" : isChecking ? "text-[color:var(--text)]" : "text-[color:var(--muted)]"}>
                           {connector.label}
                         </span>
                         <span className="text-[11px] text-[color:var(--muted)]">
-                          {connector.status.replaceAll("_", " ")}
+                          {isChecking ? (currentLocale === "zh" ? "检测中..." : "checking...") : connector.status.replaceAll("_", " ")}
                         </span>
                       </div>
                       {issue ? (
@@ -227,7 +242,7 @@ export function CompanyOnboarding({
             </div>
             {!hasRunnableConnector ? (
               <div className="mt-4 rounded-[10px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-4 py-3 text-[12px] text-[color:var(--warn)]">
-                Install, authenticate, and fully validate at least one supported CLI runtime before creating the company.
+                {t("onboarding.connectorWarning")}
               </div>
             ) : null}
           </div>
@@ -242,11 +257,68 @@ export function CompanyOnboarding({
               onClick={onCancel}
               className="absolute right-6 top-6 text-[12px] font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
             >
-              Cancel
+              {t("onboarding.cancel")}
             </button>
           ) : null}
 
           <AnimatePresence mode="wait">
+            {step === "language" ? (
+              <motion.div
+                key="language"
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -18 }}
+                transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+                className="surface w-full rounded-[12px] p-7"
+              >
+                <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+                  <GlobeSimple size={12} />
+                  {t("onboarding.languageSelection")} / Language
+                </div>
+                <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text)]">
+                  {t("onboarding.selectLanguage")} / Select Language
+                </div>
+                <div className="mb-6 h-px bg-[color:var(--line)]" />
+
+                <div className="space-y-2.5">
+                  {APP_LOCALES.map((locale) => (
+                    <button
+                      key={locale}
+                      type="button"
+                      onClick={() => onLocaleChange(locale)}
+                      className={`flex w-full items-center gap-3 rounded-[10px] border px-4 py-3.5 text-left transition ${
+                        currentLocale === locale
+                          ? "border-[color:var(--accent)] bg-[color:var(--accent-soft)]"
+                          : "border-[color:var(--line)] bg-[color:var(--panel-soft)] hover:border-[color:var(--muted)]"
+                      }`}
+                    >
+                      <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                        currentLocale === locale
+                          ? "border-[color:var(--accent)] bg-[color:var(--accent)]"
+                          : "border-[color:var(--line)]"
+                      }`}>
+                        {currentLocale === locale ? <CheckCircle size={14} weight="fill" className="text-white" /> : null}
+                      </div>
+                      <span className={`text-[14px] font-medium ${
+                        currentLocale === locale ? "text-[color:var(--text)]" : "text-[color:var(--muted-strong)]"
+                      }`}>
+                        {LOCALE_LABELS[locale]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-8 flex items-center justify-end">
+                  <ActionButton
+                    label={t("onboarding.continue")}
+                    onClick={() => setStep("company")}
+                    icon={GlobeSimple}
+                    tone="accent"
+                  />
+                </div>
+              </motion.div>
+            ) : null}
+
             {step === "company" ? (
               <motion.div
                 key="company"
@@ -257,29 +329,29 @@ export function CompanyOnboarding({
                 className="surface w-full rounded-[12px] p-7"
               >
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
-                  Step 1 of 3
+                  {t("onboarding.stepLabel1")} 1 / 3
                 </div>
                 <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text)]">
-                  Create the operating boundary
+                  {t("onboarding.step1Title")}
                 </div>
                 <div className="mb-6 h-px bg-[color:var(--line)]" />
 
                 <div className="space-y-4">
                   <Input
-                    label="Company name"
+                    label={t("onboarding.companyName")}
                     value={companyName}
                     onChange={setCompanyName}
-                    placeholder="e.g. Northline Systems"
+                    placeholder={t("onboarding.companyNamePlaceholder")}
                   />
                   <TextArea
-                    label="Company description"
+                    label={t("onboarding.companyDescription")}
                     value={companyDescription}
                     onChange={setCompanyDescription}
-                    placeholder="Optional context for the company operating model."
+                    placeholder={t("onboarding.companyDescriptionPlaceholder")}
                     rows={3}
                   />
                   <Select
-                    label="Primary connector"
+                    label={t("onboarding.primaryConnector")}
                     value={selectedConnector?.id ?? ""}
                     onChange={setSelectedConnectorId}
                     options={executionReadyConnectors.map((connector) => ({
@@ -288,28 +360,27 @@ export function CompanyOnboarding({
                     }))}
                   />
                   <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3 text-[12px] leading-relaxed text-[color:var(--muted)]">
-                    Only connectors in `ready` state with session resume and structured transcripts are offered here.
-                    Re-run connector health checks from Settings if the list is empty.
+                    {t("onboarding.connectorInfo")}
                   </div>
                   <div>
                     <label
                       htmlFor="onboarding-workspace-path"
                       className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]"
                     >
-                      Workspace folder <span className="font-normal text-[color:var(--muted)]">(optional)</span>
+                      {t("onboarding.workspaceFolder")} <span className="font-normal text-[color:var(--muted)]">{t("onboarding.workspaceFolderOptional")}</span>
                     </label>
                     <div className="flex gap-3">
                       <Input
                         id="onboarding-workspace-path"
-                        ariaLabel="Workspace folder"
+                        ariaLabel={t("onboarding.workspaceFolder")}
                         value={workspacePath}
                         onChange={setWorkspacePath}
-                        placeholder="/Users/you/project"
+                        placeholder={t("onboarding.workspaceFolderPlaceholder")}
                       />
-                      <ActionButton label="Choose" onClick={() => void pickDirectory()} icon={FolderOpen} />
+                      <ActionButton label={currentLocale === "zh" ? "选择" : "Choose"} onClick={() => void pickDirectory()} icon={FolderOpen} />
                     </div>
                     <div className="mt-1.5 text-[11px] text-[color:var(--muted)]">
-                      If set, the first execution task will be bound to this path and the path will be registered as the primary workspace.
+                      {t("onboarding.workspaceHelp")}
                     </div>
                   </div>
                   <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
@@ -321,9 +392,9 @@ export function CompanyOnboarding({
                         className="h-4 w-4 rounded border-[color:var(--line)] accent-[color:var(--accent)]"
                       />
                       <div>
-                        <div className="text-[13px] font-medium text-[color:var(--text)]">Auto-approve hire and strategy approvals</div>
+                        <div className="text-[13px] font-medium text-[color:var(--text)]">{t("onboarding.autoApproveLabel")}</div>
                         <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
-                          Useful for single-operator flows. Leave it off if you want the board to gate organization changes explicitly.
+                          {t("onboarding.autoApproveHelp")}
                         </div>
                       </div>
                     </label>
@@ -336,9 +407,18 @@ export function CompanyOnboarding({
                   </div>
                 ) : null}
 
-                <div className="mt-8 flex items-center justify-end">
+                <div className="mt-8 flex items-center justify-between">
+                  {isFirstLaunch ? (
+                    <button
+                      type="button"
+                      onClick={() => setStep("language")}
+                      className="text-[12px] font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
+                    >
+                      {t("onboarding.back")}
+                    </button>
+                  ) : <div />}
                   <ActionButton
-                    label="Continue"
+                    label={t("onboarding.continue")}
                     onClick={() => void continueToMission()}
                     icon={Buildings}
                     tone="accent"
@@ -358,39 +438,36 @@ export function CompanyOnboarding({
                 className="surface w-full rounded-[12px] p-7"
               >
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
-                  Step 2 of 3
+                  {t("onboarding.stepLabel2")} 2 / 3
                 </div>
                 <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text)]">
-                  Define the first real goal
-                </div>
-                <div className="mb-2 text-[13px] text-[color:var(--muted)]">
-                  The first goal seeds the operating project and the first task. This should be specific enough that the CEO agent can decompose it into concrete work.
+                  {t("onboarding.step2Title")}
                 </div>
                 <div className="mb-6 h-px bg-[color:var(--line)]" />
 
                 <div className="space-y-4">
                   <Input
-                    label="Goal"
+                    label={t("onboarding.goal")}
                     value={goalTitle}
                     onChange={setGoalTitle}
-                    placeholder="e.g. Ship the first customer-ready desktop demo"
+                    placeholder={t("onboarding.goalPlaceholder")}
                   />
                   <TextArea
-                    label="Acceptance criteria"
+                    label={t("onboarding.acceptanceCriteria")}
                     value={goalDescription}
                     onChange={setGoalDescription}
-                    placeholder="Describe what successful execution looks like, what cannot be skipped, and any delivery constraints."
+                    placeholder={t("onboarding.acceptanceCriteriaPlaceholder")}
                     rows={5}
                   />
                   <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3 text-[12px] text-[color:var(--muted)]">
                     <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">
                       <Cpu size={12} />
-                      Execution handoff
+                      {t("onboarding.executionHandoff")}
                     </div>
                     <div className="space-y-2">
-                      <div>The selected connector becomes the CEO agent runtime for the first launch.</div>
-                      <div>The app will create the company, the primary workspace, the CEO agent, the kickoff project, and the first task.</div>
-                      <div>If the worker is already ready, the first run will be queued immediately; otherwise the scheduler will pick it up once the runtime is available.</div>
+                      <div>{t("onboarding.executionHandoffLine1")}</div>
+                      <div>{t("onboarding.executionHandoffLine2")}</div>
+                      <div>{t("onboarding.executionHandoffLine3")}</div>
                     </div>
                   </div>
                 </div>
@@ -407,10 +484,10 @@ export function CompanyOnboarding({
                     onClick={() => setStep("company")}
                     className="text-[12px] font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
                   >
-                    Back
+                    {t("onboarding.back")}
                   </button>
                   <ActionButton
-                    label={loading ? "Launching..." : "Launch Company"}
+                    label={loading ? t("onboarding.launching") : t("onboarding.launchCompany")}
                     onClick={() => void launchCompany()}
                     icon={Lightning}
                     tone="accent"
@@ -433,42 +510,41 @@ export function CompanyOnboarding({
                   <CheckCircle size={24} weight="fill" />
                 </div>
                 <h2 className="mt-5 text-[28px] tracking-[-0.03em] text-[color:var(--text)]">
-                  {launchSummary.companyName} is live.
+                  {launchSummary.companyName} {t("onboarding.isLive")}
                 </h2>
                 <p className="mt-3 text-[14px] leading-relaxed text-[color:var(--muted)]">
-                  The company shell is created. The first project and task are registered, and the kickoff execution is
-                  {launchSummary.runId ? " queued." : " prepared for deferred execution once the runtime is ready."}
+                  {launchSummary.runId ? t("onboarding.launchDescription") : t("onboarding.launchDescriptionDeferred")}
                 </p>
 
                 <div className="mt-6 grid gap-3 md:grid-cols-2">
                   <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Connector</div>
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("onboarding.connector")}</div>
                     <div className="mt-1 text-[13px] font-medium text-[color:var(--text)]">
-                      {selectedConnector?.label ?? "Unavailable"}
+                      {selectedConnector?.label ?? t("onboarding.unavailable")}
                     </div>
                   </div>
                   <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Lead agent</div>
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("onboarding.leadAgent")}</div>
                     <div className="mt-1 text-[13px] font-medium text-[color:var(--text)]">
-                      {launchSummary.leadAgentId ? "CEO agent created" : "Lead agent unavailable"}
+                      {launchSummary.leadAgentId ? t("onboarding.ceoAgentCreated") : t("onboarding.leadAgentUnavailable")}
                     </div>
                   </div>
                   <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Primary workspace</div>
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("onboarding.primaryWorkspace")}</div>
                     <div className="mt-1 text-[13px] font-medium text-[color:var(--text)]">
-                      {launchSummary.workspaceId ? "Registered" : "Not bound"}
+                      {launchSummary.workspaceId ? t("onboarding.registered") : t("onboarding.notBound")}
                     </div>
                   </div>
                   <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Kickoff project</div>
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("onboarding.kickoffProject")}</div>
                     <div className="mt-1 text-[13px] font-medium text-[color:var(--text)]">
-                      {launchSummary.projectId ? "Created" : "Unavailable"}
+                      {launchSummary.projectId ? t("onboarding.created") : t("onboarding.unavailable")}
                     </div>
                   </div>
                   <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Initial run</div>
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("onboarding.initialRun")}</div>
                     <div className="mt-1 text-[13px] font-medium text-[color:var(--text)]">
-                      {launchSummary.runId ? "Queued in orchestration" : "Deferred until runtime is ready"}
+                      {launchSummary.runId ? t("onboarding.queuedInOrchestration") : t("onboarding.deferredUntilReady")}
                     </div>
                   </div>
                 </div>
@@ -481,7 +557,7 @@ export function CompanyOnboarding({
 
                 <div className="mt-8 flex items-center justify-end">
                   <ActionButton
-                    label={loading ? "Opening..." : "Open Control Center"}
+                    label={loading ? t("onboarding.opening") : t("onboarding.openControlCenter")}
                     onClick={() => void finishLaunch()}
                     icon={Rocket}
                     tone="accent"

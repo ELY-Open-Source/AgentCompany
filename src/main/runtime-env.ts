@@ -34,6 +34,24 @@ const ENV_ALLOWLIST: ReadonlySet<string> = new Set([
   "PROGRAMFILES(X86)",
   "PROGRAMDATA",
   "PATHEXT",
+  "NODE_EXTRA_CA_CERTS",
+  "NODE_TLS_REJECT_UNAUTHORIZED",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+  "REQUESTS_CA_BUNDLE",
+  "CURL_CA_BUNDLE",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "ALL_PROXY",
+  "all_proxy",
+  "NO_PROXY",
+  "no_proxy",
+  "DENO_CERT",
+  "CARGO_HTTP_CAINFO",
+  "CARGO_HTTP_PROXY_CAINFO",
+  "CARGO_HTTP_CHECK_REVOKE",
   "AGENT_COMPANY_AGENT_ID",
   "AGENT_COMPANY_COMPANY_ID",
   "AGENT_COMPANY_API_URL",
@@ -94,11 +112,34 @@ export function buildSanitizedRuntimeEnv(
 ): Record<string, string> {
   const normalizedHostEnv = normalizeStringEnv(hostEnv);
   const sanitized: Record<string, string> = {};
-  for (const key of ENV_ALLOWLIST) {
-    if (key in normalizedHostEnv) {
-      sanitized[key] = normalizedHostEnv[key]!;
+
+  if (process.platform === "win32") {
+    // On Windows, env var keys are case-insensitive but plain JS objects are not.
+    // Build a case-insensitive lookup so allowlist entries like "PATH" match "Path".
+    const hostKeyMap = new Map<string, string>();
+    for (const key of Object.keys(normalizedHostEnv)) {
+      hostKeyMap.set(key.toUpperCase(), key);
+    }
+    for (const allowedKey of ENV_ALLOWLIST) {
+      const actualKey = hostKeyMap.get(allowedKey.toUpperCase());
+      if (actualKey && normalizedHostEnv[actualKey]) {
+        sanitized[allowedKey] = normalizedHostEnv[actualKey]!;
+      }
+    }
+  } else {
+    for (const key of ENV_ALLOWLIST) {
+      if (key in normalizedHostEnv) {
+        sanitized[key] = normalizedHostEnv[key]!;
+      }
     }
   }
+
+  // On Windows, many CLI tools (Claude Code, etc.) use HOME to find config directories.
+  // Windows doesn't set HOME by default — synthesize it from USERPROFILE if missing.
+  if (process.platform === "win32" && !sanitized.HOME && sanitized.USERPROFILE) {
+    sanitized.HOME = sanitized.USERPROFILE;
+  }
+
   return {
     ...sanitized,
     ...stripForbiddenRuntimeOverrides(runtimeOverrides),

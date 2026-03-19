@@ -19,6 +19,7 @@ win:
   icon: assets/icon.ico
   target:
     - nsis
+    - portable
 linux:
   icon: assets/icon.png
   target:

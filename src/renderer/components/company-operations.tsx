@@ -19,6 +19,7 @@ import type {
   SprintRecord,
 } from "@shared/types";
 import { ActionButton, ConfirmDialog, InlineNotice, Input, ListFrame, ListRow, Modal, Select, StatusPill, TextArea } from "./ui";
+import { useT } from "../i18n";
 
 const documentTypeOptions = [
   "prd",
@@ -450,13 +451,14 @@ export function DocumentCenter({
   goals: GoalRecord[];
   onRefresh: () => Promise<void>;
 }) {
+  const t = useT();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const activeDocument = useMemo(() => documents.find((document) => document.id === editingId) ?? null, [documents, editingId]);
 
   return (
     <div>
-      <SectionHeader title="Document Center" count={documents.length} action={() => setEditingId("__new__")} />
+      <SectionHeader title={t("ops.documentCenter")} count={documents.length} action={() => setEditingId("__new__")} />
       <ListFrame>
         {documents.map((document) => (
           <ListRow key={document.id}>
@@ -521,13 +523,14 @@ export function KnowledgeBaseManager({
   entries: KnowledgeEntryRecord[];
   onRefresh: () => Promise<void>;
 }) {
+  const t = useT();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const activeEntry = useMemo(() => entries.find((entry) => entry.id === editingId) ?? null, [entries, editingId]);
 
   return (
     <div>
-      <SectionHeader title="Knowledge Base" count={entries.length} action={() => setEditingId("__new__")} />
+      <SectionHeader title={t("ops.knowledgeBase")} count={entries.length} action={() => setEditingId("__new__")} />
       <ListFrame>
         {entries.map((entry) => (
           <ListRow key={entry.id}>
@@ -591,13 +594,14 @@ export function MeetingsManager({
   agents: AgentRecord[];
   onRefresh: () => Promise<void>;
 }) {
+  const t = useT();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const activeMeeting = useMemo(() => meetings.find((meeting) => meeting.id === editingId) ?? null, [meetings, editingId]);
 
   return (
     <div>
-      <SectionHeader title="Meetings" count={meetings.length} action={() => setEditingId("__new__")} />
+      <SectionHeader title={t("ops.meetings")} count={meetings.length} action={() => setEditingId("__new__")} />
       <ListFrame>
         {meetings.map((meeting) => (
           <ListRow key={meeting.id}>
@@ -660,13 +664,14 @@ export function SprintManager({
   sprints: SprintRecord[];
   onRefresh: () => Promise<void>;
 }) {
+  const t = useT();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const activeSprint = useMemo(() => sprints.find((sprint) => sprint.id === editingId) ?? null, [sprints, editingId]);
 
   return (
     <div>
-      <SectionHeader title="Sprint Board" count={sprints.length} action={() => setEditingId("__new__")} />
+      <SectionHeader title={t("ops.sprintBoard")} count={sprints.length} action={() => setEditingId("__new__")} />
       <ListFrame>
         {sprints.map((sprint) => (
           <ListRow key={sprint.id}>

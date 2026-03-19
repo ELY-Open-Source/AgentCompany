@@ -34,6 +34,7 @@ import { getAgentInitials, formatMessageTime } from "../lib/formatters"
 import { DEPARTMENT_COLORS } from "@shared/constants"
 import { unwrap } from "../lib/desktop"
 import { InlineNotice, Modal, Select, Input, TextArea } from "./ui"
+import { useT } from "../i18n"
 
 const TERRACOTTA = "#d97745"
 const TERRACOTTA_SOFT = "#d9774518"
@@ -815,6 +816,7 @@ interface ComposeModalProps {
 }
 
 function ComposeModal({ open, onClose, agents, projects, companyId, onSent }: ComposeModalProps) {
+  const t = useT()
   const [fromAgentId, setFromAgentId] = useState(agents[0]?.id ?? "")
   const [toAgentId, setToAgentId] = useState("")
   const [channel, setChannel] = useState<MessageChannel>("company")
@@ -893,11 +895,11 @@ function ComposeModal({ open, onClose, agents, projects, companyId, onSent }: Co
   }, [agents, body, channel, channelTargetId, companyId, fromAgentId, onClose, onSent, priority, subject, toAgentId])
 
   return (
-    <Modal open={open} title="Compose Message" onClose={onClose} width="560px">
+    <Modal open={open} title={t("comm.composeMessage")} onClose={onClose} width="560px">
       <div className="space-y-4">
         {sendError ? <InlineNotice message={sendError} /> : null}
         <Select
-          label="From Agent"
+          label={t("comm.fromAgent")}
           value={fromAgentId}
           onChange={setFromAgentId}
           options={agents.map((a) => ({
@@ -907,15 +909,15 @@ function ComposeModal({ open, onClose, agents, projects, companyId, onSent }: Co
         />
 
         <Select
-          label="Channel"
+          label={t("comm.channel")}
           value={channel}
           onChange={(v) => setChannel(v as MessageChannel)}
           options={[
-            { value: "company", label: "Company-wide broadcast" },
-            { value: "department", label: "Department channel" },
-            { value: "project", label: "Project channel" },
-            { value: "incident", label: "Incident channel" },
-            { value: "direct", label: "Direct message" },
+            { value: "company", label: t("comm.companyBroadcast") },
+            { value: "department", label: t("comm.departmentChannel") },
+            { value: "project", label: t("comm.projectChannel") },
+            { value: "incident", label: t("comm.incidentChannel") },
+            { value: "direct", label: t("comm.directMessage") },
           ]}
         />
 
@@ -963,17 +965,17 @@ function ComposeModal({ open, onClose, agents, projects, companyId, onSent }: Co
         ) : null}
 
         <Input
-          label="Subject"
+          label={t("comm.subject")}
           value={subject}
           onChange={setSubject}
-          placeholder="Message subject"
+          placeholder={t("comm.messageSubject")}
         />
 
         <TextArea
-          label="Message"
+          label={t("comm.message")}
           value={body}
           onChange={setBody}
-          placeholder="Write your message..."
+          placeholder={t("comm.writeMessage")}
           rows={5}
         />
 
@@ -994,7 +996,7 @@ function ComposeModal({ open, onClose, agents, projects, companyId, onSent }: Co
             onClick={onClose}
             className="rounded-[8px] px-4 py-2 text-[12px] font-medium text-[color:var(--muted)] transition hover:bg-[color:var(--panel-soft)]"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -1018,7 +1020,7 @@ function ComposeModal({ open, onClose, agents, projects, companyId, onSent }: Co
             ) : (
               <PaperPlaneTilt size={14} weight="fill" />
             )}
-            Send Message
+            {t("comm.sendMessage")}
           </button>
         </div>
       </div>
@@ -1040,6 +1042,7 @@ function FilterBar({
   filters: FilterState
   onChangeFilters: (next: FilterState) => void
 }) {
+  const t = useT()
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -1057,7 +1060,7 @@ function FilterBar({
             onChange={(e) =>
               onChangeFilters({ ...filters, search: e.target.value })
             }
-            placeholder="Search messages..."
+            placeholder={t("comm.searchMessages")}
             className="w-full rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)] py-1.5 pl-8 pr-3 text-[11px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:outline-none focus:ring-1"
             style={{ focusRingColor: TERRACOTTA } as React.CSSProperties}
           />
@@ -1079,7 +1082,7 @@ function FilterBar({
           }
         >
           <Funnel size={12} />
-          Filters
+          {t("comm.filters")}
         </button>
       </div>
 
@@ -1102,12 +1105,12 @@ function FilterBar({
               }
               className="rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)] px-2 py-1 text-[10px] font-medium text-[color:var(--text)]"
             >
-              <option value="all">All channels</option>
-              <option value="direct">Direct</option>
-              <option value="department">Department</option>
-              <option value="company">Company</option>
-              <option value="project">Project</option>
-              <option value="incident">Incident</option>
+              <option value="all">{t("comm.allChannels")}</option>
+              <option value="direct">{t("comm.direct")}</option>
+              <option value="department">{t("comm.department")}</option>
+              <option value="company">{t("comm.company")}</option>
+              <option value="project">{t("nav.projects")}</option>
+              <option value="incident">{t("comm.incident")}</option>
             </select>
 
             <select
@@ -1120,10 +1123,10 @@ function FilterBar({
               }
               className="rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)] px-2 py-1 text-[10px] font-medium text-[color:var(--text)]"
             >
-              <option value="all">All priorities</option>
-              <option value="urgent">Urgent</option>
-              <option value="normal">Normal</option>
-              <option value="low">Low</option>
+              <option value="all">{t("comm.allPriorities")}</option>
+              <option value="urgent">{t("comm.urgent")}</option>
+              <option value="normal">{t("comm.normal")}</option>
+              <option value="low">{t("comm.low")}</option>
             </select>
 
             <button
@@ -1138,7 +1141,7 @@ function FilterBar({
               }`}
               style={filters.unreadOnly ? { backgroundColor: TERRACOTTA } : undefined}
             >
-              Unread only
+              {t("comm.unreadOnly")}
             </button>
 
             {(filters.channelType !== "all" || filters.priority !== "all" || filters.unreadOnly) ? (
@@ -1154,7 +1157,7 @@ function FilterBar({
                 }
                 className="text-[10px] font-medium text-[color:var(--muted)] underline transition hover:text-[color:var(--text)]"
               >
-                Clear filters
+                {t("comm.clearFilters")}
               </button>
             ) : null}
           </motion.div>
@@ -1189,6 +1192,7 @@ export function CommunicationHub({
   onNavigateToTask,
   onRefresh,
 }: CommunicationHubProps) {
+  const t = useT()
   const [selectedChannelKey, setSelectedChannelKey] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)
   const [showCompose, setShowCompose] = useState(false)
@@ -1447,7 +1451,7 @@ export function CommunicationHub({
           </div>
           <div>
             <h2 className="text-[16px] font-bold text-[color:var(--text)]">
-              Communication Hub
+              {t("comm.communicationHub")}
             </h2>
             <p className="text-[12px] text-[color:var(--muted)]">
               {messages.length} message{messages.length !== 1 ? "s" : ""}
@@ -1464,7 +1468,7 @@ export function CommunicationHub({
           style={{ backgroundColor: TERRACOTTA }}
         >
           <Plus size={13} weight="bold" />
-          New message
+          {t("comm.newMessage")}
         </button>
       </div>
 
@@ -1486,7 +1490,7 @@ export function CommunicationHub({
               {/* Sidebar header */}
               <div className="flex items-center justify-between border-b border-[color:var(--line)] px-4 py-3">
                 <span className="text-[13px] font-semibold text-[color:var(--text)]">
-                  Channels
+                  {t("comm.channels")}
                 </span>
                 <button
                   type="button"
@@ -1527,7 +1531,7 @@ export function CommunicationHub({
                 {taskDiscussionChannels.length > 0 ? (
                   <div className="mb-3">
                     <div className="mb-1 px-2 text-[9px] font-bold uppercase tracking-[0.1em] text-[color:var(--muted)]">
-                      Task Discussions
+                      {t("comm.taskDiscussions")}
                     </div>
                     {taskDiscussionChannels.map((discussion) => (
                       <button
@@ -1551,7 +1555,7 @@ export function CommunicationHub({
 
                 {channels.length === 0 ? (
                   <div className="px-3 py-6 text-center text-[11px] text-[color:var(--muted)]">
-                    No active departments yet.
+                    {t("comm.noActiveDepartments")}
                   </div>
                 ) : null}
               </div>
@@ -1622,7 +1626,7 @@ export function CommunicationHub({
               </>
             ) : (
               <span className="text-[13px] text-[color:var(--muted)]">
-                Select a channel
+                {t("comm.selectChannel")}
               </span>
             )}
 
@@ -1641,10 +1645,10 @@ export function CommunicationHub({
                   className="mb-3 text-[color:var(--muted)]"
                 />
                 <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">
-                  Select a channel to view messages
+                  {t("comm.selectChannelView")}
                 </div>
                 <div className="mt-1 text-[12px] text-[color:var(--muted)]">
-                  Monitor internal agent communications across departments
+                  {t("comm.monitorComms")}
                 </div>
               </div>
             ) : activeChannel.kind === "task" ? (
@@ -1652,10 +1656,10 @@ export function CommunicationHub({
                 <div className="flex h-full flex-col items-center justify-center text-center">
                   <Tray size={36} className="mb-3 text-[color:var(--muted)]" />
                   <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">
-                    No discussion yet
+                    {t("comm.noDiscussionYet")}
                   </div>
                   <div className="mt-1 text-[12px] text-[color:var(--muted)]">
-                    Comments for this task will appear here as agents and the board coordinate.
+                    {t("comm.commentsAppearHere")}
                   </div>
                 </div>
               ) : (
@@ -1675,13 +1679,13 @@ export function CommunicationHub({
                 <Tray size={36} className="mb-3 text-[color:var(--muted)]" />
                 <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">
                   {filters.search || filters.unreadOnly || filters.priority !== "all"
-                    ? "No messages match your filters"
-                    : "No messages in this channel yet"}
+                    ? t("comm.noMatchFilters")
+                    : t("comm.noMessagesChannel")}
                 </div>
                 <div className="mt-1 text-[12px] text-[color:var(--muted)]">
                   {filters.search || filters.unreadOnly || filters.priority !== "all"
-                    ? "Try adjusting your search or filters"
-                    : "Messages will appear here as agents work and communicate"}
+                    ? t("comm.adjustFilters")
+                    : t("comm.messagesAppear")}
                 </div>
               </div>
             ) : (
@@ -1746,7 +1750,7 @@ export function CommunicationHub({
             <div className="border-t border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-2.5">
               <div className="flex items-center gap-2 text-[11px] text-[color:var(--muted)]">
                 <ChatCircle size={14} />
-                <span>Select a channel to read and send messages.</span>
+                <span>{t("comm.selectChannelSend")}</span>
               </div>
             </div>
           )}

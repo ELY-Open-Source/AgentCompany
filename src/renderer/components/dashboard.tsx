@@ -42,6 +42,7 @@ import type {
 import { isConnectorExecutionReady } from "@shared/connector-policy";
 import { formatMoney, getAgentInitials, timeAgo } from "../lib/formatters";
 import { StatusPill } from "./ui";
+import { useT } from "../i18n";
 
 interface DashboardProps {
   agents: AgentRecord[];
@@ -589,6 +590,7 @@ function GoalProgress({ goals, tasks, onNavigate }: { goals: GoalRecord[]; tasks
 }
 
 export function Dashboard(props: DashboardProps) {
+  const t = useT();
   const { agents, tasks, runs, approvals, goals, projects, activity, costs, connectors, messages = [], browserActions = [], workflows = [], sprints = [], onNavigate } = props;
 
   const healthScore = useMemo(
@@ -638,51 +640,51 @@ export function Dashboard(props: DashboardProps) {
         {/* Metric Cards */}
         <div className="grid flex-1 grid-cols-2 gap-2 lg:grid-cols-3">
           <MetricCard
-            label="Live Runs"
+            label={t("dash.liveRuns")}
             value={liveRuns.length}
             icon={Heartbeat}
             tone={liveRuns.length > 0 ? "success" : "default"}
             onClick={() => onNavigate("runs")}
-            subtitle={liveRuns.length > 0 ? `${liveRuns.filter((r) => r.status === "running").length} running` : "All quiet"}
+            subtitle={liveRuns.length > 0 ? `${liveRuns.filter((r) => r.status === "running").length} ${t("dash.running")}` : t("dash.allQuiet")}
           />
           <MetricCard
-            label="Active Tasks"
+            label={t("dash.activeTasks")}
             value={activeTasks.length}
             icon={Briefcase}
             tone={activeTasks.length > 0 ? "accent" : "default"}
             onClick={() => onNavigate("tasks")}
-            subtitle={`${tasks.filter((t) => t.status === "todo").length} queued`}
+            subtitle={`${tasks.filter((t) => t.status === "todo").length} ${t("dash.queued")}`}
           />
           <MetricCard
-            label="Approvals"
+            label={t("dash.approvals")}
             value={pendingApprovals.length}
             icon={ShieldCheck}
             tone={pendingApprovals.length > 0 ? "warn" : "default"}
             onClick={() => onNavigate("approvals")}
-            subtitle={pendingApprovals.length > 0 ? "Needs your attention" : "All clear"}
+            subtitle={pendingApprovals.length > 0 ? t("dash.needsAttention") : t("dash.allClear")}
           />
           <MetricCard
-            label="Failed Runs"
+            label={t("dash.failedRuns")}
             value={failedRuns.length}
             icon={Warning}
             tone={failedRuns.length > 0 ? "danger" : "default"}
             onClick={() => onNavigate("runs")}
           />
           <MetricCard
-            label="Total Spend"
+            label={t("dash.totalSpend")}
             value={formatMoney(totalSpend)}
             icon={CurrencyCircleDollar}
             onClick={() => onNavigate("costs")}
           />
           <MetricCard
-            label="Projects"
+            label={t("dash.projects")}
             value={projects.filter((p) => p.status === "in_progress").length}
             icon={Target}
             onClick={() => onNavigate("projects")}
-            subtitle={`${projects.length} total`}
+            subtitle={`${projects.length} ${t("dash.total")}`}
           />
           <MetricCard
-            label="Unread Messages"
+            label={t("dash.unreadMessages")}
             value={unreadMessages.length}
             icon={Users}
             tone={urgentMessages.length > 0 ? "warn" : unreadMessages.length > 0 ? "accent" : "default"}
@@ -690,7 +692,7 @@ export function Dashboard(props: DashboardProps) {
             subtitle={urgentMessages.length > 0 ? `${urgentMessages.length} urgent` : unreadMessages.length > 0 ? "Needs triage" : "All read"}
           />
           <MetricCard
-            label="Browser Ops"
+            label={t("dash.browserOps")}
             value={blockedBrowserActions.length}
             icon={Cpu}
             tone={blockedBrowserActions.length > 0 ? "warn" : "default"}
@@ -698,7 +700,7 @@ export function Dashboard(props: DashboardProps) {
             subtitle={blockedBrowserActions.length > 0 ? "Blocked or failed" : "Nominal"}
           />
           <MetricCard
-            label="Workflow Stalls"
+            label={t("dash.workflowStalls")}
             value={stalledWorkflows.length}
             icon={Lightning}
             tone={stalledWorkflows.length > 0 ? "warn" : "default"}
@@ -711,13 +713,13 @@ export function Dashboard(props: DashboardProps) {
       {/* Department Overview */}
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Departments</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("dash.departments")}</div>
           <button
             type="button"
             onClick={() => onNavigate("orgchart")}
             className="flex items-center gap-1 text-[11px] font-medium text-[color:var(--accent)] transition hover:underline"
           >
-            Org chart <TreeStructure size={12} />
+            {t("dash.orgChart")} <TreeStructure size={12} />
           </button>
         </div>
         <DepartmentOverview agents={agents} tasks={tasks} runs={runs} onNavigate={onNavigate} />
@@ -728,7 +730,7 @@ export function Dashboard(props: DashboardProps) {
         {activeSprint ? (
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Current Sprint</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("dash.currentSprint")}</div>
               <button
                 type="button"
                 onClick={() => onNavigate("sprints")}
@@ -743,7 +745,7 @@ export function Dashboard(props: DashboardProps) {
 
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Goal Progress</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("dash.goalProgress")}</div>
             <button
               type="button"
               onClick={() => onNavigate("goals")}
@@ -759,7 +761,7 @@ export function Dashboard(props: DashboardProps) {
       {/* Task Pipeline */}
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Task Pipeline</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("dash.taskPipeline")}</div>
           <button
             type="button"
             onClick={() => onNavigate("tasks")}
@@ -778,13 +780,13 @@ export function Dashboard(props: DashboardProps) {
         {/* Workforce */}
         <section className="lg:col-span-3">
           <div className="mb-3 flex items-center justify-between">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Workforce</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("dash.workforce")}</div>
             <button
               type="button"
               onClick={() => onNavigate("orgchart")}
               className="flex items-center gap-1 text-[11px] font-medium text-[color:var(--accent)] transition hover:underline"
             >
-              Org chart <TreeStructure size={12} />
+              {t("dash.orgChart")} <TreeStructure size={12} />
             </button>
           </div>
           <WorkforceGrid agents={agents} onSelectAgent={(id) => onNavigate("agents", id)} />
@@ -793,7 +795,7 @@ export function Dashboard(props: DashboardProps) {
         {/* Activity Feed */}
         <section className="lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Recent Activity</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("dash.recentActivity")}</div>
             <button
               type="button"
               onClick={() => onNavigate("activity")}
@@ -810,7 +812,7 @@ export function Dashboard(props: DashboardProps) {
 
       {/* Connector Health */}
       <section>
-        <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Infrastructure</div>
+        <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("dash.infrastructure")}</div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           {connectors.map((connector) => {
             const isReady = isConnectorExecutionReady(connector);
@@ -842,7 +844,7 @@ export function Dashboard(props: DashboardProps) {
       {/* Needs Attention */}
       {(pendingApprovals.length > 0 || failedRuns.length > 0 || urgentMessages.length > 0 || blockedBrowserActions.length > 0 || stalledWorkflows.length > 0) ? (
         <section>
-          <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--warn)]">Needs Attention</div>
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--warn)]">{t("dash.needsAttentionSection")}</div>
           <div className="space-y-1.5">
             {pendingApprovals.slice(0, 5).map((approval) => {
               const requester = agents.find((a) => a.id === approval.requestedByAgentId);

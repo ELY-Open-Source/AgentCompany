@@ -31,6 +31,7 @@ import {
 import type { BrowserActionRecord, SocialAccountRecord, SocialPlatform } from "@shared/types";
 import { timeAgo } from "../lib/formatters";
 import { ActionButton, Input } from "./ui";
+import { useT } from "../i18n";
 
 const platformConfig: Record<SocialPlatform, { label: string; color: string; bgColor: string; icon: ElementType }> = {
   twitter: { label: "Twitter / X", color: "#1D9BF0", bgColor: "#1D9BF014", icon: XLogo },
@@ -418,6 +419,7 @@ export function SocialAccountsPanel({
   onCancelAction,
   onNavigate,
 }: SocialPanelProps) {
+  const t = useT();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<"accounts" | "history">("accounts");
 
@@ -434,7 +436,7 @@ export function SocialAccountsPanel({
             <Megaphone size={20} weight="fill" className="text-[color:var(--accent)]" />
           </div>
           <div>
-            <h2 className="text-[16px] font-bold text-[color:var(--text)]">Social Media</h2>
+            <h2 className="text-[16px] font-bold text-[color:var(--text)]">{t("social.socialMedia")}</h2>
             <p className="text-[12px] text-[color:var(--muted)]">
               {accounts.length} account{accounts.length !== 1 ? "s" : ""} connected
             </p>
@@ -491,9 +493,9 @@ export function SocialAccountsPanel({
         accounts.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-[color:var(--line)] py-16 text-center">
             <Megaphone size={32} className="mb-3 text-[color:var(--muted)]" />
-            <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">No social accounts</div>
+            <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">{t("social.noAccounts")}</div>
             <div className="mt-1 text-[12px] text-[color:var(--muted)]">
-              Add your first social media account to enable marketing automation
+              {t("social.noAccountsDesc")}
             </div>
             <div className="mt-4">
               <ActionButton

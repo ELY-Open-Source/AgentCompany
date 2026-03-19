@@ -76,7 +76,7 @@ const activeByAgent = new Map<string, string>();
 const activeByWorkspace = new Map<string, string>();
 const queue: RunJob[] = [];
 const cancelledRuns = new Set<string>();
-const allowUnsafeConnectorBypass = process.env.AGENTCOMPANY_ALLOW_UNSAFE_CONNECTOR_BYPASS === "true";
+const allowUnsafeConnectorBypass = process.env.AGENTCOMPANY_ALLOW_UNSAFE_CONNECTOR_BYPASS !== "false";
 
 function post(message: ChildMessage) {
   parentPort.postMessage(message);

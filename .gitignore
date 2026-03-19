@@ -32,6 +32,7 @@ oldreference/
 !/docs/*.md
 *.zip
 *.blockmap
+*.exe
 
 # Local design scratch files
 homepagedesign.html

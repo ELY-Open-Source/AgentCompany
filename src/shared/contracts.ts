@@ -244,6 +244,7 @@ export type SidebarBadges = z.infer<typeof sidebarBadgesSchema>;
 
 export const settingsSchema = z.object({
   theme: z.enum(["system", "light", "dark"]).optional(),
+  locale: z.enum(["en", "zh"]).optional(),
   updatesEnabled: z.boolean().optional(),
   logRetentionDays: z.number().int().min(1).max(365).optional(),
 });

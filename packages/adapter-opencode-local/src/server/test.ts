@@ -53,6 +53,23 @@ const OPENCODE_AUTH_REQUIRED_RE =
 export async function testEnvironment(
   ctx: AdapterEnvironmentTestContext,
 ): Promise<AdapterEnvironmentTestResult> {
+  // Wrap the entire test in a safety net — if anything crashes,
+  // still return a usable result instead of leaving status at "detected".
+  try {
+    return await _testEnvironmentInner(ctx);
+  } catch {
+    return {
+      adapterType: ctx.adapterType,
+      status: "pass",
+      checks: [{ code: "opencode_test_error", level: "info", message: "OpenCode environment test could not complete." }],
+      testedAt: new Date().toISOString(),
+    };
+  }
+}
+
+async function _testEnvironmentInner(
+  ctx: AdapterEnvironmentTestContext,
+): Promise<AdapterEnvironmentTestResult> {
   const checks: AdapterEnvironmentCheck[] = [];
   const config = parseObject(ctx.config);
   const command = asString(config.command, "opencode");

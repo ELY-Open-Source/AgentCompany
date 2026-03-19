@@ -30,6 +30,7 @@ import {
   StatusPill,
   TextArea,
 } from "./ui";
+import { useT } from "../i18n";
 
 function BudgetBar({ spent, budget }: { spent: number; budget: number }) {
   const pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
@@ -80,8 +81,9 @@ export function AgentRoster({
   selectedAgentId: string | null;
   onSelect: (agentId: string) => void;
 }) {
+  const t = useT();
   if (agents.length === 0) {
-    return <EmptyState title="No agents yet" />;
+    return <EmptyState title={t("org.noAgentsYet")} />;
   }
   return (
     <ListFrame>
@@ -617,8 +619,9 @@ export function GoalList({
   selectedGoalId: string | null;
   onSelect: (goalId: string) => void;
 }) {
+  const t = useT();
   if (goals.length === 0) {
-    return <EmptyState title="No goals yet" />;
+    return <EmptyState title={t("org.noGoalsYet")} />;
   }
   return (
     <ListFrame>
@@ -847,8 +850,9 @@ export function ProjectList({
   selectedProjectId: string | null;
   onSelect: (projectId: string) => void;
 }) {
+  const t = useT();
   if (projects.length === 0) {
-    return <EmptyState title="No projects yet" />;
+    return <EmptyState title={t("org.noProjectsYet")} />;
   }
   return (
     <ListFrame>
@@ -1183,6 +1187,7 @@ export function OrgChart({
   agents: AgentRecord[];
   onSelectAgent?: (agentId: string) => void;
 }) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -1257,7 +1262,7 @@ export function OrgChart({
   }, [zoom, pan]);
 
   if (agents.length === 0) {
-    return <EmptyState title="No agents to display" />;
+    return <EmptyState title={t("org.noAgentsToDisplay")} />;
   }
 
   return (

@@ -1,8 +1,0 @@
-version: 0.4.39
-files:
-  - url: AgentCompany-0.4.39-arm64-mac.zip
-    sha512: Go1aPQz2rOolb0eES1VpgIZkg3f7wfokDjSaJR01f4CSFdyTobB4ceD2aluOMb+NWw/fbWJTISXkP1aAJuDL1w==
-    size: 113295149
-path: AgentCompany-0.4.39-arm64-mac.zip
-sha512: Go1aPQz2rOolb0eES1VpgIZkg3f7wfokDjSaJR01f4CSFdyTobB4ceD2aluOMb+NWw/fbWJTISXkP1aAJuDL1w==
-releaseDate: '2026-03-18T20:40:51.335Z'
