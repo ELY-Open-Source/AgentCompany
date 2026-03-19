@@ -19,22 +19,10 @@ function getAuthActionCopy(connector: ConnectorRecord) {
         message: "Claude Code is installed, but the local CLI is not authenticated for this desktop runtime.",
         buttonLabel: "Open Terminal To Sign In",
       };
-    case "opencode_local":
-      return {
-        title: "OpenCode provider login required",
-        message: "OpenCode is installed, but the provider login must be completed before runs can start.",
-        buttonLabel: "Open Terminal To Sign In",
-      };
     case "gemini_local":
       return {
         title: "Gemini authentication required",
         message: "Gemini CLI is available, but the runtime still needs an authenticated session. AgentCompany will open Gemini in a terminal and you can complete its interactive auth flow there.",
-        buttonLabel: "Open Terminal",
-      };
-    case "kimi_local":
-      return {
-        title: "Kimi interactive login required",
-        message: "Kimi Code is available in generic mode. AgentCompany can open the CLI in a terminal so you can complete the interactive login flow there if prompted.",
         buttonLabel: "Open Terminal",
       };
   }
@@ -55,8 +43,8 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
   const authPollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const authActionCopy = getAuthActionCopy(connector);
   const needsLogin = connector.authState === "required" || connector.status === "auth_required";
-  const requiresExplicitModel = connector.id === "opencode_local";
-  const shouldLoadModelOptions = connector.capabilityMatrix.modelDiscovery || connector.id === "opencode_local";
+  const requiresExplicitModel = false;
+  const shouldLoadModelOptions = connector.capabilityMatrix.modelDiscovery;
 
   useEffect(() => {
     setModel(connector.model ?? "");

@@ -9,10 +9,6 @@ import {
 import { execute as codexExecute, sessionCodec as codexSessionCodec, testEnvironment as codexTestEnvironment } from "@agentcompany/adapter-codex-local/server";
 import { agentConfigurationDoc as geminiDoc, DEFAULT_GEMINI_LOCAL_MODEL, models as geminiModels } from "@agentcompany/adapter-gemini-local";
 import { execute as geminiExecute, sessionCodec as geminiSessionCodec, testEnvironment as geminiTestEnvironment } from "@agentcompany/adapter-gemini-local/server";
-import { agentConfigurationDoc as kimiDoc, DEFAULT_KIMI_LOCAL_MODEL, models as kimiModels } from "@agentcompany/adapter-kimi-local";
-import { execute as kimiExecute, testEnvironment as kimiTestEnvironment } from "@agentcompany/adapter-kimi-local/server";
-import { agentConfigurationDoc as opencodeDoc } from "@agentcompany/adapter-opencode-local";
-import { execute as opencodeExecute, listOpenCodeModels, sessionCodec as opencodeSessionCodec, testEnvironment as opencodeTestEnvironment } from "@agentcompany/adapter-opencode-local/server";
 import type { CapabilityMatrix, ConnectorId, ConnectorRecord } from "@shared/types";
 
 const RESERVED_ENV_BINDING_KEYS = new Set([
@@ -47,7 +43,7 @@ const CONNECTORS: ConnectorDefinition[] = [
     description: "Local Codex CLI with session resume, structured event parsing, and model selection.",
     defaultCommand: "codex",
     defaultModel: DEFAULT_CODEX_LOCAL_MODEL,
-    notes: "Best fit for high-context coding tasks and shell-heavy automation.",
+    notes: "",
     capabilityMatrix: {
       sessionResume: true,
       gracefulCancel: true,
@@ -71,7 +67,7 @@ const CONNECTORS: ConnectorDefinition[] = [
     description: "Local Claude Code CLI with session persistence and structured result parsing.",
     defaultCommand: "claude",
     defaultModel: claudeModels[0]?.id ?? null,
-    notes: "Useful for long-running coding sessions and agent-style loops.",
+    notes: "",
     capabilityMatrix: {
       sessionResume: true,
       gracefulCancel: true,
@@ -95,7 +91,7 @@ const CONNECTORS: ConnectorDefinition[] = [
     description: "Local Gemini CLI with resume support and JSON event parsing.",
     defaultCommand: "gemini",
     defaultModel: DEFAULT_GEMINI_LOCAL_MODEL,
-    notes: "Good for multi-provider local workflows when Google auth is already in place.",
+    notes: "",
     capabilityMatrix: {
       sessionResume: true,
       gracefulCancel: true,
@@ -112,54 +108,6 @@ const CONNECTORS: ConnectorDefinition[] = [
       models: geminiModels,
     },
     listModels: async () => geminiModels,
-  },
-  {
-    id: "opencode_local",
-    label: "OpenCode",
-    description: "Local OpenCode runtime with provider/model routing and session restore.",
-    defaultCommand: "opencode",
-    defaultModel: null,
-    notes: "Best when model routing belongs to the runtime rather than the app.",
-    capabilityMatrix: {
-      sessionResume: true,
-      gracefulCancel: true,
-      modelDiscovery: true,
-      structuredTranscript: true,
-      costAttribution: true,
-    },
-    configurationDoc: opencodeDoc,
-    module: {
-      type: "opencode_local",
-      execute: opencodeExecute,
-      testEnvironment: opencodeTestEnvironment,
-      sessionCodec: opencodeSessionCodec,
-      models: [],
-      listModels: listOpenCodeModels,
-    },
-    listModels: listOpenCodeModels,
-  },
-  {
-    id: "kimi_local",
-    label: "Kimi Code",
-    description: "Official Kimi Code CLI surfaced through a generic execution contract with explicit capability downgrade.",
-    defaultCommand: "kimi",
-    defaultModel: DEFAULT_KIMI_LOCAL_MODEL,
-    notes: "MVP support is explicit generic mode until richer runtime contract evidence is implemented.",
-    capabilityMatrix: {
-      sessionResume: false,
-      gracefulCancel: false,
-      modelDiscovery: false,
-      structuredTranscript: false,
-      costAttribution: false,
-    },
-    configurationDoc: kimiDoc,
-    module: {
-      type: "kimi_local",
-      execute: kimiExecute,
-      testEnvironment: kimiTestEnvironment,
-      models: kimiModels,
-    },
-    listModels: async () => kimiModels,
   },
 ];
 

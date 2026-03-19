@@ -1176,8 +1176,6 @@ const adapterLabels: Record<string, string> = {
   claude_local: "Claude",
   codex_local: "Codex",
   gemini_local: "Gemini",
-  opencode_local: "OpenCode",
-  kimi_local: "Kimi",
 };
 
 export function OrgChart({

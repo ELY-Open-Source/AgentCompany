@@ -24,23 +24,11 @@ function connectorAuthSpec(connectorId: ConnectorId, command: string) {
         shellCommand: `${quoteShell(command)} auth login`,
         intro: "AgentCompany is opening the Claude Code login flow.",
       };
-    case "opencode_local":
-      return {
-        title: "OpenCode Login",
-        shellCommand: `${quoteShell(command)} auth login`,
-        intro: "AgentCompany is opening the OpenCode provider login flow.",
-      };
     case "gemini_local":
       return {
         title: "Gemini CLI Login",
         shellCommand: `${quoteShell(command)}`,
         intro: "AgentCompany is opening Gemini CLI. If authentication is required, use /auth in the Gemini session.",
-      };
-    case "kimi_local":
-      return {
-        title: "Kimi Code Login",
-        shellCommand: `${quoteShell(command)}`,
-        intro: "AgentCompany is opening Kimi Code. Complete the interactive login flow there if prompted.",
       };
   }
 }

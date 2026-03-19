@@ -124,12 +124,6 @@ function buildConnectorExecutionConfig(job: RunJob, sanitizedEnv: Record<string,
         approvalMode: "yolo",
         sandbox: true,
       };
-    case "kimi_local":
-      return {
-        ...baseConfig,
-        extraArgs: ["--yolo"],
-      };
-    case "opencode_local":
     default:
       return baseConfig;
   }

@@ -27,9 +27,7 @@ export type SectionId =
 export type ConnectorId =
   | "codex_local"
   | "claude_local"
-  | "gemini_local"
-  | "opencode_local"
-  | "kimi_local";
+  | "gemini_local";
 
 export type ConnectorStatus =
   | "not_installed"

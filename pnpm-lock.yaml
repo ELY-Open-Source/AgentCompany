@@ -17,12 +17,6 @@ importers:
       '@agentcompany/adapter-gemini-local':
         specifier: workspace:*
         version: link:packages/adapter-gemini-local
-      '@agentcompany/adapter-kimi-local':
-        specifier: workspace:*
-        version: link:packages/adapter-kimi-local
-      '@agentcompany/adapter-opencode-local':
-        specifier: workspace:*
-        version: link:packages/adapter-opencode-local
       '@agentcompany/adapter-utils':
         specifier: workspace:*
         version: link:packages/adapter-utils

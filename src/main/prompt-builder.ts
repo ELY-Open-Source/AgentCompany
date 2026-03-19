@@ -702,7 +702,7 @@ Body: {
   "title": "Descriptive title",
   "department": "engineering|product|marketing|sales|hr|finance|legal|operations|customer_support|research|design|executive",
   "reportsTo": "{managerAgentId — who this person reports to}",
-  "connectorId": "codex_local|claude_local|gemini_local|opencode_local|kimi_local",
+  "connectorId": "codex_local|claude_local|gemini_local",
   "workspaceId": "{optionalWorkspaceId}",
   "model": "model-identifier",
   "capabilities": "Detailed description of what this hire should own and be able to do",

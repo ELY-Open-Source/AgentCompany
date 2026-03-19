@@ -88,7 +88,7 @@ export const companyInputSchema = z.object({
 });
 
 export const connectorInputSchema = z.object({
-  id: z.enum(["codex_local", "claude_local", "gemini_local", "opencode_local", "kimi_local"]),
+  id: z.enum(["codex_local", "claude_local", "gemini_local"]),
   command: z.string().min(1),
   model: z.string().nullable().optional(),
   envBindingText: z.string().default(""),
@@ -288,7 +288,7 @@ export const bootstrapOnboardingSchema = z.object({
   autoApproveHires: z.boolean().default(true),
   goalTitle: z.string().default(""),
   goalDescription: z.string().default(""),
-  connectorId: z.enum(["codex_local", "claude_local", "gemini_local", "opencode_local", "kimi_local"]).optional(),
+  connectorId: z.enum(["codex_local", "claude_local", "gemini_local"]).optional(),
 });
 
 export const socialAccountInputSchema = z.object({
