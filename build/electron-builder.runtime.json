@@ -1,9 +1,0 @@
-{
-  "extends": "C:\\Users\\yang\\Documents\\Github\\AgentCompany\\electron-builder.yml",
-  "directories": {
-    "output": "C:\\Users\\yang\\Documents\\Github\\AgentCompany\\build\\release"
-  },
-  "extraMetadata": {
-    "version": "0.4.47"
-  }
-}

@@ -122,7 +122,22 @@ if (strictRelease && !requestedUpdateUrl) {
   throw new Error("[build-desktop] Strict release mode requires AGENTCOMPANY_UPDATE_URL to be configured.");
 }
 
-await rm(buildDir, { recursive: true, force: true });
+// On Windows, antivirus scanners may hold file locks on .asar/.exe files.
+// Retry the rm with increasing delays to give the OS time to release them.
+for (let attempt = 0; attempt < 5; attempt++) {
+  try {
+    await rm(buildDir, { recursive: true, force: true });
+    break;
+  } catch (rmErr) {
+    if (attempt < 4 && rmErr.code === "EBUSY") {
+      const delay = (attempt + 1) * 3000;
+      console.log(`[build-desktop] Build dir locked (EBUSY), retrying in ${delay / 1000}s... (attempt ${attempt + 1}/5)`);
+      await new Promise((r) => setTimeout(r, delay));
+    } else {
+      throw rmErr;
+    }
+  }
+}
 await mkdir(buildDir, { recursive: true });
 const buildVersion = env.AGENTCOMPANY_BUILD_VERSION?.trim() || await resolveBuildVersion();
 const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));

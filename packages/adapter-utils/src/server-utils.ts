@@ -204,16 +204,15 @@ async function resolveSpawnTarget(
     return { command: executable, args };
   }
 
-  if (/\.(cmd|bat)$/i.test(executable)) {
-    const shell = env.ComSpec || process.env.ComSpec || "cmd.exe";
-    const commandLine = [quoteForCmd(executable), ...args.map(quoteForCmd)].join(" ");
-    return {
-      command: shell,
-      args: ["/d", "/s", "/c", commandLine],
-    };
-  }
-
-  return { command: executable, args };
+  // On Windows, ALL spawned processes need UTF-8 code page (65001) to prevent
+  // Chinese/CJK character corruption. The default Windows code page (e.g. 936/GBK)
+  // corrupts multi-byte UTF-8 characters passed through cmd.exe, curl, etc.
+  const shell = env.ComSpec || process.env.ComSpec || "cmd.exe";
+  const commandLine = [quoteForCmd(executable), ...args.map(quoteForCmd)].join(" ");
+  return {
+    command: shell,
+    args: ["/d", "/s", "/c", `chcp 65001 >nul && ${commandLine}`],
+  };
 }
 
 export function ensurePathInEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -304,6 +303,13 @@ export async function runChildProcess(
     }
 
     const mergedEnv = ensurePathInEnv(rawMerged);
+    // On Windows, force UTF-8 encoding in child processes to prevent Chinese/CJK
+    // character corruption caused by the default system code page (e.g. 936/GBK).
+    if (process.platform === "win32") {
+      mergedEnv.PYTHONUTF8 = "1";
+      mergedEnv.PYTHONIOENCODING = "utf-8";
+      if (!mergedEnv.LANG) mergedEnv.LANG = "en_US.UTF-8";
+    }
     void resolveSpawnTarget(command, args, opts.cwd, mergedEnv)
       .then((target) => {
         const child = spawn(target.command, target.args, {

@@ -221,19 +221,22 @@ export class AgentApiServer {
   private readBody(req: IncomingMessage): Promise<unknown> {
     const MAX_BODY_BYTES = 1_048_576; // 1 MB
     return new Promise((resolve, reject) => {
-      let data = "";
+      const chunks: Buffer[] = [];
       let bytes = 0;
-      req.on("data", (chunk) => {
-        bytes += Buffer.byteLength(chunk);
+      req.on("data", (chunk: Buffer) => {
+        bytes += chunk.length;
         if (bytes > MAX_BODY_BYTES) {
           req.destroy();
           reject(new Error("Request body too large"));
           return;
         }
-        data += String(chunk);
+        chunks.push(chunk);
       });
       req.on("end", () => {
-        try { resolve(data ? JSON.parse(data) : null); }
+        try {
+          const data = Buffer.concat(chunks).toString("utf8");
+          resolve(data ? JSON.parse(data) : null);
+        }
         catch { reject(new Error("Invalid JSON")); }
       });
       req.on("error", reject);
