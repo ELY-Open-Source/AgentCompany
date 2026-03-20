@@ -323,6 +323,10 @@ export function App() {
     }
   }, [snapshot, locale]);
 
+  useEffect(() => {
+    document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
+  }, [locale]);
+
   const handleLocaleChange = useCallback(async (newLocale: AppLocale) => {
     setLocale(newLocale);
     try {

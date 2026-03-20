@@ -1,8 +1,8 @@
-version: 0.4.51
+version: 0.4.52
 files:
-  - url: AgentCompany-Setup-0.4.51.exe
-    sha512: B1hxeWw8AZhXNYxPJrT3AA3E7GMGuGrxM+tijoHEbxjJdtpEx47Cfw7iZA+LpzLABCVPE8JskvM8M7a2035ANg==
-    size: 101558338
-path: AgentCompany-Setup-0.4.51.exe
-sha512: B1hxeWw8AZhXNYxPJrT3AA3E7GMGuGrxM+tijoHEbxjJdtpEx47Cfw7iZA+LpzLABCVPE8JskvM8M7a2035ANg==
-releaseDate: '2026-03-19T21:04:17.730Z'
+  - url: AgentCompany-Setup-0.4.52.exe
+    sha512: mwXuxahjwBeStj+5gPa8F6Ny6DZg1utectcrjLEt8Wx0IStZUVYA8aZrrx3OsYBsfGG9bJHq3/rZCFPRRoSkJw==
+    size: 101559599
+path: AgentCompany-Setup-0.4.52.exe
+sha512: mwXuxahjwBeStj+5gPa8F6Ny6DZg1utectcrjLEt8Wx0IStZUVYA8aZrrx3OsYBsfGG9bJHq3/rZCFPRRoSkJw==
+releaseDate: '2026-03-20T01:27:11.948Z'

@@ -451,38 +451,47 @@ Do not print or echo AGENT_COMPANY_API_KEY into comments, summaries, or external
 ## Authentication & Request Format
 Every API call MUST include these headers:
   Authorization: Bearer $AGENT_COMPANY_API_KEY
-  Content-Type: application/json
+  Content-Type: application/json; charset=utf-8
   X-Agent-Company-Run-Id: ${ctx.runId}
 
-Example using curl:
-  curl -s -X GET "$AGENT_COMPANY_API_URL/api/agents/me" \\
-    -H "Authorization: Bearer $AGENT_COMPANY_API_KEY" \\
-    -H "Content-Type: application/json" \\
-    -H "X-Agent-Company-Run-Id: ${ctx.runId}"
+IMPORTANT: On Windows, prefer using Node.js fetch() for API calls instead of curl,
+because curl on Windows may corrupt non-ASCII characters (Chinese, Japanese, etc.).
+If you must use curl, write the JSON body to a temp file first and use curl -d @file.
 
-Example using fetch (Node.js):
+Example using fetch (Node.js) — PREFERRED:
   const res = await fetch(\`\${process.env.AGENT_COMPANY_API_URL}/api/agents/me\`, {
     headers: {
       "Authorization": \`Bearer \${process.env.AGENT_COMPANY_API_KEY}\`,
-      "Content-Type": "application/json",
+      "Content-Type": "application/json; charset=utf-8",
       "X-Agent-Company-Run-Id": "${ctx.runId}"
     }
   });
   const data = await res.json();
 
-Example POST using curl:
+Example POST using fetch (Node.js) — PREFERRED for non-ASCII content:
+  const res = await fetch(\`\${process.env.AGENT_COMPANY_API_URL}/api/companies/${ctx.agent.companyId}/issues\`, {
+    method: "POST",
+    headers: {
+      "Authorization": \`Bearer \${process.env.AGENT_COMPANY_API_KEY}\`,
+      "Content-Type": "application/json; charset=utf-8",
+      "X-Agent-Company-Run-Id": "${ctx.runId}"
+    },
+    body: JSON.stringify({title:"Task title",description:"Details",assigneeAgentId:"agent-id",priority:"medium",status:"todo"})
+  });
+
+Example GET using curl:
+  curl -s -X GET "$AGENT_COMPANY_API_URL/api/agents/me" \\
+    -H "Authorization: Bearer $AGENT_COMPANY_API_KEY" \\
+    -H "Content-Type: application/json; charset=utf-8" \\
+    -H "X-Agent-Company-Run-Id: ${ctx.runId}"
+
+Example POST using curl (write body to temp file to avoid encoding issues):
+  echo '{"title":"Task title","description":"Details","priority":"medium","status":"todo"}' > /tmp/body.json
   curl -s -X POST "$AGENT_COMPANY_API_URL/api/companies/${ctx.agent.companyId}/issues" \\
     -H "Authorization: Bearer $AGENT_COMPANY_API_KEY" \\
-    -H "Content-Type: application/json" \\
+    -H "Content-Type: application/json; charset=utf-8" \\
     -H "X-Agent-Company-Run-Id: ${ctx.runId}" \\
-    -d '{"title":"Task title","description":"Details","assigneeAgentId":"agent-id","priority":"medium","status":"todo"}'
-
-Example PATCH using curl:
-  curl -s -X PATCH "$AGENT_COMPANY_API_URL/api/issues/ISSUE_ID" \\
-    -H "Authorization: Bearer $AGENT_COMPANY_API_KEY" \\
-    -H "Content-Type: application/json" \\
-    -H "X-Agent-Company-Run-Id: ${ctx.runId}" \\
-    -d '{"status":"in_review","comment":"Work completed. Summary of changes: ..."}'
+    -d @/tmp/body.json
 
 IMPORTANT: Always check the HTTP response status. 200/201 = success, 4xx = client error (read the error message), 5xx = server error (retry once then report).
 

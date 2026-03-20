@@ -3,6 +3,19 @@ import { constants as fsConstants, promises as fs } from "node:fs";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
+/**
+ * Decode a Buffer as GBK (CP936). Used as a fallback when UTF-8 decoding
+ * produces replacement characters on Chinese Windows systems where the
+ * system ANSI code page is GBK and chcp 65001 is ineffective for piped I/O.
+ */
+function decodeGbkBuffer(buf: Buffer): string {
+  try {
+    return new TextDecoder("gbk").decode(buf);
+  } catch {
+    return buf.toString("utf8");
+  }
+}
+
 export interface RunProcessResult {
   exitCode: number | null;
   signal: string | null;
@@ -331,10 +344,14 @@ export async function runChildProcess(
         let stderr = "";
         let logChain: Promise<void> = Promise.resolve();
 
-        // Use StringDecoder to correctly handle multi-byte UTF-8 characters
-        // that may be split across chunk boundaries (e.g. Chinese characters).
+        // Use StringDecoder to handle multi-byte characters split across chunks.
+        // On Windows, child process stdout may arrive in GBK (CP936) instead
+        // of UTF-8 when chcp 65001 is ineffective (piped stdout has no console).
+        // We detect this per-stream and fall back to GBK decoding if needed.
         const stdoutDecoder = new StringDecoder("utf8");
         const stderrDecoder = new StringDecoder("utf8");
+        let stdoutIsGbk = false;
+        let stderrIsGbk = false;
 
         const timeout =
           opts.timeoutSec > 0
@@ -350,7 +367,20 @@ export async function runChildProcess(
             : null;
 
         child.stdout?.on("data", (chunk: unknown) => {
-          const text = chunk instanceof Buffer ? stdoutDecoder.write(chunk) : String(chunk);
+          let text: string;
+          if (chunk instanceof Buffer) {
+            if (stdoutIsGbk) {
+              text = decodeGbkBuffer(chunk);
+            } else {
+              text = stdoutDecoder.write(chunk);
+              if (text.includes("\ufffd") && chunk.length > 0) {
+                stdoutIsGbk = true;
+                text = decodeGbkBuffer(chunk);
+              }
+            }
+          } else {
+            text = String(chunk);
+          }
           stdout = appendWithCap(stdout, text);
           logChain = logChain
             .then(() => opts.onLog("stdout", text))
@@ -358,7 +388,20 @@ export async function runChildProcess(
         });
 
         child.stderr?.on("data", (chunk: unknown) => {
-          const text = chunk instanceof Buffer ? stderrDecoder.write(chunk) : String(chunk);
+          let text: string;
+          if (chunk instanceof Buffer) {
+            if (stderrIsGbk) {
+              text = decodeGbkBuffer(chunk);
+            } else {
+              text = stderrDecoder.write(chunk);
+              if (text.includes("\ufffd") && chunk.length > 0) {
+                stderrIsGbk = true;
+                text = decodeGbkBuffer(chunk);
+              }
+            }
+          } else {
+            text = String(chunk);
+          }
           stderr = appendWithCap(stderr, text);
           logChain = logChain
             .then(() => opts.onLog("stderr", text))

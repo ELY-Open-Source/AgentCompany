@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB",
+    "Noto Sans CJK SC", Helvetica, Arial, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "Microsoft YaHei", ui-monospace,
+    SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 :root {
   color-scheme: light;
   --bg: #fbfbfb;
@@ -82,7 +90,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -120,7 +128,7 @@ select {
 }
 
 .mono {
-  font-family: "JetBrains Mono Variable", "Microsoft YaHei", monospace;
+  font-family: var(--font-mono);
 }
 
 .surface {

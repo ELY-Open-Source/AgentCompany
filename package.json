@@ -1,6 +1,6 @@
 {
   "name": "agent-company",
-  "version": "0.4.47",
+  "version": "0.4.52",
   "private": true,
   "type": "module",
   "description": "Cross-platform Electron desktop control plane for local-first AI agent companies.",
@@ -66,5 +66,12 @@
     "node": ">=22.0.0",
     "pnpm": ">=10.0.0"
   },
-  "packageManager": "pnpm@10.24.0"
+  "packageManager": "pnpm@10.24.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller",
+      "esbuild"
+    ]
+  }
 }

@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { extname } from "node:path";
 import { pathToFileURL } from "node:url";
 import { resolve, sep } from "node:path";
 import {
@@ -81,14 +82,33 @@ export function createDesktopShellService({
   }
 
   function registerProtocol() {
-    protocol.handle("app", (request) => {
+    const textMimeTypes: Record<string, string> = {
+      ".html": "text/html; charset=utf-8",
+      ".js": "text/javascript; charset=utf-8",
+      ".mjs": "text/javascript; charset=utf-8",
+      ".css": "text/css; charset=utf-8",
+      ".json": "application/json; charset=utf-8",
+      ".svg": "image/svg+xml; charset=utf-8",
+    };
+    protocol.handle("app", async (request) => {
       const url = new URL(request.url);
       const relativePath = decodeURIComponent(url.pathname === "/" ? "index.html" : url.pathname.replace(/^\/+/, ""));
       const targetPath = resolve(rendererDist, relativePath);
       if (!isWithinDirectory(rendererDist, targetPath) || !existsSync(targetPath)) {
         return new Response("Not found", { status: 404 });
       }
-      return net.fetch(pathToFileURL(targetPath).toString());
+      const response = await net.fetch(pathToFileURL(targetPath).toString());
+      const mime = textMimeTypes[extname(targetPath).toLowerCase()];
+      if (mime) {
+        const headers = new Headers(response.headers);
+        headers.set("Content-Type", mime);
+        return new Response(response.body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers,
+        });
+      }
+      return response;
     });
   }
 

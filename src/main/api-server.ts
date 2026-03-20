@@ -10,6 +10,29 @@ import type { AppDatabase } from "./database";
 import { dispatchAgentMessage } from "./message-dispatch";
 import type { DesktopEvent } from "@shared/types";
 
+/**
+ * Decode an HTTP request body to a UTF-8 string, handling the common Windows
+ * encoding issue where Chinese/CJK characters arrive in GBK (CP936) instead
+ * of UTF-8. On Chinese Windows the system ANSI code page is GBK; tools like
+ * curl encode command-line arguments using that code page when stdout is piped
+ * (chcp 65001 does not help because there is no real console). We try strict
+ * UTF-8 first and, only if the bytes are invalid UTF-8, fall back to GBK.
+ */
+function decodeBodyToUtf8(raw: Buffer): string {
+  if (raw.length === 0) return "";
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(raw);
+  } catch {
+    // Bytes are not valid UTF-8 — most likely GBK from Chinese Windows.
+    try {
+      return new TextDecoder("gbk").decode(raw);
+    } catch {
+      // Last resort: lossy UTF-8 (replaces invalid bytes with U+FFFD).
+      return raw.toString("utf8");
+    }
+  }
+}
+
 type RequestHandler = (
   req: IncomingMessage,
   res: ServerResponse,
@@ -234,7 +257,8 @@ export class AgentApiServer {
       });
       req.on("end", () => {
         try {
-          const data = Buffer.concat(chunks).toString("utf8");
+          const raw = Buffer.concat(chunks);
+          const data = decodeBodyToUtf8(raw);
           resolve(data ? JSON.parse(data) : null);
         }
         catch { reject(new Error("Invalid JSON")); }
@@ -244,7 +268,7 @@ export class AgentApiServer {
   }
 
   private json(res: ServerResponse, status: number, data: unknown) {
-    res.writeHead(status, { "Content-Type": "application/json" });
+    res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
     res.end(JSON.stringify(data));
   }
 

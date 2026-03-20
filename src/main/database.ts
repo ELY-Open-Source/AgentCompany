@@ -76,6 +76,32 @@ function safeRealpath(targetPath: string) {
   }
 }
 
+/**
+ * Find the last complete UTF-8 character boundary in a buffer.
+ * Returns the number of bytes up to (and including) the last complete character.
+ * This prevents corrupting multi-byte CJK characters when slicing at chunk edges.
+ */
+function findUtf8Boundary(buffer: Buffer, bytesRead: number): number {
+  if (bytesRead === 0) return 0;
+  // Walk backwards past continuation bytes (10xxxxxx)
+  let pos = bytesRead - 1;
+  while (pos >= 0 && (buffer[pos] & 0xc0) === 0x80) {
+    pos--;
+  }
+  if (pos < 0) return bytesRead;
+  const lead = buffer[pos];
+  let charLen: number;
+  if ((lead & 0x80) === 0) charLen = 1;
+  else if ((lead & 0xe0) === 0xc0) charLen = 2;
+  else if ((lead & 0xf0) === 0xe0) charLen = 3;
+  else if ((lead & 0xf8) === 0xf0) charLen = 4;
+  else return bytesRead;
+  // If the character is complete within the buffer, keep all bytes
+  if (pos + charLen <= bytesRead) return bytesRead;
+  // Otherwise truncate before the incomplete character
+  return pos;
+}
+
 function taskPriorityOrderSql(columnName: string) {
   return `case ${columnName}
     when 'critical' then 4
@@ -1156,14 +1182,14 @@ export class AppDatabase {
         .run(id, input.companyId, input.taskId, input.agentId, input.workspaceId, input.connectorId, logPath, ts, ts);
       this.db.prepare("update tasks set active_run_id = ?, updated_at = ? where id = ?").run(id, ts, input.taskId);
     });
-    writeFileSync(logPath, "");
+    writeFileSync(logPath, "", "utf8");
     return { id, logPath };
   }
 
   appendRunLog(runId: string, stream: "stdout" | "stderr", chunk: string) {
     const run = this.db.prepare("select log_path as logPath from runs where id = ?").get(runId) as { logPath: string | null } | undefined;
     if (!run?.logPath) return;
-    return appendFile(run.logPath, `[${new Date().toISOString()}][${stream}] ${chunk}`);
+    return appendFile(run.logPath, `[${new Date().toISOString()}][${stream}] ${chunk}`, "utf8");
   }
 
   readRunLog(runId: string) {
@@ -1207,9 +1233,12 @@ export class AppDatabase {
     try {
       const buffer = Buffer.allocUnsafe(bytesToRead);
       const bytesRead = readSync(fileDescriptor, buffer, 0, bytesToRead, safeOffset);
-      const nextOffset = safeOffset + bytesRead;
+      // Find the last complete UTF-8 character boundary to avoid corrupting
+      // multi-byte characters (e.g. Chinese/CJK 3-byte sequences) at the edge.
+      const safeBytesRead = findUtf8Boundary(buffer, bytesRead);
+      const nextOffset = safeOffset + safeBytesRead;
       return {
-        content: buffer.subarray(0, bytesRead).toString("utf8"),
+        content: buffer.subarray(0, safeBytesRead).toString("utf8"),
         offset: safeOffset,
         nextOffset,
         totalBytes,
