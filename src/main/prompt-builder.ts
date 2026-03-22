@@ -1,7 +1,8 @@
-import type { AgentRecord, AgentMessageRecord, ApprovalRecord, DocumentRecord, GoalRecord, KnowledgeEntryRecord, MeetingRecord, ProjectRecord, SprintRecord, TaskRecord } from "@shared/types";
+import type { AgentRecord, AgentMessageRecord, ApprovalRecord, ConnectorId, DocumentRecord, GoalRecord, KnowledgeEntryRecord, MeetingRecord, ProjectRecord, SprintRecord, TaskRecord } from "@shared/types";
 import type { AppLocale } from "@shared/locale";
 import { DEPARTMENT_LABELS } from "@shared/constants";
 import { getLocalePromptInstruction } from "@shared/localization";
+import { getConnectorStrengths } from "./connector-matching";
 
 interface PromptContext {
   agent: AgentRecord;
@@ -29,6 +30,7 @@ interface PromptContext {
   relevantKnowledge?: KnowledgeEntryRecord[];
   activeSprint?: SprintRecord | null;
   recentDocuments?: DocumentRecord[];
+  allConnectors?: Array<{ id: string; label: string; status: string }>;
 }
 
 export function buildSystemPrompt(ctx: PromptContext): string {
@@ -877,7 +879,7 @@ For EACH role, use POST /api/companies/{companyId}/agents with:
 - Specific role and title
 - Detailed capabilities describing what they should own
 - reportsTo: YOUR agent ID (they report to you)
-- connectorId: Choose the best runtime for their role
+- connectorId: Use the connector recommended in the "Available Connectors" section above. If no section is shown, use claude_local.
 - budgetMonthlyUsd: Appropriate budget (recommend $50-250/agent)
 - model: Best model for the role's complexity
 
@@ -889,6 +891,27 @@ After submitting ALL hire requests, create an approve_ceo_strategy approval that
 
 IMPORTANT: Wait for the Board to approve before starting business operations.
 `);
+
+      // Inject connector capability data so the CEO can make informed hiring decisions
+      if (ctx.allConnectors && ctx.allConnectors.length > 0) {
+        const connectorLines = ctx.allConnectors.map((c) => {
+          const strengths = getConnectorStrengths(c.id as ConnectorId);
+          return `- **${c.label}** (\`${c.id}\`): ${strengths} [STATUS: ${c.status}]`;
+        });
+
+        sections.push(`# Available Connectors for Hiring
+When hiring agents, assign the best connector for their role:
+${connectorLines.join("\n")}
+
+Connector Assignment Guide:
+- Engineering/code roles: prefer claude_local or codex_local
+- Research/analysis roles: prefer gemini_local (falls back to claude_local)
+- Content/writing roles: prefer claude_local
+- Management/coordination: prefer claude_local
+- If preferred connector is not listed as "ready", use the next best available
+- NEVER assign a connector with status "not_installed" or "error"
+`);
+      }
     } else if (hasPendingOrgApproval) {
       sections.push(`# Operating Instructions (CEO — Awaiting Org Approval)
 

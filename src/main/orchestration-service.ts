@@ -257,6 +257,7 @@ export function createOrchestrationService({
       recentDocuments: snapshot.documents
         .filter((document) => document.companyId === companyId && (document.authorAgentId === agent.id || document.reviewerAgentId === agent.id || document.status === "in_review"))
         .slice(0, 5),
+      allConnectors: snapshot.connectors.map((c) => ({ id: c.id, label: c.label, status: c.status })),
     }) : null;
 
     if (apiUrl) {
