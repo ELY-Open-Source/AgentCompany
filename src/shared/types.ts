@@ -376,6 +376,12 @@ export interface NewMessageEvent {
   message: AgentMessageRecord;
 }
 
+export interface NotificationClickEvent {
+  type: "notification-click";
+  section: SectionId;
+  entityId?: string;
+}
+
 export type DesktopEvent =
   | LogChunkEvent
   | DomainChangedEvent
@@ -384,7 +390,8 @@ export type DesktopEvent =
   | HeartbeatStatusEvent
   | AgentMessageEvent
   | AutomationFiredEvent
-  | NewMessageEvent;
+  | NewMessageEvent
+  | NotificationClickEvent;
 
 export type InboxItemType = "pending_approval" | "failed_run" | "budget_warning" | "blocked_task" | "review_needed" | "agent_message";
 
