@@ -558,7 +558,7 @@ export const en: Record<string, string> = {
   "dash.workforce": "Workforce",
   "dash.recentActivity": "Recent Activity",
   "dash.infrastructure": "Infrastructure",
-  "dash.needsAttentionSection": "Needs Attention",
+  "dash.needsAttentionSection": "Needs Your Attention",
   "dash.daysLeft": "{0} days left",
   "dash.tasksComplete": "{0}/{1} tasks complete",
   "dash.people": "People",

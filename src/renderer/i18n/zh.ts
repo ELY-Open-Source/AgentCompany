@@ -558,7 +558,7 @@ export const zh: Record<string, string> = {
   "dash.workforce": "工作力",
   "dash.recentActivity": "最近活动",
   "dash.infrastructure": "基础设施",
-  "dash.needsAttentionSection": "需要关注",
+  "dash.needsAttentionSection": "需要您的关注",
   "dash.daysLeft": "剩余 {0} 天",
   "dash.tasksComplete": "{0}/{1} 任务完成",
   "dash.people": "人员",
