@@ -816,7 +816,7 @@ export function createAutomationService({
 
     if (isSuccess && effectiveStatus === "in_progress") {
       // Check if non-code task produced a deliverable before auto-advancing
-      const taskType = ((task as Record<string, unknown>).task_type as string) ?? "general";
+      const taskType = ((task as unknown as Record<string, unknown>).task_type as string) ?? "general";
       const needsDeliverable = taskType === "research" || taskType === "content";
 
       if (needsDeliverable) {
@@ -907,6 +907,19 @@ export function createAutomationService({
               ...automationContext,
               agentId: agent.id,
             });
+            // Fire OS notification for budget threshold warning
+            const pct = Math.round(utilization * 100);
+            notify(
+              "Budget Alert",
+              `${agent.name} is at ${pct}% of monthly budget ($${agent.spentMonthlyUsd.toFixed(2)} / $${agent.budgetMonthlyUsd.toFixed(2)})`,
+            );
+            if (utilization >= 1.0) {
+              // Fire OS notification for budget exhaustion (agent auto-paused by database)
+              notify(
+                "Budget Alert",
+                `${agent.name} paused -- monthly budget exhausted ($${agent.spentMonthlyUsd.toFixed(2)} / $${agent.budgetMonthlyUsd.toFixed(2)})`,
+              );
+            }
           }
         }
       } catch {
@@ -978,6 +991,47 @@ export function createAutomationService({
           errorMessage: "Approval requires revisions before the browser action can run.",
         });
         publishDomainChanged();
+      }
+    }
+
+    if (approval.type === "social_post" && decision === "approved" && approval.payloadJson) {
+      try {
+        const draft = JSON.parse(approval.payloadJson) as {
+          socialAccountId: string;
+          platform: string;
+          content: string;
+          mediaUrls: string[];
+          scheduledAt: string | null;
+        };
+
+        const dispatchSocialAction = () => {
+          const actionId = db.saveBrowserAction({
+            companyId: approval.companyId,
+            socialAccountId: draft.socialAccountId,
+            agentId: approval.requestedByAgentId ?? "",
+            actionType: "post",
+            payloadJson: JSON.stringify({ content: draft.content, mediaUrls: draft.mediaUrls, scheduledAt: draft.scheduledAt }),
+            status: "queued",
+            approvalId: approval.id,
+          });
+          publishDomainChanged();
+          void dispatchBrowserAction(actionId, approval.companyId).catch((error) => {
+            logger.error(`[automation] Failed to dispatch approved social post ${actionId}: ${error instanceof Error ? error.message : String(error)}`);
+          });
+        };
+
+        if (draft.scheduledAt) {
+          const delay = new Date(draft.scheduledAt).getTime() - Date.now();
+          if (delay > 0) {
+            setTimeout(dispatchSocialAction, delay);
+          } else {
+            dispatchSocialAction();
+          }
+        } else {
+          dispatchSocialAction();
+        }
+      } catch (err) {
+        logger.error("[automation] Failed to dispatch approved social post:", err);
       }
     }
 

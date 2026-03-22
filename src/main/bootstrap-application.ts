@@ -176,6 +176,38 @@ export async function bootstrapApplication({
     });
   }
 
+  // Re-register timers for scheduled social posts (survives app restart).
+  // Scan all companies for queued browser actions with a future scheduledAt time
+  // and set up setTimeout to dispatch them at the right moment.
+  try {
+    const snapshot = db.listSnapshot();
+    for (const company of snapshot.companies) {
+      const queuedActions = db.listBrowserActions(company.id, { status: "queued" });
+      for (const action of queuedActions) {
+        if (action.payloadJson) {
+          try {
+            const payload = JSON.parse(action.payloadJson) as { scheduledAt?: string };
+            if (payload.scheduledAt) {
+              const delay = new Date(payload.scheduledAt).getTime() - Date.now();
+              if (delay > 0) {
+                setTimeout(() => {
+                  const browserActions = serviceGraph.getBrowserActionService();
+                  if (browserActions) {
+                    void browserActions.dispatchBrowserAction(action.id, company.id);
+                  }
+                }, delay);
+                log.info(`[bootstrap] Re-registered scheduled post timer: action ${action.id} in ${Math.round(delay / 1000)}s`);
+              }
+              // If delay <= 0, the action is overdue -- normal dispatch cycle will pick it up
+            }
+          } catch { /* ignore malformed payload */ }
+        }
+      }
+    }
+  } catch (error) {
+    log.warn(`[bootstrap] Failed to re-register scheduled post timers: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
   // Show the window immediately so the user sees the app launch without delay.
   await serviceGraph.getDesktopShellService()?.ensureWindow();
   serviceGraph.getAppLifecycleService()?.register(hasSingleInstanceLock);
