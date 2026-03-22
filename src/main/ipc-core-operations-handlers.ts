@@ -25,6 +25,7 @@ export function registerCoreOperationHandlers({
   dispatchAutomation,
   queueTaskRun,
   getWorkerProcess,
+  notify,
 }: Pick<
   RegisterCoreHandlersDependencies,
   | "registerHandle"
@@ -37,6 +38,7 @@ export function registerCoreOperationHandlers({
   | "dispatchAutomation"
   | "queueTaskRun"
   | "getWorkerProcess"
+  | "notify"
 >) {
   registerHandle(IPC_CHANNELS.requestApproval, async (_event, payload) => {
     const parsed = approvalInputSchema.parse(payload);
@@ -80,6 +82,13 @@ export function registerCoreOperationHandlers({
       companyId: parsed.companyId,
       agentId: parsed.requestedByAgentId ?? undefined,
       taskId: parsed.relatedTaskId ?? undefined,
+    });
+    notify({
+      title: "Approval Required",
+      body: parsed.payloadSummary ?? `${parsed.type} approval pending`,
+      urgency: "critical",
+      navigation: { section: "approvals", entityId: id },
+      batchKey: "pending_approval",
     });
     publishDomainChanged();
     return ok(id);

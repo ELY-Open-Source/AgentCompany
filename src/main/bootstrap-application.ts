@@ -8,7 +8,7 @@ import { createServiceGraph } from "./service-graph";
 import { createIpcSupport } from "./ipc-support";
 import { createNotificationService } from "./notification-service";
 import type { NotificationOptions } from "./notification-service";
-import type { DesktopEvent } from "@shared/types";
+import type { DesktopEvent, SectionId } from "@shared/types";
 
 interface BootstrapApplicationDependencies {
   hasSingleInstanceLock: boolean;
@@ -33,6 +33,7 @@ interface BootstrapApplicationDependencies {
     onDocumentCreated: (companyId: string, authorAgentId: string | null, projectId: string | null) => void;
     onAutoAssignTask: (taskId: string, companyId: string) => string | null;
     emitEvent: (event: DesktopEvent) => void;
+    notify: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
   }, allowedOrigins: string[]) => AgentApiServer;
   createRunToken: (agentId: string, companyId: string, runId: string) => string;
   seedDefaultAutomationRules: (companyId: string) => void;
@@ -168,6 +169,7 @@ export async function bootstrapApplication({
     },
     onAutoAssignTask: (taskId, companyId) => db.autoAssignTask(taskId, companyId),
     emitEvent,
+    notify,
   }, [isDev && devServerUrl ? new URL(devServerUrl).origin : null, "app://-"].filter((origin): origin is string => Boolean(origin)));
 
   apiServerRef.current = apiServer;

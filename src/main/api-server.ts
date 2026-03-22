@@ -9,7 +9,7 @@ import { resolveApprovalDecision, shouldAutoApproveApproval } from "./approval-p
 import type { AppDatabase } from "./database";
 import { inferTaskType } from "./connector-matching";
 import { dispatchAgentMessage } from "./message-dispatch";
-import type { DesktopEvent } from "@shared/types";
+import type { DesktopEvent, SectionId } from "@shared/types";
 
 /**
  * Decode an HTTP request body to a UTF-8 string, handling the common Windows
@@ -78,6 +78,7 @@ export interface ApiServerEventCallbacks {
   onDocumentCreated: (companyId: string, authorAgentId: string | null, projectId: string | null) => void;
   onAutoAssignTask: (taskId: string, companyId: string) => string | null;
   emitEvent: (event: DesktopEvent) => void;
+  notify: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
 }
 
 export class AgentApiServer {
@@ -114,6 +115,7 @@ export class AgentApiServer {
       onDocumentCreated: callbacks?.onDocumentCreated ?? (() => {}),
       onAutoAssignTask: callbacks?.onAutoAssignTask ?? (() => null),
       emitEvent: callbacks?.emitEvent ?? (() => {}),
+      notify: callbacks?.notify ?? (() => {}),
     };
     this.registerRoutes();
   }
@@ -1009,6 +1011,14 @@ export class AgentApiServer {
           detail: "Auto-approved by company policy",
         });
         log.info(`[auto-approve] Auto-approved approval ${id}: ${input.payloadSummary}`);
+      } else {
+        this.callbacks.notify({
+          title: "Approval Required",
+          body: input.payloadSummary ?? `${input.type} approval pending`,
+          urgency: "critical",
+          navigation: { section: "approvals", entityId: id },
+          batchKey: "pending_approval",
+        });
       }
 
       this.onDomainChanged();

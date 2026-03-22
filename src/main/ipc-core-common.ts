@@ -1,5 +1,6 @@
 import type { IpcMainInvokeEvent } from "electron";
 import type { DesktopResult } from "@shared/contracts";
+import type { SectionId } from "@shared/types";
 import type { AppDatabase } from "./database";
 
 export type CompanyScopedTable = "workspaces" | "agents" | "goals" | "projects" | "tasks" | "approvals" | "runs" | "secrets";
@@ -30,6 +31,7 @@ export interface RegisterCoreHandlersDependencies {
   resetAfterRestore: () => void;
   getApiPort: () => number;
   listConnectorModels: (connectorId: string) => Promise<Array<{ id: string; label: string }>>;
+  notify: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
 }
 
 export function ok<T>(data: T): DesktopResult<T> {
