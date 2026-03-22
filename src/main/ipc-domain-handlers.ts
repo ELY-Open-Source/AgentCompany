@@ -4,6 +4,7 @@ import { registerAutomationOperationsHandlers } from "./ipc-automation-operation
 import { registerBrowserHandlers } from "./ipc-browser-handlers";
 import { registerContentOperationsHandlers } from "./ipc-content-operations-handlers";
 import { registerOnboardingHandlers } from "./ipc-onboarding-handlers";
+import { registerRecoveryHandlers } from "./ipc-recovery-handlers";
 
 export function registerDomainHandlers(dependencies: RegisterDomainHandlersDependencies) {
   registerOnboardingHandlers(dependencies);
@@ -11,4 +12,5 @@ export function registerDomainHandlers(dependencies: RegisterDomainHandlersDepen
   registerContentOperationsHandlers(dependencies);
   registerAutomationOperationsHandlers(dependencies);
   registerAgentCoordinationHandlers(dependencies);
+  registerRecoveryHandlers(dependencies);
 }

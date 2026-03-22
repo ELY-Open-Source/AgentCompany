@@ -75,6 +75,12 @@ const api: DesktopApi = {
   deleteWorkflow: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteWorkflow, input),
   runWorkflow: (input) => ipcRenderer.invoke(IPC_CHANNELS.runWorkflow, input),
   autoAssignTask: (input) => ipcRenderer.invoke(IPC_CHANNELS.autoAssignTask, input),
+  recoveryRetry: (taskId: string, agentId: string, companyId: string) =>
+    ipcRenderer.invoke("recovery:retry", { taskId, agentId, companyId }),
+  recoveryDismiss: (taskId: string) =>
+    ipcRenderer.invoke("recovery:dismiss", { taskId }),
+  recoveryFail: (taskId: string) =>
+    ipcRenderer.invoke("recovery:fail", { taskId }),
   subscribe: (callback: (event: DesktopEvent) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: DesktopEvent) => callback(payload);
     ipcRenderer.on(IPC_CHANNELS.rendererEvent, listener);

@@ -577,5 +577,8 @@ export type DesktopApi = {
   deleteWorkflow: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
   runWorkflow: (input: z.infer<typeof runWorkflowSchema>) => Promise<DesktopResult<boolean>>;
   autoAssignTask: (input: z.infer<typeof autoAssignSchema>) => Promise<DesktopResult<string>>;
+  recoveryRetry: (taskId: string, agentId: string, companyId: string) => Promise<DesktopResult<null>>;
+  recoveryDismiss: (taskId: string) => Promise<DesktopResult<null>>;
+  recoveryFail: (taskId: string) => Promise<DesktopResult<null>>;
   subscribe: (callback: (event: DesktopEvent) => void) => () => void;
 };

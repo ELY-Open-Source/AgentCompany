@@ -199,6 +199,24 @@ export async function bootstrapApplication({
   }
 
   serviceGraph.getOrchestrationService()?.startHeartbeatScheduler();
+
+  // Check for crash recovery -- emit recovery notification before resuming queued runs
+  const interruptedCount = db.lastInterruptedCount;
+  if (interruptedCount > 0) {
+    log.warn(`[bootstrap] Detected ${interruptedCount} interrupted runs from previous session. Sending recovery notification.`);
+    const interruptedRuns = db.getInterruptedRunsForRecovery();
+    if (interruptedRuns.length > 0) {
+      emitEvent({
+        type: "recovery-needed",
+        interruptedRuns,
+      } as any); // DesktopEvent will need extending
+      notify(
+        "Interrupted runs detected",
+        `${interruptedRuns.length} task(s) were interrupted when the app last closed. Check the dashboard for recovery options.`
+      );
+    }
+  }
+
   serviceGraph.getOrchestrationService()?.resumeQueuedRuns();
 
   return {
