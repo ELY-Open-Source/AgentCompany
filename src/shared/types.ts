@@ -64,7 +64,8 @@ export type ApprovalType =
   | "vendor_approval"
   | "document_review"
   | "production_deploy"
-  | "incident_escalation";
+  | "incident_escalation"
+  | "social_post";
 export type RunStatus =
   | "queued"
   | "running"

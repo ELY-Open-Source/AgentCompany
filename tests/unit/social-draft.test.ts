@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { approvalInputSchema } from "../../src/shared/contracts";
 
+// Valid v4 UUIDs for testing (RFC 4122 compliant)
+const UUID_1 = "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d";
+const UUID_2 = "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e";
+const UUID_3 = "c3d4e5f6-a7b8-4c9d-ae1f-2a3b4c5d6e7f";
+const UUID_4 = "d4e5f6a7-b8c9-4d0e-af2a-3b4c5d6e7f80";
+const UUID_10 = "e5f6a7b8-c9d0-4e1f-8a3b-4c5d6e7f8091";
+const UUID_20 = "f6a7b8c9-d0e1-4f2a-9b4c-5d6e7f809102";
+const UUID_21 = "a7b8c9d0-e1f2-4a3b-ac5d-6e7f80910213";
+
 /**
  * Schema for social draft API input. Mirrors the one that will be defined
  * in api-server.ts -- duplicated here for independent validation testing.
@@ -18,7 +27,7 @@ describe("social draft pipeline", () => {
   describe("socialDraftSchema validation", () => {
     it("accepts a valid social draft with all fields", () => {
       const input = {
-        socialAccountId: "00000000-0000-0000-0000-000000000001",
+        socialAccountId: UUID_1,
         platform: "twitter",
         content: "Hello world! This is a social media post.",
         mediaUrls: ["https://example.com/image.png"],
@@ -34,7 +43,7 @@ describe("social draft pipeline", () => {
 
     it("accepts a draft without optional mediaUrls and scheduledAt", () => {
       const input = {
-        socialAccountId: "00000000-0000-0000-0000-000000000002",
+        socialAccountId: UUID_2,
         platform: "linkedin",
         content: "Professional update.",
       };
@@ -46,7 +55,7 @@ describe("social draft pipeline", () => {
     it("rejects empty content", () => {
       expect(() =>
         socialDraftSchema.parse({
-          socialAccountId: "00000000-0000-0000-0000-000000000003",
+          socialAccountId: UUID_3,
           platform: "twitter",
           content: "",
         }),
@@ -66,7 +75,7 @@ describe("social draft pipeline", () => {
     it("rejects content exceeding 10000 characters", () => {
       expect(() =>
         socialDraftSchema.parse({
-          socialAccountId: "00000000-0000-0000-0000-000000000004",
+          socialAccountId: UUID_4,
           platform: "reddit",
           content: "x".repeat(10001),
         }),
@@ -77,7 +86,7 @@ describe("social draft pipeline", () => {
   describe("social_post is a valid ApprovalType", () => {
     it("approvalInputSchema accepts type social_post", () => {
       const input = {
-        companyId: "00000000-0000-0000-0000-000000000010",
+        companyId: UUID_10,
         type: "social_post",
         payloadSummary: "Post to Twitter via @companyhandle",
         impactSummary: "Public social media post on company account",
@@ -115,7 +124,7 @@ describe("social draft pipeline", () => {
       const approval = {
         type: "social_post" as const,
         payloadJson: JSON.stringify({
-          socialAccountId: "00000000-0000-0000-0000-000000000020",
+          socialAccountId: UUID_20,
           platform: "twitter",
           content: "Hello from the AI company!",
           mediaUrls: [],
@@ -146,7 +155,7 @@ describe("social draft pipeline", () => {
       const approval = {
         type: "social_post" as const,
         payloadJson: JSON.stringify({
-          socialAccountId: "00000000-0000-0000-0000-000000000021",
+          socialAccountId: UUID_21,
           platform: "linkedin",
           content: "Scheduled professional update",
           mediaUrls: [],

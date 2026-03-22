@@ -1300,6 +1300,54 @@ export class AgentApiServer {
       this.json(res, 200, sanitized);
     });
 
+    const socialDraftSchema = z.object({
+      socialAccountId: z.string().uuid(),
+      platform: z.string(),
+      content: z.string().min(1).max(10000),
+      mediaUrls: z.array(z.string()).default([]),
+      scheduledAt: z.string().datetime().optional(),
+    });
+
+    this.addRoute("POST", "/api/companies/:companyId/social/draft", async (_req, res, params, token, body) => {
+      const companyId = params.companyId!;
+      if (companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+
+      const parsed = socialDraftSchema.safeParse(body);
+      if (!parsed.success) {
+        this.json(res, 400, { error: "Invalid draft", details: parsed.error.issues });
+        return;
+      }
+
+      const account = this.db.getSocialAccount(parsed.data.socialAccountId, companyId);
+      if (!account) {
+        this.json(res, 404, { error: "Social account not found" });
+        return;
+      }
+
+      const contentPreview = parsed.data.content.slice(0, 120) + (parsed.data.content.length > 120 ? "..." : "");
+
+      const approvalId = this.db.requestApproval({
+        companyId,
+        requestedByAgentId: token.agentId,
+        type: "social_post",
+        payloadSummary: contentPreview,
+        impactSummary: `Post to ${account.platform} via @${account.accountName}`,
+        payloadJson: JSON.stringify({
+          socialAccountId: parsed.data.socialAccountId,
+          platform: account.platform,
+          content: parsed.data.content,
+          mediaUrls: parsed.data.mediaUrls,
+          scheduledAt: parsed.data.scheduledAt ?? null,
+        }),
+      });
+
+      this.onDomainChanged();
+      this.json(res, 201, { approvalId, status: "pending_approval" });
+    });
+
     this.addRoute("GET", "/api/companies/:companyId/browser/actions", (req, res, params, token) => {
       if (params.companyId !== token.companyId) {
         this.json(res, 403, { error: "Company mismatch" });
