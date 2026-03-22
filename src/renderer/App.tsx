@@ -318,6 +318,10 @@ export function App() {
         if (event.action === "refresh") void refreshRef.current();
         return;
       }
+      if (event.type === "notification-click") {
+        store.getState().navigateTo(event.section, event.entityId);
+        return;
+      }
       // All data-mutating events: batch the snapshot reload
       batcher.schedule();
     });
