@@ -1,21 +1,42 @@
-import { useMemo, useState } from "react"
-import { ArrowRight, Lightning, MagnifyingGlass } from "@phosphor-icons/react"
+import { useMemo, useRef, useState } from "react"
+import { useVirtualizer } from "@tanstack/react-virtual"
+import { Lightning, MagnifyingGlass } from "@phosphor-icons/react"
 import type { ActivityRecord } from "@shared/types"
 import { useT } from "../../i18n"
 import { formatTime } from "../../lib/formatters"
-import { ActionButton, EmptyState, ListFrame, ListRow, Select } from "../ui"
+import { useRovingTabIndex } from "../../lib/keyboard"
+import { EmptyState, Select } from "../ui"
 import { ENTITY_ICONS, ENTITY_TYPE_OPTIONS } from "./execution-utils"
 
 export function ActivityList({ activity }: { activity: ActivityRecord[] }) {
   const t = useT()
-  const [search, setSearch] = useState(""); const [entityFilter, setEntityFilter] = useState<string>("all"); const [visibleCount, setVisibleCount] = useState(100)
+  const [search, setSearch] = useState("")
+  const [entityFilter, setEntityFilter] = useState<string>("all")
+  const parentRef = useRef<HTMLDivElement>(null)
+
   const filtered = useMemo(() => {
     let result = activity
     if (entityFilter !== "all") result = result.filter((e) => e.entityType === entityFilter)
-    if (search.trim()) { const q = search.toLowerCase(); result = result.filter((e) => e.action.toLowerCase().includes(q) || e.actor.toLowerCase().includes(q) || e.detail.toLowerCase().includes(q) || e.entityType.toLowerCase().includes(q)) }
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      result = result.filter((e) =>
+        e.action.toLowerCase().includes(q) ||
+        e.actor.toLowerCase().includes(q) ||
+        e.detail.toLowerCase().includes(q) ||
+        e.entityType.toLowerCase().includes(q),
+      )
+    }
     return result
   }, [activity, entityFilter, search])
-  const visible = filtered.slice(0, visibleCount)
+
+  const { handleKeyDown, getTabIndex, focusedIndex } = useRovingTabIndex(filtered.length)
+
+  const virtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 48,
+    overscan: 15,
+  })
 
   if (activity.length === 0) return <EmptyState title={t("exec.noActivityYet")} />
   return (
@@ -27,24 +48,58 @@ export function ActivityList({ activity }: { activity: ActivityRecord[] }) {
         </div>
         <Select value={entityFilter} onChange={setEntityFilter} options={ENTITY_TYPE_OPTIONS.map((v) => ({ value: v, label: v === "all" ? t("exec.allTypes") : v }))} />
       </div>
-      {visible.length === 0 ? <EmptyState title={t("exec.noMatchingActivity")} /> : (
-        <>
-          <ListFrame>
-            {visible.map((entry) => {
+      {filtered.length === 0 ? <EmptyState title={t("exec.noMatchingActivity")} /> : (
+        <div
+          ref={parentRef}
+          className="h-full max-h-[600px] overflow-auto border-y border-[color:var(--line)]"
+          role="listbox"
+          aria-label="Activity log"
+          onKeyDown={handleKeyDown}
+        >
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const entry = filtered[virtualRow.index]
               const EntityIcon = ENTITY_ICONS[entry.entityType] ?? Lightning
               return (
-                <ListRow key={entry.id}>
+                <div
+                  key={entry.id}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  tabIndex={getTabIndex(virtualRow.index)}
+                  role="option"
+                  aria-selected={false}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                  className={`focus-ring outline-none border-b border-[color:var(--line)] px-5 py-4 last:border-b-0 ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--accent)] ring-inset" : ""}`}
+                >
                   <div className="mb-2 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2"><EntityIcon size={14} weight="duotone" className="text-[color:var(--muted)]" /><div className="text-[14px] text-[color:var(--text)]">{entry.action}</div></div>
+                    <div className="flex items-center gap-2">
+                      <EntityIcon size={14} weight="duotone" className="text-[color:var(--muted)]" />
+                      <div className="text-[14px] text-[color:var(--text)]">{entry.action}</div>
+                    </div>
                     <div className="mono text-[11px] text-[color:var(--muted)]">{formatTime(entry.createdAt)}</div>
                   </div>
-                  <div className="flex items-center gap-2 text-[13px] text-[color:var(--muted)]"><span className="font-medium text-[color:var(--muted-strong)]">{entry.actor}</span><span>·</span><span>{entry.detail || `${entry.entityType}:${entry.entityId}`}</span></div>
-                </ListRow>
+                  <div className="flex items-center gap-2 text-[13px] text-[color:var(--muted)]">
+                    <span className="font-medium text-[color:var(--muted-strong)]">{entry.actor}</span>
+                    <span>·</span>
+                    <span>{entry.detail || `${entry.entityType}:${entry.entityId}`}</span>
+                  </div>
+                </div>
               )
             })}
-          </ListFrame>
-          {visibleCount < filtered.length ? <div className="flex justify-center pt-2"><ActionButton label={`Load more (${filtered.length - visibleCount} remaining)`} onClick={() => setVisibleCount((c) => c + 100)} icon={ArrowRight} /></div> : null}
-        </>
+          </div>
+        </div>
       )}
     </div>
   )
