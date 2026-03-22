@@ -175,7 +175,7 @@ describe("social draft pipeline", () => {
     it("rejected social_post creates no browser action", () => {
       // When decision is "rejected", the social_post handler should NOT run saveBrowserAction.
       // This validates the condition: approval.type === "social_post" && decision === "approved"
-      const decision = "rejected";
+      const decision: string = "rejected";
       const shouldCreateAction = decision === "approved";
       expect(shouldCreateAction).toBe(false);
     });

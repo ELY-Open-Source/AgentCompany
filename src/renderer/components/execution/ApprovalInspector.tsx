@@ -1,11 +1,20 @@
 import { useState } from "react"
-import { Briefcase, CheckCircle, ClockCounterClockwise, Robot, Trash, XCircle } from "@phosphor-icons/react"
+import { Briefcase, CheckCircle, Clock, ClockCounterClockwise, Robot, Trash, XCircle } from "@phosphor-icons/react"
 import type { AgentRecord, ApprovalRecord, TaskRecord } from "@shared/types"
 import { useT } from "../../i18n"
 import { formatMoney, formatTime } from "../../lib/formatters"
 import { unwrap } from "../../lib/desktop"
 import { ActionButton, ConfirmDialog, InlineNotice, StatusPill, TextArea } from "../ui"
 import { describeActionError, parseApprovalPayloadJson } from "./execution-utils"
+import { SocialDraftPreview } from "./SocialDraftPreview"
+
+function getTypeBadgeClass(type: string): string {
+  if (type === "hire_agent") return "bg-[color:var(--accent-soft)] text-[color:var(--accent)]"
+  if (type === "approve_ceo_strategy") return "bg-[color:var(--warn-soft)] text-[color:var(--warn)]"
+  if (type === "secret_access") return "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"
+  if (type === "social_post") return "bg-[color:var(--accent-soft)] text-[color:var(--accent)]"
+  return "bg-[color:var(--panel-soft)] text-[color:var(--muted)]"
+}
 
 export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide, onDeleted }: {
   approval: ApprovalRecord; agents: AgentRecord[]; tasks: TaskRecord[]; companyId: string
@@ -14,12 +23,61 @@ export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide
   const t = useT()
   const [decisionNote, setDecisionNote] = useState(""); const [confirmDelete, setConfirmDelete] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null); const [acting, setActing] = useState<"approved"|"rejected"|"revision_requested"|"delete"|null>(null)
+  const [scheduleMode, setScheduleMode] = useState<"immediate" | "scheduled">("immediate")
+  const [scheduledAt, setScheduledAt] = useState("")
+  const [scheduleError, setScheduleError] = useState<string | null>(null)
   const requestingAgent = agents.find((a) => a.id === approval.requestedByAgentId) ?? null
   const relatedTask = tasks.find((t) => t.id === approval.relatedTaskId) ?? null
   const isDecided = approval.state !== "pending"
+  const isSocialPost = approval.type === "social_post"
 
   async function handleDelete() { setActionError(null); setActing("delete"); try { unwrap(await window.agentCompany.deleteApproval({ id: approval.id, companyId })); setConfirmDelete(false); await onDeleted() } catch (e) { setActionError(describeActionError(e)) } finally { setActing(null) } }
-  async function handleDecision(state: "approved"|"rejected"|"revision_requested") { setActionError(null); setActing(state); try { await onDecide(state, decisionNote || undefined) } catch (e) { setActionError(describeActionError(e)) } finally { setActing(null) } }
+
+  async function handleDecision(state: "approved"|"rejected"|"revision_requested") {
+    setActionError(null)
+    setScheduleError(null)
+
+    // Validate schedule if social_post and user picked "scheduled"
+    if (isSocialPost && state === "approved" && scheduleMode === "scheduled") {
+      if (!scheduledAt) {
+        setScheduleError("Please select a date and time for scheduling.")
+        return
+      }
+      const chosenTime = new Date(scheduledAt).getTime()
+      if (chosenTime <= Date.now()) {
+        setScheduleError("Scheduled time must be in the future.")
+        return
+      }
+    }
+
+    setActing(state)
+    try {
+      // For social_post approvals with a schedule, include the schedule info in the decision note
+      let noteForDecision = decisionNote || undefined
+      if (isSocialPost && state === "approved" && scheduleMode === "scheduled" && scheduledAt) {
+        const scheduleInfo = `[scheduled:${new Date(scheduledAt).toISOString()}]`
+        noteForDecision = noteForDecision ? `${noteForDecision} ${scheduleInfo}` : scheduleInfo
+      }
+      await onDecide(state, noteForDecision)
+    } catch (e) {
+      setActionError(describeActionError(e))
+    } finally {
+      setActing(null)
+    }
+  }
+
+  // Compute minimum datetime for schedule picker: now + 5 minutes
+  const minDatetime = (() => {
+    const d = new Date(Date.now() + 5 * 60 * 1000)
+    // Format as YYYY-MM-DDTHH:mm for datetime-local input
+    const pad = (n: number) => String(n).padStart(2, "0")
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  })()
+
+  const socialPlatform = (() => {
+    if (!isSocialPost || !approval.payloadJson) return "other"
+    try { return (JSON.parse(approval.payloadJson) as { platform?: string }).platform ?? "other" } catch { return "other" }
+  })()
 
   return (
     <div className="space-y-5">
@@ -27,7 +85,7 @@ export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide
       {actionError && !confirmDelete ? <InlineNotice message={actionError} /> : null}
       <div className="border-y border-[color:var(--line)] py-4 space-y-4">
         <div className="flex items-center gap-3">
-          <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] ${approval.type === "hire_agent" ? "bg-[color:var(--accent-soft)] text-[color:var(--accent)]" : approval.type === "approve_ceo_strategy" ? "bg-[color:var(--warn-soft)] text-[color:var(--warn)]" : approval.type === "secret_access" ? "bg-[color:var(--danger-soft)] text-[color:var(--danger)]" : "bg-[color:var(--panel-soft)] text-[color:var(--muted)]"}`}>{approval.type.replaceAll("_", " ")}</span>
+          <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] ${getTypeBadgeClass(approval.type)}`}>{approval.type.replaceAll("_", " ")}</span>
           <StatusPill status={approval.state} />
         </div>
         <div className="text-[14px] font-medium text-[color:var(--text)]">{approval.payloadSummary}</div>
@@ -49,10 +107,75 @@ export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide
             {mgr ? <div><span className="text-[color:var(--muted)]">Reports to:</span> <span className="text-[color:var(--text)]">{mgr.name}</span></div> : null}
           </div></div>) })() : null}
         {approval.type === "approve_ceo_strategy" ? <div className="rounded-[8px] border border-[color:var(--warn)] border-opacity-30 bg-[color:var(--warn-soft)] px-4 py-3"><div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--warn)]">Organization Strategy</div><div className="whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--text)]">{approval.payloadSummary}</div></div> : null}
+        {isSocialPost && approval.payloadJson ? (
+          <SocialDraftPreview
+            payloadJson={approval.payloadJson}
+            platform={socialPlatform}
+            isPending={approval.state === "pending"}
+          />
+        ) : null}
       </div>
+
+      {/* Schedule picker for social_post approvals */}
+      {isSocialPost && !isDecided ? (
+        <div className="space-y-3">
+          <div role="radiogroup" aria-label="Post timing" className="space-y-2">
+            <label className="flex cursor-pointer items-center gap-2">
+              <span
+                role="radio"
+                aria-checked={scheduleMode === "immediate"}
+                tabIndex={0}
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${scheduleMode === "immediate" ? "border-[color:var(--accent)]" : "border-[color:var(--line)]"}`}
+                onClick={() => { setScheduleMode("immediate"); setScheduleError(null) }}
+                onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { setScheduleMode("immediate"); setScheduleError(null) } }}
+              >
+                {scheduleMode === "immediate" ? <span className="h-2 w-2 rounded-full bg-[color:var(--accent)]" /> : null}
+              </span>
+              <span className="text-[13px] font-medium text-[color:var(--text)]">Post immediately</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2">
+              <span
+                role="radio"
+                aria-checked={scheduleMode === "scheduled"}
+                tabIndex={0}
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${scheduleMode === "scheduled" ? "border-[color:var(--accent)]" : "border-[color:var(--line)]"}`}
+                onClick={() => setScheduleMode("scheduled")}
+                onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") setScheduleMode("scheduled") }}
+              >
+                {scheduleMode === "scheduled" ? <span className="h-2 w-2 rounded-full bg-[color:var(--accent)]" /> : null}
+              </span>
+              <span className="text-[13px] font-medium text-[color:var(--text)]">Schedule for later</span>
+            </label>
+          </div>
+          {scheduleMode === "scheduled" ? (
+            <div className="flex items-center gap-2">
+              <Clock size={16} className="text-[color:var(--muted)]" />
+              <input
+                type="datetime-local"
+                value={scheduledAt}
+                min={minDatetime}
+                onChange={(e) => { setScheduledAt(e.target.value); setScheduleError(null) }}
+                className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-3.5 py-2.5 text-[13px] text-[color:var(--text)] focus:border-[color:var(--accent)] focus:outline-none"
+              />
+            </div>
+          ) : null}
+          {scheduleError ? <InlineNotice message={scheduleError} /> : null}
+        </div>
+      ) : null}
+
       {!isDecided ? <div><label className="mb-1 block text-[11px] font-semibold text-[color:var(--muted)]">Decision note</label><TextArea value={decisionNote} onChange={setDecisionNote} placeholder="Optional note to accompany your decision..." rows={3} /></div> : null}
       <div className="flex flex-wrap gap-3">
-        {!isDecided ? <><ActionButton label={t("exec.approve")} tone="accent" onClick={() => void handleDecision("approved")} icon={CheckCircle} loading={acting === "approved"} /><ActionButton label={t("exec.requestRevision")} onClick={() => void handleDecision("revision_requested")} icon={ClockCounterClockwise} loading={acting === "revision_requested"} /><ActionButton label={t("exec.reject")} tone="danger" onClick={() => void handleDecision("rejected")} icon={XCircle} loading={acting === "rejected"} /></> : null}
+        {!isDecided ? <>
+          <ActionButton
+            label={isSocialPost ? "Approve & Post" : t("exec.approve")}
+            tone="accent"
+            onClick={() => void handleDecision("approved")}
+            icon={CheckCircle}
+            loading={acting === "approved"}
+          />
+          <ActionButton label={t("exec.requestRevision")} onClick={() => void handleDecision("revision_requested")} icon={ClockCounterClockwise} loading={acting === "revision_requested"} />
+          <ActionButton label={t("exec.reject")} tone="danger" onClick={() => void handleDecision("rejected")} icon={XCircle} loading={acting === "rejected"} />
+        </> : null}
         {isDecided ? <ActionButton label="Delete" onClick={() => setConfirmDelete(true)} icon={Trash} tone="danger" loading={acting === "delete"} /> : null}
       </div>
       {approval.decisionNote ? <div className="border-t border-[color:var(--line)] pt-4 text-[13px] text-[color:var(--muted-strong)]">Last note: {approval.decisionNote}</div> : null}
