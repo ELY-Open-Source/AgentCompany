@@ -361,7 +361,7 @@ export class AppDatabase {
 
     this.seedSettings();
     this.seedConnectors();
-    this.interruptStaleRuns();
+    this._lastInterruptedCount = this.interruptStaleRuns();
     this.purgeExpiredRunLogs();
     this.purgeExpiredPendingWakes();
   }
@@ -2031,14 +2031,32 @@ export class AppDatabase {
     return Number(result.changes);
   }
 
-  private interruptStaleRuns() {
+  private _lastInterruptedCount = 0;
+
+  get lastInterruptedCount(): number {
+    return this._lastInterruptedCount;
+  }
+
+  interruptStaleRuns(): number {
     const ts = nowIso();
+    let interruptedCount = 0;
     this.transaction(() => {
-      this.db
+      const result = this.db
         .prepare(
           "update runs set status = 'interrupted', error_message = 'AgentCompany restarted before the run could report completion.', finished_at = ?, updated_at = ? where status = 'running'",
         )
         .run(ts, ts);
+      interruptedCount = Number(result.changes);
+
+      if (interruptedCount > 0) {
+        // Mark associated tasks as blocked to prevent heartbeat re-queuing
+        this.db.prepare(
+          `update tasks set status = 'blocked', updated_at = ? where id in (
+            select task_id from runs where status = 'interrupted' and finished_at = ?
+          ) and status in ('in_progress', 'todo')`
+        ).run(ts, ts);
+      }
+
       this.db.prepare("update tasks set active_run_id = null where active_run_id in (select id from runs where status = 'interrupted')").run();
       // Reset any agents stuck in "running" status back to "idle"
       this.db
@@ -2046,6 +2064,7 @@ export class AppDatabase {
         .run(ts);
       this.releaseAllWorkspaceLocks();
     });
+    return interruptedCount;
   }
 
   getCompanyStatus(companyId: string): string | null {
@@ -2124,6 +2143,11 @@ export class AppDatabase {
 
   private readAll<T>(sql: string, ...params: SQLInputValue[]): T[] {
     return this.db.prepare(sql).all(...params) as T[];
+  }
+
+  /** Public read-only query method for cross-service deliverable checks. */
+  queryAll<T>(sql: string, ...params: SQLInputValue[]): T[] {
+    return this.readAll<T>(sql, ...params);
   }
 
   private wouldCreateAgentCycle(agentId: string, reportsTo: string | null) {
@@ -3555,6 +3579,62 @@ export class AppDatabase {
         "update tasks set retry_count = 0, last_failure_at = null, updated_at = ? where id = ?",
       )
       .run(ts, taskId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Crash recovery helpers
+  // ---------------------------------------------------------------------------
+
+  getInterruptedRunsForRecovery(): Array<{
+    runId: string;
+    taskId: string;
+    taskTitle: string;
+    agentId: string;
+    agentName: string;
+    connectorId: string;
+    interruptedAt: string;
+  }> {
+    return this.readAll<{
+      runId: string;
+      taskId: string;
+      taskTitle: string;
+      agentId: string;
+      agentName: string;
+      connectorId: string;
+      interruptedAt: string;
+    }>(
+      `select r.id as runId, r.task_id as taskId, t.title as taskTitle,
+              r.agent_id as agentId, a.name as agentName,
+              r.connector_id as connectorId, r.finished_at as interruptedAt
+       from runs r
+       join tasks t on t.id = r.task_id
+       join agents a on a.id = r.agent_id
+       where r.status = 'interrupted'
+       and t.status = 'blocked'
+       order by r.finished_at desc`
+    );
+  }
+
+  retryInterruptedTask(taskId: string, _agentId: string, _companyId: string): void {
+    const ts = nowIso();
+    this.db.prepare("update tasks set status = 'todo', updated_at = ? where id = ?").run(ts, taskId);
+    this.db.prepare("update tasks set retry_count = 0, last_failure_at = null, updated_at = ? where id = ?").run(ts, taskId);
+  }
+
+  dismissInterruptedTask(taskId: string): void {
+    const taskRow = this.db.prepare("select company_id from tasks where id = ?").get(taskId) as { company_id: string } | undefined;
+    this.addComment({
+      companyId: taskRow?.company_id ?? '',
+      taskId,
+      authorAgentId: null,
+      authorName: "System",
+      body: "Interrupted run dismissed by user. Task remains blocked for manual handling.",
+    });
+  }
+
+  markInterruptedTaskFailed(taskId: string): void {
+    const ts = nowIso();
+    this.db.prepare("update tasks set status = 'cancelled', updated_at = ? where id = ?").run(ts, taskId);
   }
 
   setTaskType(taskId: string, taskType: string): void {

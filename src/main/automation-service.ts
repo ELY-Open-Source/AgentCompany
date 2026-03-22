@@ -769,6 +769,37 @@ export function createAutomationService({
     }
   }
 
+  function checkRunProducedDeliverable(runId: string, companyId: string, taskId: string): boolean {
+    // Check for knowledge entries created during this run
+    try {
+      const recentKnowledge = db.queryAll<{ id: string }>(
+        "select id from knowledge_entries where company_id = ? and created_at >= (select started_at from runs where id = ?) limit 1",
+        companyId, runId,
+      );
+      if (recentKnowledge.length > 0) return true;
+    } catch { /* table may not exist */ }
+
+    // Check for documents created during this run
+    try {
+      const recentDocs = db.queryAll<{ id: string }>(
+        "select id from documents where company_id = ? and created_at >= (select started_at from runs where id = ?) limit 1",
+        companyId, runId,
+      );
+      if (recentDocs.length > 0) return true;
+    } catch { /* table may not exist */ }
+
+    // Check for substantial comments on the task (agent may have written findings as comments)
+    try {
+      const recentComments = db.queryAll<{ body: string }>(
+        "select body from comments where task_id = ? and created_at >= (select started_at from runs where id = ?) and length(body) > 100",
+        taskId, runId,
+      );
+      if (recentComments.length > 0) return true;
+    } catch { /* table may not exist */ }
+
+    return false;
+  }
+
   function processRunCompletion(run: RunRecord, event: RunFinishedEvent) {
     let task: ReturnType<typeof db.getTask> | null = null;
     try {
@@ -784,10 +815,40 @@ export function createAutomationService({
     let effectiveStatus = task.status;
 
     if (isSuccess && effectiveStatus === "in_progress") {
-      db.advanceTaskStatus(task.id, "in_review", "Run completed successfully. Awaiting review.");
-      handleTaskStatusChange(task.id, run.companyId, "in_progress", "in_review");
-      effectiveStatus = "in_review";
-      publishDomainChanged();
+      // Check if non-code task produced a deliverable before auto-advancing
+      const taskType = ((task as Record<string, unknown>).task_type as string) ?? "general";
+      const needsDeliverable = taskType === "research" || taskType === "content";
+
+      if (needsDeliverable) {
+        const hasDeliverable = checkRunProducedDeliverable(run.id, run.companyId, task.id);
+        if (!hasDeliverable) {
+          // Don't auto-advance -- flag for manager review
+          db.advanceTaskStatus(task.id, "in_progress",
+            `${taskType} task run completed but no deliverable artifact was detected. Flagging for manager review.`);
+          handleTaskStatusChange(task.id, run.companyId, "in_progress", "in_progress");
+          // Wake manager for review
+          try {
+            const agent = db.getAgent(run.agentId);
+            const chain = db.getChainOfCommand(agent.id);
+            if (chain.length > 0) {
+              wakeAgentIfPossible(chain[0].id, run.companyId, "review_needed");
+            }
+          } catch { /* best effort */ }
+          publishDomainChanged();
+          // Skip the normal in_review advance
+        } else {
+          db.advanceTaskStatus(task.id, "in_review", "Run completed with deliverable. Awaiting review.");
+          handleTaskStatusChange(task.id, run.companyId, "in_progress", "in_review");
+          effectiveStatus = "in_review";
+          publishDomainChanged();
+        }
+      } else {
+        // Code/management/general tasks advance normally
+        db.advanceTaskStatus(task.id, "in_review", "Run completed successfully. Awaiting review.");
+        handleTaskStatusChange(task.id, run.companyId, "in_progress", "in_review");
+        effectiveStatus = "in_review";
+        publishDomainChanged();
+      }
     }
 
     if (isSuccess && task.title.startsWith("[Heartbeat]") && effectiveStatus !== "done") {
