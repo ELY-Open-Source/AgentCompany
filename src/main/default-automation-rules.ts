@@ -32,9 +32,10 @@ export const DEFAULT_AUTOMATION_RULES: ReadonlyArray<{
   },
   {
     name: "Reassign on run failure",
-    description: "When a run fails, attempt to reassign the task to another capable agent.",
+    description: "When a run fails after exhausting retries, attempt to reassign the task to another capable agent.",
     trigger: "run_failed",
     action: "reassign_task",
+    conditionsJson: JSON.stringify({ afterRetryExhaustion: true }),
     priority: 75,
   },
   {

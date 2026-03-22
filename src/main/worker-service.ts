@@ -76,6 +76,11 @@ export function createWorkerService({
   processRunCompletion,
   notify,
 }: WorkerServiceDependencies) {
+  const MAX_RETRY_ATTEMPTS = 2;
+  const RETRY_COOLDOWN_MS = 30_000; // 30 seconds
+  const consecutiveWakeMap = new Map<string, number>();
+  const MAX_CONSECUTIVE_WAKES = 5;
+
   let worker: ReturnType<typeof utilityProcess.fork> | null = null;
 
   function getWorker() {
@@ -303,13 +308,52 @@ export function createWorkerService({
       }
 
       if (event.status === "failed" || event.status === "timed_out") {
-        try {
-          const chain = db.getChainOfCommand(run.agentId);
-          if (chain.length > 0) {
-            wakeAgentIfPossible(chain[0].id, run.companyId, "report_failed");
+        const retryCount = db.getTaskRetryCount(run.taskId);
+
+        if (retryCount < MAX_RETRY_ATTEMPTS) {
+          // Retry same agent after cooldown
+          db.incrementTaskRetryCount(run.taskId);
+          db.advanceTaskStatus(run.taskId, "todo",
+            `Run ${event.status} (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS}). Auto-retrying after ${RETRY_COOLDOWN_MS / 1000}s cooldown.`);
+          logger.info(`[escalation] Retrying task ${run.taskId} (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS}) for agent ${run.agentId}`);
+          setTimeout(() => {
+            wakeAgentIfPossible(run.agentId, run.companyId, "retry_failed");
+          }, RETRY_COOLDOWN_MS);
+        } else {
+          // Retry limit reached -- escalate up the chain
+          db.resetTaskRetryCount(run.taskId);
+          logger.warn(`[escalation] Task ${run.taskId} failed ${MAX_RETRY_ATTEMPTS} times. Escalating to manager.`);
+
+          let escalated = false;
+          try {
+            const chain = db.getChainOfCommand(run.agentId);
+            if (chain.length > 0) {
+              wakeAgentIfPossible(chain[0].id, run.companyId, "report_failed");
+              escalated = true;
+              logger.info(`[escalation] Escalated task ${run.taskId} to manager ${chain[0].name} (${chain[0].id})`);
+            }
+          } catch {
+            // Chain lookup failed (agent deleted)
           }
-        } catch {
-          // Agent may have been deleted while resolving the escalation chain.
+
+          if (!escalated) {
+            // No manager found -- try CEO
+            try {
+              const ceo = db.getCeoForCompany(run.companyId);
+              if (ceo) {
+                wakeAgentIfPossible(ceo.id, run.companyId, "report_failed");
+                escalated = true;
+                logger.info(`[escalation] Escalated task ${run.taskId} to CEO ${ceo.name} (${ceo.id})`);
+              }
+            } catch { /* CEO lookup failed */ }
+          }
+
+          if (!escalated) {
+            // No one to escalate to -- notify user
+            const taskTitle = task?.title ?? run.taskId;
+            notify("Task failed -- manual intervention needed", `"${taskTitle}" failed ${MAX_RETRY_ATTEMPTS} times and no manager is available to handle it.`);
+            logger.error(`[escalation] Task ${run.taskId} failed with no escalation target. User notified.`);
+          }
         }
       }
 
@@ -322,12 +366,39 @@ export function createWorkerService({
 
       processRunCompletion(run, event as z.infer<typeof workerMessageSchema> & { type: "run-finished" });
 
-      // Self-wake: pick up next assigned task immediately instead of waiting for heartbeat timer
+      // Reset retry count on successful completion
+      if (event.status === "succeeded") {
+        try { db.resetTaskRetryCount(run.taskId); } catch { /* best effort */ }
+      }
+
+      // Reset circuit breaker when a task actually progressed (successful run)
+      if (event.status === "succeeded") {
+        const wakeKey = `${run.agentId}:${run.companyId}`;
+        consecutiveWakeMap.delete(wakeKey);
+      }
+
+      // Self-wake with circuit breaker to prevent infinite loops
       if (pendingWakes.length === 0) {
         try {
           const actionableTasks = db.listAgentTasks(run.agentId, run.companyId, ["todo", "in_progress"]);
           if (actionableTasks.length > 0) {
-            wakeAgentIfPossible(run.agentId, run.companyId, "task_continuation");
+            const wakeKey = `${run.agentId}:${run.companyId}`;
+            const consecutiveCount = consecutiveWakeMap.get(wakeKey) ?? 0;
+
+            if (consecutiveCount >= MAX_CONSECUTIVE_WAKES) {
+              logger.warn(`[self-wake] Circuit breaker: agent ${run.agentId} has self-woken ${consecutiveCount} times without progress. Pausing self-wake.`);
+              consecutiveWakeMap.delete(wakeKey);
+              // Escalate to manager since agent is stuck
+              try {
+                const chain = db.getChainOfCommand(run.agentId);
+                if (chain.length > 0) {
+                  wakeAgentIfPossible(chain[0].id, run.companyId, "report_stuck");
+                }
+              } catch { /* best effort */ }
+            } else {
+              consecutiveWakeMap.set(wakeKey, consecutiveCount + 1);
+              wakeAgentIfPossible(run.agentId, run.companyId, "task_continuation");
+            }
           }
         } catch {
           // Best-effort self-wake; agent will pick up work on the next heartbeat cycle.
