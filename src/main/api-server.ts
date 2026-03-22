@@ -7,6 +7,7 @@ import { validateAgentToken, type TokenPayload } from "./agent-auth";
 import { canAssignTask, canControlAgent, canManageGoal, canManageOrganization, canManageProject, canUpdateTask } from "./agent-permissions";
 import { resolveApprovalDecision, shouldAutoApproveApproval } from "./approval-policy";
 import type { AppDatabase } from "./database";
+import { inferTaskType } from "./connector-matching";
 import { dispatchAgentMessage } from "./message-dispatch";
 import type { DesktopEvent } from "@shared/types";
 
@@ -535,6 +536,15 @@ export class AgentApiServer {
       } catch (error) {
         this.json(res, 422, { error: error instanceof Error ? error.message : "Task could not be saved" });
         return;
+      }
+
+      // Auto-infer task_type from assignee's department
+      if (input.assigneeAgentId) {
+        try {
+          const assignee = this.db.getAgent(input.assigneeAgentId);
+          const inferredType = inferTaskType(assignee.department);
+          this.db.setTaskType(id, inferredType);
+        } catch { /* best effort -- agent may not exist or setTaskType may fail */ }
       }
 
       this.db.addActivity({

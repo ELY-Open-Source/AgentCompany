@@ -2,7 +2,7 @@ import type { AgentRecord, AgentMessageRecord, ApprovalRecord, ConnectorId, Docu
 import type { AppLocale } from "@shared/locale";
 import { DEPARTMENT_LABELS } from "@shared/constants";
 import { getLocalePromptInstruction } from "@shared/localization";
-import { getConnectorStrengths } from "./connector-matching";
+import { getConnectorStrengths, inferTaskType } from "./connector-matching";
 
 interface PromptContext {
   agent: AgentRecord;
@@ -205,6 +205,35 @@ ${relevantProjects.map((p) => `- [${p.id}] ${p.name}: ${p.description || ""} (st
 ${ctx.task.projectId ? `- Project: ${ctx.projects.find((p) => p.id === ctx.task!.projectId)?.name ?? ctx.task.projectId}` : ""}
 ${ctx.task.goalId ? `- Goal: ${ctx.goals.find((g) => g.id === ctx.task!.goalId)?.title ?? ctx.task.goalId}` : ""}
 `);
+
+    // Add deliverable requirements based on task type for non-code tasks
+    const taskType = ((ctx.task as unknown as Record<string, unknown>).task_type as string) ?? inferTaskType(ctx.agent.department);
+
+    if (taskType === "research") {
+      sections.push(`# Deliverable Requirements (Research Task)
+This is a research task. You MUST produce a tangible deliverable before marking it complete:
+
+**Required:** Create at least ONE of:
+1. A knowledge entry via POST /api/companies/${ctx.agent.companyId}/knowledge with your findings
+2. A document via POST /api/companies/${ctx.agent.companyId}/documents with a structured report
+3. A detailed comment on the task via PATCH /api/issues/${ctx.task.id} with body containing your analysis (minimum 100 words)
+
+Do NOT mark the task as done or in_review without producing one of these artifacts.
+Your manager will reject the task if no deliverable is found.
+`);
+    } else if (taskType === "content") {
+      sections.push(`# Deliverable Requirements (Content Task)
+This is a content creation task. You MUST produce a tangible deliverable before marking it complete:
+
+**Required:** Create at least ONE of:
+1. A document via POST /api/companies/${ctx.agent.companyId}/documents with the content draft
+2. A social media draft via the social media queue
+3. A detailed comment on the task via PATCH /api/issues/${ctx.task.id} with the content (minimum 100 words)
+
+Do NOT mark the task as done or in_review without producing one of these artifacts.
+Your manager will reject the task if no deliverable is found.
+`);
+    }
   }
 
   if (ctx.assignedTasks.length > 0) {
