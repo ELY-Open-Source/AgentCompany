@@ -37,6 +37,8 @@ export type ConnectorStatus =
   | "degraded"
   | "error";
 
+export type TaskType = "code" | "research" | "content" | "management" | "general";
+
 export type WorkspaceState = "ready" | "busy" | "blocked" | "missing" | "error";
 export type CompanyStatus = "active" | "paused" | "archived";
 export type AgentStatus =

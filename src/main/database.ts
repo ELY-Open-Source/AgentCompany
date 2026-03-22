@@ -2156,6 +2156,9 @@ export class AppDatabase {
     addColumnIfMissing("alter table agents add column heartbeat_interval_sec integer not null default 120");
     addColumnIfMissing("alter table agents add column last_heartbeat_at text");
     addColumnIfMissing("alter table companies add column auto_approve_hires integer not null default 0");
+    addColumnIfMissing("alter table tasks add column task_type text not null default 'general'");
+    addColumnIfMissing("alter table tasks add column retry_count integer not null default 0");
+    addColumnIfMissing("alter table tasks add column last_failure_at text");
     this.db.exec(`
       create table if not exists task_comments (
         id text primary key,
@@ -3523,6 +3526,42 @@ export class AppDatabase {
       pendingApprovals,
       budgetUtilization,
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Task retry and type helpers (used by connector-matching and crash-recovery)
+  // ---------------------------------------------------------------------------
+
+  getTaskRetryCount(taskId: string): number {
+    const row = this.db
+      .prepare("select retry_count from tasks where id = ?")
+      .get(taskId) as { retry_count: number } | undefined;
+    return row?.retry_count ?? 0;
+  }
+
+  incrementTaskRetryCount(taskId: string): void {
+    const ts = nowIso();
+    this.db
+      .prepare(
+        "update tasks set retry_count = retry_count + 1, last_failure_at = ?, updated_at = ? where id = ?",
+      )
+      .run(ts, ts, taskId);
+  }
+
+  resetTaskRetryCount(taskId: string): void {
+    const ts = nowIso();
+    this.db
+      .prepare(
+        "update tasks set retry_count = 0, last_failure_at = null, updated_at = ? where id = ?",
+      )
+      .run(ts, taskId);
+  }
+
+  setTaskType(taskId: string, taskType: string): void {
+    const ts = nowIso();
+    this.db
+      .prepare("update tasks set task_type = ?, updated_at = ? where id = ?")
+      .run(taskType, ts, taskId);
   }
 
   private openConnection(): SqliteDatabase {
