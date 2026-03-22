@@ -202,9 +202,13 @@ export interface FilterState {
 export function FilterBar({
   filters,
   onChangeFilters,
+  scopeToggle,
+  onSearchKeyDown,
 }: {
   filters: FilterState
   onChangeFilters: (next: FilterState) => void
+  scopeToggle?: React.ReactNode
+  onSearchKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
 }) {
   const t = useT()
   const [expanded, setExpanded] = useState(false)
@@ -218,11 +222,13 @@ export function FilterBar({
             type="text"
             value={filters.search}
             onChange={(e) => onChangeFilters({ ...filters, search: e.target.value })}
+            onKeyDown={onSearchKeyDown}
             placeholder={t("comm.searchMessages")}
             className="w-full rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)] py-1.5 pl-8 pr-3 text-[11px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:outline-none focus:ring-1"
             style={{ focusRingColor: TERRACOTTA } as React.CSSProperties}
           />
         </div>
+        {scopeToggle}
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
