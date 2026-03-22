@@ -1,6 +1,6 @@
 {
   "name": "agent-company",
-  "version": "0.4.52",
+  "version": "0.4.53",
   "private": true,
   "type": "module",
   "description": "Cross-platform Electron desktop control plane for local-first AI agent companies.",
@@ -26,29 +26,31 @@
     "postinstall": "node scripts/postinstall.mjs"
   },
   "dependencies": {
-    "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@agentcompany/adapter-claude-local": "workspace:*",
     "@agentcompany/adapter-codex-local": "workspace:*",
     "@agentcompany/adapter-gemini-local": "workspace:*",
     "@agentcompany/adapter-utils": "workspace:*",
+    "@fontsource-variable/jetbrains-mono": "5.2.8",
     "@phosphor-icons/react": "2.1.10",
     "clsx": "2.1.1",
     "electron-log": "5.4.3",
     "electron-updater": "6.8.3",
     "framer-motion": "12.36.0",
+    "immer": "^11.1.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "tailwind-merge": "3.5.0",
-    "zod": "4.3.6"
+    "zod": "4.3.6",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@eslint/js": "9.38.0",
     "@playwright/test": "1.58.2",
     "@tailwindcss/vite": "4.2.1",
     "@types/node": "^25.2.3",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.0.0",
-    "@eslint/js": "9.38.0",
     "electron": "39.8.0",
     "electron-builder": "26.8.1",
     "electron-vite": "5.0.0",
