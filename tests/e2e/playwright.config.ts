@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
@@ -7,6 +8,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   reporter: "list",
+  outputDir: join(process.cwd(), "build", "test-results"),
   use: {
     trace: "on-first-retry",
     screenshot: "only-on-failure",

@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { _electron as electron, expect, test } from "@playwright/test";
@@ -60,5 +60,58 @@ test("first launch onboarding creates a company and opens the desktop shell", as
     await app.close();
     await rm(profileDir, { recursive: true, force: true });
     await rm(workspaceDir, { recursive: true, force: true });
+  }
+});
+
+// NOTE: On headless Linux (CI), run via: xvfb-run pnpm test:e2e
+// See RESEARCH.md Pitfall 5 for details.
+test("platform launch: app opens, window renders, screenshot captured", async () => {
+  const entry = getMainEntryPath();
+  expect(existsSync(entry)).toBeTruthy();
+
+  const profileDir = await mkdtemp(join(tmpdir(), "agentcompany-launch-"));
+  const screenshotDir = join(process.cwd(), "build", "screenshots");
+  await mkdir(screenshotDir, { recursive: true });
+
+  const app = await electron.launch({
+    executablePath: getElectronExecutablePath(),
+    args: [entry],
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      AGENTCOMPANY_PROFILE_DIR: profileDir,
+      AGENTCOMPANY_DISABLE_UPDATES: "true",
+      AGENTCOMPANY_DISABLE_SINGLE_INSTANCE: "true",
+    },
+  });
+
+  try {
+    const page = await app.firstWindow();
+
+    // Verify the window appeared and has content
+    await expect(page.getByText("AgentCompany Desktop")).toBeVisible({ timeout: 30_000 });
+
+    // Verify the window has reasonable dimensions (not collapsed or zero-size)
+    const viewport = page.viewportSize();
+    expect(viewport).not.toBeNull();
+    if (viewport) {
+      expect(viewport.width).toBeGreaterThan(400);
+      expect(viewport.height).toBeGreaterThan(300);
+    }
+
+    // Capture screenshot for D-07 validation evidence
+    const platformName = process.platform === "darwin" ? "macos"
+      : process.platform === "win32" ? "windows"
+      : "linux";
+    const screenshotPath = join(screenshotDir, `launch-${platformName}.png`);
+    await page.screenshot({ path: screenshotPath, fullPage: true });
+
+    // Verify screenshot was actually written
+    expect(existsSync(screenshotPath)).toBeTruthy();
+
+    console.log(`[platform-launch] Screenshot saved: ${screenshotPath}`);
+  } finally {
+    await app.close();
+    await rm(profileDir, { recursive: true, force: true });
   }
 });
