@@ -43,6 +43,7 @@ import { SprintProgress } from "./SprintProgress";
 import { GoalProgress } from "./GoalProgress";
 import { NeedsAttention } from "./NeedsAttention";
 import { RecoveryBanner } from "./RecoveryBanner";
+import { BudgetAlertBanner } from "./BudgetAlertBanner";
 
 export interface DashboardProps {
   agents: AgentRecord[];
@@ -89,6 +90,9 @@ export function Dashboard(props: DashboardProps) {
     <div className="space-y-8">
       {/* Recovery banner for interrupted runs */}
       <RecoveryBanner />
+
+      {/* Budget alert banner for agents approaching budget limits */}
+      <BudgetAlertBanner agents={agents} onNavigate={onNavigate} />
 
       {/* Health + Metrics */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
