@@ -928,7 +928,19 @@ IMPORTANT: Wait for the Board to approve before starting business operations.
           return `- **${c.label}** (\`${c.id}\`): ${strengths} [STATUS: ${c.status}]`;
         });
 
-        sections.push(`# Available Connectors for Hiring
+        const readyConnectors = ctx.allConnectors.filter((c) => c.status === "ready");
+        const onlyOneConnector = readyConnectors.length === 1;
+
+        if (onlyOneConnector) {
+          const sole = readyConnectors[0];
+          sections.push(`# Available Connectors for Hiring
+You have ONE available connector:
+${connectorLines.join("\n")}
+
+Since only **${sole.label}** (\`${sole.id}\`) is ready, assign it to ALL agents you create. Do not worry about matching connectors to roles — use this connector for every agent.
+`);
+        } else {
+          sections.push(`# Available Connectors for Hiring
 When hiring agents, assign the best connector for their role:
 ${connectorLines.join("\n")}
 
@@ -940,6 +952,7 @@ Connector Assignment Guide:
 - If preferred connector is not listed as "ready", use the next best available
 - NEVER assign a connector with status "not_installed" or "error"
 `);
+        }
       }
     } else if (hasPendingOrgApproval) {
       sections.push(`# Operating Instructions (CEO — Awaiting Org Approval)

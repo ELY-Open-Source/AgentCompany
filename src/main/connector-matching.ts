@@ -140,10 +140,13 @@ export function matchConnector(input: ConnectorMatchInput): ConnectorMatchResult
 
     // recommended should always be set if readySet.size > 0, but guard
     if (recommended) {
+      const onlyOneReady = readySet.size === 1;
       return {
         recommendedConnectorId: recommended,
         fallbackConnectorId: fallback,
-        reason: `Best match for ${taskType} tasks: ${CONNECTOR_STRENGTHS[recommended]}`,
+        reason: onlyOneReady
+          ? `Only available connector: ${recommended}. Assign to all agents.`
+          : `Best match for ${taskType} tasks: ${CONNECTOR_STRENGTHS[recommended]}`,
       };
     }
   }
