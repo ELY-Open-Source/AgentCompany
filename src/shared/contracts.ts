@@ -72,6 +72,7 @@ export const IPC_CHANNELS = {
   deleteWorkflow: "agent-company:delete-workflow",
   runWorkflow: "agent-company:run-workflow",
   autoAssignTask: "agent-company:auto-assign-task",
+  searchMessages: "agent-company:search-messages",
 } as const;
 
 const optionalId = z.preprocess(
@@ -179,7 +180,7 @@ export const approvalInputSchema = z.object({
   relatedTaskId: optionalId,
   requestedByAgentId: optionalId,
   relatedAgentId: optionalId,
-  type: z.enum(["hire_agent", "approve_ceo_strategy", "dangerous_command", "secret_access", "budget_request", "promotion", "termination", "vendor_approval", "document_review", "production_deploy", "incident_escalation"]),
+  type: z.enum(["hire_agent", "approve_ceo_strategy", "dangerous_command", "secret_access", "budget_request", "promotion", "termination", "vendor_approval", "document_review", "production_deploy", "incident_escalation", "social_post"]),
   payloadSummary: z.string().min(2).max(280),
   impactSummary: z.string().min(2).max(400),
   payloadJson: z.string().nullable().optional(),
@@ -465,6 +466,14 @@ export const messageQuerySchema = z.object({
   limit: z.number().int().min(1).max(500).default(200),
 });
 
+export const searchMessagesSchema = z.object({
+  companyId: z.string().uuid(),
+  query: z.string().min(1).max(200),
+  channel: z.enum(["direct", "department", "company", "project", "incident"]).optional(),
+  channelTargetId: z.string().nullable().optional(),
+  limit: z.number().int().min(1).max(100).default(50),
+});
+
 export const workflowInputSchema = z.object({
   id: z.preprocess((v) => (v === "" ? null : v), z.string().uuid().nullable().optional()),
   companyId: z.string().uuid(),
@@ -577,6 +586,7 @@ export type DesktopApi = {
   deleteWorkflow: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
   runWorkflow: (input: z.infer<typeof runWorkflowSchema>) => Promise<DesktopResult<boolean>>;
   autoAssignTask: (input: z.infer<typeof autoAssignSchema>) => Promise<DesktopResult<string>>;
+  searchMessages: (input: z.infer<typeof searchMessagesSchema>) => Promise<DesktopResult<AgentMessageRecord[]>>;
   recoveryRetry: (taskId: string, agentId: string, companyId: string) => Promise<DesktopResult<null>>;
   recoveryDismiss: (taskId: string) => Promise<DesktopResult<null>>;
   recoveryFail: (taskId: string) => Promise<DesktopResult<null>>;

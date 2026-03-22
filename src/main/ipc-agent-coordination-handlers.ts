@@ -4,6 +4,7 @@ import {
   autoAssignSchema,
   markMessageReadSchema,
   messageQuerySchema,
+  searchMessagesSchema,
 } from "@shared/contracts";
 import { fail, ok, type RegisterDomainHandlersDependencies } from "./ipc-domain-common";
 import { dispatchAgentMessage } from "./message-dispatch";
@@ -92,6 +93,17 @@ export function registerAgentCoordinationHandlers({
     db.markMessageReadForReader(parsed.messageId, parsed.companyId, parsed.readerAgentId ?? null);
     publishDomainChanged();
     return ok(true);
+  });
+
+  registerHandle(IPC_CHANNELS.searchMessages, async (_event, payload) => {
+    const parsed = searchMessagesSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    return ok(db.searchMessages(parsed.companyId, parsed.query, {
+      channel: parsed.channel,
+      channelTargetId: parsed.channelTargetId,
+      limit: parsed.limit,
+    }));
   });
 
   registerHandle(IPC_CHANNELS.autoAssignTask, async (_event, payload) => {

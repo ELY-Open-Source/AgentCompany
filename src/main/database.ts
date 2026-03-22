@@ -2675,6 +2675,26 @@ export class AppDatabase {
     return limit > 0 ? messages.slice(-limit) : messages;
   }
 
+  searchMessages(companyId: string, query: string, opts?: {
+    channel?: string;
+    channelTargetId?: string | null;
+    limit?: number;
+  }): AgentMessageRecord[] {
+    const escaped = query.replace(/[%_]/g, "\\$&");
+    const pattern = `%${escaped}%`;
+    let sql = `SELECT id, company_id AS companyId, from_agent_id AS fromAgentId,
+      to_agent_id AS toAgentId, channel, channel_target_id AS channelTargetId,
+      subject, body, priority, read_at AS readAt, parent_message_id AS parentMessageId,
+      attachments_json AS attachmentsJson, created_at AS createdAt
+      FROM agent_messages WHERE company_id = ? AND (subject LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\')`;
+    const params: SQLInputValue[] = [companyId, pattern, pattern];
+    if (opts?.channel) { sql += " AND channel = ?"; params.push(opts.channel); }
+    if (opts?.channelTargetId !== undefined && opts?.channelTargetId !== null) { sql += " AND channel_target_id = ?"; params.push(opts.channelTargetId); }
+    sql += " ORDER BY created_at DESC LIMIT ?";
+    params.push(opts?.limit ?? 50);
+    return this.readAll<AgentMessageRecord>(sql, ...params);
+  }
+
   markMessageRead(messageId: string, companyId: string) {
     this.markAgentMessageRead(messageId, companyId, BOARD_READER_ID);
   }

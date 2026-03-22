@@ -70,6 +70,7 @@ const api: DesktopApi = {
   getAutomationLog: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.getAutomationLog, companyId),
   sendAgentMessage: (input) => ipcRenderer.invoke(IPC_CHANNELS.sendAgentMessage, input),
   listAgentMessages: (input) => ipcRenderer.invoke(IPC_CHANNELS.listAgentMessages, input),
+  searchMessages: (input) => ipcRenderer.invoke(IPC_CHANNELS.searchMessages, input),
   markMessageRead: (input) => ipcRenderer.invoke(IPC_CHANNELS.markMessageRead, input),
   saveWorkflow: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveWorkflow, input),
   deleteWorkflow: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteWorkflow, input),
