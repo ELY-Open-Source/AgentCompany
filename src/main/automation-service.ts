@@ -8,6 +8,7 @@ import type {
   RunStatus,
 } from "@shared/types";
 import { dispatchAgentMessage } from "./message-dispatch";
+import type { NotificationOptions } from "./notification-service";
 
 const WORKFLOW_ACTIONS: ReadonlySet<AutomationAction> = new Set([
   "assign_task",
@@ -59,7 +60,7 @@ interface AutomationDependencies {
   };
   emitEvent: (event: DesktopEvent) => void;
   publishDomainChanged: () => void;
-  notify: (title: string, body: string) => void;
+  notify: (options: NotificationOptions) => void;
   wakeAgentIfPossible: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
   dispatchBrowserAction: (actionId: string, companyId: string) => Promise<void>;
 }
@@ -909,16 +910,21 @@ export function createAutomationService({
             });
             // Fire OS notification for budget threshold warning
             const pct = Math.round(utilization * 100);
-            notify(
-              "Budget Alert",
-              `${agent.name} is at ${pct}% of monthly budget ($${agent.spentMonthlyUsd.toFixed(2)} / $${agent.budgetMonthlyUsd.toFixed(2)})`,
-            );
+            notify({
+              title: "Budget Warning",
+              body: `${agent.name} has used ${pct}% of monthly budget`,
+              urgency: "informational",
+              navigation: { section: "costs" },
+              batchKey: "budget_alerts",
+            });
             if (utilization >= 1.0) {
               // Fire OS notification for budget exhaustion (agent auto-paused by database)
-              notify(
-                "Budget Alert",
-                `${agent.name} paused -- monthly budget exhausted ($${agent.spentMonthlyUsd.toFixed(2)} / $${agent.budgetMonthlyUsd.toFixed(2)})`,
-              );
+              notify({
+                title: "Budget Exhausted",
+                body: `${agent.name} has reached 100% of monthly budget and is paused`,
+                urgency: "critical",
+                navigation: { section: "costs" },
+              });
             }
           }
         }
@@ -957,7 +963,13 @@ export function createAutomationService({
           });
           wakeAgentIfPossible(agent.id, companyId, "assignment");
           publishDomainChanged();
-          notify("New agent hired", `${agent.name} (${agent.role}) has joined the company.`);
+          notify({
+            title: "Agent Hired",
+            body: `${agent.name} joined as ${agent.role}`,
+            urgency: "informational",
+            navigation: { section: "orgchart", entityId: agent.id },
+            batchKey: "agent_hired",
+          });
         }
       } catch {
         // Hire follow-up is best-effort; approval state is already committed in storage.

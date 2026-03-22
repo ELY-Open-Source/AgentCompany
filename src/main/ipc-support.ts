@@ -3,6 +3,7 @@ import { ipcMain, Notification } from "electron";
 import { ZodError } from "zod";
 import type { DesktopEvent } from "@shared/types";
 import type { DesktopResult } from "@shared/contracts";
+import type { NotificationOptions } from "./notification-service";
 
 interface IpcSupportDependencies {
   isDev: boolean;
@@ -15,6 +16,7 @@ interface IpcSupportDependencies {
     hasCompany: (companyId: string) => boolean;
     belongsToCompany: (table: string, id: string, companyId: string) => boolean;
   };
+  notificationService?: { notify: (options: NotificationOptions) => void };
 }
 
 function isTrustedRendererUrl(url: string, isDev: boolean, devServerOrigin: string | null) {
@@ -39,6 +41,7 @@ export function createIpcSupport({
   logger,
   getMainWindow,
   getDb,
+  notificationService,
 }: IpcSupportDependencies) {
   function sanitizeHandlerError(error: unknown) {
     if (error instanceof ZodError) {
@@ -102,9 +105,12 @@ export function createIpcSupport({
     emitEvent({ type: "domain-changed" });
   }
 
-  function notify(title: string, body: string) {
-    if (Notification.isSupported()) {
-      new Notification({ title, body }).show();
+  function notify(options: NotificationOptions) {
+    if (notificationService) {
+      notificationService.notify(options);
+    } else if (Notification.isSupported()) {
+      // Fallback for early bootstrap before notification service is wired
+      new Notification({ title: options.title, body: options.body }).show();
     }
   }
 

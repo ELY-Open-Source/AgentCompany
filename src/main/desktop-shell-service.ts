@@ -15,6 +15,7 @@ import {
   Tray,
 } from "electron";
 import { attachWindowStatePersistence, loadWindowState } from "./window-state";
+import type { NotificationOptions } from "./notification-service";
 
 interface DesktopShellDependencies {
   preloadPath: string;
@@ -28,7 +29,7 @@ interface DesktopShellDependencies {
   onCheckForUpdates: () => Promise<void>;
   onBackupProfile: () => Promise<void>;
   onShortcut: (action: "toggle-command-palette" | "toggle-console" | "refresh") => void;
-  notify: (title: string, body: string) => void;
+  notify: (options: NotificationOptions) => void;
 }
 
 function isSocialBrowserSession(contents: Electron.WebContents) {
@@ -155,7 +156,12 @@ export function createDesktopShellService({
       mainWindow?.hide();
       if (!backgroundCloseNoticeShown) {
         backgroundCloseNoticeShown = true;
-        notify("AgentCompany is still running", "Automation continues in the background until you quit the app.");
+        notify({
+          title: "Running in Background",
+          body: "AgentCompany is still running in the system tray",
+          urgency: "informational",
+          navigation: { section: "overview" },
+        });
       }
     });
     mainWindow.on("closed", () => {

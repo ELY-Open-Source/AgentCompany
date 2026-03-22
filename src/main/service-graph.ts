@@ -12,6 +12,7 @@ import { createWorkerService } from "./worker-service";
 import { createAppLifecycleService } from "./app-lifecycle-service";
 import type { DesktopEvent, RunRecord } from "@shared/types";
 import type { AutomationEventContext } from "./automation-service";
+import type { NotificationOptions } from "./notification-service";
 
 interface ServiceGraphDependencies {
   db: AppDatabase;
@@ -32,7 +33,7 @@ interface ServiceGraphDependencies {
   };
   emitEvent: (event: DesktopEvent) => void;
   publishDomainChanged: () => void;
-  notify: (title: string, body: string) => void;
+  notify: (options: NotificationOptions) => void;
   createRunToken: (agentId: string, companyId: string, runId: string) => string;
   seedDefaultAutomationRules: (companyId: string) => void;
 }

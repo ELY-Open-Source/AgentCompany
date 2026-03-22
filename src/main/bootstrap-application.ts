@@ -6,6 +6,8 @@ import type { BrowserManager } from "./browser-manager";
 import { prepareHostEnvironment } from "./host-environment-service";
 import { createServiceGraph } from "./service-graph";
 import { createIpcSupport } from "./ipc-support";
+import { createNotificationService } from "./notification-service";
+import type { NotificationOptions } from "./notification-service";
 import type { DesktopEvent } from "@shared/types";
 
 interface BootstrapApplicationDependencies {
@@ -73,11 +75,19 @@ export async function bootstrapApplication({
   const apiServerRef = { current: null as AgentApiServer | null };
   const browserManagerRef = { current: null as BrowserManager | null };
   let ipcSupport: ReturnType<typeof createIpcSupport> | null = null;
-  const notify = (title: string, body: string) => {
+  let serviceGraph: ReturnType<typeof createServiceGraph> | null = null;
+
+  const notificationService = createNotificationService({
+    getMainWindow: () => serviceGraph?.getDesktopShellService()?.getMainWindow() ?? null,
+    emitEvent: (event: DesktopEvent) => ipcSupport?.emitEvent(event),
+    logger: log,
+  });
+
+  const notify = (options: NotificationOptions) => {
     if (!ipcSupport) {
       throw new Error("IPC support is not initialized.");
     }
-    ipcSupport.notify(title, body);
+    ipcSupport.notify(options);
   };
   const emitEvent = (event: DesktopEvent) => {
     ipcSupport?.emitEvent(event);
@@ -86,7 +96,7 @@ export async function bootstrapApplication({
     ipcSupport?.publishDomainChanged();
   };
 
-  const serviceGraph = createServiceGraph({
+  serviceGraph = createServiceGraph({
     db,
     apiServerRef,
     browserManagerRef,
@@ -109,11 +119,12 @@ export async function bootstrapApplication({
     isDev,
     devServerOrigin,
     logger: log,
-    getMainWindow: () => serviceGraph.getDesktopShellService()?.getMainWindow() ?? null,
+    getMainWindow: () => serviceGraph?.getDesktopShellService()?.getMainWindow() ?? null,
     getDb: () => ({
       hasCompany: (companyId: string) => db.hasCompany(companyId),
       belongsToCompany: (table: string, id: string, companyId: string) => db.belongsToCompany(table as any, id, companyId),
     }),
+    notificationService,
   });
   serviceGraph.init();
 
@@ -242,10 +253,12 @@ export async function bootstrapApplication({
         type: "recovery-needed",
         interruptedRuns,
       } as any); // DesktopEvent will need extending
-      notify(
-        "Interrupted runs detected",
-        `${interruptedRuns.length} task(s) were interrupted when the app last closed. Check the dashboard for recovery options.`
-      );
+      notify({
+        title: "Session Recovered",
+        body: `${interruptedRuns.length} interrupted task(s) detected from previous session`,
+        urgency: "informational",
+        navigation: { section: "overview" },
+      });
     }
   }
 

@@ -3,6 +3,7 @@ import type { AppDatabase } from "./database";
 import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
 import type { DesktopResult } from "@shared/contracts";
 import type { ConnectorRecord } from "@shared/types";
+import type { NotificationOptions } from "./notification-service";
 
 type WorkspaceLockMode = "exclusive" | "shared" | "none";
 
@@ -53,7 +54,7 @@ interface OrchestrationDependencies {
     error: (...args: unknown[]) => void;
   };
   publishDomainChanged: () => void;
-  notify: (title: string, body: string) => void;
+  notify: (options: NotificationOptions) => void;
   createRunToken: (agentId: string, companyId: string, runId: string) => string;
   getApiPort: () => number;
   dispatchAutomation: (trigger: string, ctx: AutomationDispatch) => void;
@@ -128,7 +129,13 @@ export function createOrchestrationService({
       entityId: agent.id,
       detail: `Budget exhausted at ${agent.spentMonthlyUsd.toFixed(2)} / ${agent.budgetMonthlyUsd.toFixed(2)} USD.`,
     });
-    notify("Agent paused for budget limit", agent.name);
+    notify({
+      title: "Agent Paused",
+      body: `${agent.name} paused -- budget limit reached`,
+      urgency: "informational",
+      navigation: { section: "agents", entityId: agent.id },
+      batchKey: "agent_paused",
+    });
     publishDomainChanged();
     return true;
   }

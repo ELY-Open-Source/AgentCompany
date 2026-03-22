@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getConnectorDefinition } from "./connectors";
 import type { AppDatabase } from "./database";
 import type { RunRecord } from "@shared/types";
+import type { NotificationOptions } from "./notification-service";
 
 const runStatusSchema = z.enum(["queued", "running", "succeeded", "failed", "cancelled", "timed_out", "interrupted"]);
 export const workerMessageSchema = z.union([
@@ -61,7 +62,7 @@ interface WorkerServiceDependencies {
     trigger: string;
   }) => void;
   processRunCompletion: (run: RunRecord, event: z.infer<typeof workerMessageSchema> & { type: "run-finished" }) => void;
-  notify: (title: string, body: string) => void;
+  notify: (options: NotificationOptions) => void;
 }
 
 export function createWorkerService({
@@ -284,7 +285,13 @@ export function createWorkerService({
         message: event.summary ?? event.errorMessage ?? event.status,
       });
       if ((event.status === "failed" || event.status === "timed_out" || event.status === "interrupted") && task) {
-        notify("Run attention required", task.title);
+        notify({
+          title: "Task Failed",
+          body: `${task.title} -- manual intervention needed`,
+          urgency: "informational",
+          navigation: { section: "tasks", entityId: task.id },
+          batchKey: "failed_runs",
+        });
       }
 
       let updatedAgent: ReturnType<AppDatabase["getAgent"]> | null = null;
@@ -303,7 +310,13 @@ export function createWorkerService({
           entityId: updatedAgent.id,
           detail: `Budget exhausted at ${updatedAgent.spentMonthlyUsd.toFixed(2)} / ${updatedAgent.budgetMonthlyUsd.toFixed(2)} USD.`,
         });
-        notify("Agent paused for budget limit", updatedAgent.name);
+        notify({
+          title: "Agent Paused",
+          body: `${updatedAgent.name} paused -- budget limit reached`,
+          urgency: "informational",
+          navigation: { section: "agents", entityId: updatedAgent.id },
+          batchKey: "agent_paused",
+        });
         publishDomainChanged();
       }
 
@@ -351,7 +364,12 @@ export function createWorkerService({
           if (!escalated) {
             // No one to escalate to -- notify user
             const taskTitle = task?.title ?? run.taskId;
-            notify("Task failed -- manual intervention needed", `"${taskTitle}" failed ${MAX_RETRY_ATTEMPTS} times and no manager is available to handle it.`);
+            notify({
+              title: "Attention Required",
+              body: `${taskTitle} needs manual intervention`,
+              urgency: "critical",
+              navigation: { section: "tasks", entityId: run.taskId },
+            });
             logger.error(`[escalation] Task ${run.taskId} failed with no escalation target. User notified.`);
           }
         }

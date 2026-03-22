@@ -1,5 +1,6 @@
 import electronUpdater from "electron-updater";
 import type { AppDatabase } from "./database";
+import type { NotificationOptions } from "./notification-service";
 
 const { autoUpdater } = electronUpdater;
 
@@ -9,7 +10,7 @@ interface UpdaterServiceDependencies {
     info: (...args: unknown[]) => void;
     error: (...args: unknown[]) => void;
   };
-  notify: (title: string, body: string) => void;
+  notify: (options: NotificationOptions) => void;
 }
 
 export function createUpdaterService({
@@ -22,14 +23,29 @@ export function createUpdaterService({
       logger.info("[updater] checking for updates");
     });
     autoUpdater.on("update-available", (info) => {
-      notify("Update available", `AgentCompany ${info.version} is available to download.`);
+      notify({
+        title: "Update Available",
+        body: `Version ${info.version} is ready to install`,
+        urgency: "informational",
+        navigation: { section: "settings" },
+      });
     });
     autoUpdater.on("update-not-available", () => {
-      notify("No updates found", "AgentCompany is already on the latest configured version.");
+      notify({
+        title: "Up to Date",
+        body: "You are running the latest version",
+        urgency: "informational",
+        navigation: { section: "settings" },
+      });
     });
     autoUpdater.on("error", (error) => {
       logger.error("[updater] error", error);
-      notify("Update check failed", error instanceof Error ? error.message : String(error));
+      notify({
+        title: "Update Check Failed",
+        body: "Could not check for updates. Try again later.",
+        urgency: "informational",
+        navigation: { section: "settings" },
+      });
     });
   }
 
