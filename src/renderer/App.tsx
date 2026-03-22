@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowClockwise,
@@ -38,20 +38,15 @@ import {
 } from "@phosphor-icons/react";
 import type {
   CompanyRecord,
-  CompanyMetrics,
   DesktopEvent,
-  InboxItem,
   OnboardingBootstrapResult,
   ProfileSnapshot,
   SectionId,
-  SocialAccountRecord,
-  BrowserActionRecord,
-  StandupReport,
 } from "@shared/types";
 import type { AppLocale } from "@shared/locale";
-import { DEFAULT_LOCALE } from "@shared/locale";
-import type { SidebarBadges } from "@shared/contracts";
 import { createTranslator, LocaleContext, TranslationContext } from "./i18n";
+import { useAppStore } from "./state/store";
+import { createEventBatcher } from "./lib/ipc-batcher";
 import { CompanyOnboarding } from "./components/CompanyOnboarding";
 import { Inbox, StandupView, PerformanceView } from "./components/inbox";
 import { ConnectorEditor } from "./components/connectors";
@@ -167,7 +162,9 @@ export function App() {
   const pageTransition = reducedMotion ? noMotion : { duration: 0.24, ease: [0.16, 1, 0.3, 1] as const };
   const panelTransition = reducedMotion ? noMotion : { duration: 0.22, ease: [0.16, 1, 0.3, 1] as const };
 
-  const [locale, setLocale] = useState<AppLocale>(DEFAULT_LOCALE);
+  // -- Zustand store bindings (replaces 31 useState calls) --
+  const locale = useAppStore((s) => s.locale);
+  const setLocale = useAppStore((s) => s.setLocale);
   const t = useMemo(() => createTranslator(locale), [locale]);
 
   const navGroups: NavGroup[] = useMemo(() => navGroupDefs.map((group) => ({
@@ -176,52 +173,74 @@ export function App() {
   })), [t]);
   const navItems: NavItem[] = useMemo(() => navGroups.flatMap((group) => group.items).concat({ id: "settings", label: t("nav.settings"), icon: Gear }), [navGroups, t]);
 
-  const [snapshot, setSnapshot] = useState<ProfileSnapshot | null>(null);
-  const [section, setSection] = useState<SectionId>("overview");
-  const [error, setError] = useState<string | null>(null);
-  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [consoleOpen, setConsoleOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [companySwitcherOpen, setCompanySwitcherOpen] = useState(false);
-  const [confirmDeleteCompanyId, setConfirmDeleteCompanyId] = useState<string | null>(null);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
-  const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
-  const [selectedCommunicationEntityId, setSelectedCommunicationEntityId] = useState<string | null>(null);
-  const [taskViewMode, setTaskViewMode] = useState<"list" | "kanban">("list");
+  const snapshot = useAppStore((s) => s.snapshot);
+  const setSnapshot = useAppStore((s) => s.setSnapshot);
+  const section = useAppStore((s) => s.section);
+  const setSection = useAppStore((s) => s.setSection);
+  const error = useAppStore((s) => s.error);
+  const setError = useAppStore((s) => s.setError);
+  const commandPaletteOpen = useAppStore((s) => s.commandPaletteOpen);
+  const setCommandPaletteOpen = useAppStore((s) => s.setCommandPaletteOpen);
+  const consoleOpen = useAppStore((s) => s.consoleOpen);
+  const setConsoleOpen = useAppStore((s) => s.setConsoleOpen);
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
+  const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
+  const companySwitcherOpen = useAppStore((s) => s.companySwitcherOpen);
+  const setCompanySwitcherOpen = useAppStore((s) => s.setCompanySwitcherOpen);
+  const confirmDeleteCompanyId = useAppStore((s) => s.confirmDeleteCompanyId);
+  const setConfirmDeleteCompanyId = useAppStore((s) => s.setConfirmDeleteCompanyId);
+  const selectedTaskId = useAppStore((s) => s.selectedTaskId);
+  const setSelectedTaskId = useAppStore((s) => s.setSelectedTaskId);
+  const selectedConnectorId = useAppStore((s) => s.selectedConnectorId);
+  const setSelectedConnectorId = useAppStore((s) => s.setSelectedConnectorId);
+  const selectedApprovalId = useAppStore((s) => s.selectedApprovalId);
+  const setSelectedApprovalId = useAppStore((s) => s.setSelectedApprovalId);
+  const selectedRunId = useAppStore((s) => s.selectedRunId);
+  const setSelectedRunId = useAppStore((s) => s.setSelectedRunId);
+  const selectedAgentId = useAppStore((s) => s.selectedAgentId);
+  const setSelectedAgentId = useAppStore((s) => s.setSelectedAgentId);
+  const selectedGoalId = useAppStore((s) => s.selectedGoalId);
+  const setSelectedGoalId = useAppStore((s) => s.setSelectedGoalId);
+  const selectedProjectId = useAppStore((s) => s.selectedProjectId);
+  const setSelectedProjectId = useAppStore((s) => s.setSelectedProjectId);
+  const selectedWorkspaceId = useAppStore((s) => s.selectedWorkspaceId);
+  const setSelectedWorkspaceId = useAppStore((s) => s.setSelectedWorkspaceId);
+  const selectedCommunicationEntityId = useAppStore((s) => s.selectedCommunicationEntityId);
+  const setSelectedCommunicationEntityId = useAppStore((s) => s.setSelectedCommunicationEntityId);
+  const taskViewMode = useAppStore((s) => s.taskViewMode);
+  const setTaskViewMode = useAppStore((s) => s.setTaskViewMode);
   const logBufferRef = useRef<Record<string, string>>({});
-  const [, setLogRevision] = useState(0);
-  const [badges, setBadges] = useState<SidebarBadges | null>(null);
-  const [commandPaletteSearch, setCommandPaletteSearch] = useState("");
-  const [selectedPaletteIndex, setSelectedPaletteIndex] = useState(0);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [initialOnboardingLocked, setInitialOnboardingLocked] = useState(false);
-  const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
-  const [companyMetrics, setCompanyMetrics] = useState<CompanyMetrics | null>(null);
-  const [standupReport, setStandupReport] = useState<StandupReport | null>(null);
-  const [socialAccounts, setSocialAccounts] = useState<SocialAccountRecord[]>([]);
-  const [browserActions, setBrowserActions] = useState<BrowserActionRecord[]>([]);
+  const incrementLogRevision = useAppStore((s) => s.incrementLogRevision);
+  const badges = useAppStore((s) => s.badges);
+  const setBadges = useAppStore((s) => s.setBadges);
+  const commandPaletteSearch = useAppStore((s) => s.commandPaletteSearch);
+  const setCommandPaletteSearch = useAppStore((s) => s.setCommandPaletteSearch);
+  const selectedPaletteIndex = useAppStore((s) => s.selectedPaletteIndex);
+  const setSelectedPaletteIndex = useAppStore((s) => s.setSelectedPaletteIndex);
+  const showOnboarding = useAppStore((s) => s.showOnboarding);
+  const setShowOnboarding = useAppStore((s) => s.setShowOnboarding);
+  const initialOnboardingLocked = useAppStore((s) => s.initialOnboardingLocked);
+  const setInitialOnboardingLocked = useAppStore((s) => s.setInitialOnboardingLocked);
+  const inboxItems = useAppStore((s) => s.inboxItems);
+  const setInboxItems = useAppStore((s) => s.setInboxItems);
+  const companyMetrics = useAppStore((s) => s.companyMetrics);
+  const setCompanyMetrics = useAppStore((s) => s.setCompanyMetrics);
+  const standupReport = useAppStore((s) => s.standupReport);
+  const setStandupReport = useAppStore((s) => s.setStandupReport);
+  const socialAccounts = useAppStore((s) => s.socialAccounts);
+  const setSocialAccounts = useAppStore((s) => s.setSocialAccounts);
+  const browserActions = useAppStore((s) => s.browserActions);
+  const setBrowserActions = useAppStore((s) => s.setBrowserActions);
 
   const clearCompanyScopedUiState = useCallback(() => {
-    setSelectedTaskId(null);
-    setSelectedApprovalId(null);
-    setSelectedRunId(null);
-    setSelectedAgentId(null);
-    setSelectedGoalId(null);
-    setSelectedProjectId(null);
-    setSelectedWorkspaceId(null);
-    setSelectedCommunicationEntityId(null);
-    setInboxItems([]);
-    setCompanyMetrics(null);
-    setStandupReport(null);
-    setSocialAccounts([]);
-    setBrowserActions([]);
-    setBadges(null);
+    const store = useAppStore.getState();
+    store.clearCompanyScopedSelections();
+    store.setInboxItems([]);
+    store.setCompanyMetrics(null);
+    store.setStandupReport(null);
+    store.setSocialAccounts([]);
+    store.setBrowserActions([]);
+    store.setBadges(null);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -266,21 +285,17 @@ export function App() {
     refreshRef.current = refresh;
   }, [refresh]);
 
-  // Debounce timer ref for coalescing rapid real-time events
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const debouncedRefresh = useCallback(() => {
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = setTimeout(() => {
-      debounceTimerRef.current = null;
-      void refreshRef.current();
-    }, 500);
-  }, []);
-
+  // IPC event subscription with batcher for coalescing rapid domain-changed events
   useEffect(() => {
     void refreshRef.current();
+    const store = useAppStore;
+    const batcher = createEventBatcher(() => {
+      void refreshRef.current();
+    }, 50);
+
     const unsubscribe = window.agentCompany.subscribe((event: DesktopEvent) => {
       if (event.type === "run-log") {
+        // Pass through immediately -- no batching for streaming logs
         const MAX_LOG_BYTES_PER_RUN = 512_000;
         const MAX_TRACKED_RUNS = 50;
         const existing = logBufferRef.current[event.runId] ?? "";
@@ -294,24 +309,23 @@ export function App() {
             delete logBufferRef.current[oldId];
           }
         }
-        setLogRevision((r) => r + 1);
+        incrementLogRevision();
         return;
       }
       if (event.type === "shortcut") {
-        if (event.action === "toggle-command-palette") setCommandPaletteOpen((current) => !current);
-        if (event.action === "toggle-console") setConsoleOpen((current) => !current);
+        if (event.action === "toggle-command-palette") store.getState().toggleCommandPalette();
+        if (event.action === "toggle-console") store.getState().toggleConsole();
         if (event.action === "refresh") void refreshRef.current();
         return;
       }
-      // All data-mutating events trigger a debounced snapshot reload:
-      // domain-changed, run-status, new-message, automation-fired, heartbeat-status
-      debouncedRefresh();
+      // All data-mutating events: batch the snapshot reload
+      batcher.schedule();
     });
     return () => {
       unsubscribe();
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      batcher.dispose();
     };
-  }, [debouncedRefresh]);
+  }, []);
 
   useEffect(() => {
     if (!snapshot) return;
@@ -402,7 +416,7 @@ export function App() {
       const result = await window.agentCompany.getRunLog({ companyId: activeRun.companyId, runId: activeRunId });
       if (result.ok) {
         logBufferRef.current = { ...logBufferRef.current, [activeRunId]: result.data };
-        setLogRevision((r) => r + 1);
+        incrementLogRevision();
         return;
       }
       setError(result.error.message);
@@ -514,12 +528,12 @@ export function App() {
       if (paletteActions.length === 0) return;
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        setSelectedPaletteIndex((current) => (current + 1) % paletteActions.length);
+        setSelectedPaletteIndex((useAppStore.getState().selectedPaletteIndex + 1) % paletteActions.length);
         return;
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        setSelectedPaletteIndex((current) => (current - 1 + paletteActions.length) % paletteActions.length);
+        setSelectedPaletteIndex((useAppStore.getState().selectedPaletteIndex - 1 + paletteActions.length) % paletteActions.length);
         return;
       }
       if (event.key === "Enter") {
@@ -679,7 +693,7 @@ export function App() {
               <button
                 type="button"
                 className="focus-ring flex w-full items-center gap-2 rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)] px-2.5 py-1.5 text-left text-[13px] font-medium text-[color:var(--text)] transition hover:bg-[color:var(--panel-soft)]"
-                onClick={() => setCompanySwitcherOpen((v) => !v)}
+                onClick={() => setCompanySwitcherOpen(!companySwitcherOpen)}
               >
                 <span className="min-w-0 flex-1 truncate">{currentCompany?.name ?? t("app.selectCompany")}</span>
                 <CaretUpDown size={14} className="shrink-0 text-[color:var(--muted)]" />
@@ -794,7 +808,7 @@ export function App() {
             aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             className={`focus-ring mt-1 flex w-full items-center rounded-[6px] py-[7px] text-[color:var(--muted)] transition duration-150 hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)] ${sidebarCollapsed ? "justify-center p-2" : "gap-2.5 px-3"}`}
-            onClick={() => setSidebarCollapsed((c) => !c)}
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           >
             <SidebarSimple size={sidebarCollapsed ? 18 : 17} />
             {!sidebarCollapsed ? <span className="text-[13px] font-medium tracking-[0.005em]">{t("app.collapse")}</span> : null}
@@ -825,7 +839,7 @@ export function App() {
               aria-label={consoleOpen ? "Hide console" : "Show console"}
               title={consoleOpen ? "Hide console" : "Show console"}
               className="focus-ring inline-flex items-center gap-2 py-1 text-[12px] font-semibold text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
-              onClick={() => setConsoleOpen((current) => !current)}
+              onClick={() => setConsoleOpen(!consoleOpen)}
             >
               <TerminalWindow size={16} />
               <span className="hidden lg:inline">{consoleOpen ? t("app.hideConsole") : t("app.showConsole")}</span>
