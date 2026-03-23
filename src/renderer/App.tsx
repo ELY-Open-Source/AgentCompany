@@ -2,35 +2,25 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowClockwise,
-  Bell,
-  Brain,
-  CalendarBlank,
   CaretUpDown,
-  ChartBar,
   ChatCircle,
   Check,
   Command,
   Cpu,
-  CurrencyCircleDollar,
   FileText,
   FolderOpen,
   Gear,
-  Heartbeat,
   Kanban,
-  Lightning,
   ListChecks,
   MagnifyingGlass,
   Megaphone,
   Plus,
-  Pulse,
   Robot,
-  Rows,
   ShieldCheck,
   Trash,
   UserPlus,
   SquaresFour,
   Target,
-  TreeStructure,
   SidebarSimple,
   TerminalWindow,
   WarningCircle,
@@ -91,69 +81,22 @@ import { unwrap } from "./lib/desktop";
 import { formatMoney, formatTime } from "./lib/formatters";
 
 type NavItemDef = { id: SectionId; labelKey: string; icon: typeof SquaresFour };
-type NavGroupDef = { labelKey: string; items: NavItemDef[] };
 type NavItem = { id: SectionId; label: string; icon: typeof SquaresFour };
-type NavGroup = { label: string; items: NavItem[] };
 type PaletteAction = {
   key: string;
   section: SectionId;
   entityId?: string;
 };
 
-const navGroupDefs: NavGroupDef[] = [
-  {
-    labelKey: "nav.group.overview",
-    items: [
-      { id: "overview", labelKey: "nav.overview", icon: SquaresFour },
-      { id: "inbox", labelKey: "nav.inbox", icon: Bell },
-      { id: "standup", labelKey: "nav.standup", icon: Heartbeat },
-      { id: "performance", labelKey: "nav.performance", icon: ChartBar },
-      { id: "runs", labelKey: "nav.runs", icon: TerminalWindow },
-    ],
-  },
-  {
-    labelKey: "nav.group.organization",
-    items: [
-      { id: "agents", labelKey: "nav.agents", icon: Robot },
-      { id: "orgchart", labelKey: "nav.orgchart", icon: TreeStructure },
-      { id: "hiring", labelKey: "nav.hiring", icon: UserPlus },
-      { id: "communication", labelKey: "nav.communication", icon: ChatCircle },
-      { id: "goals", labelKey: "nav.goals", icon: Target },
-      { id: "projects", labelKey: "nav.projects", icon: Kanban },
-      { id: "tasks", labelKey: "nav.tasks", icon: ListChecks },
-      { id: "sprints", labelKey: "nav.sprints", icon: Rows },
-    ],
-  },
-  {
-    labelKey: "nav.group.automation",
-    items: [
-      { id: "automation", labelKey: "nav.automation", icon: Lightning },
-      { id: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
-    ],
-  },
-  {
-    labelKey: "nav.group.knowledge",
-    items: [
-      { id: "documents", labelKey: "nav.documents", icon: FileText },
-      { id: "knowledge", labelKey: "nav.knowledge", icon: Brain },
-      { id: "meetings", labelKey: "nav.meetings", icon: CalendarBlank },
-    ],
-  },
-  {
-    labelKey: "nav.group.operations",
-    items: [
-      { id: "costs", labelKey: "nav.costs", icon: CurrencyCircleDollar },
-      { id: "activity", labelKey: "nav.activity", icon: Pulse },
-      { id: "social", labelKey: "nav.social", icon: Megaphone },
-    ],
-  },
-  {
-    labelKey: "nav.group.infrastructure",
-    items: [
-      { id: "connectors", labelKey: "nav.connectors", icon: Cpu },
-      { id: "workspaces", labelKey: "nav.workspaces", icon: FolderOpen },
-    ],
-  },
+const sidebarNavDefs: NavItemDef[] = [
+  { id: "overview", labelKey: "nav.overview", icon: SquaresFour },
+  { id: "agents", labelKey: "nav.agents", icon: Robot },
+  { id: "tasks", labelKey: "nav.work", icon: ListChecks },
+  { id: "communication", labelKey: "nav.communication", icon: ChatCircle },
+  { id: "documents", labelKey: "nav.documents", icon: FileText },
+  { id: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
+  { id: "runs", labelKey: "nav.runs", icon: TerminalWindow },
+  { id: "social", labelKey: "nav.social", icon: Megaphone },
 ];
 
 export function App() {
@@ -167,11 +110,8 @@ export function App() {
   const setLocale = useAppStore((s) => s.setLocale);
   const t = useMemo(() => createTranslator(locale), [locale]);
 
-  const navGroups: NavGroup[] = useMemo(() => navGroupDefs.map((group) => ({
-    label: t(group.labelKey),
-    items: group.items.map((item) => ({ id: item.id, label: t(item.labelKey), icon: item.icon })),
-  })), [t]);
-  const navItems: NavItem[] = useMemo(() => navGroups.flatMap((group) => group.items).concat({ id: "settings", label: t("nav.settings"), icon: Gear }), [navGroups, t]);
+  const sidebarNav: NavItem[] = useMemo(() => sidebarNavDefs.map((item) => ({ id: item.id, label: t(item.labelKey), icon: item.icon })), [t]);
+  const navItems: NavItem[] = useMemo(() => sidebarNav.concat({ id: "settings", label: t("nav.settings"), icon: Gear }), [sidebarNav, t]);
 
   const snapshot = useAppStore((s) => s.snapshot);
   const setSnapshot = useAppStore((s) => s.setSnapshot);
@@ -436,7 +376,6 @@ export function App() {
 
   const activeInboxCount = inboxItems.length;
   const navBadges = useMemo<Partial<Record<SectionId, { count: number; tone: "default" | "warn" | "danger" }>>>(() => badges ? {
-    inbox: activeInboxCount > 0 ? { count: activeInboxCount, tone: "warn" } : undefined,
     runs:
       badges.failedRuns > 0
         ? { count: badges.failedRuns, tone: "danger" }
@@ -445,8 +384,7 @@ export function App() {
           : undefined,
     tasks: badges.todoTasks > 0 ? { count: badges.todoTasks, tone: "default" } : undefined,
     approvals: badges.pendingApprovals > 0 ? { count: badges.pendingApprovals, tone: "warn" } : undefined,
-    costs: badges.budgetWarnings > 0 ? { count: badges.budgetWarnings, tone: "danger" } : undefined,
-    communication: badges.unreadMessages > 0 ? { count: badges.unreadMessages, tone: "warn" } : undefined,
+    communication: (badges.unreadMessages + activeInboxCount) > 0 ? { count: badges.unreadMessages + activeInboxCount, tone: "warn" } : undefined,
   } : {}, [badges, activeInboxCount]);
 
   const companyWorkspaces = useMemo(() => snapshot?.workspaces.filter((workspace) => !currentCompany || workspace.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
@@ -775,30 +713,21 @@ export function App() {
             </button>
           </div>
         )}
-        <nav aria-label="Main navigation" className={`flex-1 overflow-y-auto pb-3 ${sidebarCollapsed ? "px-1.5" : "px-3"}`}>
-          {navGroups.map((group) => (
-            <div key={group.label} className="mb-1">
-              {!sidebarCollapsed ? (
-                <div className="px-3 pb-1.5 pt-4 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{group.label}</div>
-              ) : (
-                <div className="pb-1 pt-3" />
-              )}
-              <div className="space-y-0.5">
-                {group.items.map((item) => (
-                  <SectionButton
-                    key={item.id}
-                    active={section === item.id}
-                    label={item.label}
-                    icon={item.icon}
-                    onClick={() => setSection(item.id)}
-                    badge={navBadges[item.id]?.count}
-                    badgeTone={navBadges[item.id]?.tone}
-                    collapsed={sidebarCollapsed}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+        <nav aria-label="Main navigation" className={`flex-1 overflow-y-auto pb-3 ${sidebarCollapsed ? "px-1.5 pt-2" : "px-3 pt-2"}`}>
+          <div className="space-y-0.5">
+            {sidebarNav.map((item) => (
+              <SectionButton
+                key={item.id}
+                active={section === item.id}
+                label={item.label}
+                icon={item.icon}
+                onClick={() => setSection(item.id)}
+                badge={navBadges[item.id]?.count}
+                badgeTone={navBadges[item.id]?.tone}
+                collapsed={sidebarCollapsed}
+              />
+            ))}
+          </div>
         </nav>
         <div className={`border-t border-[color:var(--line)] py-2 ${sidebarCollapsed ? "px-1.5" : "px-3"}`}>
           <SectionButton
@@ -825,7 +754,7 @@ export function App() {
         <div className="mx-auto flex w-full max-w-[1040px] flex-col px-6 py-6 lg:px-10 lg:py-8">
         <header className="mb-8 flex items-start justify-between gap-4 border-b border-[color:var(--line)] pb-5 lg:mb-10 lg:gap-6">
           <h1 className="text-[24px] tracking-[-0.03em] text-[color:var(--text)] lg:text-[31px]">
-            {navItems.find((item) => item.id === section)?.label}
+            {navItems.find((item) => item.id === section)?.label ?? t(`nav.${section}`)}
           </h1>
           <div className="flex shrink-0 items-center gap-3 lg:gap-5">
             <button
