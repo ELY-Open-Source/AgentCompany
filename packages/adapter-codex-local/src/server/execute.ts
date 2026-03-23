@@ -14,6 +14,7 @@ import {
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
   ensurePathInEnv,
+  filterConflictingArgs,
   renderTemplate,
   runChildProcess,
 } from "@agentcompany/adapter-utils/server-utils";
@@ -318,7 +319,20 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     if (bypass) args.push("--dangerously-bypass-approvals-and-sandbox");
     if (model) args.push("--model", model);
     if (modelReasoningEffort) args.push("-c", `model_reasoning_effort=${JSON.stringify(modelReasoningEffort)}`);
-    if (extraArgs.length > 0) args.push(...extraArgs);
+    if (extraArgs.length > 0) {
+      // Filter out flags the adapter already manages to prevent duplicates
+      // (e.g. user shell aliases that inject --dangerously-bypass-approvals-and-sandbox)
+      const managedFlags = [
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--json",
+        "--model",
+        "--sandbox",
+        "--skip-git-repo-check",
+        "--ask-for-approval",
+      ];
+      const cleaned = filterConflictingArgs(extraArgs, managedFlags);
+      if (cleaned.length > 0) args.push(...cleaned);
+    }
     if (resumeSessionId) args.push("resume", resumeSessionId, "-");
     else args.push("-");
     return args;

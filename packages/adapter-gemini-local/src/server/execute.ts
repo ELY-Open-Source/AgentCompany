@@ -14,6 +14,7 @@ import {
   ensureCommandResolvable,
   ensurePathInEnv,
   parseObject,
+  filterConflictingArgs,
   redactEnvForLogs,
   renderTemplate,
   runChildProcess,
@@ -301,7 +302,18 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     } else {
       args.push("--sandbox=none");
     }
-    if (extraArgs.length > 0) args.push(...extraArgs);
+    if (extraArgs.length > 0) {
+      // Filter out flags the adapter already manages to prevent duplicates
+      // (e.g. user shell aliases that inject --approval-mode or --sandbox)
+      const managedFlags = [
+        "--approval-mode",
+        "--output-format",
+        "--model",
+        "--sandbox",
+      ];
+      const cleaned = filterConflictingArgs(extraArgs, managedFlags);
+      if (cleaned.length > 0) args.push(...cleaned);
+    }
     args.push(prompt);
     return args;
   };

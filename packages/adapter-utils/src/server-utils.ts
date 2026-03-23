@@ -109,6 +109,30 @@ export function renderTemplate(template: string, data: Record<string, unknown>) 
   return template.replace(/{{\s*([a-zA-Z0-9_.-]+)\s*}}/g, (_, path) => resolvePathValue(data, path));
 }
 
+/**
+ * Remove flags from `extraArgs` that the adapter will already add itself.
+ * Handles both `--flag value` pairs and `--flag=value` forms.
+ * This prevents duplicate/conflicting CLI arguments when users have shell
+ * aliases or wrapper functions that inject the same flags.
+ */
+export function filterConflictingArgs(extraArgs: string[], adapterFlags: string[]): string[] {
+  const flagSet = new Set(adapterFlags.map((f) => f.replace(/=.*$/, "")));
+  const filtered: string[] = [];
+  for (let i = 0; i < extraArgs.length; i++) {
+    const arg = extraArgs[i];
+    const bareFlag = arg.replace(/=.*$/, "");
+    if (flagSet.has(bareFlag)) {
+      // Skip this flag and its value if the value is a separate argument
+      if (!arg.includes("=") && i + 1 < extraArgs.length && !extraArgs[i + 1].startsWith("-")) {
+        i++; // skip the value argument too
+      }
+      continue;
+    }
+    filtered.push(arg);
+  }
+  return filtered;
+}
+
 export function redactEnvForLogs(env: Record<string, string>): Record<string, string> {
   const redacted: Record<string, string> = {};
   for (const [key, value] of Object.entries(env)) {

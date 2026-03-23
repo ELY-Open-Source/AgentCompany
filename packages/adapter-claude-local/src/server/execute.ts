@@ -16,6 +16,7 @@ import {
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
   ensurePathInEnv,
+  filterConflictingArgs,
   renderTemplate,
   runChildProcess,
 } from "@agentcompany/adapter-utils/server-utils";
@@ -385,7 +386,22 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       args.push("--append-system-prompt-file", effectiveInstructionsFilePath);
     }
     args.push("--add-dir", skillsDir);
-    if (extraArgs.length > 0) args.push(...extraArgs);
+    if (extraArgs.length > 0) {
+      // Filter out flags the adapter already manages to prevent duplicates
+      // (e.g. user shell aliases that inject --dangerously-skip-permissions)
+      const managedFlags = [
+        "--dangerously-skip-permissions",
+        "--output-format",
+        "--model",
+        "--effort",
+        "--max-turns",
+        "--add-dir",
+        "--append-system-prompt-file",
+        "--teammate-mode",
+      ];
+      const cleaned = filterConflictingArgs(extraArgs, managedFlags);
+      if (cleaned.length > 0) args.push(...cleaned);
+    }
     return args;
   };
 

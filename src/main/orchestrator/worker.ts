@@ -107,8 +107,6 @@ function buildConnectorExecutionConfig(job: RunJob, sanitizedEnv: Record<string,
           "--skip-git-repo-check",
           "--sandbox",
           allowUnsafeConnectorBypass ? "danger-full-access" : "workspace-write",
-          "--ask-for-approval",
-          "never",
         ],
       };
     case "claude_local":
