@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { ListChecks, PlayCircle, WarningCircle } from "@phosphor-icons/react";
 import type { AgentRecord, RunRecord, TaskRecord, WorkspaceRecord } from "@shared/types";
 import { EmptyState } from "../ui";
 import { useT } from "../../i18n";
-import { LOG_CHUNK_BYTES, initialLogState, isActiveStatus, isAttentionStatus, RunSummaryCard } from "./run-helpers";
+import { LOG_CHUNK_BYTES, initialLogState, isActiveStatus } from "./run-helpers";
 import type { RunLogState } from "./run-helpers";
 import { RunQueue } from "./RunQueue";
 import { RunDetail } from "./RunDetail";
@@ -69,16 +68,6 @@ export function RunCenter({
       ].some((value) => value.toLowerCase().includes(query));
     });
   }, [agentMap, runs, search, statusFilter, taskMap, workspaceMap]);
-
-  const groupedCounts = useMemo(() => {
-    let active = 0, attention = 0, completed = 0;
-    for (const run of runs) {
-      if (isActiveStatus(run.status)) active += 1;
-      else if (isAttentionStatus(run.status)) attention += 1;
-      else completed += 1;
-    }
-    return { active, attention, completed };
-  }, [runs]);
 
   useEffect(() => {
     if (selectedRunId && !runs.some((run) => run.id === selectedRunId)) {
@@ -229,60 +218,36 @@ export function RunCenter({
   }
 
   return (
-    <div className="space-y-10">
-      <div className="grid gap-3 md:grid-cols-3">
-        <RunSummaryCard
-          label={t("runs.activeLabel")}
-          value={groupedCounts.active}
-          detail={t("runs.queuedOrRunning")}
-          icon={PlayCircle}
-        />
-        <RunSummaryCard
-          label={t("runs.needsAttention")}
-          value={groupedCounts.attention}
-          detail={t("runs.failedTimedInterrupted")}
-          icon={WarningCircle}
-          tone="danger"
-        />
-        <RunSummaryCard
-          label={t("runs.completedLabel")}
-          value={groupedCounts.completed}
-          detail={t("runs.finishedWithout")}
-          icon={ListChecks}
-        />
-      </div>
+    <div className="grid gap-8 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+      <RunQueue
+        filteredRuns={filteredRuns}
+        selectedRun={selectedRun}
+        taskMap={taskMap}
+        agentMap={agentMap}
+        workspaceMap={workspaceMap}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        search={search}
+        setSearch={setSearch}
+        onSelectRun={onSelectRun}
+        t={t}
+      />
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-        <RunQueue
-          filteredRuns={filteredRuns}
+      {selectedRun ? (
+        <RunDetail
           selectedRun={selectedRun}
           taskMap={taskMap}
           agentMap={agentMap}
           workspaceMap={workspaceMap}
-          statusFilter={statusFilter}
-          setStatusFilter={setStatusFilter}
-          search={search}
-          setSearch={setSearch}
-          onSelectRun={onSelectRun}
+          logState={logState}
+          onOpenConsole={onOpenConsole}
+          onCancelRun={onCancelRun}
+          onOpenLogPath={onOpenLogPath}
+          onReloadLog={() => setLogReloadKey((current) => current + 1)}
+          onLoadOlderLogs={() => void loadOlderLogs()}
           t={t}
         />
-
-        {selectedRun ? (
-          <RunDetail
-            selectedRun={selectedRun}
-            taskMap={taskMap}
-            agentMap={agentMap}
-            workspaceMap={workspaceMap}
-            logState={logState}
-            onOpenConsole={onOpenConsole}
-            onCancelRun={onCancelRun}
-            onOpenLogPath={onOpenLogPath}
-            onReloadLog={() => setLogReloadKey((current) => current + 1)}
-            onLoadOlderLogs={() => void loadOlderLogs()}
-            t={t}
-          />
-        ) : null}
-      </div>
+      ) : null}
     </div>
   );
 }

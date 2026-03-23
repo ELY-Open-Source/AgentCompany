@@ -88,14 +88,6 @@ export const DEFAULT_AUTOMATION_RULES: ReadonlyArray<{
     priority: 55,
   },
   {
-    name: "Create status report on schedule",
-    description: "Periodically create a status report document for the company.",
-    trigger: "schedule",
-    action: "create_document",
-    actionConfigJson: JSON.stringify({ documentType: "status_report", title: "Automated Status Report" }),
-    priority: 30,
-  },
-  {
     name: "Auto-assign work to idle agents",
     description: "When an agent has been idle for 10+ minutes, automatically assign available unassigned tasks from the backlog.",
     trigger: "agent_idle",
