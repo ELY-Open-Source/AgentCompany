@@ -5,7 +5,7 @@ export const zh: Record<string, string> = {
   "nav.standup": "站会",
   "nav.performance": "绩效",
   "nav.runs": "运行",
-  "nav.agents": "智能体",
+  "nav.agents": "团队",
   "nav.orgchart": "组织架构",
   "nav.hiring": "招聘",
   "nav.communication": "消息",

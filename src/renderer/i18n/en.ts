@@ -5,7 +5,7 @@ export const en: Record<string, string> = {
   "nav.standup": "Standup",
   "nav.performance": "Performance",
   "nav.runs": "Runs",
-  "nav.agents": "Agents",
+  "nav.agents": "Team",
   "nav.orgchart": "Org Chart",
   "nav.hiring": "Hiring",
   "nav.communication": "Messages",
