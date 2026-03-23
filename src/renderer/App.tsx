@@ -890,6 +890,7 @@ export function App() {
 
               {section === "agents" ? (
                 <>
+                  <OrgChart agents={companyAgents} onSelectAgent={(id) => setSelectedAgentId(id)} />
                   <Panel title="Agent roster" action={<ActionButton label="New hire request" icon={UserPlus} tone="accent" onClick={() => setSelectedAgentId("__new__")} />}>
                     <AgentRoster
                       agents={companyAgents}
