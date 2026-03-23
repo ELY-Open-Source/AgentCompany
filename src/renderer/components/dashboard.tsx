@@ -1,12 +1,5 @@
 export { Dashboard } from "./dashboard/Dashboard";
 export type { DashboardProps } from "./dashboard/Dashboard";
 export { KanbanBoard } from "./dashboard/KanbanBoard";
-export { HealthRing, computeHealthScore } from "./dashboard/HealthCard";
 export { MetricCard } from "./dashboard/MetricsGrid";
 export { ActivityFeed } from "./dashboard/ActivityFeed";
-export { WorkforceGrid } from "./dashboard/QuickActions";
-export { DepartmentOverview } from "./dashboard/DepartmentOverview";
-export { TaskPipeline } from "./dashboard/TaskPipeline";
-export { SprintProgress } from "./dashboard/SprintProgress";
-export { GoalProgress } from "./dashboard/GoalProgress";
-export { NeedsAttention } from "./dashboard/NeedsAttention";

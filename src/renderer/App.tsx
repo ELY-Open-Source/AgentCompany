@@ -808,12 +808,7 @@ export function App() {
                   projects={companyProjects}
                   activity={filteredActivity}
                   costs={companyCosts}
-                  connectors={snapshot.connectors}
-                  meetings={companyMeetings}
-                  sprints={companySprints}
                   messages={snapshot.agentMessages?.filter((message) => !currentCompany || message.companyId === currentCompany.id) ?? []}
-                  browserActions={browserActions}
-                  workflows={snapshot.workflows?.filter((workflow) => !currentCompany || workflow.companyId === currentCompany.id) ?? []}
                   onNavigate={navigateTo}
                 />
               ) : null}
