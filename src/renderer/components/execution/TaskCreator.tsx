@@ -24,7 +24,7 @@ export function TaskCreator({ companyId, goals, projects, agents, workspaces, on
     <div className="grid gap-4 md:grid-cols-2">
       <Input label={t("exec.title")} value={title} onChange={setTitle} placeholder={t("exec.taskTitle")} />
       <Select label={t("exec.priority")} value={priority} onChange={setPriority} options={["critical","high","medium","low"].map((v) => ({ value: v, label: v }))} />
-      <div className="md:col-span-2"><TextArea label="Description" value={description} onChange={setDescription} placeholder="What should the agent do, and what result should come back into the run summary?" rows={5} /></div>
+      <div className="md:col-span-2"><TextArea label="Description" value={description} onChange={setDescription} placeholder="Describe the task" rows={5} /></div>
       <Select label={t("exec.goal")} value={goalId} onChange={setGoalId} options={[{ value: "", label: t("exec.noGoal") }, ...goals.map((g) => ({ value: g.id, label: g.title }))]} />
       <Select label={t("exec.project")} value={projectId} onChange={setProjectId} options={[{ value: "", label: t("exec.noProject") }, ...projects.map((p) => ({ value: p.id, label: p.name }))]} />
       <Select label={t("exec.assignee")} value={assigneeAgentId} onChange={setAssigneeAgentId} options={[{ value: "", label: t("exec.unassigned") }, ...agents.map((a) => ({ value: a.id, label: a.name }))]} />

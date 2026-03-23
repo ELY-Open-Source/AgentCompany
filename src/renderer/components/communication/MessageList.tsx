@@ -96,9 +96,6 @@ export function MessageList({
         <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">
           {t("comm.selectChannelView")}
         </div>
-        <div className="mt-1 text-[12px] text-[color:var(--muted)]">
-          {t("comm.monitorComms")}
-        </div>
       </div>
     )
   }
@@ -109,9 +106,6 @@ export function MessageList({
         <Tray size={36} className="mb-3 text-[color:var(--muted)]" />
         <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">
           {t("comm.noDiscussionYet")}
-        </div>
-        <div className="mt-1 text-[12px] text-[color:var(--muted)]">
-          {t("comm.commentsAppearHere")}
         </div>
       </div>
     )
@@ -126,11 +120,9 @@ export function MessageList({
             ? t("comm.noMatchFilters")
             : t("comm.noMessagesChannel")}
         </div>
-        <div className="mt-1 text-[12px] text-[color:var(--muted)]">
-          {filters.search || filters.unreadOnly || filters.priority !== "all"
-            ? t("comm.adjustFilters")
-            : t("comm.messagesAppear")}
-        </div>
+        {(filters.search || filters.unreadOnly || filters.priority !== "all") ? (
+          <div className="mt-1 text-[12px] text-[color:var(--muted)]">{t("comm.adjustFilters")}</div>
+        ) : null}
       </div>
     )
   }

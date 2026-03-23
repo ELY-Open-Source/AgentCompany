@@ -64,7 +64,6 @@ export function WorkforceGrid({ agents, onSelectAgent }: { agents: AgentRecord[]
       <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-[color:var(--line)] py-10 text-center">
         <Robot size={32} className="mb-3 text-[color:var(--muted)]" />
         <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">No agents hired yet</div>
-        <div className="mt-1 text-[12px] text-[color:var(--muted)]">Create a CEO agent to start building your company</div>
       </div>
     );
   }

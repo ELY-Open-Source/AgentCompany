@@ -207,7 +207,7 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
           ) : null}
         </div>
       ) : (
-        <Input label="Model" value={model} onChange={setModel} placeholder="Leave empty to use connector default" />
+        <Input label="Model" value={model} onChange={setModel} placeholder="Connector default" />
       )}
       <TextArea label="Secret bindings" value={envBindingText} onChange={setEnvBindingText} rows={4} placeholder={"OPENAI_API_KEY=my-vault-key\nANTHROPIC_API_KEY=my-anthropic-key"} />
       <TextArea label="Operational notes" value={notes} onChange={setNotes} rows={4} />

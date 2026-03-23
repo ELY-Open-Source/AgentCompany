@@ -1,0 +1,11 @@
+version: 0.4.61
+files:
+  - url: AgentCompany-0.4.61-arm64-mac.zip
+    sha512: 9qHqwpYcc4lCuAfqazR5duwAIYvMoMWufWtw+Wm1gyVGfwyb58szRmzgWHBErYHx/51eQHZL7i6RhJswmIvIrg==
+    size: 113638909
+  - url: AgentCompany-0.4.61-arm64.dmg
+    sha512: tuE2rcS0lPGMvB0lOnxX3udIl+oESrZWqRrYXuzIV7gsBfp8NL26fLxjppt6BhQbVT6GeKHi7p7OdViZKxYL2Q==
+    size: 118393537
+path: AgentCompany-0.4.61-arm64-mac.zip
+sha512: 9qHqwpYcc4lCuAfqazR5duwAIYvMoMWufWtw+Wm1gyVGfwyb58szRmzgWHBErYHx/51eQHZL7i6RhJswmIvIrg==
+releaseDate: '2026-03-23T16:31:23.663Z'

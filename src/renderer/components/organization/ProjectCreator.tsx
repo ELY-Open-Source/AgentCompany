@@ -26,7 +26,7 @@ export function ProjectCreator({
         label="Description"
         value={description}
         onChange={setDescription}
-        placeholder="What delivery lane does this project own?"
+        placeholder="Project description"
       />
       <Select
         label="Linked goal"

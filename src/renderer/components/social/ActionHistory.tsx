@@ -19,7 +19,7 @@ export function ActionHistory({ actions, agents, onOpenPath, onCancelAction, onN
   if (actions.length === 0) {
     return (
       <div className="py-8 text-center text-[13px] text-[color:var(--muted)]">
-        No browser actions yet. Agents will create actions when working on social media tasks.
+        No browser actions yet
       </div>
     );
   }

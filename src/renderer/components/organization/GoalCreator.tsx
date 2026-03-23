@@ -25,7 +25,7 @@ export function GoalCreator({
         label="Success criteria"
         value={description}
         onChange={setDescription}
-        placeholder="What must become true for this goal to count as achieved?"
+        placeholder="Define the acceptance criteria"
       />
       <Select
         label="Owner agent"

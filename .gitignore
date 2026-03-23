@@ -44,3 +44,5 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+CLAUDE.md
+build/release/AgentCompany-0.4.61-arm64.dmg

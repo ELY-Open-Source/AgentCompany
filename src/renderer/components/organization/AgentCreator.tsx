@@ -125,7 +125,7 @@ export function AgentCreator({
         label="Capabilities"
         value={capabilities}
         onChange={setCapabilities}
-        placeholder="What this agent is expected to do and when it becomes relevant."
+        placeholder="What this agent does"
       />
       <p className="text-[12px] text-[color:var(--muted)]">
         New agents enter the hiring pipeline first. Approval activates the agent and keeps onboarding, budgets, and org history linked to the same record.

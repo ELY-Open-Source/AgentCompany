@@ -163,7 +163,7 @@ export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide
         </div>
       ) : null}
 
-      {!isDecided ? <div><label className="mb-1 block text-[11px] font-semibold text-[color:var(--muted)]">Decision note</label><TextArea value={decisionNote} onChange={setDecisionNote} placeholder="Optional note to accompany your decision..." rows={3} /></div> : null}
+      {!isDecided ? <div><label className="mb-1 block text-[11px] font-semibold text-[color:var(--muted)]">Decision note</label><TextArea value={decisionNote} onChange={setDecisionNote} placeholder="Add a note (optional)" rows={3} /></div> : null}
       <div className="flex flex-wrap gap-3">
         {!isDecided ? <>
           <ActionButton

@@ -543,7 +543,6 @@ export class ErrorBoundary extends Component<{ children: ReactNode; fallback?: R
       return this.props.fallback ?? (
         <div className="p-8 text-center" role="alert">
           <div className="text-[15px] font-semibold text-[color:var(--danger)] mb-2">Something went wrong</div>
-          <div className="text-[13px] text-[color:var(--muted)] mb-4">{this.state.error?.message}</div>
           <ActionButton label="Reload page" onClick={() => window.location.reload()} />
         </div>
       );

@@ -45,7 +45,7 @@ function KnowledgeEditor({ companyId, entry, onSaved }: {
         <Select label="Importance" value={importance} onChange={(value) => setImportance(value as typeof importance)} options={importanceOptions} />
       </div>
       <Input label="Tags" value={tags} onChange={setTags} placeholder="incident, auth, onboarding" />
-      <TextArea label="Content" value={content} onChange={setContent} rows={10} placeholder="Capture the lesson, decision, or process in full." />
+      <TextArea label="Content" value={content} onChange={setContent} rows={10} placeholder="Enter the knowledge content" />
       <div className="flex justify-end">
         <ActionButton label={saving ? "Saving..." : entry ? "Save entry" : "Create entry"} icon={FloppyDisk} tone="accent" onClick={() => void save()} loading={saving} />
       </div>
@@ -87,7 +87,7 @@ export function KnowledgeBaseManager({ companyId, entries, onRefresh }: {
       <Modal open={editingId !== null} title={activeEntry ? activeEntry.topic : "New knowledge entry"} onClose={() => setEditingId(null)} width="760px">
         <KnowledgeEditor companyId={companyId} entry={editingId === "__new__" ? null : activeEntry} onSaved={async () => { setEditingId(null); await onRefresh(); }} />
       </Modal>
-      <ConfirmDialog open={deleteId !== null} title="Delete knowledge entry" message="This removes the entry from the shared company knowledge base." onCancel={() => setDeleteId(null)} onConfirm={async () => { if (!deleteId) return; const result = await window.agentCompany.deleteKnowledgeEntry({ id: deleteId, companyId }); setDeleteId(null); if (result.ok) await onRefresh(); }} />
+      <ConfirmDialog open={deleteId !== null} title="Delete knowledge entry" message="This will permanently delete this entry." onCancel={() => setDeleteId(null)} onConfirm={async () => { if (!deleteId) return; const result = await window.agentCompany.deleteKnowledgeEntry({ id: deleteId, companyId }); setDeleteId(null); if (result.ok) await onRefresh(); }} />
     </div>
   );
 }

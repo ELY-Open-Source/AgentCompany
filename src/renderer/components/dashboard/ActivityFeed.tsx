@@ -32,7 +32,7 @@ export function ActivityFeed({ activity, agents, limit = 15 }: { activity: Activ
   if (recentActivity.length === 0) {
     return (
       <div className="flex h-full items-center justify-center py-8 text-center">
-        <div className="text-[13px] text-[color:var(--muted)]">No activity yet. Start by creating agents and tasks.</div>
+        <div className="text-[13px] text-[color:var(--muted)]">No activity yet</div>
       </div>
     );
   }

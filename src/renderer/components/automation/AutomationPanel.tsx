@@ -25,7 +25,7 @@ function DeleteConfirmDialog({ open, entityName, onConfirm, onCancel }: { open: 
 }
 
 function AutomationActivityLog({ entries }: { entries: AutomationLogEntry[] }) {
-  if (entries.length === 0) return <div className="py-6 text-center text-[13px] text-[color:var(--muted)]">No automation activity yet. Rules will log executions here when they fire.</div>
+  if (entries.length === 0) return <div className="py-6 text-center text-[13px] text-[color:var(--muted)]">No activity yet</div>
   return (
     <div className="space-y-1">{entries.map((entry, idx) => {
       const ti = triggerConfig[entry.trigger as AutomationTrigger]; const ai = actionConfig[entry.action as AutomationAction]; const TIcon = ti?.icon ?? Lightning
