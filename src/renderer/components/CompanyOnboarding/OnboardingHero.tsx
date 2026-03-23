@@ -41,34 +41,83 @@ export function OnboardingHero({
   }));
 
   return (
-    <div className="flex min-h-0 items-center justify-center overflow-y-auto px-8 py-12 md:px-16">
+    <div className="relative flex min-h-0 items-center justify-center overflow-y-auto px-8 py-12 md:px-16">
+      {/* Ambient gradient - subtle animated accent wash */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.035]"
+        style={{
+          background: "radial-gradient(ellipse 80% 60% at 30% 20%, var(--accent) 0%, transparent 70%)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.025]"
+        style={{
+          background: "radial-gradient(ellipse 60% 80% at 70% 80%, var(--accent) 0%, transparent 70%)",
+          animation: "hero-drift 12s ease-in-out infinite alternate",
+        }}
+      />
+
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
-        className="mx-auto w-full max-w-[460px]"
+        className="relative z-10 mx-auto w-full max-w-[460px]"
       >
-        <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
-          {t("onboarding.subtitle")}
-        </div>
-        <h1 className="text-[38px] leading-[0.98] tracking-[-0.03em] text-[color:var(--text)] md:text-[48px]">
+        {/* Signature line */}
+        <motion.div
+          initial={{ opacity: 0, x: -8 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+          className="mb-6 flex items-center gap-3"
+        >
+          <div
+            className="h-px flex-1 max-w-[32px]"
+            style={{
+              background: "linear-gradient(90deg, var(--accent), transparent)",
+            }}
+          />
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--muted)]">
+            {t("onboarding.subtitle")}
+          </span>
+        </motion.div>
+
+        {/* Title */}
+        <motion.h1
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+          className="text-[36px] font-bold leading-[1.05] tracking-[-0.03em] text-[color:var(--text)] md:text-[44px]"
+        >
           {t("onboarding.title").split("\n").map((line, i) => (
             <span key={i}>{line}{i === 0 ? <br /> : null}</span>
           ))}
-        </h1>
-        <p className="mt-4 max-w-[400px] text-[14px] leading-relaxed text-[color:var(--muted)]">
-          {t("onboarding.description")}
-        </p>
+        </motion.h1>
 
+        {/* Description */}
+        <motion.p
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
+          className="mt-4 max-w-[400px] text-[14px] leading-relaxed text-[color:var(--muted)]"
+        >
+          {t("onboarding.description")}
+        </motion.p>
+
+        {/* Step progress */}
         {step !== "language" ? (
-          <div className="mt-10 flex items-center gap-3">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-10 flex items-center gap-3"
+          >
             {stepLabels.map((entry, index) => (
               <div key={entry.label} className="flex items-center gap-2">
                 {index > 0 ? (
-                  <div className={`h-px w-6 ${index <= stepIndex ? "bg-[color:var(--accent)]" : "bg-[color:var(--line)]"}`} />
+                  <div className={`h-px w-6 transition-colors duration-300 ${index <= stepIndex ? "bg-[color:var(--accent)]" : "bg-[color:var(--line)]"}`} />
                 ) : null}
                 <div
-                  className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-medium ${
+                  className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors duration-300 ${
                     index < stepIndex
                       ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
                       : index === stepIndex
@@ -81,9 +130,10 @@ export function OnboardingHero({
                 </div>
               </div>
             ))}
-          </div>
+          </motion.div>
         ) : null}
 
+        {/* Connector readiness */}
         <ConnectorReadiness
           connectors={connectors}
           currentLocale={currentLocale}
@@ -91,7 +141,41 @@ export function OnboardingHero({
           onOpenClaudeSettings={onOpenClaudeSettings}
           t={t}
         />
+
+        {/* ELYDORA signature */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="mt-12 flex items-center gap-3"
+        >
+          <div
+            className="h-px w-8"
+            style={{
+              background: "linear-gradient(90deg, var(--accent), transparent)",
+            }}
+          />
+          <span
+            className="select-none text-[10px] font-semibold uppercase tracking-[0.2em]"
+            style={{
+              background: "linear-gradient(135deg, var(--accent) 0%, var(--muted) 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}
+          >
+            by ELYDORA
+          </span>
+        </motion.div>
       </motion.div>
+
+      {/* Inline keyframe for ambient drift */}
+      <style>{`
+        @keyframes hero-drift {
+          0% { transform: translate(0, 0) scale(1); }
+          100% { transform: translate(-4%, 3%) scale(1.05); }
+        }
+      `}</style>
     </div>
   );
 }

@@ -1,18 +1,16 @@
 import { useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { EnvelopeSimple, Hash, Buildings, Megaphone, Fire, CaretDown, MagnifyingGlass, Funnel } from "@phosphor-icons/react"
+import { EnvelopeSimple, Hash, Buildings, Megaphone, Fire, MagnifyingGlass, Funnel } from "@phosphor-icons/react"
 import type { AgentRecord, MessageChannel } from "@shared/types"
 import { AgentAvatar } from "./MessageItem"
 import type { ChannelDescriptor, TaskDiscussionDescriptor } from "./ChannelHeader"
 import { useT } from "../../i18n"
 
-const TERRACOTTA = "#d97745"
-
 const channelConfig: Record<MessageChannel, { label: string; icon: React.ElementType; color: string }> = {
   direct: { label: "Direct Messages", icon: EnvelopeSimple, color: "var(--accent)" },
-  department: { label: "Department", icon: Buildings, color: "#6366f1" },
-  company: { label: "Company-wide", icon: Megaphone, color: TERRACOTTA },
-  project: { label: "Project", icon: Hash, color: "#10b981" },
+  department: { label: "Department", icon: Buildings, color: "var(--muted-strong)" },
+  company: { label: "Company-wide", icon: Megaphone, color: "var(--accent)" },
+  project: { label: "Project", icon: Hash, color: "var(--success)" },
   incident: { label: "Incident", icon: Fire, color: "var(--danger)" },
 }
 
@@ -40,8 +38,8 @@ function ChannelItem({
       type="button"
       onClick={onClick}
       aria-current={active ? "page" : undefined}
-      className={`group flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2 text-left transition duration-150 ${
-        active ? "bg-[color:var(--panel-soft)]" : "hover:bg-[color:var(--panel-soft)]/50"
+      className={`group relative flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2 text-left transition duration-150 ${
+        active ? "bg-[color:var(--accent-soft)]" : "hover:bg-[color:var(--panel-soft)]/50"
       }`}
     >
       {descriptor.channel === "direct" && agent ? (
@@ -56,7 +54,7 @@ function ChannelItem({
       )}
 
       <span
-        className={`min-w-0 flex-1 truncate text-[12px] ${
+        className={`min-w-0 flex-1 truncate text-[13px] ${
           active
             ? "font-semibold text-[color:var(--text)]"
             : unreadCount > 0
@@ -71,8 +69,8 @@ function ChannelItem({
         <span className="h-2 w-2 shrink-0 rounded-full bg-[color:var(--danger)]" />
       ) : unreadCount > 0 ? (
         <span
-          className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full px-1 text-[9px] font-bold text-white"
-          style={{ backgroundColor: TERRACOTTA }}
+          className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full px-1 text-[9px] font-bold text-[color:var(--text-on-accent)]"
+          style={{ backgroundColor: "var(--accent)" }}
         >
           {unreadCount > 99 ? "99+" : unreadCount}
         </span>
@@ -113,24 +111,10 @@ export function ChannelSidebar({
       className="flex h-full shrink-0 flex-col overflow-hidden border-r border-[color:var(--line)] bg-[color:var(--panel)]"
       style={{ width: 260 }}
     >
-      <div className="flex items-center justify-between border-b border-[color:var(--line)] px-4 py-3">
-        <span className="text-[13px] font-semibold text-[color:var(--text)]">
-          {t("comm.channels")}
-        </span>
-        <button
-          type="button"
-          onClick={onHideSidebar}
-          className="rounded-[4px] p-1 text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
-          aria-label="Hide sidebar"
-        >
-          <CaretDown size={12} className="-rotate-90" />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-2 py-2">
+      <div className="flex-1 overflow-y-auto px-2 py-3">
         {channelGroups.map((group) => (
           <div key={group.type} className="mb-3">
-            <div className="mb-1 px-2 text-[9px] font-bold uppercase tracking-[0.1em] text-[color:var(--muted)]">
+            <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
               {group.label}
             </div>
             {group.items.map((ch) => {
@@ -152,7 +136,7 @@ export function ChannelSidebar({
 
         {taskDiscussionChannels.length > 0 ? (
           <div className="mb-3">
-            <div className="mb-1 px-2 text-[9px] font-bold uppercase tracking-[0.1em] text-[color:var(--muted)]">
+            <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
               {t("comm.taskDiscussions")}
             </div>
             {taskDiscussionChannels.map((discussion) => (
@@ -164,10 +148,10 @@ export function ChannelSidebar({
                   selectedChannelKey === discussion.key ? "bg-[color:var(--panel-soft)]" : "hover:bg-[color:var(--panel-soft)]/50"
                 }`}
               >
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px]" style={{ backgroundColor: `${TERRACOTTA}18` }}>
-                  <Hash size={14} weight={selectedChannelKey === discussion.key ? "fill" : "regular"} style={{ color: TERRACOTTA }} />
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px]" style={{ backgroundColor: "var(--accent-soft)" }}>
+                  <Hash size={14} weight={selectedChannelKey === discussion.key ? "fill" : "regular"} style={{ color: "var(--accent)" }} />
                 </div>
-                <span className={`min-w-0 flex-1 truncate text-[12px] ${selectedChannelKey === discussion.key ? "font-semibold text-[color:var(--text)]" : "font-medium text-[color:var(--muted-strong)]"}`}>
+                <span className={`min-w-0 flex-1 truncate text-[13px] ${selectedChannelKey === discussion.key ? "font-semibold text-[color:var(--text)]" : "font-medium text-[color:var(--muted-strong)]"}`}>
                   {discussion.label}
                 </span>
               </button>
@@ -183,7 +167,7 @@ export function ChannelSidebar({
       </div>
 
       <div className="border-t border-[color:var(--line)] px-4 py-2">
-        <div className="flex items-center justify-between text-[10px] text-[color:var(--muted)]">
+        <div className="flex items-center justify-between text-[11px] text-[color:var(--muted)]">
           <span>{totalChannels} channels</span>
           <span>{agents.length} agents</span>
         </div>
@@ -225,21 +209,21 @@ export function FilterBar({
             onKeyDown={onSearchKeyDown}
             placeholder={t("comm.searchMessages")}
             className="w-full rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)] py-1.5 pl-8 pr-3 text-[11px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:outline-none focus:ring-1"
-            style={{ focusRingColor: TERRACOTTA } as React.CSSProperties}
+            style={{ focusRingColor: "var(--accent)" } as React.CSSProperties}
           />
         </div>
         {scopeToggle}
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className={`flex items-center gap-1.5 rounded-[6px] border px-2.5 py-1.5 text-[10px] font-medium transition ${
+          className={`flex items-center gap-1.5 rounded-[6px] border px-2.5 py-1.5 text-[11px] font-medium transition ${
             expanded || filters.channelType !== "all" || filters.priority !== "all" || filters.unreadOnly
-              ? "border-transparent text-white"
+              ? "border-transparent text-[color:var(--text-on-accent)]"
               : "border-[color:var(--line)] text-[color:var(--muted-strong)] hover:border-[color:var(--line-strong)]"
           }`}
           style={
             expanded || filters.channelType !== "all" || filters.priority !== "all" || filters.unreadOnly
-              ? { backgroundColor: TERRACOTTA }
+              ? { backgroundColor: "var(--accent)" }
               : undefined
           }
         >
@@ -259,7 +243,7 @@ export function FilterBar({
             <select
               value={filters.channelType}
               onChange={(e) => onChangeFilters({ ...filters, channelType: e.target.value as MessageChannel | "all" })}
-              className="rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)] px-2 py-1 text-[10px] font-medium text-[color:var(--text)]"
+              className="rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)] px-2 py-1 text-[11px] font-medium text-[color:var(--text)]"
             >
               <option value="all">{t("comm.allChannels")}</option>
               <option value="direct">{t("comm.direct")}</option>
@@ -271,7 +255,7 @@ export function FilterBar({
             <select
               value={filters.priority}
               onChange={(e) => onChangeFilters({ ...filters, priority: e.target.value })}
-              className="rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)] px-2 py-1 text-[10px] font-medium text-[color:var(--text)]"
+              className="rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)] px-2 py-1 text-[11px] font-medium text-[color:var(--text)]"
             >
               <option value="all">{t("comm.allPriorities")}</option>
               <option value="urgent">{t("comm.urgent")}</option>
@@ -281,10 +265,10 @@ export function FilterBar({
             <button
               type="button"
               onClick={() => onChangeFilters({ ...filters, unreadOnly: !filters.unreadOnly })}
-              className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition ${
-                filters.unreadOnly ? "text-white" : "bg-[color:var(--panel-soft)] text-[color:var(--muted-strong)]"
+              className={`rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition ${
+                filters.unreadOnly ? "text-[color:var(--text-on-accent)]" : "bg-[color:var(--panel-soft)] text-[color:var(--muted-strong)]"
               }`}
-              style={filters.unreadOnly ? { backgroundColor: TERRACOTTA } : undefined}
+              style={filters.unreadOnly ? { backgroundColor: "var(--accent)" } : undefined}
             >
               {t("comm.unreadOnly")}
             </button>
@@ -292,7 +276,7 @@ export function FilterBar({
               <button
                 type="button"
                 onClick={() => onChangeFilters({ search: filters.search, channelType: "all", priority: "all", unreadOnly: false })}
-                className="text-[10px] font-medium text-[color:var(--muted)] underline transition hover:text-[color:var(--text)]"
+                className="text-[11px] font-medium text-[color:var(--muted)] underline transition hover:text-[color:var(--text)]"
               >
                 {t("comm.clearFilters")}
               </button>

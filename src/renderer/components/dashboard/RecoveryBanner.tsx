@@ -41,7 +41,7 @@ export function RecoveryBanner() {
   const handleDismissAll = () => setDismissed(true);
 
   return (
-    <div className="bg-[color:var(--warn-soft)] border border-[color:var(--warn)]/30 rounded-[10px] p-4 mb-4">
+    <div className="bg-[color:var(--warn-soft)] border border-[color:var(--warn)]/30 rounded-[8px] px-4 py-4 mb-4">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2 text-[color:var(--warn)] font-medium">
           <Warning size={18} weight="bold" />
@@ -53,10 +53,10 @@ export function RecoveryBanner() {
       </div>
       <div className="space-y-2">
         {runs.map(run => (
-          <div key={run.runId} className="flex items-center justify-between bg-[color:var(--panel-soft)] rounded px-3 py-2 text-sm">
-            <div>
-              <span className="text-[color:var(--text)]">{run.taskTitle}</span>
-              <span className="text-[color:var(--muted)] ml-2">({run.agentName})</span>
+          <div key={run.runId} className="flex items-center justify-between bg-[color:var(--panel-soft)] rounded-[4px] px-3 py-2 text-[13px]">
+            <div className="min-w-0 flex-1">
+              <span className="truncate text-[color:var(--text)]">{run.taskTitle}</span>
+              <span className="whitespace-nowrap text-[color:var(--muted)] ml-2">({run.agentName})</span>
             </div>
             <div className="flex gap-2">
               <button

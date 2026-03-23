@@ -44,7 +44,7 @@ export function KanbanBoard({ tasks, agents, runs, onSelectTask }: KanbanProps) 
 
   if (tasks.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-[color:var(--line)] py-16 text-center">
+      <div className="flex flex-col items-center justify-center rounded-[8px] border border-dashed border-[color:var(--line)] py-16 text-center">
         <Briefcase size={32} className="mb-3 text-[color:var(--muted)]" />
         <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">No tasks yet</div>
         <div className="mt-1 text-[12px] text-[color:var(--muted)]">Tasks created by agents will appear here on the board</div>
@@ -57,11 +57,11 @@ export function KanbanBoard({ tasks, agents, runs, onSelectTask }: KanbanProps) 
       {KANBAN_COLUMNS.map((col) => {
         const colTasks = tasksByStatus[col.status] ?? [];
         return (
-          <div key={col.status} className="flex w-[220px] shrink-0 flex-col">
+          <div key={col.status} className="flex w-[220px] min-w-[180px] shrink-0 flex-col">
             <div className="mb-2 flex items-center gap-2 px-1">
-              <span className={`h-2 w-2 rounded-full ${col.dotColor}`} />
+              <span className={`h-2.5 w-2.5 rounded-full ${col.dotColor}`} aria-hidden="true" />
               <span className={`text-[11px] font-semibold uppercase tracking-[0.08em] ${col.tone}`}>{col.label}</span>
-              <span className="ml-auto rounded-full bg-[color:var(--panel-soft)] px-1.5 py-0.5 text-[10px] font-bold text-[color:var(--muted)]">
+              <span className="ml-auto rounded-full bg-[color:var(--panel-soft)] px-2 py-0.5 text-[10px] font-bold tabular-nums text-[color:var(--muted-strong)]">
                 {colTasks.length}
               </span>
             </div>
@@ -75,9 +75,9 @@ export function KanbanBoard({ tasks, agents, runs, onSelectTask }: KanbanProps) 
                     key={task.id}
                     type="button"
                     onClick={() => onSelectTask(task.id)}
-                    className={`focus-ring rounded-[6px] border border-l-[3px] border-[color:var(--line)] bg-[color:var(--panel)] px-3 py-2.5 text-left transition hover:shadow-sm ${priorityColors[task.priority] ?? ""}`}
+                    className={`focus-ring rounded-[6px] border border-l-[3px] border-[color:var(--line)] bg-[color:var(--panel)] px-3 py-2.5 text-left transition duration-150 hover:shadow-sm ${priorityColors[task.priority] ?? ""}`}
                   >
-                    <div className="text-[12px] font-medium leading-snug text-[color:var(--text)]">{task.title}</div>
+                    <div className="truncate text-[12px] font-medium leading-snug text-[color:var(--text)]">{task.title}</div>
                     <div className="mt-1.5 flex items-center gap-2">
                       {assignee ? (
                         <span className="flex items-center gap-1 text-[10px] text-[color:var(--muted)]">
@@ -88,8 +88,8 @@ export function KanbanBoard({ tasks, agents, runs, onSelectTask }: KanbanProps) 
                         <span className="text-[10px] italic text-[color:var(--muted)]">Unassigned</span>
                       )}
                       {isRunning ? (
-                        <span className="flex items-center gap-1 text-[10px] text-[color:var(--success)]">
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[color:var(--success)]" />
+                        <span className="flex items-center gap-1 whitespace-nowrap text-[10px] text-[color:var(--success)]">
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[color:var(--success)]" aria-hidden="true" />
                           Running
                         </span>
                       ) : null}

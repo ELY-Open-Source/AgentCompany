@@ -7,6 +7,7 @@ import { unwrap } from "../../lib/desktop"
 import { ActionButton, ConfirmDialog, InlineNotice, StatusPill, TextArea } from "../ui"
 import { describeActionError, parseApprovalPayloadJson } from "./execution-utils"
 import { SocialDraftPreview } from "./SocialDraftPreview"
+import { useAppStore } from "../../state/store"
 
 function getTypeBadgeClass(type: string): string {
   if (type === "hire_agent") return "bg-[color:var(--accent-soft)] text-[color:var(--accent)]"
@@ -21,6 +22,7 @@ export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide
   onDecide: (state: "approved" | "rejected" | "revision_requested", note?: string) => Promise<void>; onDeleted: () => Promise<void>
 }) {
   const t = useT()
+  const addToast = useAppStore((s) => s.addToast)
   const [decisionNote, setDecisionNote] = useState(""); const [confirmDelete, setConfirmDelete] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null); const [acting, setActing] = useState<"approved"|"rejected"|"revision_requested"|"delete"|null>(null)
   const [scheduleMode, setScheduleMode] = useState<"immediate" | "scheduled">("immediate")
@@ -59,6 +61,9 @@ export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide
         noteForDecision = noteForDecision ? `${noteForDecision} ${scheduleInfo}` : scheduleInfo
       }
       await onDecide(state, noteForDecision)
+      if (state === "approved") addToast("Approval granted — agent is moving forward", "success")
+      else if (state === "rejected") addToast("Approval rejected", "warn")
+      else if (state === "revision_requested") addToast("Revision requested — agent will revise and resubmit", "warn")
     } catch (e) {
       setActionError(describeActionError(e))
     } finally {
@@ -80,15 +85,15 @@ export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide
   })()
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <ConfirmDialog open={confirmDelete} title={t("exec.deleteApproval")} message={t("exec.deleteApprovalConfirm")} errorMessage={actionError} onConfirm={() => void handleDelete()} onCancel={() => { setActionError(null); setConfirmDelete(false) }} />
       {actionError && !confirmDelete ? <InlineNotice message={actionError} /> : null}
       <div className="border-y border-[color:var(--line)] py-4 space-y-4">
         <div className="flex items-center gap-3">
-          <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] ${getTypeBadgeClass(approval.type)}`}>{approval.type.replaceAll("_", " ")}</span>
+          <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] ${getTypeBadgeClass(approval.type)}`}>{approval.type.replaceAll("_", " ")}</span>
           <StatusPill status={approval.state} />
         </div>
-        <div className="text-[14px] font-medium text-[color:var(--text)]">{approval.payloadSummary}</div>
+        <div className="text-[13px] font-medium text-[color:var(--text)]">{approval.payloadSummary}</div>
         {approval.impactSummary ? <div className="text-[13px] text-[color:var(--muted)]">{approval.impactSummary}</div> : null}
         <div className="grid gap-2 text-[13px] md:grid-cols-2">
           <div className="flex items-center gap-2 text-[color:var(--muted)]"><Robot size={14} />Requested by: <span className="font-medium text-[color:var(--text)]">{requestingAgent?.name ?? "Unknown"}</span>{requestingAgent?.role ? <span className="text-[10px] text-[color:var(--muted)]">({requestingAgent.role})</span> : null}</div>
@@ -97,7 +102,7 @@ export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide
           {approval.updatedAt !== approval.createdAt ? <div className="text-[color:var(--muted)]">Updated: <span className="mono text-[color:var(--text)]">{formatTime(approval.updatedAt)}</span></div> : null}
         </div>
         {approval.type === "hire_agent" ? (() => { const payload = parseApprovalPayloadJson(approval); const payloadAgentId = typeof payload?.agentId === "string" ? payload.agentId : null; const reqSnap = payload?.requestedConfigurationSnapshot && typeof payload.requestedConfigurationSnapshot === "object" && !Array.isArray(payload.requestedConfigurationSnapshot) ? payload.requestedConfigurationSnapshot as Record<string, unknown> : null; const proposedAgent = (approval.relatedAgentId ? (agents.find((a) => a.id === approval.relatedAgentId) ?? null) : null) ?? (payloadAgentId ? (agents.find((a) => a.id === payloadAgentId) ?? null) : null); const mgrId = proposedAgent?.reportsTo ?? (typeof reqSnap?.reportsTo === "string" ? reqSnap.reportsTo : null); const mgr = mgrId ? (agents.find((a) => a.id === mgrId) ?? null) : null; if (!proposedAgent && !reqSnap) return null; return (
-          <div className="rounded-[8px] border border-[color:var(--accent)] border-opacity-30 bg-[color:var(--accent-soft)] px-4 py-3"><div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--accent)]">Proposed Hire</div><div className="grid gap-1.5 text-[12px]">
+          <div className="rounded-[8px] border border-[color:var(--accent)] border-opacity-30 bg-[color:var(--accent-soft)] px-4 py-3"><div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--accent)]">Proposed Hire</div><div className="grid gap-1.5 text-[12px]">
             <div><span className="text-[color:var(--muted)]">Name:</span> <span className="font-medium text-[color:var(--text)]">{proposedAgent?.name ?? approval.payloadSummary.replace(/^Hire\s+/i, "").split(/\s+as\s+/i)[0] ?? "Pending hire"}</span></div>
             <div><span className="text-[color:var(--muted)]">Role:</span> <span className="text-[color:var(--text)]">{proposedAgent?.role ?? (typeof reqSnap?.role === "string" ? reqSnap.role : "Unspecified")}</span></div>
             {(proposedAgent?.title || typeof reqSnap?.title === "string") ? <div><span className="text-[color:var(--muted)]">Title:</span> <span className="text-[color:var(--text)]">{proposedAgent?.title || reqSnap?.title as string}</span></div> : null}
@@ -106,7 +111,7 @@ export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide
             <div><span className="text-[color:var(--muted)]">Budget:</span> <span className="mono text-[color:var(--text)]">{formatMoney(proposedAgent?.budgetMonthlyUsd ?? (typeof reqSnap?.budgetMonthlyUsd === "number" ? reqSnap.budgetMonthlyUsd : 0))}/mo</span></div>
             {mgr ? <div><span className="text-[color:var(--muted)]">Reports to:</span> <span className="text-[color:var(--text)]">{mgr.name}</span></div> : null}
           </div></div>) })() : null}
-        {approval.type === "approve_ceo_strategy" ? <div className="rounded-[8px] border border-[color:var(--warn)] border-opacity-30 bg-[color:var(--warn-soft)] px-4 py-3"><div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--warn)]">Organization Strategy</div><div className="whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--text)]">{approval.payloadSummary}</div></div> : null}
+        {approval.type === "approve_ceo_strategy" ? <div className="rounded-[8px] border border-[color:var(--warn)] border-opacity-30 bg-[color:var(--warn-soft)] px-4 py-3"><div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--warn)]">Organization Strategy</div><div className="whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--text)]">{approval.payloadSummary}</div></div> : null}
         {isSocialPost && approval.payloadJson ? (
           <SocialDraftPreview
             payloadJson={approval.payloadJson}
@@ -129,7 +134,7 @@ export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide
                 onClick={() => { setScheduleMode("immediate"); setScheduleError(null) }}
                 onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { setScheduleMode("immediate"); setScheduleError(null) } }}
               >
-                {scheduleMode === "immediate" ? <span className="h-2 w-2 rounded-full bg-[color:var(--accent)]" /> : null}
+                {scheduleMode === "immediate" ? <span className="h-2 w-2 rounded-full bg-[color:var(--accent)]" aria-hidden="true" /> : null}
               </span>
               <span className="text-[13px] font-medium text-[color:var(--text)]">Post immediately</span>
             </label>
@@ -142,7 +147,7 @@ export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide
                 onClick={() => setScheduleMode("scheduled")}
                 onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") setScheduleMode("scheduled") }}
               >
-                {scheduleMode === "scheduled" ? <span className="h-2 w-2 rounded-full bg-[color:var(--accent)]" /> : null}
+                {scheduleMode === "scheduled" ? <span className="h-2 w-2 rounded-full bg-[color:var(--accent)]" aria-hidden="true" /> : null}
               </span>
               <span className="text-[13px] font-medium text-[color:var(--text)]">Schedule for later</span>
             </label>
@@ -163,7 +168,7 @@ export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide
         </div>
       ) : null}
 
-      {!isDecided ? <div><label className="mb-1 block text-[11px] font-semibold text-[color:var(--muted)]">Decision note</label><TextArea value={decisionNote} onChange={setDecisionNote} placeholder="Add a note (optional)" rows={3} /></div> : null}
+      {!isDecided ? <div><label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Decision note</label><TextArea value={decisionNote} onChange={setDecisionNote} placeholder="Add a note (optional)" rows={3} /></div> : null}
       <div className="flex flex-wrap gap-3">
         {!isDecided ? <>
           <ActionButton

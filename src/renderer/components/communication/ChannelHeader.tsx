@@ -1,16 +1,6 @@
 import type { AgentMessageRecord, CommentRecord, TaskRecord, MessageChannel } from "@shared/types"
-import { ChatCircle, Hash, CaretDown } from "@phosphor-icons/react"
+import { CaretDown } from "@phosphor-icons/react"
 import { useT } from "../../i18n"
-
-const channelConfig: Record<MessageChannel, { label: string; icon: React.ElementType; color: string }> = {
-  direct: { label: "Direct Messages", icon: ChatCircle, color: "var(--accent)" },
-  department: { label: "Department", icon: ChatCircle, color: "#6366f1" },
-  company: { label: "Company-wide", icon: ChatCircle, color: "#d97745" },
-  project: { label: "Project", icon: Hash, color: "#10b981" },
-  incident: { label: "Incident", icon: ChatCircle, color: "var(--danger)" },
-}
-
-const TERRACOTTA = "#d97745"
 
 export interface ChannelDescriptor {
   key: string
@@ -70,51 +60,19 @@ export function ChannelHeader({
       ) : null}
 
       {activeChannel ? (
-        <>
-          {activeChannel.kind === "message" ? (() => {
-            const Icon = channelConfig[activeChannel.channel].icon
-            return (
-              <Icon
-                size={16}
-                weight="fill"
-                style={{
-                  color: channelConfig[activeChannel.channel].color,
-                }}
-              />
-            )
-          })() : (
-            <Hash size={16} weight="fill" style={{ color: TERRACOTTA }} />
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="text-[13px] font-semibold text-[color:var(--text)]">
-              {activeChannel.label}
-            </div>
-            <div className="text-[10px] text-[color:var(--muted)]">
-              {activeChannel.kind === "message"
-                ? `${channelMessages.length} message${channelMessages.length !== 1 ? "s" : ""}${(() => {
-                  const stats = unreadByChannel.get(activeChannel.key)
-                  return stats?.unread ? ` (${stats.unread} unread)` : ""
-                })()}`
-                : `${taskDiscussionComments.length} comment${taskDiscussionComments.length !== 1 ? "s" : ""}${activeTask ? ` · ${activeTask.status.replaceAll("_", " ")}` : ""}`}
-            </div>
-          </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-semibold text-[color:var(--text)]">{activeChannel.label}</div>
           {activeChannel.kind === "task" && activeTask ? (
-            <button
-              type="button"
-              onClick={() => onNavigateToTask(activeTask.id)}
-              className="rounded-[6px] border border-[color:var(--line)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--muted-strong)] transition hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)]"
-            >
+            <button type="button" onClick={() => onNavigateToTask(activeTask.id)} className="mt-0.5 text-[11px] font-medium text-[color:var(--accent)] transition hover:underline">
               Open task
             </button>
           ) : null}
-        </>
+        </div>
       ) : (
-        <span className="text-[13px] text-[color:var(--muted)]">
-          {t("comm.selectChannel")}
-        </span>
+        <span className="text-[13px] text-[color:var(--muted)]">{t("comm.selectChannel")}</span>
       )}
 
-      <div className="ml-auto w-[320px]">
+      <div className="ml-auto w-full max-w-[320px]">
         {filterBar}
       </div>
     </div>

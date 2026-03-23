@@ -52,7 +52,7 @@ export function SocialAccountsPanel({
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[color:var(--accent-soft)]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-[color:var(--accent-soft)]">
             <Megaphone size={20} weight="fill" className="text-[color:var(--accent)]" />
           </div>
           <div>
@@ -70,7 +70,7 @@ export function SocialAccountsPanel({
         />
       </div>
 
-      <div className="rounded-[10px] border border-[color:var(--accent)] border-opacity-20 bg-[color:var(--accent-soft)] px-4 py-3">
+      <div className="rounded-[8px] border border-[color:var(--accent)] border-opacity-20 bg-[color:var(--accent-soft)] px-4 py-3">
         <div className="flex items-start gap-2 text-[12px] text-[color:var(--accent)]">
           <Browser size={16} className="mt-0.5 shrink-0" />
           <div>
@@ -111,7 +111,7 @@ export function SocialAccountsPanel({
 
       {activeTab === "accounts" ? (
         accounts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-[color:var(--line)] py-16 text-center">
+          <div className="flex flex-col items-center justify-center rounded-[8px] border border-dashed border-[color:var(--line)] py-16 text-center">
             <Megaphone size={32} className="mb-3 text-[color:var(--muted)]" />
             <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">{t("social.noAccounts")}</div>
             <div className="mt-1 text-[12px] text-[color:var(--muted)]">

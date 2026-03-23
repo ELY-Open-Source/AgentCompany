@@ -40,7 +40,7 @@ export function CompactMetric({ label, value, tone = "default", subtitle }: {
   };
 
   return (
-    <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3">
+    <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3">
       <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{label}</div>
       <div className={`text-[22px] font-bold ${toneMap[tone]}`}>{value}</div>
       {subtitle ? <div className="text-[10px] text-[color:var(--muted)]">{subtitle}</div> : null}

@@ -17,7 +17,7 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
   const cardContent = (
     <>
       <div className="flex items-center gap-2">
-        <span className="text-[13px] font-semibold text-[color:var(--text)]">{account.displayName || account.accountName}</span>
+        <span className="truncate text-[13px] font-bold text-[color:var(--text)]">{account.displayName || account.accountName}</span>
         <span
           className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em]"
           style={{ backgroundColor: platform.bgColor, color: platform.color }}
@@ -26,7 +26,7 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
         </span>
       </div>
       <div className="mt-0.5 flex items-center gap-2 text-[11px] text-[color:var(--muted)]">
-        <span>@{account.accountName}</span>
+        <span className="truncate">@{account.accountName}</span>
         {account.requireApproval ? (
           <span className="flex items-center gap-1 text-[color:var(--warn)]">
             <ShieldCheck size={10} />
@@ -39,9 +39,9 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
   );
 
   return (
-    <div className="group flex items-center gap-3 rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3 transition hover:border-[color:var(--line-strong)] hover:shadow-sm">
+    <div className="group flex items-center gap-3 rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3.5 transition duration-150 hover:border-[color:var(--line-strong)] hover:shadow-md hover:-translate-y-px">
       <div
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px]"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px]"
         style={{ backgroundColor: platform.bgColor, color: platform.color }}
       >
         <PlatformIcon size={18} weight="fill" />
@@ -78,7 +78,7 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
           <button
             type="button"
             onClick={onLogin}
-            className="flex items-center gap-1 rounded-[6px] bg-[color:var(--accent)] px-2.5 py-1.5 text-[10px] font-semibold text-white transition hover:opacity-90"
+            className="flex items-center gap-1 rounded-[6px] bg-[color:var(--accent)] px-2.5 py-1.5 text-[10px] font-semibold text-[color:var(--text-on-accent)] transition hover:opacity-90"
           >
             <SignIn size={12} />
             Login
@@ -88,7 +88,8 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
         <button
           type="button"
           onClick={onDelete}
-          className="rounded-[6px] p-1.5 text-[color:var(--muted)] opacity-0 transition hover:bg-[color:var(--danger-soft)] hover:text-[color:var(--danger)] group-hover:opacity-100"
+          aria-label="Delete account"
+          className="rounded-[6px] p-1.5 text-[color:var(--muted)] opacity-0 transition hover:bg-[color:var(--danger-soft)] hover:text-[color:var(--danger)] group-hover:opacity-100 group-focus-within:opacity-100"
         >
           <Trash size={14} />
         </button>

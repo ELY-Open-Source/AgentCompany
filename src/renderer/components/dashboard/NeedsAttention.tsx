@@ -121,7 +121,7 @@ export function NeedsAttention({
             <Cpu size={18} className="shrink-0 text-[color:var(--warn)]" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{action.resultSummary || action.actionType}</div>
-              <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">Browser action {action.status.replaceAll("_", " ")}</div>
+              <div className="mt-0.5 whitespace-nowrap text-[11px] text-[color:var(--muted)]">Browser action {action.status.replaceAll("_", " ")}</div>
             </div>
             <ArrowRight size={14} className="shrink-0 text-[color:var(--muted)]" />
           </button>
@@ -136,7 +136,7 @@ export function NeedsAttention({
             <Lightning size={18} className="shrink-0 text-[color:var(--warn)]" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{workflow.name}</div>
-              <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">Workflow {workflow.status}</div>
+              <div className="mt-0.5 whitespace-nowrap text-[11px] text-[color:var(--muted)]">Workflow {workflow.status}</div>
             </div>
             <ArrowRight size={14} className="shrink-0 text-[color:var(--muted)]" />
           </button>

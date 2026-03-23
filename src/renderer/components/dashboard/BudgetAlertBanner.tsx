@@ -49,7 +49,7 @@ export function BudgetAlertBanner({ agents, onNavigate }: BudgetAlertBannerProps
     <div
       role="alert"
       aria-live="assertive"
-      className="rounded-[10px] border border-[color:var(--warn)] border-opacity-30 bg-[color:var(--warn-soft)] px-4 py-3"
+      className="rounded-[8px] border border-[color:var(--warn)] border-opacity-30 bg-[color:var(--warn-soft)] px-4 py-3"
     >
       <div className="flex items-start gap-3">
         {/* Icon */}
@@ -69,11 +69,12 @@ export function BudgetAlertBanner({ agents, onNavigate }: BudgetAlertBannerProps
             {agentsOverThreshold.map((agent) => (
               <span
                 key={agent.id}
-                className={`text-[11px] font-[family-name:var(--font-mono)] ${
+                className={`whitespace-nowrap text-[11px] font-[family-name:var(--font-mono)] ${
                   agent.pct >= 100
                     ? "text-[color:var(--danger)]"
                     : "text-[color:var(--warn)]"
                 }`}
+                style={{ fontVariantNumeric: "tabular-nums" }}
               >
                 {agent.name} ({agent.pct}%)
               </span>

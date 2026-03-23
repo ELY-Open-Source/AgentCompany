@@ -28,7 +28,7 @@ export function AddAccountDialog({ onAdd, onClose }: AddAccountDialogProps) {
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="w-full max-w-[420px] rounded-[14px] border border-[color:var(--line)] bg-[color:var(--panel)] p-6 shadow-xl"
+        className="w-full max-w-[420px] rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">

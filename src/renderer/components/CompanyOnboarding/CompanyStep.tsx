@@ -54,7 +54,7 @@ export function CompanyStep({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -18 }}
       transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-      className="surface w-full rounded-[12px] p-7"
+      className="surface w-full rounded-[8px] p-7"
     >
       <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
         {t("onboarding.stepLabel1")} 1 / 3
@@ -87,7 +87,7 @@ export function CompanyStep({
             label: connector.label,
           }))}
         />
-        <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3 text-[12px] leading-relaxed text-[color:var(--muted)]">
+        <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3 text-[12px] leading-relaxed text-[color:var(--muted)]">
           {t("onboarding.connectorInfo")}
         </div>
         <div>
@@ -130,7 +130,7 @@ export function CompanyStep({
       </div>
 
       {error ? (
-        <div className="mt-5 rounded-[10px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
+        <div className="mt-5 rounded-[8px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
           {error}
         </div>
       ) : null}

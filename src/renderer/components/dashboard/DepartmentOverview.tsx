@@ -19,12 +19,12 @@ const DEPARTMENT_INFO: Record<string, { label: string; icon: React.ElementType; 
   engineering: { label: "Engineering", icon: Cpu, color: "#6366f1" },
   product: { label: "Product", icon: Rocket, color: "#8b5cf6" },
   design: { label: "Design", icon: Target, color: "#ec4899" },
-  marketing: { label: "Marketing", icon: TrendUp, color: "#f59e0b" },
+  marketing: { label: "Marketing", icon: TrendUp, color: "#0ea5e9" },
   sales: { label: "Sales", icon: ChartLineUp, color: "#10b981" },
   hr: { label: "People", icon: Users, color: "#06b6d4" },
   finance: { label: "Finance", icon: CurrencyCircleDollar, color: "#14b8a6" },
   legal: { label: "Legal", icon: ShieldCheck, color: "#64748b" },
-  operations: { label: "Operations", icon: Lightning, color: "#f97316" },
+  operations: { label: "Operations", icon: Lightning, color: "#475569" },
   customer_support: { label: "Support", icon: Heartbeat, color: "#3b82f6" },
   research: { label: "Research", icon: Target, color: "#a855f7" },
 };
@@ -88,12 +88,12 @@ export function DepartmentOverview({
             key={deptId}
             type="button"
             onClick={() => onNavigate("agents")}
-            className="focus-ring group relative overflow-hidden rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] p-3 text-left transition hover:border-[color:var(--line-strong)] hover:shadow-sm"
+            className="focus-ring group relative overflow-hidden rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] p-3.5 text-left transition duration-150 hover:border-[color:var(--line-strong)] hover:shadow-sm"
           >
             <div className="absolute left-0 top-0 h-full w-[3px]" style={{ backgroundColor: info.color }} />
             <div className="flex items-center gap-2 pl-1">
-              <Icon size={14} style={{ color: info.color }} />
-              <span className="text-[11px] font-semibold text-[color:var(--text)]">{info.label}</span>
+              <Icon size={15} weight="fill" style={{ color: info.color }} />
+              <span className="truncate text-[11px] font-medium text-[color:var(--text)]">{info.label}</span>
               {runningAgents > 0 && (
                 <span className="ml-auto flex items-center gap-1">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[color:var(--success)]" />
@@ -103,18 +103,18 @@ export function DepartmentOverview({
             </div>
             <div className="mt-2 grid grid-cols-3 gap-1 pl-1">
               <div>
-                <div className="text-[14px] font-bold text-[color:var(--text)]">{data.agents.length}</div>
-                <div className="text-[8px] uppercase tracking-[0.1em] text-[color:var(--muted)]">People</div>
+                <div className="text-[16px] font-bold tabular-nums text-[color:var(--text)]">{data.agents.length}</div>
+                <div className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">People</div>
               </div>
               <div>
-                <div className="text-[14px] font-bold text-[color:var(--accent)]">{activeTasks}</div>
-                <div className="text-[8px] uppercase tracking-[0.1em] text-[color:var(--muted)]">Active</div>
+                <div className="text-[16px] font-bold tabular-nums text-[color:var(--accent)]">{activeTasks}</div>
+                <div className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Active</div>
               </div>
               <div>
-                <div className={`text-[14px] font-bold ${blockedTasks > 0 ? "text-[color:var(--danger)]" : "text-[color:var(--success)]"}`}>
+                <div className={`text-[16px] font-bold tabular-nums ${blockedTasks > 0 ? "text-[color:var(--danger)]" : "text-[color:var(--success)]"}`}>
                   {blockedTasks > 0 ? blockedTasks : doneTasks}
                 </div>
-                <div className="text-[8px] uppercase tracking-[0.1em] text-[color:var(--muted)]">
+                <div className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
                   {blockedTasks > 0 ? "Blocked" : "Done"}
                 </div>
               </div>

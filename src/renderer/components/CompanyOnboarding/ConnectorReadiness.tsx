@@ -75,7 +75,7 @@ export function ConnectorReadiness({
         })}
       </div>
       {!hasRunnableConnector ? (
-        <div className="mt-4 rounded-[10px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-4 py-3 text-[12px] text-[color:var(--warn)]">
+        <div className="mt-4 rounded-[8px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-4 py-3 text-[12px] text-[color:var(--warn)]">
           {t("onboarding.connectorWarning")}
         </div>
       ) : null}

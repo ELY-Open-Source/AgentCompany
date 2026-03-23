@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { motion } from "framer-motion";
 import { Target } from "@phosphor-icons/react";
 import type { GoalRecord, SectionId, TaskRecord } from "@shared/types";
 
@@ -21,24 +20,22 @@ export function GoalProgress({ goals, tasks, onNavigate }: { goals: GoalRecord[]
             key={goal.id}
             type="button"
             onClick={() => onNavigate("goals")}
-            className="focus-ring w-full rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3 text-left transition hover:border-[color:var(--line-strong)]"
+            className="focus-ring w-full rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3.5 text-left transition hover:border-[color:var(--line-strong)] hover:shadow-sm"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Target size={14} className="text-[color:var(--accent)]" />
-                <span className="text-[12px] font-medium text-[color:var(--text)]">{goal.title}</span>
+                <Target size={15} weight="fill" className="text-[color:var(--accent)]" />
+                <span className="truncate text-[13px] font-medium text-[color:var(--text)]">{goal.title}</span>
               </div>
-              <span className="text-[11px] font-bold text-[color:var(--accent)]">{pct}%</span>
+              <span className="whitespace-nowrap text-[13px] font-bold tabular-nums text-[color:var(--accent)]">{pct}%</span>
             </div>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[color:var(--panel-soft)]">
-              <motion.div
-                className="h-full rounded-full bg-[color:var(--accent)]"
-                initial={{ width: 0 }}
-                animate={{ width: `${pct}%` }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
+            <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-[color:var(--panel-soft)]">
+              <div
+                className="h-full rounded-full bg-[color:var(--accent)] transition-all duration-700 ease-out"
+                style={{ width: `${pct}%` }}
               />
             </div>
-            <div className="mt-1 text-[10px] text-[color:var(--muted)]">{done}/{total} tasks complete</div>
+            <div className="mt-1.5 text-[11px] text-[color:var(--muted)]" style={{ fontVariantNumeric: "tabular-nums" }}>{done}/{total} tasks complete</div>
           </button>
         );
       })}

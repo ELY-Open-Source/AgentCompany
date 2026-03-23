@@ -58,14 +58,14 @@ export function Inbox({ items, onNavigate }: InboxProps) {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[color:var(--accent-soft)]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-[color:var(--accent-soft)]">
             <Bell size={20} weight="fill" className="text-[color:var(--accent)]" />
           </div>
           <div>
-            <h2 className="text-[16px] font-bold text-[color:var(--text)]">{t("inbox.title")}</h2>
+            <h2 className="text-[18px] font-bold tracking-[-0.02em] text-[color:var(--text)]">{t("inbox.title")}</h2>
             <p className="text-[12px] text-[color:var(--muted)]">
               {counts.all} item{counts.all !== 1 ? "s" : ""} need{counts.all === 1 ? "s" : ""} your attention
             </p>
@@ -81,14 +81,14 @@ export function Inbox({ items, onNavigate }: InboxProps) {
             onClick={() => setFilter(btn.key)}
             className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition ${
               filter === btn.key
-                ? "bg-[color:var(--accent)] text-white"
+                ? "bg-[color:var(--accent)] text-[color:var(--text-on-accent)]"
                 : "bg-[color:var(--panel-soft)] text-[color:var(--muted-strong)] hover:bg-[color:var(--line)]"
             }`}
           >
             {btn.label}
             {btn.count > 0 ? (
               <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
-                filter === btn.key ? "bg-white/20 text-white" : "bg-[color:var(--line)] text-[color:var(--muted)]"
+                filter === btn.key ? "bg-[color:var(--text-on-accent)]/20 text-[color:var(--text-on-accent)]" : "bg-[color:var(--line)] text-[color:var(--muted)]"
               }`}>
                 {btn.count}
               </span>
@@ -98,7 +98,7 @@ export function Inbox({ items, onNavigate }: InboxProps) {
       </div>
 
       {filteredItems.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-[color:var(--line)] py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-[8px] border border-dashed border-[color:var(--line)] py-16 text-center">
           <Tray size={32} className="mb-3 text-[color:var(--muted)]" />
           <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">{t("inbox.allClear")}</div>
           <div className="mt-1 text-[12px] text-[color:var(--muted)]">{t("inbox.noItemsNow")}</div>
@@ -115,7 +115,7 @@ export function Inbox({ items, onNavigate }: InboxProps) {
                   initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: 20 }}
-                  className={`group flex items-center gap-3 rounded-[8px] border border-l-[3px] border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3 transition hover:border-[color:var(--line-strong)] hover:shadow-sm ${severityColors[item.severity] ?? ""}`}
+                  className={`group flex items-center gap-3 rounded-[8px] border border-l-[3px] border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3 transition duration-150 hover:border-[color:var(--line-strong)] hover:shadow-md hover:-translate-y-px ${severityColors[item.severity] ?? ""}`}
                 >
                   <div
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px]"
@@ -144,11 +144,11 @@ export function Inbox({ items, onNavigate }: InboxProps) {
                           {item.agentName}
                         </span>
                       ) : null}
-                      <span>{item.subtitle.slice(0, 80)}</span>
-                      <span className="shrink-0">{timeAgo(item.createdAt)}</span>
+                      <span className="truncate">{item.subtitle.slice(0, 80)}</span>
+                      <span className="shrink-0 tabular-nums">{timeAgo(item.createdAt)}</span>
                     </div>
                   </button>
-                  <ArrowRight size={14} className="shrink-0 text-[color:var(--muted)] opacity-0 transition group-hover:opacity-100" />
+                  <ArrowRight size={14} className="shrink-0 text-[color:var(--muted)] opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100" />
                 </motion.div>
               );
             })}

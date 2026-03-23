@@ -18,7 +18,7 @@ export function StandupView({ report, onNavigate }: StandupProps) {
   const t = useT();
   if (!report) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-[color:var(--line)] py-16 text-center">
+      <div className="flex flex-col items-center justify-center rounded-[8px] border border-dashed border-[color:var(--line)] py-16 text-center">
         <Clock size={32} className="mb-3 text-[color:var(--muted)]" />
         <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">{t("standup.noData")}</div>
         <div className="mt-1 text-[12px] text-[color:var(--muted)]">{t("standup.noDataDesc")}</div>
@@ -28,9 +28,9 @@ export function StandupView({ report, onNavigate }: StandupProps) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[12px] border border-[color:var(--line)] bg-[color:var(--panel)] p-5">
+      <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] p-5">
         <div className="flex items-center gap-3 mb-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[color:var(--accent-soft)]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-[color:var(--accent-soft)]">
             <Heartbeat size={20} weight="fill" className="text-[color:var(--accent)]" />
           </div>
           <div>
@@ -43,22 +43,22 @@ export function StandupView({ report, onNavigate }: StandupProps) {
         <div className="text-[14px] font-medium text-[color:var(--text)]">{report.summary}</div>
         <div className="mt-3 flex gap-4">
           <div className="text-center">
-            <div className="text-[18px] font-bold text-[color:var(--success)]">{report.agentReports.filter(r => r.tasksCompleted24h > 0).length}</div>
+            <div className="text-[18px] font-bold tabular-nums text-[color:var(--success)]">{report.agentReports.filter(r => r.tasksCompleted24h > 0).length}</div>
             <div className="text-[10px] text-[color:var(--muted)]">{t("standup.productive")}</div>
           </div>
           <div className="h-10 w-px bg-[color:var(--line)]" />
           <div className="text-center">
-            <div className="text-[18px] font-bold text-[color:var(--danger)]">{report.blockers.length}</div>
+            <div className="text-[18px] font-bold tabular-nums text-[color:var(--danger)]">{report.blockers.length}</div>
             <div className="text-[10px] text-[color:var(--muted)]">{t("standup.blockers")}</div>
           </div>
           <div className="h-10 w-px bg-[color:var(--line)]" />
           <div className="text-center">
-            <div className="text-[18px] font-bold text-[color:var(--warn)]">{report.pendingApprovals}</div>
+            <div className="text-[18px] font-bold tabular-nums text-[color:var(--warn)]">{report.pendingApprovals}</div>
             <div className="text-[10px] text-[color:var(--muted)]">{t("standup.pendingApprovals")}</div>
           </div>
           <div className="h-10 w-px bg-[color:var(--line)]" />
           <div className="text-center">
-            <div className={`text-[18px] font-bold ${report.budgetUtilization > 80 ? "text-[color:var(--danger)]" : "text-[color:var(--text)]"}`}>
+            <div className={`text-[18px] font-bold tabular-nums ${report.budgetUtilization > 80 ? "text-[color:var(--danger)]" : "text-[color:var(--text)]"}`}>
               {report.budgetUtilization}%
             </div>
             <div className="text-[10px] text-[color:var(--muted)]">{t("standup.budgetUsed")}</div>
@@ -114,7 +114,7 @@ export function StandupView({ report, onNavigate }: StandupProps) {
                 </div>
                 {ar.status === "running" ? (
                   <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--success)] opacity-40" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--success)] opacity-40" style={{ willChange: "transform" }} />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-[color:var(--success)]" />
                   </span>
                 ) : null}
@@ -128,7 +128,7 @@ export function StandupView({ report, onNavigate }: StandupProps) {
                   {ar.tasksInProgress > 0 ? <span className="text-[color:var(--accent)]">{ar.tasksInProgress} in progress</span> : null}
                   {ar.tasksCompleted24h > 0 ? <span className="text-[color:var(--success)]">{ar.tasksCompleted24h} done</span> : null}
                   {ar.tasksBlocked > 0 ? <span className="text-[color:var(--danger)]">{ar.tasksBlocked} blocked</span> : null}
-                  {ar.costLast24h > 0 ? <span>${ar.costLast24h.toFixed(2)}</span> : null}
+                  {ar.costLast24h > 0 ? <span className="tabular-nums">${ar.costLast24h.toFixed(2)}</span> : null}
                 </div>
                 {ar.highlights.length > 0 ? (
                   <div className="mt-1 text-[10px] text-[color:var(--muted)]">{ar.highlights.join(" \u00B7 ")}</div>

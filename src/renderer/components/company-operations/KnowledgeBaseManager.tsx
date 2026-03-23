@@ -77,8 +77,8 @@ export function KnowledgeBaseManager({ companyId, entries, onRefresh }: {
               </button>
               <div className="flex items-center gap-2">
                 <StatusPill status={entry.importance} />
-                <button type="button" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--text)]" onClick={() => setEditingId(entry.id)}><NotePencil size={14} /></button>
-                <button type="button" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--danger)]" onClick={() => setDeleteId(entry.id)}><Trash size={14} /></button>
+                <button type="button" aria-label="Edit entry" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--text)]" onClick={() => setEditingId(entry.id)}><NotePencil size={14} /></button>
+                <button type="button" aria-label="Delete entry" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--danger)]" onClick={() => setDeleteId(entry.id)}><Trash size={14} /></button>
               </div>
             </div>
           </ListRow>

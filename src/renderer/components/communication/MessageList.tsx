@@ -121,7 +121,7 @@ export function MessageList({
             : t("comm.noMessagesChannel")}
         </div>
         {(filters.search || filters.unreadOnly || filters.priority !== "all") ? (
-          <div className="mt-1 text-[12px] text-[color:var(--muted)]">{t("comm.adjustFilters")}</div>
+          <div className="mt-1 text-[13px] text-[color:var(--muted)]">{t("comm.adjustFilters")}</div>
         ) : null}
       </div>
     )

@@ -1,3 +1,4 @@
+import { memo } from "react"
 import { motion } from "framer-motion"
 import {
   ChatCircle,
@@ -11,7 +12,6 @@ import type { AgentMessageRecord, AgentRecord, CommentRecord, DepartmentId } fro
 import { getAgentInitials, formatMessageTime } from "../../lib/formatters"
 import { DEPARTMENT_COLORS } from "@shared/constants"
 
-const TERRACOTTA = "#d97745"
 
 const priorityConfig: Record<string, { label: string; color: string; bg: string }> = {
   urgent: { label: "Urgent", color: "var(--danger)", bg: "var(--danger-soft)" },
@@ -24,7 +24,7 @@ function getDepartmentColor(department: DepartmentId | null | undefined): string
   return DEPARTMENT_COLORS[department] ?? "var(--muted)"
 }
 
-export function AgentAvatar({
+export const AgentAvatar = memo(function AgentAvatar({
   agent,
   size = "md",
 }: {
@@ -43,9 +43,9 @@ export function AgentAvatar({
       {initials}
     </div>
   )
-}
+})
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   message,
   agent,
   isThread,
@@ -67,7 +67,7 @@ export function MessageBubble({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className={`group relative flex gap-3 rounded-[10px] px-4 py-3 transition ${
+      className={`group relative flex gap-3 rounded-[8px] px-4 py-3 transition ${
         isThread ? "ml-11" : ""
       } ${
         isUnread
@@ -82,21 +82,21 @@ export function MessageBubble({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-[13px] font-semibold" style={{ color: deptColor }}>
+          <span className="truncate text-[13px] font-semibold" style={{ color: deptColor }}>
             {agent?.name ?? "Unknown Agent"}
           </span>
           {agent?.title ? (
-            <span className="text-[10px] text-[color:var(--muted)]">{agent.title}</span>
+            <span className="truncate text-[11px] text-[color:var(--muted)]">{agent.title}</span>
           ) : null}
           {agent?.department ? (
             <span
-              className="rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em]"
+              className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em]"
               style={{ backgroundColor: `${deptColor}15`, color: deptColor }}
             >
               {agent.department.replace("_", " ")}
             </span>
           ) : null}
-          <span className="text-[10px] text-[color:var(--muted)]">
+          <span className="whitespace-nowrap shrink-0 text-[11px] text-[color:var(--muted)]">
             {formatMessageTime(message.createdAt)}
           </span>
           {message.priority !== "normal" ? (
@@ -112,23 +112,23 @@ export function MessageBubble({
             </span>
           ) : null}
           {isUnread ? (
-            <Circle size={8} weight="fill" className="shrink-0" style={{ color: TERRACOTTA }} />
+            <Circle size={8} weight="fill" className="shrink-0" style={{ color: "var(--accent)" }} aria-label="Unread" />
           ) : (
             <CheckCircle
               size={10}
               weight="fill"
-              className="shrink-0 text-[color:var(--muted)] opacity-0 group-hover:opacity-60"
+              className="shrink-0 text-[color:var(--muted)] opacity-0 group-hover:opacity-60 group-focus-within:opacity-60"
             />
           )}
         </div>
 
         {message.subject ? (
-          <div className="mt-0.5 text-[13px] font-medium text-[color:var(--text)]">
+          <div className="mt-0.5 break-words text-[13px] font-medium text-[color:var(--text)]">
             {message.subject}
           </div>
         ) : null}
 
-        <div className="mt-1 whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--muted-strong)]">
+        <div className="mt-1 break-words whitespace-pre-wrap text-[13px] leading-relaxed text-[color:var(--muted-strong)]">
           {message.body}
         </div>
 
@@ -142,7 +142,7 @@ export function MessageBubble({
               type="button"
               onClick={onReply}
               className="flex items-center gap-1.5 text-[11px] font-medium transition hover:opacity-80"
-              style={{ color: TERRACOTTA }}
+              style={{ color: "var(--accent)" }}
             >
               <ChatCircle size={12} />
               {replyCount} {replyCount === 1 ? "reply" : "replies"}
@@ -151,7 +151,7 @@ export function MessageBubble({
           <button
             type="button"
             onClick={onReply}
-            className="flex items-center gap-1 rounded-[5px] px-2 py-0.5 text-[10px] font-medium text-[color:var(--muted)] opacity-0 transition hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)] group-hover:opacity-100"
+            className="flex items-center gap-1 rounded-[6px] px-2 py-0.5 text-[11px] font-medium text-[color:var(--muted)] opacity-0 transition hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)] group-hover:opacity-100"
           >
             <ArrowBendUpLeft size={10} />
             Reply
@@ -160,7 +160,7 @@ export function MessageBubble({
       </div>
     </motion.div>
   )
-}
+})
 
 export function TaskCommentBubble({
   comment,
@@ -177,19 +177,19 @@ export function TaskCommentBubble({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18 }}
-      className="group relative flex gap-3 rounded-[10px] border-l-[3px] bg-[color:var(--panel)] px-4 py-3"
-      style={{ borderLeftColor: isBoard ? TERRACOTTA : deptColor }}
+      className="group relative flex gap-3 rounded-[8px] border-l-[3px] bg-[color:var(--panel)] px-4 py-3"
+      style={{ borderLeftColor: isBoard ? "var(--accent)" : deptColor }}
     >
       <AgentAvatar agent={agent} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-[13px] font-semibold" style={{ color: isBoard ? TERRACOTTA : deptColor }}>
+          <span className="truncate text-[13px] font-semibold" style={{ color: isBoard ? "var(--accent)" : deptColor }}>
             {comment.authorName}
           </span>
-          {agent?.title ? <span className="text-[10px] text-[color:var(--muted)]">{agent.title}</span> : null}
-          <span className="text-[10px] text-[color:var(--muted)]">{formatMessageTime(comment.createdAt)}</span>
+          {agent?.title ? <span className="truncate text-[11px] text-[color:var(--muted)]">{agent.title}</span> : null}
+          <span className="whitespace-nowrap shrink-0 text-[11px] text-[color:var(--muted)]">{formatMessageTime(comment.createdAt)}</span>
         </div>
-        <div className="mt-1 whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--muted-strong)]">
+        <div className="mt-1 break-words whitespace-pre-wrap text-[13px] leading-relaxed text-[color:var(--muted-strong)]">
           {comment.body}
         </div>
       </div>
@@ -211,7 +211,7 @@ function AttachmentList({ json }: { json: string }) {
       {items.map((item, i) => (
         <span
           key={`${item.id}-${i}`}
-          className="inline-flex items-center gap-1 rounded-[5px] bg-[color:var(--panel-soft)] px-2 py-1 text-[10px] font-medium text-[color:var(--muted-strong)]"
+          className="inline-flex items-center gap-1 rounded-[6px] bg-[color:var(--panel-soft)] px-2 py-1 text-[11px] font-medium text-[color:var(--muted-strong)]"
         >
           <At size={10} className="text-[color:var(--muted)]" />
           {item.title || `${item.type}:${item.id.slice(0, 8)}`}

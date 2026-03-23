@@ -18,13 +18,13 @@ export function TaskQueue({ tasks, runs, selectedTaskId, onSelect }: { tasks: Ta
     overscan: 10,
   })
 
-  if (tasks.length === 0) return <EmptyState title={t("exec.taskQueueEmpty")} />
+  if (tasks.length === 0) return <EmptyState title={t("exec.taskQueueEmpty")} detail={t("exec.taskQueueEmptyDetail")} />
   return (
     <div
       ref={parentRef}
       className="h-full overflow-auto border-y border-[color:var(--line)]"
       role="listbox"
-      aria-label={t("exec.taskQueueEmpty")}
+      aria-label="Task queue"
       onKeyDown={handleKeyDown}
     >
       <div
@@ -55,7 +55,7 @@ export function TaskQueue({ tasks, runs, selectedTaskId, onSelect }: { tasks: Ta
               className={`focus-ring outline-none ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--accent)] ring-inset" : ""}`}
             >
               <button
-                className={`relative w-full border-b border-[color:var(--line)] px-5 py-4 text-left transition last:border-b-0 ${selectedTaskId === task.id ? "bg-transparent" : "bg-transparent hover:bg-[color:var(--panel-soft)]"}`}
+                className={`relative w-full border-b border-[color:var(--line)] px-4 py-3 text-left transition duration-150 last:border-b-0 ${selectedTaskId === task.id ? "bg-[color:var(--accent-soft)] border-l-[3px] border-l-[color:var(--accent)]" : "bg-transparent hover:bg-[color:var(--panel-soft)]"}`}
                 onClick={() => onSelect(task.id)}
                 tabIndex={-1}
               >
@@ -63,7 +63,7 @@ export function TaskQueue({ tasks, runs, selectedTaskId, onSelect }: { tasks: Ta
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-2.5">
                     <PriorityDot priority={task.priority} />
-                    <div className={`truncate text-[14px] text-[color:var(--text)] ${selectedTaskId === task.id ? "font-semibold" : "font-medium"}`}>{task.title}</div>
+                    <div className={`truncate text-[13px] text-[color:var(--text)] ${selectedTaskId === task.id ? "font-semibold" : "font-medium"}`}>{task.title}</div>
                   </div>
                   <StatusPill status={activeRun?.status ?? task.status} />
                 </div>

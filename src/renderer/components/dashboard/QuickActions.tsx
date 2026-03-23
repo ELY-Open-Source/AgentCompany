@@ -20,17 +20,17 @@ function AgentCard({ agent, onClick }: { agent: AgentRecord; onClick: () => void
     <button
       type="button"
       onClick={onClick}
-      className={`focus-ring group relative flex flex-col items-center gap-2 rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] px-3 py-3 text-center transition duration-150 hover:border-[color:var(--line-strong)] hover:shadow-sm ${statusGlow[agent.status] ?? ""}`}
+      className={`focus-ring group relative flex flex-col items-center gap-2 rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-3 py-3.5 text-center transition duration-150 hover:border-[color:var(--line-strong)] hover:shadow-sm ${statusGlow[agent.status] ?? ""}`}
     >
       <div className="relative">
-        <div className={`flex h-11 w-11 items-center justify-center rounded-full text-[14px] font-bold ${
+        <div className={`flex h-12 w-12 items-center justify-center rounded-full text-[15px] font-bold ${
           isActive ? "bg-[color:var(--success-soft)] text-[color:var(--success)]" : "bg-[color:var(--panel-soft)] text-[color:var(--muted-strong)]"
         }`}>
           {initials}
         </div>
         {agent.status === "running" ? (
           <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--success)] opacity-40" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--success)] opacity-40" style={{ willChange: "transform" }} />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[color:var(--success)]" />
           </span>
         ) : (
@@ -61,7 +61,7 @@ function AgentCard({ agent, onClick }: { agent: AgentRecord; onClick: () => void
 export function WorkforceGrid({ agents, onSelectAgent }: { agents: AgentRecord[]; onSelectAgent: (id: string) => void }) {
   if (agents.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-[color:var(--line)] py-10 text-center">
+      <div className="flex flex-col items-center justify-center rounded-[8px] border border-dashed border-[color:var(--line)] py-10 text-center">
         <Robot size={32} className="mb-3 text-[color:var(--muted)]" />
         <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">No agents hired yet</div>
       </div>

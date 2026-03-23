@@ -23,7 +23,7 @@ export function TaskPipeline({ tasks }: { tasks: TaskRecord[] }) {
       {stages.map((stage, i) => (
         <div key={stage.label} className="flex items-center gap-1.5">
           <div className={`flex items-center gap-2 rounded-[8px] px-3 py-2 ${stage.bg}`}>
-            <span className={`text-[18px] font-bold ${stage.tone}`}>{stage.count}</span>
+            <span className={`text-[18px] font-bold ${stage.tone}`} style={{ fontVariantNumeric: "tabular-nums" }}>{stage.count}</span>
             <span className="text-[10px] font-medium uppercase tracking-[0.06em] text-[color:var(--muted)]">{stage.label}</span>
           </div>
           {i < stages.length - 1 ? (

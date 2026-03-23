@@ -137,7 +137,7 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
     <div className="grid gap-4">
       {submitError ? <InlineNotice message={submitError} /> : null}
       {needsLogin ? (
-        <div className="rounded-[10px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-4 py-4 text-[12px] text-[color:var(--warn)]">
+        <div className="rounded-[8px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-4 py-4 text-[12px] text-[color:var(--warn)]">
           <div className="text-[11px] font-semibold uppercase tracking-[0.08em]">{authActionCopy.title}</div>
           <div className="mt-1.5 leading-relaxed">{authActionCopy.message}</div>
           <div className="mt-3">
@@ -249,7 +249,7 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
           disabled={requiresExplicitModel && !model.trim()}
         />
       </div>
-      <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-4 text-[12px] leading-relaxed text-[color:var(--muted)]">
+      <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-4 text-[12px] leading-relaxed text-[color:var(--muted)]">
         <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Configuration doc</div>
         <pre className="mono whitespace-pre-wrap">{connector.configurationDoc}</pre>
       </div>

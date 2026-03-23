@@ -38,7 +38,7 @@ export function ActivityList({ activity }: { activity: ActivityRecord[] }) {
     overscan: 15,
   })
 
-  if (activity.length === 0) return <EmptyState title={t("exec.noActivityYet")} />
+  if (activity.length === 0) return <EmptyState title={t("exec.noActivityYet")} detail={t("exec.noActivityDetail")} />
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
@@ -81,19 +81,19 @@ export function ActivityList({ activity }: { activity: ActivityRecord[] }) {
                     width: "100%",
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
-                  className={`focus-ring outline-none border-b border-[color:var(--line)] px-5 py-4 last:border-b-0 ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--accent)] ring-inset" : ""}`}
+                  className={`focus-ring outline-none border-b border-[color:var(--line)] px-4 py-3 last:border-b-0 ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--accent)] ring-inset" : ""}`}
                 >
                   <div className="mb-2 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <EntityIcon size={14} weight="duotone" className="text-[color:var(--muted)]" />
-                      <div className="text-[14px] text-[color:var(--text)]">{entry.action}</div>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <EntityIcon size={14} weight="duotone" className="shrink-0 text-[color:var(--muted)]" />
+                      <div className="truncate text-[13px] text-[color:var(--text)]">{entry.action}</div>
                     </div>
                     <div className="mono text-[11px] text-[color:var(--muted)]">{formatTime(entry.createdAt)}</div>
                   </div>
                   <div className="flex items-center gap-2 text-[13px] text-[color:var(--muted)]">
                     <span className="font-medium text-[color:var(--muted-strong)]">{entry.actor}</span>
                     <span>·</span>
-                    <span>{entry.detail || `${entry.entityType}:${entry.entityId}`}</span>
+                    <span className="truncate">{entry.detail || `${entry.entityType}:${entry.entityId}`}</span>
                   </div>
                 </div>
               )

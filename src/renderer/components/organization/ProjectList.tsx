@@ -20,7 +20,7 @@ export function ProjectList({
 }) {
   const t = useT();
   if (projects.length === 0) {
-    return <EmptyState title={t("org.noProjectsYet")} />;
+    return <EmptyState title={t("org.noProjectsYet")} detail={t("org.noProjectsDetail")} />;
   }
   return (
     <ListFrame>
@@ -38,12 +38,12 @@ export function ProjectList({
                 {isSelected && (
                   <CheckCircle size={16} weight="fill" className="text-[color:var(--accent)]" />
                 )}
-                <div className="text-[15px] text-[color:var(--text)]">{project.name}</div>
+                <div className="truncate text-[14px] font-semibold text-[color:var(--text)]">{project.name}</div>
               </div>
               <StatusPill status={project.status} />
             </div>
             <div className="mb-2 text-[13px] text-[color:var(--muted)]">{project.description}</div>
-            <div className="flex flex-wrap gap-4 text-[12px] text-[color:var(--muted)]">
+            <div className="flex flex-wrap gap-4 text-[11px] text-[color:var(--muted)]">
               <span>
                 Goal: {goals.find((g) => g.id === project.goalId)?.title ?? "None"}
               </span>

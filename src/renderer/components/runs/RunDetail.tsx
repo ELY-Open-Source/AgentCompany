@@ -82,7 +82,7 @@ export function RunDetail({
           <DetailRow label="Cost">{formatMoney(selectedRun.costUsd)}</DetailRow>
         </div>
         {selectedRun.errorMessage ? (
-          <div className="mt-4 rounded-[10px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
+          <div className="mt-4 rounded-[8px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
             {selectedRun.errorMessage}
           </div>
         ) : null}
@@ -118,14 +118,14 @@ export function RunDetail({
         )}
       >
         {logState.error ? (
-          <div className="rounded-[10px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
+          <div className="rounded-[8px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
             {logState.error}
           </div>
         ) : null}
         <div className="mb-3 flex items-center justify-between text-[11px] text-[color:var(--muted)]">
           <span>{logState.loading ? "Refreshing\u2026" : logState.eof ? "At latest tail" : "Tail window loaded"}</span>
         </div>
-        <div className="max-h-[420px] overflow-auto rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3">
+        <div className="max-h-[420px] overflow-auto rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3">
           <pre className="mono whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--muted-strong)]">
             {logState.content || "No log output captured yet."}
           </pre>

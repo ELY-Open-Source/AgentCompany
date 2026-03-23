@@ -26,7 +26,7 @@ export function LaunchStep({
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
-      className="surface w-full rounded-[12px] p-7"
+      className="surface w-full rounded-[8px] p-7"
     >
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[color:var(--success-soft)] text-[color:var(--success)]">
         <CheckCircle size={24} weight="fill" />
@@ -39,31 +39,31 @@ export function LaunchStep({
       </p>
 
       <div className="mt-6 grid gap-3 md:grid-cols-2">
-        <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
+        <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("onboarding.connector")}</div>
           <div className="mt-1 text-[13px] font-medium text-[color:var(--text)]">
             {selectedConnector?.label ?? t("onboarding.unavailable")}
           </div>
         </div>
-        <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
+        <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("onboarding.leadAgent")}</div>
           <div className="mt-1 text-[13px] font-medium text-[color:var(--text)]">
             {launchSummary.leadAgentId ? t("onboarding.ceoAgentCreated") : t("onboarding.leadAgentUnavailable")}
           </div>
         </div>
-        <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
+        <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("onboarding.primaryWorkspace")}</div>
           <div className="mt-1 text-[13px] font-medium text-[color:var(--text)]">
             {launchSummary.workspaceId ? t("onboarding.registered") : t("onboarding.notBound")}
           </div>
         </div>
-        <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
+        <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("onboarding.kickoffProject")}</div>
           <div className="mt-1 text-[13px] font-medium text-[color:var(--text)]">
             {launchSummary.projectId ? t("onboarding.created") : t("onboarding.unavailable")}
           </div>
         </div>
-        <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
+        <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("onboarding.initialRun")}</div>
           <div className="mt-1 text-[13px] font-medium text-[color:var(--text)]">
             {launchSummary.runId ? t("onboarding.queuedInOrchestration") : t("onboarding.deferredUntilReady")}
@@ -72,7 +72,7 @@ export function LaunchStep({
       </div>
 
       {error ? (
-        <div className="mt-5 rounded-[10px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
+        <div className="mt-5 rounded-[8px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
           {error}
         </div>
       ) : null}

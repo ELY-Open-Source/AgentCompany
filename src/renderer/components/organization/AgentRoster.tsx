@@ -32,7 +32,7 @@ export function AgentRoster({
   })
 
   if (agents.length === 0) {
-    return <EmptyState title={t("org.noAgentsYet")} />
+    return <EmptyState title={t("org.noAgentsYet")} detail={t("org.noAgentsDetail")} />
   }
 
   return (
@@ -79,7 +79,7 @@ export function AgentRoster({
                 type="button"
                 onClick={() => onSelect(agent.id)}
                 tabIndex={-1}
-                className={`block w-full border-b border-[color:var(--line)] px-5 py-4 text-left last:border-b-0 cursor-pointer transition-colors duration-100 ${isSelected ? "bg-[color:var(--accent-soft)]" : "hover:bg-[color:var(--panel-soft)]"}`}
+                className={`block w-full border-b border-[color:var(--line)] px-4 py-3 text-left last:border-b-0 cursor-pointer transition-colors duration-150 ${isSelected ? "bg-[color:var(--accent-soft)] border-l-[3px] border-l-[color:var(--accent)]" : "hover:bg-[color:var(--panel-soft)]"}`}
               >
                 <div className="mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -87,15 +87,15 @@ export function AgentRoster({
                       <CheckCircle size={16} weight="fill" className="text-[color:var(--accent)]" />
                     )}
                     <div>
-                      <div className="text-[15px] text-[color:var(--text)]">{agent.name}</div>
-                      <div className="text-[12px] text-[color:var(--muted)]">
+                      <div className={`truncate text-[14px] font-semibold text-[color:var(--text)]`}>{agent.name}</div>
+                      <div className="truncate text-[11px] text-[color:var(--muted)]">
                         {agent.role} · {agent.title || "No title"}
                       </div>
                     </div>
                   </div>
                   <StatusPill status={agent.status} />
                 </div>
-                <div className="flex items-center justify-between text-[12px] text-[color:var(--muted)]">
+                <div className="flex items-center justify-between text-[11px] text-[color:var(--muted)]">
                   <span>Connector: {connector?.label ?? agent.connectorId}</span>
                   {workspace && <span>Workspace: {workspace.name}</span>}
                 </div>

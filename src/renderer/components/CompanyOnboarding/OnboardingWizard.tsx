@@ -184,7 +184,9 @@ export function CompanyOnboarding({
   }, [launchSummary, onDone, t]);
 
   return (
-    <div className="grid min-h-[100dvh] overflow-hidden bg-[color:var(--bg)] md:grid-cols-[minmax(0,1fr)_540px]">
+    <div className="relative grid min-h-[100dvh] overflow-hidden bg-[color:var(--bg)] md:grid-cols-[minmax(0,1fr)_540px]">
+      {/* Drag region for macOS frameless title bar */}
+      <div className="sidebar-drag absolute inset-x-0 top-0 z-10 h-[38px]" />
       <OnboardingHero
         step={step}
         connectors={connectors}

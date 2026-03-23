@@ -10,9 +10,9 @@ import { useRovingTabIndex } from "../../lib/keyboard"
 
 const channelConfig: Record<MessageChannel, { label: string; icon: React.ElementType; color: string }> = {
   direct: { label: "Direct", icon: EnvelopeSimple, color: "var(--accent)" },
-  department: { label: "Department", icon: Buildings, color: "#6366f1" },
-  company: { label: "Company", icon: Megaphone, color: "#d97745" },
-  project: { label: "Project", icon: Hash, color: "#10b981" },
+  department: { label: "Department", icon: Buildings, color: "var(--muted-strong)" },
+  company: { label: "Company", icon: Megaphone, color: "var(--accent)" },
+  project: { label: "Project", icon: Hash, color: "var(--success)" },
   incident: { label: "Incident", icon: Fire, color: "var(--danger)" },
 }
 
@@ -152,28 +152,28 @@ export function SearchResults({ results, query, loading, agents, onNavigateToRes
                   <div className="min-w-0 flex-1">
                     {/* Row 1: Agent name, channel badge, timestamp */}
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-semibold text-[color:var(--text)]">
+                      <span className="truncate text-[11px] font-semibold text-[color:var(--text)]">
                         {agent?.name ?? "Unknown Agent"}
                       </span>
                       <span
-                        className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                        className="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium"
                         style={{ backgroundColor: `${config.color}18`, color: config.color }}
                       >
                         <ChannelIcon size={10} weight="bold" />
                         {config.label}
                       </span>
-                      <span className="ml-auto shrink-0 font-mono text-[10px] text-[color:var(--muted)]">
+                      <span className="ml-auto whitespace-nowrap shrink-0 font-mono text-[11px] text-[color:var(--muted)]">
                         {formatMessageTime(message.createdAt)}
                       </span>
                     </div>
 
                     {/* Row 2: Subject */}
-                    <div className="mt-0.5 truncate text-[12px] font-semibold text-[color:var(--text)]">
+                    <div className="mt-0.5 truncate text-[13px] font-semibold text-[color:var(--text)]">
                       {highlightMatch(message.subject, query)}
                     </div>
 
                     {/* Row 3: Body snippet */}
-                    <div className="mt-0.5 line-clamp-2 text-[12px] leading-relaxed text-[color:var(--muted)]">
+                    <div className="mt-0.5 line-clamp-2 break-words text-[13px] leading-relaxed text-[color:var(--muted)]">
                       {highlightMatch(message.body, query)}
                     </div>
                   </div>

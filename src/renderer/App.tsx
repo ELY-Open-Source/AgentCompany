@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowClockwise,
   CaretUpDown,
   ChatCircle,
   Check,
@@ -15,7 +14,7 @@ import {
   MagnifyingGlass,
   Megaphone,
   Plus,
-  Robot,
+  UsersThree,
   ShieldCheck,
   Trash,
   UserPlus,
@@ -23,6 +22,7 @@ import {
   Target,
   SidebarSimple,
   TerminalWindow,
+  CircleNotch,
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
@@ -77,6 +77,7 @@ import { CommunicationHub } from "./components/communication";
 import { HiringPipeline } from "./components/hiring";
 import { DocumentCenter, KnowledgeBaseManager, MeetingsManager, SprintManager } from "./components/company-operations";
 import { ActionButton, ErrorBoundary, ListFrame, ListRow, Modal, Panel, SectionButton, Select, StatusPill, useFocusTrap, useReducedMotion } from "./components/ui";
+import ToastContainer from "./components/Toast";
 import { unwrap } from "./lib/desktop";
 import { formatMoney, formatTime } from "./lib/formatters";
 
@@ -90,7 +91,7 @@ type PaletteAction = {
 
 const sidebarNavDefs: NavItemDef[] = [
   { id: "overview", labelKey: "nav.overview", icon: SquaresFour },
-  { id: "agents", labelKey: "nav.agents", icon: Robot },
+  { id: "agents", labelKey: "nav.agents", icon: UsersThree },
   { id: "tasks", labelKey: "nav.work", icon: ListChecks },
   { id: "communication", labelKey: "nav.communication", icon: ChatCircle },
   { id: "documents", labelKey: "nav.documents", icon: FileText },
@@ -101,8 +102,8 @@ const sidebarNavDefs: NavItemDef[] = [
 export function App() {
   const reducedMotion = useReducedMotion();
   const noMotion = { duration: 0 };
-  const pageTransition = reducedMotion ? noMotion : { duration: 0.24, ease: [0.16, 1, 0.3, 1] as const };
-  const panelTransition = reducedMotion ? noMotion : { duration: 0.22, ease: [0.16, 1, 0.3, 1] as const };
+  const pageTransition = reducedMotion ? noMotion : { duration: 0.32, ease: [0.16, 1, 0.3, 1] as const };
+  const panelTransition = reducedMotion ? noMotion : { duration: 0.28, ease: [0.16, 1, 0.3, 1] as const };
 
   // -- Zustand store bindings (replaces 31 useState calls) --
   const locale = useAppStore((s) => s.locale);
@@ -556,24 +557,11 @@ export function App() {
     setInitialOnboardingLocked(false);
     await refresh();
     setError(null);
+    setSection("overview");
     if (summary.runId) {
-      setSection("runs");
       setSelectedRunId(summary.runId);
-      setConsoleOpen(true);
-      return;
-    }
-    if (summary.taskId) {
-      setSection("tasks");
-      setSelectedTaskId(summary.taskId);
-      return;
-    }
-    if (summary.projectId) {
-      setSection("projects");
-      setSelectedProjectId(summary.projectId);
-      return;
     }
     if (summary.leadAgentId) {
-      setSection("agents");
       setSelectedAgentId(summary.leadAgentId);
     }
   }, [refresh]);
@@ -582,8 +570,9 @@ export function App() {
     return (
       <LocaleContext.Provider value={locale}>
         <TranslationContext.Provider value={t}>
-          <div className="flex min-h-[100dvh] items-center justify-center text-[13px] text-[color:var(--muted)]">
-            {t("app.loading")}
+          <div className="flex min-h-screen flex-col items-center justify-center gap-3">
+            <CircleNotch size={24} className="animate-spin text-[color:var(--accent)]" />
+            <span className="text-[13px] text-[color:var(--muted)]">{t("app.loading")}</span>
           </div>
         </TranslationContext.Provider>
       </LocaleContext.Provider>
@@ -616,7 +605,7 @@ export function App() {
     <LocaleContext.Provider value={locale}>
     <TranslationContext.Provider value={t}>
     <div className={`grid h-[100dvh] overflow-hidden bg-[color:var(--bg)] ${sidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[220px_minmax(0,1fr)]"}`}>
-      <aside className="flex h-[100dvh] flex-col overflow-hidden border-r border-[color:var(--line)] bg-[color:var(--panel)]">
+      <aside className="flex h-[100dvh] flex-col overflow-hidden border-r border-[color:var(--line-strong)] bg-[color:var(--panel)]">
         {sidebarCollapsed ? (
           <div className="sidebar-drag flex items-center justify-center px-2 pb-3 pt-[38px]">
             <button
@@ -651,7 +640,7 @@ export function App() {
                               <span className="flex-1 truncate text-[12px] text-[color:var(--danger)]">Delete {company.name}?</span>
                               <button
                                 type="button"
-                                className="rounded px-2 py-0.5 text-[11px] font-semibold text-[color:var(--danger)] transition hover:bg-[color:var(--danger)] hover:text-white"
+                                className="rounded px-2 py-0.5 text-[11px] font-semibold text-[color:var(--danger)] transition hover:bg-[color:var(--danger)] hover:text-[color:var(--text-on-accent)]"
                                 onClick={() => void deleteCompany(company.id)}
                               >
                                 Yes
@@ -678,7 +667,7 @@ export function App() {
                               </button>
                               <button
                                 type="button"
-                                className="mr-2 rounded p-1 text-[color:var(--muted)] opacity-0 transition hover:bg-[color:var(--danger)] hover:text-white group-hover:opacity-100"
+                                className="mr-2 rounded p-1 text-[color:var(--muted)] opacity-0 transition hover:bg-[color:var(--danger)] hover:text-[color:var(--text-on-accent)] group-hover:opacity-100"
                                 title={`Delete ${company.name}`}
                                 onClick={() => setConfirmDeleteCompanyId(company.id)}
                               >
@@ -749,56 +738,51 @@ export function App() {
       </aside>
 
       <main aria-label="Content" className="flex min-w-0 flex-col overflow-hidden">
-        <div className="flex-1 overflow-auto">
-        <div className="mx-auto flex w-full max-w-[1040px] flex-col px-6 py-6 lg:px-10 lg:py-8">
-        <header className="mb-8 flex items-start justify-between gap-4 border-b border-[color:var(--line)] pb-5 lg:mb-10 lg:gap-6">
-          <h1 className="text-[24px] tracking-[-0.03em] text-[color:var(--text)] lg:text-[31px]">
-            {navItems.find((item) => item.id === section)?.label ?? t(`nav.${section}`)}
-          </h1>
-          <div className="flex shrink-0 items-center gap-3 lg:gap-5">
-            <button
-              type="button"
-              aria-label="Refresh"
-              title="Refresh"
-              className="focus-ring inline-flex items-center gap-2 py-1 text-[12px] font-semibold text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
-              onClick={() => void refresh()}
-            >
-              <ArrowClockwise size={16} />
-              <span className="hidden lg:inline">{t("app.refresh")}</span>
-            </button>
-            <button
-              type="button"
-              aria-label={consoleOpen ? "Hide console" : "Show console"}
-              title={consoleOpen ? "Hide console" : "Show console"}
-              className="focus-ring inline-flex items-center gap-2 py-1 text-[12px] font-semibold text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
-              onClick={() => setConsoleOpen(!consoleOpen)}
-            >
-              <TerminalWindow size={16} />
-              <span className="hidden lg:inline">{consoleOpen ? t("app.hideConsole") : t("app.showConsole")}</span>
-            </button>
+        <header className="sidebar-drag shrink-0 border-b border-[color:var(--line)] bg-[color:var(--bg)]">
+          <div className="mx-auto flex w-full max-w-[1040px] items-start justify-between gap-4 px-6 pb-5 pt-6 lg:gap-6 lg:px-10 lg:pt-8">
+            <h1 className="text-[28px] font-bold tracking-[-0.02em] text-[color:var(--text)]">
+              {navItems.find((item) => item.id === section)?.label ?? t(`nav.${section}`)}
+            </h1>
+            <div className="flex shrink-0 items-center gap-3 lg:gap-5">
+              <button
+                type="button"
+                aria-label={consoleOpen ? "Hide console" : "Show console"}
+                title={consoleOpen ? "Hide console" : "Show console"}
+                className="focus-ring inline-flex items-center gap-2 py-1 text-[12px] font-semibold text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
+                onClick={() => setConsoleOpen(!consoleOpen)}
+              >
+                <TerminalWindow size={16} />
+                <span className="hidden lg:inline">{consoleOpen ? t("app.hideConsole") : t("app.showConsole")}</span>
+              </button>
+            </div>
           </div>
         </header>
 
+        <div className={`flex-1 ${section === "communication" ? "flex flex-col overflow-hidden" : "overflow-auto"}`}>
+        <div className={section === "communication" ? "flex min-h-0 flex-1 flex-col" : "mx-auto flex w-full max-w-[1040px] flex-col px-6 py-6 lg:px-10 lg:py-8"}>
+
         {error ? (
-          <div className="mb-6 flex items-center gap-3 rounded-[10px] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
+          <div className={`flex items-center gap-3 rounded-[8px] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)] ${section === "communication" ? "mx-6 mt-4" : "mb-6"}`}>
             <WarningCircle size={18} />
             <span>{error}</span>
           </div>
         ) : null}
 
-        <div className="min-h-0 flex-1">
+        <div className={section === "communication" ? "flex min-h-0 flex-1 flex-col" : "min-h-0 flex-1"}>
           <ErrorBoundary>
             <AnimatePresence mode="wait">
             <motion.div
               key={section}
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
+              exit={{ opacity: 0, y: -12 }}
               transition={pageTransition}
-              className="space-y-14"
+              className={section === "communication" ? "flex min-h-0 flex-1 flex-col" : "space-y-14"}
+              style={section === "communication" ? { height: "100%" } : undefined}
             >
               {section === "overview" ? (
                 <Dashboard
+                  companyName={currentCompany?.name}
                   agents={companyAgents}
                   tasks={tasks}
                   runs={runs}
@@ -992,6 +976,26 @@ export function App() {
 
               {section === "tasks" ? (
                 <>
+                  <Panel title="Goals" action={<ActionButton label="New goal" icon={Target} tone="accent" onClick={() => setSelectedGoalId("__new__")} />}>
+                    <GoalList goals={companyGoals} agents={companyAgents} selectedGoalId={selectedGoalId} onSelect={setSelectedGoalId} />
+                  </Panel>
+                  <Modal open={selectedGoalId === "__new__" && section === "tasks"} title="New goal" onClose={() => setSelectedGoalId(null)}>
+                    <GoalCreator companyId={currentCompany!.id} agents={companyAgents} goals={companyGoals} onSaved={async () => { setSelectedGoalId(null); await refresh(); }} />
+                  </Modal>
+                  <Modal open={!!selectedGoal && section === "tasks"} title={selectedGoal ? `Edit: ${selectedGoal.title}` : ""} onClose={() => setSelectedGoalId(null)}>
+                    {selectedGoal ? (
+                      <GoalEditor
+                        key={selectedGoalId}
+                        goal={selectedGoal}
+                        goals={companyGoals}
+                        agents={companyAgents}
+                        companyId={currentCompany!.id}
+                        onSaved={async () => { setSelectedGoalId(null); await refresh(); }}
+                        onDeleted={async () => { setSelectedGoalId(null); await refresh(); }}
+                      />
+                    ) : null}
+                  </Modal>
+
                   <Panel
                     title="Task queue"
                     action={
@@ -1387,7 +1391,7 @@ export function App() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.98 }}
               transition={panelTransition}
-              className="w-full max-w-[560px] rounded-[12px] border border-[color:var(--line)] bg-[color:var(--panel)] px-5 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+              className="w-full max-w-[560px] rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-5 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-3 flex items-center gap-3">
@@ -1458,7 +1462,7 @@ export function App() {
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3 text-[color:var(--text)]">
-                                <Robot size={16} />
+                                <UsersThree size={16} />
                                 <span className="text-[13px] tracking-[0.005em]">{agent.name}</span>
                                 <span className="text-[11px] text-[color:var(--muted)]">{agent.role}</span>
                               </div>
@@ -1594,6 +1598,7 @@ export function App() {
         ) : null}
       </AnimatePresence>
 
+      <ToastContainer />
     </div>
     </TranslationContext.Provider>
     </LocaleContext.Provider>

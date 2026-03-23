@@ -65,7 +65,7 @@ export function ActivityFeed({ activity, agents, limit = 15 }: { activity: Activ
                   <span className="text-[color:var(--muted)]"> — {item.detail.slice(0, 60)}{item.detail.length > 60 ? "..." : ""}</span>
                 ) : null}
               </div>
-              <div className="mt-0.5 text-[10px] text-[color:var(--muted)]">{timeAgo(item.createdAt)}</div>
+              <div className="mt-0.5 whitespace-nowrap text-[10px] text-[color:var(--muted)]">{timeAgo(item.createdAt)}</div>
             </div>
           </motion.div>
         );

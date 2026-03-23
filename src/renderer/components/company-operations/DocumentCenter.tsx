@@ -89,8 +89,8 @@ export function DocumentCenter({ companyId, documents, agents, projects, goals, 
               </button>
               <div className="flex items-center gap-2">
                 <StatusPill status={document.status} />
-                <button type="button" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--text)]" onClick={() => setEditingId(document.id)}><NotePencil size={14} /></button>
-                <button type="button" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--danger)]" onClick={() => setDeleteId(document.id)}><Trash size={14} /></button>
+                <button type="button" aria-label="Edit document" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--text)]" onClick={() => setEditingId(document.id)}><NotePencil size={14} /></button>
+                <button type="button" aria-label="Delete document" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--danger)]" onClick={() => setDeleteId(document.id)}><Trash size={14} /></button>
               </div>
             </div>
           </ListRow>

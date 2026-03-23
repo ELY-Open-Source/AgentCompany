@@ -121,3 +121,35 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 > Profile not yet configured. Run `/gsd:profile-user` to generate your developer profile.
 > This section is managed by `generate-claude-profile` -- do not edit manually.
 <!-- GSD:profile-end -->
+
+## Design Context
+
+### Users
+Builders and operators who want to spin up autonomous AI companies without managing infrastructure. They arrive with a goal, expect the system to self-organize, and watch their AI workforce execute. They care about output quality and want to feel like they're running something real — not playing with a demo.
+
+### Brand Personality
+**Bold, futuristic, ambitious.** AgentCompany is the command layer for the next era of work. The interface should project quiet authority — this is a serious tool that happens to do something extraordinary.
+
+### Emotional Goal
+**Professional pride.** The user should feel "I built something real." The interface should reinforce that their AI company is a legitimate operation — not a toy, not a gimmick, but a functioning organization they orchestrated.
+
+### Aesthetic Direction
+- **Reference**: Notion — content-first layout, gentle hierarchy, flexible workspace feel
+- **Accent**: Steel slate (#4a5d7a light, #7b9cc4 dark) — formal, authoritative, professional
+- **Theme**: Full light + dark mode via CSS custom properties
+- **Typography**: System sans-serif for UI, JetBrains Mono for code/data
+- **Icons**: Phosphor (regular + fill weights), 16-18px standard
+- **Motion**: Framer Motion with cubic-bezier(0.16, 1, 0.3, 1), reduced-motion aware
+
+### Anti-References (what this must NOT be)
+- **Not toy/demo**: No cartoon illustrations, rainbow gradients, or playful AI mascots
+- **Not enterprise bloat**: No overwhelming dashboards, feature overload, or Salesforce-style complexity
+- **Not generic SaaS**: No cookie-cutter component libraries, stock photo energy, or bland templates
+- **Not sci-fi gimmick**: No glowing neon, Matrix terminals, or over-the-top futuristic theming
+
+### Design Principles
+1. **Content over chrome** — Information density is a feature. Every element earns its place. No decorative filler.
+2. **Quiet authority** — The interface should feel confident without shouting. Subtle borders, restrained color, generous whitespace.
+3. **Real, not theatrical** — Agent activity should feel like watching a real company operate, not a sci-fi simulation. Status over spectacle.
+4. **Desktop-native craft** — Keyboard-first, focus rings, platform-aware shortcuts, proper window management. No web-app-in-a-wrapper feel.
+5. **Accessible by default** — Reduced motion, color contrast, semantic HTML, focus traps. Not an afterthought.

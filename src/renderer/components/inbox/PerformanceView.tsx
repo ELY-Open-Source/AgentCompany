@@ -13,7 +13,7 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
   const t = useT();
   if (!metrics) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-[color:var(--line)] py-16 text-center">
+      <div className="flex flex-col items-center justify-center rounded-[8px] border border-dashed border-[color:var(--line)] py-16 text-center">
         <Target size={32} className="mb-3 text-[color:var(--muted)]" />
         <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">{t("perf.noMetrics")}</div>
         <div className="mt-1 text-[12px] text-[color:var(--muted)]">{t("perf.noMetricsDesc")}</div>
@@ -48,7 +48,7 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
         />
       </div>
 
-      <div className="rounded-[12px] border border-[color:var(--line)] bg-[color:var(--panel)] p-5">
+      <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] p-5">
         <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Run Activity (30d)</div>
         <div className="flex items-center gap-6">
           <div className="flex-1">
@@ -73,7 +73,7 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
 
       <section>
         <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Agent Performance</div>
-        <div className="overflow-x-auto rounded-[10px] border border-[color:var(--line)]">
+        <div className="overflow-x-auto rounded-[8px] border border-[color:var(--line)]">
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-[color:var(--line)] bg-[color:var(--panel-soft)]">

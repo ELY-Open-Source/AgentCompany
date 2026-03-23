@@ -16,7 +16,7 @@ export function GoalList({
 }) {
   const t = useT();
   if (goals.length === 0) {
-    return <EmptyState title={t("org.noGoalsYet")} />;
+    return <EmptyState title={t("org.noGoalsYet")} detail={t("org.noGoalsDetail")} />;
   }
   return (
     <ListFrame>
@@ -37,12 +37,12 @@ export function GoalList({
                 {isSelected && (
                   <CheckCircle size={16} weight="fill" className="text-[color:var(--accent)]" />
                 )}
-                <div className="text-[15px] text-[color:var(--text)]">{goal.title}</div>
+                <div className="truncate text-[14px] font-semibold text-[color:var(--text)]">{goal.title}</div>
               </div>
               <StatusPill status={goal.status} />
             </div>
-            <div className="text-[13px] text-[color:var(--muted)]">{goal.description}</div>
-            <div className="mt-1 flex gap-4 text-[12px] text-[color:var(--muted)]">
+            <div className="line-clamp-2 text-[13px] text-[color:var(--muted)]">{goal.description}</div>
+            <div className="mt-1 flex gap-4 text-[11px] text-[color:var(--muted)]">
               {parentGoal && <span>Parent: {parentGoal.title}</span>}
               {ownerAgent && <span>Owner: {ownerAgent.name}</span>}
             </div>

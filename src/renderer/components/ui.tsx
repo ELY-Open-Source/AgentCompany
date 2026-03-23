@@ -2,7 +2,7 @@ import { Component, useEffect, useRef, type ElementType, type ErrorInfo, type Re
 
 export function Badge({ count, tone = "default" }: { count: number; tone?: "default" | "warn" | "danger" }) {
   if (count <= 0) return null;
-  const toneClass = tone === "danger" ? "bg-[color:var(--danger)] text-white" : tone === "warn" ? "bg-[color:var(--warn)] text-white" : "bg-[color:var(--muted)] text-white";
+  const toneClass = tone === "danger" ? "bg-[color:var(--danger)] text-[color:var(--text-on-accent)]" : tone === "warn" ? "bg-[color:var(--warn)] text-[color:var(--text-on-accent)]" : "bg-[color:var(--muted)] text-[color:var(--text-on-accent)]";
   return (
     <span className={`ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${toneClass}`}>
       {count > 99 ? "99+" : count}
@@ -52,15 +52,16 @@ export function SectionButton({
   return (
     <button
       aria-current={active ? "page" : undefined}
-      className={`focus-ring flex w-full items-center gap-2.5 rounded-[6px] px-3 py-[7px] text-left transition duration-150 ${
+      className={`focus-ring relative flex w-full items-center gap-2.5 rounded-[6px] px-3 py-[7px] text-left transition duration-150 ${
         active
-          ? "bg-[color:var(--panel-soft)] text-[color:var(--text)]"
+          ? "bg-[color:var(--accent-soft)] text-[color:var(--text)]"
           : "text-[color:var(--muted-strong)] hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)]"
       }`}
       onClick={onClick}
     >
+      {active ? <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-[color:var(--accent)]" aria-hidden="true" /> : null}
       <Icon size={17} weight={active ? "fill" : "regular"} className={active ? "text-[color:var(--accent)]" : ""} />
-      <span className={`text-[13px] tracking-[0.005em] ${active ? "font-semibold" : "font-medium"}`}>{label}</span>
+      <span className={`text-[13px] tracking-[0.005em] ${active ? "font-bold" : "font-medium"}`}>{label}</span>
       {badge ? <Badge count={badge} tone={badgeTone} /> : null}
     </button>
   );
@@ -85,8 +86,8 @@ export function Panel({
     <section className={`space-y-4 ${className}`}>
       <div className={`flex items-end justify-between gap-4 ${tone === "surface" ? "border-b border-[color:var(--line)] pb-3" : ""}`}>
         <div>
-          {eyebrow ? <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{eyebrow}</div> : null}
-          <h2 className="text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text)]">{title}</h2>
+          {eyebrow ? <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--accent-text)]">{eyebrow}</div> : null}
+          <h2 className="text-[20px] font-bold tracking-[-0.025em] text-[color:var(--text)]">{title}</h2>
         </div>
         {action}
       </div>
@@ -127,12 +128,12 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="flex w-full flex-col rounded-[12px] border border-[color:var(--line)] bg-[color:var(--panel)] shadow-xl"
+        className="flex w-full flex-col rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] shadow-xl"
         style={{ maxWidth: width, maxHeight: "80vh" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-[color:var(--line)] px-6 py-4">
-          <h2 className="text-[16px] font-semibold text-[color:var(--text)]">{title}</h2>
+        <div className="flex shrink-0 items-center justify-between border-b border-[color:var(--line)] px-5 py-3.5">
+          <h2 className="text-[16px] font-bold tracking-[-0.015em] text-[color:var(--text)]">{title}</h2>
           <button
             type="button"
             className="focus-ring rounded-[6px] p-1 text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
@@ -142,7 +143,7 @@ export function Modal({
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
           </button>
         </div>
-        <div className="overflow-y-auto px-6 py-5">{children}</div>
+        <div className="overflow-y-auto px-5 py-4">{children}</div>
       </div>
     </div>
   );
@@ -303,14 +304,14 @@ export function ActionButton({
   const isDisabled = loading || disabled;
   const toneClass =
     tone === "accent"
-      ? "border-transparent bg-[color:var(--accent)] text-white hover:brightness-90"
+      ? "border-transparent bg-[color:var(--accent)] text-[color:var(--text-on-accent)] shadow-[0_1px_3px_rgba(74,93,122,0.35)] hover:bg-[color:var(--accent-hover)]"
       : tone === "danger"
-        ? "border-transparent bg-[color:var(--danger)] text-white hover:brightness-90"
+        ? "border-transparent bg-[color:var(--danger)] text-[color:var(--text-on-accent)] shadow-[0_1px_3px_rgba(220,53,69,0.3)] hover:brightness-90"
         : "border-[color:var(--line)] bg-[color:var(--panel)] text-[color:var(--text)] hover:bg-[color:var(--panel-soft)]";
 
   return (
     <button
-      className={`focus-ring inline-flex items-center gap-2 rounded-[7px] border px-3.5 py-2 text-[12px] font-semibold transition duration-150 active:translate-y-px ${toneClass} ${isDisabled ? "pointer-events-none opacity-60" : ""}`}
+      className={`focus-ring inline-flex items-center gap-2 rounded-[8px] border px-4 py-2.5 text-[12px] font-bold transition duration-150 active:translate-y-px ${toneClass} ${isDisabled ? "pointer-events-none opacity-60" : ""} ${loading ? "scale-[0.98]" : ""}`}
       onClick={onClick}
       disabled={isDisabled}
       aria-busy={loading}
@@ -351,11 +352,11 @@ export function StatusPill({ status }: { status: string }) {
   const displayLabel = checking ? "checking" : status.replaceAll("_", " ");
 
   return (
-    <span className={`inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] ${toneClass}`}>
+    <span className={`inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] ${toneClass}`}>
       {checking ? (
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[color:var(--muted)]" aria-hidden="true" />
+        <span className="h-2 w-2 animate-pulse rounded-full bg-[color:var(--muted)]" aria-hidden="true" />
       ) : (
-        <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} aria-hidden="true" />
+        <span className={`h-2 w-2 rounded-full ${dotClass}`} aria-hidden="true" />
       )}
       {displayLabel}
     </span>
@@ -365,9 +366,11 @@ export function StatusPill({ status }: { status: string }) {
 export function InlineNotice({
   message,
   tone = "danger",
+  action,
 }: {
   message: string;
   tone?: "danger" | "success" | "warn";
+  action?: ReactNode;
 }) {
   const toneClass = tone === "success"
     ? "border-[color:var(--success)] bg-[color:var(--success-soft)] text-[color:var(--success)]"
@@ -375,8 +378,13 @@ export function InlineNotice({
       ? "border-[color:var(--warn)] bg-[color:var(--warn-soft)] text-[color:var(--warn)]"
       : "border-[color:var(--danger)] bg-[color:var(--danger-soft)] text-[color:var(--danger)]";
   return (
-    <div className={`rounded-[10px] border px-4 py-3 text-[13px] ${toneClass}`} role={tone === "danger" ? "alert" : "status"}>
-      {message}
+    <div className={`rounded-[8px] border px-4 py-3 text-[13px] ${toneClass}`} role={tone === "danger" ? "alert" : "status"}>
+      {action ? (
+        <div className="flex items-start justify-between gap-3">
+          <span>{message}</span>
+          {action}
+        </div>
+      ) : message}
     </div>
   );
 }
@@ -408,7 +416,7 @@ export function ConfirmDialog({ open, title, message, errorMessage, onConfirm, o
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
-        className="w-full max-w-[400px] rounded-[12px] bg-[color:var(--panel)] border border-[color:var(--line)] p-6 shadow-lg"
+        className="w-full max-w-[400px] rounded-[8px] bg-[color:var(--panel)] border border-[color:var(--line)] p-6 shadow-lg"
         onClick={e => e.stopPropagation()}
       >
         <div id="confirm-dialog-title" className="text-[16px] font-semibold text-[color:var(--text)] mb-2">{title}</div>

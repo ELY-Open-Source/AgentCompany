@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { ChatCircle, Plus } from "@phosphor-icons/react"
 import type { AgentMessageRecord, AgentRecord, CommentRecord, MessageChannel, ProjectRecord, TaskRecord } from "@shared/types"
 import { useAppStore } from "../../state/store"
 import { unwrap } from "../../lib/desktop"
@@ -9,12 +8,10 @@ import { ChannelSidebar, FilterBar, type FilterState } from "./ChannelSidebar"
 import type { ChannelDescriptor, TaskDiscussionDescriptor, AnyChannel } from "./ChannelHeader"
 import { ChannelHeader } from "./ChannelHeader"
 import { MessageList } from "./MessageList"
-import { MessageComposer, TaskDiscussionComposer, NoChannelComposer, ComposeModal } from "./MessageComposer"
+import { MessageComposer, TaskDiscussionComposer, NoChannelComposer } from "./MessageComposer"
 import { SearchResults } from "./SearchResults"
 import { deriveChannels, deriveTaskDiscussionChannels, getChannelMessages } from "./channel-utils"
 
-const TERRACOTTA = "#d97745"
-const TERRACOTTA_SOFT = "#d9774518"
 
 interface CommunicationHubProps {
   messages: AgentMessageRecord[]; comments: CommentRecord[]; tasks: TaskRecord[]; agents: AgentRecord[]
@@ -35,9 +32,9 @@ function SearchScopeToggle({ scope, onChangeScope }: { scope: "global" | "channe
         aria-checked={scope === "global"}
         onClick={() => onChangeScope("global")}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onChangeScope("global") } }}
-        className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors duration-150 ${
+        className={`rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition-colors duration-150 ${
           scope === "global"
-            ? "bg-[color:var(--accent)] text-white"
+            ? "bg-[color:var(--accent)] text-[color:var(--text-on-accent)]"
             : "bg-[color:var(--panel-soft)] text-[color:var(--muted-strong)]"
         }`}
       >
@@ -49,9 +46,9 @@ function SearchScopeToggle({ scope, onChangeScope }: { scope: "global" | "channe
         aria-checked={scope === "channel"}
         onClick={() => onChangeScope("channel")}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onChangeScope("channel") } }}
-        className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors duration-150 ${
+        className={`rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition-colors duration-150 ${
           scope === "channel"
-            ? "bg-[color:var(--accent)] text-white"
+            ? "bg-[color:var(--accent)] text-[color:var(--text-on-accent)]"
             : "bg-[color:var(--panel-soft)] text-[color:var(--muted-strong)]"
         }`}
       >
@@ -65,7 +62,6 @@ export function CommunicationHub({ messages, comments, tasks, agents, projects, 
   const t = useT()
   const [selectedChannelKey, setSelectedChannelKey] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)
-  const [showCompose, setShowCompose] = useState(false)
   const [replyTo, setReplyTo] = useState<AgentMessageRecord | null>(null)
   const [optimisticReadIds, setOptimisticReadIds] = useState<Set<string>>(new Set())
   const pendingReadIdsRef = useRef<Set<string>>(new Set())
@@ -218,7 +214,6 @@ export function CommunicationHub({ messages, comments, tasks, agents, projects, 
     return counts
   }, [channels, effectiveMessages])
 
-  const totalUnread = useMemo(() => effectiveMessages.filter((m) => !m.readAt).length, [effectiveMessages])
 
   const channelGroups = useMemo(() => {
     const groups: Array<{ type: MessageChannel; label: string; items: ChannelDescriptor[] }> = []
@@ -235,64 +230,47 @@ export function CommunicationHub({ messages, comments, tasks, agents, projects, 
   ) : null
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[10px]" style={{ backgroundColor: TERRACOTTA_SOFT }}>
-            <ChatCircle size={20} weight="fill" style={{ color: TERRACOTTA }} />
-          </div>
-          <div>
-            <h2 className="text-[16px] font-bold text-[color:var(--text)]">{t("comm.communicationHub")}</h2>
-            <p className="text-[12px] text-[color:var(--muted)]">{messages.length} message{messages.length !== 1 ? "s" : ""}{totalUnread > 0 ? <span style={{ color: TERRACOTTA }}> ({totalUnread} unread)</span> : null}</p>
-          </div>
+    <div className="flex h-full min-h-0 overflow-hidden">
+      <AnimatePresence initial={false}>
+        {showSidebar ? <ChannelSidebar channelGroups={channelGroups} taskDiscussionChannels={taskDiscussionChannels} selectedChannelKey={selectedChannelKey} onSelectChannel={setSelectedChannelKey} unreadByChannel={unreadByChannel} agents={agents} totalChannels={channels.length} onHideSidebar={() => setShowSidebar(false)} /> : null}
+      </AnimatePresence>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <ChannelHeader activeChannel={activeChannel} showSidebar={showSidebar} onShowSidebar={() => setShowSidebar(true)} channelMessages={channelMessages} taskDiscussionComments={taskComments} activeTask={activeTask} unreadByChannel={unreadByChannel} onNavigateToTask={onNavigateToTask} filterBar={<FilterBar filters={filters} onChangeFilters={setFilters} scopeToggle={scopeToggleElement} onSearchKeyDown={handleSearchKeyDown} />} />
+        <div className="flex-1 overflow-y-auto px-2 py-3">
+          <AnimatePresence mode="wait">
+            {isSearchActive ? (
+              <motion.div
+                key="search-results"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15, ease: "easeInOut" }}
+                className="h-full"
+              >
+                <SearchResults
+                  results={searchResults}
+                  query={searchQuery}
+                  loading={searchLoading}
+                  agents={agents}
+                  onNavigateToResult={handleNavigateToResult}
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="message-list"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15, ease: "easeInOut" }}
+                className="h-full"
+              >
+                <MessageList activeChannel={activeChannel} filteredMessages={filteredMessages} taskDiscussionComments={taskComments} activeTask={activeTask} agentMap={agentMap} filters={filters} onReply={setReplyTo} messageCount={effectiveMessages.length} selectedChannelKey={selectedChannelKey} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-        <button type="button" onClick={() => setShowCompose(true)} className="inline-flex items-center gap-2 rounded-[8px] px-3 py-2 text-[11px] font-semibold text-white transition hover:brightness-90" style={{ backgroundColor: TERRACOTTA }}>
-          <Plus size={13} weight="bold" />{t("comm.newMessage")}
-        </button>
+        {activeChannel ? (activeChannel.kind === "message" ? <MessageComposer agents={agents} companyId={companyId} channel={activeChannel.channel} channelTargetId={activeChannel.channel === "direct" ? null : activeChannel.targetId} directParticipantIds={activeChannel.channel === "direct" ? activeChannel.participantIds : []} replyTo={replyTo} onSent={() => { setReplyTo(null); onRefresh() }} onCancelReply={() => setReplyTo(null)} /> : <TaskDiscussionComposer companyId={companyId} taskId={activeChannel.taskId} onSent={onRefresh} />) : <NoChannelComposer />}
       </div>
-      <div className="flex overflow-hidden rounded-[12px] border border-[color:var(--line)]" style={{ height: "calc(100vh - 220px)", minHeight: "480px" }}>
-        <AnimatePresence initial={false}>
-          {showSidebar ? <ChannelSidebar channelGroups={channelGroups} taskDiscussionChannels={taskDiscussionChannels} selectedChannelKey={selectedChannelKey} onSelectChannel={setSelectedChannelKey} unreadByChannel={unreadByChannel} agents={agents} totalChannels={channels.length} onHideSidebar={() => setShowSidebar(false)} /> : null}
-        </AnimatePresence>
-        <div className="flex min-w-0 flex-1 flex-col bg-[color:var(--bg)]">
-          <ChannelHeader activeChannel={activeChannel} showSidebar={showSidebar} onShowSidebar={() => setShowSidebar(true)} channelMessages={channelMessages} taskDiscussionComments={taskComments} activeTask={activeTask} unreadByChannel={unreadByChannel} onNavigateToTask={onNavigateToTask} filterBar={<FilterBar filters={filters} onChangeFilters={setFilters} scopeToggle={scopeToggleElement} onSearchKeyDown={handleSearchKeyDown} />} />
-          <div className="flex-1 overflow-y-auto px-2 py-3">
-            <AnimatePresence mode="wait">
-              {isSearchActive ? (
-                <motion.div
-                  key="search-results"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15, ease: "easeInOut" }}
-                  className="h-full"
-                >
-                  <SearchResults
-                    results={searchResults}
-                    query={searchQuery}
-                    loading={searchLoading}
-                    agents={agents}
-                    onNavigateToResult={handleNavigateToResult}
-                  />
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="message-list"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15, ease: "easeInOut" }}
-                  className="h-full"
-                >
-                  <MessageList activeChannel={activeChannel} filteredMessages={filteredMessages} taskDiscussionComments={taskComments} activeTask={activeTask} agentMap={agentMap} filters={filters} onReply={setReplyTo} messageCount={effectiveMessages.length} selectedChannelKey={selectedChannelKey} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-          {activeChannel ? (activeChannel.kind === "message" ? <MessageComposer agents={agents} companyId={companyId} channel={activeChannel.channel} channelTargetId={activeChannel.channel === "direct" ? null : activeChannel.targetId} directParticipantIds={activeChannel.channel === "direct" ? activeChannel.participantIds : []} replyTo={replyTo} onSent={() => { setReplyTo(null); onRefresh() }} onCancelReply={() => setReplyTo(null)} /> : <TaskDiscussionComposer companyId={companyId} taskId={activeChannel.taskId} onSent={onRefresh} />) : <NoChannelComposer />}
-        </div>
-      </div>
-      <ComposeModal open={showCompose} onClose={() => setShowCompose(false)} agents={agents} projects={projects} companyId={companyId} onSent={onRefresh} />
     </div>
   )
 }

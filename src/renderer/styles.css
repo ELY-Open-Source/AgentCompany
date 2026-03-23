@@ -10,24 +10,27 @@
 
 :root {
   color-scheme: light;
-  --bg: #fbfbfb;
+  --bg: #f7f8fa;
   --bg-subtle: #ffffff;
   --panel: #ffffff;
-  --panel-soft: #f4f5f5;
-  --panel-strong: #fafafa;
-  --line: rgba(15, 23, 42, 0.08);
-  --line-strong: rgba(15, 23, 42, 0.14);
-  --text: #1a202c;
-  --muted: #718096;
-  --muted-strong: #4a5568;
-  --accent: #c06a3a;
-  --accent-soft: #f7ece6;
-  --danger: #e5484d;
-  --danger-soft: #fdebec;
-  --warn: #b7791f;
-  --warn-soft: #fdf6e3;
-  --success: #2f855a;
-  --success-soft: #edf7f0;
+  --panel-soft: #f0f2f5;
+  --panel-strong: #f7f8fa;
+  --line: rgba(50, 65, 85, 0.08);
+  --line-strong: rgba(50, 65, 85, 0.15);
+  --text: #1a1d24;
+  --muted: #6b7280;
+  --muted-strong: #4b5563;
+  --accent: #4a5d7a;
+  --accent-text: #3d5070;
+  --accent-soft: #edf1f7;
+  --accent-hover: #3d4f6d;
+  --text-on-accent: #ffffff;
+  --danger: #c53030;
+  --danger-soft: #fef2f2;
+  --warn: #b45309;
+  --warn-soft: #fffbeb;
+  --success: #0f766e;
+  --success-soft: #ecfdf5;
 }
 
 :root[data-theme="light"] {
@@ -36,47 +39,53 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #111315;
-  --bg-subtle: #171a1d;
-  --panel: #1b1f23;
-  --panel-soft: #232931;
-  --panel-strong: #20252c;
-  --line: rgba(226, 232, 240, 0.1);
-  --line-strong: rgba(226, 232, 240, 0.18);
-  --text: #f4f7fb;
-  --muted: #9aa7b5;
-  --muted-strong: #c2ccd8;
-  --accent: #ee8a58;
-  --accent-soft: rgba(238, 138, 88, 0.14);
-  --danger: #ff7b86;
-  --danger-soft: rgba(255, 123, 134, 0.14);
-  --warn: #f4bc5b;
-  --warn-soft: rgba(244, 188, 91, 0.14);
-  --success: #61d69d;
-  --success-soft: rgba(97, 214, 157, 0.14);
+  --bg: #0f1117;
+  --bg-subtle: #161820;
+  --panel: #1b1e26;
+  --panel-soft: #252830;
+  --panel-strong: #1e2129;
+  --line: rgba(148, 163, 190, 0.1);
+  --line-strong: rgba(148, 163, 190, 0.18);
+  --text: #edf0f7;
+  --muted: #8b95a5;
+  --muted-strong: #b0b8c8;
+  --accent: #7b9cc4;
+  --accent-text: #7b9cc4;
+  --accent-soft: rgba(123, 156, 196, 0.14);
+  --accent-hover: #93b0d4;
+  --text-on-accent: #ffffff;
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.12);
+  --warn: #f59e0b;
+  --warn-soft: rgba(245, 158, 11, 0.12);
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.12);
 }
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] {
     color-scheme: dark;
-    --bg: #111315;
-    --bg-subtle: #171a1d;
-    --panel: #1b1f23;
-    --panel-soft: #232931;
-    --panel-strong: #20252c;
-    --line: rgba(226, 232, 240, 0.1);
-    --line-strong: rgba(226, 232, 240, 0.18);
-    --text: #f4f7fb;
-    --muted: #9aa7b5;
-    --muted-strong: #c2ccd8;
-    --accent: #ee8a58;
-    --accent-soft: rgba(238, 138, 88, 0.14);
-    --danger: #ff7b86;
-    --danger-soft: rgba(255, 123, 134, 0.14);
-    --warn: #f4bc5b;
-    --warn-soft: rgba(244, 188, 91, 0.14);
-    --success: #61d69d;
-    --success-soft: rgba(97, 214, 157, 0.14);
+    --bg: #0f1117;
+    --bg-subtle: #161820;
+    --panel: #1b1e26;
+    --panel-soft: #252830;
+    --panel-strong: #1e2129;
+    --line: rgba(148, 163, 190, 0.1);
+    --line-strong: rgba(148, 163, 190, 0.18);
+    --text: #edf0f7;
+    --muted: #8b95a5;
+    --muted-strong: #b0b8c8;
+    --accent: #7b9cc4;
+    --accent-text: #7b9cc4;
+    --accent-soft: rgba(123, 156, 196, 0.14);
+    --accent-hover: #93b0d4;
+    --text-on-accent: #ffffff;
+    --danger: #f87171;
+    --danger-soft: rgba(248, 113, 113, 0.12);
+    --warn: #f59e0b;
+    --warn-soft: rgba(245, 158, 11, 0.12);
+    --success: #34d399;
+    --success-soft: rgba(52, 211, 153, 0.12);
   }
 }
 
@@ -124,7 +133,11 @@ select {
 
 ::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(113, 128, 150, 0.3);
+  background: rgba(60, 75, 100, 0.2);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(60, 75, 100, 0.32);
 }
 
 .mono {
@@ -134,7 +147,7 @@ select {
 .surface {
   background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 3px rgba(26, 29, 36, 0.06), 0 0 0 0.5px rgba(26, 29, 36, 0.03);
 }
 
 .focus-ring {
@@ -147,9 +160,9 @@ select {
 
 .focus-ring:focus-visible {
   box-shadow:
-    0 0 0 1px rgba(192, 106, 58, 0.5),
-    0 0 0 4px rgba(192, 106, 58, 0.12);
-  border-color: rgba(192, 106, 58, 0.35);
+    0 0 0 1px rgba(74, 93, 122, 0.5),
+    0 0 0 4px rgba(74, 93, 122, 0.12);
+  border-color: rgba(74, 93, 122, 0.35);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -45,7 +45,7 @@ export function RunSummaryCard({
   tone?: "default" | "danger";
 }) {
   return (
-    <div className="rounded-[12px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-4">
+    <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">{label}</div>
@@ -54,7 +54,7 @@ export function RunSummaryCard({
           </div>
           <div className="mt-1 text-[12px] text-[color:var(--muted)]">{detail}</div>
         </div>
-        <div className={`flex h-10 w-10 items-center justify-center rounded-[10px] ${tone === "danger" ? "bg-[color:var(--danger-soft)] text-[color:var(--danger)]" : "bg-[color:var(--panel-soft)] text-[color:var(--muted-strong)]"}`}>
+        <div className={`flex h-10 w-10 items-center justify-center rounded-[8px] ${tone === "danger" ? "bg-[color:var(--danger-soft)] text-[color:var(--danger)]" : "bg-[color:var(--panel-soft)] text-[color:var(--muted-strong)]"}`}>
           <Icon size={18} />
         </div>
       </div>
@@ -64,7 +64,7 @@ export function RunSummaryCard({
 
 export function RunMeta({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="rounded-[10px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-3.5 py-3">
+    <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-3.5 py-3">
       <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{label}</div>
       <div className="mt-1 text-[13px] text-[color:var(--text)]">{value}</div>
     </div>
