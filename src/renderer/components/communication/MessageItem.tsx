@@ -73,10 +73,7 @@ export const MessageBubble = memo(function MessageBubble({
         isUnread
           ? "bg-[color:var(--panel)]"
           : "hover:bg-[color:var(--panel-soft)]/40"
-      } ${
-        isUrgent ? "border-l-[3px]" : ""
       }`}
-      style={isUrgent ? { borderLeftColor: "var(--danger)" } : undefined}
     >
       <AgentAvatar agent={agent} />
 
@@ -177,8 +174,7 @@ export function TaskCommentBubble({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18 }}
-      className="group relative flex gap-3 rounded-[8px] border-l-[3px] bg-[color:var(--panel)] px-4 py-3"
-      style={{ borderLeftColor: isBoard ? "var(--accent)" : deptColor }}
+      className="group relative flex gap-3 rounded-[8px] bg-[color:var(--panel)] px-4 py-3"
     >
       <AgentAvatar agent={agent} />
       <div className="min-w-0 flex-1">

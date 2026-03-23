@@ -384,7 +384,7 @@ export function App() {
           : undefined,
     tasks: badges.todoTasks > 0 ? { count: badges.todoTasks, tone: "default" } : undefined,
     approvals: badges.pendingApprovals > 0 ? { count: badges.pendingApprovals, tone: "warn" } : undefined,
-    communication: (badges.unreadMessages + activeInboxCount) > 0 ? { count: badges.unreadMessages + activeInboxCount, tone: "warn" } : undefined,
+    communication: badges.unreadMessages > 0 ? { count: badges.unreadMessages, tone: "warn" } : undefined,
   } : {}, [badges, activeInboxCount]);
 
   const companyWorkspaces = useMemo(() => snapshot?.workspaces.filter((workspace) => !currentCompany || workspace.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
