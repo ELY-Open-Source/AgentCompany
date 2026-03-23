@@ -95,7 +95,6 @@ const sidebarNavDefs: NavItemDef[] = [
   { id: "communication", labelKey: "nav.communication", icon: ChatCircle },
   { id: "documents", labelKey: "nav.documents", icon: FileText },
   { id: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
-  { id: "runs", labelKey: "nav.runs", icon: TerminalWindow },
   { id: "social", labelKey: "nav.social", icon: Megaphone },
 ];
 
