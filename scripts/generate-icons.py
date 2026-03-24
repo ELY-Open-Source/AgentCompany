@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
-"""Generate AgentCompany app icons (PNG, ICO, ICNS, SVG).
+"""Generate AgentCompany app icons (PNG, ICO, ICNS) and tray icons.
 
-Design v3b: Bold "A" monogram that doubles as an org-chart hierarchy.
-Two terracotta legs meet at an apex, with three warm crossbars of
-decreasing brightness (CEO → Managers → ICs).  All tones stay warm.
+Design v4: Circle background #191919 with #FBFAF5 "A" logo.
+Uses the actual logo paths from logo.svg rendered via cairosvg/Pillow.
 """
 
 from __future__ import annotations
 
-import math
 import shutil
 import subprocess
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
@@ -25,66 +23,40 @@ SVG_PATH = ASSETS / "icon.svg"
 SIZE = 1024
 
 # ── Brand palette ──────────────────────────────────────────────────────
-TERRACOTTA = (217, 119, 69)        # #d97745
-SLATE_TOP = (17, 19, 21)           # #111315
-SLATE_BOT = (27, 31, 35)           # #1b1f23
-
-# Bar colours — all warm, decreasing brightness
-BAR_CEO = (255, 235, 215)          # warm cream — brightest
-BAR_MGR = (235, 180, 140)          # warm peach
-BAR_IC  = (190, 140, 105)          # muted terracotta
-
-
-def rgba(r: int, g: int, b: int, a: int = 255) -> tuple[int, int, int, int]:
-    return (r, g, b, a)
-
-
-def blend(
-    a: tuple[int, ...], b: tuple[int, ...], t: float,
-) -> tuple[int, ...]:
-    return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(len(a)))
+BG_COLOR = (25, 25, 25)           # #191919
+LOGO_COLOR = (251, 250, 245)      # #FBFAF5
 
 
 def build_icon() -> Image.Image:
-    # ── 1. Gradient background with warm glow ──────────────────────────
-    bg = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    px = bg.load()
-    top_c = rgba(*SLATE_TOP)
-    bot_c = rgba(*SLATE_BOT)
-    glow_cx, glow_cy = SIZE * 0.44, SIZE * 0.34
-    glow_r = SIZE * 0.78
+    """Build the app icon by rendering icon.svg via cairosvg, or fallback to Pillow."""
+    # Try cairosvg first (best quality)
+    try:
+        import cairosvg
+        svg_data = SVG_PATH.read_bytes()
+        png_data = cairosvg.svg2png(bytestring=svg_data, output_width=SIZE, output_height=SIZE)
+        import io
+        return Image.open(io.BytesIO(png_data)).convert("RGBA")
+    except Exception:
+        pass
 
-    for y in range(SIZE):
-        t = y / (SIZE - 1)
-        base = blend(top_c, bot_c, t)
-        for x in range(SIZE):
-            d = math.hypot(x - glow_cx, y - glow_cy) / glow_r
-            warmth = max(0.0, 1.0 - d) ** 1.8 * 0.13
-            px[x, y] = blend(base, rgba(*TERRACOTTA), warmth)
-
-    # ── 2. Rounded-rect mask + shadow ──────────────────────────────────
+    # Fallback: draw programmatically with Pillow
     icon = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    mask = Image.new("L", (SIZE, SIZE), 0)
-    inset = 64
-    ImageDraw.Draw(mask).rounded_rectangle(
-        (inset, inset, SIZE - inset, SIZE - inset), radius=224, fill=255,
+    draw = ImageDraw.Draw(icon)
+
+    # Circle background
+    margin = SIZE // 2 - 480
+    draw.ellipse(
+        (margin, margin, SIZE - margin, SIZE - margin),
+        fill=(*BG_COLOR, 255),
     )
-    shadow_alpha = mask.filter(ImageFilter.GaussianBlur(28))
-    shadow_layer = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 48))
-    shadow_layer.putalpha(shadow_alpha)
-    icon.alpha_composite(shadow_layer, (0, 12))
-    icon.alpha_composite(bg)
-    icon.putalpha(mask)
 
-    # ── 3. Draw the "A" mark ───────────────────────────────────────────
-    overlay = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
-
+    # Draw the "A" monogram — same geometry as the old icon but in new color
     cx = SIZE // 2
     apex_y = 200
     base_y = 800
     leg_w = 64
     base_half = 250
+    fill = (*LOGO_COLOR, 245)
 
     def leg_x(y: int) -> tuple[float, float]:
         t = (y - apex_y) / (base_y - apex_y)
@@ -109,67 +81,102 @@ def build_icon() -> Image.Image:
         (lr_bot - leg_w, base_y),
     ]
 
-    draw.polygon(left_leg, fill=rgba(*TERRACOTTA, 240))
-    draw.polygon(right_leg, fill=rgba(*TERRACOTTA, 240))
+    draw.polygon(left_leg, fill=fill)
+    draw.polygon(right_leg, fill=fill)
 
-    # ── 4. Three crossbars — warm tones, hierarchy brightness ──────────
+    # Crossbars — all same cream color with varying opacity for hierarchy
     bar_h = 42
     bar_r = 12
     bar_pad = 14
 
     tiers = [
-        (440, rgba(*BAR_CEO)),
-        (545, rgba(*BAR_MGR)),
-        (650, rgba(*BAR_IC)),
+        (440, (*LOGO_COLOR, 255)),
+        (545, (*LOGO_COLOR, 210)),
+        (650, (*LOGO_COLOR, 175)),
     ]
 
-    for bar_cy, fill in tiers:
+    for bar_cy, bar_fill in tiers:
         left_cx, right_cx = leg_x(bar_cy)
         bx0 = int(left_cx + bar_pad)
         bx1 = int(right_cx - bar_pad)
         draw.rounded_rectangle(
             (bx0, bar_cy - bar_h // 2, bx1, bar_cy + bar_h // 2),
             radius=bar_r,
-            fill=fill,
+            fill=bar_fill,
         )
 
-    # ── 5. Apex beacon ─────────────────────────────────────────────────
+    # Apex beacon
     dot_r = 20
     dot_cy = apex_y - 2
     draw.ellipse(
         (cx - dot_r, dot_cy - dot_r, cx + dot_r, dot_cy + dot_r),
-        fill=rgba(*BAR_CEO),
+        fill=(*LOGO_COLOR, 255),
     )
 
-    icon.alpha_composite(overlay)
     return icon
 
 
-def save_svg() -> None:
-    svg = """\
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
-  <defs>
-    <linearGradient id="bg" x1="200" x2="824" y1="96" y2="928" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#111315"/>
-      <stop offset="1" stop-color="#1b1f23"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0" cy="0" r="1"
-      gradientTransform="translate(450 348) rotate(36) scale(800)" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#d97745" stop-opacity=".13"/>
-      <stop offset="1" stop-color="#d97745" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect width="896" height="896" x="64" y="64" rx="224" fill="url(#bg)"/>
-  <rect width="896" height="896" x="64" y="64" rx="224" fill="url(#glow)"/>
-  <polygon points="490,200 534,200 578,800 298,800" fill="#d97745" fill-opacity=".94"/>
-  <polygon points="490,200 534,200 726,800 446,800" fill="#d97745" fill-opacity=".94"/>
-  <rect x="400" y="419" width="224" height="42" rx="12" fill="#ffebd7"/>
-  <rect x="374" y="524" width="276" height="42" rx="12" fill="#ebb48c"/>
-  <rect x="348" y="629" width="328" height="42" rx="12" fill="#be8c69"/>
-  <circle cx="512" cy="198" r="20" fill="#ffebd7"/>
-</svg>
-"""
-    SVG_PATH.write_text(svg, encoding="utf-8")
+def build_tray_icons() -> None:
+    """Generate tray/notification area icons for all platforms."""
+    # Color tray icon (Windows/Linux) — 32x32 and 64x64
+    for name, size in [("tray-icon.png", 32), ("tray-icon@2x.png", 64)]:
+        img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        margin = 1
+        draw.ellipse((margin, margin, size - margin, size - margin), fill=(*BG_COLOR, 255))
+
+        # Simple A shape scaled to tray size
+        cx = size // 2
+        top_y = int(size * 0.18)
+        bot_y = int(size * 0.82)
+        spread = int(size * 0.28)
+        w = max(2, int(size * 0.06))
+
+        draw.polygon([
+            (cx - w, top_y), (cx + w, top_y),
+            (cx + spread + w, bot_y), (cx + spread - w, bot_y),
+        ], fill=(*LOGO_COLOR, 240))
+        draw.polygon([
+            (cx - w, top_y), (cx + w, top_y),
+            (cx - spread + w, bot_y), (cx - spread - w, bot_y),
+        ], fill=(*LOGO_COLOR, 240))
+
+        # Crossbar
+        bar_y = int(size * 0.52)
+        bar_h = max(2, int(size * 0.06))
+        bar_left = cx - int(spread * 0.55)
+        bar_right = cx + int(spread * 0.55)
+        draw.rectangle((bar_left, bar_y, bar_right, bar_y + bar_h), fill=(*LOGO_COLOR, 255))
+
+        img.save(ASSETS / name, format="PNG")
+
+    # macOS template icons (monochrome black + alpha)
+    for name, size in [("tray-iconTemplate.png", 22), ("tray-iconTemplate@2x.png", 44)]:
+        img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        cx = size // 2
+        top_y = int(size * 0.15)
+        bot_y = int(size * 0.85)
+        spread = int(size * 0.3)
+        w = max(1, int(size * 0.06))
+
+        draw.polygon([
+            (cx - w, top_y), (cx + w, top_y),
+            (cx + spread + w, bot_y), (cx + spread - w, bot_y),
+        ], fill=(0, 0, 0, 220))
+        draw.polygon([
+            (cx - w, top_y), (cx + w, top_y),
+            (cx - spread + w, bot_y), (cx - spread - w, bot_y),
+        ], fill=(0, 0, 0, 220))
+
+        bar_y = int(size * 0.52)
+        bar_h = max(1, int(size * 0.06))
+        bar_left = cx - int(spread * 0.55)
+        bar_right = cx + int(spread * 0.55)
+        draw.rectangle((bar_left, bar_y, bar_right, bar_y + bar_h), fill=(0, 0, 0, 240))
+
+        img.save(ASSETS / name, format="PNG")
 
 
 def save_png_and_ico(image: Image.Image) -> None:
@@ -204,11 +211,12 @@ def save_icns(image: Image.Image) -> None:
 
 def main() -> None:
     ASSETS.mkdir(parents=True, exist_ok=True)
-    save_svg()
     image = build_icon()
     save_png_and_ico(image)
     save_icns(image)
-    print(f"Generated: {PNG_PATH}, {ICO_PATH}, {ICNS_PATH}, {SVG_PATH}")
+    build_tray_icons()
+    print(f"Generated: {PNG_PATH}, {ICO_PATH}, {ICNS_PATH}")
+    print(f"Generated tray icons in {ASSETS}")
 
 
 if __name__ == "__main__":
