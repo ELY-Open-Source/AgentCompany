@@ -15,6 +15,7 @@
     "build:all": "node scripts/build-all-platforms.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "typecheck:all": "pnpm -r typecheck",
     "test:unit": "vitest run --config vitest.config.ts tests/unit",
