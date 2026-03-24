@@ -23,7 +23,6 @@ mac:
         - arm64
   hardenedRuntime: true
   gatekeeperAssess: false
-  notarize: false
 
 win:
   icon: assets/icon.ico
