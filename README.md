@@ -30,8 +30,6 @@
 
 AgentCompany is a cross-platform desktop app that turns a single goal into a fully autonomous AI company. You provide a company name, description, and mission. A CEO agent self-organizes departments, hires specialists, delegates tasks, and delivers real results — code, content, research, business plans, and more — while you observe through a Slack-style command hub.
 
-**No cloud account. No API configuration. Everything runs locally on your machine.**
-
 ### Supported AI Runtimes
 
 | Runtime | Status |
@@ -39,8 +37,6 @@ AgentCompany is a cross-platform desktop app that turns a single goal into a ful
 | Claude Code | Ready |
 | Codex CLI | Ready |
 | Gemini CLI | Ready |
-| Kimi CLI | Ready |
-| OpenCode | Ready |
 
 ---
 
@@ -150,8 +146,6 @@ packages/
   adapter-claude-local/
   adapter-codex-local/
   adapter-gemini-local/
-  adapter-kimi-local/
-  adapter-opencode-local/
 ```
 
 ### Key Design Decisions
