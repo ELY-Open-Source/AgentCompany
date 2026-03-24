@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { extname } from "node:path";
+import { extname, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { resolve, sep } from "node:path";
 import {
@@ -275,11 +275,38 @@ export function createDesktopShellService({
   }
 
   function createTray() {
-    if (process.platform === "darwin" || appTray) {
+    if (appTray) {
       return;
     }
 
-    const trayIcon = nativeImage.createFromPath(iconPath);
+    const assetsDir = dirname(iconPath);
+    let trayIcon: Electron.NativeImage;
+
+    if (process.platform === "darwin") {
+      // macOS menu bar: use Template images (monochrome black + alpha).
+      // Electron auto-detects the @2x variant when the base name includes "Template".
+      const templatePath = join(assetsDir, "tray-iconTemplate.png");
+      trayIcon = nativeImage.createFromPath(templatePath);
+      if (!trayIcon.isEmpty()) {
+        trayIcon.setTemplateImage(true);
+      }
+    } else {
+      // Windows / Linux: use the color tray icon
+      const trayPath = join(assetsDir, "tray-icon.png");
+      trayIcon = nativeImage.createFromPath(trayPath);
+    }
+
+    // Fallback: resize the full app icon
+    if (trayIcon.isEmpty()) {
+      const fallback = nativeImage.createFromPath(iconPath);
+      if (!fallback.isEmpty()) {
+        trayIcon = fallback.resize({ width: 32, height: 32 });
+        if (process.platform === "darwin") {
+          trayIcon.setTemplateImage(true);
+        }
+      }
+    }
+
     appTray = new Tray(trayIcon.isEmpty() ? nativeImage.createEmpty() : trayIcon);
     appTray.setToolTip("AgentCompany");
     appTray.setContextMenu(

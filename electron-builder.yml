@@ -6,6 +6,8 @@ directories:
 files:
   - out/**
   - package.json
+  - assets/icon.png
+  - assets/tray-icon*.png
 asar: true
 icon: assets/icon.png
 
