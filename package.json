@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "description": "Cross-platform Electron desktop control plane for local-first AI agent companies.",
-  "author": "AgentCompany",
+  "author": {
+    "name": "AgentCompany",
+    "email": "dev@agentcompany.ai"
+  },
   "main": "out/main/index.js",
   "scripts": {
     "assets:generate": "python3 scripts/generate-icons.py",

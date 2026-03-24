@@ -77,13 +77,6 @@ jobs:
           - arch: x64
             runner: macos-15
             builder_args: --mac --x64
-    env:
-      CSC_LINK: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
-      CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
-      CSC_IDENTITY_AUTO_DISCOVERY: 'true'
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -94,10 +87,22 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Decode signing certificate
+        if: env.CERT_B64 != ''
+        env:
+          CERT_B64: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
+        run: echo "$CERT_B64" | base64 --decode > /tmp/cert.p12
       - name: Build electron-vite
         run: pnpm exec electron-vite build
       - name: Package & sign
         run: pnpm exec electron-builder ${{ matrix.builder_args }} --config electron-builder.yml --publish never
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 != '' && '/tmp/cert.p12' || '' }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 != '' && 'true' || 'false' }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       - uses: actions/upload-artifact@v4
         with:
           name: macos-${{ matrix.arch }}
