@@ -22,12 +22,12 @@ export function GoalProgress({ goals, tasks, onNavigate }: { goals: GoalRecord[]
             onClick={() => onNavigate("goals")}
             className="focus-ring w-full rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3.5 text-left transition hover:border-[color:var(--line-strong)] hover:shadow-sm"
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Target size={15} weight="fill" className="text-[color:var(--accent)]" />
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <Target size={15} weight="fill" className="shrink-0 text-[color:var(--accent)]" />
                 <span className="truncate text-[13px] font-medium text-[color:var(--text)]">{goal.title}</span>
               </div>
-              <span className="whitespace-nowrap text-[13px] font-bold tabular-nums text-[color:var(--accent)]">{pct}%</span>
+              <span className="shrink-0 whitespace-nowrap text-[13px] font-bold tabular-nums text-[color:var(--accent)]">{pct}%</span>
             </div>
             <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-[color:var(--panel-soft)]">
               <div

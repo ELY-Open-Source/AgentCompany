@@ -32,10 +32,10 @@ export function GoalList({
             onClick={() => onSelect(goal.id)}
             className={`cursor-pointer transition-colors duration-100 ${isSelected ? "bg-[color:var(--accent-soft)]" : "hover:bg-[color:var(--panel-soft)]"}`}
           >
-            <div className="mb-2 flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
                 {isSelected && (
-                  <CheckCircle size={16} weight="fill" className="text-[color:var(--accent)]" />
+                  <CheckCircle size={16} weight="fill" className="shrink-0 text-[color:var(--accent)]" />
                 )}
                 <div className="truncate text-[14px] font-semibold text-[color:var(--text)]">{goal.title}</div>
               </div>

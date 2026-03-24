@@ -1,6 +1,6 @@
 {
   "name": "agent-company",
-  "version": "0.4.92",
+  "version": "0.4.95",
   "private": true,
   "type": "module",
   "description": "Cross-platform Electron desktop control plane for local-first AI agent companies.",
@@ -35,7 +35,9 @@
     "@agentcompany/adapter-codex-local": "workspace:*",
     "@agentcompany/adapter-gemini-local": "workspace:*",
     "@agentcompany/adapter-utils": "workspace:*",
+    "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "5.2.8",
+    "@fontsource/instrument-serif": "^5.2.8",
     "@phosphor-icons/react": "2.1.10",
     "@tanstack/react-virtual": "^3.13.23",
     "clsx": "2.1.1",

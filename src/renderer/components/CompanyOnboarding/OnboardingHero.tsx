@@ -8,6 +8,7 @@ import {
 import type { ProfileSnapshot } from "@shared/types";
 import type { AppLocale } from "@shared/locale";
 import { ConnectorReadiness } from "./ConnectorReadiness";
+import { AsciiAnimation } from "./AsciiAnimation";
 
 type Step = "language" | "company" | "mission" | "launch";
 
@@ -56,6 +57,9 @@ export function OnboardingHero({
           animation: "hero-drift 12s ease-in-out infinite alternate",
         }}
       />
+
+      {/* ASCII agent activity backdrop */}
+      <AsciiAnimation />
 
       <motion.div
         initial={{ opacity: 0, y: 24 }}

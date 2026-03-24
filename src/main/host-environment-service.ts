@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter as pathDelimiter, join } from "node:path";
-import { app, nativeImage } from "electron";
+import { app } from "electron";
 
 interface HostEnvironmentDependencies {
   iconPath: string;
@@ -91,10 +91,7 @@ export async function prepareHostEnvironment({
     logger.info("[path] Skipping interactive shell PATH probe; using deterministic PATH setup only.");
   }
 
-  const appIcon = nativeImage.createFromPath(iconPath);
-  if (!appIcon.isEmpty()) {
-    if (process.platform === "darwin" && app.dock) {
-      app.dock.setIcon(appIcon);
-    }
-  }
+  // Dock icon: macOS uses the .icns from the app bundle with the system squircle
+  // mask applied automatically. Do not call dock.setIcon() — it bypasses the mask
+  // and renders the raw PNG oversized and square.
 }
