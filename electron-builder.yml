@@ -78,8 +78,3 @@ snap:
   plugs:
     - default
     - removable-media
-
-publish:
-  provider: github
-  owner: ${env.GH_REPO_OWNER}
-  repo: ${env.GH_REPO_NAME}

@@ -75,7 +75,7 @@ jobs:
             runner: macos-14
             builder_args: --mac --arm64
           - arch: x64
-            runner: macos-13
+            runner: macos-15
             builder_args: --mac --x64
     env:
       CSC_LINK: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
