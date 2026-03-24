@@ -157,7 +157,11 @@ describe("AppDatabase", () => {
     expect(db.resolveSecretEnv("API_KEY=shared-secret-name", alphaCompanyId)).toEqual({
       API_KEY: "alpha-secret",
     });
-    expect(db.resolveSecretEnv("API_KEY=shared-secret-name", betaCompanyId)).toEqual({});
+    // Beta company has no secret named "shared-secret-name", so resolveSecretEnv
+    // falls back to using the raw value literally (allows direct env bindings).
+    expect(db.resolveSecretEnv("API_KEY=shared-secret-name", betaCompanyId)).toEqual({
+      API_KEY: "shared-secret-name",
+    });
   });
 
   it("atomically checks out unclaimed work to a single agent", () => {
