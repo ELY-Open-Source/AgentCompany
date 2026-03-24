@@ -48,6 +48,9 @@ oldreference/
 # Local design scratch files
 homepagedesign.html
 
+# Landing page (deployed separately to Cloudflare Pages)
+landing/
+
 # Package manager logs
 npm-debug.log*
 pnpm-debug.log*
