@@ -38,7 +38,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
-      - run: pnpm exec tsc --noEmit
+      - run: pnpm exec tsc --noEmit --project tsconfig.check.json
 
   # ─────────────────────────────────────────────
   # Stage 2: Unit Tests
