@@ -390,6 +390,47 @@ export class AgentApiServer {
           this.json(res, 403, { error: "Current agent is not allowed to assign this task to the selected agent" });
           return;
         }
+
+        // Deliverable review gate: intercept agent trying to advance a flagged task to "done"
+        let deliverableReviewIntercepted = false;
+        if (update.status === "done" && task.requiresUserReview) {
+          try {
+            const importantTypes = ["prd","technical_spec","design_doc","project_brief","proposal","budget_proposal","architecture_decision","contract","sop"];
+            const placeholders = importantTypes.map(() => "?").join(", ");
+            // Scope to documents authored by the task's agent, created during this task's lifetime
+            const docs = this.db.queryAll<{ id: string; type: string; title: string }>(
+              `select id, type, title from documents where company_id = ? and type in (${placeholders})
+               and (author_agent_id = ? or created_at >= (select created_at from tasks where id = ?))
+               order by created_at desc limit 10`,
+              task.companyId, ...importantTypes, task.assigneeAgentId ?? "", task.id,
+            );
+            const reviewerAgent = this.db.getAgent(token.agentId);
+            const docTitles = docs.map((d) => d.title).join(", ");
+            this.db.requestApproval({
+              companyId: task.companyId,
+              relatedTaskId: task.id,
+              requestedByAgentId: token.agentId,
+              type: "deliverable_review",
+              payloadSummary: `Review deliverable: ${docTitles || task.title}`.slice(0, 280),
+              impactSummary: `${reviewerAgent.name} reviewed and approved. Awaiting your final review.`.slice(0, 400),
+              payloadJson: JSON.stringify({ documentIds: docs.map((d) => d.id), documents: docs }),
+            });
+            this.db.setTaskRequiresUserReview(task.id, false);
+            // Pause the producing agent's heartbeat until user reviews
+            if (task.assigneeAgentId) {
+              try {
+                const prodAgent = this.db.getAgent(task.assigneeAgentId);
+                if (prodAgent.heartbeatEnabled) {
+                  this.db.setHeartbeat(task.assigneeAgentId, false, prodAgent.heartbeatIntervalSec || 120);
+                }
+              } catch { /* best effort */ }
+            }
+            this.db.addComment({ companyId: task.companyId, taskId: task.id, authorAgentId: null, authorName: "System", body: "Deliverable submitted for board review." });
+            update.status = "in_review"; // Override: keep in review, don't advance to done
+            deliverableReviewIntercepted = true;
+          } catch { /* deliverable review interception is best-effort; fall through to normal flow */ }
+        }
+
         const input: Record<string, unknown> = {
           id: task.id,
           companyId: task.companyId,
@@ -1393,10 +1434,12 @@ export class AgentApiServer {
         this.json(res, 400, { error: "Goal does not belong to the current company" });
         return;
       }
+      const docType = String(data.type ?? "knowledge_article");
+      const docTitle = String(data.title ?? "Untitled");
       const id = this.db.saveDocument({
         companyId: token.companyId,
-        type: String(data.type ?? "knowledge_article"),
-        title: String(data.title ?? "Untitled"),
+        type: docType,
+        title: docTitle,
         content: String(data.content ?? ""),
         authorAgentId: token.agentId,
         reviewerAgentId,
@@ -1412,6 +1455,37 @@ export class AgentApiServer {
       if (reviewerAgentId) {
         this.onWakeAgent(reviewerAgentId, token.companyId, "assignment");
       }
+
+      // Deliverable review gate: check at document creation time (most reliable)
+      const IMPORTANT_DOC_TYPES = new Set(["prd","technical_spec","design_doc","project_brief","proposal","budget_proposal","architecture_decision","contract","sop"]);
+      if (IMPORTANT_DOC_TYPES.has(docType)) {
+        try {
+          const company = this.db.listSnapshot().companies.find((c) => c.id === token.companyId);
+          if (company?.reviewDeliverables) {
+            // Check if there's already a pending deliverable_review for this company
+            if (!this.db.hasPendingDeliverableReviews(token.companyId)) {
+              this.db.requestApproval({
+                companyId: token.companyId,
+                relatedTaskId: null,
+                requestedByAgentId: token.agentId,
+                type: "deliverable_review",
+                payloadSummary: `Review deliverable: ${docTitle}`.slice(0, 280),
+                impactSummary: `New ${docType.replaceAll("_", " ")} created. Awaiting your review before workflow continues.`.slice(0, 400),
+                payloadJson: JSON.stringify({ documentIds: [id], documents: [{ id, type: docType, title: docTitle }] }),
+              });
+              // Pause the producing agent's heartbeat
+              try {
+                const agent = this.db.getAgent(token.agentId);
+                if (agent.heartbeatEnabled) {
+                  this.db.setHeartbeat(token.agentId, false, agent.heartbeatIntervalSec || 120);
+                }
+              } catch { /* best effort */ }
+              this.onDomainChanged();
+            }
+          }
+        } catch { /* deliverable review gate is best-effort */ }
+      }
+
       this.json(res, 201, { id });
     });
 

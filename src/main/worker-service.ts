@@ -426,8 +426,15 @@ export function createWorkerService({
   }
 
   function destroy() {
-    worker?.kill();
-    worker = null;
+    if (worker) {
+      worker.kill();
+      // Force-kill after 2s if SIGTERM didn't work (child CLI processes may keep it alive)
+      const ref = worker;
+      setTimeout(() => {
+        try { ref.kill(); } catch { /* already dead */ }
+      }, 2000);
+      worker = null;
+    }
   }
 
   return {

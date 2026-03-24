@@ -37,6 +37,7 @@ export function CompanyOnboarding({
   const [companyDescription, setCompanyDescription] = useState("");
   const [workspacePath, setWorkspacePath] = useState("");
   const [autoApproveHires, setAutoApproveHires] = useState(true);
+  const [reviewDeliverables, setReviewDeliverables] = useState(false);
   const [goalTitle, setGoalTitle] = useState("");
   const [goalDescription, setGoalDescription] = useState("");
   const [loading, setLoading] = useState(false);
@@ -123,6 +124,7 @@ export function CompanyOnboarding({
       companyDescription: companyDescription.trim(),
       workspacePath: workspacePath.trim(),
       autoApproveHires,
+      reviewDeliverables,
       goalTitle: goalTitle.trim(),
       goalDescription: goalDescription.trim(),
       connectorId: selectedConnector?.id,
@@ -131,6 +133,7 @@ export function CompanyOnboarding({
     setStep("launch");
   }, [
     autoApproveHires,
+    reviewDeliverables,
     companyDescription,
     companyName,
     goalDescription,
@@ -231,6 +234,8 @@ export function CompanyOnboarding({
                 setWorkspacePath={setWorkspacePath}
                 autoApproveHires={autoApproveHires}
                 setAutoApproveHires={setAutoApproveHires}
+                reviewDeliverables={reviewDeliverables}
+                setReviewDeliverables={setReviewDeliverables}
                 onPickDirectory={() => void pickDirectory()}
                 onContinue={() => void continueToMission()}
                 onBack={() => setStep("language")}

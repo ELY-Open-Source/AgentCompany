@@ -14,6 +14,15 @@ win-unpacked
 test-results/
 playwright-report/
 
+# Signing certificates (NEVER commit these)
+*.p12
+*.cer
+*.pem
+*.key
+*.p8
+*.provisionprofile
+*.mobileprovision
+
 # Environment files
 .env
 .env.local

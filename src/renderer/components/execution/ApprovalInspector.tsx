@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Briefcase, CheckCircle, Clock, ClockCounterClockwise, Robot, Trash, XCircle } from "@phosphor-icons/react"
-import type { AgentRecord, ApprovalRecord, TaskRecord } from "@shared/types"
+import { CaretDown, CaretUp } from "@phosphor-icons/react"
+import type { AgentRecord, ApprovalRecord, DocumentRecord, TaskRecord } from "@shared/types"
 import { useT } from "../../i18n"
 import { formatMoney, formatTime } from "../../lib/formatters"
 import { unwrap } from "../../lib/desktop"
@@ -14,11 +15,12 @@ function getTypeBadgeClass(type: string): string {
   if (type === "approve_ceo_strategy") return "bg-[color:var(--warn-soft)] text-[color:var(--warn)]"
   if (type === "secret_access") return "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"
   if (type === "social_post") return "bg-[color:var(--accent-soft)] text-[color:var(--accent)]"
+  if (type === "deliverable_review") return "bg-[color:var(--accent-soft)] text-[color:var(--accent)]"
   return "bg-[color:var(--panel-soft)] text-[color:var(--muted)]"
 }
 
-export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide, onDeleted }: {
-  approval: ApprovalRecord; agents: AgentRecord[]; tasks: TaskRecord[]; companyId: string
+export function ApprovalInspector({ approval, agents, tasks, documents, companyId, onDecide, onDeleted }: {
+  approval: ApprovalRecord; agents: AgentRecord[]; tasks: TaskRecord[]; documents?: DocumentRecord[]; companyId: string
   onDecide: (state: "approved" | "rejected" | "revision_requested", note?: string) => Promise<void>; onDeleted: () => Promise<void>
 }) {
   const t = useT()
@@ -112,6 +114,7 @@ export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide
             {mgr ? <div><span className="text-[color:var(--muted)]">Reports to:</span> <span className="text-[color:var(--text)]">{mgr.name}</span></div> : null}
           </div></div>) })() : null}
         {approval.type === "approve_ceo_strategy" ? <div className="rounded-[8px] border border-[color:var(--warn)] border-opacity-30 bg-[color:var(--warn-soft)] px-4 py-3"><div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--warn)]">Organization Strategy</div><div className="whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--text)]">{approval.payloadSummary}</div></div> : null}
+        {approval.type === "deliverable_review" ? <DeliverableReviewPanel approval={approval} documents={documents} agents={agents} /> : null}
         {isSocialPost && approval.payloadJson ? (
           <SocialDraftPreview
             payloadJson={approval.payloadJson}
@@ -184,6 +187,49 @@ export function ApprovalInspector({ approval, agents, tasks, companyId, onDecide
         {isDecided ? <ActionButton label="Delete" onClick={() => setConfirmDelete(true)} icon={Trash} tone="danger" loading={acting === "delete"} /> : null}
       </div>
       {approval.decisionNote ? <div className="border-t border-[color:var(--line)] pt-4 text-[13px] text-[color:var(--muted-strong)]">Last note: {approval.decisionNote}</div> : null}
+    </div>
+  )
+}
+
+function DeliverableReviewPanel({ approval, documents, agents }: { approval: ApprovalRecord; documents?: DocumentRecord[]; agents: AgentRecord[] }) {
+  const payload = parseApprovalPayloadJson(approval)
+  const docRefs = Array.isArray(payload?.documents) ? payload.documents as Array<{ id: string; type: string; title: string }> : []
+  const docIds = Array.isArray(payload?.documentIds) ? payload.documentIds as string[] : docRefs.map((d) => d.id)
+  const fullDocs = documents ? docIds.map((id) => documents.find((d) => d.id === id)).filter(Boolean) as DocumentRecord[] : []
+  const [expandedDocId, setExpandedDocId] = useState<string | null>(fullDocs.length === 1 ? fullDocs[0]!.id : null)
+
+  return (
+    <div className="space-y-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--accent)]">Deliverable Review</div>
+      {fullDocs.length > 0 ? fullDocs.map((doc) => {
+        const isExpanded = expandedDocId === doc.id
+        const author = doc.authorAgentId ? agents.find((a) => a.id === doc.authorAgentId) : null
+        return (
+          <div key={doc.id} className="rounded-[8px] border border-[color:var(--line)] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setExpandedDocId(isExpanded ? null : doc.id)}
+              className="flex w-full cursor-pointer items-center gap-3 bg-[color:var(--panel-soft)] px-4 py-3 text-left transition hover:bg-[color:var(--panel)]"
+            >
+              <span className="shrink-0 rounded-full bg-[color:var(--accent-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase text-[color:var(--accent)]">{doc.type.replaceAll("_", " ")}</span>
+              <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[color:var(--text)]">{doc.title}</span>
+              {isExpanded ? <CaretUp size={14} className="shrink-0 text-[color:var(--muted)]" /> : <CaretDown size={14} className="shrink-0 text-[color:var(--muted)]" />}
+            </button>
+            {isExpanded ? (
+              <div className="border-t border-[color:var(--line)] px-4 py-3">
+                {author ? <div className="mb-2 text-[11px] text-[color:var(--muted)]">Author: <span className="font-medium text-[color:var(--text)]">{author.name}</span> ({author.role})</div> : null}
+                <div className="whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--text)]">{doc.content || "No content."}</div>
+              </div>
+            ) : null}
+          </div>
+        )
+      }) : docRefs.length > 0 ? docRefs.map((doc) => (
+        <div key={doc.id} className="flex items-center gap-2 rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3 text-[12px]">
+          <span className="rounded-full bg-[color:var(--accent-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase text-[color:var(--accent)]">{doc.type.replaceAll("_", " ")}</span>
+          <span className="font-medium text-[color:var(--text)]">{doc.title}</span>
+        </div>
+      )) : <div className="text-[12px] text-[color:var(--muted)]">{approval.payloadSummary}</div>}
+      {approval.impactSummary ? <div className="text-[11px] text-[color:var(--muted)]">{approval.impactSummary}</div> : null}
     </div>
   )
 }

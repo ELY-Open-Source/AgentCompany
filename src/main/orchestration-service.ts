@@ -335,6 +335,20 @@ export function createOrchestrationService({
       return null;
     }
 
+    // Block heartbeat when agent has tasks awaiting user deliverable review
+    // Check both: pending approval (gate created) and requires_user_review flag (gap before approval)
+    if (db.hasAgentPendingDeliverableReview(agentId, companyId) || db.hasAgentTaskAwaitingReview(agentId, companyId)) {
+      logger.info(`[heartbeat] Skipping ${agent.name} — awaiting user deliverable review.`);
+      return null;
+    }
+
+    // Block CEO heartbeat when company has any pending deliverable reviews
+    // CEO should not create new work while the user hasn't reviewed existing deliverables
+    if (!agent.reportsTo && db.hasPendingDeliverableReviews(companyId)) {
+      logger.info(`[heartbeat] Skipping CEO ${agent.name} — company has pending deliverable reviews.`);
+      return null;
+    }
+
     const assignedTasks = db.listAgentTasks(agentId, companyId, ["todo", "in_progress", "blocked"]);
     const isTimer = trigger === "timer";
     const candidateTasks = isTimer

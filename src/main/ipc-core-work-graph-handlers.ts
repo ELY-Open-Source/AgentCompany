@@ -346,6 +346,10 @@ export function registerCoreWorkGraphHandlers({
       if (previousStatus && previousStatus !== parsed.status) {
         handleTaskStatusChange(id, parsed.companyId, previousStatus, parsed.status);
       }
+      // User (board) manually advancing a flagged task to done: clear the review flag
+      if (parsed.status === "done") {
+        try { db.setTaskRequiresUserReview(id, false); } catch { /* best effort */ }
+      }
       // Wake new assignee when task is reassigned (matches api-server.ts behavior)
       if (parsed.assigneeAgentId && parsed.assigneeAgentId !== previousAssigneeAgentId) {
         wakeAgentIfPossible(parsed.assigneeAgentId, parsed.companyId, "assignment");

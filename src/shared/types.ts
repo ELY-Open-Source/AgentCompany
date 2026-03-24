@@ -65,7 +65,8 @@ export type ApprovalType =
   | "document_review"
   | "production_deploy"
   | "incident_escalation"
-  | "social_post";
+  | "social_post"
+  | "deliverable_review";
 export type RunStatus =
   | "queued"
   | "running"
@@ -89,6 +90,7 @@ export interface CompanyRecord {
   description: string;
   status: CompanyStatus;
   autoApproveHires: boolean;
+  reviewDeliverables: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -202,6 +204,7 @@ export interface TaskRecord {
   sessionJson: string | null;
   sessionDisplayId: string | null;
   costUsd: number;
+  requiresUserReview: boolean;
   createdAt: string;
   updatedAt: string;
 }

@@ -10,7 +10,7 @@ interface AppLifecycleDependencies {
 export function createAppLifecycleService({
   getMainWindow,
   ensureWindow,
-  shouldQuit: _shouldQuit,
+  shouldQuit,
   onBeforeQuit,
 }: AppLifecycleDependencies) {
   function register(hasSingleInstanceLock: boolean) {
@@ -44,9 +44,9 @@ export function createAppLifecycleService({
     });
 
     app.on("window-all-closed", () => {
-      // On macOS, keep the app running when all windows are closed (standard behavior).
-      // On Windows and Linux, quit the app.
-      if (process.platform !== "darwin") {
+      // On macOS, keep the app running when all windows are closed (standard behavior)
+      // UNLESS the user explicitly chose Quit (before-quit already fired).
+      if (process.platform !== "darwin" || shouldQuit()) {
         app.quit();
       }
     });

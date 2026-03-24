@@ -1,3 +1,4 @@
+import { app } from "electron";
 import type { AgentApiServer } from "./api-server";
 import type { AppDatabase } from "./database";
 import { BrowserManager } from "./browser-manager";
@@ -225,6 +226,9 @@ export function createServiceGraph({
         updaterService = null;
         appLifecycleService = null;
         db.close();
+        // Force exit after grace period — covers all platforms (macOS Dock, Windows tray, Linux)
+        // Worker child processes (claude/codex CLI) may keep the event loop alive indefinitely
+        setTimeout(() => { app.exit(0); }, 3000);
       },
     });
   }

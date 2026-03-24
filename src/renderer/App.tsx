@@ -1087,6 +1087,7 @@ export function App() {
                         approval={selectedApproval}
                         agents={companyAgents}
                         tasks={tasks}
+                        documents={companyDocuments}
                         companyId={currentCompany!.id}
                         onDecide={async (state, note) => {
                           unwrap(await window.agentCompany.decideApproval({ companyId: currentCompany!.id, approvalId: selectedApproval.id, state, decisionNote: note ?? `${state} from desktop control surface.` }));

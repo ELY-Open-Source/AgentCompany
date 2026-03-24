@@ -86,6 +86,7 @@ export const companyInputSchema = z.object({
   description: z.string().max(500).default(""),
   status: z.enum(["active", "paused", "archived"]).default("active"),
   autoApproveHires: z.boolean().default(false),
+  reviewDeliverables: z.boolean().default(false),
 });
 
 export const connectorInputSchema = z.object({
@@ -180,7 +181,7 @@ export const approvalInputSchema = z.object({
   relatedTaskId: optionalId,
   requestedByAgentId: optionalId,
   relatedAgentId: optionalId,
-  type: z.enum(["hire_agent", "approve_ceo_strategy", "dangerous_command", "secret_access", "budget_request", "promotion", "termination", "vendor_approval", "document_review", "production_deploy", "incident_escalation", "social_post"]),
+  type: z.enum(["hire_agent", "approve_ceo_strategy", "dangerous_command", "secret_access", "budget_request", "promotion", "termination", "vendor_approval", "document_review", "production_deploy", "incident_escalation", "social_post", "deliverable_review"]),
   payloadSummary: z.string().min(2).max(280),
   impactSummary: z.string().min(2).max(400),
   payloadJson: z.string().nullable().optional(),
@@ -287,6 +288,7 @@ export const bootstrapOnboardingSchema = z.object({
   companyDescription: z.string().max(500).default(""),
   workspacePath: z.string().default(""),
   autoApproveHires: z.boolean().default(true),
+  reviewDeliverables: z.boolean().default(false),
   goalTitle: z.string().default(""),
   goalDescription: z.string().default(""),
   connectorId: z.enum(["codex_local", "claude_local", "gemini_local"]).optional(),

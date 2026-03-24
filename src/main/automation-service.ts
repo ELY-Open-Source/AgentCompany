@@ -10,6 +10,12 @@ import type {
 import { dispatchAgentMessage } from "./message-dispatch";
 import type { NotificationOptions } from "./notification-service";
 
+/** Document types considered important enough to gate behind user review when reviewDeliverables is enabled. */
+const IMPORTANT_DOCUMENT_TYPES = new Set([
+  "prd", "technical_spec", "design_doc", "project_brief", "proposal",
+  "budget_proposal", "architecture_decision", "contract", "sop",
+]);
+
 const WORKFLOW_ACTIONS: ReadonlySet<AutomationAction> = new Set([
   "assign_task",
   "create_task",
@@ -801,6 +807,57 @@ export function createAutomationService({
     return false;
   }
 
+  /** Returns important documents created during this run (matching IMPORTANT_DOCUMENT_TYPES). */
+  function findImportantDocsForRun(runId: string, companyId: string): Array<{ id: string; type: string; title: string }> {
+    try {
+      const placeholders = [...IMPORTANT_DOCUMENT_TYPES].map(() => "?").join(", ");
+      return db.queryAll<{ id: string; type: string; title: string }>(
+        `select id, type, title from documents where company_id = ? and type in (${placeholders}) and created_at >= (select started_at from runs where id = ?)`,
+        companyId, ...IMPORTANT_DOCUMENT_TYPES, runId,
+      );
+    } catch { return []; }
+  }
+
+  /** Creates a deliverable_review approval and fires OS notification. */
+  function createDeliverableReviewApproval(
+    companyId: string,
+    taskId: string,
+    agentId: string,
+    docs: Array<{ id: string; type: string; title: string }>,
+    reviewerNote?: string,
+  ): string {
+    const docTitles = docs.map((d) => d.title).join(", ");
+    const approvalId = db.requestApproval({
+      companyId,
+      relatedTaskId: taskId,
+      requestedByAgentId: agentId,
+      type: "deliverable_review",
+      payloadSummary: `Review deliverable: ${docTitles}`.slice(0, 280),
+      impactSummary: reviewerNote ?? "Agent completed work with important deliverables. Awaiting your final review.",
+      payloadJson: JSON.stringify({ documentIds: docs.map((d) => d.id), documents: docs }),
+    });
+    db.setTaskRequiresUserReview(taskId, false);
+    // Pause the producing agent's heartbeat until the user reviews
+    try {
+      const agent = db.getAgent(agentId);
+      if (agent.heartbeatEnabled) {
+        db.setHeartbeat(agentId, false, agent.heartbeatIntervalSec || 120);
+        logger.info(`[deliverable-review] Paused heartbeat for ${agent.name} — awaiting user review.`);
+      }
+    } catch { /* best effort */ }
+    try {
+      notify({
+        title: "Deliverable Ready for Review",
+        body: `${docTitles}`.slice(0, 200),
+        urgency: "informational",
+        navigation: { section: "approvals", entityId: approvalId },
+        batchKey: "deliverable_review",
+      });
+    } catch { /* best effort */ }
+    publishDomainChanged();
+    return approvalId;
+  }
+
   function processRunCompletion(run: RunRecord, event: RunFinishedEvent) {
     let task: ReturnType<typeof db.getTask> | null = null;
     try {
@@ -841,6 +898,27 @@ export function createAutomationService({
           db.advanceTaskStatus(task.id, "in_review", "Run completed with deliverable. Awaiting review.");
           handleTaskStatusChange(task.id, run.companyId, "in_progress", "in_review");
           effectiveStatus = "in_review";
+          // Check if deliverable review gate should activate
+          try {
+            const company = db.listSnapshot().companies.find((c) => c.id === run.companyId);
+            if (company?.reviewDeliverables) {
+              const importantDocs = findImportantDocsForRun(run.id, run.companyId);
+              if (importantDocs.length > 0) {
+                db.setTaskRequiresUserReview(task.id, true);
+                const agent = db.getAgent(run.agentId);
+                // Pause heartbeat immediately — agent should not run while deliverable awaits review
+                if (agent.heartbeatEnabled) {
+                  db.setHeartbeat(agent.id, false, agent.heartbeatIntervalSec || 120);
+                  logger.info(`[deliverable-review] Paused heartbeat for ${agent.name} — deliverable flagged for review.`);
+                }
+                // If agent has no manager (is CEO), create approval immediately
+                const chain = db.getChainOfCommand(agent.id);
+                if (chain.length === 0) {
+                  createDeliverableReviewApproval(run.companyId, task.id, run.agentId, importantDocs);
+                }
+              }
+            }
+          } catch { /* deliverable review gate is best-effort */ }
           publishDomainChanged();
         }
       } else {
@@ -848,6 +926,25 @@ export function createAutomationService({
         db.advanceTaskStatus(task.id, "in_review", "Run completed successfully. Awaiting review.");
         handleTaskStatusChange(task.id, run.companyId, "in_progress", "in_review");
         effectiveStatus = "in_review";
+        // Check if deliverable review gate should activate for code/general tasks too
+        try {
+          const company = db.listSnapshot().companies.find((c) => c.id === run.companyId);
+          if (company?.reviewDeliverables) {
+            const importantDocs = findImportantDocsForRun(run.id, run.companyId);
+            if (importantDocs.length > 0) {
+              db.setTaskRequiresUserReview(task.id, true);
+              const agent = db.getAgent(run.agentId);
+              if (agent.heartbeatEnabled) {
+                db.setHeartbeat(agent.id, false, agent.heartbeatIntervalSec || 120);
+                logger.info(`[deliverable-review] Paused heartbeat for ${agent.name} — deliverable flagged for review.`);
+              }
+              const chain = db.getChainOfCommand(agent.id);
+              if (chain.length === 0) {
+                createDeliverableReviewApproval(run.companyId, task.id, run.agentId, importantDocs);
+              }
+            }
+          }
+        } catch { /* deliverable review gate is best-effort */ }
         publishDomainChanged();
       }
     }
@@ -973,6 +1070,42 @@ export function createAutomationService({
         }
       } catch {
         // Hire follow-up is best-effort; approval state is already committed in storage.
+      }
+    }
+
+    if (approval.type === "deliverable_review" && approval.relatedTaskId) {
+      try {
+        const task = db.getTask(approval.relatedTaskId);
+        // Re-enable heartbeat for the producing agent now that the user has decided
+        if (task.assigneeAgentId) {
+          try {
+            const agent = db.getAgent(task.assigneeAgentId);
+            if (!agent.heartbeatEnabled) {
+              db.setHeartbeat(task.assigneeAgentId, true, agent.heartbeatIntervalSec || 120);
+              logger.info(`[deliverable-review] Resumed heartbeat for ${agent.name} after user ${decision}.`);
+            }
+          } catch { /* best effort */ }
+        }
+        if (decision === "approved") {
+          db.advanceTaskStatus(task.id, "done", "Board approved deliverable.");
+          handleTaskStatusChange(task.id, companyId, task.status, "done");
+          db.addActivity({ companyId, actor: "board", action: "deliverable.approved", entityType: "task", entityId: task.id, detail: approval.decisionNote || "Deliverable approved by board." });
+          publishDomainChanged();
+        } else if (decision === "rejected") {
+          db.advanceTaskStatus(task.id, "in_progress", `Board rejected deliverable: ${approval.decisionNote || "No reason given."}`);
+          handleTaskStatusChange(task.id, companyId, task.status, "in_progress");
+          if (task.assigneeAgentId) {
+            wakeAgentIfPossible(task.assigneeAgentId, companyId, "revision_needed");
+          }
+          publishDomainChanged();
+        } else if (decision === "revision_requested") {
+          if (task.assigneeAgentId) {
+            wakeAgentIfPossible(task.assigneeAgentId, companyId, "revision_needed");
+          }
+          publishDomainChanged();
+        }
+      } catch {
+        // Deliverable review follow-up is best-effort.
       }
     }
 

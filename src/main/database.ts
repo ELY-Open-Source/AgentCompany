@@ -528,8 +528,8 @@ export class AppDatabase {
         secretBackend: this.vault.getBackendLabel(),
       },
       companies: this.readAll<CompanyRecord>(
-        "select id, name, description, status, auto_approve_hires as autoApproveHires, created_at as createdAt, updated_at as updatedAt from companies order by created_at asc",
-      ).map((record) => ({ ...record, autoApproveHires: toBoolean(record.autoApproveHires) })) as CompanyRecord[],
+        "select id, name, description, status, auto_approve_hires as autoApproveHires, review_deliverables as reviewDeliverables, created_at as createdAt, updated_at as updatedAt from companies order by created_at asc",
+      ).map((record) => ({ ...record, autoApproveHires: toBoolean(record.autoApproveHires), reviewDeliverables: toBoolean(record.reviewDeliverables) })) as CompanyRecord[],
       connectors,
       workspaces: this.readAll<WorkspaceRecord>(
         `select id, company_id as companyId, name, local_path as localPath, repo_url as repoUrl, repo_ref as repoRef, project_id as projectId, state, is_primary as isPrimary, created_at as createdAt, updated_at as updatedAt from workspaces${companyWhere} order by created_at desc`,
@@ -548,9 +548,9 @@ export class AppDatabase {
         ...companyArgs,
       ),
       tasks: this.readAll<TaskRecord>(
-        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, created_at as createdAt, updated_at as updatedAt from tasks${companyWhere} order by created_at desc`,
+        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, requires_user_review as requiresUserReview, created_at as createdAt, updated_at as updatedAt from tasks${companyWhere} order by created_at desc`,
         ...companyArgs,
-      ),
+      ).map((record) => ({ ...record, requiresUserReview: toBoolean(record.requiresUserReview) })) as TaskRecord[],
       approvals: this.readAll<ApprovalRecord>(
         `select id, company_id as companyId, related_task_id as relatedTaskId, related_agent_id as relatedAgentId, requested_by_agent_id as requestedByAgentId, type, payload_summary as payloadSummary, impact_summary as impactSummary, payload_json as payloadJson, decision_note as decisionNote, state, created_at as createdAt, updated_at as updatedAt from approvals${companyWhere} order by created_at desc`,
         ...companyArgs,
@@ -675,19 +675,20 @@ export class AppDatabase {
     return snapshot;
   }
 
-  saveCompany(input: { id?: string | null; name: string; description: string; status: string; autoApproveHires?: boolean }) {
+  saveCompany(input: { id?: string | null; name: string; description: string; status: string; autoApproveHires?: boolean; reviewDeliverables?: boolean }) {
     const id = ensureId(input.id ?? null);
     const ts = nowIso();
     const autoApprove = input.autoApproveHires ? 1 : 0;
+    const reviewDeliverables = input.reviewDeliverables ? 1 : 0;
     const existing = this.db.prepare("select id from companies where id = ?").get(id) as { id: string } | undefined;
     if (existing) {
       this.db
-        .prepare("update companies set name = ?, description = ?, status = ?, auto_approve_hires = ?, updated_at = ? where id = ?")
-        .run(input.name, input.description, input.status, autoApprove, ts, id);
+        .prepare("update companies set name = ?, description = ?, status = ?, auto_approve_hires = ?, review_deliverables = ?, updated_at = ? where id = ?")
+        .run(input.name, input.description, input.status, autoApprove, reviewDeliverables, ts, id);
     } else {
       this.db
-        .prepare("insert into companies (id, name, description, status, auto_approve_hires, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)")
-        .run(id, input.name, input.description, input.status, autoApprove, ts, ts);
+        .prepare("insert into companies (id, name, description, status, auto_approve_hires, review_deliverables, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(id, input.name, input.description, input.status, autoApprove, reviewDeliverables, ts, ts);
       if (!this.getCurrentCompanyId()) {
         this.setCurrentCompany(id);
       }
@@ -1098,10 +1099,11 @@ export class AppDatabase {
   getTask(id: string): TaskRecord {
     const row = this.db
       .prepare(
-        "select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, created_at as createdAt, updated_at as updatedAt from tasks where id = ?",
+        "select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, requires_user_review as requiresUserReview, created_at as createdAt, updated_at as updatedAt from tasks where id = ?",
       )
       .get(id) as TaskRecord | undefined;
     if (!row) throw new Error(`Task not found: ${id}`);
+    row.requiresUserReview = Boolean(row.requiresUserReview);
     return row;
   }
 
@@ -2180,7 +2182,9 @@ export class AppDatabase {
     addColumnIfMissing("alter table agents add column heartbeat_interval_sec integer not null default 120");
     addColumnIfMissing("alter table agents add column last_heartbeat_at text");
     addColumnIfMissing("alter table companies add column auto_approve_hires integer not null default 0");
+    addColumnIfMissing("alter table companies add column review_deliverables integer not null default 0");
     addColumnIfMissing("alter table tasks add column task_type text not null default 'general'");
+    addColumnIfMissing("alter table tasks add column requires_user_review integer not null default 0");
     addColumnIfMissing("alter table tasks add column retry_count integer not null default 0");
     addColumnIfMissing("alter table tasks add column last_failure_at text");
     this.db.exec(`
@@ -2275,12 +2279,15 @@ export class AppDatabase {
            or (type = 'dangerous_command' and ${taskCondition})
            or (type = 'secret_access' and ${taskCondition})
            or (type = 'approve_ceo_strategy' and ${taskCondition})
+           or (type = 'deliverable_review' and (requested_by_agent_id = ? or (related_task_id is not null and ${taskCondition})))
          )
        order by created_at asc limit 1`,
       companyId,
       agentId,
       ...taskParams,
       ...taskParams,
+      ...taskParams,
+      agentId,
       ...taskParams,
     );
     return rows.length > 0 ? rows[0] : null;
@@ -2800,6 +2807,43 @@ export class AppDatabase {
       this.incrementActiveSprintVelocity(task.company_id, -1);
     }
     return { previousStatus };
+  }
+
+  setTaskRequiresUserReview(taskId: string, value: boolean) {
+    const ts = nowIso();
+    this.db.prepare("update tasks set requires_user_review = ?, updated_at = ? where id = ?").run(value ? 1 : 0, ts, taskId);
+  }
+
+  /** Returns true if the company has any pending deliverable_review approvals or tasks awaiting review. */
+  hasPendingDeliverableReviews(companyId: string): boolean {
+    const approval = this.db.prepare(
+      "select 1 from approvals where company_id = ? and type = 'deliverable_review' and state = 'pending' limit 1",
+    ).get(companyId);
+    if (approval) return true;
+    const flaggedTask = this.db.prepare(
+      "select 1 from tasks where company_id = ? and requires_user_review = 1 limit 1",
+    ).get(companyId);
+    return !!flaggedTask;
+  }
+
+  /** Returns true if this specific agent has tasks with pending deliverable_review approvals. */
+  hasAgentPendingDeliverableReview(agentId: string, companyId: string): boolean {
+    const row = this.db.prepare(
+      `select 1 from approvals a
+       join tasks t on a.related_task_id = t.id
+       where a.company_id = ? and a.type = 'deliverable_review' and a.state = 'pending'
+         and t.assignee_agent_id = ?
+       limit 1`,
+    ).get(companyId, agentId);
+    return !!row;
+  }
+
+  /** Returns true if agent has any tasks flagged requires_user_review (before approval is created). */
+  hasAgentTaskAwaitingReview(agentId: string, companyId: string): boolean {
+    const row = this.db.prepare(
+      "select 1 from tasks where assignee_agent_id = ? and company_id = ? and requires_user_review = 1 limit 1",
+    ).get(agentId, companyId);
+    return !!row;
   }
 
   private incrementActiveSprintVelocity(companyId: string, delta: number) {

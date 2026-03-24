@@ -17,6 +17,7 @@ interface BootstrapInput {
   companyDescription: string;
   workspacePath: string;
   autoApproveHires: boolean;
+  reviewDeliverables?: boolean;
   goalTitle: string;
   goalDescription: string;
   connectorId?: ConnectorId;
@@ -188,6 +189,7 @@ export function createOnboardingService({
       description: input.companyDescription.trim(),
       status: "active",
       autoApproveHires: input.autoApproveHires,
+      reviewDeliverables: input.reviewDeliverables,
     });
     const workspaceId = createDefaultWorkspace(companyId, input.workspacePath);
 

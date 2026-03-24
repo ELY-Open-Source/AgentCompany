@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Buildings, FolderOpen } from "@phosphor-icons/react";
+import { Buildings, FolderOpen, Lightning, UserCircleCheck } from "@phosphor-icons/react";
 import type { ProfileSnapshot } from "@shared/types";
 import type { AppLocale } from "@shared/locale";
 import { ActionButton, Input, Select, TextArea } from "../ui";
@@ -16,6 +16,8 @@ interface CompanyStepProps {
   setWorkspacePath: (v: string) => void;
   autoApproveHires: boolean;
   setAutoApproveHires: (v: boolean) => void;
+  reviewDeliverables: boolean;
+  setReviewDeliverables: (v: boolean) => void;
   onPickDirectory: () => void;
   onContinue: () => void;
   onBack: () => void;
@@ -38,6 +40,8 @@ export function CompanyStep({
   setWorkspacePath,
   autoApproveHires,
   setAutoApproveHires,
+  reviewDeliverables,
+  setReviewDeliverables,
   onPickDirectory,
   onContinue,
   onBack,
@@ -111,21 +115,28 @@ export function CompanyStep({
             {t("onboarding.workspaceHelp")}
           </div>
         </div>
-        <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3">
-          <label className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              checked={autoApproveHires}
-              onChange={(event) => setAutoApproveHires(event.target.checked)}
-              className="h-4 w-4 rounded border-[color:var(--line)] accent-[color:var(--accent)]"
-            />
-            <div>
-              <div className="text-[13px] font-medium text-[color:var(--text)]">{t("onboarding.autoApproveLabel")}</div>
-              <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
-                {t("onboarding.autoApproveHelp")}
-              </div>
-            </div>
-          </label>
+        <div>
+          <div className="mb-2 text-[12px] font-medium text-[color:var(--muted-strong)]">{t("onboarding.automationMode")}</div>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => { setReviewDeliverables(false); setAutoApproveHires(true) }}
+              className={`cursor-pointer rounded-[8px] border-2 px-4 py-3.5 text-left transition ${!reviewDeliverables ? "border-[color:var(--accent)] bg-[color:var(--accent-soft)]" : "border-[color:var(--line)] bg-[color:var(--panel-soft)] hover:border-[color:var(--muted)]"}`}
+            >
+              <Lightning size={20} weight={!reviewDeliverables ? "fill" : "regular"} className={!reviewDeliverables ? "text-[color:var(--accent)]" : "text-[color:var(--muted)]"} />
+              <div className="mt-2 text-[13px] font-semibold text-[color:var(--text)]">{t("onboarding.modeFullAuto")}</div>
+              <div className="mt-1 text-[11px] leading-relaxed text-[color:var(--muted)]">{t("onboarding.modeFullAutoDesc")}</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setReviewDeliverables(true); setAutoApproveHires(false) }}
+              className={`cursor-pointer rounded-[8px] border-2 px-4 py-3.5 text-left transition ${reviewDeliverables ? "border-[color:var(--accent)] bg-[color:var(--accent-soft)]" : "border-[color:var(--line)] bg-[color:var(--panel-soft)] hover:border-[color:var(--muted)]"}`}
+            >
+              <UserCircleCheck size={20} weight={reviewDeliverables ? "fill" : "regular"} className={reviewDeliverables ? "text-[color:var(--accent)]" : "text-[color:var(--muted)]"} />
+              <div className="mt-2 text-[13px] font-semibold text-[color:var(--text)]">{t("onboarding.modeHumanReview")}</div>
+              <div className="mt-1 text-[11px] leading-relaxed text-[color:var(--muted)]">{t("onboarding.modeHumanReviewDesc")}</div>
+            </button>
+          </div>
         </div>
       </div>
 

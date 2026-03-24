@@ -11,10 +11,19 @@ export function shouldAutoApproveApproval(
     return false;
   }
 
-  return db
+  const company = db
     .listSnapshot()
     .companies
-    .some((company) => company.id === companyId && company.autoApproveHires);
+    .find((c) => c.id === companyId);
+
+  if (!company?.autoApproveHires) return false;
+
+  // When reviewDeliverables is ON, CEO strategy needs human review — don't auto-approve
+  if (approvalType === "approve_ceo_strategy" && company.reviewDeliverables) {
+    return false;
+  }
+
+  return true;
 }
 
 export function resolveApprovalDecision({
