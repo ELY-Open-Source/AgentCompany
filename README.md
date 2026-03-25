@@ -28,7 +28,7 @@
 
 ## What is AgentCompany?
 
-AgentCompany is a cross-platform desktop app that turns a single goal into a fully autonomous AI company. You provide a company name, description, and mission. A CEO agent self-organizes departments, hires specialists, delegates tasks, and delivers real results — code, content, research, business plans, and more — while you observe through a Slack-style command hub.
+AgentCompany is a cross-platform desktop app that turns a single goal into a fully autonomous AI company. You provide a company name, description, and mission. A CEO agent self-organizes departments, hires specialists, delegates tasks, and delivers real results — code, content, research, business plans, and more — while you observe through a Slack-style command hub. Inspired by **[Paperclip](https://github.com/paperclipai/paperclip)**
 
 ### Supported AI Runtimes
 
