@@ -83,8 +83,11 @@ export function createWorkerService({
   const MAX_CONSECUTIVE_WAKES = 5;
 
   let worker: ReturnType<typeof utilityProcess.fork> | null = null;
+  let destroyed = false;
+  const pendingRetryTimers = new Set<ReturnType<typeof setTimeout>>();
 
   function getWorker() {
+    if (destroyed) return null;
     return worker;
   }
 
@@ -98,7 +101,7 @@ export function createWorkerService({
     worker.stderr?.on("data", (chunk) => logger.error(`[worker] ${String(chunk).trim()}`));
 
     worker.on("exit", (code) => {
-      if (isQuitting()) return;
+      if (isQuitting() || destroyed) return;
 
       logger.warn(`[worker] Worker exited with code ${code}, recovering...`);
 
@@ -320,7 +323,7 @@ export function createWorkerService({
         publishDomainChanged();
       }
 
-      if (event.status === "failed" || event.status === "timed_out") {
+      if ((event.status === "failed" || event.status === "timed_out") && !isQuitting() && !destroyed) {
         const retryCount = db.getTaskRetryCount(run.taskId);
 
         if (retryCount < MAX_RETRY_ATTEMPTS) {
@@ -329,9 +332,12 @@ export function createWorkerService({
           db.advanceTaskStatus(run.taskId, "todo",
             `Run ${event.status} (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS}). Auto-retrying after ${RETRY_COOLDOWN_MS / 1000}s cooldown.`);
           logger.info(`[escalation] Retrying task ${run.taskId} (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS}) for agent ${run.agentId}`);
-          setTimeout(() => {
+          const retryTimer = setTimeout(() => {
+            pendingRetryTimers.delete(retryTimer);
+            if (isQuitting() || destroyed) return;
             wakeAgentIfPossible(run.agentId, run.companyId, "retry_failed");
           }, RETRY_COOLDOWN_MS);
+          pendingRetryTimers.add(retryTimer);
         } else {
           // Retry limit reached -- escalate up the chain
           db.resetTaskRetryCount(run.taskId);
@@ -376,13 +382,15 @@ export function createWorkerService({
       }
 
       const pendingWakes = db.consumePendingWakes(run.agentId);
-      if (pendingWakes.length > 0) {
+      if (pendingWakes.length > 0 && !isQuitting() && !destroyed) {
         for (const wake of pendingWakes) {
           wakeAgentIfPossible(run.agentId, wake.companyId, wake.trigger);
         }
       }
 
-      processRunCompletion(run, event as z.infer<typeof workerMessageSchema> & { type: "run-finished" });
+      if (!isQuitting() && !destroyed) {
+        processRunCompletion(run, event as z.infer<typeof workerMessageSchema> & { type: "run-finished" });
+      }
 
       // Reset retry count on successful completion
       if (event.status === "succeeded") {
@@ -396,7 +404,7 @@ export function createWorkerService({
       }
 
       // Self-wake with circuit breaker to prevent infinite loops
-      if (pendingWakes.length === 0) {
+      if (pendingWakes.length === 0 && !isQuitting() && !destroyed) {
         try {
           const actionableTasks = db.listAgentTasks(run.agentId, run.companyId, ["todo", "in_progress"]);
           if (actionableTasks.length > 0) {
@@ -426,7 +434,26 @@ export function createWorkerService({
   }
 
   function destroy() {
+    destroyed = true;
+
+    // Clear all pending retry timers so they never fire after quit
+    for (const timer of pendingRetryTimers) {
+      clearTimeout(timer);
+    }
+    pendingRetryTimers.clear();
+
     if (worker) {
+      // Cancel all running/queued runs in the worker before killing it.
+      // This tells the worker to SIGTERM all child CLI processes (claude, codex, etc.)
+      const snapshot = db.listSnapshot();
+      for (const run of snapshot.runs) {
+        if (run.status === "running" || run.status === "queued") {
+          try {
+            worker.postMessage({ type: "cancel-run", runId: run.id });
+          } catch { /* worker may already be dead */ }
+        }
+      }
+
       worker.kill();
       // Force-kill after 2s if SIGTERM didn't work (child CLI processes may keep it alive)
       const ref = worker;

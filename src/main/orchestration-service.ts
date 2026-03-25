@@ -60,6 +60,7 @@ interface OrchestrationDependencies {
   dispatchAutomation: (trigger: string, ctx: AutomationDispatch) => void;
   hasWorkerReady: () => boolean;
   enqueueWorkerRun: (payload: EnqueueRunPayload) => void;
+  isQuitting: () => boolean;
 }
 
 export function createOrchestrationService({
@@ -72,6 +73,7 @@ export function createOrchestrationService({
   dispatchAutomation,
   hasWorkerReady,
   enqueueWorkerRun,
+  isQuitting,
 }: OrchestrationDependencies) {
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   const scheduleLastFiredMap = new Map<string, number>();
@@ -182,6 +184,9 @@ export function createOrchestrationService({
     trigger: string;
   }) {
     const { runId, companyId, agent, task, connector, workspace, workspaceMode, companyName, companyDescription, snapshot, trigger } = params;
+    if (isQuitting()) {
+      throw new Error("Application is shutting down — refusing to dispatch new run.");
+    }
     if (!hasWorkerReady()) {
       throw new Error("Orchestration worker is not ready.");
     }
@@ -311,6 +316,7 @@ export function createOrchestrationService({
   }
 
   function startAgentHeartbeatRun(agentId: string, companyId: string, trigger: string): string | null {
+    if (isQuitting()) return null;
     if (!hasWorkerReady()) return null;
     const companyStatus = db.getCompanyStatus(companyId);
     if (companyStatus !== "active") {
@@ -448,7 +454,7 @@ export function createOrchestrationService({
   }
 
   function wakeAgentIfPossible(agentId: string | null | undefined, companyId: string, trigger: string) {
-    if (!agentId) return null;
+    if (!agentId || isQuitting()) return null;
     try {
       const agent = db.getAgent(agentId);
       if (agent.companyId !== companyId) {
@@ -473,6 +479,9 @@ export function createOrchestrationService({
   }
 
   function queueTaskRun(taskId: string, trigger: string, actor: string) {
+    if (isQuitting()) {
+      return fail("APP_SHUTTING_DOWN", "Application is shutting down.");
+    }
     if (!hasWorkerReady()) {
       logger.warn(`[run] Worker not ready — cannot queue run for task ${taskId} (trigger: ${trigger})`);
       return fail("WORKER_UNAVAILABLE", "Orchestration worker is not ready.");
@@ -556,7 +565,7 @@ export function createOrchestrationService({
   }
 
   function resumeQueuedRuns() {
-    if (!hasWorkerReady()) {
+    if (isQuitting() || !hasWorkerReady()) {
       return;
     }
     const snapshot = db.listSnapshot();
@@ -610,7 +619,7 @@ export function createOrchestrationService({
 
     heartbeatTimer = setInterval(() => {
       try {
-        if (!hasWorkerReady()) return;
+        if (isQuitting() || !hasWorkerReady()) return;
         const activeCompanies = db.listActiveCompanyIds();
         const now = Date.now();
 

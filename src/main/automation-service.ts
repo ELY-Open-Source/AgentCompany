@@ -69,6 +69,7 @@ interface AutomationDependencies {
   notify: (options: NotificationOptions) => void;
   wakeAgentIfPossible: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
   dispatchBrowserAction: (actionId: string, companyId: string) => Promise<void>;
+  isQuitting: () => boolean;
 }
 
 interface RunFinishedEvent {
@@ -86,9 +87,11 @@ export function createAutomationService({
   notify,
   wakeAgentIfPossible,
   dispatchBrowserAction,
+  isQuitting,
 }: AutomationDependencies) {
   const activeAutomationExecutions = new Set<string>();
   const activeWorkflowTriggerExecutions = new Set<string>();
+  const pendingScheduledTimers = new Set<ReturnType<typeof setTimeout>>();
 
   function normalizeWorkflowSteps(raw: unknown): WorkflowStepState[] {
     if (!Array.isArray(raw)) {
@@ -642,6 +645,7 @@ export function createAutomationService({
   }
 
   function dispatchAutomation(trigger: string, ctx: AutomationEventContext) {
+    if (isQuitting()) return;
     evaluateAutomationRules(trigger, ctx);
     evaluateWorkflowTriggers(trigger, ctx);
   }
@@ -859,6 +863,7 @@ export function createAutomationService({
   }
 
   function processRunCompletion(run: RunRecord, event: RunFinishedEvent) {
+    if (isQuitting()) return;
     let task: ReturnType<typeof db.getTask> | null = null;
     try {
       task = db.getTask(run.taskId);
@@ -1032,6 +1037,7 @@ export function createAutomationService({
   }
 
   function handleApprovalResolved(approvalId: string, companyId: string, decision: string) {
+    if (isQuitting()) return;
     const snapshot = db.listSnapshot();
     const approval = snapshot.approvals.find((entry) => entry.id === approvalId);
     if (!approval) return;
@@ -1168,7 +1174,12 @@ export function createAutomationService({
         if (draft.scheduledAt) {
           const delay = new Date(draft.scheduledAt).getTime() - Date.now();
           if (delay > 0) {
-            setTimeout(dispatchSocialAction, delay);
+            const timer = setTimeout(() => {
+              pendingScheduledTimers.delete(timer);
+              if (isQuitting()) return;
+              dispatchSocialAction();
+            }, delay);
+            pendingScheduledTimers.add(timer);
           } else {
             dispatchSocialAction();
           }
@@ -1229,6 +1240,7 @@ export function createAutomationService({
   }
 
   function handleTaskStatusChange(taskId: string, companyId: string, previousStatus: string, newStatus: string) {
+    if (isQuitting()) return;
     if (previousStatus === newStatus) return;
 
     let task: ReturnType<typeof db.getTask> | null = null;
@@ -1298,6 +1310,7 @@ export function createAutomationService({
   }
 
   function handleTaskCreated(taskId: string, companyId: string) {
+    if (isQuitting()) return;
     let task: ReturnType<typeof db.getTask> | null = null;
     try {
       task = db.getTask(taskId);
@@ -1322,6 +1335,13 @@ export function createAutomationService({
     }
   }
 
+  function destroy() {
+    for (const timer of pendingScheduledTimers) {
+      clearTimeout(timer);
+    }
+    pendingScheduledTimers.clear();
+  }
+
   return {
     runWorkflowPipeline,
     dispatchAutomation,
@@ -1329,5 +1349,6 @@ export function createAutomationService({
     handleApprovalResolved,
     handleTaskStatusChange,
     handleTaskCreated,
+    destroy,
   };
 }

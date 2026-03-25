@@ -30,6 +30,7 @@ interface DesktopShellDependencies {
   onBackupProfile: () => Promise<void>;
   onShortcut: (action: "toggle-command-palette" | "toggle-console" | "refresh") => void;
   notify: (options: NotificationOptions) => void;
+  getActiveRunCount: () => number;
 }
 
 function isSocialBrowserSession(contents: Electron.WebContents) {
@@ -55,11 +56,91 @@ export function createDesktopShellService({
   onBackupProfile,
   onShortcut,
   notify,
+  getActiveRunCount,
 }: DesktopShellDependencies) {
   let mainWindow: BrowserWindow | null = null;
   let appTray: Tray | null = null;
   let backgroundCloseNoticeShown = false;
   let windowCreationPromise: Promise<BrowserWindow | null> | null = null;
+  let quitDialogShowing = false;
+
+  /**
+   * Quit confirmation gate — shown when agents are actively running.
+   * Gives the user three choices:
+   *   0 = "Stop All & Quit"  → terminate all agents and exit
+   *   1 = "Minimize to Background" → hide window, agents keep running
+   *   2 = "Cancel" → do nothing
+   *
+   * When no agents are active the app quits immediately without a dialog.
+   */
+  async function requestQuitWithConfirmation() {
+    if (quitDialogShowing) return;
+
+    let activeRunCount = 0;
+    try {
+      activeRunCount = getActiveRunCount();
+    } catch {
+      // Cannot determine active runs — proceed with immediate quit as fail-safe
+      onRequestQuit();
+      app.quit();
+      return;
+    }
+
+    if (activeRunCount === 0) {
+      onRequestQuit();
+      app.quit();
+      return;
+    }
+
+    quitDialogShowing = true;
+    try {
+      const message = activeRunCount === 1
+        ? "1 agent run is currently active."
+        : `${activeRunCount} agent runs are currently active.`;
+
+      const options: Electron.MessageBoxOptions = {
+        type: "question",
+        buttons: ["Stop All & Quit", "Minimize to Background", "Cancel"],
+        defaultId: 2,
+        cancelId: 2,
+        title: "AgentCompany",
+        message,
+        detail: "Quitting will stop all running agents and their tasks. You can also minimize to keep agents running in the background.",
+      };
+
+      const parentWindow = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+      const result = parentWindow
+        ? await dialog.showMessageBox(parentWindow, options)
+        : await dialog.showMessageBox(options);
+
+      if (result.response === 0) {
+        // Stop All & Quit
+        onRequestQuit();
+        app.quit();
+      } else if (result.response === 1) {
+        // Minimize to Background
+        if (parentWindow) {
+          parentWindow.hide();
+        }
+        if (!backgroundCloseNoticeShown) {
+          backgroundCloseNoticeShown = true;
+          notify({
+            title: "Running in Background",
+            body: "AgentCompany is still running in the system tray",
+            urgency: "informational",
+            navigation: { section: "overview" },
+          });
+        }
+      }
+      // Cancel: do nothing
+    } catch {
+      // Dialog failed (e.g. window destroyed mid-flight) — quit as fail-safe
+      onRequestQuit();
+      app.quit();
+    } finally {
+      quitDialogShowing = false;
+    }
+  }
 
   function getMainWindow() {
     return mainWindow;
@@ -195,7 +276,11 @@ export function createDesktopShellService({
         { role: "hideOthers" },
         { role: "unhide" },
         { type: "separator" },
-        { role: "quit" },
+        {
+          label: `Quit ${app.name}`,
+          accelerator: "CmdOrCtrl+Q",
+          click: () => void requestQuitWithConfirmation(),
+        },
       ],
     };
     const template: Electron.MenuItemConstructorOptions[] = [
@@ -222,7 +307,14 @@ export function createDesktopShellService({
               await onBackupProfile();
             },
           },
-          ...(process.platform === "darwin" ? [] : [{ type: "separator" as const }, { role: "quit" as const }]),
+          ...(process.platform === "darwin" ? [] : [
+            { type: "separator" as const },
+            {
+              label: "Quit",
+              accelerator: "Alt+F4",
+              click: () => void requestQuitWithConfirmation(),
+            },
+          ]),
         ],
       },
       {
@@ -333,10 +425,7 @@ export function createDesktopShellService({
         { type: "separator" },
         {
           label: "Quit",
-          click: () => {
-            onRequestQuit();
-            app.quit();
-          },
+          click: () => void requestQuitWithConfirmation(),
         },
       ]),
     );

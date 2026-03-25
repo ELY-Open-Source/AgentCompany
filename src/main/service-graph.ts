@@ -135,6 +135,14 @@ export function createServiceGraph({
       },
       onShortcut: (action) => emitEvent({ type: "shortcut", action }),
       notify,
+      getActiveRunCount: () => {
+        try {
+          const snapshot = db.listSnapshot();
+          return snapshot.runs.filter((r) => r.status === "running" || r.status === "queued").length;
+        } catch {
+          return 0;
+        }
+      },
     });
     desktopShellService.initialize();
 
@@ -169,6 +177,7 @@ export function createServiceGraph({
       enqueueWorkerRun: (payload) => {
         workerService?.getWorker()?.postMessage({ type: "enqueue-run", payload });
       },
+      isQuitting: () => isQuittingRef.current,
     });
     workerService.createWorker();
 
@@ -180,6 +189,7 @@ export function createServiceGraph({
       notify,
       wakeAgentIfPossible,
       dispatchBrowserAction,
+      isQuitting: () => isQuittingRef.current,
     });
 
     onboardingService = createOnboardingService({
@@ -210,6 +220,7 @@ export function createServiceGraph({
       onBeforeQuit: () => {
         isQuittingRef.current = true;
         orchestrationService?.stopHeartbeatScheduler();
+        automationService?.destroy();
         apiServerRef.current?.stop();
         apiServerRef.current = null;
         browserManagerRef.current?.shutdown();
