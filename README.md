@@ -6,7 +6,9 @@
 
 <p align="center">
   <strong>Launch autonomous AI companies from your desktop.</strong><br/>
-  Set a goal. Watch AI agents self-organize, delegate, and deliver.
+  Set a goal. Watch AI agents self-organize, delegate, and deliver.<br/>
+  <strong>PLEASE USE A CODING PLAN, IT COMSUMES A LOT OF TOKENS</strong><br/>
+  I will add support for Ollama and Github Copilot in the near future.
 </p>
 
 <p align="center">
