@@ -4,7 +4,7 @@
     "output": "/Users/zacharyzhang/Documents/Github/AgentCompany/build/release"
   },
   "extraMetadata": {
-    "version": "0.4.80"
+    "version": "0.4.95"
   },
   "mac": {
     "hardenedRuntime": false,
