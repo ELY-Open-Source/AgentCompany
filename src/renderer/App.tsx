@@ -14,6 +14,7 @@ import {
   MagnifyingGlass,
   Megaphone,
   Plus,
+  PuzzlePiece,
   UsersThree,
   ShieldCheck,
   Trash,
@@ -75,6 +76,7 @@ import { SocialAccountsPanel } from "./components/social";
 import { AutomationPanel } from "./components/automation";
 import { CommunicationHub } from "./components/communication";
 import { HiringPipeline } from "./components/hiring";
+import { SkillsSection } from "./components/skills";
 import { DocumentCenter, KnowledgeBaseManager, MeetingsManager, SprintManager } from "./components/company-operations";
 import { ActionButton, ErrorBoundary, ListFrame, ListRow, Modal, Panel, SectionButton, Select, StatusPill, useFocusTrap, useReducedMotion } from "./components/ui";
 import ToastContainer from "./components/Toast";
@@ -94,6 +96,7 @@ const sidebarNavDefs: NavItemDef[] = [
   { id: "agents", labelKey: "nav.agents", icon: UsersThree },
   { id: "tasks", labelKey: "nav.work", icon: ListChecks },
   { id: "communication", labelKey: "nav.communication", icon: ChatCircle },
+  { id: "skills", labelKey: "nav.skills", icon: PuzzlePiece },
   { id: "documents", labelKey: "nav.documents", icon: FileText },
   { id: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
   { id: "social", labelKey: "nav.social", icon: Megaphone },
@@ -181,6 +184,10 @@ export function App() {
     store.setSocialAccounts([]);
     store.setBrowserActions([]);
     store.setBadges(null);
+    store.setSkills([]);
+    store.setSelectedSkillId(null);
+    store.setSelectedSkillFilePath("SKILL.md");
+    store.setSkillImportModalOpen(false);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -1192,6 +1199,10 @@ export function App() {
                   }}
                 />
               )}
+
+              {section === "skills" && currentCompany ? (
+                <SkillsSection companyId={currentCompany.id} agents={companyAgents} onRefresh={refresh} />
+              ) : null}
 
               {section === "automation" && currentCompany ? (
                 <AutomationPanel

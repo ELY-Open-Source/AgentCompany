@@ -642,5 +642,12 @@ export type DesktopApi = {
   recoveryRetry: (taskId: string, agentId: string, companyId: string) => Promise<DesktopResult<null>>;
   recoveryDismiss: (taskId: string) => Promise<DesktopResult<null>>;
   recoveryFail: (taskId: string) => Promise<DesktopResult<null>>;
+  importSkill: (companyId: string, source: string) => Promise<DesktopResult<SkillImportResult[]>>;
+  listSkills: (companyId: string) => Promise<DesktopResult<SkillRecord[]>>;
+  getSkillDetail: (companyId: string, skillId: string) => Promise<DesktopResult<SkillRecord>>;
+  deleteSkill: (companyId: string, skillId: string) => Promise<DesktopResult<void>>;
+  assignSkillToAgent: (companyId: string, agentId: string, skillId: string) => Promise<DesktopResult<void>>;
+  removeSkillFromAgent: (companyId: string, agentId: string, skillId: string) => Promise<DesktopResult<void>>;
+  checkSkillUpdate: (companyId: string, skillId: string) => Promise<DesktopResult<SkillUpdateStatus>>;
   subscribe: (callback: (event: DesktopEvent) => void) => () => void;
 };

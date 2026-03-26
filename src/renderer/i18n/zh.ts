@@ -22,6 +22,7 @@ export const zh: Record<string, string> = {
   "nav.costs": "成本",
   "nav.activity": "活动",
   "nav.social": "社交媒体",
+  "nav.skills": "技能",
   "nav.connectors": "连接器",
   "nav.workspaces": "工作区",
   "nav.settings": "设置",

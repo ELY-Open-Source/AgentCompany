@@ -16,6 +16,7 @@ export type SectionId =
   | "activity"
   | "workspaces"
   | "social"
+  | "skills"
   | "automation"
   | "communication"
   | "documents"

@@ -105,6 +105,7 @@ export const createNavigationSlice: StateCreator<
         else if (section === "connectors") state.selectedConnectorId = entityId;
         else if (section === "communication")
           state.selectedCommunicationEntityId = entityId;
+        else if (section === "skills") state.selectedSkillId = entityId;
       }
     }),
 });
