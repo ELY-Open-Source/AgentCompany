@@ -2,17 +2,17 @@ import { useCallback, useEffect, useState } from "react";
 import {
   MagnifyingGlass,
   Plus,
-  PuzzlePiece,
 } from "@phosphor-icons/react";
 import type { AgentRecord } from "@shared/types";
 import { useAppStore } from "../../state/store";
 import { EmptyState } from "../ui";
 import { SkillList } from "./SkillList";
 import { SkillImportModal } from "./SkillImportModal";
+import { SkillDetail } from "./SkillDetail";
 
 export function SkillsSection({
   companyId,
-  agents: _agents,
+  agents,
   onRefresh: _onRefresh,
 }: {
   companyId: string;
@@ -56,8 +56,6 @@ export function SkillsSection({
     },
     [setSelectedSkillId],
   );
-
-  const selectedSkill = skills.find((s) => s.id === selectedSkillId);
 
   return (
     <div className="grid h-full grid-cols-1 xl:grid-cols-[19rem_minmax(0,1fr)]">
@@ -131,14 +129,14 @@ export function SkillsSection({
 
       {/* Right column -- skill detail */}
       <div className="flex flex-1 flex-col overflow-y-auto">
-        {selectedSkill ? (
-          <div className="flex flex-1 items-center justify-center p-8 text-[color:var(--muted)]">
-            <div className="text-center">
-              <PuzzlePiece size={32} className="mx-auto mb-3 opacity-40" />
-              <p className="text-[14px] font-medium text-[color:var(--text)]">{selectedSkill.name}</p>
-              <p className="mt-1 text-[13px]">Skill detail pane -- Plan 02</p>
-            </div>
-          </div>
+        {selectedSkillId ? (
+          <SkillDetail
+            companyId={companyId}
+            skillId={selectedSkillId}
+            agents={agents}
+            onDeleted={() => { setSelectedSkillId(null); void loadSkills(); }}
+            onRefresh={() => void loadSkills()}
+          />
         ) : (
           <div className="flex flex-1 items-center justify-center">
             <EmptyState

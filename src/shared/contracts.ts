@@ -80,6 +80,8 @@ export const IPC_CHANNELS = {
   assignSkillToAgent: "agent-company:assign-skill-to-agent",
   removeSkillFromAgent: "agent-company:remove-skill-from-agent",
   checkSkillUpdate: "agent-company:check-skill-update",
+  listSkillAgents: "agent-company:list-skill-agents",
+  listAgentSkills: "agent-company:list-agent-skills",
 } as const;
 
 const optionalId = z.preprocess(
@@ -557,6 +559,16 @@ export const checkSkillUpdateSchema = z.object({
   skillId: z.string().min(1),
 });
 
+export const listSkillAgentsSchema = z.object({
+  companyId: z.string().min(1),
+  skillId: z.string().min(1),
+});
+
+export const listAgentSkillsSchema = z.object({
+  companyId: z.string().min(1),
+  agentId: z.string().min(1),
+});
+
 export type DesktopResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: string; message: string } };
@@ -639,15 +651,10 @@ export type DesktopApi = {
   assignSkillToAgent: (companyId: string, agentId: string, skillId: string) => Promise<DesktopResult<void>>;
   removeSkillFromAgent: (companyId: string, agentId: string, skillId: string) => Promise<DesktopResult<void>>;
   checkSkillUpdate: (companyId: string, skillId: string) => Promise<DesktopResult<SkillUpdateStatus>>;
+  listSkillAgents: (companyId: string, skillId: string) => Promise<DesktopResult<string[]>>;
+  listAgentSkills: (companyId: string, agentId: string) => Promise<DesktopResult<string[]>>;
   recoveryRetry: (taskId: string, agentId: string, companyId: string) => Promise<DesktopResult<null>>;
   recoveryDismiss: (taskId: string) => Promise<DesktopResult<null>>;
   recoveryFail: (taskId: string) => Promise<DesktopResult<null>>;
-  importSkill: (companyId: string, source: string) => Promise<DesktopResult<SkillImportResult[]>>;
-  listSkills: (companyId: string) => Promise<DesktopResult<SkillRecord[]>>;
-  getSkillDetail: (companyId: string, skillId: string) => Promise<DesktopResult<SkillRecord>>;
-  deleteSkill: (companyId: string, skillId: string) => Promise<DesktopResult<void>>;
-  assignSkillToAgent: (companyId: string, agentId: string, skillId: string) => Promise<DesktopResult<void>>;
-  removeSkillFromAgent: (companyId: string, agentId: string, skillId: string) => Promise<DesktopResult<void>>;
-  checkSkillUpdate: (companyId: string, skillId: string) => Promise<DesktopResult<SkillUpdateStatus>>;
   subscribe: (callback: (event: DesktopEvent) => void) => () => void;
 };

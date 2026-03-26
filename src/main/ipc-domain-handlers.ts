@@ -19,5 +19,6 @@ export function registerDomainHandlers(dependencies: RegisterDomainHandlersDepen
     ensureCompanyExists: dependencies.ensureCompanyExists,
     publishDomainChanged: dependencies.publishDomainChanged,
     skillService: dependencies.skillService,
+    db: dependencies.db,
   });
 }

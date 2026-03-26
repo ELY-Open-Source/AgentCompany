@@ -7,15 +7,19 @@ import {
   assignSkillToAgentSchema,
   removeSkillFromAgentSchema,
   checkSkillUpdateSchema,
+  listSkillAgentsSchema,
+  listAgentSkillsSchema,
 } from "@shared/contracts";
 import { fail, ok, type RegisterDomainHandlersDependencies } from "./ipc-domain-common";
 import type { createSkillService } from "./skill-service";
+import type { AppDatabase } from "./database";
 
 interface SkillHandlerDependencies extends Pick<
   RegisterDomainHandlersDependencies,
   "registerHandle" | "ensureCompanyExists" | "publishDomainChanged"
 > {
   skillService: ReturnType<typeof createSkillService> | null;
+  db: AppDatabase;
 }
 
 export function registerSkillHandlers({
@@ -23,6 +27,7 @@ export function registerSkillHandlers({
   ensureCompanyExists,
   publishDomainChanged,
   skillService,
+  db,
 }: SkillHandlerDependencies) {
   function requireSkillService() {
     if (!skillService) {
@@ -115,5 +120,21 @@ export function registerSkillHandlers({
     const serviceError = requireSkillService();
     if (serviceError) return serviceError;
     return skillService!.checkUpdateStatus(parsed.companyId, parsed.skillId);
+  });
+
+  // ---- List agent IDs assigned to a skill ----
+  registerHandle(IPC_CHANNELS.listSkillAgents, async (_event, payload) => {
+    const parsed = listSkillAgentsSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    return ok(db.listSkillAgentAssignments(parsed.skillId));
+  });
+
+  // ---- List skill IDs assigned to an agent ----
+  registerHandle(IPC_CHANNELS.listAgentSkills, async (_event, payload) => {
+    const parsed = listAgentSkillsSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    return ok(db.listAgentSkillAssignments(parsed.agentId));
   });
 }

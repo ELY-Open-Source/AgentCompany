@@ -90,6 +90,10 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.removeSkillFromAgent, { companyId, agentId, skillId }),
   checkSkillUpdate: (companyId, skillId) =>
     ipcRenderer.invoke(IPC_CHANNELS.checkSkillUpdate, { companyId, skillId }),
+  listSkillAgents: (companyId, skillId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.listSkillAgents, { companyId, skillId }),
+  listAgentSkills: (companyId, agentId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.listAgentSkills, { companyId, agentId }),
   recoveryRetry: (taskId: string, agentId: string, companyId: string) =>
     ipcRenderer.invoke("recovery:retry", { taskId, agentId, companyId }),
   recoveryDismiss: (taskId: string) =>
