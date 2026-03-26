@@ -164,7 +164,7 @@ describe("AppDatabase", () => {
     });
   });
 
-  it("atomically checks out unclaimed work to a single agent", () => {
+  it("atomically checks out unclaimed work via CAS with run ID", () => {
     const companyId = db.saveCompany({
       name: "Checkout Company",
       description: "Atomic checkout validation",
@@ -191,18 +191,12 @@ describe("AppDatabase", () => {
       capabilities: "Leads",
       budgetMonthlyUsd: 100,
     });
-    const contributorId = db.saveAgent({
-      companyId,
-      name: "Contributor",
-      role: "IC",
-      title: "Contributor",
-      status: "active",
-      reportsTo: leadId,
-      connectorId: "codex_local",
-      workspaceId,
-      model: null,
-      capabilities: "Executes",
-      budgetMonthlyUsd: 100,
+    db.saveConnector({
+      id: "codex_local",
+      command: "codex",
+      model: "gpt-5",
+      envBindingText: "",
+      notes: "Test connector",
     });
     const taskId = db.saveTask({
       companyId,
@@ -214,11 +208,25 @@ describe("AppDatabase", () => {
       status: "todo",
     });
 
-    expect(db.checkoutTask(taskId, leadId)).toBe(true);
-    expect(db.checkoutTask(taskId, contributorId)).toBe(false);
+    const { id: runId1 } = db.createRun({
+      companyId,
+      taskId,
+      agentId: leadId,
+      workspaceId,
+      connectorId: "codex_local",
+    });
+    const { id: runId2 } = db.createRun({
+      companyId,
+      taskId,
+      agentId: leadId,
+      workspaceId,
+      connectorId: "codex_local",
+    });
+
+    expect(db.checkoutTask(taskId, runId1)).toBe(true);
+    expect(db.checkoutTask(taskId, runId2)).toBe(false);
 
     const task = db.getTask(taskId);
-    expect(task.assigneeAgentId).toBe(leadId);
     expect(task.status).toBe("in_progress");
   });
 

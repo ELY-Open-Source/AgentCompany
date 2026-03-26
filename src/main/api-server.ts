@@ -355,7 +355,7 @@ export class AgentApiServer {
         return;
       }
       const previousStatus = task.status;
-      const success = this.db.checkoutTask(params.issueId!, agentId);
+      const success = this.db.checkoutTask(params.issueId!, token.runId);
       if (!success) {
         this.json(res, 409, { error: "Task cannot be checked out — already assigned or not in valid status" });
         return;

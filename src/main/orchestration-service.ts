@@ -473,7 +473,7 @@ export function createOrchestrationService({
     const agentBusy = hasActiveRun({ agentId, companyId });
     const runId = startAgentHeartbeatRun(agentId, companyId, trigger);
     if (!runId && agentBusy) {
-      db.enqueuePendingWake(companyId, agentId, trigger);
+      db.enqueueWakeupRequest(companyId, agentId, trigger, trigger);
     }
     return runId;
   }
@@ -689,9 +689,9 @@ export function createOrchestrationService({
             logger.info(`[heartbeat] Released ${staleReleased} stale workspace lock(s)`);
             publishDomainChanged();
           }
-          const stalePendingWakes = db.purgeExpiredPendingWakes();
-          if (stalePendingWakes > 0) {
-            logger.info(`[heartbeat] Purged ${stalePendingWakes} stale pending wake(s)`);
+          const staleWakeups = db.purgeExpiredWakeupRequests();
+          if (staleWakeups > 0) {
+            logger.info(`[heartbeat] Purged ${staleWakeups} expired wakeup request(s)`);
           }
         } catch (error) {
           logger.error(`[heartbeat] Stale lock cleanup failed: ${error instanceof Error ? error.message : String(error)}`);
