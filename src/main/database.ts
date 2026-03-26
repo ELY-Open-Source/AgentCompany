@@ -1196,13 +1196,14 @@ export class AppDatabase {
   }
 
   createRun(input: {
+    id?: string;
     companyId: string;
     taskId: string;
     agentId: string;
     workspaceId: string | null;
     connectorId: ConnectorId;
   }) {
-    const id = randomUUID();
+    const id = input.id ?? randomUUID();
     const ts = nowIso();
     const logPath = join(this.logsDir, `${id}.log`);
     this.transaction(() => {

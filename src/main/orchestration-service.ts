@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { buildTaskPrompt } from "./prompt-builder";
 import type { AppDatabase } from "./database";
 import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
@@ -418,8 +419,20 @@ export function createOrchestrationService({
       logger.info(`[heartbeat] Created bootstrap task for ${agent.name}: ${taskTitle}`);
     }
 
-    if (task.activeRunId || hasActiveRun({ taskId: task.id, companyId })) {
-      logger.info(`[heartbeat] Skipping ${agent.name} because task ${task.title} already has an active run.`);
+    // Generate runId upfront for CAS checkout (EXEC-01, EXEC-02)
+    const runId = randomUUID();
+    const checkoutSuccess = db.checkoutTask(task.id, runId);
+    if (!checkoutSuccess) {
+      // D-04: Activity log entry only, no toast/popup
+      db.addActivity({
+        companyId,
+        actor: "system",
+        action: "execution.checkout_rejected",
+        entityType: "task",
+        entityId: task.id,
+        detail: `Agent ${agent.name} lost checkout race on task "${task.title}"`,
+      });
+      logger.info(`[heartbeat] Agent ${agent.name} lost checkout race on task ${task.title}`);
       return null;
     }
 
@@ -430,6 +443,7 @@ export function createOrchestrationService({
     );
 
     const run = db.createRun({
+      id: runId,
       companyId,
       taskId: task.id,
       agentId: agent.id,
@@ -483,9 +497,16 @@ export function createOrchestrationService({
     }
 
     const agentBusy = hasActiveRun({ agentId, companyId });
+    if (agentBusy) {
+      // Agent is busy — enqueue wakeup with lifecycle tracking (D-05)
+      db.enqueueWakeupRequest(companyId, agentId, trigger, `Wake for agent: ${trigger}`);
+      return null;
+    }
+
     const runId = startAgentHeartbeatRun(agentId, companyId, trigger);
-    if (!runId && agentBusy) {
-      db.enqueueWakeupRequest(companyId, agentId, trigger, trigger);
+    if (!runId) {
+      // Run failed to start but agent not busy — still enqueue for retry
+      db.enqueueWakeupRequest(companyId, agentId, trigger, `Wake for agent (deferred): ${trigger}`);
     }
     return runId;
   }
@@ -502,9 +523,6 @@ export function createOrchestrationService({
     const companyStatus = db.getCompanyStatus(task.companyId);
     if (companyStatus !== "active") {
       return fail("COMPANY_NOT_ACTIVE", "Runs can only start while the company is active.");
-    }
-    if (task.activeRunId || hasActiveRun({ taskId: task.id, companyId: task.companyId })) {
-      return fail("TASK_ALREADY_RUNNING", "This task already has an active run.");
     }
     if (!task.assigneeAgentId) return fail("TASK_UNASSIGNED", "Assign an agent before starting a run.");
     const agent = db.getAgent(task.assigneeAgentId);
@@ -536,6 +554,13 @@ export function createOrchestrationService({
       );
     }
 
+    // CAS checkout — atomic claim (EXEC-01, EXEC-02)
+    const runId = randomUUID();
+    const checkoutSuccess = db.checkoutTask(task.id, runId);
+    if (!checkoutSuccess) {
+      return fail("CHECKOUT_RACE_LOST", "Another run claimed this task. Refresh and try again.");
+    }
+
     const workspaceResolution = resolveWorkspace(task, agent, task.companyId);
     const workspace = workspaceResolution.workspace;
     if (workspace && workspace.companyId !== task.companyId) {
@@ -543,6 +568,7 @@ export function createOrchestrationService({
     }
 
     const run = db.createRun({
+      id: runId,
       companyId: task.companyId,
       taskId: task.id,
       agentId: agent.id,
@@ -577,6 +603,27 @@ export function createOrchestrationService({
   }
 
   function resumeQueuedRuns() {
+    // D-02: Stale lock recovery at app startup (EXEC-03)
+    try {
+      const recovered = db.recoverStaleLocks();
+      for (const task of recovered) {
+        db.addActivity({
+          companyId: task.companyId,
+          actor: "system",
+          action: "execution.lock_recovered",
+          entityType: "task",
+          entityId: task.taskId,
+          detail: `Recovered stale lock on task "${task.title}" after 15min timeout (startup sweep)`,
+        });
+        logger.info(`[init] Recovered stale lock on task ${task.taskId}: "${task.title}"`);
+      }
+      if (recovered.length > 0) {
+        logger.info(`[init] Recovered ${recovered.length} stale lock(s) at startup`);
+      }
+    } catch (err) {
+      logger.error(`[init] Stale lock recovery at startup failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
     if (isQuitting() || !hasWorkerReady()) {
       return;
     }
@@ -632,6 +679,26 @@ export function createOrchestrationService({
     heartbeatTimer = setInterval(() => {
       try {
         if (isQuitting() || !hasWorkerReady()) return;
+
+        // D-02: Stale lock recovery piggybacked on heartbeat cycle (EXEC-03)
+        try {
+          const recovered = db.recoverStaleLocks();
+          for (const task of recovered) {
+            // D-04: Activity log entry only
+            db.addActivity({
+              companyId: task.companyId,
+              actor: "system",
+              action: "execution.lock_recovered",
+              entityType: "task",
+              entityId: task.taskId,
+              detail: `Recovered stale lock on task "${task.title}" after 15min timeout`,
+            });
+            logger.info(`[heartbeat] Recovered stale lock on task ${task.taskId}: "${task.title}"`);
+          }
+        } catch (err) {
+          logger.error(`[heartbeat] Stale lock recovery failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+
         const activeCompanies = db.listActiveCompanyIds();
         const now = Date.now();
 
