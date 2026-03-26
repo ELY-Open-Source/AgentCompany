@@ -114,6 +114,8 @@ function taskPriorityOrderSql(columnName: string) {
   end`;
 }
 
+export const STALE_LOCK_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes (D-01)
+
 export class AppDatabase {
   readonly profileDir: string;
   readonly dbPath: string;
@@ -343,6 +345,31 @@ export class AppDatabase {
       create index if not exists idx_pending_wakes_agent on pending_wakes(agent_id);
     `);
 
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS wakeup_requests (
+        id TEXT PRIMARY KEY,
+        company_id TEXT NOT NULL,
+        agent_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        trigger_detail TEXT,
+        reason TEXT,
+        payload TEXT,
+        status TEXT NOT NULL DEFAULT 'queued',
+        coalesced_count INTEGER NOT NULL DEFAULT 0,
+        requested_by_actor_type TEXT,
+        requested_by_actor_id TEXT,
+        idempotency_key TEXT,
+        run_id TEXT,
+        requested_at TEXT NOT NULL,
+        claimed_at TEXT,
+        finished_at TEXT,
+        error TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_wakeup_requests_agent ON wakeup_requests(agent_id, company_id, status);
+    `);
+
     this.migrateSecretsTable();
     this.ensureOptionalColumns();
 
@@ -365,7 +392,7 @@ export class AppDatabase {
     this.seedConnectors();
     this._lastInterruptedCount = this.interruptStaleRuns();
     this.purgeExpiredRunLogs();
-    this.purgeExpiredPendingWakes();
+    this.purgeExpiredWakeupRequests();
   }
 
   close() {
@@ -1325,6 +1352,9 @@ export class AppDatabase {
           input.runId,
         );
       this.db.prepare("update tasks set active_run_id = null, updated_at = ? where id = ?").run(ts, run.taskId);
+      this.db
+        .prepare("UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?")
+        .run(ts, run.taskId, input.runId);
       if (typeof input.costUsd === "number" && Number.isFinite(input.costUsd)) {
         this.db
           .prepare("update tasks set cost_usd = cost_usd + ?, updated_at = ? where id = ?")
@@ -1363,6 +1393,9 @@ export class AppDatabase {
       )
       .run(summary, ts, ts, runId);
     this.db.prepare("update tasks set active_run_id = null, updated_at = ? where id = ?").run(ts, taskId);
+    this.db
+      .prepare("UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?")
+      .run(ts, taskId, runId);
     if (workspaceId) {
       this.db
         .prepare(
@@ -1419,7 +1452,6 @@ export class AppDatabase {
       this.db.prepare("delete from company_skills where company_id = ?").run(companyId);
       this.db.prepare("delete from task_sessions where company_id = ?").run(companyId);
       this.db.prepare("delete from wakeup_requests where company_id = ?").run(companyId);
-      this.db.prepare("delete from pending_wakes where company_id = ?").run(companyId);
       this.db.prepare("delete from cost_entries where company_id = ?").run(companyId);
       this.db.prepare("delete from activity where company_id = ?").run(companyId);
       this.db.prepare("delete from task_comments where company_id = ?").run(companyId);
@@ -1474,8 +1506,8 @@ export class AppDatabase {
       this.db.prepare("update documents set reviewer_agent_id = null where reviewer_agent_id = ? and company_id = ?").run(id, companyId);
       // Clean up knowledge entries authored by this agent
       this.db.prepare("update knowledge_base set author_agent_id = null where author_agent_id = ? and company_id = ?").run(id, companyId);
-      // Remove pending wakes for this agent
-      this.db.prepare("delete from pending_wakes where agent_id = ? and company_id = ?").run(id, companyId);
+      // Remove wakeup requests for this agent
+      this.db.prepare("DELETE FROM wakeup_requests WHERE agent_id = ? AND company_id = ?").run(id, companyId);
       this.db.prepare("delete from agents where id = ? and company_id = ?").run(id, companyId);
     });
   }
@@ -1809,17 +1841,52 @@ export class AppDatabase {
     ).map((record) => ({ ...record, heartbeatEnabled: toBoolean(record.heartbeatEnabled) })) as AgentRecord[];
   }
 
-  checkoutTask(taskId: string, agentId: string): boolean {
+  checkoutTask(taskId: string, runId: string): boolean {
+    const ts = nowIso();
     const result = this.db
       .prepare(
-        `update tasks
-           set assignee_agent_id = ?, status = 'in_progress', updated_at = ?
-         where id = ?
-           and status in ('todo', 'backlog')
-           and (assignee_agent_id is null or assignee_agent_id = ?)`,
+        `UPDATE tasks
+           SET checkout_run_id = ?, execution_locked_at = ?, status = 'in_progress', updated_at = ?
+         WHERE id = ?
+           AND checkout_run_id IS NULL
+           AND status IN ('todo', 'backlog')`,
       )
-      .run(agentId, nowIso(), taskId, agentId);
+      .run(runId, ts, ts, taskId);
     return result.changes > 0;
+  }
+
+  releaseTaskLock(taskId: string, runId: string): void {
+    this.db
+      .prepare(
+        "UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?",
+      )
+      .run(nowIso(), taskId, runId);
+  }
+
+  recoverStaleLocks(): Array<{ taskId: string; companyId: string; title: string }> {
+    const cutoff = new Date(Date.now() - STALE_LOCK_TIMEOUT_MS).toISOString();
+    const stale = this.readAll<{ id: string; companyId: string; title: string }>(
+      `SELECT id, company_id AS companyId, title
+       FROM tasks
+       WHERE execution_locked_at IS NOT NULL
+         AND execution_locked_at < ?
+         AND status = 'in_progress'`,
+      cutoff,
+    );
+    const ts = nowIso();
+    for (const task of stale) {
+      this.db
+        .prepare(
+          `UPDATE tasks
+             SET checkout_run_id = NULL,
+                 execution_locked_at = NULL,
+                 status = 'todo',
+                 updated_at = ?
+           WHERE id = ?`,
+        )
+        .run(ts, task.id);
+    }
+    return stale.map((t) => ({ taskId: t.id, companyId: t.companyId, title: t.title }));
   }
 
   listAgentTasks(agentId: string, companyId: string, statuses: string[]): TaskRecord[] {
@@ -1887,36 +1954,172 @@ export class AppDatabase {
     ).map((record) => ({ ...record, heartbeatEnabled: toBoolean(record.heartbeatEnabled) })) as AgentRecord[];
   }
 
-  enqueuePendingWake(companyId: string, agentId: string, trigger: string) {
-    const existing = this.db
-      .prepare("select id from pending_wakes where company_id = ? and agent_id = ? limit 1")
-      .get(companyId, agentId) as { id: string } | undefined;
+  enqueueWakeupRequest(companyId: string, agentId: string, trigger: string, detail: string): void {
     const ts = nowIso();
-    if (existing) {
-      this.db
-        .prepare("update pending_wakes set trigger_reason = ?, created_at = ? where id = ?")
-        .run(trigger, ts, existing.id);
-      return;
-    }
-    this.db
-      .prepare(
-        "insert into pending_wakes (id, company_id, agent_id, trigger_reason, created_at) values (?, ?, ?, ?, ?)",
-      )
-      .run(randomUUID(), companyId, agentId, trigger, ts);
-  }
-
-  consumePendingWakes(agentId: string): Array<{ id: string; companyId: string; trigger: string }> {
-    let rows: Array<{ id: string; companyId: string; trigger: string }> = [];
     this.transaction(() => {
-      rows = this.readAll<{ id: string; companyId: string; trigger: string }>(
-        "select id, company_id as companyId, trigger_reason as trigger from pending_wakes where agent_id = ? order by created_at asc",
-        agentId,
-      );
-      if (rows.length > 0) {
-        this.db.prepare("delete from pending_wakes where agent_id = ?").run(agentId);
+      // D-07: Per-agent scope -- check for existing queued or deferred wake for this agent
+      const existing = this.db
+        .prepare(
+          `SELECT id, trigger_detail, coalesced_count
+           FROM wakeup_requests
+           WHERE agent_id = ? AND company_id = ? AND status IN ('queued', 'deferred')
+           LIMIT 1`,
+        )
+        .get(agentId, companyId) as
+          | { id: string; trigger_detail: string | null; coalesced_count: number }
+          | undefined;
+
+      if (existing) {
+        // D-06: Coalesce -- append trigger to JSON array
+        const triggers: Array<{ trigger: string; at: string; detail: string }> = existing.trigger_detail
+          ? JSON.parse(existing.trigger_detail)
+          : [];
+        triggers.push({ trigger, at: ts, detail });
+        this.db
+          .prepare(
+            `UPDATE wakeup_requests
+               SET trigger_detail = ?,
+                   coalesced_count = coalesced_count + 1,
+                   updated_at = ?
+             WHERE id = ?`,
+          )
+          .run(JSON.stringify(triggers), ts, existing.id);
+      } else {
+        // New wakeup request
+        const triggerDetail = JSON.stringify([{ trigger, at: ts, detail }]);
+        this.db
+          .prepare(
+            `INSERT INTO wakeup_requests
+               (id, company_id, agent_id, source, trigger_detail, status, coalesced_count, requested_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?)`,
+          )
+          .run(randomUUID(), companyId, agentId, trigger, triggerDetail, ts, ts, ts);
       }
     });
-    return rows;
+  }
+
+  claimWakeupRequest(agentId: string, companyId: string, runId: string): { id: string; triggerDetail: string | null } | null {
+    let result: { id: string; triggerDetail: string | null } | null = null;
+    this.transaction(() => {
+      const row = this.db
+        .prepare(
+          `SELECT id, trigger_detail AS triggerDetail
+           FROM wakeup_requests
+           WHERE agent_id = ? AND company_id = ? AND status = 'queued'
+           ORDER BY requested_at ASC
+           LIMIT 1`,
+        )
+        .get(agentId, companyId) as { id: string; triggerDetail: string | null } | undefined;
+      if (!row) return;
+      const ts = nowIso();
+      this.db
+        .prepare(
+          `UPDATE wakeup_requests SET status = 'claimed', claimed_at = ?, run_id = ?, updated_at = ? WHERE id = ?`,
+        )
+        .run(ts, runId, ts, row.id);
+      result = row;
+    });
+    return result;
+  }
+
+  completeWakeupRequest(wakeupId: string): void {
+    const ts = nowIso();
+    this.db
+      .prepare(
+        `UPDATE wakeup_requests SET status = 'completed', finished_at = ?, updated_at = ? WHERE id = ? AND status = 'claimed'`,
+      )
+      .run(ts, ts, wakeupId);
+  }
+
+  deferWakeupRequest(agentId: string, companyId: string): void {
+    const ts = nowIso();
+    this.db
+      .prepare(
+        `UPDATE wakeup_requests SET status = 'deferred', updated_at = ? WHERE agent_id = ? AND company_id = ? AND status = 'queued'`,
+      )
+      .run(ts, agentId, companyId);
+  }
+
+  promoteWakeupRequests(agentId: string, companyId: string): number {
+    let promoted = 0;
+    this.transaction(() => {
+      const queued = this.db
+        .prepare(
+          `SELECT id, trigger_detail FROM wakeup_requests
+           WHERE agent_id = ? AND company_id = ? AND status = 'queued' LIMIT 1`,
+        )
+        .get(agentId, companyId) as { id: string; trigger_detail: string | null } | undefined;
+      const deferred = this.readAll<{ id: string; trigger_detail: string | null; coalesced_count: number }>(
+        `SELECT id, trigger_detail, coalesced_count FROM wakeup_requests
+         WHERE agent_id = ? AND company_id = ? AND status = 'deferred'`,
+        agentId, companyId,
+      );
+      if (deferred.length === 0) return;
+      const ts = nowIso();
+      if (queued) {
+        // Merge deferred triggers into existing queued wake
+        const queuedTriggers: Array<{ trigger: string; at: string; detail: string }> = queued.trigger_detail ? JSON.parse(queued.trigger_detail) : [];
+        let addedCount = 0;
+        for (const d of deferred) {
+          const dTriggers: Array<{ trigger: string; at: string; detail: string }> = d.trigger_detail ? JSON.parse(d.trigger_detail) : [];
+          queuedTriggers.push(...dTriggers);
+          addedCount += d.coalesced_count + 1;
+        }
+        this.db.prepare(
+          `UPDATE wakeup_requests SET trigger_detail = ?, coalesced_count = coalesced_count + ?, updated_at = ? WHERE id = ?`,
+        ).run(JSON.stringify(queuedTriggers), addedCount, ts, queued.id);
+        // Delete the merged deferred rows
+        for (const d of deferred) {
+          this.db.prepare("DELETE FROM wakeup_requests WHERE id = ?").run(d.id);
+        }
+        promoted = deferred.length;
+      } else {
+        // No queued wake -- promote first deferred to queued, merge rest
+        const [first, ...rest] = deferred;
+        this.db.prepare(
+          `UPDATE wakeup_requests SET status = 'queued', updated_at = ? WHERE id = ?`,
+        ).run(ts, first!.id);
+        if (rest.length > 0) {
+          const firstTriggers: Array<{ trigger: string; at: string; detail: string }> = first!.trigger_detail ? JSON.parse(first!.trigger_detail) : [];
+          let addedCount = 0;
+          for (const d of rest) {
+            const dTriggers: Array<{ trigger: string; at: string; detail: string }> = d.trigger_detail ? JSON.parse(d.trigger_detail) : [];
+            firstTriggers.push(...dTriggers);
+            addedCount += d.coalesced_count + 1;
+          }
+          this.db.prepare(
+            `UPDATE wakeup_requests SET trigger_detail = ?, coalesced_count = coalesced_count + ?, updated_at = ? WHERE id = ?`,
+          ).run(JSON.stringify(firstTriggers), addedCount, ts, first!.id);
+          for (const d of rest) {
+            this.db.prepare("DELETE FROM wakeup_requests WHERE id = ?").run(d.id);
+          }
+        }
+        promoted = deferred.length;
+      }
+    });
+    return promoted;
+  }
+
+  listWakeupRequests(companyId: string, filters?: { status?: string; agentId?: string; limit?: number }): Array<{
+    id: string; companyId: string; agentId: string; source: string; triggerDetail: string | null;
+    status: string; coalescedCount: number; runId: string | null; requestedAt: string;
+    claimedAt: string | null; finishedAt: string | null; createdAt: string; updatedAt: string;
+  }> {
+    const conditions = ["company_id = ?"];
+    const params: SQLInputValue[] = [companyId];
+    if (filters?.status) { conditions.push("status = ?"); params.push(filters.status); }
+    if (filters?.agentId) { conditions.push("agent_id = ?"); params.push(filters.agentId); }
+    const limit = filters?.limit ?? 50;
+    return this.readAll(
+      `SELECT id, company_id AS companyId, agent_id AS agentId, source, trigger_detail AS triggerDetail,
+              status, coalesced_count AS coalescedCount, run_id AS runId, requested_at AS requestedAt,
+              claimed_at AS claimedAt, finished_at AS finishedAt, created_at AS createdAt, updated_at AS updatedAt
+       FROM wakeup_requests
+       WHERE ${conditions.join(" AND ")}
+       ORDER BY requested_at DESC
+       LIMIT ?`,
+      ...params, limit,
+    );
   }
 
   exportBackup(targetDir: string) {
@@ -2042,10 +2245,10 @@ export class AppDatabase {
     }
   }
 
-  purgeExpiredPendingWakes() {
-    // Remove pending wakes older than 2 hours — if agent hasn't woken by then, the wake is stale
+  purgeExpiredWakeupRequests() {
+    // Remove completed wakeup requests older than 2 hours -- only clean completed, not active ones
     const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const result = this.db.prepare("delete from pending_wakes where created_at < ?").run(cutoff);
+    const result = this.db.prepare("DELETE FROM wakeup_requests WHERE created_at < ? AND status IN ('completed')").run(cutoff);
     return Number(result.changes);
   }
 
@@ -2347,6 +2550,8 @@ export class AppDatabase {
     addColumnIfMissing("alter table tasks add column requires_user_review integer not null default 0");
     addColumnIfMissing("alter table tasks add column retry_count integer not null default 0");
     addColumnIfMissing("alter table tasks add column last_failure_at text");
+    addColumnIfMissing("alter table tasks add column checkout_run_id text");
+    addColumnIfMissing("alter table tasks add column execution_locked_at text");
     this.db.exec(`
       create table if not exists task_comments (
         id text primary key,
@@ -3554,6 +3759,36 @@ export class AppDatabase {
           );
           CREATE INDEX IF NOT EXISTS idx_agent_skill_assignments_skill ON agent_skill_assignments(skill_id)
         `,
+      },
+      {
+        version: 17,
+        name: "migrate_pending_wakes_to_wakeup_requests",
+        fn: () => {
+          // D-08: Copy existing pending_wakes rows into wakeup_requests with 'queued' status
+          const existingWakes = this.readAll<{
+            id: string;
+            companyId: string;
+            agentId: string;
+            triggerReason: string;
+            createdAt: string;
+          }>(
+            `SELECT id, company_id AS companyId, agent_id AS agentId, trigger_reason AS triggerReason, created_at AS createdAt
+             FROM pending_wakes`,
+          );
+          const ts = nowIso();
+          for (const wake of existingWakes) {
+            const triggerDetail = JSON.stringify([{ trigger: wake.triggerReason, at: wake.createdAt, detail: wake.triggerReason }]);
+            this.db
+              .prepare(
+                `INSERT OR IGNORE INTO wakeup_requests
+                   (id, company_id, agent_id, source, trigger_detail, status, coalesced_count, requested_at, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?)`,
+              )
+              .run(wake.id, wake.companyId, wake.agentId, wake.triggerReason, triggerDetail, wake.createdAt, ts, ts);
+          }
+          // Drop the old table
+          this.db.exec("DROP TABLE IF EXISTS pending_wakes");
+        },
       },
     ];
 

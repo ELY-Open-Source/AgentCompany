@@ -145,9 +145,14 @@ export function createWorkerService({
       }
 
       for (const agentId of affectedAgentIds) {
-        const pendingWakes = db.consumePendingWakes(agentId);
-        for (const wake of pendingWakes) {
-          wakeAgentIfPossible(agentId, wake.companyId, wake.trigger);
+        // Promote any deferred wakes back to queued, then process queued wakes
+        const agentRuns = snapshot.runs.filter((r) => r.agentId === agentId);
+        for (const companyId of new Set(agentRuns.map((r) => r.companyId))) {
+          db.promoteWakeupRequests(agentId, companyId);
+          const wakes = db.listWakeupRequests(companyId, { agentId, status: "queued" });
+          for (const wake of wakes) {
+            wakeAgentIfPossible(agentId, wake.companyId, wake.source);
+          }
         }
       }
 
@@ -381,10 +386,12 @@ export function createWorkerService({
         }
       }
 
-      const pendingWakes = db.consumePendingWakes(run.agentId);
-      if (pendingWakes.length > 0 && !isQuitting() && !destroyed) {
-        for (const wake of pendingWakes) {
-          wakeAgentIfPossible(run.agentId, wake.companyId, wake.trigger);
+      // Promote any deferred wakes back to queued after run completes
+      db.promoteWakeupRequests(run.agentId, run.companyId);
+      const queuedWakes = db.listWakeupRequests(run.companyId, { agentId: run.agentId, status: "queued" });
+      if (queuedWakes.length > 0 && !isQuitting() && !destroyed) {
+        for (const wake of queuedWakes) {
+          wakeAgentIfPossible(run.agentId, wake.companyId, wake.source);
         }
       }
 
@@ -404,7 +411,7 @@ export function createWorkerService({
       }
 
       // Self-wake with circuit breaker to prevent infinite loops
-      if (pendingWakes.length === 0 && !isQuitting() && !destroyed) {
+      if (queuedWakes.length === 0 && !isQuitting() && !destroyed) {
         try {
           const actionableTasks = db.listAgentTasks(run.agentId, run.companyId, ["todo", "in_progress"]);
           if (actionableTasks.length > 0) {
