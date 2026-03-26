@@ -2979,7 +2979,7 @@ export class AppDatabase {
         .map((row) => row.version),
     );
 
-    const migrations: Array<{ version: number; name: string; sql: string }> = [
+    const migrations: Array<{ version: number; name: string; sql?: string; fn?: () => void }> = [
       {
         version: 1,
         name: "add_workspace_lock_lease",
@@ -3203,8 +3203,12 @@ export class AppDatabase {
       if (applied.has(migration.version)) continue;
       try {
         this.transaction(() => {
-          for (const stmt of migration.sql.split(";").map((s) => s.trim()).filter(Boolean)) {
-            this.db.prepare(stmt).run();
+          if (migration.fn) {
+            migration.fn();
+          } else if (migration.sql) {
+            for (const stmt of migration.sql.split(";").map((s) => s.trim()).filter(Boolean)) {
+              this.db.prepare(stmt).run();
+            }
           }
           this.db
             .prepare("insert into schema_migrations (version, name, applied_at) values (?, ?, ?)")
@@ -3709,7 +3713,7 @@ export class AppDatabase {
   }
 
   private openConnection(): SqliteDatabase {
-    return new DatabaseSync(this.dbPath);
+    return new DatabaseSync(this.dbPath, { timeout: 5000 });
   }
 }
 
