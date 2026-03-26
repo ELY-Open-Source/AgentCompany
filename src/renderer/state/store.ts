@@ -16,13 +16,15 @@ import {
   type CommunicationSlice,
 } from "./slices/communication";
 import { createSocialSlice, type SocialSlice } from "./slices/social";
+import { createSkillSlice, type SkillSlice } from "./slices/skill";
 
 export type AppState = NavigationSlice &
   CompanySlice &
   SelectionSlice &
   UiSlice &
   CommunicationSlice &
-  SocialSlice;
+  SocialSlice &
+  SkillSlice;
 
 export const useAppStore = create<AppState>()(
   devtools(
@@ -33,6 +35,7 @@ export const useAppStore = create<AppState>()(
       ...createUiSlice(...a),
       ...createCommunicationSlice(...a),
       ...createSocialSlice(...a),
+      ...createSkillSlice(...a),
     })),
     {
       name: "AgentCompany",
