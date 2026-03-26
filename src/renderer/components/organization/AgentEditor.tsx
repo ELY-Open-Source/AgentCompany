@@ -3,7 +3,9 @@ import { Pencil, Trash } from "@phosphor-icons/react";
 import type { AgentRecord, ConnectorRecord, WorkspaceRecord } from "@shared/types";
 import { getConnectorExecutionReadinessIssue, isConnectorExecutionReady } from "@shared/connector-policy";
 import { unwrap } from "../../lib/desktop";
+import { useAppStore } from "../../state/store";
 import { ActionButton, Input, Select, TextArea } from "../ui";
+import { SkillAgentToggles } from "../skills/SkillAgentToggles";
 import { ConfirmDelete, HeartbeatSection } from "./helpers";
 
 export function AgentEditor({
@@ -73,6 +75,17 @@ export function AgentEditor({
       setThinkingEffort("");
     }
   }, [connectorId, agent.connectorId]);
+
+  const skills = useAppStore((s) => s.skills);
+  const setSkills = useAppStore((s) => s.setSkills);
+
+  useEffect(() => {
+    if (skills.length === 0 && companyId) {
+      window.agentCompany.listSkills(companyId).then((result) => {
+        if (result.ok) setSkills(result.data);
+      });
+    }
+  }, [companyId, skills.length, setSkills]);
 
   const managerCandidates = agents.filter((a) => a.id !== agent.id);
 
@@ -161,6 +174,12 @@ export function AgentEditor({
       <TextArea label="Capabilities" value={capabilities} onChange={setCapabilities} placeholder="Capabilities" readOnly={pendingApproval} disabled={pendingApproval} />
 
       <HeartbeatSection agent={agent} companyId={companyId} pendingApproval={pendingApproval} persistedConnectorIssue={persistedConnectorIssue} onSaved={onSaved} />
+
+      {/* Skills section (D-04 dual access) */}
+      <div className="mt-6 border-t border-[color:var(--line)] pt-4">
+        <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[color:var(--accent-text)] mb-3">Skills</h3>
+        <SkillAgentToggles mode="agent" companyId={companyId} agentId={agent.id} skills={skills} />
+      </div>
 
       <div className="flex items-center gap-3">
         <ActionButton
