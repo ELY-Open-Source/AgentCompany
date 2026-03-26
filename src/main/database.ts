@@ -1403,6 +1403,12 @@ export class AppDatabase {
       } catch (err) {
         if (!(err instanceof Error) || !err.message.includes("no such table")) throw err;
       }
+      // New table cleanup (budget_incidents before budget_policies due to FK)
+      this.db.prepare("delete from budget_incidents where company_id = ?").run(companyId);
+      this.db.prepare("delete from budget_policies where company_id = ?").run(companyId);
+      this.db.prepare("delete from company_skills where company_id = ?").run(companyId);
+      this.db.prepare("delete from task_sessions where company_id = ?").run(companyId);
+      this.db.prepare("delete from wakeup_requests where company_id = ?").run(companyId);
       this.db.prepare("delete from pending_wakes where company_id = ?").run(companyId);
       this.db.prepare("delete from cost_entries where company_id = ?").run(companyId);
       this.db.prepare("delete from activity where company_id = ?").run(companyId);
@@ -3195,6 +3201,131 @@ export class AppDatabase {
             primary key (message_id, agent_id)
           );
           create index if not exists idx_agent_message_reads_agent on agent_message_reads(agent_id);
+        `,
+      },
+      {
+        version: 13,
+        name: "add_checkout_session_budget_columns",
+        sql: `
+          ALTER TABLE tasks ADD COLUMN checkout_run_id TEXT;
+          ALTER TABLE tasks ADD COLUMN execution_locked_at TEXT;
+          ALTER TABLE tasks ADD COLUMN active_session_id TEXT;
+          ALTER TABLE cost_entries ADD COLUMN project_id TEXT;
+          CREATE INDEX IF NOT EXISTS idx_cost_entries_project ON cost_entries(project_id)
+        `,
+      },
+      {
+        version: 14,
+        name: "create_skills_budget_wakeup_session_tables",
+        sql: `
+          CREATE TABLE IF NOT EXISTS company_skills (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            key TEXT NOT NULL,
+            slug TEXT NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT,
+            markdown TEXT NOT NULL DEFAULT '',
+            source_type TEXT NOT NULL DEFAULT 'local_path',
+            source_locator TEXT,
+            source_ref TEXT,
+            trust_level TEXT NOT NULL DEFAULT 'markdown_only',
+            compatibility TEXT NOT NULL DEFAULT 'compatible',
+            file_inventory TEXT NOT NULL DEFAULT '[]',
+            metadata TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_company_skills_company_key ON company_skills(company_id, key);
+          CREATE INDEX IF NOT EXISTS idx_company_skills_company_name ON company_skills(company_id, name);
+
+          CREATE TABLE IF NOT EXISTS budget_policies (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            scope_type TEXT NOT NULL,
+            scope_id TEXT NOT NULL,
+            metric TEXT NOT NULL DEFAULT 'billed_cents',
+            window_kind TEXT NOT NULL DEFAULT 'calendar_month_utc',
+            amount INTEGER NOT NULL DEFAULT 0,
+            warn_percent INTEGER NOT NULL DEFAULT 80,
+            hard_stop_enabled INTEGER NOT NULL DEFAULT 1,
+            notify_enabled INTEGER NOT NULL DEFAULT 1,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_budget_policies_company_scope ON budget_policies(company_id, scope_type, scope_id, is_active);
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_policies_unique ON budget_policies(company_id, scope_type, scope_id, metric, window_kind);
+
+          CREATE TABLE IF NOT EXISTS budget_incidents (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            policy_id TEXT NOT NULL REFERENCES budget_policies(id),
+            scope_type TEXT NOT NULL,
+            scope_id TEXT NOT NULL,
+            metric TEXT NOT NULL,
+            window_kind TEXT NOT NULL,
+            window_start TEXT NOT NULL,
+            window_end TEXT NOT NULL,
+            threshold_type TEXT NOT NULL,
+            amount_limit INTEGER NOT NULL,
+            amount_observed INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            resolved_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_budget_incidents_company_status ON budget_incidents(company_id, status);
+          CREATE INDEX IF NOT EXISTS idx_budget_incidents_company_scope ON budget_incidents(company_id, scope_type, scope_id, status);
+          CREATE INDEX IF NOT EXISTS idx_budget_incidents_policy ON budget_incidents(policy_id, window_start, threshold_type);
+
+          CREATE TABLE IF NOT EXISTS task_sessions (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            task_id TEXT NOT NULL,
+            agent_id TEXT NOT NULL,
+            adapter_type TEXT NOT NULL,
+            session_params_json TEXT,
+            session_display_id TEXT,
+            last_run_id TEXT,
+            last_error TEXT,
+            run_count INTEGER NOT NULL DEFAULT 0,
+            total_input_tokens INTEGER NOT NULL DEFAULT 0,
+            total_output_tokens INTEGER NOT NULL DEFAULT 0,
+            rotated_at TEXT,
+            rotation_reason TEXT,
+            handoff_markdown TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_task_sessions_lookup ON task_sessions(company_id, agent_id, adapter_type, task_id);
+          CREATE INDEX IF NOT EXISTS idx_task_sessions_company_agent ON task_sessions(company_id, agent_id, updated_at);
+          CREATE INDEX IF NOT EXISTS idx_task_sessions_company_task ON task_sessions(company_id, task_id, updated_at);
+
+          CREATE TABLE IF NOT EXISTS wakeup_requests (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            agent_id TEXT NOT NULL,
+            source TEXT NOT NULL,
+            trigger_detail TEXT,
+            reason TEXT,
+            payload TEXT,
+            status TEXT NOT NULL DEFAULT 'queued',
+            coalesced_count INTEGER NOT NULL DEFAULT 0,
+            requested_by_actor_type TEXT,
+            requested_by_actor_id TEXT,
+            idempotency_key TEXT,
+            run_id TEXT,
+            requested_at TEXT NOT NULL,
+            claimed_at TEXT,
+            finished_at TEXT,
+            error TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_wakeup_requests_company_agent_status ON wakeup_requests(company_id, agent_id, status);
+          CREATE INDEX IF NOT EXISTS idx_wakeup_requests_company_requested ON wakeup_requests(company_id, requested_at);
+          CREATE INDEX IF NOT EXISTS idx_wakeup_requests_agent_requested ON wakeup_requests(agent_id, requested_at)
         `,
       },
     ];
