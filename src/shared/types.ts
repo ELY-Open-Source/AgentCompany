@@ -453,6 +453,52 @@ export interface OnboardingBootstrapResult {
   runId: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// Skill system types (mirrored from main/skill-types.ts for IPC boundary)
+// ---------------------------------------------------------------------------
+
+export type SkillSourceType = "github" | "local_path" | "url" | "skills_sh" | "managed";
+export type TrustLevel = "markdown_only" | "assets" | "scripts_executables";
+
+export interface FileInventoryEntry {
+  path: string;
+  kind: "skill" | "reference" | "script" | "asset" | "markdown" | "other";
+}
+
+export interface SkillRecord {
+  id: string;
+  companyId: string;
+  key: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  markdown: string;
+  sourceType: SkillSourceType;
+  sourceLocator: string | null;
+  sourceRef: string | null;
+  trustLevel: TrustLevel;
+  compatibility: string;
+  fileInventory: FileInventoryEntry[];
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SkillImportResult {
+  skillId: string;
+  key: string;
+  name: string;
+  isUpdate: boolean;
+}
+
+export interface SkillUpdateStatus {
+  skillId: string;
+  key: string;
+  currentRef: string | null;
+  latestRef: string | null;
+  hasUpdate: boolean;
+}
+
 export type SocialPlatform = "twitter" | "linkedin" | "instagram" | "facebook" | "reddit" | "youtube" | "tiktok" | "bluesky" | "other";
 export type SocialAccountStatus = "active" | "logged_in" | "login_required" | "suspended" | "paused";
 export type BrowserActionType = "post" | "reply" | "like" | "follow" | "browse_feed" | "screenshot" | "navigate" | "search";
