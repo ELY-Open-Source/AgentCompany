@@ -11,6 +11,7 @@ import { createOrchestrationService } from "./orchestration-service";
 import { createUpdaterService } from "./updater-service";
 import { createWorkerService } from "./worker-service";
 import { createAppLifecycleService } from "./app-lifecycle-service";
+import { createSkillService } from "./skill-service";
 import type { DesktopEvent, RunRecord } from "@shared/types";
 import type { AutomationEventContext } from "./automation-service";
 import type { NotificationOptions } from "./notification-service";
@@ -67,8 +68,20 @@ export function createServiceGraph({
   let workerService: ReturnType<typeof createWorkerService> | null = null;
   let updaterService: ReturnType<typeof createUpdaterService> | null = null;
   let appLifecycleService: ReturnType<typeof createAppLifecycleService> | null = null;
+  let skillService: ReturnType<typeof createSkillService> | null = null;
 
-  const wakeAgentIfPossible = (agentId: string | null | undefined, companyId: string, trigger: string) => {
+  function getOrCreateSkillService() {
+    if (!skillService) {
+      skillService = createSkillService({
+        db,
+        profileDir: db.profileDir,
+        logger,
+      });
+    }
+    return skillService;
+  }
+
+  const wakeAgentIfPossible =(agentId: string | null | undefined, companyId: string, trigger: string) => {
     if (!orchestrationService) {
       throw new Error("Orchestration service is not initialized.");
     }
@@ -236,6 +249,7 @@ export function createServiceGraph({
         orchestrationService = null;
         updaterService = null;
         appLifecycleService = null;
+        skillService = null;
         db.close();
         // Force exit after grace period — covers all platforms (macOS Dock, Windows tray, Linux)
         // Worker child processes (claude/codex CLI) may keep the event loop alive indefinitely
@@ -255,5 +269,6 @@ export function createServiceGraph({
     getOnboardingService: () => onboardingService,
     getUpdaterService: () => updaterService,
     getAppLifecycleService: () => appLifecycleService,
+    getOrCreateSkillService,
   };
 }
