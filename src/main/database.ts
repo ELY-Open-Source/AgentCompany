@@ -2553,6 +2553,8 @@ export class AppDatabase {
     addColumnIfMissing("alter table tasks add column last_failure_at text");
     addColumnIfMissing("alter table tasks add column checkout_run_id text");
     addColumnIfMissing("alter table tasks add column execution_locked_at text");
+    addColumnIfMissing("alter table tasks add column active_session_id text");
+    addColumnIfMissing("alter table cost_entries add column project_id text");
     this.db.exec(`
       create table if not exists task_comments (
         id text primary key,
