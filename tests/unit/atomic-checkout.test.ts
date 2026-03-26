@@ -182,7 +182,7 @@ describe("CAS checkout", () => {
     db.markRunStatus(runId, "running", "");
     db.finishRun({
       runId,
-      status: "completed",
+      status: "succeeded",
       summary: "Done",
       errorMessage: null,
       exitCode: 0,

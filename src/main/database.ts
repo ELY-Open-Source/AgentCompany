@@ -2091,7 +2091,7 @@ export class AppDatabase {
     claimedAt: string | null; finishedAt: string | null; createdAt: string; updatedAt: string;
   }> {
     const conditions = ["company_id = ?"];
-    const params: unknown[] = [companyId];
+    const params: SQLInputValue[] = [companyId];
     if (filters?.status) { conditions.push("status = ?"); params.push(filters.status); }
     if (filters?.agentId) { conditions.push("agent_id = ?"); params.push(filters.agentId); }
     const limit = filters?.limit ?? 50;

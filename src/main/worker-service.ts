@@ -411,7 +411,7 @@ export function createWorkerService({
       }
 
       // Self-wake with circuit breaker to prevent infinite loops
-      if (pendingWakes.length === 0 && !isQuitting() && !destroyed) {
+      if (queuedWakes.length === 0 && !isQuitting() && !destroyed) {
         try {
           const actionableTasks = db.listAgentTasks(run.agentId, run.companyId, ["todo", "in_progress"]);
           if (actionableTasks.length > 0) {
