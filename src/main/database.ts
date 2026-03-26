@@ -6,6 +6,7 @@ import log from "electron-log/main.js";
 import { DatabaseSync, backup as backupDatabase, type SQLInputValue } from "node:sqlite";
 import { getConnectorDefinition, buildDefaultConnectorRows, listInvalidEnvBindingKeys, parseEnvBindingText } from "./connectors";
 import { SecretVault } from "./vault";
+import type { SkillRecord, FileInventoryEntry, SkillSourceType, TrustLevel } from "./skill-types.js";
 import type {
   ActivityRecord,
   AgentMessageRecord,
@@ -1407,6 +1408,14 @@ export class AppDatabase {
       // New table cleanup (budget_incidents before budget_policies due to FK)
       this.db.prepare("delete from budget_incidents where company_id = ?").run(companyId);
       this.db.prepare("delete from budget_policies where company_id = ?").run(companyId);
+      // agent_skill_assignments references company_skills -- delete before skills
+      try {
+        this.db.prepare(
+          "delete from agent_skill_assignments where skill_id in (select id from company_skills where company_id = ?)",
+        ).run(companyId);
+      } catch (err) {
+        if (!(err instanceof Error) || !err.message.includes("no such table")) throw err;
+      }
       this.db.prepare("delete from company_skills where company_id = ?").run(companyId);
       this.db.prepare("delete from task_sessions where company_id = ?").run(companyId);
       this.db.prepare("delete from wakeup_requests where company_id = ?").run(companyId);
@@ -2137,6 +2146,150 @@ export class AppDatabase {
   updateAgentStatus(agentId: string, status: string) {
     const ts = new Date().toISOString();
     this.db.prepare("update agents set status = ?, updated_at = ? where id = ?").run(status, ts, agentId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Skill CRUD methods
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Upsert a company skill -- INSERT with ON CONFLICT UPDATE.
+   * Returns isUpdate=true if the record already existed and was updated.
+   */
+  upsertCompanySkill(skill: {
+    id: string;
+    companyId: string;
+    key: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    markdown: string;
+    sourceType: string;
+    sourceLocator: string | null;
+    sourceRef: string | null;
+    trustLevel: string;
+    compatibility: string;
+    fileInventory: string;
+    metadata: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }): { isUpdate: boolean } {
+    // Check if record exists before upsert to determine isUpdate
+    const existing = this.db
+      .prepare("SELECT 1 FROM company_skills WHERE company_id = ? AND key = ?")
+      .get(skill.companyId, skill.key);
+    const isUpdate = existing != null;
+
+    this.db.prepare(`
+      INSERT INTO company_skills (
+        id, company_id, key, slug, name, description, markdown,
+        source_type, source_locator, source_ref, trust_level,
+        compatibility, file_inventory, metadata, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(company_id, key) DO UPDATE SET
+        slug = excluded.slug,
+        name = excluded.name,
+        description = excluded.description,
+        markdown = excluded.markdown,
+        source_ref = excluded.source_ref,
+        trust_level = excluded.trust_level,
+        file_inventory = excluded.file_inventory,
+        metadata = excluded.metadata,
+        updated_at = excluded.updated_at
+    `).run(
+      skill.id, skill.companyId, skill.key, skill.slug,
+      skill.name, skill.description, skill.markdown,
+      skill.sourceType, skill.sourceLocator, skill.sourceRef,
+      skill.trustLevel, skill.compatibility, skill.fileInventory,
+      skill.metadata, skill.createdAt, skill.updatedAt,
+    );
+
+    return { isUpdate };
+  }
+
+  /** List all skills for a company. */
+  listCompanySkills(companyId: string): SkillRecord[] {
+    const rows = this.readAll<SqliteRow>(
+      "SELECT * FROM company_skills WHERE company_id = ? ORDER BY created_at ASC",
+      companyId,
+    );
+    return rows.map((row) => this.mapSkillRow(row));
+  }
+
+  /** Get a single skill by ID within a company. */
+  getCompanySkill(companyId: string, skillId: string): SkillRecord | null {
+    const row = this.db
+      .prepare("SELECT * FROM company_skills WHERE id = ? AND company_id = ?")
+      .get(skillId, companyId) as SqliteRow | undefined;
+    return row ? this.mapSkillRow(row) : null;
+  }
+
+  /** Get a single skill by canonical key within a company. */
+  getCompanySkillByKey(companyId: string, key: string): SkillRecord | null {
+    const row = this.db
+      .prepare("SELECT * FROM company_skills WHERE company_id = ? AND key = ?")
+      .get(companyId, key) as SqliteRow | undefined;
+    return row ? this.mapSkillRow(row) : null;
+  }
+
+  /** Delete a skill record. Cascade deletes agent_skill_assignments via FK. */
+  deleteCompanySkill(companyId: string, skillId: string): boolean {
+    const result = this.db
+      .prepare("DELETE FROM company_skills WHERE id = ? AND company_id = ?")
+      .run(skillId, companyId);
+    return result.changes > 0;
+  }
+
+  /** Assign a skill to an agent (INSERT OR IGNORE for idempotency). */
+  assignSkillToAgent(agentId: string, skillId: string): void {
+    this.db
+      .prepare("INSERT OR IGNORE INTO agent_skill_assignments (agent_id, skill_id, created_at) VALUES (?, ?, ?)")
+      .run(agentId, skillId, nowIso());
+  }
+
+  /** Remove a skill assignment from an agent. */
+  removeSkillFromAgent(agentId: string, skillId: string): void {
+    this.db
+      .prepare("DELETE FROM agent_skill_assignments WHERE agent_id = ? AND skill_id = ?")
+      .run(agentId, skillId);
+  }
+
+  /** List all skill IDs assigned to a specific agent. */
+  listAgentSkillAssignments(agentId: string): string[] {
+    return this.readAll<{ skill_id: string }>(
+      "SELECT skill_id FROM agent_skill_assignments WHERE agent_id = ?",
+      agentId,
+    ).map((row) => row.skill_id);
+  }
+
+  /** List all agent IDs assigned to a specific skill. */
+  listSkillAgentAssignments(skillId: string): string[] {
+    return this.readAll<{ agent_id: string }>(
+      "SELECT agent_id FROM agent_skill_assignments WHERE skill_id = ?",
+      skillId,
+    ).map((row) => row.agent_id);
+  }
+
+  /** Map a raw SQLite row to a typed SkillRecord. */
+  private mapSkillRow(row: SqliteRow): SkillRecord {
+    return {
+      id: row.id,
+      companyId: row.company_id,
+      key: row.key,
+      slug: row.slug,
+      name: row.name,
+      description: row.description ?? null,
+      markdown: row.markdown ?? "",
+      sourceType: (row.source_type ?? "local_path") as SkillSourceType,
+      sourceLocator: row.source_locator ?? null,
+      sourceRef: row.source_ref ?? null,
+      trustLevel: (row.trust_level ?? "markdown_only") as TrustLevel,
+      compatibility: row.compatibility ?? "compatible",
+      fileInventory: parseJson<FileInventoryEntry[]>(row.file_inventory, []),
+      metadata: parseJson<Record<string, unknown> | null>(row.metadata, null),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
   }
 
   private getSetting(key: string): string | null {
@@ -3386,6 +3539,21 @@ export class AppDatabase {
 
           log.info(`Session migration complete: ${migrated} migrated, ${skipped} skipped`);
         },
+      },
+      {
+        version: 16,
+        name: "create_agent_skill_assignments",
+        sql: `
+          CREATE TABLE IF NOT EXISTS agent_skill_assignments (
+            agent_id TEXT NOT NULL,
+            skill_id TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (agent_id, skill_id),
+            FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
+            FOREIGN KEY (skill_id) REFERENCES company_skills(id) ON DELETE CASCADE
+          );
+          CREATE INDEX IF NOT EXISTS idx_agent_skill_assignments_skill ON agent_skill_assignments(skill_id)
+        `,
       },
     ];
 
