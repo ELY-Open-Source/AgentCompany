@@ -76,6 +76,20 @@ const api: DesktopApi = {
   deleteWorkflow: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteWorkflow, input),
   runWorkflow: (input) => ipcRenderer.invoke(IPC_CHANNELS.runWorkflow, input),
   autoAssignTask: (input) => ipcRenderer.invoke(IPC_CHANNELS.autoAssignTask, input),
+  importSkill: (companyId, source) =>
+    ipcRenderer.invoke(IPC_CHANNELS.importSkill, { companyId, source }),
+  listSkills: (companyId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.listSkills, { companyId }),
+  getSkillDetail: (companyId, skillId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.getSkillDetail, { companyId, skillId }),
+  deleteSkill: (companyId, skillId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.deleteSkill, { companyId, skillId }),
+  assignSkillToAgent: (companyId, agentId, skillId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.assignSkillToAgent, { companyId, agentId, skillId }),
+  removeSkillFromAgent: (companyId, agentId, skillId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.removeSkillFromAgent, { companyId, agentId, skillId }),
+  checkSkillUpdate: (companyId, skillId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.checkSkillUpdate, { companyId, skillId }),
   recoveryRetry: (taskId: string, agentId: string, companyId: string) =>
     ipcRenderer.invoke("recovery:retry", { taskId, agentId, companyId }),
   recoveryDismiss: (taskId: string) =>
