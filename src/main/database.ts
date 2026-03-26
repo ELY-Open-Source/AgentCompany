@@ -2,9 +2,11 @@ import { chmodSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readF
 import { appendFile, copyFile, cp, rm } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
+import log from "electron-log/main.js";
 import { DatabaseSync, backup as backupDatabase, type SQLInputValue } from "node:sqlite";
 import { getConnectorDefinition, buildDefaultConnectorRows, listInvalidEnvBindingKeys, parseEnvBindingText } from "./connectors";
 import { SecretVault } from "./vault";
+import type { SkillRecord, FileInventoryEntry, SkillSourceType, TrustLevel } from "./skill-types.js";
 import type {
   ActivityRecord,
   AgentMessageRecord,
@@ -1403,6 +1405,20 @@ export class AppDatabase {
       } catch (err) {
         if (!(err instanceof Error) || !err.message.includes("no such table")) throw err;
       }
+      // New table cleanup (budget_incidents before budget_policies due to FK)
+      this.db.prepare("delete from budget_incidents where company_id = ?").run(companyId);
+      this.db.prepare("delete from budget_policies where company_id = ?").run(companyId);
+      // agent_skill_assignments references company_skills -- delete before skills
+      try {
+        this.db.prepare(
+          "delete from agent_skill_assignments where skill_id in (select id from company_skills where company_id = ?)",
+        ).run(companyId);
+      } catch (err) {
+        if (!(err instanceof Error) || !err.message.includes("no such table")) throw err;
+      }
+      this.db.prepare("delete from company_skills where company_id = ?").run(companyId);
+      this.db.prepare("delete from task_sessions where company_id = ?").run(companyId);
+      this.db.prepare("delete from wakeup_requests where company_id = ?").run(companyId);
       this.db.prepare("delete from pending_wakes where company_id = ?").run(companyId);
       this.db.prepare("delete from cost_entries where company_id = ?").run(companyId);
       this.db.prepare("delete from activity where company_id = ?").run(companyId);
@@ -2130,6 +2146,150 @@ export class AppDatabase {
   updateAgentStatus(agentId: string, status: string) {
     const ts = new Date().toISOString();
     this.db.prepare("update agents set status = ?, updated_at = ? where id = ?").run(status, ts, agentId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Skill CRUD methods
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Upsert a company skill -- INSERT with ON CONFLICT UPDATE.
+   * Returns isUpdate=true if the record already existed and was updated.
+   */
+  upsertCompanySkill(skill: {
+    id: string;
+    companyId: string;
+    key: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    markdown: string;
+    sourceType: string;
+    sourceLocator: string | null;
+    sourceRef: string | null;
+    trustLevel: string;
+    compatibility: string;
+    fileInventory: string;
+    metadata: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }): { isUpdate: boolean } {
+    // Check if record exists before upsert to determine isUpdate
+    const existing = this.db
+      .prepare("SELECT 1 FROM company_skills WHERE company_id = ? AND key = ?")
+      .get(skill.companyId, skill.key);
+    const isUpdate = existing != null;
+
+    this.db.prepare(`
+      INSERT INTO company_skills (
+        id, company_id, key, slug, name, description, markdown,
+        source_type, source_locator, source_ref, trust_level,
+        compatibility, file_inventory, metadata, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(company_id, key) DO UPDATE SET
+        slug = excluded.slug,
+        name = excluded.name,
+        description = excluded.description,
+        markdown = excluded.markdown,
+        source_ref = excluded.source_ref,
+        trust_level = excluded.trust_level,
+        file_inventory = excluded.file_inventory,
+        metadata = excluded.metadata,
+        updated_at = excluded.updated_at
+    `).run(
+      skill.id, skill.companyId, skill.key, skill.slug,
+      skill.name, skill.description, skill.markdown,
+      skill.sourceType, skill.sourceLocator, skill.sourceRef,
+      skill.trustLevel, skill.compatibility, skill.fileInventory,
+      skill.metadata, skill.createdAt, skill.updatedAt,
+    );
+
+    return { isUpdate };
+  }
+
+  /** List all skills for a company. */
+  listCompanySkills(companyId: string): SkillRecord[] {
+    const rows = this.readAll<SqliteRow>(
+      "SELECT * FROM company_skills WHERE company_id = ? ORDER BY created_at ASC",
+      companyId,
+    );
+    return rows.map((row) => this.mapSkillRow(row));
+  }
+
+  /** Get a single skill by ID within a company. */
+  getCompanySkill(companyId: string, skillId: string): SkillRecord | null {
+    const row = this.db
+      .prepare("SELECT * FROM company_skills WHERE id = ? AND company_id = ?")
+      .get(skillId, companyId) as SqliteRow | undefined;
+    return row ? this.mapSkillRow(row) : null;
+  }
+
+  /** Get a single skill by canonical key within a company. */
+  getCompanySkillByKey(companyId: string, key: string): SkillRecord | null {
+    const row = this.db
+      .prepare("SELECT * FROM company_skills WHERE company_id = ? AND key = ?")
+      .get(companyId, key) as SqliteRow | undefined;
+    return row ? this.mapSkillRow(row) : null;
+  }
+
+  /** Delete a skill record. Cascade deletes agent_skill_assignments via FK. */
+  deleteCompanySkill(companyId: string, skillId: string): boolean {
+    const result = this.db
+      .prepare("DELETE FROM company_skills WHERE id = ? AND company_id = ?")
+      .run(skillId, companyId);
+    return result.changes > 0;
+  }
+
+  /** Assign a skill to an agent (INSERT OR IGNORE for idempotency). */
+  assignSkillToAgent(agentId: string, skillId: string): void {
+    this.db
+      .prepare("INSERT OR IGNORE INTO agent_skill_assignments (agent_id, skill_id, created_at) VALUES (?, ?, ?)")
+      .run(agentId, skillId, nowIso());
+  }
+
+  /** Remove a skill assignment from an agent. */
+  removeSkillFromAgent(agentId: string, skillId: string): void {
+    this.db
+      .prepare("DELETE FROM agent_skill_assignments WHERE agent_id = ? AND skill_id = ?")
+      .run(agentId, skillId);
+  }
+
+  /** List all skill IDs assigned to a specific agent. */
+  listAgentSkillAssignments(agentId: string): string[] {
+    return this.readAll<{ skill_id: string }>(
+      "SELECT skill_id FROM agent_skill_assignments WHERE agent_id = ?",
+      agentId,
+    ).map((row) => row.skill_id);
+  }
+
+  /** List all agent IDs assigned to a specific skill. */
+  listSkillAgentAssignments(skillId: string): string[] {
+    return this.readAll<{ agent_id: string }>(
+      "SELECT agent_id FROM agent_skill_assignments WHERE skill_id = ?",
+      skillId,
+    ).map((row) => row.agent_id);
+  }
+
+  /** Map a raw SQLite row to a typed SkillRecord. */
+  private mapSkillRow(row: SqliteRow): SkillRecord {
+    return {
+      id: row.id,
+      companyId: row.company_id,
+      key: row.key,
+      slug: row.slug,
+      name: row.name,
+      description: row.description ?? null,
+      markdown: row.markdown ?? "",
+      sourceType: (row.source_type ?? "local_path") as SkillSourceType,
+      sourceLocator: row.source_locator ?? null,
+      sourceRef: row.source_ref ?? null,
+      trustLevel: (row.trust_level ?? "markdown_only") as TrustLevel,
+      compatibility: row.compatibility ?? "compatible",
+      fileInventory: parseJson<FileInventoryEntry[]>(row.file_inventory, []),
+      metadata: parseJson<Record<string, unknown> | null>(row.metadata, null),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
   }
 
   private getSetting(key: string): string | null {
@@ -2979,7 +3139,7 @@ export class AppDatabase {
         .map((row) => row.version),
     );
 
-    const migrations: Array<{ version: number; name: string; sql: string }> = [
+    const migrations: Array<{ version: number; name: string; sql?: string; fn?: () => void }> = [
       {
         version: 1,
         name: "add_workspace_lock_lease",
@@ -3197,14 +3357,216 @@ export class AppDatabase {
           create index if not exists idx_agent_message_reads_agent on agent_message_reads(agent_id);
         `,
       },
+      {
+        version: 13,
+        name: "add_checkout_session_budget_columns",
+        sql: `
+          ALTER TABLE tasks ADD COLUMN checkout_run_id TEXT;
+          ALTER TABLE tasks ADD COLUMN execution_locked_at TEXT;
+          ALTER TABLE tasks ADD COLUMN active_session_id TEXT;
+          ALTER TABLE cost_entries ADD COLUMN project_id TEXT;
+          CREATE INDEX IF NOT EXISTS idx_cost_entries_project ON cost_entries(project_id)
+        `,
+      },
+      {
+        version: 14,
+        name: "create_skills_budget_wakeup_session_tables",
+        sql: `
+          CREATE TABLE IF NOT EXISTS company_skills (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            key TEXT NOT NULL,
+            slug TEXT NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT,
+            markdown TEXT NOT NULL DEFAULT '',
+            source_type TEXT NOT NULL DEFAULT 'local_path',
+            source_locator TEXT,
+            source_ref TEXT,
+            trust_level TEXT NOT NULL DEFAULT 'markdown_only',
+            compatibility TEXT NOT NULL DEFAULT 'compatible',
+            file_inventory TEXT NOT NULL DEFAULT '[]',
+            metadata TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_company_skills_company_key ON company_skills(company_id, key);
+          CREATE INDEX IF NOT EXISTS idx_company_skills_company_name ON company_skills(company_id, name);
+
+          CREATE TABLE IF NOT EXISTS budget_policies (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            scope_type TEXT NOT NULL,
+            scope_id TEXT NOT NULL,
+            metric TEXT NOT NULL DEFAULT 'billed_cents',
+            window_kind TEXT NOT NULL DEFAULT 'calendar_month_utc',
+            amount INTEGER NOT NULL DEFAULT 0,
+            warn_percent INTEGER NOT NULL DEFAULT 80,
+            hard_stop_enabled INTEGER NOT NULL DEFAULT 1,
+            notify_enabled INTEGER NOT NULL DEFAULT 1,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_budget_policies_company_scope ON budget_policies(company_id, scope_type, scope_id, is_active);
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_policies_unique ON budget_policies(company_id, scope_type, scope_id, metric, window_kind);
+
+          CREATE TABLE IF NOT EXISTS budget_incidents (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            policy_id TEXT NOT NULL REFERENCES budget_policies(id),
+            scope_type TEXT NOT NULL,
+            scope_id TEXT NOT NULL,
+            metric TEXT NOT NULL,
+            window_kind TEXT NOT NULL,
+            window_start TEXT NOT NULL,
+            window_end TEXT NOT NULL,
+            threshold_type TEXT NOT NULL,
+            amount_limit INTEGER NOT NULL,
+            amount_observed INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            resolved_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_budget_incidents_company_status ON budget_incidents(company_id, status);
+          CREATE INDEX IF NOT EXISTS idx_budget_incidents_company_scope ON budget_incidents(company_id, scope_type, scope_id, status);
+          CREATE INDEX IF NOT EXISTS idx_budget_incidents_policy ON budget_incidents(policy_id, window_start, threshold_type);
+
+          CREATE TABLE IF NOT EXISTS task_sessions (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            task_id TEXT NOT NULL,
+            agent_id TEXT NOT NULL,
+            adapter_type TEXT NOT NULL,
+            session_params_json TEXT,
+            session_display_id TEXT,
+            last_run_id TEXT,
+            last_error TEXT,
+            run_count INTEGER NOT NULL DEFAULT 0,
+            total_input_tokens INTEGER NOT NULL DEFAULT 0,
+            total_output_tokens INTEGER NOT NULL DEFAULT 0,
+            rotated_at TEXT,
+            rotation_reason TEXT,
+            handoff_markdown TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_task_sessions_lookup ON task_sessions(company_id, agent_id, adapter_type, task_id);
+          CREATE INDEX IF NOT EXISTS idx_task_sessions_company_agent ON task_sessions(company_id, agent_id, updated_at);
+          CREATE INDEX IF NOT EXISTS idx_task_sessions_company_task ON task_sessions(company_id, task_id, updated_at);
+
+          CREATE TABLE IF NOT EXISTS wakeup_requests (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            agent_id TEXT NOT NULL,
+            source TEXT NOT NULL,
+            trigger_detail TEXT,
+            reason TEXT,
+            payload TEXT,
+            status TEXT NOT NULL DEFAULT 'queued',
+            coalesced_count INTEGER NOT NULL DEFAULT 0,
+            requested_by_actor_type TEXT,
+            requested_by_actor_id TEXT,
+            idempotency_key TEXT,
+            run_id TEXT,
+            requested_at TEXT NOT NULL,
+            claimed_at TEXT,
+            finished_at TEXT,
+            error TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_wakeup_requests_company_agent_status ON wakeup_requests(company_id, agent_id, status);
+          CREATE INDEX IF NOT EXISTS idx_wakeup_requests_company_requested ON wakeup_requests(company_id, requested_at);
+          CREATE INDEX IF NOT EXISTS idx_wakeup_requests_agent_requested ON wakeup_requests(agent_id, requested_at)
+        `,
+      },
+      {
+        version: 15,
+        name: "migrate_session_data_to_task_sessions",
+        fn: () => {
+          // D-01: Eager copy of session_json to task_sessions table
+          // Only process tasks that have session data but no active_session_id yet (idempotent)
+          const tasksWithSessions = this.readAll<{
+            id: string;
+            companyId: string;
+            assigneeAgentId: string | null;
+            sessionJson: string | null;
+            sessionDisplayId: string | null;
+          }>(
+            `SELECT id, company_id as companyId, assignee_agent_id as assigneeAgentId,
+                    session_json as sessionJson, session_display_id as sessionDisplayId
+             FROM tasks WHERE session_json IS NOT NULL AND active_session_id IS NULL`
+          );
+
+          let migrated = 0;
+          let skipped = 0;
+
+          for (const task of tasksWithSessions) {
+            try {
+              // Validate JSON is parseable (D-02: skip corrupt rows)
+              JSON.parse(task.sessionJson!);
+
+              // Look up agent's connector_id for adapter_type
+              const agent = task.assigneeAgentId
+                ? this.db.prepare("SELECT connector_id FROM agents WHERE id = ?").get(task.assigneeAgentId) as { connector_id: string } | undefined
+                : undefined;
+              const adapterType = agent?.connector_id ?? "unknown";
+              const sessionId = randomUUID();
+              const ts = nowIso();
+
+              this.db.prepare(
+                `INSERT INTO task_sessions (id, company_id, task_id, agent_id, adapter_type,
+                 session_params_json, session_display_id, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+              ).run(
+                sessionId, task.companyId, task.id,
+                task.assigneeAgentId ?? "unassigned", adapterType,
+                task.sessionJson, task.sessionDisplayId, ts, ts
+              );
+
+              this.db.prepare("UPDATE tasks SET active_session_id = ? WHERE id = ?")
+                .run(sessionId, task.id);
+
+              migrated++;
+            } catch (err) {
+              // D-02: Skip bad rows, log warning, don't block app startup
+              log.warn(`Session migration skipped task ${task.id}: ${err instanceof Error ? err.message : String(err)}`);
+              skipped++;
+            }
+          }
+
+          log.info(`Session migration complete: ${migrated} migrated, ${skipped} skipped`);
+        },
+      },
+      {
+        version: 16,
+        name: "create_agent_skill_assignments",
+        sql: `
+          CREATE TABLE IF NOT EXISTS agent_skill_assignments (
+            agent_id TEXT NOT NULL,
+            skill_id TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (agent_id, skill_id),
+            FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
+            FOREIGN KEY (skill_id) REFERENCES company_skills(id) ON DELETE CASCADE
+          );
+          CREATE INDEX IF NOT EXISTS idx_agent_skill_assignments_skill ON agent_skill_assignments(skill_id)
+        `,
+      },
     ];
 
     for (const migration of migrations) {
       if (applied.has(migration.version)) continue;
       try {
         this.transaction(() => {
-          for (const stmt of migration.sql.split(";").map((s) => s.trim()).filter(Boolean)) {
-            this.db.prepare(stmt).run();
+          if (migration.fn) {
+            migration.fn();
+          } else if (migration.sql) {
+            for (const stmt of migration.sql.split(";").map((s) => s.trim()).filter(Boolean)) {
+              this.db.prepare(stmt).run();
+            }
           }
           this.db
             .prepare("insert into schema_migrations (version, name, applied_at) values (?, ?, ?)")
@@ -3709,7 +4071,7 @@ export class AppDatabase {
   }
 
   private openConnection(): SqliteDatabase {
-    return new DatabaseSync(this.dbPath);
+    return new DatabaseSync(this.dbPath, { timeout: 5000 });
   }
 }
 

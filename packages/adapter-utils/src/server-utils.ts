@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { constants as fsConstants, promises as fs } from "node:fs";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import type { ManagedSkillRef } from "./types.js";
 
 /**
  * Decode a Buffer as GBK (CP936). Used as a fallback when UTF-8 decoding
@@ -465,4 +466,35 @@ export async function runChildProcess(
       })
       .catch(reject);
   });
+}
+
+/**
+ * Create symlinks for managed skills in the target directory.
+ * Per D-13: uses 'junction' type on Windows to avoid Developer Mode requirement.
+ * Falls back gracefully -- skill injection is best-effort and should not block runs.
+ */
+export async function createManagedSkillSymlinks(
+  managedSkills: ManagedSkillRef[],
+  targetDir: string,
+  onLog: (stream: "stdout" | "stderr", chunk: string) => Promise<void>,
+): Promise<void> {
+  await fs.mkdir(targetDir, { recursive: true });
+  const symlinkType = process.platform === "win32" ? ("junction" as const) : undefined;
+  for (const skill of managedSkills) {
+    const target = path.join(targetDir, skill.runtimeName);
+    const existing = await fs.lstat(target).catch(() => null);
+    if (existing) {
+      // Remove stale symlink from previous run
+      await fs.rm(target, { recursive: true, force: true }).catch(() => {});
+    }
+    try {
+      await fs.symlink(skill.sourcePath, target, symlinkType);
+      await onLog("stderr", `[agent-company] Injected managed skill "${skill.runtimeName}"\n`);
+    } catch (err) {
+      await onLog(
+        "stderr",
+        `[agent-company] Failed to inject skill "${skill.runtimeName}": ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+    }
+  }
 }

@@ -220,6 +220,14 @@ export interface CLIAdapterModule {
 // UI config form values (moved from ui/src/components/AgentConfigForm.tsx)
 // ---------------------------------------------------------------------------
 
+/** Skill reference passed from main process to worker for adapter injection. */
+export interface ManagedSkillRef {
+  /** Skill slug used as directory name in the adapter's skill directory */
+  runtimeName: string;
+  /** Absolute path to the materialized skill directory on disk */
+  sourcePath: string;
+}
+
 export interface CreateConfigValues {
   adapterType: string;
   cwd: string;

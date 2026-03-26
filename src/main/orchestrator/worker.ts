@@ -42,6 +42,7 @@ interface RunJob {
   sessionParams: Record<string, unknown> | null;
   systemPrompt: string | null;
   trigger: string | null;
+  managedSkills: Array<{ runtimeName: string; sourcePath: string }>;
 }
 
 type ParentMessage =
@@ -95,6 +96,7 @@ function buildConnectorExecutionConfig(job: RunJob, sanitizedEnv: Record<string,
     cwd: job.workspacePath ?? process.cwd(),
     model: job.model,
     env: sanitizedEnv,
+    managedSkills: job.managedSkills,
   };
 
   switch (job.connectorId) {

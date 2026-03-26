@@ -44,6 +44,7 @@ interface EnqueueRunPayload {
   sessionParams: Record<string, unknown> | null;
   systemPrompt: string | null;
   trigger: string | null;
+  managedSkills: Array<{ runtimeName: string; sourcePath: string }>;
 }
 
 interface OrchestrationDependencies {
@@ -61,6 +62,7 @@ interface OrchestrationDependencies {
   hasWorkerReady: () => boolean;
   enqueueWorkerRun: (payload: EnqueueRunPayload) => void;
   isQuitting: () => boolean;
+  listRuntimeSkillEntries: (companyId: string, agentId: string, connectorId: string) => Array<{ runtimeName: string; sourcePath: string }>;
 }
 
 export function createOrchestrationService({
@@ -74,6 +76,7 @@ export function createOrchestrationService({
   hasWorkerReady,
   enqueueWorkerRun,
   isQuitting,
+  listRuntimeSkillEntries,
 }: OrchestrationDependencies) {
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   const scheduleLastFiredMap = new Map<string, number>();
@@ -293,6 +296,14 @@ export function createOrchestrationService({
       thinkingEffort = null;
     }
 
+    // Fetch managed skills for this agent -- best-effort, never blocks run dispatch
+    let managedSkills: Array<{ runtimeName: string; sourcePath: string }> = [];
+    try {
+      managedSkills = listRuntimeSkillEntries(companyId, agent.id, connector.id);
+    } catch (err) {
+      logger.warn(`[run] Failed to fetch managed skills for agent ${agent.name}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
     enqueueWorkerRun({
       runId,
       companyId,
@@ -312,6 +323,7 @@ export function createOrchestrationService({
       sessionParams: taskSession.sessionParams,
       systemPrompt,
       trigger,
+      managedSkills,
     });
   }
 

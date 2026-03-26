@@ -8,6 +8,7 @@ import { createConnectorHealthService } from "./connector-health-service";
 import { createDesktopShellService } from "./desktop-shell-service";
 import { createOnboardingService } from "./onboarding-service";
 import { createOrchestrationService } from "./orchestration-service";
+import { createSkillService } from "./skill-service";
 import { createUpdaterService } from "./updater-service";
 import { createWorkerService } from "./worker-service";
 import { createAppLifecycleService } from "./app-lifecycle-service";
@@ -178,6 +179,19 @@ export function createServiceGraph({
         workerService?.getWorker()?.postMessage({ type: "enqueue-run", payload });
       },
       isQuitting: () => isQuittingRef.current,
+      listRuntimeSkillEntries: (() => {
+        let cachedSkillService: ReturnType<typeof createSkillService> | null = null;
+        return (companyId: string, agentId: string, connectorId: string) => {
+          try {
+            if (!cachedSkillService) {
+              cachedSkillService = createSkillService({ db, profileDir: db.profileDir, logger });
+            }
+            return cachedSkillService.listRuntimeSkillEntries(companyId, agentId, connectorId);
+          } catch {
+            return [];
+          }
+        };
+      })(),
     });
     workerService.createWorker();
 
