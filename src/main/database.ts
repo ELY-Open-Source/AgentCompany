@@ -2,6 +2,7 @@ import { chmodSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readF
 import { appendFile, copyFile, cp, rm } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
+import log from "electron-log/main.js";
 import { DatabaseSync, backup as backupDatabase, type SQLInputValue } from "node:sqlite";
 import { getConnectorDefinition, buildDefaultConnectorRows, listInvalidEnvBindingKeys, parseEnvBindingText } from "./connectors";
 import { SecretVault } from "./vault";
@@ -3327,6 +3328,64 @@ export class AppDatabase {
           CREATE INDEX IF NOT EXISTS idx_wakeup_requests_company_requested ON wakeup_requests(company_id, requested_at);
           CREATE INDEX IF NOT EXISTS idx_wakeup_requests_agent_requested ON wakeup_requests(agent_id, requested_at)
         `,
+      },
+      {
+        version: 15,
+        name: "migrate_session_data_to_task_sessions",
+        fn: () => {
+          // D-01: Eager copy of session_json to task_sessions table
+          // Only process tasks that have session data but no active_session_id yet (idempotent)
+          const tasksWithSessions = this.readAll<{
+            id: string;
+            companyId: string;
+            assigneeAgentId: string | null;
+            sessionJson: string | null;
+            sessionDisplayId: string | null;
+          }>(
+            `SELECT id, company_id as companyId, assignee_agent_id as assigneeAgentId,
+                    session_json as sessionJson, session_display_id as sessionDisplayId
+             FROM tasks WHERE session_json IS NOT NULL AND active_session_id IS NULL`
+          );
+
+          let migrated = 0;
+          let skipped = 0;
+
+          for (const task of tasksWithSessions) {
+            try {
+              // Validate JSON is parseable (D-02: skip corrupt rows)
+              JSON.parse(task.sessionJson!);
+
+              // Look up agent's connector_id for adapter_type
+              const agent = task.assigneeAgentId
+                ? this.db.prepare("SELECT connector_id FROM agents WHERE id = ?").get(task.assigneeAgentId) as { connector_id: string } | undefined
+                : undefined;
+              const adapterType = agent?.connector_id ?? "unknown";
+              const sessionId = randomUUID();
+              const ts = nowIso();
+
+              this.db.prepare(
+                `INSERT INTO task_sessions (id, company_id, task_id, agent_id, adapter_type,
+                 session_params_json, session_display_id, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+              ).run(
+                sessionId, task.companyId, task.id,
+                task.assigneeAgentId ?? "unassigned", adapterType,
+                task.sessionJson, task.sessionDisplayId, ts, ts
+              );
+
+              this.db.prepare("UPDATE tasks SET active_session_id = ? WHERE id = ?")
+                .run(sessionId, task.id);
+
+              migrated++;
+            } catch (err) {
+              // D-02: Skip bad rows, log warning, don't block app startup
+              log.warn(`Session migration skipped task ${task.id}: ${err instanceof Error ? err.message : String(err)}`);
+              skipped++;
+            }
+          }
+
+          log.info(`Session migration complete: ${migrated} migrated, ${skipped} skipped`);
+        },
       },
     ];
 
