@@ -82,6 +82,7 @@ export const IPC_CHANNELS = {
   checkSkillUpdate: "agent-company:check-skill-update",
   listSkillAgents: "agent-company:list-skill-agents",
   listAgentSkills: "agent-company:list-agent-skills",
+  listWakeupRequests: "agent-company:list-wakeup-requests",
 } as const;
 
 const optionalId = z.preprocess(
@@ -569,6 +570,29 @@ export const listAgentSkillsSchema = z.object({
   agentId: z.string().min(1),
 });
 
+export const wakeupQuerySchema = z.object({
+  companyId: z.string().uuid(),
+  status: z.enum(["queued", "claimed", "coalesced", "deferred", "completed"]).optional(),
+  agentId: z.string().uuid().optional(),
+  limit: z.number().int().min(1).max(100).default(50),
+});
+
+export interface WakeupRequestRecord {
+  id: string;
+  companyId: string;
+  agentId: string;
+  source: string;
+  triggerDetail: string | null;
+  status: string;
+  coalescedCount: number;
+  runId: string | null;
+  requestedAt: string;
+  claimedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type DesktopResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: string; message: string } };
@@ -653,6 +677,7 @@ export type DesktopApi = {
   checkSkillUpdate: (companyId: string, skillId: string) => Promise<DesktopResult<SkillUpdateStatus>>;
   listSkillAgents: (companyId: string, skillId: string) => Promise<DesktopResult<string[]>>;
   listAgentSkills: (companyId: string, agentId: string) => Promise<DesktopResult<string[]>>;
+  listWakeupRequests: (input: z.infer<typeof wakeupQuerySchema>) => Promise<DesktopResult<WakeupRequestRecord[]>>;
   recoveryRetry: (taskId: string, agentId: string, companyId: string) => Promise<DesktopResult<null>>;
   recoveryDismiss: (taskId: string) => Promise<DesktopResult<null>>;
   recoveryFail: (taskId: string) => Promise<DesktopResult<null>>;

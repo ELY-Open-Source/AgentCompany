@@ -94,6 +94,7 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.listSkillAgents, { companyId, skillId }),
   listAgentSkills: (companyId, agentId) =>
     ipcRenderer.invoke(IPC_CHANNELS.listAgentSkills, { companyId, agentId }),
+  listWakeupRequests: (input) => ipcRenderer.invoke(IPC_CHANNELS.listWakeupRequests, input),
   recoveryRetry: (taskId: string, agentId: string, companyId: string) =>
     ipcRenderer.invoke("recovery:retry", { taskId, agentId, companyId }),
   recoveryDismiss: (taskId: string) =>

@@ -6,6 +6,7 @@ import {
   connectorInputSchema,
   metricsQuerySchema,
   settingsSchema,
+  wakeupQuerySchema,
 } from "@shared/contracts";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
 
@@ -141,5 +142,16 @@ export function registerCoreReadHandlers({
     const err = ensureCompanyExists(companyId);
     if (err) return err;
     return ok(db.getStandupReport(companyId));
+  });
+
+  registerHandle(IPC_CHANNELS.listWakeupRequests, (_event, input) => {
+    const parsed = wakeupQuerySchema.parse(input);
+    const err = ensureCompanyExists(parsed.companyId);
+    if (err) return err;
+    return ok(db.listWakeupRequests(parsed.companyId, {
+      status: parsed.status,
+      agentId: parsed.agentId,
+      limit: parsed.limit,
+    }));
   });
 }

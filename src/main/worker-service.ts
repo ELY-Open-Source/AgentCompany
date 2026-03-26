@@ -107,6 +107,7 @@ export function createWorkerService({
 
       const snapshot = db.listSnapshot();
       const affectedAgentIds = new Set<string>();
+      const affectedCompanyIds = new Map<string, string>();
       const requeueCandidates: Array<{ id: string; taskId: string; agentId: string; companyId: string; workspaceId: string | null; connectorId: string }> = [];
 
       for (const run of snapshot.runs) {
@@ -126,7 +127,10 @@ export function createWorkerService({
           if (run.workspaceId) {
             db.releaseWorkspaceLock(run.workspaceId, run.id);
           }
+          // EXEC-02: Release execution lock on crash recovery
+          db.releaseTaskLock(run.taskId, run.id);
           affectedAgentIds.add(run.agentId);
+          affectedCompanyIds.set(run.agentId, run.companyId);
 
           const chain = db.getChainOfCommand(run.agentId);
           if (chain.length > 0) {
@@ -145,15 +149,13 @@ export function createWorkerService({
       }
 
       for (const agentId of affectedAgentIds) {
-        // Promote any deferred wakes back to queued, then process queued wakes
-        const agentRuns = snapshot.runs.filter((r) => r.agentId === agentId);
-        for (const companyId of new Set(agentRuns.map((r) => r.companyId))) {
-          db.promoteWakeupRequests(agentId, companyId);
-          const wakes = db.listWakeupRequests(companyId, { agentId, status: "queued" });
-          for (const wake of wakes) {
-            wakeAgentIfPossible(agentId, wake.companyId, wake.source);
-          }
+        // EXEC-05: Promote deferred wakes after crash recovery
+        const cid = affectedCompanyIds.get(agentId) ?? "";
+        const promoted = db.promoteWakeupRequests(agentId, cid);
+        if (promoted > 0) {
+          logger.info(`[worker] Promoted ${promoted} deferred wake(s) for agent ${agentId} after crash recovery`);
         }
+        // Let heartbeat scheduler pick up promoted wakes on next tick
       }
 
       publishDomainChanged();
@@ -386,12 +388,15 @@ export function createWorkerService({
         }
       }
 
-      // Promote any deferred wakes back to queued after run completes
-      db.promoteWakeupRequests(run.agentId, run.companyId);
-      const queuedWakes = db.listWakeupRequests(run.companyId, { agentId: run.agentId, status: "queued" });
-      if (queuedWakes.length > 0 && !isQuitting() && !destroyed) {
-        for (const wake of queuedWakes) {
-          wakeAgentIfPossible(run.agentId, wake.companyId, wake.source);
+      // EXEC-05: Promote deferred wakes after run completion
+      let hadDeferredWakes = false;
+      if (!isQuitting() && !destroyed) {
+        const promoted = db.promoteWakeupRequests(run.agentId, run.companyId);
+        if (promoted > 0) {
+          hadDeferredWakes = true;
+          logger.info(`[worker] Promoted ${promoted} deferred wake(s) for agent ${run.agentId}`);
+          // Trigger processing of newly-promoted wakes
+          wakeAgentIfPossible(run.agentId, run.companyId, "deferred_wake_promoted");
         }
       }
 
@@ -411,7 +416,7 @@ export function createWorkerService({
       }
 
       // Self-wake with circuit breaker to prevent infinite loops
-      if (queuedWakes.length === 0 && !isQuitting() && !destroyed) {
+      if (!hadDeferredWakes && !isQuitting() && !destroyed) {
         try {
           const actionableTasks = db.listAgentTasks(run.agentId, run.companyId, ["todo", "in_progress"]);
           if (actionableTasks.length > 0) {
