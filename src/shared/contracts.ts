@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AgentMessageRecord, AgentMetrics, BrowserActionRecord, CommentRecord, CompanyMetrics, DesktopEvent, InboxItem, OnboardingBootstrapResult, ProfileSnapshot, RunLogChunk, StandupReport } from "./types";
+import type { AgentMessageRecord, AgentMetrics, BrowserActionRecord, CommentRecord, CompanyMetrics, DesktopEvent, InboxItem, OnboardingBootstrapResult, ProfileSnapshot, RunLogChunk, SkillImportResult, SkillRecord, SkillUpdateStatus, StandupReport } from "./types";
 
 export const IPC_CHANNELS = {
   loadSnapshot: "agent-company:load-snapshot",
@@ -73,6 +73,13 @@ export const IPC_CHANNELS = {
   runWorkflow: "agent-company:run-workflow",
   autoAssignTask: "agent-company:auto-assign-task",
   searchMessages: "agent-company:search-messages",
+  importSkill: "agent-company:import-skill",
+  listSkills: "agent-company:list-skills",
+  getSkillDetail: "agent-company:get-skill-detail",
+  deleteSkill: "agent-company:delete-skill",
+  assignSkillToAgent: "agent-company:assign-skill-to-agent",
+  removeSkillFromAgent: "agent-company:remove-skill-from-agent",
+  checkSkillUpdate: "agent-company:check-skill-update",
 } as const;
 
 const optionalId = z.preprocess(
@@ -514,6 +521,42 @@ export const autoAssignSchema = z.object({
   companyId: z.string().uuid(),
 });
 
+export const importSkillSchema = z.object({
+  companyId: z.string().min(1),
+  source: z.string().min(1),
+});
+
+export const listSkillsSchema = z.object({
+  companyId: z.string().min(1),
+});
+
+export const getSkillDetailSchema = z.object({
+  companyId: z.string().min(1),
+  skillId: z.string().min(1),
+});
+
+export const deleteSkillSchema = z.object({
+  companyId: z.string().min(1),
+  skillId: z.string().min(1),
+});
+
+export const assignSkillToAgentSchema = z.object({
+  companyId: z.string().min(1),
+  agentId: z.string().min(1),
+  skillId: z.string().min(1),
+});
+
+export const removeSkillFromAgentSchema = z.object({
+  companyId: z.string().min(1),
+  agentId: z.string().min(1),
+  skillId: z.string().min(1),
+});
+
+export const checkSkillUpdateSchema = z.object({
+  companyId: z.string().min(1),
+  skillId: z.string().min(1),
+});
+
 export type DesktopResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: string; message: string } };
@@ -589,6 +632,13 @@ export type DesktopApi = {
   runWorkflow: (input: z.infer<typeof runWorkflowSchema>) => Promise<DesktopResult<boolean>>;
   autoAssignTask: (input: z.infer<typeof autoAssignSchema>) => Promise<DesktopResult<string>>;
   searchMessages: (input: z.infer<typeof searchMessagesSchema>) => Promise<DesktopResult<AgentMessageRecord[]>>;
+  importSkill: (companyId: string, source: string) => Promise<DesktopResult<SkillImportResult[]>>;
+  listSkills: (companyId: string) => Promise<DesktopResult<SkillRecord[]>>;
+  getSkillDetail: (companyId: string, skillId: string) => Promise<DesktopResult<SkillRecord>>;
+  deleteSkill: (companyId: string, skillId: string) => Promise<DesktopResult<void>>;
+  assignSkillToAgent: (companyId: string, agentId: string, skillId: string) => Promise<DesktopResult<void>>;
+  removeSkillFromAgent: (companyId: string, agentId: string, skillId: string) => Promise<DesktopResult<void>>;
+  checkSkillUpdate: (companyId: string, skillId: string) => Promise<DesktopResult<SkillUpdateStatus>>;
   recoveryRetry: (taskId: string, agentId: string, companyId: string) => Promise<DesktopResult<null>>;
   recoveryDismiss: (taskId: string) => Promise<DesktopResult<null>>;
   recoveryFail: (taskId: string) => Promise<DesktopResult<null>>;

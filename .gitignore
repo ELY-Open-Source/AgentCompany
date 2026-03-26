@@ -41,6 +41,8 @@ oldreference/
 *.md
 !/README.md
 !/docs/*.md
+!/CLAUDE.md
+!/.planning/**/*.md
 *.zip
 *.blockmap
 *.exe
