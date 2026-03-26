@@ -1,4 +1,6 @@
-import type { AdapterExecutionContext, AdapterExecutionResult } from "@agentcompany/adapter-utils";
+import os from "node:os";
+import path from "node:path";
+import type { AdapterExecutionContext, AdapterExecutionResult, ManagedSkillRef } from "@agentcompany/adapter-utils";
 import {
   asNumber,
   asString,
@@ -7,8 +9,21 @@ import {
   ensureCommandResolvable,
   ensurePathInEnv,
   runChildProcess,
+  createManagedSkillSymlinks,
 } from "@agentcompany/adapter-utils/server-utils";
 import { DEFAULT_KIMI_LOCAL_MODEL } from "../index.js";
+
+function kimiSkillsHome(): string {
+  return path.join(os.homedir(), ".kimi", "skills");
+}
+
+async function ensureKimiSkillsInjected(
+  managedSkills: ManagedSkillRef[],
+  onLog: AdapterExecutionContext["onLog"],
+): Promise<void> {
+  if (managedSkills.length === 0) return;
+  await createManagedSkillSymlinks(managedSkills, kimiSkillsHome(), onLog);
+}
 
 function normalizeEnv(input: unknown): Record<string, string> {
   if (typeof input !== "object" || input === null || Array.isArray(input)) return {};
@@ -29,6 +44,12 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const extraArgs = asStringArray(config.extraArgs);
 
   await ensureAbsoluteDirectory(cwd, { createIfMissing: true });
+  const managedSkills: ManagedSkillRef[] = Array.isArray(config.managedSkills)
+    ? (config.managedSkills as ManagedSkillRef[]).filter(
+        (s) => typeof s.runtimeName === "string" && typeof s.sourcePath === "string",
+      )
+    : [];
+  await ensureKimiSkillsInjected(managedSkills, onLog);
 
   const prompt = typeof context.taskTitle === "string" && context.taskTitle.length > 0
     ? [

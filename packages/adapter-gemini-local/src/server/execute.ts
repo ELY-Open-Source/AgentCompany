@@ -3,7 +3,7 @@ import type { Dirent } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AdapterExecutionContext, AdapterExecutionResult } from "@agentcompany/adapter-utils";
+import type { AdapterExecutionContext, AdapterExecutionResult, ManagedSkillRef } from "@agentcompany/adapter-utils";
 import {
   asBoolean,
   asNumber,
@@ -18,6 +18,7 @@ import {
   redactEnvForLogs,
   renderTemplate,
   runChildProcess,
+  createManagedSkillSymlinks,
 } from "@agentcompany/adapter-utils/server-utils";
 import { DEFAULT_GEMINI_LOCAL_MODEL } from "../index.js";
 import {
@@ -88,16 +89,23 @@ function geminiSkillsHome(): string {
 
 /**
  * Inject AgentCompany skills directly into `~/.gemini/skills/` via symlinks.
- * This avoids needing GEMINI_CLI_HOME overrides, so the CLI naturally finds
- * both its auth credentials and the injected skills in the real home directory.
+ * Uses managed skills when available; falls back to static repo scan.
  */
 async function ensureGeminiSkillsInjected(
+  managedSkills: ManagedSkillRef[],
   onLog: AdapterExecutionContext["onLog"],
 ): Promise<void> {
+  const skillsHome = geminiSkillsHome();
+
+  // Use managed skills when available; fall back to static repo scan
+  if (managedSkills.length > 0) {
+    await createManagedSkillSymlinks(managedSkills, skillsHome, onLog);
+    return;
+  }
+
   const skillsDir = await resolveAgentCompanySkillsDir();
   if (!skillsDir) return;
 
-  const skillsHome = geminiSkillsHome();
   try {
     await fs.mkdir(skillsHome, { recursive: true });
   } catch (err) {
@@ -165,7 +173,12 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const effectiveWorkspaceCwd = useConfiguredInsteadOfAgentHome ? "" : workspaceCwd;
   const cwd = effectiveWorkspaceCwd || configuredCwd || process.cwd();
   await ensureAbsoluteDirectory(cwd, { createIfMissing: true });
-  await ensureGeminiSkillsInjected(onLog);
+  const managedSkills: ManagedSkillRef[] = Array.isArray(config.managedSkills)
+    ? (config.managedSkills as ManagedSkillRef[]).filter(
+        (s) => typeof s.runtimeName === "string" && typeof s.sourcePath === "string",
+      )
+    : [];
+  await ensureGeminiSkillsInjected(managedSkills, onLog);
 
   const envConfig = parseObject(config.env);
   const hasExplicitApiKey =
