@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   CaretUpDown,
@@ -60,6 +60,8 @@ import {
   WorkspaceInspector,
   WorkspaceList,
 } from "./components/execution";
+import { PolicyList } from "./components/execution/PolicyList";
+import { IncidentList } from "./components/execution/IncidentList";
 import {
   AgentCreator,
   AgentEditor,
@@ -174,6 +176,8 @@ export function App() {
   const setSocialAccounts = useAppStore((s) => s.setSocialAccounts);
   const browserActions = useAppStore((s) => s.browserActions);
   const setBrowserActions = useAppStore((s) => s.setBrowserActions);
+
+  const [costsTab, setCostsTab] = useState<"costs" | "policies" | "incidents">("costs");
 
   const clearCompanyScopedUiState = useCallback(() => {
     const store = useAppStore.getState();
@@ -1108,20 +1112,54 @@ export function App() {
               ) : null}
 
               {section === "costs" ? (
-                <EntityWorkspace
-                  title="Costs"
-                  eyebrow={undefined}
-                  primary={
-                    <Panel title="Recent cost entries">
-                      <CostList costs={companyCosts} agents={companyAgents} runs={runs} />
-                    </Panel>
-                  }
-                  secondary={
-                    <Panel title="Budget posture">
-                      <BudgetSummary agents={companyAgents} costs={companyCosts} />
-                    </Panel>
-                  }
-                />
+                <div className="flex h-full flex-col">
+                  {/* Tab bar */}
+                  <div className="flex items-center gap-1 border-b border-[color:var(--line)] px-4 pt-2">
+                    {(["costs", "policies", "incidents"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        onClick={() => setCostsTab(tab)}
+                        className={`rounded-t px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                          costsTab === tab
+                            ? "border-b-2 border-[color:var(--accent)] text-[color:var(--text)]"
+                            : "text-[color:var(--muted)] hover:text-[color:var(--text)]"
+                        }`}
+                      >
+                        {tab === "costs" ? "Cost Entries" : tab === "policies" ? "Policies" : "Incidents"}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Tab content */}
+                  {costsTab === "costs" ? (
+                    <EntityWorkspace
+                      title="Costs"
+                      eyebrow={undefined}
+                      primary={
+                        <Panel title="Recent cost entries">
+                          <CostList costs={companyCosts} agents={companyAgents} runs={runs} />
+                        </Panel>
+                      }
+                      secondary={
+                        <Panel title="Budget posture">
+                          <BudgetSummary agents={companyAgents} costs={companyCosts} />
+                        </Panel>
+                      }
+                    />
+                  ) : costsTab === "policies" ? (
+                    <PolicyList
+                      companyId={currentCompany!.id}
+                      agents={companyAgents.map((a) => ({ id: a.id, name: a.name }))}
+                      projects={companyProjects.map((p) => ({ id: p.id, name: p.name }))}
+                    />
+                  ) : (
+                    <IncidentList
+                      companyId={currentCompany!.id}
+                      agents={companyAgents.map((a) => ({ id: a.id, name: a.name }))}
+                      projects={companyProjects.map((p) => ({ id: p.id, name: p.name }))}
+                    />
+                  )}
+                </div>
               ) : null}
 
               {section === "activity" ? (
