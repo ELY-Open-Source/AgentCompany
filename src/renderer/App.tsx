@@ -783,6 +783,7 @@ export function App() {
               {section === "overview" ? (
                 <Dashboard
                   companyName={currentCompany?.name}
+                  companyId={currentCompany?.id}
                   agents={companyAgents}
                   tasks={tasks}
                   runs={runs}
