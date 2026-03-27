@@ -169,6 +169,7 @@ export function createServiceGraph({
       db,
       logger,
       publishDomainChanged,
+      emitEvent,
       notify,
       createRunToken,
       getApiPort: () => apiServerRef.current?.getPort() ?? 0,

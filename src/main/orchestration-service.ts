@@ -54,6 +54,7 @@ interface OrchestrationDependencies {
     error: (...args: unknown[]) => void;
   };
   publishDomainChanged: () => void;
+  emitEvent: (event: any) => void;
   notify: (options: NotificationOptions) => void;
   createRunToken: (agentId: string, companyId: string, runId: string) => string;
   getApiPort: () => number;
@@ -67,6 +68,7 @@ export function createOrchestrationService({
   db,
   logger,
   publishDomainChanged,
+  emitEvent,
   notify,
   createRunToken,
   getApiPort,
@@ -138,7 +140,7 @@ export function createOrchestrationService({
       navigation: { section: "agents", entityId: agent.id },
       batchKey: "agent_paused",
     });
-    publishDomainChanged();
+    emitEvent({ type: "agent-updated", agentId: agent.id, action: "paused" });
     return true;
   }
 
@@ -449,7 +451,7 @@ export function createOrchestrationService({
       entityId: agent.id,
       detail: `${trigger} heartbeat for ${agent.name}`,
     });
-    publishDomainChanged();
+    emitEvent({ type: "run-updated", runId: run.id, action: "created" });
     return run.id;
   }
 
@@ -560,7 +562,7 @@ export function createOrchestrationService({
       entityId: run.id,
       detail: task.title,
     });
-    publishDomainChanged();
+    emitEvent({ type: "run-updated", runId: run.id, action: "created" });
     return ok(run.id);
   }
 

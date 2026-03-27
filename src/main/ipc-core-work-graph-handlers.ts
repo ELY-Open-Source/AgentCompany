@@ -18,6 +18,7 @@ export function registerCoreWorkGraphHandlers({
   ensureCompanyExists,
   findInvalidReference,
   publishDomainChanged,
+  emitEvent,
   wakeAgentIfPossible,
   handleApprovalResolved,
   handleTaskCreated,
@@ -29,6 +30,7 @@ export function registerCoreWorkGraphHandlers({
   | "ensureCompanyExists"
   | "findInvalidReference"
   | "publishDomainChanged"
+  | "emitEvent"
   | "wakeAgentIfPossible"
   | "handleApprovalResolved"
   | "handleTaskCreated"
@@ -355,7 +357,7 @@ export function registerCoreWorkGraphHandlers({
         wakeAgentIfPossible(parsed.assigneeAgentId, parsed.companyId, "assignment");
       }
     }
-    publishDomainChanged();
+    emitEvent({ type: "task-updated", taskId: id, action: isNew ? "created" : "updated" });
     return ok(id);
   });
 
@@ -437,7 +439,11 @@ export function registerCoreWorkGraphHandlers({
         entityId: parsed.id,
         detail: "",
       });
-      publishDomainChanged();
+      if (entity === "task") {
+        emitEvent({ type: "task-updated", taskId: parsed.id, action: "deleted" });
+      } else {
+        publishDomainChanged();
+      }
       return ok(true);
     });
   }

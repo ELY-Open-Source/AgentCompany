@@ -46,7 +46,7 @@ interface WorkerServiceDependencies {
   workerPath: string;
   isQuitting: () => boolean;
   publishDomainChanged: () => void;
-  emitEvent: (event: WorkerUiEvent) => void;
+  emitEvent: (event: any) => void;
   wakeAgentIfPossible: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
   dispatchRunToWorker: (params: {
     runId: string;
@@ -239,7 +239,7 @@ export function createWorkerService({
           }
         }
         emitEvent(event);
-        publishDomainChanged();
+        emitEvent({ type: "run-updated", runId: event.runId, action: "status_changed" });
         return;
       }
 
@@ -280,7 +280,7 @@ export function createWorkerService({
         entityId: run.id,
         detail: event.summary ?? event.errorMessage ?? "",
       });
-      publishDomainChanged();
+      emitEvent({ type: "run-updated", runId: run.id, action: "completed" });
       emitEvent({
         type: "run-status",
         runId: run.id,
@@ -320,7 +320,7 @@ export function createWorkerService({
           navigation: { section: "agents", entityId: updatedAgent.id },
           batchKey: "agent_paused",
         });
-        publishDomainChanged();
+        emitEvent({ type: "agent-updated", agentId: updatedAgent.id, action: "paused" });
       }
 
       if ((event.status === "failed" || event.status === "timed_out") && !isQuitting() && !destroyed) {

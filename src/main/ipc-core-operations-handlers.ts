@@ -114,7 +114,7 @@ export function registerCoreOperationHandlers({
       decisionNote: parsed.decisionNote,
       detail: parsed.decisionNote,
     });
-    publishDomainChanged();
+    emitEvent({ type: "approval-updated", approvalId: approval.id, action: "decided" });
     return ok(true);
   });
 
@@ -179,7 +179,7 @@ export function registerCoreOperationHandlers({
       detail: parsed.body.slice(0, 100),
     });
     emitEvent({ type: "agent-message", taskId: parsed.taskId, comment });
-    publishDomainChanged();
+    emitEvent({ type: "task-updated", taskId: parsed.taskId, action: "updated" });
     try {
       const task = db.getTask(parsed.taskId);
       if (task.assigneeAgentId) {
