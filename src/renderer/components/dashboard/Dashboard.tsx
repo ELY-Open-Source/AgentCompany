@@ -27,6 +27,7 @@ import { MetricCard } from "./MetricsGrid";
 import { ActivityFeed } from "./ActivityFeed";
 import { RecoveryBanner } from "./RecoveryBanner";
 import { BudgetAlertBanner } from "./BudgetAlertBanner";
+import { ChartSection } from "./ChartSection";
 
 export interface DashboardProps {
   companyName?: string;
@@ -131,6 +132,9 @@ export function Dashboard(props: DashboardProps) {
           onClick={() => onNavigate("settings")}
         />
       </div>
+
+      {/* Performance Charts */}
+      {companyId ? <ChartSection runs={runs} costs={costs} agents={agents} companyId={companyId} /> : null}
 
       {/* Needs Attention — moved to top, only shows when items exist */}
       {hasAttentionItems ? (
