@@ -237,7 +237,7 @@ describe("sweepStaleReviews", () => {
 
   it("escalates to manager's manager when task in_review for 35 minutes", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as { queryAll: ReturnType<typeof vi.fn>; getManagerForAgent: ReturnType<typeof vi.fn>; getChainOfCommand: ReturnType<typeof vi.fn> };
+    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn>; getManagerForAgent: ReturnType<typeof vi.fn>; getChainOfCommand: ReturnType<typeof vi.fn> };
 
     // Task in review for 35 min
     dbMock.queryAll.mockReturnValueOnce([
@@ -265,7 +265,7 @@ describe("sweepStaleReviews", () => {
 
   it("does not escalate when task in_review for only 25 minutes (under threshold)", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as { queryAll: ReturnType<typeof vi.fn> };
+    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn> };
 
     dbMock.queryAll.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: TWENTY_FIVE_MIN_AGO, title: "Build login" },
@@ -279,7 +279,7 @@ describe("sweepStaleReviews", () => {
 
   it("notifies human when no higher manager (reviewer is CEO)", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as { queryAll: ReturnType<typeof vi.fn>; getManagerForAgent: ReturnType<typeof vi.fn>; getChainOfCommand: ReturnType<typeof vi.fn> };
+    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn>; getManagerForAgent: ReturnType<typeof vi.fn>; getChainOfCommand: ReturnType<typeof vi.fn> };
 
     dbMock.queryAll
       .mockReturnValueOnce([
@@ -305,7 +305,7 @@ describe("sweepStaleReviews", () => {
 
   it("auto-approves pending approval linked to stale review task", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as { queryAll: ReturnType<typeof vi.fn>; getManagerForAgent: ReturnType<typeof vi.fn>; getChainOfCommand: ReturnType<typeof vi.fn> };
+    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn>; getManagerForAgent: ReturnType<typeof vi.fn>; getChainOfCommand: ReturnType<typeof vi.fn> };
 
     // First queryAll: stale task
     dbMock.queryAll.mockReturnValueOnce([
@@ -332,7 +332,7 @@ describe("sweepStaleReviews", () => {
 
   it("catches resolveApprovalDecision error gracefully (race condition)", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as { queryAll: ReturnType<typeof vi.fn>; getManagerForAgent: ReturnType<typeof vi.fn>; getChainOfCommand: ReturnType<typeof vi.fn> };
+    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn>; getManagerForAgent: ReturnType<typeof vi.fn>; getChainOfCommand: ReturnType<typeof vi.fn> };
 
     dbMock.queryAll.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
@@ -352,7 +352,7 @@ describe("sweepStaleReviews", () => {
 
   it("advances task status to done after escalation", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as { queryAll: ReturnType<typeof vi.fn>; getManagerForAgent: ReturnType<typeof vi.fn>; getChainOfCommand: ReturnType<typeof vi.fn>; advanceTaskStatus: ReturnType<typeof vi.fn> };
+    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn>; getManagerForAgent: ReturnType<typeof vi.fn>; getChainOfCommand: ReturnType<typeof vi.fn>; advanceTaskStatus: ReturnType<typeof vi.fn> };
 
     dbMock.queryAll.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
@@ -373,7 +373,7 @@ describe("sweepStaleReviews", () => {
 
   it("skips task with no assigneeAgentId", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as { queryAll: ReturnType<typeof vi.fn> };
+    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn> };
 
     dbMock.queryAll.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: null, updatedAt: THIRTY_FIVE_MIN_AGO, title: "Orphan task" },
