@@ -14,7 +14,8 @@ vi.mock("electron", () => ({
 
 import { AppDatabase } from "../../src/main/database";
 import { getConnectorDefinition } from "../../src/main/connectors";
-import type { ConnectorId } from "@shared/types";
+import { createSessionManagementService, DEFAULT_THRESHOLDS } from "../../src/main/session-management-service";
+import type { ConnectorId, TaskSessionRecord } from "@shared/types";
 
 // ---------------------------------------------------------------------------
 // Helpers — create a minimal company + agent + task scaffold
@@ -257,5 +258,455 @@ describe("adapter exemption", () => {
   it("gemini_local connector has nativeContextManagement: false", () => {
     const def = getConnectorDefinition("gemini_local" as ConnectorId);
     expect(def.module.nativeContextManagement).toBe(false);
+  });
+});
+
+// ===========================================================================
+// Session management service tests
+// ===========================================================================
+describe("session management service", () => {
+  let tempDir: string;
+  let db: AppDatabase;
+  const mockLogger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  };
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "agentcompany-svc-"));
+    db = new AppDatabase(tempDir);
+    db.init();
+    mockLogger.info.mockClear();
+    mockLogger.warn.mockClear();
+    mockLogger.error.mockClear();
+  });
+
+  afterEach(async () => {
+    db.close();
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  // -------------------------------------------------------------------------
+  // rotation thresholds
+  // -------------------------------------------------------------------------
+  describe("rotation thresholds", () => {
+    it("returns shouldRotate: false when below all thresholds", () => {
+      const svc = createSessionManagementService({ db, logger: mockLogger });
+      const session: TaskSessionRecord = {
+        id: "sess-1",
+        companyId: "co-1",
+        taskId: "task-1",
+        agentId: "agent-1",
+        adapterType: "gemini_local",
+        sessionParamsJson: null,
+        sessionDisplayId: null,
+        lastRunId: null,
+        lastError: null,
+        runCount: 5,
+        totalInputTokens: 10000,
+        totalOutputTokens: 5000,
+        rotatedAt: null,
+        rotationReason: null,
+        handoffMarkdown: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const result = svc.evaluateRotation(session, "gemini_local");
+      expect(result.shouldRotate).toBe(false);
+      expect(result.reason).toBeNull();
+    });
+
+    it("returns shouldRotate: true with reason max_runs when run_count >= 20", () => {
+      const svc = createSessionManagementService({ db, logger: mockLogger });
+      const session: TaskSessionRecord = {
+        id: "sess-1",
+        companyId: "co-1",
+        taskId: "task-1",
+        agentId: "agent-1",
+        adapterType: "gemini_local",
+        sessionParamsJson: null,
+        sessionDisplayId: null,
+        lastRunId: null,
+        lastError: null,
+        runCount: 20,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        rotatedAt: null,
+        rotationReason: null,
+        handoffMarkdown: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const result = svc.evaluateRotation(session, "gemini_local");
+      expect(result.shouldRotate).toBe(true);
+      expect(result.reason).toBe("max_runs");
+    });
+
+    it("returns shouldRotate: true with reason max_tokens when total tokens >= 500000", () => {
+      const svc = createSessionManagementService({ db, logger: mockLogger });
+      const session: TaskSessionRecord = {
+        id: "sess-1",
+        companyId: "co-1",
+        taskId: "task-1",
+        agentId: "agent-1",
+        adapterType: "gemini_local",
+        sessionParamsJson: null,
+        sessionDisplayId: null,
+        lastRunId: null,
+        lastError: null,
+        runCount: 3,
+        totalInputTokens: 300000,
+        totalOutputTokens: 200000,
+        rotatedAt: null,
+        rotationReason: null,
+        handoffMarkdown: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const result = svc.evaluateRotation(session, "gemini_local");
+      expect(result.shouldRotate).toBe(true);
+      expect(result.reason).toBe("max_tokens");
+    });
+
+    it("returns shouldRotate: true with reason max_age_hours when session created > 72h ago", () => {
+      const svc = createSessionManagementService({ db, logger: mockLogger });
+      const oldDate = new Date(Date.now() - 73 * 60 * 60 * 1000).toISOString();
+      const session: TaskSessionRecord = {
+        id: "sess-1",
+        companyId: "co-1",
+        taskId: "task-1",
+        agentId: "agent-1",
+        adapterType: "gemini_local",
+        sessionParamsJson: null,
+        sessionDisplayId: null,
+        lastRunId: null,
+        lastError: null,
+        runCount: 1,
+        totalInputTokens: 100,
+        totalOutputTokens: 100,
+        rotatedAt: null,
+        rotationReason: null,
+        handoffMarkdown: null,
+        createdAt: oldDate,
+        updatedAt: oldDate,
+      };
+      const result = svc.evaluateRotation(session, "gemini_local");
+      expect(result.shouldRotate).toBe(true);
+      expect(result.reason).toBe("max_age_hours");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // adapter exemption in service
+  // -------------------------------------------------------------------------
+  describe("adapter exemption in evaluateRotation", () => {
+    it("returns shouldRotate: false for nativeContextManagement=true even when thresholds exceeded", () => {
+      const svc = createSessionManagementService({ db, logger: mockLogger });
+      const session: TaskSessionRecord = {
+        id: "sess-1",
+        companyId: "co-1",
+        taskId: "task-1",
+        agentId: "agent-1",
+        adapterType: "claude_local",
+        sessionParamsJson: null,
+        sessionDisplayId: null,
+        lastRunId: null,
+        lastError: null,
+        runCount: 100, // Way over threshold
+        totalInputTokens: 1000000,
+        totalOutputTokens: 500000,
+        rotatedAt: null,
+        rotationReason: null,
+        handoffMarkdown: null,
+        createdAt: new Date(Date.now() - 200 * 60 * 60 * 1000).toISOString(), // Way old
+        updatedAt: new Date().toISOString(),
+      };
+      const result = svc.evaluateRotation(session, "claude_local");
+      expect(result.shouldRotate).toBe(false);
+      expect(result.reason).toBeNull();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // configurable thresholds (D-01)
+  // -------------------------------------------------------------------------
+  describe("configurable thresholds (D-01)", () => {
+    it("evaluateRotation with custom thresholds override { maxRuns: 5 } triggers at 5 runs", () => {
+      const svc = createSessionManagementService({ db, logger: mockLogger });
+      const session: TaskSessionRecord = {
+        id: "sess-1",
+        companyId: "co-1",
+        taskId: "task-1",
+        agentId: "agent-1",
+        adapterType: "gemini_local",
+        sessionParamsJson: null,
+        sessionDisplayId: null,
+        lastRunId: null,
+        lastError: null,
+        runCount: 5,
+        totalInputTokens: 100,
+        totalOutputTokens: 100,
+        rotatedAt: null,
+        rotationReason: null,
+        handoffMarkdown: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const result = svc.evaluateRotation(session, "gemini_local", { maxRuns: 5 });
+      expect(result.shouldRotate).toBe(true);
+      expect(result.reason).toBe("max_runs");
+    });
+
+    it("partial override { maxTokens: 100000 } uses override for tokens but defaults for runs and age", () => {
+      const svc = createSessionManagementService({ db, logger: mockLogger });
+      const session: TaskSessionRecord = {
+        id: "sess-1",
+        companyId: "co-1",
+        taskId: "task-1",
+        agentId: "agent-1",
+        adapterType: "gemini_local",
+        sessionParamsJson: null,
+        sessionDisplayId: null,
+        lastRunId: null,
+        lastError: null,
+        runCount: 10, // Below default 20
+        totalInputTokens: 60000,
+        totalOutputTokens: 40000, // Total 100000 = meets override threshold
+        rotatedAt: null,
+        rotationReason: null,
+        handoffMarkdown: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const result = svc.evaluateRotation(session, "gemini_local", { maxTokens: 100000 });
+      expect(result.shouldRotate).toBe(true);
+      expect(result.reason).toBe("max_tokens");
+    });
+
+    it("omitting override uses DEFAULT_THRESHOLDS", () => {
+      const svc = createSessionManagementService({ db, logger: mockLogger });
+      const session: TaskSessionRecord = {
+        id: "sess-1",
+        companyId: "co-1",
+        taskId: "task-1",
+        agentId: "agent-1",
+        adapterType: "gemini_local",
+        sessionParamsJson: null,
+        sessionDisplayId: null,
+        lastRunId: null,
+        lastError: null,
+        runCount: 19, // Just below default 20
+        totalInputTokens: 200000,
+        totalOutputTokens: 200000, // Total 400000, below default 500000
+        rotatedAt: null,
+        rotationReason: null,
+        handoffMarkdown: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const result = svc.evaluateRotation(session, "gemini_local");
+      expect(result.shouldRotate).toBe(false);
+      expect(result.reason).toBeNull();
+
+      // Verify DEFAULT_THRESHOLDS values
+      expect(DEFAULT_THRESHOLDS.maxRuns).toBe(20);
+      expect(DEFAULT_THRESHOLDS.maxTokens).toBe(500_000);
+      expect(DEFAULT_THRESHOLDS.maxAgeHours).toBe(72);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // token accumulation
+  // -------------------------------------------------------------------------
+  describe("token accumulation", () => {
+    it("accumulateTokenUsage calls db.incrementSessionUsage with correct args", () => {
+      const { taskId, companyId, agentId } = scaffold(db);
+      const sessionId = db.createNewSession({
+        taskId,
+        companyId,
+        agentId,
+        adapterType: "claude_local",
+        sessionParamsJson: null,
+        sessionDisplayId: null,
+      });
+      const svc = createSessionManagementService({ db, logger: mockLogger });
+
+      svc.accumulateTokenUsage(sessionId, 5000, 2000, "run-abc");
+
+      const session = db.getActiveTaskSession(taskId);
+      expect(session!.runCount).toBe(1);
+      expect(session!.totalInputTokens).toBe(5000);
+      expect(session!.totalOutputTokens).toBe(2000);
+      expect(session!.lastRunId).toBe("run-abc");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // handoff generation
+  // -------------------------------------------------------------------------
+  describe("handoff generation", () => {
+    it("generateHandoff produces markdown with task title and run history", () => {
+      const { taskId, companyId, agentId, workspaceId } = scaffold(db);
+      const sessionId = db.createNewSession({
+        taskId,
+        companyId,
+        agentId,
+        adapterType: "gemini_local",
+        sessionParamsJson: null,
+        sessionDisplayId: null,
+      });
+
+      // Create a completed run for history
+      const run = db.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "gemini_local" as ConnectorId });
+      db.finishRun({
+        runId: run.id,
+        status: "completed",
+        summary: "Implemented initial logic",
+        errorMessage: null,
+        exitCode: 0,
+        signal: null,
+        model: "gemini-pro",
+        sessionDisplayId: null,
+        costUsd: 0.05,
+        unattributedCost: false,
+      });
+
+      // Increment session usage to have stats
+      db.incrementSessionUsage(sessionId, 10000, 5000, run.id);
+
+      const session = db.getActiveTaskSession(taskId)!;
+      const svc = createSessionManagementService({ db, logger: mockLogger });
+      const handoff = svc.generateHandoff(taskId, session);
+
+      expect(handoff).toContain("# Session Handoff");
+      expect(handoff).toContain("Implement session rotation"); // task title
+      expect(handoff).toContain("## Recent Run History");
+      expect(handoff).toContain("completed");
+      expect(handoff).toContain("15000 total tokens"); // 10000 + 5000
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // session rotation
+  // -------------------------------------------------------------------------
+  describe("session rotation", () => {
+    it("rotateSession archives old session, creates new, copies session_params", () => {
+      const { taskId, companyId, agentId } = scaffold(db);
+      const oldSessionId = db.createNewSession({
+        taskId,
+        companyId,
+        agentId,
+        adapterType: "gemini_local",
+        sessionParamsJson: JSON.stringify({ resumeId: "old-abc" }),
+        sessionDisplayId: "gemini-old",
+      });
+
+      // Add some usage
+      db.incrementSessionUsage(oldSessionId, 300000, 200000, "run-10");
+
+      const oldSession = db.getActiveTaskSession(taskId)!;
+      const svc = createSessionManagementService({ db, logger: mockLogger });
+      const newSessionId = svc.rotateSession(oldSession);
+
+      expect(newSessionId).not.toBe(oldSessionId);
+
+      // Old session should be archived
+      const archivedRows = db.queryAll<{ rotatedAt: string | null; rotationReason: string | null; handoffMarkdown: string | null }>(
+        "SELECT rotated_at as rotatedAt, rotation_reason as rotationReason, handoff_markdown as handoffMarkdown FROM task_sessions WHERE id = ?",
+        oldSessionId
+      );
+      expect(archivedRows[0].rotatedAt).toBeTruthy();
+      expect(archivedRows[0].rotationReason).toBe("threshold_exceeded");
+      expect(archivedRows[0].handoffMarkdown).toContain("# Session Handoff");
+
+      // New session should be active, with fresh counters and copied params
+      const newSession = db.getActiveTaskSession(taskId)!;
+      expect(newSession.id).toBe(newSessionId);
+      expect(newSession.runCount).toBe(0);
+      expect(newSession.totalInputTokens).toBe(0);
+      expect(newSession.totalOutputTokens).toBe(0);
+      expect(newSession.sessionParamsJson).toBe(JSON.stringify({ resumeId: "old-abc" }));
+      expect(newSession.sessionDisplayId).toBe("gemini-old");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // handoff context retrieval
+  // -------------------------------------------------------------------------
+  describe("handoff context retrieval", () => {
+    it("getHandoffContext returns handoff_markdown from most recently rotated session", () => {
+      const { taskId, companyId, agentId } = scaffold(db);
+      const svc = createSessionManagementService({ db, logger: mockLogger });
+
+      // Create and rotate a session
+      const session1Id = db.createNewSession({
+        taskId,
+        companyId,
+        agentId,
+        adapterType: "gemini_local",
+        sessionParamsJson: null,
+        sessionDisplayId: null,
+      });
+      db.incrementSessionUsage(session1Id, 100000, 50000, "run-1");
+      const session1 = db.getActiveTaskSession(taskId)!;
+      svc.rotateSession(session1);
+
+      const handoff = svc.getHandoffContext(taskId);
+      expect(handoff).not.toBeNull();
+      expect(handoff).toContain("# Session Handoff");
+    });
+
+    it("getHandoffContext returns null when no rotated sessions exist", () => {
+      const { taskId, companyId, agentId } = scaffold(db);
+      db.createNewSession({
+        taskId,
+        companyId,
+        agentId,
+        adapterType: "gemini_local",
+        sessionParamsJson: null,
+        sessionDisplayId: null,
+      });
+      const svc = createSessionManagementService({ db, logger: mockLogger });
+
+      const handoff = svc.getHandoffContext(taskId);
+      expect(handoff).toBeNull();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // usage delta (D-09)
+  // -------------------------------------------------------------------------
+  describe("usage delta", () => {
+    it("getUsageDelta returns token difference between snapshot and current totals", () => {
+      const { taskId, companyId, agentId } = scaffold(db);
+      const sessionId = db.createNewSession({
+        taskId,
+        companyId,
+        agentId,
+        adapterType: "gemini_local",
+        sessionParamsJson: null,
+        sessionDisplayId: null,
+      });
+
+      // Pre-populate some usage
+      db.incrementSessionUsage(sessionId, 1000, 500, "run-1");
+
+      const session = db.getActiveTaskSession(taskId)!;
+      const svc = createSessionManagementService({ db, logger: mockLogger });
+
+      // Snapshot current state
+      const snapshot = svc.snapshotUsage(session);
+      expect(snapshot.inputTokens).toBe(1000);
+      expect(snapshot.outputTokens).toBe(500);
+
+      // Accumulate more tokens
+      svc.accumulateTokenUsage(sessionId, 3000, 1500, "run-2");
+
+      // Delta should reflect new tokens only
+      const delta = svc.getUsageDelta(sessionId, snapshot);
+      expect(delta.inputTokensDelta).toBe(3000);
+      expect(delta.outputTokensDelta).toBe(1500);
+    });
   });
 });
