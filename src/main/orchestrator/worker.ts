@@ -65,6 +65,8 @@ type ChildMessage =
       sessionDisplayId: string | null;
       costUsd: number | null;
       unattributedCost: boolean;
+      inputTokens: number | null;
+      outputTokens: number | null;
     };
 
 const parentPort = process.parentPort;
@@ -236,6 +238,8 @@ async function startRun(job: RunJob) {
       sessionDisplayId: result.sessionDisplayId ?? null,
       costUsd: typeof result.costUsd === "number" ? result.costUsd : null,
       unattributedCost: !result.costUsd,
+      inputTokens: result.usage?.inputTokens ?? null,
+      outputTokens: result.usage?.outputTokens ?? null,
     });
   } catch (error) {
     post({
@@ -251,6 +255,8 @@ async function startRun(job: RunJob) {
       sessionDisplayId: null,
       costUsd: null,
       unattributedCost: true,
+      inputTokens: null,
+      outputTokens: null,
     });
   } finally {
     cancelledRuns.delete(job.runId);
@@ -279,6 +285,8 @@ function cancelRun(runId: string) {
       sessionDisplayId: null,
       costUsd: null,
       unattributedCost: true,
+      inputTokens: null,
+      outputTokens: null,
     });
     return;
   }

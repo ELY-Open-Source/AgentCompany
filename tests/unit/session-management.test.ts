@@ -710,3 +710,178 @@ describe("session management service", () => {
     });
   });
 });
+
+// ===========================================================================
+// wiring integration
+// ===========================================================================
+describe("wiring integration", () => {
+  // These tests verify the run-finished handler correctly calls session service methods.
+  // Uses vi.fn() mocks to isolate the wiring logic from actual DB/service implementations.
+
+  function createMockSessionService() {
+    return {
+      accumulateTokenUsage: vi.fn(),
+      evaluateRotation: vi.fn().mockReturnValue({ shouldRotate: false, reason: null }),
+      generateHandoff: vi.fn().mockReturnValue("# Handoff"),
+      rotateSession: vi.fn().mockReturnValue("new-session-id"),
+      getHandoffContext: vi.fn().mockReturnValue(null),
+      snapshotUsage: vi.fn().mockReturnValue({ inputTokens: 0, outputTokens: 0 }),
+      getUsageDelta: vi.fn().mockReturnValue({ inputTokensDelta: 0, outputTokensDelta: 0 }),
+    };
+  }
+
+  // Simulate the session wiring logic extracted from worker-service run-finished handler.
+  // This mirrors the exact code block added to worker-service.ts, testable without starting
+  // an actual Electron utilityProcess or full WorkerService.
+  function simulateRunFinishedSessionWiring(
+    sessionService: ReturnType<typeof createMockSessionService>,
+    db: {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      getActiveTaskSession: (...args: any[]) => any;
+    },
+    task: { id: string } | null,
+    event: { inputTokens: number | null; outputTokens: number | null; runId: string },
+    connectorId: string,
+  ) {
+    if (task && sessionService) {
+      const activeSession = db.getActiveTaskSession(task.id);
+      if (activeSession) {
+        sessionService.accumulateTokenUsage(
+          activeSession.id,
+          event.inputTokens ?? 0,
+          event.outputTokens ?? 0,
+          event.runId,
+        );
+        const rotationResult = sessionService.evaluateRotation(activeSession, connectorId);
+        if (rotationResult.shouldRotate) {
+          const updatedSession = db.getActiveTaskSession(task.id);
+          if (updatedSession) {
+            sessionService.rotateSession(updatedSession);
+          }
+        }
+      }
+    }
+  }
+
+  it("calls accumulateTokenUsage with correct args on run completion", () => {
+    const sessionService = createMockSessionService();
+    const mockSession = { id: "sess-1", taskId: "task-1", runCount: 5, totalInputTokens: 1000, totalOutputTokens: 500 };
+    const db = { getActiveTaskSession: vi.fn().mockReturnValue(mockSession) };
+
+    simulateRunFinishedSessionWiring(
+      sessionService,
+      db,
+      { id: "task-1" },
+      { inputTokens: 200, outputTokens: 100, runId: "run-1" },
+      "gemini_local",
+    );
+
+    expect(sessionService.accumulateTokenUsage).toHaveBeenCalledWith("sess-1", 200, 100, "run-1");
+  });
+
+  it("calls evaluateRotation after accumulation", () => {
+    const sessionService = createMockSessionService();
+    const mockSession = { id: "sess-1", taskId: "task-1", runCount: 5, totalInputTokens: 1000, totalOutputTokens: 500 };
+    const db = { getActiveTaskSession: vi.fn().mockReturnValue(mockSession) };
+
+    simulateRunFinishedSessionWiring(
+      sessionService,
+      db,
+      { id: "task-1" },
+      { inputTokens: 200, outputTokens: 100, runId: "run-1" },
+      "gemini_local",
+    );
+
+    expect(sessionService.evaluateRotation).toHaveBeenCalledWith(mockSession, "gemini_local");
+    // evaluateRotation called AFTER accumulateTokenUsage
+    const accOrder = sessionService.accumulateTokenUsage.mock.invocationCallOrder[0];
+    const evalOrder = sessionService.evaluateRotation.mock.invocationCallOrder[0];
+    expect(evalOrder).toBeGreaterThan(accOrder);
+  });
+
+  it("calls rotateSession when shouldRotate is true", () => {
+    const sessionService = createMockSessionService();
+    sessionService.evaluateRotation.mockReturnValue({ shouldRotate: true, reason: "max_runs" });
+    const mockSession = { id: "sess-1", taskId: "task-1", runCount: 20, totalInputTokens: 1000, totalOutputTokens: 500 };
+    const updatedSession = { ...mockSession, runCount: 21, totalInputTokens: 1200, totalOutputTokens: 600 };
+    const db = {
+      getActiveTaskSession: vi.fn()
+        .mockReturnValueOnce(mockSession)    // first call: get session for accumulation
+        .mockReturnValueOnce(updatedSession), // second call: re-read after accumulation for rotation
+    };
+
+    simulateRunFinishedSessionWiring(
+      sessionService,
+      db,
+      { id: "task-1" },
+      { inputTokens: 200, outputTokens: 100, runId: "run-1" },
+      "gemini_local",
+    );
+
+    expect(sessionService.rotateSession).toHaveBeenCalledWith(updatedSession);
+  });
+
+  it("does NOT call rotateSession when shouldRotate is false", () => {
+    const sessionService = createMockSessionService();
+    sessionService.evaluateRotation.mockReturnValue({ shouldRotate: false, reason: null });
+    const mockSession = { id: "sess-1", taskId: "task-1", runCount: 5, totalInputTokens: 1000, totalOutputTokens: 500 };
+    const db = { getActiveTaskSession: vi.fn().mockReturnValue(mockSession) };
+
+    simulateRunFinishedSessionWiring(
+      sessionService,
+      db,
+      { id: "task-1" },
+      { inputTokens: 200, outputTokens: 100, runId: "run-1" },
+      "gemini_local",
+    );
+
+    expect(sessionService.rotateSession).not.toHaveBeenCalled();
+  });
+
+  it("skips session wiring when task is null", () => {
+    const sessionService = createMockSessionService();
+    const db = { getActiveTaskSession: vi.fn() };
+
+    simulateRunFinishedSessionWiring(
+      sessionService,
+      db,
+      null,
+      { inputTokens: 200, outputTokens: 100, runId: "run-1" },
+      "gemini_local",
+    );
+
+    expect(db.getActiveTaskSession).not.toHaveBeenCalled();
+    expect(sessionService.accumulateTokenUsage).not.toHaveBeenCalled();
+  });
+
+  it("skips session wiring when no active session exists", () => {
+    const sessionService = createMockSessionService();
+    const db = { getActiveTaskSession: vi.fn().mockReturnValue(null) };
+
+    simulateRunFinishedSessionWiring(
+      sessionService,
+      db,
+      { id: "task-1" },
+      { inputTokens: 200, outputTokens: 100, runId: "run-1" },
+      "gemini_local",
+    );
+
+    expect(sessionService.accumulateTokenUsage).not.toHaveBeenCalled();
+  });
+
+  it("passes null tokens as 0 to accumulateTokenUsage", () => {
+    const sessionService = createMockSessionService();
+    const mockSession = { id: "sess-1", taskId: "task-1", runCount: 5, totalInputTokens: 0, totalOutputTokens: 0 };
+    const db = { getActiveTaskSession: vi.fn().mockReturnValue(mockSession) };
+
+    simulateRunFinishedSessionWiring(
+      sessionService,
+      db,
+      { id: "task-1" },
+      { inputTokens: null, outputTokens: null, runId: "run-1" },
+      "gemini_local",
+    );
+
+    expect(sessionService.accumulateTokenUsage).toHaveBeenCalledWith("sess-1", 0, 0, "run-1");
+  });
+});

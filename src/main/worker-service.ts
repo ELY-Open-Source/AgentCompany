@@ -5,6 +5,7 @@ import type { AppDatabase } from "./database";
 import type { RunRecord } from "@shared/types";
 import type { NotificationOptions } from "./notification-service";
 import type { createBudgetEnforcementService } from "./budget-enforcement-service";
+import type { createSessionManagementService } from "./session-management-service";
 
 const runStatusSchema = z.enum(["queued", "running", "succeeded", "failed", "cancelled", "timed_out", "interrupted"]);
 export const workerMessageSchema = z.union([
@@ -33,6 +34,8 @@ export const workerMessageSchema = z.union([
     sessionDisplayId: z.string().nullable(),
     costUsd: z.number().nullable(),
     unattributedCost: z.boolean(),
+    inputTokens: z.number().nullable(),
+    outputTokens: z.number().nullable(),
   }),
 ]);
 type WorkerUiEvent = Extract<z.infer<typeof workerMessageSchema>, { type: "run-log" | "run-status" }>;
@@ -65,6 +68,7 @@ interface WorkerServiceDependencies {
   processRunCompletion: (run: RunRecord, event: z.infer<typeof workerMessageSchema> & { type: "run-finished" }) => void;
   notify: (options: NotificationOptions) => void;
   budgetService?: ReturnType<typeof createBudgetEnforcementService>;
+  sessionService?: ReturnType<typeof createSessionManagementService>;
 }
 
 export function createWorkerService({
@@ -79,6 +83,7 @@ export function createWorkerService({
   processRunCompletion,
   notify,
   budgetService,
+  sessionService,
 }: WorkerServiceDependencies) {
   const MAX_RETRY_ATTEMPTS = 2;
   const RETRY_COOLDOWN_MS = 30_000; // 30 seconds
@@ -290,6 +295,31 @@ export function createWorkerService({
         entityId: run.id,
         detail: event.summary ?? event.errorMessage ?? "",
       });
+
+      // SESS-01/SESS-02/SESS-03/SESS-05: Token accumulation and rotation evaluation
+      if (task && sessionService) {
+        const activeSession = db.getActiveTaskSession(task.id);
+        if (activeSession) {
+          // D-08/D-05: Accumulate token usage for ALL adapters (including exempt ones)
+          sessionService.accumulateTokenUsage(
+            activeSession.id,
+            event.inputTokens ?? 0,
+            event.outputTokens ?? 0,
+            event.runId,
+          );
+          // D-03: Evaluate rotation after accumulation (after each run completes)
+          const rotationResult = sessionService.evaluateRotation(activeSession, run.connectorId);
+          if (rotationResult.shouldRotate) {
+            // Re-read to get updated counts after accumulation
+            const updatedSession = db.getActiveTaskSession(task.id);
+            if (updatedSession) {
+              sessionService.rotateSession(updatedSession);
+              logger.info(`[session] Rotated session for task ${task.id}: ${rotationResult.reason}`);
+            }
+          }
+        }
+      }
+
       publishDomainChanged();
       emitEvent({
         type: "run-status",

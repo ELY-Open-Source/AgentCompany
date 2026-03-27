@@ -14,6 +14,7 @@ import { createWorkerService } from "./worker-service";
 import { createAppLifecycleService } from "./app-lifecycle-service";
 import { createSkillService } from "./skill-service";
 import { createBudgetEnforcementService } from "./budget-enforcement-service";
+import { createSessionManagementService } from "./session-management-service";
 import type { DesktopEvent, RunRecord } from "@shared/types";
 import type { AutomationEventContext } from "./automation-service";
 import type { NotificationOptions } from "./notification-service";
@@ -72,6 +73,7 @@ export function createServiceGraph({
   let appLifecycleService: ReturnType<typeof createAppLifecycleService> | null = null;
   let skillService: ReturnType<typeof createSkillService> | null = null;
   let budgetEnforcementService: ReturnType<typeof createBudgetEnforcementService> | null = null;
+  let sessionManagementService: ReturnType<typeof createSessionManagementService> | null = null;
 
   function getOrCreateSkillService() {
     if (!skillService) {
@@ -94,6 +96,16 @@ export function createServiceGraph({
       });
     }
     return budgetEnforcementService;
+  }
+
+  function getOrCreateSessionManagementService() {
+    if (!sessionManagementService) {
+      sessionManagementService = createSessionManagementService({
+        db,
+        logger,
+      });
+    }
+    return sessionManagementService;
   }
 
   const wakeAgentIfPossible =(agentId: string | null | undefined, companyId: string, trigger: string) => {
@@ -192,6 +204,7 @@ export function createServiceGraph({
       processRunCompletion: (run, event) => processRunCompletion(run, event),
       notify,
       budgetService: getOrCreateBudgetEnforcementService(),
+      sessionService: getOrCreateSessionManagementService(),
     });
 
     orchestrationService = createOrchestrationService({
@@ -281,6 +294,7 @@ export function createServiceGraph({
         appLifecycleService = null;
         skillService = null;
         budgetEnforcementService = null;
+        sessionManagementService = null;
         db.close();
         // Force exit after grace period — covers all platforms (macOS Dock, Windows tray, Linux)
         // Worker child processes (claude/codex CLI) may keep the event loop alive indefinitely
@@ -302,5 +316,6 @@ export function createServiceGraph({
     getAppLifecycleService: () => appLifecycleService,
     getOrCreateSkillService,
     getOrCreateBudgetEnforcementService,
+    getOrCreateSessionManagementService,
   };
 }
