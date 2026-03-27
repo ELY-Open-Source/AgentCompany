@@ -13,6 +13,7 @@ import { createUpdaterService } from "./updater-service";
 import { createWorkerService } from "./worker-service";
 import { createAppLifecycleService } from "./app-lifecycle-service";
 import { createSkillService } from "./skill-service";
+import { createBudgetEnforcementService } from "./budget-enforcement-service";
 import type { DesktopEvent, RunRecord } from "@shared/types";
 import type { AutomationEventContext } from "./automation-service";
 import type { NotificationOptions } from "./notification-service";
@@ -70,6 +71,7 @@ export function createServiceGraph({
   let updaterService: ReturnType<typeof createUpdaterService> | null = null;
   let appLifecycleService: ReturnType<typeof createAppLifecycleService> | null = null;
   let skillService: ReturnType<typeof createSkillService> | null = null;
+  let budgetEnforcementService: ReturnType<typeof createBudgetEnforcementService> | null = null;
 
   function getOrCreateSkillService() {
     if (!skillService) {
@@ -80,6 +82,18 @@ export function createServiceGraph({
       });
     }
     return skillService;
+  }
+
+  function getOrCreateBudgetEnforcementService() {
+    if (!budgetEnforcementService) {
+      budgetEnforcementService = createBudgetEnforcementService({
+        db,
+        logger,
+        notify,
+        publishDomainChanged,
+      });
+    }
+    return budgetEnforcementService;
   }
 
   const wakeAgentIfPossible =(agentId: string | null | undefined, companyId: string, trigger: string) => {
@@ -264,6 +278,7 @@ export function createServiceGraph({
         updaterService = null;
         appLifecycleService = null;
         skillService = null;
+        budgetEnforcementService = null;
         db.close();
         // Force exit after grace period — covers all platforms (macOS Dock, Windows tray, Linux)
         // Worker child processes (claude/codex CLI) may keep the event loop alive indefinitely
@@ -284,5 +299,6 @@ export function createServiceGraph({
     getUpdaterService: () => updaterService,
     getAppLifecycleService: () => appLifecycleService,
     getOrCreateSkillService,
+    getOrCreateBudgetEnforcementService,
   };
 }

@@ -169,6 +169,7 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       getBrowserActions: () => requireServiceGraph().getBrowserActionService(),
       randomFallbackCompanyId: () => requireConnectorHealthService().randomFallbackCompanyId(),
       skillService: requireServiceGraph().getOrCreateSkillService(),
+      budgetService: requireServiceGraph().getOrCreateBudgetEnforcementService(),
     });
   }
 
