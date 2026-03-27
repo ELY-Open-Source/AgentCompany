@@ -3,6 +3,8 @@ import { z } from "zod";
 import type { DesktopResult } from "@shared/contracts";
 import type { bootstrapOnboardingSchema } from "@shared/contracts";
 import type { AppDatabase } from "./database";
+import type { createSkillService } from "./skill-service";
+import type { createBudgetEnforcementService } from "./budget-enforcement-service";
 
 export interface BrowserActionControl {
   clearSocialAccountData: (socialAccountId: string, screenshotPaths?: string[]) => Promise<void>;
@@ -38,6 +40,8 @@ export interface RegisterDomainHandlersDependencies {
   bootstrapOnboarding: (input: z.infer<typeof bootstrapOnboardingSchema>) => unknown;
   getBrowserActions: () => BrowserActionControl | null;
   randomFallbackCompanyId: () => string;
+  skillService: ReturnType<typeof createSkillService> | null;
+  budgetService: ReturnType<typeof createBudgetEnforcementService> | null;
 }
 
 export function ok<T>(data: T): DesktopResult<T> {

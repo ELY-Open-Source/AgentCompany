@@ -31,6 +31,8 @@ interface PromptContext {
   activeSprint?: SprintRecord | null;
   recentDocuments?: DocumentRecord[];
   allConnectors?: Array<{ id: string; label: string; status: string }>;
+  /** D-07: Handoff markdown from a rotated session, injected as context for the agent */
+  sessionHandoff?: string | null;
 }
 
 export function buildSystemPrompt(ctx: PromptContext): string {
@@ -192,6 +194,15 @@ ${activeGoals.map((g) => `- [${g.id}] ${g.title}: ${g.description || "No descrip
   if (relevantProjects.length > 0) {
     sections.push(`# Projects
 ${relevantProjects.map((p) => `- [${p.id}] ${p.name}: ${p.description || ""} (status: ${p.status}${p.leadAgentId === ctx.agent.id ? " — YOU LEAD THIS" : ""})`).join("\n")}
+`);
+  }
+
+  // D-07: Inject handoff context from previous rotated session
+  if (ctx.sessionHandoff) {
+    sections.push(`# Session Handoff
+The following context was preserved from your previous session on this task:
+
+${ctx.sessionHandoff}
 `);
   }
 

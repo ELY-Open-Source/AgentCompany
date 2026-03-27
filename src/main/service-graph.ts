@@ -8,9 +8,12 @@ import { createConnectorHealthService } from "./connector-health-service";
 import { createDesktopShellService } from "./desktop-shell-service";
 import { createOnboardingService } from "./onboarding-service";
 import { createOrchestrationService } from "./orchestration-service";
+import { createSkillService } from "./skill-service";
 import { createUpdaterService } from "./updater-service";
 import { createWorkerService } from "./worker-service";
 import { createAppLifecycleService } from "./app-lifecycle-service";
+import { createBudgetEnforcementService } from "./budget-enforcement-service";
+import { createSessionManagementService } from "./session-management-service";
 import type { DesktopEvent, RunRecord } from "@shared/types";
 import type { AutomationEventContext } from "./automation-service";
 import type { NotificationOptions } from "./notification-service";
@@ -67,8 +70,44 @@ export function createServiceGraph({
   let workerService: ReturnType<typeof createWorkerService> | null = null;
   let updaterService: ReturnType<typeof createUpdaterService> | null = null;
   let appLifecycleService: ReturnType<typeof createAppLifecycleService> | null = null;
+  let skillService: ReturnType<typeof createSkillService> | null = null;
+  let budgetEnforcementService: ReturnType<typeof createBudgetEnforcementService> | null = null;
+  let sessionManagementService: ReturnType<typeof createSessionManagementService> | null = null;
 
-  const wakeAgentIfPossible = (agentId: string | null | undefined, companyId: string, trigger: string) => {
+  function getOrCreateSkillService() {
+    if (!skillService) {
+      skillService = createSkillService({
+        db,
+        profileDir: db.profileDir,
+        logger,
+      });
+    }
+    return skillService;
+  }
+
+  function getOrCreateBudgetEnforcementService() {
+    if (!budgetEnforcementService) {
+      budgetEnforcementService = createBudgetEnforcementService({
+        db,
+        logger,
+        notify,
+        publishDomainChanged,
+      });
+    }
+    return budgetEnforcementService;
+  }
+
+  function getOrCreateSessionManagementService() {
+    if (!sessionManagementService) {
+      sessionManagementService = createSessionManagementService({
+        db,
+        logger,
+      });
+    }
+    return sessionManagementService;
+  }
+
+  const wakeAgentIfPossible =(agentId: string | null | undefined, companyId: string, trigger: string) => {
     if (!orchestrationService) {
       throw new Error("Orchestration service is not initialized.");
     }
@@ -163,6 +202,8 @@ export function createServiceGraph({
       dispatchRunToWorker,
       processRunCompletion: (run, event) => processRunCompletion(run, event),
       notify,
+      budgetService: getOrCreateBudgetEnforcementService(),
+      sessionService: getOrCreateSessionManagementService(),
     });
 
     orchestrationService = createOrchestrationService({
@@ -179,6 +220,27 @@ export function createServiceGraph({
         workerService?.getWorker()?.postMessage({ type: "enqueue-run", payload });
       },
       isQuitting: () => isQuittingRef.current,
+      listRuntimeSkillEntries: (() => {
+        let cachedSkillService: ReturnType<typeof createSkillService> | null = null;
+        return (companyId: string, agentId: string, connectorId: string) => {
+          try {
+            if (!cachedSkillService) {
+              cachedSkillService = createSkillService({ db, profileDir: db.profileDir, logger });
+            }
+            return cachedSkillService.listRuntimeSkillEntries(companyId, agentId, connectorId);
+          } catch {
+            return [];
+          }
+        };
+      })(),
+      budgetService: getOrCreateBudgetEnforcementService(),
+      getSessionHandoff: (taskId: string) => {
+        try {
+          return getOrCreateSessionManagementService().getHandoffContext(taskId);
+        } catch {
+          return null;
+        }
+      },
     });
     workerService.createWorker();
 
@@ -237,6 +299,9 @@ export function createServiceGraph({
         orchestrationService = null;
         updaterService = null;
         appLifecycleService = null;
+        skillService = null;
+        budgetEnforcementService = null;
+        sessionManagementService = null;
         db.close();
         // Force exit after grace period — covers all platforms (macOS Dock, Windows tray, Linux)
         // Worker child processes (claude/codex CLI) may keep the event loop alive indefinitely
@@ -256,5 +321,8 @@ export function createServiceGraph({
     getOnboardingService: () => onboardingService,
     getUpdaterService: () => updaterService,
     getAppLifecycleService: () => appLifecycleService,
+    getOrCreateSkillService,
+    getOrCreateBudgetEnforcementService,
+    getOrCreateSessionManagementService,
   };
 }

@@ -1,9 +1,14 @@
+import { randomUUID } from "node:crypto";
 import { buildTaskPrompt } from "./prompt-builder";
 import type { AppDatabase } from "./database";
 import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
 import type { DesktopResult } from "@shared/contracts";
 import type { ConnectorRecord } from "@shared/types";
 import type { NotificationOptions } from "./notification-service";
+import type { createBudgetEnforcementService } from "./budget-enforcement-service";
+import { sweepStaleReviews } from "./task-quality-gates";
+import { resolveApprovalDecision } from "./approval-policy";
+import { dispatchAgentMessage } from "./message-dispatch";
 
 type WorkspaceLockMode = "exclusive" | "shared" | "none";
 
@@ -44,6 +49,7 @@ interface EnqueueRunPayload {
   sessionParams: Record<string, unknown> | null;
   systemPrompt: string | null;
   trigger: string | null;
+  managedSkills: Array<{ runtimeName: string; sourcePath: string }>;
 }
 
 interface OrchestrationDependencies {
@@ -62,6 +68,9 @@ interface OrchestrationDependencies {
   hasWorkerReady: () => boolean;
   enqueueWorkerRun: (payload: EnqueueRunPayload) => void;
   isQuitting: () => boolean;
+  listRuntimeSkillEntries: (companyId: string, agentId: string, connectorId: string) => Array<{ runtimeName: string; sourcePath: string }>;
+  budgetService: ReturnType<typeof createBudgetEnforcementService>;
+  getSessionHandoff?: (taskId: string) => string | null;
 }
 
 export function createOrchestrationService({
@@ -76,6 +85,9 @@ export function createOrchestrationService({
   hasWorkerReady,
   enqueueWorkerRun,
   isQuitting,
+  listRuntimeSkillEntries,
+  budgetService,
+  getSessionHandoff,
 }: OrchestrationDependencies) {
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   const scheduleLastFiredMap = new Map<string, number>();
@@ -120,6 +132,7 @@ export function createOrchestrationService({
     return { workspace: null, lockMode: "none", source: "none" };
   }
 
+  // DEPRECATED: Superseded by BudgetEnforcementService.evaluateBudgetGate (Phase 5)
   function autoPauseBudgetExceededAgent(agent: { id: string; companyId: string; name: string; spentMonthlyUsd: number; budgetMonthlyUsd: number }) {
     if (!(agent.budgetMonthlyUsd > 0) || agent.spentMonthlyUsd < agent.budgetMonthlyUsd) {
       return false;
@@ -154,14 +167,16 @@ export function createOrchestrationService({
   function getRunEligibilityFailure(
     agent: { status: string; budgetMonthlyUsd: number; spentMonthlyUsd: number; name: string; connectorId: string; id: string; companyId: string },
     connector: Pick<ConnectorRecord, "id" | "label" | "status" | "capabilityMatrix">,
+    projectId: string | null = null,
   ) {
     if (["terminated", "paused", "pending_approval"].includes(agent.status)) {
       return "AGENT_NOT_RUNNABLE";
     }
-    if (agent.budgetMonthlyUsd > 0 && agent.spentMonthlyUsd >= agent.budgetMonthlyUsd) {
-      autoPauseBudgetExceededAgent(agent);
-      logger.info(`[run] Agent ${agent.name} budget exhausted, skipping`);
-      return "AGENT_BUDGET_EXHAUSTED";
+    // Policy-based budget check replaces flat field check (D-03, D-04, D-05)
+    const gate = budgetService.evaluateBudgetGate(agent.companyId, agent.id, projectId);
+    if (!gate.allowed) {
+      logger.info(`[run] Agent ${agent.name} budget policy blocked: ${gate.blockedBy.map(b => `${b.scopeType}(${b.policyId})`).join(", ")}`);
+      return "BUDGET_POLICY_BLOCKED";
     }
     const connectorIssue = getConnectorExecutionReadinessIssue(connector);
     if (connectorIssue) {
@@ -221,6 +236,16 @@ export function createOrchestrationService({
         createdAt: comment.createdAt,
       }));
 
+    // D-07: Load handoff from previous rotated session
+    let sessionHandoff: string | null = null;
+    if (getSessionHandoff) {
+      try {
+        sessionHandoff = getSessionHandoff(task.id);
+      } catch (err) {
+        logger.warn(`[run] Failed to load session handoff for task ${task.id}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
     const systemPrompt = apiUrl ? buildTaskPrompt({
       agent,
       apiUrl,
@@ -272,6 +297,7 @@ export function createOrchestrationService({
         .filter((document) => document.companyId === companyId && (document.authorAgentId === agent.id || document.reviewerAgentId === agent.id || document.status === "in_review"))
         .slice(0, 5),
       allConnectors: snapshot.connectors.map((c) => ({ id: c.id, label: c.label, status: c.status })),
+      sessionHandoff,
     }) : null;
 
     if (apiUrl) {
@@ -284,7 +310,14 @@ export function createOrchestrationService({
       env.AGENT_COMPANY_WAKE_REASON = trigger;
     }
 
-    const taskSession = db.getTaskSession(task.id);
+    // SESS-01: Prefer task_sessions table, fall back to legacy tasks.session_json
+    const activeSession = db.getActiveTaskSession(task.id);
+    const taskSession = activeSession
+      ? {
+          sessionParams: activeSession.sessionParamsJson ? JSON.parse(activeSession.sessionParamsJson) as Record<string, unknown> : null,
+          sessionDisplayId: activeSession.sessionDisplayId,
+        }
+      : db.getTaskSession(task.id);
     let thinkingEffort: string | null = null;
     try {
       const meta = JSON.parse(agent.metadataJson || "{}");
@@ -293,6 +326,14 @@ export function createOrchestrationService({
       }
     } catch {
       thinkingEffort = null;
+    }
+
+    // Fetch managed skills for this agent -- best-effort, never blocks run dispatch
+    let managedSkills: Array<{ runtimeName: string; sourcePath: string }> = [];
+    try {
+      managedSkills = listRuntimeSkillEntries(companyId, agent.id, connector.id);
+    } catch (err) {
+      logger.warn(`[run] Failed to fetch managed skills for agent ${agent.name}: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     enqueueWorkerRun({
@@ -314,6 +355,7 @@ export function createOrchestrationService({
       sessionParams: taskSession.sessionParams,
       systemPrompt,
       trigger,
+      managedSkills,
     });
   }
 
@@ -331,7 +373,7 @@ export function createOrchestrationService({
       return null;
     }
     const connector = db.getConnector(agent.connectorId);
-    if (getRunEligibilityFailure(agent, connector)) {
+    if (getRunEligibilityFailure(agent, connector, null)) {
       return null;
     }
     if (hasActiveRun({ agentId: agent.id, companyId })) {
@@ -408,8 +450,20 @@ export function createOrchestrationService({
       logger.info(`[heartbeat] Created bootstrap task for ${agent.name}: ${taskTitle}`);
     }
 
-    if (task.activeRunId || hasActiveRun({ taskId: task.id, companyId })) {
-      logger.info(`[heartbeat] Skipping ${agent.name} because task ${task.title} already has an active run.`);
+    // Generate runId upfront for CAS checkout (EXEC-01, EXEC-02)
+    const runId = randomUUID();
+    const checkoutSuccess = db.checkoutTask(task.id, runId);
+    if (!checkoutSuccess) {
+      // D-04: Activity log entry only, no toast/popup
+      db.addActivity({
+        companyId,
+        actor: "system",
+        action: "execution.checkout_rejected",
+        entityType: "task",
+        entityId: task.id,
+        detail: `Agent ${agent.name} lost checkout race on task "${task.title}"`,
+      });
+      logger.info(`[heartbeat] Agent ${agent.name} lost checkout race on task ${task.title}`);
       return null;
     }
 
@@ -420,6 +474,7 @@ export function createOrchestrationService({
     );
 
     const run = db.createRun({
+      id: runId,
       companyId,
       taskId: task.id,
       agentId: agent.id,
@@ -473,9 +528,16 @@ export function createOrchestrationService({
     }
 
     const agentBusy = hasActiveRun({ agentId, companyId });
+    if (agentBusy) {
+      // Agent is busy — enqueue wakeup with lifecycle tracking (D-05)
+      db.enqueueWakeupRequest(companyId, agentId, trigger, `Wake for agent: ${trigger}`);
+      return null;
+    }
+
     const runId = startAgentHeartbeatRun(agentId, companyId, trigger);
-    if (!runId && agentBusy) {
-      db.enqueuePendingWake(companyId, agentId, trigger);
+    if (!runId) {
+      // Run failed to start but agent not busy — still enqueue for retry
+      db.enqueueWakeupRequest(companyId, agentId, trigger, `Wake for agent (deferred): ${trigger}`);
     }
     return runId;
   }
@@ -493,21 +555,18 @@ export function createOrchestrationService({
     if (companyStatus !== "active") {
       return fail("COMPANY_NOT_ACTIVE", "Runs can only start while the company is active.");
     }
-    if (task.activeRunId || hasActiveRun({ taskId: task.id, companyId: task.companyId })) {
-      return fail("TASK_ALREADY_RUNNING", "This task already has an active run.");
-    }
     if (!task.assigneeAgentId) return fail("TASK_UNASSIGNED", "Assign an agent before starting a run.");
     const agent = db.getAgent(task.assigneeAgentId);
     if (agent.companyId !== task.companyId) {
       return fail("AGENT_COMPANY_MISMATCH", "The assigned agent does not belong to the task company.");
     }
     const connector = db.getConnector(agent.connectorId);
-    const eligibilityFailure = getRunEligibilityFailure(agent, connector);
+    const eligibilityFailure = getRunEligibilityFailure(agent, connector, task.projectId ?? null);
     if (eligibilityFailure === "AGENT_NOT_RUNNABLE") {
       return fail("AGENT_NOT_RUNNABLE", "The assigned agent is paused, pending approval, or terminated.");
     }
-    if (eligibilityFailure === "AGENT_BUDGET_EXHAUSTED") {
-      return fail("AGENT_BUDGET_EXHAUSTED", "The assigned agent has exhausted its monthly budget.");
+    if (eligibilityFailure === "BUDGET_POLICY_BLOCKED") {
+      return fail("BUDGET_POLICY_BLOCKED", "A budget policy blocks this run. Review budget settings.");
     }
     if (eligibilityFailure === "CONNECTOR_NOT_READY") {
       return fail("CONNECTOR_NOT_READY", "The assigned agent connector is not ready.");
@@ -526,6 +585,13 @@ export function createOrchestrationService({
       );
     }
 
+    // CAS checkout — atomic claim (EXEC-01, EXEC-02)
+    const runId = randomUUID();
+    const checkoutSuccess = db.checkoutTask(task.id, runId);
+    if (!checkoutSuccess) {
+      return fail("CHECKOUT_RACE_LOST", "Another run claimed this task. Refresh and try again.");
+    }
+
     const workspaceResolution = resolveWorkspace(task, agent, task.companyId);
     const workspace = workspaceResolution.workspace;
     if (workspace && workspace.companyId !== task.companyId) {
@@ -533,6 +599,7 @@ export function createOrchestrationService({
     }
 
     const run = db.createRun({
+      id: runId,
       companyId: task.companyId,
       taskId: task.id,
       agentId: agent.id,
@@ -567,6 +634,27 @@ export function createOrchestrationService({
   }
 
   function resumeQueuedRuns() {
+    // D-02: Stale lock recovery at app startup (EXEC-03)
+    try {
+      const recovered = db.recoverStaleLocks();
+      for (const task of recovered) {
+        db.addActivity({
+          companyId: task.companyId,
+          actor: "system",
+          action: "execution.lock_recovered",
+          entityType: "task",
+          entityId: task.taskId,
+          detail: `Recovered stale lock on task "${task.title}" after 15min timeout (startup sweep)`,
+        });
+        logger.info(`[init] Recovered stale lock on task ${task.taskId}: "${task.title}"`);
+      }
+      if (recovered.length > 0) {
+        logger.info(`[init] Recovered ${recovered.length} stale lock(s) at startup`);
+      }
+    } catch (err) {
+      logger.error(`[init] Stale lock recovery at startup failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
     if (isQuitting() || !hasWorkerReady()) {
       return;
     }
@@ -593,7 +681,7 @@ export function createOrchestrationService({
         const task = db.getTask(run.taskId);
         const agent = db.getAgent(run.agentId);
         const connector = db.getConnector(run.connectorId);
-        if (getRunEligibilityFailure(agent, connector)) {
+        if (getRunEligibilityFailure(agent, connector, task.projectId ?? null)) {
           continue;
         }
         const workspaceResolution = resolveWorkspace(task, agent, run.companyId);
@@ -622,6 +710,26 @@ export function createOrchestrationService({
     heartbeatTimer = setInterval(() => {
       try {
         if (isQuitting() || !hasWorkerReady()) return;
+
+        // D-02: Stale lock recovery piggybacked on heartbeat cycle (EXEC-03)
+        try {
+          const recovered = db.recoverStaleLocks();
+          for (const task of recovered) {
+            // D-04: Activity log entry only
+            db.addActivity({
+              companyId: task.companyId,
+              actor: "system",
+              action: "execution.lock_recovered",
+              entityType: "task",
+              entityId: task.taskId,
+              detail: `Recovered stale lock on task "${task.title}" after 15min timeout`,
+            });
+            logger.info(`[heartbeat] Recovered stale lock on task ${task.taskId}: "${task.title}"`);
+          }
+        } catch (err) {
+          logger.error(`[heartbeat] Stale lock recovery failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+
         const activeCompanies = db.listActiveCompanyIds();
         const now = Date.now();
 
@@ -680,6 +788,40 @@ export function createOrchestrationService({
               db.setLastBudgetResetMonth(company.id, currentMonth);
               logger.info(`[heartbeat] Reset monthly budgets for company ${company.name} (${currentMonth})`);
             }
+
+            // D-06: Auto-close incidents from previous budget windows
+            const closedIncidents = budgetService.autoCloseExpiredIncidents(company.id);
+            if (closedIncidents > 0) {
+              logger.info(`[heartbeat] Auto-closed ${closedIncidents} expired budget incident(s) for company ${company.name}`);
+            }
+
+            // TASK-04: Stale review escalation sweep
+            try {
+              const escalated = sweepStaleReviews(company.id, {
+                db: db as unknown as import("./task-quality-gates").SweepStaleReviewsDeps["db"],
+                dispatchAgentMessage: dispatchAgentMessage as unknown as import("./task-quality-gates").SweepStaleReviewsDeps["dispatchAgentMessage"],
+                resolveApprovalDecision: resolveApprovalDecision as unknown as import("./task-quality-gates").SweepStaleReviewsDeps["resolveApprovalDecision"],
+                notify: notify as unknown as import("./task-quality-gates").SweepStaleReviewsDeps["notify"],
+                handleTaskStatusChange: (_taskId: string, _companyId: string, _prev: string, _next: string) => {
+                  publishDomainChanged();
+                },
+                handleApprovalResolved: (_approvalId: string, _companyId: string, _decision: string) => {
+                  publishDomainChanged();
+                },
+                emitEvent: (..._args: unknown[]) => {},
+                publishDomainChanged,
+                wakeAgentIfPossible: (agentId: string, cId: string, trigger: string) => {
+                  wakeAgentIfPossible(agentId, cId, trigger);
+                },
+                logger,
+              });
+              if (escalated > 0) {
+                logger.info(`[heartbeat] Auto-escalated ${escalated} stale review(s) for company ${company.name}`);
+                publishDomainChanged();
+              }
+            } catch (error) {
+              logger.error(`[heartbeat] Stale review sweep failed: ${error instanceof Error ? error.message : String(error)}`);
+            }
           } catch (error) {
             logger.error(`[heartbeat] Error processing company ${company.id}: ${error instanceof Error ? error.message : String(error)}`);
           }
@@ -691,9 +833,9 @@ export function createOrchestrationService({
             logger.info(`[heartbeat] Released ${staleReleased} stale workspace lock(s)`);
             publishDomainChanged();
           }
-          const stalePendingWakes = db.purgeExpiredPendingWakes();
-          if (stalePendingWakes > 0) {
-            logger.info(`[heartbeat] Purged ${stalePendingWakes} stale pending wake(s)`);
+          const staleWakeups = db.purgeExpiredWakeupRequests();
+          if (staleWakeups > 0) {
+            logger.info(`[heartbeat] Purged ${staleWakeups} expired wakeup request(s)`);
           }
         } catch (error) {
           logger.error(`[heartbeat] Stale lock cleanup failed: ${error instanceof Error ? error.message : String(error)}`);

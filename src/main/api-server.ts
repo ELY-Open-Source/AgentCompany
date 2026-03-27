@@ -8,6 +8,7 @@ import { canAssignTask, canControlAgent, canManageGoal, canManageOrganization, c
 import { resolveApprovalDecision, shouldAutoApproveApproval } from "./approval-policy";
 import type { AppDatabase } from "./database";
 import { inferTaskType } from "./connector-matching";
+import { validateTaskCreation } from "./task-quality-gates";
 import { dispatchAgentMessage } from "./message-dispatch";
 import type { DesktopEvent, SectionId } from "@shared/types";
 
@@ -355,7 +356,7 @@ export class AgentApiServer {
         return;
       }
       const previousStatus = task.status;
-      const success = this.db.checkoutTask(params.issueId!, agentId);
+      const success = this.db.checkoutTask(params.issueId!, token.runId);
       if (!success) {
         this.json(res, 409, { error: "Task cannot be checked out — already assigned or not in valid status" });
         return;
@@ -559,6 +560,12 @@ export class AgentApiServer {
       }
       if (!canAssignTask(this.db, companyId, token.agentId, input.assigneeAgentId ?? null)) {
         this.json(res, 403, { error: "Current agent is not allowed to assign this task to the selected agent" });
+        return;
+      }
+      const isHeartbeat = input.title.startsWith("[Heartbeat]");
+      const taskValidation = validateTaskCreation({ title: input.title, description: input.description ?? "" }, isHeartbeat);
+      if (!taskValidation.valid) {
+        this.json(res, 422, { error: taskValidation.errors.join("; ") });
         return;
       }
 
@@ -1582,6 +1589,14 @@ export class AgentApiServer {
       if (actionItems.length > 0) {
         for (const item of actionItems) {
           if (item.title && typeof item.title === "string") {
+            const meetingTaskValidation = validateTaskCreation(
+              { title: item.title, description: item.description ?? `Action item from meeting: ${data.title ?? existing.title}` },
+              false,
+            );
+            if (!meetingTaskValidation.valid) {
+              // Log but skip invalid meeting action items rather than failing the whole request
+              continue;
+            }
             const taskId = this.db.saveTask({
               companyId: token.companyId,
               title: item.title,

@@ -76,12 +76,41 @@ const api: DesktopApi = {
   deleteWorkflow: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteWorkflow, input),
   runWorkflow: (input) => ipcRenderer.invoke(IPC_CHANNELS.runWorkflow, input),
   autoAssignTask: (input) => ipcRenderer.invoke(IPC_CHANNELS.autoAssignTask, input),
+  importSkill: (companyId, source) =>
+    ipcRenderer.invoke(IPC_CHANNELS.importSkill, { companyId, source }),
+  listSkills: (companyId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.listSkills, { companyId }),
+  getSkillDetail: (companyId, skillId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.getSkillDetail, { companyId, skillId }),
+  deleteSkill: (companyId, skillId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.deleteSkill, { companyId, skillId }),
+  assignSkillToAgent: (companyId, agentId, skillId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.assignSkillToAgent, { companyId, agentId, skillId }),
+  removeSkillFromAgent: (companyId, agentId, skillId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.removeSkillFromAgent, { companyId, agentId, skillId }),
+  checkSkillUpdate: (companyId, skillId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.checkSkillUpdate, { companyId, skillId }),
+  listSkillAgents: (companyId, skillId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.listSkillAgents, { companyId, skillId }),
+  listAgentSkills: (companyId, agentId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.listAgentSkills, { companyId, agentId }),
+  listWakeupRequests: (input) => ipcRenderer.invoke(IPC_CHANNELS.listWakeupRequests, input),
+  saveBudgetPolicy: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveBudgetPolicy, input),
+  deleteBudgetPolicy: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteBudgetPolicy, input),
+  listBudgetPolicies: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.listBudgetPolicies, { companyId }),
+  listBudgetIncidents: (input) => ipcRenderer.invoke(IPC_CHANNELS.listBudgetIncidents, input),
+  resolveBudgetIncident: (input) => ipcRenderer.invoke(IPC_CHANNELS.resolveBudgetIncident, input),
+  getBudgetStatus: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.getBudgetStatus, { companyId }),
   recoveryRetry: (taskId: string, agentId: string, companyId: string) =>
     ipcRenderer.invoke("recovery:retry", { taskId, agentId, companyId }),
   recoveryDismiss: (taskId: string) =>
     ipcRenderer.invoke("recovery:dismiss", { taskId }),
   recoveryFail: (taskId: string) =>
     ipcRenderer.invoke("recovery:fail", { taskId }),
+  getTask: (input) => ipcRenderer.invoke(IPC_CHANNELS.getTask, input),
+  getAgent: (input) => ipcRenderer.invoke(IPC_CHANNELS.getAgent, input),
+  getRun: (input) => ipcRenderer.invoke(IPC_CHANNELS.getRun, input),
+  getApproval: (input) => ipcRenderer.invoke(IPC_CHANNELS.getApproval, input),
   subscribe: (callback: (event: DesktopEvent) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: DesktopEvent) => callback(payload);
     ipcRenderer.on(IPC_CHANNELS.rendererEvent, listener);

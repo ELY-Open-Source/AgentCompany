@@ -179,6 +179,8 @@ export interface ServerAdapterModule {
   models?: AdapterModel[];
   listModels?: () => Promise<AdapterModel[]>;
   agentConfigurationDoc?: string;
+  /** Per D-04: If true, adapter manages its own context window (e.g. Claude, Codex). Session rotation is skipped but usage is still tracked. */
+  nativeContextManagement?: boolean;
   /**
    * Optional lifecycle hook when an agent is approved/hired (join-request or hire_agent approval).
    * adapterConfig is the agent's adapter config so the adapter can e.g. send a callback to a configured URL.
@@ -219,6 +221,14 @@ export interface CLIAdapterModule {
 // ---------------------------------------------------------------------------
 // UI config form values (moved from ui/src/components/AgentConfigForm.tsx)
 // ---------------------------------------------------------------------------
+
+/** Skill reference passed from main process to worker for adapter injection. */
+export interface ManagedSkillRef {
+  /** Skill slug used as directory name in the adapter's skill directory */
+  runtimeName: string;
+  /** Absolute path to the materialized skill directory on disk */
+  sourcePath: string;
+}
 
 export interface CreateConfigValues {
   adapterType: string;

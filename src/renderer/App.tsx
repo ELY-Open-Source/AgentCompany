@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   CaretUpDown,
@@ -14,6 +14,7 @@ import {
   MagnifyingGlass,
   Megaphone,
   Plus,
+  PuzzlePiece,
   UsersThree,
   ShieldCheck,
   Trash,
@@ -59,6 +60,8 @@ import {
   WorkspaceInspector,
   WorkspaceList,
 } from "./components/execution";
+import { PolicyList } from "./components/execution/PolicyList";
+import { IncidentList } from "./components/execution/IncidentList";
 import {
   AgentCreator,
   AgentEditor,
@@ -75,6 +78,7 @@ import { SocialAccountsPanel } from "./components/social";
 import { AutomationPanel } from "./components/automation";
 import { CommunicationHub } from "./components/communication";
 import { HiringPipeline } from "./components/hiring";
+import { SkillsSection } from "./components/skills";
 import { DocumentCenter, KnowledgeBaseManager, MeetingsManager, SprintManager } from "./components/company-operations";
 import { ActionButton, ErrorBoundary, ListFrame, ListRow, Modal, Panel, SectionButton, Select, StatusPill, useFocusTrap, useReducedMotion } from "./components/ui";
 import ToastContainer from "./components/Toast";
@@ -94,6 +98,7 @@ const sidebarNavDefs: NavItemDef[] = [
   { id: "agents", labelKey: "nav.agents", icon: UsersThree },
   { id: "tasks", labelKey: "nav.work", icon: ListChecks },
   { id: "communication", labelKey: "nav.communication", icon: ChatCircle },
+  { id: "skills", labelKey: "nav.skills", icon: PuzzlePiece },
   { id: "documents", labelKey: "nav.documents", icon: FileText },
   { id: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
   { id: "social", labelKey: "nav.social", icon: Megaphone },
@@ -172,6 +177,8 @@ export function App() {
   const browserActions = useAppStore((s) => s.browserActions);
   const setBrowserActions = useAppStore((s) => s.setBrowserActions);
 
+  const [costsTab, setCostsTab] = useState<"costs" | "policies" | "incidents">("costs");
+
   const clearCompanyScopedUiState = useCallback(() => {
     const store = useAppStore.getState();
     store.clearCompanyScopedSelections();
@@ -181,6 +188,10 @@ export function App() {
     store.setSocialAccounts([]);
     store.setBrowserActions([]);
     store.setBadges(null);
+    store.setSkills([]);
+    store.setSelectedSkillId(null);
+    store.setSelectedSkillFilePath("SKILL.md");
+    store.setSkillImportModalOpen(false);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -783,6 +794,7 @@ export function App() {
               {section === "overview" ? (
                 <Dashboard
                   companyName={currentCompany?.name}
+                  companyId={currentCompany?.id}
                   agents={companyAgents}
                   tasks={tasks}
                   runs={runs}
@@ -1101,20 +1113,54 @@ export function App() {
               ) : null}
 
               {section === "costs" ? (
-                <EntityWorkspace
-                  title="Costs"
-                  eyebrow={undefined}
-                  primary={
-                    <Panel title="Recent cost entries">
-                      <CostList costs={companyCosts} agents={companyAgents} runs={runs} />
-                    </Panel>
-                  }
-                  secondary={
-                    <Panel title="Budget posture">
-                      <BudgetSummary agents={companyAgents} costs={companyCosts} />
-                    </Panel>
-                  }
-                />
+                <div className="flex h-full flex-col">
+                  {/* Tab bar */}
+                  <div className="flex items-center gap-1 border-b border-[color:var(--line)] px-4 pt-2">
+                    {(["costs", "policies", "incidents"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        onClick={() => setCostsTab(tab)}
+                        className={`rounded-t px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                          costsTab === tab
+                            ? "border-b-2 border-[color:var(--accent)] text-[color:var(--text)]"
+                            : "text-[color:var(--muted)] hover:text-[color:var(--text)]"
+                        }`}
+                      >
+                        {tab === "costs" ? "Cost Entries" : tab === "policies" ? "Policies" : "Incidents"}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Tab content */}
+                  {costsTab === "costs" ? (
+                    <EntityWorkspace
+                      title="Costs"
+                      eyebrow={undefined}
+                      primary={
+                        <Panel title="Recent cost entries">
+                          <CostList costs={companyCosts} agents={companyAgents} runs={runs} />
+                        </Panel>
+                      }
+                      secondary={
+                        <Panel title="Budget posture">
+                          <BudgetSummary agents={companyAgents} costs={companyCosts} companyId={currentCompany?.id} />
+                        </Panel>
+                      }
+                    />
+                  ) : costsTab === "policies" ? (
+                    <PolicyList
+                      companyId={currentCompany!.id}
+                      agents={companyAgents.map((a) => ({ id: a.id, name: a.name }))}
+                      projects={companyProjects.map((p) => ({ id: p.id, name: p.name }))}
+                    />
+                  ) : (
+                    <IncidentList
+                      companyId={currentCompany!.id}
+                      agents={companyAgents.map((a) => ({ id: a.id, name: a.name }))}
+                      projects={companyProjects.map((p) => ({ id: p.id, name: p.name }))}
+                    />
+                  )}
+                </div>
               ) : null}
 
               {section === "activity" ? (
@@ -1192,6 +1238,10 @@ export function App() {
                   }}
                 />
               )}
+
+              {section === "skills" && currentCompany ? (
+                <SkillsSection companyId={currentCompany.id} agents={companyAgents} onRefresh={refresh} />
+              ) : null}
 
               {section === "automation" && currentCompany ? (
                 <AutomationPanel

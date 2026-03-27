@@ -16,6 +16,7 @@ export type SectionId =
   | "activity"
   | "workspaces"
   | "social"
+  | "skills"
   | "automation"
   | "communication"
   | "documents"
@@ -268,6 +269,74 @@ export interface CostRecord {
   createdAt: string;
 }
 
+export interface BudgetPolicyRecord {
+  id: string;
+  companyId: string;
+  scopeType: "company" | "agent" | "project";
+  scopeId: string;
+  metric: string;
+  windowKind: string;
+  amount: number; // INTEGER cents
+  warnPercent: number;
+  hardStopEnabled: boolean;
+  notifyEnabled: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BudgetIncidentRecord {
+  id: string;
+  companyId: string;
+  policyId: string;
+  scopeType: string;
+  scopeId: string;
+  metric: string;
+  windowKind: string;
+  windowStart: string;
+  windowEnd: string;
+  thresholdType: "warn_threshold" | "hard_stop";
+  amountLimit: number;
+  amountObserved: number;
+  status: "open" | "resolved" | "auto_resolved_limit_increase" | "auto_closed";
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BudgetStatusSummary {
+  policies: Array<{
+    policyId: string;
+    scopeType: string;
+    scopeId: string;
+    amount: number;
+    spent: number;
+    warnPercent: number;
+    hardStopEnabled: boolean;
+    hasOpenIncident: boolean;
+  }>;
+}
+
+export interface TaskSessionRecord {
+  id: string;
+  companyId: string;
+  taskId: string;
+  agentId: string;
+  adapterType: string;
+  sessionParamsJson: string | null;
+  sessionDisplayId: string | null;
+  lastRunId: string | null;
+  lastError: string | null;
+  runCount: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  rotatedAt: string | null;
+  rotationReason: string | null;
+  handoffMarkdown: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ActivityRecord {
   id: string;
   companyId: string;
@@ -385,6 +454,35 @@ export interface NotificationClickEvent {
   entityId?: string;
 }
 
+export interface TaskUpdatedEvent {
+  type: "task-updated";
+  taskId: string;
+  action: "created" | "updated" | "deleted";
+}
+
+export interface RunUpdatedEvent {
+  type: "run-updated";
+  runId: string;
+  action: "created" | "status_changed" | "completed";
+}
+
+export interface ApprovalUpdatedEvent {
+  type: "approval-updated";
+  approvalId: string;
+  action: "created" | "decided" | "deleted";
+}
+
+export interface AgentUpdatedEvent {
+  type: "agent-updated";
+  agentId: string;
+  action: "updated" | "paused";
+}
+
+export interface BudgetChangedEvent {
+  type: "budget-changed";
+  companyId: string;
+}
+
 export type DesktopEvent =
   | LogChunkEvent
   | DomainChangedEvent
@@ -394,7 +492,12 @@ export type DesktopEvent =
   | AgentMessageEvent
   | AutomationFiredEvent
   | NewMessageEvent
-  | NotificationClickEvent;
+  | NotificationClickEvent
+  | TaskUpdatedEvent
+  | RunUpdatedEvent
+  | ApprovalUpdatedEvent
+  | AgentUpdatedEvent
+  | BudgetChangedEvent;
 
 export type InboxItemType = "pending_approval" | "failed_run" | "budget_warning" | "blocked_task" | "review_needed" | "agent_message";
 
@@ -451,6 +554,52 @@ export interface OnboardingBootstrapResult {
   projectId: string | null;
   taskId: string | null;
   runId: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Skill system types (mirrored from main/skill-types.ts for IPC boundary)
+// ---------------------------------------------------------------------------
+
+export type SkillSourceType = "github" | "local_path" | "url" | "skills_sh" | "managed";
+export type TrustLevel = "markdown_only" | "assets" | "scripts_executables";
+
+export interface FileInventoryEntry {
+  path: string;
+  kind: "skill" | "reference" | "script" | "asset" | "markdown" | "other";
+}
+
+export interface SkillRecord {
+  id: string;
+  companyId: string;
+  key: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  markdown: string;
+  sourceType: SkillSourceType;
+  sourceLocator: string | null;
+  sourceRef: string | null;
+  trustLevel: TrustLevel;
+  compatibility: string;
+  fileInventory: FileInventoryEntry[];
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SkillImportResult {
+  skillId: string;
+  key: string;
+  name: string;
+  isUpdate: boolean;
+}
+
+export interface SkillUpdateStatus {
+  skillId: string;
+  key: string;
+  currentRef: string | null;
+  latestRef: string | null;
+  hasUpdate: boolean;
 }
 
 export type SocialPlatform = "twitter" | "linkedin" | "instagram" | "facebook" | "reddit" | "youtube" | "tiktok" | "bluesky" | "other";

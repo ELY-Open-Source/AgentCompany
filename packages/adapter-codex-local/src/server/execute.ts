@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AdapterExecutionContext, AdapterExecutionResult } from "@agentcompany/adapter-utils";
+import type { AdapterExecutionContext, AdapterExecutionResult, ManagedSkillRef } from "@agentcompany/adapter-utils";
 import {
   asString,
   asNumber,
@@ -17,6 +17,7 @@ import {
   filterConflictingArgs,
   renderTemplate,
   runChildProcess,
+  createManagedSkillSymlinks,
 } from "@agentcompany/adapter-utils/server-utils";
 import { parseCodexJsonl, isCodexUnknownSessionError } from "./parse.js";
 
@@ -76,11 +77,21 @@ async function resolveAgentCompanySkillsDir(): Promise<string | null> {
   return null;
 }
 
-async function ensureCodexSkillsInjected(onLog: AdapterExecutionContext["onLog"]) {
+async function ensureCodexSkillsInjected(
+  managedSkills: ManagedSkillRef[],
+  onLog: AdapterExecutionContext["onLog"],
+) {
+  const skillsHome = path.join(codexHomeDir(), "skills");
+
+  // Use managed skills when available; fall back to static repo scan
+  if (managedSkills.length > 0) {
+    await createManagedSkillSymlinks(managedSkills, skillsHome, onLog);
+    return;
+  }
+
   const skillsDir = await resolveAgentCompanySkillsDir();
   if (!skillsDir) return;
 
-  const skillsHome = path.join(codexHomeDir(), "skills");
   await fs.mkdir(skillsHome, { recursive: true });
   const entries = await fs.readdir(skillsDir, { withFileTypes: true });
   for (const entry of entries) {
@@ -154,7 +165,12 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const effectiveWorkspaceCwd = useConfiguredInsteadOfAgentHome ? "" : workspaceCwd;
   const cwd = effectiveWorkspaceCwd || configuredCwd || process.cwd();
   await ensureAbsoluteDirectory(cwd, { createIfMissing: true });
-  await ensureCodexSkillsInjected(onLog);
+  const managedSkills: ManagedSkillRef[] = Array.isArray(config.managedSkills)
+    ? (config.managedSkills as ManagedSkillRef[]).filter(
+        (s) => typeof s.runtimeName === "string" && typeof s.sourcePath === "string",
+      )
+    : [];
+  await ensureCodexSkillsInjected(managedSkills, onLog);
   const envConfig = parseObject(config.env);
   const hasExplicitApiKey =
     typeof envConfig.AGENT_COMPANY_API_KEY === "string" && envConfig.AGENT_COMPANY_API_KEY.trim().length > 0;

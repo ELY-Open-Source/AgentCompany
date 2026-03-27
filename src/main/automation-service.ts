@@ -8,6 +8,7 @@ import type {
   RunStatus,
 } from "@shared/types";
 import { dispatchAgentMessage } from "./message-dispatch";
+import { validateTaskCreation } from "./task-quality-gates";
 import type { NotificationOptions } from "./notification-service";
 
 /** Document types considered important enough to gate behind user review when reviewDeliverables is enabled. */
@@ -268,6 +269,12 @@ export function createAutomationService({
         const description = (config.description as string) ?? "";
         const priority = (config.priority as string) ?? "medium";
         const assigneeAgentId = (config.assigneeAgentId as string) ?? null;
+        const isHeartbeat = title.startsWith("[Heartbeat]");
+        const taskValidation = validateTaskCreation({ title, description }, isHeartbeat);
+        if (!taskValidation.valid) {
+          logger.warn(`[automation] Skipping create_task — validation failed: ${taskValidation.errors.join("; ")}`);
+          break;
+        }
         const taskId = db.saveTask({
           companyId: ctx.companyId,
           projectId: ctx.projectId ?? (config.projectId as string) ?? null,

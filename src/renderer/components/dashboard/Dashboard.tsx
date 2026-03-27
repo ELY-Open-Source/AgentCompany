@@ -27,9 +27,11 @@ import { MetricCard } from "./MetricsGrid";
 import { ActivityFeed } from "./ActivityFeed";
 import { RecoveryBanner } from "./RecoveryBanner";
 import { BudgetAlertBanner } from "./BudgetAlertBanner";
+import { ChartSection } from "./ChartSection";
 
 export interface DashboardProps {
   companyName?: string;
+  companyId?: string;
   agents: AgentRecord[];
   tasks: TaskRecord[];
   runs: RunRecord[];
@@ -44,7 +46,7 @@ export interface DashboardProps {
 
 export function Dashboard(props: DashboardProps) {
   const t = useT();
-  const { companyName, agents, tasks, runs, approvals, activity, costs, messages = [], onNavigate } = props;
+  const { companyName, companyId, agents, tasks, runs, approvals, activity, costs, messages = [], onNavigate } = props;
 
   const agentMap = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents]);
   const taskMap = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
@@ -95,7 +97,7 @@ export function Dashboard(props: DashboardProps) {
 
       {/* Conditional banners */}
       <RecoveryBanner />
-      <BudgetAlertBanner agents={agents} onNavigate={onNavigate} />
+      <BudgetAlertBanner agents={agents} onNavigate={onNavigate} companyId={companyId} />
 
       {/* Key Metrics — 4 cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -130,6 +132,9 @@ export function Dashboard(props: DashboardProps) {
           onClick={() => onNavigate("settings")}
         />
       </div>
+
+      {/* Performance Charts */}
+      {companyId ? <ChartSection runs={runs} costs={costs} agents={agents} companyId={companyId} /> : null}
 
       {/* Needs Attention — moved to top, only shows when items exist */}
       {hasAttentionItems ? (

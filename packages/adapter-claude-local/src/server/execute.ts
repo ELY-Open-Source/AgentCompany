@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AdapterExecutionContext, AdapterExecutionResult } from "@agentcompany/adapter-utils";
 import type { RunProcessResult } from "@agentcompany/adapter-utils/server-utils";
+import type { ManagedSkillRef } from "@agentcompany/adapter-utils";
 import {
   asString,
   asNumber,
@@ -19,6 +20,7 @@ import {
   filterConflictingArgs,
   renderTemplate,
   runChildProcess,
+  createManagedSkillSymlinks,
 } from "@agentcompany/adapter-utils/server-utils";
 import {
   parseClaudeStreamJson,
@@ -44,13 +46,24 @@ async function resolveAgentCompanySkillsDir(): Promise<string | null> {
 
 /**
  * Create a tmpdir with `.claude/skills/` containing symlinks to skills from
- * the repo's `skills/` directory, so `--add-dir` makes Claude Code discover
+ * managed skill entries (preferred) or the repo's static `skills/` directory
+ * (backward compatibility fallback), so `--add-dir` makes Claude Code discover
  * them as proper registered skills.
  */
-async function buildSkillsDir(): Promise<string> {
+async function buildSkillsDir(
+  managedSkills: ManagedSkillRef[],
+  onLog: (stream: "stdout" | "stderr", chunk: string) => Promise<void>,
+): Promise<string> {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "agent-company-skills-"));
   const target = path.join(tmp, ".claude", "skills");
   await fs.mkdir(target, { recursive: true });
+
+  // Use managed skills when available; fall back to static repo scan
+  if (managedSkills.length > 0) {
+    await createManagedSkillSymlinks(managedSkills, target, onLog);
+    return tmp;
+  }
+
   const skillsDir = await resolveAgentCompanySkillsDir();
   if (!skillsDir) return tmp;
   const entries = await fs.readdir(skillsDir, { withFileTypes: true });
@@ -337,7 +350,12 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     extraArgs,
   } = runtimeConfig;
   const billingType = resolveClaudeBillingType(env);
-  const skillsDir = await buildSkillsDir();
+  const managedSkills: ManagedSkillRef[] = Array.isArray(config.managedSkills)
+    ? (config.managedSkills as ManagedSkillRef[]).filter(
+        (s) => typeof s.runtimeName === "string" && typeof s.sourcePath === "string",
+      )
+    : [];
+  const skillsDir = await buildSkillsDir(managedSkills, onLog);
 
   // When instructionsFilePath is configured, create a combined temp file that
   // includes both the file content and the path directive, so we only need

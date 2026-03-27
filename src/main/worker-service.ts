@@ -4,6 +4,8 @@ import { getConnectorDefinition } from "./connectors";
 import type { AppDatabase } from "./database";
 import type { RunRecord } from "@shared/types";
 import type { NotificationOptions } from "./notification-service";
+import type { createBudgetEnforcementService } from "./budget-enforcement-service";
+import type { createSessionManagementService } from "./session-management-service";
 
 const runStatusSchema = z.enum(["queued", "running", "succeeded", "failed", "cancelled", "timed_out", "interrupted"]);
 export const workerMessageSchema = z.union([
@@ -32,6 +34,8 @@ export const workerMessageSchema = z.union([
     sessionDisplayId: z.string().nullable(),
     costUsd: z.number().nullable(),
     unattributedCost: z.boolean(),
+    inputTokens: z.number().nullable(),
+    outputTokens: z.number().nullable(),
   }),
 ]);
 type WorkerUiEvent = Extract<z.infer<typeof workerMessageSchema>, { type: "run-log" | "run-status" }>;
@@ -63,6 +67,8 @@ interface WorkerServiceDependencies {
   }) => void;
   processRunCompletion: (run: RunRecord, event: z.infer<typeof workerMessageSchema> & { type: "run-finished" }) => void;
   notify: (options: NotificationOptions) => void;
+  budgetService?: ReturnType<typeof createBudgetEnforcementService>;
+  sessionService?: ReturnType<typeof createSessionManagementService>;
 }
 
 export function createWorkerService({
@@ -76,6 +82,8 @@ export function createWorkerService({
   dispatchRunToWorker,
   processRunCompletion,
   notify,
+  budgetService,
+  sessionService,
 }: WorkerServiceDependencies) {
   const MAX_RETRY_ATTEMPTS = 2;
   const RETRY_COOLDOWN_MS = 30_000; // 30 seconds
@@ -107,6 +115,7 @@ export function createWorkerService({
 
       const snapshot = db.listSnapshot();
       const affectedAgentIds = new Set<string>();
+      const affectedCompanyIds = new Map<string, string>();
       const requeueCandidates: Array<{ id: string; taskId: string; agentId: string; companyId: string; workspaceId: string | null; connectorId: string }> = [];
 
       for (const run of snapshot.runs) {
@@ -126,7 +135,10 @@ export function createWorkerService({
           if (run.workspaceId) {
             db.releaseWorkspaceLock(run.workspaceId, run.id);
           }
+          // EXEC-02: Release execution lock on crash recovery
+          db.releaseTaskLock(run.taskId, run.id);
           affectedAgentIds.add(run.agentId);
+          affectedCompanyIds.set(run.agentId, run.companyId);
 
           const chain = db.getChainOfCommand(run.agentId);
           if (chain.length > 0) {
@@ -145,10 +157,13 @@ export function createWorkerService({
       }
 
       for (const agentId of affectedAgentIds) {
-        const pendingWakes = db.consumePendingWakes(agentId);
-        for (const wake of pendingWakes) {
-          wakeAgentIfPossible(agentId, wake.companyId, wake.trigger);
+        // EXEC-05: Promote deferred wakes after crash recovery
+        const cid = affectedCompanyIds.get(agentId) ?? "";
+        const promoted = db.promoteWakeupRequests(agentId, cid);
+        if (promoted > 0) {
+          logger.info(`[worker] Promoted ${promoted} deferred wake(s) for agent ${agentId} after crash recovery`);
         }
+        // Let heartbeat scheduler pick up promoted wakes on next tick
       }
 
       publishDomainChanged();
@@ -280,6 +295,31 @@ export function createWorkerService({
         entityId: run.id,
         detail: event.summary ?? event.errorMessage ?? "",
       });
+
+      // SESS-01/SESS-02/SESS-03/SESS-05: Token accumulation and rotation evaluation
+      if (task && sessionService) {
+        const activeSession = db.getActiveTaskSession(task.id);
+        if (activeSession) {
+          // D-08/D-05: Accumulate token usage for ALL adapters (including exempt ones)
+          sessionService.accumulateTokenUsage(
+            activeSession.id,
+            event.inputTokens ?? 0,
+            event.outputTokens ?? 0,
+            event.runId,
+          );
+          // D-03: Evaluate rotation after accumulation (after each run completes)
+          const rotationResult = sessionService.evaluateRotation(activeSession, run.connectorId);
+          if (rotationResult.shouldRotate) {
+            // Re-read to get updated counts after accumulation
+            const updatedSession = db.getActiveTaskSession(task.id);
+            if (updatedSession) {
+              sessionService.rotateSession(updatedSession);
+              logger.info(`[session] Rotated session for task ${task.id}: ${rotationResult.reason}`);
+            }
+          }
+        }
+      }
+
       emitEvent({ type: "run-updated", runId: run.id, action: "completed" });
       emitEvent({
         type: "run-status",
@@ -321,6 +361,16 @@ export function createWorkerService({
           batchKey: "agent_paused",
         });
         emitEvent({ type: "agent-updated", agentId: updatedAgent.id, action: "paused" });
+      }
+
+      // Policy-based incident check after run completion (Phase 5)
+      if (budgetService && typeof event.costUsd === "number" && Number.isFinite(event.costUsd)) {
+        try {
+          const task = db.getTask(run.taskId);
+          budgetService.checkAndCreateIncidents(run.companyId, run.agentId, task?.projectId ?? null);
+        } catch (err) {
+          logger.error(`[budget] Incident check failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
 
       if ((event.status === "failed" || event.status === "timed_out") && !isQuitting() && !destroyed) {
@@ -381,10 +431,15 @@ export function createWorkerService({
         }
       }
 
-      const pendingWakes = db.consumePendingWakes(run.agentId);
-      if (pendingWakes.length > 0 && !isQuitting() && !destroyed) {
-        for (const wake of pendingWakes) {
-          wakeAgentIfPossible(run.agentId, wake.companyId, wake.trigger);
+      // EXEC-05: Promote deferred wakes after run completion
+      let hadDeferredWakes = false;
+      if (!isQuitting() && !destroyed) {
+        const promoted = db.promoteWakeupRequests(run.agentId, run.companyId);
+        if (promoted > 0) {
+          hadDeferredWakes = true;
+          logger.info(`[worker] Promoted ${promoted} deferred wake(s) for agent ${run.agentId}`);
+          // Trigger processing of newly-promoted wakes
+          wakeAgentIfPossible(run.agentId, run.companyId, "deferred_wake_promoted");
         }
       }
 
@@ -404,7 +459,7 @@ export function createWorkerService({
       }
 
       // Self-wake with circuit breaker to prevent infinite loops
-      if (pendingWakes.length === 0 && !isQuitting() && !destroyed) {
+      if (!hadDeferredWakes && !isQuitting() && !destroyed) {
         try {
           const actionableTasks = db.listAgentTasks(run.agentId, run.companyId, ["todo", "in_progress"]);
           if (actionableTasks.length > 0) {

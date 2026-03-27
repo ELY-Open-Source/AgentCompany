@@ -4,8 +4,10 @@ import { z } from "zod";
 import {
   IPC_CHANNELS,
   connectorInputSchema,
+  entityGetterSchema,
   metricsQuerySchema,
   settingsSchema,
+  wakeupQuerySchema,
 } from "@shared/contracts";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
 
@@ -141,5 +143,70 @@ export function registerCoreReadHandlers({
     const err = ensureCompanyExists(companyId);
     if (err) return err;
     return ok(db.getStandupReport(companyId));
+  });
+
+  registerHandle(IPC_CHANNELS.listWakeupRequests, (_event, input) => {
+    const parsed = wakeupQuerySchema.parse(input);
+    const err = ensureCompanyExists(parsed.companyId);
+    if (err) return err;
+    return ok(db.listWakeupRequests(parsed.companyId, {
+      status: parsed.status,
+      agentId: parsed.agentId,
+      limit: parsed.limit,
+    }));
+  });
+
+  // --- Entity getters for granular IPC updates ---
+
+  registerHandle(IPC_CHANNELS.getTask, (_event, payload) => {
+    const parsed = entityGetterSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    try {
+      const task = db.getTask(parsed.id);
+      if (task.companyId !== parsed.companyId) return fail("TASK_NOT_FOUND", "Task not found in current company.");
+      return ok(task);
+    } catch {
+      return fail("TASK_NOT_FOUND", "Task not found.");
+    }
+  });
+
+  registerHandle(IPC_CHANNELS.getAgent, (_event, payload) => {
+    const parsed = entityGetterSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    try {
+      const agent = db.getAgent(parsed.id);
+      if (agent.companyId !== parsed.companyId) return fail("AGENT_NOT_FOUND", "Agent not found in current company.");
+      return ok(agent);
+    } catch {
+      return fail("AGENT_NOT_FOUND", "Agent not found.");
+    }
+  });
+
+  registerHandle(IPC_CHANNELS.getRun, (_event, payload) => {
+    const parsed = entityGetterSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    try {
+      const run = db.getRun(parsed.id);
+      if (run.companyId !== parsed.companyId) return fail("RUN_NOT_FOUND", "Run not found in current company.");
+      return ok(run);
+    } catch {
+      return fail("RUN_NOT_FOUND", "Run not found.");
+    }
+  });
+
+  registerHandle(IPC_CHANNELS.getApproval, (_event, payload) => {
+    const parsed = entityGetterSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    try {
+      const approval = db.getApprovalRecord(parsed.id);
+      if (approval.companyId !== parsed.companyId) return fail("APPROVAL_NOT_FOUND", "Approval not found in current company.");
+      return ok(approval);
+    } catch {
+      return fail("APPROVAL_NOT_FOUND", "Approval not found.");
+    }
   });
 }

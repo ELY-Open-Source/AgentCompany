@@ -22,6 +22,7 @@ export const en: Record<string, string> = {
   "nav.costs": "Costs",
   "nav.activity": "Activity",
   "nav.social": "Social Media",
+  "nav.skills": "Skills",
   "nav.connectors": "Connectors",
   "nav.workspaces": "Workspaces",
   "nav.settings": "Settings",

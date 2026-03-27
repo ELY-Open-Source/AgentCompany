@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AdapterExecutionContext, AdapterExecutionResult } from "@agentcompany/adapter-utils";
+import type { AdapterExecutionContext, AdapterExecutionResult, ManagedSkillRef } from "@agentcompany/adapter-utils";
 import {
   asString,
   asNumber,
@@ -15,6 +15,7 @@ import {
   ensurePathInEnv,
   renderTemplate,
   runChildProcess,
+  createManagedSkillSymlinks,
 } from "@agentcompany/adapter-utils/server-utils";
 import { isOpenCodeUnknownSessionError, parseOpenCodeJsonl } from "./parse.js";
 import { ensureOpenCodeModelConfiguredAndAvailable } from "./models.js";
@@ -53,11 +54,21 @@ async function resolveAgentCompanySkillsDir(): Promise<string | null> {
   return null;
 }
 
-async function ensureOpenCodeSkillsInjected(onLog: AdapterExecutionContext["onLog"]) {
+async function ensureOpenCodeSkillsInjected(
+  managedSkills: ManagedSkillRef[],
+  onLog: AdapterExecutionContext["onLog"],
+) {
+  const skillsHome = openCodeSkillsHome();
+
+  // Use managed skills when available; fall back to static repo scan
+  if (managedSkills.length > 0) {
+    await createManagedSkillSymlinks(managedSkills, skillsHome, onLog);
+    return;
+  }
+
   const skillsDir = await resolveAgentCompanySkillsDir();
   if (!skillsDir) return;
 
-  const skillsHome = openCodeSkillsHome();
   await fs.mkdir(skillsHome, { recursive: true });
   const entries = await fs.readdir(skillsDir, { withFileTypes: true });
   for (const entry of entries) {
@@ -109,7 +120,12 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const effectiveWorkspaceCwd = useConfiguredInsteadOfAgentHome ? "" : workspaceCwd;
   const cwd = effectiveWorkspaceCwd || configuredCwd || process.cwd();
   await ensureAbsoluteDirectory(cwd, { createIfMissing: true });
-  await ensureOpenCodeSkillsInjected(onLog);
+  const managedSkills: ManagedSkillRef[] = Array.isArray(config.managedSkills)
+    ? (config.managedSkills as ManagedSkillRef[]).filter(
+        (s) => typeof s.runtimeName === "string" && typeof s.sourcePath === "string",
+      )
+    : [];
+  await ensureOpenCodeSkillsInjected(managedSkills, onLog);
 
   const envConfig = parseObject(config.env);
   const hasExplicitApiKey =

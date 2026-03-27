@@ -5,6 +5,8 @@ import { registerBrowserHandlers } from "./ipc-browser-handlers";
 import { registerContentOperationsHandlers } from "./ipc-content-operations-handlers";
 import { registerOnboardingHandlers } from "./ipc-onboarding-handlers";
 import { registerRecoveryHandlers } from "./ipc-recovery-handlers";
+import { registerSkillHandlers } from "./ipc-skill-handlers";
+import { registerBudgetHandlers } from "./ipc-budget-handlers";
 
 export function registerDomainHandlers(dependencies: RegisterDomainHandlersDependencies) {
   registerOnboardingHandlers(dependencies);
@@ -13,4 +15,18 @@ export function registerDomainHandlers(dependencies: RegisterDomainHandlersDepen
   registerAutomationOperationsHandlers(dependencies);
   registerAgentCoordinationHandlers(dependencies);
   registerRecoveryHandlers(dependencies);
+  registerSkillHandlers({
+    registerHandle: dependencies.registerHandle,
+    ensureCompanyExists: dependencies.ensureCompanyExists,
+    publishDomainChanged: dependencies.publishDomainChanged,
+    skillService: dependencies.skillService,
+    db: dependencies.db,
+  });
+  registerBudgetHandlers({
+    registerHandle: dependencies.registerHandle,
+    ensureCompanyExists: dependencies.ensureCompanyExists,
+    publishDomainChanged: dependencies.publishDomainChanged,
+    budgetService: dependencies.budgetService,
+    db: dependencies.db,
+  });
 }

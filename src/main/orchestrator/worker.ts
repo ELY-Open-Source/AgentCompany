@@ -42,6 +42,7 @@ interface RunJob {
   sessionParams: Record<string, unknown> | null;
   systemPrompt: string | null;
   trigger: string | null;
+  managedSkills: Array<{ runtimeName: string; sourcePath: string }>;
 }
 
 type ParentMessage =
@@ -64,6 +65,8 @@ type ChildMessage =
       sessionDisplayId: string | null;
       costUsd: number | null;
       unattributedCost: boolean;
+      inputTokens: number | null;
+      outputTokens: number | null;
     };
 
 const parentPort = process.parentPort;
@@ -95,6 +98,7 @@ function buildConnectorExecutionConfig(job: RunJob, sanitizedEnv: Record<string,
     cwd: job.workspacePath ?? process.cwd(),
     model: job.model,
     env: sanitizedEnv,
+    managedSkills: job.managedSkills,
   };
 
   switch (job.connectorId) {
@@ -234,6 +238,8 @@ async function startRun(job: RunJob) {
       sessionDisplayId: result.sessionDisplayId ?? null,
       costUsd: typeof result.costUsd === "number" ? result.costUsd : null,
       unattributedCost: !result.costUsd,
+      inputTokens: result.usage?.inputTokens ?? null,
+      outputTokens: result.usage?.outputTokens ?? null,
     });
   } catch (error) {
     post({
@@ -249,6 +255,8 @@ async function startRun(job: RunJob) {
       sessionDisplayId: null,
       costUsd: null,
       unattributedCost: true,
+      inputTokens: null,
+      outputTokens: null,
     });
   } finally {
     cancelledRuns.delete(job.runId);
@@ -277,6 +285,8 @@ function cancelRun(runId: string) {
       sessionDisplayId: null,
       costUsd: null,
       unattributedCost: true,
+      inputTokens: null,
+      outputTokens: null,
     });
     return;
   }

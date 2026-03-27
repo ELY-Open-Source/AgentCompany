@@ -168,6 +168,8 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       bootstrapOnboarding: (input) => requireOnboardingService().bootstrapOnboarding(input),
       getBrowserActions: () => requireServiceGraph().getBrowserActionService(),
       randomFallbackCompanyId: () => requireConnectorHealthService().randomFallbackCompanyId(),
+      skillService: requireServiceGraph().getOrCreateSkillService(),
+      budgetService: requireServiceGraph().getOrCreateBudgetEnforcementService(),
     });
   }
 

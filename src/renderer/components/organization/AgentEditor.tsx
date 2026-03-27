@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pencil, Trash } from "@phosphor-icons/react";
-import type { AgentRecord, ConnectorRecord, WorkspaceRecord } from "@shared/types";
+import type { AgentRecord, BudgetPolicyRecord, ConnectorRecord, WorkspaceRecord } from "@shared/types";
 import { getConnectorExecutionReadinessIssue, isConnectorExecutionReady } from "@shared/connector-policy";
 import { unwrap } from "../../lib/desktop";
+import { useAppStore } from "../../state/store";
 import { ActionButton, Input, Select, TextArea } from "../ui";
+import { SkillAgentToggles } from "../skills/SkillAgentToggles";
 import { ConfirmDelete, HeartbeatSection } from "./helpers";
 
 export function AgentEditor({
@@ -73,6 +75,34 @@ export function AgentEditor({
       setThinkingEffort("");
     }
   }, [connectorId, agent.connectorId]);
+
+  const skills = useAppStore((s) => s.skills);
+  const setSkills = useAppStore((s) => s.setSkills);
+
+  useEffect(() => {
+    if (skills.length === 0 && companyId) {
+      window.agentCompany.listSkills(companyId).then((result) => {
+        if (result.ok) setSkills(result.data);
+      });
+    }
+  }, [companyId, skills.length, setSkills]);
+
+  // Load agent's budget policy (D-11: read from budget_policies)
+  const [agentPolicy, setAgentPolicy] = useState<BudgetPolicyRecord | null>(null);
+  useEffect(() => {
+    void (async () => {
+      const result = await window.agentCompany.listBudgetPolicies(companyId);
+      if (result.ok) {
+        const policy = result.data.find(
+          (p) => p.scopeType === "agent" && p.scopeId === agent.id
+        );
+        if (policy) {
+          setAgentPolicy(policy);
+          setBudget(String((policy.amount / 100).toFixed(2)));
+        }
+      }
+    })();
+  }, [companyId, agent.id]);
 
   const managerCandidates = agents.filter((a) => a.id !== agent.id);
 
@@ -162,6 +192,12 @@ export function AgentEditor({
 
       <HeartbeatSection agent={agent} companyId={companyId} pendingApproval={pendingApproval} persistedConnectorIssue={persistedConnectorIssue} onSaved={onSaved} />
 
+      {/* Skills section (D-04 dual access) */}
+      <div className="mt-6 border-t border-[color:var(--line)] pt-4">
+        <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[color:var(--accent-text)] mb-3">Skills</h3>
+        <SkillAgentToggles mode="agent" companyId={companyId} agentId={agent.id} skills={skills} />
+      </div>
+
       <div className="flex items-center gap-3">
         <ActionButton
           label="Save changes"
@@ -175,6 +211,7 @@ export function AgentEditor({
               if (thinkingEffort) meta.thinkingEffort = thinkingEffort;
               else delete meta.thinkingEffort;
               try {
+                const budgetDollars = Number(budget || 0);
                 unwrap(await window.agentCompany.saveAgent({
                   id: agent.id,
                   companyId,
@@ -187,9 +224,24 @@ export function AgentEditor({
                   reportsTo: reportsTo || null,
                   model: model || null,
                   metadataJson: JSON.stringify(meta),
-                  budgetMonthlyUsd: Number(budget || 0),
+                  budgetMonthlyUsd: budgetDollars,
                   capabilities,
                 }));
+                // D-11: Also write to budget_policies for policy-based enforcement
+                if (budgetDollars > 0 && agent.id) {
+                  await window.agentCompany.saveBudgetPolicy({
+                    companyId,
+                    scopeType: "agent",
+                    scopeId: agent.id,
+                    metric: "billed_cents",
+                    windowKind: "calendar_month_utc",
+                    amount: Math.round(budgetDollars * 100),
+                    warnPercent: agentPolicy?.warnPercent ?? 80,
+                    hardStopEnabled: agentPolicy?.hardStopEnabled ?? true,
+                    notifyEnabled: agentPolicy?.notifyEnabled ?? true,
+                    isActive: true,
+                  });
+                }
                 await onSaved();
               } catch (error) {
                 setSaveError(error instanceof Error ? error.message : "Failed to save agent.");

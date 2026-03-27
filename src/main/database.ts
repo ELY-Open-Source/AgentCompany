@@ -2,9 +2,11 @@ import { chmodSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readF
 import { appendFile, copyFile, cp, rm } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
+import log from "electron-log/main.js";
 import { DatabaseSync, backup as backupDatabase, type SQLInputValue } from "node:sqlite";
 import { getConnectorDefinition, buildDefaultConnectorRows, listInvalidEnvBindingKeys, parseEnvBindingText } from "./connectors";
 import { SecretVault } from "./vault";
+import type { SkillRecord, FileInventoryEntry, SkillSourceType, TrustLevel } from "./skill-types.js";
 import type {
   ActivityRecord,
   AgentMessageRecord,
@@ -12,6 +14,8 @@ import type {
   AgentRecord,
   ApprovalRecord,
   BrowserActionRecord,
+  BudgetIncidentRecord,
+  BudgetPolicyRecord,
   CommentRecord,
   CompanyMetrics,
   CompanyRecord,
@@ -29,6 +33,7 @@ import type {
   SocialAccountRecord,
   StandupReport,
   TaskRecord,
+  TaskSessionRecord,
   WorkflowPipelineRecord,
   WorkspaceRecord,
 } from "@shared/types";
@@ -111,6 +116,8 @@ function taskPriorityOrderSql(columnName: string) {
     else 0
   end`;
 }
+
+export const STALE_LOCK_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes (D-01)
 
 export class AppDatabase {
   readonly profileDir: string;
@@ -341,6 +348,31 @@ export class AppDatabase {
       create index if not exists idx_pending_wakes_agent on pending_wakes(agent_id);
     `);
 
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS wakeup_requests (
+        id TEXT PRIMARY KEY,
+        company_id TEXT NOT NULL,
+        agent_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        trigger_detail TEXT,
+        reason TEXT,
+        payload TEXT,
+        status TEXT NOT NULL DEFAULT 'queued',
+        coalesced_count INTEGER NOT NULL DEFAULT 0,
+        requested_by_actor_type TEXT,
+        requested_by_actor_id TEXT,
+        idempotency_key TEXT,
+        run_id TEXT,
+        requested_at TEXT NOT NULL,
+        claimed_at TEXT,
+        finished_at TEXT,
+        error TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_wakeup_requests_agent ON wakeup_requests(agent_id, company_id, status);
+    `);
+
     this.migrateSecretsTable();
     this.ensureOptionalColumns();
 
@@ -363,7 +395,7 @@ export class AppDatabase {
     this.seedConnectors();
     this._lastInterruptedCount = this.interruptStaleRuns();
     this.purgeExpiredRunLogs();
-    this.purgeExpiredPendingWakes();
+    this.purgeExpiredWakeupRequests();
   }
 
   close() {
@@ -1159,6 +1191,17 @@ export class AppDatabase {
     return row ? { ...row, isPrimary: toBoolean(row.isPrimary) } : null;
   }
 
+  getRun(id: string): RunRecord {
+    const row = this.db
+      .prepare(
+        "select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId, connector_id as connectorId, status, summary, error_message as errorMessage, exit_code as exitCode, signal, model, session_display_id as sessionDisplayId, cost_usd as costUsd, unattributed_cost as unattributedCost, started_at as startedAt, finished_at as finishedAt, log_path as logPath, created_at as createdAt, updated_at as updatedAt from runs where id = ?",
+      )
+      .get(id) as RunRecord | undefined;
+    if (!row) throw new Error(`Run not found: ${id}`);
+    row.unattributedCost = Boolean(row.unattributedCost);
+    return row;
+  }
+
   getRunAuthState(runId: string): { id: string; companyId: string; agentId: string; status: RunRecord["status"] } | null {
     const row = this.db
       .prepare("select id, company_id as companyId, agent_id as agentId, status from runs where id = ?")
@@ -1167,13 +1210,14 @@ export class AppDatabase {
   }
 
   createRun(input: {
+    id?: string;
     companyId: string;
     taskId: string;
     agentId: string;
     workspaceId: string | null;
     connectorId: ConnectorId;
   }) {
-    const id = randomUUID();
+    const id = input.id ?? randomUUID();
     const ts = nowIso();
     const logPath = join(this.logsDir, `${id}.log`);
     this.transaction(() => {
@@ -1323,6 +1367,9 @@ export class AppDatabase {
           input.runId,
         );
       this.db.prepare("update tasks set active_run_id = null, updated_at = ? where id = ?").run(ts, run.taskId);
+      this.db
+        .prepare("UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?")
+        .run(ts, run.taskId, input.runId);
       if (typeof input.costUsd === "number" && Number.isFinite(input.costUsd)) {
         this.db
           .prepare("update tasks set cost_usd = cost_usd + ?, updated_at = ? where id = ?")
@@ -1336,9 +1383,12 @@ export class AppDatabase {
           )
           .run(input.costUsd, ts, run.agentId);
       }
+      // Look up task's project_id for cost attribution
+      const taskProjectRow = this.db.prepare("SELECT project_id FROM tasks WHERE id = ?").get(run.taskId) as { project_id: string | null } | undefined;
+      const projectId = taskProjectRow?.project_id ?? null;
       this.db
-          .prepare("insert into cost_entries (id, company_id, run_id, task_id, agent_id, connector_id, amount_usd, unattributed, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .run(randomUUID(), run.companyId, input.runId, run.taskId, run.agentId, run.connectorId, input.costUsd, input.unattributedCost ? 1 : 0, ts);
+          .prepare("insert into cost_entries (id, company_id, run_id, task_id, agent_id, connector_id, amount_usd, unattributed, project_id, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(randomUUID(), run.companyId, input.runId, run.taskId, run.agentId, run.connectorId, input.costUsd, input.unattributedCost ? 1 : 0, projectId, ts);
       if (budgetHardStopped) {
         this.db
           .prepare("update agents set status = 'paused', updated_at = ? where id = ?")
@@ -1361,6 +1411,9 @@ export class AppDatabase {
       )
       .run(summary, ts, ts, runId);
     this.db.prepare("update tasks set active_run_id = null, updated_at = ? where id = ?").run(ts, taskId);
+    this.db
+      .prepare("UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?")
+      .run(ts, taskId, runId);
     if (workspaceId) {
       this.db
         .prepare(
@@ -1388,6 +1441,99 @@ export class AppDatabase {
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // task_sessions CRUD — session management (Plan 06-01)
+  // ---------------------------------------------------------------------------
+
+  getActiveTaskSession(taskId: string): TaskSessionRecord | null {
+    const task = this.db.prepare(
+      "SELECT active_session_id FROM tasks WHERE id = ?"
+    ).get(taskId) as { active_session_id: string | null } | undefined;
+    if (!task?.active_session_id) return null;
+    return this.db.prepare(
+      `SELECT id, company_id as companyId, task_id as taskId, agent_id as agentId,
+       adapter_type as adapterType, session_params_json as sessionParamsJson,
+       session_display_id as sessionDisplayId, last_run_id as lastRunId,
+       last_error as lastError, run_count as runCount,
+       total_input_tokens as totalInputTokens, total_output_tokens as totalOutputTokens,
+       rotated_at as rotatedAt, rotation_reason as rotationReason,
+       handoff_markdown as handoffMarkdown, created_at as createdAt, updated_at as updatedAt
+       FROM task_sessions WHERE id = ?`
+    ).get(task.active_session_id) as TaskSessionRecord | undefined ?? null;
+  }
+
+  incrementSessionUsage(sessionId: string, inputTokens: number, outputTokens: number, runId: string): void {
+    const ts = nowIso();
+    this.db.prepare(
+      `UPDATE task_sessions
+       SET run_count = run_count + 1,
+           total_input_tokens = total_input_tokens + ?,
+           total_output_tokens = total_output_tokens + ?,
+           last_run_id = ?,
+           updated_at = ?
+       WHERE id = ?`
+    ).run(inputTokens, outputTokens, runId, ts, sessionId);
+  }
+
+  archiveSession(sessionId: string, reason: string, handoffMarkdown: string): void {
+    const ts = nowIso();
+    this.db.prepare(
+      `UPDATE task_sessions SET rotated_at = ?, rotation_reason = ?, handoff_markdown = ?, updated_at = ? WHERE id = ?`
+    ).run(ts, reason, handoffMarkdown, ts, sessionId);
+  }
+
+  createNewSession(input: {
+    taskId: string;
+    companyId: string;
+    agentId: string;
+    adapterType: string;
+    sessionParamsJson: string | null;
+    sessionDisplayId: string | null;
+  }): string {
+    const sessionId = randomUUID();
+    const ts = nowIso();
+    this.db.prepare(
+      `INSERT INTO task_sessions (id, company_id, task_id, agent_id, adapter_type,
+       session_params_json, session_display_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      sessionId, input.companyId, input.taskId, input.agentId, input.adapterType,
+      input.sessionParamsJson, input.sessionDisplayId, ts, ts
+    );
+    this.db.prepare("UPDATE tasks SET active_session_id = ?, updated_at = ? WHERE id = ?")
+      .run(sessionId, ts, input.taskId);
+    return sessionId;
+  }
+
+  getRecentRunsForTask(taskId: string, limit: number): Array<{
+    id: string;
+    status: string;
+    summary: string | null;
+    errorMessage: string | null;
+    finishedAt: string | null;
+    connectorId: string;
+  }> {
+    return this.readAll(
+      `SELECT id, status, summary, error_message as errorMessage,
+       finished_at as finishedAt, connector_id as connectorId
+       FROM runs WHERE task_id = ? ORDER BY finished_at DESC LIMIT ?`,
+      taskId, limit
+    );
+  }
+
+  getRecentActivityForTask(taskId: string, limit: number): Array<{
+    action: string;
+    detail: string;
+    createdAt: string;
+  }> {
+    return this.readAll(
+      `SELECT action, detail, created_at as createdAt
+       FROM activity WHERE entity_type = 'task' AND entity_id = ?
+       ORDER BY created_at DESC LIMIT ?`,
+      taskId, limit
+    );
+  }
+
   addActivity(input: { companyId: string; actor: string; action: string; entityType: string; entityId: string; detail: string }) {
     this.db
       .prepare("insert into activity (id, company_id, actor, action, entity_type, entity_id, detail, created_at) values (?, ?, ?, ?, ?, ?, ?, ?)")
@@ -1403,7 +1549,20 @@ export class AppDatabase {
       } catch (err) {
         if (!(err instanceof Error) || !err.message.includes("no such table")) throw err;
       }
-      this.db.prepare("delete from pending_wakes where company_id = ?").run(companyId);
+      // New table cleanup (budget_incidents before budget_policies due to FK)
+      this.db.prepare("delete from budget_incidents where company_id = ?").run(companyId);
+      this.db.prepare("delete from budget_policies where company_id = ?").run(companyId);
+      // agent_skill_assignments references company_skills -- delete before skills
+      try {
+        this.db.prepare(
+          "delete from agent_skill_assignments where skill_id in (select id from company_skills where company_id = ?)",
+        ).run(companyId);
+      } catch (err) {
+        if (!(err instanceof Error) || !err.message.includes("no such table")) throw err;
+      }
+      this.db.prepare("delete from company_skills where company_id = ?").run(companyId);
+      this.db.prepare("delete from task_sessions where company_id = ?").run(companyId);
+      this.db.prepare("delete from wakeup_requests where company_id = ?").run(companyId);
       this.db.prepare("delete from cost_entries where company_id = ?").run(companyId);
       this.db.prepare("delete from activity where company_id = ?").run(companyId);
       this.db.prepare("delete from task_comments where company_id = ?").run(companyId);
@@ -1458,8 +1617,8 @@ export class AppDatabase {
       this.db.prepare("update documents set reviewer_agent_id = null where reviewer_agent_id = ? and company_id = ?").run(id, companyId);
       // Clean up knowledge entries authored by this agent
       this.db.prepare("update knowledge_base set author_agent_id = null where author_agent_id = ? and company_id = ?").run(id, companyId);
-      // Remove pending wakes for this agent
-      this.db.prepare("delete from pending_wakes where agent_id = ? and company_id = ?").run(id, companyId);
+      // Remove wakeup requests for this agent
+      this.db.prepare("DELETE FROM wakeup_requests WHERE agent_id = ? AND company_id = ?").run(id, companyId);
       this.db.prepare("delete from agents where id = ? and company_id = ?").run(id, companyId);
     });
   }
@@ -1793,17 +1952,52 @@ export class AppDatabase {
     ).map((record) => ({ ...record, heartbeatEnabled: toBoolean(record.heartbeatEnabled) })) as AgentRecord[];
   }
 
-  checkoutTask(taskId: string, agentId: string): boolean {
+  checkoutTask(taskId: string, runId: string): boolean {
+    const ts = nowIso();
     const result = this.db
       .prepare(
-        `update tasks
-           set assignee_agent_id = ?, status = 'in_progress', updated_at = ?
-         where id = ?
-           and status in ('todo', 'backlog')
-           and (assignee_agent_id is null or assignee_agent_id = ?)`,
+        `UPDATE tasks
+           SET checkout_run_id = ?, execution_locked_at = ?, status = 'in_progress', updated_at = ?
+         WHERE id = ?
+           AND checkout_run_id IS NULL
+           AND status IN ('todo', 'backlog')`,
       )
-      .run(agentId, nowIso(), taskId, agentId);
+      .run(runId, ts, ts, taskId);
     return result.changes > 0;
+  }
+
+  releaseTaskLock(taskId: string, runId: string): void {
+    this.db
+      .prepare(
+        "UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?",
+      )
+      .run(nowIso(), taskId, runId);
+  }
+
+  recoverStaleLocks(): Array<{ taskId: string; companyId: string; title: string }> {
+    const cutoff = new Date(Date.now() - STALE_LOCK_TIMEOUT_MS).toISOString();
+    const stale = this.readAll<{ id: string; companyId: string; title: string }>(
+      `SELECT id, company_id AS companyId, title
+       FROM tasks
+       WHERE execution_locked_at IS NOT NULL
+         AND execution_locked_at < ?
+         AND status = 'in_progress'`,
+      cutoff,
+    );
+    const ts = nowIso();
+    for (const task of stale) {
+      this.db
+        .prepare(
+          `UPDATE tasks
+             SET checkout_run_id = NULL,
+                 execution_locked_at = NULL,
+                 status = 'todo',
+                 updated_at = ?
+           WHERE id = ?`,
+        )
+        .run(ts, task.id);
+    }
+    return stale.map((t) => ({ taskId: t.id, companyId: t.companyId, title: t.title }));
   }
 
   listAgentTasks(agentId: string, companyId: string, statuses: string[]): TaskRecord[] {
@@ -1871,36 +2065,172 @@ export class AppDatabase {
     ).map((record) => ({ ...record, heartbeatEnabled: toBoolean(record.heartbeatEnabled) })) as AgentRecord[];
   }
 
-  enqueuePendingWake(companyId: string, agentId: string, trigger: string) {
-    const existing = this.db
-      .prepare("select id from pending_wakes where company_id = ? and agent_id = ? limit 1")
-      .get(companyId, agentId) as { id: string } | undefined;
+  enqueueWakeupRequest(companyId: string, agentId: string, trigger: string, detail: string): void {
     const ts = nowIso();
-    if (existing) {
-      this.db
-        .prepare("update pending_wakes set trigger_reason = ?, created_at = ? where id = ?")
-        .run(trigger, ts, existing.id);
-      return;
-    }
-    this.db
-      .prepare(
-        "insert into pending_wakes (id, company_id, agent_id, trigger_reason, created_at) values (?, ?, ?, ?, ?)",
-      )
-      .run(randomUUID(), companyId, agentId, trigger, ts);
-  }
-
-  consumePendingWakes(agentId: string): Array<{ id: string; companyId: string; trigger: string }> {
-    let rows: Array<{ id: string; companyId: string; trigger: string }> = [];
     this.transaction(() => {
-      rows = this.readAll<{ id: string; companyId: string; trigger: string }>(
-        "select id, company_id as companyId, trigger_reason as trigger from pending_wakes where agent_id = ? order by created_at asc",
-        agentId,
-      );
-      if (rows.length > 0) {
-        this.db.prepare("delete from pending_wakes where agent_id = ?").run(agentId);
+      // D-07: Per-agent scope -- check for existing queued or deferred wake for this agent
+      const existing = this.db
+        .prepare(
+          `SELECT id, trigger_detail, coalesced_count
+           FROM wakeup_requests
+           WHERE agent_id = ? AND company_id = ? AND status IN ('queued', 'deferred')
+           LIMIT 1`,
+        )
+        .get(agentId, companyId) as
+          | { id: string; trigger_detail: string | null; coalesced_count: number }
+          | undefined;
+
+      if (existing) {
+        // D-06: Coalesce -- append trigger to JSON array
+        const triggers: Array<{ trigger: string; at: string; detail: string }> = existing.trigger_detail
+          ? JSON.parse(existing.trigger_detail)
+          : [];
+        triggers.push({ trigger, at: ts, detail });
+        this.db
+          .prepare(
+            `UPDATE wakeup_requests
+               SET trigger_detail = ?,
+                   coalesced_count = coalesced_count + 1,
+                   updated_at = ?
+             WHERE id = ?`,
+          )
+          .run(JSON.stringify(triggers), ts, existing.id);
+      } else {
+        // New wakeup request
+        const triggerDetail = JSON.stringify([{ trigger, at: ts, detail }]);
+        this.db
+          .prepare(
+            `INSERT INTO wakeup_requests
+               (id, company_id, agent_id, source, trigger_detail, status, coalesced_count, requested_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?)`,
+          )
+          .run(randomUUID(), companyId, agentId, trigger, triggerDetail, ts, ts, ts);
       }
     });
-    return rows;
+  }
+
+  claimWakeupRequest(agentId: string, companyId: string, runId: string): { id: string; triggerDetail: string | null } | null {
+    let result: { id: string; triggerDetail: string | null } | null = null;
+    this.transaction(() => {
+      const row = this.db
+        .prepare(
+          `SELECT id, trigger_detail AS triggerDetail
+           FROM wakeup_requests
+           WHERE agent_id = ? AND company_id = ? AND status = 'queued'
+           ORDER BY requested_at ASC
+           LIMIT 1`,
+        )
+        .get(agentId, companyId) as { id: string; triggerDetail: string | null } | undefined;
+      if (!row) return;
+      const ts = nowIso();
+      this.db
+        .prepare(
+          `UPDATE wakeup_requests SET status = 'claimed', claimed_at = ?, run_id = ?, updated_at = ? WHERE id = ?`,
+        )
+        .run(ts, runId, ts, row.id);
+      result = row;
+    });
+    return result;
+  }
+
+  completeWakeupRequest(wakeupId: string): void {
+    const ts = nowIso();
+    this.db
+      .prepare(
+        `UPDATE wakeup_requests SET status = 'completed', finished_at = ?, updated_at = ? WHERE id = ? AND status = 'claimed'`,
+      )
+      .run(ts, ts, wakeupId);
+  }
+
+  deferWakeupRequest(agentId: string, companyId: string): void {
+    const ts = nowIso();
+    this.db
+      .prepare(
+        `UPDATE wakeup_requests SET status = 'deferred', updated_at = ? WHERE agent_id = ? AND company_id = ? AND status = 'queued'`,
+      )
+      .run(ts, agentId, companyId);
+  }
+
+  promoteWakeupRequests(agentId: string, companyId: string): number {
+    let promoted = 0;
+    this.transaction(() => {
+      const queued = this.db
+        .prepare(
+          `SELECT id, trigger_detail FROM wakeup_requests
+           WHERE agent_id = ? AND company_id = ? AND status = 'queued' LIMIT 1`,
+        )
+        .get(agentId, companyId) as { id: string; trigger_detail: string | null } | undefined;
+      const deferred = this.readAll<{ id: string; trigger_detail: string | null; coalesced_count: number }>(
+        `SELECT id, trigger_detail, coalesced_count FROM wakeup_requests
+         WHERE agent_id = ? AND company_id = ? AND status = 'deferred'`,
+        agentId, companyId,
+      );
+      if (deferred.length === 0) return;
+      const ts = nowIso();
+      if (queued) {
+        // Merge deferred triggers into existing queued wake
+        const queuedTriggers: Array<{ trigger: string; at: string; detail: string }> = queued.trigger_detail ? JSON.parse(queued.trigger_detail) : [];
+        let addedCount = 0;
+        for (const d of deferred) {
+          const dTriggers: Array<{ trigger: string; at: string; detail: string }> = d.trigger_detail ? JSON.parse(d.trigger_detail) : [];
+          queuedTriggers.push(...dTriggers);
+          addedCount += d.coalesced_count + 1;
+        }
+        this.db.prepare(
+          `UPDATE wakeup_requests SET trigger_detail = ?, coalesced_count = coalesced_count + ?, updated_at = ? WHERE id = ?`,
+        ).run(JSON.stringify(queuedTriggers), addedCount, ts, queued.id);
+        // Delete the merged deferred rows
+        for (const d of deferred) {
+          this.db.prepare("DELETE FROM wakeup_requests WHERE id = ?").run(d.id);
+        }
+        promoted = deferred.length;
+      } else {
+        // No queued wake -- promote first deferred to queued, merge rest
+        const [first, ...rest] = deferred;
+        this.db.prepare(
+          `UPDATE wakeup_requests SET status = 'queued', updated_at = ? WHERE id = ?`,
+        ).run(ts, first!.id);
+        if (rest.length > 0) {
+          const firstTriggers: Array<{ trigger: string; at: string; detail: string }> = first!.trigger_detail ? JSON.parse(first!.trigger_detail) : [];
+          let addedCount = 0;
+          for (const d of rest) {
+            const dTriggers: Array<{ trigger: string; at: string; detail: string }> = d.trigger_detail ? JSON.parse(d.trigger_detail) : [];
+            firstTriggers.push(...dTriggers);
+            addedCount += d.coalesced_count + 1;
+          }
+          this.db.prepare(
+            `UPDATE wakeup_requests SET trigger_detail = ?, coalesced_count = coalesced_count + ?, updated_at = ? WHERE id = ?`,
+          ).run(JSON.stringify(firstTriggers), addedCount, ts, first!.id);
+          for (const d of rest) {
+            this.db.prepare("DELETE FROM wakeup_requests WHERE id = ?").run(d.id);
+          }
+        }
+        promoted = deferred.length;
+      }
+    });
+    return promoted;
+  }
+
+  listWakeupRequests(companyId: string, filters?: { status?: string; agentId?: string; limit?: number }): Array<{
+    id: string; companyId: string; agentId: string; source: string; triggerDetail: string | null;
+    status: string; coalescedCount: number; runId: string | null; requestedAt: string;
+    claimedAt: string | null; finishedAt: string | null; createdAt: string; updatedAt: string;
+  }> {
+    const conditions = ["company_id = ?"];
+    const params: SQLInputValue[] = [companyId];
+    if (filters?.status) { conditions.push("status = ?"); params.push(filters.status); }
+    if (filters?.agentId) { conditions.push("agent_id = ?"); params.push(filters.agentId); }
+    const limit = filters?.limit ?? 50;
+    return this.readAll(
+      `SELECT id, company_id AS companyId, agent_id AS agentId, source, trigger_detail AS triggerDetail,
+              status, coalesced_count AS coalescedCount, run_id AS runId, requested_at AS requestedAt,
+              claimed_at AS claimedAt, finished_at AS finishedAt, created_at AS createdAt, updated_at AS updatedAt
+       FROM wakeup_requests
+       WHERE ${conditions.join(" AND ")}
+       ORDER BY requested_at DESC
+       LIMIT ?`,
+      ...params, limit,
+    );
   }
 
   exportBackup(targetDir: string) {
@@ -2026,10 +2356,10 @@ export class AppDatabase {
     }
   }
 
-  purgeExpiredPendingWakes() {
-    // Remove pending wakes older than 2 hours — if agent hasn't woken by then, the wake is stale
+  purgeExpiredWakeupRequests() {
+    // Remove completed wakeup requests older than 2 hours -- only clean completed, not active ones
     const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const result = this.db.prepare("delete from pending_wakes where created_at < ?").run(cutoff);
+    const result = this.db.prepare("DELETE FROM wakeup_requests WHERE created_at < ? AND status IN ('completed')").run(cutoff);
     return Number(result.changes);
   }
 
@@ -2132,6 +2462,150 @@ export class AppDatabase {
     this.db.prepare("update agents set status = ?, updated_at = ? where id = ?").run(status, ts, agentId);
   }
 
+  // ---------------------------------------------------------------------------
+  // Skill CRUD methods
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Upsert a company skill -- INSERT with ON CONFLICT UPDATE.
+   * Returns isUpdate=true if the record already existed and was updated.
+   */
+  upsertCompanySkill(skill: {
+    id: string;
+    companyId: string;
+    key: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    markdown: string;
+    sourceType: string;
+    sourceLocator: string | null;
+    sourceRef: string | null;
+    trustLevel: string;
+    compatibility: string;
+    fileInventory: string;
+    metadata: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }): { isUpdate: boolean } {
+    // Check if record exists before upsert to determine isUpdate
+    const existing = this.db
+      .prepare("SELECT 1 FROM company_skills WHERE company_id = ? AND key = ?")
+      .get(skill.companyId, skill.key);
+    const isUpdate = existing != null;
+
+    this.db.prepare(`
+      INSERT INTO company_skills (
+        id, company_id, key, slug, name, description, markdown,
+        source_type, source_locator, source_ref, trust_level,
+        compatibility, file_inventory, metadata, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(company_id, key) DO UPDATE SET
+        slug = excluded.slug,
+        name = excluded.name,
+        description = excluded.description,
+        markdown = excluded.markdown,
+        source_ref = excluded.source_ref,
+        trust_level = excluded.trust_level,
+        file_inventory = excluded.file_inventory,
+        metadata = excluded.metadata,
+        updated_at = excluded.updated_at
+    `).run(
+      skill.id, skill.companyId, skill.key, skill.slug,
+      skill.name, skill.description, skill.markdown,
+      skill.sourceType, skill.sourceLocator, skill.sourceRef,
+      skill.trustLevel, skill.compatibility, skill.fileInventory,
+      skill.metadata, skill.createdAt, skill.updatedAt,
+    );
+
+    return { isUpdate };
+  }
+
+  /** List all skills for a company. */
+  listCompanySkills(companyId: string): SkillRecord[] {
+    const rows = this.readAll<SqliteRow>(
+      "SELECT * FROM company_skills WHERE company_id = ? ORDER BY created_at ASC",
+      companyId,
+    );
+    return rows.map((row) => this.mapSkillRow(row));
+  }
+
+  /** Get a single skill by ID within a company. */
+  getCompanySkill(companyId: string, skillId: string): SkillRecord | null {
+    const row = this.db
+      .prepare("SELECT * FROM company_skills WHERE id = ? AND company_id = ?")
+      .get(skillId, companyId) as SqliteRow | undefined;
+    return row ? this.mapSkillRow(row) : null;
+  }
+
+  /** Get a single skill by canonical key within a company. */
+  getCompanySkillByKey(companyId: string, key: string): SkillRecord | null {
+    const row = this.db
+      .prepare("SELECT * FROM company_skills WHERE company_id = ? AND key = ?")
+      .get(companyId, key) as SqliteRow | undefined;
+    return row ? this.mapSkillRow(row) : null;
+  }
+
+  /** Delete a skill record. Cascade deletes agent_skill_assignments via FK. */
+  deleteCompanySkill(companyId: string, skillId: string): boolean {
+    const result = this.db
+      .prepare("DELETE FROM company_skills WHERE id = ? AND company_id = ?")
+      .run(skillId, companyId);
+    return result.changes > 0;
+  }
+
+  /** Assign a skill to an agent (INSERT OR IGNORE for idempotency). */
+  assignSkillToAgent(agentId: string, skillId: string): void {
+    this.db
+      .prepare("INSERT OR IGNORE INTO agent_skill_assignments (agent_id, skill_id, created_at) VALUES (?, ?, ?)")
+      .run(agentId, skillId, nowIso());
+  }
+
+  /** Remove a skill assignment from an agent. */
+  removeSkillFromAgent(agentId: string, skillId: string): void {
+    this.db
+      .prepare("DELETE FROM agent_skill_assignments WHERE agent_id = ? AND skill_id = ?")
+      .run(agentId, skillId);
+  }
+
+  /** List all skill IDs assigned to a specific agent. */
+  listAgentSkillAssignments(agentId: string): string[] {
+    return this.readAll<{ skill_id: string }>(
+      "SELECT skill_id FROM agent_skill_assignments WHERE agent_id = ?",
+      agentId,
+    ).map((row) => row.skill_id);
+  }
+
+  /** List all agent IDs assigned to a specific skill. */
+  listSkillAgentAssignments(skillId: string): string[] {
+    return this.readAll<{ agent_id: string }>(
+      "SELECT agent_id FROM agent_skill_assignments WHERE skill_id = ?",
+      skillId,
+    ).map((row) => row.agent_id);
+  }
+
+  /** Map a raw SQLite row to a typed SkillRecord. */
+  private mapSkillRow(row: SqliteRow): SkillRecord {
+    return {
+      id: row.id,
+      companyId: row.company_id,
+      key: row.key,
+      slug: row.slug,
+      name: row.name,
+      description: row.description ?? null,
+      markdown: row.markdown ?? "",
+      sourceType: (row.source_type ?? "local_path") as SkillSourceType,
+      sourceLocator: row.source_locator ?? null,
+      sourceRef: row.source_ref ?? null,
+      trustLevel: (row.trust_level ?? "markdown_only") as TrustLevel,
+      compatibility: row.compatibility ?? "compatible",
+      fileInventory: parseJson<FileInventoryEntry[]>(row.file_inventory, []),
+      metadata: parseJson<Record<string, unknown> | null>(row.metadata, null),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
   private getSetting(key: string): string | null {
     const row = this.db.prepare("select value from settings where key = ?").get(key) as { value: string } | undefined;
     return row?.value ?? null;
@@ -2187,6 +2661,10 @@ export class AppDatabase {
     addColumnIfMissing("alter table tasks add column requires_user_review integer not null default 0");
     addColumnIfMissing("alter table tasks add column retry_count integer not null default 0");
     addColumnIfMissing("alter table tasks add column last_failure_at text");
+    addColumnIfMissing("alter table tasks add column checkout_run_id text");
+    addColumnIfMissing("alter table tasks add column execution_locked_at text");
+    addColumnIfMissing("alter table tasks add column active_session_id text");
+    addColumnIfMissing("alter table cost_entries add column project_id text");
     this.db.exec(`
       create table if not exists task_comments (
         id text primary key,
@@ -2979,7 +3457,7 @@ export class AppDatabase {
         .map((row) => row.version),
     );
 
-    const migrations: Array<{ version: number; name: string; sql: string }> = [
+    const migrations: Array<{ version: number; name: string; sql?: string; fn?: () => void }> = [
       {
         version: 1,
         name: "add_workspace_lock_lease",
@@ -3197,14 +3675,271 @@ export class AppDatabase {
           create index if not exists idx_agent_message_reads_agent on agent_message_reads(agent_id);
         `,
       },
+      {
+        version: 13,
+        name: "add_checkout_session_budget_columns",
+        sql: `
+          ALTER TABLE tasks ADD COLUMN checkout_run_id TEXT;
+          ALTER TABLE tasks ADD COLUMN execution_locked_at TEXT;
+          ALTER TABLE tasks ADD COLUMN active_session_id TEXT;
+          ALTER TABLE cost_entries ADD COLUMN project_id TEXT;
+          CREATE INDEX IF NOT EXISTS idx_cost_entries_project ON cost_entries(project_id)
+        `,
+      },
+      {
+        version: 14,
+        name: "create_skills_budget_wakeup_session_tables",
+        sql: `
+          CREATE TABLE IF NOT EXISTS company_skills (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            key TEXT NOT NULL,
+            slug TEXT NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT,
+            markdown TEXT NOT NULL DEFAULT '',
+            source_type TEXT NOT NULL DEFAULT 'local_path',
+            source_locator TEXT,
+            source_ref TEXT,
+            trust_level TEXT NOT NULL DEFAULT 'markdown_only',
+            compatibility TEXT NOT NULL DEFAULT 'compatible',
+            file_inventory TEXT NOT NULL DEFAULT '[]',
+            metadata TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_company_skills_company_key ON company_skills(company_id, key);
+          CREATE INDEX IF NOT EXISTS idx_company_skills_company_name ON company_skills(company_id, name);
+
+          CREATE TABLE IF NOT EXISTS budget_policies (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            scope_type TEXT NOT NULL,
+            scope_id TEXT NOT NULL,
+            metric TEXT NOT NULL DEFAULT 'billed_cents',
+            window_kind TEXT NOT NULL DEFAULT 'calendar_month_utc',
+            amount INTEGER NOT NULL DEFAULT 0,
+            warn_percent INTEGER NOT NULL DEFAULT 80,
+            hard_stop_enabled INTEGER NOT NULL DEFAULT 1,
+            notify_enabled INTEGER NOT NULL DEFAULT 1,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_budget_policies_company_scope ON budget_policies(company_id, scope_type, scope_id, is_active);
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_policies_unique ON budget_policies(company_id, scope_type, scope_id, metric, window_kind);
+
+          CREATE TABLE IF NOT EXISTS budget_incidents (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            policy_id TEXT NOT NULL REFERENCES budget_policies(id),
+            scope_type TEXT NOT NULL,
+            scope_id TEXT NOT NULL,
+            metric TEXT NOT NULL,
+            window_kind TEXT NOT NULL,
+            window_start TEXT NOT NULL,
+            window_end TEXT NOT NULL,
+            threshold_type TEXT NOT NULL,
+            amount_limit INTEGER NOT NULL,
+            amount_observed INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            resolved_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_budget_incidents_company_status ON budget_incidents(company_id, status);
+          CREATE INDEX IF NOT EXISTS idx_budget_incidents_company_scope ON budget_incidents(company_id, scope_type, scope_id, status);
+          CREATE INDEX IF NOT EXISTS idx_budget_incidents_policy ON budget_incidents(policy_id, window_start, threshold_type);
+
+          CREATE TABLE IF NOT EXISTS task_sessions (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            task_id TEXT NOT NULL,
+            agent_id TEXT NOT NULL,
+            adapter_type TEXT NOT NULL,
+            session_params_json TEXT,
+            session_display_id TEXT,
+            last_run_id TEXT,
+            last_error TEXT,
+            run_count INTEGER NOT NULL DEFAULT 0,
+            total_input_tokens INTEGER NOT NULL DEFAULT 0,
+            total_output_tokens INTEGER NOT NULL DEFAULT 0,
+            rotated_at TEXT,
+            rotation_reason TEXT,
+            handoff_markdown TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_task_sessions_lookup ON task_sessions(company_id, agent_id, adapter_type, task_id);
+          CREATE INDEX IF NOT EXISTS idx_task_sessions_company_agent ON task_sessions(company_id, agent_id, updated_at);
+          CREATE INDEX IF NOT EXISTS idx_task_sessions_company_task ON task_sessions(company_id, task_id, updated_at);
+
+          CREATE TABLE IF NOT EXISTS wakeup_requests (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            agent_id TEXT NOT NULL,
+            source TEXT NOT NULL,
+            trigger_detail TEXT,
+            reason TEXT,
+            payload TEXT,
+            status TEXT NOT NULL DEFAULT 'queued',
+            coalesced_count INTEGER NOT NULL DEFAULT 0,
+            requested_by_actor_type TEXT,
+            requested_by_actor_id TEXT,
+            idempotency_key TEXT,
+            run_id TEXT,
+            requested_at TEXT NOT NULL,
+            claimed_at TEXT,
+            finished_at TEXT,
+            error TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_wakeup_requests_company_agent_status ON wakeup_requests(company_id, agent_id, status);
+          CREATE INDEX IF NOT EXISTS idx_wakeup_requests_company_requested ON wakeup_requests(company_id, requested_at);
+          CREATE INDEX IF NOT EXISTS idx_wakeup_requests_agent_requested ON wakeup_requests(agent_id, requested_at)
+        `,
+      },
+      {
+        version: 15,
+        name: "migrate_session_data_to_task_sessions",
+        fn: () => {
+          // D-01: Eager copy of session_json to task_sessions table
+          // Only process tasks that have session data but no active_session_id yet (idempotent)
+          const tasksWithSessions = this.readAll<{
+            id: string;
+            companyId: string;
+            assigneeAgentId: string | null;
+            sessionJson: string | null;
+            sessionDisplayId: string | null;
+          }>(
+            `SELECT id, company_id as companyId, assignee_agent_id as assigneeAgentId,
+                    session_json as sessionJson, session_display_id as sessionDisplayId
+             FROM tasks WHERE session_json IS NOT NULL AND active_session_id IS NULL`
+          );
+
+          let migrated = 0;
+          let skipped = 0;
+
+          for (const task of tasksWithSessions) {
+            try {
+              // Validate JSON is parseable (D-02: skip corrupt rows)
+              JSON.parse(task.sessionJson!);
+
+              // Look up agent's connector_id for adapter_type
+              const agent = task.assigneeAgentId
+                ? this.db.prepare("SELECT connector_id FROM agents WHERE id = ?").get(task.assigneeAgentId) as { connector_id: string } | undefined
+                : undefined;
+              const adapterType = agent?.connector_id ?? "unknown";
+              const sessionId = randomUUID();
+              const ts = nowIso();
+
+              this.db.prepare(
+                `INSERT INTO task_sessions (id, company_id, task_id, agent_id, adapter_type,
+                 session_params_json, session_display_id, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+              ).run(
+                sessionId, task.companyId, task.id,
+                task.assigneeAgentId ?? "unassigned", adapterType,
+                task.sessionJson, task.sessionDisplayId, ts, ts
+              );
+
+              this.db.prepare("UPDATE tasks SET active_session_id = ? WHERE id = ?")
+                .run(sessionId, task.id);
+
+              migrated++;
+            } catch (err) {
+              // D-02: Skip bad rows, log warning, don't block app startup
+              log.warn(`Session migration skipped task ${task.id}: ${err instanceof Error ? err.message : String(err)}`);
+              skipped++;
+            }
+          }
+
+          log.info(`Session migration complete: ${migrated} migrated, ${skipped} skipped`);
+        },
+      },
+      {
+        version: 16,
+        name: "create_agent_skill_assignments",
+        sql: `
+          CREATE TABLE IF NOT EXISTS agent_skill_assignments (
+            agent_id TEXT NOT NULL,
+            skill_id TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (agent_id, skill_id),
+            FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
+            FOREIGN KEY (skill_id) REFERENCES company_skills(id) ON DELETE CASCADE
+          );
+          CREATE INDEX IF NOT EXISTS idx_agent_skill_assignments_skill ON agent_skill_assignments(skill_id)
+        `,
+      },
+      {
+        version: 17,
+        name: "migrate_pending_wakes_to_wakeup_requests",
+        fn: () => {
+          // D-08: Copy existing pending_wakes rows into wakeup_requests with 'queued' status
+          const existingWakes = this.readAll<{
+            id: string;
+            companyId: string;
+            agentId: string;
+            triggerReason: string;
+            createdAt: string;
+          }>(
+            `SELECT id, company_id AS companyId, agent_id AS agentId, trigger_reason AS triggerReason, created_at AS createdAt
+             FROM pending_wakes`,
+          );
+          const ts = nowIso();
+          for (const wake of existingWakes) {
+            const triggerDetail = JSON.stringify([{ trigger: wake.triggerReason, at: wake.createdAt, detail: wake.triggerReason }]);
+            this.db
+              .prepare(
+                `INSERT OR IGNORE INTO wakeup_requests
+                   (id, company_id, agent_id, source, trigger_detail, status, coalesced_count, requested_at, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?)`,
+              )
+              .run(wake.id, wake.companyId, wake.agentId, wake.triggerReason, triggerDetail, wake.createdAt, ts, ts);
+          }
+          // Drop the old table
+          this.db.exec("DROP TABLE IF EXISTS pending_wakes");
+        },
+      },
+      {
+        version: 18,
+        name: "migrate_agent_budget_to_policies",
+        fn: () => {
+          const agents = this.readAll<{ id: string; companyId: string; budgetMonthlyUsd: number }>(
+            "SELECT id, company_id as companyId, budget_monthly_usd as budgetMonthlyUsd FROM agents WHERE budget_monthly_usd > 0",
+          );
+          const ts = nowIso();
+          for (const agent of agents) {
+            const existing = this.db
+              .prepare(
+                "SELECT id FROM budget_policies WHERE company_id = ? AND scope_type = 'agent' AND scope_id = ? AND metric = 'billed_cents' AND window_kind = 'calendar_month_utc'",
+              )
+              .get(agent.companyId, agent.id);
+            if (!existing) {
+              this.db
+                .prepare(
+                  "INSERT INTO budget_policies (id, company_id, scope_type, scope_id, metric, window_kind, amount, warn_percent, hard_stop_enabled, notify_enabled, is_active, created_at, updated_at) VALUES (?, ?, 'agent', ?, 'billed_cents', 'calendar_month_utc', ?, 80, 1, 1, 1, ?, ?)",
+                )
+                .run(randomUUID(), agent.companyId, agent.id, Math.round(agent.budgetMonthlyUsd * 100), ts, ts);
+            }
+          }
+          log.info(`Budget migration: converted ${agents.length} agent budget(s) to policy rows`);
+        },
+      },
     ];
 
     for (const migration of migrations) {
       if (applied.has(migration.version)) continue;
       try {
         this.transaction(() => {
-          for (const stmt of migration.sql.split(";").map((s) => s.trim()).filter(Boolean)) {
-            this.db.prepare(stmt).run();
+          if (migration.fn) {
+            migration.fn();
+          } else if (migration.sql) {
+            for (const stmt of migration.sql.split(";").map((s) => s.trim()).filter(Boolean)) {
+              this.db.prepare(stmt).run();
+            }
           }
           this.db
             .prepare("insert into schema_migrations (version, name, applied_at) values (?, ?, ?)")
@@ -3708,8 +4443,280 @@ export class AppDatabase {
       .run(taskType, ts, taskId);
   }
 
+  // ---------------------------------------------------------------------------
+  // Budget Policy CRUD
+  // ---------------------------------------------------------------------------
+
+  saveBudgetPolicy(input: {
+    id?: string | null;
+    companyId: string;
+    scopeType: string;
+    scopeId: string;
+    metric?: string;
+    windowKind?: string;
+    amount: number;
+    warnPercent?: number;
+    hardStopEnabled?: boolean;
+    notifyEnabled?: boolean;
+    isActive?: boolean;
+  }): string {
+    const id = input.id || randomUUID();
+    const ts = nowIso();
+    this.db
+      .prepare(
+        `INSERT OR REPLACE INTO budget_policies
+         (id, company_id, scope_type, scope_id, metric, window_kind, amount, warn_percent,
+          hard_stop_enabled, notify_enabled, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        input.companyId,
+        input.scopeType,
+        input.scopeId,
+        input.metric ?? "billed_cents",
+        input.windowKind ?? "calendar_month_utc",
+        input.amount,
+        input.warnPercent ?? 80,
+        (input.hardStopEnabled ?? true) ? 1 : 0,
+        (input.notifyEnabled ?? true) ? 1 : 0,
+        (input.isActive ?? true) ? 1 : 0,
+        ts,
+        ts,
+      );
+    return id;
+  }
+
+  deleteBudgetPolicy(companyId: string, policyId: string): void {
+    this.transaction(() => {
+      this.db.prepare("DELETE FROM budget_incidents WHERE policy_id = ?").run(policyId);
+      this.db.prepare("DELETE FROM budget_policies WHERE id = ? AND company_id = ?").run(policyId, companyId);
+    });
+  }
+
+  listBudgetPolicies(companyId: string): BudgetPolicyRecord[] {
+    return this.readAll<SqliteRow>(
+      "SELECT * FROM budget_policies WHERE company_id = ? ORDER BY scope_type, created_at",
+      companyId,
+    ).map((r) => ({
+      id: r.id,
+      companyId: r.company_id,
+      scopeType: r.scope_type,
+      scopeId: r.scope_id,
+      metric: r.metric,
+      windowKind: r.window_kind,
+      amount: r.amount,
+      warnPercent: r.warn_percent,
+      hardStopEnabled: !!r.hard_stop_enabled,
+      notifyEnabled: !!r.notify_enabled,
+      isActive: !!r.is_active,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+  }
+
+  getBudgetPolicy(policyId: string): BudgetPolicyRecord | null {
+    const r = this.db.prepare("SELECT * FROM budget_policies WHERE id = ?").get(policyId) as SqliteRow | undefined;
+    if (!r) return null;
+    return {
+      id: r.id,
+      companyId: r.company_id,
+      scopeType: r.scope_type,
+      scopeId: r.scope_id,
+      metric: r.metric,
+      windowKind: r.window_kind,
+      amount: r.amount,
+      warnPercent: r.warn_percent,
+      hardStopEnabled: !!r.hard_stop_enabled,
+      notifyEnabled: !!r.notify_enabled,
+      isActive: !!r.is_active,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    };
+  }
+
+  getActivePoliciesForRun(companyId: string, agentId: string, projectId: string | null): BudgetPolicyRecord[] {
+    const sql = projectId
+      ? `SELECT * FROM budget_policies
+         WHERE company_id = ? AND is_active = 1
+         AND (
+           (scope_type = 'company' AND scope_id = ?)
+           OR (scope_type = 'agent' AND scope_id = ?)
+           OR (scope_type = 'project' AND scope_id = ?)
+         )`
+      : `SELECT * FROM budget_policies
+         WHERE company_id = ? AND is_active = 1
+         AND (
+           (scope_type = 'company' AND scope_id = ?)
+           OR (scope_type = 'agent' AND scope_id = ?)
+         )`;
+    const params: SQLInputValue[] = projectId
+      ? [companyId, companyId, agentId, projectId]
+      : [companyId, companyId, agentId];
+    return this.readAll<SqliteRow>(sql, ...params).map((r) => ({
+      id: r.id,
+      companyId: r.company_id,
+      scopeType: r.scope_type,
+      scopeId: r.scope_id,
+      metric: r.metric,
+      windowKind: r.window_kind,
+      amount: r.amount,
+      warnPercent: r.warn_percent,
+      hardStopEnabled: !!r.hard_stop_enabled,
+      notifyEnabled: !!r.notify_enabled,
+      isActive: !!r.is_active,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+  }
+
+  getCalendarMonthWindow(): { start: string; end: string } {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth();
+    const start = new Date(Date.UTC(year, month, 1)).toISOString();
+    const end = new Date(Date.UTC(year, month + 1, 1)).toISOString();
+    return { start, end };
+  }
+
+  getSpentInWindow(policy: BudgetPolicyRecord): number {
+    const { start, end } = this.getCalendarMonthWindow();
+    let sql: string;
+    let params: SQLInputValue[];
+    if (policy.scopeType === "agent") {
+      sql = "SELECT COALESCE(SUM(amount_usd), 0) * 100 as total_cents FROM cost_entries WHERE company_id = ? AND created_at >= ? AND created_at < ? AND agent_id = ?";
+      params = [policy.companyId, start, end, policy.scopeId];
+    } else if (policy.scopeType === "project") {
+      sql = "SELECT COALESCE(SUM(amount_usd), 0) * 100 as total_cents FROM cost_entries WHERE company_id = ? AND created_at >= ? AND created_at < ? AND project_id = ?";
+      params = [policy.companyId, start, end, policy.scopeId];
+    } else {
+      sql = "SELECT COALESCE(SUM(amount_usd), 0) * 100 as total_cents FROM cost_entries WHERE company_id = ? AND created_at >= ? AND created_at < ?";
+      params = [policy.companyId, start, end];
+    }
+    const row = this.db.prepare(sql).get(...params) as { total_cents: number } | undefined;
+    return Math.round(row?.total_cents ?? 0);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Budget Incident CRUD
+  // ---------------------------------------------------------------------------
+
+  upsertBudgetIncident(
+    policy: BudgetPolicyRecord,
+    thresholdType: "warn_threshold" | "hard_stop",
+    amountObserved: number,
+  ): string {
+    const { start, end } = this.getCalendarMonthWindow();
+    const existing = this.db
+      .prepare(
+        "SELECT id FROM budget_incidents WHERE policy_id = ? AND window_start = ? AND threshold_type = ? AND status = 'open'",
+      )
+      .get(policy.id, start, thresholdType) as { id: string } | undefined;
+
+    const ts = nowIso();
+    if (existing) {
+      this.db
+        .prepare("UPDATE budget_incidents SET amount_observed = ?, updated_at = ? WHERE id = ?")
+        .run(amountObserved, ts, existing.id);
+      return existing.id;
+    }
+
+    const id = randomUUID();
+    this.db
+      .prepare(
+        `INSERT INTO budget_incidents
+         (id, company_id, policy_id, scope_type, scope_id, metric, window_kind,
+          window_start, window_end, threshold_type, amount_limit, amount_observed,
+          status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)`,
+      )
+      .run(
+        id,
+        policy.companyId,
+        policy.id,
+        policy.scopeType,
+        policy.scopeId,
+        policy.metric,
+        policy.windowKind,
+        start,
+        end,
+        thresholdType,
+        policy.amount,
+        amountObserved,
+        ts,
+        ts,
+      );
+    return id;
+  }
+
+  listBudgetIncidents(companyId: string, statusFilter: string = "all"): BudgetIncidentRecord[] {
+    const sql = statusFilter === "all"
+      ? "SELECT * FROM budget_incidents WHERE company_id = ? ORDER BY created_at DESC"
+      : "SELECT * FROM budget_incidents WHERE company_id = ? AND status = ? ORDER BY created_at DESC";
+    const rows = statusFilter === "all"
+      ? this.readAll<SqliteRow>(sql, companyId)
+      : this.readAll<SqliteRow>(sql, companyId, statusFilter);
+    return rows.map((r) => ({
+      id: r.id,
+      companyId: r.company_id,
+      policyId: r.policy_id,
+      scopeType: r.scope_type,
+      scopeId: r.scope_id,
+      metric: r.metric,
+      windowKind: r.window_kind,
+      windowStart: r.window_start,
+      windowEnd: r.window_end,
+      thresholdType: r.threshold_type,
+      amountLimit: r.amount_limit,
+      amountObserved: r.amount_observed,
+      status: r.status,
+      resolvedAt: r.resolved_at,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+  }
+
+  resolveBudgetIncident(incidentId: string, companyId: string): void {
+    const ts = nowIso();
+    this.db
+      .prepare(
+        "UPDATE budget_incidents SET status = 'resolved', resolved_at = ?, updated_at = ? WHERE id = ? AND company_id = ? AND status = 'open'",
+      )
+      .run(ts, ts, incidentId, companyId);
+  }
+
+  resolveIncidentsForPolicy(policyId: string, resolutionStatus: string): number {
+    const ts = nowIso();
+    const result = this.db
+      .prepare(
+        "UPDATE budget_incidents SET status = ?, resolved_at = ?, updated_at = ? WHERE policy_id = ? AND status = 'open'",
+      )
+      .run(resolutionStatus, ts, ts, policyId);
+    return Number(result.changes);
+  }
+
+  resolveWarnIncidentsForPolicy(policyId: string, resolutionStatus: string): number {
+    const ts = nowIso();
+    const result = this.db
+      .prepare(
+        "UPDATE budget_incidents SET status = ?, resolved_at = ?, updated_at = ? WHERE policy_id = ? AND status = 'open' AND threshold_type = 'warn_threshold'",
+      )
+      .run(resolutionStatus, ts, ts, policyId);
+    return Number(result.changes);
+  }
+
+  autoCloseExpiredIncidents(companyId: string): number {
+    const ts = nowIso();
+    const result = this.db
+      .prepare(
+        "UPDATE budget_incidents SET status = 'auto_closed', resolved_at = ?, updated_at = ? WHERE company_id = ? AND status = 'open' AND window_end <= ?",
+      )
+      .run(ts, ts, companyId, ts);
+    return Number(result.changes);
+  }
+
   private openConnection(): SqliteDatabase {
-    return new DatabaseSync(this.dbPath);
+    return new DatabaseSync(this.dbPath, { timeout: 5000 });
   }
 }
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AgentMessageRecord, AgentMetrics, BrowserActionRecord, CommentRecord, CompanyMetrics, DesktopEvent, InboxItem, OnboardingBootstrapResult, ProfileSnapshot, RunLogChunk, StandupReport } from "./types";
+import type { AgentMessageRecord, AgentMetrics, AgentRecord, ApprovalRecord, BrowserActionRecord, BudgetIncidentRecord, BudgetPolicyRecord, BudgetStatusSummary, CommentRecord, CompanyMetrics, DesktopEvent, InboxItem, OnboardingBootstrapResult, ProfileSnapshot, RunLogChunk, RunRecord, SkillImportResult, SkillRecord, SkillUpdateStatus, StandupReport, TaskRecord } from "./types";
 
 export const IPC_CHANNELS = {
   loadSnapshot: "agent-company:load-snapshot",
@@ -73,6 +73,26 @@ export const IPC_CHANNELS = {
   runWorkflow: "agent-company:run-workflow",
   autoAssignTask: "agent-company:auto-assign-task",
   searchMessages: "agent-company:search-messages",
+  importSkill: "agent-company:import-skill",
+  listSkills: "agent-company:list-skills",
+  getSkillDetail: "agent-company:get-skill-detail",
+  deleteSkill: "agent-company:delete-skill",
+  assignSkillToAgent: "agent-company:assign-skill-to-agent",
+  removeSkillFromAgent: "agent-company:remove-skill-from-agent",
+  checkSkillUpdate: "agent-company:check-skill-update",
+  listSkillAgents: "agent-company:list-skill-agents",
+  listAgentSkills: "agent-company:list-agent-skills",
+  listWakeupRequests: "agent-company:list-wakeup-requests",
+  saveBudgetPolicy: "agent-company:save-budget-policy",
+  deleteBudgetPolicy: "agent-company:delete-budget-policy",
+  listBudgetPolicies: "agent-company:list-budget-policies",
+  listBudgetIncidents: "agent-company:list-budget-incidents",
+  resolveBudgetIncident: "agent-company:resolve-budget-incident",
+  getBudgetStatus: "agent-company:get-budget-status",
+  getTask: "agent-company:get-task",
+  getAgent: "agent-company:get-agent",
+  getRun: "agent-company:get-run",
+  getApproval: "agent-company:get-approval",
 } as const;
 
 const optionalId = z.preprocess(
@@ -514,9 +534,125 @@ export const autoAssignSchema = z.object({
   companyId: z.string().uuid(),
 });
 
+export const importSkillSchema = z.object({
+  companyId: z.string().min(1),
+  source: z.string().min(1),
+});
+
+export const listSkillsSchema = z.object({
+  companyId: z.string().min(1),
+});
+
+export const getSkillDetailSchema = z.object({
+  companyId: z.string().min(1),
+  skillId: z.string().min(1),
+});
+
+export const deleteSkillSchema = z.object({
+  companyId: z.string().min(1),
+  skillId: z.string().min(1),
+});
+
+export const assignSkillToAgentSchema = z.object({
+  companyId: z.string().min(1),
+  agentId: z.string().min(1),
+  skillId: z.string().min(1),
+});
+
+export const removeSkillFromAgentSchema = z.object({
+  companyId: z.string().min(1),
+  agentId: z.string().min(1),
+  skillId: z.string().min(1),
+});
+
+export const checkSkillUpdateSchema = z.object({
+  companyId: z.string().min(1),
+  skillId: z.string().min(1),
+});
+
+export const listSkillAgentsSchema = z.object({
+  companyId: z.string().min(1),
+  skillId: z.string().min(1),
+});
+
+export const listAgentSkillsSchema = z.object({
+  companyId: z.string().min(1),
+  agentId: z.string().min(1),
+});
+
+export const budgetPolicyInputSchema = z.object({
+  id: optionalId,
+  companyId: z.string().uuid(),
+  scopeType: z.enum(["company", "agent", "project"]),
+  scopeId: z.string().uuid(),
+  metric: z.literal("billed_cents").default("billed_cents"),
+  windowKind: z.literal("calendar_month_utc").default("calendar_month_utc"),
+  amount: z.number().int().min(1),
+  warnPercent: z.number().int().min(1).max(100).default(80),
+  hardStopEnabled: z.boolean().default(true),
+  notifyEnabled: z.boolean().default(true),
+  isActive: z.boolean().default(true),
+});
+
+export const listBudgetPoliciesSchema = z.object({
+  companyId: z.string().uuid(),
+});
+
+export const deleteBudgetPolicySchema = z.object({
+  companyId: z.string().uuid(),
+  policyId: z.string().uuid(),
+});
+
+export const listBudgetIncidentsSchema = z.object({
+  companyId: z.string().uuid(),
+  status: z.enum(["open", "resolved", "auto_resolved_limit_increase", "auto_closed", "all"]).default("all"),
+});
+
+export const resolveBudgetIncidentSchema = z.object({
+  companyId: z.string().uuid(),
+  incidentId: z.string().uuid(),
+});
+
+export const getBudgetStatusSchema = z.object({
+  companyId: z.string().uuid(),
+});
+
+export const wakeupQuerySchema = z.object({
+  companyId: z.string().uuid(),
+  status: z.enum(["queued", "claimed", "coalesced", "deferred", "completed"]).optional(),
+  agentId: z.string().uuid().optional(),
+  limit: z.number().int().min(1).max(100).default(50),
+});
+
+export interface WakeupRequestRecord {
+  id: string;
+  companyId: string;
+  agentId: string;
+  source: string;
+  triggerDetail: string | null;
+  status: string;
+  coalescedCount: number;
+  runId: string | null;
+  requestedAt: string;
+  claimedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const entityGetterSchema = z.object({
+  companyId: z.string().uuid(),
+  id: z.string().uuid(),
+});
+
 export type DesktopResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: string; message: string } };
+
+export interface SaveTaskResult {
+  id: string;
+  capabilityWarning?: string;
+}
 
 export type DesktopApi = {
   loadSnapshot: () => Promise<DesktopResult<ProfileSnapshot>>;
@@ -531,7 +667,7 @@ export type DesktopApi = {
   requestHire: (input: z.infer<typeof hireRequestSchema>) => Promise<DesktopResult<{ agentId: string; approvalId: string; autoApproved: boolean }>>;
   saveGoal: (input: z.infer<typeof goalInputSchema>) => Promise<DesktopResult<string>>;
   saveProject: (input: z.infer<typeof projectInputSchema>) => Promise<DesktopResult<string>>;
-  saveTask: (input: z.infer<typeof taskInputSchema>) => Promise<DesktopResult<string>>;
+  saveTask: (input: z.infer<typeof taskInputSchema>) => Promise<DesktopResult<SaveTaskResult>>;
   requestApproval: (input: z.infer<typeof approvalInputSchema>) => Promise<DesktopResult<string>>;
   decideApproval: (input: z.infer<typeof approvalDecisionSchema>) => Promise<DesktopResult<boolean>>;
   saveSecret: (input: z.infer<typeof secretInputSchema>) => Promise<DesktopResult<string>>;
@@ -589,8 +725,28 @@ export type DesktopApi = {
   runWorkflow: (input: z.infer<typeof runWorkflowSchema>) => Promise<DesktopResult<boolean>>;
   autoAssignTask: (input: z.infer<typeof autoAssignSchema>) => Promise<DesktopResult<string>>;
   searchMessages: (input: z.infer<typeof searchMessagesSchema>) => Promise<DesktopResult<AgentMessageRecord[]>>;
+  importSkill: (companyId: string, source: string) => Promise<DesktopResult<SkillImportResult[]>>;
+  listSkills: (companyId: string) => Promise<DesktopResult<SkillRecord[]>>;
+  getSkillDetail: (companyId: string, skillId: string) => Promise<DesktopResult<SkillRecord>>;
+  deleteSkill: (companyId: string, skillId: string) => Promise<DesktopResult<void>>;
+  assignSkillToAgent: (companyId: string, agentId: string, skillId: string) => Promise<DesktopResult<void>>;
+  removeSkillFromAgent: (companyId: string, agentId: string, skillId: string) => Promise<DesktopResult<void>>;
+  checkSkillUpdate: (companyId: string, skillId: string) => Promise<DesktopResult<SkillUpdateStatus>>;
+  listSkillAgents: (companyId: string, skillId: string) => Promise<DesktopResult<string[]>>;
+  listAgentSkills: (companyId: string, agentId: string) => Promise<DesktopResult<string[]>>;
+  listWakeupRequests: (input: z.infer<typeof wakeupQuerySchema>) => Promise<DesktopResult<WakeupRequestRecord[]>>;
+  saveBudgetPolicy: (input: z.infer<typeof budgetPolicyInputSchema>) => Promise<DesktopResult<string>>;
+  deleteBudgetPolicy: (input: z.infer<typeof deleteBudgetPolicySchema>) => Promise<DesktopResult<boolean>>;
+  listBudgetPolicies: (companyId: string) => Promise<DesktopResult<BudgetPolicyRecord[]>>;
+  listBudgetIncidents: (input: z.infer<typeof listBudgetIncidentsSchema>) => Promise<DesktopResult<BudgetIncidentRecord[]>>;
+  resolveBudgetIncident: (input: z.infer<typeof resolveBudgetIncidentSchema>) => Promise<DesktopResult<boolean>>;
+  getBudgetStatus: (companyId: string) => Promise<DesktopResult<BudgetStatusSummary>>;
   recoveryRetry: (taskId: string, agentId: string, companyId: string) => Promise<DesktopResult<null>>;
   recoveryDismiss: (taskId: string) => Promise<DesktopResult<null>>;
   recoveryFail: (taskId: string) => Promise<DesktopResult<null>>;
+  getTask: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<TaskRecord>>;
+  getAgent: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<AgentRecord>>;
+  getRun: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<RunRecord>>;
+  getApproval: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<ApprovalRecord>>;
   subscribe: (callback: (event: DesktopEvent) => void) => () => void;
 };

@@ -21,6 +21,7 @@ export type {
   StdoutLineParser,
   CLIAdapterModule,
   CreateConfigValues,
+  ManagedSkillRef,
 } from "./types.js";
 export {
   REDACTED_HOME_PATH_USER,

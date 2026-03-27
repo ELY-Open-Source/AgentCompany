@@ -315,47 +315,48 @@ describe("Step 2: CEO phased prompts", () => {
 
 // ─── Step 3: Deferred Wake Queue ────────────────────────────────────
 
-describe("Step 3: Deferred wake queue (database)", () => {
-  it("enqueue and consume pending wakes", () => {
+describe("Step 3: Wakeup request lifecycle (database)", () => {
+  it("enqueue and list wakeup requests with coalescing", () => {
     const agentId = createAgent({ name: "TestAgent" });
 
-    // Enqueue two wakes for the same busy agent. The queue deduplicates by agent
-    // so only the freshest trigger is retained.
-    db.enqueuePendingWake(companyId, agentId, "subtask_completed");
-    db.enqueuePendingWake(companyId, agentId, "comment");
+    // Enqueue two wakes for the same busy agent. Coalesced into one row
+    // with trigger_detail JSON array containing both triggers.
+    db.enqueueWakeupRequest(companyId, agentId, "subtask_completed", "subtask_completed");
+    db.enqueueWakeupRequest(companyId, agentId, "comment", "comment");
 
-    // Consume returns the latest retained wake
-    const wakes = db.consumePendingWakes(agentId);
+    // List returns the coalesced wake
+    const wakes = db.listWakeupRequests(companyId, { agentId, status: "queued" });
     expect(wakes).toHaveLength(1);
-    expect(wakes[0].trigger).toBe("comment");
     expect(wakes[0].companyId).toBe(companyId);
+    expect(wakes[0].coalescedCount).toBe(1);
 
-    // Second consume returns empty (they've been deleted)
-    const wakes2 = db.consumePendingWakes(agentId);
-    expect(wakes2).toHaveLength(0);
+    const triggers = JSON.parse(wakes[0].triggerDetail!);
+    expect(triggers).toHaveLength(2);
+    expect(triggers[0].trigger).toBe("subtask_completed");
+    expect(triggers[1].trigger).toBe("comment");
   });
 
-  it("returns empty array when no pending wakes exist", () => {
+  it("returns empty array when no wakeup requests exist", () => {
     const agentId = createAgent({ name: "TestAgent" });
-    const wakes = db.consumePendingWakes(agentId);
+    const wakes = db.listWakeupRequests(companyId, { agentId, status: "queued" });
     expect(wakes).toHaveLength(0);
   });
 
-  it("does not consume wakes for other agents", () => {
+  it("does not return wakes for other agents", () => {
     const agent1 = createAgent({ name: "Agent1" });
     const agent2 = createAgent({ name: "Agent2" });
 
-    db.enqueuePendingWake(companyId, agent1, "comment");
-    db.enqueuePendingWake(companyId, agent2, "subtask_completed");
+    db.enqueueWakeupRequest(companyId, agent1, "comment", "comment");
+    db.enqueueWakeupRequest(companyId, agent2, "subtask_completed", "subtask_completed");
 
-    const wakes1 = db.consumePendingWakes(agent1);
+    const wakes1 = db.listWakeupRequests(companyId, { agentId: agent1, status: "queued" });
     expect(wakes1).toHaveLength(1);
-    expect(wakes1[0].trigger).toBe("comment");
+    expect(wakes1[0].source).toBe("comment");
 
     // Agent2's wake should still be there
-    const wakes2 = db.consumePendingWakes(agent2);
+    const wakes2 = db.listWakeupRequests(companyId, { agentId: agent2, status: "queued" });
     expect(wakes2).toHaveLength(1);
-    expect(wakes2[0].trigger).toBe("subtask_completed");
+    expect(wakes2[0].source).toBe("subtask_completed");
   });
 });
 
@@ -874,11 +875,11 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
     const subtask = db.getTask(subtaskId);
     expect(subtask.parentId).toBe(parentTaskId);
 
-    // 9. Deferred wake test: enqueue wake while IC is busy
-    db.enqueuePendingWake(companyId, icId, "comment");
-    const pendingWakes = db.consumePendingWakes(icId);
-    expect(pendingWakes).toHaveLength(1);
-    expect(pendingWakes[0].trigger).toBe("comment");
+    // 9. Wakeup request test: enqueue wake while IC is busy
+    db.enqueueWakeupRequest(companyId, icId, "comment", "comment");
+    const queuedWakes = db.listWakeupRequests(companyId, { agentId: icId, status: "queued" });
+    expect(queuedWakes).toHaveLength(1);
+    expect(queuedWakes[0].source).toBe("comment");
 
     // 10. Verify IC prompt has correct wake reason
     const icPromptCtx = buildCtx({
@@ -896,23 +897,34 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
 
 // ─── E2E: Deferred Wake + Run Lifecycle ─────────────────────────────
 
-describe("E2E: Deferred wake queue with run lifecycle", () => {
-  it("wake enqueue + run finish + consume cycle", () => {
+describe("E2E: Wakeup request lifecycle with run lifecycle", () => {
+  it("wake enqueue + coalesce + claim + complete cycle", () => {
     const agentId = createAgent({ name: "Agent" });
 
-    // Simulate: agent is running, wakes come in. Only the freshest reason is
-    // retained so the agent gets one consolidated follow-up wake.
-    db.enqueuePendingWake(companyId, agentId, "subtask_completed");
-    db.enqueuePendingWake(companyId, agentId, "comment");
-    db.enqueuePendingWake(companyId, agentId, "report_blocked");
+    // Simulate: agent is running, wakes come in. All triggers are coalesced
+    // into a single wakeup request with JSON array of trigger details.
+    db.enqueueWakeupRequest(companyId, agentId, "subtask_completed", "subtask_completed");
+    db.enqueueWakeupRequest(companyId, agentId, "comment", "comment");
+    db.enqueueWakeupRequest(companyId, agentId, "report_blocked", "report_blocked");
 
-    // Agent finishes run → consume pending wakes
-    const wakes = db.consumePendingWakes(agentId);
+    // Verify coalesced into single row with all triggers
+    const wakes = db.listWakeupRequests(companyId, { agentId, status: "queued" });
     expect(wakes).toHaveLength(1);
-    expect(wakes[0].trigger).toBe("report_blocked");
+    expect(wakes[0].coalescedCount).toBe(2);
 
-    // All consumed
-    expect(db.consumePendingWakes(agentId)).toHaveLength(0);
+    const triggers = JSON.parse(wakes[0].triggerDetail!);
+    expect(triggers).toHaveLength(3);
+    expect(triggers[0].trigger).toBe("subtask_completed");
+    expect(triggers[1].trigger).toBe("comment");
+    expect(triggers[2].trigger).toBe("report_blocked");
+
+    // Agent finishes run -> claim and complete the wakeup request
+    const claimed = db.claimWakeupRequest(agentId, companyId, "test-run-id");
+    expect(claimed).not.toBeNull();
+    db.completeWakeupRequest(claimed!.id);
+
+    // All completed
+    expect(db.listWakeupRequests(companyId, { agentId, status: "queued" })).toHaveLength(0);
   });
 });
 
