@@ -317,6 +317,26 @@ export interface BudgetStatusSummary {
   }>;
 }
 
+export interface TaskSessionRecord {
+  id: string;
+  companyId: string;
+  taskId: string;
+  agentId: string;
+  adapterType: string;
+  sessionParamsJson: string | null;
+  sessionDisplayId: string | null;
+  lastRunId: string | null;
+  lastError: string | null;
+  runCount: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  rotatedAt: string | null;
+  rotationReason: string | null;
+  handoffMarkdown: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ActivityRecord {
   id: string;
   companyId: string;

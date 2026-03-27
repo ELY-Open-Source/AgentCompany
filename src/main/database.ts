@@ -33,6 +33,7 @@ import type {
   SocialAccountRecord,
   StandupReport,
   TaskRecord,
+  TaskSessionRecord,
   WorkflowPipelineRecord,
   WorkspaceRecord,
 } from "@shared/types";
@@ -1427,6 +1428,99 @@ export class AppDatabase {
       sessionParams: parseJson<Record<string, unknown> | null>(row?.sessionJson, null),
       sessionDisplayId: row?.sessionDisplayId ?? null,
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // task_sessions CRUD — session management (Plan 06-01)
+  // ---------------------------------------------------------------------------
+
+  getActiveTaskSession(taskId: string): TaskSessionRecord | null {
+    const task = this.db.prepare(
+      "SELECT active_session_id FROM tasks WHERE id = ?"
+    ).get(taskId) as { active_session_id: string | null } | undefined;
+    if (!task?.active_session_id) return null;
+    return this.db.prepare(
+      `SELECT id, company_id as companyId, task_id as taskId, agent_id as agentId,
+       adapter_type as adapterType, session_params_json as sessionParamsJson,
+       session_display_id as sessionDisplayId, last_run_id as lastRunId,
+       last_error as lastError, run_count as runCount,
+       total_input_tokens as totalInputTokens, total_output_tokens as totalOutputTokens,
+       rotated_at as rotatedAt, rotation_reason as rotationReason,
+       handoff_markdown as handoffMarkdown, created_at as createdAt, updated_at as updatedAt
+       FROM task_sessions WHERE id = ?`
+    ).get(task.active_session_id) as TaskSessionRecord | undefined ?? null;
+  }
+
+  incrementSessionUsage(sessionId: string, inputTokens: number, outputTokens: number, runId: string): void {
+    const ts = nowIso();
+    this.db.prepare(
+      `UPDATE task_sessions
+       SET run_count = run_count + 1,
+           total_input_tokens = total_input_tokens + ?,
+           total_output_tokens = total_output_tokens + ?,
+           last_run_id = ?,
+           updated_at = ?
+       WHERE id = ?`
+    ).run(inputTokens, outputTokens, runId, ts, sessionId);
+  }
+
+  archiveSession(sessionId: string, reason: string, handoffMarkdown: string): void {
+    const ts = nowIso();
+    this.db.prepare(
+      `UPDATE task_sessions SET rotated_at = ?, rotation_reason = ?, handoff_markdown = ?, updated_at = ? WHERE id = ?`
+    ).run(ts, reason, handoffMarkdown, ts, sessionId);
+  }
+
+  createNewSession(input: {
+    taskId: string;
+    companyId: string;
+    agentId: string;
+    adapterType: string;
+    sessionParamsJson: string | null;
+    sessionDisplayId: string | null;
+  }): string {
+    const sessionId = randomUUID();
+    const ts = nowIso();
+    this.db.prepare(
+      `INSERT INTO task_sessions (id, company_id, task_id, agent_id, adapter_type,
+       session_params_json, session_display_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      sessionId, input.companyId, input.taskId, input.agentId, input.adapterType,
+      input.sessionParamsJson, input.sessionDisplayId, ts, ts
+    );
+    this.db.prepare("UPDATE tasks SET active_session_id = ?, updated_at = ? WHERE id = ?")
+      .run(sessionId, ts, input.taskId);
+    return sessionId;
+  }
+
+  getRecentRunsForTask(taskId: string, limit: number): Array<{
+    id: string;
+    status: string;
+    summary: string | null;
+    errorMessage: string | null;
+    finishedAt: string | null;
+    connectorId: string;
+  }> {
+    return this.readAll(
+      `SELECT id, status, summary, error_message as errorMessage,
+       finished_at as finishedAt, connector_id as connectorId
+       FROM runs WHERE task_id = ? ORDER BY finished_at DESC LIMIT ?`,
+      taskId, limit
+    );
+  }
+
+  getRecentActivityForTask(taskId: string, limit: number): Array<{
+    action: string;
+    detail: string;
+    createdAt: string;
+  }> {
+    return this.readAll(
+      `SELECT action, detail, created_at as createdAt
+       FROM activity WHERE entity_type = 'task' AND entity_id = ?
+       ORDER BY created_at DESC LIMIT ?`,
+      taskId, limit
+    );
   }
 
   addActivity(input: { companyId: string; actor: string; action: string; entityType: string; entityId: string; detail: string }) {
