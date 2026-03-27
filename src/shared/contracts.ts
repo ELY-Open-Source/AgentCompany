@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AgentMessageRecord, AgentMetrics, BrowserActionRecord, BudgetIncidentRecord, BudgetPolicyRecord, BudgetStatusSummary, CommentRecord, CompanyMetrics, DesktopEvent, InboxItem, OnboardingBootstrapResult, ProfileSnapshot, RunLogChunk, SkillImportResult, SkillRecord, SkillUpdateStatus, StandupReport } from "./types";
+import type { AgentMessageRecord, AgentMetrics, AgentRecord, ApprovalRecord, BrowserActionRecord, BudgetIncidentRecord, BudgetPolicyRecord, BudgetStatusSummary, CommentRecord, CompanyMetrics, DesktopEvent, InboxItem, OnboardingBootstrapResult, ProfileSnapshot, RunLogChunk, RunRecord, SkillImportResult, SkillRecord, SkillUpdateStatus, StandupReport, TaskRecord } from "./types";
 
 export const IPC_CHANNELS = {
   loadSnapshot: "agent-company:load-snapshot",
@@ -89,6 +89,10 @@ export const IPC_CHANNELS = {
   listBudgetIncidents: "agent-company:list-budget-incidents",
   resolveBudgetIncident: "agent-company:resolve-budget-incident",
   getBudgetStatus: "agent-company:get-budget-status",
+  getTask: "agent-company:get-task",
+  getAgent: "agent-company:get-agent",
+  getRun: "agent-company:get-run",
+  getApproval: "agent-company:get-approval",
 } as const;
 
 const optionalId = z.preprocess(
@@ -636,6 +640,11 @@ export interface WakeupRequestRecord {
   updatedAt: string;
 }
 
+export const entityGetterSchema = z.object({
+  companyId: z.string().uuid(),
+  id: z.string().uuid(),
+});
+
 export type DesktopResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: string; message: string } };
@@ -735,5 +744,9 @@ export type DesktopApi = {
   recoveryRetry: (taskId: string, agentId: string, companyId: string) => Promise<DesktopResult<null>>;
   recoveryDismiss: (taskId: string) => Promise<DesktopResult<null>>;
   recoveryFail: (taskId: string) => Promise<DesktopResult<null>>;
+  getTask: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<TaskRecord>>;
+  getAgent: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<AgentRecord>>;
+  getRun: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<RunRecord>>;
+  getApproval: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<ApprovalRecord>>;
   subscribe: (callback: (event: DesktopEvent) => void) => () => void;
 };

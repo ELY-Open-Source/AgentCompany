@@ -454,6 +454,35 @@ export interface NotificationClickEvent {
   entityId?: string;
 }
 
+export interface TaskUpdatedEvent {
+  type: "task-updated";
+  taskId: string;
+  action: "created" | "updated" | "deleted";
+}
+
+export interface RunUpdatedEvent {
+  type: "run-updated";
+  runId: string;
+  action: "created" | "status_changed" | "completed";
+}
+
+export interface ApprovalUpdatedEvent {
+  type: "approval-updated";
+  approvalId: string;
+  action: "created" | "decided" | "deleted";
+}
+
+export interface AgentUpdatedEvent {
+  type: "agent-updated";
+  agentId: string;
+  action: "updated" | "paused";
+}
+
+export interface BudgetChangedEvent {
+  type: "budget-changed";
+  companyId: string;
+}
+
 export type DesktopEvent =
   | LogChunkEvent
   | DomainChangedEvent
@@ -463,7 +492,12 @@ export type DesktopEvent =
   | AgentMessageEvent
   | AutomationFiredEvent
   | NewMessageEvent
-  | NotificationClickEvent;
+  | NotificationClickEvent
+  | TaskUpdatedEvent
+  | RunUpdatedEvent
+  | ApprovalUpdatedEvent
+  | AgentUpdatedEvent
+  | BudgetChangedEvent;
 
 export type InboxItemType = "pending_approval" | "failed_run" | "budget_warning" | "blocked_task" | "review_needed" | "agent_message";
 
