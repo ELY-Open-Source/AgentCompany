@@ -820,7 +820,6 @@ export function createOrchestrationService({
             } catch (error) {
               logger.error(`[heartbeat] Stale review sweep failed: ${error instanceof Error ? error.message : String(error)}`);
             }
-            }
           } catch (error) {
             logger.error(`[heartbeat] Error processing company ${company.id}: ${error instanceof Error ? error.message : String(error)}`);
           }
