@@ -11,6 +11,7 @@ import {
 import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
 import { resolveApprovalDecision, shouldAutoApproveApproval } from "./approval-policy";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
+import { validateTaskCreation, checkCapabilityMatch } from "./task-quality-gates";
 
 export function registerCoreWorkGraphHandlers({
   registerHandle,
@@ -314,6 +315,13 @@ export function registerCoreWorkGraphHandlers({
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
     const isNew = !parsed.id;
+    if (isNew) {
+      const isHeartbeat = parsed.title.startsWith("[Heartbeat]");
+      const validation = validateTaskCreation(parsed, isHeartbeat);
+      if (!validation.valid) {
+        return fail("TASK_VALIDATION_FAILED", validation.errors.join("; "));
+      }
+    }
     let previousStatus: string | null = null;
     let previousAssigneeAgentId: string | null = null;
     if (!isNew) {
@@ -355,8 +363,17 @@ export function registerCoreWorkGraphHandlers({
         wakeAgentIfPossible(parsed.assigneeAgentId, parsed.companyId, "assignment");
       }
     }
+    let capabilityWarning: string | undefined;
+    if (isNew && parsed.assigneeAgentId) {
+      try {
+        const match = checkCapabilityMatch(db, parsed.assigneeAgentId, parsed.description, parsed.companyId);
+        if (!match.matched) {
+          capabilityWarning = match.warning;
+        }
+      } catch { /* capability check is advisory — never block task creation */ }
+    }
     publishDomainChanged();
-    return ok(id);
+    return ok({ id, capabilityWarning });
   });
 
   registerHandle(IPC_CHANNELS.deleteAgent, async (_event, payload) => {

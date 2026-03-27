@@ -640,6 +640,11 @@ export type DesktopResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: string; message: string } };
 
+export interface SaveTaskResult {
+  id: string;
+  capabilityWarning?: string;
+}
+
 export type DesktopApi = {
   loadSnapshot: () => Promise<DesktopResult<ProfileSnapshot>>;
   pickDirectory: () => Promise<DesktopResult<string | null>>;
@@ -653,7 +658,7 @@ export type DesktopApi = {
   requestHire: (input: z.infer<typeof hireRequestSchema>) => Promise<DesktopResult<{ agentId: string; approvalId: string; autoApproved: boolean }>>;
   saveGoal: (input: z.infer<typeof goalInputSchema>) => Promise<DesktopResult<string>>;
   saveProject: (input: z.infer<typeof projectInputSchema>) => Promise<DesktopResult<string>>;
-  saveTask: (input: z.infer<typeof taskInputSchema>) => Promise<DesktopResult<string>>;
+  saveTask: (input: z.infer<typeof taskInputSchema>) => Promise<DesktopResult<SaveTaskResult>>;
   requestApproval: (input: z.infer<typeof approvalInputSchema>) => Promise<DesktopResult<string>>;
   decideApproval: (input: z.infer<typeof approvalDecisionSchema>) => Promise<DesktopResult<boolean>>;
   saveSecret: (input: z.infer<typeof secretInputSchema>) => Promise<DesktopResult<string>>;
