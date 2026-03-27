@@ -6,6 +6,9 @@ import type { DesktopResult } from "@shared/contracts";
 import type { ConnectorRecord } from "@shared/types";
 import type { NotificationOptions } from "./notification-service";
 import type { createBudgetEnforcementService } from "./budget-enforcement-service";
+import { sweepStaleReviews } from "./task-quality-gates";
+import { resolveApprovalDecision } from "./approval-policy";
+import { dispatchAgentMessage } from "./message-dispatch";
 
 type WorkspaceLockMode = "exclusive" | "shared" | "none";
 
@@ -788,6 +791,35 @@ export function createOrchestrationService({
             const closedIncidents = budgetService.autoCloseExpiredIncidents(company.id);
             if (closedIncidents > 0) {
               logger.info(`[heartbeat] Auto-closed ${closedIncidents} expired budget incident(s) for company ${company.name}`);
+            }
+
+            // TASK-04: Stale review escalation sweep
+            try {
+              const escalated = sweepStaleReviews(company.id, {
+                db: db as unknown as import("./task-quality-gates").SweepStaleReviewsDeps["db"],
+                dispatchAgentMessage: dispatchAgentMessage as unknown as import("./task-quality-gates").SweepStaleReviewsDeps["dispatchAgentMessage"],
+                resolveApprovalDecision: resolveApprovalDecision as unknown as import("./task-quality-gates").SweepStaleReviewsDeps["resolveApprovalDecision"],
+                notify: notify as unknown as import("./task-quality-gates").SweepStaleReviewsDeps["notify"],
+                handleTaskStatusChange: (_taskId: string, _companyId: string, _prev: string, _next: string) => {
+                  publishDomainChanged();
+                },
+                handleApprovalResolved: (_approvalId: string, _companyId: string, _decision: string) => {
+                  publishDomainChanged();
+                },
+                emitEvent: (..._args: unknown[]) => {},
+                publishDomainChanged,
+                wakeAgentIfPossible: (agentId: string, cId: string, trigger: string) => {
+                  wakeAgentIfPossible(agentId, cId, trigger);
+                },
+                logger,
+              });
+              if (escalated > 0) {
+                logger.info(`[heartbeat] Auto-escalated ${escalated} stale review(s) for company ${company.name}`);
+                publishDomainChanged();
+              }
+            } catch (error) {
+              logger.error(`[heartbeat] Stale review sweep failed: ${error instanceof Error ? error.message : String(error)}`);
+            }
             }
           } catch (error) {
             logger.error(`[heartbeat] Error processing company ${company.id}: ${error instanceof Error ? error.message : String(error)}`);
