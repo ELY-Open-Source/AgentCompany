@@ -4,6 +4,7 @@ import { getConnectorDefinition } from "./connectors";
 import type { AppDatabase } from "./database";
 import type { RunRecord } from "@shared/types";
 import type { NotificationOptions } from "./notification-service";
+import type { createBudgetEnforcementService } from "./budget-enforcement-service";
 
 const runStatusSchema = z.enum(["queued", "running", "succeeded", "failed", "cancelled", "timed_out", "interrupted"]);
 export const workerMessageSchema = z.union([
@@ -63,6 +64,7 @@ interface WorkerServiceDependencies {
   }) => void;
   processRunCompletion: (run: RunRecord, event: z.infer<typeof workerMessageSchema> & { type: "run-finished" }) => void;
   notify: (options: NotificationOptions) => void;
+  budgetService?: ReturnType<typeof createBudgetEnforcementService>;
 }
 
 export function createWorkerService({
@@ -76,6 +78,7 @@ export function createWorkerService({
   dispatchRunToWorker,
   processRunCompletion,
   notify,
+  budgetService,
 }: WorkerServiceDependencies) {
   const MAX_RETRY_ATTEMPTS = 2;
   const RETRY_COOLDOWN_MS = 30_000; // 30 seconds
@@ -328,6 +331,16 @@ export function createWorkerService({
           batchKey: "agent_paused",
         });
         publishDomainChanged();
+      }
+
+      // Policy-based incident check after run completion (Phase 5)
+      if (budgetService && typeof event.costUsd === "number" && Number.isFinite(event.costUsd)) {
+        try {
+          const task = db.getTask(run.taskId);
+          budgetService.checkAndCreateIncidents(run.companyId, run.agentId, task?.projectId ?? null);
+        } catch (err) {
+          logger.error(`[budget] Incident check failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
 
       if ((event.status === "failed" || event.status === "timed_out") && !isQuitting() && !destroyed) {

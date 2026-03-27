@@ -5,6 +5,7 @@ import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
 import type { DesktopResult } from "@shared/contracts";
 import type { ConnectorRecord } from "@shared/types";
 import type { NotificationOptions } from "./notification-service";
+import type { createBudgetEnforcementService } from "./budget-enforcement-service";
 
 type WorkspaceLockMode = "exclusive" | "shared" | "none";
 
@@ -64,6 +65,7 @@ interface OrchestrationDependencies {
   enqueueWorkerRun: (payload: EnqueueRunPayload) => void;
   isQuitting: () => boolean;
   listRuntimeSkillEntries: (companyId: string, agentId: string, connectorId: string) => Array<{ runtimeName: string; sourcePath: string }>;
+  budgetService: ReturnType<typeof createBudgetEnforcementService>;
 }
 
 export function createOrchestrationService({
@@ -78,6 +80,7 @@ export function createOrchestrationService({
   enqueueWorkerRun,
   isQuitting,
   listRuntimeSkillEntries,
+  budgetService,
 }: OrchestrationDependencies) {
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   const scheduleLastFiredMap = new Map<string, number>();
@@ -122,6 +125,7 @@ export function createOrchestrationService({
     return { workspace: null, lockMode: "none", source: "none" };
   }
 
+  // DEPRECATED: Superseded by BudgetEnforcementService.evaluateBudgetGate (Phase 5)
   function autoPauseBudgetExceededAgent(agent: { id: string; companyId: string; name: string; spentMonthlyUsd: number; budgetMonthlyUsd: number }) {
     if (!(agent.budgetMonthlyUsd > 0) || agent.spentMonthlyUsd < agent.budgetMonthlyUsd) {
       return false;
@@ -156,14 +160,16 @@ export function createOrchestrationService({
   function getRunEligibilityFailure(
     agent: { status: string; budgetMonthlyUsd: number; spentMonthlyUsd: number; name: string; connectorId: string; id: string; companyId: string },
     connector: Pick<ConnectorRecord, "id" | "label" | "status" | "capabilityMatrix">,
+    projectId: string | null = null,
   ) {
     if (["terminated", "paused", "pending_approval"].includes(agent.status)) {
       return "AGENT_NOT_RUNNABLE";
     }
-    if (agent.budgetMonthlyUsd > 0 && agent.spentMonthlyUsd >= agent.budgetMonthlyUsd) {
-      autoPauseBudgetExceededAgent(agent);
-      logger.info(`[run] Agent ${agent.name} budget exhausted, skipping`);
-      return "AGENT_BUDGET_EXHAUSTED";
+    // Policy-based budget check replaces flat field check (D-03, D-04, D-05)
+    const gate = budgetService.evaluateBudgetGate(agent.companyId, agent.id, projectId);
+    if (!gate.allowed) {
+      logger.info(`[run] Agent ${agent.name} budget policy blocked: ${gate.blockedBy.map(b => `${b.scopeType}(${b.policyId})`).join(", ")}`);
+      return "BUDGET_POLICY_BLOCKED";
     }
     const connectorIssue = getConnectorExecutionReadinessIssue(connector);
     if (connectorIssue) {
@@ -342,7 +348,7 @@ export function createOrchestrationService({
       return null;
     }
     const connector = db.getConnector(agent.connectorId);
-    if (getRunEligibilityFailure(agent, connector)) {
+    if (getRunEligibilityFailure(agent, connector, null)) {
       return null;
     }
     if (hasActiveRun({ agentId: agent.id, companyId })) {
@@ -530,12 +536,12 @@ export function createOrchestrationService({
       return fail("AGENT_COMPANY_MISMATCH", "The assigned agent does not belong to the task company.");
     }
     const connector = db.getConnector(agent.connectorId);
-    const eligibilityFailure = getRunEligibilityFailure(agent, connector);
+    const eligibilityFailure = getRunEligibilityFailure(agent, connector, task.projectId ?? null);
     if (eligibilityFailure === "AGENT_NOT_RUNNABLE") {
       return fail("AGENT_NOT_RUNNABLE", "The assigned agent is paused, pending approval, or terminated.");
     }
-    if (eligibilityFailure === "AGENT_BUDGET_EXHAUSTED") {
-      return fail("AGENT_BUDGET_EXHAUSTED", "The assigned agent has exhausted its monthly budget.");
+    if (eligibilityFailure === "BUDGET_POLICY_BLOCKED") {
+      return fail("BUDGET_POLICY_BLOCKED", "A budget policy blocks this run. Review budget settings.");
     }
     if (eligibilityFailure === "CONNECTOR_NOT_READY") {
       return fail("CONNECTOR_NOT_READY", "The assigned agent connector is not ready.");
@@ -650,7 +656,7 @@ export function createOrchestrationService({
         const task = db.getTask(run.taskId);
         const agent = db.getAgent(run.agentId);
         const connector = db.getConnector(run.connectorId);
-        if (getRunEligibilityFailure(agent, connector)) {
+        if (getRunEligibilityFailure(agent, connector, task.projectId ?? null)) {
           continue;
         }
         const workspaceResolution = resolveWorkspace(task, agent, run.companyId);
@@ -756,6 +762,12 @@ export function createOrchestrationService({
               db.resetMonthlyBudgets(company.id);
               db.setLastBudgetResetMonth(company.id, currentMonth);
               logger.info(`[heartbeat] Reset monthly budgets for company ${company.name} (${currentMonth})`);
+            }
+
+            // D-06: Auto-close incidents from previous budget windows
+            const closedIncidents = budgetService.autoCloseExpiredIncidents(company.id);
+            if (closedIncidents > 0) {
+              logger.info(`[heartbeat] Auto-closed ${closedIncidents} expired budget incident(s) for company ${company.name}`);
             }
           } catch (error) {
             logger.error(`[heartbeat] Error processing company ${company.id}: ${error instanceof Error ? error.message : String(error)}`);

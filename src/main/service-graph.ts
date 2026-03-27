@@ -191,6 +191,7 @@ export function createServiceGraph({
       dispatchRunToWorker,
       processRunCompletion: (run, event) => processRunCompletion(run, event),
       notify,
+      budgetService: getOrCreateBudgetEnforcementService(),
     });
 
     orchestrationService = createOrchestrationService({
@@ -219,6 +220,7 @@ export function createServiceGraph({
           }
         };
       })(),
+      budgetService: getOrCreateBudgetEnforcementService(),
     });
     workerService.createWorker();
 
