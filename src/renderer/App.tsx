@@ -37,7 +37,7 @@ import type {
 import type { AppLocale } from "@shared/locale";
 import { createTranslator, LocaleContext, TranslationContext } from "./i18n";
 import { useAppStore } from "./state/store";
-import { createEventBatcher } from "./lib/ipc-batcher";
+import { createDomainEventBatcher, type GranularEventEntry } from "./lib/ipc-batcher";
 import { CompanyOnboarding } from "./components/CompanyOnboarding";
 import { Inbox, StandupView, PerformanceView } from "./components/inbox";
 import { ConnectorEditor } from "./components/connectors";
@@ -236,17 +236,113 @@ export function App() {
     refreshRef.current = refresh;
   }, [refresh]);
 
-  // IPC event subscription with batcher for coalescing rapid domain-changed events
+  // IPC event subscription with enhanced batcher for granular + full-refresh coalescing
   useEffect(() => {
     void refreshRef.current();
     const store = useAppStore;
-    const batcher = createEventBatcher(() => {
-      void refreshRef.current();
-    }, 50);
+
+    async function handleGranularBatch(events: GranularEventEntry[]) {
+      const companyId = store.getState().currentCompanyId;
+      if (!companyId) {
+        void refreshRef.current();
+        return;
+      }
+
+      let needsFullRefresh = false;
+
+      for (const entry of events) {
+        // run-updated:completed touches too many entity types -- full refresh
+        if (entry.type === "run-updated" && entry.action === "completed") {
+          needsFullRefresh = true;
+          break;
+        }
+
+        try {
+          switch (entry.type) {
+            case "task-updated": {
+              if (entry.action === "deleted") {
+                store.getState().removeTask(entry.entityId);
+              } else {
+                const result = await window.agentCompany.getTask({ companyId, id: entry.entityId });
+                if (result.ok) {
+                  store.getState().patchTask(result.data);
+                } else {
+                  store.getState().removeTask(entry.entityId);
+                }
+              }
+              break;
+            }
+            case "run-updated": {
+              if (entry.action === "deleted") {
+                store.getState().removeRun(entry.entityId);
+              } else {
+                const result = await window.agentCompany.getRun({ companyId, id: entry.entityId });
+                if (result.ok) {
+                  store.getState().patchRun(result.data);
+                } else {
+                  store.getState().removeRun(entry.entityId);
+                }
+              }
+              break;
+            }
+            case "approval-updated": {
+              if (entry.action === "deleted") {
+                store.getState().removeApproval(entry.entityId);
+              } else {
+                const result = await window.agentCompany.getApproval({ companyId, id: entry.entityId });
+                if (result.ok) {
+                  store.getState().patchApproval(result.data);
+                } else {
+                  store.getState().removeApproval(entry.entityId);
+                }
+              }
+              break;
+            }
+            case "agent-updated": {
+              const result = await window.agentCompany.getAgent({ companyId, id: entry.entityId });
+              if (result.ok) {
+                store.getState().patchAgent(result.data);
+              } else {
+                needsFullRefresh = true;
+              }
+              break;
+            }
+            case "budget-changed": {
+              // Budget is a computed aggregate -- full refresh is needed
+              needsFullRefresh = true;
+              break;
+            }
+            default: {
+              // Unknown granular event type -- fall back (per D-05 / PERF-03)
+              needsFullRefresh = true;
+              break;
+            }
+          }
+        } catch {
+          // IPC error during entity fetch -- fall back to full refresh (per pitfall 1)
+          needsFullRefresh = true;
+          break;
+        }
+
+        if (needsFullRefresh) break;
+      }
+
+      if (needsFullRefresh) {
+        void refreshRef.current();
+      } else {
+        // Refresh sidebar badges after granular patches (per pitfall 3)
+        void store.getState().refreshBadges();
+      }
+    }
+
+    const batcher = createDomainEventBatcher(
+      () => { void refreshRef.current(); },
+      (events) => { void handleGranularBatch(events); },
+      50,
+    );
 
     const unsubscribe = window.agentCompany.subscribe((event: DesktopEvent) => {
       if (event.type === "run-log") {
-        // Pass through immediately -- no batching for streaming logs
         const MAX_LOG_BYTES_PER_RUN = 512_000;
         const MAX_TRACKED_RUNS = 50;
         const existing = logBufferRef.current[event.runId] ?? "";
@@ -273,8 +369,10 @@ export function App() {
         store.getState().navigateTo(event.section, event.entityId);
         return;
       }
-      // All data-mutating events: batch the snapshot reload
-      batcher.schedule();
+      // All data-mutating events go through the enhanced batcher
+      // domain-changed, task-updated, run-updated, approval-updated,
+      // agent-updated, budget-changed, and unknown types (trigger full refresh)
+      batcher.push(event);
     });
     return () => {
       unsubscribe();
