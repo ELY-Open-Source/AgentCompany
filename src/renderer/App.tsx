@@ -794,6 +794,7 @@ export function App() {
               {section === "overview" ? (
                 <Dashboard
                   companyName={currentCompany?.name}
+                  companyId={currentCompany?.id}
                   agents={companyAgents}
                   tasks={tasks}
                   runs={runs}
@@ -1142,7 +1143,7 @@ export function App() {
                       }
                       secondary={
                         <Panel title="Budget posture">
-                          <BudgetSummary agents={companyAgents} costs={companyCosts} />
+                          <BudgetSummary agents={companyAgents} costs={companyCosts} companyId={currentCompany?.id} />
                         </Panel>
                       }
                     />
