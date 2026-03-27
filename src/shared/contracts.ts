@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AgentMessageRecord, AgentMetrics, BrowserActionRecord, CommentRecord, CompanyMetrics, DesktopEvent, InboxItem, OnboardingBootstrapResult, ProfileSnapshot, RunLogChunk, StandupReport } from "./types";
+import type { AgentMessageRecord, AgentMetrics, AgentRecord, ApprovalRecord, BrowserActionRecord, CommentRecord, CompanyMetrics, DesktopEvent, InboxItem, OnboardingBootstrapResult, ProfileSnapshot, RunLogChunk, RunRecord, StandupReport, TaskRecord } from "./types";
 
 export const IPC_CHANNELS = {
   loadSnapshot: "agent-company:load-snapshot",
@@ -73,6 +73,10 @@ export const IPC_CHANNELS = {
   runWorkflow: "agent-company:run-workflow",
   autoAssignTask: "agent-company:auto-assign-task",
   searchMessages: "agent-company:search-messages",
+  getTask: "agent-company:get-task",
+  getAgent: "agent-company:get-agent",
+  getRun: "agent-company:get-run",
+  getApproval: "agent-company:get-approval",
 } as const;
 
 const optionalId = z.preprocess(
@@ -514,6 +518,11 @@ export const autoAssignSchema = z.object({
   companyId: z.string().uuid(),
 });
 
+export const entityGetterSchema = z.object({
+  companyId: z.string().uuid(),
+  id: z.string().uuid(),
+});
+
 export type DesktopResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: string; message: string } };
@@ -592,5 +601,9 @@ export type DesktopApi = {
   recoveryRetry: (taskId: string, agentId: string, companyId: string) => Promise<DesktopResult<null>>;
   recoveryDismiss: (taskId: string) => Promise<DesktopResult<null>>;
   recoveryFail: (taskId: string) => Promise<DesktopResult<null>>;
+  getTask: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<TaskRecord>>;
+  getAgent: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<AgentRecord>>;
+  getRun: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<RunRecord>>;
+  getApproval: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<ApprovalRecord>>;
   subscribe: (callback: (event: DesktopEvent) => void) => () => void;
 };

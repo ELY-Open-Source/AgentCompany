@@ -1159,6 +1159,17 @@ export class AppDatabase {
     return row ? { ...row, isPrimary: toBoolean(row.isPrimary) } : null;
   }
 
+  getRun(id: string): RunRecord {
+    const row = this.db
+      .prepare(
+        "select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId, connector_id as connectorId, status, summary, error_message as errorMessage, exit_code as exitCode, signal, model, session_display_id as sessionDisplayId, cost_usd as costUsd, unattributed_cost as unattributedCost, started_at as startedAt, finished_at as finishedAt, log_path as logPath, created_at as createdAt, updated_at as updatedAt from runs where id = ?",
+      )
+      .get(id) as RunRecord | undefined;
+    if (!row) throw new Error(`Run not found: ${id}`);
+    row.unattributedCost = Boolean(row.unattributedCost);
+    return row;
+  }
+
   getRunAuthState(runId: string): { id: string; companyId: string; agentId: string; status: RunRecord["status"] } | null {
     const row = this.db
       .prepare("select id, company_id as companyId, agent_id as agentId, status from runs where id = ?")

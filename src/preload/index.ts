@@ -82,6 +82,10 @@ const api: DesktopApi = {
     ipcRenderer.invoke("recovery:dismiss", { taskId }),
   recoveryFail: (taskId: string) =>
     ipcRenderer.invoke("recovery:fail", { taskId }),
+  getTask: (input) => ipcRenderer.invoke(IPC_CHANNELS.getTask, input),
+  getAgent: (input) => ipcRenderer.invoke(IPC_CHANNELS.getAgent, input),
+  getRun: (input) => ipcRenderer.invoke(IPC_CHANNELS.getRun, input),
+  getApproval: (input) => ipcRenderer.invoke(IPC_CHANNELS.getApproval, input),
   subscribe: (callback: (event: DesktopEvent) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: DesktopEvent) => callback(payload);
     ipcRenderer.on(IPC_CHANNELS.rendererEvent, listener);
