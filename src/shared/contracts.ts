@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AgentMessageRecord, AgentMetrics, BrowserActionRecord, CommentRecord, CompanyMetrics, DesktopEvent, InboxItem, OnboardingBootstrapResult, ProfileSnapshot, RunLogChunk, SkillImportResult, SkillRecord, SkillUpdateStatus, StandupReport } from "./types";
+import type { AgentMessageRecord, AgentMetrics, BrowserActionRecord, BudgetIncidentRecord, BudgetPolicyRecord, BudgetStatusSummary, CommentRecord, CompanyMetrics, DesktopEvent, InboxItem, OnboardingBootstrapResult, ProfileSnapshot, RunLogChunk, SkillImportResult, SkillRecord, SkillUpdateStatus, StandupReport } from "./types";
 
 export const IPC_CHANNELS = {
   loadSnapshot: "agent-company:load-snapshot",
@@ -83,6 +83,12 @@ export const IPC_CHANNELS = {
   listSkillAgents: "agent-company:list-skill-agents",
   listAgentSkills: "agent-company:list-agent-skills",
   listWakeupRequests: "agent-company:list-wakeup-requests",
+  saveBudgetPolicy: "agent-company:save-budget-policy",
+  deleteBudgetPolicy: "agent-company:delete-budget-policy",
+  listBudgetPolicies: "agent-company:list-budget-policies",
+  listBudgetIncidents: "agent-company:list-budget-incidents",
+  resolveBudgetIncident: "agent-company:resolve-budget-incident",
+  getBudgetStatus: "agent-company:get-budget-status",
 } as const;
 
 const optionalId = z.preprocess(
@@ -570,6 +576,43 @@ export const listAgentSkillsSchema = z.object({
   agentId: z.string().min(1),
 });
 
+export const budgetPolicyInputSchema = z.object({
+  id: optionalId,
+  companyId: z.string().uuid(),
+  scopeType: z.enum(["company", "agent", "project"]),
+  scopeId: z.string().uuid(),
+  metric: z.literal("billed_cents").default("billed_cents"),
+  windowKind: z.literal("calendar_month_utc").default("calendar_month_utc"),
+  amount: z.number().int().min(1),
+  warnPercent: z.number().int().min(1).max(100).default(80),
+  hardStopEnabled: z.boolean().default(true),
+  notifyEnabled: z.boolean().default(true),
+  isActive: z.boolean().default(true),
+});
+
+export const listBudgetPoliciesSchema = z.object({
+  companyId: z.string().uuid(),
+});
+
+export const deleteBudgetPolicySchema = z.object({
+  companyId: z.string().uuid(),
+  policyId: z.string().uuid(),
+});
+
+export const listBudgetIncidentsSchema = z.object({
+  companyId: z.string().uuid(),
+  status: z.enum(["open", "resolved", "auto_resolved_limit_increase", "auto_closed", "all"]).default("all"),
+});
+
+export const resolveBudgetIncidentSchema = z.object({
+  companyId: z.string().uuid(),
+  incidentId: z.string().uuid(),
+});
+
+export const getBudgetStatusSchema = z.object({
+  companyId: z.string().uuid(),
+});
+
 export const wakeupQuerySchema = z.object({
   companyId: z.string().uuid(),
   status: z.enum(["queued", "claimed", "coalesced", "deferred", "completed"]).optional(),
@@ -678,6 +721,12 @@ export type DesktopApi = {
   listSkillAgents: (companyId: string, skillId: string) => Promise<DesktopResult<string[]>>;
   listAgentSkills: (companyId: string, agentId: string) => Promise<DesktopResult<string[]>>;
   listWakeupRequests: (input: z.infer<typeof wakeupQuerySchema>) => Promise<DesktopResult<WakeupRequestRecord[]>>;
+  saveBudgetPolicy: (input: z.infer<typeof budgetPolicyInputSchema>) => Promise<DesktopResult<string>>;
+  deleteBudgetPolicy: (input: z.infer<typeof deleteBudgetPolicySchema>) => Promise<DesktopResult<boolean>>;
+  listBudgetPolicies: (companyId: string) => Promise<DesktopResult<BudgetPolicyRecord[]>>;
+  listBudgetIncidents: (input: z.infer<typeof listBudgetIncidentsSchema>) => Promise<DesktopResult<BudgetIncidentRecord[]>>;
+  resolveBudgetIncident: (input: z.infer<typeof resolveBudgetIncidentSchema>) => Promise<DesktopResult<boolean>>;
+  getBudgetStatus: (companyId: string) => Promise<DesktopResult<BudgetStatusSummary>>;
   recoveryRetry: (taskId: string, agentId: string, companyId: string) => Promise<DesktopResult<null>>;
   recoveryDismiss: (taskId: string) => Promise<DesktopResult<null>>;
   recoveryFail: (taskId: string) => Promise<DesktopResult<null>>;

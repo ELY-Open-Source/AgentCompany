@@ -269,6 +269,54 @@ export interface CostRecord {
   createdAt: string;
 }
 
+export interface BudgetPolicyRecord {
+  id: string;
+  companyId: string;
+  scopeType: "company" | "agent" | "project";
+  scopeId: string;
+  metric: string;
+  windowKind: string;
+  amount: number; // INTEGER cents
+  warnPercent: number;
+  hardStopEnabled: boolean;
+  notifyEnabled: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BudgetIncidentRecord {
+  id: string;
+  companyId: string;
+  policyId: string;
+  scopeType: string;
+  scopeId: string;
+  metric: string;
+  windowKind: string;
+  windowStart: string;
+  windowEnd: string;
+  thresholdType: "warn_threshold" | "hard_stop";
+  amountLimit: number;
+  amountObserved: number;
+  status: "open" | "resolved" | "auto_resolved_limit_increase" | "auto_closed";
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BudgetStatusSummary {
+  policies: Array<{
+    policyId: string;
+    scopeType: string;
+    scopeId: string;
+    amount: number;
+    spent: number;
+    warnPercent: number;
+    hardStopEnabled: boolean;
+    hasOpenIncident: boolean;
+  }>;
+}
+
 export interface ActivityRecord {
   id: string;
   companyId: string;

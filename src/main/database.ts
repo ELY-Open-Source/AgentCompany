@@ -14,6 +14,8 @@ import type {
   AgentRecord,
   ApprovalRecord,
   BrowserActionRecord,
+  BudgetIncidentRecord,
+  BudgetPolicyRecord,
   CommentRecord,
   CompanyMetrics,
   CompanyRecord,
@@ -1369,9 +1371,12 @@ export class AppDatabase {
           )
           .run(input.costUsd, ts, run.agentId);
       }
+      // Look up task's project_id for cost attribution
+      const taskProjectRow = this.db.prepare("SELECT project_id FROM tasks WHERE id = ?").get(run.taskId) as { project_id: string | null } | undefined;
+      const projectId = taskProjectRow?.project_id ?? null;
       this.db
-          .prepare("insert into cost_entries (id, company_id, run_id, task_id, agent_id, connector_id, amount_usd, unattributed, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .run(randomUUID(), run.companyId, input.runId, run.taskId, run.agentId, run.connectorId, input.costUsd, input.unattributedCost ? 1 : 0, ts);
+          .prepare("insert into cost_entries (id, company_id, run_id, task_id, agent_id, connector_id, amount_usd, unattributed, project_id, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(randomUUID(), run.companyId, input.runId, run.taskId, run.agentId, run.connectorId, input.costUsd, input.unattributedCost ? 1 : 0, projectId, ts);
       if (budgetHardStopped) {
         this.db
           .prepare("update agents set status = 'paused', updated_at = ? where id = ?")
@@ -3793,6 +3798,31 @@ export class AppDatabase {
           this.db.exec("DROP TABLE IF EXISTS pending_wakes");
         },
       },
+      {
+        version: 18,
+        name: "migrate_agent_budget_to_policies",
+        fn: () => {
+          const agents = this.readAll<{ id: string; companyId: string; budgetMonthlyUsd: number }>(
+            "SELECT id, company_id as companyId, budget_monthly_usd as budgetMonthlyUsd FROM agents WHERE budget_monthly_usd > 0",
+          );
+          const ts = nowIso();
+          for (const agent of agents) {
+            const existing = this.db
+              .prepare(
+                "SELECT id FROM budget_policies WHERE company_id = ? AND scope_type = 'agent' AND scope_id = ? AND metric = 'billed_cents' AND window_kind = 'calendar_month_utc'",
+              )
+              .get(agent.companyId, agent.id);
+            if (!existing) {
+              this.db
+                .prepare(
+                  "INSERT INTO budget_policies (id, company_id, scope_type, scope_id, metric, window_kind, amount, warn_percent, hard_stop_enabled, notify_enabled, is_active, created_at, updated_at) VALUES (?, ?, 'agent', ?, 'billed_cents', 'calendar_month_utc', ?, 80, 1, 1, 1, ?, ?)",
+                )
+                .run(randomUUID(), agent.companyId, agent.id, Math.round(agent.budgetMonthlyUsd * 100), ts, ts);
+            }
+          }
+          log.info(`Budget migration: converted ${agents.length} agent budget(s) to policy rows`);
+        },
+      },
     ];
 
     for (const migration of migrations) {
@@ -4306,6 +4336,278 @@ export class AppDatabase {
     this.db
       .prepare("update tasks set task_type = ?, updated_at = ? where id = ?")
       .run(taskType, ts, taskId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Budget Policy CRUD
+  // ---------------------------------------------------------------------------
+
+  saveBudgetPolicy(input: {
+    id?: string | null;
+    companyId: string;
+    scopeType: string;
+    scopeId: string;
+    metric?: string;
+    windowKind?: string;
+    amount: number;
+    warnPercent?: number;
+    hardStopEnabled?: boolean;
+    notifyEnabled?: boolean;
+    isActive?: boolean;
+  }): string {
+    const id = input.id || randomUUID();
+    const ts = nowIso();
+    this.db
+      .prepare(
+        `INSERT OR REPLACE INTO budget_policies
+         (id, company_id, scope_type, scope_id, metric, window_kind, amount, warn_percent,
+          hard_stop_enabled, notify_enabled, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        input.companyId,
+        input.scopeType,
+        input.scopeId,
+        input.metric ?? "billed_cents",
+        input.windowKind ?? "calendar_month_utc",
+        input.amount,
+        input.warnPercent ?? 80,
+        (input.hardStopEnabled ?? true) ? 1 : 0,
+        (input.notifyEnabled ?? true) ? 1 : 0,
+        (input.isActive ?? true) ? 1 : 0,
+        ts,
+        ts,
+      );
+    return id;
+  }
+
+  deleteBudgetPolicy(companyId: string, policyId: string): void {
+    this.transaction(() => {
+      this.db.prepare("DELETE FROM budget_incidents WHERE policy_id = ?").run(policyId);
+      this.db.prepare("DELETE FROM budget_policies WHERE id = ? AND company_id = ?").run(policyId, companyId);
+    });
+  }
+
+  listBudgetPolicies(companyId: string): BudgetPolicyRecord[] {
+    return this.readAll<SqliteRow>(
+      "SELECT * FROM budget_policies WHERE company_id = ? ORDER BY scope_type, created_at",
+      companyId,
+    ).map((r) => ({
+      id: r.id,
+      companyId: r.company_id,
+      scopeType: r.scope_type,
+      scopeId: r.scope_id,
+      metric: r.metric,
+      windowKind: r.window_kind,
+      amount: r.amount,
+      warnPercent: r.warn_percent,
+      hardStopEnabled: !!r.hard_stop_enabled,
+      notifyEnabled: !!r.notify_enabled,
+      isActive: !!r.is_active,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+  }
+
+  getBudgetPolicy(policyId: string): BudgetPolicyRecord | null {
+    const r = this.db.prepare("SELECT * FROM budget_policies WHERE id = ?").get(policyId) as SqliteRow | undefined;
+    if (!r) return null;
+    return {
+      id: r.id,
+      companyId: r.company_id,
+      scopeType: r.scope_type,
+      scopeId: r.scope_id,
+      metric: r.metric,
+      windowKind: r.window_kind,
+      amount: r.amount,
+      warnPercent: r.warn_percent,
+      hardStopEnabled: !!r.hard_stop_enabled,
+      notifyEnabled: !!r.notify_enabled,
+      isActive: !!r.is_active,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    };
+  }
+
+  getActivePoliciesForRun(companyId: string, agentId: string, projectId: string | null): BudgetPolicyRecord[] {
+    const sql = projectId
+      ? `SELECT * FROM budget_policies
+         WHERE company_id = ? AND is_active = 1
+         AND (
+           (scope_type = 'company' AND scope_id = ?)
+           OR (scope_type = 'agent' AND scope_id = ?)
+           OR (scope_type = 'project' AND scope_id = ?)
+         )`
+      : `SELECT * FROM budget_policies
+         WHERE company_id = ? AND is_active = 1
+         AND (
+           (scope_type = 'company' AND scope_id = ?)
+           OR (scope_type = 'agent' AND scope_id = ?)
+         )`;
+    const params: SQLInputValue[] = projectId
+      ? [companyId, companyId, agentId, projectId]
+      : [companyId, companyId, agentId];
+    return this.readAll<SqliteRow>(sql, ...params).map((r) => ({
+      id: r.id,
+      companyId: r.company_id,
+      scopeType: r.scope_type,
+      scopeId: r.scope_id,
+      metric: r.metric,
+      windowKind: r.window_kind,
+      amount: r.amount,
+      warnPercent: r.warn_percent,
+      hardStopEnabled: !!r.hard_stop_enabled,
+      notifyEnabled: !!r.notify_enabled,
+      isActive: !!r.is_active,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+  }
+
+  getCalendarMonthWindow(): { start: string; end: string } {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth();
+    const start = new Date(Date.UTC(year, month, 1)).toISOString();
+    const end = new Date(Date.UTC(year, month + 1, 1)).toISOString();
+    return { start, end };
+  }
+
+  getSpentInWindow(policy: BudgetPolicyRecord): number {
+    const { start, end } = this.getCalendarMonthWindow();
+    let sql: string;
+    let params: SQLInputValue[];
+    if (policy.scopeType === "agent") {
+      sql = "SELECT COALESCE(SUM(amount_usd), 0) * 100 as total_cents FROM cost_entries WHERE company_id = ? AND created_at >= ? AND created_at < ? AND agent_id = ?";
+      params = [policy.companyId, start, end, policy.scopeId];
+    } else if (policy.scopeType === "project") {
+      sql = "SELECT COALESCE(SUM(amount_usd), 0) * 100 as total_cents FROM cost_entries WHERE company_id = ? AND created_at >= ? AND created_at < ? AND project_id = ?";
+      params = [policy.companyId, start, end, policy.scopeId];
+    } else {
+      sql = "SELECT COALESCE(SUM(amount_usd), 0) * 100 as total_cents FROM cost_entries WHERE company_id = ? AND created_at >= ? AND created_at < ?";
+      params = [policy.companyId, start, end];
+    }
+    const row = this.db.prepare(sql).get(...params) as { total_cents: number } | undefined;
+    return Math.round(row?.total_cents ?? 0);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Budget Incident CRUD
+  // ---------------------------------------------------------------------------
+
+  upsertBudgetIncident(
+    policy: BudgetPolicyRecord,
+    thresholdType: "warn_threshold" | "hard_stop",
+    amountObserved: number,
+  ): string {
+    const { start, end } = this.getCalendarMonthWindow();
+    const existing = this.db
+      .prepare(
+        "SELECT id FROM budget_incidents WHERE policy_id = ? AND window_start = ? AND threshold_type = ? AND status = 'open'",
+      )
+      .get(policy.id, start, thresholdType) as { id: string } | undefined;
+
+    const ts = nowIso();
+    if (existing) {
+      this.db
+        .prepare("UPDATE budget_incidents SET amount_observed = ?, updated_at = ? WHERE id = ?")
+        .run(amountObserved, ts, existing.id);
+      return existing.id;
+    }
+
+    const id = randomUUID();
+    this.db
+      .prepare(
+        `INSERT INTO budget_incidents
+         (id, company_id, policy_id, scope_type, scope_id, metric, window_kind,
+          window_start, window_end, threshold_type, amount_limit, amount_observed,
+          status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)`,
+      )
+      .run(
+        id,
+        policy.companyId,
+        policy.id,
+        policy.scopeType,
+        policy.scopeId,
+        policy.metric,
+        policy.windowKind,
+        start,
+        end,
+        thresholdType,
+        policy.amount,
+        amountObserved,
+        ts,
+        ts,
+      );
+    return id;
+  }
+
+  listBudgetIncidents(companyId: string, statusFilter: string = "all"): BudgetIncidentRecord[] {
+    const sql = statusFilter === "all"
+      ? "SELECT * FROM budget_incidents WHERE company_id = ? ORDER BY created_at DESC"
+      : "SELECT * FROM budget_incidents WHERE company_id = ? AND status = ? ORDER BY created_at DESC";
+    const rows = statusFilter === "all"
+      ? this.readAll<SqliteRow>(sql, companyId)
+      : this.readAll<SqliteRow>(sql, companyId, statusFilter);
+    return rows.map((r) => ({
+      id: r.id,
+      companyId: r.company_id,
+      policyId: r.policy_id,
+      scopeType: r.scope_type,
+      scopeId: r.scope_id,
+      metric: r.metric,
+      windowKind: r.window_kind,
+      windowStart: r.window_start,
+      windowEnd: r.window_end,
+      thresholdType: r.threshold_type,
+      amountLimit: r.amount_limit,
+      amountObserved: r.amount_observed,
+      status: r.status,
+      resolvedAt: r.resolved_at,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+  }
+
+  resolveBudgetIncident(incidentId: string, companyId: string): void {
+    const ts = nowIso();
+    this.db
+      .prepare(
+        "UPDATE budget_incidents SET status = 'resolved', resolved_at = ?, updated_at = ? WHERE id = ? AND company_id = ? AND status = 'open'",
+      )
+      .run(ts, ts, incidentId, companyId);
+  }
+
+  resolveIncidentsForPolicy(policyId: string, resolutionStatus: string): number {
+    const ts = nowIso();
+    const result = this.db
+      .prepare(
+        "UPDATE budget_incidents SET status = ?, resolved_at = ?, updated_at = ? WHERE policy_id = ? AND status = 'open'",
+      )
+      .run(resolutionStatus, ts, ts, policyId);
+    return Number(result.changes);
+  }
+
+  resolveWarnIncidentsForPolicy(policyId: string, resolutionStatus: string): number {
+    const ts = nowIso();
+    const result = this.db
+      .prepare(
+        "UPDATE budget_incidents SET status = ?, resolved_at = ?, updated_at = ? WHERE policy_id = ? AND status = 'open' AND threshold_type = 'warn_threshold'",
+      )
+      .run(resolutionStatus, ts, ts, policyId);
+    return Number(result.changes);
+  }
+
+  autoCloseExpiredIncidents(companyId: string): number {
+    const ts = nowIso();
+    const result = this.db
+      .prepare(
+        "UPDATE budget_incidents SET status = 'auto_closed', resolved_at = ?, updated_at = ? WHERE company_id = ? AND status = 'open' AND window_end <= ?",
+      )
+      .run(ts, ts, companyId, ts);
+    return Number(result.changes);
   }
 
   private openConnection(): SqliteDatabase {

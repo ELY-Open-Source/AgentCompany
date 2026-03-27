@@ -95,6 +95,12 @@ const api: DesktopApi = {
   listAgentSkills: (companyId, agentId) =>
     ipcRenderer.invoke(IPC_CHANNELS.listAgentSkills, { companyId, agentId }),
   listWakeupRequests: (input) => ipcRenderer.invoke(IPC_CHANNELS.listWakeupRequests, input),
+  saveBudgetPolicy: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveBudgetPolicy, input),
+  deleteBudgetPolicy: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteBudgetPolicy, input),
+  listBudgetPolicies: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.listBudgetPolicies, companyId),
+  listBudgetIncidents: (input) => ipcRenderer.invoke(IPC_CHANNELS.listBudgetIncidents, input),
+  resolveBudgetIncident: (input) => ipcRenderer.invoke(IPC_CHANNELS.resolveBudgetIncident, input),
+  getBudgetStatus: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.getBudgetStatus, companyId),
   recoveryRetry: (taskId: string, agentId: string, companyId: string) =>
     ipcRenderer.invoke("recovery:retry", { taskId, agentId, companyId }),
   recoveryDismiss: (taskId: string) =>
