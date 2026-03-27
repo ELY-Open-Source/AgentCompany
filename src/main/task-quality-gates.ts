@@ -20,11 +20,12 @@ export interface CapabilityMatchResult {
   warning?: string;
 }
 
-/** Minimal DB interface for capability matching — keeps the function testable with mocks. */
+/** Minimal DB interface for capability matching — keeps the function testable with mocks.
+ *  Skill methods are optional since the skill system may not be implemented yet (graceful degradation per D-07). */
 export interface CapabilityMatchDb {
   getAgent(id: string): { name: string; capabilities: string };
-  listAgentSkillAssignments(id: string): string[];
-  getCompanySkill(companyId: string, skillId: string): { name: string; description: string | null; slug: string } | null;
+  listAgentSkillAssignments?(id: string): string[];
+  getCompanySkill?(companyId: string, skillId: string): { name: string; description: string | null; slug: string } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -130,12 +131,14 @@ export function checkCapabilityMatch(
   // Check skill assignments for additional matching (graceful degradation)
   let skillOverlap = 0;
   try {
-    const skillIds = db.listAgentSkillAssignments(agentId);
-    for (const skillId of skillIds) {
-      const skill = db.getCompanySkill(companyId, skillId);
-      if (skill) {
-        const skillWords = tokenize(`${skill.name} ${skill.description ?? ""} ${skill.slug}`);
-        skillOverlap += taskWords.filter((w) => skillWords.includes(w)).length;
+    if (db.listAgentSkillAssignments && db.getCompanySkill) {
+      const skillIds = db.listAgentSkillAssignments(agentId);
+      for (const skillId of skillIds) {
+        const skill = db.getCompanySkill(companyId, skillId);
+        if (skill) {
+          const skillWords = tokenize(`${skill.name} ${skill.description ?? ""} ${skill.slug}`);
+          skillOverlap += taskWords.filter((w) => skillWords.includes(w)).length;
+        }
       }
     }
   } catch {
