@@ -161,3 +161,159 @@ export function checkCapabilityMatch(
     warning: `Agent "${agent.name}" may lack skills for this task. Their capabilities (${agent.capabilities.slice(0, 80)}...) have no overlap with the task description. Consider reassigning.`,
   };
 }
+
+// ---------------------------------------------------------------------------
+// TASK-04: Stale Review Escalation
+// ---------------------------------------------------------------------------
+
+export const REVIEW_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes (D-08)
+
+export interface SweepStaleReviewsDeps {
+  db: {
+    queryAll: <T>(sql: string, ...params: unknown[]) => T[];
+    getManagerForAgent: (agentId: string) => { id: string; name: string; companyId: string } | null;
+    getChainOfCommand: (agentId: string) => Array<{ id: string; name: string }>;
+    advanceTaskStatus: (taskId: string, newStatus: string, comment?: string) => { previousStatus: string };
+  };
+  dispatchAgentMessage: (
+    deps: {
+      db: SweepStaleReviewsDeps["db"];
+      emitEvent: (...args: unknown[]) => void;
+      publishDomainChanged: () => void;
+      wakeAgentIfPossible: (agentId: string, companyId: string, trigger: string) => void;
+    },
+    message: {
+      companyId: string;
+      fromAgentId: string;
+      toAgentId: string | null;
+      channel: string;
+      subject: string;
+      body: string;
+      priority: string;
+    },
+    wakeTrigger: string,
+  ) => { ok: boolean };
+  resolveApprovalDecision: (params: {
+    db: SweepStaleReviewsDeps["db"];
+    handleApprovalResolved: (approvalId: string, companyId: string, decision: string) => void;
+    companyId: string;
+    approvalId: string;
+    state: "approved" | "rejected" | "revision_requested";
+    decisionNote?: string;
+    detail?: string | null;
+    actor?: string;
+  }) => void;
+  notify: (options: {
+    title: string;
+    body: string;
+    urgency?: string;
+    navigation?: { section: string; entityId?: string };
+    batchKey?: string;
+  }) => void;
+  handleTaskStatusChange: (taskId: string, companyId: string, previousStatus: string, newStatus: string) => void;
+  handleApprovalResolved: (approvalId: string, companyId: string, decision: string) => void;
+  emitEvent: (...args: unknown[]) => void;
+  publishDomainChanged: () => void;
+  wakeAgentIfPossible: (agentId: string, companyId: string, trigger: string) => void;
+  logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void };
+}
+
+export function sweepStaleReviews(
+  companyId: string,
+  deps: SweepStaleReviewsDeps,
+  now: number = Date.now(),
+): number {
+  let escalatedCount = 0;
+  const reviewTasks = deps.db.queryAll<{
+    id: string;
+    assigneeAgentId: string | null;
+    updatedAt: string;
+    title: string;
+  }>(
+    `SELECT id, assignee_agent_id as assigneeAgentId, updated_at as updatedAt, title
+     FROM tasks
+     WHERE company_id = ? AND status = 'in_review'`,
+    companyId,
+  );
+
+  for (const task of reviewTasks) {
+    const reviewAge = now - new Date(task.updatedAt).getTime();
+    if (reviewAge < REVIEW_TIMEOUT_MS) continue;
+    if (!task.assigneeAgentId) continue;
+
+    // The reviewer is the assignee's direct manager
+    const reviewer = deps.db.getManagerForAgent(task.assigneeAgentId);
+    if (!reviewer) continue; // No manager = CEO-assigned task, skip escalation
+
+    // D-09: Escalate to the reviewer's manager (manager's manager)
+    const chain = deps.db.getChainOfCommand(reviewer.id);
+    const escalationTarget = chain.length > 0 ? chain[0] : null;
+
+    if (escalationTarget) {
+      deps.dispatchAgentMessage(
+        {
+          db: deps.db,
+          emitEvent: deps.emitEvent,
+          publishDomainChanged: deps.publishDomainChanged,
+          wakeAgentIfPossible: deps.wakeAgentIfPossible,
+        },
+        {
+          companyId,
+          fromAgentId: reviewer.id,
+          toAgentId: escalationTarget.id,
+          channel: "direct",
+          subject: `Review timeout: ${task.title}`,
+          body: `Review by ${reviewer.name} on "${task.title}" has been pending for over 30 minutes. Auto-escalating.`,
+          priority: "urgent",
+        },
+        "subtask_completed",
+      );
+    } else {
+      // D-09: No higher manager (reviewer is CEO) -- notify human
+      deps.notify({
+        title: "Review Timeout",
+        body: `"${task.title}" review has been pending over 30 minutes. Auto-approving.`,
+        urgency: "critical",
+        navigation: { section: "tasks", entityId: task.id },
+        batchKey: "review_escalation",
+      });
+    }
+
+    // D-10: Auto-approve any pending approval linked to this task
+    const pendingApprovals = deps.db.queryAll<{ id: string }>(
+      `SELECT id FROM approvals
+       WHERE company_id = ? AND related_task_id = ? AND state = 'pending'
+       LIMIT 1`,
+      companyId,
+      task.id,
+    );
+    for (const approval of pendingApprovals) {
+      try {
+        deps.resolveApprovalDecision({
+          db: deps.db,
+          handleApprovalResolved: deps.handleApprovalResolved,
+          companyId,
+          approvalId: approval.id,
+          state: "approved",
+          decisionNote: "Auto-approved: review timeout exceeded 30 minutes.",
+          detail: "Auto-approved by review timeout escalation",
+          actor: "system",
+        });
+      } catch {
+        // Already decided (race condition with manual approval) -- skip silently (Pitfall 3)
+      }
+    }
+
+    // D-10: Advance task status from in_review to done
+    try {
+      deps.db.advanceTaskStatus(task.id, "done", "Auto-advanced: review timeout exceeded 30 minutes.");
+      deps.handleTaskStatusChange(task.id, companyId, "in_review", "done");
+    } catch {
+      // Task may have been updated by manual action
+    }
+
+    escalatedCount++;
+  }
+
+  return escalatedCount;
+}
