@@ -234,6 +234,13 @@ export function createServiceGraph({
         };
       })(),
       budgetService: getOrCreateBudgetEnforcementService(),
+      getSessionHandoff: (taskId: string) => {
+        try {
+          return getOrCreateSessionManagementService().getHandoffContext(taskId);
+        } catch {
+          return null;
+        }
+      },
     });
     workerService.createWorker();
 

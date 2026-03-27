@@ -66,6 +66,7 @@ interface OrchestrationDependencies {
   isQuitting: () => boolean;
   listRuntimeSkillEntries: (companyId: string, agentId: string, connectorId: string) => Array<{ runtimeName: string; sourcePath: string }>;
   budgetService: ReturnType<typeof createBudgetEnforcementService>;
+  getSessionHandoff?: (taskId: string) => string | null;
 }
 
 export function createOrchestrationService({
@@ -81,6 +82,7 @@ export function createOrchestrationService({
   isQuitting,
   listRuntimeSkillEntries,
   budgetService,
+  getSessionHandoff,
 }: OrchestrationDependencies) {
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   const scheduleLastFiredMap = new Map<string, number>();
@@ -229,6 +231,16 @@ export function createOrchestrationService({
         createdAt: comment.createdAt,
       }));
 
+    // D-07: Load handoff from previous rotated session
+    let sessionHandoff: string | null = null;
+    if (getSessionHandoff) {
+      try {
+        sessionHandoff = getSessionHandoff(task.id);
+      } catch (err) {
+        logger.warn(`[run] Failed to load session handoff for task ${task.id}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
     const systemPrompt = apiUrl ? buildTaskPrompt({
       agent,
       apiUrl,
@@ -280,6 +292,7 @@ export function createOrchestrationService({
         .filter((document) => document.companyId === companyId && (document.authorAgentId === agent.id || document.reviewerAgentId === agent.id || document.status === "in_review"))
         .slice(0, 5),
       allConnectors: snapshot.connectors.map((c) => ({ id: c.id, label: c.label, status: c.status })),
+      sessionHandoff,
     }) : null;
 
     if (apiUrl) {
@@ -292,7 +305,14 @@ export function createOrchestrationService({
       env.AGENT_COMPANY_WAKE_REASON = trigger;
     }
 
-    const taskSession = db.getTaskSession(task.id);
+    // SESS-01: Prefer task_sessions table, fall back to legacy tasks.session_json
+    const activeSession = db.getActiveTaskSession(task.id);
+    const taskSession = activeSession
+      ? {
+          sessionParams: activeSession.sessionParamsJson ? JSON.parse(activeSession.sessionParamsJson) as Record<string, unknown> : null,
+          sessionDisplayId: activeSession.sessionDisplayId,
+        }
+      : db.getTaskSession(task.id);
     let thinkingEffort: string | null = null;
     try {
       const meta = JSON.parse(agent.metadataJson || "{}");
