@@ -1922,5 +1922,100 @@ export class AgentApiServer {
         })),
       });
     });
+
+    // ── Skill REST API endpoints ──────────────────────────────────────
+
+    // List all skills for a company (summary, no markdown)
+    this.addRoute("GET", "/api/companies/:companyId/skills", (_req, res, params, token) => {
+      const companyId = params.companyId!;
+      if (companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+      const skills = this.db.listCompanySkills(companyId);
+      this.json(res, 200, skills.map((s) => ({
+        id: s.id,
+        name: s.name,
+        slug: s.slug,
+        description: s.description,
+        sourceType: s.sourceType,
+        trustLevel: s.trustLevel,
+        createdAt: s.createdAt,
+      })));
+    });
+
+    // Get skill detail including full markdown
+    this.addRoute("GET", "/api/skills/:skillId", (_req, res, params, token) => {
+      const skill = this.db.getCompanySkill(token.companyId, params.skillId!);
+      if (!skill) {
+        this.json(res, 404, { error: "Skill not found" });
+        return;
+      }
+      this.json(res, 200, skill);
+    });
+
+    // Assign a skill to an agent
+    this.addRoute("POST", "/api/agents/:agentId/skills", (_req, res, params, token, body) => {
+      const agentId = params.agentId!;
+      const parsed = z.object({ skillId: z.string().uuid() }).safeParse(body);
+      if (!parsed.success) {
+        this.json(res, 400, { error: "Invalid body: skillId (uuid) required" });
+        return;
+      }
+      // Verify agent belongs to company
+      const snapshot = this.db.listSnapshot();
+      const agent = snapshot.agents.find((a) => a.id === agentId && a.companyId === token.companyId);
+      if (!agent) {
+        this.json(res, 404, { error: "Agent not found in your company" });
+        return;
+      }
+      // Verify skill belongs to company
+      const skill = this.db.getCompanySkill(token.companyId, parsed.data.skillId);
+      if (!skill) {
+        this.json(res, 404, { error: "Skill not found in your company" });
+        return;
+      }
+      this.db.assignSkillToAgent(agentId, parsed.data.skillId);
+      this.onDomainChanged();
+      this.json(res, 200, { ok: true, message: `Skill "${skill.name}" assigned to agent ${agent.name}` });
+    });
+
+    // Remove a skill from an agent
+    this.addRoute("DELETE", "/api/agents/:agentId/skills/:skillId", (_req, res, params, token) => {
+      const agentId = params.agentId!;
+      const skillId = params.skillId!;
+      // Verify agent belongs to company
+      const snapshot = this.db.listSnapshot();
+      const agent = snapshot.agents.find((a) => a.id === agentId && a.companyId === token.companyId);
+      if (!agent) {
+        this.json(res, 404, { error: "Agent not found in your company" });
+        return;
+      }
+      this.db.removeSkillFromAgent(agentId, skillId);
+      this.onDomainChanged();
+      this.json(res, 200, { ok: true, message: `Skill removed from agent ${agent.name}` });
+    });
+
+    // List skills assigned to an agent
+    this.addRoute("GET", "/api/agents/:agentId/skills", (_req, res, params, token) => {
+      const agentId = params.agentId!;
+      // Verify agent belongs to company
+      const snapshot = this.db.listSnapshot();
+      const agent = snapshot.agents.find((a) => a.id === agentId && a.companyId === token.companyId);
+      if (!agent) {
+        this.json(res, 404, { error: "Agent not found in your company" });
+        return;
+      }
+      const skillIds = this.db.listAgentSkillAssignments(agentId);
+      const skills = skillIds.map((sid) => this.db.getCompanySkill(token.companyId, sid)).filter(Boolean);
+      this.json(res, 200, skills.map((s) => ({
+        id: s!.id,
+        name: s!.name,
+        slug: s!.slug,
+        description: s!.description,
+        sourceType: s!.sourceType,
+        trustLevel: s!.trustLevel,
+      })));
+    });
   }
 }
