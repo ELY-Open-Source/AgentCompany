@@ -14,9 +14,9 @@ import { DEPARTMENT_COLORS } from "@shared/constants"
 
 
 const priorityConfig: Record<string, { label: string; color: string; bg: string }> = {
-  urgent: { label: "Urgent", color: "var(--destructive)", bg: "var(--destructive)" },
-  normal: { label: "Normal", color: "var(--muted-foreground)", bg: "var(--muted-foreground)" },
-  low: { label: "Low", color: "var(--muted-foreground)", bg: "var(--muted-foreground)" },
+  urgent: { label: "Urgent", color: "var(--destructive)", bg: "color-mix(in oklch, var(--destructive) 15%, transparent)" },
+  normal: { label: "Normal", color: "var(--muted-foreground)", bg: "color-mix(in oklch, var(--muted-foreground) 15%, transparent)" },
+  low: { label: "Low", color: "var(--muted-foreground)", bg: "color-mix(in oklch, var(--muted-foreground) 15%, transparent)" },
 }
 
 function getDepartmentColor(department: DepartmentId | null | undefined): string {
