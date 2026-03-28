@@ -383,10 +383,23 @@ export function App() {
   useEffect(() => {
     if (!snapshot) return;
     const root = document.documentElement;
-    root.dataset.theme = snapshot.theme;
-    root.style.colorScheme = snapshot.theme === "system" ? "light dark" : snapshot.theme;
+    const applyTheme = () => {
+      const isDark = snapshot.theme === "dark" ||
+        (snapshot.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      root.classList.toggle("dark", isDark);
+      root.style.colorScheme = isDark ? "dark" : "light";
+    };
+
+    applyTheme();
+
     if (snapshot.locale && snapshot.locale !== locale) {
       setLocale(snapshot.locale);
+    }
+
+    if (snapshot.theme === "system") {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      mq.addEventListener("change", applyTheme);
+      return () => mq.removeEventListener("change", applyTheme);
     }
   }, [snapshot, locale]);
 
