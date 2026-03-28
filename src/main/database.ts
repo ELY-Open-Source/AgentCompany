@@ -1827,6 +1827,58 @@ export class AppDatabase {
   }
 
   /**
+   * Find the most recent completed heartbeat task for this agent that can be reused.
+   * Returns a task with status "done" or "in_review", ordered by most recently updated.
+   * Returns null if no reusable heartbeat task exists.
+   */
+  findReusableHeartbeatTask(agentId: string, companyId: string): TaskRecord | null {
+    const row = this.db
+      .prepare(
+        `SELECT id, company_id as companyId, project_id as projectId, goal_id as goalId,
+                parent_id as parentId, title, description,
+                assignee_agent_id as assigneeAgentId, workspace_id as workspaceId,
+                status, priority, active_run_id as activeRunId,
+                session_json as sessionJson, session_display_id as sessionDisplayId,
+                cost_usd as costUsd, requires_user_review as requiresUserReview,
+                created_at as createdAt, updated_at as updatedAt
+         FROM tasks
+         WHERE company_id = ? AND assignee_agent_id = ? AND title LIKE '[Heartbeat]%'
+           AND status IN ('done', 'in_review')
+         ORDER BY updated_at DESC
+         LIMIT 1`,
+      )
+      .get(companyId, agentId) as TaskRecord | undefined;
+    if (row) {
+      row.requiresUserReview = Boolean(row.requiresUserReview);
+    }
+    return row ?? null;
+  }
+
+  /**
+   * Cancel all duplicate heartbeat tasks per agent within a company, keeping only the most
+   * recently updated one per agent. Does NOT touch in_progress tasks (they may have active runs).
+   * Returns the number of tasks cancelled.
+   */
+  cleanupDuplicateHeartbeatTasks(companyId: string): number {
+    const ts = nowIso();
+    const result = this.db
+      .prepare(
+        `UPDATE tasks SET status = 'cancelled', updated_at = ?
+         WHERE company_id = ? AND title LIKE '[Heartbeat]%'
+           AND status IN ('done', 'in_review', 'todo', 'blocked', 'backlog')
+           AND id NOT IN (
+             SELECT id FROM (
+               SELECT id, ROW_NUMBER() OVER (PARTITION BY assignee_agent_id ORDER BY updated_at DESC) as rn
+               FROM tasks
+               WHERE company_id = ? AND title LIKE '[Heartbeat]%' AND status != 'cancelled'
+             ) WHERE rn = 1
+           )`,
+      )
+      .run(ts, companyId, companyId);
+    return Number(result.changes);
+  }
+
+  /**
    * List tasks from an agent's direct reports that are awaiting review (status = in_review).
    * Used to populate the "Tasks Awaiting Your Review" section in the agent prompt.
    */
