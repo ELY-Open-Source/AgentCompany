@@ -137,6 +137,59 @@ export interface AdapterEnvironmentTestResult {
   testedAt: string;
 }
 
+// ---------------------------------------------------------------------------
+// Skill sync types -- adapter-level skill state and synchronization
+// ---------------------------------------------------------------------------
+
+export type AdapterSkillSyncMode = "unsupported" | "persistent" | "ephemeral";
+
+export type AdapterSkillState =
+  | "available"
+  | "configured"
+  | "installed"
+  | "missing"
+  | "stale"
+  | "external";
+
+export type AdapterSkillOrigin =
+  | "company_managed"
+  | "paperclip_required"
+  | "user_installed"
+  | "external_unknown";
+
+export interface AdapterSkillEntry {
+  key: string;
+  runtimeName: string | null;
+  desired: boolean;
+  managed: boolean;
+  required?: boolean;
+  requiredReason?: string | null;
+  state: AdapterSkillState;
+  origin?: AdapterSkillOrigin;
+  originLabel?: string | null;
+  locationLabel?: string | null;
+  readOnly?: boolean;
+  sourcePath?: string | null;
+  targetPath?: string | null;
+  detail?: string | null;
+}
+
+export interface AdapterSkillSnapshot {
+  adapterType: string;
+  supported: boolean;
+  mode: AdapterSkillSyncMode;
+  desiredSkills: string[];
+  entries: AdapterSkillEntry[];
+  warnings: string[];
+}
+
+export interface AdapterSkillContext {
+  agentId: string;
+  companyId: string;
+  adapterType: string;
+  config: Record<string, unknown>;
+}
+
 export interface AdapterEnvironmentTestContext {
   companyId: string;
   adapterType: string;
@@ -174,6 +227,8 @@ export interface ServerAdapterModule {
   type: string;
   execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult>;
   testEnvironment(ctx: AdapterEnvironmentTestContext): Promise<AdapterEnvironmentTestResult>;
+  listSkills?: (ctx: AdapterSkillContext) => Promise<AdapterSkillSnapshot>;
+  syncSkills?: (ctx: AdapterSkillContext, desiredSkills: string[]) => Promise<AdapterSkillSnapshot>;
   sessionCodec?: AdapterSessionCodec;
   supportsLocalAgentJwt?: boolean;
   models?: AdapterModel[];
