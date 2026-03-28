@@ -145,10 +145,10 @@ export function ChannelSidebar({
                 type="button"
                 onClick={() => onSelectChannel(discussion.key)}
                 className={`group flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition duration-150 ${
-                  selectedChannelKey === discussion.key ? "bg-muted" : "hover:bg-muted/50"
+                  selectedChannelKey === discussion.key ? "bg-accent" : "hover:bg-muted/50"
                 }`}
               >
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: "var(--primary)" }}>
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: "color-mix(in oklch, var(--primary) 12%, transparent)" }}>
                   <Hash size={14} weight={selectedChannelKey === discussion.key ? "fill" : "regular"} style={{ color: "var(--primary)" }} />
                 </div>
                 <span className={`min-w-0 flex-1 truncate text-[13px] ${selectedChannelKey === discussion.key ? "font-semibold text-foreground" : "font-medium text-muted-foreground"}`}>
