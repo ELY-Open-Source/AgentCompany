@@ -8,6 +8,7 @@ import {
   dialog,
   Menu,
   nativeImage,
+  nativeTheme,
   net,
   protocol,
   session,
@@ -219,6 +220,9 @@ export function createDesktopShellService({
         allowRunningInsecureContent: false,
       },
     });
+
+    // Sync native theme with app to ensure Windows title bar matches content
+    nativeTheme.themeSource = "light";
 
     if (isDev && devServerUrl) {
       await mainWindow.loadURL(devServerUrl);

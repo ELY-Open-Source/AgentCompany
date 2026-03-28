@@ -2,8 +2,11 @@ import type { AutomationAction, AutomationStatus, AutomationTrigger, WorkflowSta
 import { ArrowsClockwise, Eye, Funnel, Lightning, Pause, Play, Plus, Robot, Timer, Trash } from "@phosphor-icons/react"
 import { DEPARTMENT_OPTIONS } from "@shared/constants"
 
-export const ACCENT = "var(--primary)"
-export const LINE = "var(--border)"
+// ACCENT/LINE used in template literals for opacity suffixes like `${ACCENT}15`
+// Must be hex values (not CSS vars) so hex alpha notation works.
+// These are the primary/border colors from the OKLCH design tokens converted to hex.
+export const ACCENT = "#343434"
+export const LINE = "#ebebeb"
 
 export const triggerConfig: Record<AutomationTrigger, { label: string; description: string; icon: typeof Lightning }> = {
   task_status_changed: { label: "Task Status Changed", description: "When a task transitions to a new status", icon: ArrowsClockwise },

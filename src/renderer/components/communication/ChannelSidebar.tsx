@@ -148,8 +148,8 @@ export function ChannelSidebar({
                   selectedChannelKey === discussion.key ? "bg-accent" : "hover:bg-muted/50"
                 }`}
               >
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: "color-mix(in oklch, var(--primary) 12%, transparent)" }}>
-                  <Hash size={14} weight={selectedChannelKey === discussion.key ? "fill" : "regular"} style={{ color: "var(--primary)" }} />
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted">
+                  <Hash size={14} weight={selectedChannelKey === discussion.key ? "fill" : "regular"} className="text-muted-foreground" />
                 </div>
                 <span className={`min-w-0 flex-1 truncate text-[13px] ${selectedChannelKey === discussion.key ? "font-semibold text-foreground" : "font-medium text-muted-foreground"}`}>
                   {discussion.label}
