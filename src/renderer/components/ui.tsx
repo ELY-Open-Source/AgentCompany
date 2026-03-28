@@ -80,11 +80,11 @@ export function Panel({
   children: ReactNode;
   action?: ReactNode;
   className?: string;
-  tone?: "plain" | "bg-card border border-border shadow-sm";
+  tone?: "plain" | "surface";
 }) {
   return (
     <section className={`space-y-4 ${className}`}>
-      <div className={`flex items-end justify-between gap-4 ${tone === "bg-card border border-border shadow-sm" ? "border-b border-border pb-3" : ""}`}>
+      <div className={`flex items-end justify-between gap-4 ${tone === "surface" ? "border-b border-border pb-3" : ""}`}>
         <div>
           {eyebrow ? <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-primary">{eyebrow}</div> : null}
           <h2 className="text-[20px] font-bold tracking-[-0.025em] text-foreground">{title}</h2>

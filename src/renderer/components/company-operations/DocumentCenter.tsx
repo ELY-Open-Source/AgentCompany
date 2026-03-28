@@ -99,7 +99,7 @@ export function DocumentCenter({ companyId, documents, agents, projects, goals, 
       <Modal open={editingId !== null} title={activeDocument ? activeDocument.title : "New document"} onClose={() => setEditingId(null)} width="760px">
         <DocumentEditor companyId={companyId} agents={agents} projects={projects} goals={goals} document={editingId === "__new__" ? null : activeDocument} onSaved={async () => { setEditingId(null); await onRefresh(); }} />
       </Modal>
-      <ConfirmDialog open={deleteId !== null} title="Delete document" message="This removes the document from the company knowledge bg-card border border-border shadow-sm." onCancel={() => setDeleteId(null)} onConfirm={async () => { if (!deleteId) return; const result = await window.agentCompany.deleteDocument({ id: deleteId, companyId }); setDeleteId(null); if (result.ok) await onRefresh(); }} />
+      <ConfirmDialog open={deleteId !== null} title="Delete document" message="This removes the document from the company knowledge base." onCancel={() => setDeleteId(null)} onConfirm={async () => { if (!deleteId) return; const result = await window.agentCompany.deleteDocument({ id: deleteId, companyId }); setDeleteId(null); if (result.ok) await onRefresh(); }} />
     </div>
   );
 }

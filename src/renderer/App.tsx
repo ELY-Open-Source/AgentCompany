@@ -1213,7 +1213,7 @@ export function App() {
                         documents={companyDocuments}
                         companyId={currentCompany!.id}
                         onDecide={async (state, note) => {
-                          unwrap(await window.agentCompany.decideApproval({ companyId: currentCompany!.id, approvalId: selectedApproval.id, state, decisionNote: note ?? `${state} from desktop control bg-card border border-border shadow-sm.` }));
+                          unwrap(await window.agentCompany.decideApproval({ companyId: currentCompany!.id, approvalId: selectedApproval.id, state, decisionNote: note ?? `${state} from desktop control surface.` }));
                           await refresh();
                         }}
                         onDeleted={async () => { setSelectedApprovalId(null); await refresh(); }}
