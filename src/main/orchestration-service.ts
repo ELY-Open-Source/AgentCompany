@@ -401,9 +401,7 @@ export function createOrchestrationService({
 
     const assignedTasks = db.listAgentTasks(agentId, companyId, ["todo", "in_progress", "blocked"]);
     const isTimer = trigger === "timer";
-    const candidateTasks = isTimer
-      ? assignedTasks.filter((entry) => !entry.title.startsWith("[Heartbeat]"))
-      : assignedTasks;
+    const candidateTasks = assignedTasks;
 
     let task = candidateTasks.find((entry) => !entry.activeRunId) ?? null;
 
@@ -426,28 +424,41 @@ export function createOrchestrationService({
         return null;
       }
 
-      const taskTitle = isCeo
-        ? `[Heartbeat] ${agent.name} — Strategic planning & task delegation`
-        : isManager
-          ? `[Heartbeat] ${agent.name} — Review team & delegate work`
-          : `[Heartbeat] ${agent.name} — Check for work`;
-      const taskDescription = isCeo
-        ? "Review active company goals. Break each goal into projects and actionable tasks. Assign tasks to department leads and team members. Create tasks using the API. This is your primary responsibility as CEO — ensure every goal has a clear execution plan with assigned owners."
-        : isManager
-          ? "Review your department's goals and your team's workload. Create tasks for your direct reports if they have capacity. Review any work submitted for your approval. Ensure your team is productive and unblocked."
-          : `Automated heartbeat run for ${agent.name}. Review assigned tasks, check goals, and take action as needed.`;
+      // Paperclip-style task reuse: coalesce into existing heartbeat task instead of creating duplicates
+      const reusableTask = db.findReusableHeartbeatTask(agentId, companyId);
+      if (reusableTask) {
+        // Reset to "todo" so checkoutTask CAS succeeds (requires status IN ('todo', 'backlog'))
+        db.advanceTaskStatus(reusableTask.id, "todo", `Heartbeat task recycled for ${trigger} cycle.`);
+        task = db.getTask(reusableTask.id);
+        logger.info(`[heartbeat] Reusing existing heartbeat task for ${agent.name}: ${task.title}`);
+      } else {
+        // Only create new heartbeat task if none exists to reuse
+        const taskTitle = isCeo
+          ? `[Heartbeat] ${agent.name} — Strategic planning & task delegation`
+          : isManager
+            ? `[Heartbeat] ${agent.name} — Review team & delegate work`
+            : `[Heartbeat] ${agent.name} — Check for work`;
+        const taskDescription = isCeo
+          ? "Review active company goals. Break each goal into projects and actionable tasks. Assign tasks to department leads and team members. Create tasks using the API. This is your primary responsibility as CEO — ensure every goal has a clear execution plan with assigned owners."
+          : isManager
+            ? "Review your department's goals and your team's workload. Create tasks for your direct reports if they have capacity. Review any work submitted for your approval. Ensure your team is productive and unblocked."
+            : `Automated heartbeat run for ${agent.name}. Review assigned tasks, check goals, and take action as needed.`;
 
-      const taskId = db.saveTask({
-        companyId,
-        title: taskTitle,
-        description: taskDescription,
-        assigneeAgentId: agentId,
-        workspaceId: agent.workspaceId ?? undefined,
-        status: "in_progress",
-        priority: isCeo ? "high" : "medium",
-      });
-      task = db.getTask(taskId);
-      logger.info(`[heartbeat] Created bootstrap task for ${agent.name}: ${taskTitle}`);
+        // CRITICAL FIX: Create as "todo" (not "in_progress") so checkoutTask CAS works.
+        // Previously created as "in_progress" which caused checkoutTask to always fail
+        // (it requires status IN ('todo', 'backlog')), silently dropping the run.
+        const taskId = db.saveTask({
+          companyId,
+          title: taskTitle,
+          description: taskDescription,
+          assigneeAgentId: agentId,
+          workspaceId: agent.workspaceId ?? undefined,
+          status: "todo",
+          priority: isCeo ? "high" : "medium",
+        });
+        task = db.getTask(taskId);
+        logger.info(`[heartbeat] Created heartbeat task for ${agent.name}: ${taskTitle}`);
+      }
     }
 
     // Generate runId upfront for CAS checkout (EXEC-01, EXEC-02)
@@ -706,6 +717,19 @@ export function createOrchestrationService({
 
   function startHeartbeatScheduler() {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
+
+    // One-time cleanup of existing duplicate heartbeat tasks from before the coalescing fix
+    try {
+      const activeCompanies = db.listActiveCompanyIds();
+      for (const company of activeCompanies) {
+        const cleaned = db.cleanupDuplicateHeartbeatTasks(company.id);
+        if (cleaned > 0) {
+          logger.info(`[heartbeat] Cleaned up ${cleaned} duplicate heartbeat task(s) for company ${company.name}`);
+        }
+      }
+    } catch (err) {
+      logger.error(`[heartbeat] Heartbeat task cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     heartbeatTimer = setInterval(() => {
       try {
