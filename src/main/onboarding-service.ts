@@ -143,12 +143,16 @@ export function createOnboardingService({
     const kickoffTaskDescription = activeGoal
       ? [
           `Read the founding goal "${activeGoal.title}" and convert it into a real operating plan.`,
-          "Create the first execution structure inside AgentCompany: projects, tasks, delegation, approvals, and coordination messages as needed.",
-          "Use the bound workspace as the default execution boundary for the first round of work.",
+          `Before planning, explore the workspace codebase: list the top-level directory, read key files (README, package.json, config files), and understand the project structure, languages, and frameworks in use.`,
+          `Consider the full company context — the company name "${company.name}", its description ("${company.description}"), and the goal — when deciding what departments, roles, and execution strategy are needed.`,
+          `Create the first execution structure inside AgentCompany: projects, tasks, delegation, approvals, and coordination messages as needed.`,
+          `Use the bound workspace as the default execution boundary for the first round of work.`,
         ].join("\n\n")
       : [
-          "Establish the first operating plan for the company.",
-          "Review the current company state, create the first real tasks, delegate initial work, and report progress through tasks, approvals, and messages.",
+          `Establish the first operating plan for the company.`,
+          `Before planning, explore the workspace codebase: list the top-level directory, read key files (README, package.json, config files), and understand the project structure, languages, and frameworks in use.`,
+          `Consider the full company context — the company name "${company.name}" and its description ("${company.description}") — when deciding what departments, roles, and execution strategy are needed.`,
+          `Review the current company state, create the first real tasks, delegate initial work, and report progress through tasks, approvals, and messages.`,
         ].join("\n\n");
 
     const taskId = db.saveTask({
