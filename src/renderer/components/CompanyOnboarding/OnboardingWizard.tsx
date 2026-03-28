@@ -201,7 +201,7 @@ export function CompanyOnboarding({
 
       <div className="min-h-0 overflow-y-auto border-l border-border bg-background">
         <div className="relative flex min-h-full items-center px-6 py-10 md:px-10">
-          {canCancel && onCancel ? (
+          {canCancel && onCancel && !isFirstLaunch ? (
             <button
               type="button"
               onClick={onCancel}
