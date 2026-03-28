@@ -206,7 +206,7 @@ export function createDesktopShellService({
       y: savedWindowState.bounds.y,
       minWidth: 1180,
       minHeight: 760,
-      backgroundColor: "#13110f",
+      backgroundColor: "#ffffff",
       titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
       webPreferences: {
         preload: preloadPath,
