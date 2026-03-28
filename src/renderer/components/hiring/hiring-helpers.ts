@@ -24,12 +24,12 @@ export function getHiringStage(agent: AgentRecord, approval: ApprovalRecord | nu
 
 export function stageColor(stage: HiringStage): string {
   switch (stage) {
-    case "requisition": return "bg-[color:var(--warn-soft)] text-[color:var(--warn)]";
-    case "pending_approval": return "bg-[color:var(--warn-soft)] text-[color:var(--warn)]";
-    case "approved": return "bg-[color:var(--success-soft)] text-[color:var(--success)]";
-    case "onboarding": return "bg-[color:var(--accent-soft)] text-[color:var(--accent)]";
-    case "active": return "bg-[color:var(--success-soft)] text-[color:var(--success)]";
-    case "rejected": return "bg-[color:var(--danger-soft)] text-[color:var(--danger)]";
+    case "requisition": return "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-600 dark:text-yellow-400";
+    case "pending_approval": return "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-600 dark:text-yellow-400";
+    case "approved": return "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400";
+    case "onboarding": return "bg-accent text-primary";
+    case "active": return "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400";
+    case "rejected": return "bg-red-100 dark:bg-red-900/50 text-destructive";
   }
 }
 

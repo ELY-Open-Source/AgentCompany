@@ -21,15 +21,15 @@ export function ChartCard({
 }: ChartCardProps) {
   return (
     <div
-      className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-4"
+      className="rounded-lg border border-border bg-card px-4 py-4"
       role="img"
       aria-label={ariaLabel}
     >
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-[13px] font-semibold text-[color:var(--text)]">
+        <span className="text-[13px] font-semibold text-foreground">
           {title}
         </span>
-        <span className="text-[11px] text-[color:var(--muted)]">
+        <span className="text-[11px] text-muted-foreground">
           {period}
         </span>
       </div>
@@ -37,12 +37,12 @@ export function ChartCard({
         <div className="flex h-[220px] flex-col items-center justify-center gap-2">
           <ChartLine
             size={32}
-            className="text-[color:var(--muted)] opacity-50"
+            className="text-muted-foreground opacity-50"
           />
-          <span className="text-[13px] font-semibold text-[color:var(--muted)]">
+          <span className="text-[13px] font-semibold text-muted-foreground">
             {emptyHeading}
           </span>
-          <span className="max-w-[200px] text-center text-[11px] text-[color:var(--muted)]">
+          <span className="max-w-[200px] text-center text-[11px] text-muted-foreground">
             {emptyBody}
           </span>
         </div>

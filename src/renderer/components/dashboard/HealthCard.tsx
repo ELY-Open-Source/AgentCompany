@@ -58,11 +58,11 @@ export function computeHealthScore(props: HealthInputProps): number {
 }
 
 function healthLabel(score: number): { label: string; tone: string } {
-  if (score >= 90) return { label: "Excellent", tone: "text-[color:var(--success)]" };
-  if (score >= 70) return { label: "Good", tone: "text-[color:var(--success)]" };
-  if (score >= 50) return { label: "Fair", tone: "text-[color:var(--warn)]" };
-  if (score >= 30) return { label: "Poor", tone: "text-[color:var(--warn)]" };
-  return { label: "Critical", tone: "text-[color:var(--danger)]" };
+  if (score >= 90) return { label: "Excellent", tone: "text-green-600 dark:text-green-400" };
+  if (score >= 70) return { label: "Good", tone: "text-green-600 dark:text-green-400" };
+  if (score >= 50) return { label: "Fair", tone: "text-yellow-600 dark:text-yellow-400" };
+  if (score >= 30) return { label: "Poor", tone: "text-yellow-600 dark:text-yellow-400" };
+  return { label: "Critical", tone: "text-destructive" };
 }
 
 export function HealthRing({ score }: { score: number }) {
@@ -72,16 +72,16 @@ export function HealthRing({ score }: { score: number }) {
   const { label, tone } = healthLabel(score);
 
   const strokeColor = score >= 70
-    ? "var(--success)"
+    ? "var(--primary)"
     : score >= 50
-      ? "var(--warn)"
-      : "var(--danger)";
+      ? "var(--destructive)"
+      : "var(--destructive)";
 
   return (
     <div className="flex items-center gap-5">
       <div className="relative h-[90px] w-[90px] shrink-0">
         <svg viewBox="0 0 88 88" className="h-full w-full -rotate-90">
-          <circle cx="44" cy="44" r={radius} fill="none" stroke="var(--line)" strokeWidth="6" />
+          <circle cx="44" cy="44" r={radius} fill="none" stroke="var(--border)" strokeWidth="6" />
           <motion.circle
             cx="44"
             cy="44"
@@ -101,7 +101,7 @@ export function HealthRing({ score }: { score: number }) {
         </div>
       </div>
       <div>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Company Health</div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Company Health</div>
         <div className={`text-[16px] font-semibold ${tone}`}>{label}</div>
       </div>
     </div>

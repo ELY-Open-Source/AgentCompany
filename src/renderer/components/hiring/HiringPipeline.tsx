@@ -87,16 +87,16 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
               <button
                 onClick={() => setFilterStage(filterStage === stage ? "all" : stage)}
                 className={`px-3 py-2 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
-                  filterStage === stage ? "ring-1 ring-[color:var(--accent)]/40 bg-[color:var(--panel-soft)]" : "hover:bg-[color:var(--panel-soft)]"
+                  filterStage === stage ? "ring-1 ring-[color:var(--primary)]/40 bg-muted" : "hover:bg-muted"
                 } ${stageColor(stage)}`}
               >
                 {stageLabelMap[stage]}
-                <span className="ml-1.5 inline-flex items-center justify-center h-5 w-5 rounded-full bg-[color:var(--line)] text-[10px]">
+                <span className="ml-1.5 inline-flex items-center justify-center h-5 w-5 rounded-full bg-[color:var(--border)] text-[10px]">
                   {stageCounts[stage]}
                 </span>
               </button>
               {idx < STAGE_ORDER.length - 2 && (
-                <ArrowRight size={12} className="text-[color:var(--muted)] flex-shrink-0" />
+                <ArrowRight size={12} className="text-muted-foreground flex-shrink-0" />
               )}
             </div>
           ))}
@@ -104,11 +104,11 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
             <button
               onClick={() => setFilterStage(filterStage === "rejected" ? "all" : "rejected")}
               className={`ml-4 px-3 py-2 rounded-md text-xs font-medium transition-colors ${
-                filterStage === "rejected" ? "ring-1 ring-[color:var(--danger)]/40 bg-[color:var(--panel-soft)]" : "hover:bg-[color:var(--panel-soft)]"
+                filterStage === "rejected" ? "ring-1 ring-[color:var(--destructive)]/40 bg-muted" : "hover:bg-muted"
               } ${stageColor("rejected")}`}
             >
               {stageLabelMap.rejected}
-              <span className="ml-1.5 inline-flex items-center justify-center h-5 w-5 rounded-full bg-[color:var(--line)] text-[10px]">
+              <span className="ml-1.5 inline-flex items-center justify-center h-5 w-5 rounded-full bg-[color:var(--border)] text-[10px]">
                 {stageCounts.rejected}
               </span>
             </button>
@@ -118,7 +118,7 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
 
       {pendingCount > 0 && (
         <Panel title={t("hiring.pendingApproval")}>
-          <div className="divide-y divide-[color:var(--line)]">
+          <div className="divide-y divide-[color:var(--border)]">
             {allCandidates
               .filter(c => c.stage === "requisition" || c.stage === "pending_approval")
               .map((candidate) => {
@@ -126,21 +126,21 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
                 const ag = candidate.agent;
                 return (
                   <div key={a?.id ?? ag?.id} className="px-4 py-3 flex items-start gap-3">
-                    <div className="flex-shrink-0 mt-0.5 h-8 w-8 rounded-full bg-[color:var(--warn-soft)] flex items-center justify-center">
-                      <UserPlus size={16} className="text-[color:var(--warn)]" />
+                    <div className="flex-shrink-0 mt-0.5 h-8 w-8 rounded-full bg-yellow-100 dark:bg-yellow-900/50 flex items-center justify-center">
+                      <UserPlus size={16} className="text-yellow-600 dark:text-yellow-400" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm text-[color:var(--text)]">{ag?.name ?? t("hiring.pendingHires")}</span>
+                        <span className="font-medium text-sm text-foreground">{ag?.name ?? t("hiring.pendingHires")}</span>
                         <span className={`text-[10px] px-1.5 py-0.5 rounded ${stageColor(candidate.stage)}`}>
                           {stageLabelMap[candidate.stage]}
                         </span>
                       </div>
-                      <div className="text-xs text-[color:var(--muted)] mt-0.5">
+                      <div className="text-xs text-muted-foreground mt-0.5">
                         {ag ? `${ag.role} — ${ag.title}` : a?.payloadSummary}
                       </div>
                       {ag?.capabilities && (
-                        <div className="text-xs text-[color:var(--muted)] mt-1 line-clamp-2">{ag.capabilities}</div>
+                        <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{ag.capabilities}</div>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -195,7 +195,7 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
         {filteredCandidates.length === 0 ? (
           <EmptyState title={t("panel.noData")} />
         ) : (
-          <div className="divide-y divide-[color:var(--line)]">
+          <div className="divide-y divide-[color:var(--border)]">
             {filteredCandidates.map((candidate) => {
               const ag = candidate.agent;
               if (!ag) return null;
@@ -206,32 +206,32 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
               return (
                 <div
                   key={ag.id}
-                  className="px-4 py-3 flex items-center gap-3 hover:bg-[color:var(--panel-soft)] cursor-pointer transition-colors"
+                  className="px-4 py-3 flex items-center gap-3 hover:bg-muted cursor-pointer transition-colors"
                   onClick={() => onNavigateToAgent(ag.id)}
                 >
-                  <div className="flex-shrink-0 h-8 w-8 rounded-full bg-[color:var(--panel-soft)] flex items-center justify-center text-xs font-bold text-[color:var(--muted-strong)]">
+                  <div className="flex-shrink-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">
                     {getAgentInitials(ag.name)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm text-[color:var(--text)] truncate">{ag.name}</span>
+                      <span className="font-medium text-sm text-foreground truncate">{ag.name}</span>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded ${stageColor(candidate.stage)}`}>
                         {stageLabelMap[candidate.stage]}
                       </span>
                       <StatusPill status={ag.status} />
                     </div>
-                    <div className="text-xs text-[color:var(--muted)] mt-0.5">
+                    <div className="text-xs text-muted-foreground mt-0.5">
                       {ag.role} — {ag.title}{ag.department ? ` | ${ag.department}` : ""}
                     </div>
                   </div>
                   <div className="flex-shrink-0 text-right">
-                    <div className="text-xs text-[color:var(--muted)]">
+                    <div className="text-xs text-muted-foreground">
                       {manager ? `${t("hiring.reportsTo")} ${manager.name}` : t("hiring.topLevel")}
                     </div>
                     {requestedBy && (
-                      <div className="text-[10px] text-[color:var(--muted)]">{t("hiring.proposedBy")} {requestedBy.name}</div>
+                      <div className="text-[10px] text-muted-foreground">{t("hiring.proposedBy")} {requestedBy.name}</div>
                     )}
-                    <div className="text-xs text-[color:var(--muted)]">${ag.budgetMonthlyUsd}/mo</div>
+                    <div className="text-xs text-muted-foreground">${ag.budgetMonthlyUsd}/mo</div>
                   </div>
                 </div>
               );
@@ -241,23 +241,23 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
       </Panel>
 
       <div className="grid grid-cols-4 gap-3">
-        <div className="rounded-lg px-4 py-3 border border-[color:var(--line)] bg-[color:var(--panel)]">
-          <div className="text-[10px] uppercase text-[color:var(--muted)] tracking-wider">{t("hiring.totalAgents")}</div>
-          <div className="text-2xl font-bold text-[color:var(--text)] mt-1">{agents.filter(a => a.status !== "terminated").length}</div>
+        <div className="rounded-lg px-4 py-3 border border-border bg-card">
+          <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{t("hiring.totalAgents")}</div>
+          <div className="text-2xl font-bold text-foreground mt-1">{agents.filter(a => a.status !== "terminated").length}</div>
         </div>
-        <div className="rounded-lg px-4 py-3 border border-[color:var(--line)] bg-[color:var(--panel)]">
-          <div className="text-[10px] uppercase text-[color:var(--muted)] tracking-wider">{t("hiring.pendingHires")}</div>
-          <div className="text-2xl font-bold text-[color:var(--warn)] mt-1">{agents.filter(a => a.status === "pending_approval").length}</div>
+        <div className="rounded-lg px-4 py-3 border border-border bg-card">
+          <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{t("hiring.pendingHires")}</div>
+          <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">{agents.filter(a => a.status === "pending_approval").length}</div>
         </div>
-        <div className="rounded-lg px-4 py-3 border border-[color:var(--line)] bg-[color:var(--panel)]">
-          <div className="text-[10px] uppercase text-[color:var(--muted)] tracking-wider">{t("hiring.departments")}</div>
-          <div className="text-2xl font-bold text-[color:var(--text)] mt-1">
+        <div className="rounded-lg px-4 py-3 border border-border bg-card">
+          <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{t("hiring.departments")}</div>
+          <div className="text-2xl font-bold text-foreground mt-1">
             {new Set(agents.filter(a => a.department && a.status !== "terminated").map(a => a.department)).size}
           </div>
         </div>
-        <div className="rounded-lg px-4 py-3 border border-[color:var(--line)] bg-[color:var(--panel)]">
-          <div className="text-[10px] uppercase text-[color:var(--muted)] tracking-wider">{t("hiring.monthlyPayroll")}</div>
-          <div className="text-2xl font-bold text-[color:var(--text)] mt-1">
+        <div className="rounded-lg px-4 py-3 border border-border bg-card">
+          <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{t("hiring.monthlyPayroll")}</div>
+          <div className="text-2xl font-bold text-foreground mt-1">
             ${agents.filter(a => a.status !== "terminated" && a.status !== "pending_approval").reduce((s, a) => s + a.budgetMonthlyUsd, 0).toLocaleString()}
           </div>
         </div>
@@ -271,15 +271,15 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
             const active = deptAgents.filter(a => a.status !== "pending_approval").length;
             if (active === 0 && pending === 0) return null;
             return (
-              <div key={dept} className="bg-[color:var(--panel-soft)] rounded-md px-3 py-2">
-                <div className="text-xs font-medium text-[color:var(--text)] capitalize">{dept.replace("_", " ")}</div>
+              <div key={dept} className="bg-muted rounded-md px-3 py-2">
+                <div className="text-xs font-medium text-foreground capitalize">{dept.replace("_", " ")}</div>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-sm font-bold text-[color:var(--text)]">{active}</span>
-                  <span className="text-[10px] text-[color:var(--muted)]">{t("hiring.active")}</span>
+                  <span className="text-sm font-bold text-foreground">{active}</span>
+                  <span className="text-[10px] text-muted-foreground">{t("hiring.active")}</span>
                   {pending > 0 && (
                     <>
-                      <span className="text-sm font-bold text-[color:var(--warn)]">+{pending}</span>
-                      <span className="text-[10px] text-[color:var(--warn)]">{t("hiring.pendingApproval")}</span>
+                      <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400">+{pending}</span>
+                      <span className="text-[10px] text-yellow-600 dark:text-yellow-400">{t("hiring.pendingApproval")}</span>
                     </>
                   )}
                 </div>

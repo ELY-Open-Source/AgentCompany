@@ -8,13 +8,13 @@ export function BudgetBar({ spent, budget }: { spent: number; budget: number }) 
   const overBudget = spent > budget && budget > 0;
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[color:var(--line)]">
+      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[color:var(--border)]">
         <div
-          className={`h-full rounded-full transition-all ${overBudget ? "bg-[color:var(--danger)]" : "bg-[color:var(--success)]"}`}
+          className={`h-full rounded-full transition-all ${overBudget ? "bg-destructive" : "bg-green-600 dark:bg-green-400"}`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className={`text-[11px] ${overBudget ? "text-[color:var(--danger)]" : "text-[color:var(--muted)]"}`}>
+      <span className={`text-[11px] ${overBudget ? "text-destructive" : "text-muted-foreground"}`}>
         {formatMoney(spent)} / {formatMoney(budget)}
       </span>
     </div>
@@ -31,8 +31,8 @@ export function ConfirmDelete({
   onCancel: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-[8px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3">
-      <span className="text-[13px] text-[color:var(--danger)]">Delete {entityLabel}?</span>
+    <div className="flex items-center gap-3 rounded-lg border border-[color:var(--destructive)] bg-red-100 dark:bg-red-900/50 px-4 py-3">
+      <span className="text-[13px] text-destructive">Delete {entityLabel}?</span>
       <ActionButton label="Yes, delete" tone="danger" onClick={onConfirm} icon={Trash} />
       <ActionButton label="Cancel" onClick={onCancel} icon={XCircle} />
     </div>
@@ -63,10 +63,10 @@ export function HeartbeatSection({
   onSaved: () => Promise<void>;
 }) {
   return (
-    <div className="rounded-lg border border-[color:var(--line)] p-3">
+    <div className="rounded-lg border border-border p-3">
       <div className="mb-2 flex items-center gap-2">
-        <Heartbeat size={16} className="text-[color:var(--accent)]" />
-        <span className="text-[13px] font-semibold text-[color:var(--text)]">Continuous Execution</span>
+        <Heartbeat size={16} className="text-primary" />
+        <span className="text-[13px] font-semibold text-foreground">Continuous Execution</span>
       </div>
       <div className="mb-2 flex items-center gap-3">
         <label className="flex cursor-pointer items-center gap-2">
@@ -80,12 +80,12 @@ export function HeartbeatSection({
                 await onSaved();
               })()
             }
-            className="h-4 w-4 rounded border-[color:var(--line)] accent-[color:var(--accent)]"
+            className="h-4 w-4 rounded border-border accent-[color:var(--primary)]"
           />
-          <span className="text-[13px] text-[color:var(--text)]">Enable heartbeat</span>
+          <span className="text-[13px] text-foreground">Enable heartbeat</span>
         </label>
         {agent.heartbeatEnabled && (
-          <span className="text-[11px] text-[color:var(--muted)]">
+          <span className="text-[11px] text-muted-foreground">
             Every {agent.heartbeatIntervalSec}s{agent.lastHeartbeatAt ? ` · Last: ${formatTime(agent.lastHeartbeatAt)}` : ""}
           </span>
         )}
@@ -118,7 +118,7 @@ export function HeartbeatSection({
           }
         />
         {persistedConnectorIssue ? (
-          <p className="mt-2 text-[12px] text-[color:var(--warn)]">
+          <p className="mt-2 text-[12px] text-yellow-600 dark:text-yellow-400">
             {persistedConnectorIssue} Save a ready connector before waking this agent again.
           </p>
         ) : null}

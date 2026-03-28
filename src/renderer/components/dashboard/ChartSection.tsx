@@ -37,7 +37,7 @@ export function ChartSection({ runs, costs, agents, companyId }: ChartSectionPro
   const content = (
     <div className="space-y-6">
       {/* Section header */}
-      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         Performance
       </div>
 
@@ -74,7 +74,7 @@ export function ChartSection({ runs, costs, agents, companyId }: ChartSectionPro
       </div>
 
       {/* Budget Utilization section */}
-      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         Budget Utilization
       </div>
       <BudgetUtilization companyId={companyId} agents={agents} />

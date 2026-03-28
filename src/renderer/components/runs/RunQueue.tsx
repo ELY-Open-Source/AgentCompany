@@ -71,19 +71,19 @@ export function RunQueue({
               <ListRow
                 key={run.id}
                 onClick={() => onSelectRun(run.id)}
-                className={selectedRun?.id === run.id ? "bg-[color:var(--accent-soft)]" : "hover:bg-[color:var(--panel-soft)]"}
+                className={selectedRun?.id === run.id ? "bg-accent" : "hover:bg-muted"}
               >
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-[13px] font-semibold text-[color:var(--text)]">{title}</div>
-                      <div className="mt-0.5 truncate text-[11px] text-[color:var(--muted)]">
+                      <div className="truncate text-[13px] font-semibold text-foreground">{title}</div>
+                      <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
                         {agent?.name ?? "Unknown agent"} via {run.connectorId} {workspace ? `\u00B7 ${workspace.name}` : ""}
                       </div>
                     </div>
                     <StatusPill status={run.status} />
                   </div>
-                  <div className="flex items-center justify-between gap-3 text-[11px] text-[color:var(--muted)]">
+                  <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
                     <span className="truncate">{supportingText}</span>
                     <span className="shrink-0">{timeAgo(run.updatedAt)}</span>
                   </div>

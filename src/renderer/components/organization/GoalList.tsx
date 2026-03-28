@@ -30,19 +30,19 @@ export function GoalList({
           <ListRow
             key={goal.id}
             onClick={() => onSelect(goal.id)}
-            className={`cursor-pointer transition-colors duration-100 ${isSelected ? "bg-[color:var(--accent-soft)]" : "hover:bg-[color:var(--panel-soft)]"}`}
+            className={`cursor-pointer transition-colors duration-100 ${isSelected ? "bg-accent" : "hover:bg-muted"}`}
           >
             <div className="mb-2 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2">
                 {isSelected && (
-                  <CheckCircle size={16} weight="fill" className="shrink-0 text-[color:var(--accent)]" />
+                  <CheckCircle size={16} weight="fill" className="shrink-0 text-primary" />
                 )}
-                <div className="truncate text-[14px] font-semibold text-[color:var(--text)]">{goal.title}</div>
+                <div className="truncate text-[14px] font-semibold text-foreground">{goal.title}</div>
               </div>
               <StatusPill status={goal.status} />
             </div>
-            <div className="line-clamp-2 text-[13px] text-[color:var(--muted)]">{goal.description}</div>
-            <div className="mt-1 flex gap-4 text-[11px] text-[color:var(--muted)]">
+            <div className="line-clamp-2 text-[13px] text-muted-foreground">{goal.description}</div>
+            <div className="mt-1 flex gap-4 text-[11px] text-muted-foreground">
               {parentGoal && <span>Parent: {parentGoal.title}</span>}
               {ownerAgent && <span>Owner: {ownerAgent.name}</span>}
             </div>

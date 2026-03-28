@@ -38,7 +38,7 @@ export function AgentRoster({
   return (
     <div
       ref={parentRef}
-      className="h-full overflow-auto border-y border-[color:var(--line)]"
+      className="h-full overflow-auto border-y border-border"
       role="listbox"
       aria-label="Agent roster"
       onKeyDown={handleKeyDown}
@@ -73,29 +73,29 @@ export function AgentRoster({
                 width: "100%",
                 transform: `translateY(${virtualRow.start}px)`,
               }}
-              className={`focus-ring outline-none ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--accent)] ring-inset" : ""}`}
+              className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--primary)] ring-inset" : ""}`}
             >
               <button
                 type="button"
                 onClick={() => onSelect(agent.id)}
                 tabIndex={-1}
-                className={`block w-full border-b border-[color:var(--line)] px-4 py-3 text-left last:border-b-0 cursor-pointer transition-colors duration-150 ${isSelected ? "bg-[color:var(--accent-soft)] border-l-[3px] border-l-[color:var(--accent)]" : "hover:bg-[color:var(--panel-soft)]"}`}
+                className={`block w-full border-b border-border px-4 py-3 text-left last:border-b-0 cursor-pointer transition-colors duration-150 ${isSelected ? "bg-accent border-l-[3px] border-l-[color:var(--primary)]" : "hover:bg-muted"}`}
               >
                 <div className="mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {isSelected && (
-                      <CheckCircle size={16} weight="fill" className="text-[color:var(--accent)]" />
+                      <CheckCircle size={16} weight="fill" className="text-primary" />
                     )}
                     <div>
-                      <div className={`truncate text-[14px] font-semibold text-[color:var(--text)]`}>{agent.name}</div>
-                      <div className="truncate text-[11px] text-[color:var(--muted)]">
+                      <div className={`truncate text-[14px] font-semibold text-foreground`}>{agent.name}</div>
+                      <div className="truncate text-[11px] text-muted-foreground">
                         {agent.role} · {agent.title || "No title"}
                       </div>
                     </div>
                   </div>
                   <StatusPill status={agent.status} />
                 </div>
-                <div className="flex items-center justify-between text-[11px] text-[color:var(--muted)]">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                   <span>Connector: {connector?.label ?? agent.connectorId}</span>
                   {workspace && <span>Workspace: {workspace.name}</span>}
                 </div>

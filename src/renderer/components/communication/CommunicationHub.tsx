@@ -22,7 +22,7 @@ interface CommunicationHubProps {
 function SearchScopeToggle({ scope, onChangeScope }: { scope: "global" | "channel"; onChangeScope: (scope: "global" | "channel") => void }) {
   return (
     <div
-      className="inline-flex items-center gap-0.5 rounded-full bg-[color:var(--panel)] p-0.5"
+      className="inline-flex items-center gap-0.5 rounded-full bg-card p-0.5"
       role="radiogroup"
       aria-label="Search scope"
     >
@@ -34,8 +34,8 @@ function SearchScopeToggle({ scope, onChangeScope }: { scope: "global" | "channe
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onChangeScope("global") } }}
         className={`rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition-colors duration-150 ${
           scope === "global"
-            ? "bg-[color:var(--accent)] text-[color:var(--text-on-accent)]"
-            : "bg-[color:var(--panel-soft)] text-[color:var(--muted-strong)]"
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted text-muted-foreground"
         }`}
       >
         All Channels
@@ -48,8 +48,8 @@ function SearchScopeToggle({ scope, onChangeScope }: { scope: "global" | "channe
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onChangeScope("channel") } }}
         className={`rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition-colors duration-150 ${
           scope === "channel"
-            ? "bg-[color:var(--accent)] text-[color:var(--text-on-accent)]"
-            : "bg-[color:var(--panel-soft)] text-[color:var(--muted-strong)]"
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted text-muted-foreground"
         }`}
       >
         This Channel

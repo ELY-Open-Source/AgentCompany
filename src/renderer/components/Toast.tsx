@@ -4,9 +4,9 @@ import { useAppStore } from "../state/store"
 import { useReducedMotion } from "./ui"
 
 const TONE_CONFIG = {
-  success: { icon: CheckCircle, bg: "var(--success-soft)", border: "var(--success)", text: "var(--success)" },
-  danger: { icon: XCircle, bg: "var(--danger-soft)", border: "var(--danger)", text: "var(--danger)" },
-  warn: { icon: Warning, bg: "var(--warn-soft)", border: "var(--warn)", text: "var(--warn)" },
+  success: { icon: CheckCircle, bg: "var(--muted-foreground)", border: "var(--primary)", text: "var(--primary)" },
+  danger: { icon: XCircle, bg: "var(--destructive)", border: "var(--destructive)", text: "var(--destructive)" },
+  warn: { icon: Warning, bg: "var(--muted-foreground)", border: "var(--destructive)", text: "var(--destructive)" },
 } as const
 
 export default function ToastContainer() {
@@ -29,7 +29,7 @@ export default function ToastContainer() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={reduced ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.96 }}
               transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="flex w-[320px] items-start gap-2.5 rounded-[8px] border px-4 py-3 shadow-lg"
+              className="flex w-[320px] items-start gap-2.5 rounded-lg border px-4 py-3 shadow-lg"
               style={{ backgroundColor: cfg.bg, borderColor: cfg.border }}
             >
               <Icon size={16} weight="fill" className="mt-px shrink-0" style={{ color: cfg.text }} />

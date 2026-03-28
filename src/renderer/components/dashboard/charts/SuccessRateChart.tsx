@@ -32,21 +32,21 @@ export function SuccessRateChart({ data, reducedMotion }: SuccessRateChartProps)
       <LineChart data={rateData}>
         <CartesianGrid
           strokeDasharray="3 3"
-          stroke="var(--line)"
+          stroke="var(--border)"
           horizontal={true}
           vertical={false}
         />
         <XAxis
           dataKey="date"
           tickFormatter={formatShortDate}
-          tick={{ fontSize: 11, fill: "var(--muted)" }}
-          axisLine={{ stroke: "var(--line)" }}
+          tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+          axisLine={{ stroke: "var(--border)" }}
           tickLine={false}
         />
         <YAxis
           domain={[0, 100]}
           tickFormatter={(val: number) => `${val}%`}
-          tick={{ fontSize: 11, fill: "var(--muted)" }}
+          tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
           axisLine={false}
           tickLine={false}
         />
@@ -54,10 +54,10 @@ export function SuccessRateChart({ data, reducedMotion }: SuccessRateChartProps)
         <Line
           type="monotone"
           dataKey="rate"
-          stroke="var(--success)"
+          stroke="var(--primary)"
           strokeWidth={2}
           dot={false}
-          activeDot={{ r: 4, fill: "var(--success)" }}
+          activeDot={{ r: 4, fill: "var(--primary)" }}
           isAnimationActive={!reducedMotion}
         />
       </LineChart>

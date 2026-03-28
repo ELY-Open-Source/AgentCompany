@@ -136,9 +136,9 @@ export function PolicyFormModal({ open, onClose, onSaved, companyId, editingPoli
             type="checkbox"
             checked={hardStopEnabled}
             onChange={(e) => setHardStopEnabled(e.target.checked)}
-            className="h-4 w-4 rounded border-[color:var(--line)] accent-[color:var(--accent)]"
+            className="h-4 w-4 rounded border-border accent-[color:var(--primary)]"
           />
-          <span className="text-[13px] text-[color:var(--text)]">Enable hard stop (block new runs at 100%)</span>
+          <span className="text-[13px] text-foreground">Enable hard stop (block new runs at 100%)</span>
         </label>
 
         <label className="flex items-center gap-2.5">
@@ -146,15 +146,15 @@ export function PolicyFormModal({ open, onClose, onSaved, companyId, editingPoli
             type="checkbox"
             checked={notifyEnabled}
             onChange={(e) => setNotifyEnabled(e.target.checked)}
-            className="h-4 w-4 rounded border-[color:var(--line)] accent-[color:var(--accent)]"
+            className="h-4 w-4 rounded border-border accent-[color:var(--primary)]"
           />
-          <span className="text-[13px] text-[color:var(--text)]">Send notifications</span>
+          <span className="text-[13px] text-foreground">Send notifications</span>
         </label>
 
         <div className="flex items-center justify-end gap-3 pt-2">
           <button
             type="button"
-            className="rounded-[8px] px-4 py-2 text-[13px] font-medium text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
+            className="rounded-lg px-4 py-2 text-[13px] font-medium text-muted-foreground transition hover:text-foreground"
             onClick={onClose}
           >
             Cancel

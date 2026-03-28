@@ -47,13 +47,13 @@ export function OnboardingHero({
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.035]"
         style={{
-          background: "radial-gradient(ellipse 80% 60% at 30% 20%, var(--accent) 0%, transparent 70%)",
+          background: "radial-gradient(ellipse 80% 60% at 30% 20%, var(--primary) 0%, transparent 70%)",
         }}
       />
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.025]"
         style={{
-          background: "radial-gradient(ellipse 60% 80% at 70% 80%, var(--accent) 0%, transparent 70%)",
+          background: "radial-gradient(ellipse 60% 80% at 70% 80%, var(--primary) 0%, transparent 70%)",
           animation: "hero-drift 12s ease-in-out infinite alternate",
         }}
       />
@@ -77,10 +77,10 @@ export function OnboardingHero({
           <div
             className="h-px flex-1 max-w-[32px]"
             style={{
-              background: "linear-gradient(90deg, var(--accent), transparent)",
+              background: "linear-gradient(90deg, var(--primary), transparent)",
             }}
           />
-          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--muted)]">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {t("onboarding.subtitle")}
           </span>
         </motion.div>
@@ -90,7 +90,7 @@ export function OnboardingHero({
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-          className="text-[36px] font-bold leading-[1.05] tracking-[-0.03em] text-[color:var(--text)] md:text-[44px]"
+          className="text-[36px] font-bold leading-[1.05] tracking-[-0.03em] text-foreground md:text-[44px]"
         >
           {t("onboarding.title").split("\n").map((line, i) => (
             <span key={i}>{line}{i === 0 ? <br /> : null}</span>
@@ -102,7 +102,7 @@ export function OnboardingHero({
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
-          className="mt-4 max-w-[400px] text-[14px] leading-relaxed text-[color:var(--muted)]"
+          className="mt-4 max-w-[400px] text-[14px] leading-relaxed text-muted-foreground"
         >
           {t("onboarding.description")}
         </motion.p>
@@ -118,15 +118,15 @@ export function OnboardingHero({
             {stepLabels.map((entry, index) => (
               <div key={entry.label} className="flex items-center gap-2">
                 {index > 0 ? (
-                  <div className={`h-px w-6 transition-colors duration-300 ${index <= stepIndex ? "bg-[color:var(--accent)]" : "bg-[color:var(--line)]"}`} />
+                  <div className={`h-px w-6 transition-colors duration-300 ${index <= stepIndex ? "bg-primary" : "bg-[color:var(--border)]"}`} />
                 ) : null}
                 <div
                   className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors duration-300 ${
                     index < stepIndex
-                      ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
+                      ? "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400"
                       : index === stepIndex
-                        ? "bg-[color:var(--accent-soft)] text-[color:var(--accent)]"
-                        : "bg-[color:var(--panel-soft)] text-[color:var(--muted)]"
+                        ? "bg-accent text-primary"
+                        : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {index < stepIndex ? <CheckCircle size={14} weight="fill" /> : <entry.icon size={14} />}
@@ -156,13 +156,13 @@ export function OnboardingHero({
           <div
             className="h-px w-8"
             style={{
-              background: "linear-gradient(90deg, var(--accent), transparent)",
+              background: "linear-gradient(90deg, var(--primary), transparent)",
             }}
           />
           <span
             className="select-none text-[10px] font-semibold uppercase tracking-[0.2em]"
             style={{
-              background: "linear-gradient(135deg, var(--accent) 0%, var(--muted) 100%)",
+              background: "linear-gradient(135deg, var(--primary) 0%, var(--muted-foreground) 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",

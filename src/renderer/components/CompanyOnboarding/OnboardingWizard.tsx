@@ -187,7 +187,7 @@ export function CompanyOnboarding({
   }, [launchSummary, onDone, t]);
 
   return (
-    <div className="relative grid min-h-[100dvh] overflow-hidden bg-[color:var(--bg)] md:grid-cols-[minmax(0,1fr)_540px]">
+    <div className="relative grid min-h-[100dvh] overflow-hidden bg-background md:grid-cols-[minmax(0,1fr)_540px]">
       {/* Drag region for macOS frameless title bar */}
       <div className="sidebar-drag absolute inset-x-0 top-0 z-10 h-[38px]" />
       <OnboardingHero
@@ -199,13 +199,13 @@ export function CompanyOnboarding({
         t={t}
       />
 
-      <div className="min-h-0 overflow-y-auto border-l border-[color:var(--line)] bg-[color:var(--bg-subtle)]">
+      <div className="min-h-0 overflow-y-auto border-l border-border bg-background">
         <div className="relative flex min-h-full items-center px-6 py-10 md:px-10">
           {canCancel && onCancel ? (
             <button
               type="button"
               onClick={onCancel}
-              className="absolute right-6 top-6 text-[12px] font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
+              className="absolute right-6 top-6 text-[12px] font-medium text-muted-foreground transition hover:text-foreground"
             >
               {t("onboarding.cancel")}
             </button>

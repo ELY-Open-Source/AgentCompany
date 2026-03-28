@@ -86,13 +86,13 @@ export function collectEdges(nodes: LayoutNode[]): Array<{ parent: LayoutNode; c
 }
 
 export const statusDotColor: Record<string, string> = {
-  running: "var(--accent)",
-  active: "var(--success)",
-  paused: "var(--warn)",
-  idle: "var(--muted)",
-  error: "var(--danger)",
-  terminated: "var(--muted)",
-  pending_approval: "var(--warn)",
+  running: "var(--primary)",
+  active: "var(--primary)",
+  paused: "var(--destructive)",
+  idle: "var(--muted-foreground)",
+  error: "var(--destructive)",
+  terminated: "var(--muted-foreground)",
+  pending_approval: "var(--destructive)",
 };
 
 export const adapterLabels: Record<string, string> = {

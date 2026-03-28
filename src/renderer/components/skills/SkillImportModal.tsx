@@ -114,7 +114,7 @@ export function SkillImportModal({
     <Modal open={open} title="Import Skill" onClose={handleClose} width="560px">
       <div className="space-y-5">
         {/* Tab bar */}
-        <div className="flex gap-1 border-b border-[color:var(--line)]">
+        <div className="flex gap-1 border-b border-border">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -124,8 +124,8 @@ export function SkillImportModal({
                 type="button"
                 className={`flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium transition-colors ${
                   isActive
-                    ? "border-b-2 border-[color:var(--accent)] text-[color:var(--text)]"
-                    : "text-[color:var(--muted)] hover:text-[color:var(--text)]"
+                    ? "border-b-2 border-[color:var(--primary)] text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
                 onClick={() => {
                   setActiveTab(tab.id);
@@ -144,7 +144,7 @@ export function SkillImportModal({
           {activeTab === "local" ? (
             <div className="flex gap-2">
               <input
-                className="focus-ring w-full rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-3.5 py-2.5 text-[14px] text-[color:var(--text)] placeholder:text-[color:var(--muted)]"
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-[14px] text-foreground placeholder:text-muted-foreground"
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
                 placeholder={placeholder.local}
@@ -153,7 +153,7 @@ export function SkillImportModal({
             </div>
           ) : (
             <input
-              className="focus-ring w-full rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-3.5 py-2.5 text-[14px] text-[color:var(--text)] placeholder:text-[color:var(--muted)]"
+              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-[14px] text-foreground placeholder:text-muted-foreground"
               value={source}
               onChange={(e) => setSource(e.target.value)}
               placeholder={placeholder[activeTab]}
@@ -161,8 +161,8 @@ export function SkillImportModal({
           )}
 
           {activeTab === "skills_sh" && (
-            <p className="text-[12px] text-[color:var(--muted)]">
-              Enter a skills.sh install command (e.g., <code className="rounded bg-[color:var(--panel-soft)] px-1 py-0.5 font-mono text-[11px]">npx skills.sh install skill-name</code>) or a direct skills.sh URL.
+            <p className="text-[12px] text-muted-foreground">
+              Enter a skills.sh install command (e.g., <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">npx skills.sh install skill-name</code>) or a direct skills.sh URL.
             </p>
           )}
         </div>

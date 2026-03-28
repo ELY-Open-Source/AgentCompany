@@ -62,7 +62,7 @@ export function SkillAgentToggles(props: SkillAgentTogglesProps) {
 
   if (items.length === 0) {
     return (
-      <p className="px-3 py-4 text-center text-[13px] text-[color:var(--muted)]">
+      <p className="px-3 py-4 text-center text-[13px] text-muted-foreground">
         {mode === "skill" ? "No agents in this company" : "No skills imported yet"}
       </p>
     );
@@ -78,15 +78,15 @@ export function SkillAgentToggles(props: SkillAgentTogglesProps) {
             key={item.id}
             type="button"
             disabled={isToggling}
-            className="flex w-full items-center gap-3 border-b border-[color:var(--line)] px-3 py-2 text-left transition hover:bg-[color:var(--panel-soft)] disabled:opacity-60"
+            className="flex w-full items-center gap-3 border-b border-border px-3 py-2 text-left transition hover:bg-muted disabled:opacity-60"
             onClick={() => void handleToggle(item.id)}
           >
             {/* Toggle indicator */}
             <span
               className={`flex h-[18px] w-[32px] shrink-0 items-center rounded-full p-[2px] transition-colors ${
                 isAssigned
-                  ? "bg-[color:var(--accent)]"
-                  : "bg-[color:var(--line)]"
+                  ? "bg-primary"
+                  : "bg-[color:var(--border)]"
               }`}
             >
               <span
@@ -96,11 +96,11 @@ export function SkillAgentToggles(props: SkillAgentTogglesProps) {
               />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-medium text-[color:var(--text)]">
+              <div className="truncate text-[13px] font-medium text-foreground">
                 {item.name}
               </div>
               {item.detail ? (
-                <div className="truncate text-[12px] text-[color:var(--muted)]">
+                <div className="truncate text-[12px] text-muted-foreground">
                   {item.detail}
                 </div>
               ) : null}

@@ -81,16 +81,16 @@ export function DocumentCenter({ companyId, documents, agents, projects, goals, 
           <ListRow key={document.id}>
             <div className="flex items-start justify-between gap-3">
               <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setEditingId(document.id)}>
-                <div className="flex items-center gap-2 text-[13px] font-medium text-[color:var(--text)]">
-                  <FileText size={15} className="text-[color:var(--accent)]" />
+                <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+                  <FileText size={15} className="text-primary" />
                   <span className="truncate">{document.title}</span>
                 </div>
-                <div className="mt-1 text-[11px] text-[color:var(--muted)]">{document.type.replaceAll("_", " ")} · v{document.version} · {document.updatedAt.slice(0, 10)}</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">{document.type.replaceAll("_", " ")} · v{document.version} · {document.updatedAt.slice(0, 10)}</div>
               </button>
               <div className="flex items-center gap-2">
                 <StatusPill status={document.status} />
-                <button type="button" aria-label="Edit document" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--text)]" onClick={() => setEditingId(document.id)}><NotePencil size={14} /></button>
-                <button type="button" aria-label="Delete document" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--danger)]" onClick={() => setDeleteId(document.id)}><Trash size={14} /></button>
+                <button type="button" aria-label="Edit document" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={() => setEditingId(document.id)}><NotePencil size={14} /></button>
+                <button type="button" aria-label="Delete document" className="rounded p-1 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(document.id)}><Trash size={14} /></button>
               </div>
             </div>
           </ListRow>
@@ -99,7 +99,7 @@ export function DocumentCenter({ companyId, documents, agents, projects, goals, 
       <Modal open={editingId !== null} title={activeDocument ? activeDocument.title : "New document"} onClose={() => setEditingId(null)} width="760px">
         <DocumentEditor companyId={companyId} agents={agents} projects={projects} goals={goals} document={editingId === "__new__" ? null : activeDocument} onSaved={async () => { setEditingId(null); await onRefresh(); }} />
       </Modal>
-      <ConfirmDialog open={deleteId !== null} title="Delete document" message="This removes the document from the company knowledge surface." onCancel={() => setDeleteId(null)} onConfirm={async () => { if (!deleteId) return; const result = await window.agentCompany.deleteDocument({ id: deleteId, companyId }); setDeleteId(null); if (result.ok) await onRefresh(); }} />
+      <ConfirmDialog open={deleteId !== null} title="Delete document" message="This removes the document from the company knowledge bg-card border border-border shadow-sm." onCancel={() => setDeleteId(null)} onConfirm={async () => { if (!deleteId) return; const result = await window.agentCompany.deleteDocument({ id: deleteId, companyId }); setDeleteId(null); if (result.ok) await onRefresh(); }} />
     </div>
   );
 }

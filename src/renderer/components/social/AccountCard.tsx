@@ -17,7 +17,7 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
   const cardContent = (
     <>
       <div className="flex items-center gap-2">
-        <span className="truncate text-[13px] font-bold text-[color:var(--text)]">{account.displayName || account.accountName}</span>
+        <span className="truncate text-[13px] font-bold text-foreground">{account.displayName || account.accountName}</span>
         <span
           className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em]"
           style={{ backgroundColor: platform.bgColor, color: platform.color }}
@@ -25,10 +25,10 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
           {platform.label}
         </span>
       </div>
-      <div className="mt-0.5 flex items-center gap-2 text-[11px] text-[color:var(--muted)]">
+      <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
         <span className="truncate">@{account.accountName}</span>
         {account.requireApproval ? (
-          <span className="flex items-center gap-1 text-[color:var(--warn)]">
+          <span className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
             <ShieldCheck size={10} />
             Approval required
           </span>
@@ -39,9 +39,9 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
   );
 
   return (
-    <div className="group flex items-center gap-3 rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3.5 transition duration-150 hover:border-[color:var(--line-strong)] hover:shadow-md hover:-translate-y-px">
+    <div className="group flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3.5 transition duration-150 hover:border-border hover:shadow-md hover:-translate-y-px">
       <div
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px]"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
         style={{ backgroundColor: platform.bgColor, color: platform.color }}
       >
         <PlatformIcon size={18} weight="fill" />
@@ -58,18 +58,18 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
       <div className="flex items-center gap-2">
         <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
           isLoggedIn
-            ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
+            ? "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400"
             : account.status === "login_required"
-              ? "bg-[color:var(--warn-soft)] text-[color:var(--warn)]"
+              ? "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-600 dark:text-yellow-400"
               : account.status === "suspended"
-                ? "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"
-                : "bg-[color:var(--panel-soft)] text-[color:var(--muted)]"
+                ? "bg-red-100 dark:bg-red-900/50 text-destructive"
+                : "bg-muted text-muted-foreground"
         }`}>
           <span className={`h-1.5 w-1.5 rounded-full ${
-            isLoggedIn ? "bg-[color:var(--success)]"
-            : account.status === "login_required" ? "bg-[color:var(--warn)]"
-            : account.status === "suspended" ? "bg-[color:var(--danger)]"
-            : "bg-[color:var(--muted)]"
+            isLoggedIn ? "bg-green-600 dark:bg-green-400"
+            : account.status === "login_required" ? "bg-yellow-600 dark:bg-yellow-400"
+            : account.status === "suspended" ? "bg-destructive"
+            : "bg-[color:var(--muted-foreground)]"
           }`} />
           {account.status === "logged_in" ? "Logged In" : account.status === "active" ? "Active" : account.status.replace("_", " ")}
         </span>
@@ -78,7 +78,7 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
           <button
             type="button"
             onClick={onLogin}
-            className="flex items-center gap-1 rounded-[6px] bg-[color:var(--accent)] px-2.5 py-1.5 text-[10px] font-semibold text-[color:var(--text-on-accent)] transition hover:opacity-90"
+            className="flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1.5 text-[10px] font-semibold text-primary-foreground transition hover:opacity-90"
           >
             <SignIn size={12} />
             Login
@@ -89,7 +89,7 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
           type="button"
           onClick={onDelete}
           aria-label="Delete account"
-          className="rounded-[6px] p-1.5 text-[color:var(--muted)] opacity-0 transition hover:bg-[color:var(--danger-soft)] hover:text-[color:var(--danger)] group-hover:opacity-100 group-focus-within:opacity-100"
+          className="rounded-lg p-1.5 text-muted-foreground opacity-0 transition hover:bg-red-100 dark:bg-red-900/50 hover:text-destructive group-hover:opacity-100 group-focus-within:opacity-100"
         >
           <Trash size={14} />
         </button>

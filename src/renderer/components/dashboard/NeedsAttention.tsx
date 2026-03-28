@@ -48,7 +48,7 @@ export function NeedsAttention({
 
   return (
     <section>
-      <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--warn)]">{t("dash.needsAttentionSection")}</div>
+      <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-yellow-600 dark:text-yellow-400">{t("dash.needsAttentionSection")}</div>
       <div className="space-y-1.5">
         {pendingApprovals.slice(0, 5).map((approval) => {
           const requester = agents.find((a) => a.id === approval.requestedByAgentId);
@@ -57,17 +57,17 @@ export function NeedsAttention({
               key={approval.id}
               type="button"
               onClick={() => onNavigate("approvals", approval.id)}
-              className="focus-ring flex w-full items-center gap-3 rounded-[8px] border border-[color:var(--warn)] border-opacity-20 bg-[color:var(--warn-soft)] px-4 py-3 text-left transition hover:border-opacity-40"
+              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3 text-left transition hover:border-opacity-40"
             >
-              <ShieldCheck size={18} className="shrink-0 text-[color:var(--warn)]" />
+              <ShieldCheck size={18} className="shrink-0 text-yellow-600 dark:text-yellow-400" />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{approval.payloadSummary}</div>
-                <div className="mt-0.5 flex items-center gap-2 text-[11px] text-[color:var(--muted)]">
+                <div className="truncate text-[13px] font-medium text-foreground">{approval.payloadSummary}</div>
+                <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
                   <span className="uppercase tracking-[0.1em]">{approval.type.replaceAll("_", " ")}</span>
                   {requester ? <span>by {requester.name}</span> : null}
                 </div>
               </div>
-              <ArrowRight size={14} className="shrink-0 text-[color:var(--muted)]" />
+              <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
             </button>
           );
         })}
@@ -78,16 +78,16 @@ export function NeedsAttention({
               key={run.id}
               type="button"
               onClick={() => onNavigate("runs", run.id)}
-              className="focus-ring flex w-full items-center gap-3 rounded-[8px] border border-[color:var(--danger)] border-opacity-20 bg-[color:var(--danger-soft)] px-4 py-3 text-left transition hover:border-opacity-40"
+              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-red-100 dark:bg-red-900/50 px-4 py-3 text-left transition hover:border-opacity-40"
             >
-              <XCircle size={18} className="shrink-0 text-[color:var(--danger)]" />
+              <XCircle size={18} className="shrink-0 text-destructive" />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{run.summary || "Run failed"}</div>
-                <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
+                <div className="truncate text-[13px] font-medium text-foreground">{run.summary || "Run failed"}</div>
+                <div className="mt-0.5 text-[11px] text-muted-foreground">
                   {agent?.name} — {run.errorMessage?.slice(0, 80) ?? "Unknown error"}
                 </div>
               </div>
-              <ArrowRight size={14} className="shrink-0 text-[color:var(--muted)]" />
+              <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
             </button>
           );
         })}
@@ -98,16 +98,16 @@ export function NeedsAttention({
               key={message.id}
               type="button"
               onClick={() => onNavigate("communication", message.id)}
-              className="focus-ring flex w-full items-center gap-3 rounded-[8px] border border-[color:var(--warn)] border-opacity-20 bg-[color:var(--warn-soft)] px-4 py-3 text-left transition hover:border-opacity-40"
+              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3 text-left transition hover:border-opacity-40"
             >
-              <Users size={18} className="shrink-0 text-[color:var(--warn)]" />
+              <Users size={18} className="shrink-0 text-yellow-600 dark:text-yellow-400" />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{message.subject}</div>
-                <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
+                <div className="truncate text-[13px] font-medium text-foreground">{message.subject}</div>
+                <div className="mt-0.5 text-[11px] text-muted-foreground">
                   {sender?.name ?? "Unknown"} — {message.channel} {message.priority === "urgent" ? "· urgent" : ""}
                 </div>
               </div>
-              <ArrowRight size={14} className="shrink-0 text-[color:var(--muted)]" />
+              <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
             </button>
           );
         })}
@@ -116,14 +116,14 @@ export function NeedsAttention({
             key={action.id}
             type="button"
             onClick={() => onNavigate("social")}
-            className="focus-ring flex w-full items-center gap-3 rounded-[8px] border border-[color:var(--warn)] border-opacity-20 bg-[color:var(--warn-soft)] px-4 py-3 text-left transition hover:border-opacity-40"
+            className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3 text-left transition hover:border-opacity-40"
           >
-            <Cpu size={18} className="shrink-0 text-[color:var(--warn)]" />
+            <Cpu size={18} className="shrink-0 text-yellow-600 dark:text-yellow-400" />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{action.resultSummary || action.actionType}</div>
-              <div className="mt-0.5 whitespace-nowrap text-[11px] text-[color:var(--muted)]">Browser action {action.status.replaceAll("_", " ")}</div>
+              <div className="truncate text-[13px] font-medium text-foreground">{action.resultSummary || action.actionType}</div>
+              <div className="mt-0.5 whitespace-nowrap text-[11px] text-muted-foreground">Browser action {action.status.replaceAll("_", " ")}</div>
             </div>
-            <ArrowRight size={14} className="shrink-0 text-[color:var(--muted)]" />
+            <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
           </button>
         ))}
         {stalledWorkflows.slice(0, 3).map((workflow) => (
@@ -131,14 +131,14 @@ export function NeedsAttention({
             key={workflow.id}
             type="button"
             onClick={() => onNavigate("automation")}
-            className="focus-ring flex w-full items-center gap-3 rounded-[8px] border border-[color:var(--warn)] border-opacity-20 bg-[color:var(--warn-soft)] px-4 py-3 text-left transition hover:border-opacity-40"
+            className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3 text-left transition hover:border-opacity-40"
           >
-            <Lightning size={18} className="shrink-0 text-[color:var(--warn)]" />
+            <Lightning size={18} className="shrink-0 text-yellow-600 dark:text-yellow-400" />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{workflow.name}</div>
-              <div className="mt-0.5 whitespace-nowrap text-[11px] text-[color:var(--muted)]">Workflow {workflow.status}</div>
+              <div className="truncate text-[13px] font-medium text-foreground">{workflow.name}</div>
+              <div className="mt-0.5 whitespace-nowrap text-[11px] text-muted-foreground">Workflow {workflow.status}</div>
             </div>
-            <ArrowRight size={14} className="shrink-0 text-[color:var(--muted)]" />
+            <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
           </button>
         ))}
       </div>

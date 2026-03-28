@@ -20,12 +20,12 @@ export function SecretCreator({ companyId, onSaved }: { companyId: string; onSav
 
   return (
     <div className="grid gap-4">
-      <div><Input label={t("exec.secretNameLabel")} value={name} onChange={(v) => { setName(v); if (errors.name) setErrors((e) => ({ ...e, name: undefined })) }} placeholder="e.g. ANTHROPIC_API_KEY" />{errors.name ? <div className="mt-1 text-[12px] text-[color:var(--danger)]" role="alert">{errors.name}</div> : null}</div>
+      <div><Input label={t("exec.secretNameLabel")} value={name} onChange={(v) => { setName(v); if (errors.name) setErrors((e) => ({ ...e, name: undefined })) }} placeholder="e.g. ANTHROPIC_API_KEY" />{errors.name ? <div className="mt-1 text-[12px] text-destructive" role="alert">{errors.name}</div> : null}</div>
       <Input label="Description" value={description} onChange={setDescription} placeholder="What this secret is used for" />
-      <div><TextArea label="Secret value" value={value} onChange={(v) => { setValue(v); if (errors.value) setErrors((e) => ({ ...e, value: undefined })) }} rows={5} placeholder="Paste the secret value" />{errors.value ? <div className="mt-1 text-[12px] text-[color:var(--danger)]" role="alert">{errors.value}</div> : null}</div>
+      <div><TextArea label="Secret value" value={value} onChange={(v) => { setValue(v); if (errors.value) setErrors((e) => ({ ...e, value: undefined })) }} rows={5} placeholder="Paste the secret value" />{errors.value ? <div className="mt-1 text-[12px] text-destructive" role="alert">{errors.value}</div> : null}</div>
       {submitError ? <InlineNotice message={submitError} /> : null}
       <ActionButton label={t("exec.storeSecret")} tone="accent" onClick={() => void (async () => { if (!validate()) return; setSubmitError(null); setSubmitting(true); try { unwrap(await window.agentCompany.saveSecret({ companyId, name: name.trim(), description, value })); setName(""); setDescription(""); setValue(""); setErrors({}); await onSaved() } catch (e) { setSubmitError(describeActionError(e)) } finally { setSubmitting(false) } })()} icon={ShieldCheck} loading={submitting} />
-      <div className="border-t border-[color:var(--line)] pt-4 text-[12px] leading-relaxed text-[color:var(--muted)]">Connector secret bindings use `ENV_NAME=secret-name` lines. Values stay outside renderer state after submission.</div>
+      <div className="border-t border-border pt-4 text-[12px] leading-relaxed text-muted-foreground">Connector secret bindings use `ENV_NAME=secret-name` lines. Values stay outside renderer state after submission.</div>
     </div>
   )
 }

@@ -91,7 +91,7 @@ export function PolicyList({ companyId, agents, projects }: PolicyListProps) {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3">
-        <h3 className="text-[15px] font-semibold text-[color:var(--text)]">Budget Policies</h3>
+        <h3 className="text-[15px] font-semibold text-foreground">Budget Policies</h3>
         <ActionButton label="Add Policy" icon={Plus} onClick={handleAdd} />
       </div>
       <div className="flex-1 overflow-y-auto px-4 pb-4">
@@ -99,20 +99,20 @@ export function PolicyList({ companyId, agents, projects }: PolicyListProps) {
           {policies.map((policy) => {
             const util = getUtilization(policy.id);
             const pct = util?.pct ?? 0;
-            const barColor = pct > 100 ? "bg-[color:var(--danger)]" : pct > 80 ? "bg-[color:var(--warn)]" : "bg-[color:var(--success)]";
+            const barColor = pct > 100 ? "bg-destructive" : pct > 80 ? "bg-yellow-600 dark:bg-yellow-400" : "bg-green-600 dark:bg-green-400";
             return (
               <ListRow key={policy.id} onClick={() => handleEdit(policy)}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center rounded-full bg-[color:var(--panel-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-strong)]">
+                      <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
                         {policy.scopeType}
                       </span>
-                      <span className="truncate text-[13px] font-medium text-[color:var(--text)]">{getScopeName(policy)}</span>
-                      {policy.hardStopEnabled ? <ShieldCheck size={14} className="shrink-0 text-[color:var(--accent)]" /> : null}
-                      {util?.hasIncident ? <Warning size={14} weight="fill" className="shrink-0 text-[color:var(--warn)]" /> : null}
+                      <span className="truncate text-[13px] font-medium text-foreground">{getScopeName(policy)}</span>
+                      {policy.hardStopEnabled ? <ShieldCheck size={14} className="shrink-0 text-primary" /> : null}
+                      {util?.hasIncident ? <Warning size={14} weight="fill" className="shrink-0 text-yellow-600 dark:text-yellow-400" /> : null}
                     </div>
-                    <div className="mt-1 flex items-center gap-3 text-[11px] text-[color:var(--muted)]">
+                    <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
                       <span className="font-[family-name:var(--font-mono)]" style={{ fontVariantNumeric: "tabular-nums" }}>
                         ${(policy.amount / 100).toFixed(2)}/mo
                       </span>
@@ -120,10 +120,10 @@ export function PolicyList({ companyId, agents, projects }: PolicyListProps) {
                     </div>
                     {util ? (
                       <div className="mt-1.5 flex items-center gap-2">
-                        <div className="h-1.5 flex-1 rounded-full bg-[color:var(--line)]">
+                        <div className="h-1.5 flex-1 rounded-full bg-[color:var(--border)]">
                           <div className={`h-1.5 rounded-full ${barColor}`} style={{ width: `${Math.min(100, pct)}%` }} />
                         </div>
-                        <span className="text-[10px] font-[family-name:var(--font-mono)] text-[color:var(--muted)]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                        <span className="text-[10px] font-[family-name:var(--font-mono)] text-muted-foreground" style={{ fontVariantNumeric: "tabular-nums" }}>
                           {Math.round(pct)}%
                         </span>
                       </div>
@@ -131,7 +131,7 @@ export function PolicyList({ companyId, agents, projects }: PolicyListProps) {
                   </div>
                   <button
                     type="button"
-                    className="shrink-0 rounded p-1 text-[color:var(--muted)] transition hover:text-[color:var(--danger)]"
+                    className="shrink-0 rounded p-1 text-muted-foreground transition hover:text-destructive"
                     title="Delete policy"
                     aria-label="Delete policy"
                     onClick={(e) => {

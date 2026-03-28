@@ -14,8 +14,8 @@ export function EntityWorkspace({
   return (
     <div className="space-y-14">
       <div>
-        {eyebrow ? <div className="text-[10px] uppercase tracking-[0.08em] text-[color:var(--muted)]">{eyebrow}</div> : null}
-        <h2 className={`${eyebrow ? "mt-2" : ""} text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text)]`}>{title}</h2>
+        {eyebrow ? <div className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{eyebrow}</div> : null}
+        <h2 className={`${eyebrow ? "mt-2" : ""} text-[18px] font-semibold tracking-[-0.01em] text-foreground`}>{title}</h2>
       </div>
       <div className="space-y-14">{primary}{secondary}</div>
     </div>

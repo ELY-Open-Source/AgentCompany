@@ -9,7 +9,7 @@ import { useT } from "../../i18n"
 
 function SendButton({ sending, disabled, onClick, label }: { sending: boolean; disabled: boolean; onClick: () => void; label: string }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled || sending} className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[8px] bg-[color:var(--accent)] text-[color:var(--text-on-accent)] transition hover:brightness-90 active:translate-y-px disabled:opacity-40 disabled:pointer-events-none" aria-label={label}>
+    <button type="button" onClick={onClick} disabled={disabled || sending} className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition hover:brightness-90 active:translate-y-px disabled:opacity-40 disabled:pointer-events-none" aria-label={label}>
       {sending ? <svg className="h-4 w-4 animate-spin" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.3" /><path d="M14 8a6 6 0 0 0-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg> : <PaperPlaneTilt size={18} weight="fill" />}
     </button>
   )
@@ -49,30 +49,30 @@ export function MessageComposer({ agents, companyId, channel, channelTargetId, d
   const fromAgent = agents.find((a) => a.id === fromAgentId)
 
   return (
-    <div className="border-t border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3">
+    <div className="border-t border-border bg-card px-4 py-3">
       {sendError ? <div className="mb-3"><InlineNotice message={sendError} /></div> : null}
       {channel === "direct" && !directRecipientId ? <div className="mb-2"><InlineNotice message="Select a direct conversation partner before sending a DM." /></div> : null}
       <AnimatePresence>
         {replyTo ? (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-2 flex items-center gap-2 overflow-hidden rounded-[6px] bg-[color:var(--panel-soft)] px-3 py-2">
-            <ArrowBendUpLeft size={12} className="text-[color:var(--accent)]" />
-            <span className="min-w-0 flex-1 truncate text-[11px] text-[color:var(--muted-strong)]">Replying to <span className="font-semibold">{agents.find((a) => a.id === replyTo.fromAgentId)?.name ?? "agent"}</span>{replyTo.subject ? `: ${replyTo.subject}` : ""}</span>
-            <button type="button" onClick={onCancelReply} className="shrink-0 rounded-[4px] p-0.5 text-[color:var(--muted)] transition hover:text-[color:var(--text)]"><X size={12} /></button>
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-2 flex items-center gap-2 overflow-hidden rounded-lg bg-muted px-3 py-2">
+            <ArrowBendUpLeft size={12} className="text-primary" />
+            <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Replying to <span className="font-semibold">{agents.find((a) => a.id === replyTo.fromAgentId)?.name ?? "agent"}</span>{replyTo.subject ? `: ${replyTo.subject}` : ""}</span>
+            <button type="button" onClick={onCancelReply} className="shrink-0 rounded-[4px] p-0.5 text-muted-foreground transition hover:text-foreground"><X size={12} /></button>
           </motion.div>
         ) : null}
       </AnimatePresence>
       <div className="mb-2 flex items-center gap-2">
         <AgentAvatar agent={fromAgent} size="sm" />
-        <select value={fromAgentId} onChange={(e) => setFromAgentId(e.target.value)} className="min-w-0 rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)] px-2 py-1 text-[11px] font-medium text-[color:var(--text)]">
+        <select value={fromAgentId} onChange={(e) => setFromAgentId(e.target.value)} className="min-w-0 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground">
           {agents.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.role})</option>)}
         </select>
-        {!replyTo ? <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject (optional)" className="min-w-0 flex-1 rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)] px-2.5 py-1 text-[11px] text-[color:var(--text)] placeholder:text-[color:var(--muted)]" /> : null}
+        {!replyTo ? <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject (optional)" className="min-w-0 flex-1 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] text-foreground placeholder:text-muted-foreground" /> : null}
       </div>
       <div className="flex items-end gap-2">
-        <textarea ref={textareaRef} value={body} onChange={(e) => setBody(e.target.value)} onKeyDown={handleKeyDown} placeholder="Type a message..." rows={2} className="min-h-[40px] min-w-0 flex-1 resize-none rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-3 py-2 text-[13px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:border-transparent focus:outline-none focus:ring-2" style={{ focusRingColor: "var(--accent)" } as React.CSSProperties} />
+        <textarea ref={textareaRef} value={body} onChange={(e) => setBody(e.target.value)} onKeyDown={handleKeyDown} placeholder="Type a message..." rows={2} className="min-h-[40px] min-w-0 flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2" style={{ focusRingColor: "var(--primary)" } as React.CSSProperties} />
         <SendButton sending={sending} disabled={!body.trim() || !fromAgentId || (channel === "direct" && !directRecipientId)} onClick={() => void handleSend()} label="Send message" />
       </div>
-      <div className="mt-1 text-[11px] text-[color:var(--muted)]">Press {navigator.platform.includes("Mac") ? "Cmd" : "Ctrl"}+Enter to send</div>
+      <div className="mt-1 text-[11px] text-muted-foreground">Press {navigator.platform.includes("Mac") ? "Cmd" : "Ctrl"}+Enter to send</div>
     </div>
   )
 }
@@ -84,10 +84,10 @@ export function TaskDiscussionComposer({ companyId, taskId, onSent }: { companyI
     try { unwrap(await window.agentCompany.addComment({ companyId, taskId, authorName: "Board", body: body.trim() })); setBody(""); onSent() } catch (e) { setSendError(e instanceof Error ? e.message : "Failed to send.") } finally { setSending(false) }
   }, [body, companyId, taskId, onSent])
   return (
-    <div className="border-t border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3">
+    <div className="border-t border-border bg-card px-4 py-3">
       {sendError ? <div className="mb-3"><InlineNotice message={sendError} /></div> : null}
       <div className="flex items-end gap-2">
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Reply in task discussion..." rows={2} className="min-h-[40px] min-w-0 flex-1 resize-none rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-3 py-2 text-[13px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] focus:border-transparent focus:outline-none focus:ring-2" style={{ focusRingColor: "var(--accent)" } as React.CSSProperties} />
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Reply in task discussion..." rows={2} className="min-h-[40px] min-w-0 flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2" style={{ focusRingColor: "var(--primary)" } as React.CSSProperties} />
         <SendButton sending={sending} disabled={!body.trim()} onClick={() => void handleSend()} label="Send task comment" />
       </div>
     </div>
@@ -96,7 +96,7 @@ export function TaskDiscussionComposer({ companyId, taskId, onSent }: { companyI
 
 export function NoChannelComposer() {
   const t = useT()
-  return <div className="border-t border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-2.5"><div className="flex items-center gap-2 text-[11px] text-[color:var(--muted)]"><ChatCircle size={14} /><span>{t("comm.selectChannelSend")}</span></div></div>
+  return <div className="border-t border-border bg-card px-4 py-2.5"><div className="flex items-center gap-2 text-[11px] text-muted-foreground"><ChatCircle size={14} /><span>{t("comm.selectChannelSend")}</span></div></div>
 }
 
 export function ComposeModal({ open, onClose, agents, projects, companyId, onSent }: { open: boolean; onClose: () => void; agents: AgentRecord[]; projects?: ProjectRecord[]; companyId: string; onSent: () => void }) {
@@ -130,8 +130,8 @@ export function ComposeModal({ open, onClose, agents, projects, companyId, onSen
         <TextArea label={t("comm.message")} value={body} onChange={setBody} placeholder={t("comm.writeMessage")} rows={5} />
         <Select label="Priority" value={priority} onChange={(v) => setPriority(v as MessagePriority)} options={[{ value: "low", label: "Low" }, { value: "normal", label: "Normal" }, { value: "urgent", label: "Urgent" }]} />
         <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={onClose} className="rounded-[8px] px-3 py-2 text-[13px] font-medium text-[color:var(--muted)] transition hover:bg-[color:var(--panel-soft)]">{t("common.cancel")}</button>
-          <button type="button" onClick={() => void handleSend()} disabled={!body.trim() || !subject.trim() || !fromAgentId || (channel === "direct" && !toAgentId) || ((channel === "department" || channel === "project") && !channelTargetId) || sending} className="inline-flex items-center gap-2 rounded-[8px] px-3 py-2 text-[13px] font-semibold bg-[color:var(--accent)] text-[color:var(--text-on-accent)] transition hover:brightness-90 active:translate-y-px disabled:opacity-40 disabled:pointer-events-none">
+          <button type="button" onClick={onClose} className="rounded-lg px-3 py-2 text-[13px] font-medium text-muted-foreground transition hover:bg-muted">{t("common.cancel")}</button>
+          <button type="button" onClick={() => void handleSend()} disabled={!body.trim() || !subject.trim() || !fromAgentId || (channel === "direct" && !toAgentId) || ((channel === "department" || channel === "project") && !channelTargetId) || sending} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-semibold bg-primary text-primary-foreground transition hover:brightness-90 active:translate-y-px disabled:opacity-40 disabled:pointer-events-none">
             {sending ? <svg className="h-4 w-4 animate-spin" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.3" /><path d="M14 8a6 6 0 0 0-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg> : <PaperPlaneTilt size={14} weight="fill" />}{t("comm.sendMessage")}
           </button>
         </div>

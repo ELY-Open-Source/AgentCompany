@@ -60,20 +60,20 @@ export function SkillsSection({
   return (
     <div className="grid h-full grid-cols-1 xl:grid-cols-[19rem_minmax(0,1fr)]">
       {/* Left column -- skill list sidebar */}
-      <aside className="flex flex-col overflow-y-auto border-r border-[color:var(--line)]">
+      <aside className="flex flex-col overflow-y-auto border-r border-border">
         {/* Header */}
         <div className="flex shrink-0 items-center gap-3 px-4 py-3">
-          <h2 className="text-[20px] font-bold tracking-[-0.025em] text-[color:var(--text)]">
+          <h2 className="text-[20px] font-bold tracking-[-0.025em] text-foreground">
             Skills
           </h2>
           {skills.length > 0 && (
-            <span className="inline-flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-[color:var(--panel-soft)] px-1.5 text-[11px] font-semibold text-[color:var(--muted-strong)]">
+            <span className="inline-flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-muted px-1.5 text-[11px] font-semibold text-muted-foreground">
               {skills.length}
             </span>
           )}
           <button
             type="button"
-            className="focus-ring ml-auto flex h-7 w-7 items-center justify-center rounded-[6px] text-[color:var(--muted)] transition hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)]"
+            className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ml-auto flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
             onClick={() => setSkillImportModalOpen(true)}
             aria-label="Import skill"
           >
@@ -86,11 +86,11 @@ export function SkillsSection({
           <div className="relative">
             <MagnifyingGlass
               size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted)]"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
               aria-hidden="true"
             />
             <input
-              className="focus-ring w-full rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] py-2 pl-8 pr-3 text-[13px] text-[color:var(--text)] placeholder:text-[color:var(--muted)]"
+              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 w-full rounded-lg border border-border bg-card py-2 pl-8 pr-3 text-[13px] text-foreground placeholder:text-muted-foreground"
               value={skillFilter}
               onChange={(e) => setSkillFilter(e.target.value)}
               placeholder="Filter skills..."
@@ -108,7 +108,7 @@ export function SkillsSection({
               action={
                 <button
                   type="button"
-                  className="focus-ring inline-flex items-center gap-2 rounded-[8px] border border-transparent bg-[color:var(--accent)] px-4 py-2.5 text-[12px] font-bold text-[color:var(--text-on-accent)] shadow-[0_1px_3px_rgba(74,93,122,0.35)] transition hover:bg-[color:var(--accent-hover)]"
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 inline-flex items-center gap-2 rounded-lg border border-transparent bg-primary px-4 py-2.5 text-[12px] font-bold text-primary-foreground shadow-[0_1px_3px_rgba(74,93,122,0.35)] transition hover:bg-primary/90"
                   onClick={() => setSkillImportModalOpen(true)}
                 >
                   <Plus size={14} weight="bold" />

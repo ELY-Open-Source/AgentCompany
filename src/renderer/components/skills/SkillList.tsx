@@ -62,7 +62,7 @@ export function SkillList({
 
   if (filteredSkills.length === 0) {
     return (
-      <div className="px-4 py-6 text-[13px] text-[color:var(--muted)]">
+      <div className="px-4 py-6 text-[13px] text-muted-foreground">
         No skills match this filter.
       </div>
     );
@@ -79,10 +79,10 @@ export function SkillList({
         const filePath = selectedPaths[skill.id] ?? "SKILL.md";
 
         return (
-          <div key={skill.id} className="border-b border-[color:var(--line)]">
+          <div key={skill.id} className="border-b border-border">
             <div
-              className={`group flex items-center gap-2 px-3 py-1.5 hover:bg-[color:var(--panel-soft)] ${
-                isSelected ? "text-[color:var(--text)]" : "text-[color:var(--muted)]"
+              className={`group flex items-center gap-2 px-3 py-1.5 hover:bg-muted ${
+                isSelected ? "text-foreground" : "text-muted-foreground"
               }`}
             >
               <SourceIcon
@@ -101,7 +101,7 @@ export function SkillList({
               </button>
               <button
                 type="button"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[4px] text-[color:var(--muted)] opacity-60 transition-opacity hover:bg-[color:var(--panel-soft)] hover:opacity-100"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[4px] text-muted-foreground opacity-60 transition-opacity hover:bg-muted hover:opacity-100"
                 onClick={() => handleToggleSkill(skill.id)}
                 aria-label={isExpanded ? "Collapse file tree" : "Expand file tree"}
               >

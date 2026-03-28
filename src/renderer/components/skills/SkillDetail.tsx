@@ -134,7 +134,7 @@ export function SkillDetail({
 
   if (loading) {
     return (
-      <div className="flex flex-1 items-center justify-center p-8 text-[color:var(--muted)]">
+      <div className="flex flex-1 items-center justify-center p-8 text-muted-foreground">
         <div className="text-[13px]">Loading skill...</div>
       </div>
     );
@@ -142,7 +142,7 @@ export function SkillDetail({
 
   if (!detail) {
     return (
-      <div className="flex flex-1 items-center justify-center p-8 text-[color:var(--muted)]">
+      <div className="flex flex-1 items-center justify-center p-8 text-muted-foreground">
         <div className="text-[13px]">Skill not found</div>
       </div>
     );
@@ -165,15 +165,15 @@ export function SkillDetail({
   return (
     <div className="min-w-0">
       {/* Header section */}
-      <div className="border-b border-[color:var(--line)] px-5 py-4">
+      <div className="border-b border-border px-5 py-4">
         <div className="flex items-start gap-3">
-          <SourceIcon size={20} className="mt-1 shrink-0 text-[color:var(--muted)]" />
+          <SourceIcon size={20} className="mt-1 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <h1 className="text-[20px] font-semibold leading-tight text-[color:var(--text)]">
+            <h1 className="text-[20px] font-semibold leading-tight text-foreground">
               {detail.name}
             </h1>
             {detail.description ? (
-              <p className="mt-1 max-w-3xl text-[13px] text-[color:var(--muted)]">
+              <p className="mt-1 max-w-3xl text-[13px] text-muted-foreground">
                 {detail.description}
               </p>
             ) : null}
@@ -182,35 +182,35 @@ export function SkillDetail({
       </div>
 
       {/* Metadata row */}
-      <div className="space-y-3 border-b border-[color:var(--line)] px-5 pt-4 pb-4">
+      <div className="space-y-3 border-b border-border px-5 pt-4 pb-4">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px]">
           {/* Source */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Source</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Source</span>
             <span className="flex items-center gap-1.5">
-              <SourceIcon size={14} className="text-[color:var(--muted)]" />
-              <span className="text-[color:var(--text)]">{sourceLabel[detail.sourceType] ?? detail.sourceType}</span>
+              <SourceIcon size={14} className="text-muted-foreground" />
+              <span className="text-foreground">{sourceLabel[detail.sourceType] ?? detail.sourceType}</span>
             </span>
           </div>
 
           {/* Trust level */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Trust</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Trust</span>
             <StatusPill status={trustToneMap[detail.trustLevel] ?? "default"} />
-            <span className="text-[color:var(--text)]">{trustLabelMap[detail.trustLevel] ?? detail.trustLevel}</span>
+            <span className="text-foreground">{trustLabelMap[detail.trustLevel] ?? detail.trustLevel}</span>
           </div>
 
           {/* Compatibility */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Compat</span>
-            <span className="text-[color:var(--text)]">{detail.compatibility || "all"}</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Compat</span>
+            <span className="text-foreground">{detail.compatibility || "all"}</span>
           </div>
 
           {/* Ref (for GitHub sources) */}
           {isGitHubSource ? (
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Ref</span>
-              <span className="font-mono text-[12px] text-[color:var(--text)]">{shortRef(detail.sourceRef)}</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Ref</span>
+              <span className="font-mono text-[12px] text-foreground">{shortRef(detail.sourceRef)}</span>
             </div>
           ) : null}
         </div>
@@ -225,11 +225,11 @@ export function SkillDetail({
               onClick={() => void handleCheckUpdate()}
             />
             {updateStatus?.hasUpdate ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-[color:var(--accent-soft)] px-2.5 py-0.5 text-[12px] font-medium text-[color:var(--accent-text)]">
+              <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-0.5 text-[12px] font-medium text-primary">
                 Update available: {shortRef(updateStatus.currentRef)} &rarr; {shortRef(updateStatus.latestRef)}
               </span>
             ) : updateStatus && !updateStatus.hasUpdate ? (
-              <span className="text-[12px] text-[color:var(--muted)]">Up to date</span>
+              <span className="text-[12px] text-muted-foreground">Up to date</span>
             ) : null}
           </div>
         ) : null}
@@ -240,7 +240,7 @@ export function SkillDetail({
         {/* File tree sidebar + content */}
         <div className="grid grid-cols-[12rem_minmax(0,1fr)]">
           {/* File tree sidebar */}
-          <div className="border-r border-[color:var(--line)] py-2">
+          <div className="border-r border-border py-2">
             {treeNodes.length > 0 ? (
               <SkillFileTree
                 nodes={treeNodes}
@@ -250,18 +250,18 @@ export function SkillDetail({
                 onSelectPath={setSelectedSkillFilePath}
               />
             ) : (
-              <p className="px-3 py-2 text-[12px] text-[color:var(--muted)]">No files</p>
+              <p className="px-3 py-2 text-[12px] text-muted-foreground">No files</p>
             )}
           </div>
 
           {/* Content area */}
           <div className="p-4">
             {/* File path bar */}
-            <div className="mb-3 flex items-center gap-1 text-[12px] text-[color:var(--muted)]">
+            <div className="mb-3 flex items-center gap-1 text-[12px] text-muted-foreground">
               {selectedSkillFilePath.split("/").map((segment, i, arr) => (
                 <span key={i} className="flex items-center gap-1">
                   {i > 0 ? <span className="opacity-40">/</span> : null}
-                  <span className={i === arr.length - 1 ? "font-medium text-[color:var(--text)]" : ""}>
+                  <span className={i === arr.length - 1 ? "font-medium text-foreground" : ""}>
                     {segment}
                   </span>
                 </span>
@@ -270,35 +270,35 @@ export function SkillDetail({
 
             {/* Content */}
             {isSkillMd ? (
-              <pre className="rounded-lg bg-[color:var(--panel)] p-4 font-mono text-[13px] text-[color:var(--text)] overflow-auto whitespace-pre-wrap">
+              <pre className="rounded-lg bg-card p-4 font-mono text-[13px] text-foreground overflow-auto whitespace-pre-wrap">
                 {fileContent}
               </pre>
             ) : selectedFileEntry ? (
-              <div className="rounded-lg bg-[color:var(--panel)] p-4 text-[13px] text-[color:var(--muted)]">
-                <p className="font-medium text-[color:var(--text)]">{selectedFileEntry.path}</p>
+              <div className="rounded-lg bg-card p-4 text-[13px] text-muted-foreground">
+                <p className="font-medium text-foreground">{selectedFileEntry.path}</p>
                 <p className="mt-1">Kind: {selectedFileEntry.kind}</p>
                 <p className="mt-1 text-[12px] italic">File content preview is not available for non-SKILL.md files.</p>
               </div>
             ) : (
-              <p className="text-[13px] text-[color:var(--muted)]">Select a file to view its details.</p>
+              <p className="text-[13px] text-muted-foreground">Select a file to view its details.</p>
             )}
           </div>
         </div>
       </div>
 
       {/* Agent assignments section */}
-      <div className="border-t border-[color:var(--line)] px-5 py-4">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--accent-text)] mb-3">
+      <div className="border-t border-border px-5 py-4">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-primary mb-3">
           Agent Assignments
         </h3>
         <SkillAgentToggles mode="skill" companyId={companyId} skillId={skillId} agents={agents} />
       </div>
 
       {/* Delete section */}
-      <div className="border-t border-[color:var(--line)] px-5 py-4">
+      <div className="border-t border-border px-5 py-4">
         {confirmingDelete ? (
           <div className="flex items-center gap-3">
-            <p className="text-[13px] text-[color:var(--danger)]">
+            <p className="text-[13px] text-destructive">
               Delete &ldquo;{detail.name}&rdquo;? This cannot be undone.
             </p>
             <ActionButton

@@ -22,7 +22,7 @@ export function TaskQueue({ tasks, runs, selectedTaskId, onSelect }: { tasks: Ta
   return (
     <div
       ref={parentRef}
-      className="h-full overflow-auto border-y border-[color:var(--line)]"
+      className="h-full overflow-auto border-y border-border"
       role="listbox"
       aria-label="Task queue"
       onKeyDown={handleKeyDown}
@@ -52,18 +52,18 @@ export function TaskQueue({ tasks, runs, selectedTaskId, onSelect }: { tasks: Ta
                 width: "100%",
                 transform: `translateY(${virtualRow.start}px)`,
               }}
-              className={`focus-ring outline-none ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--accent)] ring-inset" : ""}`}
+              className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--primary)] ring-inset" : ""}`}
             >
               <button
-                className={`relative w-full border-b border-[color:var(--line)] px-4 py-3 text-left transition duration-150 last:border-b-0 ${selectedTaskId === task.id ? "bg-[color:var(--accent-soft)] border-l-[3px] border-l-[color:var(--accent)]" : "bg-transparent hover:bg-[color:var(--panel-soft)]"}`}
+                className={`relative w-full border-b border-border px-4 py-3 text-left transition duration-150 last:border-b-0 ${selectedTaskId === task.id ? "bg-accent border-l-[3px] border-l-[color:var(--primary)]" : "bg-transparent hover:bg-muted"}`}
                 onClick={() => onSelect(task.id)}
                 tabIndex={-1}
               >
-                {selectedTaskId === task.id ? <span className="absolute inset-y-3 left-0 w-0.5 rounded-full bg-[color:var(--accent)]" /> : null}
+                {selectedTaskId === task.id ? <span className="absolute inset-y-3 left-0 w-0.5 rounded-full bg-primary" /> : null}
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-2.5">
                     <PriorityDot priority={task.priority} />
-                    <div className={`truncate text-[13px] text-[color:var(--text)] ${selectedTaskId === task.id ? "font-semibold" : "font-medium"}`}>{task.title}</div>
+                    <div className={`truncate text-[13px] text-foreground ${selectedTaskId === task.id ? "font-semibold" : "font-medium"}`}>{task.title}</div>
                   </div>
                   <StatusPill status={activeRun?.status ?? task.status} />
                 </div>

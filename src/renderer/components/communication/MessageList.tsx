@@ -92,8 +92,8 @@ export function MessageList({
   if (!activeChannel) {
     return (
       <div className="flex h-full flex-col items-center justify-center text-center">
-        <ChatCircle size={40} className="mb-3 text-[color:var(--muted)]" />
-        <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">
+        <ChatCircle size={40} className="mb-3 text-muted-foreground" />
+        <div className="text-[14px] font-medium text-muted-foreground">
           {t("comm.selectChannelView")}
         </div>
       </div>
@@ -103,8 +103,8 @@ export function MessageList({
   if (activeChannel.kind === "task" && taskDiscussionComments.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center text-center">
-        <Tray size={36} className="mb-3 text-[color:var(--muted)]" />
-        <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">
+        <Tray size={36} className="mb-3 text-muted-foreground" />
+        <div className="text-[14px] font-medium text-muted-foreground">
           {t("comm.noDiscussionYet")}
         </div>
       </div>
@@ -114,14 +114,14 @@ export function MessageList({
   if (activeChannel.kind !== "task" && filteredMessages.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center text-center">
-        <Tray size={36} className="mb-3 text-[color:var(--muted)]" />
-        <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">
+        <Tray size={36} className="mb-3 text-muted-foreground" />
+        <div className="text-[14px] font-medium text-muted-foreground">
           {filters.search || filters.unreadOnly || filters.priority !== "all"
             ? t("comm.noMatchFilters")
             : t("comm.noMessagesChannel")}
         </div>
         {(filters.search || filters.unreadOnly || filters.priority !== "all") ? (
-          <div className="mt-1 text-[13px] text-[color:var(--muted)]">{t("comm.adjustFilters")}</div>
+          <div className="mt-1 text-[13px] text-muted-foreground">{t("comm.adjustFilters")}</div>
         ) : null}
       </div>
     )
@@ -159,7 +159,7 @@ export function MessageList({
                 width: "100%",
                 transform: `translateY(${virtualRow.start}px)`,
               }}
-              className={`focus-ring outline-none ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--accent)] ring-inset" : ""}`}
+              className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--primary)] ring-inset" : ""}`}
             >
               {item.type === "comment" ? (
                 <TaskCommentBubble

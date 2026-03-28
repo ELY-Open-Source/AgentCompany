@@ -29,8 +29,8 @@ interface RunDetailProps {
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between py-2">
-      <span className="text-[12px] text-[color:var(--muted)]">{label}</span>
-      <span className="text-[13px] text-[color:var(--text)]">{children}</span>
+      <span className="text-[12px] text-muted-foreground">{label}</span>
+      <span className="text-[13px] text-foreground">{children}</span>
     </div>
   );
 }
@@ -72,7 +72,7 @@ export function RunDetail({
           </div>
         )}
       >
-        <div className="divide-y divide-[color:var(--line)]">
+        <div className="divide-y divide-[color:var(--border)]">
           <DetailRow label="Status"><StatusPill status={selectedRun.status} /></DetailRow>
           <DetailRow label="Agent">{agent?.name ?? selectedRun.agentId}</DetailRow>
           <DetailRow label="Connector">{selectedRun.connectorId}</DetailRow>
@@ -82,7 +82,7 @@ export function RunDetail({
           <DetailRow label="Cost">{formatMoney(selectedRun.costUsd)}</DetailRow>
         </div>
         {selectedRun.errorMessage ? (
-          <div className="mt-4 rounded-[8px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
+          <div className="mt-4 rounded-lg border border-[color:var(--destructive)] bg-red-100 dark:bg-red-900/50 px-4 py-3 text-[13px] text-destructive">
             {selectedRun.errorMessage}
           </div>
         ) : null}
@@ -118,15 +118,15 @@ export function RunDetail({
         )}
       >
         {logState.error ? (
-          <div className="rounded-[8px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
+          <div className="rounded-lg border border-[color:var(--destructive)] bg-red-100 dark:bg-red-900/50 px-4 py-3 text-[13px] text-destructive">
             {logState.error}
           </div>
         ) : null}
-        <div className="mb-3 flex items-center justify-between text-[11px] text-[color:var(--muted)]">
+        <div className="mb-3 flex items-center justify-between text-[11px] text-muted-foreground">
           <span>{logState.loading ? "Refreshing\u2026" : logState.eof ? "At latest tail" : "Tail window loaded"}</span>
         </div>
-        <div className="max-h-[420px] overflow-auto rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-3">
-          <pre className="mono whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--muted-strong)]">
+        <div className="max-h-[420px] overflow-auto rounded-lg border border-border bg-card px-4 py-3">
+          <pre className="font-mono whitespace-pre-wrap text-[12px] leading-relaxed text-muted-foreground">
             {logState.content || "No log output captured yet."}
           </pre>
         </div>

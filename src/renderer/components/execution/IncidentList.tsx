@@ -11,10 +11,10 @@ interface IncidentListProps {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  open: "text-[color:var(--danger)] bg-[color:var(--danger-soft)]",
-  resolved: "text-[color:var(--success)] bg-[color:var(--success-soft)]",
-  auto_resolved_limit_increase: "text-[color:var(--accent)] bg-[color:var(--accent-soft)]",
-  auto_closed: "text-[color:var(--muted-strong)] bg-[color:var(--panel-soft)]",
+  open: "text-destructive bg-red-100 dark:bg-red-900/50",
+  resolved: "text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50",
+  auto_resolved_limit_increase: "text-primary bg-accent",
+  auto_closed: "text-muted-foreground bg-muted",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -56,8 +56,8 @@ export function IncidentList({ companyId, agents, projects }: IncidentListProps)
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3">
-        <h3 className="text-[15px] font-semibold text-[color:var(--text)]">Budget Incidents</h3>
-        <div className="flex items-center gap-1 rounded-[6px] bg-[color:var(--panel-soft)] p-0.5">
+        <h3 className="text-[15px] font-semibold text-foreground">Budget Incidents</h3>
+        <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5">
           {(["open", "all"] as const).map((f) => (
             <button
               key={f}
@@ -65,8 +65,8 @@ export function IncidentList({ companyId, agents, projects }: IncidentListProps)
               onClick={() => setFilter(f)}
               className={`rounded-[5px] px-3 py-1 text-[12px] font-medium transition ${
                 filter === f
-                  ? "bg-[color:var(--panel)] text-[color:var(--text)] shadow-sm"
-                  : "text-[color:var(--muted)] hover:text-[color:var(--text)]"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {f === "open" ? "Open" : "All"}
@@ -93,8 +93,8 @@ export function IncidentList({ companyId, agents, projects }: IncidentListProps)
                         <span
                           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${
                             isWarn
-                              ? "text-[color:var(--warn)] bg-[color:var(--warn-soft)]"
-                              : "text-[color:var(--danger)] bg-[color:var(--danger-soft)]"
+                              ? "text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/50"
+                              : "text-destructive bg-red-100 dark:bg-red-900/50"
                           }`}
                         >
                           {isWarn ? <Warning size={10} weight="bold" /> : null}
@@ -105,13 +105,13 @@ export function IncidentList({ companyId, agents, projects }: IncidentListProps)
                         </span>
                       </div>
 
-                      <div className="mt-1.5 flex items-center gap-2 text-[12px] text-[color:var(--muted-strong)]">
+                      <div className="mt-1.5 flex items-center gap-2 text-[12px] text-muted-foreground">
                         <span className="capitalize">{incident.scopeType}</span>
-                        <span className="text-[color:var(--muted)]">&middot;</span>
-                        <span className="font-medium text-[color:var(--text)]">{getScopeName(incident.scopeType, incident.scopeId)}</span>
+                        <span className="text-muted-foreground">&middot;</span>
+                        <span className="font-medium text-foreground">{getScopeName(incident.scopeType, incident.scopeId)}</span>
                       </div>
 
-                      <div className="mt-1 flex items-center gap-3 text-[11px] text-[color:var(--muted)]">
+                      <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
                         <span className="font-[family-name:var(--font-mono)]" style={{ fontVariantNumeric: "tabular-nums" }}>
                           ${(incident.amountObserved / 100).toFixed(2)} / ${(incident.amountLimit / 100).toFixed(2)}
                         </span>

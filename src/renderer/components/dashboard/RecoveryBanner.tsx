@@ -41,33 +41,33 @@ export function RecoveryBanner() {
   const handleDismissAll = () => setDismissed(true);
 
   return (
-    <div className="bg-[color:var(--warn-soft)] border border-[color:var(--warn)]/30 rounded-[8px] px-4 py-4 mb-4">
+    <div className="bg-yellow-100 dark:bg-yellow-900/50 border border-[color:var(--destructive)]/30 rounded-lg px-4 py-4 mb-4">
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2 text-[color:var(--warn)] font-medium">
+        <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400 font-medium">
           <Warning size={18} weight="bold" />
           <span>{runs.length} interrupted task(s) detected from previous session</span>
         </div>
-        <button onClick={handleDismissAll} className="text-[color:var(--muted-strong)] hover:text-[color:var(--text)] transition-colors" aria-label="Dismiss recovery banner">
+        <button onClick={handleDismissAll} className="text-muted-foreground hover:text-foreground transition-colors" aria-label="Dismiss recovery banner">
           <X size={16} />
         </button>
       </div>
       <div className="space-y-2">
         {runs.map(run => (
-          <div key={run.runId} className="flex items-center justify-between bg-[color:var(--panel-soft)] rounded-[4px] px-3 py-2 text-[13px]">
+          <div key={run.runId} className="flex items-center justify-between bg-muted rounded-[4px] px-3 py-2 text-[13px]">
             <div className="min-w-0 flex-1">
-              <span className="truncate text-[color:var(--text)]">{run.taskTitle}</span>
-              <span className="whitespace-nowrap text-[color:var(--muted)] ml-2">({run.agentName})</span>
+              <span className="truncate text-foreground">{run.taskTitle}</span>
+              <span className="whitespace-nowrap text-muted-foreground ml-2">({run.agentName})</span>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => handleRetry(run)}
-                className="flex items-center gap-1 text-[color:var(--success)] hover:text-[color:var(--success)] text-xs transition-colors"
+                className="flex items-center gap-1 text-green-600 dark:text-green-400 hover:text-green-600 dark:text-green-400 text-xs transition-colors"
               >
                 <ArrowClockwise size={14} /> Retry
               </button>
               <button
                 onClick={() => handleFail(run)}
-                className="flex items-center gap-1 text-[color:var(--danger)] hover:text-[color:var(--danger)] text-xs transition-colors"
+                className="flex items-center gap-1 text-destructive hover:text-destructive text-xs transition-colors"
               >
                 <Trash size={14} /> Cancel
               </button>

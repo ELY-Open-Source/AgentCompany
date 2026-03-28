@@ -2,8 +2,8 @@ import type { AutomationAction, AutomationStatus, AutomationTrigger, WorkflowSta
 import { ArrowsClockwise, Eye, Funnel, Lightning, Pause, Play, Plus, Robot, Timer, Trash } from "@phosphor-icons/react"
 import { DEPARTMENT_OPTIONS } from "@shared/constants"
 
-export const ACCENT = "var(--accent)"
-export const LINE = "var(--line)"
+export const ACCENT = "var(--primary)"
+export const LINE = "var(--border)"
 
 export const triggerConfig: Record<AutomationTrigger, { label: string; description: string; icon: typeof Lightning }> = {
   task_status_changed: { label: "Task Status Changed", description: "When a task transitions to a new status", icon: ArrowsClockwise },
@@ -44,26 +44,26 @@ export const actionConfig: Record<AutomationAction, { label: string; description
 export const departmentOptions = DEPARTMENT_OPTIONS
 
 export const statusColors: Record<AutomationStatus, { bg: string; text: string; dot: string }> = {
-  active: { bg: "var(--success-soft)", text: "var(--success)", dot: "var(--success)" },
-  paused: { bg: "var(--warn-soft)", text: "var(--warn)", dot: "var(--warn)" },
-  disabled: { bg: "var(--panel-soft)", text: "var(--muted)", dot: "var(--muted)" },
-  error: { bg: "var(--danger-soft)", text: "var(--danger)", dot: "var(--danger)" },
+  active: { bg: "var(--muted-foreground)", text: "var(--primary)", dot: "var(--primary)" },
+  paused: { bg: "var(--muted-foreground)", text: "var(--destructive)", dot: "var(--destructive)" },
+  disabled: { bg: "var(--muted-foreground)", text: "var(--muted-foreground)", dot: "var(--muted-foreground)" },
+  error: { bg: "var(--destructive)", text: "var(--destructive)", dot: "var(--destructive)" },
 }
 
 export const workflowStatusColors: Record<WorkflowStatus, { bg: string; text: string; dot: string }> = {
-  draft: { bg: "var(--panel-soft)", text: "var(--muted-strong)", dot: "var(--muted)" },
-  active: { bg: "var(--success-soft)", text: "var(--success)", dot: "var(--success)" },
-  paused: { bg: "var(--warn-soft)", text: "var(--warn)", dot: "var(--warn)" },
-  completed: { bg: "var(--success-soft)", text: "var(--success)", dot: "var(--success)" },
-  failed: { bg: "var(--danger-soft)", text: "var(--danger)", dot: "var(--danger)" },
+  draft: { bg: "var(--muted-foreground)", text: "var(--muted-foreground)", dot: "var(--muted-foreground)" },
+  active: { bg: "var(--muted-foreground)", text: "var(--primary)", dot: "var(--primary)" },
+  paused: { bg: "var(--muted-foreground)", text: "var(--destructive)", dot: "var(--destructive)" },
+  completed: { bg: "var(--muted-foreground)", text: "var(--primary)", dot: "var(--primary)" },
+  failed: { bg: "var(--destructive)", text: "var(--destructive)", dot: "var(--destructive)" },
 }
 
 export const stepStatusConfig: Record<WorkflowStep["status"], { bg: string; border: string; text: string }> = {
-  pending: { bg: "var(--panel-soft)", border: "var(--line)", text: "var(--muted)" },
-  running: { bg: "var(--accent-soft)", border: ACCENT, text: ACCENT },
-  completed: { bg: "var(--success-soft)", border: "var(--success)", text: "var(--success)" },
-  failed: { bg: "var(--danger-soft)", border: "var(--danger)", text: "var(--danger)" },
-  skipped: { bg: "var(--panel-soft)", border: "var(--line)", text: "var(--muted)" },
+  pending: { bg: "var(--muted-foreground)", border: "var(--border)", text: "var(--muted-foreground)" },
+  running: { bg: "var(--primary)", border: ACCENT, text: ACCENT },
+  completed: { bg: "var(--muted-foreground)", border: "var(--primary)", text: "var(--primary)" },
+  failed: { bg: "var(--destructive)", border: "var(--destructive)", text: "var(--destructive)" },
+  skipped: { bg: "var(--muted-foreground)", border: "var(--border)", text: "var(--muted-foreground)" },
 }
 
 export interface AutomationLogEntry { ruleId: string; ruleName: string; trigger: string; action: string; executedAt: string }

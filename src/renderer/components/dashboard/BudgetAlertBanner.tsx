@@ -78,9 +78,9 @@ export function BudgetAlertBanner({ agents, onNavigate, companyId }: BudgetAlert
     <div className="space-y-2">
       {incidents.map((incident) => {
         const isHardStop = incident.thresholdType === "hard_stop";
-        const borderColor = isHardStop ? "border-[color:var(--danger)]" : "border-[color:var(--warn)]";
-        const bgColor = isHardStop ? "bg-[color:var(--danger-soft)]" : "bg-[color:var(--warn-soft)]";
-        const textColor = isHardStop ? "text-[color:var(--danger)]" : "text-[color:var(--warn)]";
+        const borderColor = isHardStop ? "border-[color:var(--destructive)]" : "border-[color:var(--destructive)]";
+        const bgColor = isHardStop ? "bg-red-100 dark:bg-red-900/50" : "bg-yellow-100 dark:bg-yellow-900/50";
+        const textColor = isHardStop ? "text-destructive" : "text-yellow-600 dark:text-yellow-400";
         const pct = incident.amountLimit > 0 ? Math.round((incident.amountObserved / incident.amountLimit) * 100) : 0;
 
         return (
@@ -88,7 +88,7 @@ export function BudgetAlertBanner({ agents, onNavigate, companyId }: BudgetAlert
             key={incident.id}
             role="alert"
             aria-live="assertive"
-            className={`rounded-[8px] border ${borderColor} border-opacity-30 ${bgColor} px-4 py-3`}
+            className={`rounded-lg border ${borderColor} border-opacity-30 ${bgColor} px-4 py-3`}
           >
             <div className="flex items-start gap-3">
               <div className="mt-0.5 shrink-0">
@@ -98,13 +98,13 @@ export function BudgetAlertBanner({ agents, onNavigate, companyId }: BudgetAlert
                 <div className={`text-[13px] font-semibold ${textColor}`}>
                   {isHardStop ? "Budget Hard Stop" : "Budget Warning"}
                 </div>
-                <div className="mt-0.5 text-[13px] text-[color:var(--muted-strong)]">
+                <div className="mt-0.5 text-[13px] text-muted-foreground">
                   {getScopeName(incident.scopeType, incident.scopeId)} — ${(incident.amountObserved / 100).toFixed(2)} / ${(incident.amountLimit / 100).toFixed(2)} ({pct}%)
                 </div>
                 <button
                   type="button"
                   onClick={handleViewCosts}
-                  className="mt-1.5 text-[11px] font-medium text-[color:var(--accent)] hover:underline cursor-pointer"
+                  className="mt-1.5 text-[11px] font-medium text-primary hover:underline cursor-pointer"
                 >
                   View Costs
                 </button>
@@ -119,7 +119,7 @@ export function BudgetAlertBanner({ agents, onNavigate, companyId }: BudgetAlert
           onClick={handleDismiss}
           title="Dismiss budget alerts"
           aria-label="Dismiss budget alerts"
-          className="shrink-0 rounded p-0.5 text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
+          className="shrink-0 rounded p-0.5 text-muted-foreground transition hover:text-foreground"
         >
           <X size={14} />
         </button>
@@ -132,17 +132,17 @@ export function BudgetAlertBanner({ agents, onNavigate, companyId }: BudgetAlert
     <div
       role="alert"
       aria-live="assertive"
-      className="rounded-[8px] border border-[color:var(--warn)] border-opacity-30 bg-[color:var(--warn-soft)] px-4 py-3"
+      className="rounded-lg border border-[color:var(--destructive)] border-opacity-30 bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3"
     >
       <div className="flex items-start gap-3">
         <div className="mt-0.5 shrink-0">
-          <Warning size={18} weight="bold" className="text-[color:var(--warn)]" />
+          <Warning size={18} weight="bold" className="text-yellow-600 dark:text-yellow-400" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-semibold text-[color:var(--warn)]">
+          <div className="text-[13px] font-semibold text-yellow-600 dark:text-yellow-400">
             Budget Alert
           </div>
-          <div className="mt-0.5 text-[13px] text-[color:var(--muted-strong)]">
+          <div className="mt-0.5 text-[13px] text-muted-foreground">
             {agentsOverThreshold.length} agent(s) approaching budget limit
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -151,8 +151,8 @@ export function BudgetAlertBanner({ agents, onNavigate, companyId }: BudgetAlert
                 key={agent.id}
                 className={`whitespace-nowrap text-[11px] font-[family-name:var(--font-mono)] ${
                   agent.pct >= 100
-                    ? "text-[color:var(--danger)]"
-                    : "text-[color:var(--warn)]"
+                    ? "text-destructive"
+                    : "text-yellow-600 dark:text-yellow-400"
                 }`}
                 style={{ fontVariantNumeric: "tabular-nums" }}
               >
@@ -163,7 +163,7 @@ export function BudgetAlertBanner({ agents, onNavigate, companyId }: BudgetAlert
           <button
             type="button"
             onClick={handleViewCosts}
-            className="mt-1.5 text-[11px] font-medium text-[color:var(--accent)] hover:underline cursor-pointer"
+            className="mt-1.5 text-[11px] font-medium text-primary hover:underline cursor-pointer"
           >
             View Costs
           </button>
@@ -173,7 +173,7 @@ export function BudgetAlertBanner({ agents, onNavigate, companyId }: BudgetAlert
           onClick={handleDismiss}
           title="Dismiss budget alert"
           aria-label="Dismiss budget alert"
-          className="shrink-0 rounded p-0.5 text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
+          className="shrink-0 rounded p-0.5 text-muted-foreground transition hover:text-foreground"
         >
           <X size={14} />
         </button>

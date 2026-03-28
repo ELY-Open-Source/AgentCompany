@@ -90,7 +90,7 @@ export function SkillFileTree({
             <div key={node.path ?? node.name}>
               <button
                 type="button"
-                className="flex min-h-9 w-full items-center gap-2 text-left text-[13px] text-[color:var(--muted)] hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)]"
+                className="flex min-h-9 w-full items-center gap-2 text-left text-[13px] text-muted-foreground hover:bg-muted hover:text-foreground"
                 style={{ paddingLeft: `${BASE_INDENT + depth * STEP_INDENT}px` }}
                 onClick={() => node.path && onToggleDir(node.path)}
               >
@@ -118,10 +118,10 @@ export function SkillFileTree({
           <button
             key={node.path ?? node.name}
             type="button"
-            className={`flex min-h-9 w-full items-center gap-2 text-left text-[13px] hover:bg-[color:var(--panel-soft)] ${
+            className={`flex min-h-9 w-full items-center gap-2 text-left text-[13px] hover:bg-muted ${
               isSelected
-                ? "text-[color:var(--text)] font-medium"
-                : "text-[color:var(--muted)]"
+                ? "text-foreground font-medium"
+                : "text-muted-foreground"
             }`}
             style={{ paddingLeft: `${BASE_INDENT + depth * STEP_INDENT}px` }}
             onClick={() => node.path && onSelectPath(node.path)}

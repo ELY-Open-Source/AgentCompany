@@ -27,10 +27,10 @@ export function ChartTooltip({
 
   return (
     <div
-      className="rounded-[6px] border border-[color:var(--line-strong)] bg-[color:var(--panel)] px-3 py-2 shadow-md"
+      className="rounded-lg border border-border bg-card px-3 py-2 shadow-md"
       style={{ maxWidth: 200, zIndex: 50 }}
     >
-      <div className="text-[11px] text-[color:var(--muted)]">{dateStr}</div>
+      <div className="text-[11px] text-muted-foreground">{dateStr}</div>
       {payload.map((entry, i) => (
         <div key={i} className="mt-1 flex items-center gap-2">
           <span
@@ -38,7 +38,7 @@ export function ChartTooltip({
             style={{ backgroundColor: entry.color }}
           />
           <span
-            className="text-[13px] font-semibold text-[color:var(--text)]"
+            className="text-[13px] font-semibold text-foreground"
             style={{
               fontFamily: "var(--font-mono)",
               fontVariantNumeric: "tabular-nums",

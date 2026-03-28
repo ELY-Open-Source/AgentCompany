@@ -9,11 +9,11 @@ import { EmptyState, useReducedMotion } from "../ui"
 import { useRovingTabIndex } from "../../lib/keyboard"
 
 const channelConfig: Record<MessageChannel, { label: string; icon: React.ElementType; color: string }> = {
-  direct: { label: "Direct", icon: EnvelopeSimple, color: "var(--accent)" },
-  department: { label: "Department", icon: Buildings, color: "var(--muted-strong)" },
-  company: { label: "Company", icon: Megaphone, color: "var(--accent)" },
-  project: { label: "Project", icon: Hash, color: "var(--success)" },
-  incident: { label: "Incident", icon: Fire, color: "var(--danger)" },
+  direct: { label: "Direct", icon: EnvelopeSimple, color: "var(--primary)" },
+  department: { label: "Department", icon: Buildings, color: "var(--muted-foreground)" },
+  company: { label: "Company", icon: Megaphone, color: "var(--primary)" },
+  project: { label: "Project", icon: Hash, color: "var(--primary)" },
+  incident: { label: "Incident", icon: Fire, color: "var(--destructive)" },
 }
 
 function highlightMatch(text: string, query: string): React.ReactNode {
@@ -23,7 +23,7 @@ function highlightMatch(text: string, query: string): React.ReactNode {
   const parts = text.split(regex)
   return parts.map((part, i) =>
     regex.test(part)
-      ? <mark key={i} className="rounded-[2px] bg-[color:var(--warn-soft)] px-0.5 text-[color:var(--text)]">{part}</mark>
+      ? <mark key={i} className="rounded-[2px] bg-yellow-100 dark:bg-yellow-900/50 px-0.5 text-foreground">{part}</mark>
       : part
   )
 }
@@ -31,11 +31,11 @@ function highlightMatch(text: string, query: string): React.ReactNode {
 function SkeletonRow() {
   return (
     <div className="flex gap-3 px-3 py-3" style={{ height: 72 }}>
-      <div className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-[color:var(--panel-soft)]" />
+      <div className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-muted" />
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="h-3 w-32 animate-pulse rounded bg-[color:var(--panel-soft)]" />
-        <div className="h-3 w-48 animate-pulse rounded bg-[color:var(--panel-soft)]" />
-        <div className="h-3 w-64 animate-pulse rounded bg-[color:var(--panel-soft)]" />
+        <div className="h-3 w-32 animate-pulse rounded bg-muted" />
+        <div className="h-3 w-48 animate-pulse rounded bg-muted" />
+        <div className="h-3 w-64 animate-pulse rounded bg-muted" />
       </div>
     </div>
   )
@@ -97,7 +97,7 @@ export function SearchResults({ results, query, loading, agents, onNavigateToRes
   return (
     <motion.div className="flex h-full flex-col" {...animationProps}>
       <div className="shrink-0 px-3 py-2">
-        <span className="text-[11px] font-semibold text-[color:var(--muted)]">
+        <span className="text-[11px] font-semibold text-muted-foreground">
           {results.length} result{results.length !== 1 ? "s" : ""}
         </span>
       </div>
@@ -144,7 +144,7 @@ export function SearchResults({ results, query, loading, agents, onNavigateToRes
                   width: "100%",
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
-                className={`cursor-pointer px-3 py-2 transition-colors duration-100 hover:bg-[color:var(--panel-soft)] focus:outline-none ${virtualRow.index === focusedIndex ? "ring-1 ring-inset ring-[color:var(--accent)]" : ""}`}
+                className={`cursor-pointer px-3 py-2 transition-colors duration-100 hover:bg-muted focus:outline-none ${virtualRow.index === focusedIndex ? "ring-1 ring-inset ring-[color:var(--primary)]" : ""}`}
               >
                 <div className="flex items-start gap-2.5">
                   <AgentAvatar agent={agent} size="sm" />
@@ -152,7 +152,7 @@ export function SearchResults({ results, query, loading, agents, onNavigateToRes
                   <div className="min-w-0 flex-1">
                     {/* Row 1: Agent name, channel badge, timestamp */}
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-[11px] font-semibold text-[color:var(--text)]">
+                      <span className="truncate text-[11px] font-semibold text-foreground">
                         {agent?.name ?? "Unknown Agent"}
                       </span>
                       <span
@@ -162,18 +162,18 @@ export function SearchResults({ results, query, loading, agents, onNavigateToRes
                         <ChannelIcon size={10} weight="bold" />
                         {config.label}
                       </span>
-                      <span className="ml-auto whitespace-nowrap shrink-0 font-mono text-[11px] text-[color:var(--muted)]">
+                      <span className="ml-auto whitespace-nowrap shrink-0 font-mono text-[11px] text-muted-foreground">
                         {formatMessageTime(message.createdAt)}
                       </span>
                     </div>
 
                     {/* Row 2: Subject */}
-                    <div className="mt-0.5 truncate text-[13px] font-semibold text-[color:var(--text)]">
+                    <div className="mt-0.5 truncate text-[13px] font-semibold text-foreground">
                       {highlightMatch(message.subject, query)}
                     </div>
 
                     {/* Row 3: Body snippet */}
-                    <div className="mt-0.5 line-clamp-2 break-words text-[13px] leading-relaxed text-[color:var(--muted)]">
+                    <div className="mt-0.5 line-clamp-2 break-words text-[13px] leading-relaxed text-muted-foreground">
                       {highlightMatch(message.body, query)}
                     </div>
                   </div>

@@ -32,7 +32,7 @@ export function ActivityFeed({ activity, agents, limit = 15 }: { activity: Activ
   if (recentActivity.length === 0) {
     return (
       <div className="flex h-full items-center justify-center py-8 text-center">
-        <div className="text-[13px] text-[color:var(--muted)]">No activity yet</div>
+        <div className="text-[13px] text-muted-foreground">No activity yet</div>
       </div>
     );
   }
@@ -49,23 +49,23 @@ export function ActivityFeed({ activity, agents, limit = 15 }: { activity: Activ
             key={item.id}
             initial={index === 0 ? { opacity: 0, y: -8 } : false}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-start gap-3 rounded-[6px] px-3 py-2 transition hover:bg-[color:var(--panel-soft)]"
+            className="flex items-start gap-3 rounded-lg px-3 py-2 transition hover:bg-muted"
           >
             <div className="mt-0.5 shrink-0">
-              <Icon size={14} className="text-[color:var(--muted)]" />
+              <Icon size={14} className="text-muted-foreground" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[12px] leading-relaxed text-[color:var(--text)]">
+              <div className="text-[12px] leading-relaxed text-foreground">
                 <span className="font-medium">{actorName}</span>
                 {" "}
-                <span className="text-[color:var(--muted)]">{item.action}</span>
+                <span className="text-muted-foreground">{item.action}</span>
                 {" "}
-                <span className="text-[color:var(--muted-strong)]">{item.entityType}</span>
+                <span className="text-muted-foreground">{item.entityType}</span>
                 {item.detail ? (
-                  <span className="text-[color:var(--muted)]"> — {item.detail.slice(0, 60)}{item.detail.length > 60 ? "..." : ""}</span>
+                  <span className="text-muted-foreground"> — {item.detail.slice(0, 60)}{item.detail.length > 60 ? "..." : ""}</span>
                 ) : null}
               </div>
-              <div className="mt-0.5 whitespace-nowrap text-[10px] text-[color:var(--muted)]">{timeAgo(item.createdAt)}</div>
+              <div className="mt-0.5 whitespace-nowrap text-[10px] text-muted-foreground">{timeAgo(item.createdAt)}</div>
             </div>
           </motion.div>
         );

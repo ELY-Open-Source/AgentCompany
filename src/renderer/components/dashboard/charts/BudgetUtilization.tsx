@@ -16,9 +16,9 @@ interface BudgetRow {
 }
 
 function getBarColor(pct: number): string {
-  if (pct >= 100) return "bg-[color:var(--danger)]";
-  if (pct >= 80) return "bg-[color:var(--warn)]";
-  return "bg-[color:var(--success)]";
+  if (pct >= 100) return "bg-destructive";
+  if (pct >= 80) return "bg-yellow-600 dark:bg-yellow-400";
+  return "bg-green-600 dark:bg-green-400";
 }
 
 function scopeLabel(scopeType: string): string {
@@ -77,12 +77,12 @@ export function BudgetUtilization({ companyId, agents }: BudgetUtilizationProps)
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-4">
+      <div className="rounded-lg border border-border bg-card px-4 py-4">
         <div className="flex h-[120px] flex-col items-center justify-center gap-2">
-          <span className="text-[13px] font-semibold text-[color:var(--muted)]">
+          <span className="text-[13px] font-semibold text-muted-foreground">
             No budget policies configured
           </span>
-          <span className="max-w-[200px] text-center text-[11px] text-[color:var(--muted)]">
+          <span className="max-w-[200px] text-center text-[11px] text-muted-foreground">
             Set budget policies in Settings to track utilization here.
           </span>
         </div>
@@ -91,19 +91,19 @@ export function BudgetUtilization({ companyId, agents }: BudgetUtilizationProps)
   }
 
   return (
-    <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-4">
+    <div className="rounded-lg border border-border bg-card px-4 py-4">
       <div className="space-y-3">
         {rows.map((row) => (
           <div key={row.id}>
             <div className="mb-1 flex items-center justify-between">
-              <span className="flex items-center gap-2 text-[13px] font-semibold text-[color:var(--text)]">
+              <span className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
                 {row.name}
-                <span className="text-[11px] font-normal text-[color:var(--muted)]">
+                <span className="text-[11px] font-normal text-muted-foreground">
                   {scopeLabel(row.scopeType)}
                 </span>
               </span>
               <span
-                className="text-[13px] text-[color:var(--muted)]"
+                className="text-[13px] text-muted-foreground"
                 style={{
                   fontFamily: "var(--font-mono)",
                   fontVariantNumeric: "tabular-nums",
@@ -112,14 +112,14 @@ export function BudgetUtilization({ companyId, agents }: BudgetUtilizationProps)
                 {row.pct}%
               </span>
             </div>
-            <div className="relative h-1.5 rounded-full bg-[color:var(--panel-soft)]">
+            <div className="relative h-1.5 rounded-full bg-muted">
               <div
                 className={`h-1.5 rounded-full transition-all duration-300 ${getBarColor(row.pct)}`}
                 style={{ width: `${Math.min(row.pct, 100)}%` }}
               />
               {/* 80% warning marker */}
               <div
-                className="absolute top-0 h-full w-px bg-[color:var(--warn)] opacity-50"
+                className="absolute top-0 h-full w-px bg-yellow-600 dark:bg-yellow-400 opacity-50"
                 style={{ left: "80%" }}
               />
             </div>

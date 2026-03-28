@@ -18,7 +18,7 @@ interface ActionHistoryProps {
 export function ActionHistory({ actions, agents, onOpenPath, onCancelAction, onNavigate }: ActionHistoryProps) {
   if (actions.length === 0) {
     return (
-      <div className="py-8 text-center text-[13px] text-[color:var(--muted)]">
+      <div className="py-8 text-center text-[13px] text-muted-foreground">
         No browser actions yet
       </div>
     );
@@ -37,36 +37,36 @@ export function ActionHistory({ actions, agents, onOpenPath, onCancelAction, onN
         return (
           <div
             key={action.id}
-            className="flex items-center gap-3 rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-2.5 text-[12px]"
+            className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5 text-[12px]"
           >
             <Icon size={16} className={
-              isSuccess ? "text-[color:var(--success)]"
-              : isFailed ? "text-[color:var(--danger)]"
-              : isRunning ? "text-[color:var(--accent)]"
-              : "text-[color:var(--muted)]"
+              isSuccess ? "text-green-600 dark:text-green-400"
+              : isFailed ? "text-destructive"
+              : isRunning ? "text-primary"
+              : "text-muted-foreground"
             } />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="font-medium text-[color:var(--text)]">{config.label}</span>
+                <span className="font-medium text-foreground">{config.label}</span>
                 {agent ? (
-                  <span className="flex items-center gap-1 text-[color:var(--muted)]">
+                  <span className="flex items-center gap-1 text-muted-foreground">
                     <Robot size={10} />
                     {agent.name}
                   </span>
                 ) : null}
               </div>
               {action.resultSummary ? (
-                <div className="mt-0.5 truncate text-[11px] text-[color:var(--muted)]">{action.resultSummary}</div>
+                <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{action.resultSummary}</div>
               ) : null}
               {action.errorMessage ? (
-                <div className="mt-0.5 truncate text-[11px] text-[color:var(--danger)]">{action.errorMessage}</div>
+                <div className="mt-0.5 truncate text-[11px] text-destructive">{action.errorMessage}</div>
               ) : null}
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 {action.taskId ? (
                   <button
                     type="button"
                     onClick={() => onNavigate("tasks", action.taskId!)}
-                    className="rounded-[5px] bg-[color:var(--panel-soft)] px-2 py-1 text-[10px] font-medium text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
+                    className="rounded-[5px] bg-muted px-2 py-1 text-[10px] font-medium text-muted-foreground transition hover:text-foreground"
                   >
                     Open task
                   </button>
@@ -75,7 +75,7 @@ export function ActionHistory({ actions, agents, onOpenPath, onCancelAction, onN
                   <button
                     type="button"
                     onClick={() => onNavigate("approvals", action.approvalId!)}
-                    className="rounded-[5px] bg-[color:var(--panel-soft)] px-2 py-1 text-[10px] font-medium text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
+                    className="rounded-[5px] bg-muted px-2 py-1 text-[10px] font-medium text-muted-foreground transition hover:text-foreground"
                   >
                     Open approval
                   </button>
@@ -84,7 +84,7 @@ export function ActionHistory({ actions, agents, onOpenPath, onCancelAction, onN
                   <button
                     type="button"
                     onClick={() => void onOpenPath(action.screenshotPath!)}
-                    className="inline-flex items-center gap-1 rounded-[5px] bg-[color:var(--panel-soft)] px-2 py-1 text-[10px] font-medium text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
+                    className="inline-flex items-center gap-1 rounded-[5px] bg-muted px-2 py-1 text-[10px] font-medium text-muted-foreground transition hover:text-foreground"
                   >
                     <ArrowSquareOut size={10} />
                     Screenshot
@@ -94,7 +94,7 @@ export function ActionHistory({ actions, agents, onOpenPath, onCancelAction, onN
                   <button
                     type="button"
                     onClick={() => void onCancelAction(action.id)}
-                    className="inline-flex items-center gap-1 rounded-[5px] bg-[color:var(--danger-soft)] px-2 py-1 text-[10px] font-medium text-[color:var(--danger)] transition hover:brightness-95"
+                    className="inline-flex items-center gap-1 rounded-[5px] bg-red-100 dark:bg-red-900/50 px-2 py-1 text-[10px] font-medium text-destructive transition hover:brightness-95"
                   >
                     <ClockCounterClockwise size={10} />
                     Cancel
@@ -102,15 +102,15 @@ export function ActionHistory({ actions, agents, onOpenPath, onCancelAction, onN
                 ) : null}
               </div>
             </div>
-            <div className="shrink-0 text-[10px] text-[color:var(--muted)]">
+            <div className="shrink-0 text-[10px] text-muted-foreground">
               {timeAgo(action.createdAt)}
             </div>
             <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold ${
-              isSuccess ? "bg-[color:var(--success-soft)] text-[color:var(--success)]"
-              : isFailed ? "bg-[color:var(--danger-soft)] text-[color:var(--danger)]"
-              : isRunning ? "bg-[color:var(--accent-soft)] text-[color:var(--accent)]"
-              : action.status === "approval_required" ? "bg-[color:var(--warn-soft)] text-[color:var(--warn)]"
-              : "bg-[color:var(--panel-soft)] text-[color:var(--muted)]"
+              isSuccess ? "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400"
+              : isFailed ? "bg-red-100 dark:bg-red-900/50 text-destructive"
+              : isRunning ? "bg-accent text-primary"
+              : action.status === "approval_required" ? "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-600 dark:text-yellow-400"
+              : "bg-muted text-muted-foreground"
             }`}>
               {action.status.replace("_", " ")}
             </span>

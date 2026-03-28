@@ -47,12 +47,12 @@ export function ChannelHeader({
   const t = useT()
 
   return (
-    <div className="flex items-center gap-3 border-b border-[color:var(--line)] bg-[color:var(--panel)] px-4 py-2.5">
+    <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-2.5">
       {!showSidebar ? (
         <button
           type="button"
           onClick={onShowSidebar}
-          className="rounded-[4px] p-1 text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
+          className="rounded-[4px] p-1 text-muted-foreground transition hover:text-foreground"
           aria-label="Show sidebar"
         >
           <CaretDown size={12} className="rotate-90" />
@@ -61,15 +61,15 @@ export function ChannelHeader({
 
       {activeChannel ? (
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-semibold text-[color:var(--text)]">{activeChannel.label}</div>
+          <div className="truncate text-[13px] font-semibold text-foreground">{activeChannel.label}</div>
           {activeChannel.kind === "task" && activeTask ? (
-            <button type="button" onClick={() => onNavigateToTask(activeTask.id)} className="mt-0.5 text-[11px] font-medium text-[color:var(--accent)] transition hover:underline">
+            <button type="button" onClick={() => onNavigateToTask(activeTask.id)} className="mt-0.5 text-[11px] font-medium text-primary transition hover:underline">
               Open task
             </button>
           ) : null}
         </div>
       ) : (
-        <span className="text-[13px] text-[color:var(--muted)]">{t("comm.selectChannel")}</span>
+        <span className="text-[13px] text-muted-foreground">{t("comm.selectChannel")}</span>
       )}
 
       <div className="ml-auto w-full max-w-[320px]">

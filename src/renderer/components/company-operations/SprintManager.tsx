@@ -75,16 +75,16 @@ export function SprintManager({ companyId, sprints, onRefresh }: {
           <ListRow key={sprint.id}>
             <div className="flex items-start justify-between gap-3">
               <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setEditingId(sprint.id)}>
-                <div className="flex items-center gap-2 text-[13px] font-medium text-[color:var(--text)]">
-                  <Rows size={15} className="text-[color:var(--accent)]" />
+                <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+                  <Rows size={15} className="text-primary" />
                   <span className="truncate">{sprint.name}</span>
                 </div>
-                <div className="mt-1 text-[11px] text-[color:var(--muted)]">{sprint.startDate} → {sprint.endDate} · {sprint.completedPoints}/{sprint.velocityPoints} pts</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">{sprint.startDate} → {sprint.endDate} · {sprint.completedPoints}/{sprint.velocityPoints} pts</div>
               </button>
               <div className="flex items-center gap-2">
                 <StatusPill status={sprint.status} />
-                <button type="button" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--text)]" onClick={() => setEditingId(sprint.id)}><NotePencil size={14} /></button>
-                <button type="button" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--danger)]" onClick={() => setDeleteId(sprint.id)}><Trash size={14} /></button>
+                <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={() => setEditingId(sprint.id)}><NotePencil size={14} /></button>
+                <button type="button" className="rounded p-1 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(sprint.id)}><Trash size={14} /></button>
               </div>
             </div>
           </ListRow>

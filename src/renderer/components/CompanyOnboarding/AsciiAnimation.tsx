@@ -67,15 +67,15 @@ export const AsciiAnimation = memo(function AsciiAnimation() {
       {/* Fade masks */}
       <div
         className="absolute inset-x-0 top-0 z-10 h-32"
-        style={{ background: "linear-gradient(to bottom, var(--bg), transparent)" }}
+        style={{ background: "linear-gradient(to bottom, var(--background), transparent)" }}
       />
       <div
         className="absolute inset-x-0 bottom-0 z-10 h-32"
-        style={{ background: "linear-gradient(to top, var(--bg), transparent)" }}
+        style={{ background: "linear-gradient(to top, var(--background), transparent)" }}
       />
 
       {/* Scrolling track — doubled for seamless loop */}
-      <div className="ascii-scroll-track whitespace-pre font-mono text-[11px] leading-[1.8] text-[color:var(--accent)] opacity-[0.08]">
+      <div className="ascii-scroll-track whitespace-pre font-mono text-[11px] leading-[1.8] text-primary opacity-[0.08]">
         {BLOCK}
         {"\n"}
         {BLOCK}

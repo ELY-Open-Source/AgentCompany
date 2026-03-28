@@ -22,20 +22,20 @@ export function CostTrendChart({ data, reducedMotion }: CostTrendChartProps) {
       <AreaChart data={data}>
         <CartesianGrid
           strokeDasharray="3 3"
-          stroke="var(--line)"
+          stroke="var(--border)"
           horizontal={true}
           vertical={false}
         />
         <XAxis
           dataKey="date"
           tickFormatter={formatShortDate}
-          tick={{ fontSize: 11, fill: "var(--muted)" }}
-          axisLine={{ stroke: "var(--line)" }}
+          tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+          axisLine={{ stroke: "var(--border)" }}
           tickLine={false}
         />
         <YAxis
           tickFormatter={(val: number) => "$" + val.toFixed(0)}
-          tick={{ fontSize: 11, fill: "var(--muted)" }}
+          tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
           axisLine={false}
           tickLine={false}
         />
@@ -43,12 +43,12 @@ export function CostTrendChart({ data, reducedMotion }: CostTrendChartProps) {
         <Area
           type="monotone"
           dataKey="total"
-          stroke="var(--accent)"
-          fill="var(--accent-soft)"
+          stroke="var(--primary)"
+          fill="var(--primary)"
           fillOpacity={0.15}
           strokeWidth={2}
           dot={false}
-          activeDot={{ r: 4, fill: "var(--accent)" }}
+          activeDot={{ r: 4, fill: "var(--primary)" }}
           isAnimationActive={!reducedMotion}
         />
       </AreaChart>

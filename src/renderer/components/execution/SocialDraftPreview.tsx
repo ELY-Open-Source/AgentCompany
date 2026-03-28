@@ -73,7 +73,7 @@ export function SocialDraftPreview({ payloadJson, platform, isPending: _isPendin
     <div
       role="region"
       aria-label="Social post draft preview"
-      className="rounded-[8px] border px-4 py-3"
+      className="rounded-lg border px-4 py-3"
       style={{ borderColor: `${platformColor}4D` }}
     >
       <div className="mb-2 flex items-center gap-2">
@@ -87,23 +87,23 @@ export function SocialDraftPreview({ payloadJson, platform, isPending: _isPendin
 
       <div className="mb-3 flex items-center gap-2">
         <PlatformIcon size={16} style={{ color: platformColor }} />
-        <span className="text-[13px] font-medium text-[color:var(--text)]">
+        <span className="text-[13px] font-medium text-foreground">
           {config.label}
         </span>
         {draft.socialAccountId ? (
-          <span className="text-[13px] font-[family-name:var(--font-mono)] text-[color:var(--muted)]">
+          <span className="text-[13px] font-[family-name:var(--font-mono)] text-muted-foreground">
             @{draft.socialAccountId.slice(0, 8)}
           </span>
         ) : null}
       </div>
 
-      <div className="mb-2 max-h-[200px] overflow-y-auto whitespace-pre-wrap text-[13px] leading-relaxed text-[color:var(--text)]">
+      <div className="mb-2 max-h-[200px] overflow-y-auto whitespace-pre-wrap text-[13px] leading-relaxed text-foreground">
         {draft.content}
       </div>
 
       <div
         className="mb-2 text-[10px] font-[family-name:var(--font-mono)]"
-        style={{ color: isOverLimit ? "var(--danger)" : "var(--muted)" }}
+        style={{ color: isOverLimit ? "var(--destructive)" : "var(--muted-foreground)" }}
         aria-live="polite"
       >
         {charCount} / {charLimit}{isOverLimit ? " -- over limit" : ""}
@@ -112,7 +112,7 @@ export function SocialDraftPreview({ payloadJson, platform, isPending: _isPendin
       {draft.mediaUrls.length > 0 ? (
         <div className="mb-2 space-y-1">
           {draft.mediaUrls.map((url, idx) => (
-            <div key={idx} className="flex items-center gap-1.5 text-[11px] text-[color:var(--accent)]">
+            <div key={idx} className="flex items-center gap-1.5 text-[11px] text-primary">
               <LinkIcon size={12} />
               <span className="truncate max-w-[300px]">{url}</span>
             </div>
@@ -121,7 +121,7 @@ export function SocialDraftPreview({ payloadJson, platform, isPending: _isPendin
       ) : null}
 
       {draft.scheduledAt ? (
-        <div className="flex items-center gap-1.5 text-[13px] font-[family-name:var(--font-mono)] text-[color:var(--warn)]">
+        <div className="flex items-center gap-1.5 text-[13px] font-[family-name:var(--font-mono)] text-yellow-600 dark:text-yellow-400">
           <Clock size={14} />
           Scheduled: {formatScheduledDate(draft.scheduledAt)}
         </div>

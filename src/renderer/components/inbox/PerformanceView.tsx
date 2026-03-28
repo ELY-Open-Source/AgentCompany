@@ -13,10 +13,10 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
   const t = useT();
   if (!metrics) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-[8px] border border-dashed border-[color:var(--line)] py-16 text-center">
-        <Target size={32} className="mb-3 text-[color:var(--muted)]" />
-        <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">{t("perf.noMetrics")}</div>
-        <div className="mt-1 text-[12px] text-[color:var(--muted)]">{t("perf.noMetricsDesc")}</div>
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
+        <Target size={32} className="mb-3 text-muted-foreground" />
+        <div className="text-[14px] font-medium text-muted-foreground">{t("perf.noMetrics")}</div>
+        <div className="mt-1 text-[12px] text-muted-foreground">{t("perf.noMetricsDesc")}</div>
       </div>
     );
   }
@@ -48,8 +48,8 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
         />
       </div>
 
-      <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] p-5">
-        <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Run Activity (30d)</div>
+      <div className="rounded-lg border border-border bg-card p-5">
+        <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Run Activity (30d)</div>
         <div className="flex items-center gap-6">
           <div className="flex-1">
             <RunProgressBar
@@ -60,29 +60,29 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
           </div>
           <div className="flex gap-4 text-[12px]">
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--success)]" />
-              <span className="text-[color:var(--muted)]">{metrics.successfulRuns} succeeded</span>
+              <span className="h-2.5 w-2.5 rounded-full bg-green-600 dark:bg-green-400" />
+              <span className="text-muted-foreground">{metrics.successfulRuns} succeeded</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--danger)]" />
-              <span className="text-[color:var(--muted)]">{metrics.failedRuns} failed</span>
+              <span className="h-2.5 w-2.5 rounded-full bg-destructive" />
+              <span className="text-muted-foreground">{metrics.failedRuns} failed</span>
             </span>
           </div>
         </div>
       </div>
 
       <section>
-        <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Agent Performance</div>
-        <div className="overflow-x-auto rounded-[8px] border border-[color:var(--line)]">
+        <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Agent Performance</div>
+        <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-[color:var(--line)] bg-[color:var(--panel-soft)]">
-                <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">Agent</th>
-                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)] text-right">Tasks Done</th>
-                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)] text-right">Success %</th>
-                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)] text-right">Runs</th>
-                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)] text-right">Avg Duration</th>
-                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)] text-right">Cost</th>
+              <tr className="border-b border-border bg-muted">
+                <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Agent</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">Tasks Done</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">Success %</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">Runs</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">Avg Duration</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">Cost</th>
               </tr>
             </thead>
             <tbody>
@@ -91,30 +91,30 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
                 .map((am) => (
                   <tr
                     key={am.agentId}
-                    className="border-b border-[color:var(--line)] bg-[color:var(--panel)] transition hover:bg-[color:var(--panel-soft)] cursor-pointer"
+                    className="border-b border-border bg-card transition hover:bg-muted cursor-pointer"
                     onClick={() => onNavigate("agents", am.agentId)}
                   >
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[color:var(--panel-soft)] text-[10px] font-bold text-[color:var(--muted-strong)]">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
                           {getAgentInitials(am.agentName)}
                         </div>
-                        <span className="text-[12px] font-medium text-[color:var(--text)]">{am.agentName}</span>
+                        <span className="text-[12px] font-medium text-foreground">{am.agentName}</span>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-right text-[12px] font-semibold text-[color:var(--success)]">{am.tasksCompleted}</td>
+                    <td className="px-3 py-2.5 text-right text-[12px] font-semibold text-green-600 dark:text-green-400">{am.tasksCompleted}</td>
                     <td className="px-3 py-2.5 text-right">
                       <span className={`text-[12px] font-semibold ${
-                        am.successRate >= 80 ? "text-[color:var(--success)]"
-                        : am.successRate >= 50 ? "text-[color:var(--warn)]"
-                        : "text-[color:var(--danger)]"
+                        am.successRate >= 80 ? "text-green-600 dark:text-green-400"
+                        : am.successRate >= 50 ? "text-yellow-600 dark:text-yellow-400"
+                        : "text-destructive"
                       }`}>
                         {am.successRate}%
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-right text-[12px] text-[color:var(--muted)]">{am.runsTotal}</td>
-                    <td className="px-3 py-2.5 text-right text-[12px] text-[color:var(--muted)]">{formatDuration(am.avgRunDurationSec)}</td>
-                    <td className="px-3 py-2.5 text-right text-[12px] text-[color:var(--muted)]">{formatMoney(am.totalCostUsd)}</td>
+                    <td className="px-3 py-2.5 text-right text-[12px] text-muted-foreground">{am.runsTotal}</td>
+                    <td className="px-3 py-2.5 text-right text-[12px] text-muted-foreground">{formatDuration(am.avgRunDurationSec)}</td>
+                    <td className="px-3 py-2.5 text-right text-[12px] text-muted-foreground">{formatMoney(am.totalCostUsd)}</td>
                   </tr>
                 ))}
             </tbody>

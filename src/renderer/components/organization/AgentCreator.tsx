@@ -77,7 +77,7 @@ export function AgentCreator({
         options={executionReadyConnectors.map((connector) => ({ value: connector.id, label: connector.label }))}
       />
       {executionReadyConnectors.length === 0 ? (
-        <p className="text-[12px] text-[color:var(--warn)]">
+        <p className="text-[12px] text-yellow-600 dark:text-yellow-400">
           No execution-ready connector is available. Fix connector health before requesting hires.
         </p>
       ) : null}
@@ -127,7 +127,7 @@ export function AgentCreator({
         onChange={setCapabilities}
         placeholder="What this agent does"
       />
-      <p className="text-[12px] text-[color:var(--muted)]">
+      <p className="text-[12px] text-muted-foreground">
         New agents enter the hiring pipeline first. Approval activates the agent and keeps onboarding, budgets, and org history linked to the same record.
       </p>
       <ActionButton
@@ -173,7 +173,7 @@ export function AgentCreator({
         icon={Robot}
         disabled={!selectedConnector}
       />
-      {requestError ? <p className="text-[12px] text-[color:var(--danger)]">{requestError}</p> : null}
+      {requestError ? <p className="text-[12px] text-destructive">{requestError}</p> : null}
     </div>
   );
 }

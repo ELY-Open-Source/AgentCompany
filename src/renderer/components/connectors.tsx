@@ -137,7 +137,7 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
     <div className="grid gap-4">
       {submitError ? <InlineNotice message={submitError} /> : null}
       {needsLogin ? (
-        <div className="rounded-[8px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-4 py-4 text-[12px] text-[color:var(--warn)]">
+        <div className="rounded-lg border border-[color:var(--destructive)] bg-yellow-100 dark:bg-yellow-900/50 px-4 py-4 text-[12px] text-yellow-600 dark:text-yellow-400">
           <div className="text-[11px] font-semibold uppercase tracking-[0.08em]">{authActionCopy.title}</div>
           <div className="mt-1.5 leading-relaxed">{authActionCopy.message}</div>
           <div className="mt-3">
@@ -163,17 +163,17 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
       ) : null}
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <div className="mb-1.5 text-[12px] font-medium text-[color:var(--muted-strong)]">{t("conn.status")}</div>
+          <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">{t("conn.status")}</div>
           <div className="flex items-center gap-3">
             <StatusPill status={connector.status} />
-            <span className="text-[12px] text-[color:var(--muted)]">{connector.version ?? "version unknown"}</span>
+            <span className="text-[12px] text-muted-foreground">{connector.version ?? "version unknown"}</span>
           </div>
         </div>
         <div>
-          <div className="mb-1.5 text-[12px] font-medium text-[color:var(--muted-strong)]">{t("conn.capabilityMatrix")}</div>
+          <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">{t("conn.capabilityMatrix")}</div>
           <div className="grid grid-cols-2 gap-2">
             {Object.entries(connector.capabilityMatrix).map(([key, value]) => (
-              <div key={key} className={`rounded-[6px] border px-3 py-2 text-[12px] ${value ? "border-[color:var(--accent)] border-opacity-20 bg-[color:var(--accent-soft)] text-[color:var(--accent)]" : "border-[color:var(--line)] bg-[color:var(--panel-soft)] text-[color:var(--muted)]"}`}>
+              <div key={key} className={`rounded-lg border px-3 py-2 text-[12px] ${value ? "border-[color:var(--primary)] border-opacity-20 bg-accent text-primary" : "border-border bg-muted text-muted-foreground"}`}>
                 {key}
               </div>
             ))}
@@ -182,7 +182,7 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
       </div>
       <div>
         <Input label="Command" value={connector.command} onChange={() => undefined} readOnly />
-        <div className="mt-1.5 text-[12px] leading-relaxed text-[color:var(--muted)]">
+        <div className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
           AgentCompany pins connector execution to the audited binary for this runtime. Command overrides are not accepted from the renderer.
         </div>
       </div>
@@ -195,13 +195,13 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
             options={modelSelectOptions}
           />
           {loadingModelOptions ? (
-            <div className="text-[12px] text-[color:var(--muted)]">Loading available models...</div>
+            <div className="text-[12px] text-muted-foreground">Loading available models...</div>
           ) : null}
           {modelOptionsError ? (
             <InlineNotice message={modelOptionsError} />
           ) : null}
           {requiresExplicitModel && !model.trim() ? (
-            <div className="rounded-[8px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-4 py-3 text-[12px] text-[color:var(--warn)]">
+            <div className="rounded-lg border border-[color:var(--destructive)] bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3 text-[12px] text-yellow-600 dark:text-yellow-400">
               OpenCode is detected, but it still needs an explicit provider/model selection before AgentCompany can mark it ready.
             </div>
           ) : null}
@@ -211,13 +211,13 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
       )}
       <TextArea label="Secret bindings" value={envBindingText} onChange={setEnvBindingText} rows={4} placeholder={"OPENAI_API_KEY=my-vault-key\nANTHROPIC_API_KEY=my-anthropic-key"} />
       <TextArea label="Operational notes" value={notes} onChange={setNotes} rows={4} />
-      <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3 text-[12px] text-[color:var(--muted-strong)]">
+      <div className="rounded-lg border border-border bg-muted px-4 py-3 text-[12px] text-muted-foreground">
         Connector health checks run automatically on app launch, after save, and after terminal login is opened.
         {autoChecking ? " Refreshing connector state..." : ""}
       </div>
       {connector.lastError ? (
-        <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3 text-[12px] leading-relaxed text-[color:var(--muted-strong)]">
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Latest health-check detail</div>
+        <div className="rounded-lg border border-border bg-muted px-4 py-3 text-[12px] leading-relaxed text-muted-foreground">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Latest health-check detail</div>
           <div>{connector.lastError}</div>
         </div>
       ) : null}
@@ -249,9 +249,9 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
           disabled={requiresExplicitModel && !model.trim()}
         />
       </div>
-      <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-4 text-[12px] leading-relaxed text-[color:var(--muted)]">
-        <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Configuration doc</div>
-        <pre className="mono whitespace-pre-wrap">{connector.configurationDoc}</pre>
+      <div className="rounded-lg border border-border bg-muted px-4 py-4 text-[12px] leading-relaxed text-muted-foreground">
+        <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Configuration doc</div>
+        <pre className="font-mono whitespace-pre-wrap">{connector.configurationDoc}</pre>
       </div>
     </div>
   );

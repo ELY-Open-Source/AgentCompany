@@ -58,15 +58,15 @@ export function CompanyStep({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -18 }}
       transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-      className="surface w-full rounded-[8px] p-7"
+      className="bg-card border border-border shadow-sm w-full rounded-lg p-7"
     >
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         {t("onboarding.stepLabel1")} 1 / 3
       </div>
-      <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text)]">
+      <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
         {t("onboarding.step1Title")}
       </div>
-      <div className="mb-6 h-px bg-[color:var(--line)]" />
+      <div className="mb-6 h-px bg-[color:var(--border)]" />
 
       <div className="space-y-4">
         <Input
@@ -91,15 +91,15 @@ export function CompanyStep({
             label: connector.label,
           }))}
         />
-        <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3 text-[12px] leading-relaxed text-[color:var(--muted)]">
+        <div className="rounded-lg border border-border bg-muted px-4 py-3 text-[12px] leading-relaxed text-muted-foreground">
           {t("onboarding.connectorInfo")}
         </div>
         <div>
           <label
             htmlFor="onboarding-workspace-path"
-            className="mb-1.5 block text-[12px] font-medium text-[color:var(--muted-strong)]"
+            className="mb-1.5 block text-[12px] font-medium text-muted-foreground"
           >
-            {t("onboarding.workspaceFolder")} <span className="font-normal text-[color:var(--muted)]">{t("onboarding.workspaceFolderOptional")}</span>
+            {t("onboarding.workspaceFolder")} <span className="font-normal text-muted-foreground">{t("onboarding.workspaceFolderOptional")}</span>
           </label>
           <div className="flex gap-3">
             <Input
@@ -111,37 +111,37 @@ export function CompanyStep({
             />
             <ActionButton label={currentLocale === "zh" ? "选择" : "Choose"} onClick={onPickDirectory} icon={FolderOpen} />
           </div>
-          <div className="mt-1.5 text-[11px] text-[color:var(--muted)]">
+          <div className="mt-1.5 text-[11px] text-muted-foreground">
             {t("onboarding.workspaceHelp")}
           </div>
         </div>
         <div>
-          <div className="mb-2 text-[12px] font-medium text-[color:var(--muted-strong)]">{t("onboarding.automationMode")}</div>
+          <div className="mb-2 text-[12px] font-medium text-muted-foreground">{t("onboarding.automationMode")}</div>
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => { setReviewDeliverables(false); setAutoApproveHires(true) }}
-              className={`cursor-pointer rounded-[8px] border-2 px-4 py-3.5 text-left transition ${!reviewDeliverables ? "border-[color:var(--accent)] bg-[color:var(--accent-soft)]" : "border-[color:var(--line)] bg-[color:var(--panel-soft)] hover:border-[color:var(--muted)]"}`}
+              className={`cursor-pointer rounded-lg border-2 px-4 py-3.5 text-left transition ${!reviewDeliverables ? "border-[color:var(--primary)] bg-accent" : "border-border bg-muted hover:border-[color:var(--muted-foreground)]"}`}
             >
-              <Lightning size={20} weight={!reviewDeliverables ? "fill" : "regular"} className={!reviewDeliverables ? "text-[color:var(--accent)]" : "text-[color:var(--muted)]"} />
-              <div className="mt-2 text-[13px] font-semibold text-[color:var(--text)]">{t("onboarding.modeFullAuto")}</div>
-              <div className="mt-1 text-[11px] leading-relaxed text-[color:var(--muted)]">{t("onboarding.modeFullAutoDesc")}</div>
+              <Lightning size={20} weight={!reviewDeliverables ? "fill" : "regular"} className={!reviewDeliverables ? "text-primary" : "text-muted-foreground"} />
+              <div className="mt-2 text-[13px] font-semibold text-foreground">{t("onboarding.modeFullAuto")}</div>
+              <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("onboarding.modeFullAutoDesc")}</div>
             </button>
             <button
               type="button"
               onClick={() => { setReviewDeliverables(true); setAutoApproveHires(false) }}
-              className={`cursor-pointer rounded-[8px] border-2 px-4 py-3.5 text-left transition ${reviewDeliverables ? "border-[color:var(--accent)] bg-[color:var(--accent-soft)]" : "border-[color:var(--line)] bg-[color:var(--panel-soft)] hover:border-[color:var(--muted)]"}`}
+              className={`cursor-pointer rounded-lg border-2 px-4 py-3.5 text-left transition ${reviewDeliverables ? "border-[color:var(--primary)] bg-accent" : "border-border bg-muted hover:border-[color:var(--muted-foreground)]"}`}
             >
-              <UserCircleCheck size={20} weight={reviewDeliverables ? "fill" : "regular"} className={reviewDeliverables ? "text-[color:var(--accent)]" : "text-[color:var(--muted)]"} />
-              <div className="mt-2 text-[13px] font-semibold text-[color:var(--text)]">{t("onboarding.modeHumanReview")}</div>
-              <div className="mt-1 text-[11px] leading-relaxed text-[color:var(--muted)]">{t("onboarding.modeHumanReviewDesc")}</div>
+              <UserCircleCheck size={20} weight={reviewDeliverables ? "fill" : "regular"} className={reviewDeliverables ? "text-primary" : "text-muted-foreground"} />
+              <div className="mt-2 text-[13px] font-semibold text-foreground">{t("onboarding.modeHumanReview")}</div>
+              <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("onboarding.modeHumanReviewDesc")}</div>
             </button>
           </div>
         </div>
       </div>
 
       {error ? (
-        <div className="mt-5 rounded-[8px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
+        <div className="mt-5 rounded-lg border border-[color:var(--destructive)] bg-red-100 dark:bg-red-900/50 px-4 py-3 text-[13px] text-destructive">
           {error}
         </div>
       ) : null}
@@ -151,7 +151,7 @@ export function CompanyStep({
           <button
             type="button"
             onClick={onBack}
-            className="text-[12px] font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
+            className="text-[12px] font-medium text-muted-foreground transition hover:text-foreground"
           >
             {t("onboarding.back")}
           </button>

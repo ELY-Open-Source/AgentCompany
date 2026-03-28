@@ -21,26 +21,26 @@ export function AgentWorkloadChart({ data, reducedMotion }: AgentWorkloadChartPr
       <BarChart data={data}>
         <CartesianGrid
           strokeDasharray="3 3"
-          stroke="var(--line)"
+          stroke="var(--border)"
           horizontal={true}
           vertical={false}
         />
         <XAxis
           dataKey="name"
-          tick={{ fontSize: 11, fill: "var(--muted)" }}
-          axisLine={{ stroke: "var(--line)" }}
+          tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+          axisLine={{ stroke: "var(--border)" }}
           tickLine={false}
         />
         <YAxis
           allowDecimals={false}
-          tick={{ fontSize: 11, fill: "var(--muted)" }}
+          tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
           axisLine={false}
           tickLine={false}
         />
         <Tooltip content={<ChartTooltip valueSuffix=" runs" />} />
         <Bar
           dataKey="runs"
-          fill="var(--accent)"
+          fill="var(--primary)"
           fillOpacity={0.85}
           radius={[4, 4, 0, 0]}
           maxBarSize={40}

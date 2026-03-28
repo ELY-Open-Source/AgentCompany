@@ -693,8 +693,8 @@ export function App() {
       <LocaleContext.Provider value={locale}>
         <TranslationContext.Provider value={t}>
           <div className="flex min-h-screen flex-col items-center justify-center gap-3">
-            <CircleNotch size={24} className="animate-spin text-[color:var(--accent)]" />
-            <span className="text-[13px] text-[color:var(--muted)]">{t("app.loading")}</span>
+            <CircleNotch size={24} className="animate-spin text-primary" />
+            <span className="text-[13px] text-muted-foreground">{t("app.loading")}</span>
           </div>
         </TranslationContext.Provider>
       </LocaleContext.Provider>
@@ -726,14 +726,14 @@ export function App() {
   return (
     <LocaleContext.Provider value={locale}>
     <TranslationContext.Provider value={t}>
-    <div className={`grid h-[100dvh] overflow-hidden bg-[color:var(--bg)] ${sidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[220px_minmax(0,1fr)]"}`}>
-      <aside className="flex h-[100dvh] flex-col overflow-hidden border-r border-[color:var(--line-strong)] bg-[color:var(--panel)]">
+    <div className={`grid h-[100dvh] overflow-hidden bg-background ${sidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[220px_minmax(0,1fr)]"}`}>
+      <aside className="flex h-[100dvh] flex-col overflow-hidden border-r border-border bg-card">
         {sidebarCollapsed ? (
           <div className="sidebar-drag flex items-center justify-center px-2 pb-3 pt-[38px]">
             <button
               aria-label="Open command palette"
               title="Command palette"
-              className="focus-ring flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[6px] border border-[color:var(--line)] text-[color:var(--muted)] transition hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)]"
+              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground"
               onClick={() => setCommandPaletteOpen(true)}
             >
               <Command size={14} />
@@ -744,32 +744,32 @@ export function App() {
             <div className="relative min-w-0 flex-1">
               <button
                 type="button"
-                className="focus-ring flex w-full items-center gap-2 rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)] px-2.5 py-1.5 text-left text-[13px] font-medium text-[color:var(--text)] transition hover:bg-[color:var(--panel-soft)]"
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5 text-left text-[13px] font-medium text-foreground transition hover:bg-muted"
                 onClick={() => setCompanySwitcherOpen(!companySwitcherOpen)}
               >
                 <span className="min-w-0 flex-1 truncate">{currentCompany?.name ?? t("app.selectCompany")}</span>
-                <CaretUpDown size={14} className="shrink-0 text-[color:var(--muted)]" />
+                <CaretUpDown size={14} className="shrink-0 text-muted-foreground" />
               </button>
               {companySwitcherOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => { setCompanySwitcherOpen(false); setConfirmDeleteCompanyId(null); }} />
-                  <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] shadow-lg">
+                  <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
                     <div className="max-h-[240px] overflow-y-auto py-1">
                       {snapshot.companies.map((company) => (
                         <div key={company.id} className="group flex items-center">
                           {confirmDeleteCompanyId === company.id ? (
                             <div className="flex w-full items-center gap-2 px-3 py-2">
-                              <span className="flex-1 truncate text-[12px] text-[color:var(--danger)]">Delete {company.name}?</span>
+                              <span className="flex-1 truncate text-[12px] text-destructive">Delete {company.name}?</span>
                               <button
                                 type="button"
-                                className="rounded px-2 py-0.5 text-[11px] font-semibold text-[color:var(--danger)] transition hover:bg-[color:var(--danger)] hover:text-[color:var(--text-on-accent)]"
+                                className="rounded px-2 py-0.5 text-[11px] font-semibold text-destructive transition hover:bg-destructive hover:text-primary-foreground"
                                 onClick={() => void deleteCompany(company.id)}
                               >
                                 Yes
                               </button>
                               <button
                                 type="button"
-                                className="rounded px-2 py-0.5 text-[11px] font-semibold text-[color:var(--muted)] transition hover:bg-[color:var(--panel-soft)]"
+                                className="rounded px-2 py-0.5 text-[11px] font-semibold text-muted-foreground transition hover:bg-muted"
                                 onClick={() => setConfirmDeleteCompanyId(null)}
                               >
                                 No
@@ -779,17 +779,17 @@ export function App() {
                             <>
                               <button
                                 type="button"
-                                className={`flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 text-left text-[13px] transition hover:bg-[color:var(--panel-soft)] ${
-                                  company.id === currentCompany?.id ? "font-semibold text-[color:var(--text)]" : "text-[color:var(--muted-strong)]"
+                                className={`flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 text-left text-[13px] transition hover:bg-muted ${
+                                  company.id === currentCompany?.id ? "font-semibold text-foreground" : "text-muted-foreground"
                                 }`}
                                 onClick={() => { void setCompany(company.id); setCompanySwitcherOpen(false); }}
                               >
-                                <span className="w-4 shrink-0">{company.id === currentCompany?.id ? <Check size={14} weight="bold" className="text-[color:var(--accent)]" /> : null}</span>
+                                <span className="w-4 shrink-0">{company.id === currentCompany?.id ? <Check size={14} weight="bold" className="text-primary" /> : null}</span>
                                 <span className="min-w-0 flex-1 truncate">{company.name}</span>
                               </button>
                               <button
                                 type="button"
-                                className="mr-2 rounded p-1 text-[color:var(--muted)] opacity-0 transition hover:bg-[color:var(--danger)] hover:text-[color:var(--text-on-accent)] group-hover:opacity-100"
+                                className="mr-2 rounded p-1 text-muted-foreground opacity-0 transition hover:bg-destructive hover:text-primary-foreground group-hover:opacity-100"
                                 title={`Delete ${company.name}`}
                                 onClick={() => setConfirmDeleteCompanyId(company.id)}
                               >
@@ -800,10 +800,10 @@ export function App() {
                         </div>
                       ))}
                     </div>
-                    <div className="border-t border-[color:var(--line)]">
+                    <div className="border-t border-border">
                       <button
                         type="button"
-                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-[color:var(--muted-strong)] transition hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)]"
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-muted-foreground transition hover:bg-muted hover:text-foreground"
                         onClick={() => { void setCompany("__new__"); setCompanySwitcherOpen(false); }}
                       >
                         <Plus size={14} />
@@ -816,7 +816,7 @@ export function App() {
             </div>
             <button
               aria-label="Open command palette"
-              className="focus-ring flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[6px] border border-[color:var(--line)] text-[color:var(--muted)] transition hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)]"
+              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground"
               onClick={() => setCommandPaletteOpen(true)}
             >
               <Command size={14} />
@@ -839,7 +839,7 @@ export function App() {
             ))}
           </div>
         </nav>
-        <div className={`border-t border-[color:var(--line)] py-2 ${sidebarCollapsed ? "px-1.5" : "px-3"}`}>
+        <div className={`border-t border-border py-2 ${sidebarCollapsed ? "px-1.5" : "px-3"}`}>
           <SectionButton
             active={section === "settings"}
             label="Settings"
@@ -850,7 +850,7 @@ export function App() {
           <button
             aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className={`focus-ring mt-1 flex w-full items-center rounded-[6px] py-[7px] text-[color:var(--muted)] transition duration-150 hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)] ${sidebarCollapsed ? "justify-center p-2" : "gap-2.5 px-3"}`}
+            className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 mt-1 flex w-full items-center rounded-lg py-[7px] text-muted-foreground transition duration-150 hover:bg-muted hover:text-foreground ${sidebarCollapsed ? "justify-center p-2" : "gap-2.5 px-3"}`}
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           >
             <SidebarSimple size={sidebarCollapsed ? 18 : 17} />
@@ -860,9 +860,9 @@ export function App() {
       </aside>
 
       <main aria-label="Content" className="flex min-w-0 flex-col overflow-hidden">
-        <header className="sidebar-drag shrink-0 border-b border-[color:var(--line)] bg-[color:var(--bg)]">
+        <header className="sidebar-drag shrink-0 border-b border-border bg-background">
           <div className="mx-auto flex w-full max-w-[1040px] items-start justify-between gap-4 px-6 pb-5 pt-6 lg:gap-6 lg:px-10 lg:pt-8">
-            <h1 className="text-[28px] font-bold tracking-[-0.02em] text-[color:var(--text)]">
+            <h1 className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
               {navItems.find((item) => item.id === section)?.label ?? t(`nav.${section}`)}
             </h1>
             <div className="flex shrink-0 items-center gap-3 lg:gap-5">
@@ -870,7 +870,7 @@ export function App() {
                 type="button"
                 aria-label={consoleOpen ? "Hide console" : "Show console"}
                 title={consoleOpen ? "Hide console" : "Show console"}
-                className="focus-ring inline-flex items-center gap-2 py-1 text-[12px] font-semibold text-[color:var(--muted-strong)] transition hover:text-[color:var(--text)]"
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 inline-flex items-center gap-2 py-1 text-[12px] font-semibold text-muted-foreground transition hover:text-foreground"
                 onClick={() => setConsoleOpen(!consoleOpen)}
               >
                 <TerminalWindow size={16} />
@@ -884,7 +884,7 @@ export function App() {
         <div className={section === "communication" ? "flex min-h-0 flex-1 flex-col" : "mx-auto flex w-full max-w-[1040px] flex-col px-6 py-6 lg:px-10 lg:py-8"}>
 
         {error ? (
-          <div className={`flex items-center gap-3 rounded-[8px] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)] ${section === "communication" ? "mx-6 mt-4" : "mb-6"}`}>
+          <div className={`flex items-center gap-3 rounded-lg bg-red-100 dark:bg-red-900/50 px-4 py-3 text-[13px] text-destructive ${section === "communication" ? "mx-6 mt-4" : "mb-6"}`}>
             <WarningCircle size={18} />
             <span>{error}</span>
           </div>
@@ -971,14 +971,14 @@ export function App() {
                           onClick={() => setSelectedConnectorId(connector.id)}
                           className={`cursor-pointer transition-colors duration-100 ${
                             selectedConnector.id === connector.id
-                              ? "bg-[color:var(--accent-soft)]"
-                              : "hover:bg-[color:var(--panel-soft)]"
+                              ? "bg-accent"
+                              : "hover:bg-muted"
                           }`}
                         >
                           <div className="flex items-center justify-between">
                             <div className="min-w-0">
-                              <div className="text-[14px] font-medium text-[color:var(--text)]">{connector.label}</div>
-                              <div className="mt-1 truncate text-[11px] uppercase tracking-[0.12em] text-[color:var(--muted)]">{connector.command}</div>
+                              <div className="text-[14px] font-medium text-foreground">{connector.label}</div>
+                              <div className="mt-1 truncate text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{connector.command}</div>
                             </div>
                             <StatusPill status={connector.status} />
                           </div>
@@ -1123,18 +1123,18 @@ export function App() {
                     title="Task queue"
                     action={
                       <div className="flex items-center gap-2">
-                        <div className="flex rounded-[6px] border border-[color:var(--line)] bg-[color:var(--panel)]">
+                        <div className="flex rounded-lg border border-border bg-card">
                           <button
                             type="button"
                             onClick={() => setTaskViewMode("list")}
-                            className={`px-2.5 py-1.5 text-[11px] font-medium transition ${taskViewMode === "list" ? "bg-[color:var(--panel-soft)] text-[color:var(--text)]" : "text-[color:var(--muted)] hover:text-[color:var(--text)]"}`}
+                            className={`px-2.5 py-1.5 text-[11px] font-medium transition ${taskViewMode === "list" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                           >
                             <ListChecks size={14} />
                           </button>
                           <button
                             type="button"
                             onClick={() => setTaskViewMode("kanban")}
-                            className={`px-2.5 py-1.5 text-[11px] font-medium transition ${taskViewMode === "kanban" ? "bg-[color:var(--panel-soft)] text-[color:var(--text)]" : "text-[color:var(--muted)] hover:text-[color:var(--text)]"}`}
+                            className={`px-2.5 py-1.5 text-[11px] font-medium transition ${taskViewMode === "kanban" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                           >
                             <Kanban size={14} />
                           </button>
@@ -1213,7 +1213,7 @@ export function App() {
                         documents={companyDocuments}
                         companyId={currentCompany!.id}
                         onDecide={async (state, note) => {
-                          unwrap(await window.agentCompany.decideApproval({ companyId: currentCompany!.id, approvalId: selectedApproval.id, state, decisionNote: note ?? `${state} from desktop control surface.` }));
+                          unwrap(await window.agentCompany.decideApproval({ companyId: currentCompany!.id, approvalId: selectedApproval.id, state, decisionNote: note ?? `${state} from desktop control bg-card border border-border shadow-sm.` }));
                           await refresh();
                         }}
                         onDeleted={async () => { setSelectedApprovalId(null); await refresh(); }}
@@ -1226,7 +1226,7 @@ export function App() {
               {section === "costs" ? (
                 <div className="flex h-full flex-col">
                   {/* Tab bar */}
-                  <div className="flex items-center gap-1 border-b border-[color:var(--line)] px-4 pt-2">
+                  <div className="flex items-center gap-1 border-b border-border px-4 pt-2">
                     {(["costs", "policies", "incidents"] as const).map((tab) => (
                       <button
                         key={tab}
@@ -1234,8 +1234,8 @@ export function App() {
                         onClick={() => setCostsTab(tab)}
                         className={`rounded-t px-3 py-1.5 text-[13px] font-medium transition-colors ${
                           costsTab === tab
-                            ? "border-b-2 border-[color:var(--accent)] text-[color:var(--text)]"
-                            : "text-[color:var(--muted)] hover:text-[color:var(--text)]"
+                            ? "border-b-2 border-[color:var(--primary)] text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
                         }`}
                       >
                         {tab === "costs" ? "Cost Entries" : tab === "policies" ? "Policies" : "Incidents"}
@@ -1467,12 +1467,12 @@ export function App() {
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={panelTransition}
-              className="shrink-0 overflow-hidden border-t border-[color:var(--line)] bg-[color:var(--panel)]"
+              className="shrink-0 overflow-hidden border-t border-border bg-card"
             >
               <div className="flex items-center justify-between px-5 py-2.5">
                 <div className="flex items-center gap-3">
-                  <TerminalWindow size={15} className="text-[color:var(--muted)]" />
-                  <span className="text-[13px] font-semibold text-[color:var(--text)]">{t("console.title")}</span>
+                  <TerminalWindow size={15} className="text-muted-foreground" />
+                  <span className="text-[13px] font-semibold text-foreground">{t("console.title")}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Select
@@ -1486,7 +1486,7 @@ export function App() {
                   />
                   <button
                     type="button"
-                    className="focus-ring rounded-[6px] p-1 text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
+                    className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg p-1 text-muted-foreground transition hover:text-foreground"
                     onClick={() => setConsoleOpen(false)}
                     aria-label="Close console"
                   >
@@ -1494,25 +1494,25 @@ export function App() {
                   </button>
                 </div>
               </div>
-              <div className="grid border-t border-[color:var(--line)] xl:grid-cols-[240px_minmax(0,1fr)]">
-                <div className="border-b border-[color:var(--line)] px-5 py-3 xl:border-b-0 xl:border-r">
+              <div className="grid border-t border-border xl:grid-cols-[240px_minmax(0,1fr)]">
+                <div className="border-b border-border px-5 py-3 xl:border-b-0 xl:border-r">
                   {selectedRun ? (
-                    <div className="space-y-2.5 text-[12px] text-[color:var(--muted-strong)]">
+                    <div className="space-y-2.5 text-[12px] text-muted-foreground">
                       <div className="flex items-center justify-between">
                         <span>{t("common.status")}</span>
                         <StatusPill status={selectedRun.status} />
                       </div>
                       <div className="flex items-center justify-between">
                         <span>{t("common.started")}</span>
-                        <span className="mono text-[11px]">{formatTime(selectedRun.startedAt)}</span>
+                        <span className="font-mono text-[11px]">{formatTime(selectedRun.startedAt)}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span>{t("common.finished")}</span>
-                        <span className="mono text-[11px]">{formatTime(selectedRun.finishedAt)}</span>
+                        <span className="font-mono text-[11px]">{formatTime(selectedRun.finishedAt)}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span>{t("common.cost")}</span>
-                        <span className="mono text-[11px]">{formatMoney(selectedRun.costUsd)}</span>
+                        <span className="font-mono text-[11px]">{formatMoney(selectedRun.costUsd)}</span>
                       </div>
                       {selectedRun.logPath ? (
                         <div className="pt-1">
@@ -1521,11 +1521,11 @@ export function App() {
                       ) : null}
                     </div>
                   ) : (
-                    <div className="py-4 text-center text-[12px] text-[color:var(--muted)]">{t("common.noRunSelected")}</div>
+                    <div className="py-4 text-center text-[12px] text-muted-foreground">{t("common.noRunSelected")}</div>
                   )}
                 </div>
                 <div className="h-[200px] overflow-auto px-5 py-3">
-                  <pre className="mono whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--muted-strong)]">
+                  <pre className="font-mono whitespace-pre-wrap text-[12px] leading-relaxed text-muted-foreground">
                     {selectedRun ? logBufferRef.current[selectedRun.id] ?? t("common.waitingForLog") : t("common.noRunSelected")}
                   </pre>
                 </div>
@@ -1541,7 +1541,7 @@ export function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-start justify-center bg-[color:var(--bg)]/72 px-4 pt-24 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-start justify-center bg-background/72 px-4 pt-24 backdrop-blur-sm"
             onClick={() => { setCommandPaletteOpen(false); setCommandPaletteSearch(""); }}
           >
             <motion.div
@@ -1553,15 +1553,15 @@ export function App() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.98 }}
               transition={panelTransition}
-              className="w-full max-w-[560px] rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] px-5 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+              className="w-full max-w-[560px] rounded-lg border border-border bg-card px-5 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-3 flex items-center gap-3">
-                <MagnifyingGlass size={18} className="text-[color:var(--accent)]" />
+                <MagnifyingGlass size={18} className="text-primary" />
                 <input
                   type="text"
                   aria-label="Search"
-                  className="flex-1 bg-transparent text-[14px] text-[color:var(--text)] placeholder:text-[color:var(--muted)] outline-none"
+                  className="flex-1 bg-transparent text-[14px] text-foreground placeholder:text-muted-foreground outline-none"
                   placeholder={t("app.search")}
                   value={commandPaletteSearch}
                   onChange={(e) => setCommandPaletteSearch(e.target.value)}
@@ -1569,7 +1569,7 @@ export function App() {
                 />
                 {commandPaletteSearch && (
                   <button
-                    className="text-[12px] text-[color:var(--muted)] hover:text-[color:var(--text)]"
+                    className="text-[12px] text-muted-foreground hover:text-foreground"
                     onClick={() => setCommandPaletteSearch("")}
                   >
                     {t("app.clear")}
@@ -1579,12 +1579,12 @@ export function App() {
 
               {filteredNavItems.length > 0 ? (
                 <>
-                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("entity.sections")}</div>
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t("entity.sections")}</div>
                   <ListFrame>
                     {filteredNavItems.map((item) => (
                       <ListRow
                         key={item.id}
-                        className={`py-3 ${paletteActionIndex.get(`section:${item.id}`) === selectedPaletteIndex ? "bg-[color:var(--panel-soft)]" : ""}`}
+                        className={`py-3 ${paletteActionIndex.get(`section:${item.id}`) === selectedPaletteIndex ? "bg-muted" : ""}`}
                         onClick={() => {
                           navigateTo(item.id);
                           setCommandPaletteOpen(false);
@@ -1593,11 +1593,11 @@ export function App() {
                         }}
                       >
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 text-[color:var(--text)]">
+                          <div className="flex items-center gap-3 text-foreground">
                             <item.icon size={16} />
                             <span className="text-[13px] tracking-[0.005em]">{item.label}</span>
                           </div>
-                          <span className="mono text-[11px] text-[color:var(--muted)]">{item.id}</span>
+                          <span className="font-mono text-[11px] text-muted-foreground">{item.id}</span>
                         </div>
                       </ListRow>
                     ))}
@@ -1609,12 +1609,12 @@ export function App() {
                 <div className="mt-3 space-y-3">
                   {matchedAgents.length > 0 ? (
                     <>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("entity.agents")}</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t("entity.agents")}</div>
                       <ListFrame>
                         {matchedAgents.map((agent) => (
                           <ListRow
                             key={agent.id}
-                            className={`py-3 ${paletteActionIndex.get(`agent:${agent.id}`) === selectedPaletteIndex ? "bg-[color:var(--panel-soft)]" : ""}`}
+                            className={`py-3 ${paletteActionIndex.get(`agent:${agent.id}`) === selectedPaletteIndex ? "bg-muted" : ""}`}
                             onClick={() => {
                               navigateTo("agents", agent.id);
                               setCommandPaletteOpen(false);
@@ -1623,10 +1623,10 @@ export function App() {
                             }}
                           >
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3 text-[color:var(--text)]">
+                              <div className="flex items-center gap-3 text-foreground">
                                 <UsersThree size={16} />
                                 <span className="text-[13px] tracking-[0.005em]">{agent.name}</span>
-                                <span className="text-[11px] text-[color:var(--muted)]">{agent.role}</span>
+                                <span className="text-[11px] text-muted-foreground">{agent.role}</span>
                               </div>
                               <StatusPill status={agent.status} />
                             </div>
@@ -1638,12 +1638,12 @@ export function App() {
 
                   {matchedTasks.length > 0 ? (
                     <>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("entity.tasks")}</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t("entity.tasks")}</div>
                       <ListFrame>
                         {matchedTasks.map((task) => (
                           <ListRow
                             key={task.id}
-                            className={`py-3 ${paletteActionIndex.get(`task:${task.id}`) === selectedPaletteIndex ? "bg-[color:var(--panel-soft)]" : ""}`}
+                            className={`py-3 ${paletteActionIndex.get(`task:${task.id}`) === selectedPaletteIndex ? "bg-muted" : ""}`}
                             onClick={() => {
                               navigateTo("tasks", task.id);
                               setCommandPaletteOpen(false);
@@ -1652,7 +1652,7 @@ export function App() {
                             }}
                           >
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3 text-[color:var(--text)]">
+                              <div className="flex items-center gap-3 text-foreground">
                                 <ListChecks size={16} />
                                 <span className="text-[13px] tracking-[0.005em]">{task.title}</span>
                               </div>
@@ -1666,12 +1666,12 @@ export function App() {
 
                   {matchedRuns.length > 0 ? (
                     <>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("entity.runs")}</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t("entity.runs")}</div>
                       <ListFrame>
                         {matchedRuns.map((run) => (
                           <ListRow
                             key={run.id}
-                            className={`py-3 ${paletteActionIndex.get(`run:${run.id}`) === selectedPaletteIndex ? "bg-[color:var(--panel-soft)]" : ""}`}
+                            className={`py-3 ${paletteActionIndex.get(`run:${run.id}`) === selectedPaletteIndex ? "bg-muted" : ""}`}
                             onClick={() => {
                               navigateTo("runs", run.id);
                               setCommandPaletteOpen(false);
@@ -1680,7 +1680,7 @@ export function App() {
                             }}
                           >
                             <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0 flex items-center gap-3 text-[color:var(--text)]">
+                              <div className="min-w-0 flex items-center gap-3 text-foreground">
                                 <TerminalWindow size={16} />
                                 <span className="truncate text-[13px] tracking-[0.005em]">
                                   {run.summary || runs.find((entry) => entry.id === run.id)?.id.slice(0, 8) || run.id.slice(0, 8)}
@@ -1696,12 +1696,12 @@ export function App() {
 
                   {matchedGoals.length > 0 ? (
                     <>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("entity.goals")}</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t("entity.goals")}</div>
                       <ListFrame>
                         {matchedGoals.map((goal) => (
                           <ListRow
                             key={goal.id}
-                            className={`py-3 ${paletteActionIndex.get(`goal:${goal.id}`) === selectedPaletteIndex ? "bg-[color:var(--panel-soft)]" : ""}`}
+                            className={`py-3 ${paletteActionIndex.get(`goal:${goal.id}`) === selectedPaletteIndex ? "bg-muted" : ""}`}
                             onClick={() => {
                               navigateTo("goals", goal.id);
                               setCommandPaletteOpen(false);
@@ -1710,7 +1710,7 @@ export function App() {
                             }}
                           >
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3 text-[color:var(--text)]">
+                              <div className="flex items-center gap-3 text-foreground">
                                 <Target size={16} />
                                 <span className="text-[13px] tracking-[0.005em]">{goal.title}</span>
                               </div>
@@ -1724,12 +1724,12 @@ export function App() {
 
                   {matchedProjects.length > 0 ? (
                     <>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">{t("entity.projects")}</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t("entity.projects")}</div>
                       <ListFrame>
                         {matchedProjects.map((project) => (
                           <ListRow
                             key={project.id}
-                            className={`py-3 ${paletteActionIndex.get(`project:${project.id}`) === selectedPaletteIndex ? "bg-[color:var(--panel-soft)]" : ""}`}
+                            className={`py-3 ${paletteActionIndex.get(`project:${project.id}`) === selectedPaletteIndex ? "bg-muted" : ""}`}
                             onClick={() => {
                               navigateTo("projects", project.id);
                               setCommandPaletteOpen(false);
@@ -1738,7 +1738,7 @@ export function App() {
                             }}
                           >
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3 text-[color:var(--text)]">
+                              <div className="flex items-center gap-3 text-foreground">
                                 <Kanban size={16} />
                                 <span className="text-[13px] tracking-[0.005em]">{project.name}</span>
                               </div>
@@ -1753,7 +1753,7 @@ export function App() {
               ) : null}
 
               {paletteQuery && filteredNavItems.length === 0 && !hasEntityResults ? (
-                <div className="py-6 text-center text-[13px] text-[color:var(--muted)]">{t("app.noResults")} "{commandPaletteSearch}"</div>
+                <div className="py-6 text-center text-[13px] text-muted-foreground">{t("app.noResults")} "{commandPaletteSearch}"</div>
               ) : null}
             </motion.div>
           </motion.div>

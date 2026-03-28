@@ -25,7 +25,7 @@ export function ConnectorReadiness({
 }: ConnectorReadinessProps) {
   return (
     <div className="mt-10">
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+      <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         {t("onboarding.connectorReadiness")}
       </div>
       <div className="space-y-2.5">
@@ -37,25 +37,25 @@ export function ConnectorReadiness({
           return (
             <div key={connector.id} className="flex items-start gap-2.5 text-[13px]">
               {isChecking ? (
-                <span className="mt-0.5 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[color:var(--muted)] border-t-[color:var(--accent)]" />
+                <span className="mt-0.5 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[color:var(--muted-foreground)] border-t-[color:var(--primary)]" />
               ) : isReady ? (
-                <CheckCircle size={16} weight="fill" className="shrink-0 text-[color:var(--success)]" />
+                <CheckCircle size={16} weight="fill" className="shrink-0 text-green-600 dark:text-green-400" />
               ) : isMissing ? (
-                <XCircle size={16} weight="fill" className="shrink-0 text-[color:var(--muted)]" />
+                <XCircle size={16} weight="fill" className="shrink-0 text-muted-foreground" />
               ) : (
-                <WarningCircle size={16} weight="fill" className="shrink-0 text-[color:var(--warn)]" />
+                <WarningCircle size={16} weight="fill" className="shrink-0 text-yellow-600 dark:text-yellow-400" />
               )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className={isReady ? "font-medium text-[color:var(--text)]" : isChecking ? "text-[color:var(--text)]" : "text-[color:var(--muted)]"}>
+                  <span className={isReady ? "font-medium text-foreground" : isChecking ? "text-foreground" : "text-muted-foreground"}>
                     {connector.label}
                   </span>
-                  <span className="text-[11px] text-[color:var(--muted)]">
+                  <span className="text-[11px] text-muted-foreground">
                     {isChecking ? (currentLocale === "zh" ? "检测中..." : "checking...") : connector.status.replaceAll("_", " ")}
                   </span>
                 </div>
                 {issue ? (
-                  <div className="mt-0.5 text-[11px] leading-relaxed text-[color:var(--muted)]">
+                  <div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
                     {issue}
                   </div>
                 ) : null}
@@ -64,7 +64,7 @@ export function ConnectorReadiness({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onOpenClaudeSettings(); }}
-                  className="shrink-0 rounded-[6px] p-1.5 text-[color:var(--muted)] transition hover:bg-[color:var(--panel-soft)] hover:text-[color:var(--text)]"
+                  className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
                   title={currentLocale === "zh" ? "Claude Code 设置" : "Claude Code Settings"}
                 >
                   <GearSix size={14} />
@@ -75,7 +75,7 @@ export function ConnectorReadiness({
         })}
       </div>
       {!hasRunnableConnector ? (
-        <div className="mt-4 rounded-[8px] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] px-4 py-3 text-[12px] text-[color:var(--warn)]">
+        <div className="mt-4 rounded-lg border border-[color:var(--destructive)] bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3 text-[12px] text-yellow-600 dark:text-yellow-400">
           {t("onboarding.connectorWarning")}
         </div>
       ) : null}

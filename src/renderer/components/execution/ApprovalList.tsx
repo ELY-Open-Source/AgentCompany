@@ -21,7 +21,7 @@ export function ApprovalList({ approvals, selectedApprovalId, onSelect }: { appr
   return (
     <div
       ref={parentRef}
-      className="h-full overflow-auto border-y border-[color:var(--line)]"
+      className="h-full overflow-auto border-y border-border"
       role="listbox"
       aria-label="Pending approvals"
       onKeyDown={handleKeyDown}
@@ -50,16 +50,16 @@ export function ApprovalList({ approvals, selectedApprovalId, onSelect }: { appr
                 width: "100%",
                 transform: `translateY(${virtualRow.start}px)`,
               }}
-              className={`focus-ring outline-none ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--accent)] ring-inset" : ""}`}
+              className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--primary)] ring-inset" : ""}`}
             >
               <button
-                className={`relative w-full border-b border-[color:var(--line)] px-4 py-3 text-left transition duration-150 last:border-b-0 ${selectedApprovalId === approval.id ? "bg-[color:var(--warn-soft)]" : "bg-transparent hover:bg-[color:var(--panel-soft)]"}`}
+                className={`relative w-full border-b border-border px-4 py-3 text-left transition duration-150 last:border-b-0 ${selectedApprovalId === approval.id ? "bg-yellow-100 dark:bg-yellow-900/50" : "bg-transparent hover:bg-muted"}`}
                 onClick={() => onSelect(approval.id)}
                 tabIndex={-1}
               >
-                {selectedApprovalId === approval.id ? <span className="absolute inset-y-0 left-0 w-[3px] bg-[color:var(--warn)]" /> : null}
+                {selectedApprovalId === approval.id ? <span className="absolute inset-y-0 left-0 w-[3px] bg-yellow-600 dark:bg-yellow-400" /> : null}
                 <div className="flex items-center justify-between gap-4">
-                  <div className={`truncate text-[13px] text-[color:var(--text)] ${selectedApprovalId === approval.id ? "font-semibold" : "font-medium"}`}>{approval.payloadSummary}</div>
+                  <div className={`truncate text-[13px] text-foreground ${selectedApprovalId === approval.id ? "font-semibold" : "font-medium"}`}>{approval.payloadSummary}</div>
                   <StatusPill status={approval.state} />
                 </div>
               </button>

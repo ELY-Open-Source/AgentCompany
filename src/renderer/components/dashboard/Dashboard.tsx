@@ -78,18 +78,18 @@ export function Dashboard(props: DashboardProps) {
       {/* Company status line */}
       {companyName ? (
         <div>
-          <h2 className="text-[28px] font-bold tracking-[-0.02em] text-[color:var(--text)]">{companyName}</h2>
-          <div className="mt-2 flex items-center gap-3 text-[13px] tracking-[0.005em] text-[color:var(--muted)]">
+          <h2 className="text-[28px] font-bold tracking-[-0.02em] text-foreground">{companyName}</h2>
+          <div className="mt-2 flex items-center gap-3 text-[13px] tracking-[0.005em] text-muted-foreground">
             <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--success)]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-green-600 dark:bg-green-400" />
               {activeAgents.length} {activeAgents.length === 1 ? "agent" : "agents"} active
             </span>
-            <span className="h-3 w-px bg-[color:var(--line-strong)]" />
+            <span className="h-3 w-px bg-[color:var(--border)]" />
             <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--accent)]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               {activeTasks.length} {activeTasks.length === 1 ? "task" : "tasks"} in progress
             </span>
-            <span className="h-3 w-px bg-[color:var(--line-strong)]" />
+            <span className="h-3 w-px bg-[color:var(--border)]" />
             <span>{tasks.filter((tk) => tk.status === "done").length} completed</span>
           </div>
         </div>
@@ -139,8 +139,8 @@ export function Dashboard(props: DashboardProps) {
       {/* Needs Attention — moved to top, only shows when items exist */}
       {hasAttentionItems ? (
         <section>
-          <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--warn)]">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[color:var(--warn)]" />
+          <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-yellow-600 dark:text-yellow-400">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-yellow-600 dark:bg-yellow-400" />
             {t("dash.needsAttentionSection")}
           </div>
           <div className="space-y-1.5">
@@ -154,17 +154,17 @@ export function Dashboard(props: DashboardProps) {
                   transition={{ duration: 0.22, delay: i * 0.04, ease: [0.16, 1, 0.3, 1] }}
                   type="button"
                   onClick={() => onNavigate("approvals", approval.id)}
-                  className="focus-ring flex w-full items-center gap-3 rounded-[8px] border border-[color:var(--warn)] border-opacity-20 bg-[color:var(--warn-soft)] px-4 py-3 text-left transition hover:border-opacity-40"
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3 text-left transition hover:border-opacity-40"
                 >
-                  <ShieldCheck size={18} className="shrink-0 text-[color:var(--warn)]" />
+                  <ShieldCheck size={18} className="shrink-0 text-yellow-600 dark:text-yellow-400" />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{approval.payloadSummary}</div>
-                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-[color:var(--muted)]">
+                    <div className="truncate text-[13px] font-medium text-foreground">{approval.payloadSummary}</div>
+                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
                       <span className="uppercase tracking-[0.1em]">{approval.type.replaceAll("_", " ")}</span>
                       {requester ? <span>by {requester.name}</span> : null}
                     </div>
                   </div>
-                  <ArrowRight size={14} className="shrink-0 text-[color:var(--muted)]" />
+                  <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
                 </motion.button>
               );
             })}
@@ -175,16 +175,16 @@ export function Dashboard(props: DashboardProps) {
                   key={run.id}
                   type="button"
                   onClick={() => onNavigate("runs", run.id)}
-                  className="focus-ring flex w-full items-center gap-3 rounded-[8px] border border-[color:var(--danger)] border-opacity-20 bg-[color:var(--danger-soft)] px-4 py-3 text-left transition hover:border-opacity-40"
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-red-100 dark:bg-red-900/50 px-4 py-3 text-left transition hover:border-opacity-40"
                 >
-                  <XCircle size={18} className="shrink-0 text-[color:var(--danger)]" />
+                  <XCircle size={18} className="shrink-0 text-destructive" />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{run.summary || "Run failed"}</div>
-                    <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
+                    <div className="truncate text-[13px] font-medium text-foreground">{run.summary || "Run failed"}</div>
+                    <div className="mt-0.5 text-[11px] text-muted-foreground">
                       {agent?.name} — {run.errorMessage?.slice(0, 80) ?? "Unknown error"}
                     </div>
                   </div>
-                  <ArrowRight size={14} className="shrink-0 text-[color:var(--muted)]" />
+                  <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
                 </button>
               );
             })}
@@ -195,16 +195,16 @@ export function Dashboard(props: DashboardProps) {
                   key={msg.id}
                   type="button"
                   onClick={() => onNavigate("communication", msg.id)}
-                  className="focus-ring flex w-full items-center gap-3 rounded-[8px] border border-[color:var(--warn)] border-opacity-20 bg-[color:var(--warn-soft)] px-4 py-3 text-left transition hover:border-opacity-40"
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3 text-left transition hover:border-opacity-40"
                 >
-                  <Warning size={18} className="shrink-0 text-[color:var(--warn)]" />
+                  <Warning size={18} className="shrink-0 text-yellow-600 dark:text-yellow-400" />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{msg.subject}</div>
-                    <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
+                    <div className="truncate text-[13px] font-medium text-foreground">{msg.subject}</div>
+                    <div className="mt-0.5 text-[11px] text-muted-foreground">
                       {sender?.name ?? "Unknown"} — {msg.channel}{msg.priority === "urgent" ? " · urgent" : ""}
                     </div>
                   </div>
-                  <ArrowRight size={14} className="shrink-0 text-[color:var(--muted)]" />
+                  <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
                 </button>
               );
             })}
@@ -215,36 +215,36 @@ export function Dashboard(props: DashboardProps) {
       {/* Active Work — what's running right now */}
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             Active Work
           </div>
-          <button type="button" onClick={() => onNavigate("runs")} className="flex items-center gap-1 text-[11px] font-medium text-[color:var(--accent)] transition hover:underline">
+          <button type="button" onClick={() => onNavigate("runs")} className="flex items-center gap-1 text-[11px] font-medium text-primary transition hover:underline">
             All runs <ArrowRight size={12} />
           </button>
         </div>
         {activeWork.length > 0 ? (
-          <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] divide-y divide-[color:var(--line)]">
+          <div className="rounded-lg border border-border bg-card divide-y divide-[color:var(--border)]">
             {activeWork.map(({ run, agent, task }) => (
               <button
                 key={run.id}
                 type="button"
                 onClick={() => onNavigate("runs", run.id)}
-                className="focus-ring flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-[color:var(--panel-soft)]"
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted"
               >
                 <div className="relative shrink-0">
-                  <Robot size={16} className="text-[color:var(--success)]" />
+                  <Robot size={16} className="text-green-600 dark:text-green-400" />
                   {run.status === "running" ? (
                     <span className="absolute -right-0.5 -top-0.5 h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--success)] opacity-40" style={{ willChange: "transform" }} />
-                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[color:var(--success)]" />
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-600 dark:bg-green-400 opacity-40" style={{ willChange: "transform" }} />
+                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-600 dark:bg-green-400" />
                     </span>
                   ) : null}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] font-medium text-[color:var(--text)]">
+                  <div className="truncate text-[13px] font-medium text-foreground">
                     {task?.title ?? run.summary ?? `Run ${run.id.slice(0, 8)}`}
                   </div>
-                  <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">
+                  <div className="mt-0.5 text-[11px] text-muted-foreground">
                     {agent?.name ?? "Unknown agent"} · {run.status}
                   </div>
                 </div>
@@ -252,9 +252,9 @@ export function Dashboard(props: DashboardProps) {
             ))}
           </div>
         ) : (
-          <div className="rounded-[8px] border border-dashed border-[color:var(--line)] py-8 text-center">
-            <div className="text-[13px] text-[color:var(--muted)]">{t("dash.allQuiet")}</div>
-            <div className="mt-1 text-[11px] text-[color:var(--muted)]">No tasks currently running</div>
+          <div className="rounded-lg border border-dashed border-border py-8 text-center">
+            <div className="text-[13px] text-muted-foreground">{t("dash.allQuiet")}</div>
+            <div className="mt-1 text-[11px] text-muted-foreground">No tasks currently running</div>
           </div>
         )}
       </section>
@@ -262,11 +262,11 @@ export function Dashboard(props: DashboardProps) {
       {/* Recent Activity */}
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             {t("dash.recentActivity")}
           </div>
         </div>
-        <div className="max-h-[360px] overflow-y-auto rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel)] py-2">
+        <div className="max-h-[360px] overflow-y-auto rounded-lg border border-border bg-card py-2">
           <ActivityFeed activity={activity} agents={agents} limit={10} />
         </div>
       </section>

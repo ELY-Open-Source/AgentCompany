@@ -745,7 +745,7 @@ export const en: Record<string, string> = {
   "ops.newMeeting": "New meeting",
   "ops.newSprint": "New sprint",
   "ops.deleteDocument": "Delete document",
-  "ops.deleteDocumentMsg": "This removes the document from the company knowledge surface.",
+  "ops.deleteDocumentMsg": "This removes the document from the company knowledge bg-card border border-border shadow-sm.",
   "ops.deleteKnowledgeEntry": "Delete knowledge entry",
   "ops.deleteKnowledgeMsg": "This removes the entry from the shared company knowledge base.",
   "ops.deleteMeeting": "Delete meeting",

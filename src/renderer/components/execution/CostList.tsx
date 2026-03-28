@@ -36,7 +36,7 @@ export function CostList({ costs, agents, runs }: { costs: ProfileSnapshot["cost
       </div>
       <div
         ref={parentRef}
-        className="h-full max-h-[600px] overflow-auto border-y border-[color:var(--line)]"
+        className="h-full max-h-[600px] overflow-auto border-y border-border"
         role="listbox"
         aria-label="Cost entries"
         onKeyDown={handleKeyDown}
@@ -66,11 +66,11 @@ export function CostList({ costs, agents, runs }: { costs: ProfileSnapshot["cost
                     width: "100%",
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
-                  className={`focus-ring outline-none border-b border-[color:var(--line)] px-4 py-3 last:border-b-0 ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--accent)] ring-inset" : ""}`}
+                  className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none border-b border-border px-4 py-3 last:border-b-0 ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--primary)] ring-inset" : ""}`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="text-[13px] font-semibold text-[color:var(--text)]">Total ({filtered.length} entries)</div>
-                    <div className="mono tabular-nums text-[13px] font-bold tracking-[-0.02em] text-[color:var(--text)]">{formatMoney(total)}</div>
+                    <div className="text-[13px] font-semibold text-foreground">Total ({filtered.length} entries)</div>
+                    <div className="font-mono tabular-nums text-[13px] font-bold tracking-[-0.02em] text-foreground">{formatMoney(total)}</div>
                   </div>
                 </div>
               )
@@ -91,16 +91,16 @@ export function CostList({ costs, agents, runs }: { costs: ProfileSnapshot["cost
                   width: "100%",
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
-                className={`focus-ring outline-none border-b border-[color:var(--line)] px-4 py-3 last:border-b-0 ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--accent)] ring-inset" : ""}`}
+                className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none border-b border-border px-4 py-3 last:border-b-0 ${virtualRow.index === focusedIndex ? "ring-1 ring-[color:var(--primary)] ring-inset" : ""}`}
               >
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] text-[color:var(--text)]">{runs.find((run) => run.id === entry.runId)?.summary || "Run cost"}</div>
-                    <div className="text-[11px] text-[color:var(--muted)]">{agents.find((a) => a.id === entry.agentId)?.name ?? "Unknown agent"} · {entry.connectorId}</div>
+                    <div className="truncate text-[13px] text-foreground">{runs.find((run) => run.id === entry.runId)?.summary || "Run cost"}</div>
+                    <div className="text-[11px] text-muted-foreground">{agents.find((a) => a.id === entry.agentId)?.name ?? "Unknown agent"} · {entry.connectorId}</div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <div className="mono tabular-nums text-[13px] text-[color:var(--text)]">{formatMoney(entry.amountUsd)}</div>
-                    {entry.unattributed ? <div className="text-[11px] text-[color:var(--warn)]">unattributed</div> : null}
+                    <div className="font-mono tabular-nums text-[13px] text-foreground">{formatMoney(entry.amountUsd)}</div>
+                    {entry.unattributed ? <div className="text-[11px] text-yellow-600 dark:text-yellow-400">unattributed</div> : null}
                   </div>
                 </div>
               </div>

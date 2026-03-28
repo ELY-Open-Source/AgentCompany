@@ -52,12 +52,12 @@ export function SocialAccountsPanel({
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-[color:var(--accent-soft)]">
-            <Megaphone size={20} weight="fill" className="text-[color:var(--accent)]" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent">
+            <Megaphone size={20} weight="fill" className="text-primary" />
           </div>
           <div>
-            <h2 className="text-[16px] font-bold text-[color:var(--text)]">{t("social.socialMedia")}</h2>
-            <p className="text-[12px] text-[color:var(--muted)]">
+            <h2 className="text-[16px] font-bold text-foreground">{t("social.socialMedia")}</h2>
+            <p className="text-[12px] text-muted-foreground">
               {accounts.length} account{accounts.length !== 1 ? "s" : ""} connected
             </p>
           </div>
@@ -70,8 +70,8 @@ export function SocialAccountsPanel({
         />
       </div>
 
-      <div className="rounded-[8px] border border-[color:var(--accent)] border-opacity-20 bg-[color:var(--accent-soft)] px-4 py-3">
-        <div className="flex items-start gap-2 text-[12px] text-[color:var(--accent)]">
+      <div className="rounded-lg border border-[color:var(--primary)] border-opacity-20 bg-accent px-4 py-3">
+        <div className="flex items-start gap-2 text-[12px] text-primary">
           <Browser size={16} className="mt-0.5 shrink-0" />
           <div>
             <div className="font-medium">How it works</div>
@@ -84,14 +84,14 @@ export function SocialAccountsPanel({
         </div>
       </div>
 
-      <div className="flex gap-1 rounded-[8px] bg-[color:var(--panel-soft)] p-1">
+      <div className="flex gap-1 rounded-lg bg-muted p-1">
         <button
           type="button"
           onClick={() => setActiveTab("accounts")}
-          className={`flex-1 rounded-[6px] px-3 py-1.5 text-[12px] font-medium transition ${
+          className={`flex-1 rounded-lg px-3 py-1.5 text-[12px] font-medium transition ${
             activeTab === "accounts"
-              ? "bg-[color:var(--panel)] text-[color:var(--text)] shadow-sm"
-              : "text-[color:var(--muted)] hover:text-[color:var(--text)]"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Accounts ({accounts.length})
@@ -99,10 +99,10 @@ export function SocialAccountsPanel({
         <button
           type="button"
           onClick={() => setActiveTab("history")}
-          className={`flex-1 rounded-[6px] px-3 py-1.5 text-[12px] font-medium transition ${
+          className={`flex-1 rounded-lg px-3 py-1.5 text-[12px] font-medium transition ${
             activeTab === "history"
-              ? "bg-[color:var(--panel)] text-[color:var(--text)] shadow-sm"
-              : "text-[color:var(--muted)] hover:text-[color:var(--text)]"
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Action History ({actions.length})
@@ -111,10 +111,10 @@ export function SocialAccountsPanel({
 
       {activeTab === "accounts" ? (
         accounts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-[8px] border border-dashed border-[color:var(--line)] py-16 text-center">
-            <Megaphone size={32} className="mb-3 text-[color:var(--muted)]" />
-            <div className="text-[14px] font-medium text-[color:var(--muted-strong)]">{t("social.noAccounts")}</div>
-            <div className="mt-1 text-[12px] text-[color:var(--muted)]">
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
+            <Megaphone size={32} className="mb-3 text-muted-foreground" />
+            <div className="text-[14px] font-medium text-muted-foreground">{t("social.noAccounts")}</div>
+            <div className="mt-1 text-[12px] text-muted-foreground">
               {t("social.noAccountsDesc")}
             </div>
             <div className="mt-4">

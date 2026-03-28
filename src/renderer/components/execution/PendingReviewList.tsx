@@ -13,11 +13,11 @@ export function PendingReviewList({ tasks, agents }: { tasks: TaskRecord[]; agen
         const assignee = agents.find((a) => a.id === task.assigneeAgentId) ?? null
         const reviewer = assignee?.reportsTo ? (agents.find((a) => a.id === assignee.reportsTo) ?? null) : null
         return (
-          <div key={task.id} className="flex items-start gap-3 border-b border-[color:var(--line)] px-4 py-3 last:border-b-0">
-            <Robot size={16} weight="fill" className="mt-0.5 shrink-0 text-[color:var(--accent)]" />
+          <div key={task.id} className="flex items-start gap-3 border-b border-border px-4 py-3 last:border-b-0">
+            <Robot size={16} weight="fill" className="mt-0.5 shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-medium text-[color:var(--text)]">{task.title}</div>
-              <div className="mt-0.5 text-[11px] text-[color:var(--muted)]">{assignee ? assignee.name : "Unassigned"}{reviewer ? <> &rarr; reviewed by <span className="text-[color:var(--muted-strong)]">{reviewer.name}{reviewer.title ? ` (${reviewer.title})` : ""}</span></> : " · awaiting review"}</div>
+              <div className="truncate text-[13px] font-medium text-foreground">{task.title}</div>
+              <div className="mt-0.5 text-[11px] text-muted-foreground">{assignee ? assignee.name : "Unassigned"}{reviewer ? <> &rarr; reviewed by <span className="text-muted-foreground">{reviewer.name}{reviewer.title ? ` (${reviewer.title})` : ""}</span></> : " · awaiting review"}</div>
             </div>
           </div>
         )

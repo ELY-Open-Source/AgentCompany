@@ -32,15 +32,15 @@ export function MissionStep({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -18 }}
       transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-      className="surface w-full rounded-[8px] p-7"
+      className="bg-card border border-border shadow-sm w-full rounded-lg p-7"
     >
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         {t("onboarding.stepLabel2")} 2 / 3
       </div>
-      <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text)]">
+      <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
         {t("onboarding.step2Title")}
       </div>
-      <div className="mb-6 h-px bg-[color:var(--line)]" />
+      <div className="mb-6 h-px bg-[color:var(--border)]" />
 
       <div className="space-y-4">
         <Input
@@ -56,8 +56,8 @@ export function MissionStep({
           placeholder={t("onboarding.acceptanceCriteriaPlaceholder")}
           rows={5}
         />
-        <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--panel-soft)] px-4 py-3 text-[12px] text-[color:var(--muted)]">
-          <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">
+        <div className="rounded-lg border border-border bg-muted px-4 py-3 text-[12px] text-muted-foreground">
+          <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
             <Cpu size={12} />
             {t("onboarding.executionHandoff")}
           </div>
@@ -70,7 +70,7 @@ export function MissionStep({
       </div>
 
       {error ? (
-        <div className="mt-5 rounded-[8px] border border-[color:var(--danger)] bg-[color:var(--danger-soft)] px-4 py-3 text-[13px] text-[color:var(--danger)]">
+        <div className="mt-5 rounded-lg border border-[color:var(--destructive)] bg-red-100 dark:bg-red-900/50 px-4 py-3 text-[13px] text-destructive">
           {error}
         </div>
       ) : null}
@@ -79,7 +79,7 @@ export function MissionStep({
         <button
           type="button"
           onClick={onBack}
-          className="text-[12px] font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
+          className="text-[12px] font-medium text-muted-foreground transition hover:text-foreground"
         >
           {t("onboarding.back")}
         </button>

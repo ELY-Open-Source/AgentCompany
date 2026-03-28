@@ -83,16 +83,16 @@ export function MeetingsManager({ companyId, meetings, agents, onRefresh }: {
           <ListRow key={meeting.id}>
             <div className="flex items-start justify-between gap-3">
               <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setEditingId(meeting.id)}>
-                <div className="flex items-center gap-2 text-[13px] font-medium text-[color:var(--text)]">
-                  <CalendarBlank size={15} className="text-[color:var(--accent)]" />
+                <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+                  <CalendarBlank size={15} className="text-primary" />
                   <span className="truncate">{meeting.title}</span>
                 </div>
-                <div className="mt-1 text-[11px] text-[color:var(--muted)]">{meeting.type.replaceAll("_", " ")} · {new Date(meeting.scheduledAt).toLocaleString()} · {meeting.durationMinutes} min</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">{meeting.type.replaceAll("_", " ")} · {new Date(meeting.scheduledAt).toLocaleString()} · {meeting.durationMinutes} min</div>
               </button>
               <div className="flex items-center gap-2">
                 <StatusPill status={meeting.status} />
-                <button type="button" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--text)]" onClick={() => setEditingId(meeting.id)}><NotePencil size={14} /></button>
-                <button type="button" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--danger)]" onClick={() => setDeleteId(meeting.id)}><Trash size={14} /></button>
+                <button type="button" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={() => setEditingId(meeting.id)}><NotePencil size={14} /></button>
+                <button type="button" className="rounded p-1 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(meeting.id)}><Trash size={14} /></button>
               </div>
             </div>
           </ListRow>

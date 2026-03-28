@@ -31,19 +31,19 @@ export function ProjectList({
           <ListRow
             key={project.id}
             onClick={() => onSelect(project.id)}
-            className={`cursor-pointer transition-colors duration-100 ${isSelected ? "bg-[color:var(--accent-soft)]" : "hover:bg-[color:var(--panel-soft)]"}`}
+            className={`cursor-pointer transition-colors duration-100 ${isSelected ? "bg-accent" : "hover:bg-muted"}`}
           >
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {isSelected && (
-                  <CheckCircle size={16} weight="fill" className="text-[color:var(--accent)]" />
+                  <CheckCircle size={16} weight="fill" className="text-primary" />
                 )}
-                <div className="truncate text-[14px] font-semibold text-[color:var(--text)]">{project.name}</div>
+                <div className="truncate text-[14px] font-semibold text-foreground">{project.name}</div>
               </div>
               <StatusPill status={project.status} />
             </div>
-            <div className="mb-2 text-[13px] text-[color:var(--muted)]">{project.description}</div>
-            <div className="flex flex-wrap gap-4 text-[11px] text-[color:var(--muted)]">
+            <div className="mb-2 text-[13px] text-muted-foreground">{project.description}</div>
+            <div className="flex flex-wrap gap-4 text-[11px] text-muted-foreground">
               <span>
                 Goal: {goals.find((g) => g.id === project.goalId)?.title ?? "None"}
               </span>

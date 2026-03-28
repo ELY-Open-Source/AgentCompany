@@ -128,7 +128,7 @@ export function AgentEditor({
           ]}
       />
       {pendingApproval ? (
-        <p className="text-[12px] text-[color:var(--muted)]">
+        <p className="text-[12px] text-muted-foreground">
           Pending hires must be approved or rejected from Hiring or Approvals. Status changes are intentionally locked here.
         </p>
       ) : null}
@@ -140,7 +140,7 @@ export function AgentEditor({
         options={connectorOptions}
       />
       {selectedConnectorIssue ? (
-        <p className="text-[12px] text-[color:var(--warn)]">
+        <p className="text-[12px] text-yellow-600 dark:text-yellow-400">
           {selectedConnectorIssue}
         </p>
       ) : null}
@@ -193,8 +193,8 @@ export function AgentEditor({
       <HeartbeatSection agent={agent} companyId={companyId} pendingApproval={pendingApproval} persistedConnectorIssue={persistedConnectorIssue} onSaved={onSaved} />
 
       {/* Skills section (D-04 dual access) */}
-      <div className="mt-6 border-t border-[color:var(--line)] pt-4">
-        <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[color:var(--accent-text)] mb-3">Skills</h3>
+      <div className="mt-6 border-t border-border pt-4">
+        <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-primary mb-3">Skills</h3>
         <SkillAgentToggles mode="agent" companyId={companyId} agentId={agent.id} skills={skills} />
       </div>
 
@@ -271,11 +271,11 @@ export function AgentEditor({
         )}
       </div>
       {pendingApproval ? (
-        <p className="text-[12px] text-[color:var(--muted)]">
+        <p className="text-[12px] text-muted-foreground">
           Pending hires are read-only here. Use Hiring or Approvals to approve or reject the request before editing the agent profile.
         </p>
       ) : null}
-      {saveError ? <p className="text-[12px] text-[color:var(--danger)]">{saveError}</p> : null}
+      {saveError ? <p className="text-[12px] text-destructive">{saveError}</p> : null}
     </div>
   );
 }

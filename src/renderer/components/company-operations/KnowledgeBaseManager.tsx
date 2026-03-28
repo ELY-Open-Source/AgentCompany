@@ -69,16 +69,16 @@ export function KnowledgeBaseManager({ companyId, entries, onRefresh }: {
           <ListRow key={entry.id}>
             <div className="flex items-start justify-between gap-3">
               <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setEditingId(entry.id)}>
-                <div className="flex items-center gap-2 text-[13px] font-medium text-[color:var(--text)]">
-                  <Lightbulb size={15} className="text-[color:var(--accent)]" />
+                <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+                  <Lightbulb size={15} className="text-primary" />
                   <span className="truncate">{entry.topic}</span>
                 </div>
-                <div className="mt-1 text-[11px] text-[color:var(--muted)]">{entry.category.replaceAll("_", " ")} · {entry.updatedAt.slice(0, 10)}</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">{entry.category.replaceAll("_", " ")} · {entry.updatedAt.slice(0, 10)}</div>
               </button>
               <div className="flex items-center gap-2">
                 <StatusPill status={entry.importance} />
-                <button type="button" aria-label="Edit entry" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--text)]" onClick={() => setEditingId(entry.id)}><NotePencil size={14} /></button>
-                <button type="button" aria-label="Delete entry" className="rounded p-1 text-[color:var(--muted)] hover:text-[color:var(--danger)]" onClick={() => setDeleteId(entry.id)}><Trash size={14} /></button>
+                <button type="button" aria-label="Edit entry" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={() => setEditingId(entry.id)}><NotePencil size={14} /></button>
+                <button type="button" aria-label="Delete entry" className="rounded p-1 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(entry.id)}><Trash size={14} /></button>
               </div>
             </div>
           </ListRow>

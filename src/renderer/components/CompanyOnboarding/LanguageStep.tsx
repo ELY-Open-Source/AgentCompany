@@ -24,16 +24,16 @@ export function LanguageStep({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -18 }}
       transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-      className="surface w-full rounded-[8px] p-7"
+      className="bg-card border border-border shadow-sm w-full rounded-lg p-7"
     >
-      <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">
+      <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         <GlobeSimple size={12} />
         {t("onboarding.languageSelection")} / Language
       </div>
-      <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-[color:var(--text)]">
+      <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
         {t("onboarding.selectLanguage")} / Select Language
       </div>
-      <div className="mb-6 h-px bg-[color:var(--line)]" />
+      <div className="mb-6 h-px bg-[color:var(--border)]" />
 
       <div className="space-y-2.5">
         {APP_LOCALES.map((locale) => (
@@ -41,21 +41,21 @@ export function LanguageStep({
             key={locale}
             type="button"
             onClick={() => onLocaleChange(locale)}
-            className={`flex w-full items-center gap-3 rounded-[8px] border px-4 py-3.5 text-left transition ${
+            className={`flex w-full items-center gap-3 rounded-lg border px-4 py-3.5 text-left transition ${
               currentLocale === locale
-                ? "border-[color:var(--accent)] bg-[color:var(--accent-soft)]"
-                : "border-[color:var(--line)] bg-[color:var(--panel-soft)] hover:border-[color:var(--muted)]"
+                ? "border-[color:var(--primary)] bg-accent"
+                : "border-border bg-muted hover:border-[color:var(--muted-foreground)]"
             }`}
           >
             <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
               currentLocale === locale
-                ? "border-[color:var(--accent)] bg-[color:var(--accent)]"
-                : "border-[color:var(--line)]"
+                ? "border-[color:var(--primary)] bg-primary"
+                : "border-border"
             }`}>
-              {currentLocale === locale ? <CheckCircle size={14} weight="fill" className="text-[color:var(--text-on-accent)]" /> : null}
+              {currentLocale === locale ? <CheckCircle size={14} weight="fill" className="text-primary-foreground" /> : null}
             </div>
             <span className={`text-[14px] font-medium ${
-              currentLocale === locale ? "text-[color:var(--text)]" : "text-[color:var(--muted-strong)]"
+              currentLocale === locale ? "text-foreground" : "text-muted-foreground"
             }`}>
               {LOCALE_LABELS[locale]}
             </span>

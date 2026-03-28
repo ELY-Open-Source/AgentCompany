@@ -27,11 +27,11 @@ export const ENTITY_TYPE_OPTIONS = [
 
 export function WorkspaceStatePill({ state }: { state: string }) {
   const colorMap: Record<string, string> = {
-    ready: "text-[color:var(--success)] bg-[color:var(--success-soft)]",
-    busy: "text-[color:var(--warn)] bg-[color:var(--warn-soft)]",
-    blocked: "text-[color:var(--danger)] bg-[color:var(--danger-soft)]",
-    missing: "text-[color:var(--muted-strong)] bg-[color:var(--panel-soft)]",
-    error: "text-[color:var(--danger)] bg-[color:var(--danger-soft)]",
+    ready: "text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50",
+    busy: "text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/50",
+    blocked: "text-destructive bg-red-100 dark:bg-red-900/50",
+    missing: "text-muted-foreground bg-muted",
+    error: "text-destructive bg-red-100 dark:bg-red-900/50",
   }
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${colorMap[state] ?? colorMap.missing}`}>
@@ -41,6 +41,6 @@ export function WorkspaceStatePill({ state }: { state: string }) {
 }
 
 export function PriorityDot({ priority }: { priority: string }) {
-  const color = priority === "critical" ? "bg-[color:var(--danger)]" : priority === "high" ? "bg-[color:var(--warn)]" : priority === "low" ? "bg-[color:var(--muted)]" : "bg-[color:var(--muted-strong)]"
+  const color = priority === "critical" ? "bg-destructive" : priority === "high" ? "bg-yellow-600 dark:bg-yellow-400" : priority === "low" ? "bg-[color:var(--muted-foreground)]" : "bg-[color:var(--muted-foreground)]"
   return <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${color}`} aria-label={`${priority} priority`} />
 }

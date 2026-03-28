@@ -24,11 +24,11 @@ export function WorkspaceList({ workspaces, projects, companyId, selectedWorkspa
           const linkedProject = projects.find((p) => p.id === workspace.projectId) ?? null
           return (
             <ListRow key={workspace.id}>
-              <div className={`mb-2 rounded-[8px] p-1 ${selectedWorkspaceId === workspace.id ? "bg-[color:var(--accent-soft)]" : ""}`}>
+              <div className={`mb-2 rounded-lg p-1 ${selectedWorkspaceId === workspace.id ? "bg-accent" : ""}`}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="flex items-center gap-2"><div className="truncate text-[13px] text-[color:var(--text)]">{workspace.name}</div><WorkspaceStatePill state={workspace.state} /></div>
-                    <div className="mono truncate text-[11px] text-[color:var(--muted)]">{workspace.localPath}</div>
+                    <div className="flex items-center gap-2"><div className="truncate text-[13px] text-foreground">{workspace.name}</div><WorkspaceStatePill state={workspace.state} /></div>
+                    <div className="font-mono truncate text-[11px] text-muted-foreground">{workspace.localPath}</div>
                   </div>
                   <div className="flex items-center gap-2">
                     {workspace.isPrimary ? <StatusPill status="ready" /> : null}
@@ -37,7 +37,7 @@ export function WorkspaceList({ workspaces, projects, companyId, selectedWorkspa
                     <ActionButton label={t("exec.delete")} onClick={() => setConfirmDeleteId(workspace.id)} icon={Trash} tone="danger" />
                   </div>
                 </div>
-                <div className="truncate text-[11px] text-[color:var(--muted)]">{workspace.repoUrl || "No remote URL"} {workspace.repoRef ? `· ${workspace.repoRef}` : ""}{linkedProject ? <span> · Project: <span className="text-[color:var(--text)]">{linkedProject.name}</span></span> : null}</div>
+                <div className="truncate text-[11px] text-muted-foreground">{workspace.repoUrl || "No remote URL"} {workspace.repoRef ? `· ${workspace.repoRef}` : ""}{linkedProject ? <span> · Project: <span className="text-foreground">{linkedProject.name}</span></span> : null}</div>
               </div>
             </ListRow>
           )
