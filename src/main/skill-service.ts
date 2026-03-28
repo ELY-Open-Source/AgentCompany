@@ -712,9 +712,32 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
   async function scanWorkspaceSkills(
     companyId: string,
   ): Promise<SkillImportResult[]> {
-    const workspacePaths = db.listWorkspaceLocalPaths(companyId);
     const allResults: SkillImportResult[] = [];
 
+    // 1. Scan user home directories: ~/.agents/skills/ and ~/.claude/skills/
+    const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+    if (homeDir) {
+      const homeScanDirs = [
+        join(homeDir, ".agents", "skills"),
+        join(homeDir, ".claude", "skills"),
+      ];
+      for (const scanDir of homeScanDirs) {
+        if (!existsSync(scanDir)) continue;
+        try {
+          const stat = statSync(scanDir);
+          if (!stat.isDirectory()) continue;
+          const results = await importFromLocal(companyId, scanDir);
+          allResults.push(...results);
+          logger.info(`Scanned home skills: ${scanDir} — imported ${results.length} skill(s)`);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn(`Failed to scan home skills at ${scanDir}: ${message}`);
+        }
+      }
+    }
+
+    // 2. Scan workspace .agents/skills/ directories
+    const workspacePaths = db.listWorkspaceLocalPaths(companyId);
     for (const wsPath of workspacePaths) {
       const agentsSkillsDir = join(wsPath, ".agents", "skills");
       if (!existsSync(agentsSkillsDir)) continue;
