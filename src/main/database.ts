@@ -1182,6 +1182,13 @@ export class AppDatabase {
     return row ? { ...row, isPrimary: toBoolean(row.isPrimary) } : null;
   }
 
+  listWorkspaceLocalPaths(companyId: string): string[] {
+    const rows = this.db
+      .prepare("select local_path as localPath from workspaces where company_id = ? and local_path is not null")
+      .all(companyId) as Array<{ localPath: string }>;
+    return rows.map((r) => r.localPath).filter(Boolean);
+  }
+
   getAnyCompanyWorkspace(companyId: string): WorkspaceRecord | null {
     const row = this.db
       .prepare(

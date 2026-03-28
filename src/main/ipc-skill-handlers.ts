@@ -50,13 +50,19 @@ export function registerSkillHandlers({
     return result;
   });
 
-  // ---- List all skills for a company ----
+  // ---- List all skills for a company (also scans workspace .agents/skills/) ----
   registerHandle(IPC_CHANNELS.listSkills, async (_event, payload) => {
     const parsed = listSkillsSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
     const serviceError = requireSkillService();
     if (serviceError) return serviceError;
+    // Scan workspace .agents/skills/ directories for new skills before listing
+    try {
+      await skillService!.scanWorkspaceSkills(parsed.companyId);
+    } catch {
+      // Non-fatal: scan failure should not block listing existing skills
+    }
     return ok(skillService!.listForCompany(parsed.companyId));
   });
 
