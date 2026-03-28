@@ -701,6 +701,66 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
     return inventory;
   }
 
+  // ---- Workspace .agents/skills/ scanning (Bug 6) ----
+
+  /**
+   * Scan all workspace local paths for a company, looking for
+   * `.agents/skills/` directories containing SKILL.md files.
+   * Auto-imports any found skills that are not already in the database.
+   * Cross-platform: uses path.join for correct separators.
+   */
+  async function scanWorkspaceSkills(
+    companyId: string,
+  ): Promise<SkillImportResult[]> {
+    const allResults: SkillImportResult[] = [];
+
+    // 1. Scan user home directories: ~/.agents/skills/ and ~/.claude/skills/
+    const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+    if (homeDir) {
+      const homeScanDirs = [
+        join(homeDir, ".agents", "skills"),
+        join(homeDir, ".claude", "skills"),
+      ];
+      for (const scanDir of homeScanDirs) {
+        if (!existsSync(scanDir)) continue;
+        try {
+          const stat = statSync(scanDir);
+          if (!stat.isDirectory()) continue;
+          const results = await importFromLocal(companyId, scanDir);
+          allResults.push(...results);
+          logger.info(`Scanned home skills: ${scanDir} — imported ${results.length} skill(s)`);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn(`Failed to scan home skills at ${scanDir}: ${message}`);
+        }
+      }
+    }
+
+    // 2. Scan workspace .agents/skills/ directories
+    const workspacePaths = db.listWorkspaceLocalPaths(companyId);
+    for (const wsPath of workspacePaths) {
+      const agentsSkillsDir = join(wsPath, ".agents", "skills");
+      if (!existsSync(agentsSkillsDir)) continue;
+
+      try {
+        const stat = statSync(agentsSkillsDir);
+        if (!stat.isDirectory()) continue;
+
+        const results = await importFromLocal(companyId, agentsSkillsDir);
+        allResults.push(...results);
+        logger.info(
+          `Scanned workspace skills: ${agentsSkillsDir} — imported ${results.length} skill(s)`,
+        );
+      } catch (err) {
+        // Log but don't fail the entire scan if one workspace has issues
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(`Failed to scan workspace skills at ${agentsSkillsDir}: ${message}`);
+      }
+    }
+
+    return allResults;
+  }
+
   // ---- Public API ----
 
   return {
@@ -715,5 +775,6 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
     removeFromAgent,
     checkUpdateStatus,
     listRuntimeSkillEntries,
+    scanWorkspaceSkills,
   };
 }

@@ -42,7 +42,7 @@ export function OnboardingHero({
   }));
 
   return (
-    <div className="relative flex min-h-0 items-center justify-center overflow-y-auto px-8 py-12 md:px-16">
+    <div className="relative flex min-h-0 items-center justify-center overflow-hidden px-8 py-12 md:px-16">
       {/* Ambient gradient - subtle animated accent wash */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.035]"

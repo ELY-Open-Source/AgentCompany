@@ -13,10 +13,10 @@ import { getAgentInitials, formatMessageTime } from "../../lib/formatters"
 import { DEPARTMENT_COLORS } from "@shared/constants"
 
 
-const priorityConfig: Record<string, { label: string; color: string; bg: string }> = {
-  urgent: { label: "Urgent", color: "var(--destructive)", bg: "var(--destructive)" },
-  normal: { label: "Normal", color: "var(--muted-foreground)", bg: "var(--muted-foreground)" },
-  low: { label: "Low", color: "var(--muted-foreground)", bg: "var(--muted-foreground)" },
+const priorityConfig: Record<string, { label: string; className: string }> = {
+  urgent: { label: "Urgent", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  normal: { label: "Normal", className: "bg-muted text-muted-foreground" },
+  low: { label: "Low", className: "bg-muted text-muted-foreground" },
 }
 
 function getDepartmentColor(department: DepartmentId | null | undefined): string {
@@ -87,8 +87,7 @@ export const MessageBubble = memo(function MessageBubble({
           ) : null}
           {agent?.department ? (
             <span
-              className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em]"
-              style={{ backgroundColor: `${deptColor}15`, color: deptColor }}
+              className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-muted-foreground"
             >
               {agent.department.replace("_", " ")}
             </span>
@@ -98,14 +97,10 @@ export const MessageBubble = memo(function MessageBubble({
           </span>
           {message.priority !== "normal" ? (
             <span
-              className="flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]"
-              style={{
-                backgroundColor: priorityConfig[message.priority].bg,
-                color: priorityConfig[message.priority].color,
-              }}
+              className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] ${priorityConfig[message.priority]?.className ?? ""}`}
             >
               {message.priority === "urgent" ? <WarningCircle size={10} weight="fill" /> : null}
-              {priorityConfig[message.priority].label}
+              {priorityConfig[message.priority]?.label}
             </span>
           ) : null}
           {isUnread ? (

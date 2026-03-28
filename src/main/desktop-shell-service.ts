@@ -8,6 +8,7 @@ import {
   dialog,
   Menu,
   nativeImage,
+  nativeTheme,
   net,
   protocol,
   session,
@@ -206,7 +207,7 @@ export function createDesktopShellService({
       y: savedWindowState.bounds.y,
       minWidth: 1180,
       minHeight: 760,
-      backgroundColor: "#13110f",
+      backgroundColor: "#ffffff",
       titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
       webPreferences: {
         preload: preloadPath,
@@ -219,6 +220,9 @@ export function createDesktopShellService({
         allowRunningInsecureContent: false,
       },
     });
+
+    // Sync native theme with app to ensure Windows title bar matches content
+    nativeTheme.themeSource = "light";
 
     if (isDev && devServerUrl) {
       await mainWindow.loadURL(devServerUrl);

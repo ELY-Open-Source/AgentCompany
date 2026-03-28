@@ -187,7 +187,7 @@ export function CompanyOnboarding({
   }, [launchSummary, onDone, t]);
 
   return (
-    <div className="relative grid min-h-[100dvh] overflow-hidden bg-background md:grid-cols-[minmax(0,1fr)_540px]">
+    <div className="relative grid h-[100dvh] overflow-hidden bg-background md:grid-cols-[minmax(0,1fr)_540px]">
       {/* Drag region for macOS frameless title bar */}
       <div className="sidebar-drag absolute inset-x-0 top-0 z-10 h-[38px]" />
       <OnboardingHero
@@ -201,7 +201,7 @@ export function CompanyOnboarding({
 
       <div className="min-h-0 overflow-y-auto border-l border-border bg-background">
         <div className="relative flex min-h-full items-center px-6 py-10 md:px-10">
-          {canCancel && onCancel ? (
+          {canCancel && onCancel && !isFirstLaunch ? (
             <button
               type="button"
               onClick={onCancel}
