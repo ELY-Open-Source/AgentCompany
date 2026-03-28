@@ -894,9 +894,11 @@ ${roster.join("\n")}
 
 You are the new CEO. Your company has no active team members yet. Your job is to BUILD this company from scratch.
 
-## Step 1: Analyze the Mission
+## Step 1: Analyze the Mission and Workspace
 - Read ALL Active Goals carefully to understand the company direction.
-- Identify what departments are needed to achieve these goals.
+- **Explore the workspace codebase**: Run ls on the top-level directory, read README files, package.json, config files, and any documentation. Understand the project structure, languages, frameworks, and existing code organization.
+- **Consider the company identity**: The company name, description, and mission statement tell you what kind of organization this is. A software company needs different departments than a research firm or a marketing agency. Let the company context shape your org design.
+- Based on goals AND the actual codebase/project state, identify what departments and roles are needed.
 
 ## Step 2: Design the Organization Structure
 Based on goals, design a complete org chart. A mature company typically has these departments:
