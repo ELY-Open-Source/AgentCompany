@@ -7,6 +7,7 @@ export {
   detectGeminiAuthRequired,
   isGeminiTurnLimitResult,
 } from "./parse.js";
+export { listGeminiSkills, syncGeminiSkills } from "./skills.js";
 import type { AdapterSessionCodec } from "@agentcompany/adapter-utils";
 
 function readNonEmptyString(value: unknown): string | null {

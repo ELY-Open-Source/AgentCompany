@@ -6,6 +6,7 @@ export {
   isClaudeMaxTurnsResult,
   isClaudeUnknownSessionError,
 } from "./parse.js";
+export { listClaudeSkills, syncClaudeSkills } from "./skills.js";
 import type { AdapterSessionCodec } from "@agentcompany/adapter-utils";
 
 function readNonEmptyString(value: unknown): string | null {
