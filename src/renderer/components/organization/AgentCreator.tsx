@@ -66,7 +66,7 @@ export function AgentCreator({
   }, [executionReadyConnectors, connectorId]);
 
   return (
-    <div className="grid gap-4">
+    <div className="grid min-w-0 gap-4">
       <Input label="Agent name" value={name} onChange={setName} placeholder="Agent name" />
       <Input label="Role" value={role} onChange={setRole} placeholder="e.g. Engineer, PM, CEO" />
       <Input label="Title" value={title} onChange={setTitle} placeholder="Title" />
@@ -74,7 +74,7 @@ export function AgentCreator({
         label="Connector"
         value={connectorId}
         onChange={(value) => setConnectorId(value as ConnectorRecord["id"])}
-        options={executionReadyConnectors.map((connector) => ({ value: connector.id, label: connector.label }))}
+        options={executionReadyConnectors.map((connector) => ({ value: connector.id, label: connector.id.startsWith("claude_compat") && connector.notes ? connector.notes : connector.label }))}
       />
       {executionReadyConnectors.length === 0 ? (
         <p className="text-[12px] text-yellow-600 dark:text-yellow-400">

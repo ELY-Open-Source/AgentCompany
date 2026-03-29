@@ -21,7 +21,7 @@ export function TaskCreator({ companyId, goals, projects, agents, workspaces, on
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid min-w-0 gap-4 md:grid-cols-2">
       <Input label={t("exec.title")} value={title} onChange={setTitle} placeholder={t("exec.taskTitle")} />
       <Select label={t("exec.priority")} value={priority} onChange={setPriority} options={["critical","high","medium","low"].map((v) => ({ value: v, label: v }))} />
       <div className="md:col-span-2"><TextArea label="Description" value={description} onChange={setDescription} placeholder="Describe the task" rows={5} /></div>

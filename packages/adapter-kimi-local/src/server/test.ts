@@ -7,15 +7,7 @@ import {
   ensureCommandResolvable,
   ensurePathInEnv,
 } from "@agentcompany/adapter-utils/server-utils";
-
-function normalizeEnv(input: unknown): Record<string, string> {
-  if (typeof input !== "object" || input === null || Array.isArray(input)) return {};
-  const env: Record<string, string> = {};
-  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
-    if (typeof value === "string") env[key] = value;
-  }
-  return env;
-}
+import { normalizeEnv } from "@agentcompany/adapter-utils/test-utils";
 
 export async function testEnvironment(
   ctx: AdapterEnvironmentTestContext,

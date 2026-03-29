@@ -5,7 +5,6 @@ import {
   ChatCircle,
   Check,
   Command,
-  Cpu,
   FileText,
   FolderOpen,
   Gear,
@@ -53,6 +52,7 @@ import {
   PendingReviewList,
   SecretCreator,
   SettingsPane,
+  ModelManagement,
   TaskCreator,
   TaskInspector,
   TaskQueue,
@@ -81,6 +81,7 @@ import { HiringPipeline } from "./components/hiring";
 import { SkillsSection } from "./components/skills";
 import { DocumentCenter, KnowledgeBaseManager, MeetingsManager, SprintManager } from "./components/company-operations";
 import { ActionButton, ErrorBoundary, ListFrame, ListRow, Modal, Panel, SectionButton, Select, StatusPill, useFocusTrap, useReducedMotion } from "./components/ui";
+import TitleBar from "./components/TitleBar";
 import ToastContainer from "./components/Toast";
 import { unwrap } from "./lib/desktop";
 import { formatMoney, formatTime } from "./lib/formatters";
@@ -688,13 +689,18 @@ export function App() {
     }
   }, [refresh]);
 
+  const showCustomTitleBar = window.agentCompany.platform !== "darwin";
+
   if (!snapshot) {
     return (
       <LocaleContext.Provider value={locale}>
         <TranslationContext.Provider value={t}>
-          <div className="flex min-h-screen flex-col items-center justify-center gap-3">
-            <CircleNotch size={24} className="animate-spin text-primary" />
-            <span className="text-[13px] text-muted-foreground">{t("app.loading")}</span>
+          <div className="flex h-[100dvh] flex-col overflow-hidden">
+            {showCustomTitleBar && <TitleBar />}
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
+              <CircleNotch size={24} className="animate-spin text-primary" />
+              <span className="text-[13px] text-muted-foreground">{t("app.loading")}</span>
+            </div>
           </div>
         </TranslationContext.Provider>
       </LocaleContext.Provider>
@@ -705,31 +711,40 @@ export function App() {
     return (
       <LocaleContext.Provider value={locale}>
         <TranslationContext.Provider value={t}>
-          <CompanyOnboarding
-            connectors={snapshot.connectors}
-            onDone={handleOnboardingDone}
-            canCancel={snapshot.companies.length > 0 && !initialOnboardingLocked}
-            onCancel={() => {
-              setShowOnboarding(false);
-              setInitialOnboardingLocked(false);
-              setError(null);
-            }}
-            currentLocale={locale}
-            onLocaleChange={handleLocaleChange}
-            isFirstLaunch={snapshot.companies.length === 0}
-          />
+          <div className="flex h-[100dvh] flex-col overflow-hidden">
+            {showCustomTitleBar && <TitleBar />}
+            <div className="min-h-0 flex-1 overflow-auto">
+              <CompanyOnboarding
+                connectors={snapshot.connectors}
+                onDone={handleOnboardingDone}
+                canCancel={snapshot.companies.length > 0 && !initialOnboardingLocked}
+                onCancel={() => {
+                  setShowOnboarding(false);
+                  setInitialOnboardingLocked(false);
+                  setError(null);
+                }}
+                currentLocale={locale}
+                onLocaleChange={handleLocaleChange}
+                isFirstLaunch={snapshot.companies.length === 0}
+              />
+            </div>
+          </div>
         </TranslationContext.Provider>
       </LocaleContext.Provider>
     );
   }
 
+  const isMac = !showCustomTitleBar;
+
   return (
     <LocaleContext.Provider value={locale}>
     <TranslationContext.Provider value={t}>
-    <div className={`grid h-[100dvh] overflow-hidden bg-background ${sidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[220px_minmax(0,1fr)]"}`}>
-      <aside className="flex h-[100dvh] flex-col overflow-hidden border-r border-border bg-card">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
+    {showCustomTitleBar && <TitleBar />}
+    <div className={`grid min-h-0 flex-1 overflow-hidden ${sidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[220px_minmax(0,1fr)]"}`}>
+      <aside className="flex h-full flex-col overflow-hidden border-r border-border bg-card">
         {sidebarCollapsed ? (
-          <div className="sidebar-drag flex items-center justify-center px-2 pb-3 pt-[38px]">
+          <div className={`sidebar-drag flex items-center justify-center px-2 pb-3 ${isMac ? "pt-[38px]" : "pt-3"}`}>
             <button
               aria-label="Open command palette"
               title="Command palette"
@@ -740,7 +755,7 @@ export function App() {
             </button>
           </div>
         ) : (
-          <div className="sidebar-drag flex items-center gap-2.5 px-4 pb-4 pt-[38px]">
+          <div className={`sidebar-drag flex items-center gap-2.5 px-4 pb-4 ${isMac ? "pt-[38px]" : "pt-3"}`}>
             <div className="relative min-w-0 flex-1">
               <button
                 type="button"
@@ -996,7 +1011,7 @@ export function App() {
 
               {section === "agents" ? (
                 <>
-                  <OrgChart agents={companyAgents} onSelectAgent={(id) => setSelectedAgentId(id)} />
+                  <OrgChart agents={companyAgents} connectors={snapshot.connectors} onSelectAgent={(id) => setSelectedAgentId(id)} />
                   <Panel title="Agent roster" action={<ActionButton label="New hire request" icon={UserPlus} tone="accent" onClick={() => setSelectedAgentId("__new__")} />}>
                     <AgentRoster
                       agents={companyAgents}
@@ -1037,7 +1052,7 @@ export function App() {
               ) : null}
 
               {section === "orgchart" ? (
-                <OrgChart agents={companyAgents} onSelectAgent={(id) => { setSelectedAgentId(id); setSection("agents"); }} />
+                <OrgChart agents={companyAgents} connectors={snapshot.connectors} onSelectAgent={(id) => { setSelectedAgentId(id); setSection("agents"); }} />
               ) : null}
 
               {section === "hiring" && currentCompany ? (
@@ -1445,11 +1460,11 @@ export function App() {
 
               {section === "settings" && currentCompany ? (
                 <div className="space-y-10">
-                  <Panel title="Profile and release">
+                  <Panel title={locale === "zh" ? "配置" : "Profile and release"}>
                     <SettingsPane snapshot={snapshot} secrets={companySecrets} companyId={currentCompany!.id} onSaved={refresh} />
                   </Panel>
-                  <Panel title="Secret bindings">
-                    <SecretCreator companyId={currentCompany!.id} onSaved={refresh} />
+                  <Panel title={locale === "zh" ? "模型管理" : "Model Management"}>
+                    <ModelManagement connectors={snapshot.connectors} locale={locale} onSaved={refresh} />
                   </Panel>
                 </div>
               ) : null}
@@ -1479,10 +1494,12 @@ export function App() {
                     compact
                     value={selectedRun?.id ?? ""}
                     onChange={setSelectedRunId}
-                    options={runs.length > 0
-                      ? runs.map((run) => ({ value: run.id, label: run.summary || `Run ${run.id.slice(0, 8)}` }))
-                      : [{ value: "", label: t("console.noRuns") }]
-                    }
+                    options={(() => {
+                      const activeRuns = runs.filter((r) => r.summary !== "Application shut down." && r.summary !== "Worker process crashed.");
+                      return activeRuns.length > 0
+                        ? activeRuns.map((run) => ({ value: run.id, label: run.summary || `Run ${run.id.slice(0, 8)}` }))
+                        : [{ value: "", label: t("console.noRuns") }];
+                    })()}
                   />
                   <button
                     type="button"
@@ -1525,7 +1542,7 @@ export function App() {
                   )}
                 </div>
                 <div className="h-[200px] overflow-auto px-5 py-3">
-                  <pre className="font-mono whitespace-pre-wrap text-[12px] leading-relaxed text-muted-foreground">
+                  <pre className="font-mono whitespace-pre-wrap break-all text-[12px] leading-relaxed text-muted-foreground">
                     {selectedRun ? logBufferRef.current[selectedRun.id] ?? t("common.waitingForLog") : t("common.noRunSelected")}
                   </pre>
                 </div>
@@ -1761,6 +1778,7 @@ export function App() {
       </AnimatePresence>
 
       <ToastContainer />
+    </div>
     </div>
     </TranslationContext.Provider>
     </LocaleContext.Provider>

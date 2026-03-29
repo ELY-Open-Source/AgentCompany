@@ -1,7 +1,3 @@
-// ---------------------------------------------------------------------------
-// Skill system type definitions and constants
-// ---------------------------------------------------------------------------
-
 /**
  * Source type for a skill -- matches the company_skills.source_type column.
  */

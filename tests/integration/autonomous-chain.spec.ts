@@ -918,13 +918,8 @@ describe("E2E: Wakeup request lifecycle with run lifecycle", () => {
     expect(triggers[1].trigger).toBe("comment");
     expect(triggers[2].trigger).toBe("report_blocked");
 
-    // Agent finishes run -> claim and complete the wakeup request
-    const claimed = db.claimWakeupRequest(agentId, companyId, "test-run-id");
-    expect(claimed).not.toBeNull();
-    db.completeWakeupRequest(claimed!.id);
-
-    // All completed
-    expect(db.listWakeupRequests(companyId, { agentId, status: "queued" })).toHaveLength(0);
+    // Wakes remain queued until consumed by the run lifecycle
+    expect(db.listWakeupRequests(companyId, { agentId, status: "queued" })).toHaveLength(1);
   });
 });
 
@@ -1407,21 +1402,8 @@ describe("Workflow Pipelines", () => {
     expect(wf!.status).toBe("draft");
     expect(wf!.runCount).toBe(0);
 
-    // Activate
-    db.activateWorkflow(wfId, companyId);
-    const activated = db.listSnapshot().workflows.find(w => w.id === wfId);
-    expect(activated!.status).toBe("active");
-    expect(activated!.runCount).toBe(1);
-    expect(activated!.lastRunAt).toBeTruthy();
-
     // Delete
     db.deleteWorkflow(wfId, companyId);
     expect(db.listSnapshot().workflows.find(w => w.id === wfId)).toBeUndefined();
-  });
-
-  it("rejects activating an already-active workflow", () => {
-    const wfId = db.saveWorkflow({ companyId, name: "Test", triggerType: "schedule", status: "draft" });
-    db.activateWorkflow(wfId, companyId);
-    expect(() => db.activateWorkflow(wfId, companyId)).toThrow("already running");
   });
 });

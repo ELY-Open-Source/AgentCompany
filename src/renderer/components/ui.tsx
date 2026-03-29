@@ -129,21 +129,21 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         className="flex w-full flex-col rounded-lg border border-border bg-card shadow-xl"
-        style={{ maxWidth: width, maxHeight: "80vh" }}
+        style={{ maxWidth: width, maxHeight: "85vh" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3.5">
-          <h2 className="text-[16px] font-bold tracking-[-0.015em] text-foreground">{title}</h2>
+          <h2 className="min-w-0 truncate text-[16px] font-bold tracking-[-0.015em] text-foreground">{title}</h2>
           <button
             type="button"
-            className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg p-1 text-muted-foreground transition hover:text-foreground"
-            onClick={onClose}
+            className="ml-3 shrink-0 cursor-pointer rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
             aria-label="Close"
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+            <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
           </button>
         </div>
-        <div className="overflow-y-auto px-5 py-4">{children}</div>
+        <div className="min-h-0 min-w-0 overflow-y-auto overflow-x-auto px-5 py-4" style={{ overflowWrap: "break-word", wordBreak: "break-word" }}>{children}</div>
       </div>
     </div>
   );
@@ -222,7 +222,8 @@ export function TextArea({
 }) {
   const textarea = (
     <textarea
-      className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-[14px] text-foreground placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60"
+      className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 w-full max-w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-[14px] text-foreground placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60 break-words"
+      style={{ overflowWrap: "anywhere", wordBreak: "break-word", whiteSpace: "pre-wrap" }}
       value={value}
       rows={rows}
       placeholder={placeholder}
@@ -259,18 +260,18 @@ export function Select({
 }) {
   const select = (
     <select
-      className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 w-full border bg-card text-foreground ${
+      className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 w-full max-w-full border bg-card text-foreground ${
         compact
           ? "rounded-lg border-border px-2.5 py-1.5 text-[13px] font-medium"
           : "rounded-lg border-border px-3.5 py-2.5 text-[14px]"
-      } disabled:cursor-not-allowed disabled:opacity-60`}
+      } disabled:cursor-not-allowed disabled:opacity-60 truncate`}
       value={value}
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
     >
       {options.map((option) => (
         <option key={option.value} value={option.value} className="bg-card text-foreground">
-          {option.label}
+          {option.label.length > 80 ? option.label.slice(0, 77) + "..." : option.label}
         </option>
       ))}
     </select>

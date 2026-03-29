@@ -57,7 +57,10 @@ export function Dashboard(props: DashboardProps) {
   const totalSpend = useMemo(() => costs.reduce((sum, c) => sum + (c.amountUsd ?? 0), 0), [costs]);
 
   // Attention items
-  const failedRuns = useMemo(() => runs.filter((r) => r.status === "failed" || r.status === "timed_out" || r.status === "interrupted"), [runs]);
+  const failedRuns = useMemo(() => runs.filter((r) =>
+    (r.status === "failed" || r.status === "timed_out") ||
+    (r.status === "interrupted" && r.summary !== "Application shut down." && r.summary !== "Worker process crashed.")
+  ), [runs]);
   const urgentMessages = useMemo(() => messages.filter((m) => !m.readAt && (m.priority === "urgent" || m.channel === "incident")), [messages]);
   const hasAttentionItems = pendingApprovals.length > 0 || failedRuns.length > 0 || urgentMessages.length > 0;
 

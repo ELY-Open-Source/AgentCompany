@@ -103,27 +103,51 @@ export function createConnectorHealthService({
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Connector health check timed out after 45 seconds")), 45_000)),
       ]);
 
-      const authRequired = result.checks.some((check) =>
-        /auth_required|login_required/i.test(check.code) ||
-        /login is required|authentication is not ready|auth(?:entication)? required/i.test(check.message) ||
-        /run .*login|use \/auth|configure .*api key/i.test(check.hint ?? ""),
+      // Check if the CLI command itself is missing before inspecting auth status.
+      // Without this, info-level hints like "run `gemini auth login`" would wrongly
+      // trigger auth_required even when the CLI binary doesn't exist.
+      const commandMissing = result.checks.some((check) =>
+        /command_unresolvable|command_not_found/i.test(check.code) && check.level === "error",
+      );
+
+      // Only consider warn/error-level checks for auth detection.
+      // Info-level checks (like gemini_api_key_missing) carry advisory hints
+      // that match auth patterns but do NOT indicate actual auth failure.
+      const authRequired = !commandMissing && result.checks.some((check) =>
+        check.level !== "info" && (
+          /auth_required|login_required/i.test(check.code) ||
+          /login is required|authentication is not ready|auth(?:entication)? required/i.test(check.message) ||
+          /run .*login|use \/auth|configure .*api key/i.test(check.hint ?? "")
+        ),
       );
       let authState: "ok" | "required" | "error" = "ok";
-      if (authRequired) {
+      if (commandMissing) {
+        authState = "error";
+      } else if (authRequired) {
         authState = "required";
       } else if (result.status === "fail") {
         authState = "error";
       }
-      const version = await parseVersion(connector.command);
+      const version = commandMissing ? null : await parseVersion(connector.command);
+
+      // claude_compatible requires explicit env bindings (API key + base URL) to be
+      // considered ready. Without them, it just uses the official claude CLI auth
+      // which is not what the user intends for a compatible provider.
+      const needsCompatConfig = id.startsWith("claude_compat")
+        && !connector.envBindingText.includes("ANTHROPIC_BASE_URL");
 
       db.updateConnectorHealth({
         id,
         status:
-          authRequired
-            ? "auth_required"
-            : result.status === "pass" || result.status === "warn"
-            ? "ready"
-            : "error",
+          commandMissing
+            ? "not_installed"
+            : needsCompatConfig
+              ? "auth_required"
+              : authRequired
+                ? "auth_required"
+                : result.status === "pass" || result.status === "warn"
+                  ? "ready"
+                  : "error",
         authState,
         version,
         lastError:

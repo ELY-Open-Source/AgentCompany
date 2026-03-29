@@ -11,7 +11,11 @@ interface CompanyStepProps {
   setCompanyDescription: (v: string) => void;
   selectedConnectorId: string;
   setSelectedConnectorId: (v: string) => void;
+  selectedModel: string;
+  setSelectedModel: (v: string) => void;
   executionReadyConnectors: ProfileSnapshot["connectors"];
+  modelOptions: Array<{ id: string; label: string }>;
+  loadingModels: boolean;
   workspacePath: string;
   setWorkspacePath: (v: string) => void;
   autoApproveHires: boolean;
@@ -22,8 +26,6 @@ interface CompanyStepProps {
   onContinue: () => void;
   onBack: () => void;
   error: string | null;
-  isFirstLaunch: boolean;
-  selectedConnector: ProfileSnapshot["connectors"][number] | null;
   currentLocale: AppLocale;
   t: (key: string) => string;
 }
@@ -33,9 +35,13 @@ export function CompanyStep({
   setCompanyName,
   companyDescription,
   setCompanyDescription,
-  selectedConnectorId: _selectedConnectorId,
+  selectedConnectorId,
   setSelectedConnectorId,
+  selectedModel,
+  setSelectedModel,
   executionReadyConnectors,
+  modelOptions,
+  loadingModels,
   workspacePath,
   setWorkspacePath,
   autoApproveHires,
@@ -46,8 +52,6 @@ export function CompanyStep({
   onContinue,
   onBack,
   error,
-  isFirstLaunch,
-  selectedConnector,
   currentLocale,
   t,
 }: CompanyStepProps) {
@@ -61,7 +65,7 @@ export function CompanyStep({
       className="bg-card border border-border shadow-sm w-full rounded-lg p-7"
     >
       <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {t("onboarding.stepLabel1")} 1 / 3
+        {t("onboarding.stepLabel1")} 3 / 5
       </div>
       <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
         {t("onboarding.step1Title")}
@@ -82,18 +86,35 @@ export function CompanyStep({
           placeholder={t("onboarding.companyDescriptionPlaceholder")}
           rows={3}
         />
-        <Select
-          label={t("onboarding.primaryConnector")}
-          value={selectedConnector?.id ?? ""}
-          onChange={setSelectedConnectorId}
-          options={executionReadyConnectors.map((connector) => ({
-            value: connector.id,
-            label: connector.label,
-          }))}
-        />
-        <div className="rounded-lg border border-border bg-muted px-4 py-3 text-[12px] leading-relaxed text-muted-foreground">
-          {t("onboarding.connectorInfo")}
+
+        {/* CEO Provider + Model */}
+        <div>
+          <div className="mb-2 text-[12px] font-medium text-muted-foreground">
+            {currentLocale === "zh" ? "CEO 运行时" : "CEO Runtime"}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Select
+              label={currentLocale === "zh" ? "提供商" : "Provider"}
+              value={selectedConnectorId}
+              onChange={setSelectedConnectorId}
+              options={executionReadyConnectors.map((c) => ({
+                value: c.id,
+                label: c.id.startsWith("claude_compat") && c.notes ? `${c.notes}` : c.label,
+              }))}
+            />
+            <Select
+              label={currentLocale === "zh" ? "模型" : "Model"}
+              value={selectedModel}
+              onChange={setSelectedModel}
+              disabled={loadingModels}
+              options={[
+                { value: "", label: loadingModels ? (currentLocale === "zh" ? "加载中..." : "Loading...") : (currentLocale === "zh" ? "默认" : "Default") },
+                ...modelOptions.map((m) => ({ value: m.id, label: m.label })),
+              ]}
+            />
+          </div>
         </div>
+
         <div>
           <label
             htmlFor="onboarding-workspace-path"
@@ -147,21 +168,19 @@ export function CompanyStep({
       ) : null}
 
       <div className="mt-8 flex items-center justify-between">
-        {isFirstLaunch ? (
-          <button
-            type="button"
-            onClick={onBack}
-            className="text-[12px] font-medium text-muted-foreground transition hover:text-foreground"
-          >
-            {t("onboarding.back")}
-          </button>
-        ) : <div />}
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-[12px] font-medium text-muted-foreground transition hover:text-foreground"
+        >
+          {t("onboarding.back")}
+        </button>
         <ActionButton
           label={t("onboarding.continue")}
           onClick={onContinue}
           icon={Buildings}
           tone="accent"
-          disabled={!companyName.trim() || !selectedConnector}
+          disabled={!companyName.trim() || !selectedConnectorId}
         />
       </div>
     </motion.div>

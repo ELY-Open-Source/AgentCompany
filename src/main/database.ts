@@ -580,9 +580,9 @@ export class AppDatabase {
         ...companyArgs,
       ),
       tasks: this.readAll<TaskRecord>(
-        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, requires_user_review as requiresUserReview, created_at as createdAt, updated_at as updatedAt from tasks${companyWhere} order by created_at desc`,
+        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, requires_user_review as requiresUserReview, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks${companyWhere} order by created_at desc`,
         ...companyArgs,
-      ).map((record) => ({ ...record, requiresUserReview: toBoolean(record.requiresUserReview) })) as TaskRecord[],
+      ).map((record) => ({ ...record, requiresUserReview: toBoolean(record.requiresUserReview), startedAt: record.startedAt ?? null, completedAt: record.completedAt ?? null, cancelledAt: record.cancelledAt ?? null })) as TaskRecord[],
       approvals: this.readAll<ApprovalRecord>(
         `select id, company_id as companyId, related_task_id as relatedTaskId, related_agent_id as relatedAgentId, requested_by_agent_id as requestedByAgentId, type, payload_summary as payloadSummary, impact_summary as impactSummary, payload_json as payloadJson, decision_note as decisionNote, state, created_at as createdAt, updated_at as updatedAt from approvals${companyWhere} order by created_at desc`,
         ...companyArgs,
@@ -635,13 +635,13 @@ export class AppDatabase {
         actionItemsJson: r.action_items_json, status: r.status, createdAt: r.created_at, updatedAt: r.updated_at,
       })),
       documents: this.readAll<SqliteRow>(
-        `select id, company_id, type, title, content, author_agent_id, reviewer_agent_id, project_id, goal_id, parent_doc_id, version, status, tags_json, created_at, updated_at from documents${companyWhere} order by updated_at desc`,
+        `select id, company_id, type, title, content, author_agent_id, reviewer_agent_id, project_id, goal_id, parent_doc_id, version, status, tags_json, latest_revision_id, created_at, updated_at from documents${companyWhere} order by updated_at desc`,
         ...companyArgs,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, type: r.type, title: r.title, content: r.content,
         authorAgentId: r.author_agent_id, reviewerAgentId: r.reviewer_agent_id, projectId: r.project_id,
         goalId: r.goal_id, parentDocId: r.parent_doc_id, version: r.version, status: r.status,
-        tagsJson: r.tags_json, createdAt: r.created_at, updatedAt: r.updated_at,
+        tagsJson: r.tags_json, latestRevisionId: r.latest_revision_id ?? null, createdAt: r.created_at, updatedAt: r.updated_at,
       })),
       knowledgeBase: this.readAll<SqliteRow>(
         `select id, company_id, category, topic, content, author_agent_id, importance, tags_json, referenced_entity_type, referenced_entity_id, created_at, updated_at from knowledge_base${companyWhere} order by updated_at desc`,
@@ -1131,11 +1131,14 @@ export class AppDatabase {
   getTask(id: string): TaskRecord {
     const row = this.db
       .prepare(
-        "select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, requires_user_review as requiresUserReview, created_at as createdAt, updated_at as updatedAt from tasks where id = ?",
+        "select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, requires_user_review as requiresUserReview, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks where id = ?",
       )
       .get(id) as TaskRecord | undefined;
     if (!row) throw new Error(`Task not found: ${id}`);
     row.requiresUserReview = Boolean(row.requiresUserReview);
+    row.startedAt = row.startedAt ?? null;
+    row.completedAt = row.completedAt ?? null;
+    row.cancelledAt = row.cancelledAt ?? null;
     return row;
   }
 
@@ -2124,90 +2127,62 @@ export class AppDatabase {
     ).map((record) => ({ ...record, heartbeatEnabled: toBoolean(record.heartbeatEnabled) })) as AgentRecord[];
   }
 
-  enqueueWakeupRequest(companyId: string, agentId: string, trigger: string, detail: string): void {
+  enqueueWakeupRequest(companyId: string, agentId: string, trigger: string, detail: string, context?: Record<string, unknown>): void {
     const ts = nowIso();
     this.transaction(() => {
-      // D-07: Per-agent scope -- check for existing queued or deferred wake for this agent
       const existing = this.db
         .prepare(
-          `SELECT id, trigger_detail, coalesced_count
+          `SELECT id, trigger_detail, coalesced_count, context_snapshot
            FROM wakeup_requests
            WHERE agent_id = ? AND company_id = ? AND status IN ('queued', 'deferred')
            LIMIT 1`,
         )
         .get(agentId, companyId) as
-          | { id: string; trigger_detail: string | null; coalesced_count: number }
+          | { id: string; trigger_detail: string | null; coalesced_count: number; context_snapshot: string | null }
           | undefined;
 
       if (existing) {
-        // D-06: Coalesce -- append trigger to JSON array
         const triggers: Array<{ trigger: string; at: string; detail: string }> = existing.trigger_detail
           ? JSON.parse(existing.trigger_detail)
           : [];
         triggers.push({ trigger, at: ts, detail });
+        // Merge context snapshots (Paperclip pattern: incoming overwrites existing, preserve commentId)
+        let mergedContext: string | null = existing.context_snapshot;
+        if (context) {
+          const prev: Record<string, unknown> = existing.context_snapshot ? JSON.parse(existing.context_snapshot) : {};
+          const merged = { ...prev, ...context };
+          mergedContext = JSON.stringify(merged);
+        }
         this.db
           .prepare(
             `UPDATE wakeup_requests
                SET trigger_detail = ?,
                    coalesced_count = coalesced_count + 1,
+                   context_snapshot = ?,
                    updated_at = ?
              WHERE id = ?`,
           )
-          .run(JSON.stringify(triggers), ts, existing.id);
+          .run(JSON.stringify(triggers), mergedContext, ts, existing.id);
       } else {
-        // New wakeup request
         const triggerDetail = JSON.stringify([{ trigger, at: ts, detail }]);
+        const contextJson = context ? JSON.stringify(context) : null;
         this.db
           .prepare(
             `INSERT INTO wakeup_requests
-               (id, company_id, agent_id, source, trigger_detail, status, coalesced_count, requested_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?)`,
+               (id, company_id, agent_id, source, trigger_detail, status, coalesced_count, context_snapshot, requested_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?)`,
           )
-          .run(randomUUID(), companyId, agentId, trigger, triggerDetail, ts, ts, ts);
+          .run(randomUUID(), companyId, agentId, trigger, triggerDetail, contextJson, ts, ts, ts);
       }
     });
   }
 
-  claimWakeupRequest(agentId: string, companyId: string, runId: string): { id: string; triggerDetail: string | null } | null {
-    let result: { id: string; triggerDetail: string | null } | null = null;
-    this.transaction(() => {
-      const row = this.db
-        .prepare(
-          `SELECT id, trigger_detail AS triggerDetail
-           FROM wakeup_requests
-           WHERE agent_id = ? AND company_id = ? AND status = 'queued'
-           ORDER BY requested_at ASC
-           LIMIT 1`,
-        )
-        .get(agentId, companyId) as { id: string; triggerDetail: string | null } | undefined;
-      if (!row) return;
-      const ts = nowIso();
-      this.db
-        .prepare(
-          `UPDATE wakeup_requests SET status = 'claimed', claimed_at = ?, run_id = ?, updated_at = ? WHERE id = ?`,
-        )
-        .run(ts, runId, ts, row.id);
-      result = row;
-    });
-    return result;
-  }
-
-  completeWakeupRequest(wakeupId: string): void {
-    const ts = nowIso();
-    this.db
-      .prepare(
-        `UPDATE wakeup_requests SET status = 'completed', finished_at = ?, updated_at = ? WHERE id = ? AND status = 'claimed'`,
-      )
-      .run(ts, ts, wakeupId);
-  }
-
-  deferWakeupRequest(agentId: string, companyId: string): void {
-    const ts = nowIso();
-    this.db
-      .prepare(
-        `UPDATE wakeup_requests SET status = 'deferred', updated_at = ? WHERE agent_id = ? AND company_id = ? AND status = 'queued'`,
-      )
-      .run(ts, agentId, companyId);
+  private mergeContextSnapshots(existingJson: string | null, incomingJson: string | null): string | null {
+    if (!incomingJson) return existingJson;
+    if (!existingJson) return incomingJson;
+    const existing: Record<string, unknown> = JSON.parse(existingJson);
+    const incoming: Record<string, unknown> = JSON.parse(incomingJson);
+    return JSON.stringify({ ...existing, ...incoming });
   }
 
   promoteWakeupRequests(agentId: string, companyId: string): number {
@@ -2215,36 +2190,35 @@ export class AppDatabase {
     this.transaction(() => {
       const queued = this.db
         .prepare(
-          `SELECT id, trigger_detail FROM wakeup_requests
+          `SELECT id, trigger_detail, context_snapshot FROM wakeup_requests
            WHERE agent_id = ? AND company_id = ? AND status = 'queued' LIMIT 1`,
         )
-        .get(agentId, companyId) as { id: string; trigger_detail: string | null } | undefined;
-      const deferred = this.readAll<{ id: string; trigger_detail: string | null; coalesced_count: number }>(
-        `SELECT id, trigger_detail, coalesced_count FROM wakeup_requests
+        .get(agentId, companyId) as { id: string; trigger_detail: string | null; context_snapshot: string | null } | undefined;
+      const deferred = this.readAll<{ id: string; trigger_detail: string | null; coalesced_count: number; context_snapshot: string | null }>(
+        `SELECT id, trigger_detail, coalesced_count, context_snapshot FROM wakeup_requests
          WHERE agent_id = ? AND company_id = ? AND status = 'deferred'`,
         agentId, companyId,
       );
       if (deferred.length === 0) return;
       const ts = nowIso();
       if (queued) {
-        // Merge deferred triggers into existing queued wake
         const queuedTriggers: Array<{ trigger: string; at: string; detail: string }> = queued.trigger_detail ? JSON.parse(queued.trigger_detail) : [];
         let addedCount = 0;
+        let mergedCtx = queued.context_snapshot;
         for (const d of deferred) {
           const dTriggers: Array<{ trigger: string; at: string; detail: string }> = d.trigger_detail ? JSON.parse(d.trigger_detail) : [];
           queuedTriggers.push(...dTriggers);
           addedCount += d.coalesced_count + 1;
+          mergedCtx = this.mergeContextSnapshots(mergedCtx, d.context_snapshot);
         }
         this.db.prepare(
-          `UPDATE wakeup_requests SET trigger_detail = ?, coalesced_count = coalesced_count + ?, updated_at = ? WHERE id = ?`,
-        ).run(JSON.stringify(queuedTriggers), addedCount, ts, queued.id);
-        // Delete the merged deferred rows
+          `UPDATE wakeup_requests SET trigger_detail = ?, coalesced_count = coalesced_count + ?, context_snapshot = ?, updated_at = ? WHERE id = ?`,
+        ).run(JSON.stringify(queuedTriggers), addedCount, mergedCtx, ts, queued.id);
         for (const d of deferred) {
           this.db.prepare("DELETE FROM wakeup_requests WHERE id = ?").run(d.id);
         }
         promoted = deferred.length;
       } else {
-        // No queued wake -- promote first deferred to queued, merge rest
         const [first, ...rest] = deferred;
         this.db.prepare(
           `UPDATE wakeup_requests SET status = 'queued', updated_at = ? WHERE id = ?`,
@@ -2252,14 +2226,16 @@ export class AppDatabase {
         if (rest.length > 0) {
           const firstTriggers: Array<{ trigger: string; at: string; detail: string }> = first!.trigger_detail ? JSON.parse(first!.trigger_detail) : [];
           let addedCount = 0;
+          let mergedCtx = first!.context_snapshot;
           for (const d of rest) {
             const dTriggers: Array<{ trigger: string; at: string; detail: string }> = d.trigger_detail ? JSON.parse(d.trigger_detail) : [];
             firstTriggers.push(...dTriggers);
             addedCount += d.coalesced_count + 1;
+            mergedCtx = this.mergeContextSnapshots(mergedCtx, d.context_snapshot);
           }
           this.db.prepare(
-            `UPDATE wakeup_requests SET trigger_detail = ?, coalesced_count = coalesced_count + ?, updated_at = ? WHERE id = ?`,
-          ).run(JSON.stringify(firstTriggers), addedCount, ts, first!.id);
+            `UPDATE wakeup_requests SET trigger_detail = ?, coalesced_count = coalesced_count + ?, context_snapshot = ?, updated_at = ? WHERE id = ?`,
+          ).run(JSON.stringify(firstTriggers), addedCount, mergedCtx, ts, first!.id);
           for (const d of rest) {
             this.db.prepare("DELETE FROM wakeup_requests WHERE id = ?").run(d.id);
           }
@@ -2594,14 +2570,6 @@ export class AppDatabase {
     const row = this.db
       .prepare("SELECT * FROM company_skills WHERE id = ? AND company_id = ?")
       .get(skillId, companyId) as SqliteRow | undefined;
-    return row ? this.mapSkillRow(row) : null;
-  }
-
-  /** Get a single skill by canonical key within a company. */
-  getCompanySkillByKey(companyId: string, key: string): SkillRecord | null {
-    const row = this.db
-      .prepare("SELECT * FROM company_skills WHERE company_id = ? AND key = ?")
-      .get(companyId, key) as SqliteRow | undefined;
     return row ? this.mapSkillRow(row) : null;
   }
 
@@ -2982,8 +2950,244 @@ export class AppDatabase {
     return id;
   }
 
+  updateDocumentStatus(id: string, companyId: string, status: string): void {
+    this.db.prepare(
+      "UPDATE documents SET status = ?, updated_at = ? WHERE id = ? AND company_id = ?",
+    ).run(status, nowIso(), id, companyId);
+  }
+
   deleteDocument(id: string, companyId: string) {
     this.db.prepare("delete from documents where id = ? and company_id = ?").run(id, companyId);
+  }
+
+  createDocumentRevision(input: {
+    documentId: string; companyId: string; body: string;
+    changeSummary?: string | null; createdByAgentId?: string | null; createdByUserId?: string | null;
+  }): { id: string; revisionNumber: number } {
+    const id = randomUUID();
+    const ts = nowIso();
+    const current = this.db.prepare(
+      "SELECT version FROM documents WHERE id = ? AND company_id = ?",
+    ).get(input.documentId, input.companyId) as { version: number } | undefined;
+    if (!current) throw new Error(`Document ${input.documentId} not found`);
+    const revisionNumber = current.version + 1;
+    this.db.prepare(
+      "INSERT INTO document_revisions (id, company_id, document_id, revision_number, body, change_summary, created_by_agent_id, created_by_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).run(id, input.companyId, input.documentId, revisionNumber, input.body, input.changeSummary ?? null, input.createdByAgentId ?? null, input.createdByUserId ?? null, ts);
+    this.db.prepare(
+      "UPDATE documents SET version = ?, latest_revision_id = ?, updated_at = ? WHERE id = ?",
+    ).run(revisionNumber, id, ts, input.documentId);
+    return { id, revisionNumber };
+  }
+
+  getDocumentLatestRevisionId(documentId: string): string | null {
+    const row = this.db.prepare(
+      "SELECT latest_revision_id FROM documents WHERE id = ?",
+    ).get(documentId) as { latest_revision_id: string | null } | undefined;
+    return row?.latest_revision_id ?? null;
+  }
+
+  listDocumentRevisions(documentId: string, companyId: string) {
+    return this.readAll<{
+      id: string; company_id: string; document_id: string; revision_number: number;
+      body: string; change_summary: string | null; created_by_agent_id: string | null;
+      created_by_user_id: string | null; created_at: string;
+    }>(
+      "SELECT id, company_id, document_id, revision_number, body, change_summary, created_by_agent_id, created_by_user_id, created_at FROM document_revisions WHERE document_id = ? AND company_id = ? ORDER BY revision_number ASC",
+      documentId, companyId,
+    ).map((r) => ({
+      id: r.id, companyId: r.company_id, documentId: r.document_id,
+      revisionNumber: r.revision_number, body: r.body,
+      changeSummary: r.change_summary, createdByAgentId: r.created_by_agent_id,
+      createdByUserId: r.created_by_user_id, createdAt: r.created_at,
+    }));
+  }
+
+  addApprovalComment(input: {
+    companyId: string; approvalId: string; authorAgentId?: string | null;
+    authorUserId?: string | null; body: string;
+  }): string {
+    const id = randomUUID();
+    const ts = nowIso();
+    this.db.prepare(
+      "INSERT INTO approval_comments (id, company_id, approval_id, author_agent_id, author_user_id, body, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    ).run(id, input.companyId, input.approvalId, input.authorAgentId ?? null, input.authorUserId ?? null, input.body, ts, ts);
+    return id;
+  }
+
+  listApprovalComments(approvalId: string, companyId: string) {
+    return this.readAll<{
+      id: string; company_id: string; approval_id: string; author_agent_id: string | null;
+      author_user_id: string | null; body: string; created_at: string; updated_at: string;
+    }>(
+      "SELECT id, company_id, approval_id, author_agent_id, author_user_id, body, created_at, updated_at FROM approval_comments WHERE approval_id = ? AND company_id = ? ORDER BY created_at ASC",
+      approvalId, companyId,
+    ).map((r) => ({
+      id: r.id, companyId: r.company_id, approvalId: r.approval_id,
+      authorAgentId: r.author_agent_id, authorUserId: r.author_user_id,
+      body: r.body, createdAt: r.created_at, updatedAt: r.updated_at,
+    }));
+  }
+
+  findMentionedAgentIds(companyId: string, text: string): string[] {
+    const mentionRe = /\B@([^\s@,!?.]+)/g;
+    const tokens = new Set<string>();
+    let m: RegExpExecArray | null;
+    while ((m = mentionRe.exec(text)) !== null) {
+      tokens.add(m[1]!.toLowerCase());
+    }
+    if (tokens.size === 0) return [];
+    const agents = this.readAll<{ id: string; name: string }>(
+      "SELECT id, name FROM agents WHERE company_id = ?", companyId,
+    );
+    const matched: string[] = [];
+    for (const agent of agents) {
+      if (tokens.has(agent.name.toLowerCase())) {
+        matched.push(agent.id);
+      }
+    }
+    return matched;
+  }
+
+  resubmitApproval(approvalId: string, companyId: string): void {
+    const ts = nowIso();
+    this.db.prepare(
+      "UPDATE approvals SET state = 'pending', decision_note = '', updated_at = ? WHERE id = ? AND company_id = ? AND state = 'revision_requested'",
+    ).run(ts, approvalId, companyId);
+  }
+
+  linkTaskToApproval(taskId: string, approvalId: string, companyId: string, linkedByAgentId?: string | null): void {
+    this.db.prepare(
+      "INSERT OR IGNORE INTO task_approval_links (task_id, approval_id, company_id, linked_by_agent_id, created_at) VALUES (?, ?, ?, ?, ?)",
+    ).run(taskId, approvalId, companyId, linkedByAgentId ?? null, nowIso());
+  }
+
+  unlinkTaskFromApproval(taskId: string, approvalId: string): void {
+    this.db.prepare(
+      "DELETE FROM task_approval_links WHERE task_id = ? AND approval_id = ?",
+    ).run(taskId, approvalId);
+  }
+
+  listApprovalsForTask(taskId: string): string[] {
+    return this.readAll<{ approval_id: string }>(
+      "SELECT approval_id FROM task_approval_links WHERE task_id = ?", taskId,
+    ).map((r) => r.approval_id);
+  }
+
+  listTasksForApproval(approvalId: string): string[] {
+    return this.readAll<{ task_id: string }>(
+      "SELECT task_id FROM task_approval_links WHERE approval_id = ?", approvalId,
+    ).map((r) => r.task_id);
+  }
+
+  linkManyTasksToApproval(approvalId: string, taskIds: string[], companyId: string, linkedByAgentId?: string | null): void {
+    const ts = nowIso();
+    for (const taskId of taskIds) {
+      this.db.prepare(
+        "INSERT OR IGNORE INTO task_approval_links (task_id, approval_id, company_id, linked_by_agent_id, created_at) VALUES (?, ?, ?, ?, ?)",
+      ).run(taskId, approvalId, companyId, linkedByAgentId ?? null, ts);
+    }
+  }
+
+  // ── Work Products ──
+
+  createWorkProduct(input: {
+    companyId: string; taskId: string; projectId?: string | null;
+    type: string; provider: string; externalId?: string | null;
+    title: string; url?: string | null; status?: string; reviewState?: string;
+    isPrimary?: boolean; summary?: string | null; metadataJson?: string | null;
+    createdByRunId?: string | null;
+  }): string {
+    const id = randomUUID();
+    const ts = nowIso();
+    if (input.isPrimary) {
+      this.db.prepare(
+        "UPDATE work_products SET is_primary = 0, updated_at = ? WHERE company_id = ? AND task_id = ? AND type = ?",
+      ).run(ts, input.companyId, input.taskId, input.type);
+    }
+    this.db.prepare(
+      `INSERT INTO work_products (id, company_id, project_id, task_id, type, provider, external_id, title, url, status, review_state, is_primary, summary, metadata_json, created_by_run_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      id, input.companyId, input.projectId ?? null, input.taskId,
+      input.type, input.provider, input.externalId ?? null,
+      input.title, input.url ?? null, input.status ?? "active",
+      input.reviewState ?? "none", input.isPrimary ? 1 : 0,
+      input.summary ?? null, input.metadataJson ?? null,
+      input.createdByRunId ?? null, ts, ts,
+    );
+    return id;
+  }
+
+  updateWorkProduct(id: string, companyId: string, patch: Record<string, unknown>): void {
+    const ts = nowIso();
+    const sets: string[] = ["updated_at = ?"];
+    const values: unknown[] = [ts];
+    const ALLOWED = new Set(["type", "provider", "external_id", "title", "url", "status", "review_state", "is_primary", "summary", "metadata_json"]);
+    for (const [key, value] of Object.entries(patch)) {
+      const col = key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+      if (ALLOWED.has(col)) {
+        sets.push(`${col} = ?`);
+        values.push(col === "is_primary" ? (value ? 1 : 0) : value ?? null);
+      }
+    }
+    values.push(id, companyId);
+    this.db.prepare(`UPDATE work_products SET ${sets.join(", ")} WHERE id = ? AND company_id = ?`).run(...values);
+  }
+
+  listWorkProductsForTask(taskId: string, companyId: string) {
+    return this.readAll<{
+      id: string; company_id: string; project_id: string | null; task_id: string;
+      type: string; provider: string; external_id: string | null; title: string;
+      url: string | null; status: string; review_state: string; is_primary: number;
+      summary: string | null; metadata_json: string | null; created_by_run_id: string | null;
+      created_at: string; updated_at: string;
+    }>(
+      "SELECT * FROM work_products WHERE task_id = ? AND company_id = ? ORDER BY is_primary DESC, updated_at DESC",
+      taskId, companyId,
+    ).map((r) => ({
+      id: r.id, companyId: r.company_id, projectId: r.project_id, taskId: r.task_id,
+      type: r.type, provider: r.provider, externalId: r.external_id, title: r.title,
+      url: r.url, status: r.status, reviewState: r.review_state,
+      isPrimary: Boolean(r.is_primary), summary: r.summary,
+      metadataJson: r.metadata_json, createdByRunId: r.created_by_run_id,
+      createdAt: r.created_at, updatedAt: r.updated_at,
+    }));
+  }
+
+  deleteWorkProduct(id: string, companyId: string): void {
+    this.db.prepare("DELETE FROM work_products WHERE id = ? AND company_id = ?").run(id, companyId);
+  }
+
+  // ── Task-Document Links ──
+
+  linkDocumentToTask(taskId: string, documentId: string, companyId: string, key: string): string {
+    const id = randomUUID();
+    const ts = nowIso();
+    this.db.prepare(
+      "INSERT OR REPLACE INTO task_documents (id, company_id, task_id, document_id, key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ).run(id, companyId, taskId, documentId, key.toLowerCase(), ts, ts);
+    return id;
+  }
+
+  unlinkDocumentFromTask(taskId: string, key: string, companyId: string): void {
+    this.db.prepare(
+      "DELETE FROM task_documents WHERE task_id = ? AND key = ? AND company_id = ?",
+    ).run(taskId, key.toLowerCase(), companyId);
+  }
+
+  listDocumentsForTask(taskId: string, companyId: string) {
+    return this.readAll<{
+      id: string; company_id: string; task_id: string; document_id: string;
+      key: string; created_at: string; updated_at: string;
+    }>(
+      "SELECT * FROM task_documents WHERE task_id = ? AND company_id = ? ORDER BY key ASC",
+      taskId, companyId,
+    ).map((r) => ({
+      id: r.id, companyId: r.company_id, taskId: r.task_id,
+      documentId: r.document_id, key: r.key,
+      createdAt: r.created_at, updatedAt: r.updated_at,
+    }));
   }
 
   saveKnowledgeEntry(input: {
@@ -3319,13 +3523,45 @@ export class AppDatabase {
     );
   }
 
+  private static readonly VALID_TASK_STATUSES = new Set(["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"]);
+
   advanceTaskStatus(taskId: string, newStatus: string, comment?: string): { previousStatus: string } {
+    if (!AppDatabase.VALID_TASK_STATUSES.has(newStatus)) {
+      throw new Error(`Invalid task status: ${newStatus}`);
+    }
     const task = this.db.prepare("select status, company_id from tasks where id = ?").get(taskId) as { status: string; company_id: string } | undefined;
     if (!task) throw new Error(`Task not found: ${taskId}`);
     const previousStatus = task.status;
     if (previousStatus === newStatus) return { previousStatus };
     const ts = nowIso();
-    this.db.prepare("update tasks set status = ?, updated_at = ? where id = ?").run(newStatus, ts, taskId);
+
+    // Status side-effect timestamps (Paperclip pattern)
+    const timestampSets: string[] = ["status = ?", "updated_at = ?"];
+    const timestampValues: (string | null)[] = [newStatus, ts];
+
+    if (newStatus === "in_progress") {
+      // Set startedAt only once (first time entering in_progress)
+      timestampSets.push("started_at = COALESCE(started_at, ?)");
+      timestampValues.push(ts);
+    }
+    if (newStatus === "done") {
+      timestampSets.push("completed_at = ?");
+      timestampValues.push(ts);
+    } else {
+      timestampSets.push("completed_at = NULL");
+    }
+    if (newStatus === "cancelled") {
+      timestampSets.push("cancelled_at = ?");
+      timestampValues.push(ts);
+    } else {
+      timestampSets.push("cancelled_at = NULL");
+    }
+    if (newStatus !== "in_progress") {
+      timestampSets.push("checkout_run_id = NULL");
+    }
+
+    this.db.prepare(`UPDATE tasks SET ${timestampSets.join(", ")} WHERE id = ?`).run(...timestampValues, taskId);
+
     if (comment) {
       this.addComment({
         companyId: task.company_id,
@@ -3335,11 +3571,9 @@ export class AppDatabase {
         body: comment,
       });
     }
-    // Track sprint velocity: increment completed_points when task moves to "done"
     if (newStatus === "done" && previousStatus !== "done") {
       this.incrementActiveSprintVelocity(task.company_id, 1);
     }
-    // Decrement if task moves back from done
     if (previousStatus === "done" && newStatus !== "done") {
       this.incrementActiveSprintVelocity(task.company_id, -1);
     }
@@ -3403,17 +3637,6 @@ export class AppDatabase {
     if (!agent || !agent.reports_to) return null;
     const manager = this.db.prepare("select id, name from agents where id = ?").get(agent.reports_to) as { id: string; name: string } | undefined;
     return manager ? { ...manager, companyId: agent.company_id } : null;
-  }
-
-  activateWorkflow(id: string, companyId: string) {
-    const row = this.db.prepare("select name, status from workflow_pipelines where id = ? and company_id = ?").get(id, companyId) as { name: string; status: string } | undefined;
-    if (!row) throw new Error(`Workflow not found: ${id}`);
-    if (row.status === "active") throw new Error("Workflow is already running.");
-    const ts = nowIso();
-    this.db.prepare(
-      "update workflow_pipelines set status = 'active', current_step_index = 0, run_count = run_count + 1, last_run_at = ?, updated_at = ? where id = ?",
-    ).run(ts, ts, id);
-    this.addActivity({ companyId, actor: "system", action: "started", entityType: "workflow", entityId: id, detail: `Started workflow: ${row.name}` });
   }
 
   listTriggerableWorkflows(companyId: string, triggerType: string): WorkflowPipelineRecord[] {
@@ -3985,6 +4208,123 @@ export class AppDatabase {
             }
           }
           log.info(`Budget migration: converted ${agents.length} agent budget(s) to policy rows`);
+        },
+      },
+      {
+        version: 19,
+        name: "add_document_revisions_and_approval_comments",
+        fn: () => {
+          this.db.exec(`
+            CREATE TABLE IF NOT EXISTS document_revisions (
+              id TEXT PRIMARY KEY,
+              company_id TEXT NOT NULL,
+              document_id TEXT NOT NULL,
+              revision_number INTEGER NOT NULL,
+              body TEXT NOT NULL,
+              change_summary TEXT,
+              created_by_agent_id TEXT,
+              created_by_user_id TEXT,
+              created_at TEXT NOT NULL,
+              FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_doc_rev_doc_num ON document_revisions(document_id, revision_number);
+            CREATE INDEX IF NOT EXISTS idx_doc_rev_company ON document_revisions(company_id, document_id, created_at);
+
+            CREATE TABLE IF NOT EXISTS approval_comments (
+              id TEXT PRIMARY KEY,
+              company_id TEXT NOT NULL,
+              approval_id TEXT NOT NULL,
+              author_agent_id TEXT,
+              author_user_id TEXT,
+              body TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              FOREIGN KEY (approval_id) REFERENCES approvals(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_approval_comments_approval ON approval_comments(approval_id, created_at);
+          `);
+          // Add latest_revision_id to documents (may already exist via ensureOptionalColumns)
+          try { this.db.prepare("ALTER TABLE documents ADD COLUMN latest_revision_id TEXT").run(); } catch { /* column already exists */ }
+        },
+      },
+      {
+        version: 20,
+        name: "add_task_timestamps_and_task_approval_links",
+        fn: () => {
+          const addCol = (sql: string) => { try { this.db.prepare(sql).run(); } catch { /* already exists */ } };
+          addCol("ALTER TABLE tasks ADD COLUMN started_at TEXT");
+          addCol("ALTER TABLE tasks ADD COLUMN completed_at TEXT");
+          addCol("ALTER TABLE tasks ADD COLUMN cancelled_at TEXT");
+          this.db.exec(`
+            CREATE TABLE IF NOT EXISTS task_approval_links (
+              task_id TEXT NOT NULL,
+              approval_id TEXT NOT NULL,
+              company_id TEXT NOT NULL,
+              linked_by_agent_id TEXT,
+              created_at TEXT NOT NULL,
+              PRIMARY KEY (task_id, approval_id),
+              FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+              FOREIGN KEY (approval_id) REFERENCES approvals(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_task_approval_links_task ON task_approval_links(task_id);
+            CREATE INDEX IF NOT EXISTS idx_task_approval_links_approval ON task_approval_links(approval_id);
+          `);
+          // Backfill: set started_at for tasks already in_progress/in_review/done
+          this.db.prepare(
+            "UPDATE tasks SET started_at = updated_at WHERE started_at IS NULL AND status IN ('in_progress', 'in_review', 'done')",
+          ).run();
+          this.db.prepare(
+            "UPDATE tasks SET completed_at = updated_at WHERE completed_at IS NULL AND status = 'done'",
+          ).run();
+          this.db.prepare(
+            "UPDATE tasks SET cancelled_at = updated_at WHERE cancelled_at IS NULL AND status = 'cancelled'",
+          ).run();
+        },
+      },
+      {
+        version: 21,
+        name: "add_work_products_task_documents_wakeup_context",
+        fn: () => {
+          this.db.exec(`
+            CREATE TABLE IF NOT EXISTS work_products (
+              id TEXT PRIMARY KEY,
+              company_id TEXT NOT NULL,
+              project_id TEXT,
+              task_id TEXT NOT NULL,
+              type TEXT NOT NULL,
+              provider TEXT NOT NULL,
+              external_id TEXT,
+              title TEXT NOT NULL,
+              url TEXT,
+              status TEXT NOT NULL DEFAULT 'active',
+              review_state TEXT NOT NULL DEFAULT 'none',
+              is_primary INTEGER NOT NULL DEFAULT 0,
+              summary TEXT,
+              metadata_json TEXT,
+              created_by_run_id TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_work_products_task ON work_products(company_id, task_id, type);
+            CREATE INDEX IF NOT EXISTS idx_work_products_updated ON work_products(company_id, updated_at);
+
+            CREATE TABLE IF NOT EXISTS task_documents (
+              id TEXT PRIMARY KEY,
+              company_id TEXT NOT NULL,
+              task_id TEXT NOT NULL,
+              document_id TEXT NOT NULL,
+              key TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+              FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_task_documents_task_key ON task_documents(company_id, task_id, key);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_task_documents_doc ON task_documents(document_id);
+          `);
+          // Add context_snapshot column to wakeup_requests for rich context merging
+          try { this.db.prepare("ALTER TABLE wakeup_requests ADD COLUMN context_snapshot TEXT").run(); } catch { /* already exists */ }
         },
       },
     ];

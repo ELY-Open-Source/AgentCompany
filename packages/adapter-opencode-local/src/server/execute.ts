@@ -17,6 +17,7 @@ import {
   runChildProcess,
   createManagedSkillSymlinks,
 } from "@agentcompany/adapter-utils/server-utils";
+import { firstNonEmptyLine } from "@agentcompany/adapter-utils/test-utils";
 import { isOpenCodeUnknownSessionError, parseOpenCodeJsonl } from "./parse.js";
 import { ensureOpenCodeModelConfiguredAndAvailable } from "./models.js";
 
@@ -25,15 +26,6 @@ const SKILLS_CANDIDATES = [
   path.resolve(__moduleDir, "../../skills"),
   path.resolve(__moduleDir, "../../../../../skills"),
 ];
-
-function firstNonEmptyLine(text: string): string {
-  return (
-    text
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .find(Boolean) ?? ""
-  );
-}
 
 function parseModelProvider(model: string | null): string | null {
   if (!model) return null;

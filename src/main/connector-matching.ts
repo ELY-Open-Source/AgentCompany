@@ -1,20 +1,7 @@
-/**
- * Deterministic connector-matching heuristic.
- *
- * Maps task types to the best available connector based on a static
- * preference table. Provides fallback logic when preferred connectors
- * are offline or unavailable.
- */
 import type { ConnectorId, ConnectorStatus, TaskType } from "@shared/types";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ConnectorMatchInput {
+interface ConnectorMatchInput {
   taskType: TaskType;
-  agentRole: string;
-  agentDepartment: string | null;
   availableConnectors: Array<{
     id: ConnectorId;
     status: ConnectorStatus;
@@ -22,30 +9,20 @@ export interface ConnectorMatchInput {
   }>;
 }
 
-export interface ConnectorMatchResult {
+interface ConnectorMatchResult {
   recommendedConnectorId: ConnectorId;
   fallbackConnectorId: ConnectorId | null;
   reason: string;
 }
 
-// ---------------------------------------------------------------------------
-// Static preference tables
-// ---------------------------------------------------------------------------
-
-/**
- * For each task type, connectors ordered from most preferred to least.
- */
 export const TASK_TYPE_PREFERENCE: Record<TaskType, ConnectorId[]> = {
-  code: ["claude_local", "codex_local", "gemini_local"],
-  research: ["gemini_local", "claude_local", "codex_local"],
-  content: ["claude_local", "gemini_local", "codex_local"],
-  management: ["claude_local", "gemini_local", "codex_local"],
-  general: ["claude_local", "codex_local", "gemini_local"],
+  code: ["claude_local", "codex_local", "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5", "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10", "gemini_local"],
+  research: ["gemini_local", "claude_local", "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5", "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10", "codex_local"],
+  content: ["claude_local", "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5", "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10", "gemini_local", "codex_local"],
+  management: ["claude_local", "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5", "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10", "gemini_local", "codex_local"],
+  general: ["claude_local", "codex_local", "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5", "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10", "gemini_local"],
 };
 
-/**
- * Maps department strings to the most likely task type for that department.
- */
 export const ROLE_DEPARTMENT_HINTS: Record<string, TaskType> = {
   engineering: "code",
   research: "research",
@@ -61,28 +38,37 @@ export const ROLE_DEPARTMENT_HINTS: Record<string, TaskType> = {
   legal: "management",
 };
 
-/**
- * Human-readable capability descriptions per connector.
- */
 export const CONNECTOR_STRENGTHS: Record<ConnectorId, string> = {
   claude_local:
     "Best for code generation, content writing, complex reasoning. Supports session resume, cost tracking.",
+  claude_compatible:
+    "Claude Code CLI with third-party API provider (DeepSeek, OpenRouter, Ollama, etc.). Cost-effective for worker agents.",
+  claude_compat_2:
+    "Claude Code CLI with third-party API provider (DeepSeek, OpenRouter, Ollama, etc.). Cost-effective for worker agents.",
+  claude_compat_3:
+    "Claude Code CLI with third-party API provider (DeepSeek, OpenRouter, Ollama, etc.). Cost-effective for worker agents.",
+  claude_compat_4:
+    "Claude Code CLI with third-party API provider (DeepSeek, OpenRouter, Ollama, etc.). Cost-effective for worker agents.",
+  claude_compat_5:
+    "Claude Code CLI with third-party API provider (DeepSeek, OpenRouter, Ollama, etc.). Cost-effective for worker agents.",
+  claude_compat_6:
+    "Claude Code CLI with third-party API provider (DeepSeek, OpenRouter, Ollama, etc.). Cost-effective for worker agents.",
+  claude_compat_7:
+    "Claude Code CLI with third-party API provider (DeepSeek, OpenRouter, Ollama, etc.). Cost-effective for worker agents.",
+  claude_compat_8:
+    "Claude Code CLI with third-party API provider (DeepSeek, OpenRouter, Ollama, etc.). Cost-effective for worker agents.",
+  claude_compat_9:
+    "Claude Code CLI with third-party API provider (DeepSeek, OpenRouter, Ollama, etc.). Cost-effective for worker agents.",
+  claude_compat_10:
+    "Claude Code CLI with third-party API provider (DeepSeek, OpenRouter, Ollama, etc.). Cost-effective for worker agents.",
   codex_local:
     "Optimized for code editing and generation. Supports session resume, structured output.",
   gemini_local:
     "Strong at research, analysis, and large-context tasks. Good for data processing.",
 };
 
-// ---------------------------------------------------------------------------
-// Functions
-// ---------------------------------------------------------------------------
-
 const READY_STATUSES: Set<ConnectorStatus> = new Set(["ready"]);
 
-/**
- * Infer the most likely task type from a department name.
- * Returns 'general' for null, undefined, or unrecognised departments.
- */
 export function inferTaskType(
   department: string | null | undefined,
 ): TaskType {
@@ -91,25 +77,10 @@ export function inferTaskType(
   return ROLE_DEPARTMENT_HINTS[lower] ?? "general";
 }
 
-/**
- * Get a human-readable description of a connector's strengths.
- */
 export function getConnectorStrengths(connectorId: ConnectorId): string {
   return CONNECTOR_STRENGTHS[connectorId] ?? "General-purpose AI connector.";
 }
 
-/**
- * Select the best connector for a given task type and set of available
- * connectors. Falls back gracefully when preferred connectors are offline.
- *
- * Algorithm:
- * 1. Filter connectors to those with "ready" status.
- * 2. Walk the preference list for the given task type.
- * 3. Return the first ready match as recommended.
- * 4. Set fallback to the next *different* ready connector in the list.
- * 5. If no connectors are ready, use the first available connector.
- * 6. If no connectors at all, default to 'claude_local'.
- */
 export function matchConnector(input: ConnectorMatchInput): ConnectorMatchResult {
   const { taskType, availableConnectors } = input;
   const prefList = TASK_TYPE_PREFERENCE[taskType] ?? TASK_TYPE_PREFERENCE.general;

@@ -11,6 +11,7 @@ import {
   runChildProcess,
   createManagedSkillSymlinks,
 } from "@agentcompany/adapter-utils/server-utils";
+import { normalizeEnv } from "@agentcompany/adapter-utils/test-utils";
 import { DEFAULT_KIMI_LOCAL_MODEL } from "../index.js";
 
 function kimiSkillsHome(): string {
@@ -23,15 +24,6 @@ async function ensureKimiSkillsInjected(
 ): Promise<void> {
   if (managedSkills.length === 0) return;
   await createManagedSkillSymlinks(managedSkills, kimiSkillsHome(), onLog);
-}
-
-function normalizeEnv(input: unknown): Record<string, string> {
-  if (typeof input !== "object" || input === null || Array.isArray(input)) return {};
-  const env: Record<string, string> = {};
-  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
-    if (typeof value === "string") env[key] = value;
-  }
-  return env;
 }
 
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {

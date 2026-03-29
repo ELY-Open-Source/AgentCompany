@@ -68,9 +68,13 @@ interface OrchestrationDependencies {
   hasWorkerReady: () => boolean;
   enqueueWorkerRun: (payload: EnqueueRunPayload) => void;
   isQuitting: () => boolean;
-  listRuntimeSkillEntries: (companyId: string, agentId: string, connectorId: string) => Array<{ runtimeName: string; sourcePath: string }>;
+  listRuntimeSkillEntries: (companyId: string, agentId: string, connectorId: string) => Array<{ runtimeName: string; sourcePath: string; name?: string }>;
   budgetService: ReturnType<typeof createBudgetEnforcementService>;
   getSessionHandoff?: (taskId: string) => string | null;
+  evaluatePreRunSessionRotation?: (taskId: string, connectorId: string) => {
+    rotated: boolean;
+    handoff: string | null;
+  };
 }
 
 export function createOrchestrationService({
@@ -88,6 +92,7 @@ export function createOrchestrationService({
   listRuntimeSkillEntries,
   budgetService,
   getSessionHandoff,
+  evaluatePreRunSessionRotation,
 }: OrchestrationDependencies) {
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   const scheduleLastFiredMap = new Map<string, number>();
@@ -130,31 +135,6 @@ export function createOrchestrationService({
     }
 
     return { workspace: null, lockMode: "none", source: "none" };
-  }
-
-  // DEPRECATED: Superseded by BudgetEnforcementService.evaluateBudgetGate (Phase 5)
-  function autoPauseBudgetExceededAgent(agent: { id: string; companyId: string; name: string; spentMonthlyUsd: number; budgetMonthlyUsd: number }) {
-    if (!(agent.budgetMonthlyUsd > 0) || agent.spentMonthlyUsd < agent.budgetMonthlyUsd) {
-      return false;
-    }
-    db.updateAgentStatus(agent.id, "paused");
-    db.addActivity({
-      companyId: agent.companyId,
-      actor: "system",
-      action: "agent.auto_paused",
-      entityType: "agent",
-      entityId: agent.id,
-      detail: `Budget exhausted at ${agent.spentMonthlyUsd.toFixed(2)} / ${agent.budgetMonthlyUsd.toFixed(2)} USD.`,
-    });
-    notify({
-      title: "Agent Paused",
-      body: `${agent.name} paused -- budget limit reached`,
-      urgency: "informational",
-      navigation: { section: "agents", entityId: agent.id },
-      batchKey: "agent_paused",
-    });
-    emitEvent({ type: "agent-updated", agentId: agent.id, action: "paused" });
-    return true;
   }
 
   function ensureAgentHeartbeatEnabled(agentId: string) {
@@ -246,6 +226,16 @@ export function createOrchestrationService({
       }
     }
 
+    let managedSkills: Array<{ runtimeName: string; sourcePath: string; name?: string }> = [];
+    try {
+      managedSkills = listRuntimeSkillEntries(companyId, agent.id, connector.id);
+    } catch (err) {
+      logger.warn(`[run] Failed to fetch managed skills for agent ${agent.name}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    const skillNames = managedSkills
+      .map((s) => s.name ?? s.runtimeName)
+      .filter(Boolean);
+
     const systemPrompt = apiUrl ? buildTaskPrompt({
       agent,
       apiUrl,
@@ -298,6 +288,7 @@ export function createOrchestrationService({
         .slice(0, 5),
       allConnectors: snapshot.connectors.map((c) => ({ id: c.id, label: c.label, status: c.status })),
       sessionHandoff,
+      skillNames,
     }) : null;
 
     if (apiUrl) {
@@ -312,12 +303,27 @@ export function createOrchestrationService({
 
     // SESS-01: Prefer task_sessions table, fall back to legacy tasks.session_json
     const activeSession = db.getActiveTaskSession(task.id);
-    const taskSession = activeSession
+    let taskSession = activeSession
       ? {
           sessionParams: activeSession.sessionParamsJson ? JSON.parse(activeSession.sessionParamsJson) as Record<string, unknown> : null,
           sessionDisplayId: activeSession.sessionDisplayId,
         }
       : db.getTaskSession(task.id);
+
+    // Pre-execution session compaction (Paperclip pattern): evaluate BEFORE run starts
+    if (evaluatePreRunSessionRotation && activeSession) {
+      const rotationResult = evaluatePreRunSessionRotation(task.id, connector.id);
+      if (rotationResult.rotated) {
+        // Session was rotated: clear session params so adapter starts fresh
+        taskSession = { sessionParams: null, sessionDisplayId: null };
+        // Handoff will be picked up by getSessionHandoff() above (already loaded from rotated session)
+        if (!sessionHandoff && rotationResult.handoff) {
+          sessionHandoff = rotationResult.handoff;
+        }
+        logger.info(`[session] Pre-run compaction for task ${task.id}: session rotated before execution`);
+      }
+    }
+
     let thinkingEffort: string | null = null;
     try {
       const meta = JSON.parse(agent.metadataJson || "{}");
@@ -326,14 +332,6 @@ export function createOrchestrationService({
       }
     } catch {
       thinkingEffort = null;
-    }
-
-    // Fetch managed skills for this agent -- best-effort, never blocks run dispatch
-    let managedSkills: Array<{ runtimeName: string; sourcePath: string }> = [];
-    try {
-      managedSkills = listRuntimeSkillEntries(companyId, agent.id, connector.id);
-    } catch (err) {
-      logger.warn(`[run] Failed to fetch managed skills for agent ${agent.name}: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     enqueueWorkerRun({
@@ -521,7 +519,7 @@ export function createOrchestrationService({
     return run.id;
   }
 
-  function wakeAgentIfPossible(agentId: string | null | undefined, companyId: string, trigger: string) {
+  function wakeAgentIfPossible(agentId: string | null | undefined, companyId: string, trigger: string, context?: Record<string, unknown>) {
     if (!agentId || isQuitting()) return null;
     try {
       const agent = db.getAgent(agentId);
@@ -540,15 +538,13 @@ export function createOrchestrationService({
 
     const agentBusy = hasActiveRun({ agentId, companyId });
     if (agentBusy) {
-      // Agent is busy — enqueue wakeup with lifecycle tracking (D-05)
-      db.enqueueWakeupRequest(companyId, agentId, trigger, `Wake for agent: ${trigger}`);
+      db.enqueueWakeupRequest(companyId, agentId, trigger, `Wake for agent: ${trigger}`, context);
       return null;
     }
 
     const runId = startAgentHeartbeatRun(agentId, companyId, trigger);
     if (!runId) {
-      // Run failed to start but agent not busy — still enqueue for retry
-      db.enqueueWakeupRequest(companyId, agentId, trigger, `Wake for agent (deferred): ${trigger}`);
+      db.enqueueWakeupRequest(companyId, agentId, trigger, `Wake for agent (deferred): ${trigger}`, context);
     }
     return runId;
   }
@@ -877,7 +873,6 @@ export function createOrchestrationService({
 
   return {
     resolveWorkspace,
-    autoPauseBudgetExceededAgent,
     wakeAgentIfPossible,
     dispatchRunToWorker,
     queueTaskRun,

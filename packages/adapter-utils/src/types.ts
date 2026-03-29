@@ -1,7 +1,3 @@
-// ---------------------------------------------------------------------------
-// Minimal adapter-facing interfaces (no drizzle dependency)
-// ---------------------------------------------------------------------------
-
 export interface AdapterAgent {
   id: string;
   companyId: string;
@@ -19,10 +15,6 @@ export interface AdapterRuntime {
   sessionDisplayId: string | null;
   taskKey: string | null;
 }
-
-// ---------------------------------------------------------------------------
-// Execution types (moved from server/src/adapters/types.ts)
-// ---------------------------------------------------------------------------
 
 export interface UsageSummary {
   inputTokens: number;
@@ -137,10 +129,6 @@ export interface AdapterEnvironmentTestResult {
   testedAt: string;
 }
 
-// ---------------------------------------------------------------------------
-// Skill sync types -- adapter-level skill state and synchronization
-// ---------------------------------------------------------------------------
-
 export type AdapterSkillSyncMode = "unsupported" | "persistent" | "ephemeral";
 
 export type AdapterSkillState =
@@ -246,10 +234,6 @@ export interface ServerAdapterModule {
   ) => Promise<HireApprovedHookResult>;
 }
 
-// ---------------------------------------------------------------------------
-// UI types (moved from ui/src/adapters/types.ts)
-// ---------------------------------------------------------------------------
-
 export type TranscriptEntry =
   | { kind: "assistant"; ts: string; text: string; delta?: boolean }
   | { kind: "thinking"; ts: string; text: string; delta?: boolean }
@@ -264,18 +248,10 @@ export type TranscriptEntry =
 
 export type StdoutLineParser = (line: string, ts: string) => TranscriptEntry[];
 
-// ---------------------------------------------------------------------------
-// CLI types (moved from cli/src/adapters/types.ts)
-// ---------------------------------------------------------------------------
-
 export interface CLIAdapterModule {
   type: string;
   formatStdoutEvent: (line: string, debug: boolean) => void;
 }
-
-// ---------------------------------------------------------------------------
-// UI config form values (moved from ui/src/components/AgentConfigForm.tsx)
-// ---------------------------------------------------------------------------
 
 /** Skill reference passed from main process to worker for adapter injection. */
 export interface ManagedSkillRef {

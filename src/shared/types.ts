@@ -28,6 +28,16 @@ export type SectionId =
 export type ConnectorId =
   | "codex_local"
   | "claude_local"
+  | "claude_compatible"
+  | "claude_compat_2"
+  | "claude_compat_3"
+  | "claude_compat_4"
+  | "claude_compat_5"
+  | "claude_compat_6"
+  | "claude_compat_7"
+  | "claude_compat_8"
+  | "claude_compat_9"
+  | "claude_compat_10"
   | "gemini_local";
 
 export type ConnectorStatus =
@@ -206,6 +216,9 @@ export interface TaskRecord {
   sessionDisplayId: string | null;
   costUsd: number;
   requiresUserReview: boolean;
+  startedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -556,10 +569,6 @@ export interface OnboardingBootstrapResult {
   runId: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// Skill system types (mirrored from main/skill-types.ts for IPC boundary)
-// ---------------------------------------------------------------------------
-
 export type SkillSourceType = "github" | "local_path" | "url" | "skills_sh" | "managed";
 export type TrustLevel = "markdown_only" | "assets" | "scripts_executables";
 
@@ -713,6 +722,64 @@ export interface DocumentRecord {
   version: number;
   status: DocumentStatus;
   tagsJson: string;
+  latestRevisionId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentRevisionRecord {
+  id: string;
+  companyId: string;
+  documentId: string;
+  revisionNumber: number;
+  body: string;
+  changeSummary: string | null;
+  createdByAgentId: string | null;
+  createdByUserId: string | null;
+  createdAt: string;
+}
+
+export interface ApprovalCommentRecord {
+  id: string;
+  companyId: string;
+  approvalId: string;
+  authorAgentId: string | null;
+  authorUserId: string | null;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type WorkProductType = "preview_url" | "pull_request" | "branch" | "commit" | "artifact" | "document" | "runtime_service";
+export type WorkProductStatus = "active" | "ready_for_review" | "approved" | "changes_requested" | "merged" | "closed" | "failed" | "archived" | "draft";
+export type WorkProductReviewState = "none" | "needs_board_review" | "approved" | "changes_requested";
+
+export interface WorkProductRecord {
+  id: string;
+  companyId: string;
+  projectId: string | null;
+  taskId: string;
+  type: WorkProductType;
+  provider: string;
+  externalId: string | null;
+  title: string;
+  url: string | null;
+  status: WorkProductStatus;
+  reviewState: WorkProductReviewState;
+  isPrimary: boolean;
+  summary: string | null;
+  metadataJson: string | null;
+  createdByRunId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskDocumentLink {
+  id: string;
+  companyId: string;
+  taskId: string;
+  documentId: string;
+  key: string;
   createdAt: string;
   updatedAt: string;
 }

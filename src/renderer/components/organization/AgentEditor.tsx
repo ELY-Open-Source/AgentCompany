@@ -4,6 +4,7 @@ import type { AgentRecord, BudgetPolicyRecord, ConnectorRecord, WorkspaceRecord 
 import { getConnectorExecutionReadinessIssue, isConnectorExecutionReady } from "@shared/connector-policy";
 import { unwrap } from "../../lib/desktop";
 import { useAppStore } from "../../state/store";
+import { useT } from "../../i18n";
 import { ActionButton, Input, Select, TextArea } from "../ui";
 import { SkillAgentToggles } from "../skills/SkillAgentToggles";
 import { ConfirmDelete, HeartbeatSection } from "./helpers";
@@ -25,6 +26,7 @@ export function AgentEditor({
   onSaved: () => Promise<void>;
   onDeleted: () => Promise<void>;
 }) {
+  const t = useT();
   const [name, setName] = useState(agent.name);
   const [role, setRole] = useState(agent.role);
   const [title, setTitle] = useState(agent.title);
@@ -51,30 +53,43 @@ export function AgentEditor({
   const persistedConnectorRecord = connectors.find((connector) => connector.id === agent.connectorId) ?? null;
   const persistedConnectorIssue = persistedConnectorRecord ? getConnectorExecutionReadinessIssue(persistedConnectorRecord) : "Current connector is unavailable.";
   const connectorOptions = useMemo(() => {
-    const readyOptions = executionReadyConnectors.map((connector) => ({ value: connector.id, label: connector.label }));
+    const getDisplayLabel = (c: typeof connectors[number]) =>
+      c.id.startsWith("claude_compat") && c.notes ? c.notes : c.label;
+    const readyOptions = executionReadyConnectors.map((connector) => ({ value: connector.id, label: getDisplayLabel(connector) }));
     if (!selectedConnectorRecord || isConnectorExecutionReady(selectedConnectorRecord)) {
       return readyOptions;
     }
     return [
-      { value: selectedConnectorRecord.id, label: `${selectedConnectorRecord.label} (current, blocked)` },
+      { value: selectedConnectorRecord.id, label: `${getDisplayLabel(selectedConnectorRecord)} (current, blocked)` },
       ...readyOptions.filter((option) => option.value !== selectedConnectorRecord.id),
     ];
   }, [executionReadyConnectors, selectedConnectorRecord]);
 
   useEffect(() => {
-    void (async () => {
-      const result = await window.agentCompany.listConnectorModels(connectorId);
-      if (result.ok) {
-        setAvailableModels(result.data);
-        if (connectorId !== agent.connectorId) {
-          setModel(result.data[0]?.id ?? "");
-        }
+    if (connectorId.startsWith("claude_compat")) {
+      // Parse comma-separated user-configured models
+      const compat = connectors.find((c) => c.id === connectorId);
+      const raw = compat?.model ?? "";
+      const models = raw.split(",").map((m) => m.trim()).filter(Boolean).map((m) => ({ id: m, label: m }));
+      setAvailableModels(models);
+      if (connectorId !== agent.connectorId && models.length > 0) {
+        setModel(models[0].id);
       }
-    })();
-    if (connectorId !== "claude_local" && connectorId !== "codex_local") {
+    } else {
+      void (async () => {
+        const result = await window.agentCompany.listConnectorModels(connectorId);
+        if (result.ok) {
+          setAvailableModels(result.data);
+          if (connectorId !== agent.connectorId) {
+            setModel(result.data[0]?.id ?? "");
+          }
+        }
+      })();
+    }
+    if (connectorId !== "claude_local" && !connectorId.startsWith("claude_compat") && connectorId !== "codex_local") {
       setThinkingEffort("");
     }
-  }, [connectorId, agent.connectorId]);
+  }, [connectorId, agent.connectorId, connectors]);
 
   const skills = useAppStore((s) => s.skills);
   const setSkills = useAppStore((s) => s.setSkills);
@@ -107,17 +122,17 @@ export function AgentEditor({
   const managerCandidates = agents.filter((a) => a.id !== agent.id);
 
   return (
-    <div className="grid gap-4">
-      <Input label="Agent name" value={name} onChange={setName} placeholder="Agent name" readOnly={pendingApproval} disabled={pendingApproval} />
-      <Input label="Role" value={role} onChange={setRole} placeholder="Role" readOnly={pendingApproval} disabled={pendingApproval} />
-      <Input label="Title" value={title} onChange={setTitle} placeholder="Title" readOnly={pendingApproval} disabled={pendingApproval} />
+    <div className="grid min-w-0 gap-4">
+      <Input label={t("agent.name")} value={name} onChange={setName} placeholder={t("agent.name")} readOnly={pendingApproval} disabled={pendingApproval} />
+      <Input label={t("agent.role")} value={role} onChange={setRole} placeholder={t("agent.role")} readOnly={pendingApproval} disabled={pendingApproval} />
+      <Input label={t("agent.title")} value={title} onChange={setTitle} placeholder={t("agent.title")} readOnly={pendingApproval} disabled={pendingApproval} />
       <Select
-        label="Status"
+        label={t("agent.status")}
         value={status}
         onChange={(v) => setStatus(v as AgentRecord["status"])}
         disabled={pendingApproval}
         options={pendingApproval
-          ? [{ value: "pending_approval", label: "Pending Approval" }]
+          ? [{ value: "pending_approval", label: t("agent.pendingApproval") }]
           : [
             { value: "idle", label: "Idle" },
             { value: "active", label: "Active" },
@@ -129,11 +144,11 @@ export function AgentEditor({
       />
       {pendingApproval ? (
         <p className="text-[12px] text-muted-foreground">
-          Pending hires must be approved or rejected from Hiring or Approvals. Status changes are intentionally locked here.
+          {t("agent.pendingHireNote")}
         </p>
       ) : null}
       <Select
-        label="Connector"
+        label={t("agent.connector")}
         value={connectorId}
         onChange={(v) => setConnectorId(v as ConnectorRecord["id"])}
         disabled={pendingApproval}
@@ -146,7 +161,7 @@ export function AgentEditor({
       ) : null}
       {availableModels.length > 0 ? (
         <Select
-          label="Model"
+          label={t("agent.model")}
           value={model}
           onChange={setModel}
           disabled={pendingApproval}
@@ -155,7 +170,7 @@ export function AgentEditor({
       ) : null}
       {supportsEffort ? (
         <Select
-          label="Thinking effort"
+          label={t("agent.thinkingEffort")}
           value={thinkingEffort}
           onChange={setThinkingEffort}
           disabled={pendingApproval}
@@ -168,39 +183,39 @@ export function AgentEditor({
         />
       ) : null}
       <Select
-        label="Workspace"
+        label={t("agent.workspace")}
         value={workspaceId}
         onChange={setWorkspaceId}
         disabled={pendingApproval}
         options={[
-          { value: "", label: "No workspace" },
+          { value: "", label: t("agent.noWorkspace") },
           ...workspaces.map((w) => ({ value: w.id, label: w.name })),
         ]}
       />
       <Select
-        label="Reports to"
+        label={t("agent.reportsTo")}
         value={reportsTo}
         onChange={setReportsTo}
         disabled={pendingApproval}
         options={[
-          { value: "", label: "No manager" },
+          { value: "", label: t("agent.noManager") },
           ...managerCandidates.map((a) => ({ value: a.id, label: a.name })),
         ]}
       />
-      <Input label="Monthly budget (USD)" value={budget} onChange={setBudget} placeholder="120" type="number" readOnly={pendingApproval} disabled={pendingApproval} />
-      <TextArea label="Capabilities" value={capabilities} onChange={setCapabilities} placeholder="Capabilities" readOnly={pendingApproval} disabled={pendingApproval} />
+      <Input label={t("agent.budget")} value={budget} onChange={setBudget} placeholder="120" type="number" readOnly={pendingApproval} disabled={pendingApproval} />
+      <TextArea label={t("agent.capabilities")} value={capabilities} onChange={setCapabilities} placeholder={t("agent.capabilities")} readOnly={pendingApproval} disabled={pendingApproval} />
 
       <HeartbeatSection agent={agent} companyId={companyId} pendingApproval={pendingApproval} persistedConnectorIssue={persistedConnectorIssue} onSaved={onSaved} />
 
       {/* Skills section (D-04 dual access) */}
       <div className="mt-6 border-t border-border pt-4">
-        <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-primary mb-3">Skills</h3>
+        <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-primary mb-3">{t("agent.skills")}</h3>
         <SkillAgentToggles mode="agent" companyId={companyId} agentId={agent.id} skills={skills} />
       </div>
 
       <div className="flex items-center gap-3">
         <ActionButton
-          label="Save changes"
+          label={t("agent.saveChanges")}
           tone="accent"
           icon={Pencil}
           disabled={pendingApproval || !!selectedConnectorIssue}

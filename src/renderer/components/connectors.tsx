@@ -43,7 +43,6 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
   const authPollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const authActionCopy = getAuthActionCopy(connector);
   const needsLogin = connector.authState === "required" || connector.status === "auth_required";
-  const requiresExplicitModel = false;
   const shouldLoadModelOptions = connector.capabilityMatrix.modelDiscovery;
 
   useEffect(() => {
@@ -87,14 +86,14 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
   }, [connector.id, shouldLoadModelOptions]);
 
   const modelSelectOptions = useMemo(() => {
-    const options = [{ value: "", label: requiresExplicitModel ? "Please select a model..." : "Use connector default" }];
+    const options = [{ value: "", label: "Use connector default" }];
     const hasCurrentModel = modelOptions.some((option) => option.id === model);
     if (model && !hasCurrentModel) {
       options.push({ value: model, label: `${model} (saved)` });
     }
     options.push(...modelOptions.map((option) => ({ value: option.id, label: option.label || option.id })));
     return options;
-  }, [model, modelOptions, requiresExplicitModel]);
+  }, [model, modelOptions]);
 
   const runHealthCheck = useCallback(async (quiet = false) => {
     setAutoChecking(true);
@@ -189,7 +188,7 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
       {shouldLoadModelOptions ? (
         <div className="grid gap-2">
           <Select
-            label={requiresExplicitModel ? "Model (required)" : "Model"}
+            label="Model"
             value={model}
             onChange={setModel}
             options={modelSelectOptions}
@@ -199,11 +198,6 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
           ) : null}
           {modelOptionsError ? (
             <InlineNotice message={modelOptionsError} />
-          ) : null}
-          {requiresExplicitModel && !model.trim() ? (
-            <div className="rounded-lg border border-[color:var(--destructive)] bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3 text-[12px] text-yellow-600 dark:text-yellow-400">
-              OpenCode is detected, but it still needs an explicit provider/model selection before AgentCompany can mark it ready.
-            </div>
           ) : null}
         </div>
       ) : (
@@ -246,7 +240,6 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
           })()}
           icon={CheckCircle}
           loading={saving}
-          disabled={requiresExplicitModel && !model.trim()}
         />
       </div>
       <div className="rounded-lg border border-border bg-muted px-4 py-4 text-[12px] leading-relaxed text-muted-foreground">

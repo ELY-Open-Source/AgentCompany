@@ -782,6 +782,19 @@ a.paperclip-project-mention-chip {
   -webkit-app-region: no-drag;
 }
 
+/* Custom title bar drag region */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+.titlebar-button {
+  -webkit-app-region: no-drag;
+}
+
+/* Fixed overlays (modals, dialogs, palettes) must escape titlebar drag region */
+[class*="fixed"] {
+  -webkit-app-region: no-drag;
+}
+
 /* ASCII animation */
 @keyframes ascii-scroll-up {
   0% { transform: translateY(0); }
@@ -801,4 +814,35 @@ a.paperclip-project-mention-chip {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Global word-wrap to prevent text overflow */
+textarea, input, select, p, span, div, td, th, li, pre {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+textarea {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Prevent native select dropdown from overflowing container */
+select {
+  max-width: 100%;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+select option {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Prevent grid/flex children from overflowing their containers */
+[role="dialog"] * {
+  min-width: 0;
 }

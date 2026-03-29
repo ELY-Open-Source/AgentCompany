@@ -21,6 +21,7 @@ interface BootstrapInput {
   goalTitle: string;
   goalDescription: string;
   connectorId?: ConnectorId;
+  connectorModel?: string;
 }
 
 interface OnboardingDependencies {
@@ -32,6 +33,8 @@ interface OnboardingDependencies {
     error?: { code: string; message: string };
   };
   publishDomainChanged: () => void;
+  /** Scan workspace directories for skills and import them. Best-effort — may be undefined during early init. */
+  scanAndAssignSkills?: (companyId: string, agentId: string) => Promise<void>;
 }
 
 const DEFERRABLE_RUN_ERRORS = new Set([
@@ -69,6 +72,7 @@ export function createOnboardingService({
   seedDefaultAutomationRules,
   queueTaskRun,
   publishDomainChanged,
+  scanAndAssignSkills,
 }: OnboardingDependencies) {
   function updateAgentWorkspaceBinding(agentId: string, workspaceId: string | null) {
     if (!workspaceId) return;
@@ -217,7 +221,7 @@ export function createOnboardingService({
       reportsTo: null,
       connectorId: selectedConnectorId,
       workspaceId,
-      model: null,
+      model: input.connectorModel?.trim() || null,
       capabilities:
         "Executive leadership, strategic planning, team building, goal decomposition, delegation, and organizational management. Responsible for hiring the leadership team, setting strategy, and coordinating all company operations.",
       budgetMonthlyUsd: 250,
@@ -226,6 +230,10 @@ export function createOnboardingService({
     db.setHeartbeat(ceoId, true, 120);
     db.setCurrentCompany(companyId);
     seedDefaultAutomationRules(companyId);
+
+    if (scanAndAssignSkills) {
+      void scanAndAssignSkills(companyId, ceoId).catch(() => {});
+    }
 
     const kickoff = createInitialExecutionLoop(companyId, workspaceId);
 

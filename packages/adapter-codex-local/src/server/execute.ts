@@ -19,6 +19,7 @@ import {
   runChildProcess,
   createManagedSkillSymlinks,
 } from "@agentcompany/adapter-utils/server-utils";
+import { firstNonEmptyLine } from "@agentcompany/adapter-utils/test-utils";
 import { parseCodexJsonl, isCodexUnknownSessionError } from "./parse.js";
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -42,15 +43,6 @@ function stripCodexRolloutNoise(text: string): string {
     kept.push(part);
   }
   return kept.join("\n");
-}
-
-function firstNonEmptyLine(text: string): string {
-  return (
-    text
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .find(Boolean) ?? ""
-  );
 }
 
 function hasNonEmptyEnvValue(env: Record<string, string>, key: string): boolean {

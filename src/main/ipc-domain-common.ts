@@ -2,11 +2,12 @@ import type { IpcMainInvokeEvent } from "electron";
 import { z } from "zod";
 import type { DesktopResult } from "@shared/contracts";
 import type { bootstrapOnboardingSchema } from "@shared/contracts";
+import type { DesktopEvent } from "@shared/types";
 import type { AppDatabase } from "./database";
 import type { createSkillService } from "./skill-service";
 import type { createBudgetEnforcementService } from "./budget-enforcement-service";
 
-export interface BrowserActionControl {
+interface BrowserActionControl {
   clearSocialAccountData: (socialAccountId: string, screenshotPaths?: string[]) => Promise<void>;
   cancelAction: (actionId: string) => boolean;
   launchLoginBrowser: (socialAccountId: string, platform: string, loginUrl?: string) => Promise<{
@@ -33,7 +34,7 @@ export interface RegisterDomainHandlersDependencies {
     refs: Array<{ id: string | null | undefined; table: string; label: string }>,
   ) => { id: string | null | undefined; table: string; label: string } | null;
   publishDomainChanged: () => void;
-  emitEvent: (event: any) => void;
+  emitEvent: (event: DesktopEvent) => void;
   wakeAgentIfPossible: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
   dispatchAutomation: (trigger: string, ctx: { companyId: string; [key: string]: unknown }) => void;
   runWorkflowPipeline: (workflowId: string, companyId: string) => Promise<void>;

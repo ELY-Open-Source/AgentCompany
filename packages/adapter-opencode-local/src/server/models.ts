@@ -5,6 +5,7 @@ import {
   ensurePathInEnv,
   runChildProcess,
 } from "@agentcompany/adapter-utils/server-utils";
+import { firstNonEmptyLine } from "@agentcompany/adapter-utils/test-utils";
 
 const MODELS_CACHE_TTL_MS = 60_000;
 
@@ -36,15 +37,6 @@ function dedupeModels(models: AdapterModel[]): AdapterModel[] {
 function sortModels(models: AdapterModel[]): AdapterModel[] {
   return [...models].sort((a, b) =>
     a.id.localeCompare(b.id, "en", { numeric: true, sensitivity: "base" }),
-  );
-}
-
-function firstNonEmptyLine(text: string): string {
-  return (
-    text
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .find(Boolean) ?? ""
   );
 }
 

@@ -1,17 +1,5 @@
 import type { TranscriptEntry } from "@agentcompany/adapter-utils";
-
-function safeJsonParse(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
+import { asRecord, safeJsonParse } from "@agentcompany/adapter-utils/parse-utils";
 
 function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;

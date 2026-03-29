@@ -1,4 +1,3 @@
-import path from "node:path";
 import type {
   AdapterEnvironmentCheck,
   AdapterEnvironmentTestContext,
@@ -14,32 +13,9 @@ import {
   parseObject,
   runChildProcess,
 } from "@agentcompany/adapter-utils/server-utils";
+import { summarizeStatus, isNonEmpty, commandLooksLike, summarizeProbeDetail } from "@agentcompany/adapter-utils/test-utils";
 import { DEFAULT_GEMINI_LOCAL_MODEL } from "../index.js";
 import { detectGeminiAuthRequired, parseGeminiJsonl } from "./parse.js";
-import { firstNonEmptyLine } from "./utils.js";
-
-function summarizeStatus(checks: AdapterEnvironmentCheck[]): AdapterEnvironmentTestResult["status"] {
-  if (checks.some((check) => check.level === "error")) return "fail";
-  if (checks.some((check) => check.level === "warn")) return "warn";
-  return "pass";
-}
-
-function isNonEmpty(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
-function commandLooksLike(command: string, expected: string): boolean {
-  const base = path.basename(command).toLowerCase();
-  return base === expected || base === `${expected}.cmd` || base === `${expected}.exe`;
-}
-
-function summarizeProbeDetail(stdout: string, stderr: string, parsedError: string | null): string | null {
-  const raw = parsedError?.trim() || firstNonEmptyLine(stderr) || firstNonEmptyLine(stdout);
-  if (!raw) return null;
-  const clean = raw.replace(/\s+/g, " ").trim();
-  const max = 240;
-  return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
-}
 
 export async function testEnvironment(
   ctx: AdapterEnvironmentTestContext,

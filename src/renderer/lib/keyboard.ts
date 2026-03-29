@@ -1,14 +1,3 @@
-/**
- * Keyboard navigation utilities for virtualized lists.
- * Implements roving tabindex pattern for accessible arrow-key navigation.
- *
- * The useRovingTabIndex hook can be used in two ways:
- * 1. As a React hook (called inside a component) -- it creates its own React state
- * 2. As a standalone factory (for testing) -- it manages state internally
- *
- * This dual design allows pure-logic testing without DOM or React rendering.
- */
-
 interface RovingTabIndexResult {
   containerRef: { current: HTMLDivElement | null };
   focusedIndex: number;
@@ -17,26 +6,7 @@ interface RovingTabIndexResult {
   getTabIndex: (index: number) => 0 | -1;
 }
 
-/**
- * Roving tabindex hook for keyboard navigation in lists.
- *
- * Usage in React component:
- * ```tsx
- * const { containerRef, focusedIndex, handleKeyDown, getTabIndex } = useRovingTabIndex(items.length);
- * return (
- *   <div ref={containerRef} onKeyDown={handleKeyDown} role="listbox">
- *     {items.map((item, i) => (
- *       <div key={item.id} tabIndex={getTabIndex(i)} data-index={i} role="option">
- *         ...
- *       </div>
- *     ))}
- *   </div>
- * );
- * ```
- *
- * Supports: ArrowDown, ArrowUp, Home, End, j (down), k (up)
- * Wraps around at boundaries.
- */
+/** Roving tabindex for keyboard nav in lists. Supports Arrow/Home/End/j/k with wrap-around. */
 export function useRovingTabIndex(itemCount: number): RovingTabIndexResult {
   // Use internal mutable state for testability outside React
   // In a React component context, this still works correctly because

@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, execSync, type ChildProcess } from "node:child_process";
 import { constants as fsConstants, promises as fs, type Dirent } from "node:fs";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -354,6 +354,7 @@ export async function runChildProcess(
           cwd: opts.cwd,
           env: mergedEnv,
           shell: false,
+          windowsHide: true,
           stdio: [opts.stdin != null ? "pipe" : "ignore", "pipe", "pipe"],
         }) as ChildProcessWithEvents;
 
@@ -466,6 +467,37 @@ export async function runChildProcess(
       })
       .catch(reject);
   });
+}
+
+/**
+ * Kill a process and all its descendants.
+ * Windows: `taskkill /T /F` kills the full process tree.
+ * Unix:    SIGKILL the process directly (CLI tools are leaf processes).
+ */
+function killProcessTree(pid: number): void {
+  if (process.platform === "win32") {
+    try {
+      execSync(`taskkill /T /F /PID ${pid}`, { stdio: "ignore", timeout: 5000 });
+    } catch { /* process already exited */ }
+  } else {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch { /* already dead */ }
+  }
+}
+
+/**
+ * Force-kill every child process tracked in `runningProcesses` and clear the map.
+ * Called by the worker during shutdown to ensure no CLI processes survive app quit.
+ */
+export function shutdownAllRunning(): void {
+  for (const [runId, entry] of runningProcesses) {
+    const pid = entry.child.pid;
+    if (pid != null) {
+      killProcessTree(pid);
+    }
+    runningProcesses.delete(runId);
+  }
 }
 
 /**

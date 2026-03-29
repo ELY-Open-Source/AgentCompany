@@ -42,7 +42,7 @@ export function TaskInspector({ task, tasks, runs, agents, goals, projects, work
       {actionError ? <InlineNotice message={actionError} /> : null}
       {!actionError && actionNotice ? <InlineNotice message={actionNotice} tone="success" /> : null}
       {editing ? (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid min-w-0 gap-3 md:grid-cols-2">
           <div className="md:col-span-2"><Input label={t("exec.title")} value={editTitle} onChange={setEditTitle} placeholder={t("exec.taskTitle")} /></div>
           <div className="md:col-span-2"><TextArea label={t("exec.description")} value={editDescription} onChange={setEditDescription} placeholder={t("exec.description")} rows={4} /></div>
           <Select label={t("exec.priority")} value={editPriority} onChange={v => setEditPriority(v as TaskRecord["priority"])} options={["critical","high","medium","low"].map(v => ({ value: v, label: v }))} />

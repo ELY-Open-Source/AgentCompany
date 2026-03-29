@@ -29,13 +29,12 @@ export function createBrowserActionService({
       throw new Error(`Browser action ${actionId} is ${action.status} and cannot be dispatched.`);
     }
     if (action.approvalId) {
-      const approval = (() => {
-        try {
-          return db.getApprovalRecord(action.approvalId);
-        } catch {
-          return null;
-        }
-      })();
+      let approval: ReturnType<typeof db.getApprovalRecord> | null = null;
+      try {
+        approval = db.getApprovalRecord(action.approvalId);
+      } catch {
+        // Record not found
+      }
       if (!approval || approval.companyId !== companyId) {
         throw new Error(`Browser action approval ${action.approvalId} does not belong to company ${companyId}.`);
       }

@@ -73,6 +73,126 @@ interface AutomationDependencies {
   isQuitting: () => boolean;
 }
 
+const DEPARTMENT_SKILL_KEYWORDS: Record<string, string[]> = {
+  engineering: ["code", "engineer", "develop", "program", "software", "api", "backend", "frontend", "full-stack", "fullstack", "devops", "infrastructure", "system", "architect", "debug", "test", "ci", "cd", "deploy", "docker", "kubernetes", "database", "sql", "git", "typescript", "javascript", "python", "rust", "go", "java", "react", "node", "css", "html", "web"],
+  product: ["product", "feature", "requirement", "roadmap", "user story", "ux", "ui", "design", "prototype", "wireframe", "specification", "prd"],
+  marketing: ["market", "content", "seo", "social media", "brand", "campaign", "analytics", "growth", "copywrite", "blog", "newsletter", "email"],
+  sales: ["sales", "crm", "lead", "pipeline", "deal", "revenue", "prospect", "outbound", "cold"],
+  hr: ["hr", "human resource", "hiring", "recruit", "onboard", "performance", "culture", "talent", "people"],
+  finance: ["finance", "budget", "accounting", "cost", "revenue", "profit", "spend", "invoice", "tax", "payroll"],
+  design: ["design", "ui", "ux", "visual", "figma", "sketch", "prototype", "illustration", "typography", "layout", "color", "icon"],
+  research: ["research", "analysis", "data", "study", "survey", "experiment", "insight", "benchmark", "report"],
+  operations: ["operations", "process", "workflow", "efficiency", "supply chain", "logistics", "coordination"],
+  customer_support: ["support", "customer", "ticket", "helpdesk", "troubleshoot", "faq", "documentation"],
+  legal: ["legal", "compliance", "contract", "regulation", "policy", "privacy", "ip", "intellectual property"],
+  executive: ["strategy", "leadership", "management", "executive", "ceo", "cto", "coo", "cfo", "cmo", "vp"],
+};
+
+function parseDocumentIdsFromPayload(payloadJson: string | null): string[] {
+  if (!payloadJson) return [];
+  try {
+    const parsed = JSON.parse(payloadJson) as Record<string, unknown>;
+    const ids = parsed.documentIds;
+    if (Array.isArray(ids)) return ids.filter((id): id is string => typeof id === "string");
+  } catch { /* invalid JSON */ }
+  return [];
+}
+
+function scoreSkillAgentMatch(
+  skill: { name: string; description: string | null; markdown: string },
+  agent: { role: string; department: string | null; title: string | null; capabilities: string },
+): number {
+  const agentText = [
+    agent.role,
+    agent.department ?? "",
+    agent.title ?? "",
+    agent.capabilities,
+  ].join(" ").toLowerCase();
+
+  const skillText = [
+    skill.name,
+    skill.description ?? "",
+    skill.markdown.slice(0, 500),
+  ].join(" ").toLowerCase();
+
+  let score = 0;
+
+  const dept = agent.department ?? "";
+  const deptKeywords = DEPARTMENT_SKILL_KEYWORDS[dept] ?? [];
+  for (const keyword of deptKeywords) {
+    if (skillText.includes(keyword)) {
+      score += 2;
+    }
+  }
+
+  const agentWords = agentText
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3);
+  for (const word of agentWords) {
+    if (skillText.includes(word)) {
+      score += 1;
+    }
+  }
+
+  // Executives need awareness of all domains
+  const executiveRoles = ["ceo", "cto", "coo", "cfo", "cmo", "vp", "chief", "director", "head", "lead"];
+  const roleLower = agent.role.toLowerCase();
+  if (executiveRoles.some((r) => roleLower.includes(r))) {
+    score += 1;
+  }
+
+  return score;
+}
+
+export function autoAssignSkillsToAgent(
+  db: AppDatabase,
+  logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void },
+  companyId: string,
+  agentId: string,
+): number {
+  const agent = db.getAgent(agentId);
+  if (!agent || agent.companyId !== companyId) return 0;
+
+  const allSkills = db.listCompanySkills(companyId);
+  if (allSkills.length === 0) return 0;
+
+  const existingAssignments = new Set(db.listAgentSkillAssignments(agentId));
+
+  const scored = allSkills
+    .filter((skill) => !existingAssignments.has(skill.id))
+    .map((skill) => ({
+      skill,
+      score: scoreSkillAgentMatch(skill, agent),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const MIN_SCORE = 3;
+  let assigned = 0;
+  for (const { skill, score } of scored) {
+    if (score < MIN_SCORE) continue;
+    try {
+      db.assignSkillToAgent(agentId, skill.id);
+      assigned++;
+      logger.info(
+        `[skill-autoassign] Assigned "${skill.name}" to ${agent.name} (${agent.role}) — score ${score}`,
+      );
+    } catch (err) {
+      logger.warn(
+        `[skill-autoassign] Failed to assign "${skill.name}" to ${agent.name}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  if (assigned === 0) {
+    logger.info(
+      `[skill-autoassign] No matching skills for ${agent.name} (${agent.role}); agent will run without skills until manually assigned`,
+    );
+  }
+
+  return assigned;
+}
+
 interface RunFinishedEvent {
   status: RunStatus;
   summary: string | null;
@@ -202,10 +322,9 @@ export function createAutomationService({
   }
 
   function matchesConditions(
-    rule: { conditionsJson: string; sourceDepartment: string | null; targetDepartment: string | null },
+    rule: { conditionsJson: string; sourceDepartment: string | null },
     ctx: AutomationEventContext,
   ) {
-    void rule.targetDepartment;
     return matchesEventConfig(rule.conditionsJson, rule.sourceDepartment, ctx);
   }
 
@@ -1067,11 +1186,30 @@ export function createAutomationService({
             entityId: agent.id,
             detail: `${agent.name} hire approved and activated.`,
           });
+
+          const skillsAssigned = autoAssignSkillsToAgent(db, logger, companyId, agent.id);
+          if (skillsAssigned > 0) {
+            db.addActivity({
+              companyId,
+              actor: "system",
+              action: "skills.auto_assigned",
+              entityType: "agent",
+              entityId: agent.id,
+              detail: `Auto-assigned ${skillsAssigned} skill(s) to ${agent.name} based on role/department matching.`,
+            });
+          }
+
           dispatchAutomation("hire_approved", {
             companyId,
             agentId: agent.id,
           });
           wakeAgentIfPossible(agent.id, companyId, "assignment");
+
+          const ceo = db.getCeoForCompany(companyId);
+          if (ceo && ceo.id !== agent.id) {
+            wakeAgentIfPossible(ceo.id, companyId, "assignment");
+          }
+
           publishDomainChanged();
           notify({
             title: "Agent Hired",
@@ -1086,39 +1224,58 @@ export function createAutomationService({
       }
     }
 
-    if (approval.type === "deliverable_review" && approval.relatedTaskId) {
+    if (approval.type === "deliverable_review") {
       try {
-        const task = db.getTask(approval.relatedTaskId);
-        // Re-enable heartbeat for the producing agent now that the user has decided
-        if (task.assigneeAgentId) {
+        // Update linked document statuses from payloadJson
+        const documentIds = parseDocumentIdsFromPayload(approval.payloadJson);
+        const docStatus = decision === "approved" ? "approved" : decision === "rejected" ? "draft" : "in_review";
+        for (const docId of documentIds) {
+          db.updateDocumentStatus(docId, companyId, docStatus);
+        }
+
+        if (approval.relatedTaskId) {
+          const task = db.getTask(approval.relatedTaskId);
+          if (task.assigneeAgentId) {
+            try {
+              const agent = db.getAgent(task.assigneeAgentId);
+              if (!agent.heartbeatEnabled) {
+                db.setHeartbeat(task.assigneeAgentId, true, agent.heartbeatIntervalSec || 120);
+                logger.info(`[deliverable-review] Resumed heartbeat for ${agent.name} after user ${decision}.`);
+              }
+            } catch { /* agent lookup non-fatal */ }
+          }
+          if (decision === "approved") {
+            db.advanceTaskStatus(task.id, "done", "Board approved deliverable.");
+            handleTaskStatusChange(task.id, companyId, task.status, "done");
+            db.addActivity({ companyId, actor: "board", action: "deliverable.approved", entityType: "task", entityId: task.id, detail: approval.decisionNote || "Deliverable approved by board." });
+          } else if (decision === "rejected") {
+            db.advanceTaskStatus(task.id, "in_progress", `Board rejected deliverable: ${approval.decisionNote || "No reason given."}`);
+            handleTaskStatusChange(task.id, companyId, task.status, "in_progress");
+            if (task.assigneeAgentId) {
+              wakeAgentIfPossible(task.assigneeAgentId, companyId, "revision_needed");
+            }
+          } else if (decision === "revision_requested") {
+            if (task.assigneeAgentId) {
+              wakeAgentIfPossible(task.assigneeAgentId, companyId, "revision_needed");
+            }
+          }
+        } else if (approval.requestedByAgentId) {
+          // Document-only review (no task) — resume the producing agent
           try {
-            const agent = db.getAgent(task.assigneeAgentId);
+            const agent = db.getAgent(approval.requestedByAgentId);
             if (!agent.heartbeatEnabled) {
-              db.setHeartbeat(task.assigneeAgentId, true, agent.heartbeatIntervalSec || 120);
+              db.setHeartbeat(approval.requestedByAgentId, true, agent.heartbeatIntervalSec || 120);
               logger.info(`[deliverable-review] Resumed heartbeat for ${agent.name} after user ${decision}.`);
             }
-          } catch { /* best effort */ }
-        }
-        if (decision === "approved") {
-          db.advanceTaskStatus(task.id, "done", "Board approved deliverable.");
-          handleTaskStatusChange(task.id, companyId, task.status, "done");
-          db.addActivity({ companyId, actor: "board", action: "deliverable.approved", entityType: "task", entityId: task.id, detail: approval.decisionNote || "Deliverable approved by board." });
-          publishDomainChanged();
-        } else if (decision === "rejected") {
-          db.advanceTaskStatus(task.id, "in_progress", `Board rejected deliverable: ${approval.decisionNote || "No reason given."}`);
-          handleTaskStatusChange(task.id, companyId, task.status, "in_progress");
-          if (task.assigneeAgentId) {
-            wakeAgentIfPossible(task.assigneeAgentId, companyId, "revision_needed");
+          } catch { /* agent lookup non-fatal */ }
+          if (decision !== "approved") {
+            wakeAgentIfPossible(approval.requestedByAgentId, companyId, "revision_needed");
           }
-          publishDomainChanged();
-        } else if (decision === "revision_requested") {
-          if (task.assigneeAgentId) {
-            wakeAgentIfPossible(task.assigneeAgentId, companyId, "revision_needed");
-          }
-          publishDomainChanged();
         }
+
+        publishDomainChanged();
       } catch {
-        // Deliverable review follow-up is best-effort.
+        // Deliverable review follow-up is non-fatal — approval state is already committed.
       }
     }
 

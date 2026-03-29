@@ -28,7 +28,7 @@ import {
   isGeminiUnknownSessionError,
   parseGeminiJsonl,
 } from "./parse.js";
-import { firstNonEmptyLine } from "./utils.js";
+import { firstNonEmptyLine } from "@agentcompany/adapter-utils/test-utils";
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const SKILLS_CANDIDATES = [
@@ -276,7 +276,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     }
   }
   const commandNotes = (() => {
-    const notes: string[] = ["Prompt is passed to Gemini as the final positional argument."];
+    const notes: string[] = [useStdin
+      ? "Prompt passed via stdin (exceeds command-line length limit)."
+      : "Prompt is passed to Gemini as the final positional argument."];
     notes.push("Added --approval-mode yolo for unattended execution.");
     if (!instructionsFilePath) return notes;
     if (instructionsPrefix.length > 0) {
@@ -305,6 +307,18 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const apiAccessNote = renderApiAccessNote(env);
   const prompt = `${instructionsPrefix}${envNote}${apiAccessNote}${renderedPrompt}`;
 
+  // When the prompt is short enough for a command-line argument, pass it
+  // directly as a positional arg (Gemini CLI's native interface). When it
+  // exceeds the OS limit (~32k chars on Windows), write it to a temp file
+  // and pass the content via stdin to avoid ENAMETOOLONG.
+  const SAFE_ARG_LIMIT = 30_000;
+  const useStdin = prompt.length > SAFE_ARG_LIMIT;
+  let promptFilePath: string | null = null;
+  if (useStdin) {
+    promptFilePath = path.join(os.tmpdir(), `agentcompany-gemini-prompt-${runId}.txt`);
+    await fs.writeFile(promptFilePath, prompt, "utf8");
+  }
+
   const buildArgs = (resumeSessionId: string | null) => {
     const args = ["--output-format", "stream-json"];
     if (resumeSessionId) args.push("--resume", resumeSessionId);
@@ -316,8 +330,6 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       args.push("--sandbox=none");
     }
     if (extraArgs.length > 0) {
-      // Filter out flags the adapter already manages to prevent duplicates
-      // (e.g. user shell aliases that inject --approval-mode or --sandbox)
       const managedFlags = [
         "--approval-mode",
         "--output-format",
@@ -327,7 +339,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       const cleaned = filterConflictingArgs(extraArgs, managedFlags);
       if (cleaned.length > 0) args.push(...cleaned);
     }
-    args.push(prompt);
+    if (!useStdin) {
+      args.push(prompt);
+    }
     return args;
   };
 
@@ -354,6 +368,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       timeoutSec,
       graceSec,
       onLog,
+      ...(useStdin ? { stdin: prompt } : {}),
     });
     return {
       proc,
@@ -442,20 +457,27 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     };
   };
 
-  const initial = await runAttempt(sessionId);
-  if (
-    sessionId &&
-    !initial.proc.timedOut &&
-    (initial.proc.exitCode ?? 0) !== 0 &&
-    isGeminiUnknownSessionError(initial.proc.stdout, initial.proc.stderr)
-  ) {
-    await onLog(
-      "stderr",
-      `[agent-company] Gemini resume session "${sessionId}" is unavailable; retrying with a fresh session.\n`,
-    );
-    const retry = await runAttempt(null);
-    return toResult(retry, true, true);
-  }
+  try {
+    const initial = await runAttempt(sessionId);
+    if (
+      sessionId &&
+      !initial.proc.timedOut &&
+      (initial.proc.exitCode ?? 0) !== 0 &&
+      isGeminiUnknownSessionError(initial.proc.stdout, initial.proc.stderr)
+    ) {
+      await onLog(
+        "stderr",
+        `[agent-company] Gemini resume session "${sessionId}" is unavailable; retrying with a fresh session.\n`,
+      );
+      const retry = await runAttempt(null);
+      return toResult(retry, true, true);
+    }
 
-  return toResult(initial);
+    return toResult(initial);
+  } finally {
+    // Clean up temp prompt file if used
+    if (promptFilePath) {
+      await fs.unlink(promptFilePath).catch(() => {});
+    }
+  }
 }

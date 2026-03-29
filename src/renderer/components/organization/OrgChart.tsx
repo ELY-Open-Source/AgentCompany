@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Heartbeat } from "@phosphor-icons/react";
-import type { AgentRecord } from "@shared/types";
+import type { AgentRecord, ConnectorRecord } from "@shared/types";
 import { getAgentInitials } from "../../lib/formatters";
 import { EmptyState } from "../ui";
 import { useT } from "../../i18n";
 import { buildOrgTree, layoutForest, flattenLayout, collectEdges, statusDotColor, adapterLabels, CARD_W, CARD_H, CHART_PADDING } from "./orgTreeLayout";
 
-export function OrgChart({ agents, onSelectAgent }: { agents: AgentRecord[]; onSelectAgent?: (agentId: string) => void }) {
+export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentRecord[]; connectors?: ConnectorRecord[]; onSelectAgent?: (agentId: string) => void }) {
   const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -92,7 +92,10 @@ export function OrgChart({ agents, onSelectAgent }: { agents: AgentRecord[]; onS
       <div className="absolute inset-0" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "0 0" }}>
         {allNodes.map((node) => {
           const dotColor = statusDotColor[node.agent.status] ?? "#a3a3a3";
-          const connectorLabel = adapterLabels[node.agent.connectorId] ?? node.agent.connectorId;
+          const connectorRecord = connectors?.find((c) => c.id === node.agent.connectorId);
+          const connectorLabel = (connectorRecord?.id.startsWith("claude_compat") && connectorRecord.notes)
+            ? connectorRecord.notes
+            : adapterLabels[node.agent.connectorId] ?? node.agent.connectorId;
           const initials = getAgentInitials(node.agent.name);
           const isRunning = node.agent.status === "running";
           const isActive = node.agent.status === "active" || isRunning;

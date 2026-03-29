@@ -1,21 +1,5 @@
 import pc from "picocolors";
-
-function asErrorText(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return "";
-  const obj = value as Record<string, unknown>;
-  const message =
-    (typeof obj.message === "string" && obj.message) ||
-    (typeof obj.error === "string" && obj.error) ||
-    (typeof obj.code === "string" && obj.code) ||
-    "";
-  if (message) return message;
-  try {
-    return JSON.stringify(obj);
-  } catch {
-    return "";
-  }
-}
+import { errorText as asErrorText } from "@agentcompany/adapter-utils/parse-utils";
 
 export function printClaudeStreamEvent(raw: string, debug: boolean): void {
   const line = raw.trim();

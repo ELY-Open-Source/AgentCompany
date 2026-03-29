@@ -51,6 +51,8 @@ const api: DesktopApi = {
   getAgentMetrics: (input) => ipcRenderer.invoke(IPC_CHANNELS.getAgentMetrics, input),
   getStandupReport: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.getStandupReport, companyId),
   bootstrapOnboarding: (input) => ipcRenderer.invoke(IPC_CHANNELS.bootstrapOnboarding, input),
+  checkNodeInstalled: () => ipcRenderer.invoke(IPC_CHANNELS.checkNodeInstalled),
+  openTerminalCommand: (input) => ipcRenderer.invoke(IPC_CHANNELS.openTerminalCommand, input),
   saveSocialAccount: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveSocialAccount, input),
   deleteSocialAccount: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteSocialAccount, input),
   listBrowserActions: (input) => ipcRenderer.invoke(IPC_CHANNELS.listBrowserActions, input),
@@ -118,6 +120,11 @@ const api: DesktopApi = {
       ipcRenderer.removeListener(IPC_CHANNELS.rendererEvent, listener);
     };
   },
+  platform: process.platform as "win32" | "darwin" | "linux",
+  windowMinimize: () => ipcRenderer.invoke("window:minimize"),
+  windowMaximize: () => ipcRenderer.invoke("window:maximize"),
+  windowClose: () => ipcRenderer.invoke("window:close"),
+  windowIsMaximized: () => ipcRenderer.invoke("window:isMaximized") as Promise<boolean>,
 };
 
 contextBridge.exposeInMainWorld("agentCompany", api);

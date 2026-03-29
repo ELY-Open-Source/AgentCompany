@@ -6,6 +6,7 @@ import {
   app,
   BrowserWindow,
   dialog,
+  ipcMain,
   Menu,
   nativeImage,
   nativeTheme,
@@ -153,7 +154,13 @@ export function createDesktopShellService({
       callback(false);
     });
     app.on("web-contents-created", (_event, contents) => {
-      contents.setWindowOpenHandler(() => ({ action: "deny" }));
+      contents.setWindowOpenHandler(({ url }) => {
+        // Allow external https URLs to open in the user's default browser
+        if (url.startsWith("https://") || url.startsWith("http://")) {
+          shell.openExternal(url);
+        }
+        return { action: "deny" };
+      });
       contents.on("will-attach-webview", (event) => {
         event.preventDefault();
       });
@@ -198,6 +205,8 @@ export function createDesktopShellService({
   async function createWindow() {
     const windowIcon = nativeImage.createFromPath(iconPath);
     const savedWindowState = loadWindowState(windowStatePath);
+    const isWindows = process.platform === "win32";
+    const isLinux = process.platform === "linux";
     mainWindow = new BrowserWindow({
       title: "AgentCompany",
       icon: windowIcon.isEmpty() ? undefined : windowIcon,
@@ -208,7 +217,9 @@ export function createDesktopShellService({
       minWidth: 1180,
       minHeight: 760,
       backgroundColor: "#ffffff",
+      frame: process.platform === "darwin",
       titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+      ...(isWindows || isLinux ? { titleBarOverlay: false } : {}),
       webPreferences: {
         preload: preloadPath,
         contextIsolation: true,
@@ -367,7 +378,15 @@ export function createDesktopShellService({
         ],
       },
     ];
-    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+    const menu = Menu.buildFromTemplate(template);
+    if (process.platform === "darwin") {
+      Menu.setApplicationMenu(menu);
+    } else {
+      // Frameless windows: hide native menu bar but keep keyboard accelerators active
+      Menu.setApplicationMenu(menu);
+      mainWindow?.setMenuBarVisibility(false);
+      mainWindow?.setAutoHideMenuBar(true);
+    }
   }
 
   function createTray() {
@@ -456,6 +475,18 @@ export function createDesktopShellService({
     registerProtocol();
     buildMenu();
     createTray();
+
+    // Window control IPC for custom title bar (Windows/Linux frameless windows)
+    ipcMain.handle("window:minimize", () => { mainWindow?.minimize(); });
+    ipcMain.handle("window:maximize", () => {
+      if (mainWindow?.isMaximized()) {
+        mainWindow.unmaximize();
+      } else {
+        mainWindow?.maximize();
+      }
+    });
+    ipcMain.handle("window:close", () => { mainWindow?.close(); });
+    ipcMain.handle("window:isMaximized", () => mainWindow?.isMaximized() ?? false);
   }
 
   return {

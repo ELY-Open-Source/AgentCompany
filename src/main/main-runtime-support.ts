@@ -2,7 +2,7 @@ import log from "electron-log/main.js";
 import type { AgentApiServer } from "./api-server";
 import { initializeAgentTokenSigningKey } from "./agent-auth";
 import { bootstrapApplication } from "./bootstrap-application";
-import { openConnectorAuthTerminal as openConnectorAuthTerminalImpl } from "./connector-auth-service";
+import { openConnectorAuthTerminal as openConnectorAuthTerminalImpl, openGenericTerminal as openGenericTerminalImpl } from "./connector-auth-service";
 import { getConnectorDefinition } from "./connectors";
 import type { AppDatabase } from "./database";
 import { seedDefaultAutomationRules as seedDefaultAutomationRulesImpl } from "./default-automation-rules";
@@ -138,6 +138,7 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
         const connector = requireDb().getConnector(id);
         return openConnectorAuthTerminalImpl(id, connector.command);
       },
+      openGenericTerminal: (input) => openGenericTerminalImpl(input),
       checkForUpdates: () => requireUpdaterService().checkForUpdates(),
       getWorkerProcess: () => requireServiceGraph().getWorkerService()?.getWorker() ?? null,
       resetAfterRestore: () => {
@@ -147,6 +148,13 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       getApiPort: () => state.apiServer?.getPort() ?? 0,
       notify: (options) => requireIpcSupport().notify(options),
       listConnectorModels: async (connectorId) => {
+        // For claude_compatible, return user-configured models from the DB
+        // (stored as comma-separated values in the connector's model field)
+        if (connectorId.startsWith("claude_compat")) {
+          const connector = requireDb().getConnector(connectorId);
+          const raw = connector.model ?? "";
+          return raw.split(",").map((m) => m.trim()).filter(Boolean).map((m) => ({ id: m, label: m }));
+        }
         const definition = getConnectorDefinition(connectorId as Parameters<typeof getConnectorDefinition>[0]);
         return definition.listModels ? definition.listModels() : [];
       },

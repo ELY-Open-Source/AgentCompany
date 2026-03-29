@@ -1,14 +1,6 @@
-// ---------------------------------------------------------------------------
-// Canonical skill key derivation and skill import source resolution
-// ---------------------------------------------------------------------------
-
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import type { SkillSourceType } from "./skill-types.js";
-
-// ---------------------------------------------------------------------------
-// Slug normalization helpers
-// ---------------------------------------------------------------------------
 
 const SLUG_DELIM_RE = /[^a-z0-9]+/g;
 const SLUG_TRIM_RE = /^-+|-+$/g;
@@ -30,10 +22,6 @@ export function normalizeSkillSlug(
   return normalized.length > 0 ? normalized : null;
 }
 
-// ---------------------------------------------------------------------------
-// Hashing
-// ---------------------------------------------------------------------------
-
 /**
  * Compute the first 10 characters of a SHA-256 hex digest.
  * Used for hash segments in canonical keys.
@@ -41,10 +29,6 @@ export function normalizeSkillSlug(
 export function hashSkillValue(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 10);
 }
-
-// ---------------------------------------------------------------------------
-// Canonical key derivation
-// ---------------------------------------------------------------------------
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
@@ -112,10 +96,6 @@ export function deriveCanonicalSkillKey(
   // Fallback: company-scoped key
   return `company/${companyId}/${slug}`;
 }
-
-// ---------------------------------------------------------------------------
-// Skill import source resolution
-// ---------------------------------------------------------------------------
 
 // Three-part key: org/repo/skill
 const THREE_PART_KEY_RE =

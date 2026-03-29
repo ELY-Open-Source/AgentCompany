@@ -48,6 +48,8 @@ export const IPC_CHANNELS = {
   getAgentMetrics: "agent-company:get-agent-metrics",
   getStandupReport: "agent-company:get-standup-report",
   bootstrapOnboarding: "agent-company:bootstrap-onboarding",
+  checkNodeInstalled: "agent-company:check-node-installed",
+  openTerminalCommand: "agent-company:open-terminal-command",
   saveSocialAccount: "agent-company:save-social-account",
   deleteSocialAccount: "agent-company:delete-social-account",
   listBrowserActions: "agent-company:list-browser-actions",
@@ -110,7 +112,7 @@ export const companyInputSchema = z.object({
 });
 
 export const connectorInputSchema = z.object({
-  id: z.enum(["codex_local", "claude_local", "gemini_local"]),
+  id: z.enum(["codex_local", "claude_local", "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5", "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10", "gemini_local"]),
   command: z.string().min(1),
   model: z.string().nullable().optional(),
   envBindingText: z.string().default(""),
@@ -311,7 +313,13 @@ export const bootstrapOnboardingSchema = z.object({
   reviewDeliverables: z.boolean().default(false),
   goalTitle: z.string().default(""),
   goalDescription: z.string().default(""),
-  connectorId: z.enum(["codex_local", "claude_local", "gemini_local"]).optional(),
+  connectorId: z.enum(["codex_local", "claude_local", "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5", "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10", "gemini_local"]).optional(),
+  connectorModel: z.string().default(""),
+});
+
+export const openTerminalCommandSchema = z.object({
+  title: z.string().min(1).max(200),
+  command: z.string().min(1),
 });
 
 export const socialAccountInputSchema = z.object({
@@ -700,6 +708,8 @@ export type DesktopApi = {
   getAgentMetrics: (input: z.infer<typeof metricsQuerySchema>) => Promise<DesktopResult<AgentMetrics>>;
   getStandupReport: (companyId: string) => Promise<DesktopResult<StandupReport>>;
   bootstrapOnboarding: (input: z.infer<typeof bootstrapOnboardingSchema>) => Promise<DesktopResult<OnboardingBootstrapResult>>;
+  checkNodeInstalled: () => Promise<DesktopResult<{ installed: boolean; version: string | null }>>;
+  openTerminalCommand: (input: z.infer<typeof openTerminalCommandSchema>) => Promise<DesktopResult<boolean>>;
   saveSocialAccount: (input: z.infer<typeof socialAccountInputSchema>) => Promise<DesktopResult<string>>;
   deleteSocialAccount: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
   listBrowserActions: (input: z.infer<typeof browserActionQuerySchema>) => Promise<DesktopResult<BrowserActionRecord[]>>;
@@ -749,4 +759,9 @@ export type DesktopApi = {
   getRun: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<RunRecord>>;
   getApproval: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<ApprovalRecord>>;
   subscribe: (callback: (event: DesktopEvent) => void) => () => void;
+  platform: "win32" | "darwin" | "linux";
+  windowMinimize: () => Promise<void>;
+  windowMaximize: () => Promise<void>;
+  windowClose: () => Promise<void>;
+  windowIsMaximized: () => Promise<boolean>;
 };

@@ -432,12 +432,20 @@ export class AgentApiServer {
           } catch { /* deliverable review interception is best-effort; fall through to normal flow */ }
         }
 
+        // Validate status transition
+        const effectiveStatus = update.status ?? task.status;
+        const VALID_STATUSES = new Set(["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"]);
+        if (update.status && !VALID_STATUSES.has(update.status)) {
+          this.json(res, 400, { error: `Invalid task status: ${update.status}` });
+          return;
+        }
+
         const input: Record<string, unknown> = {
           id: task.id,
           companyId: task.companyId,
           title: update.title ?? task.title,
           description: update.description ?? task.description,
-          status: update.status ?? task.status,
+          status: effectiveStatus,
           priority: update.priority ?? task.priority,
           projectId: task.projectId,
           goalId: task.goalId,
@@ -446,6 +454,11 @@ export class AgentApiServer {
           workspaceId: task.workspaceId,
         };
         this.db.saveTask(input as Parameters<typeof this.db.saveTask>[0]);
+
+        // Apply status side-effect timestamps via advanceTaskStatus if status changed
+        if (update.status && update.status !== task.status) {
+          this.db.advanceTaskStatus(task.id, update.status);
+        }
 
         if (update.comment) {
           const agent = this.db.getAgent(token.agentId);
@@ -861,6 +874,31 @@ export class AgentApiServer {
         return;
       }
 
+      // Prevent duplicate agents: reject if a non-terminated agent with the same name already exists
+      const existingAgents = this.db.listSnapshot().agents.filter(
+        (a) => a.companyId === companyId && a.status !== "terminated",
+      );
+      const duplicateByName = existingAgents.find(
+        (a) => a.name.toLowerCase() === input.name.toLowerCase(),
+      );
+      if (duplicateByName) {
+        this.json(res, 409, { error: `Agent "${input.name}" already exists in this company (id: ${duplicateByName.id}, role: ${duplicateByName.role}). Use the existing agent instead of creating a duplicate.` });
+        return;
+      }
+      // Also check pending hire approvals with the same name to prevent concurrent duplicate requests
+      const pendingHires = this.db.listSnapshot().approvals.filter(
+        (a) => a.companyId === companyId && a.type === "hire_agent" && a.state === "pending",
+      );
+      for (const pending of pendingHires) {
+        try {
+          const payload = pending.payloadJson ? JSON.parse(pending.payloadJson) as Record<string, unknown> : {};
+          if (typeof payload.name === "string" && payload.name.toLowerCase() === input.name.toLowerCase()) {
+            this.json(res, 409, { error: `A hire request for "${input.name}" is already pending approval.` });
+            return;
+          }
+        } catch { /* invalid payloadJson, skip */ }
+      }
+
       const managerLabel = input.reportsTo
         ? (() => {
           try {
@@ -975,6 +1013,16 @@ export class AgentApiServer {
         const chain = this.db.getChainOfCommand(token.agentId);
         if (chain.length > 0 && chain[0].id !== token.agentId && !wokenForComment.has(chain[0].id)) {
           this.onWakeAgent(chain[0].id, task.companyId, "comment");
+          wokenForComment.add(chain[0].id);
+        }
+
+        // @mention detection: wake any mentioned agents not already woken
+        const mentionedIds = this.db.findMentionedAgentIds(task.companyId, input.body);
+        for (const mentionedId of mentionedIds) {
+          if (mentionedId !== token.agentId && !wokenForComment.has(mentionedId)) {
+            this.onWakeAgent(mentionedId, task.companyId, "comment_mentioned");
+            wokenForComment.add(mentionedId);
+          }
         }
 
         this.json(res, 201, comment);
@@ -1113,6 +1161,88 @@ export class AgentApiServer {
 
     this.addRoute("PATCH", "/api/approvals/:approvalId", (_req, res) => {
       this.json(res, 403, { error: "Approvals must be decided from the desktop board, not from an agent run token" });
+    });
+
+    this.addRoute("GET", "/api/approvals/:approvalId/comments", (_req, res, params, token) => {
+      const approval = this.db.listSnapshot().approvals.find((a) => a.id === params.approvalId);
+      if (!approval) { this.json(res, 404, { error: "Approval not found" }); return; }
+      if (approval.companyId !== token.companyId) { this.json(res, 403, { error: "Company mismatch" }); return; }
+      const comments = this.db.listApprovalComments(params.approvalId!, approval.companyId);
+      this.json(res, 200, comments);
+    });
+
+    this.addRoute("POST", "/api/approvals/:approvalId/comments", (_req, res, params, token, body) => {
+      const approval = this.db.listSnapshot().approvals.find((a) => a.id === params.approvalId);
+      if (!approval) { this.json(res, 404, { error: "Approval not found" }); return; }
+      if (approval.companyId !== token.companyId) { this.json(res, 403, { error: "Company mismatch" }); return; }
+      const data = body as Record<string, unknown>;
+      const commentBody = typeof data.body === "string" ? data.body.trim() : "";
+      if (!commentBody) { this.json(res, 400, { error: "Comment body is required" }); return; }
+      const commentId = this.db.addApprovalComment({
+        companyId: approval.companyId,
+        approvalId: approval.id,
+        authorAgentId: token.agentId ?? null,
+        body: commentBody,
+      });
+      // Wake mentioned agents in comment
+      const mentionedIds = this.db.findMentionedAgentIds(approval.companyId, commentBody);
+      for (const mentionedId of mentionedIds) {
+        if (mentionedId !== token.agentId) {
+          this.onWakeAgent(mentionedId, approval.companyId, "approval_comment_mentioned");
+        }
+      }
+      this.onDomainChanged();
+      this.json(res, 201, { id: commentId });
+    });
+
+    this.addRoute("POST", "/api/approvals/:approvalId/resubmit", (_req, res, params, token) => {
+      const approval = this.db.listSnapshot().approvals.find((a) => a.id === params.approvalId);
+      if (!approval) { this.json(res, 404, { error: "Approval not found" }); return; }
+      if (approval.companyId !== token.companyId) { this.json(res, 403, { error: "Company mismatch" }); return; }
+      if (approval.state !== "revision_requested") {
+        this.json(res, 422, { error: "Only revision_requested approvals can be resubmitted" });
+        return;
+      }
+      if (token.agentId !== approval.requestedByAgentId) {
+        this.json(res, 403, { error: "Only the requesting agent can resubmit this approval" });
+        return;
+      }
+      this.db.resubmitApproval(approval.id, approval.companyId);
+      this.onDomainChanged();
+      this.json(res, 200, { resubmitted: true });
+    });
+
+    this.addRoute("GET", "/api/approvals/:approvalId/tasks", (_req, res, params, token) => {
+      const approval = this.db.listSnapshot().approvals.find((a) => a.id === params.approvalId);
+      if (!approval) { this.json(res, 404, { error: "Approval not found" }); return; }
+      if (approval.companyId !== token.companyId) { this.json(res, 403, { error: "Company mismatch" }); return; }
+      const taskIds = this.db.listTasksForApproval(params.approvalId!);
+      this.json(res, 200, taskIds);
+    });
+
+    this.addRoute("POST", "/api/approvals/:approvalId/tasks", (_req, res, params, token, body) => {
+      const approval = this.db.listSnapshot().approvals.find((a) => a.id === params.approvalId);
+      if (!approval) { this.json(res, 404, { error: "Approval not found" }); return; }
+      if (approval.companyId !== token.companyId) { this.json(res, 403, { error: "Company mismatch" }); return; }
+      const data = body as Record<string, unknown>;
+      const taskIds = Array.isArray(data.taskIds) ? data.taskIds.filter((id): id is string => typeof id === "string") : [];
+      if (taskIds.length === 0) { this.json(res, 400, { error: "taskIds array is required" }); return; }
+      for (const taskId of taskIds) {
+        if (!this.db.belongsToCompany("tasks", taskId, token.companyId)) {
+          this.json(res, 400, { error: `Task ${taskId} does not belong to this company` }); return;
+        }
+      }
+      this.db.linkManyTasksToApproval(params.approvalId!, taskIds, token.companyId, token.agentId ?? null);
+      this.onDomainChanged();
+      this.json(res, 200, { linked: taskIds.length });
+    });
+
+    this.addRoute("GET", "/api/companies/:companyId/documents/:documentId/revisions", (_req, res, params, token) => {
+      if (params.companyId !== token.companyId) { this.json(res, 403, { error: "Company mismatch" }); return; }
+      const documentId = params.documentId;
+      if (!documentId) { this.json(res, 400, { error: "Missing documentId" }); return; }
+      const revisions = this.db.listDocumentRevisions(documentId, token.companyId);
+      this.json(res, 200, revisions);
     });
 
     this.addRoute("GET", "/api/companies/:companyId/agents", (_req, res, params, token) => {
@@ -1506,6 +1636,180 @@ export class AgentApiServer {
       this.json(res, 200, docs);
     });
 
+    this.addRoute("PATCH", "/api/companies/:companyId/documents/:documentId", (_req, res, params, token, body) => {
+      if (params.companyId !== token.companyId) {
+        this.json(res, 403, { error: "Company mismatch" });
+        return;
+      }
+      const documentId = params.documentId;
+      if (!documentId) {
+        this.json(res, 400, { error: "Missing documentId" });
+        return;
+      }
+      const snapshot = this.db.listSnapshot();
+      const doc = snapshot.documents.find(d => d.id === documentId && d.companyId === token.companyId);
+      if (!doc) {
+        this.json(res, 404, { error: "Document not found in this company" });
+        return;
+      }
+      const data = body as Record<string, unknown>;
+      const VALID_STATUSES = new Set(["draft", "in_review", "approved", "archived", "superseded"]);
+
+      // Conflict detection: if baseRevisionId provided, verify it matches current
+      if (typeof data.baseRevisionId === "string") {
+        const currentRevId = this.db.getDocumentLatestRevisionId(documentId);
+        if (currentRevId && data.baseRevisionId !== currentRevId) {
+          this.json(res, 409, { error: "Document was updated by someone else", currentRevisionId: currentRevId });
+          return;
+        }
+      }
+
+      if (data.status !== undefined) {
+        const newStatus = String(data.status);
+        if (!VALID_STATUSES.has(newStatus)) {
+          this.json(res, 400, { error: `Invalid status "${newStatus}". Must be one of: ${[...VALID_STATUSES].join(", ")}` });
+          return;
+        }
+        this.db.updateDocumentStatus(documentId, token.companyId, newStatus);
+      }
+
+      // Content update → create revision for audit trail
+      if (data.content !== undefined) {
+        const newContent = String(data.content);
+        this.db.createDocumentRevision({
+          documentId,
+          companyId: token.companyId,
+          body: newContent,
+          changeSummary: typeof data.changeSummary === "string" ? data.changeSummary : null,
+          createdByAgentId: token.agentId ?? null,
+        });
+      }
+
+      // Field updates (title, reviewer, tags, etc.)
+      const reviewerAgentId = data.reviewerAgentId !== undefined
+        ? (data.reviewerAgentId ? String(data.reviewerAgentId) : null)
+        : doc.reviewerAgentId;
+      if (data.reviewerAgentId !== undefined && reviewerAgentId && !this.db.belongsToCompany("agents", reviewerAgentId, token.companyId)) {
+        this.json(res, 400, { error: "Reviewer agent does not belong to the current company" });
+        return;
+      }
+      this.db.saveDocument({
+        id: documentId,
+        companyId: token.companyId,
+        type: data.type ? String(data.type) : doc.type,
+        title: data.title ? String(data.title) : doc.title,
+        content: data.content !== undefined ? String(data.content) : doc.content,
+        authorAgentId: doc.authorAgentId,
+        reviewerAgentId,
+        projectId: doc.projectId,
+        goalId: doc.goalId,
+        status: data.status ? String(data.status) : doc.status,
+        tagsJson: data.tagsJson ? String(data.tagsJson) : doc.tagsJson,
+      });
+
+      this.onDomainChanged();
+      this.json(res, 200, { updated: true, latestRevisionId: this.db.getDocumentLatestRevisionId(documentId) });
+    });
+
+    // ── Work Products ──
+
+    this.addRoute("GET", "/api/issues/:issueId/work-products", (_req, res, params, token) => {
+      try {
+        const task = this.db.getTask(params.issueId!);
+        if (task.companyId !== token.companyId) { this.json(res, 404, { error: "Task not found" }); return; }
+        const products = this.db.listWorkProductsForTask(task.id, task.companyId);
+        this.json(res, 200, products);
+      } catch { this.json(res, 404, { error: "Task not found" }); }
+    });
+
+    this.addRoute("POST", "/api/issues/:issueId/work-products", (_req, res, params, token, body) => {
+      try {
+        const task = this.db.getTask(params.issueId!);
+        if (task.companyId !== token.companyId) { this.json(res, 404, { error: "Task not found" }); return; }
+        const data = body as Record<string, unknown>;
+        if (!data.type || !data.provider || !data.title) {
+          this.json(res, 400, { error: "type, provider, and title are required" }); return;
+        }
+        const id = this.db.createWorkProduct({
+          companyId: task.companyId,
+          taskId: task.id,
+          projectId: typeof data.projectId === "string" ? data.projectId : task.projectId,
+          type: String(data.type),
+          provider: String(data.provider),
+          externalId: typeof data.externalId === "string" ? data.externalId : null,
+          title: String(data.title),
+          url: typeof data.url === "string" ? data.url : null,
+          status: typeof data.status === "string" ? data.status : "active",
+          reviewState: typeof data.reviewState === "string" ? data.reviewState : "none",
+          isPrimary: data.isPrimary === true,
+          summary: typeof data.summary === "string" ? data.summary : null,
+          metadataJson: data.metadata ? JSON.stringify(data.metadata) : null,
+          createdByRunId: token.runId ?? null,
+        });
+        this.onDomainChanged();
+        this.json(res, 201, { id });
+      } catch { this.json(res, 404, { error: "Task not found" }); }
+    });
+
+    this.addRoute("PATCH", "/api/work-products/:workProductId", (_req, res, params, token, body) => {
+      const wpId = params.workProductId;
+      if (!wpId) { this.json(res, 400, { error: "Missing workProductId" }); return; }
+      const data = body as Record<string, unknown>;
+      this.db.updateWorkProduct(wpId, token.companyId, data);
+      this.onDomainChanged();
+      this.json(res, 200, { updated: true });
+    });
+
+    this.addRoute("DELETE", "/api/work-products/:workProductId", (_req, res, params, token) => {
+      const wpId = params.workProductId;
+      if (!wpId) { this.json(res, 400, { error: "Missing workProductId" }); return; }
+      this.db.deleteWorkProduct(wpId, token.companyId);
+      this.onDomainChanged();
+      this.json(res, 200, { deleted: true });
+    });
+
+    // ── Task-Document Links ──
+
+    this.addRoute("GET", "/api/issues/:issueId/documents", (_req, res, params, token) => {
+      try {
+        const task = this.db.getTask(params.issueId!);
+        if (task.companyId !== token.companyId) { this.json(res, 404, { error: "Task not found" }); return; }
+        const links = this.db.listDocumentsForTask(task.id, task.companyId);
+        this.json(res, 200, links);
+      } catch { this.json(res, 404, { error: "Task not found" }); }
+    });
+
+    this.addRoute("PUT", "/api/issues/:issueId/documents/:key", (_req, res, params, token, body) => {
+      try {
+        const task = this.db.getTask(params.issueId!);
+        if (task.companyId !== token.companyId) { this.json(res, 404, { error: "Task not found" }); return; }
+        const key = String(params.key ?? "").trim().toLowerCase();
+        if (!key || !/^[a-z0-9][a-z0-9_-]*$/.test(key) || key.length > 64) {
+          this.json(res, 400, { error: "Invalid document key. Must be lowercase alphanumeric with _ or -, 1-64 chars." }); return;
+        }
+        const data = body as Record<string, unknown>;
+        const documentId = typeof data.documentId === "string" ? data.documentId : null;
+        if (!documentId) { this.json(res, 400, { error: "documentId is required" }); return; }
+        if (!this.db.belongsToCompany("documents", documentId, token.companyId)) {
+          this.json(res, 400, { error: "Document does not belong to this company" }); return;
+        }
+        const linkId = this.db.linkDocumentToTask(task.id, documentId, task.companyId, key);
+        this.onDomainChanged();
+        this.json(res, 200, { id: linkId, key });
+      } catch { this.json(res, 404, { error: "Task not found" }); }
+    });
+
+    this.addRoute("DELETE", "/api/issues/:issueId/documents/:key", (_req, res, params, token) => {
+      try {
+        const task = this.db.getTask(params.issueId!);
+        if (task.companyId !== token.companyId) { this.json(res, 404, { error: "Task not found" }); return; }
+        const key = String(params.key ?? "").trim().toLowerCase();
+        this.db.unlinkDocumentFromTask(task.id, key, task.companyId);
+        this.onDomainChanged();
+        this.json(res, 200, { unlinked: true });
+      } catch { this.json(res, 404, { error: "Task not found" }); }
+    });
+
     this.addRoute("POST", "/api/companies/:companyId/meetings", (_req, res, params, token, body) => {
       if (params.companyId !== token.companyId) {
         this.json(res, 403, { error: "Company mismatch" });
@@ -1597,7 +1901,7 @@ export class AgentApiServer {
               // Log but skip invalid meeting action items rather than failing the whole request
               continue;
             }
-            const taskId = this.db.saveTask({
+            this.db.saveTask({
               companyId: token.companyId,
               title: item.title,
               description: item.description ?? `Action item from meeting: ${data.title ?? existing.title}`,
@@ -1608,7 +1912,6 @@ export class AgentApiServer {
             if (item.assigneeAgentId) {
               this.onWakeAgent(item.assigneeAgentId, token.companyId, "assignment");
             }
-            void taskId;
           }
         }
       }

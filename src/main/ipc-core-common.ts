@@ -1,9 +1,9 @@
 import type { IpcMainInvokeEvent } from "electron";
 import type { DesktopResult } from "@shared/contracts";
-import type { SectionId } from "@shared/types";
+import type { DesktopEvent, SectionId } from "@shared/types";
 import type { AppDatabase } from "./database";
 
-export type CompanyScopedTable = "workspaces" | "agents" | "goals" | "projects" | "tasks" | "approvals" | "runs" | "secrets";
+type CompanyScopedTable = "workspaces" | "agents" | "goals" | "projects" | "tasks" | "approvals" | "runs" | "secrets";
 
 export interface RegisterCoreHandlersDependencies {
   registerHandle: (
@@ -17,7 +17,7 @@ export interface RegisterCoreHandlersDependencies {
     refs: Array<{ id: string | null | undefined; table: CompanyScopedTable; label: string }>,
   ) => { id: string | null | undefined; table: CompanyScopedTable; label: string } | null;
   publishDomainChanged: () => void;
-  emitEvent: (event: any) => void;
+  emitEvent: (event: DesktopEvent) => void;
   wakeAgentIfPossible: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
   handleTaskCreated: (taskId: string, companyId: string) => void;
   handleTaskStatusChange: (taskId: string, companyId: string, previousStatus: string, newStatus: string) => void;
@@ -26,6 +26,7 @@ export interface RegisterCoreHandlersDependencies {
   queueTaskRun: (taskId: string, trigger: string, actor: string) => DesktopResult<string>;
   checkConnector: (id: any) => Promise<void>;
   openConnectorAuthTerminal: (id: any) => Promise<boolean>;
+  openGenericTerminal: (input: { title: string; command: string }) => Promise<boolean>;
   checkForUpdates: () => Promise<boolean>;
   getWorkerProcess: () => { postMessage: (message: unknown) => void } | null;
   resetAfterRestore: () => void;

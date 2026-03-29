@@ -498,25 +498,46 @@ export function createWorkerService({
     pendingRetryTimers.clear();
 
     if (worker) {
-      // Cancel all running/queued runs in the worker before killing it.
-      // This tells the worker to SIGTERM all child CLI processes (claude, codex, etc.)
-      const snapshot = db.listSnapshot();
-      for (const run of snapshot.runs) {
-        if (run.status === "running" || run.status === "queued") {
-          try {
-            worker.postMessage({ type: "cancel-run", runId: run.id });
-          } catch { /* worker may already be dead */ }
-        }
-      }
+      // Tell the worker to kill all its child CLI processes and exit.
+      // Previous approach sent individual cancel-run messages then immediately
+      // killed the worker — a race condition that left CLI processes as orphans
+      // because the worker died before it could forward SIGTERM to its children.
+      try {
+        worker.postMessage({ type: "shutdown" });
+      } catch { /* worker may already be dead */ }
 
-      worker.kill();
-      // Force-kill after 2s if SIGTERM didn't work (child CLI processes may keep it alive)
+      // Safety net: force-kill worker after 2s if shutdown didn't complete
       const ref = worker;
       setTimeout(() => {
         try { ref.kill(); } catch { /* already dead */ }
       }, 2000);
       worker = null;
     }
+
+    // Mark all running/queued runs as interrupted so DB state is clean on restart
+    try {
+      const snapshot = db.listSnapshot();
+      for (const run of snapshot.runs) {
+        if (run.status === "running" || run.status === "queued") {
+          db.finishRun({
+            runId: run.id,
+            status: "interrupted",
+            summary: "Application shut down.",
+            errorMessage: null,
+            exitCode: null,
+            signal: null,
+            model: null,
+            sessionDisplayId: null,
+            costUsd: null,
+            unattributedCost: true,
+          });
+          if (run.workspaceId) {
+            db.releaseWorkspaceLock(run.workspaceId, run.id);
+          }
+          db.releaseTaskLock(run.taskId, run.id);
+        }
+      }
+    } catch { /* best effort during shutdown */ }
   }
 
   return {

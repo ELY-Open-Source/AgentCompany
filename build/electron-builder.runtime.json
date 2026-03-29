@@ -1,9 +1,9 @@
 {
-  "extends": "C:\\Users\\zhang\\Documents\\GitHub\\AgentCompany\\.claude\\worktrees\\agent-afbb9437\\electron-builder.yml",
+  "extends": "C:\\Users\\zhang\\Documents\\GitHub\\AgentCompany\\electron-builder.yml",
   "directories": {
-    "output": "C:\\Users\\zhang\\Documents\\GitHub\\AgentCompany\\.claude\\worktrees\\agent-afbb9437\\build\\release"
+    "output": "C:\\Users\\zhang\\Documents\\GitHub\\AgentCompany\\build\\release"
   },
   "extraMetadata": {
-    "version": "0.4.100"
+    "version": "0.4.133"
   }
 }

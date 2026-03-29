@@ -1,8 +1,10 @@
+import { execSync } from "node:child_process";
 import {
   IPC_CHANNELS,
   companyInputSchema,
   connectorInputSchema,
   deleteEntitySchema,
+  openTerminalCommandSchema,
   secretInputSchema,
 } from "@shared/contracts";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
@@ -14,9 +16,10 @@ export function registerCoreAdminHandlers({
   publishDomainChanged,
   checkConnector,
   openConnectorAuthTerminal,
+  openGenericTerminal,
 }: Pick<
   RegisterCoreHandlersDependencies,
-  "registerHandle" | "db" | "ensureCompanyExists" | "publishDomainChanged" | "checkConnector" | "openConnectorAuthTerminal"
+  "registerHandle" | "db" | "ensureCompanyExists" | "publishDomainChanged" | "checkConnector" | "openConnectorAuthTerminal" | "openGenericTerminal"
 >) {
   registerHandle(IPC_CHANNELS.saveCompany, async (_event, payload) => {
     const parsed = companyInputSchema.parse(payload);
@@ -77,6 +80,21 @@ export function registerCoreAdminHandlers({
   registerHandle(IPC_CHANNELS.openConnectorAuthTerminal, async (_event, id) => {
     const parsed = connectorInputSchema.shape.id.parse(id);
     await openConnectorAuthTerminal(parsed);
+    return ok(true);
+  });
+
+  registerHandle(IPC_CHANNELS.checkNodeInstalled, async () => {
+    try {
+      const raw = execSync("node --version", { encoding: "utf8", timeout: 10000 }).trim();
+      return ok({ installed: true, version: raw || null });
+    } catch {
+      return ok({ installed: false, version: null });
+    }
+  });
+
+  registerHandle(IPC_CHANNELS.openTerminalCommand, async (_event, payload) => {
+    const parsed = openTerminalCommandSchema.parse(payload);
+    await openGenericTerminal(parsed);
     return ok(true);
   });
 

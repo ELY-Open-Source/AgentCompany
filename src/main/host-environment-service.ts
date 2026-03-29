@@ -5,7 +5,6 @@ import { delimiter as pathDelimiter, join } from "node:path";
 import { app } from "electron";
 
 interface HostEnvironmentDependencies {
-  iconPath: string;
   logger: {
     info: (...args: unknown[]) => void;
   };
@@ -53,7 +52,6 @@ function enrichWindowsPath(logger: HostEnvironmentDependencies["logger"]) {
 }
 
 export async function prepareHostEnvironment({
-  iconPath,
   logger,
 }: HostEnvironmentDependencies) {
   if (process.platform === "win32") {

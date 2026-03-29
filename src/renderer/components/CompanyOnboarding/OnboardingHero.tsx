@@ -2,40 +2,39 @@ import { motion } from "framer-motion";
 import {
   Buildings,
   CheckCircle,
+  HardDrive,
+  Plugs,
   Rocket,
   Target,
 } from "@phosphor-icons/react";
-import type { ProfileSnapshot } from "@shared/types";
 import type { AppLocale } from "@shared/locale";
-import { ConnectorReadiness } from "./ConnectorReadiness";
 import { AsciiAnimation } from "./AsciiAnimation";
 
-type Step = "language" | "company" | "mission" | "launch";
+export type OnboardingStep = "welcome" | "nodecheck" | "providers" | "company" | "mission" | "launch";
 
 const STEP_LABELS_CONFIG = [
-  { key: "onboarding.stepLabel1", icon: Buildings },
-  { key: "onboarding.stepLabel2", icon: Target },
-  { key: "onboarding.stepLabel3", icon: Rocket },
+  { key: "onboarding.stepLabelNodeCheck", icon: HardDrive, step: "nodecheck" as const },
+  { key: "onboarding.stepLabelProviders", icon: Plugs, step: "providers" as const },
+  { key: "onboarding.stepLabelCompany", icon: Buildings, step: "company" as const },
+  { key: "onboarding.stepLabelMission", icon: Target, step: "mission" as const },
+  { key: "onboarding.stepLabelLaunch", icon: Rocket, step: "launch" as const },
 ] as const;
 
+const STEP_ORDER: OnboardingStep[] = ["nodecheck", "providers", "company", "mission", "launch"];
+
 interface OnboardingHeroProps {
-  step: Step;
-  connectors: ProfileSnapshot["connectors"];
+  step: OnboardingStep;
   currentLocale: AppLocale;
-  hasRunnableConnector: boolean;
-  onOpenClaudeSettings: () => void;
   t: (key: string) => string;
 }
 
 export function OnboardingHero({
   step,
-  connectors,
-  currentLocale,
-  hasRunnableConnector,
-  onOpenClaudeSettings,
+  currentLocale: _currentLocale,
   t,
 }: OnboardingHeroProps) {
-  const stepIndex = step === "language" ? -1 : step === "company" ? 0 : step === "mission" ? 1 : 2;
+  const stepIndex = STEP_ORDER.indexOf(step);
+
   const stepLabels = STEP_LABELS_CONFIG.map((cfg) => ({
     label: t(cfg.key),
     icon: cfg.icon,
@@ -43,7 +42,7 @@ export function OnboardingHero({
 
   return (
     <div className="relative flex min-h-0 items-center justify-center overflow-hidden px-8 py-12 md:px-16">
-      {/* Ambient gradient - subtle animated accent wash */}
+      {/* Ambient gradient */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.035]"
         style={{
@@ -58,7 +57,6 @@ export function OnboardingHero({
         }}
       />
 
-      {/* ASCII agent activity backdrop */}
       <AsciiAnimation />
 
       <motion.div
@@ -108,43 +106,32 @@ export function OnboardingHero({
         </motion.p>
 
         {/* Step progress */}
-        {step !== "language" ? (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-10 flex items-center gap-3"
-          >
-            {stepLabels.map((entry, index) => (
-              <div key={entry.label} className="flex items-center gap-2">
-                {index > 0 ? (
-                  <div className={`h-px w-6 transition-colors duration-300 ${index <= stepIndex ? "bg-primary" : "bg-[color:var(--border)]"}`} />
-                ) : null}
-                <div
-                  className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors duration-300 ${
-                    index < stepIndex
-                      ? "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400"
-                      : index === stepIndex
-                        ? "bg-accent text-primary"
-                        : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {index < stepIndex ? <CheckCircle size={14} weight="fill" /> : <entry.icon size={14} />}
-                  {entry.label}
-                </div>
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          className="mt-10 flex flex-wrap items-center gap-2"
+        >
+          {stepLabels.map((entry, index) => (
+            <div key={entry.label} className="flex items-center gap-1.5">
+              {index > 0 ? (
+                <div className={`h-px w-4 transition-colors duration-300 ${index <= stepIndex ? "bg-primary" : "bg-[color:var(--border)]"}`} />
+              ) : null}
+              <div
+                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors duration-300 ${
+                  index < stepIndex
+                    ? "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400"
+                    : index === stepIndex
+                      ? "bg-accent text-primary"
+                      : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {index < stepIndex ? <CheckCircle size={12} weight="fill" /> : <entry.icon size={12} />}
+                {entry.label}
               </div>
-            ))}
-          </motion.div>
-        ) : null}
-
-        {/* Connector readiness */}
-        <ConnectorReadiness
-          connectors={connectors}
-          currentLocale={currentLocale}
-          hasRunnableConnector={hasRunnableConnector}
-          onOpenClaudeSettings={onOpenClaudeSettings}
-          t={t}
-        />
+            </div>
+          ))}
+        </motion.div>
 
         {/* ELYDORA signature */}
         <motion.div
@@ -173,7 +160,6 @@ export function OnboardingHero({
         </motion.div>
       </motion.div>
 
-      {/* Inline keyframe for ambient drift */}
       <style>{`
         @keyframes hero-drift {
           0% { transform: translate(0, 0) scale(1); }

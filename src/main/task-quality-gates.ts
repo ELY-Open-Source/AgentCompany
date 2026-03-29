@@ -5,10 +5,6 @@
  * minimum description quality, acceptance criteria, and capability matching.
  */
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export interface TaskValidationResult {
   valid: boolean;
   errors: string[];
@@ -28,9 +24,6 @@ export interface CapabilityMatchDb {
   getCompanySkill?(companyId: string, skillId: string): { name: string; description: string | null; slug: string } | null;
 }
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
 
 const MIN_DESCRIPTION_LENGTH = 50;
 
@@ -49,9 +42,6 @@ export const ACCEPTANCE_CRITERIA_KEYWORDS: readonly string[] = [
   "exit criteria",
 ];
 
-// ---------------------------------------------------------------------------
-// checkAcceptanceCriteria
-// ---------------------------------------------------------------------------
 
 export function checkAcceptanceCriteria(description: string): { hasCriteria: boolean; suggestion: string } {
   const lower = description.toLowerCase();
@@ -68,9 +58,6 @@ export function checkAcceptanceCriteria(description: string): { hasCriteria: boo
   };
 }
 
-// ---------------------------------------------------------------------------
-// validateTaskCreation
-// ---------------------------------------------------------------------------
 
 export function validateTaskCreation(
   input: { title: string; description: string },
@@ -102,9 +89,6 @@ export function validateTaskCreation(
   return { valid: errors.length === 0, errors, warnings };
 }
 
-// ---------------------------------------------------------------------------
-// checkCapabilityMatch
-// ---------------------------------------------------------------------------
 
 /** Tokenize text into words >3 chars, same pattern as database.ts autoAssignTask */
 function tokenize(text: string): string[] {
@@ -162,9 +146,6 @@ export function checkCapabilityMatch(
   };
 }
 
-// ---------------------------------------------------------------------------
-// TASK-04: Stale Review Escalation
-// ---------------------------------------------------------------------------
 
 export const REVIEW_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes (D-08)
 

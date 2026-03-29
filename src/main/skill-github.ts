@@ -1,9 +1,3 @@
-// ---------------------------------------------------------------------------
-// GitHub REST API skill fetcher -- imports skills without git clone (D-02)
-// Public repos only (D-03). Uses raw.githubusercontent.com for content
-// downloads (does not count against API rate limits per research).
-// ---------------------------------------------------------------------------
-
 /**
  * Data returned for each skill found in a GitHub repository.
  */
@@ -20,10 +14,6 @@ interface Logger {
   warn: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
 }
-
-// ---------------------------------------------------------------------------
-// Commit SHA resolution
-// ---------------------------------------------------------------------------
 
 /**
  * Resolve the latest commit SHA for a given ref (branch, tag, or HEAD).
@@ -60,10 +50,6 @@ export async function resolveGitHubCommitSha(
     return null;
   }
 }
-
-// ---------------------------------------------------------------------------
-// GitHub tree + SKILL.md fetcher
-// ---------------------------------------------------------------------------
 
 /**
  * Fetch all SKILL.md files from a GitHub repository via the REST API.

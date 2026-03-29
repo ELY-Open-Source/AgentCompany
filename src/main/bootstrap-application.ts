@@ -67,7 +67,7 @@ export async function bootstrapApplication({
 }: BootstrapApplicationDependencies) {
   await app.whenReady();
   log.initialize();
-  await prepareHostEnvironment({ iconPath, logger: log });
+  await prepareHostEnvironment({ logger: log });
 
   const db = appDatabaseFactory(profileDir);
   db.init();
@@ -279,6 +279,43 @@ export async function bootstrapApplication({
   }
 
   serviceGraph.getOrchestrationService()?.resumeQueuedRuns();
+
+  // Resume tasks that were interrupted by a clean shutdown.
+  // The worker-service destroy() marks running/queued runs as "interrupted" with
+  // summary "Application shut down." but does NOT reset the tasks, so agents
+  // never re-wake to continue them. Fix: reset these tasks back to "todo" and
+  // wake the assigned agents via heartbeat.
+  try {
+    const snapshot = db.listSnapshot();
+    const shutdownRuns = snapshot.runs.filter(
+      (r) => r.status === "interrupted" &&
+        (r.summary === "Application shut down." || r.summary === "Worker process crashed."),
+    );
+    if (shutdownRuns.length > 0) {
+      const resumedAgents = new Set<string>();
+      for (const run of shutdownRuns) {
+        try {
+          const task = db.getTask(run.taskId);
+          if (task.status === "in_progress" || task.status === "blocked") {
+            db.advanceTaskStatus(run.taskId, "todo", "Auto-resumed after app restart.");
+            db.releaseTaskLock(run.taskId, run.id);
+          }
+          if (!resumedAgents.has(run.agentId)) {
+            resumedAgents.add(run.agentId);
+            wakeAgentIfPossible(run.agentId, run.companyId, "app_restart_resume");
+          }
+        } catch {
+          // Task or agent may have been deleted — skip
+        }
+      }
+      if (resumedAgents.size > 0) {
+        log.info(`[bootstrap] Resumed ${shutdownRuns.length} interrupted task(s) across ${resumedAgents.size} agent(s) after clean shutdown recovery.`);
+        publishDomainChanged();
+      }
+    }
+  } catch (err) {
+    log.warn(`[bootstrap] Shutdown recovery failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
   return {
     db,

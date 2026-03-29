@@ -1,14 +1,5 @@
-// ---------------------------------------------------------------------------
-// SKILL.md format parser, inventory classifier, and trust level derivation
-// ---------------------------------------------------------------------------
-
 import { extname } from "node:path";
 import type { FileInventoryEntry, TrustLevel } from "./skill-types.js";
-
-// ---------------------------------------------------------------------------
-// Minimal YAML frontmatter parsing (no external YAML library)
-// Follows the Paperclip reference pattern for SKILL.md files.
-// ---------------------------------------------------------------------------
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -136,10 +127,6 @@ function parseYamlFrontmatter(raw: string): Record<string, unknown> {
   const parsed = parseYamlBlock(prepared, 0, prepared[0]!.indent);
   return isPlainRecord(parsed.value) ? parsed.value : {};
 }
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 /**
  * Parse a SKILL.md file with optional YAML frontmatter.

@@ -1,4 +1,4 @@
-import { runningProcesses } from "@agentcompany/adapter-utils/server-utils";
+import { runningProcesses, shutdownAllRunning } from "@agentcompany/adapter-utils/server-utils";
 import { getConnectorDefinition } from "@main/connectors";
 import { buildSanitizedRuntimeEnv } from "@main/runtime-env";
 import type { ConnectorId, RunStatus } from "@shared/types";
@@ -47,7 +47,8 @@ interface RunJob {
 
 type ParentMessage =
   | { type: "enqueue-run"; payload: RunJob }
-  | { type: "cancel-run"; runId: string };
+  | { type: "cancel-run"; runId: string }
+  | { type: "shutdown" };
 
 type ChildMessage =
   | { type: "run-log"; runId: string; stream: "stdout" | "stderr"; chunk: string }
@@ -114,6 +115,16 @@ function buildConnectorExecutionConfig(job: RunJob, sanitizedEnv: Record<string,
         ],
       };
     case "claude_local":
+    case "claude_compatible":
+    case "claude_compat_2":
+    case "claude_compat_3":
+    case "claude_compat_4":
+    case "claude_compat_5":
+    case "claude_compat_6":
+    case "claude_compat_7":
+    case "claude_compat_8":
+    case "claude_compat_9":
+    case "claude_compat_10":
       return {
         ...baseConfig,
         effort: job.thinkingEffort ?? "",
@@ -306,5 +317,13 @@ parentPort.on("message", (event) => {
   }
   if (message.type === "cancel-run") {
     cancelRun(message.runId);
+    return;
+  }
+  if (message.type === "shutdown") {
+    // Kill every running CLI process (claude, codex, gemini, etc.) and exit.
+    // This is the only reliable way to ensure child processes don't survive app quit,
+    // because the main process cannot kill grandchildren directly.
+    shutdownAllRunning();
+    process.exit(0);
   }
 });

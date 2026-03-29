@@ -2,7 +2,7 @@ import { app } from "electron";
 import type { AgentApiServer } from "./api-server";
 import type { AppDatabase } from "./database";
 import { BrowserManager } from "./browser-manager";
-import { createAutomationService } from "./automation-service";
+import { createAutomationService, autoAssignSkillsToAgent } from "./automation-service";
 import { createBrowserActionService } from "./browser-action-service";
 import { createConnectorHealthService } from "./connector-health-service";
 import { createDesktopShellService } from "./desktop-shell-service";
@@ -241,6 +241,22 @@ export function createServiceGraph({
           return null;
         }
       },
+      evaluatePreRunSessionRotation: (taskId: string, connectorId: string) => {
+        try {
+          const sessionSvc = getOrCreateSessionManagementService();
+          const activeSession = db.getActiveTaskSession(taskId);
+          if (!activeSession) return { rotated: false, handoff: null };
+          const result = sessionSvc.evaluateRotation(activeSession, connectorId);
+          if (result.shouldRotate) {
+            sessionSvc.rotateSession(activeSession);
+            const handoff = sessionSvc.getHandoffContext(taskId);
+            return { rotated: true, handoff };
+          }
+          return { rotated: false, handoff: null };
+        } catch {
+          return { rotated: false, handoff: null };
+        }
+      },
     });
     workerService.createWorker();
 
@@ -260,6 +276,11 @@ export function createServiceGraph({
       seedDefaultAutomationRules,
       queueTaskRun,
       publishDomainChanged,
+      scanAndAssignSkills: async (companyId: string, agentId: string) => {
+        const svc = getOrCreateSkillService();
+        await svc.scanWorkspaceSkills(companyId);
+        autoAssignSkillsToAgent(db, logger, companyId, agentId);
+      },
     });
 
     browserActionService = createBrowserActionService({

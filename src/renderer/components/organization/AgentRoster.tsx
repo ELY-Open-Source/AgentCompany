@@ -96,7 +96,7 @@ export function AgentRoster({
                   <StatusPill status={agent.status} />
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>Connector: {connector?.label ?? agent.connectorId}</span>
+                  <span>Connector: {connector?.id.startsWith("claude_compat") && connector.notes ? connector.notes : connector?.label ?? agent.connectorId}</span>
                   {workspace && <span>Workspace: {workspace.name}</span>}
                 </div>
                 <div className="mt-1.5">

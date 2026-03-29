@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------
 // SkillService -- full skill lifecycle: import, CRUD, assignment, token budget,
 // update detection. Factory pattern following createOrchestrationService.
-// ---------------------------------------------------------------------------
 
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -35,10 +33,7 @@ import {
 } from "./skill-github.js";
 import { TOKEN_BUDGETS } from "./skill-types.js";
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
-
 interface SkillServiceDependencies {
   db: AppDatabase;
   profileDir: string;
@@ -49,10 +44,7 @@ interface SkillServiceDependencies {
   };
 }
 
-// ---------------------------------------------------------------------------
 // Factory
-// ---------------------------------------------------------------------------
-
 export function createSkillService({ db, profileDir, logger }: SkillServiceDependencies) {
   // ---- Result helpers ----
   function ok<T>(data: T): DesktopResult<T> {
@@ -74,8 +66,6 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
   function runtimeDir(companyId: string): string {
     return join(skillsRoot(companyId), "__runtime__");
   }
-
-  // ---- File materialization helpers ----
 
   /**
    * Write SKILL.md (and tracked inventory files from GitHub downloads)
@@ -101,8 +91,6 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
     }
   }
 
-  // ---- GitHub URL parser ----
-
   function parseGitHubUrl(url: string): { owner: string; repo: string } | null {
     try {
       const parsed = new URL(url);
@@ -117,8 +105,6 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
       return null;
     }
   }
-
-  // ---- Import routing ----
 
   /**
    * Import skills from any supported source.
@@ -177,8 +163,6 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
       return fail("import_error", message);
     }
   }
-
-  // ---- GitHub import (SKILL-01) ----
 
   async function importFromGitHub(
     companyId: string,
@@ -295,8 +279,6 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
 
     return results;
   }
-
-  // ---- Local path import (SKILL-02, D-04) ----
 
   async function importFromLocal(
     companyId: string,
@@ -416,8 +398,6 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
     return results;
   }
 
-  // ---- URL import (SKILL-03, D-05) ----
-
   async function importFromUrl(
     companyId: string,
     url: string,
@@ -487,8 +467,6 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
     return results;
   }
 
-  // ---- CRUD ----
-
   function listForCompany(companyId: string): SkillRecord[] {
     return db.listCompanySkills(companyId);
   }
@@ -522,8 +500,6 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
     }
   }
 
-  // ---- Agent assignment (SKILL-07) ----
-
   function assignToAgent(
     companyId: string,
     agentId: string,
@@ -543,8 +519,6 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
     db.removeSkillFromAgent(agentId, skillId);
     return ok(undefined);
   }
-
-  // ---- Update detection (SKILL-11, D-11) ----
 
   async function checkUpdateStatus(
     companyId: string,
@@ -603,8 +577,6 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
     });
   }
 
-  // ---- Runtime skill entries (SKILL-09 token budget) ----
-
   /**
    * Build the list of RuntimeSkillEntry for adapter injection.
    * Applies token budget enforcement: skills sorted by creation date,
@@ -617,12 +589,7 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
   ): RuntimeSkillEntry[] {
     const allSkills = db.listCompanySkills(companyId);
     const agentAssignments = db.listAgentSkillAssignments(agentId);
-
-    // If agent has specific assignments, filter to those; otherwise use all
-    const skills =
-      agentAssignments.length > 0
-        ? allSkills.filter((s) => agentAssignments.includes(s.id))
-        : allSkills;
+    const skills = allSkills.filter((s) => agentAssignments.includes(s.id));
 
     // Sort by creation date (oldest first -- first imported gets priority)
     const sorted = [...skills].sort(
@@ -652,8 +619,6 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
 
     return entries;
   }
-
-  // ---- Local directory walker ----
 
   function findSkillMdFiles(rootDir: string): string[] {
     const found: string[] = [];
@@ -700,8 +665,6 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
     }
     return inventory;
   }
-
-  // ---- Workspace .agents/skills/ scanning (Bug 6) ----
 
   /**
    * Scan all workspace local paths for a company, looking for
@@ -760,8 +723,6 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
 
     return allResults;
   }
-
-  // ---- Public API ----
 
   return {
     importFromSource,

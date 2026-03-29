@@ -1,37 +1,8 @@
 import type { TranscriptEntry } from "@agentcompany/adapter-utils";
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
+import { asRecord, safeJsonParse, errorText } from "@agentcompany/adapter-utils/parse-utils";
 
 function asNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function errorText(value: unknown): string {
-  if (typeof value === "string") return value;
-  const rec = asRecord(value);
-  if (!rec) return "";
-  const msg =
-    (typeof rec.message === "string" && rec.message) ||
-    (typeof rec.error === "string" && rec.error) ||
-    (typeof rec.code === "string" && rec.code) ||
-    "";
-  if (msg) return msg;
-  try {
-    return JSON.stringify(rec);
-  } catch {
-    return "";
-  }
-}
-
-function safeJsonParse(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
 }
 
 export function parseClaudeStdoutLine(line: string, ts: string): TranscriptEntry[] {

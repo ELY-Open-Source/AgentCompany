@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { ArrowBendUpLeft, PaperPlaneTilt, X, ChatCircle } from "@phosphor-icons/react"
-import type { AgentMessageRecord, AgentRecord, MessageChannel, MessagePriority, ProjectRecord } from "@shared/types"
+import type { AgentMessageRecord, AgentRecord, MessageChannel } from "@shared/types"
 import { unwrap } from "../../lib/desktop"
-import { InlineNotice, Modal, Select, Input, TextArea } from "../ui"
+import { InlineNotice } from "../ui"
 import { AgentAvatar } from "./MessageItem"
 import { useT } from "../../i18n"
 
@@ -97,45 +97,4 @@ export function TaskDiscussionComposer({ companyId, taskId, onSent }: { companyI
 export function NoChannelComposer() {
   const t = useT()
   return <div className="border-t border-border bg-card px-4 py-2.5"><div className="flex items-center gap-2 text-[11px] text-muted-foreground"><ChatCircle size={14} /><span>{t("comm.selectChannelSend")}</span></div></div>
-}
-
-export function ComposeModal({ open, onClose, agents, projects, companyId, onSent }: { open: boolean; onClose: () => void; agents: AgentRecord[]; projects?: ProjectRecord[]; companyId: string; onSent: () => void }) {
-  const t = useT()
-  const [fromAgentId, setFromAgentId] = useState(agents[0]?.id ?? ""); const [toAgentId, setToAgentId] = useState(""); const [channel, setChannel] = useState<MessageChannel>("company")
-  const [channelTargetId, setChannelTargetId] = useState(""); const [subject, setSubject] = useState(""); const [body, setBody] = useState("")
-  const [priority, setPriority] = useState<MessagePriority>("normal"); const [sending, setSending] = useState(false); const [sendError, setSendError] = useState<string | null>(null)
-
-  const deptOpts = useMemo(() => { const d = new Set<string>(); for (const a of agents) { if (a.department) d.add(a.department) }; return Array.from(d).sort() }, [agents])
-  useEffect(() => { if (channel !== "direct") setToAgentId(""); if (channel !== "department" && channel !== "project") setChannelTargetId("") }, [channel])
-  useEffect(() => { if (agents.length === 0) { if (fromAgentId) setFromAgentId(""); return }; if (!agents.some((a) => a.id === fromAgentId)) setFromAgentId(agents[0]?.id ?? "") }, [agents, fromAgentId])
-
-  const handleSend = useCallback(async () => {
-    const reqTarget = channel === "department" || channel === "project"
-    if (!body.trim() || !fromAgentId || !subject.trim() || (channel === "direct" && !toAgentId) || (reqTarget && !channelTargetId)) return
-    if (!agents.some((a) => a.id === fromAgentId)) { setSendError("Select a valid sender."); return }
-    setSending(true); setSendError(null)
-    try { unwrap(await window.agentCompany.sendAgentMessage({ companyId, fromAgentId, toAgentId: channel === "direct" && toAgentId ? toAgentId : null, channel, channelTargetId: reqTarget ? channelTargetId || null : null, subject: subject.trim(), body: body.trim(), priority, parentMessageId: null, attachmentsJson: "[]" })); setSubject(""); setBody(""); setPriority("normal"); onSent(); onClose() } catch (e) { setSendError(e instanceof Error ? e.message : "Failed to send.") } finally { setSending(false) }
-  }, [agents, body, channel, channelTargetId, companyId, fromAgentId, onClose, onSent, priority, subject, toAgentId])
-
-  return (
-    <Modal open={open} title={t("comm.composeMessage")} onClose={onClose} width="560px">
-      <div className="space-y-4">
-        {sendError ? <InlineNotice message={sendError} /> : null}
-        <Select label={t("comm.fromAgent")} value={fromAgentId} onChange={setFromAgentId} options={agents.map((a) => ({ value: a.id, label: `${a.name} (${a.role})` }))} />
-        <Select label={t("comm.channel")} value={channel} onChange={(v) => setChannel(v as MessageChannel)} options={[{ value: "company", label: t("comm.companyBroadcast") }, { value: "department", label: t("comm.departmentChannel") }, { value: "project", label: t("comm.projectChannel") }, { value: "incident", label: t("comm.incidentChannel") }, { value: "direct", label: t("comm.directMessage") }]} />
-        {channel === "direct" ? <Select label="To Agent" value={toAgentId} onChange={setToAgentId} options={[{ value: "", label: "Select a recipient..." }, ...agents.filter((a) => a.id !== fromAgentId).map((a) => ({ value: a.id, label: `${a.name} (${a.role})` }))]} />
-        : channel === "department" ? <Select label="Department" value={channelTargetId} onChange={setChannelTargetId} options={[{ value: "", label: "Select department..." }, ...deptOpts.map((d) => ({ value: d, label: d.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()) }))]} />
-        : channel === "project" ? <Select label="Project" value={channelTargetId} onChange={setChannelTargetId} options={[{ value: "", label: "Select project..." }, ...(projects ?? []).map((p) => ({ value: p.id, label: p.name }))]} /> : null}
-        <Input label={t("comm.subject")} value={subject} onChange={setSubject} placeholder={t("comm.messageSubject")} />
-        <TextArea label={t("comm.message")} value={body} onChange={setBody} placeholder={t("comm.writeMessage")} rows={5} />
-        <Select label="Priority" value={priority} onChange={(v) => setPriority(v as MessagePriority)} options={[{ value: "low", label: "Low" }, { value: "normal", label: "Normal" }, { value: "urgent", label: "Urgent" }]} />
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={onClose} className="rounded-lg px-3 py-2 text-[13px] font-medium text-muted-foreground transition hover:bg-muted">{t("common.cancel")}</button>
-          <button type="button" onClick={() => void handleSend()} disabled={!body.trim() || !subject.trim() || !fromAgentId || (channel === "direct" && !toAgentId) || ((channel === "department" || channel === "project") && !channelTargetId) || sending} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-semibold bg-primary text-primary-foreground transition hover:brightness-90 active:translate-y-px disabled:opacity-40 disabled:pointer-events-none">
-            {sending ? <svg className="h-4 w-4 animate-spin" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.3" /><path d="M14 8a6 6 0 0 0-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg> : <PaperPlaneTilt size={14} weight="fill" />}{t("comm.sendMessage")}
-          </button>
-        </div>
-      </div>
-    </Modal>
-  )
 }

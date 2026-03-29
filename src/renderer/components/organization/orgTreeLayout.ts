@@ -97,6 +97,16 @@ export const statusDotColor: Record<string, string> = {
 
 export const adapterLabels: Record<string, string> = {
   claude_local: "Claude",
+  claude_compatible: "Compatible",
+  claude_compat_2: "Compatible 2",
+  claude_compat_3: "Compatible 3",
+  claude_compat_4: "Compatible 4",
+  claude_compat_5: "Compatible 5",
+  claude_compat_6: "Compatible 6",
+  claude_compat_7: "Compatible 7",
+  claude_compat_8: "Compatible 8",
+  claude_compat_9: "Compatible 9",
+  claude_compat_10: "Compatible 10",
   codex_local: "Codex",
   gemini_local: "Gemini",
 };
