@@ -245,7 +245,14 @@ function CompatProviderCard({
     if (apiKey.trim()) lines.push(`ANTHROPIC_API_KEY=${apiKey.trim()}`);
     if (baseUrl.trim()) lines.push(`ANTHROPIC_BASE_URL=${baseUrl.trim()}`);
     const label = COMPATIBLE_PROVIDERS.find((p) => p.id === selectedProvider)?.label ?? "";
-    const modelsCsv = models.join(",") || null;
+    const allModels = [...models];
+    const pending = newModel.trim();
+    if (pending && !allModels.includes(pending)) {
+      allModels.push(pending);
+      setModels(allModels);
+      setNewModel("");
+    }
+    const modelsCsv = allModels.join(",") || null;
     onSaveConnector(slotId, lines.join("\n"), modelsCsv, label);
   }
 

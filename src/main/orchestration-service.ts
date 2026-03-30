@@ -347,7 +347,7 @@ export function createOrchestrationService({
       workspacePath: workspace?.localPath ?? null,
       workspaceMode,
       command: connector.command,
-      model: connector.model ?? agent.model,
+      model: agent.model,
       thinkingEffort,
       env,
       sessionParams: taskSession.sessionParams,

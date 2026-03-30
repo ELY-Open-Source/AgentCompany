@@ -129,7 +129,7 @@ export function CompanyOnboarding({
       .catch(() => { if (!cancelled) setModelOptions([]); })
       .finally(() => { if (!cancelled) setLoadingModels(false); });
     return () => { cancelled = true; };
-  }, [selectedConnectorId]);
+  }, [selectedConnectorId, connectors]);
 
   /* ------------------------------------------------------------------ */
   /*  Provider callbacks (for ProvidersStep)                             */
