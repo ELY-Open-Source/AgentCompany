@@ -12,6 +12,8 @@ win-unpacked
 .claude
 build
 .omc
+.planning
+paperclip-reference
 
 # Test artifacts
 test-results/
