@@ -84,7 +84,7 @@ export function Dashboard(props: DashboardProps) {
           <h2 className="text-[28px] font-bold tracking-[-0.02em] text-foreground">{companyName}</h2>
           <div className="mt-2 flex items-center gap-3 text-[13px] tracking-[0.005em] text-muted-foreground">
             <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-600 dark:bg-green-400" />
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
               {activeAgents.length} {activeAgents.length === 1 ? "agent" : "agents"} active
             </span>
             <span className="h-3 w-px bg-[color:var(--border)]" />
@@ -103,7 +103,7 @@ export function Dashboard(props: DashboardProps) {
       <BudgetAlertBanner agents={agents} onNavigate={onNavigate} companyId={companyId} />
 
       {/* Key Metrics — 4 cards */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
         <MetricCard
           label={t("dash.activeTasks")}
           value={activeTasks.length}
@@ -142,8 +142,8 @@ export function Dashboard(props: DashboardProps) {
       {/* Needs Attention — moved to top, only shows when items exist */}
       {hasAttentionItems ? (
         <section>
-          <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-yellow-600 dark:text-yellow-400">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-yellow-600 dark:bg-yellow-400" />
+          <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-warning">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-warning" />
             {t("dash.needsAttentionSection")}
           </div>
           <div className="space-y-1.5">
@@ -157,9 +157,9 @@ export function Dashboard(props: DashboardProps) {
                   transition={{ duration: 0.22, delay: i * 0.04, ease: [0.16, 1, 0.3, 1] }}
                   type="button"
                   onClick={() => onNavigate("approvals", approval.id)}
-                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3 text-left transition hover:border-opacity-40"
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-warning-muted px-4 py-3 text-left transition hover:border-opacity-40"
                 >
-                  <ShieldCheck size={18} className="shrink-0 text-yellow-600 dark:text-yellow-400" />
+                  <ShieldCheck size={18} className="shrink-0 text-warning" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] font-medium text-foreground">{approval.payloadSummary}</div>
                     <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -171,14 +171,17 @@ export function Dashboard(props: DashboardProps) {
                 </motion.button>
               );
             })}
-            {failedRuns.slice(0, 3).map((run) => {
+            {failedRuns.slice(0, 3).map((run, i) => {
               const agent = agentMap.get(run.agentId);
               return (
-                <button
+                <motion.button
                   key={run.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.22, delay: (pendingApprovals.length + i) * 0.04, ease: [0.16, 1, 0.3, 1] }}
                   type="button"
                   onClick={() => onNavigate("runs", run.id)}
-                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-red-100 dark:bg-red-900/50 px-4 py-3 text-left transition hover:border-opacity-40"
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-destructive-muted px-4 py-3 text-left transition hover:border-opacity-40"
                 >
                   <XCircle size={18} className="shrink-0 text-destructive" />
                   <div className="min-w-0 flex-1">
@@ -188,19 +191,22 @@ export function Dashboard(props: DashboardProps) {
                     </div>
                   </div>
                   <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
-                </button>
+                </motion.button>
               );
             })}
-            {urgentMessages.slice(0, 3).map((msg) => {
+            {urgentMessages.slice(0, 3).map((msg, i) => {
               const sender = agentMap.get(msg.fromAgentId);
               return (
-                <button
+                <motion.button
                   key={msg.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.22, delay: (pendingApprovals.length + failedRuns.length + i) * 0.04, ease: [0.16, 1, 0.3, 1] }}
                   type="button"
                   onClick={() => onNavigate("communication", msg.id)}
-                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3 text-left transition hover:border-opacity-40"
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-warning-muted px-4 py-3 text-left transition hover:border-opacity-40"
                 >
-                  <Warning size={18} className="shrink-0 text-yellow-600 dark:text-yellow-400" />
+                  <Warning size={18} className="shrink-0 text-warning" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] font-medium text-foreground">{msg.subject}</div>
                     <div className="mt-0.5 text-[11px] text-muted-foreground">
@@ -208,7 +214,7 @@ export function Dashboard(props: DashboardProps) {
                     </div>
                   </div>
                   <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
-                </button>
+                </motion.button>
               );
             })}
           </div>
@@ -235,11 +241,11 @@ export function Dashboard(props: DashboardProps) {
                 className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted"
               >
                 <div className="relative shrink-0">
-                  <Robot size={16} className="text-green-600 dark:text-green-400" />
+                  <Robot size={16} className="text-success" />
                   {run.status === "running" ? (
                     <span className="absolute -right-0.5 -top-0.5 h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-600 dark:bg-green-400 opacity-40" style={{ willChange: "transform" }} />
-                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-600 dark:bg-green-400" />
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-40" style={{ willChange: "transform" }} />
+                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
                     </span>
                   ) : null}
                 </div>

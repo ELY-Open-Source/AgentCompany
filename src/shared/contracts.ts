@@ -95,6 +95,8 @@ export const IPC_CHANNELS = {
   getAgent: "agent-company:get-agent",
   getRun: "agent-company:get-run",
   getApproval: "agent-company:get-approval",
+  getConnectorDisabledModels: "agent-company:get-connector-disabled-models",
+  setConnectorDisabledModels: "agent-company:set-connector-disabled-models",
 } as const;
 
 const optionalId = z.preprocess(
@@ -117,6 +119,11 @@ export const connectorInputSchema = z.object({
   model: z.string().nullable().optional(),
   envBindingText: z.string().default(""),
   notes: z.string().default(""),
+});
+
+export const connectorDisabledModelsSchema = z.object({
+  connectorId: connectorInputSchema.shape.id,
+  disabledModels: z.array(z.object({ id: z.string(), label: z.string() })),
 });
 
 export const workspaceInputSchema = z.object({
@@ -697,6 +704,8 @@ export type DesktopApi = {
   deleteSecret: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
   getSidebarBadges: (companyId: string) => Promise<DesktopResult<SidebarBadges>>;
   listConnectorModels: (connectorId: string) => Promise<DesktopResult<Array<{ id: string; label: string }>>>;
+  getConnectorDisabledModels: (connectorId: string) => Promise<DesktopResult<Array<{ id: string; label: string }>>>;
+  setConnectorDisabledModels: (input: z.infer<typeof connectorDisabledModelsSchema>) => Promise<DesktopResult<boolean>>;
   openConnectorAuthTerminal: (connectorId: z.infer<typeof connectorInputSchema.shape.id>) => Promise<DesktopResult<boolean>>;
   addComment: (input: z.infer<typeof commentInputSchema>) => Promise<DesktopResult<string>>;
   listComments: (input: z.infer<typeof listCommentsSchema>) => Promise<DesktopResult<CommentRecord[]>>;

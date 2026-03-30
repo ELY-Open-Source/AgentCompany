@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Robot } from "@phosphor-icons/react";
 import type { AgentRecord, ConnectorRecord, WorkspaceRecord } from "@shared/types";
 import { isConnectorExecutionReady } from "@shared/connector-policy";
@@ -65,11 +66,13 @@ export function AgentCreator({
     }
   }, [executionReadyConnectors, connectorId]);
 
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   return (
     <div className="grid min-w-0 gap-4">
-      <Input label="Agent name" value={name} onChange={setName} placeholder="Agent name" />
-      <Input label="Role" value={role} onChange={setRole} placeholder="e.g. Engineer, PM, CEO" />
-      <Input label="Title" value={title} onChange={setTitle} placeholder="Title" />
+      <Input label="Agent name" value={name} onChange={setName} placeholder="Agent name" hint="Display name shown in org chart and messages" />
+      <Input label="Role" value={role} onChange={setRole} placeholder="e.g. Engineer, PM, CEO" hint="Determines which tasks the agent can handle" />
+      <Input label="Title" value={title} onChange={setTitle} placeholder="Title" hint="Job title shown under the name" />
       <Select
         label="Connector"
         value={connectorId}
@@ -77,7 +80,7 @@ export function AgentCreator({
         options={executionReadyConnectors.map((connector) => ({ value: connector.id, label: connector.id.startsWith("claude_compat") && connector.notes ? connector.notes : connector.label }))}
       />
       {executionReadyConnectors.length === 0 ? (
-        <p className="text-[12px] text-yellow-600 dark:text-yellow-400">
+        <p className="text-[12px] text-warning">
           No execution-ready connector is available. Fix connector health before requesting hires.
         </p>
       ) : null}
@@ -102,31 +105,42 @@ export function AgentCreator({
           ]}
         />
       ) : null}
-      <Select
-        label="Workspace"
-        value={workspaceId}
-        onChange={setWorkspaceId}
-        options={[
-          { value: "", label: "No workspace" },
-          ...workspaces.map((workspace) => ({ value: workspace.id, label: workspace.name })),
-        ]}
-      />
-      <Select
-        label="Reports to"
-        value={reportsTo}
-        onChange={setReportsTo}
-        options={[
-          { value: "", label: "No manager" },
-          ...agents.map((a) => ({ value: a.id, label: a.name })),
-        ]}
-      />
-      <Input label="Monthly budget (USD)" value={budget} onChange={setBudget} placeholder="120" type="number" />
-      <TextArea
-        label="Capabilities"
-        value={capabilities}
-        onChange={setCapabilities}
-        placeholder="What this agent does"
-      />
+      <button type="button" onClick={() => setShowAdvanced(!showAdvanced)} className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground transition hover:text-foreground">
+        <svg width="10" height="10" viewBox="0 0 10 10" className={`transition-transform ${showAdvanced ? "rotate-90" : ""}`}><path d="M3 1l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>
+        Advanced settings
+      </button>
+      <AnimatePresence>
+      {showAdvanced ? (
+        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }} className="grid gap-4 overflow-hidden">
+          <Select
+            label="Workspace"
+            value={workspaceId}
+            onChange={setWorkspaceId}
+            options={[
+              { value: "", label: "No workspace" },
+              ...workspaces.map((workspace) => ({ value: workspace.id, label: workspace.name })),
+            ]}
+          />
+          <Select
+            label="Reports to"
+            value={reportsTo}
+            onChange={setReportsTo}
+            options={[
+              { value: "", label: "No manager" },
+              ...agents.map((a) => ({ value: a.id, label: a.name })),
+            ]}
+          />
+          <Input label="Monthly budget (USD)" value={budget} onChange={setBudget} placeholder="120" type="number" hint="Spending cap per month; agent pauses when exceeded" />
+          <TextArea
+            label="Capabilities"
+            value={capabilities}
+            onChange={setCapabilities}
+            placeholder="What this agent does"
+            hint="Skills and domain knowledge injected into the agent's system prompt"
+          />
+        </motion.div>
+      ) : null}
+      </AnimatePresence>
       <p className="text-[12px] text-muted-foreground">
         New agents enter the hiring pipeline first. Approval activates the agent and keeps onboarding, budgets, and org history linked to the same record.
       </p>

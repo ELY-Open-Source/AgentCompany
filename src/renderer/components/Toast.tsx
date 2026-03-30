@@ -6,7 +6,7 @@ import { useReducedMotion } from "./ui"
 const TONE_CONFIG = {
   success: { icon: CheckCircle, bg: "var(--muted-foreground)", border: "var(--primary)", text: "var(--primary)" },
   danger: { icon: XCircle, bg: "var(--destructive)", border: "var(--destructive)", text: "var(--destructive)" },
-  warn: { icon: Warning, bg: "var(--muted-foreground)", border: "var(--destructive)", text: "var(--destructive)" },
+  warn: { icon: Warning, bg: "var(--muted-foreground)", border: "var(--warning)", text: "var(--warning)" },
 } as const
 
 export default function ToastContainer() {

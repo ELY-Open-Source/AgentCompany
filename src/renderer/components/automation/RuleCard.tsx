@@ -27,7 +27,7 @@ export function RuleCard({ rule, onToggle, onDelete, onEdit }: { rule: Automatio
         </button>
         <div className="flex shrink-0 items-center gap-1">
           <button type="button" onClick={onToggle} aria-label={rule.status === "active" ? "Pause rule" : "Activate rule"} title={rule.status === "active" ? "Pause rule" : "Activate rule"} className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground">{rule.status === "active" ? <Pause size={15} /> : <Play size={15} />}</button>
-          <button type="button" onClick={onDelete} aria-label="Delete rule" title="Delete rule" className="rounded-lg p-2 text-muted-foreground opacity-0 transition hover:bg-red-100 dark:bg-red-900/50 hover:text-destructive group-hover:opacity-100"><Trash size={15} /></button>
+          <button type="button" onClick={onDelete} aria-label="Delete rule" title="Delete rule" className="rounded-lg p-2 text-muted-foreground opacity-0 transition hover:bg-destructive-muted hover:text-destructive group-hover:opacity-100"><Trash size={15} /></button>
         </div>
       </div>
     </motion.div>

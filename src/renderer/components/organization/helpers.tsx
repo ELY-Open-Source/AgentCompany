@@ -10,7 +10,7 @@ export function BudgetBar({ spent, budget }: { spent: number; budget: number }) 
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[color:var(--border)]">
         <div
-          className={`h-full rounded-full transition-all ${overBudget ? "bg-destructive" : "bg-green-600 dark:bg-green-400"}`}
+          className={`h-full rounded-full transition-all ${overBudget ? "bg-destructive" : "bg-success"}`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -31,7 +31,7 @@ export function ConfirmDelete({
   onCancel: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-[color:var(--destructive)] bg-red-100 dark:bg-red-900/50 px-4 py-3">
+    <div className="flex items-center gap-3 rounded-lg border border-[color:var(--destructive)] bg-destructive-muted px-4 py-3">
       <span className="text-[13px] text-destructive">Delete {entityLabel}?</span>
       <ActionButton label="Yes, delete" tone="danger" onClick={onConfirm} icon={Trash} />
       <ActionButton label="Cancel" onClick={onCancel} icon={XCircle} />
@@ -118,7 +118,7 @@ export function HeartbeatSection({
           }
         />
         {persistedConnectorIssue ? (
-          <p className="mt-2 text-[12px] text-yellow-600 dark:text-yellow-400">
+          <p className="mt-2 text-[12px] text-warning">
             {persistedConnectorIssue} Save a ready connector before waking this agent again.
           </p>
         ) : null}

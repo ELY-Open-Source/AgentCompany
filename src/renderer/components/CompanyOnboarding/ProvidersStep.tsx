@@ -61,8 +61,8 @@ type ConnectorStatus = ProfileSnapshot["connectors"][number]["status"];
 function StatusBadge({ status, t }: { status: ConnectorStatus; t: (key: string) => string }) {
   if (status === "ready") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-700 dark:bg-green-900/40 dark:text-green-400">
-        <span className="h-1.5 w-1.5 rounded-full bg-green-600 dark:bg-green-400" />
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-success-muted px-2 py-0.5 text-[11px] font-medium text-success">
+        <span className="h-1.5 w-1.5 rounded-full bg-success" />
         {t("onboarding.providerReady")}
       </span>
     );
@@ -77,8 +77,8 @@ function StatusBadge({ status, t }: { status: ConnectorStatus; t: (key: string) 
   }
   if (status === "auth_required") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-medium text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400">
-        <span className="h-1.5 w-1.5 rounded-full bg-yellow-600 dark:bg-yellow-400" />
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-muted px-2 py-0.5 text-[11px] font-medium text-warning">
+        <span className="h-1.5 w-1.5 rounded-full bg-warning" />
         {t("onboarding.providerAuthRequired")}
       </span>
     );
@@ -92,8 +92,8 @@ function StatusBadge({ status, t }: { status: ConnectorStatus; t: (key: string) 
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-900/40 dark:text-orange-400">
-      <span className="h-1.5 w-1.5 rounded-full bg-orange-600 dark:bg-orange-400" />
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-caution-muted px-2 py-0.5 text-[11px] font-medium text-caution">
+      <span className="h-1.5 w-1.5 rounded-full bg-caution" />
       {status.replaceAll("_", " ")}
     </span>
   );
@@ -611,7 +611,7 @@ export function ProvidersStep({
 
       {/* Error message */}
       {error ? (
-        <div className="mt-5 rounded-lg border border-[color:var(--destructive)] bg-red-100 px-4 py-3 text-[13px] text-destructive dark:bg-red-900/50">
+        <div className="mt-5 rounded-lg border border-[color:var(--destructive)] bg-destructive-muted px-4 py-3 text-[13px] text-destructive">
           {error}
         </div>
       ) : null}

@@ -162,7 +162,7 @@ export function CompanyStep({
       </div>
 
       {error ? (
-        <div className="mt-5 rounded-lg border border-[color:var(--destructive)] bg-red-100 dark:bg-red-900/50 px-4 py-3 text-[13px] text-destructive">
+        <div className="mt-5 rounded-lg border border-[color:var(--destructive)] bg-destructive-muted px-4 py-3 text-[13px] text-destructive">
           {error}
         </div>
       ) : null}

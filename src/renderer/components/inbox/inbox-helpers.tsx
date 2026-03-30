@@ -33,8 +33,8 @@ export function CompactMetric({ label, value, tone = "default", subtitle }: {
 }) {
   const toneMap = {
     default: "text-foreground",
-    success: "text-green-600 dark:text-green-400",
-    warn: "text-yellow-600 dark:text-yellow-400",
+    success: "text-success",
+    warn: "text-warning",
     danger: "text-destructive",
     accent: "text-primary",
   };
@@ -56,7 +56,7 @@ export function RunProgressBar({ succeeded, failed, total }: { succeeded: number
   return (
     <div className="flex h-3 overflow-hidden rounded-full bg-muted">
       <motion.div
-        className="h-full bg-green-600 dark:bg-green-400"
+        className="h-full bg-success"
         initial={{ width: 0 }}
         animate={{ width: `${successPct}%` }}
         transition={{ duration: 0.8, ease: "easeOut" }}

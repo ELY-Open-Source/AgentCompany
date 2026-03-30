@@ -28,7 +28,7 @@ export function LaunchStep({
       transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
       className="bg-card border border-border shadow-sm w-full rounded-lg p-7"
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success-muted text-success">
         <CheckCircle size={24} weight="fill" />
       </div>
       <h2 className="mt-5 text-[28px] tracking-[-0.03em] text-foreground">
@@ -72,7 +72,7 @@ export function LaunchStep({
       </div>
 
       {error ? (
-        <div className="mt-5 rounded-lg border border-[color:var(--destructive)] bg-red-100 dark:bg-red-900/50 px-4 py-3 text-[13px] text-destructive">
+        <div className="mt-5 rounded-lg border border-[color:var(--destructive)] bg-destructive-muted px-4 py-3 text-[13px] text-destructive">
           {error}
         </div>
       ) : null}

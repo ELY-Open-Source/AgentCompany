@@ -109,6 +109,15 @@ export function registerCoreReadHandlers({
     }
   });
 
+  registerHandle(IPC_CHANNELS.getConnectorDisabledModels, (_event, connectorId) => {
+    try {
+      const parsed = connectorInputSchema.shape.id.parse(connectorId);
+      return ok(db.getDisabledModels(parsed));
+    } catch {
+      return ok([]);
+    }
+  });
+
   registerHandle(IPC_CHANNELS.getInbox, (_event, payload) => {
     const companyId = z.string().uuid().parse(payload);
     const err = ensureCompanyExists(companyId);

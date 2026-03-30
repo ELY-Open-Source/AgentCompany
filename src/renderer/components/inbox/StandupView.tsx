@@ -43,7 +43,7 @@ export function StandupView({ report, onNavigate }: StandupProps) {
         <div className="text-[14px] font-medium text-foreground">{report.summary}</div>
         <div className="mt-3 flex gap-4">
           <div className="text-center">
-            <div className="text-[18px] font-bold tabular-nums text-green-600 dark:text-green-400">{report.agentReports.filter(r => r.tasksCompleted24h > 0).length}</div>
+            <div className="text-[18px] font-bold tabular-nums text-success">{report.agentReports.filter(r => r.tasksCompleted24h > 0).length}</div>
             <div className="text-[10px] text-muted-foreground">{t("standup.productive")}</div>
           </div>
           <div className="h-10 w-px bg-[color:var(--border)]" />
@@ -53,7 +53,7 @@ export function StandupView({ report, onNavigate }: StandupProps) {
           </div>
           <div className="h-10 w-px bg-[color:var(--border)]" />
           <div className="text-center">
-            <div className="text-[18px] font-bold tabular-nums text-yellow-600 dark:text-yellow-400">{report.pendingApprovals}</div>
+            <div className="text-[18px] font-bold tabular-nums text-warning">{report.pendingApprovals}</div>
             <div className="text-[10px] text-muted-foreground">{t("standup.pendingApprovals")}</div>
           </div>
           <div className="h-10 w-px bg-[color:var(--border)]" />
@@ -71,7 +71,7 @@ export function StandupView({ report, onNavigate }: StandupProps) {
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t("standup.highlights")}</div>
           <div className="space-y-1.5">
             {report.companyHighlights.map((h, i) => (
-              <div key={i} className="flex items-center gap-2 rounded-lg bg-green-100 dark:bg-green-900/50 px-3 py-2 text-[12px] text-green-600 dark:text-green-400">
+              <div key={i} className="flex items-center gap-2 rounded-lg bg-success-muted px-3 py-2 text-[12px] text-success">
                 <CheckCircle size={14} weight="fill" />
                 {h}
               </div>
@@ -85,7 +85,7 @@ export function StandupView({ report, onNavigate }: StandupProps) {
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-destructive">Blockers</div>
           <div className="space-y-1.5">
             {report.blockers.map((b, i) => (
-              <div key={i} className="flex items-center gap-2 rounded-lg bg-red-100 dark:bg-red-900/50 px-3 py-2 text-[12px] text-destructive">
+              <div key={i} className="flex items-center gap-2 rounded-lg bg-destructive-muted px-3 py-2 text-[12px] text-destructive">
                 <Warning size={14} weight="fill" />
                 {b}
               </div>
@@ -106,16 +106,16 @@ export function StandupView({ report, onNavigate }: StandupProps) {
             >
               <div className="relative">
                 <div className={`flex h-10 w-10 items-center justify-center rounded-full text-[12px] font-bold ${
-                  ar.status === "running" ? "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400"
-                  : ar.status === "error" ? "bg-red-100 dark:bg-red-900/50 text-destructive"
+                  ar.status === "running" ? "bg-success-muted text-success"
+                  : ar.status === "error" ? "bg-destructive-muted text-destructive"
                   : "bg-muted text-muted-foreground"
                 }`}>
                   {getAgentInitials(ar.agentName)}
                 </div>
                 {ar.status === "running" ? (
                   <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-600 dark:bg-green-400 opacity-40" style={{ willChange: "transform" }} />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-green-600 dark:bg-green-400" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-40" style={{ willChange: "transform" }} />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
                   </span>
                 ) : null}
               </div>
@@ -126,7 +126,7 @@ export function StandupView({ report, onNavigate }: StandupProps) {
                 </div>
                 <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
                   {ar.tasksInProgress > 0 ? <span className="text-primary">{ar.tasksInProgress} in progress</span> : null}
-                  {ar.tasksCompleted24h > 0 ? <span className="text-green-600 dark:text-green-400">{ar.tasksCompleted24h} done</span> : null}
+                  {ar.tasksCompleted24h > 0 ? <span className="text-success">{ar.tasksCompleted24h} done</span> : null}
                   {ar.tasksBlocked > 0 ? <span className="text-destructive">{ar.tasksBlocked} blocked</span> : null}
                   {ar.costLast24h > 0 ? <span className="tabular-nums">${ar.costLast24h.toFixed(2)}</span> : null}
                 </div>

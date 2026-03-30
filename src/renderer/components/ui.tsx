@@ -1,8 +1,11 @@
 import { Component, useEffect, useRef, type ElementType, type ErrorInfo, type ReactNode } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+
+const EASE = [0.16, 1, 0.3, 1] as const;
 
 export function Badge({ count, tone = "default" }: { count: number; tone?: "default" | "warn" | "danger" }) {
   if (count <= 0) return null;
-  const toneClass = tone === "danger" ? "bg-destructive text-primary-foreground" : tone === "warn" ? "bg-yellow-600 dark:bg-yellow-400 text-primary-foreground" : "bg-[color:var(--muted-foreground)] text-primary-foreground";
+  const toneClass = tone === "danger" ? "bg-destructive text-primary-foreground" : tone === "warn" ? "bg-warning text-primary-foreground" : "bg-[color:var(--muted-foreground)] text-primary-foreground";
   return (
     <span className={`ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${toneClass}`}>
       {count > 99 ? "99+" : count}
@@ -43,7 +46,7 @@ export function SectionButton({
         <Icon size={18} weight={active ? "fill" : "regular"} className={active ? "text-primary" : ""} />
         {badge ? (
           <span className={`absolute right-1 top-1 h-[6px] w-[6px] rounded-full ${
-            badgeTone === "danger" ? "bg-destructive" : badgeTone === "warn" ? "bg-yellow-600 dark:bg-yellow-400" : "bg-[color:var(--muted-foreground)]"
+            badgeTone === "danger" ? "bg-destructive" : badgeTone === "warn" ? "bg-warning" : "bg-[color:var(--muted-foreground)]"
           }`} />
         ) : null}
       </button>
@@ -59,7 +62,7 @@ export function SectionButton({
       }`}
       onClick={onClick}
     >
-      {active ? <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" aria-hidden="true" /> : null}
+      <span className={`absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-primary transition-all duration-200 ${active ? "opacity-100 scale-y-100" : "opacity-0 scale-y-0"}`} aria-hidden="true" />
       <Icon size={17} weight={active ? "fill" : "regular"} className={active ? "text-primary" : ""} />
       <span className={`text-[13px] tracking-[0.005em] ${active ? "font-bold" : "font-medium"}`}>{label}</span>
       {badge ? <Badge count={badge} tone={badgeTone} /> : null}
@@ -120,32 +123,46 @@ export function Modal({
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color:var(--foreground)]/45" onClick={onClose}>
-      <div
-        ref={trapRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className="flex w-full flex-col rounded-lg border border-border bg-card shadow-xl"
-        style={{ maxWidth: width, maxHeight: "85vh" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3.5">
-          <h2 className="min-w-0 truncate text-[16px] font-bold tracking-[-0.015em] text-foreground">{title}</h2>
-          <button
-            type="button"
-            className="ml-3 shrink-0 cursor-pointer rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
-            aria-label="Close"
+    <AnimatePresence>
+      {open ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18, ease: EASE }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[color:var(--foreground)]/45"
+          onClick={onClose}
+        >
+          <motion.div
+            ref={trapRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={title}
+            initial={{ scale: 0.96, opacity: 0, y: 8 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.96, opacity: 0, y: 8 }}
+            transition={{ duration: 0.22, ease: EASE }}
+            className="flex w-full flex-col rounded-lg border border-border bg-card shadow-xl"
+            style={{ maxWidth: width, maxHeight: "85vh" }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-          </button>
-        </div>
-        <div className="min-h-0 min-w-0 overflow-y-auto overflow-x-auto px-5 py-4" style={{ overflowWrap: "break-word", wordBreak: "break-word" }}>{children}</div>
-      </div>
-    </div>
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3.5">
+              <h2 className="min-w-0 truncate text-[16px] font-bold tracking-[-0.015em] text-foreground">{title}</h2>
+              <button
+                type="button"
+                className="ml-3 flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                onClick={(e) => { e.stopPropagation(); onClose(); }}
+                aria-label="Close"
+              >
+                <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+              </button>
+            </div>
+            <div className="min-h-0 min-w-0 overflow-y-auto overflow-x-auto px-5 py-4" style={{ overflowWrap: "break-word", wordBreak: "break-word" }}>{children}</div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }
 
@@ -166,6 +183,7 @@ export function Input({
   readOnly = false,
   disabled = false,
   label,
+  hint,
   id,
   ariaLabel,
 }: {
@@ -176,6 +194,7 @@ export function Input({
   readOnly?: boolean;
   disabled?: boolean;
   label?: string;
+  hint?: string;
   id?: string;
   ariaLabel?: string;
 }) {
@@ -195,7 +214,10 @@ export function Input({
   if (label) {
     return (
       <label className="block">
-        <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">{label}</div>
+        <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground">
+          {label}
+          {hint ? <span title={hint} className="cursor-help text-[10px] text-muted-foreground/60 hover:text-muted-foreground">(?)</span> : null}
+        </div>
         {input}
       </label>
     );
@@ -209,6 +231,7 @@ export function TextArea({
   placeholder,
   rows = 4,
   label,
+  hint,
   readOnly = false,
   disabled = false,
 }: {
@@ -217,6 +240,7 @@ export function TextArea({
   placeholder?: string;
   rows?: number;
   label?: string;
+  hint?: string;
   readOnly?: boolean;
   disabled?: boolean;
 }) {
@@ -235,7 +259,10 @@ export function TextArea({
   if (label) {
     return (
       <label className="block">
-        <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">{label}</div>
+        <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground">
+          {label}
+          {hint ? <span title={hint} className="cursor-help text-[10px] text-muted-foreground/60 hover:text-muted-foreground">(?)</span> : null}
+        </div>
         {textarea}
       </label>
     );
@@ -249,6 +276,7 @@ export function Select({
   options,
   compact = false,
   label,
+  hint,
   disabled = false,
 }: {
   value: string;
@@ -256,6 +284,7 @@ export function Select({
   options: Array<{ value: string; label: string }>;
   compact?: boolean;
   label?: string;
+  hint?: string;
   disabled?: boolean;
 }) {
   const select = (
@@ -279,7 +308,10 @@ export function Select({
   if (label) {
     return (
       <label className="block">
-        <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">{label}</div>
+        <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground">
+          {label}
+          {hint ? <span title={hint} className="cursor-help text-[10px] text-muted-foreground/60 hover:text-muted-foreground">(?)</span> : null}
+        </div>
         {select}
       </label>
     );
@@ -312,7 +344,7 @@ export function ActionButton({
 
   return (
     <button
-      className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-[12px] font-bold transition duration-150 active:translate-y-px ${toneClass} ${isDisabled ? "pointer-events-none opacity-60" : ""} ${loading ? "scale-[0.98]" : ""}`}
+      className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-[12px] font-bold transition-all duration-150 active:scale-[0.97] active:translate-y-px ${toneClass} ${isDisabled ? "pointer-events-none opacity-60" : ""} ${loading ? "scale-[0.98]" : ""}`}
       onClick={onClick}
       disabled={isDisabled}
       aria-busy={loading}
@@ -336,18 +368,18 @@ export function StatusPill({ status }: { status: string }) {
   const warning = ["auth_required", "degraded", "pending", "in_review", "todo", "queued", "not_installed"].includes(status);
   const checking = status === "detected";
   const toneClass = positive
-    ? "text-green-600 dark:text-green-400"
+    ? "text-success"
     : negative
       ? "text-destructive"
       : warning
-        ? "text-yellow-600 dark:text-yellow-400"
+        ? "text-warning"
         : "text-muted-foreground";
   const dotClass = positive
-    ? "bg-green-600 dark:bg-green-400"
+    ? "bg-success"
     : negative
       ? "bg-destructive"
       : warning
-        ? "bg-yellow-600 dark:bg-yellow-400"
+        ? "bg-warning"
         : "bg-[color:var(--muted-foreground)]";
 
   const displayLabel = checking ? "checking" : status.replaceAll("_", " ");
@@ -374,10 +406,10 @@ export function InlineNotice({
   action?: ReactNode;
 }) {
   const toneClass = tone === "success"
-    ? "border-[color:var(--primary)] bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400"
+    ? "border-[color:var(--primary)] bg-success-muted text-success"
     : tone === "warn"
-      ? "border-[color:var(--destructive)] bg-yellow-100 dark:bg-yellow-900/50 text-yellow-600 dark:text-yellow-400"
-      : "border-[color:var(--destructive)] bg-red-100 dark:bg-red-900/50 text-destructive";
+      ? "border-[color:var(--warning)] bg-warning-muted text-warning"
+      : "border-[color:var(--destructive)] bg-destructive-muted text-destructive";
   return (
     <div className={`rounded-lg border px-4 py-3 text-[13px] ${toneClass}`} role={tone === "danger" ? "alert" : "status"}>
       {action ? (
@@ -409,26 +441,33 @@ export function ConfirmDialog({ open, title, message, errorMessage, onConfirm, o
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onCancel]);
 
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color:var(--foreground)]/45" onClick={onCancel}>
-      <div
-        ref={trapRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
-        className="w-full max-w-[400px] rounded-lg bg-card border border-border p-6 shadow-lg"
-        onClick={e => e.stopPropagation()}
-      >
-        <div id="confirm-dialog-title" className="text-[16px] font-semibold text-foreground mb-2">{title}</div>
-        <div className="text-[13px] text-muted-foreground mb-6">{message}</div>
-        {errorMessage ? <div className="mb-4"><InlineNotice message={errorMessage} /></div> : null}
-        <div className="flex gap-3 justify-end">
-          <ActionButton label="Cancel" onClick={onCancel} />
-          <ActionButton label="Confirm" tone="danger" onClick={onConfirm} />
-        </div>
-      </div>
-    </div>
+    <AnimatePresence>
+      {open ? (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15, ease: EASE }} className="fixed inset-0 z-50 flex items-center justify-center bg-[color:var(--foreground)]/45" onClick={onCancel}>
+          <motion.div
+            ref={trapRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-dialog-title"
+            initial={{ scale: 0.96, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.96, opacity: 0 }}
+            transition={{ duration: 0.18, ease: EASE }}
+            className="w-full max-w-[400px] rounded-lg bg-card border border-border p-6 shadow-lg"
+            onClick={e => e.stopPropagation()}
+          >
+            <div id="confirm-dialog-title" className="text-[16px] font-semibold text-foreground mb-2">{title}</div>
+            <div className="text-[13px] text-muted-foreground mb-6">{message}</div>
+            {errorMessage ? <div className="mb-4"><InlineNotice message={errorMessage} /></div> : null}
+            <div className="flex gap-3 justify-end">
+              <ActionButton label="Cancel" onClick={onCancel} />
+              <ActionButton label="Confirm" tone="danger" onClick={onConfirm} />
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }
 
@@ -442,11 +481,11 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="px-1 py-8 text-center">
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: EASE }} className="px-1 py-8 text-center">
       <div className="mb-2 text-[15px] font-semibold text-foreground">{title}</div>
       {detail ? <div className="mx-auto max-w-[48ch] text-[13px] leading-relaxed text-muted-foreground">{detail}</div> : null}
       {action ? <div className="mt-5">{action}</div> : null}
-    </div>
+    </motion.div>
   );
 }
 

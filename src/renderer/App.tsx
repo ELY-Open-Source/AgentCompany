@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   CaretUpDown,
@@ -519,7 +519,7 @@ export function App() {
   const companyKnowledge = useMemo(() => snapshot?.knowledgeBase?.filter((k) => !currentCompany || k.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
   const companyMeetings = useMemo(() => snapshot?.meetings?.filter((m) => !currentCompany || m.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
   const companySprints = useMemo(() => snapshot?.sprints?.filter((s) => !currentCompany || s.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
-  const paletteQuery = commandPaletteSearch.trim().toLowerCase();
+  const paletteQuery = useDeferredValue(commandPaletteSearch.trim().toLowerCase());
   const paletteResults = useMemo(() => {
     const filteredNavItems = paletteQuery
       ? navItems.filter((item) => item.label.toLowerCase().includes(paletteQuery) || item.id.toLowerCase().includes(paletteQuery))
@@ -580,6 +580,19 @@ export function App() {
       else if (targetSection === "communication") setSelectedCommunicationEntityId(entityId);
     }
   }, [runs, tasks]);
+
+  // Global Cmd/Ctrl+K to open command palette
+  useEffect(() => {
+    function onGlobalKey(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+        event.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+        if (!commandPaletteOpen) { setCommandPaletteSearch(""); setSelectedPaletteIndex(0); }
+      }
+    }
+    document.addEventListener("keydown", onGlobalKey);
+    return () => document.removeEventListener("keydown", onGlobalKey);
+  }, [commandPaletteOpen]);
 
   useEffect(() => {
     if (!commandPaletteOpen) return;
@@ -741,13 +754,13 @@ export function App() {
     <TranslationContext.Provider value={t}>
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
     {showCustomTitleBar && <TitleBar />}
-    <div className={`grid min-h-0 flex-1 overflow-hidden ${sidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[220px_minmax(0,1fr)]"}`}>
+    <div className={`grid min-h-0 flex-1 overflow-hidden transition-[grid-template-columns] duration-200 ${sidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[220px_minmax(0,1fr)]"}`} style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}>
       <aside className="flex h-full flex-col overflow-hidden border-r border-border bg-card">
         {sidebarCollapsed ? (
           <div className={`sidebar-drag flex items-center justify-center px-2 pb-3 ${isMac ? "pt-[38px]" : "pt-3"}`}>
             <button
               aria-label="Open command palette"
-              title="Command palette"
+              title={`Command palette (${isMac ? "⌘" : "Ctrl+"}K)`}
               className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground"
               onClick={() => setCommandPaletteOpen(true)}
             >
@@ -830,27 +843,28 @@ export function App() {
               )}
             </div>
             <button
-              aria-label="Open command palette"
-              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              aria-label={`Open command palette (${isMac ? "⌘" : "Ctrl+"}K)`}
+              title={`Command palette (${isMac ? "⌘" : "Ctrl+"}K)`}
+              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex h-[30px] shrink-0 items-center justify-center gap-1 rounded-lg border border-border px-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
               onClick={() => setCommandPaletteOpen(true)}
             >
               <Command size={14} />
+              <kbd className="text-[10px] font-medium text-muted-foreground">{isMac ? "⌘K" : "^K"}</kbd>
             </button>
           </div>
         )}
         <nav aria-label="Main navigation" className={`flex-1 overflow-y-auto pb-3 ${sidebarCollapsed ? "px-1.5 pt-2" : "px-3 pt-2"}`}>
+          {/* Core: Overview, Team, Work */}
           <div className="space-y-0.5">
-            {sidebarNav.map((item) => (
-              <SectionButton
-                key={item.id}
-                active={section === item.id}
-                label={item.label}
-                icon={item.icon}
-                onClick={() => setSection(item.id)}
-                badge={navBadges[item.id]?.count}
-                badgeTone={navBadges[item.id]?.tone}
-                collapsed={sidebarCollapsed}
-              />
+            {sidebarNav.slice(0, 3).map((item) => (
+              <SectionButton key={item.id} active={section === item.id} label={item.label} icon={item.icon} onClick={() => setSection(item.id)} badge={navBadges[item.id]?.count} badgeTone={navBadges[item.id]?.tone} collapsed={sidebarCollapsed} />
+            ))}
+          </div>
+          <div className={`my-2 border-t border-border ${sidebarCollapsed ? "mx-1" : "mx-2"}`} />
+          {/* Collaborate & Extend: Communication, Skills, Documents, Approvals, Social */}
+          <div className="space-y-0.5">
+            {sidebarNav.slice(3).map((item) => (
+              <SectionButton key={item.id} active={section === item.id} label={item.label} icon={item.icon} onClick={() => setSection(item.id)} badge={navBadges[item.id]?.count} badgeTone={navBadges[item.id]?.tone} collapsed={sidebarCollapsed} />
             ))}
           </div>
         </nav>
@@ -899,7 +913,7 @@ export function App() {
         <div className={section === "communication" ? "flex min-h-0 flex-1 flex-col" : "mx-auto flex w-full max-w-[1040px] flex-col px-6 py-6 lg:px-10 lg:py-8"}>
 
         {error ? (
-          <div className={`flex items-center gap-3 rounded-lg bg-red-100 dark:bg-red-900/50 px-4 py-3 text-[13px] text-destructive ${section === "communication" ? "mx-6 mt-4" : "mb-6"}`}>
+          <div className={`flex items-center gap-3 rounded-lg bg-destructive-muted px-4 py-3 text-[13px] text-destructive ${section === "communication" ? "mx-6 mt-4" : "mb-6"}`}>
             <WarningCircle size={18} />
             <span>{error}</span>
           </div>

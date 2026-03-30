@@ -82,7 +82,7 @@ export function RunDetail({
           <DetailRow label="Cost">{formatMoney(selectedRun.costUsd)}</DetailRow>
         </div>
         {selectedRun.errorMessage ? (
-          <div className="mt-4 rounded-lg border border-[color:var(--destructive)] bg-red-100 dark:bg-red-900/50 px-4 py-3 text-[13px] text-destructive">
+          <div className="mt-4 rounded-lg border border-[color:var(--destructive)] bg-destructive-muted px-4 py-3 text-[13px] text-destructive">
             {selectedRun.errorMessage}
           </div>
         ) : null}
@@ -118,7 +118,7 @@ export function RunDetail({
         )}
       >
         {logState.error ? (
-          <div className="rounded-lg border border-[color:var(--destructive)] bg-red-100 dark:bg-red-900/50 px-4 py-3 text-[13px] text-destructive">
+          <div className="rounded-lg border border-[color:var(--destructive)] bg-destructive-muted px-4 py-3 text-[13px] text-destructive">
             {logState.error}
           </div>
         ) : null}

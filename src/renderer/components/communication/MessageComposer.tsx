@@ -9,7 +9,7 @@ import { useT } from "../../i18n"
 
 function SendButton({ sending, disabled, onClick, label }: { sending: boolean; disabled: boolean; onClick: () => void; label: string }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled || sending} className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition hover:brightness-90 active:translate-y-px disabled:opacity-40 disabled:pointer-events-none" aria-label={label}>
+    <button type="button" onClick={onClick} disabled={disabled || sending} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition hover:brightness-90 active:translate-y-px disabled:opacity-40 disabled:pointer-events-none" aria-label={label}>
       {sending ? <svg className="h-4 w-4 animate-spin" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.3" /><path d="M14 8a6 6 0 0 0-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg> : <PaperPlaneTilt size={18} weight="fill" />}
     </button>
   )
@@ -66,10 +66,10 @@ export function MessageComposer({ agents, companyId, channel, channelTargetId, d
         <select value={fromAgentId} onChange={(e) => setFromAgentId(e.target.value)} className="min-w-0 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground">
           {agents.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.role})</option>)}
         </select>
-        {!replyTo ? <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject (optional)" className="min-w-0 flex-1 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] text-foreground placeholder:text-muted-foreground" /> : null}
+        {!replyTo ? <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject (optional)" aria-label="Message subject" className="min-w-0 flex-1 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] text-foreground placeholder:text-muted-foreground" /> : null}
       </div>
       <div className="flex items-end gap-2">
-        <textarea ref={textareaRef} value={body} onChange={(e) => setBody(e.target.value)} onKeyDown={handleKeyDown} placeholder="Type a message..." rows={2} className="min-h-[40px] min-w-0 flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2" style={{ focusRingColor: "var(--primary)" } as React.CSSProperties} />
+        <textarea ref={textareaRef} value={body} onChange={(e) => setBody(e.target.value)} onKeyDown={handleKeyDown} placeholder="Type a message..." aria-label="Message body" rows={2} className="min-h-[40px] min-w-0 flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2" style={{ focusRingColor: "var(--primary)" } as React.CSSProperties} />
         <SendButton sending={sending} disabled={!body.trim() || !fromAgentId || (channel === "direct" && !directRecipientId)} onClick={() => void handleSend()} label="Send message" />
       </div>
       <div className="mt-1 text-[11px] text-muted-foreground">Press {navigator.platform.includes("Mac") ? "Cmd" : "Ctrl"}+Enter to send</div>
@@ -87,7 +87,7 @@ export function TaskDiscussionComposer({ companyId, taskId, onSent }: { companyI
     <div className="border-t border-border bg-card px-4 py-3">
       {sendError ? <div className="mb-3"><InlineNotice message={sendError} /></div> : null}
       <div className="flex items-end gap-2">
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Reply in task discussion..." rows={2} className="min-h-[40px] min-w-0 flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2" style={{ focusRingColor: "var(--primary)" } as React.CSSProperties} />
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Reply in task discussion..." aria-label="Task discussion reply" rows={2} className="min-h-[40px] min-w-0 flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2" style={{ focusRingColor: "var(--primary)" } as React.CSSProperties} />
         <SendButton sending={sending} disabled={!body.trim()} onClick={() => void handleSend()} label="Send task comment" />
       </div>
     </div>

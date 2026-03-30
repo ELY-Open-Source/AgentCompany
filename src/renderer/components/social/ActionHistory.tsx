@@ -40,7 +40,7 @@ export function ActionHistory({ actions, agents, onOpenPath, onCancelAction, onN
             className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5 text-[12px]"
           >
             <Icon size={16} className={
-              isSuccess ? "text-green-600 dark:text-green-400"
+              isSuccess ? "text-success"
               : isFailed ? "text-destructive"
               : isRunning ? "text-primary"
               : "text-muted-foreground"
@@ -94,7 +94,7 @@ export function ActionHistory({ actions, agents, onOpenPath, onCancelAction, onN
                   <button
                     type="button"
                     onClick={() => void onCancelAction(action.id)}
-                    className="inline-flex items-center gap-1 rounded-[5px] bg-red-100 dark:bg-red-900/50 px-2 py-1 text-[10px] font-medium text-destructive transition hover:brightness-95"
+                    className="inline-flex items-center gap-1 rounded-[5px] bg-destructive-muted px-2 py-1 text-[10px] font-medium text-destructive transition hover:brightness-95"
                   >
                     <ClockCounterClockwise size={10} />
                     Cancel
@@ -106,10 +106,10 @@ export function ActionHistory({ actions, agents, onOpenPath, onCancelAction, onN
               {timeAgo(action.createdAt)}
             </div>
             <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold ${
-              isSuccess ? "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400"
-              : isFailed ? "bg-red-100 dark:bg-red-900/50 text-destructive"
+              isSuccess ? "bg-success-muted text-success"
+              : isFailed ? "bg-destructive-muted text-destructive"
               : isRunning ? "bg-accent text-primary"
-              : action.status === "approval_required" ? "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-600 dark:text-yellow-400"
+              : action.status === "approval_required" ? "bg-warning-muted text-warning"
               : "bg-muted text-muted-foreground"
             }`}>
               {action.status.replace("_", " ")}

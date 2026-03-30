@@ -80,7 +80,7 @@ export function NodeCheckStep({
         {checking ? (
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-primary" />
         ) : nodeStatus?.installed ? (
-          <CheckCircle size={18} weight="fill" className="shrink-0 text-green-600 dark:text-green-400" />
+          <CheckCircle size={18} weight="fill" className="shrink-0 text-success" />
         ) : nodeStatus ? (
           <XCircle size={18} weight="fill" className="shrink-0 text-destructive" />
         ) : null}
@@ -88,7 +88,7 @@ export function NodeCheckStep({
         {checking ? (
           <span className="text-muted-foreground">{t("onboarding.providerChecking")}...</span>
         ) : nodeStatus?.installed ? (
-          <span className="font-medium text-green-600 dark:text-green-400">
+          <span className="font-medium text-success">
             {t("onboarding.nodeInstalled").replace("{version}", nodeStatus.version ?? "")}
           </span>
         ) : nodeStatus ? (

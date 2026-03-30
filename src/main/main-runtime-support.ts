@@ -148,15 +148,19 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       getApiPort: () => state.apiServer?.getPort() ?? 0,
       notify: (options) => requireIpcSupport().notify(options),
       listConnectorModels: async (connectorId) => {
+        const disabled = new Set(requireDb().getDisabledModels(connectorId).map((m) => m.id));
         // For claude_compatible, return user-configured models from the DB
         // (stored as comma-separated values in the connector's model field)
         if (connectorId.startsWith("claude_compat")) {
           const connector = requireDb().getConnector(connectorId);
           const raw = connector.model ?? "";
-          return raw.split(",").map((m) => m.trim()).filter(Boolean).map((m) => ({ id: m, label: m }));
+          return raw.split(",").map((m) => m.trim()).filter(Boolean)
+            .filter((m) => !disabled.has(m))
+            .map((m) => ({ id: m, label: m }));
         }
         const definition = getConnectorDefinition(connectorId as Parameters<typeof getConnectorDefinition>[0]);
-        return definition.listModels ? definition.listModels() : [];
+        const models = definition.listModels ? await definition.listModels() : [];
+        return models.filter((m) => !disabled.has(m.id));
       },
     });
 

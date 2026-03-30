@@ -136,7 +136,7 @@ export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRe
     <div className="grid gap-4">
       {submitError ? <InlineNotice message={submitError} /> : null}
       {needsLogin ? (
-        <div className="rounded-lg border border-[color:var(--destructive)] bg-yellow-100 dark:bg-yellow-900/50 px-4 py-4 text-[12px] text-yellow-600 dark:text-yellow-400">
+        <div className="rounded-lg border border-[color:var(--destructive)] bg-warning-muted px-4 py-4 text-[12px] text-warning">
           <div className="text-[11px] font-semibold uppercase tracking-[0.08em]">{authActionCopy.title}</div>
           <div className="mt-1.5 leading-relaxed">{authActionCopy.message}</div>
           <div className="mt-3">

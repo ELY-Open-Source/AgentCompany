@@ -52,7 +52,7 @@ export function TaskComments({ taskId, companyId, agents, comments, onRefresh }:
       )}
       {submitError ? <InlineNotice message={submitError} /> : null}
       <div className="flex gap-2">
-        <input className="flex-1 rounded-md border border-border bg-card px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-[color:var(--primary)] focus:outline-none" placeholder={t("exec.sendMessage")} value={newComment} onChange={(e) => setNewComment(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSubmit() } }} />
+        <input aria-label={t("exec.sendMessage")} className="flex-1 rounded-md border border-border bg-card px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-[color:var(--primary)] focus:outline-none" placeholder={t("exec.sendMessage")} value={newComment} onChange={(e) => setNewComment(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSubmit() } }} />
         <ActionButton label={t("exec.send")} tone="accent" onClick={() => void handleSubmit()} icon={ArrowRight} loading={submitting} />
       </div>
     </div>

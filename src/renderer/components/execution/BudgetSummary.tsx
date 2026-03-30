@@ -45,8 +45,8 @@ export function BudgetSummary({ agents, costs, companyId }: BudgetSummaryProps) 
             const pct = status.amount > 0 ? (status.spent / status.amount) * 100 : 0
             const isWarning = pct > 80 && pct <= 100
             const isDanger = pct > 100
-            const barColor = isDanger ? "bg-destructive" : isWarning ? "bg-yellow-600 dark:bg-yellow-400" : "bg-green-600 dark:bg-green-400"
-            const nameColor = isDanger ? "text-destructive" : isWarning ? "text-yellow-600 dark:text-yellow-400" : "text-foreground"
+            const barColor = isDanger ? "bg-destructive" : isWarning ? "bg-warning" : "bg-success"
+            const nameColor = isDanger ? "text-destructive" : isWarning ? "text-warning" : "text-foreground"
 
             const scopeLabel = status.scopeType === "company"
               ? "Company"
@@ -62,11 +62,11 @@ export function BudgetSummary({ agents, costs, companyId }: BudgetSummaryProps) 
                       {status.scopeType}
                     </span>
                     <div className={`text-[14px] font-medium ${nameColor}`}>{scopeLabel}</div>
-                    {status.hasOpenIncident ? <Warning size={14} weight="fill" className="text-yellow-600 dark:text-yellow-400" /> : null}
+                    {status.hasOpenIncident ? <Warning size={14} weight="fill" className="text-warning" /> : null}
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="font-mono text-[12px] text-foreground">{formatMoney(status.spent / 100)} / {formatMoney(status.amount / 100)}</div>
-                    <span className={`font-mono text-[11px] font-semibold ${isDanger ? "text-destructive" : isWarning ? "text-yellow-600 dark:text-yellow-400" : "text-muted-foreground"}`}>{Math.round(pct)}%</span>
+                    <span className={`font-mono text-[11px] font-semibold ${isDanger ? "text-destructive" : isWarning ? "text-warning" : "text-muted-foreground"}`}>{Math.round(pct)}%</span>
                   </div>
                 </div>
                 <div className="h-2 rounded-full bg-[color:var(--border)]"><div className={`h-2 rounded-full ${barColor}`} style={{ width: `${Math.min(100, pct)}%` }} /></div>
@@ -79,19 +79,19 @@ export function BudgetSummary({ agents, costs, companyId }: BudgetSummaryProps) 
           {agents.map((agent) => {
             const pct = agent.budgetMonthlyUsd > 0 ? (agent.spentMonthlyUsd / agent.budgetMonthlyUsd) * 100 : 0
             const isWarning = pct > 80 && pct <= 100; const isDanger = pct > 100
-            const barColor = isDanger ? "bg-destructive" : isWarning ? "bg-yellow-600 dark:bg-yellow-400" : "bg-green-600 dark:bg-green-400"
-            const nameColor = isDanger ? "text-destructive" : isWarning ? "text-yellow-600 dark:text-yellow-400" : "text-foreground"
+            const barColor = isDanger ? "bg-destructive" : isWarning ? "bg-warning" : "bg-success"
+            const nameColor = isDanger ? "text-destructive" : isWarning ? "text-warning" : "text-foreground"
             return (
               <ListRow key={agent.id}>
                 <div className="mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className={`text-[14px] font-medium ${nameColor}`}>{agent.name}</div>
                     {isDanger ? <Warning size={14} weight="fill" className="text-destructive" /> : null}
-                    {isWarning ? <Warning size={14} weight="fill" className="text-yellow-600 dark:text-yellow-400" /> : null}
+                    {isWarning ? <Warning size={14} weight="fill" className="text-warning" /> : null}
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="font-mono text-[12px] text-foreground">{formatMoney(agent.spentMonthlyUsd)} / {formatMoney(agent.budgetMonthlyUsd)}</div>
-                    <span className={`font-mono text-[11px] font-semibold ${isDanger ? "text-destructive" : isWarning ? "text-yellow-600 dark:text-yellow-400" : "text-muted-foreground"}`}>{Math.round(pct)}%</span>
+                    <span className={`font-mono text-[11px] font-semibold ${isDanger ? "text-destructive" : isWarning ? "text-warning" : "text-muted-foreground"}`}>{Math.round(pct)}%</span>
                   </div>
                 </div>
                 <div className="h-2 rounded-full bg-[color:var(--border)]"><div className={`h-2 rounded-full ${barColor}`} style={{ width: `${Math.min(100, pct)}%` }} /></div>

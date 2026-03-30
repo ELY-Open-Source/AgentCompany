@@ -17,8 +17,8 @@ interface BudgetRow {
 
 function getBarColor(pct: number): string {
   if (pct >= 100) return "bg-destructive";
-  if (pct >= 80) return "bg-yellow-600 dark:bg-yellow-400";
-  return "bg-green-600 dark:bg-green-400";
+  if (pct >= 80) return "bg-warning";
+  return "bg-success";
 }
 
 function scopeLabel(scopeType: string): string {
@@ -119,7 +119,7 @@ export function BudgetUtilization({ companyId, agents }: BudgetUtilizationProps)
               />
               {/* 80% warning marker */}
               <div
-                className="absolute top-0 h-full w-px bg-yellow-600 dark:bg-yellow-400 opacity-50"
+                className="absolute top-0 h-full w-px bg-warning opacity-50"
                 style={{ left: "80%" }}
               />
             </div>

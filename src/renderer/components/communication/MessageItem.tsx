@@ -14,7 +14,7 @@ import { DEPARTMENT_COLORS } from "@shared/constants"
 
 
 const priorityConfig: Record<string, { label: string; className: string }> = {
-  urgent: { label: "Urgent", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  urgent: { label: "Urgent", className: "bg-destructive-muted text-destructive" },
   normal: { label: "Normal", className: "bg-muted text-muted-foreground" },
   low: { label: "Low", className: "bg-muted text-muted-foreground" },
 }

@@ -79,8 +79,8 @@ export function BudgetAlertBanner({ agents, onNavigate, companyId }: BudgetAlert
       {incidents.map((incident) => {
         const isHardStop = incident.thresholdType === "hard_stop";
         const borderColor = isHardStop ? "border-[color:var(--destructive)]" : "border-[color:var(--destructive)]";
-        const bgColor = isHardStop ? "bg-red-100 dark:bg-red-900/50" : "bg-yellow-100 dark:bg-yellow-900/50";
-        const textColor = isHardStop ? "text-destructive" : "text-yellow-600 dark:text-yellow-400";
+        const bgColor = isHardStop ? "bg-destructive-muted" : "bg-warning-muted";
+        const textColor = isHardStop ? "text-destructive" : "text-warning";
         const pct = incident.amountLimit > 0 ? Math.round((incident.amountObserved / incident.amountLimit) * 100) : 0;
 
         return (
@@ -132,14 +132,14 @@ export function BudgetAlertBanner({ agents, onNavigate, companyId }: BudgetAlert
     <div
       role="alert"
       aria-live="assertive"
-      className="rounded-lg border border-[color:var(--destructive)] border-opacity-30 bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3"
+      className="rounded-lg border border-[color:var(--destructive)] border-opacity-30 bg-warning-muted px-4 py-3"
     >
       <div className="flex items-start gap-3">
         <div className="mt-0.5 shrink-0">
-          <Warning size={18} weight="bold" className="text-yellow-600 dark:text-yellow-400" />
+          <Warning size={18} weight="bold" className="text-warning" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-semibold text-yellow-600 dark:text-yellow-400">
+          <div className="text-[13px] font-semibold text-warning">
             Budget Alert
           </div>
           <div className="mt-0.5 text-[13px] text-muted-foreground">
@@ -152,7 +152,7 @@ export function BudgetAlertBanner({ agents, onNavigate, companyId }: BudgetAlert
                 className={`whitespace-nowrap text-[11px] font-[family-name:var(--font-mono)] ${
                   agent.pct >= 100
                     ? "text-destructive"
-                    : "text-yellow-600 dark:text-yellow-400"
+                    : "text-warning"
                 }`}
                 style={{ fontVariantNumeric: "tabular-nums" }}
               >

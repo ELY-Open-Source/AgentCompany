@@ -100,7 +100,7 @@ export function CostList({ costs, agents, runs }: { costs: ProfileSnapshot["cost
                   </div>
                   <div className="shrink-0 text-right">
                     <div className="font-mono tabular-nums text-[13px] text-foreground">{formatMoney(entry.amountUsd)}</div>
-                    {entry.unattributed ? <div className="text-[11px] text-yellow-600 dark:text-yellow-400">unattributed</div> : null}
+                    {entry.unattributed ? <div className="text-[11px] text-warning">unattributed</div> : null}
                   </div>
                 </div>
               </div>

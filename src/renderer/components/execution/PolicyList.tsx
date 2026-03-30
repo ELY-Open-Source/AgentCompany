@@ -99,7 +99,7 @@ export function PolicyList({ companyId, agents, projects }: PolicyListProps) {
           {policies.map((policy) => {
             const util = getUtilization(policy.id);
             const pct = util?.pct ?? 0;
-            const barColor = pct > 100 ? "bg-destructive" : pct > 80 ? "bg-yellow-600 dark:bg-yellow-400" : "bg-green-600 dark:bg-green-400";
+            const barColor = pct > 100 ? "bg-destructive" : pct > 80 ? "bg-warning" : "bg-success";
             return (
               <ListRow key={policy.id} onClick={() => handleEdit(policy)}>
                 <div className="flex items-center justify-between gap-3">
@@ -110,7 +110,7 @@ export function PolicyList({ companyId, agents, projects }: PolicyListProps) {
                       </span>
                       <span className="truncate text-[13px] font-medium text-foreground">{getScopeName(policy)}</span>
                       {policy.hardStopEnabled ? <ShieldCheck size={14} className="shrink-0 text-primary" /> : null}
-                      {util?.hasIncident ? <Warning size={14} weight="fill" className="shrink-0 text-yellow-600 dark:text-yellow-400" /> : null}
+                      {util?.hasIncident ? <Warning size={14} weight="fill" className="shrink-0 text-warning" /> : null}
                     </div>
                     <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
                       <span className="font-[family-name:var(--font-mono)]" style={{ fontVariantNumeric: "tabular-nums" }}>

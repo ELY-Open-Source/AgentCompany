@@ -1955,6 +1955,24 @@ export class AppDatabase {
     this.setSetting(`budget_reset_month_${companyId}`, month);
   }
 
+  getDisabledModels(connectorId: string): Array<{ id: string; label: string }> {
+    const raw = this.getSetting(`disabled_models:${connectorId}`);
+    if (!raw) return [];
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw.split(",").filter(Boolean).map((id) => ({ id, label: id }));
+    }
+  }
+
+  setDisabledModels(connectorId: string, models: Array<{ id: string; label: string }>) {
+    if (models.length === 0) {
+      this.db.prepare("delete from settings where key = ?").run(`disabled_models:${connectorId}`);
+    } else {
+      this.setSetting(`disabled_models:${connectorId}`, JSON.stringify(models));
+    }
+  }
+
   listHeartbeatEligibleAgents(companyId: string): AgentRecord[] {
     return this.readAll<AgentRecord>(
       "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? and heartbeat_enabled = 1 and status not in ('terminated', 'paused', 'error', 'pending_approval')",
@@ -2351,7 +2369,8 @@ export class AppDatabase {
 
   private seedConnectors() {
     // Remove connector rows for adapters that have been removed from the codebase.
-    this.db.prepare("delete from connectors where id not in ('codex_local', 'claude_local', 'gemini_local')").run();
+    // Preserve native connectors and all claude_compat slots (user-configured API providers).
+    this.db.prepare("delete from connectors where id not in ('codex_local', 'claude_local', 'gemini_local') and id not like 'claude_compat%'").run();
     const currentRows = this.readAll<Partial<ConnectorRecord>>(
       "select id, label, description, status, command, version, auth_state as authState, last_checked_at as lastCheckedAt, last_error as lastError, model, env_binding_text as envBindingText, notes from connectors",
     );

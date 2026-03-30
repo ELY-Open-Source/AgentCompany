@@ -12,8 +12,8 @@ import { useAppStore } from "../../state/store"
 
 function getTypeBadgeClass(type: string): string {
   if (type === "hire_agent") return "bg-accent text-primary"
-  if (type === "approve_ceo_strategy") return "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-600 dark:text-yellow-400"
-  if (type === "secret_access") return "bg-red-100 dark:bg-red-900/50 text-destructive"
+  if (type === "approve_ceo_strategy") return "bg-warning-muted text-warning"
+  if (type === "secret_access") return "bg-destructive-muted text-destructive"
   if (type === "social_post") return "bg-accent text-primary"
   if (type === "deliverable_review") return "bg-accent text-primary"
   return "bg-muted text-muted-foreground"
@@ -113,7 +113,7 @@ export function ApprovalInspector({ approval, agents, tasks, documents, companyI
             <div><span className="text-muted-foreground">Budget:</span> <span className="font-mono text-foreground">{formatMoney(proposedAgent?.budgetMonthlyUsd ?? (typeof reqSnap?.budgetMonthlyUsd === "number" ? reqSnap.budgetMonthlyUsd : 0))}/mo</span></div>
             {mgr ? <div><span className="text-muted-foreground">Reports to:</span> <span className="text-foreground">{mgr.name}</span></div> : null}
           </div></div>) })() : null}
-        {approval.type === "approve_ceo_strategy" ? <div className="rounded-lg border border-[color:var(--destructive)] border-opacity-30 bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3"><div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-yellow-600 dark:text-yellow-400">Organization Strategy</div><div className="whitespace-pre-wrap text-[12px] leading-relaxed text-foreground">{approval.payloadSummary}</div></div> : null}
+        {approval.type === "approve_ceo_strategy" ? <div className="rounded-lg border border-[color:var(--destructive)] border-opacity-30 bg-warning-muted px-4 py-3"><div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-warning">Organization Strategy</div><div className="whitespace-pre-wrap text-[12px] leading-relaxed text-foreground">{approval.payloadSummary}</div></div> : null}
         {approval.type === "deliverable_review" ? <DeliverableReviewPanel approval={approval} documents={documents} agents={agents} /> : null}
         {isSocialPost && approval.payloadJson ? (
           <SocialDraftPreview

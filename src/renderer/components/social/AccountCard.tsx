@@ -28,7 +28,7 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
       <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
         <span className="truncate">@{account.accountName}</span>
         {account.requireApproval ? (
-          <span className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
+          <span className="flex items-center gap-1 text-warning">
             <ShieldCheck size={10} />
             Approval required
           </span>
@@ -58,16 +58,16 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
       <div className="flex items-center gap-2">
         <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
           isLoggedIn
-            ? "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400"
+            ? "bg-success-muted text-success"
             : account.status === "login_required"
-              ? "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-600 dark:text-yellow-400"
+              ? "bg-warning-muted text-warning"
               : account.status === "suspended"
-                ? "bg-red-100 dark:bg-red-900/50 text-destructive"
+                ? "bg-destructive-muted text-destructive"
                 : "bg-muted text-muted-foreground"
         }`}>
           <span className={`h-1.5 w-1.5 rounded-full ${
-            isLoggedIn ? "bg-green-600 dark:bg-green-400"
-            : account.status === "login_required" ? "bg-yellow-600 dark:bg-yellow-400"
+            isLoggedIn ? "bg-success"
+            : account.status === "login_required" ? "bg-warning"
             : account.status === "suspended" ? "bg-destructive"
             : "bg-[color:var(--muted-foreground)]"
           }`} />
@@ -89,7 +89,7 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
           type="button"
           onClick={onDelete}
           aria-label="Delete account"
-          className="rounded-lg p-1.5 text-muted-foreground opacity-0 transition hover:bg-red-100 dark:bg-red-900/50 hover:text-destructive group-hover:opacity-100 group-focus-within:opacity-100"
+          className="rounded-lg p-1.5 text-muted-foreground opacity-0 transition hover:bg-destructive-muted hover:text-destructive group-hover:opacity-100 group-focus-within:opacity-100"
         >
           <Trash size={14} />
         </button>

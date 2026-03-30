@@ -63,7 +63,7 @@ export function OnboardingHero({
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
-        className="relative z-10 mx-auto w-full max-w-[460px]"
+        className="relative z-10 mx-auto w-full max-w-[min(460px,90vw)]"
       >
         {/* Signature line */}
         <motion.div
@@ -120,7 +120,7 @@ export function OnboardingHero({
               <div
                 className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors duration-300 ${
                   index < stepIndex
-                    ? "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400"
+                    ? "bg-success-muted text-success"
                     : index === stepIndex
                       ? "bg-accent text-primary"
                       : "bg-muted text-muted-foreground"

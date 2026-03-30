@@ -11,8 +11,8 @@ interface IncidentListProps {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  open: "text-destructive bg-red-100 dark:bg-red-900/50",
-  resolved: "text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50",
+  open: "text-destructive bg-destructive-muted",
+  resolved: "text-success bg-success-muted",
   auto_resolved_limit_increase: "text-primary bg-accent",
   auto_closed: "text-muted-foreground bg-muted",
 };
@@ -93,8 +93,8 @@ export function IncidentList({ companyId, agents, projects }: IncidentListProps)
                         <span
                           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${
                             isWarn
-                              ? "text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/50"
-                              : "text-destructive bg-red-100 dark:bg-red-900/50"
+                              ? "text-warning bg-warning-muted"
+                              : "text-destructive bg-destructive-muted"
                           }`}
                         >
                           {isWarn ? <Warning size={10} weight="bold" /> : null}

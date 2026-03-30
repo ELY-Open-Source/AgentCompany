@@ -44,7 +44,7 @@ export function ActivityList({ activity }: { activity: ActivityRecord[] }) {
       <div className="flex items-center gap-3">
         <div className="relative flex-1">
           <MagnifyingGlass size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input type="text" className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 w-full rounded-lg border border-border bg-card py-2.5 pl-8 pr-3.5 text-[13px] text-foreground placeholder:text-muted-foreground" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("exec.searchActivity")} />
+          <input type="text" aria-label={t("exec.searchActivity")} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 w-full rounded-lg border border-border bg-card py-2.5 pl-8 pr-3.5 text-[13px] text-foreground placeholder:text-muted-foreground" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("exec.searchActivity")} />
         </div>
         <Select value={entityFilter} onChange={setEntityFilter} options={ENTITY_TYPE_OPTIONS.map((v) => ({ value: v, label: v === "all" ? t("exec.allTypes") : v }))} />
       </div>

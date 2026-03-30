@@ -126,8 +126,8 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
                 const ag = candidate.agent;
                 return (
                   <div key={a?.id ?? ag?.id} className="px-4 py-3 flex items-start gap-3">
-                    <div className="flex-shrink-0 mt-0.5 h-8 w-8 rounded-full bg-yellow-100 dark:bg-yellow-900/50 flex items-center justify-center">
-                      <UserPlus size={16} className="text-yellow-600 dark:text-yellow-400" />
+                    <div className="flex-shrink-0 mt-0.5 h-8 w-8 rounded-full bg-warning-muted flex items-center justify-center">
+                      <UserPlus size={16} className="text-warning" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -247,7 +247,7 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
         </div>
         <div className="rounded-lg px-4 py-3 border border-border bg-card">
           <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{t("hiring.pendingHires")}</div>
-          <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">{agents.filter(a => a.status === "pending_approval").length}</div>
+          <div className="text-2xl font-bold text-warning mt-1">{agents.filter(a => a.status === "pending_approval").length}</div>
         </div>
         <div className="rounded-lg px-4 py-3 border border-border bg-card">
           <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{t("hiring.departments")}</div>
@@ -278,8 +278,8 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
                   <span className="text-[10px] text-muted-foreground">{t("hiring.active")}</span>
                   {pending > 0 && (
                     <>
-                      <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400">+{pending}</span>
-                      <span className="text-[10px] text-yellow-600 dark:text-yellow-400">{t("hiring.pendingApproval")}</span>
+                      <span className="text-sm font-bold text-warning">+{pending}</span>
+                      <span className="text-[10px] text-warning">{t("hiring.pendingApproval")}</span>
                     </>
                   )}
                 </div>

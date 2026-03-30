@@ -155,7 +155,7 @@ export function AgentEditor({
         options={connectorOptions}
       />
       {selectedConnectorIssue ? (
-        <p className="text-[12px] text-yellow-600 dark:text-yellow-400">
+        <p className="text-[12px] text-warning">
           {selectedConnectorIssue}
         </p>
       ) : null}

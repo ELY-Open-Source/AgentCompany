@@ -2,6 +2,7 @@ import { execSync } from "node:child_process";
 import {
   IPC_CHANNELS,
   companyInputSchema,
+  connectorDisabledModelsSchema,
   connectorInputSchema,
   deleteEntitySchema,
   openTerminalCommandSchema,
@@ -95,6 +96,13 @@ export function registerCoreAdminHandlers({
   registerHandle(IPC_CHANNELS.openTerminalCommand, async (_event, payload) => {
     const parsed = openTerminalCommandSchema.parse(payload);
     await openGenericTerminal(parsed);
+    return ok(true);
+  });
+
+  registerHandle(IPC_CHANNELS.setConnectorDisabledModels, async (_event, payload) => {
+    const parsed = connectorDisabledModelsSchema.parse(payload);
+    db.setDisabledModels(parsed.connectorId, parsed.disabledModels);
+    publishDomainChanged();
     return ok(true);
   });
 

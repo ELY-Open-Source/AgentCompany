@@ -41,9 +41,9 @@ export function RecoveryBanner() {
   const handleDismissAll = () => setDismissed(true);
 
   return (
-    <div className="bg-yellow-100 dark:bg-yellow-900/50 border border-[color:var(--destructive)]/30 rounded-lg px-4 py-4 mb-4">
+    <div className="bg-warning-muted border border-[color:var(--destructive)]/30 rounded-lg px-4 py-4 mb-4">
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400 font-medium">
+        <div className="flex items-center gap-2 text-warning font-medium">
           <Warning size={18} weight="bold" />
           <span>{runs.length} interrupted task(s) detected from previous session</span>
         </div>
@@ -61,7 +61,7 @@ export function RecoveryBanner() {
             <div className="flex gap-2">
               <button
                 onClick={() => handleRetry(run)}
-                className="flex items-center gap-1 text-green-600 dark:text-green-400 hover:text-green-600 dark:text-green-400 text-xs transition-colors"
+                className="flex items-center gap-1 text-success hover:text-success text-xs transition-colors"
               >
                 <ArrowClockwise size={14} /> Retry
               </button>

@@ -11,10 +11,10 @@ interface KanbanProps {
 
 const KANBAN_COLUMNS: Array<{ status: TaskRecord["status"]; label: string; tone: string; dotColor: string }> = [
   { status: "backlog", label: "Backlog", tone: "text-muted-foreground", dotColor: "bg-[color:var(--muted-foreground)]" },
-  { status: "todo", label: "Todo", tone: "text-yellow-600 dark:text-yellow-400", dotColor: "bg-yellow-600 dark:bg-yellow-400" },
+  { status: "todo", label: "Todo", tone: "text-warning", dotColor: "bg-warning" },
   { status: "in_progress", label: "In Progress", tone: "text-primary", dotColor: "bg-primary" },
-  { status: "in_review", label: "In Review", tone: "text-yellow-600 dark:text-yellow-400", dotColor: "bg-yellow-600 dark:bg-yellow-400" },
-  { status: "done", label: "Done", tone: "text-green-600 dark:text-green-400", dotColor: "bg-green-600 dark:bg-green-400" },
+  { status: "in_review", label: "In Review", tone: "text-warning", dotColor: "bg-warning" },
+  { status: "done", label: "Done", tone: "text-success", dotColor: "bg-success" },
   { status: "blocked", label: "Blocked", tone: "text-destructive", dotColor: "bg-destructive" },
 ];
 
@@ -57,7 +57,7 @@ export function KanbanBoard({ tasks, agents, runs, onSelectTask }: KanbanProps) 
       {KANBAN_COLUMNS.map((col) => {
         const colTasks = tasksByStatus[col.status] ?? [];
         return (
-          <div key={col.status} className="flex w-[220px] min-w-[180px] shrink-0 flex-col">
+          <div key={col.status} className="flex w-[220px] min-w-[160px] shrink-0 flex-col lg:w-[240px]">
             <div className="mb-2 flex items-center gap-2 px-1">
               <span className={`h-2.5 w-2.5 rounded-full ${col.dotColor}`} aria-hidden="true" />
               <span className={`text-[11px] font-semibold uppercase tracking-[0.08em] ${col.tone}`}>{col.label}</span>
@@ -88,14 +88,14 @@ export function KanbanBoard({ tasks, agents, runs, onSelectTask }: KanbanProps) 
                         <span className="text-[10px] italic text-muted-foreground">Unassigned</span>
                       )}
                       {isRunning ? (
-                        <span className="flex items-center gap-1 whitespace-nowrap text-[10px] text-green-600 dark:text-green-400">
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-600 dark:bg-green-400" aria-hidden="true" />
+                        <span className="flex items-center gap-1 whitespace-nowrap text-[10px] text-success">
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" aria-hidden="true" />
                           Running
                         </span>
                       ) : null}
                     </div>
                     {task.priority === "critical" || task.priority === "high" ? (
-                      <div className={`mt-1 text-[9px] font-bold uppercase tracking-[0.12em] ${task.priority === "critical" ? "text-destructive" : "text-yellow-600 dark:text-yellow-400"}`}>
+                      <div className={`mt-1 text-[9px] font-bold uppercase tracking-[0.12em] ${task.priority === "critical" ? "text-destructive" : "text-warning"}`}>
                         {task.priority}
                       </div>
                     ) : null}

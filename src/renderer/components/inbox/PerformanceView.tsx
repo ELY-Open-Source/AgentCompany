@@ -60,7 +60,7 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
           </div>
           <div className="flex gap-4 text-[12px]">
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-green-600 dark:bg-green-400" />
+              <span className="h-2.5 w-2.5 rounded-full bg-success" />
               <span className="text-muted-foreground">{metrics.successfulRuns} succeeded</span>
             </span>
             <span className="flex items-center gap-1.5">
@@ -102,11 +102,11 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
                         <span className="text-[12px] font-medium text-foreground">{am.agentName}</span>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-right text-[12px] font-semibold text-green-600 dark:text-green-400">{am.tasksCompleted}</td>
+                    <td className="px-3 py-2.5 text-right text-[12px] font-semibold text-success">{am.tasksCompleted}</td>
                     <td className="px-3 py-2.5 text-right">
                       <span className={`text-[12px] font-semibold ${
-                        am.successRate >= 80 ? "text-green-600 dark:text-green-400"
-                        : am.successRate >= 50 ? "text-yellow-600 dark:text-yellow-400"
+                        am.successRate >= 80 ? "text-success"
+                        : am.successRate >= 50 ? "text-warning"
                         : "text-destructive"
                       }`}>
                         {am.successRate}%

@@ -121,7 +121,7 @@ export function SocialDraftPreview({ payloadJson, platform, isPending: _isPendin
       ) : null}
 
       {draft.scheduledAt ? (
-        <div className="flex items-center gap-1.5 text-[13px] font-[family-name:var(--font-mono)] text-yellow-600 dark:text-yellow-400">
+        <div className="flex items-center gap-1.5 text-[13px] font-[family-name:var(--font-mono)] text-warning">
           <Clock size={14} />
           Scheduled: {formatScheduledDate(draft.scheduledAt)}
         </div>

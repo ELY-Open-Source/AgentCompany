@@ -37,11 +37,13 @@ export function ActivityFeed({ activity, agents, limit = 15 }: { activity: Activ
     );
   }
 
+  const agentMap = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents]);
+
   return (
     <div className="space-y-0.5">
       {recentActivity.map((item, index) => {
         const Icon = actionIcons[item.action] ?? Lightning;
-        const agent = agents.find((a) => a.id === item.actor);
+        const agent = agentMap.get(item.actor);
         const actorName = agent?.name ?? (item.actor === "board" ? "Board" : item.actor.slice(0, 8));
 
         return (

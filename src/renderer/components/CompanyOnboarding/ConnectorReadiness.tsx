@@ -39,11 +39,11 @@ export function ConnectorReadiness({
               {isChecking ? (
                 <span className="mt-0.5 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[color:var(--muted-foreground)] border-t-[color:var(--primary)]" />
               ) : isReady ? (
-                <CheckCircle size={16} weight="fill" className="shrink-0 text-green-600 dark:text-green-400" />
+                <CheckCircle size={16} weight="fill" className="shrink-0 text-success" />
               ) : isMissing ? (
                 <XCircle size={16} weight="fill" className="shrink-0 text-muted-foreground" />
               ) : (
-                <WarningCircle size={16} weight="fill" className="shrink-0 text-yellow-600 dark:text-yellow-400" />
+                <WarningCircle size={16} weight="fill" className="shrink-0 text-warning" />
               )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -75,7 +75,7 @@ export function ConnectorReadiness({
         })}
       </div>
       {!hasRunnableConnector ? (
-        <div className="mt-4 rounded-lg border border-[color:var(--destructive)] bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3 text-[12px] text-yellow-600 dark:text-yellow-400">
+        <div className="mt-4 rounded-lg border border-[color:var(--destructive)] bg-warning-muted px-4 py-3 text-[12px] text-warning">
           {t("onboarding.connectorWarning")}
         </div>
       ) : null}

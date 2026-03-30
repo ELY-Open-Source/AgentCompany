@@ -76,7 +76,7 @@ export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentR
     <div ref={containerRef} className="relative min-h-[400px] h-[clamp(400px,60vh,720px)] w-full overflow-hidden rounded-lg border border-border bg-background" style={{ cursor: dragging ? "grabbing" : "grab" }} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onWheel={handleWheel}>
       <div className="absolute right-3 top-3 z-10 flex flex-col gap-1">
         {[{ label: "+", ariaLabel: "Zoom in", action: zoomIn }, { label: "\u2212", ariaLabel: "Zoom out", action: zoomOut }, { label: "Fit", ariaLabel: "Fit chart to screen", action: fitToScreen }].map((btn) => (
-          <button key={btn.ariaLabel} className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-card text-[12px] text-foreground transition hover:bg-muted" onClick={btn.action} aria-label={btn.ariaLabel}>{btn.label}</button>
+          <button key={btn.ariaLabel} className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-[12px] text-foreground transition hover:bg-muted" onClick={btn.action} aria-label={btn.ariaLabel}>{btn.label}</button>
         ))}
       </div>
       <svg className="pointer-events-none absolute inset-0" style={{ width: "100%", height: "100%" }}>
@@ -103,11 +103,11 @@ export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentR
           const isPending = node.agent.status === "pending_approval";
           const isCEO = node.children.length > 0 && !node.agent.reportsTo;
           return (
-            <div key={node.agent.id} data-org-card className={`absolute cursor-pointer select-none rounded-lg border bg-card shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${isRunning ? "border-[color:var(--primary)] shadow-[0_0_12px_rgba(74,222,128,0.15)]" : isError ? "border-[color:var(--destructive)] border-opacity-50" : isPending ? "border-[color:var(--destructive)] border-dashed" : "border-border hover:border-border"}`} style={{ left: node.x, top: node.y, width: CARD_W, minHeight: CARD_H }} onClick={() => onSelectAgent?.(node.agent.id)}>
-              <div className={`rounded-t-[7px] ${isCEO ? "h-[4px] bg-primary" : node.children.length > 0 ? "h-[3px] bg-yellow-600 dark:bg-yellow-400" : "h-[2px] bg-[color:var(--muted-foreground)] opacity-30"}`} />
+            <div key={node.agent.id} data-org-card role="button" tabIndex={0} aria-label={`${node.agent.name}, ${node.agent.title || node.agent.role}, ${node.agent.status}`} className={`absolute cursor-pointer select-none rounded-lg border bg-card shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${isRunning ? "border-[color:var(--primary)] shadow-[0_0_12px_rgba(74,222,128,0.15)]" : isError ? "border-[color:var(--destructive)] border-opacity-50" : isPending ? "border-[color:var(--destructive)] border-dashed" : "border-border hover:border-border"}`} style={{ left: node.x, top: node.y, width: CARD_W, minHeight: CARD_H }} onClick={() => onSelectAgent?.(node.agent.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelectAgent?.(node.agent.id); } }}>
+              <div className={`rounded-t-[7px] ${isCEO ? "h-[4px] bg-primary" : node.children.length > 0 ? "h-[3px] bg-warning" : "h-[2px] bg-[color:var(--muted-foreground)] opacity-30"}`} />
               <div className="flex items-center gap-3 px-4 py-3">
                 <div className="relative shrink-0">
-                  <div className={`flex h-11 w-11 items-center justify-center rounded-full text-[13px] font-bold ${isActive ? "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400" : isError ? "bg-red-100 dark:bg-red-900/50 text-destructive" : "bg-muted text-muted-foreground"}`}>{initials}</div>
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-full text-[13px] font-bold ${isActive ? "bg-success-muted text-success" : isError ? "bg-destructive-muted text-destructive" : "bg-muted text-muted-foreground"}`}>{initials}</div>
                   {isRunning ? (
                     <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5" aria-hidden="true">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40" style={{ backgroundColor: dotColor, willChange: "transform" }} />
@@ -123,7 +123,7 @@ export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentR
                   <span className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{node.agent.title || node.agent.role}</span>
                   <div className="mt-1.5 flex items-center gap-2">
                     <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{connectorLabel}</span>
-                    {node.agent.heartbeatEnabled ? <Heartbeat size={10} className="text-green-600 dark:text-green-400" /> : null}
+                    {node.agent.heartbeatEnabled ? <Heartbeat size={10} className="text-success" /> : null}
                   </div>
                 </div>
               </div>
