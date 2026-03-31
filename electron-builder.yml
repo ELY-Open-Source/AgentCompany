@@ -10,6 +10,13 @@ files:
   - assets/tray-icon*.png
 asar: true
 icon: assets/icon.png
+extraResources:
+  - from: builtin-skills
+    to: builtin-skills
+    filter:
+      - "**/*"
+      - "!**/.DS_Store"
+      - "!**/.git/**"
 
 mac:
   category: public.app-category.developer-tools

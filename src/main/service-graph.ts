@@ -278,6 +278,8 @@ export function createServiceGraph({
       publishDomainChanged,
       scanAndAssignSkills: async (companyId: string, agentId: string) => {
         const svc = getOrCreateSkillService();
+        await svc.seedBuiltinSkills(companyId);
+        svc.assignRoleSkillsToAgent(companyId, agentId, "CEO");
         await svc.scanWorkspaceSkills(companyId);
         autoAssignSkillsToAgent(db, logger, companyId, agentId);
       },

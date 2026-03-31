@@ -1,6 +1,10 @@
 {
   "name": "agent-company",
+<<<<<<< Updated upstream
   "version": "0.4.148",
+=======
+  "version": "0.4.136",
+>>>>>>> Stashed changes
   "private": true,
   "type": "module",
   "description": "Cross-platform Electron desktop control plane for local-first AI agent companies.",

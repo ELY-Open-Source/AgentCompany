@@ -1,0 +1,35 @@
+# Mobile Development Configuration for Cloudflare
+# Version: 1.0.0
+
+pwa:
+  enabled: true
+  manifest: "manifest.json"
+  service_worker: true
+  offline_support: true
+
+deployment:
+  platform: "cloudflare_pages"
+  build_command: "npm run build"
+  output_dir: "dist"
+
+mobile_api:
+  workers:
+    enabled: true
+    routes:
+      - "/api/*"
+  caching:
+    static_assets: "1y"
+    api_responses: "5m"
+
+performance:
+  image_optimization:
+    enabled: true
+    formats: ["webp", "avif"]
+  lazy_loading: true
+  preconnect:
+    - "https://api.example.com"
+
+push_notifications:
+  enabled: true
+  provider: "web-push"
+  vapid_keys: true

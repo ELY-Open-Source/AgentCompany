@@ -115,6 +115,26 @@ const api: DesktopApi = {
   getAgent: (input) => ipcRenderer.invoke(IPC_CHANNELS.getAgent, input),
   getRun: (input) => ipcRenderer.invoke(IPC_CHANNELS.getRun, input),
   getApproval: (input) => ipcRenderer.invoke(IPC_CHANNELS.getApproval, input),
+  listConfigRevisions: (companyId: string, agentId: string) =>
+    ipcRenderer.invoke("agent-company:list-config-revisions", { companyId, agentId }),
+  getConfigRevision: (companyId: string, revisionId: string) =>
+    ipcRenderer.invoke("agent-company:get-config-revision", { companyId, revisionId }),
+  rollbackConfigRevision: (companyId: string, agentId: string, revisionId: string) =>
+    ipcRenderer.invoke("agent-company:rollback-config-revision", { companyId, agentId, revisionId }),
+  listRunEvents: (companyId: string, runId: string, opts?: { offset?: number; limit?: number }) =>
+    ipcRenderer.invoke("agent-company:list-run-events", { companyId, runId, ...opts }),
+  getAgentPermissions: (agentId: string) =>
+    ipcRenderer.invoke("agent-company:get-agent-permissions", { agentId }),
+  setAgentPermission: (companyId: string, agentId: string, permissionKey: string, enabled: boolean) =>
+    ipcRenderer.invoke("agent-company:set-agent-permission", { companyId, agentId, permissionKey, enabled }),
+  getHeartbeatPolicy: (agentId: string, companyId: string) =>
+    ipcRenderer.invoke("agent-company:get-heartbeat-policy", { companyId, agentId }),
+  setHeartbeatPolicy: (companyId: string, agentId: string, policy: Record<string, unknown>) =>
+    ipcRenderer.invoke("agent-company:set-heartbeat-policy", { companyId, agentId, ...policy }),
+  getRuntimeState: (agentId: string, companyId: string) =>
+    ipcRenderer.invoke("agent-company:get-runtime-state", { companyId, agentId }),
+  setRuntimeState: (companyId: string, agentId: string, state: Record<string, unknown>) =>
+    ipcRenderer.invoke("agent-company:set-runtime-state", { companyId, agentId, state }),
   subscribe: (callback: (event: DesktopEvent) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: DesktopEvent) => callback(payload);
     ipcRenderer.on(IPC_CHANNELS.rendererEvent, listener);

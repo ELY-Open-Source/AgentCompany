@@ -1,9 +1,15 @@
 {
-  "extends": "C:\\Users\\zhang\\Documents\\GitHub\\AgentCompany\\electron-builder.yml",
+  "extends": "/Users/zacharyzhang/Documents/Github/AgentCompany/electron-builder.yml",
   "directories": {
-    "output": "C:\\Users\\zhang\\Documents\\GitHub\\AgentCompany\\build\\release"
+    "output": "/Users/zacharyzhang/Documents/Github/AgentCompany/build/release"
   },
   "extraMetadata": {
-    "version": "0.4.148"
+    "version": "0.4.136"
+  },
+  "mac": {
+    "hardenedRuntime": false,
+    "target": [
+      "zip"
+    ]
   }
 }

@@ -97,6 +97,21 @@ export const IPC_CHANNELS = {
   getApproval: "agent-company:get-approval",
   getConnectorDisabledModels: "agent-company:get-connector-disabled-models",
   setConnectorDisabledModels: "agent-company:set-connector-disabled-models",
+  // Agent config revisions
+  listConfigRevisions: "agent-company:list-config-revisions",
+  getConfigRevision: "agent-company:get-config-revision",
+  rollbackConfigRevision: "agent-company:rollback-config-revision",
+  // Run events
+  listRunEvents: "agent-company:list-run-events",
+  // Agent permissions
+  getAgentPermissions: "agent-company:get-agent-permissions",
+  setAgentPermission: "agent-company:set-agent-permission",
+  // Heartbeat policy
+  getHeartbeatPolicy: "agent-company:get-heartbeat-policy",
+  setHeartbeatPolicy: "agent-company:set-heartbeat-policy",
+  // Runtime state
+  getRuntimeState: "agent-company:get-runtime-state",
+  setRuntimeState: "agent-company:set-runtime-state",
 } as const;
 
 const optionalId = z.preprocess(
@@ -660,6 +675,66 @@ export const entityGetterSchema = z.object({
   id: z.string().uuid(),
 });
 
+export const listConfigRevisionsSchema = z.object({
+  companyId: z.string().min(1),
+  agentId: z.string().min(1),
+});
+
+export const getConfigRevisionSchema = z.object({
+  companyId: z.string().min(1),
+  revisionId: z.string().min(1),
+});
+
+export const rollbackConfigRevisionSchema = z.object({
+  companyId: z.string().min(1),
+  agentId: z.string().min(1),
+  revisionId: z.string().min(1),
+});
+
+export const listRunEventsSchema = z.object({
+  companyId: z.string().min(1),
+  runId: z.string().min(1),
+  offset: z.number().optional(),
+  limit: z.number().optional(),
+});
+
+export const getAgentPermissionsSchema = z.object({
+  agentId: z.string().min(1),
+});
+
+export const setAgentPermissionSchema = z.object({
+  companyId: z.string().min(1),
+  agentId: z.string().min(1),
+  permissionKey: z.string().min(1),
+  enabled: z.boolean(),
+});
+
+export const heartbeatPolicySchema = z.object({
+  companyId: z.string().min(1),
+  agentId: z.string().min(1),
+});
+
+export const setHeartbeatPolicySchema = z.object({
+  companyId: z.string().min(1),
+  agentId: z.string().min(1),
+  enabled: z.boolean().optional(),
+  intervalSec: z.number().optional(),
+  cooldownSec: z.number().optional(),
+  maxConcurrentRuns: z.number().optional(),
+  wakeOnDemand: z.boolean().optional(),
+});
+
+export const runtimeStateSchema = z.object({
+  companyId: z.string().min(1),
+  agentId: z.string().min(1),
+});
+
+export const setRuntimeStateSchema = z.object({
+  companyId: z.string().min(1),
+  agentId: z.string().min(1),
+  state: z.record(z.string(), z.unknown()),
+});
+
 export type DesktopResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: string; message: string } };
@@ -767,6 +842,16 @@ export type DesktopApi = {
   getAgent: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<AgentRecord>>;
   getRun: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<RunRecord>>;
   getApproval: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<ApprovalRecord>>;
+  listConfigRevisions: (companyId: string, agentId: string) => Promise<DesktopResult<unknown[]>>;
+  getConfigRevision: (companyId: string, revisionId: string) => Promise<DesktopResult<unknown>>;
+  rollbackConfigRevision: (companyId: string, agentId: string, revisionId: string) => Promise<DesktopResult<boolean>>;
+  listRunEvents: (companyId: string, runId: string, opts?: { offset?: number; limit?: number }) => Promise<DesktopResult<unknown[]>>;
+  getAgentPermissions: (agentId: string) => Promise<DesktopResult<unknown>>;
+  setAgentPermission: (companyId: string, agentId: string, permissionKey: string, enabled: boolean) => Promise<DesktopResult<boolean>>;
+  getHeartbeatPolicy: (agentId: string, companyId: string) => Promise<DesktopResult<unknown>>;
+  setHeartbeatPolicy: (companyId: string, agentId: string, policy: Record<string, unknown>) => Promise<DesktopResult<boolean>>;
+  getRuntimeState: (agentId: string, companyId: string) => Promise<DesktopResult<unknown>>;
+  setRuntimeState: (companyId: string, agentId: string, state: Record<string, unknown>) => Promise<DesktopResult<boolean>>;
   subscribe: (callback: (event: DesktopEvent) => void) => () => void;
   platform: "win32" | "darwin" | "linux";
   windowMinimize: () => Promise<void>;

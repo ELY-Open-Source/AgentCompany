@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "openapi-spec-generation",
+  "owner": "ericgrill",
+  "repo": "agents-skills-plugins",
+  "path": "plugins/documentation-generation/skills/openapi-spec-generation",
+  "branch": "main",
+  "sha": "e3384ad0331ff44f69dc117841899bb7be1ee266",
+  "source": "manual"
+}

@@ -43,6 +43,7 @@ type WorkerUiEvent = Extract<z.infer<typeof workerMessageSchema>, { type: "run-l
 interface WorkerServiceDependencies {
   db: AppDatabase;
   logger: {
+    debug: (...args: unknown[]) => void;
     info: (...args: unknown[]) => void;
     warn: (...args: unknown[]) => void;
     error: (...args: unknown[]) => void;
@@ -105,8 +106,14 @@ export function createWorkerService({
       serviceName: "AgentCompany Orchestrator",
     });
 
-    worker.stdout?.on("data", (chunk) => logger.info(`[worker] ${String(chunk).trim()}`));
-    worker.stderr?.on("data", (chunk) => logger.error(`[worker] ${String(chunk).trim()}`));
+    worker.stdout?.on("data", (chunk) => {
+      const text = String(chunk).trim();
+      if (text) logger.debug(`[worker:stdout] ${text}`);
+    });
+    worker.stderr?.on("data", (chunk) => {
+      const text = String(chunk).trim();
+      if (text) logger.warn(`[worker:stderr] ${text}`);
+    });
 
     worker.on("exit", (code) => {
       if (isQuitting() || destroyed) return;

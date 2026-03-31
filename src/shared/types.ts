@@ -77,7 +77,8 @@ export type ApprovalType =
   | "production_deploy"
   | "incident_escalation"
   | "social_post"
-  | "deliverable_review";
+  | "deliverable_review"
+  | "budget_override";
 export type RunStatus =
   | "queued"
   | "running"

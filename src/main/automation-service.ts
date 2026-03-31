@@ -10,6 +10,7 @@ import type {
 import { dispatchAgentMessage } from "./message-dispatch";
 import { validateTaskCreation } from "./task-quality-gates";
 import type { NotificationOptions } from "./notification-service";
+import { notifyHireApproved } from "./hire-hook";
 
 /** Document types considered important enough to gate behind user review when reviewDeliverables is enabled. */
 const IMPORTANT_DOCUMENT_TYPES = new Set([
@@ -98,6 +99,10 @@ function parseDocumentIdsFromPayload(payloadJson: string | null): string[] {
   return [];
 }
 
+function localizeNotification(locale: string | null | undefined, en: string, zh: string): string {
+  return locale === "zh" ? zh : en;
+}
+
 function scoreSkillAgentMatch(
   skill: { name: string; description: string | null; markdown: string },
   agent: { role: string; department: string | null; title: string | null; capabilities: string },
@@ -159,6 +164,21 @@ export function autoAssignSkillsToAgent(
 
   const existingAssignments = new Set(db.listAgentSkillAssignments(agentId));
 
+  // Always assign basic-for-all builtin skills regardless of score
+  let assigned = 0;
+  for (const skill of allSkills) {
+    if (existingAssignments.has(skill.id)) continue;
+    try {
+      const meta = skill.metadata ? (typeof skill.metadata === "string" ? JSON.parse(skill.metadata) : skill.metadata) : {};
+      if (meta.builtinCategory === "basic-for-all") {
+        db.assignSkillToAgent(agentId, skill.id);
+        existingAssignments.add(skill.id);
+        assigned++;
+        logger.info(`[skill-autoassign] Assigned basic skill "${skill.name}" to ${agent.name}`);
+      }
+    } catch { /* skip malformed metadata */ }
+  }
+
   const scored = allSkills
     .filter((skill) => !existingAssignments.has(skill.id))
     .map((skill) => ({
@@ -168,7 +188,6 @@ export function autoAssignSkillsToAgent(
     .sort((a, b) => b.score - a.score);
 
   const MIN_SCORE = 3;
-  let assigned = 0;
   for (const { skill, score } of scored) {
     if (score < MIN_SCORE) continue;
     try {
@@ -1138,9 +1157,10 @@ export function createAutomationService({
             });
             // Fire OS notification for budget threshold warning
             const pct = Math.round(utilization * 100);
+            const budgetLocale = db.listSnapshot().locale;
             notify({
-              title: "Budget Warning",
-              body: `${agent.name} has used ${pct}% of monthly budget`,
+              title: localizeNotification(budgetLocale, "Budget Warning", "预算警告"),
+              body: localizeNotification(budgetLocale, `${agent.name} has used ${pct}% of monthly budget`, `${agent.name} 已使用月度预算的 ${pct}%`),
               urgency: "informational",
               navigation: { section: "costs" },
               batchKey: "budget_alerts",
@@ -1148,8 +1168,8 @@ export function createAutomationService({
             if (utilization >= 1.0) {
               // Fire OS notification for budget exhaustion (agent auto-paused by database)
               notify({
-                title: "Budget Exhausted",
-                body: `${agent.name} has reached 100% of monthly budget and is paused`,
+                title: localizeNotification(budgetLocale, "Budget Exhausted", "预算耗尽"),
+                body: localizeNotification(budgetLocale, `${agent.name} has reached 100% of monthly budget and is paused`, `${agent.name} 已达到月度预算上限并已暂停`),
                 urgency: "critical",
                 navigation: { section: "costs" },
               });
@@ -1211,13 +1231,23 @@ export function createAutomationService({
           }
 
           publishDomainChanged();
+          const hireLocale = db.listSnapshot().locale;
           notify({
-            title: "Agent Hired",
-            body: `${agent.name} joined as ${agent.role}`,
+            title: localizeNotification(hireLocale, "Agent Hired", "新员工入职"),
+            body: localizeNotification(hireLocale, `${agent.name} joined as ${agent.role}`, `${agent.name} 已加入，职位：${agent.role}`),
             urgency: "informational",
             navigation: { section: "orgchart", entityId: agent.id },
             batchKey: "agent_hired",
           });
+
+          // Notify adapter that hire was approved (Paperclip hire-hook parity)
+          void notifyHireApproved(db, {
+            companyId,
+            agentId: agent.id,
+            source: "approval",
+            sourceId: approvalId,
+            approvedAt: new Date().toISOString(),
+          }).catch(() => {});
         }
       } catch {
         // Hire follow-up is best-effort; approval state is already committed in storage.
@@ -1276,6 +1306,32 @@ export function createAutomationService({
         publishDomainChanged();
       } catch {
         // Deliverable review follow-up is non-fatal — approval state is already committed.
+      }
+    }
+
+    // Handle budget override approvals
+    if (approval.type === "budget_override" && decision === "approved") {
+      try {
+        const payload = JSON.parse(approval.payloadJson ?? "{}") as {
+          policyId?: string;
+          scopeType?: string;
+          scopeId?: string;
+          newAmount?: number;
+        };
+        if (payload.policyId) {
+          // Resolve the budget incident that triggered this approval
+          db.resolveBudgetIncident(payload.policyId, companyId);
+          db.addActivity({
+            companyId,
+            actor: "board",
+            action: "budget.override_approved",
+            entityType: "approval",
+            entityId: approvalId,
+            detail: `Budget override approved for ${payload.scopeType} scope`,
+          });
+        }
+      } catch (err) {
+        logger.error(`[automation] Failed to process budget_override approval: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 

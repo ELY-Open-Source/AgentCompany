@@ -677,51 +677,195 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
   ): Promise<SkillImportResult[]> {
     const allResults: SkillImportResult[] = [];
 
-    // 1. Scan user home directories: ~/.agents/skills/ and ~/.claude/skills/
-    const homeDir = process.env.HOME || process.env.USERPROFILE || "";
-    if (homeDir) {
-      const homeScanDirs = [
-        join(homeDir, ".agents", "skills"),
-        join(homeDir, ".claude", "skills"),
-      ];
-      for (const scanDir of homeScanDirs) {
-        if (!existsSync(scanDir)) continue;
-        try {
-          const stat = statSync(scanDir);
-          if (!stat.isDirectory()) continue;
-          const results = await importFromLocal(companyId, scanDir);
+    // 1. Scan profile skills directory: {profileDir}/skills/{companyId}/
+    // This is where builtin and user-installed skills live
+    const profileSkillsDir = skillsRoot(companyId);
+    if (existsSync(profileSkillsDir)) {
+      try {
+        const stat = statSync(profileSkillsDir);
+        if (stat.isDirectory()) {
+          const results = await importFromLocal(companyId, profileSkillsDir);
           allResults.push(...results);
-          logger.info(`Scanned home skills: ${scanDir} — imported ${results.length} skill(s)`);
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          logger.warn(`Failed to scan home skills at ${scanDir}: ${message}`);
+          logger.info(`Scanned profile skills: ${profileSkillsDir} — imported ${results.length} skill(s)`);
         }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(`Failed to scan profile skills at ${profileSkillsDir}: ${message}`);
       }
     }
 
-    // 2. Scan workspace .agents/skills/ directories
+    // 2. Scan workspace .agentcompany/skills/ directories
     const workspacePaths = db.listWorkspaceLocalPaths(companyId);
     for (const wsPath of workspacePaths) {
-      const agentsSkillsDir = join(wsPath, ".agents", "skills");
-      if (!existsSync(agentsSkillsDir)) continue;
+      const agentcompanySkillsDir = join(wsPath, ".agentcompany", "skills");
+      if (!existsSync(agentcompanySkillsDir)) continue;
 
       try {
-        const stat = statSync(agentsSkillsDir);
+        const stat = statSync(agentcompanySkillsDir);
         if (!stat.isDirectory()) continue;
 
-        const results = await importFromLocal(companyId, agentsSkillsDir);
+        const results = await importFromLocal(companyId, agentcompanySkillsDir);
         allResults.push(...results);
         logger.info(
-          `Scanned workspace skills: ${agentsSkillsDir} — imported ${results.length} skill(s)`,
+          `Scanned workspace skills: ${agentcompanySkillsDir} — imported ${results.length} skill(s)`,
         );
       } catch (err) {
         // Log but don't fail the entire scan if one workspace has issues
         const message = err instanceof Error ? err.message : String(err);
-        logger.warn(`Failed to scan workspace skills at ${agentsSkillsDir}: ${message}`);
+        logger.warn(`Failed to scan workspace skills at ${agentcompanySkillsDir}: ${message}`);
       }
     }
 
     return allResults;
+  }
+
+  /**
+   * Resolve the path to bundled builtin skills.
+   * Cross-platform: works on macOS, Windows, and Linux.
+   *
+   * Production (packaged app):
+   *   macOS:   AppName.app/Contents/Resources/builtin-skills/
+   *   Windows: {install dir}/resources/builtin-skills/
+   *   Linux:   {install dir}/resources/builtin-skills/
+   *   Resolved via `process.resourcesPath` (set by Electron on all platforms).
+   *
+   * Development (electron-vite dev):
+   *   CWD is the project root → {project}/builtin-skills/
+   *   No __dirname dependency (ESM polyfill varies across bundlers).
+   */
+  function getBuiltinSkillsDir(): string | null {
+    // 1. Production: Electron packages extraResources into process.resourcesPath
+    //    process.resourcesPath is always defined in Electron (all platforms)
+    if (process.resourcesPath) {
+      const resourcesPath = join(process.resourcesPath, "builtin-skills");
+      if (existsSync(resourcesPath)) return resourcesPath;
+    }
+    // 2. Development: electron-vite dev sets CWD to project root
+    const cwdPath = join(process.cwd(), "builtin-skills");
+    if (existsSync(cwdPath)) return cwdPath;
+    return null;
+  }
+
+  /**
+   * Seed all builtin skills for a company from the bundled builtin-skills directory.
+   * Idempotent: skips skills that already exist (by key).
+   * Called once during company bootstrap.
+   */
+  async function seedBuiltinSkills(companyId: string): Promise<SkillImportResult[]> {
+    const builtinDir = getBuiltinSkillsDir();
+    if (!builtinDir) {
+      logger.warn("[skills] Builtin skills directory not found — skipping seed.");
+      return [];
+    }
+
+    const allResults: SkillImportResult[] = [];
+
+    // Walk each category directory (basic-for-all, software-engineer, etc.)
+    let categories: string[];
+    try {
+      categories = readdirSync(builtinDir).filter(name => {
+        if (name.startsWith(".")) return false;
+        try { return statSync(join(builtinDir, name)).isDirectory(); } catch { return false; }
+      });
+    } catch {
+      logger.warn(`[skills] Failed to read builtin skills directory: ${builtinDir}`);
+      return [];
+    }
+
+    for (const category of categories) {
+      const categoryDir = join(builtinDir, category);
+      try {
+        const results = await importFromLocal(companyId, categoryDir);
+        // Tag each imported skill with builtin metadata so we know its category
+        for (const result of results) {
+          try {
+            const skill = db.getCompanySkill(companyId, result.skillId);
+            if (skill) {
+              const existingMeta = skill.metadata ? JSON.parse(typeof skill.metadata === "string" ? skill.metadata : JSON.stringify(skill.metadata)) : {};
+              existingMeta.builtinCategory = category;
+              existingMeta.sourceKind = "builtin";
+              db.updateCompanySkillMetadata(companyId, result.skillId, JSON.stringify(existingMeta));
+            }
+          } catch { /* non-fatal metadata update */ }
+        }
+        allResults.push(...results);
+        logger.info(`[skills] Seeded ${results.length} builtin skill(s) from category: ${category}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(`[skills] Failed to seed builtin category ${category}: ${message}`);
+      }
+    }
+
+    return allResults;
+  }
+
+  /**
+   * Auto-assign all skills from the "basic-for-all" builtin category to an agent.
+   */
+  function assignBasicSkillsToAgent(companyId: string, agentId: string): number {
+    const allSkills = db.listCompanySkills(companyId);
+    let assigned = 0;
+    for (const skill of allSkills) {
+      try {
+        const meta = skill.metadata ? JSON.parse(typeof skill.metadata === "string" ? skill.metadata : JSON.stringify(skill.metadata)) : {};
+        if (meta.builtinCategory === "basic-for-all") {
+          db.assignSkillToAgent(agentId, skill.id);
+          assigned++;
+        }
+      } catch { /* skip malformed metadata */ }
+    }
+    return assigned;
+  }
+
+  /**
+   * Auto-assign role-appropriate builtin skills to an agent based on its role/department.
+   * CEO gets all categories. Other agents get basic-for-all + role-matched categories.
+   */
+  function assignRoleSkillsToAgent(companyId: string, agentId: string, role: string, department?: string | null): number {
+    const allSkills = db.listCompanySkills(companyId);
+    let assigned = 0;
+
+    // Map roles/departments to skill categories
+    const roleCategories: Record<string, string[]> = {
+      ceo: ["basic-for-all", "software-engineer", "document-process", "frontend-design", "marketing", "iOS-Dev", "my-writing-style", "Video-maker"],
+      engineer: ["basic-for-all", "software-engineer"],
+      designer: ["basic-for-all", "frontend-design"],
+      marketing: ["basic-for-all", "marketing", "my-writing-style"],
+      writer: ["basic-for-all", "document-process", "my-writing-style"],
+      ios: ["basic-for-all", "software-engineer", "iOS-Dev"],
+      mobile: ["basic-for-all", "software-engineer", "iOS-Dev"],
+      video: ["basic-for-all", "Video-maker"],
+      frontend: ["basic-for-all", "software-engineer", "frontend-design"],
+    };
+
+    const normalizedRole = role.toLowerCase();
+    const normalizedDept = department?.toLowerCase() ?? "";
+
+    // Find matching categories
+    let categories = roleCategories[normalizedRole] ?? ["basic-for-all"];
+
+    // Also check department
+    for (const [key, cats] of Object.entries(roleCategories)) {
+      if (normalizedDept.includes(key) || normalizedRole.includes(key)) {
+        categories = [...new Set([...categories, ...cats])];
+      }
+    }
+
+    // If CEO role, assign all
+    if (normalizedRole === "ceo" || normalizedRole.includes("chief")) {
+      categories = roleCategories.ceo!;
+    }
+
+    for (const skill of allSkills) {
+      try {
+        const meta = skill.metadata ? JSON.parse(typeof skill.metadata === "string" ? skill.metadata : JSON.stringify(skill.metadata)) : {};
+        if (meta.builtinCategory && categories.includes(meta.builtinCategory)) {
+          db.assignSkillToAgent(agentId, skill.id);
+          assigned++;
+        }
+      } catch { /* skip */ }
+    }
+    return assigned;
   }
 
   return {
@@ -737,5 +881,8 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
     checkUpdateStatus,
     listRuntimeSkillEntries,
     scanWorkspaceSkills,
+    seedBuiltinSkills,
+    assignBasicSkillsToAgent,
+    assignRoleSkillsToAgent,
   };
 }

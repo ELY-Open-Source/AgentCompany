@@ -67,6 +67,21 @@ export async function bootstrapApplication({
 }: BootstrapApplicationDependencies) {
   await app.whenReady();
   log.initialize();
+
+  // Configure log format for cleaner output
+  log.transports.console.format = "[{h}:{i}:{s}] [{level}] {text}";
+  log.transports.file.format = "[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}";
+
+  // In production, only show warnings and errors in console
+  // File logging always captures info+
+  if (app.isPackaged) {
+    log.transports.console.level = "warn";
+    log.transports.file.level = "info";
+  } else {
+    log.transports.console.level = "info";
+    log.transports.file.level = "debug";
+  }
+
   await prepareHostEnvironment({ logger: log });
 
   const db = appDatabaseFactory(profileDir);

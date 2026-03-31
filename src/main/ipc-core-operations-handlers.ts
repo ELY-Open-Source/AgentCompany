@@ -4,10 +4,20 @@ import {
   approvalInputSchema,
   cancelRunSchema,
   commentInputSchema,
+  getAgentPermissionsSchema,
+  getConfigRevisionSchema,
+  heartbeatPolicySchema,
   heartbeatSettingsSchema,
   listCommentsSchema,
+  listConfigRevisionsSchema,
+  listRunEventsSchema,
+  rollbackConfigRevisionSchema,
+  runtimeStateSchema,
   runLogChunkSchema,
   runLogSchema,
+  setAgentPermissionSchema,
+  setHeartbeatPolicySchema,
+  setRuntimeStateSchema,
   startRunSchema,
   triggerHeartbeatSchema,
 } from "@shared/contracts";
@@ -239,5 +249,63 @@ export function registerCoreOperationHandlers({
       return fail("HEARTBEAT_SKIPPED", "Agent cannot be woken right now (check connector status, budget, or active runs).");
     }
     return ok(runId);
+  });
+
+  registerHandle(IPC_CHANNELS.listConfigRevisions, async (_event, payload) => {
+    const parsed = listConfigRevisionsSchema.parse(payload);
+    return ok(db.listConfigRevisions(parsed.agentId, parsed.companyId));
+  });
+
+  registerHandle(IPC_CHANNELS.getConfigRevision, async (_event, payload) => {
+    const parsed = getConfigRevisionSchema.parse(payload);
+    return ok(db.getConfigRevision(parsed.revisionId, parsed.companyId));
+  });
+
+  registerHandle(IPC_CHANNELS.rollbackConfigRevision, async (_event, payload) => {
+    const parsed = rollbackConfigRevisionSchema.parse(payload);
+    const newRevisionId = db.rollbackConfigRevision(parsed.agentId, parsed.revisionId, parsed.companyId);
+    publishDomainChanged();
+    return ok({ revisionId: newRevisionId });
+  });
+
+  registerHandle(IPC_CHANNELS.listRunEvents, async (_event, payload) => {
+    const parsed = listRunEventsSchema.parse(payload);
+    return ok(db.listRunEvents(parsed.runId, parsed.companyId, { offset: parsed.offset, limit: parsed.limit }));
+  });
+
+  registerHandle(IPC_CHANNELS.getAgentPermissions, async (_event, payload) => {
+    const parsed = getAgentPermissionsSchema.parse(payload);
+    return ok(db.getAgentPermissions(parsed.agentId));
+  });
+
+  registerHandle(IPC_CHANNELS.setAgentPermission, async (_event, payload) => {
+    const parsed = setAgentPermissionSchema.parse(payload);
+    db.setAgentPermission(parsed.agentId, parsed.companyId, parsed.permissionKey, parsed.enabled);
+    publishDomainChanged();
+    return ok(null);
+  });
+
+  registerHandle(IPC_CHANNELS.getHeartbeatPolicy, async (_event, payload) => {
+    const parsed = heartbeatPolicySchema.parse(payload);
+    return ok(db.getHeartbeatPolicy(parsed.agentId));
+  });
+
+  registerHandle(IPC_CHANNELS.setHeartbeatPolicy, async (_event, payload) => {
+    const parsed = setHeartbeatPolicySchema.parse(payload);
+    const { companyId, agentId, ...policy } = parsed;
+    db.setHeartbeatPolicy(agentId, companyId, policy);
+    publishDomainChanged();
+    return ok(null);
+  });
+
+  registerHandle(IPC_CHANNELS.getRuntimeState, async (_event, payload) => {
+    const parsed = runtimeStateSchema.parse(payload);
+    return ok(db.getRuntimeState(parsed.agentId));
+  });
+
+  registerHandle(IPC_CHANNELS.setRuntimeState, async (_event, payload) => {
+    const parsed = setRuntimeStateSchema.parse(payload);
+    db.setRuntimeState(parsed.agentId, parsed.companyId, parsed.state);
+    return ok(null);
   });
 }

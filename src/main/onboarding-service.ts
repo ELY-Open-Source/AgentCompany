@@ -99,9 +99,10 @@ export function createOnboardingService({
   function createDefaultWorkspace(companyId: string, workspacePath: string) {
     const trimmedPath = workspacePath.trim();
     if (!trimmedPath) return null;
+    const wsLocale = db.listSnapshot().locale;
     return db.saveWorkspace({
       companyId,
-      name: "Default Workspace",
+      name: wsLocale === "zh" ? "默认工作区" : "Default Workspace",
       localPath: trimmedPath,
       repoUrl: "",
       repoRef: "",
@@ -143,7 +144,10 @@ export function createOnboardingService({
       status: "in_progress",
     });
 
-    const kickoffTaskTitle = activeGoal ? `Operationalize goal: ${activeGoal.title}` : "Establish the first operating cadence";
+    const kickoffLocale = db.listSnapshot().locale;
+    const kickoffTaskTitle = activeGoal
+      ? (kickoffLocale === "zh" ? `落地目标：${activeGoal.title}` : `Operationalize goal: ${activeGoal.title}`)
+      : (kickoffLocale === "zh" ? "建立首个运营节奏" : "Establish the first operating cadence");
     const kickoffTaskDescription = activeGoal
       ? [
           `Read the founding goal "${activeGoal.title}" and convert it into a real operating plan.`,
@@ -213,17 +217,19 @@ export function createOnboardingService({
       });
     }
 
+    const ceoLocale = db.listSnapshot().locale;
     const ceoId = db.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
-      title: "Chief Executive Officer",
+      title: ceoLocale === "zh" ? "首席执行官" : "Chief Executive Officer",
       reportsTo: null,
       connectorId: selectedConnectorId,
       workspaceId,
       model: input.connectorModel?.trim() || null,
-      capabilities:
-        "Executive leadership, strategic planning, team building, goal decomposition, delegation, and organizational management. Responsible for hiring the leadership team, setting strategy, and coordinating all company operations.",
+      capabilities: ceoLocale === "zh"
+        ? "高管领导力、战略规划、团队建设、目标分解、授权管理和组织运营。负责招募领导团队、制定战略，并协调公司所有运营活动。"
+        : "Executive leadership, strategic planning, team building, goal decomposition, delegation, and organizational management. Responsible for hiring the leadership team, setting strategy, and coordinating all company operations.",
       budgetMonthlyUsd: 250,
       status: "idle",
     });

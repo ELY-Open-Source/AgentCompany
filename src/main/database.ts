@@ -814,6 +814,10 @@ export class AppDatabase {
     }
     const existing = this.db.prepare("select id from agents where id = ? and company_id = ?").get(id, input.companyId) as { id: string } | undefined;
     if (existing) {
+      // Snapshot before-config for revision tracking
+      const beforeAgent = this.db.prepare(
+        "SELECT name, role, title, department, capabilities, connector_id, model, budget_monthly_usd, metadata_json FROM agents WHERE id = ? AND company_id = ?"
+      ).get(id, input.companyId) as Record<string, any> | undefined;
       this.db
         .prepare(
           "update agents set name = ?, role = ?, title = ?, department = ?, status = ?, reports_to = ?, connector_id = ?, workspace_id = ?, model = ?, metadata_json = ?, capabilities = ?, budget_monthly_usd = ?, updated_at = ? where id = ? and company_id = ?",
@@ -835,6 +839,17 @@ export class AppDatabase {
           id,
           input.companyId,
         );
+      // Record config revision if fields changed
+      if (beforeAgent) {
+        const afterConfig = { name: input.name, role: input.role, title: input.title, department, capabilities: input.capabilities, connectorId: input.connectorId, model: normalizeOptionalId(input.model), budgetMonthlyUsd: input.budgetMonthlyUsd, metadataJson };
+        const beforeConfig = { name: beforeAgent.name, role: beforeAgent.role, title: beforeAgent.title, department: beforeAgent.department, capabilities: beforeAgent.capabilities, connectorId: beforeAgent.connector_id, model: beforeAgent.model, budgetMonthlyUsd: beforeAgent.budget_monthly_usd, metadataJson: beforeAgent.metadata_json };
+        const changedKeys = Object.keys(afterConfig).filter(k => JSON.stringify((afterConfig as any)[k]) !== JSON.stringify((beforeConfig as any)[k]));
+        if (changedKeys.length > 0) {
+          try {
+            this.recordConfigRevision({ companyId: input.companyId, agentId: id, changedKeys, configBefore: beforeConfig, configAfter: afterConfig });
+          } catch { /* Non-fatal: revision recording should never block agent save */ }
+        }
+      }
     } else {
       this.db
         .prepare(
@@ -4346,6 +4361,55 @@ export class AppDatabase {
           try { this.db.prepare("ALTER TABLE wakeup_requests ADD COLUMN context_snapshot TEXT").run(); } catch { /* already exists */ }
         },
       },
+      {
+        version: 22,
+        name: "add_config_revisions_run_events_agent_permissions",
+        fn: () => {
+          this.db.exec(`
+            CREATE TABLE IF NOT EXISTS agent_config_revisions (
+              id TEXT PRIMARY KEY,
+              company_id TEXT NOT NULL,
+              agent_id TEXT NOT NULL,
+              revision_number INTEGER NOT NULL,
+              changed_keys TEXT NOT NULL DEFAULT '[]',
+              config_before TEXT NOT NULL,
+              config_after TEXT NOT NULL,
+              source TEXT NOT NULL DEFAULT 'patch',
+              rolled_back_from_revision_id TEXT,
+              created_by_agent_id TEXT,
+              created_by_user_id TEXT,
+              created_at TEXT NOT NULL,
+              FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_config_rev_num ON agent_config_revisions(agent_id, revision_number);
+            CREATE INDEX IF NOT EXISTS idx_agent_config_rev_agent ON agent_config_revisions(company_id, agent_id, created_at);
+
+            CREATE TABLE IF NOT EXISTS run_events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              company_id TEXT NOT NULL,
+              run_id TEXT NOT NULL,
+              agent_id TEXT NOT NULL,
+              seq INTEGER NOT NULL,
+              event_type TEXT NOT NULL,
+              stream TEXT,
+              level TEXT,
+              message TEXT,
+              payload TEXT,
+              created_at TEXT NOT NULL,
+              FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_run_events_run ON run_events(run_id, seq);
+            CREATE INDEX IF NOT EXISTS idx_run_events_company ON run_events(company_id, run_id);
+          `);
+          const addCol = (sql: string) => { try { this.db.prepare(sql).run(); } catch { /* already exists */ } };
+          addCol("ALTER TABLE agents ADD COLUMN permissions_json TEXT NOT NULL DEFAULT '{}'");
+          addCol("ALTER TABLE agents ADD COLUMN heartbeat_policy_json TEXT");
+          addCol("ALTER TABLE agents ADD COLUMN runtime_state_json TEXT");
+          addCol("ALTER TABLE runs ADD COLUMN context_snapshot_json TEXT");
+          addCol("ALTER TABLE runs ADD COLUMN actor_type TEXT");
+          addCol("ALTER TABLE runs ADD COLUMN actor_id TEXT");
+        },
+      },
     ];
 
     for (const migration of migrations) {
@@ -5131,6 +5195,249 @@ export class AppDatabase {
       )
       .run(ts, ts, companyId, ts);
     return Number(result.changes);
+  }
+
+  recordConfigRevision(input: {
+    companyId: string;
+    agentId: string;
+    changedKeys: string[];
+    configBefore: Record<string, unknown>;
+    configAfter: Record<string, unknown>;
+    source?: string;
+    rolledBackFromRevisionId?: string | null;
+    createdByAgentId?: string | null;
+    createdByUserId?: string | null;
+  }): string {
+    const id = randomUUID();
+    const ts = nowIso();
+    const lastRev = this.db.prepare(
+      "SELECT MAX(revision_number) as maxRev FROM agent_config_revisions WHERE agent_id = ?"
+    ).get(input.agentId) as { maxRev: number | null } | undefined;
+    const revisionNumber = (lastRev?.maxRev ?? 0) + 1;
+    this.db.prepare(
+      "INSERT INTO agent_config_revisions (id, company_id, agent_id, revision_number, changed_keys, config_before, config_after, source, rolled_back_from_revision_id, created_by_agent_id, created_by_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(
+      id, input.companyId, input.agentId, revisionNumber,
+      JSON.stringify(input.changedKeys),
+      JSON.stringify(input.configBefore),
+      JSON.stringify(input.configAfter),
+      input.source ?? "patch",
+      input.rolledBackFromRevisionId ?? null,
+      input.createdByAgentId ?? null,
+      input.createdByUserId ?? null,
+      ts
+    );
+    return id;
+  }
+
+  listConfigRevisions(agentId: string, companyId: string): Array<{
+    id: string; agentId: string; revisionNumber: number; changedKeys: string[];
+    source: string; rolledBackFromRevisionId: string | null;
+    createdByAgentId: string | null; createdByUserId: string | null; createdAt: string;
+  }> {
+    return this.readAll<any>(
+      "SELECT id, agent_id, revision_number, changed_keys, source, rolled_back_from_revision_id, created_by_agent_id, created_by_user_id, created_at FROM agent_config_revisions WHERE agent_id = ? AND company_id = ? ORDER BY revision_number DESC",
+      agentId, companyId
+    ).map(row => ({
+      id: row.id,
+      agentId: row.agent_id,
+      revisionNumber: row.revision_number,
+      changedKeys: parseJson<string[]>(row.changed_keys, []),
+      source: row.source,
+      rolledBackFromRevisionId: row.rolled_back_from_revision_id ?? null,
+      createdByAgentId: row.created_by_agent_id ?? null,
+      createdByUserId: row.created_by_user_id ?? null,
+      createdAt: row.created_at,
+    }));
+  }
+
+  getConfigRevision(revisionId: string, companyId: string): {
+    id: string; agentId: string; revisionNumber: number; changedKeys: string[];
+    configBefore: Record<string, unknown>; configAfter: Record<string, unknown>;
+    source: string; rolledBackFromRevisionId: string | null;
+    createdByAgentId: string | null; createdByUserId: string | null; createdAt: string;
+  } {
+    const row = this.db.prepare(
+      "SELECT * FROM agent_config_revisions WHERE id = ? AND company_id = ?"
+    ).get(revisionId, companyId) as any;
+    if (!row) throw new Error(`Config revision ${revisionId} not found.`);
+    return {
+      id: row.id,
+      agentId: row.agent_id,
+      revisionNumber: row.revision_number,
+      changedKeys: parseJson<string[]>(row.changed_keys, []),
+      configBefore: parseJson<Record<string, unknown>>(row.config_before, {}),
+      configAfter: parseJson<Record<string, unknown>>(row.config_after, {}),
+      source: row.source,
+      rolledBackFromRevisionId: row.rolled_back_from_revision_id ?? null,
+      createdByAgentId: row.created_by_agent_id ?? null,
+      createdByUserId: row.created_by_user_id ?? null,
+      createdAt: row.created_at,
+    };
+  }
+
+  rollbackConfigRevision(agentId: string, revisionId: string, companyId: string): string {
+    return this.transaction(() => {
+      const revision = this.getConfigRevision(revisionId, companyId);
+      if (revision.agentId !== agentId) throw new Error("Revision does not belong to this agent.");
+      const before = revision.configBefore as Record<string, any>;
+      const ts = nowIso();
+      this.db.prepare(
+        "UPDATE agents SET name = ?, role = ?, title = ?, department = ?, capabilities = ?, connector_id = ?, model = ?, budget_monthly_usd = ?, metadata_json = ?, updated_at = ? WHERE id = ? AND company_id = ?"
+      ).run(
+        before.name ?? "", before.role ?? "", before.title ?? "", before.department ?? null,
+        before.capabilities ?? "", before.connectorId ?? before.connector_id ?? "",
+        before.model ?? null, before.budgetMonthlyUsd ?? before.budget_monthly_usd ?? 0,
+        before.metadataJson ?? before.metadata_json ?? "{}", ts, agentId, companyId
+      );
+      const agent = this.getAgent(agentId);
+      const currentConfig = { name: agent.name, role: agent.role, title: agent.title, department: (agent as any).department, capabilities: agent.capabilities, connectorId: agent.connectorId, model: agent.model, budgetMonthlyUsd: agent.budgetMonthlyUsd, metadataJson: agent.metadataJson };
+      return this.recordConfigRevision({
+        companyId, agentId,
+        changedKeys: revision.changedKeys,
+        configBefore: currentConfig,
+        configAfter: before,
+        source: "rollback",
+        rolledBackFromRevisionId: revisionId,
+      });
+    });
+  }
+
+  appendRunEvent(input: {
+    companyId: string; runId: string; agentId: string;
+    eventType: string; stream?: string | null; level?: string | null;
+    message?: string | null; payload?: Record<string, unknown> | null;
+  }): void {
+    const ts = nowIso();
+    const lastSeq = this.db.prepare(
+      "SELECT MAX(seq) as maxSeq FROM run_events WHERE run_id = ?"
+    ).get(input.runId) as { maxSeq: number | null } | undefined;
+    const seq = (lastSeq?.maxSeq ?? 0) + 1;
+    this.db.prepare(
+      "INSERT INTO run_events (company_id, run_id, agent_id, seq, event_type, stream, level, message, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(
+      input.companyId, input.runId, input.agentId, seq,
+      input.eventType, input.stream ?? null, input.level ?? null,
+      input.message ?? null, input.payload ? JSON.stringify(input.payload) : null, ts
+    );
+  }
+
+  listRunEvents(runId: string, companyId: string, opts?: { offset?: number; limit?: number }): Array<{
+    id: number; runId: string; agentId: string; seq: number; eventType: string;
+    stream: string | null; level: string | null; message: string | null;
+    payload: Record<string, unknown> | null; createdAt: string;
+  }> {
+    const offset = opts?.offset ?? 0;
+    const limit = opts?.limit ?? 500;
+    return this.readAll<any>(
+      "SELECT id, run_id, agent_id, seq, event_type, stream, level, message, payload, created_at FROM run_events WHERE run_id = ? AND company_id = ? ORDER BY seq ASC LIMIT ? OFFSET ?",
+      runId, companyId, limit, offset
+    ).map(row => ({
+      id: row.id,
+      runId: row.run_id,
+      agentId: row.agent_id,
+      seq: row.seq,
+      eventType: row.event_type,
+      stream: row.stream,
+      level: row.level,
+      message: row.message,
+      payload: parseJson<Record<string, unknown> | null>(row.payload, null),
+      createdAt: row.created_at,
+    }));
+  }
+
+  getAgentPermissions(agentId: string): Record<string, boolean> {
+    const row = this.db.prepare(
+      "SELECT permissions_json FROM agents WHERE id = ?"
+    ).get(agentId) as { permissions_json: string } | undefined;
+    return parseJson<Record<string, boolean>>(row?.permissions_json, {});
+  }
+
+  setAgentPermission(agentId: string, companyId: string, permissionKey: string, enabled: boolean): void {
+    const current = this.getAgentPermissions(agentId);
+    if (enabled) {
+      current[permissionKey] = true;
+    } else {
+      delete current[permissionKey];
+    }
+    const ts = nowIso();
+    this.db.prepare(
+      "UPDATE agents SET permissions_json = ?, updated_at = ? WHERE id = ? AND company_id = ?"
+    ).run(JSON.stringify(current), ts, agentId, companyId);
+  }
+
+  hasAgentPermission(agentId: string, permissionKey: string): boolean {
+    const perms = this.getAgentPermissions(agentId);
+    return perms[permissionKey] === true;
+  }
+
+  getRuntimeState(agentId: string): Record<string, unknown> {
+    const row = this.db.prepare(
+      "SELECT runtime_state_json FROM agents WHERE id = ?"
+    ).get(agentId) as { runtime_state_json: string | null } | undefined;
+    return parseJson<Record<string, unknown>>(row?.runtime_state_json, {});
+  }
+
+  setRuntimeState(agentId: string, companyId: string, state: Record<string, unknown>): void {
+    const ts = nowIso();
+    this.db.prepare(
+      "UPDATE agents SET runtime_state_json = ?, updated_at = ? WHERE id = ? AND company_id = ?"
+    ).run(JSON.stringify(state), ts, agentId, companyId);
+  }
+
+  getHeartbeatPolicy(agentId: string): {
+    enabled: boolean; intervalSec: number; cooldownSec: number;
+    maxConcurrentRuns: number; wakeOnDemand: boolean;
+  } {
+    const row = this.db.prepare(
+      "SELECT heartbeat_enabled, heartbeat_interval_sec, heartbeat_policy_json FROM agents WHERE id = ?"
+    ).get(agentId) as { heartbeat_enabled: number; heartbeat_interval_sec: number; heartbeat_policy_json: string | null } | undefined;
+    if (!row) throw new Error(`Agent ${agentId} not found.`);
+    const policy = parseJson<Record<string, unknown>>(row.heartbeat_policy_json, {});
+    return {
+      enabled: toBoolean(row.heartbeat_enabled),
+      intervalSec: row.heartbeat_interval_sec ?? 120,
+      cooldownSec: typeof policy.cooldownSec === "number" ? policy.cooldownSec : 10,
+      maxConcurrentRuns: typeof policy.maxConcurrentRuns === "number" ? policy.maxConcurrentRuns : 1,
+      wakeOnDemand: policy.wakeOnDemand !== false,
+    };
+  }
+
+  setHeartbeatPolicy(agentId: string, companyId: string, policy: {
+    enabled?: boolean; intervalSec?: number; cooldownSec?: number;
+    maxConcurrentRuns?: number; wakeOnDemand?: boolean;
+  }): void {
+    const ts = nowIso();
+    const current = this.getHeartbeatPolicy(agentId);
+    const merged = { ...current, ...policy };
+    const policyJson = JSON.stringify({
+      cooldownSec: merged.cooldownSec,
+      maxConcurrentRuns: merged.maxConcurrentRuns,
+      wakeOnDemand: merged.wakeOnDemand,
+    });
+    this.db.prepare(
+      "UPDATE agents SET heartbeat_enabled = ?, heartbeat_interval_sec = ?, heartbeat_policy_json = ?, updated_at = ? WHERE id = ? AND company_id = ?"
+    ).run(merged.enabled ? 1 : 0, merged.intervalSec, policyJson, ts, agentId, companyId);
+  }
+
+  countActiveRunsForAgent(agentId: string, companyId: string): number {
+    const row = this.db.prepare(
+      "SELECT COUNT(*) as cnt FROM runs WHERE agent_id = ? AND company_id = ? AND status IN ('queued', 'running')"
+    ).get(agentId, companyId) as { cnt: number } | undefined;
+    return row?.cnt ?? 0;
+  }
+
+  updateRunActor(runId: string, actorType: string, actorId: string | null): void {
+    this.db.prepare(
+      "UPDATE runs SET actor_type = ?, actor_id = ?, updated_at = ? WHERE id = ?"
+    ).run(actorType, actorId, nowIso(), runId);
+  }
+
+  updateCompanySkillMetadata(companyId: string, skillId: string, metadataJson: string): void {
+    const ts = nowIso();
+    this.db.prepare(
+      "UPDATE company_skills SET metadata = ?, updated_at = ? WHERE id = ? AND company_id = ?"
+    ).run(metadataJson, ts, skillId, companyId);
   }
 
   private openConnection(): SqliteDatabase {

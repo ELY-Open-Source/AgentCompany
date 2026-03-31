@@ -1573,6 +1573,11 @@ Always verify API responses before reporting — only report successful actions.
 - CRITICAL: Actually call the API to take actions. Do NOT just describe what you would do — DO it. Every wake cycle should result in at least one API call that moves work forward.
 `);
 
+  // Reinforce locale at the end of prompt (recency bias helps LLMs follow this)
+  if (localeInstruction) {
+    sections.push(`# 语言要求提醒\n${localeInstruction}\n请记住：你的所有输出必须使用中文。\n`);
+  }
+
   return sections.join("\n");
 }
 

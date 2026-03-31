@@ -55,6 +55,7 @@ interface EnqueueRunPayload {
 interface OrchestrationDependencies {
   db: AppDatabase;
   logger: {
+    debug: (...args: unknown[]) => void;
     info: (...args: unknown[]) => void;
     warn: (...args: unknown[]) => void;
     error: (...args: unknown[]) => void;
@@ -362,7 +363,7 @@ export function createOrchestrationService({
     if (!hasWorkerReady()) return null;
     const companyStatus = db.getCompanyStatus(companyId);
     if (companyStatus !== "active") {
-      logger.info(`[heartbeat] Skipping ${agentId} because company ${companyId} is not active.`);
+      logger.debug(`[heartbeat] Skipping ${agentId} because company ${companyId} is not active.`);
       return null;
     }
     const agent = db.getAgent(agentId);
@@ -374,26 +375,52 @@ export function createOrchestrationService({
     if (getRunEligibilityFailure(agent, connector, null)) {
       return null;
     }
-    if (hasActiveRun({ agentId: agent.id, companyId })) {
-      logger.info(`[heartbeat] Skipping ${agent.name} because it already has an active run.`);
+    // Extended heartbeat policy checks (Paperclip parity)
+    let heartbeatPolicy = { cooldownSec: 10, maxConcurrentRuns: 1, wakeOnDemand: true };
+    try {
+      heartbeatPolicy = db.getHeartbeatPolicy(agent.id);
+    } catch {
+      // Non-fatal: use defaults
+    }
+
+    // maxConcurrentRuns check: count active runs for this agent
+    const activeRunCount = db.countActiveRunsForAgent(agent.id, companyId);
+    if (activeRunCount >= heartbeatPolicy.maxConcurrentRuns) {
+      logger.debug(`[heartbeat] Skipping ${agent.name} — active runs (${activeRunCount}) >= maxConcurrentRuns (${heartbeatPolicy.maxConcurrentRuns}).`);
+      return null;
+    }
+
+    // Cooldown check: ensure enough time has passed since last heartbeat
+    if (agent.lastHeartbeatAt) {
+      const elapsed = Date.now() - new Date(agent.lastHeartbeatAt).getTime();
+      const cooldownMs = heartbeatPolicy.cooldownSec * 1000;
+      if (elapsed < cooldownMs) {
+        logger.debug(`[heartbeat] Skipping ${agent.name} — cooldown (${heartbeatPolicy.cooldownSec}s) not elapsed.`);
+        return null;
+      }
+    }
+
+    // wakeOnDemand gate: if disabled, only timer/bootstrap triggers allowed
+    if (!heartbeatPolicy.wakeOnDemand && trigger !== "timer" && trigger !== "bootstrap") {
+      logger.debug(`[heartbeat] Skipping ${agent.name} — wakeOnDemand is disabled and trigger is "${trigger}".`);
       return null;
     }
     if (db.isAgentPendingApproval(agentId)) {
-      logger.info(`[heartbeat] Skipping ${agent.name} because agent is pending hire approval.`);
+      logger.debug(`[heartbeat] Skipping ${agent.name} because agent is pending hire approval.`);
       return null;
     }
 
     // Block heartbeat when agent has tasks awaiting user deliverable review
     // Check both: pending approval (gate created) and requires_user_review flag (gap before approval)
     if (db.hasAgentPendingDeliverableReview(agentId, companyId) || db.hasAgentTaskAwaitingReview(agentId, companyId)) {
-      logger.info(`[heartbeat] Skipping ${agent.name} — awaiting user deliverable review.`);
+      logger.debug(`[heartbeat] Skipping ${agent.name} — awaiting user deliverable review.`);
       return null;
     }
 
     // Block CEO heartbeat when company has any pending deliverable reviews
     // CEO should not create new work while the user hasn't reviewed existing deliverables
     if (!agent.reportsTo && db.hasPendingDeliverableReviews(companyId)) {
-      logger.info(`[heartbeat] Skipping CEO ${agent.name} — company has pending deliverable reviews.`);
+      logger.debug(`[heartbeat] Skipping CEO ${agent.name} — company has pending deliverable reviews.`);
       return null;
     }
 
@@ -418,7 +445,7 @@ export function createOrchestrationService({
       const companyNeedsBootstrap = goalCount > 0 && taskCount < goalCount;
 
       if (isTimer && !isCeo && !isManager && !companyNeedsBootstrap) {
-        logger.info(`[heartbeat] Skipping ${agent.name} — no actionable tasks and trigger is timer.`);
+        logger.debug(`[heartbeat] Skipping ${agent.name} — no actionable tasks and trigger is timer.`);
         return null;
       }
 
@@ -507,6 +534,14 @@ export function createOrchestrationService({
     });
 
     db.markHeartbeatAt(agentId);
+
+    // Actor audit: record what triggered this run
+    try {
+      const actorType = trigger === "timer" || trigger === "bootstrap" ? "system" : "agent";
+      const actorId = trigger === "timer" || trigger === "bootstrap" ? null : trigger;
+      db.updateRunActor(run.id, actorType, actorId);
+    } catch { /* Non-fatal */ }
+
     db.addActivity({
       companyId,
       actor: "system",

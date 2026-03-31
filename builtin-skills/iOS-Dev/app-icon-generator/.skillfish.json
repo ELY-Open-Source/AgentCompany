@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "app-icon-generator",
+  "owner": "dexploarer",
+  "repo": "claudius-skills",
+  "path": "examples/beginner/mobile-skills/app-icon-generator",
+  "branch": "main",
+  "sha": "33cbc3a8605a861575a304af72aa6fa698b1e9ea",
+  "source": "manual"
+}
