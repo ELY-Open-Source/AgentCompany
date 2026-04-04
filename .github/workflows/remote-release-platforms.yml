@@ -107,10 +107,15 @@ jobs:
               --target "$GITHUB_SHA"
 
           shopt -s nullglob
-          files=(
-            build/release/*.AppImage
-            build/release/*.deb
-            build/release/*.rpm
+          files=()
+          for file in build/release/AgentCompany-*.AppImage; do
+            if [[ "$file" != *arm64* ]]; then
+              files+=("$file")
+            fi
+          done
+          files+=(
+            build/release/agent-company_*_amd64.deb
+            build/release/agent-company-*.x86_64.rpm
             build/release/latest-linux.yml
           )
           if [ ${#files[@]} -eq 0 ]; then
