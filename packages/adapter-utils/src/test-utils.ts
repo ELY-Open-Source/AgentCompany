@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { AdapterEnvironmentCheck, AdapterEnvironmentTestResult } from "./types.js";
+import { normalizeCommandValue } from "./server-utils-process.js";
 
 export function summarizeStatus(checks: AdapterEnvironmentCheck[]): AdapterEnvironmentTestResult["status"] {
   if (checks.some((check) => check.level === "error")) return "fail";
@@ -21,7 +22,8 @@ export function firstNonEmptyLine(text: string): string {
 }
 
 export function commandLooksLike(command: string, expected: string): boolean {
-  const base = path.basename(command).toLowerCase();
+  const normalized = normalizeCommandValue(command).replace(/\\/g, "/");
+  const base = path.posix.basename(normalized).toLowerCase();
   return base === expected || base === `${expected}.cmd` || base === `${expected}.exe`;
 }
 

@@ -1,11 +1,12 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Briefcase, CheckCircle, Clock, ClockCounterClockwise, Robot, Trash, XCircle } from "@phosphor-icons/react"
 import { CaretDown, CaretUp } from "@phosphor-icons/react"
 import type { AgentRecord, ApprovalRecord, DocumentRecord, TaskRecord } from "@shared/types"
+import { extractApprovalDocumentReferences, type ApprovalDocumentReference } from "@shared/approval-documents"
 import { useT } from "../../i18n"
 import { formatMoney, formatTime } from "../../lib/formatters"
 import { unwrap } from "../../lib/desktop"
-import { ActionButton, ConfirmDialog, InlineNotice, StatusPill, TextArea } from "../ui"
+import { ActionButton, ConfirmDialog, InlineNotice, Input, StatusPill, TextArea } from "../ui"
 import { describeActionError, parseApprovalPayloadJson } from "./execution-utils"
 import { SocialDraftPreview } from "./SocialDraftPreview"
 import { useAppStore } from "../../state/store"
@@ -17,6 +18,115 @@ function getTypeBadgeClass(type: string): string {
   if (type === "social_post") return "bg-accent text-primary"
   if (type === "deliverable_review") return "bg-accent text-primary"
   return "bg-muted text-muted-foreground"
+}
+
+function ApprovalDocumentEditor({
+  companyId,
+  document,
+  fallback,
+}: {
+  companyId: string
+  document: DocumentRecord
+  fallback?: ApprovalDocumentReference
+}) {
+  const addToast = useAppStore((s) => s.addToast)
+  const [title, setTitle] = useState(document.title)
+  const [content, setContent] = useState(document.content ?? "")
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  async function handleSave() {
+    if (!title.trim()) {
+      setSaveError("Document title is required.")
+      return
+    }
+    setSaving(true)
+    setSaveError(null)
+    try {
+      unwrap(await window.agentCompany.saveDocument({
+        id: document.id,
+        companyId,
+        type: document.type,
+        title: title.trim(),
+        content,
+        authorAgentId: document.authorAgentId ?? null,
+        reviewerAgentId: document.reviewerAgentId ?? null,
+        projectId: document.projectId ?? null,
+        goalId: document.goalId ?? null,
+        parentDocId: document.parentDocId ?? null,
+        version: document.version,
+        status: document.status,
+        tagsJson: document.tagsJson,
+      }))
+      addToast(`Saved document: ${title.trim()}`, "success")
+    } catch (error) {
+      setSaveError(describeActionError(error))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border border-border px-4 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate text-[13px] font-medium text-foreground">{fallback?.title ?? document.title}</div>
+          <div className="text-[11px] text-muted-foreground">{(fallback?.type ?? document.type).replaceAll("_", " ")} · v{document.version} · {document.status}</div>
+        </div>
+        <ActionButton label={saving ? "Saving..." : "Save changes"} icon={CheckCircle} tone="accent" onClick={() => void handleSave()} loading={saving} />
+      </div>
+      {saveError ? <InlineNotice message={saveError} /> : null}
+      <Input label="Title" value={title} onChange={setTitle} placeholder="Document title" />
+      <TextArea label="Content" value={content} onChange={setContent} rows={12} placeholder="Document content" />
+    </div>
+  )
+}
+
+function ApprovalDocumentsPanel({
+  approval,
+  documents,
+  companyId,
+}: {
+  approval: ApprovalRecord
+  documents?: DocumentRecord[]
+  companyId: string
+}) {
+  const references = useMemo(
+    () => extractApprovalDocumentReferences(approval.payloadJson),
+    [approval.payloadJson],
+  )
+
+  if (references.length === 0) return null
+
+  const fullDocs = documents
+    ? references
+      .map((reference) => ({
+        reference,
+        document: documents.find((entry) => entry.id === reference.id) ?? null,
+      }))
+      .filter((entry) => entry.document)
+    : []
+
+  return (
+    <div className="space-y-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-primary">Linked Documents</div>
+      {fullDocs.length > 0 ? fullDocs.map(({ reference, document }) => (
+        <ApprovalDocumentEditor
+          key={document!.id}
+          companyId={companyId}
+          document={document!}
+          fallback={reference}
+        />
+      )) : references.map((reference) => (
+        <div key={reference.id} className="rounded-lg border border-border bg-muted px-4 py-3">
+          <div className="text-[13px] font-medium text-foreground">{reference.title ?? reference.id}</div>
+          <div className="text-[11px] text-muted-foreground">{reference.type?.replaceAll("_", " ") ?? "document"} · {reference.id}</div>
+          <div className="mt-2 text-[12px] text-muted-foreground">The linked document is not loaded in the current snapshot yet. Reopen the approval after the next refresh.</div>
+        </div>
+      ))}
+      {approval.impactSummary ? <div className="text-[11px] text-muted-foreground">{approval.impactSummary}</div> : null}
+    </div>
+  )
 }
 
 export function ApprovalInspector({ approval, agents, tasks, documents, companyId, onDecide, onDeleted }: {
@@ -114,7 +224,8 @@ export function ApprovalInspector({ approval, agents, tasks, documents, companyI
             {mgr ? <div><span className="text-muted-foreground">Reports to:</span> <span className="text-foreground">{mgr.name}</span></div> : null}
           </div></div>) })() : null}
         {approval.type === "approve_ceo_strategy" ? <div className="rounded-lg border border-[color:var(--destructive)] border-opacity-30 bg-warning-muted px-4 py-3"><div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-warning">Organization Strategy</div><div className="whitespace-pre-wrap text-[12px] leading-relaxed text-foreground">{approval.payloadSummary}</div></div> : null}
-        {approval.type === "deliverable_review" ? <DeliverableReviewPanel approval={approval} documents={documents} agents={agents} /> : null}
+        <ApprovalDocumentsPanel approval={approval} documents={documents} companyId={companyId} />
+        {approval.type === "deliverable_review" && !extractApprovalDocumentReferences(approval.payloadJson).length ? <DeliverableReviewPanel approval={approval} documents={documents} agents={agents} /> : null}
         {isSocialPost && approval.payloadJson ? (
           <SocialDraftPreview
             payloadJson={approval.payloadJson}

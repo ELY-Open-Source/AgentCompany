@@ -272,9 +272,12 @@ const fakeTask = (id: string, title = "Task"): TaskRecord => ({
   sessionDisplayId: null,
   costUsd: 0,
   requiresUserReview: false,
+  startedAt: null,
+  completedAt: null,
+  cancelledAt: null,
   createdAt: "2026-01-01",
   updatedAt: "2026-01-01",
-} as TaskRecord);
+} as unknown as TaskRecord);
 
 const fakeRun = (id: string): RunRecord => ({
   id,
@@ -326,15 +329,17 @@ const fakeApproval = (id: string): ApprovalRecord => ({
   id,
   companyId: "company-1",
   relatedTaskId: "t-1",
+  relatedAgentId: null,
   requestedByAgentId: "ag-1",
   type: "task_completion",
   payloadSummary: "",
   impactSummary: "",
+  payloadJson: null,
   decisionNote: null,
   state: "pending",
   createdAt: "2026-01-01",
   updatedAt: "2026-01-01",
-} as ApprovalRecord);
+} as unknown as ApprovalRecord);
 
 describe("CompanySlice patch methods", () => {
   beforeEach(() => {

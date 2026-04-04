@@ -31,6 +31,7 @@ export function registerCoreOperationHandlers({
   publishDomainChanged,
   emitEvent,
   wakeAgentIfPossible,
+  handleApprovalCreated,
   handleApprovalResolved,
   dispatchAutomation,
   queueTaskRun,
@@ -44,6 +45,7 @@ export function registerCoreOperationHandlers({
   | "publishDomainChanged"
   | "emitEvent"
   | "wakeAgentIfPossible"
+  | "handleApprovalCreated"
   | "handleApprovalResolved"
   | "dispatchAutomation"
   | "queueTaskRun"
@@ -74,6 +76,10 @@ export function registerCoreOperationHandlers({
       entityId: id,
       detail: parsed.payloadSummary,
     });
+
+    // Notify thread integration about the new approval
+    handleApprovalCreated(id, parsed.companyId, parsed.relatedTaskId ?? null, parsed.type, parsed.payloadSummary ?? "");
+
     if (shouldAutoApproveApproval(db, parsed.companyId, parsed.type)) {
       resolveApprovalDecision({
         db,

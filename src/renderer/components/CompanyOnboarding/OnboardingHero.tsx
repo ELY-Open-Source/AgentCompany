@@ -5,22 +5,41 @@ import {
   HardDrive,
   Plugs,
   Rocket,
+  SlidersHorizontal,
   Target,
 } from "@phosphor-icons/react";
 import type { AppLocale } from "@shared/locale";
 import { AsciiAnimation } from "./AsciiAnimation";
 
-export type OnboardingStep = "welcome" | "nodecheck" | "providers" | "company" | "mission" | "launch";
+export type OnboardingStep =
+  | "welcome"
+  | "nodecheck"
+  | "providers"
+  | "company"
+  | "modelpool"
+  | "executionmode"
+  | "mission"
+  | "launch";
 
 const STEP_LABELS_CONFIG = [
   { key: "onboarding.stepLabelNodeCheck", icon: HardDrive, step: "nodecheck" as const },
   { key: "onboarding.stepLabelProviders", icon: Plugs, step: "providers" as const },
   { key: "onboarding.stepLabelCompany", icon: Buildings, step: "company" as const },
+  { key: "onboarding.stepLabelModelPool", icon: SlidersHorizontal, step: "modelpool" as const },
+  { key: "onboarding.stepLabelMode", icon: CheckCircle, step: "executionmode" as const },
   { key: "onboarding.stepLabelMission", icon: Target, step: "mission" as const },
   { key: "onboarding.stepLabelLaunch", icon: Rocket, step: "launch" as const },
 ] as const;
 
-const STEP_ORDER: OnboardingStep[] = ["nodecheck", "providers", "company", "mission", "launch"];
+const STEP_ORDER: OnboardingStep[] = [
+  "nodecheck",
+  "providers",
+  "company",
+  "modelpool",
+  "executionmode",
+  "mission",
+  "launch",
+];
 
 interface OnboardingHeroProps {
   step: OnboardingStep;

@@ -12,9 +12,11 @@ win-unpacked
 .claude
 build
 .omc
+.omx
 .planning
 paperclip-reference
-
+Reference
+.pnpm-store
 # Test artifacts
 test-results/
 playwright-report/
@@ -30,8 +32,11 @@ playwright-report/
 
 # Environment files
 .env
+.env.*
 .env.local
 .env.*.local
+!.env.example
+!.env.release.example
 
 # Editor and OS files
 .DS_Store
@@ -55,8 +60,10 @@ oldreference/
 # Local design scratch files
 homepagedesign.html
 
-# Landing page (deployed separately to Cloudflare Pages)
-landing/
+# Landing page is part of the repo and should be versioned
+
+# Boss edition build (contains credentials — never commit)
+boss-build/
 
 # Package manager logs
 npm-debug.log*
@@ -66,3 +73,4 @@ yarn-error.log*
 build/release/AgentCompany-0.4.61-arm64.dmg
 CLAUDE.md
 build/release/AgentCompany-0.4.90-arm64.dmg
+local-release/

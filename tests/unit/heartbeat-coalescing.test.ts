@@ -144,7 +144,7 @@ describe("Heartbeat task coalescing", () => {
       const agentId = createTestAgent(db, companyId, wsId, "CEO");
 
       // Create two done heartbeat tasks
-      const oldTaskId = createHeartbeatTask(db, companyId, agentId, "done", "CEO");
+      const _oldTaskId = createHeartbeatTask(db, companyId, agentId, "done", "CEO");
       const newTaskId = createHeartbeatTask(db, companyId, agentId, "done", "CEO");
 
       // Advance the newer one so its updated_at is more recent

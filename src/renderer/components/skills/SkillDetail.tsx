@@ -60,7 +60,7 @@ export function SkillDetail({
   skillId,
   agents,
   onDeleted,
-  onRefresh,
+  onRefresh: _onRefresh,
 }: {
   companyId: string;
   skillId: string;

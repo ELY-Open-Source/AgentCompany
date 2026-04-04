@@ -1,4 +1,4 @@
-import { app } from "electron";
+import { app, nativeTheme } from "electron";
 import type { AgentApiServer } from "./api-server";
 import type { AppDatabase } from "./database";
 import { BrowserManager } from "./browser-manager";
@@ -31,6 +31,7 @@ interface ServiceGraphDependencies {
   windowStatePath: string;
   workerPath: string;
   logger: {
+    debug: (...args: unknown[]) => void;
     info: (...args: unknown[]) => void;
     warn: (...args: unknown[]) => void;
     error: (...args: unknown[]) => void;
@@ -40,6 +41,10 @@ interface ServiceGraphDependencies {
   notify: (options: NotificationOptions) => void;
   createRunToken: (agentId: string, companyId: string, runId: string) => string;
   seedDefaultAutomationRules: (companyId: string) => void;
+  onRunStarted?: (runId: string, taskId: string, agentId: string, companyId: string) => void;
+  onRunCompleted?: (runId: string, taskId: string, agentId: string, companyId: string, status: string, summary: string | null, errorMessage: string | null) => void;
+  /** Checkpoint engine for unified co-founder mode pause decisions in scheduler. */
+  checkpointEngine?: { shouldPauseHeartbeat: (companyId: string, agentId: string) => boolean };
 }
 
 export function createServiceGraph({
@@ -60,6 +65,9 @@ export function createServiceGraph({
   notify,
   createRunToken,
   seedDefaultAutomationRules,
+  onRunStarted,
+  onRunCompleted,
+  checkpointEngine,
 }: ServiceGraphDependencies) {
   let automationService: ReturnType<typeof createAutomationService> | null = null;
   let browserActionService: ReturnType<typeof createBrowserActionService> | null = null;
@@ -150,6 +158,7 @@ export function createServiceGraph({
   };
 
   function init() {
+    nativeTheme.themeSource = db.listSnapshot().theme;
     desktopShellService = createDesktopShellService({
       preloadPath,
       rendererDist,
@@ -201,6 +210,8 @@ export function createServiceGraph({
       wakeAgentIfPossible,
       dispatchRunToWorker,
       processRunCompletion: (run, event) => processRunCompletion(run, event),
+      onRunStarted,
+      onRunCompleted,
       notify,
       budgetService: getOrCreateBudgetEnforcementService(),
       sessionService: getOrCreateSessionManagementService(),
@@ -234,6 +245,7 @@ export function createServiceGraph({
         };
       })(),
       budgetService: getOrCreateBudgetEnforcementService(),
+      checkpointEngine,
       getSessionHandoff: (taskId: string) => {
         try {
           return getOrCreateSessionManagementService().getHandoffContext(taskId);

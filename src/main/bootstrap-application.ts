@@ -8,6 +8,9 @@ import { createServiceGraph } from "./service-graph";
 import { createIpcSupport } from "./ipc-support";
 import { createNotificationService } from "./notification-service";
 import type { NotificationOptions } from "./notification-service";
+import { createThreadIntegration } from "./thread-integration";
+import { createCheckpointEngine } from "./checkpoint-engine";
+import { createRunHousekeeping } from "./run-housekeeping";
 import type { DesktopEvent, SectionId } from "@shared/types";
 
 interface BootstrapApplicationDependencies {
@@ -29,9 +32,11 @@ interface BootstrapApplicationDependencies {
     onTaskCreated: (taskId: string, companyId: string) => void;
     onTaskStatusChanged: (taskId: string, companyId: string, prev: string, next: string) => void;
     onCommentPosted: (taskId: string, companyId: string, authorAgentId: string | null) => void;
+    onApprovalCreated: (approvalId: string, companyId: string, taskId: string | null, approvalType: string, summary: string) => void;
     onApprovalResolved: (approvalId: string, companyId: string, decision: string) => void;
-    onDocumentCreated: (companyId: string, authorAgentId: string | null, projectId: string | null) => void;
+    onDocumentCreated: (companyId: string, authorAgentId: string | null, projectId: string | null, documentId: string, documentTitle: string, documentType: string, taskId: string | null) => void;
     onAutoAssignTask: (taskId: string, companyId: string) => string | null;
+    onHumanMessage: (companyId: string, toAgentId?: string | null, threadId?: string | null, waitStateId?: string | null) => void;
     emitEvent: (event: DesktopEvent) => void;
     notify: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
   }, allowedOrigins: string[]) => AgentApiServer;
@@ -43,6 +48,7 @@ interface BootstrapApplicationDependencies {
     apiServer: AgentApiServer;
     serviceGraph: ReturnType<typeof createServiceGraph>;
     ipcSupport: ReturnType<typeof createIpcSupport>;
+    threadIntegration: ReturnType<typeof createThreadIntegration>;
   }) => void;
 }
 
@@ -112,6 +118,22 @@ export async function bootstrapApplication({
     ipcSupport?.publishDomainChanged();
   };
 
+  const threadIntegration = createThreadIntegration({
+    db,
+    logger: log,
+    emitEvent,
+    publishDomainChanged,
+    notify: (options) => notify({ ...options, urgency: "informational" }),
+  });
+  const checkpointEngine = createCheckpointEngine({
+    db,
+    logger: log,
+    threadIntegration,
+    publishDomainChanged,
+    notify,
+  });
+  const runHousekeeping = createRunHousekeeping({ db, logger: log, threadIntegration });
+
   serviceGraph = createServiceGraph({
     db,
     apiServerRef,
@@ -130,6 +152,11 @@ export async function bootstrapApplication({
     notify,
     createRunToken,
     seedDefaultAutomationRules,
+    onRunStarted: (runId, taskId, agentId, companyId) =>
+      threadIntegration.onRunStarted(runId, taskId, agentId, companyId),
+    onRunCompleted: (runId, taskId, agentId, companyId, status, summary, errorMessage) =>
+      runHousekeeping.onRunCompleted(runId, taskId, agentId, companyId, status, summary, errorMessage),
+    checkpointEngine,
   });
   ipcSupport = createIpcSupport({
     isDev,
@@ -153,21 +180,35 @@ export async function bootstrapApplication({
     const automation = serviceGraph.getAutomationService();
     if (!automation) throw new Error("Automation service is not initialized.");
     automation.handleTaskCreated(taskId, companyId);
+    threadIntegration.onTaskCreated(taskId, companyId);
   };
   const handleTaskStatusChange = (taskId: string, companyId: string, prev: string, next: string) => {
     const automation = serviceGraph.getAutomationService();
     if (!automation) throw new Error("Automation service is not initialized.");
     automation.handleTaskStatusChange(taskId, companyId, prev, next);
+    threadIntegration.onTaskStatusChanged(taskId, companyId, prev, next);
+    // In co-founder mode, create plan_review checkpoint when task starts
+    if (prev === "todo" && next === "in_progress") {
+      try {
+        const task = db.getTask(taskId);
+        checkpointEngine.onTaskStarted(taskId, companyId, task.assigneeAgentId);
+      } catch { /* task may not exist */ }
+    }
   };
   const handleApprovalResolved = (approvalId: string, companyId: string, decision: string) => {
     const automation = serviceGraph.getAutomationService();
     if (!automation) throw new Error("Automation service is not initialized.");
     automation.handleApprovalResolved(approvalId, companyId, decision);
+    threadIntegration.onApprovalResolved(approvalId, companyId, decision);
   };
   const dispatchAutomation = (trigger: string, ctx: Record<string, unknown>) => {
     const automation = serviceGraph.getAutomationService();
     if (!automation) throw new Error("Automation service is not initialized.");
     automation.dispatchAutomation(trigger, ctx as any);
+  };
+
+  const handleApprovalCreated = (approvalId: string, companyId: string, taskId: string | null, approvalType: string, summary: string) => {
+    threadIntegration.onApprovalCreated(approvalId, companyId, taskId, approvalType, summary);
   };
 
   const apiServer = createApiServer(db, {
@@ -178,11 +219,18 @@ export async function bootstrapApplication({
     onCommentPosted: (taskId, companyId, authorAgentId) => {
       dispatchAutomation("comment_posted", { companyId, taskId, agentId: authorAgentId ?? undefined });
     },
+    onApprovalCreated: handleApprovalCreated,
     onApprovalResolved: handleApprovalResolved,
-    onDocumentCreated: (companyId, authorAgentId, projectId) => {
+    onDocumentCreated: (companyId, authorAgentId, projectId, documentId, documentTitle, documentType, taskId) => {
       dispatchAutomation("document_created", { companyId, agentId: authorAgentId ?? undefined, projectId: projectId ?? undefined });
+      threadIntegration.onDocumentCreated(companyId, authorAgentId, taskId, documentTitle);
+      checkpointEngine.onDocumentDrafted(companyId, documentId, documentTitle, documentType, authorAgentId, taskId);
     },
     onAutoAssignTask: (taskId, companyId) => db.autoAssignTask(taskId, companyId),
+    onHumanMessage: (companyId, toAgentId, threadId, waitStateId) => {
+      threadIntegration.onHumanMessage(companyId, toAgentId, threadId, waitStateId);
+      publishDomainChanged();
+    },
     emitEvent,
     notify,
   }, [isDev && devServerUrl ? new URL(devServerUrl).origin : null, "app://-"].filter((origin): origin is string => Boolean(origin)));
@@ -194,6 +242,7 @@ export async function bootstrapApplication({
     apiServer,
     serviceGraph,
     ipcSupport,
+    threadIntegration,
   });
 
   if (apiServer && serviceGraph.getBrowserActionService()) {
@@ -337,5 +386,6 @@ export async function bootstrapApplication({
     apiServer,
     serviceGraph,
     ipcSupport,
+    threadIntegration,
   };
 }

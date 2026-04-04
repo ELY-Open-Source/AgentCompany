@@ -1,8 +1,9 @@
-import { AgentApiServer } from "./api-server";
+import { AgentApiServer, createApiServer } from "./api-server";
 import { createAgentToken, initializeAgentTokenSigningKey } from "./agent-auth";
 import { bootstrapApplication } from "./bootstrap-application";
 import { AppDatabase } from "./database";
 import { createMainRuntimeSupport } from "./main-runtime-support";
+import type { ThreadIntegrationService } from "./thread-integration";
 
 interface CreateMainRuntimeDependencies {
   hasSingleInstanceLock: boolean;
@@ -34,12 +35,14 @@ export function createMainRuntime({
     apiServer: AgentApiServer | null;
     serviceGraph: Awaited<ReturnType<typeof bootstrapApplication>>["serviceGraph"] | null;
     ipcSupport: Awaited<ReturnType<typeof bootstrapApplication>>["ipcSupport"] | null;
+    threadIntegration: ThreadIntegrationService | null;
     isQuitting: boolean;
   } = {
     db: null,
     apiServer: null,
     serviceGraph: null,
     ipcSupport: null,
+    threadIntegration: null,
     isQuitting: false,
   };
   const support = createMainRuntimeSupport(state);
@@ -59,7 +62,7 @@ export function createMainRuntime({
       devServerUrl,
       workerPath,
       createApiServer: (db, callbacks, allowedOrigins) =>
-        new AgentApiServer(
+        createApiServer(
           db,
           support.publishDomainChanged,
           (agentId, companyId, trigger) => callbacks.onWakeAgent(agentId, companyId, trigger),
@@ -76,11 +79,12 @@ export function createMainRuntime({
           state.isQuitting = value;
         },
       },
-      onRuntimeReady: ({ db, apiServer, serviceGraph, ipcSupport }) => {
+      onRuntimeReady: ({ db, apiServer, serviceGraph, ipcSupport, threadIntegration }) => {
         state.db = db;
         state.apiServer = apiServer;
         state.serviceGraph = serviceGraph;
         state.ipcSupport = ipcSupport;
+        state.threadIntegration = threadIntegration;
         // Register IPC handlers immediately so the renderer can call loadSnapshot()
         // as soon as the window appears — before connector health checks finish.
         support.registerHandlers();

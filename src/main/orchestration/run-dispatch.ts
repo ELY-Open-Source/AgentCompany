@@ -1,0 +1,103 @@
+import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
+import type { ConnectorRecord } from "@shared/types";
+import type { WorkspaceLockMode, OrchestrationDependencies } from "./types";
+import { buildRunPayload, type RunDispatchParams } from "./turn-context";
+import { validateConnectorModelSelection } from "../connector-model-policy";
+
+export function createRunDispatch(deps: OrchestrationDependencies) {
+  const {
+    db,
+    logger,
+    isQuitting,
+    hasWorkerReady,
+    getApiPort,
+    createRunToken,
+    enqueueWorkerRun,
+    listRuntimeSkillEntries,
+    budgetService,
+    getSessionHandoff,
+    evaluatePreRunSessionRotation,
+  } = deps;
+
+  function resolveWorkspace(
+    task: { workspaceId: string | null; projectId?: string | null },
+    agent: { workspaceId: string | null },
+    companyId: string,
+  ) {
+    const taskWorkspace = db.getWorkspace(task.workspaceId);
+    if (taskWorkspace) {
+      return { workspace: taskWorkspace, lockMode: "exclusive" as WorkspaceLockMode, source: "task" as const };
+    }
+
+    const agentWorkspace = db.getWorkspace(agent.workspaceId);
+    if (agentWorkspace) {
+      return { workspace: agentWorkspace, lockMode: "exclusive" as WorkspaceLockMode, source: "agent" as const };
+    }
+
+    const projectWorkspace = db.getProjectPrimaryWorkspace(task.projectId ?? null, companyId);
+    if (projectWorkspace) {
+      return { workspace: projectWorkspace, lockMode: "exclusive" as WorkspaceLockMode, source: "project" as const };
+    }
+
+    const fallbackWorkspace = db.getAnyCompanyWorkspace(companyId);
+    if (fallbackWorkspace) {
+      return { workspace: fallbackWorkspace, lockMode: "shared" as WorkspaceLockMode, source: "company_fallback" as const };
+    }
+
+    return { workspace: null, lockMode: "none" as WorkspaceLockMode, source: "none" as const };
+  }
+
+  function getRunEligibilityFailure(
+    agent: { status: string; budgetMonthlyUsd: number; spentMonthlyUsd: number; name: string; connectorId: string; id: string; companyId: string; model?: string | null },
+    connector: Pick<ConnectorRecord, "id" | "label" | "status" | "capabilityMatrix">,
+    projectId: string | null = null,
+  ) {
+    if (["terminated", "paused", "pending_approval"].includes(agent.status)) {
+      return "AGENT_NOT_RUNNABLE";
+    }
+    const gate = budgetService.evaluateBudgetGate(agent.companyId, agent.id, projectId);
+    if (!gate.allowed) {
+      logger.info(`[run] Agent ${agent.name} budget policy blocked: ${gate.blockedBy.map(b => `${b.scopeType}(${b.policyId})`).join(", ")}`);
+      return "BUDGET_POLICY_BLOCKED";
+    }
+    const connectorIssue = getConnectorExecutionReadinessIssue(connector);
+    if (connectorIssue) {
+      const issue = connectorIssue ?? `Connector ${connector.id} is not execution-ready.`;
+      logger.info(`[run] Agent ${agent.name} connector ${connector.id} blocked: ${issue}`);
+      return "CONNECTOR_NOT_READY";
+    }
+    const modelSelection = validateConnectorModelSelection(db, connector.id, agent.model ?? null);
+    if (!modelSelection.ok) {
+      logger.info(`[run] Agent ${agent.name} connector model blocked: ${modelSelection.error}`);
+      return "CONNECTOR_MODEL_NOT_ALLOWED";
+    }
+    return null;
+  }
+
+  function dispatchRunToWorker(params: RunDispatchParams) {
+    if (isQuitting()) {
+      throw new Error("Application is shutting down — refusing to dispatch new run.");
+    }
+    if (!hasWorkerReady()) {
+      throw new Error("Orchestration worker is not ready.");
+    }
+    const connectorIssue = getConnectorExecutionReadinessIssue(params.connector);
+    if (connectorIssue) {
+      throw new Error(connectorIssue);
+    }
+
+    const payload = buildRunPayload(params, {
+      db,
+      logger,
+      getApiPort,
+      createRunToken,
+      listRuntimeSkillEntries,
+      getSessionHandoff,
+      evaluatePreRunSessionRotation,
+    });
+
+    enqueueWorkerRun(payload);
+  }
+
+  return { resolveWorkspace, getRunEligibilityFailure, dispatchRunToWorker };
+}

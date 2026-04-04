@@ -195,7 +195,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     });
     db.finishRun({
       runId: run.id,
-      status: "completed",
+      status: "succeeded",
       summary: "Completed initial implementation",
       errorMessage: null,
       exitCode: 0,
@@ -341,7 +341,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     });
     db.finishRun({
       runId: run.id,
-      status: "completed",
+      status: "succeeded",
       summary: "Previous work done",
       errorMessage: null,
       exitCode: 0,

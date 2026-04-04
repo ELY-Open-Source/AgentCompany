@@ -11,13 +11,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  */
 
 interface MockStatement {
-  run: ReturnType<typeof vi.fn>;
-  get: ReturnType<typeof vi.fn>;
-  all: ReturnType<typeof vi.fn>;
+  run: (...args: unknown[]) => unknown;
+  get: (...args: unknown[]) => unknown;
+  all: (...args: unknown[]) => unknown[];
 }
 
 interface MockDatabase {
-  prepare: ReturnType<typeof vi.fn>;
+  prepare: (key: string) => MockStatement;
 }
 
 /**
@@ -25,7 +25,7 @@ interface MockDatabase {
  */
 function simulateInterruptStaleRuns(
   db: MockDatabase,
-  releaseAllWorkspaceLocks: ReturnType<typeof vi.fn>,
+  releaseAllWorkspaceLocks: () => void,
   transactionFn: (fn: () => void) => void,
   runningCount: number,
 ): number {
@@ -95,7 +95,7 @@ function simulateMarkInterruptedTaskFailed(
 
 describe("Crash Recovery Detection", () => {
   let db: MockDatabase;
-  let releaseAllWorkspaceLocks: ReturnType<typeof vi.fn>;
+  let releaseAllWorkspaceLocks: () => void;
 
   beforeEach(() => {
     db = {
@@ -104,8 +104,8 @@ describe("Crash Recovery Detection", () => {
         get: vi.fn().mockReturnValue(undefined),
         all: vi.fn().mockReturnValue([]),
       }),
-    };
-    releaseAllWorkspaceLocks = vi.fn();
+    } as unknown as MockDatabase;
+    releaseAllWorkspaceLocks = vi.fn() as unknown as () => void;
   });
 
   describe("interruptStaleRuns", () => {

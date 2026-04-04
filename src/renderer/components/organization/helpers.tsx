@@ -2,6 +2,7 @@ import { Heartbeat, Lightning, Trash, XCircle } from "@phosphor-icons/react";
 import type { AgentRecord } from "@shared/types";
 import { ActionButton, Select } from "../ui";
 import { formatMoney, formatTime } from "../../lib/formatters";
+import { unwrap } from "../../lib/desktop";
 
 export function BudgetBar({ spent, budget }: { spent: number; budget: number }) {
   const pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
@@ -55,12 +56,14 @@ export function HeartbeatSection({
   pendingApproval,
   persistedConnectorIssue,
   onSaved,
+  onWakeNow,
 }: {
   agent: AgentRecord;
   companyId: string;
   pendingApproval: boolean;
   persistedConnectorIssue: string | null;
   onSaved: () => Promise<void>;
+  onWakeNow?: () => void;
 }) {
   return (
     <div className="rounded-lg border border-border p-3">
@@ -112,7 +115,11 @@ export function HeartbeatSection({
           disabled={pendingApproval || !!persistedConnectorIssue}
           onClick={() =>
             void (async () => {
-              await window.agentCompany.triggerHeartbeat({ agentId: agent.id, companyId, trigger: "manual" });
+              if (onWakeNow) {
+                onWakeNow();
+                return;
+              }
+              unwrap(await window.agentCompany.triggerHeartbeat({ agentId: agent.id, companyId, trigger: "manual" }));
               await onSaved();
             })()
           }

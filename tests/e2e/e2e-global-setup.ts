@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createElectronLaunchEnv } from "./launch";
 
 /**
  * Playwright globalSetup: build the Electron app from source before E2E tests.
@@ -9,6 +10,7 @@ export default function globalSetup() {
     stdio: "inherit",
     cwd: process.cwd(),
     timeout: 120_000,
+    env: createElectronLaunchEnv({}),
     shell: process.platform === "win32",
   });
 }

@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { ArrowsClockwise, CaretRight, Gear, Lightning, Play, Trash, X } from "@phosphor-icons/react"
+import { ArrowsClockwise, CaretRight, Gear, Lightning, Play, Trash } from "@phosphor-icons/react"
 import type { WorkflowPipelineRecord, WorkflowStep } from "@shared/types"
 import { timeAgo } from "../../lib/formatters"
-import { ActionButton } from "../ui"
 import { ACCENT, LINE, triggerConfig, actionConfig, workflowStatusColors, stepStatusConfig, safeJsonParse } from "./automation-config"
 
 function StepTimeline({ steps }: { steps: WorkflowStep[] }) {

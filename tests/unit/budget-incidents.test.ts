@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 
 /**
  * Tests for budget incident lifecycle: creation, deduplication (D-08),
@@ -231,7 +231,7 @@ describe("autoCloseExpiredIncidents", () => {
   });
 
   it("closes incidents whose window_end is in the past", () => {
-    const policy = makePolicy();
+    const _policy = makePolicy();
     // Manually create an expired incident
     db.incidents.push({
       id: "expired-1",
@@ -329,7 +329,7 @@ describe("checkAutoResolve (D-06)", () => {
 
     // Spent is now 7500 (below warn threshold of 8000 = 10000*80/100)
     const spent = 7500;
-    const warnAmount = Math.floor((policy.amount * policy.warnPercent) / 100);
+    const _warnAmount = Math.floor((policy.amount * policy.warnPercent) / 100);
     if (spent < policy.amount) {
       db.resolveIncidentsForPolicy("pol-1", "auto_resolved_limit_increase");
     }

@@ -1,4 +1,4 @@
-import type { CapabilityMatrix, ConnectorRecord } from "./types";
+import type { ConnectorRecord } from "./types";
 
 type ConnectorExecutionCandidate = Pick<ConnectorRecord, "status" | "capabilityMatrix"> & Partial<Pick<ConnectorRecord, "label">>;
 

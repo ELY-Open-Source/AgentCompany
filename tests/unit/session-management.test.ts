@@ -205,7 +205,7 @@ describe("task_sessions CRUD", () => {
     const run1 = db.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "claude_local" });
     db.finishRun({
       runId: run1.id,
-      status: "completed",
+      status: "succeeded",
       summary: "First run done",
       errorMessage: null,
       exitCode: 0,
@@ -237,7 +237,7 @@ describe("task_sessions CRUD", () => {
     expect(runs[0].status).toBe("failed");
     expect(runs[0].errorMessage).toBe("Timeout");
     expect(runs[1].id).toBe(run1.id);
-    expect(runs[1].status).toBe("completed");
+    expect(runs[1].status).toBe("succeeded");
   });
 });
 
@@ -561,7 +561,7 @@ describe("session management service", () => {
       const run = db.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "gemini_local" as ConnectorId });
       db.finishRun({
         runId: run.id,
-        status: "completed",
+        status: "succeeded",
         summary: "Implemented initial logic",
         errorMessage: null,
         exitCode: 0,
@@ -582,7 +582,7 @@ describe("session management service", () => {
       expect(handoff).toContain("# Session Handoff");
       expect(handoff).toContain("Implement session rotation"); // task title
       expect(handoff).toContain("## Recent Run History");
-      expect(handoff).toContain("completed");
+      expect(handoff).toContain("succeeded");
       expect(handoff).toContain("15000 total tokens"); // 10000 + 5000
     });
   });
@@ -736,7 +736,7 @@ describe("wiring integration", () => {
   function simulateRunFinishedSessionWiring(
     sessionService: ReturnType<typeof createMockSessionService>,
     db: {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       getActiveTaskSession: (...args: any[]) => any;
     },
     task: { id: string } | null,

@@ -27,7 +27,7 @@ vi.mock("electron", () => ({
 import { AppDatabase } from "../../src/main/database";
 import { createBudgetEnforcementService } from "../../src/main/budget-enforcement-service";
 import { createSessionManagementService } from "../../src/main/session-management-service";
-import { validateTaskCreation, checkCapabilityMatch } from "../../src/main/task-quality-gates";
+import { validateTaskCreation, checkCapabilityMatch as _checkCapabilityMatch } from "../../src/main/task-quality-gates";
 import type { ConnectorId } from "../../src/shared/types";
 
 // ---------------------------------------------------------------------------

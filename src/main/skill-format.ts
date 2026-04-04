@@ -1,5 +1,5 @@
 import { extname } from "node:path";
-import type { FileInventoryEntry, TrustLevel } from "./skill-types.js";
+import type { FileInventoryEntry, SkillContextMode, TrustLevel } from "./skill-types.js";
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -227,4 +227,49 @@ export function deriveTrustLevel(inventory: FileInventoryEntry[]): TrustLevel {
 export function estimateTokens(text: string): number {
   if (text.length === 0) return 0;
   return Math.ceil(text.length / 4);
+}
+
+/**
+ * Runtime semantics extracted from a skill's YAML frontmatter.
+ * These fields control how the skill interacts with the execution runtime.
+ */
+export interface SkillRuntimeSemantics {
+  allowedTools: string[];
+  hooks: string[];
+  contextMode: SkillContextMode;
+  isAgent: boolean;
+  effort: "low" | "medium" | "high";
+  whenToUse: string;
+}
+
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string");
+  if (typeof value === "string") return value.split(",").map((s) => s.trim()).filter(Boolean);
+  return [];
+}
+
+/**
+ * Extract runtime semantics from parsed frontmatter.
+ * Missing fields default to safe, passive values.
+ */
+export function extractRuntimeSemantics(
+  frontmatter: Record<string, unknown>,
+): SkillRuntimeSemantics {
+  const contextRaw = typeof frontmatter.context === "string" ? frontmatter.context : "inline";
+  const contextMode: SkillContextMode = contextRaw === "fork" ? "fork" : "inline";
+
+  const effortRaw = typeof frontmatter.effort === "string" ? frontmatter.effort : "medium";
+  const validEfforts = new Set(["low", "medium", "high"]);
+  const effort: "low" | "medium" | "high" = validEfforts.has(effortRaw)
+    ? (effortRaw as "low" | "medium" | "high")
+    : "medium";
+
+  return {
+    allowedTools: toStringArray(frontmatter["allowed-tools"] ?? frontmatter.allowedTools),
+    hooks: toStringArray(frontmatter.hooks),
+    contextMode,
+    isAgent: frontmatter.agent === true || frontmatter.agent === "true",
+    effort,
+    whenToUse: typeof frontmatter.when_to_use === "string" ? frontmatter.when_to_use : "",
+  };
 }

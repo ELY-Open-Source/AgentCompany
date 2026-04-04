@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { homedir } from "node:os";
+import { normalizeCommandValue } from "@agentcompany/adapter-utils/server-utils";
 import type { ConnectorId } from "@shared/types";
 
 function quoteShell(value: string) {
@@ -10,11 +11,18 @@ function escapeAppleScript(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
+function quoteCmd(value: string) {
+  const normalized = normalizeCommandValue(value);
+  if (!normalized.length) return '""';
+  const escaped = normalized.replace(/"/g, '""');
+  return /[\s"&<>|^()]/.test(escaped) ? `"${escaped}"` : escaped;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Shared terminal spawning — used by both auth and generic commands  */
 /* ------------------------------------------------------------------ */
 
-function spawnTerminalWithScript(script: string, title: string, cwd: string): boolean {
+function spawnTerminalWithScript(script: string, _title: string, _cwd: string): boolean {
   if (process.platform === "darwin") {
     const appleScript = `tell application "Terminal" to do script "${escapeAppleScript(script)}"\ntell application "Terminal" to activate`;
     const child = spawn("osascript", ["-e", appleScript], {
@@ -70,23 +78,27 @@ function spawnTerminalWithScript(script: string, title: string, cwd: string): bo
 /* ------------------------------------------------------------------ */
 
 function connectorAuthSpec(connectorId: ConnectorId, command: string) {
+  const normalizedCommand = normalizeCommandValue(command);
   switch (connectorId) {
     case "codex_local":
       return {
         title: "Codex Login",
-        shellCommand: `${quoteShell(command)} login`,
+        shellCommand: `${quoteShell(normalizedCommand)} login`,
+        windowsCommand: `${quoteCmd(normalizedCommand)} login`,
         intro: "AgentCompany is opening the Codex login flow.",
       };
     case "claude_local":
       return {
         title: "Claude Code Login",
-        shellCommand: `${quoteShell(command)} auth login`,
+        shellCommand: `${quoteShell(normalizedCommand)} auth login`,
+        windowsCommand: `${quoteCmd(normalizedCommand)} auth login`,
         intro: "AgentCompany is opening the Claude Code login flow.",
       };
     case "gemini_local":
       return {
         title: "Gemini CLI Login",
-        shellCommand: `${quoteShell(command)}`,
+        shellCommand: `${quoteShell(normalizedCommand)}`,
+        windowsCommand: quoteCmd(normalizedCommand),
         intro: "AgentCompany is opening Gemini CLI. If authentication is required, use /auth in the Gemini session.",
       };
   }
@@ -95,6 +107,7 @@ function connectorAuthSpec(connectorId: ConnectorId, command: string) {
 export async function openConnectorAuthTerminal(connectorId: ConnectorId, command: string, cwd?: string) {
   const targetCwd = cwd || process.env.HOME || homedir() || process.cwd();
   const spec = connectorAuthSpec(connectorId, command);
+  if (!spec) return false;
 
   if (process.platform === "win32") {
     // Windows: build a CMD-compatible script directly
@@ -103,7 +116,7 @@ export async function openConnectorAuthTerminal(connectorId: ConnectorId, comman
       `echo ${spec.intro}`,
       `echo.`,
       `cd /d "${targetCwd}"`,
-      spec.shellCommand.replace(/'/g, ""),  // Remove shell quotes for CMD
+      spec.windowsCommand,
       `echo.`,
       `echo You can close this terminal after the login flow completes.`,
       `pause`,

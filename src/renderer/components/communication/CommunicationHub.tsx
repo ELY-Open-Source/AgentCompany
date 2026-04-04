@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import type { AgentMessageRecord, AgentRecord, CommentRecord, MessageChannel, ProjectRecord, TaskRecord } from "@shared/types"
+import type { AgentMessageRecord, AgentRecord, CommentRecord, DocumentRecord, MessageChannel, ProjectRecord, TaskRecord } from "@shared/types"
 import { useAppStore } from "../../state/store"
 import { unwrap } from "../../lib/desktop"
-import { useT } from "../../i18n"
 import { ChannelSidebar, FilterBar, type FilterState } from "./ChannelSidebar"
-import type { ChannelDescriptor, TaskDiscussionDescriptor, AnyChannel } from "./ChannelHeader"
+import type { ChannelDescriptor, AnyChannel } from "./ChannelHeader"
 import { ChannelHeader } from "./ChannelHeader"
 import { MessageList } from "./MessageList"
 import { MessageComposer, TaskDiscussionComposer, NoChannelComposer } from "./MessageComposer"
 import { SearchResults } from "./SearchResults"
+import ThreadPanel from "./ThreadPanel"
 import { deriveChannels, deriveTaskDiscussionChannels, getChannelMessages } from "./channel-utils"
 
 
 interface CommunicationHubProps {
   messages: AgentMessageRecord[]; comments: CommentRecord[]; tasks: TaskRecord[]; agents: AgentRecord[]
-  projects?: ProjectRecord[]; companyId: string; selectedEntityId?: string | null
+  projects?: ProjectRecord[]; documents?: DocumentRecord[]; companyId: string; selectedEntityId?: string | null
   onEntityConsumed?: () => void; onNavigateToTask: (taskId: string) => void; onRefresh: () => void
 }
 
@@ -58,14 +58,17 @@ function SearchScopeToggle({ scope, onChangeScope }: { scope: "global" | "channe
   )
 }
 
-export function CommunicationHub({ messages, comments, tasks, agents, projects, companyId, selectedEntityId, onEntityConsumed, onNavigateToTask, onRefresh }: CommunicationHubProps) {
-  const t = useT()
+export function CommunicationHub({ messages, comments, tasks, agents, projects, documents, companyId, selectedEntityId, onEntityConsumed, onNavigateToTask, onRefresh }: CommunicationHubProps) {
   const [selectedChannelKey, setSelectedChannelKey] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)
   const [replyTo, setReplyTo] = useState<AgentMessageRecord | null>(null)
   const [optimisticReadIds, setOptimisticReadIds] = useState<Set<string>>(new Set())
   const pendingReadIdsRef = useRef<Set<string>>(new Set())
   const [filters, setFilters] = useState<FilterState>({ search: "", channelType: "all", priority: "all", unreadOnly: false })
+
+  // Thread panel state from Zustand store
+  const activeThreadId = useAppStore((s) => s.activeThreadId)
+  const setActiveThreadId = useAppStore((s) => s.setActiveThreadId)
 
   // Search state from Zustand store
   const searchQuery = useAppStore((s) => s.searchQuery)
@@ -269,8 +272,19 @@ export function CommunicationHub({ messages, comments, tasks, agents, projects, 
             )}
           </AnimatePresence>
         </div>
-        {activeChannel ? (activeChannel.kind === "message" ? <MessageComposer agents={agents} companyId={companyId} channel={activeChannel.channel} channelTargetId={activeChannel.channel === "direct" ? null : activeChannel.targetId} directParticipantIds={activeChannel.channel === "direct" ? activeChannel.participantIds : []} replyTo={replyTo} onSent={() => { setReplyTo(null); onRefresh() }} onCancelReply={() => setReplyTo(null)} /> : <TaskDiscussionComposer companyId={companyId} taskId={activeChannel.taskId} onSent={onRefresh} />) : <NoChannelComposer />}
+        {activeChannel ? (activeChannel.kind === "message" ? <MessageComposer agents={agents} companyId={companyId} channel={activeChannel.channel} channelTargetId={activeChannel.channel === "direct" ? null : activeChannel.targetId} directParticipantIds={activeChannel.channel === "direct" ? activeChannel.participantIds : []} replyTo={replyTo} onSent={() => { setReplyTo(null); onRefresh() }} onCancelReply={() => setReplyTo(null)} documents={documents} /> : <TaskDiscussionComposer companyId={companyId} taskId={activeChannel.taskId} onSent={onRefresh} />) : <NoChannelComposer />}
       </div>
+      <AnimatePresence>
+        {activeThreadId && (
+          <ThreadPanel
+            threadId={activeThreadId}
+            companyId={companyId}
+            agents={agents}
+            documents={documents ?? []}
+            onClose={() => setActiveThreadId(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

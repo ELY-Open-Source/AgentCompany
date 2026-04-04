@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { BrowserWindow } from "electron";
+import type { DesktopEvent } from "@shared/types";
 
 // Track all constructed notification instances
 const constructedNotifications: Array<{
@@ -61,9 +63,9 @@ describe("notification-service", () => {
     };
 
     service = createNotificationService({
-      getMainWindow: mockGetMainWindow,
-      emitEvent: mockEmitEvent,
-      logger: mockLogger,
+      getMainWindow: mockGetMainWindow as unknown as () => BrowserWindow | null,
+      emitEvent: mockEmitEvent as unknown as (event: DesktopEvent) => void,
+      logger: mockLogger as { info: (...args: unknown[]) => void; error: (...args: unknown[]) => void },
     });
   });
 
@@ -203,7 +205,7 @@ describe("notification-service", () => {
 
     // emitEvent should have been called with section but no entityId
     const emitCall = mockEmitEvent.mock.calls.find(
-      ([event]: [{ type: string }]) => event.type === "notification-click",
+      (args: unknown[]) => (args[0] as { type?: string })?.type === "notification-click",
     );
     expect(emitCall).toBeDefined();
     expect(emitCall![0].section).toBe("orgchart");

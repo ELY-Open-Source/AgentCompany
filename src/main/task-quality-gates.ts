@@ -5,6 +5,8 @@
  * minimum description quality, acceptance criteria, and capability matching.
  */
 
+import { validateTaskRubric } from "@main/task-rubrics";
+
 export interface TaskValidationResult {
   valid: boolean;
   errors: string[];
@@ -16,12 +18,10 @@ export interface CapabilityMatchResult {
   warning?: string;
 }
 
-/** Minimal DB interface for capability matching — keeps the function testable with mocks.
- *  Skill methods are optional since the skill system may not be implemented yet (graceful degradation per D-07). */
 export interface CapabilityMatchDb {
   getAgent(id: string): { name: string; capabilities: string };
-  listAgentSkillAssignments?(id: string): string[];
-  getCompanySkill?(companyId: string, skillId: string): { name: string; description: string | null; slug: string } | null;
+  listAgentSkillAssignments(id: string): string[];
+  getCompanySkill(companyId: string, skillId: string): { name: string; description: string | null; slug: string } | null;
 }
 
 
@@ -60,7 +60,7 @@ export function checkAcceptanceCriteria(description: string): { hasCriteria: boo
 
 
 export function validateTaskCreation(
-  input: { title: string; description: string },
+  input: { title: string; description: string; type?: string },
   isHeartbeat: boolean,
 ): TaskValidationResult {
   // Heartbeat tasks bypass all validation
@@ -86,6 +86,16 @@ export function validateTaskCreation(
     }
   }
 
+  // TASK-03: Task-type-specific rubric warnings
+  if (input.type) {
+    const rubricResult = validateTaskRubric({
+      title: input.title,
+      description: input.description,
+      type: input.type,
+    });
+    warnings.push(...rubricResult.warnings);
+  }
+
   return { valid: errors.length === 0, errors, warnings };
 }
 
@@ -103,40 +113,32 @@ export function checkCapabilityMatch(
 ): CapabilityMatchResult {
   const taskWords = tokenize(taskDescription);
 
-  // Nothing to match against — task description too short/vague
   if (taskWords.length === 0) {
-    return { matched: true };
+    return { matched: true, warning: "Task description has no distinctive keywords for capability matching." };
   }
 
   const agent = db.getAgent(agentId);
   const capWords = tokenize(agent.capabilities);
   const capabilityOverlap = taskWords.filter((w) => capWords.includes(w)).length;
 
-  // Check skill assignments for additional matching (graceful degradation)
   let skillOverlap = 0;
-  try {
-    if (db.listAgentSkillAssignments && db.getCompanySkill) {
-      const skillIds = db.listAgentSkillAssignments(agentId);
-      for (const skillId of skillIds) {
-        const skill = db.getCompanySkill(companyId, skillId);
-        if (skill) {
-          const skillWords = tokenize(`${skill.name} ${skill.description ?? ""} ${skill.slug}`);
-          skillOverlap += taskWords.filter((w) => skillWords.includes(w)).length;
-        }
-      }
+  const skillIds = db.listAgentSkillAssignments(agentId);
+  for (const skillId of skillIds) {
+    const skill = db.getCompanySkill(companyId, skillId);
+    if (skill) {
+      const skillWords = tokenize(`${skill.name} ${skill.description ?? ""} ${skill.slug}`);
+      skillOverlap += taskWords.filter((w) => skillWords.includes(w)).length;
     }
-  } catch {
-    // Skill system may not be available — graceful degradation per D-07
   }
 
-  // Direct capability or skill overlap found
   if (capabilityOverlap > 0 || skillOverlap > 0) {
     return { matched: true };
   }
 
-  // No capabilities defined at all — graceful degradation (Pitfall 4)
+  // Agent has no capabilities and no skill overlap — still allow assignment
+  // but surface the mismatch as a warning so the caller can decide
   if (capWords.length === 0 && skillOverlap === 0) {
-    return { matched: true };
+    return { matched: false, warning: `Agent "${agent.name}" has no declared capabilities or matching skills.` };
   }
 
   // Agent has capabilities but no overlap — warn
@@ -196,6 +198,7 @@ export interface SweepStaleReviewsDeps {
   emitEvent: (...args: unknown[]) => void;
   publishDomainChanged: () => void;
   wakeAgentIfPossible: (agentId: string, companyId: string, trigger: string) => void;
+  getCompanyExecutionMode: (companyId: string) => string;
   logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void };
 }
 
@@ -204,6 +207,8 @@ export function sweepStaleReviews(
   deps: SweepStaleReviewsDeps,
   now: number = Date.now(),
 ): number {
+  const isCofounderMode = deps.getCompanyExecutionMode(companyId) === "ai_cofounder";
+
   let escalatedCount = 0;
   const reviewTasks = deps.db.queryAll<{
     id: string;
@@ -229,6 +234,30 @@ export function sweepStaleReviews(
     // D-09: Escalate to the reviewer's manager (manager's manager)
     const chain = deps.db.getChainOfCommand(reviewer.id);
     const escalationTarget = chain.length > 0 ? chain[0] : null;
+
+    const pendingApprovals = deps.db.queryAll<{ id: string; type: string }>(
+      `SELECT id, type FROM approvals
+       WHERE company_id = ? AND related_task_id = ? AND state = 'pending'
+       LIMIT 1`,
+      companyId,
+      task.id,
+    );
+
+    // In ai_cofounder mode, ALL approvals require human decision — never auto-advance.
+    if (isCofounderMode && pendingApprovals.length > 0) {
+      deps.notify({
+        title: "Your Review Required",
+        body: `"${task.title}" is waiting for your review. AI Co-Founder mode requires human sign-off.`,
+        urgency: "critical",
+        navigation: { section: "approvals", entityId: pendingApprovals[0]?.id },
+        batchKey: "cofounder_review_needed",
+      });
+      deps.logger.info("[sweepStaleReviews] Skipping auto-approval for co-founder task", {
+        taskId: task.id,
+        approvalType: pendingApprovals[0]?.type,
+      });
+      continue;
+    }
 
     if (escalationTarget) {
       deps.dispatchAgentMessage(
@@ -260,14 +289,8 @@ export function sweepStaleReviews(
       });
     }
 
-    // D-10: Auto-approve any pending approval linked to this task
-    const pendingApprovals = deps.db.queryAll<{ id: string }>(
-      `SELECT id FROM approvals
-       WHERE company_id = ? AND related_task_id = ? AND state = 'pending'
-       LIMIT 1`,
-      companyId,
-      task.id,
-    );
+    // D-10: Auto-approve any pending approval linked to this task.
+    // In ai_cofounder mode, protected approval types are already handled above (continue).
     for (const approval of pendingApprovals) {
       try {
         deps.resolveApprovalDecision({

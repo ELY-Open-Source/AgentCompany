@@ -1,16 +1,16 @@
 import { motion } from "framer-motion";
-import { Buildings, FolderOpen, Lightning, UserCircleCheck } from "@phosphor-icons/react";
-import type { ProfileSnapshot } from "@shared/types";
+import { Buildings, FolderOpen } from "@phosphor-icons/react";
+import type { ConnectorId, ProfileSnapshot } from "@shared/types";
 import type { AppLocale } from "@shared/locale";
-import { ActionButton, Input, Select, TextArea } from "../ui";
+import { ActionButton, Input, TextArea, Select } from "../ui";
 
 interface CompanyStepProps {
   companyName: string;
   setCompanyName: (v: string) => void;
   companyDescription: string;
   setCompanyDescription: (v: string) => void;
-  selectedConnectorId: string;
-  setSelectedConnectorId: (v: string) => void;
+  selectedConnectorId: ConnectorId | "";
+  setSelectedConnectorId: (v: ConnectorId | "") => void;
   selectedModel: string;
   setSelectedModel: (v: string) => void;
   executionReadyConnectors: ProfileSnapshot["connectors"];
@@ -18,10 +18,6 @@ interface CompanyStepProps {
   loadingModels: boolean;
   workspacePath: string;
   setWorkspacePath: (v: string) => void;
-  autoApproveHires: boolean;
-  setAutoApproveHires: (v: boolean) => void;
-  reviewDeliverables: boolean;
-  setReviewDeliverables: (v: boolean) => void;
   onPickDirectory: () => void;
   onContinue: () => void;
   onBack: () => void;
@@ -44,10 +40,6 @@ export function CompanyStep({
   loadingModels,
   workspacePath,
   setWorkspacePath,
-  autoApproveHires,
-  setAutoApproveHires,
-  reviewDeliverables,
-  setReviewDeliverables,
   onPickDirectory,
   onContinue,
   onBack,
@@ -65,7 +57,7 @@ export function CompanyStep({
       className="bg-card border border-border shadow-sm w-full rounded-lg p-7"
     >
       <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {t("onboarding.stepLabel1")} 3 / 5
+        {t("onboarding.stepLabelCompany")} 3 / 6
       </div>
       <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
         {t("onboarding.step1Title")}
@@ -96,7 +88,7 @@ export function CompanyStep({
             <Select
               label={currentLocale === "zh" ? "提供商" : "Provider"}
               value={selectedConnectorId}
-              onChange={setSelectedConnectorId}
+              onChange={(value) => setSelectedConnectorId(value as ConnectorId | "")}
               options={executionReadyConnectors.map((c) => ({
                 value: c.id,
                 label: c.id.startsWith("claude_compat") && c.notes ? `${c.notes}` : c.label,
@@ -106,12 +98,15 @@ export function CompanyStep({
               label={currentLocale === "zh" ? "模型" : "Model"}
               value={selectedModel}
               onChange={setSelectedModel}
-              disabled={loadingModels}
+              disabled={loadingModels || modelOptions.length === 0}
               options={[
                 { value: "", label: loadingModels ? (currentLocale === "zh" ? "加载中..." : "Loading...") : (currentLocale === "zh" ? "默认" : "Default") },
                 ...modelOptions.map((m) => ({ value: m.id, label: m.label })),
               ]}
             />
+          </div>
+          <div className="mt-3 rounded-lg border border-border bg-background/60 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
+            {t("onboarding.companyStepModelPoolHint")}
           </div>
         </div>
 
@@ -134,29 +129,6 @@ export function CompanyStep({
           </div>
           <div className="mt-1.5 text-[11px] text-muted-foreground">
             {t("onboarding.workspaceHelp")}
-          </div>
-        </div>
-        <div>
-          <div className="mb-2 text-[12px] font-medium text-muted-foreground">{t("onboarding.automationMode")}</div>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => { setReviewDeliverables(false); setAutoApproveHires(true) }}
-              className={`cursor-pointer rounded-lg border-2 px-4 py-3.5 text-left transition ${!reviewDeliverables ? "border-[color:var(--primary)] bg-accent" : "border-border bg-muted hover:border-[color:var(--muted-foreground)]"}`}
-            >
-              <Lightning size={20} weight={!reviewDeliverables ? "fill" : "regular"} className={!reviewDeliverables ? "text-primary" : "text-muted-foreground"} />
-              <div className="mt-2 text-[13px] font-semibold text-foreground">{t("onboarding.modeFullAuto")}</div>
-              <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("onboarding.modeFullAutoDesc")}</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => { setReviewDeliverables(true); setAutoApproveHires(false) }}
-              className={`cursor-pointer rounded-lg border-2 px-4 py-3.5 text-left transition ${reviewDeliverables ? "border-[color:var(--primary)] bg-accent" : "border-border bg-muted hover:border-[color:var(--muted-foreground)]"}`}
-            >
-              <UserCircleCheck size={20} weight={reviewDeliverables ? "fill" : "regular"} className={reviewDeliverables ? "text-primary" : "text-muted-foreground"} />
-              <div className="mt-2 text-[13px] font-semibold text-foreground">{t("onboarding.modeHumanReview")}</div>
-              <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("onboarding.modeHumanReviewDesc")}</div>
-            </button>
           </div>
         </div>
       </div>

@@ -29,6 +29,8 @@ export function ActivityFeed({ activity, agents, limit = 15 }: { activity: Activ
       .slice(0, limit);
   }, [activity, limit]);
 
+  const agentMap = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents]);
+
   if (recentActivity.length === 0) {
     return (
       <div className="flex h-full items-center justify-center py-8 text-center">
@@ -36,8 +38,6 @@ export function ActivityFeed({ activity, agents, limit = 15 }: { activity: Activ
       </div>
     );
   }
-
-  const agentMap = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents]);
 
   return (
     <div className="space-y-0.5">

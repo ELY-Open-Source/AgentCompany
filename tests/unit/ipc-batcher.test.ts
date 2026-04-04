@@ -144,7 +144,7 @@ describe("createDomainEventBatcher", () => {
     const batcher = createDomainEventBatcher(onFull, onGranular, 50);
 
     // These events are not recognized as granular -- per D-05, unknown triggers full refresh
-    batcher.push({ type: "run-log", runId: "r-1", stream: "stdout", text: "hi" } as DesktopEvent);
+    batcher.push({ type: "run-log", runId: "r-1", stream: "stdout", chunk: "hi" } as DesktopEvent);
 
     vi.advanceTimersByTime(50);
     expect(onFull).toHaveBeenCalledTimes(1);

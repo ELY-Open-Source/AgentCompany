@@ -37,10 +37,10 @@ export function ChannelHeader({
   activeChannel,
   showSidebar,
   onShowSidebar,
-  channelMessages,
-  taskDiscussionComments,
+  channelMessages: _channelMessages,
+  taskDiscussionComments: _taskDiscussionComments,
   activeTask,
-  unreadByChannel,
+  unreadByChannel: _unreadByChannel,
   onNavigateToTask,
   filterBar,
 }: ChannelHeaderProps) {

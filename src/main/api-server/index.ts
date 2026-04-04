@@ -1,0 +1,38 @@
+import { AgentApiServer, type ApiServerEventCallbacks } from "./server-core";
+import { registerAgentRoutes } from "./routes-agents";
+import { registerAgentControlRoutes } from "./routes-agent-control";
+import { registerTaskRoutes } from "./routes-tasks";
+import { registerWorkGraphRoutes } from "./routes-work-graph";
+import { registerMessageRoutes } from "./routes-messages";
+import { registerApprovalRoutes } from "./routes-approvals";
+import { registerFileRoutes } from "./routes-files";
+import { registerMiscRoutes } from "./routes-misc";
+import { registerRunRoutes } from "./routes-runs";
+import type { AppDatabase } from "../database";
+
+export type { ApiServerEventCallbacks };
+export { AgentApiServer };
+
+/**
+ * Factory that creates and returns a fully-wired AgentApiServer with all
+ * domain route modules registered.
+ */
+export function createApiServer(
+  db: AppDatabase,
+  onDomainChanged: () => void,
+  onWakeAgent: (agentId: string, companyId: string, trigger: string) => string | null,
+  callbacks?: Partial<ApiServerEventCallbacks>,
+  allowedOrigins?: Iterable<string>,
+): AgentApiServer {
+  const server = new AgentApiServer(db, onDomainChanged, onWakeAgent, callbacks, allowedOrigins);
+  registerAgentRoutes(server);
+  registerAgentControlRoutes(server);
+  registerTaskRoutes(server);
+  registerWorkGraphRoutes(server);
+  registerMessageRoutes(server);
+  registerApprovalRoutes(server);
+  registerFileRoutes(server);
+  registerMiscRoutes(server);
+  registerRunRoutes(server);
+  return server;
+}

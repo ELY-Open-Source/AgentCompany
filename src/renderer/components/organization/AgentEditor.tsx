@@ -121,6 +121,55 @@ export function AgentEditor({
 
   const managerCandidates = agents.filter((a) => a.id !== agent.id);
 
+  async function persistAgentDraft() {
+    const meta = { ...existingMeta };
+    if (thinkingEffort) meta.thinkingEffort = thinkingEffort;
+    else delete meta.thinkingEffort;
+
+    const budgetDollars = Number(budget || 0);
+    unwrap(await window.agentCompany.saveAgent({
+      id: agent.id,
+      companyId,
+      name,
+      role,
+      title,
+      status,
+      connectorId,
+      workspaceId: workspaceId || null,
+      reportsTo: reportsTo || null,
+      model: model || null,
+      metadataJson: JSON.stringify(meta),
+      budgetMonthlyUsd: budgetDollars,
+      capabilities,
+    }));
+
+    if (budgetDollars > 0 && agent.id) {
+      await window.agentCompany.saveBudgetPolicy({
+        companyId,
+        scopeType: "agent",
+        scopeId: agent.id,
+        metric: "billed_cents",
+        windowKind: "calendar_month_utc",
+        amount: Math.round(budgetDollars * 100),
+        warnPercent: agentPolicy?.warnPercent ?? 80,
+        hardStopEnabled: agentPolicy?.hardStopEnabled ?? true,
+        notifyEnabled: agentPolicy?.notifyEnabled ?? true,
+        isActive: true,
+      });
+    }
+  }
+
+  async function handleWakeNow() {
+    setSaveError(null);
+    try {
+      await persistAgentDraft();
+      unwrap(await window.agentCompany.triggerHeartbeat({ agentId: agent.id, companyId, trigger: "manual" }));
+      await onSaved();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Failed to wake agent.");
+    }
+  }
+
   return (
     <div className="grid min-w-0 gap-4">
       <Input label={t("agent.name")} value={name} onChange={setName} placeholder={t("agent.name")} readOnly={pendingApproval} disabled={pendingApproval} />
@@ -205,7 +254,14 @@ export function AgentEditor({
       <Input label={t("agent.budget")} value={budget} onChange={setBudget} placeholder="120" type="number" readOnly={pendingApproval} disabled={pendingApproval} />
       <TextArea label={t("agent.capabilities")} value={capabilities} onChange={setCapabilities} placeholder={t("agent.capabilities")} readOnly={pendingApproval} disabled={pendingApproval} />
 
-      <HeartbeatSection agent={agent} companyId={companyId} pendingApproval={pendingApproval} persistedConnectorIssue={persistedConnectorIssue} onSaved={onSaved} />
+      <HeartbeatSection
+        agent={agent}
+        companyId={companyId}
+        pendingApproval={pendingApproval}
+        persistedConnectorIssue={selectedConnectorIssue ?? persistedConnectorIssue}
+        onSaved={onSaved}
+        onWakeNow={() => void handleWakeNow()}
+      />
 
       {/* Skills section (D-04 dual access) */}
       <div className="mt-6 border-t border-border pt-4">
@@ -222,41 +278,8 @@ export function AgentEditor({
           onClick={() =>
             void (async () => {
               setSaveError(null);
-              const meta = { ...existingMeta };
-              if (thinkingEffort) meta.thinkingEffort = thinkingEffort;
-              else delete meta.thinkingEffort;
               try {
-                const budgetDollars = Number(budget || 0);
-                unwrap(await window.agentCompany.saveAgent({
-                  id: agent.id,
-                  companyId,
-                  name,
-                  role,
-                  title,
-                  status,
-                  connectorId,
-                  workspaceId: workspaceId || null,
-                  reportsTo: reportsTo || null,
-                  model: model || null,
-                  metadataJson: JSON.stringify(meta),
-                  budgetMonthlyUsd: budgetDollars,
-                  capabilities,
-                }));
-                // D-11: Also write to budget_policies for policy-based enforcement
-                if (budgetDollars > 0 && agent.id) {
-                  await window.agentCompany.saveBudgetPolicy({
-                    companyId,
-                    scopeType: "agent",
-                    scopeId: agent.id,
-                    metric: "billed_cents",
-                    windowKind: "calendar_month_utc",
-                    amount: Math.round(budgetDollars * 100),
-                    warnPercent: agentPolicy?.warnPercent ?? 80,
-                    hardStopEnabled: agentPolicy?.hardStopEnabled ?? true,
-                    notifyEnabled: agentPolicy?.notifyEnabled ?? true,
-                    isActive: true,
-                  });
-                }
+                await persistAgentDraft();
                 await onSaved();
               } catch (error) {
                 setSaveError(error instanceof Error ? error.message : "Failed to save agent.");

@@ -2,7 +2,7 @@ import type { IpcMainInvokeEvent } from "electron";
 import { z } from "zod";
 import type { DesktopResult } from "@shared/contracts";
 import type { bootstrapOnboardingSchema } from "@shared/contracts";
-import type { DesktopEvent } from "@shared/types";
+import type { DesktopEvent, SectionId } from "@shared/types";
 import type { AppDatabase } from "./database";
 import type { createSkillService } from "./skill-service";
 import type { createBudgetEnforcementService } from "./budget-enforcement-service";
@@ -35,6 +35,7 @@ export interface RegisterDomainHandlersDependencies {
   ) => { id: string | null | undefined; table: string; label: string } | null;
   publishDomainChanged: () => void;
   emitEvent: (event: DesktopEvent) => void;
+  notify: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
   wakeAgentIfPossible: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
   dispatchAutomation: (trigger: string, ctx: { companyId: string; [key: string]: unknown }) => void;
   runWorkflowPipeline: (workflowId: string, companyId: string) => Promise<void>;
@@ -43,6 +44,8 @@ export interface RegisterDomainHandlersDependencies {
   randomFallbackCompanyId: () => string;
   skillService: ReturnType<typeof createSkillService> | null;
   budgetService: ReturnType<typeof createBudgetEnforcementService> | null;
+  /** Called when a human sends a message to resolve thread wait states. */
+  onHumanMessage?: (companyId: string, toAgentId?: string | null, threadId?: string | null, waitStateId?: string | null) => void;
 }
 
 export function ok<T>(data: T): DesktopResult<T> {

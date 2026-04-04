@@ -9,6 +9,33 @@ function safeGetAgent(db: AppDatabase, agentId: string) {
   }
 }
 
+const MANAGEMENT_KEYWORDS = [
+  "chief",
+  "cto",
+  "cmo",
+  "coo",
+  "cfo",
+  "vp",
+  "vice president",
+  "head",
+  "director",
+  "manager",
+  "lead",
+];
+
+function hasManagementAuthority(agent: { role: string; title: string; department: string | null }) {
+  if (agent.department === "hr") {
+    return true;
+  }
+
+  const text = `${agent.role} ${agent.title}`.toLowerCase();
+  return MANAGEMENT_KEYWORDS.some((keyword) => text.includes(keyword));
+}
+
+function hasOrganizationPermission(db: AppDatabase, agentId: string) {
+  return db.hasAgentPermission(agentId, "organization_manage");
+}
+
 function managesAgent(db: AppDatabase, managerId: string, targetAgentId: string): boolean {
   if (managerId === targetAgentId) {
     return true;
@@ -42,7 +69,24 @@ export function canManageOrganization(db: AppDatabase, companyId: string, agentI
   if (!agent.reportsTo) {
     return true;
   }
-  return db.getDirectReports(agentId, companyId).length > 0 || agent.department === "hr";
+  if (hasOrganizationPermission(db, agentId)) {
+    return true;
+  }
+  return agent.department === "hr";
+}
+
+export function canRequestHire(db: AppDatabase, companyId: string, agentId: string): boolean {
+  const agent = safeGetAgent(db, agentId);
+  if (!agent || agent.companyId !== companyId) {
+    return false;
+  }
+  if (canManageOrganization(db, companyId, agentId)) {
+    return true;
+  }
+  if (db.getDirectReports(agentId, companyId).length > 0) {
+    return true;
+  }
+  return hasManagementAuthority(agent);
 }
 
 export function canAssignTask(db: AppDatabase, companyId: string, actorAgentId: string, targetAgentId: string | null): boolean {

@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { ok, fail, type RegisterDomainHandlersDependencies } from "./ipc-domain-common";
+import { IPC_CHANNELS } from "@shared/contracts";
+import { ok, type RegisterDomainHandlersDependencies } from "./ipc-domain-common";
 
 const recoveryRetrySchema = z.object({
   taskId: z.string(),
@@ -23,7 +24,7 @@ export function registerRecoveryHandlers({
   | "publishDomainChanged"
   | "wakeAgentIfPossible"
 >) {
-  registerHandle("recovery:retry", async (_event, payload) => {
+  registerHandle(IPC_CHANNELS.recoveryRetry, async (_event, payload) => {
     const parsed = recoveryRetrySchema.parse(payload);
     db.retryInterruptedTask(parsed.taskId, parsed.agentId, parsed.companyId);
     try {
@@ -35,14 +36,14 @@ export function registerRecoveryHandlers({
     return ok(null);
   });
 
-  registerHandle("recovery:dismiss", async (_event, payload) => {
+  registerHandle(IPC_CHANNELS.recoveryDismiss, async (_event, payload) => {
     const parsed = recoveryTaskSchema.parse(payload);
     db.dismissInterruptedTask(parsed.taskId);
     publishDomainChanged();
     return ok(null);
   });
 
-  registerHandle("recovery:fail", async (_event, payload) => {
+  registerHandle(IPC_CHANNELS.recoveryFail, async (_event, payload) => {
     const parsed = recoveryTaskSchema.parse(payload);
     db.markInterruptedTaskFailed(parsed.taskId);
     publishDomainChanged();
