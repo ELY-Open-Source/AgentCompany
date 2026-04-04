@@ -1,17 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AnimatePresence } from "framer-motion";
-import { isConnectorExecutionReady } from "@shared/connector-policy";
-import type { ConnectorId, OnboardingBootstrapResult, ProfileSnapshot } from "@shared/types";
+import { useCallback, useEffect, useState } from "react";
+import type { ConnectorId, ExecutionMode, OnboardingBootstrapResult, ProfileSnapshot } from "@shared/types";
 import type { AppLocale } from "@shared/locale";
 import { useT } from "../../i18n";
 import { unwrap } from "../../lib/desktop";
-import { OnboardingHero, type OnboardingStep } from "./OnboardingHero";
+import type { OnboardingStep } from "./OnboardingHero";
 import { WelcomeStep } from "./WelcomeStep";
-import { NodeCheckStep } from "./NodeCheckStep";
-import { ProvidersStep } from "./ProvidersStep";
-import { CompanyStep } from "./CompanyStep";
-import { MissionStep } from "./MissionStep";
-import { LaunchStep } from "./LaunchStep";
+import { OnboardingStepPanel } from "./OnboardingStepPanel";
+import { useConnectorCallbacks } from "./useConnectorCallbacks";
+import { useConnectorModelSelection } from "./useConnectorModelSelection";
 
 export function CompanyOnboarding({
   connectors,
@@ -32,16 +28,7 @@ export function CompanyOnboarding({
 }) {
   const t = useT();
 
-  /* ------------------------------------------------------------------ */
-  /*  Step navigation                                                    */
-  /* ------------------------------------------------------------------ */
-
   const [step, setStep] = useState<OnboardingStep>("welcome");
-
-  /* ------------------------------------------------------------------ */
-  /*  Node.js check state                                                */
-  /* ------------------------------------------------------------------ */
-
   const [nodeStatus, setNodeStatus] = useState<{ installed: boolean; version: string | null } | null>(null);
   const [nodeChecking, setNodeChecking] = useState(false);
 
@@ -64,155 +51,32 @@ export function CompanyOnboarding({
     }
   }, [step, nodeStatus, checkNode]);
 
-  /* ------------------------------------------------------------------ */
-  /*  Provider / connector state                                         */
-  /* ------------------------------------------------------------------ */
-
-  const executionReadyConnectors = useMemo(
-    () => connectors.filter((c) => isConnectorExecutionReady(c)),
-    [connectors],
-  );
-  const hasAtLeastOneReady = executionReadyConnectors.length > 0;
-
-  const [selectedConnectorId, setSelectedConnectorId] = useState<string>(
-    executionReadyConnectors[0]?.id ?? "",
-  );
-
-  // Keep selected connector in sync with readiness changes
-  useEffect(() => {
-    if (!selectedConnectorId && executionReadyConnectors[0]) {
-      setSelectedConnectorId(executionReadyConnectors[0].id);
-      return;
-    }
-    if (selectedConnectorId && !executionReadyConnectors.some((c) => c.id === selectedConnectorId)) {
-      setSelectedConnectorId(executionReadyConnectors[0]?.id ?? "");
-    }
-  }, [executionReadyConnectors, selectedConnectorId]);
-
-  const selectedConnector =
-    executionReadyConnectors.find((c) => c.id === selectedConnectorId) ??
-    executionReadyConnectors[0] ?? null;
-
-  /* ------------------------------------------------------------------ */
-  /*  CEO model selection                                                */
-  /* ------------------------------------------------------------------ */
-
-  const [selectedModel, setSelectedModel] = useState("");
-  const [modelOptions, setModelOptions] = useState<Array<{ id: string; label: string }>>([]);
-  const [loadingModels, setLoadingModels] = useState(false);
-
-  // Load models when the selected connector changes
-  useEffect(() => {
-    if (!selectedConnectorId) { setModelOptions([]); return; }
-
-    // For claude_compatible, parse user-configured models (comma-separated in connector.model)
-    if (selectedConnectorId.startsWith("claude_compat")) {
-      const compat = connectors.find((c) => c.id === selectedConnectorId);
-      const raw = compat?.model ?? "";
-      const models = raw.split(",").map((m) => m.trim()).filter(Boolean).map((m) => ({ id: m, label: m }));
-      setModelOptions(models);
-      if (models.length > 0 && !models.some((m) => m.id === selectedModel)) {
-        setSelectedModel(models[0].id);
-      }
-      setLoadingModels(false);
-      return;
-    }
-
-    let cancelled = false;
-    setLoadingModels(true);
-    window.agentCompany.listConnectorModels(selectedConnectorId)
-      .then((result) => {
-        if (cancelled) return;
-        if (result.ok) setModelOptions(result.data);
-        else setModelOptions([]);
-      })
-      .catch(() => { if (!cancelled) setModelOptions([]); })
-      .finally(() => { if (!cancelled) setLoadingModels(false); });
-    return () => { cancelled = true; };
-  }, [selectedConnectorId, connectors]);
-
-  /* ------------------------------------------------------------------ */
-  /*  Provider callbacks (for ProvidersStep)                             */
-  /* ------------------------------------------------------------------ */
-
-  const handleTestConnector = useCallback(async (connectorId: string) => {
-    try {
-      unwrap(await window.agentCompany.testConnector(connectorId as ConnectorId));
-    } catch {
-      // Health check result is stored in DB and reflected via domain-changed
-    }
-  }, []);
-
-  const handleSaveConnector = useCallback(async (connectorId: string, envBindingText: string, model: string | null, notes?: string) => {
-    const connector = connectors.find((c) => c.id === connectorId);
-    if (!connector) return;
-    try {
-      unwrap(await window.agentCompany.saveConnector({
-        id: connectorId as ConnectorId,
-        command: connector.command,
-        model,
-        envBindingText,
-        notes: notes ?? connector.notes,
-      }));
-      // Run health check AFTER save completes so the probe uses the new config
-      unwrap(await window.agentCompany.testConnector(connectorId as ConnectorId));
-    } catch {
-      // Error is non-fatal; result reflected via domain-changed
-    }
-  }, [connectors]);
-
-  const handleLoginConnector = useCallback(async (connectorId: string) => {
-    try {
-      unwrap(await window.agentCompany.openConnectorAuthTerminal(connectorId as ConnectorId));
-    } catch {
-      // Terminal open failure is non-fatal
-      return;
-    }
-    // Poll connector health after login terminal opens (same pattern as ConnectorEditor)
-    let attempts = 0;
-    const poll = setInterval(async () => {
-      attempts++;
-      if (attempts > 12) { clearInterval(poll); return; }
-      try {
-        unwrap(await window.agentCompany.testConnector(connectorId as ConnectorId));
-      } catch { /* health check result reflected via domain-changed */ }
-    }, 5000);
-  }, []);
-
-  const handleInstallCommand = useCallback(async (title: string, command: string) => {
-    try {
-      unwrap(await window.agentCompany.openTerminalCommand({ title, command }));
-    } catch {
-      // Terminal open failure is non-fatal
-      return;
-    }
-    // Poll all connectors after install (install may make a new CLI available)
-    let attempts = 0;
-    const poll = setInterval(async () => {
-      attempts++;
-      if (attempts > 12) { clearInterval(poll); return; }
-      for (const c of connectors) {
-        if (c.status !== "ready") {
-          try { unwrap(await window.agentCompany.testConnector(c.id as ConnectorId)); } catch { /* reflected via domain-changed */ }
-        }
-      }
-    }, 5000);
-  }, [connectors]);
-
-  /* ------------------------------------------------------------------ */
-  /*  Company / mission state                                            */
-  /* ------------------------------------------------------------------ */
-
+  const { handleTestConnector, handleSaveConnector, handleLoginConnector, handleInstallCommand } =
+    useConnectorCallbacks(connectors);
   const [companyName, setCompanyName] = useState("");
   const [companyDescription, setCompanyDescription] = useState("");
   const [workspacePath, setWorkspacePath] = useState("");
-  const [autoApproveHires, setAutoApproveHires] = useState(true);
-  const [reviewDeliverables, setReviewDeliverables] = useState(false);
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>("ai_ceo");
   const [goalTitle, setGoalTitle] = useState("");
   const [goalDescription, setGoalDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [launchSummary, setLaunchSummary] = useState<OnboardingBootstrapResult | null>(null);
+  const {
+    connectorModelPools,
+    executionReadyConnectors,
+    hasAtLeastOneReady,
+    loadingModels,
+    modelOptions,
+    selectedConnector,
+    selectedConnectorId,
+    selectedModel,
+    setSelectedConnectorId,
+    setSelectedModel,
+    selectedConnectorEnabledModels,
+    totalEnabledModels,
+    toggleConnectorModel,
+  } = useConnectorModelSelection(connectors, currentLocale, t, setError);
 
   const pickDirectory = useCallback(async () => {
     setError(null);
@@ -231,18 +95,18 @@ export function CompanyOnboarding({
       companyName: companyName.trim(),
       companyDescription: companyDescription.trim(),
       workspacePath: workspacePath.trim(),
-      autoApproveHires,
-      reviewDeliverables,
+      autoApproveHires: executionMode === "ai_ceo",
+      reviewDeliverables: executionMode === "ai_cofounder",
+      executionMode,
       goalTitle: goalTitle.trim(),
       goalDescription: goalDescription.trim(),
-      connectorId: selectedConnector?.id,
+      connectorId: selectedConnector?.id as ConnectorId | undefined,
       connectorModel: selectedModel.trim(),
     }));
     setLaunchSummary(result);
     setStep("launch");
   }, [
-    autoApproveHires,
-    reviewDeliverables,
+    executionMode,
     companyDescription,
     companyName,
     goalDescription,
@@ -259,7 +123,7 @@ export function CompanyOnboarding({
       return;
     }
     setError(null);
-    setStep("mission");
+    setStep("modelpool");
   }, [companyName, loading, t]);
 
   const launchCompany = useCallback(async () => {
@@ -292,10 +156,6 @@ export function CompanyOnboarding({
     }
   }, [launchSummary, onDone, t]);
 
-  /* ------------------------------------------------------------------ */
-  /*  Render                                                             */
-  /* ------------------------------------------------------------------ */
-
   const isWelcome = step === "welcome";
   const heroStep: OnboardingStep = step as OnboardingStep;
 
@@ -319,107 +179,59 @@ export function CompanyOnboarding({
         />
       ) : (
         <>
-          <OnboardingHero
+          <OnboardingStepPanel
             step={heroStep}
             currentLocale={currentLocale}
             t={t}
+            canCancel={canCancel}
+            onCancel={onCancel}
+            isFirstLaunch={isFirstLaunch}
+            nodeStatus={nodeStatus}
+            nodeChecking={nodeChecking}
+            onCheckNode={() => void checkNode()}
+            onInstallCommand={(title, command) => void handleInstallCommand(title, command)}
+            connectors={connectors}
+            hasAtLeastOneReady={hasAtLeastOneReady}
+            onTestConnector={(id) => void handleTestConnector(id)}
+            onSaveConnector={(id, env, model, notes) => void handleSaveConnector(id, env, model, notes)}
+            onLoginConnector={(id) => void handleLoginConnector(id)}
+            error={error}
+            companyName={companyName}
+            setCompanyName={setCompanyName}
+            companyDescription={companyDescription}
+            setCompanyDescription={setCompanyDescription}
+            selectedConnectorId={selectedConnectorId}
+            setSelectedConnectorId={setSelectedConnectorId}
+            selectedModel={selectedModel}
+            setSelectedModel={setSelectedModel}
+            executionReadyConnectors={executionReadyConnectors}
+            connectorModelPools={connectorModelPools}
+            modelOptions={modelOptions}
+            loadingModels={loadingModels}
+            totalEnabledModels={totalEnabledModels}
+            selectedConnectorEnabledModels={selectedConnectorEnabledModels}
+            onToggleConnectorModel={(connectorId, modelId) => void toggleConnectorModel(connectorId, modelId)}
+            workspacePath={workspacePath}
+            setWorkspacePath={setWorkspacePath}
+            onPickDirectory={() => void pickDirectory()}
+            executionMode={executionMode}
+            setExecutionMode={setExecutionMode}
+            goalTitle={goalTitle}
+            setGoalTitle={setGoalTitle}
+            goalDescription={goalDescription}
+            setGoalDescription={setGoalDescription}
+            loading={loading}
+            launchSummary={launchSummary}
+            selectedConnector={selectedConnector}
+            onBack={setStep}
+            onContinueFromNodeCheck={() => { setError(null); setStep("providers"); }}
+            onContinueFromProviders={() => { setError(null); setStep("company"); }}
+            onContinueFromCompany={() => void continueToMission()}
+            onContinueFromModelPool={() => { setError(null); setStep("executionmode"); }}
+            onContinueFromExecutionMode={() => { setError(null); setStep("mission"); }}
+            onLaunchCompany={() => void launchCompany()}
+            onFinishLaunch={() => void finishLaunch()}
           />
-
-          <div className="min-h-0 overflow-y-auto border-l border-border bg-background">
-            <div className="relative flex min-h-full items-center px-6 py-10 md:px-10">
-              {canCancel && onCancel && !isFirstLaunch ? (
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  className="absolute right-6 top-6 text-[12px] font-medium text-muted-foreground transition hover:text-foreground"
-                >
-                  {t("onboarding.cancel")}
-                </button>
-              ) : null}
-
-              <AnimatePresence mode="wait">
-                {step === "nodecheck" ? (
-                  <NodeCheckStep
-                    nodeStatus={nodeStatus}
-                    checking={nodeChecking}
-                    onCheck={() => void checkNode()}
-                    onInstall={(command) => void handleInstallCommand("Install Node.js", command)}
-                    onContinue={() => { setError(null); setStep("providers"); }}
-                    onBack={() => setStep("welcome")}
-                    t={t}
-                  />
-                ) : null}
-
-                {step === "providers" ? (
-                  <ProvidersStep
-                    connectors={connectors}
-                    onTestConnector={(id) => void handleTestConnector(id)}
-                    onSaveConnector={(id, env, model, notes) => void handleSaveConnector(id, env, model, notes)}
-                    onLoginConnector={(id) => void handleLoginConnector(id)}
-                    onInstallCommand={(title, cmd) => void handleInstallCommand(title, cmd)}
-                    hasAtLeastOneReady={hasAtLeastOneReady}
-                    onContinue={() => { setError(null); setStep("company"); }}
-                    onBack={() => setStep("nodecheck")}
-                    error={error}
-                    t={t}
-                  />
-                ) : null}
-
-                {step === "company" ? (
-                  <CompanyStep
-                    companyName={companyName}
-                    setCompanyName={setCompanyName}
-                    companyDescription={companyDescription}
-                    setCompanyDescription={setCompanyDescription}
-                    selectedConnectorId={selectedConnectorId}
-                    setSelectedConnectorId={setSelectedConnectorId}
-                    selectedModel={selectedModel}
-                    setSelectedModel={setSelectedModel}
-                    executionReadyConnectors={executionReadyConnectors}
-                    modelOptions={modelOptions}
-                    loadingModels={loadingModels}
-                    workspacePath={workspacePath}
-                    setWorkspacePath={setWorkspacePath}
-                    autoApproveHires={autoApproveHires}
-                    setAutoApproveHires={setAutoApproveHires}
-                    reviewDeliverables={reviewDeliverables}
-                    setReviewDeliverables={setReviewDeliverables}
-                    onPickDirectory={() => void pickDirectory()}
-                    onContinue={() => void continueToMission()}
-                    onBack={() => setStep("providers")}
-                    error={error}
-                    currentLocale={currentLocale}
-                    t={t}
-                  />
-                ) : null}
-
-                {step === "mission" ? (
-                  <MissionStep
-                    goalTitle={goalTitle}
-                    setGoalTitle={setGoalTitle}
-                    goalDescription={goalDescription}
-                    setGoalDescription={setGoalDescription}
-                    onLaunch={() => void launchCompany()}
-                    onBack={() => setStep("company")}
-                    loading={loading}
-                    error={error}
-                    t={t}
-                  />
-                ) : null}
-
-                {step === "launch" && launchSummary ? (
-                  <LaunchStep
-                    launchSummary={launchSummary}
-                    selectedConnector={selectedConnector}
-                    onFinish={() => void finishLaunch()}
-                    loading={loading}
-                    error={error}
-                    t={t}
-                  />
-                ) : null}
-              </AnimatePresence>
-            </div>
-          </div>
         </>
       )}
     </div>

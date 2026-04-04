@@ -1,0 +1,19 @@
+import type { DatabaseSync } from "node:sqlite";
+import type { ReadAll, Transaction } from "./helpers";
+import { buildTaskCrudMethods } from "./tasks-crud";
+import { buildTaskStatusMethods } from "./tasks-status";
+
+export function buildTaskMethods(
+  getDb: () => DatabaseSync,
+  readAll: ReadAll,
+  transaction: Transaction,
+  deps: {
+    addComment: (input: { companyId: string; taskId: string; authorAgentId: string | null; authorName: string; body: string }) => void;
+    addActivity: (input: { companyId: string; actor: string; action: string; entityType: string; entityId: string; detail: string }) => void;
+  },
+) {
+  return {
+    ...buildTaskCrudMethods(getDb, readAll, transaction, deps),
+    ...buildTaskStatusMethods(getDb, readAll, transaction, deps),
+  };
+}

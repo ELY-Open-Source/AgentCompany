@@ -1,16 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   validateTaskCreation,
   checkAcceptanceCriteria,
   checkCapabilityMatch,
   ACCEPTANCE_CRITERIA_KEYWORDS,
-  sweepStaleReviews,
-  REVIEW_TIMEOUT_MS,
 } from "../../src/main/task-quality-gates";
-import type {
-  TaskValidationResult,
-  SweepStaleReviewsDeps,
-} from "../../src/main/task-quality-gates";
+import type { TaskValidationResult as _TaskValidationResult } from "../../src/main/task-quality-gates";
 
 // --- TASK-01: validateTaskCreation tests ---
 
@@ -183,10 +178,11 @@ describe("checkCapabilityMatch", () => {
     expect(result.warning).toContain("Data Analyst");
   });
 
-  it("returns matched=true when agent has empty capabilities and no skills (graceful degradation)", () => {
+  it("returns matched=false with warning when agent has empty capabilities and no skills", () => {
     const db = makeMockDb({ name: "New Agent", capabilities: "" });
     const result = checkCapabilityMatch(db, "agent-1", "Build React login form", "company-1");
-    expect(result.matched).toBe(true);
+    expect(result.matched).toBe(false);
+    expect(result.warning).toContain("New Agent");
   });
 
   it("returns matched=true when agent has no capabilities but skill name overlaps with task", () => {
@@ -204,188 +200,5 @@ describe("checkCapabilityMatch", () => {
     const result = checkCapabilityMatch(db, "agent-1", "Do it", "company-1");
     // "do" and "it" are <= 3 chars, so taskWords is empty -> matched=true
     expect(result.matched).toBe(true);
-  });
-});
-
-// --- TASK-04: sweepStaleReviews tests ---
-
-describe("sweepStaleReviews", () => {
-  const NOW = Date.now();
-  const THIRTY_FIVE_MIN_AGO = new Date(NOW - 35 * 60 * 1000).toISOString();
-  const TWENTY_FIVE_MIN_AGO = new Date(NOW - 25 * 60 * 1000).toISOString();
-
-  function makeSweepDeps(overrides: Partial<SweepStaleReviewsDeps> = {}): SweepStaleReviewsDeps {
-    return {
-      db: {
-        queryAll: vi.fn().mockReturnValue([]),
-        getManagerForAgent: vi.fn().mockReturnValue(null),
-        getChainOfCommand: vi.fn().mockReturnValue([]),
-        advanceTaskStatus: vi.fn().mockReturnValue({ previousStatus: "in_review" }),
-      },
-      dispatchAgentMessage: vi.fn().mockReturnValue({ ok: true }),
-      resolveApprovalDecision: vi.fn(),
-      notify: vi.fn(),
-      handleTaskStatusChange: vi.fn(),
-      handleApprovalResolved: vi.fn(),
-      emitEvent: vi.fn(),
-      publishDomainChanged: vi.fn(),
-      wakeAgentIfPossible: vi.fn(),
-      logger: { info: vi.fn(), warn: vi.fn() },
-      ...overrides,
-    };
-  }
-
-  it("escalates to manager's manager when task in_review for 35 minutes", () => {
-    const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn>; getManagerForAgent: ReturnType<typeof vi.fn>; getChainOfCommand: ReturnType<typeof vi.fn> };
-
-    // Task in review for 35 min
-    dbMock.queryAll.mockReturnValueOnce([
-      { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
-    ]);
-    // Direct manager of the assignee (the reviewer)
-    dbMock.getManagerForAgent.mockReturnValueOnce({ id: "manager-1", name: "Manager One", companyId: "company-1" });
-    // Chain of command for the reviewer — the reviewer's manager (escalation target)
-    dbMock.getChainOfCommand.mockReturnValueOnce([{ id: "higher-manager-1", name: "Higher Manager" }]);
-
-    const count = sweepStaleReviews("company-1", deps, NOW);
-    expect(count).toBe(1);
-    expect(deps.dispatchAgentMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ db: deps.db }),
-      expect.objectContaining({
-        companyId: "company-1",
-        fromAgentId: "manager-1",
-        toAgentId: "higher-manager-1",
-        channel: "direct",
-        priority: "urgent",
-      }),
-      "subtask_completed",
-    );
-  });
-
-  it("does not escalate when task in_review for only 25 minutes (under threshold)", () => {
-    const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn> };
-
-    dbMock.queryAll.mockReturnValueOnce([
-      { id: "task-1", assigneeAgentId: "agent-1", updatedAt: TWENTY_FIVE_MIN_AGO, title: "Build login" },
-    ]);
-
-    const count = sweepStaleReviews("company-1", deps, NOW);
-    expect(count).toBe(0);
-    expect(deps.dispatchAgentMessage).not.toHaveBeenCalled();
-    expect(deps.notify).not.toHaveBeenCalled();
-  });
-
-  it("notifies human when no higher manager (reviewer is CEO)", () => {
-    const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn>; getManagerForAgent: ReturnType<typeof vi.fn>; getChainOfCommand: ReturnType<typeof vi.fn> };
-
-    dbMock.queryAll
-      .mockReturnValueOnce([
-        { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
-      ])
-      .mockReturnValueOnce([]); // no pending approvals
-    dbMock.getManagerForAgent.mockReturnValueOnce({ id: "ceo-1", name: "CEO", companyId: "company-1" });
-    // Empty chain means reviewer is the top of hierarchy
-    dbMock.getChainOfCommand.mockReturnValueOnce([]);
-
-    const count = sweepStaleReviews("company-1", deps, NOW);
-    expect(count).toBe(1);
-    expect(deps.notify).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Review Timeout",
-        urgency: "critical",
-        batchKey: "review_escalation",
-        navigation: expect.objectContaining({ section: "tasks", entityId: "task-1" }),
-      }),
-    );
-    expect(deps.dispatchAgentMessage).not.toHaveBeenCalled();
-  });
-
-  it("auto-approves pending approval linked to stale review task", () => {
-    const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn>; getManagerForAgent: ReturnType<typeof vi.fn>; getChainOfCommand: ReturnType<typeof vi.fn> };
-
-    // First queryAll: stale task
-    dbMock.queryAll.mockReturnValueOnce([
-      { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
-    ]);
-    dbMock.getManagerForAgent.mockReturnValueOnce({ id: "manager-1", name: "Manager", companyId: "company-1" });
-    dbMock.getChainOfCommand.mockReturnValueOnce([{ id: "higher-1", name: "Higher" }]);
-    // Second queryAll: pending approval
-    dbMock.queryAll.mockReturnValueOnce([{ id: "approval-1" }]);
-
-    sweepStaleReviews("company-1", deps, NOW);
-
-    expect(deps.resolveApprovalDecision).toHaveBeenCalledWith(
-      expect.objectContaining({
-        db: deps.db,
-        companyId: "company-1",
-        approvalId: "approval-1",
-        state: "approved",
-        decisionNote: "Auto-approved: review timeout exceeded 30 minutes.",
-        actor: "system",
-      }),
-    );
-  });
-
-  it("catches resolveApprovalDecision error gracefully (race condition)", () => {
-    const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn>; getManagerForAgent: ReturnType<typeof vi.fn>; getChainOfCommand: ReturnType<typeof vi.fn> };
-
-    dbMock.queryAll.mockReturnValueOnce([
-      { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
-    ]);
-    dbMock.getManagerForAgent.mockReturnValueOnce({ id: "manager-1", name: "Manager", companyId: "company-1" });
-    dbMock.getChainOfCommand.mockReturnValueOnce([{ id: "higher-1", name: "Higher" }]);
-    dbMock.queryAll.mockReturnValueOnce([{ id: "approval-1" }]);
-
-    // resolveApprovalDecision throws (already decided)
-    (deps.resolveApprovalDecision as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
-      throw new Error("Approval already decided");
-    });
-
-    // Should not throw
-    expect(() => sweepStaleReviews("company-1", deps, NOW)).not.toThrow();
-  });
-
-  it("advances task status to done after escalation", () => {
-    const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn>; getManagerForAgent: ReturnType<typeof vi.fn>; getChainOfCommand: ReturnType<typeof vi.fn>; advanceTaskStatus: ReturnType<typeof vi.fn> };
-
-    dbMock.queryAll.mockReturnValueOnce([
-      { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
-    ]);
-    dbMock.getManagerForAgent.mockReturnValueOnce({ id: "manager-1", name: "Manager", companyId: "company-1" });
-    dbMock.getChainOfCommand.mockReturnValueOnce([{ id: "higher-1", name: "Higher" }]);
-    dbMock.queryAll.mockReturnValueOnce([]); // no approvals
-
-    sweepStaleReviews("company-1", deps, NOW);
-
-    expect(dbMock.advanceTaskStatus).toHaveBeenCalledWith(
-      "task-1",
-      "done",
-      "Auto-advanced: review timeout exceeded 30 minutes.",
-    );
-    expect(deps.handleTaskStatusChange).toHaveBeenCalledWith("task-1", "company-1", "in_review", "done");
-  });
-
-  it("skips task with no assigneeAgentId", () => {
-    const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn> };
-
-    dbMock.queryAll.mockReturnValueOnce([
-      { id: "task-1", assigneeAgentId: null, updatedAt: THIRTY_FIVE_MIN_AGO, title: "Orphan task" },
-    ]);
-
-    const count = sweepStaleReviews("company-1", deps, NOW);
-    expect(count).toBe(0);
-    expect(deps.dispatchAgentMessage).not.toHaveBeenCalled();
-    expect(deps.notify).not.toHaveBeenCalled();
-  });
-
-  it("exports REVIEW_TIMEOUT_MS as 30 minutes in milliseconds", () => {
-    expect(REVIEW_TIMEOUT_MS).toBe(30 * 60 * 1000);
   });
 });

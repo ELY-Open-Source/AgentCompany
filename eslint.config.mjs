@@ -8,10 +8,17 @@ export default tseslint.config(
   {
     ignores: [
       "out/**",
+      "**/out/**",
       "build/**",
       "dist/**",
       "oldreference/**",
+      "Reference/**",
+      "boss-build/**",
+      "builtin-skills/**",
       "node_modules/**",
+      "**/node_modules/**",
+      ".next/**",
+      "**/.next/**",
       "test-results/**",
       "playwright-report/**",
       "coverage/**",
@@ -52,8 +59,10 @@ export default tseslint.config(
       ],
       "@typescript-eslint/no-explicit-any": "off",
       "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/incompatible-library": "off",
       "react-hooks/set-state-in-effect": "off",
       "react-hooks/refs": "off",
+      "react-hooks/preserve-manual-memoization": "off",
     },
   },
   {

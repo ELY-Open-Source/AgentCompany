@@ -1,0 +1,234 @@
+import type { AppDatabase } from "../database";
+import type { AgentRecord } from "@shared/types";
+import { WORKFLOW_ACTIONS, type WorkflowStepState, type AutomationEventContext } from "./types";
+import type { ActionDeps, ActionCallbacks } from "./automation-actions";
+import { executeAutomationAction } from "./automation-actions";
+
+export interface WorkflowDeps {
+  db: AppDatabase;
+  logger: {
+    info: (...args: unknown[]) => void;
+    warn: (...args: unknown[]) => void;
+    error: (...args: unknown[]) => void;
+  };
+  publishDomainChanged: () => void;
+}
+
+export function normalizeWorkflowSteps(raw: unknown): WorkflowStepState[] {
+  if (!Array.isArray(raw)) {
+    throw new Error("Workflow steps must be a JSON array.");
+  }
+  return raw.map((entry, index) => {
+    const step = (entry ?? {}) as Record<string, unknown>;
+    const rawAction = typeof step.action === "string" ? step.action : "send_message";
+    if (!WORKFLOW_ACTIONS.has(rawAction as WorkflowStepState["action"])) {
+      throw new Error(`Workflow step ${index + 1} has unsupported action "${rawAction}".`);
+    }
+    return {
+      id: typeof step.id === "string" && step.id ? step.id : `step-${index + 1}`,
+      name: typeof step.name === "string" && step.name ? step.name : `Step ${index + 1}`,
+      action: rawAction as WorkflowStepState["action"],
+      configJson: typeof step.configJson === "string" ? step.configJson : "{}",
+      assigneeDepartment: typeof step.assigneeDepartment === "string" ? step.assigneeDepartment : null,
+      assigneeAgentId: typeof step.assigneeAgentId === "string" ? step.assigneeAgentId : null,
+      requiresApproval: step.requiresApproval === true,
+      timeoutSec: typeof step.timeoutSec === "number" ? step.timeoutSec : 0,
+      status: ["pending", "running", "completed", "failed", "skipped"].includes(String(step.status))
+        ? (String(step.status) as WorkflowStepState["status"])
+        : "pending",
+    };
+  });
+}
+
+export function resolveWorkflowStepActor(
+  db: AppDatabase,
+  step: WorkflowStepState,
+  companyId: string,
+): AgentRecord | null {
+  if (step.assigneeAgentId) {
+    const agent = db.getAgent(step.assigneeAgentId);
+    if (agent.companyId !== companyId) {
+      throw new Error(`Workflow step assignee ${step.assigneeAgentId} does not belong to company ${companyId}.`);
+    }
+    return agent;
+  }
+
+  if (step.assigneeDepartment) {
+    const idleAgents = db.getIdleAgentsForDepartment(companyId, step.assigneeDepartment);
+    if (idleAgents.length > 0) {
+      return db.getAgent(idleAgents[0]!.id);
+    }
+  }
+
+  const snapshot = db.listSnapshot();
+  return snapshot.agents.find((agent) => agent.companyId === companyId && !agent.reportsTo && agent.status !== "terminated") ?? null;
+}
+
+export function buildWorkflowActionContext(
+  companyId: string,
+  step: WorkflowStepState,
+  actor: AgentRecord | null,
+): { config: Record<string, unknown>; ctx: AutomationEventContext } {
+  let config: Record<string, unknown> = {};
+  try {
+    config = JSON.parse(step.configJson) as Record<string, unknown>;
+  } catch {
+    throw new Error(`Workflow step "${step.name}" has invalid config JSON.`);
+  }
+
+  return {
+    config,
+    ctx: {
+      companyId,
+      agentId: actor?.id,
+      department: actor?.department ?? step.assigneeDepartment ?? undefined,
+      taskId: typeof config.taskId === "string" ? config.taskId : undefined,
+      runId: typeof config.runId === "string" ? config.runId : undefined,
+      projectId: typeof config.projectId === "string" ? config.projectId : undefined,
+      newStatus: typeof config.status === "string" ? config.status : undefined,
+    } satisfies AutomationEventContext,
+  };
+}
+
+export async function runWorkflowPipeline(
+  workflowId: string,
+  companyId: string,
+  deps: WorkflowDeps,
+  actionDeps: ActionDeps,
+  actionCallbacks: ActionCallbacks,
+): Promise<void> {
+  const { db, publishDomainChanged } = deps;
+
+  const workflow = db.getWorkflowRecord(workflowId, companyId);
+  if (!workflow) {
+    throw new Error("Workflow not found.");
+  }
+  const parsedSteps = normalizeWorkflowSteps(JSON.parse(workflow.stepsJson || "[]"));
+  if (parsedSteps.some((step) => step.status === "running")) {
+    throw new Error("Workflow is already running.");
+  }
+  if (parsedSteps.length === 0) {
+    throw new Error("Workflow has no steps.");
+  }
+
+  const resumeFrom = workflow.status === "paused" ? workflow.currentStepIndex : 0;
+  const steps: WorkflowStepState[] = parsedSteps.map((step, index) => {
+    if (workflow.status !== "paused") {
+      return { ...step, status: index < resumeFrom ? "completed" : "pending" };
+    }
+    return step;
+  });
+
+  db.updateWorkflowExecution({
+    id: workflowId,
+    companyId,
+    status: "active",
+    currentStepIndex: resumeFrom,
+    stepsJson: JSON.stringify(steps),
+    incrementRunCount: workflow.status !== "paused",
+    lastRunAt: new Date().toISOString(),
+  });
+  publishDomainChanged();
+
+  for (let index = resumeFrom; index < steps.length; index += 1) {
+    const step = steps[index]!;
+    step.status = "running";
+    db.updateWorkflowExecution({
+      id: workflowId,
+      companyId,
+      status: "active",
+      currentStepIndex: index,
+      stepsJson: JSON.stringify(steps),
+      lastRunAt: new Date().toISOString(),
+    });
+    publishDomainChanged();
+
+    const actor = resolveWorkflowStepActor(db, step, companyId);
+    const { config, ctx } = buildWorkflowActionContext(companyId, step, actor);
+
+    if (step.requiresApproval) {
+      const approvalId = db.requestApproval({
+        companyId,
+        requestedByAgentId: actor?.id ?? null,
+        relatedTaskId: ctx.taskId ?? null,
+        type: "dangerous_command",
+        payloadSummary: `Workflow approval required: ${workflow.name} / ${step.name}`,
+        impactSummary: `Workflow step "${step.name}" requires board approval before ${step.action}.`,
+        payloadJson: JSON.stringify({ workflowId, stepId: step.id, stepName: step.name }),
+      });
+      step.status = "pending";
+      db.updateWorkflowExecution({
+        id: workflowId,
+        companyId,
+        status: "paused",
+        currentStepIndex: index,
+        stepsJson: JSON.stringify(steps),
+        lastRunAt: new Date().toISOString(),
+      });
+      db.addActivity({
+        companyId,
+        actor: actor?.id ?? "system",
+        action: "workflow.paused_for_approval",
+        entityType: "workflow",
+        entityId: workflowId,
+        detail: `Paused on step "${step.name}" with approval ${approvalId}.`,
+      });
+      publishDomainChanged();
+      return;
+    }
+
+    try {
+      executeAutomationAction(
+        actionDeps,
+        actionCallbacks,
+        {
+          action: step.action,
+          actionConfigJson: JSON.stringify(config),
+          targetDepartment: step.assigneeDepartment,
+          trigger: "workflow_step",
+        },
+        ctx,
+      );
+      step.status = "completed";
+      db.addActivity({
+        companyId,
+        actor: actor?.id ?? "system",
+        action: "workflow.step_completed",
+        entityType: "workflow",
+        entityId: workflowId,
+        detail: step.name,
+      });
+      const isLastStep = index === steps.length - 1;
+      const completionStatus = isLastStep ? "completed" : "active";
+      db.updateWorkflowExecution({
+        id: workflowId,
+        companyId,
+        status: completionStatus,
+        currentStepIndex: index + 1,
+        stepsJson: JSON.stringify(steps),
+        lastRunAt: new Date().toISOString(),
+      });
+      publishDomainChanged();
+    } catch (error) {
+      step.status = "failed";
+      db.updateWorkflowExecution({
+        id: workflowId,
+        companyId,
+        status: "failed",
+        currentStepIndex: index,
+        stepsJson: JSON.stringify(steps),
+        lastRunAt: new Date().toISOString(),
+      });
+      db.addActivity({
+        companyId,
+        actor: actor?.id ?? "system",
+        action: "workflow.step_failed",
+        entityType: "workflow",
+        entityId: workflowId,
+        detail: `${step.name}: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      publishDomainChanged();
+      throw error;
+    }
+  }
+}

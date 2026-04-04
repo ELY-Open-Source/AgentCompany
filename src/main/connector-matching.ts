@@ -2,6 +2,8 @@ import type { ConnectorId, ConnectorStatus, TaskType } from "@shared/types";
 
 interface ConnectorMatchInput {
   taskType: TaskType;
+  agentRole?: string;
+  agentDepartment?: string;
   availableConnectors: Array<{
     id: ConnectorId;
     status: ConnectorStatus;

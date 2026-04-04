@@ -3,11 +3,13 @@ import type { AgentApiServer } from "./api-server";
 import { initializeAgentTokenSigningKey } from "./agent-auth";
 import { bootstrapApplication } from "./bootstrap-application";
 import { openConnectorAuthTerminal as openConnectorAuthTerminalImpl, openGenericTerminal as openGenericTerminalImpl } from "./connector-auth-service";
-import { getConnectorDefinition } from "./connectors";
+import { getConnectorModelPolicy } from "./connector-model-policy";
+import type { ConnectorId } from "@shared/types";
 import type { AppDatabase } from "./database";
 import { seedDefaultAutomationRules as seedDefaultAutomationRulesImpl } from "./default-automation-rules";
 import { registerCoreHandlers } from "./ipc-core-handlers";
 import { registerDomainHandlers } from "./ipc-domain-handlers";
+import type { ThreadIntegrationService } from "./thread-integration";
 
 type BootstrapResult = Awaited<ReturnType<typeof bootstrapApplication>>;
 
@@ -16,6 +18,7 @@ interface MainRuntimeState {
   apiServer: AgentApiServer | null;
   serviceGraph: BootstrapResult["serviceGraph"] | null;
   ipcSupport: BootstrapResult["ipcSupport"] | null;
+  threadIntegration: ThreadIntegrationService | null;
 }
 
 export function createMainRuntimeSupport(state: MainRuntimeState) {
@@ -128,8 +131,13 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       handleTaskCreated: (taskId, companyId) => requireAutomationService().handleTaskCreated(taskId, companyId),
       handleTaskStatusChange: (taskId, companyId, previousStatus, newStatus) =>
         requireAutomationService().handleTaskStatusChange(taskId, companyId, previousStatus, newStatus),
-      handleApprovalResolved: (approvalId, companyId, decision) =>
-        requireAutomationService().handleApprovalResolved(approvalId, companyId, decision),
+      handleApprovalCreated: (approvalId, companyId, taskId, approvalType, summary) => {
+        state.threadIntegration!.onApprovalCreated(approvalId, companyId, taskId, approvalType, summary);
+      },
+      handleApprovalResolved: (approvalId, companyId, decision) => {
+        requireAutomationService().handleApprovalResolved(approvalId, companyId, decision);
+        state.threadIntegration?.onApprovalResolved(approvalId, companyId, decision);
+      },
       dispatchAutomation: (trigger, ctx) => requireAutomationService().dispatchAutomation(trigger, ctx),
       queueTaskRun: (taskId, trigger, actor) =>
         requireOrchestrationService().queueTaskRun(taskId, trigger, actor),
@@ -148,19 +156,8 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       getApiPort: () => state.apiServer?.getPort() ?? 0,
       notify: (options) => requireIpcSupport().notify(options),
       listConnectorModels: async (connectorId) => {
-        const disabled = new Set(requireDb().getDisabledModels(connectorId).map((m) => m.id));
-        // For claude_compatible, return user-configured models from the DB
-        // (stored as comma-separated values in the connector's model field)
-        if (connectorId.startsWith("claude_compat")) {
-          const connector = requireDb().getConnector(connectorId);
-          const raw = connector.model ?? "";
-          return raw.split(",").map((m) => m.trim()).filter(Boolean)
-            .filter((m) => !disabled.has(m))
-            .map((m) => ({ id: m, label: m }));
-        }
-        const definition = getConnectorDefinition(connectorId as Parameters<typeof getConnectorDefinition>[0]);
-        const models = definition.listModels ? await definition.listModels() : [];
-        return models.filter((m) => !disabled.has(m.id));
+        const policy = getConnectorModelPolicy(requireDb(), connectorId as ConnectorId);
+        return policy.enabledModels;
       },
     });
 
@@ -172,6 +169,7 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       findInvalidReference,
       publishDomainChanged,
       emitEvent,
+      notify: (options) => requireIpcSupport().notify(options),
       wakeAgentIfPossible: (agentId, companyId, trigger) =>
         requireOrchestrationService().wakeAgentIfPossible(agentId, companyId, trigger),
       dispatchAutomation: (trigger, ctx) => requireAutomationService().dispatchAutomation(trigger, ctx),
@@ -182,6 +180,12 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       randomFallbackCompanyId: () => requireConnectorHealthService().randomFallbackCompanyId(),
       skillService: requireServiceGraph().getOrCreateSkillService(),
       budgetService: requireServiceGraph().getOrCreateBudgetEnforcementService(),
+      onHumanMessage: (companyId: string, toAgentId?: string | null, threadId?: string | null, waitStateId?: string | null) => {
+        if (state.threadIntegration) {
+          state.threadIntegration.onHumanMessage(companyId, toAgentId, threadId, waitStateId);
+        }
+        publishDomainChanged();
+      },
     });
   }
 

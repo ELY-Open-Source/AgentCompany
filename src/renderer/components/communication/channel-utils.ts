@@ -1,6 +1,14 @@
 import type { AgentMessageRecord, AgentRecord, CommentRecord, MessageChannel, ProjectRecord, TaskRecord } from "@shared/types"
 import type { ChannelDescriptor, TaskDiscussionDescriptor } from "./ChannelHeader"
 
+const BOARD_ID = "__board__"
+
+function labelForParticipant(id: string | undefined, agentMap: Map<string, AgentRecord>): string {
+  if (!id) return "Unknown"
+  if (id === BOARD_ID) return "Board"
+  return agentMap.get(id)?.name ?? id.slice(0, 8)
+}
+
 export function deriveChannels(messages: AgentMessageRecord[], agents: AgentRecord[], projects?: ProjectRecord[]): ChannelDescriptor[] {
   const channelMap = new Map<string, ChannelDescriptor>()
   const agentMap = new Map(agents.map((a) => [a.id, a]))
@@ -21,7 +29,12 @@ export function deriveChannels(messages: AgentMessageRecord[], agents: AgentReco
       case "direct": {
         const otherId = msg.toAgentId
         if (!otherId) { key = "direct-broadcast"; label = "Broadcast DMs" }
-        else { const ids = [msg.fromAgentId, otherId].sort(); key = `direct-${ids.join("-")}`; const f = agentMap.get(ids[0] ?? ""); const s = agentMap.get(ids[1] ?? ""); label = `${f?.name ?? (ids[0] ? ids[0].slice(0, 8) : "Unknown")} \u2194 ${s?.name ?? (ids[1] ? ids[1].slice(0, 8) : "Unknown")}`; agentId = ids[1] ?? null }
+        else {
+          const ids = [msg.fromAgentId, otherId].sort()
+          key = `direct-${ids.join("-")}`
+          label = `${labelForParticipant(ids[0], agentMap)} \u2194 ${labelForParticipant(ids[1], agentMap)}`
+          agentId = ids.find((id) => id !== BOARD_ID) ?? ids[1] ?? null
+        }
         break }
       case "department": { const d = msg.channelTargetId ?? "general"; key = `department-${d}`; label = `#${d.replace(/_/g, "-")}`; break }
       case "company": { key = "company-all"; label = "#company-wide"; break }

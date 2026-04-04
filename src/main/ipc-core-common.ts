@@ -21,6 +21,7 @@ export interface RegisterCoreHandlersDependencies {
   wakeAgentIfPossible: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
   handleTaskCreated: (taskId: string, companyId: string) => void;
   handleTaskStatusChange: (taskId: string, companyId: string, previousStatus: string, newStatus: string) => void;
+  handleApprovalCreated: (approvalId: string, companyId: string, taskId: string | null, approvalType: string, summary: string) => void;
   handleApprovalResolved: (approvalId: string, companyId: string, decision: string) => void;
   dispatchAutomation: (trigger: string, ctx: { companyId: string; [key: string]: unknown }) => void;
   queueTaskRun: (taskId: string, trigger: string, actor: string) => DesktopResult<string>;

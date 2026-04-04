@@ -106,35 +106,51 @@ const api: DesktopApi = {
   resolveBudgetIncident: (input) => ipcRenderer.invoke(IPC_CHANNELS.resolveBudgetIncident, input),
   getBudgetStatus: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.getBudgetStatus, { companyId }),
   recoveryRetry: (taskId: string, agentId: string, companyId: string) =>
-    ipcRenderer.invoke("recovery:retry", { taskId, agentId, companyId }),
+    ipcRenderer.invoke(IPC_CHANNELS.recoveryRetry, { taskId, agentId, companyId }),
   recoveryDismiss: (taskId: string) =>
-    ipcRenderer.invoke("recovery:dismiss", { taskId }),
+    ipcRenderer.invoke(IPC_CHANNELS.recoveryDismiss, { taskId }),
   recoveryFail: (taskId: string) =>
-    ipcRenderer.invoke("recovery:fail", { taskId }),
+    ipcRenderer.invoke(IPC_CHANNELS.recoveryFail, { taskId }),
   getTask: (input) => ipcRenderer.invoke(IPC_CHANNELS.getTask, input),
   getAgent: (input) => ipcRenderer.invoke(IPC_CHANNELS.getAgent, input),
   getRun: (input) => ipcRenderer.invoke(IPC_CHANNELS.getRun, input),
   getApproval: (input) => ipcRenderer.invoke(IPC_CHANNELS.getApproval, input),
   listConfigRevisions: (companyId: string, agentId: string) =>
-    ipcRenderer.invoke("agent-company:list-config-revisions", { companyId, agentId }),
+    ipcRenderer.invoke(IPC_CHANNELS.listConfigRevisions, { companyId, agentId }),
   getConfigRevision: (companyId: string, revisionId: string) =>
-    ipcRenderer.invoke("agent-company:get-config-revision", { companyId, revisionId }),
+    ipcRenderer.invoke(IPC_CHANNELS.getConfigRevision, { companyId, revisionId }),
   rollbackConfigRevision: (companyId: string, agentId: string, revisionId: string) =>
-    ipcRenderer.invoke("agent-company:rollback-config-revision", { companyId, agentId, revisionId }),
+    ipcRenderer.invoke(IPC_CHANNELS.rollbackConfigRevision, { companyId, agentId, revisionId }),
   listRunEvents: (companyId: string, runId: string, opts?: { offset?: number; limit?: number }) =>
-    ipcRenderer.invoke("agent-company:list-run-events", { companyId, runId, ...opts }),
+    ipcRenderer.invoke(IPC_CHANNELS.listRunEvents, { companyId, runId, ...opts }),
   getAgentPermissions: (agentId: string) =>
-    ipcRenderer.invoke("agent-company:get-agent-permissions", { agentId }),
+    ipcRenderer.invoke(IPC_CHANNELS.getAgentPermissions, { agentId }),
   setAgentPermission: (companyId: string, agentId: string, permissionKey: string, enabled: boolean) =>
-    ipcRenderer.invoke("agent-company:set-agent-permission", { companyId, agentId, permissionKey, enabled }),
+    ipcRenderer.invoke(IPC_CHANNELS.setAgentPermission, { companyId, agentId, permissionKey, enabled }),
   getHeartbeatPolicy: (agentId: string, companyId: string) =>
-    ipcRenderer.invoke("agent-company:get-heartbeat-policy", { companyId, agentId }),
+    ipcRenderer.invoke(IPC_CHANNELS.getHeartbeatPolicy, { companyId, agentId }),
   setHeartbeatPolicy: (companyId: string, agentId: string, policy: Record<string, unknown>) =>
-    ipcRenderer.invoke("agent-company:set-heartbeat-policy", { companyId, agentId, ...policy }),
+    ipcRenderer.invoke(IPC_CHANNELS.setHeartbeatPolicy, { companyId, agentId, ...policy }),
   getRuntimeState: (agentId: string, companyId: string) =>
-    ipcRenderer.invoke("agent-company:get-runtime-state", { companyId, agentId }),
+    ipcRenderer.invoke(IPC_CHANNELS.getRuntimeState, { companyId, agentId }),
   setRuntimeState: (companyId: string, agentId: string, state: Record<string, unknown>) =>
-    ipcRenderer.invoke("agent-company:set-runtime-state", { companyId, agentId, state }),
+    ipcRenderer.invoke(IPC_CHANNELS.setRuntimeState, { companyId, agentId, state }),
+  // Thread runtime
+  createThread: (input) => ipcRenderer.invoke(IPC_CHANNELS.createThread, input),
+  listThreads: (input) => ipcRenderer.invoke(IPC_CHANNELS.listThreads, input),
+  getThread: (input) => ipcRenderer.invoke(IPC_CHANNELS.getThread, input),
+  addThreadEvent: (input) => ipcRenderer.invoke(IPC_CHANNELS.addThreadEvent, input),
+  listThreadEvents: (input) => ipcRenderer.invoke(IPC_CHANNELS.listThreadEvents, input),
+  setThreadWaitState: (input) => ipcRenderer.invoke(IPC_CHANNELS.setThreadWaitState, input),
+  resolveThreadWaitState: (input) => ipcRenderer.invoke(IPC_CHANNELS.resolveThreadWaitState, input),
+  listThreadWaitStates: (input) => ipcRenderer.invoke(IPC_CHANNELS.listThreadWaitStates, input),
+  listParticipants: (input) => ipcRenderer.invoke(IPC_CHANNELS.listParticipants, input),
+  addParticipant: (input) => ipcRenderer.invoke(IPC_CHANNELS.addParticipant, input),
+  removeParticipant: (input) => ipcRenderer.invoke(IPC_CHANNELS.removeParticipant, input),
+  subscribeThread: (input) => ipcRenderer.invoke(IPC_CHANNELS.subscribeThread, input),
+  unsubscribeThread: (input) => ipcRenderer.invoke(IPC_CHANNELS.unsubscribeThread, input),
+  listSubscriptions: (input) => ipcRenderer.invoke(IPC_CHANNELS.listSubscriptions, input),
+  listSubscribedThreads: (input) => ipcRenderer.invoke(IPC_CHANNELS.listSubscribedThreads, input),
   subscribe: (callback: (event: DesktopEvent) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: DesktopEvent) => callback(payload);
     ipcRenderer.on(IPC_CHANNELS.rendererEvent, listener);
@@ -143,10 +159,10 @@ const api: DesktopApi = {
     };
   },
   platform: process.platform as "win32" | "darwin" | "linux",
-  windowMinimize: () => ipcRenderer.invoke("window:minimize"),
-  windowMaximize: () => ipcRenderer.invoke("window:maximize"),
-  windowClose: () => ipcRenderer.invoke("window:close"),
-  windowIsMaximized: () => ipcRenderer.invoke("window:isMaximized") as Promise<boolean>,
+  windowMinimize: () => ipcRenderer.invoke(IPC_CHANNELS.windowMinimize),
+  windowMaximize: () => ipcRenderer.invoke(IPC_CHANNELS.windowMaximize),
+  windowClose: () => ipcRenderer.invoke(IPC_CHANNELS.windowClose),
+  windowIsMaximized: () => ipcRenderer.invoke(IPC_CHANNELS.windowIsMaximized) as Promise<boolean>,
 };
 
 contextBridge.exposeInMainWorld("agentCompany", api);

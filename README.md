@@ -126,12 +126,14 @@ pnpm build:verify
 pnpm build        # Compile + package for current platform → /build/release
 pnpm build:dir    # Compile + unpackaged directory
 pnpm build:all    # Build for all platforms
+pnpm release:local # Signed/uploading release pipeline (see docs/release/local-r2.md)
 ```
 
 - **Targets:** macOS (`.dmg`), Windows (`.exe` / NSIS), Linux (`.AppImage`)
 - Packaging uses `electron-builder`
 - Local builds use ad-hoc signing (`CSC_IDENTITY_AUTO_DISCOVERY=false`)
 - Defaults to `--publish never`; override with `AGENTCOMPANY_ELECTRON_PUBLISH`
+- Cloudflare R2 release hosting + auto-update pipeline: `docs/release/local-r2.md`
 
 ---
 

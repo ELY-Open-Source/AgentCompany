@@ -27,7 +27,7 @@ export interface BudgetGateResult {
 function getScopeLabel(db: AppDatabase, policy: BudgetPolicyRecord): string {
   if (policy.scopeType === "agent") {
     try {
-      const agents = db.loadSnapshot(null).agents;
+      const agents = db.listSnapshot({ companyId: null }).agents;
       const agent = agents.find((a) => a.id === policy.scopeId);
       return agent ? `Agent "${agent.name}"` : `Agent ${policy.scopeId.slice(0, 8)}`;
     } catch {
@@ -36,7 +36,7 @@ function getScopeLabel(db: AppDatabase, policy: BudgetPolicyRecord): string {
   }
   if (policy.scopeType === "project") {
     try {
-      const projects = db.loadSnapshot(null).projects;
+      const projects = db.listSnapshot({ companyId: null }).projects;
       const project = projects.find((p) => p.id === policy.scopeId);
       return project ? `Project "${project.name}"` : `Project ${policy.scopeId.slice(0, 8)}`;
     } catch {

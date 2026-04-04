@@ -1,6 +1,7 @@
 import type { AppDatabase } from "./database";
 import { getConnectorExecutionReadinessIssue, isConnectorExecutionReady } from "@shared/connector-policy";
 import type { ConnectorId, ConnectorRecord } from "@shared/types";
+import { validateConnectorModelSelection } from "./connector-model-policy";
 
 interface OnboardingBootstrapSummary {
   companyId: string;
@@ -18,6 +19,7 @@ interface BootstrapInput {
   workspacePath: string;
   autoApproveHires: boolean;
   reviewDeliverables?: boolean;
+  executionMode?: string;
   goalTitle: string;
   goalDescription: string;
   connectorId?: ConnectorId;
@@ -195,6 +197,10 @@ export function createOnboardingService({
   function bootstrapOnboarding(input: BootstrapInput): OnboardingBootstrapSummary {
     const snapshot = db.listSnapshot();
     const selectedConnectorId = resolveOnboardingConnector(snapshot.connectors, input.connectorId);
+    const modelSelection = validateConnectorModelSelection(db, selectedConnectorId, input.connectorModel ?? null);
+    if (!modelSelection.ok) {
+      throw new Error(modelSelection.error);
+    }
 
     const companyId = db.saveCompany({
       name: input.companyName.trim(),
@@ -202,6 +208,7 @@ export function createOnboardingService({
       status: "active",
       autoApproveHires: input.autoApproveHires,
       reviewDeliverables: input.reviewDeliverables,
+      executionMode: input.executionMode ?? "ai_ceo",
     });
     const workspaceId = createDefaultWorkspace(companyId, input.workspacePath);
 

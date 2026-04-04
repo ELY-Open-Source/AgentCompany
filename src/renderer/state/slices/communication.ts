@@ -8,11 +8,13 @@ export interface CommunicationSlice {
   searchResults: AgentMessageRecord[];
   searchLoading: boolean;
   searchRequestId: number;
+  activeThreadId: string | null;
   setSearchQuery: (query: string) => void;
   setSearchScope: (scope: "global" | "channel") => void;
   setSearchResults: (results: AgentMessageRecord[], requestId: number) => void;
   setSearchLoading: (loading: boolean) => void;
   clearSearch: () => void;
+  setActiveThreadId: (id: string | null) => void;
 }
 
 export const createCommunicationSlice: StateCreator<
@@ -26,6 +28,7 @@ export const createCommunicationSlice: StateCreator<
   searchResults: [],
   searchLoading: false,
   searchRequestId: 0,
+  activeThreadId: null,
   setSearchQuery: (query) =>
     set((state) => {
       state.searchQuery = query;
@@ -51,5 +54,9 @@ export const createCommunicationSlice: StateCreator<
       state.searchQuery = "";
       state.searchResults = [];
       state.searchLoading = false;
+    }),
+  setActiveThreadId: (id) =>
+    set((state) => {
+      state.activeThreadId = id;
     }),
 });

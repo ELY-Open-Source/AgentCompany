@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 
 /**
  * Tests for the retry-aware failure escalation pipeline.
@@ -15,19 +15,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // and verifying the calls it makes to the database and notification system.
 
 interface MockDb {
-  getTaskRetryCount: ReturnType<typeof vi.fn>;
-  incrementTaskRetryCount: ReturnType<typeof vi.fn>;
-  resetTaskRetryCount: ReturnType<typeof vi.fn>;
-  getChainOfCommand: ReturnType<typeof vi.fn>;
-  getCeoForCompany: ReturnType<typeof vi.fn>;
-  advanceTaskStatus: ReturnType<typeof vi.fn>;
+  getTaskRetryCount: MockInstance & ((taskId: string) => number);
+  incrementTaskRetryCount: MockInstance & ((taskId: string) => void);
+  resetTaskRetryCount: MockInstance & ((taskId: string) => void);
+  getChainOfCommand: MockInstance & ((agentId: string) => { id: string; name: string }[]);
+  getCeoForCompany: MockInstance & ((companyId: string) => { id: string; name: string } | null);
+  advanceTaskStatus: MockInstance & ((taskId: string, status: string, note: string) => { previousStatus: string });
 }
 
 interface MockDeps {
   db: MockDb;
-  wakeAgentIfPossible: ReturnType<typeof vi.fn>;
-  notify: ReturnType<typeof vi.fn>;
-  logger: { info: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
+  wakeAgentIfPossible: MockInstance & ((agentId: string, companyId: string, reason: string) => string);
+  notify: MockInstance & ((...args: unknown[]) => void);
+  logger: { info: MockInstance & ((...args: unknown[]) => void); warn: MockInstance & ((...args: unknown[]) => void); error: MockInstance & ((...args: unknown[]) => void) };
 }
 
 const MAX_RETRY_ATTEMPTS = 2;
@@ -146,7 +146,7 @@ function createMockDeps(): MockDeps {
       warn: vi.fn(),
       error: vi.fn(),
     },
-  };
+  } as unknown as MockDeps;
 }
 
 const RUN = { taskId: "task-1", agentId: "agent-1", companyId: "company-1" };

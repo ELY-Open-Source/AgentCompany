@@ -19,6 +19,7 @@ concurrency:
 env:
   PNPM_VERSION: '10.24.0'
   NODE_VERSION: '22'
+  CI_RELEASE_TAG: ci-build-${{ github.run_id }}
 
 jobs:
   # ─────────────────────────────────────────────
@@ -37,8 +38,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
       - run: pnpm lint
-      - run: pnpm exec tsc --noEmit --project tsconfig.check.json
+      - run: pnpm typecheck:all
 
   # ─────────────────────────────────────────────
   # Stage 2: Unit Tests
@@ -57,7 +59,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test
+      - run: pnpm test:unit
+      - run: pnpm test:integration
 
   # ─────────────────────────────────────────────
   # Stage 3: Build matrix (parallel per platform)
@@ -67,6 +70,8 @@ jobs:
     name: macOS (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     needs: test
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -103,26 +108,36 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: macos-${{ matrix.arch }}
-          path: |
-            build/release/*.dmg
-            build/release/*.zip
-            build/release/*.blockmap
-            build/release/latest-mac.yml
-          if-no-files-found: error
+      - name: Upload release files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$CI_RELEASE_TAG" >/dev/null 2>&1 || \
+            gh release create "$CI_RELEASE_TAG" \
+              --draft \
+              --prerelease \
+              --title "CI Build $GITHUB_RUN_ID" \
+              --notes "Temporary build artifact transport for Cloudflare publication." \
+              --target "$GITHUB_SHA"
+          gh release upload "$CI_RELEASE_TAG" \
+            build/release/*.dmg \
+            build/release/*.zip \
+            build/release/*.blockmap \
+            build/release/latest-mac.yml \
+            --clobber
 
   build-windows:
     name: Windows (${{ matrix.arch }})
     runs-on: windows-latest
     needs: test
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          - arch: x64
-            builder_args: --win --x64
+          - arch: x64-ia32
+            builder_args: --win --x64 --ia32
           - arch: arm64
             builder_args: --win --arm64
     steps:
@@ -142,19 +157,30 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.WIN_CERTIFICATE_P12_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-${{ matrix.arch }}
-          path: |
-            build/release/*.exe
-            build/release/*.blockmap
-            build/release/latest.yml
-          if-no-files-found: error
+      - name: Upload release files
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$CI_RELEASE_TAG" >/dev/null 2>&1 || \
+            gh release create "$CI_RELEASE_TAG" \
+              --draft \
+              --prerelease \
+              --title "CI Build $GITHUB_RUN_ID" \
+              --notes "Temporary build artifact transport for Cloudflare publication." \
+              --target "$GITHUB_SHA"
+          gh release upload "$CI_RELEASE_TAG" \
+            build/release/*.exe \
+            build/release/*.blockmap \
+            build/release/latest.yml \
+            --clobber
 
   build-linux:
     name: Linux (${{ matrix.arch }})
     runs-on: ubuntu-latest
     needs: test
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -180,17 +206,24 @@ jobs:
         run: pnpm exec electron-vite build
       - name: Package
         run: pnpm exec electron-builder ${{ matrix.builder_args }} --config electron-builder.yml --publish never
-      - uses: actions/upload-artifact@v4
-        with:
-          name: linux-${{ matrix.arch }}
-          path: |
-            build/release/*.AppImage
-            build/release/*.deb
-            build/release/*.rpm
-            build/release/*.snap
-            build/release/*.blockmap
-            build/release/latest-linux.yml
-          if-no-files-found: warn
+      - name: Upload release files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$CI_RELEASE_TAG" >/dev/null 2>&1 || \
+            gh release create "$CI_RELEASE_TAG" \
+              --draft \
+              --prerelease \
+              --title "CI Build $GITHUB_RUN_ID" \
+              --notes "Temporary build artifact transport for Cloudflare publication." \
+              --target "$GITHUB_SHA"
+          gh release upload "$CI_RELEASE_TAG" \
+            build/release/*.AppImage \
+            build/release/*.deb \
+            build/release/*.rpm \
+            build/release/*.blockmap \
+            build/release/latest-linux.yml \
+            --clobber
 
   # ─────────────────────────────────────────────
   # Stage 4: Publish to GitHub Releases

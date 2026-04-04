@@ -8,6 +8,8 @@ type SkillAgentTogglesProps =
 
 export function SkillAgentToggles(props: SkillAgentTogglesProps) {
   const { companyId, mode } = props;
+  const skillId = mode === "skill" ? props.skillId : "";
+  const agentId = mode === "agent" ? props.agentId : "";
   const addToast = useAppStore((s) => s.addToast);
   const [assignedIds, setAssignedIds] = useState<Set<string>>(new Set());
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -16,27 +18,27 @@ export function SkillAgentToggles(props: SkillAgentTogglesProps) {
     let cancelled = false;
     async function load() {
       if (mode === "skill") {
-        const result = await window.agentCompany.listSkillAgents(companyId, props.skillId);
+        const result = await window.agentCompany.listSkillAgents(companyId, skillId);
         if (!cancelled && result.ok) setAssignedIds(new Set(result.data));
       } else {
-        const result = await window.agentCompany.listAgentSkills(companyId, props.agentId);
+        const result = await window.agentCompany.listAgentSkills(companyId, agentId);
         if (!cancelled && result.ok) setAssignedIds(new Set(result.data));
       }
     }
     void load();
     return () => { cancelled = true; };
-  }, [mode, companyId, mode === "skill" ? props.skillId : props.agentId]);
+  }, [mode, companyId, skillId, agentId]);
 
   const handleToggle = useCallback(
     async (targetId: string) => {
       setTogglingId(targetId);
       const isAssigned = assignedIds.has(targetId);
-      const agentId = mode === "skill" ? targetId : props.agentId;
-      const skillId = mode === "skill" ? props.skillId : targetId;
+      const resolvedAgentId = mode === "skill" ? targetId : agentId;
+      const resolvedSkillId = mode === "skill" ? skillId : targetId;
 
       const result = isAssigned
-        ? await window.agentCompany.removeSkillFromAgent(companyId, agentId, skillId)
-        : await window.agentCompany.assignSkillToAgent(companyId, agentId, skillId);
+        ? await window.agentCompany.removeSkillFromAgent(companyId, resolvedAgentId, resolvedSkillId)
+        : await window.agentCompany.assignSkillToAgent(companyId, resolvedAgentId, resolvedSkillId);
 
       if (result.ok) {
         setAssignedIds((prev) => {
@@ -50,9 +52,7 @@ export function SkillAgentToggles(props: SkillAgentTogglesProps) {
       }
       setTogglingId(null);
     },
-    [assignedIds, mode, companyId, addToast,
-      mode === "skill" ? props.skillId : "",
-      mode === "agent" ? props.agentId : ""],
+    [assignedIds, mode, companyId, addToast, skillId, agentId],
   );
 
   const items: Array<{ id: string; name: string; detail?: string }> =

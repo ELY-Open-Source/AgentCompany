@@ -7,10 +7,13 @@ import {
   CheckCircle,
   WarningCircle,
   ArrowBendUpLeft,
+  UserCircle,
 } from "@phosphor-icons/react"
 import type { AgentMessageRecord, AgentRecord, CommentRecord, DepartmentId } from "@shared/types"
 import { getAgentInitials, formatMessageTime } from "../../lib/formatters"
 import { DEPARTMENT_COLORS } from "@shared/constants"
+
+const HUMAN_SENDER_ID = "__board__";
 
 
 const priorityConfig: Record<string, { label: string; className: string }> = {
@@ -59,8 +62,10 @@ export const MessageBubble = memo(function MessageBubble({
   onReply: () => void
 }) {
   const isUnread = !message.readAt
-  const isUrgent = message.priority === "urgent"
+  const isHuman = message.fromAgentId === HUMAN_SENDER_ID
   const deptColor = agent ? getDepartmentColor(agent.department) : "var(--muted-foreground)"
+  const senderColor = isHuman ? "var(--primary)" : deptColor
+  const senderName = isHuman ? "You" : (agent?.name ?? "Unknown Agent")
 
   return (
     <motion.div
@@ -75,12 +80,14 @@ export const MessageBubble = memo(function MessageBubble({
           : "hover:bg-muted/40"
       }`}
     >
-      <AgentAvatar agent={agent} />
+      {isHuman
+        ? <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"><UserCircle size={20} weight="fill" /></div>
+        : <AgentAvatar agent={agent} />}
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-[13px] font-semibold" style={{ color: deptColor }}>
-            {agent?.name ?? "Unknown Agent"}
+          <span className="truncate text-[13px] font-semibold" style={{ color: senderColor }}>
+            {senderName}
           </span>
           {agent?.title ? (
             <span className="truncate text-[11px] text-muted-foreground">{agent.title}</span>

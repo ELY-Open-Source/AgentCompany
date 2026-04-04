@@ -1,0 +1,350 @@
+import type {
+  ConnectorId,
+  ConnectorStatus,
+  CompanyStatus,
+  ExecutionMode,
+  WorkspaceState,
+  DepartmentId,
+  AgentStatus,
+  GoalStatus,
+  ProjectStatus,
+  TaskStatus,
+  ApprovalState,
+  ApprovalType,
+  RunStatus,
+  SkillSourceType,
+  TrustLevel,
+} from "./enums";
+
+export interface CapabilityMatrix {
+  sessionResume: boolean;
+  gracefulCancel: boolean;
+  modelDiscovery: boolean;
+  structuredTranscript: boolean;
+  costAttribution: boolean;
+}
+
+export interface CompanyRecord {
+  id: string;
+  name: string;
+  description: string;
+  status: CompanyStatus;
+  autoApproveHires: boolean;
+  reviewDeliverables: boolean;
+  executionMode: ExecutionMode;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConnectorRecord {
+  id: ConnectorId;
+  label: string;
+  description: string;
+  status: ConnectorStatus;
+  command: string;
+  version: string | null;
+  authState: "unknown" | "ok" | "required" | "error";
+  lastCheckedAt: string | null;
+  lastError: string | null;
+  model: string | null;
+  envBindingText: string;
+  notes: string;
+  configurationDoc: string;
+  capabilityMatrix: CapabilityMatrix;
+}
+
+export interface WorkspaceRecord {
+  id: string;
+  companyId: string;
+  name: string;
+  localPath: string;
+  repoUrl: string;
+  repoRef: string;
+  projectId: string | null;
+  state: WorkspaceState;
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentRecord {
+  id: string;
+  companyId: string;
+  name: string;
+  role: string;
+  title: string;
+  department: DepartmentId | null;
+  status: AgentStatus;
+  reportsTo: string | null;
+  connectorId: ConnectorId;
+  workspaceId: string | null;
+  model: string | null;
+  capabilities: string;
+  budgetMonthlyUsd: number;
+  spentMonthlyUsd: number;
+  metadataJson: string;
+  heartbeatEnabled: boolean;
+  heartbeatIntervalSec: number;
+  lastHeartbeatAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GoalRecord {
+  id: string;
+  companyId: string;
+  title: string;
+  description: string;
+  parentId: string | null;
+  ownerAgentId: string | null;
+  status: GoalStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectRecord {
+  id: string;
+  companyId: string;
+  goalId: string | null;
+  name: string;
+  description: string;
+  leadAgentId: string | null;
+  status: ProjectStatus;
+  targetDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskRecord {
+  id: string;
+  companyId: string;
+  projectId: string | null;
+  goalId: string | null;
+  parentId: string | null;
+  title: string;
+  description: string;
+  assigneeAgentId: string | null;
+  workspaceId: string | null;
+  status: TaskStatus;
+  priority: "critical" | "high" | "medium" | "low";
+  activeRunId: string | null;
+  sessionJson: string | null;
+  sessionDisplayId: string | null;
+  costUsd: number;
+  requiresUserReview: boolean;
+  startedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApprovalRecord {
+  id: string;
+  companyId: string;
+  relatedTaskId: string | null;
+  relatedAgentId: string | null;
+  requestedByAgentId: string | null;
+  type: ApprovalType;
+  payloadSummary: string;
+  impactSummary: string;
+  payloadJson: string | null;
+  decisionNote: string;
+  state: ApprovalState;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RunRecord {
+  id: string;
+  companyId: string;
+  taskId: string;
+  agentId: string;
+  workspaceId: string | null;
+  connectorId: ConnectorId;
+  status: RunStatus;
+  summary: string;
+  errorMessage: string | null;
+  exitCode: number | null;
+  signal: string | null;
+  model: string | null;
+  sessionDisplayId: string | null;
+  costUsd: number | null;
+  unattributedCost: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  logPath: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RunLogChunk {
+  content: string;
+  offset: number;
+  nextOffset: number;
+  totalBytes: number;
+  eof: boolean;
+}
+
+export interface CostRecord {
+  id: string;
+  companyId: string;
+  runId: string;
+  taskId: string | null;
+  agentId: string | null;
+  connectorId: ConnectorId;
+  amountUsd: number | null;
+  unattributed: boolean;
+  createdAt: string;
+}
+
+export interface BudgetPolicyRecord {
+  id: string;
+  companyId: string;
+  scopeType: "company" | "agent" | "project";
+  scopeId: string;
+  metric: string;
+  windowKind: string;
+  amount: number; // INTEGER cents
+  warnPercent: number;
+  hardStopEnabled: boolean;
+  notifyEnabled: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BudgetIncidentRecord {
+  id: string;
+  companyId: string;
+  policyId: string;
+  scopeType: string;
+  scopeId: string;
+  metric: string;
+  windowKind: string;
+  windowStart: string;
+  windowEnd: string;
+  thresholdType: "warn_threshold" | "hard_stop";
+  amountLimit: number;
+  amountObserved: number;
+  status: "open" | "resolved" | "auto_resolved_limit_increase" | "auto_closed";
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BudgetStatusSummary {
+  policies: Array<{
+    policyId: string;
+    scopeType: string;
+    scopeId: string;
+    amount: number;
+    spent: number;
+    warnPercent: number;
+    hardStopEnabled: boolean;
+    hasOpenIncident: boolean;
+  }>;
+}
+
+export interface TaskSessionRecord {
+  id: string;
+  companyId: string;
+  taskId: string;
+  agentId: string;
+  adapterType: string;
+  sessionParamsJson: string | null;
+  sessionDisplayId: string | null;
+  lastRunId: string | null;
+  lastError: string | null;
+  runCount: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  rotatedAt: string | null;
+  rotationReason: string | null;
+  handoffMarkdown: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActivityRecord {
+  id: string;
+  companyId: string;
+  actor: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  detail: string;
+  createdAt: string;
+}
+
+export interface SecretRecord {
+  id: string;
+  companyId: string;
+  name: string;
+  description: string;
+  backend: "safe_storage" | "vault";
+  updatedAt: string;
+}
+
+export interface CommentRecord {
+  id: string;
+  companyId: string;
+  taskId: string;
+  authorAgentId: string | null;
+  authorName: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface FileInventoryEntry {
+  path: string;
+  kind: "skill" | "reference" | "script" | "asset" | "markdown" | "other";
+}
+
+export interface SkillRecord {
+  id: string;
+  companyId: string;
+  key: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  markdown: string;
+  sourceType: SkillSourceType;
+  sourceLocator: string | null;
+  sourceRef: string | null;
+  trustLevel: TrustLevel;
+  compatibility: string;
+  fileInventory: FileInventoryEntry[];
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SkillImportResult {
+  skillId: string;
+  key: string;
+  name: string;
+  isUpdate: boolean;
+}
+
+export interface SkillUpdateStatus {
+  skillId: string;
+  key: string;
+  currentRef: string | null;
+  latestRef: string | null;
+  hasUpdate: boolean;
+}
+
+export type MentionOutcome = "woken" | "queued" | "busy" | "not_found";
+
+export interface MentionResult {
+  agentId: string;
+  agentName: string;
+  outcome: MentionOutcome;
+}
+
+export interface SendMessageResult {
+  id: string;
+  mentionResults: MentionResult[];
+}
+

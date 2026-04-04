@@ -1,0 +1,74 @@
+import type { AppDatabase } from "../database";
+import type { NotificationOptions } from "../notification-service";
+import type { createBudgetEnforcementService } from "../budget-enforcement-service";
+import type { RuntimeSkillEntry } from "../skill-types";
+
+export type WorkspaceLockMode = "exclusive" | "shared" | "none";
+
+export interface WorkspaceResolution {
+  workspace: ReturnType<AppDatabase["getWorkspace"]>;
+  lockMode: WorkspaceLockMode;
+  source: "task" | "agent" | "project" | "company_fallback" | "none";
+}
+
+export interface AutomationDispatch {
+  companyId: string;
+  taskId?: string;
+  agentId?: string;
+  runId?: string;
+  projectId?: string;
+  department?: string;
+  previousStatus?: string;
+  newStatus?: string;
+  costUsd?: number;
+}
+
+export interface EnqueueRunPayload {
+  runId: string;
+  companyId: string;
+  taskId: string;
+  taskTitle: string;
+  taskDescription: string;
+  agentId: string;
+  agentName: string;
+  connectorId: string;
+  workspaceId: string | null;
+  workspacePath: string | null;
+  workspaceMode: WorkspaceLockMode;
+  command: string;
+  model: string | null;
+  thinkingEffort: string | null;
+  env: Record<string, string>;
+  sessionParams: Record<string, unknown> | null;
+  systemPrompt: string | null;
+  trigger: string | null;
+  managedSkills: Array<{ runtimeName: string; sourcePath: string }>;
+}
+
+export interface OrchestrationDependencies {
+  db: AppDatabase;
+  logger: {
+    debug: (...args: unknown[]) => void;
+    info: (...args: unknown[]) => void;
+    warn: (...args: unknown[]) => void;
+    error: (...args: unknown[]) => void;
+  };
+  publishDomainChanged: () => void;
+  emitEvent: (event: any) => void;
+  notify: (options: NotificationOptions) => void;
+  createRunToken: (agentId: string, companyId: string, runId: string) => string;
+  getApiPort: () => number;
+  dispatchAutomation: (trigger: string, ctx: AutomationDispatch) => void;
+  hasWorkerReady: () => boolean;
+  enqueueWorkerRun: (payload: EnqueueRunPayload) => void;
+  isQuitting: () => boolean;
+  listRuntimeSkillEntries: (companyId: string, agentId: string, connectorId: string) => RuntimeSkillEntry[];
+  budgetService: ReturnType<typeof createBudgetEnforcementService>;
+  /** Checkpoint engine for unified co-founder mode pause decisions. */
+  checkpointEngine?: { shouldPauseHeartbeat: (companyId: string, agentId: string) => boolean };
+  getSessionHandoff?: (taskId: string) => string | null;
+  evaluatePreRunSessionRotation?: (taskId: string, connectorId: string) => {
+    rotated: boolean;
+    handoff: string | null;
+  };
+}

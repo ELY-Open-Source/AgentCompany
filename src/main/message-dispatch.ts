@@ -1,8 +1,16 @@
 import type { AppDatabase } from "./database";
-import type { AgentMessageRecord, DesktopEvent, MessageChannel } from "@shared/types";
+import type { AgentMessageRecord, DesktopEvent, MessageChannel, MentionResult, SectionId } from "@shared/types";
+
+/**
+ * The board reader / human participant ID.
+ * When a human sends a message, this is used as the fromAgentId in the
+ * underlying agent_messages record. Matches BOARD_READER_ID in database.ts.
+ */
+export const HUMAN_SENDER_ID = "__board__";
 
 export interface AgentMessageDispatchInput {
   companyId: string;
+  /** Agent ID of the sender. Use HUMAN_SENDER_ID for human-originated messages. */
   fromAgentId: string;
   toAgentId?: string | null;
   channel?: MessageChannel;
@@ -11,7 +19,12 @@ export interface AgentMessageDispatchInput {
   body: string;
   priority?: "urgent" | "normal" | "low";
   parentMessageId?: string | null;
+  threadId?: string | null;
   attachmentsJson?: string;
+  /** When true, the sender is a human user (fromAgentId === HUMAN_SENDER_ID). */
+  fromHumanUser?: boolean;
+  /** Optional: target a specific thread wait state for precise checkpoint resolution. */
+  waitStateId?: string | null;
 }
 
 export interface NormalizedAgentMessageInput {
@@ -24,7 +37,10 @@ export interface NormalizedAgentMessageInput {
   body: string;
   priority: "urgent" | "normal" | "low";
   parentMessageId: string | null;
+  threadId: string | null;
   attachmentsJson: string;
+  fromHumanUser: boolean;
+  waitStateId: string | null;
 }
 
 export interface MessageValidationError {
@@ -42,16 +58,24 @@ export interface DispatchAgentMessageDependencies {
   publishDomainChanged?: () => void;
   wakeAgentIfPossible?: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
   emitEvent?: (event: DesktopEvent) => void;
+  notify?: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
+  /** Called when a human user sends a message. Resolves thread wait states scoped by waitStateId, threadId, or recipient. */
+  onHumanMessage?: (companyId: string, toAgentId?: string | null, threadId?: string | null, waitStateId?: string | null) => void;
 }
 
 export interface DispatchAgentMessageResult {
   id: string;
   message: AgentMessageRecord | null;
   wakeTargets: string[];
+  mentionResults: MentionResult[];
 }
 
 function normalizeString(value: string | null | undefined): string {
   return value?.trim() ?? "";
+}
+
+function truncateForNotification(value: string, maxLength: number): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength - 1)}…` : value;
 }
 
 function normalizeChannelTargetId(channel: MessageChannel, channelTargetId: string | null | undefined): string | null {
@@ -69,11 +93,13 @@ export function normalizeAgentMessageInput(input: AgentMessageDispatchInput): No
   const toAgentId = normalizeString(input.toAgentId) || null;
   const channelTargetId = normalizeChannelTargetId(channel, input.channelTargetId);
   const parentMessageId = normalizeString(input.parentMessageId) || null;
+  const threadId = normalizeString(input.threadId) || null;
   const attachmentsJson = normalizeString(input.attachmentsJson) || "[]";
+  const fromHumanUser = input.fromHumanUser === true || input.fromAgentId === HUMAN_SENDER_ID;
 
   return {
     companyId: input.companyId,
-    fromAgentId: input.fromAgentId,
+    fromAgentId: fromHumanUser ? HUMAN_SENDER_ID : input.fromAgentId,
     toAgentId,
     channel,
     channelTargetId,
@@ -81,7 +107,10 @@ export function normalizeAgentMessageInput(input: AgentMessageDispatchInput): No
     body: input.body,
     priority,
     parentMessageId,
+    threadId,
     attachmentsJson,
+    fromHumanUser,
+    waitStateId: normalizeString(input.waitStateId) || null,
   };
 }
 
@@ -89,7 +118,8 @@ export function validateAgentMessageInput(
   db: AppDatabase,
   input: NormalizedAgentMessageInput,
 ): MessageValidationError | null {
-  if (!db.belongsToCompany("agents", input.fromAgentId, input.companyId)) {
+  // Human sender (BOARD_READER_ID) is always a valid sender — skip agent ownership check.
+  if (!input.fromHumanUser && !db.belongsToCompany("agents", input.fromAgentId, input.companyId)) {
     return {
       code: "INVALID_COMPANY_REFERENCE",
       message: "The message sender does not belong to the current company.",
@@ -109,7 +139,7 @@ export function validateAgentMessageInput(
     };
   }
 
-  if (input.toAgentId && !db.belongsToCompany("agents", input.toAgentId, input.companyId)) {
+  if (input.toAgentId && input.toAgentId !== HUMAN_SENDER_ID && !db.belongsToCompany("agents", input.toAgentId, input.companyId)) {
     return {
       code: "INVALID_COMPANY_REFERENCE",
       message: "The message recipient does not belong to the current company.",
@@ -222,6 +252,14 @@ export function resolveMessageWakeTargets(
     }
   }
 
+  // Parse @mentions in message body and wake mentioned agents
+  const mentionedIds = db.findMentionedAgentIds(input.companyId, input.body);
+  for (const mentionedId of mentionedIds) {
+    if (mentionedId !== input.fromAgentId) {
+      wakeTargets.add(mentionedId);
+    }
+  }
+
   return Array.from(wakeTargets);
 }
 
@@ -236,9 +274,10 @@ export function dispatchAgentMessage(
     return { ok: false, error: validationError };
   }
 
+  const senderKind = normalized.fromHumanUser ? "human" as const : "agent" as const;
   const persistedMessage = normalized.channel === "direct"
-    ? normalized
-    : { ...normalized, toAgentId: null };
+    ? { ...normalized, senderKind }
+    : { ...normalized, toAgentId: null, senderKind };
   const id = deps.db.sendAgentMessage(persistedMessage);
   const message = deps.db.getAgentMessage(id, normalized.companyId);
   if (message && deps.emitEvent) {
@@ -246,10 +285,47 @@ export function dispatchAgentMessage(
   }
   deps.publishDomainChanged?.();
 
+  if (
+    message &&
+    deps.notify &&
+    !normalized.fromHumanUser &&
+    (message.channel !== "direct" || message.toAgentId === HUMAN_SENDER_ID)
+  ) {
+    const snapshot = deps.db.listSnapshot();
+    const senderName = snapshot.agents.find((entry) => entry.id === message.fromAgentId)?.name ?? "Agent";
+    deps.notify({
+      title: truncateForNotification(`${senderName} · ${message.subject}`, 80),
+      body: truncateForNotification(message.body, 140),
+      urgency: message.priority === "urgent" ? "critical" : "informational",
+      navigation: { section: "communication", entityId: message.id },
+      batchKey: "agent_message",
+    });
+  }
+
+  // When a human sends a message, resolve thread wait states.
+  // Resolution uses precision hierarchy: waitStateId > threadId > toAgentId > company-wide
+  if (normalized.fromHumanUser) {
+    deps.onHumanMessage?.(normalized.companyId, normalized.toAgentId, normalized.threadId, normalized.waitStateId);
+  }
+
   const wakeTargets = resolveMessageWakeTargets(deps.db, normalized);
+  const mentionResults: MentionResult[] = [];
+
   if (deps.wakeAgentIfPossible) {
+    const snapshot = deps.db.listSnapshot();
     for (const wakeTarget of wakeTargets) {
-      deps.wakeAgentIfPossible(wakeTarget, normalized.companyId, wakeTrigger);
+      const agent = snapshot.agents.find((a) => a.id === wakeTarget && a.companyId === normalized.companyId);
+      const agentName = agent?.name ?? wakeTarget;
+      const runId = deps.wakeAgentIfPossible(wakeTarget, normalized.companyId, wakeTrigger);
+      const hasQueuedWake = !runId && deps.db.listWakeupRequests(normalized.companyId, {
+        agentId: wakeTarget,
+        limit: 10,
+      }).some((request) => request.status === "queued" || request.status === "deferred");
+      mentionResults.push({
+        agentId: wakeTarget,
+        agentName,
+        outcome: runId ? "woken" : hasQueuedWake ? "queued" : "busy",
+      });
     }
   }
 
@@ -259,6 +335,7 @@ export function dispatchAgentMessage(
       id,
       message,
       wakeTargets,
+      mentionResults,
     },
   };
 }

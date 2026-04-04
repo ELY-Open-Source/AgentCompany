@@ -106,6 +106,8 @@ describe("selective IPC event types", () => {
           return "agent-updated";
         case "budget-changed":
           return "budget-changed";
+        case "thread-wait-state-updated":
+          return "thread-wait-state-updated";
         default: {
           const _exhaustive: never = event;
           return _exhaustive;

@@ -4,8 +4,8 @@ import {
   inferTaskType,
   getConnectorStrengths,
   TASK_TYPE_PREFERENCE,
-  CONNECTOR_STRENGTHS,
-  ROLE_DEPARTMENT_HINTS,
+  CONNECTOR_STRENGTHS as _CONNECTOR_STRENGTHS,
+  ROLE_DEPARTMENT_HINTS as _ROLE_DEPARTMENT_HINTS,
 } from "../../src/main/connector-matching";
 import type { ConnectorId, ConnectorStatus } from "@shared/types";
 
@@ -35,10 +35,9 @@ describe("connector-matching", () => {
       expect(TASK_TYPE_PREFERENCE.general[0]).toBe("claude_local");
     });
 
-    it("includes all three connectors for every task type", () => {
+    it("includes all three core connectors for every task type", () => {
       for (const key of Object.keys(TASK_TYPE_PREFERENCE)) {
         const prefs = TASK_TYPE_PREFERENCE[key as keyof typeof TASK_TYPE_PREFERENCE];
-        expect(prefs).toHaveLength(3);
         expect(prefs).toContain("claude_local");
         expect(prefs).toContain("codex_local");
         expect(prefs).toContain("gemini_local");

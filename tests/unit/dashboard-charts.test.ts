@@ -7,9 +7,9 @@ import {
   formatShortDate,
 } from "../../src/renderer/components/dashboard/charts/chart-utils";
 import type {
-  DailyRunData,
-  DailyCostData,
-  AgentWorkloadData,
+  DailyRunData as _DailyRunData,
+  DailyCostData as _DailyCostData,
+  AgentWorkloadData as _AgentWorkloadData,
 } from "../../src/renderer/components/dashboard/charts/chart-utils";
 
 // Helper to create a minimal RunRecord for testing

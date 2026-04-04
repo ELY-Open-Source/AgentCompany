@@ -1,29 +1,12 @@
 import type { AppDatabase } from "./database";
-
-const AUTO_APPROVAL_TYPES = new Set(["hire_agent", "approve_ceo_strategy"]);
+import { shouldAutoApprove } from "./execution-policy";
 
 export function shouldAutoApproveApproval(
   db: AppDatabase,
   companyId: string,
   approvalType: string,
 ): boolean {
-  if (!AUTO_APPROVAL_TYPES.has(approvalType)) {
-    return false;
-  }
-
-  const company = db
-    .listSnapshot()
-    .companies
-    .find((c) => c.id === companyId);
-
-  if (!company?.autoApproveHires) return false;
-
-  // When reviewDeliverables is ON, CEO strategy needs human review — don't auto-approve
-  if (approvalType === "approve_ceo_strategy" && company.reviewDeliverables) {
-    return false;
-  }
-
-  return true;
+  return shouldAutoApprove(db, companyId, approvalType);
 }
 
 export function resolveApprovalDecision({

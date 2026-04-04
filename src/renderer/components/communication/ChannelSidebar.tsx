@@ -98,7 +98,7 @@ export function ChannelSidebar({
   unreadByChannel,
   agents,
   totalChannels,
-  onHideSidebar,
+  onHideSidebar: _onHideSidebar,
 }: ChannelSidebarProps) {
   const t = useT()
 

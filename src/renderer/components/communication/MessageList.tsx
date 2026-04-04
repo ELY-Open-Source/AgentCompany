@@ -30,7 +30,7 @@ export function MessageList({
   activeChannel,
   filteredMessages,
   taskDiscussionComments,
-  activeTask,
+  activeTask: _activeTask,
   agentMap,
   filters,
   onReply,

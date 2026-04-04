@@ -16,7 +16,9 @@ export function registerAgentCoordinationHandlers({
   findInvalidReference,
   publishDomainChanged,
   emitEvent,
+  notify,
   wakeAgentIfPossible,
+  onHumanMessage,
 }: Pick<
   RegisterDomainHandlersDependencies,
   | "registerHandle"
@@ -25,7 +27,9 @@ export function registerAgentCoordinationHandlers({
   | "findInvalidReference"
   | "publishDomainChanged"
   | "emitEvent"
+  | "notify"
   | "wakeAgentIfPossible"
+  | "onHumanMessage"
 >) {
   registerHandle(IPC_CHANNELS.sendAgentMessage, async (_event, payload) => {
     const parsed = agentMessageInputSchema.parse(payload);
@@ -35,8 +39,10 @@ export function registerAgentCoordinationHandlers({
       {
         db,
         emitEvent,
+        notify,
         publishDomainChanged,
         wakeAgentIfPossible,
+        onHumanMessage,
       },
       parsed,
       "message",
@@ -44,7 +50,10 @@ export function registerAgentCoordinationHandlers({
     if (!dispatchResult.ok) {
       return fail(dispatchResult.error.code, dispatchResult.error.message);
     }
-    return ok(dispatchResult.data.id);
+    return ok({
+      id: dispatchResult.data.id,
+      mentionResults: dispatchResult.data.mentionResults,
+    });
   });
 
   registerHandle(IPC_CHANNELS.listAgentMessages, async (_event, payload) => {

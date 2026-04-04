@@ -1,0 +1,130 @@
+import { motion } from "framer-motion";
+import type { ConnectorModelEntry } from "@shared/connector-models";
+import type { ConnectorId, ProfileSnapshot } from "@shared/types";
+import type { AppLocale } from "@shared/locale";
+import { ActionButton } from "../ui";
+import { ModelToggleList, StatusBadge } from "../execution/ModelManagementShared";
+
+interface ModelPoolStepProps {
+  currentLocale: AppLocale;
+  connectorModelPools: Array<{
+    connector: ProfileSnapshot["connectors"][number];
+    models: ConnectorModelEntry[];
+  }>;
+  error: string | null;
+  onBack: () => void;
+  onContinue: () => void;
+  onToggleConnectorModel: (connectorId: ConnectorId, modelId: string) => void;
+  selectedConnectorId: ConnectorId | "";
+  selectedConnectorEnabledModels: number;
+  totalEnabledModels: number;
+  t: (key: string) => string;
+}
+
+export function ModelPoolStep({
+  currentLocale,
+  connectorModelPools,
+  error,
+  onBack,
+  onContinue,
+  onToggleConnectorModel,
+  selectedConnectorId,
+  selectedConnectorEnabledModels,
+  totalEnabledModels,
+  t,
+}: ModelPoolStepProps) {
+  const selectedConnectorIsRunnable = selectedConnectorEnabledModels > 0;
+  const hasAnyEnabledModels = totalEnabledModels > 0;
+  const canContinue = hasAnyEnabledModels && selectedConnectorIsRunnable;
+  const readinessHint = !hasAnyEnabledModels
+    ? t("onboarding.modelPoolGlobalRequirement")
+    : !selectedConnectorIsRunnable
+      ? t("onboarding.modelPoolSelectedConnectorRequirement")
+      : t("onboarding.modelPoolContinueHint");
+
+  return (
+    <motion.div
+      key="modelpool"
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -18 }}
+      transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+      className="w-full rounded-lg border border-border bg-card p-7 shadow-sm"
+    >
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        {t("onboarding.stepLabelModelPool")} 4 / 6
+      </div>
+      <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
+        {t("onboarding.modelPoolStepTitle")}
+      </div>
+      <div className="mb-3 text-[13px] leading-relaxed text-muted-foreground">
+        {t("onboarding.modelPoolStepSubtitle")}
+      </div>
+      <div className="mb-6 h-px bg-[color:var(--border)]" />
+
+      <div className="mb-4 rounded-lg border border-border bg-background/70 px-4 py-3 text-[12px] leading-relaxed text-muted-foreground">
+        {t("onboarding.modelPoolStepDescription")}
+      </div>
+
+      <div className="space-y-3">
+        {connectorModelPools.map(({ connector, models }) => {
+          const enabledCount = models.filter((model) => model.enabled).length;
+          return (
+            <div key={connector.id} className="rounded-lg border border-border bg-background/50 p-4">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-[13px] font-semibold text-foreground">
+                      {connector.id.startsWith("claude_compat") && connector.notes ? connector.notes : connector.label}
+                    </span>
+                    {connector.id === selectedConnectorId ? (
+                      <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-primary">
+                        {currentLocale === "zh" ? "CEO 当前运行时" : "CEO runtime"}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    {currentLocale === "zh"
+                      ? `已启用 ${enabledCount} / ${models.length || 0} 个模型`
+                      : `${enabledCount} / ${models.length || 0} models enabled`}
+                  </div>
+                </div>
+                <StatusBadge status={connector.status} zh={currentLocale === "zh"} />
+              </div>
+              <ModelToggleList
+                models={models}
+                onToggle={(modelId) => void onToggleConnectorModel(connector.id, modelId)}
+                canRemove={false}
+                zh={currentLocale === "zh"}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {error ? (
+        <div className="mt-5 rounded-lg border border-[color:var(--destructive)] bg-destructive-muted px-4 py-3 text-[13px] text-destructive">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="mt-5 text-[12px] text-muted-foreground">{readinessHint}</div>
+
+      <div className="mt-8 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-[12px] font-medium text-muted-foreground transition hover:text-foreground"
+        >
+          {t("onboarding.back")}
+        </button>
+        <ActionButton
+          label={t("onboarding.continue")}
+          onClick={onContinue}
+          tone="accent"
+          disabled={!canContinue}
+        />
+      </div>
+    </motion.div>
+  );
+}

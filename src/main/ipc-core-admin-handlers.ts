@@ -8,6 +8,7 @@ import {
   openTerminalCommandSchema,
   secretInputSchema,
 } from "@shared/contracts";
+import { validateConnectorConfigurationModel, validateConnectorModelSelection } from "./connector-model-policy";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
 
 export function registerCoreAdminHandlers({
@@ -54,6 +55,16 @@ export function registerCoreAdminHandlers({
     const existingConnector = db.getConnector(parsed.id);
     if (parsed.command !== existingConnector.command) {
       return fail("CONNECTOR_COMMAND_LOCKED", `Connector command is managed by AgentCompany and must remain "${existingConnector.command}".`);
+    }
+    const connectorConfigValidation = validateConnectorConfigurationModel(parsed.id, parsed.model ?? null);
+    if (!connectorConfigValidation.ok) {
+      return fail("CONNECTOR_MODEL_NOT_ALLOWED", connectorConfigValidation.error);
+    }
+    if (!parsed.id.startsWith("claude_compat")) {
+      const modelSelection = validateConnectorModelSelection(db, parsed.id, parsed.model ?? null);
+      if (!modelSelection.ok) {
+        return fail("CONNECTOR_MODEL_NOT_ALLOWED", modelSelection.error);
+      }
     }
     db.saveConnector({
       ...parsed,

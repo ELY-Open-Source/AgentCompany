@@ -1,4 +1,4 @@
-import { dialog, shell } from "electron";
+import { dialog, nativeTheme, shell } from "electron";
 import { join } from "node:path";
 import { z } from "zod";
 import {
@@ -83,6 +83,9 @@ export function registerCoreReadHandlers({
   registerHandle(IPC_CHANNELS.updateSettings, async (_event, payload) => {
     const parsed = settingsSchema.parse(payload);
     db.updateSettings(parsed);
+    if (parsed.theme) {
+      nativeTheme.themeSource = parsed.theme;
+    }
     publishDomainChanged();
     return ok(true);
   });

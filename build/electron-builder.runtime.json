@@ -1,15 +1,16 @@
 {
-  "extends": "/Users/zacharyzhang/Documents/Github/AgentCompany/electron-builder.yml",
+  "extends": "/project/electron-builder.yml",
   "directories": {
-    "output": "/Users/zacharyzhang/Documents/Github/AgentCompany/build/release"
+    "output": "/project/build/release"
   },
   "extraMetadata": {
-    "version": "0.4.136"
+    "version": "0.4.150"
   },
-  "mac": {
-    "hardenedRuntime": false,
-    "target": [
-      "zip"
-    ]
-  }
+  "electronDist": "/root/.cache/electron",
+  "publish": [
+    {
+      "provider": "generic",
+      "url": "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC"
+    }
+  ]
 }

@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { homedir } from "node:os";
+import { normalizeCommandValue } from "@agentcompany/adapter-utils/server-utils";
 import type { AppDatabase } from "./database";
 import { getConnectorDefinition } from "./connectors";
 import { buildSanitizedRuntimeEnv } from "./runtime-env";
@@ -36,9 +37,10 @@ export function createConnectorHealthService({
   function parseVersion(command: string): Promise<string | null> {
     return new Promise((resolve) => {
       let resolved = false;
-      const child = spawn(command, ["--version"], {
+      const normalizedCommand = normalizeCommandValue(command);
+      const child = spawn(normalizedCommand, ["--version"], {
         env: buildSanitizedRuntimeEnv(process.env, {}),
-        shell: process.platform === "win32",
+        shell: false,
         stdio: ["ignore", "pipe", "pipe"],
       });
       let buffer = "";
@@ -167,19 +169,12 @@ export function createConnectorHealthService({
       const errorMessage = error instanceof Error ? error.message : String(error);
       _logger.error(`[connector] Health check failed for ${id}: ${errorMessage}`);
       const isNotInstalled = /command.*not found|not executable|ENOENT/i.test(errorMessage);
-      const isTimeout = /timed out/i.test(errorMessage);
-      // If the command exists on PATH but the probe failed (timeout, unexpected output, etc.),
-      // still treat it as ready — the user configured it and it's resolvable.
-      const status = isNotInstalled
-        ? "not_installed"
-        : isTimeout
-          ? "ready"
-          : "error";
+      const status = isNotInstalled ? "not_installed" : "error";
       db.updateConnectorHealth({
         id,
         status,
         authState: isNotInstalled ? "error" : "unknown",
-        version: isTimeout ? connector.version : null,
+        version: null,
         lastError: errorMessage,
       });
     }

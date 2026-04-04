@@ -39,10 +39,8 @@ win:
     - target: nsis
       arch:
         - x64
+        - ia32
         - arm64
-    - target: portable
-      arch:
-        - x64
 
 linux:
   icon: assets/icon.png
@@ -58,9 +56,7 @@ linux:
     - target: rpm
       arch:
         - x64
-    - target: snap
-      arch:
-        - x64
+        - arm64
   category: Development
 
 nsis:
@@ -79,8 +75,3 @@ deb:
     - libatspi2.0-0
     - libuuid1
     - libsecret-1-0
-
-snap:
-  plugs:
-    - default
-    - removable-media

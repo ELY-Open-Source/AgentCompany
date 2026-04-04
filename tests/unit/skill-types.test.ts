@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   TOKEN_BUDGETS,
+  resolveTokenBudget,
 } from "@main/skill-types";
 import type {
   SkillSourceType,
@@ -16,20 +17,36 @@ import type {
 
 describe("skill-types", () => {
   describe("TOKEN_BUDGETS", () => {
-    it("has entries for all five adapter types", () => {
+    it("has entries for all supported adapter types", () => {
       expect(TOKEN_BUDGETS).toHaveProperty("claude_local");
       expect(TOKEN_BUDGETS).toHaveProperty("codex_local");
       expect(TOKEN_BUDGETS).toHaveProperty("gemini_local");
-      expect(TOKEN_BUDGETS).toHaveProperty("opencode_local");
-      expect(TOKEN_BUDGETS).toHaveProperty("kimi_local");
+      expect(TOKEN_BUDGETS).toHaveProperty("claude_compatible");
     });
 
     it("has numeric token caps for each adapter", () => {
       expect(TOKEN_BUDGETS.claude_local).toBe(50000);
       expect(TOKEN_BUDGETS.codex_local).toBe(30000);
       expect(TOKEN_BUDGETS.gemini_local).toBe(50000);
-      expect(TOKEN_BUDGETS.opencode_local).toBe(30000);
-      expect(TOKEN_BUDGETS.kimi_local).toBe(20000);
+      expect(TOKEN_BUDGETS.claude_compatible).toBe(50000);
+    });
+  });
+
+  describe("resolveTokenBudget", () => {
+    it("returns exact match for known adapter types", () => {
+      expect(resolveTokenBudget("claude_local")).toBe(50000);
+      expect(resolveTokenBudget("codex_local")).toBe(30000);
+      expect(resolveTokenBudget("gemini_local")).toBe(50000);
+    });
+
+    it("resolves claude_compat_* variants to claude_compatible budget", () => {
+      expect(resolveTokenBudget("claude_compat_2")).toBe(50000);
+      expect(resolveTokenBudget("claude_compat_10")).toBe(50000);
+      expect(resolveTokenBudget("claude_compatible")).toBe(50000);
+    });
+
+    it("returns 30000 default for unknown adapter types", () => {
+      expect(resolveTokenBudget("unknown_adapter")).toBe(30000);
     });
   });
 
@@ -105,14 +122,22 @@ describe("skill-types", () => {
       expect(result.isUpdate).toBe(false);
     });
 
-    it("RuntimeSkillEntry has runtimeName, sourcePath, name, tokenEstimate", () => {
+    it("RuntimeSkillEntry has runtimeName, sourcePath, name, tokenEstimate and semantics", () => {
       const entry: RuntimeSkillEntry = {
         runtimeName: "claude",
         sourcePath: "/path/to/skill",
         name: "test-skill",
         tokenEstimate: 1000,
+        allowedTools: ["read", "write"],
+        hooks: ["on_task_start"],
+        contextMode: "inline",
+        isAgent: false,
+        effort: "medium",
+        whenToUse: "when writing code",
       };
       expect(entry.tokenEstimate).toBe(1000);
+      expect(entry.allowedTools).toEqual(["read", "write"]);
+      expect(entry.contextMode).toBe("inline");
     });
 
     it("ManagedSkillRef has runtimeName and sourcePath only", () => {
