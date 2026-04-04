@@ -1,10 +1,6 @@
 {
   "name": "agent-company",
-<<<<<<< Updated upstream
-  "version": "0.4.148",
-=======
-  "version": "0.4.136",
->>>>>>> Stashed changes
+  "version": "0.4.150",
   "private": true,
   "type": "module",
   "description": "Cross-platform Electron desktop control plane for local-first AI agent companies.",
@@ -20,15 +16,16 @@
     "build": "electron-vite build && node scripts/build-desktop.mjs",
     "build:dir": "electron-vite build && node scripts/build-desktop.mjs --dir",
     "build:all": "node scripts/build-all-platforms.mjs",
+    "release:local": "node scripts/release-local.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "vitest run",
+    "test": "node scripts/run-vitest.mjs run",
     "typecheck": "tsc --noEmit",
     "typecheck:all": "pnpm -r typecheck",
-    "test:unit": "vitest run --config vitest.config.ts tests/unit",
-    "test:integration": "vitest run --config vitest.config.ts tests/integration",
+    "test:unit": "node scripts/run-vitest.mjs run --config vitest.config.ts tests/unit",
+    "test:integration": "node scripts/run-vitest.mjs run --config vitest.config.ts tests/integration",
     "test:packages": "echo 'no standalone package tests'",
-    "test:e2e": "playwright test -c tests/e2e/playwright.config.ts",
+    "test:e2e": "node --no-warnings ./node_modules/@playwright/test/cli.js test -c tests/e2e/playwright.config.ts",
     "test:run": "pnpm test:unit && pnpm test:integration && pnpm test:packages && pnpm test:e2e",
     "verify": "pnpm typecheck && pnpm lint && pnpm typecheck:all && pnpm test:unit && pnpm test:integration && pnpm test:packages && pnpm test:e2e",
     "verify:release": "pnpm verify && pnpm build:dir",

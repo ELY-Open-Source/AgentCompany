@@ -37,8 +37,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
       - run: pnpm lint
-      - run: pnpm exec tsc --noEmit --project tsconfig.check.json
+      - run: pnpm typecheck:all
 
   # ─────────────────────────────────────────────
   # Stage 2: Unit Tests
@@ -57,7 +58,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test
+      - run: pnpm test:unit
+      - run: pnpm test:integration
 
   # ─────────────────────────────────────────────
   # Stage 3: Build matrix (parallel per platform)
@@ -121,8 +123,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - arch: x64
-            builder_args: --win --x64
+          - arch: x64-ia32
+            builder_args: --win --x64 --ia32
           - arch: arm64
             builder_args: --win --arm64
     steps:
