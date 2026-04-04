@@ -127,11 +127,16 @@ export function createBrowserActionService({
     browserManagerRef.current = new BrowserManager(join(db.artifactsDir, "browser"));
   }
 
+  async function extractProfileFromSession(socialAccountId: string, platform: string) {
+    return requireBrowserManager().extractProfileFromSession(socialAccountId, platform);
+  }
+
   return {
     dispatchBrowserAction,
     clearSocialAccountData,
     cancelAction,
     launchLoginBrowser,
+    extractProfileFromSession,
     resetBrowserManager,
   };
 }

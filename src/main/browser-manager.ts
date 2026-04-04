@@ -231,6 +231,33 @@ export class BrowserManager {
     }
   }
 
+  async extractProfileFromSession(socialAccountId: string, platform: string): Promise<{ accountName: string; displayName: string }> {
+    const ses = this.getSession(socialAccountId);
+    const win = new BrowserWindow({
+      show: false,
+      webPreferences: { session: ses, nodeIntegration: false, contextIsolation: true, sandbox: true },
+    });
+
+    try {
+      const rules = getPlatformRules(platform);
+      await win.loadURL(rules.authCheckUrl);
+      await waitForLoad(win, 12000);
+      const result = await win.webContents.executeJavaScript(`
+        (() => {
+          const meta = document.querySelector('meta[property="al:ios:url"], meta[name="user-login"], meta[property="profile:username"]');
+          if (meta) return { accountName: meta.getAttribute("content") || "", displayName: "" };
+          const title = document.title || "";
+          return { accountName: "", displayName: title.split(/[|–—\\-/]/).map(s => s.trim()).find(s => s.length > 0 && s.length < 40) || "" };
+        })()
+      `);
+      return result && (result.accountName || result.displayName) ? result : { accountName: "", displayName: "" };
+    } catch {
+      return { accountName: "", displayName: "" };
+    } finally {
+      if (!win.isDestroyed()) win.close();
+    }
+  }
+
   shutdown() {
     for (const [, win] of this.loginWindows) {
       if (!win.isDestroyed()) win.close();

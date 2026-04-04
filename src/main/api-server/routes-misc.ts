@@ -100,7 +100,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
 
     const onBrowserAction = server.onBrowserAction_;
     if (onBrowserAction) {
-      onBrowserAction(actionId, companyId, input.socialAccountId, input.actionType, input.payload as Record<string, unknown>);
+      onBrowserAction(actionId, companyId);
     }
 
     server.json(res, 201, { id: actionId, status: "queued", message: "Browser action queued for execution" });
@@ -183,10 +183,25 @@ export function registerMiscRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const data = body as Record<string, unknown>;
-    const participantAgentIds = data.participantAgentIds ? String(data.participantAgentIds) : "[]";
+
+    const meetingCreateSchema = z.object({
+      type: z.string().default("department_sync"),
+      title: z.string().default("Meeting"),
+      participantAgentIds: z.string().default("[]"),
+      scheduledAt: z.string().default(new Date().toISOString()),
+      durationMinutes: z.number().default(30),
+      agendaJson: z.string().default("[]"),
+    });
+
+    const parsed = meetingCreateSchema.safeParse(body);
+    if (!parsed.success) {
+      server.json(res, 400, { error: "Invalid meeting payload", details: parsed.error.issues });
+      return;
+    }
+
+    const input = parsed.data;
     try {
-      const parsedParticipants = JSON.parse(participantAgentIds) as string[];
+      const parsedParticipants = JSON.parse(input.participantAgentIds) as string[];
       for (const agentId of parsedParticipants) {
         if (typeof agentId !== "string" || !db.belongsToCompany("agents", agentId, token.companyId)) {
           server.json(res, 400, { error: "Meeting participants must belong to the current company" });
@@ -199,13 +214,13 @@ export function registerMiscRoutes(server: AgentApiServer) {
     }
     const id = db.saveMeeting({
       companyId: token.companyId,
-      type: String(data.type ?? "department_sync"),
-      title: String(data.title ?? "Meeting"),
+      type: input.type,
+      title: input.title,
       organizerAgentId: token.agentId,
-      participantAgentIds,
-      scheduledAt: String(data.scheduledAt ?? new Date().toISOString()),
-      durationMinutes: Number(data.durationMinutes ?? 30),
-      agendaJson: data.agendaJson ? String(data.agendaJson) : "[]",
+      participantAgentIds: input.participantAgentIds,
+      scheduledAt: input.scheduledAt,
+      durationMinutes: input.durationMinutes,
+      agendaJson: input.agendaJson,
       status: "scheduled",
     });
     onDomainChanged();
@@ -229,11 +244,28 @@ export function registerMiscRoutes(server: AgentApiServer) {
       server.json(res, 404, { error: "Meeting not found" });
       return;
     }
-    const data = body as Record<string, unknown>;
+
+    const meetingUpdateSchema = z.object({
+      type: z.string().optional(),
+      title: z.string().optional(),
+      notesJson: z.string().optional(),
+      decisionsJson: z.string().optional(),
+      actionItemsJson: z.string().optional(),
+      status: z.string().optional(),
+      scheduledAt: z.string().optional(),
+    });
+
+    const parsed = meetingUpdateSchema.safeParse(body);
+    if (!parsed.success) {
+      server.json(res, 400, { error: "Invalid meeting update payload", details: parsed.error.issues });
+      return;
+    }
+
+    const data = parsed.data;
     let actionItems: Array<{ title?: string; assigneeAgentId?: string; description?: string }> = [];
     if (data.actionItemsJson) {
       try {
-        actionItems = JSON.parse(String(data.actionItemsJson)) as Array<{ title?: string; assigneeAgentId?: string; description?: string }>;
+        actionItems = JSON.parse(data.actionItemsJson) as Array<{ title?: string; assigneeAgentId?: string; description?: string }>;
       } catch {
         server.json(res, 400, { error: "actionItemsJson must be valid JSON" });
         return;
@@ -248,13 +280,13 @@ export function registerMiscRoutes(server: AgentApiServer) {
     db.saveMeeting({
       id: params.meetingId,
       companyId: token.companyId,
-      type: data.type ? String(data.type) : "department_sync",
-      title: data.title ? String(data.title) : "Meeting",
-      notesJson: data.notesJson ? String(data.notesJson) : undefined,
-      decisionsJson: data.decisionsJson ? String(data.decisionsJson) : undefined,
-      actionItemsJson: data.actionItemsJson ? String(data.actionItemsJson) : undefined,
-      status: data.status ? String(data.status) : undefined,
-      scheduledAt: data.scheduledAt ? String(data.scheduledAt) : new Date().toISOString(),
+      type: data.type ?? "department_sync",
+      title: data.title ?? "Meeting",
+      notesJson: data.notesJson,
+      decisionsJson: data.decisionsJson,
+      actionItemsJson: data.actionItemsJson,
+      status: data.status,
+      scheduledAt: data.scheduledAt ?? new Date().toISOString(),
     });
     onDomainChanged();
     // When action items are added, create tasks for them automatically
@@ -291,17 +323,34 @@ export function registerMiscRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const data = body as Record<string, unknown>;
+
+    const knowledgeCreateSchema = z.object({
+      category: z.string().default("lesson_learned"),
+      topic: z.string().default(""),
+      content: z.string().default(""),
+      importance: z.string().default("medium"),
+      tagsJson: z.string().default("[]"),
+      referencedEntityType: z.string().nullable().optional(),
+      referencedEntityId: z.string().nullable().optional(),
+    });
+
+    const parsed = knowledgeCreateSchema.safeParse(body);
+    if (!parsed.success) {
+      server.json(res, 400, { error: "Invalid knowledge entry payload", details: parsed.error.issues });
+      return;
+    }
+
+    const input = parsed.data;
     const id = db.saveKnowledgeEntry({
       companyId: token.companyId,
-      category: String(data.category ?? "lesson_learned"),
-      topic: String(data.topic ?? ""),
-      content: String(data.content ?? ""),
+      category: input.category,
+      topic: input.topic,
+      content: input.content,
       authorAgentId: token.agentId,
-      importance: String(data.importance ?? "medium"),
-      tagsJson: data.tagsJson ? String(data.tagsJson) : "[]",
-      referencedEntityType: data.referencedEntityType ? String(data.referencedEntityType) : null,
-      referencedEntityId: data.referencedEntityId ? String(data.referencedEntityId) : null,
+      importance: input.importance,
+      tagsJson: input.tagsJson,
+      referencedEntityType: input.referencedEntityType ?? null,
+      referencedEntityId: input.referencedEntityId ?? null,
       sourceRunId: token.runId ?? null,
     });
     onDomainChanged();

@@ -1,10 +1,38 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { AsciiBackground } from "./ascii-background";
 import { platformDownloads, releaseVersion } from "./release-links.generated";
+import { DOWNLOAD_COUNT_SEED, getTrackedDownloadHref } from "../lib/downloads";
 
 export function DownloadSection() {
+  const [downloadCount, setDownloadCount] = useState(DOWNLOAD_COUNT_SEED);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDownloadCount() {
+      try {
+        const response = await fetch("/api/download-stats", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`Failed to fetch download count: ${response.status}`);
+        }
+        const data = await response.json() as { downloads?: number };
+        if (!cancelled && typeof data.downloads === "number") {
+          setDownloadCount(data.downloads);
+        }
+      } catch {
+        // Keep the seeded count visible when the dynamic endpoint is unavailable.
+      }
+    }
+
+    void loadDownloadCount();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <section id="download" className="py-24 lg:py-40 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
       <motion.div
@@ -44,7 +72,10 @@ export function DownloadSection() {
             Install the Right Build for Your Machine
           </h2>
           <p className="text-[var(--text-on-cta-muted)] text-lg max-w-xl mx-auto mb-12 leading-relaxed">
-            Full release matrix hosted on our Cloudflare release lane. Version {releaseVersion}.
+            Version {releaseVersion}.
+          </p>
+          <p className="text-[var(--text-on-cta-faint)] text-sm max-w-xl mx-auto mb-12 leading-relaxed -mt-8">
+            Downloads: {downloadCount.toLocaleString("en-US")}
           </p>
 
           <div className="w-full mt-2 grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -60,20 +91,16 @@ export function DownloadSection() {
                 <p className="font-mono text-xs uppercase tracking-[0.25em] text-[var(--text-on-cta-faint)] mb-3">
                   {download.title}
                 </p>
-                <p className="text-[var(--text-on-cta-muted)] text-sm leading-relaxed mb-4">{download.note}</p>
                 <div className="space-y-2.5">
                   {download.assets.map((asset) => (
                     <a
                       key={asset.id}
-                      href={asset.href}
+                      href={getTrackedDownloadHref(asset.id)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-between gap-3 rounded-xl border border-white/12 bg-black/10 px-4 py-3 text-sm text-[var(--text-on-cta)] transition-colors duration-200 hover:bg-black/18"
+                      className="flex items-center rounded-xl border border-white/12 bg-black/10 px-4 py-3 text-sm text-[var(--text-on-cta)] transition-colors duration-200 hover:bg-black/18"
                     >
                       <span className="font-semibold tracking-tight">{asset.label}</span>
-                      <span className="font-mono text-xs uppercase tracking-[0.18em] text-[var(--text-on-cta-faint)]">
-                        {asset.note}
-                      </span>
                     </a>
                   ))}
                 </div>

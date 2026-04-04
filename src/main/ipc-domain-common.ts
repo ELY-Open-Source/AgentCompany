@@ -17,6 +17,10 @@ interface BrowserActionControl {
     screenshotPath: string | null;
     error: string | null;
   }>;
+  extractProfileFromSession: (socialAccountId: string, platform: string) => Promise<{
+    accountName: string;
+    displayName: string;
+  }>;
 }
 
 export interface RegisterDomainHandlersDependencies {
@@ -48,10 +52,4 @@ export interface RegisterDomainHandlersDependencies {
   onHumanMessage?: (companyId: string, toAgentId?: string | null, threadId?: string | null, waitStateId?: string | null) => void;
 }
 
-export function ok<T>(data: T): DesktopResult<T> {
-  return { ok: true, data };
-}
-
-export function fail(code: string, message: string): DesktopResult<never> {
-  return { ok: false, error: { code, message } };
-}
+export { ok, fail } from "./ipc-core-common";

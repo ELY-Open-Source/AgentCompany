@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { useRovingTabIndex } from "@renderer/lib/keyboard";
+import { createRovingTabIndex as useRovingTabIndex } from "@renderer/lib/keyboard";
 
 // Since vitest runs in Node (no DOM), we test the hook logic
 // by extracting and testing the pure callback functions directly.

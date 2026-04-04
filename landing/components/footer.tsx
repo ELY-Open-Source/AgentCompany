@@ -1,20 +1,8 @@
 import { AsciiBackground } from "./ascii-background";
 import { IconMark } from "./icon-mark";
 import { CONTACT_EMAIL, WEBSITE_URL } from "./site-constants";
-import { platformDownloads } from "./release-links.generated";
 import { ThemeToggle } from "./theme-toggle";
-
-function findAsset(platformId: string, assetId: string) {
-  const platform = platformDownloads.find((entry) => entry.id === platformId);
-  if (!platform) {
-    throw new Error(`Missing platform download entry for ${platformId}`);
-  }
-  const asset = platform.assets.find((entry) => entry.id === assetId);
-  if (!asset) {
-    throw new Error(`Missing asset ${assetId} for ${platformId}`);
-  }
-  return asset.href;
-}
+import { getTrackedDownloadHref } from "../lib/downloads";
 
 const footerGroups = [
   {
@@ -29,10 +17,10 @@ const footerGroups = [
   {
     title: "Downloads",
     links: [
-      { label: "Apple Silicon", href: findAsset("macos", "macos-arm64-dmg"), external: true },
-      { label: "Intel Mac", href: findAsset("macos", "macos-x64-dmg"), external: true },
-      { label: "Windows Installer", href: findAsset("windows", "windows-universal-installer"), external: true },
-      { label: "Linux x64 AppImage", href: findAsset("linux", "linux-x64-appimage"), external: true },
+      { label: "Apple Silicon", href: getTrackedDownloadHref("macos-arm64-dmg"), external: true },
+      { label: "Intel Mac", href: getTrackedDownloadHref("macos-x64-dmg"), external: true },
+      { label: "Windows Installer", href: getTrackedDownloadHref("windows-universal-installer"), external: true },
+      { label: "Linux x64 AppImage", href: getTrackedDownloadHref("linux-x64-appimage"), external: true },
     ],
   },
   {
@@ -91,9 +79,6 @@ export function Footer() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4 text-xs text-[var(--muted)]">
             <span>© {year} AgentCompany</span>
-            <span className="hidden sm:inline-flex items-center gap-1.5">
-              Cloudflare-hosted desktop builds
-            </span>
           </div>
 
           <div className="flex items-center gap-1">

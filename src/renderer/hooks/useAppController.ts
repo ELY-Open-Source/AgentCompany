@@ -40,13 +40,13 @@ const sidebarNavDefs: NavItemDef[] = [
   { id: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
   { id: "agents", labelKey: "nav.agents", icon: UsersThree },
   { id: "workspaces", labelKey: "nav.workspaces", icon: FolderOpen },
-  { id: "knowledge", labelKey: "nav.knowledge", icon: BookOpen },
+  { id: "social", labelKey: "nav.social", icon: Megaphone },
   { id: "documents", labelKey: "nav.documents", icon: FileText },
 ];
 
 const paletteOnlyNavDefs: NavItemDef[] = [
   { id: "skills", labelKey: "nav.skills", icon: PuzzlePiece },
-  { id: "social", labelKey: "nav.social", icon: Megaphone },
+  { id: "knowledge", labelKey: "nav.knowledge", icon: BookOpen },
 ];
 
 export function useAppController() {

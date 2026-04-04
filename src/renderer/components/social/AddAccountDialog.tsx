@@ -1,19 +1,17 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, X } from "@phosphor-icons/react";
+import { SignIn, X } from "@phosphor-icons/react";
 import type { SocialPlatform } from "@shared/types";
-import { ActionButton, Input } from "../ui";
+import { ActionButton } from "../ui";
 import { platformConfig } from "./social-config";
 
 interface AddAccountDialogProps {
-  onAdd: (platform: SocialPlatform, accountName: string, displayName: string, requireApproval: boolean) => void;
+  onAddAndLogin: (platform: SocialPlatform, requireApproval: boolean) => void;
   onClose: () => void;
 }
 
-export function AddAccountDialog({ onAdd, onClose }: AddAccountDialogProps) {
+export function AddAccountDialog({ onAddAndLogin, onClose }: AddAccountDialogProps) {
   const [platform, setPlatform] = useState<SocialPlatform>("twitter");
-  const [accountName, setAccountName] = useState("");
-  const [displayName, setDisplayName] = useState("");
   const [requireApproval, setRequireApproval] = useState(true);
 
   return (
@@ -41,40 +39,28 @@ export function AddAccountDialog({ onAdd, onClose }: AddAccountDialogProps) {
         <div className="space-y-4">
           <div>
             <label className="mb-1.5 block text-[12px] font-medium text-muted-foreground">Platform</label>
-            <div className="grid grid-cols-3 gap-1.5">
-              {(Object.entries(platformConfig) as [SocialPlatform, typeof platformConfig.twitter][]).map(([key, config]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setPlatform(key)}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-[11px] font-medium transition ${
-                    platform === key
-                      ? "border-[color:var(--primary)] bg-accent text-primary"
-                      : "border-border text-muted-foreground hover:border-border"
-                  }`}
-                >
-                  <span style={{ color: config.color }}>
-                    <config.icon size={14} />
-                  </span>
-                  {config.label}
-                </button>
-              ))}
+            <div className="max-h-[240px] overflow-y-auto rounded-lg border border-border p-1.5">
+              <div className="grid grid-cols-3 gap-1.5">
+                {(Object.entries(platformConfig) as [SocialPlatform, typeof platformConfig.twitter][]).map(([key, config]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setPlatform(key)}
+                    className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition ${
+                      platform === key
+                        ? "border-[color:var(--primary)] bg-accent text-primary"
+                        : "border-border text-muted-foreground hover:border-border"
+                    }`}
+                  >
+                    <span style={{ color: config.color }}>
+                      <config.icon size={14} />
+                    </span>
+                    <span className="truncate">{config.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-
-          <Input
-            label="Username / Handle"
-            value={accountName}
-            onChange={setAccountName}
-            placeholder={platform === "twitter" ? "elonmusk" : "your-username"}
-          />
-
-          <Input
-            label="Display Name (optional)"
-            value={displayName}
-            onChange={setDisplayName}
-            placeholder="Your display name"
-          />
 
           <div className="rounded-lg border border-border bg-muted px-4 py-3">
             <label className="flex items-center gap-3">
@@ -92,6 +78,10 @@ export function AddAccountDialog({ onAdd, onClose }: AddAccountDialogProps) {
               </div>
             </label>
           </div>
+
+          <div className="rounded-lg bg-accent px-4 py-3 text-[11px] text-muted-foreground">
+            A browser window will open for you to sign in. Your username and profile info will be detected automatically after login.
+          </div>
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
@@ -103,15 +93,10 @@ export function AddAccountDialog({ onAdd, onClose }: AddAccountDialogProps) {
             Cancel
           </button>
           <ActionButton
-            label="Add Account"
-            onClick={() => {
-              if (accountName.trim()) {
-                onAdd(platform, accountName.trim(), displayName.trim(), requireApproval);
-              }
-            }}
-            icon={Plus}
+            label="Login"
+            onClick={() => onAddAndLogin(platform, requireApproval)}
+            icon={SignIn}
             tone="accent"
-            disabled={!accountName.trim()}
           />
         </div>
       </motion.div>

@@ -115,7 +115,27 @@ export type BudgetAlertLevel = "warn" | "hard_stop";
 export type SkillSourceType = "github" | "local_path" | "url" | "skills_sh" | "managed";
 export type TrustLevel = "markdown_only" | "assets" | "scripts_executables";
 
-export type SocialPlatform = "twitter" | "linkedin" | "instagram" | "facebook" | "reddit" | "youtube" | "tiktok" | "bluesky" | "other";
+export type SocialPlatform =
+  | "twitter"
+  | "linkedin"
+  | "instagram"
+  | "facebook"
+  | "reddit"
+  | "youtube"
+  | "tiktok"
+  | "bluesky"
+  | "discord"
+  | "threads"
+  | "pinterest"
+  | "telegram"
+  | "whatsapp"
+  | "wechat"
+  | "weibo"
+  | "xiaohongshu"
+  | "douyin"
+  | "bilibili"
+  | "zhihu"
+  | "other";
 export type SocialAccountStatus = "active" | "logged_in" | "login_required" | "suspended" | "paused";
 export type BrowserActionType = "post" | "reply" | "like" | "follow" | "browse_feed" | "screenshot" | "navigate" | "search";
 export type BrowserActionStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled" | "approval_required";

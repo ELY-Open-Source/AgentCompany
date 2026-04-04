@@ -153,19 +153,21 @@ export function OperationsSections({
           actions={browserActions}
           agents={companyAgents.map(a => ({ id: a.id, name: a.name }))}
           companyId={snapshot.currentCompanyId}
-          onSave={async (input) => {
+          onAddAndLogin={async (platform, requireApproval) => {
+            if (!snapshot?.currentCompanyId) return;
             try {
-              unwrap(await window.agentCompany.saveSocialAccount({
-                companyId: input.companyId,
-                platform: input.platform,
-                accountName: input.accountName,
-                displayName: input.displayName,
-                requireApproval: input.requireApproval,
+              const accountId = unwrap(await window.agentCompany.saveSocialAccount({
+                companyId: snapshot.currentCompanyId,
+                platform,
+                accountName: platform,
+                displayName: "",
+                requireApproval,
                 profileUrl: "",
                 status: "login_required",
                 metadataJson: "{}",
               }));
               await refresh();
+              unwrap(await window.agentCompany.triggerBrowserLogin({ companyId: snapshot.currentCompanyId, socialAccountId: accountId }));
               setError(null);
             } catch (error) {
               setError(error instanceof Error ? error.message : String(error));

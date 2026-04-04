@@ -78,10 +78,12 @@ export async function handleWorkerMessage(
     const now = Date.now();
     const lastRenewal = leaseRenewalMap.get(event.runId) ?? 0;
     if (now - lastRenewal >= LEASE_RENEWAL_INTERVAL_MS) {
-      const run = db.listSnapshot().runs.find((r) => r.id === event.runId);
-      if (run) {
+      try {
+        const run = db.getRun(event.runId);
         db.renewTaskLease(run.taskId, run.id);
         leaseRenewalMap.set(event.runId, now);
+      } catch {
+        // Run not found — skip lease renewal
       }
     }
     return;
@@ -102,14 +104,16 @@ export async function handleWorkerMessage(
       });
     }
     if (event.status === "running") {
-      const run = db.listSnapshot().runs.find((entry) => entry.id === event.runId);
-      if (run?.workspaceId && !db.claimWorkspaceLock(run.workspaceId, run.id)) {
-        logger.error(`[workspace] Failed to claim lock for workspace ${run.workspaceId} when run ${run.id} entered running state. Cancelling run.`);
-        worker?.postMessage({ type: "cancel-run", runId: run.id });
-      }
-      if (run) {
+      try {
+        const run = db.getRun(event.runId);
+        if (run.workspaceId && !db.claimWorkspaceLock(run.workspaceId, run.id)) {
+          logger.error(`[workspace] Failed to claim lock for workspace ${run.workspaceId} when run ${run.id} entered running state. Cancelling run.`);
+          worker?.postMessage({ type: "cancel-run", runId: run.id });
+        }
         db.renewTaskLease(run.taskId, run.id);
         onRunStarted?.(run.id, run.taskId, run.agentId, run.companyId);
+      } catch {
+        // Run not found — skip status handling
       }
     }
     emitEvent(event);
@@ -117,9 +121,10 @@ export async function handleWorkerMessage(
     return;
   }
 
-  const snapshot = db.listSnapshot();
-  const run = snapshot.runs.find((entry) => entry.id === event.runId);
-  if (!run) {
+  let run: ReturnType<typeof db["getRun"]>;
+  try {
+    run = db.getRun(event.runId);
+  } catch {
     return;
   }
 

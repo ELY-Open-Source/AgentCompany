@@ -26,9 +26,6 @@ importers:
       '@tanstack/react-virtual':
         specifier: ^3.13.23
         version: 3.13.23(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      clsx:
-        specifier: 2.1.1
-        version: 2.1.1
       electron-log:
         specifier: 5.4.3
         version: 5.4.3
@@ -38,9 +35,6 @@ importers:
       framer-motion:
         specifier: 12.36.0
         version: 12.36.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      immer:
-        specifier: ^11.1.4
-        version: 11.1.4
       react:
         specifier: 19.2.4
         version: 19.2.4
@@ -50,9 +44,6 @@ importers:
       recharts:
         specifier: 3.8.1
         version: 3.8.1(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react-is@19.2.4)(react@19.2.4)(redux@5.0.1)
-      tailwind-merge:
-        specifier: 3.5.0
-        version: 3.5.0
       zod:
         specifier: 4.3.6
         version: 4.3.6
@@ -154,38 +145,6 @@ importers:
         version: 5.9.3
 
   packages/adapter-gemini-local:
-    dependencies:
-      '@agentcompany/adapter-utils':
-        specifier: workspace:*
-        version: link:../adapter-utils
-      picocolors:
-        specifier: ^1.1.1
-        version: 1.1.1
-    devDependencies:
-      '@types/node':
-        specifier: ^24.6.0
-        version: 24.12.0
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-
-  packages/adapter-kimi-local:
-    dependencies:
-      '@agentcompany/adapter-utils':
-        specifier: workspace:*
-        version: link:../adapter-utils
-      picocolors:
-        specifier: ^1.1.1
-        version: 1.1.1
-    devDependencies:
-      '@types/node':
-        specifier: ^24.6.0
-        version: 24.12.0
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-
-  packages/adapter-opencode-local:
     dependencies:
       '@agentcompany/adapter-utils':
         specifier: workspace:*
@@ -2810,9 +2769,6 @@ packages:
   supports-color@7.2.0:
     resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
     engines: {node: '>=8'}
-
-  tailwind-merge@3.5.0:
-    resolution: {integrity: sha512-I8K9wewnVDkL1NTGoqWmVEIlUcB9gFriAEkXkfCjX5ib8ezGxtR3xD7iZIxrfArjEsH7F1CHD4RFUtxefdqV/A==}
 
   tailwindcss@4.2.1:
     resolution: {integrity: sha512-/tBrSQ36vCleJkAOsy9kbNTgaxvGbyOamC30PRePTQe/o1MFwEKHQk4Cn7BNGaPtjp+PuUrByJehM1hgxfq4sw==}
@@ -5797,8 +5753,6 @@ snapshots:
   supports-color@7.2.0:
     dependencies:
       has-flag: 4.0.0
-
-  tailwind-merge@3.5.0: {}
 
   tailwindcss@4.2.1: {}
 

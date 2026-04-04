@@ -71,6 +71,17 @@ export function getComposeUrl(platform: string): string {
     bluesky: "https://bsky.app/",
     youtube: "https://www.youtube.com/",
     tiktok: "https://www.tiktok.com/",
+    discord: "https://discord.com/channels/@me",
+    threads: "https://www.threads.net/",
+    pinterest: "https://www.pinterest.com/pin-creation-tool/",
+    telegram: "https://web.telegram.org/",
+    whatsapp: "https://web.whatsapp.com/",
+    wechat: "https://mp.weixin.qq.com/",
+    weibo: "https://weibo.com/",
+    xiaohongshu: "https://www.xiaohongshu.com/explore",
+    douyin: "https://www.douyin.com/",
+    bilibili: "https://www.bilibili.com/",
+    zhihu: "https://www.zhihu.com/question/waiting",
   };
   return urls[platform] || getPlatformRules(platform).loginUrl;
 }
@@ -85,6 +96,17 @@ export function getFeedUrl(platform: string): string {
     bluesky: "https://bsky.app/",
     youtube: "https://www.youtube.com/",
     tiktok: "https://www.tiktok.com/",
+    discord: "https://discord.com/channels/@me",
+    threads: "https://www.threads.net/",
+    pinterest: "https://www.pinterest.com/",
+    telegram: "https://web.telegram.org/",
+    whatsapp: "https://web.whatsapp.com/",
+    wechat: "https://mp.weixin.qq.com/",
+    weibo: "https://weibo.com/",
+    xiaohongshu: "https://www.xiaohongshu.com/explore",
+    douyin: "https://www.douyin.com/",
+    bilibili: "https://www.bilibili.com/",
+    zhihu: "https://www.zhihu.com/",
   };
   return urls[platform] || getPlatformRules(platform).loginUrl;
 }
@@ -95,6 +117,12 @@ export function getSearchUrl(platform: string, query: string): string {
     twitter: `https://x.com/search?q=${q}`,
     linkedin: `https://www.linkedin.com/search/results/all/?keywords=${q}`,
     reddit: `https://www.reddit.com/search/?q=${q}`,
+    discord: `https://discord.com/channels/@me`,
+    pinterest: `https://www.pinterest.com/search/pins/?q=${q}`,
+    weibo: `https://s.weibo.com/weibo?q=${q}`,
+    xiaohongshu: `https://www.xiaohongshu.com/search_result?keyword=${q}`,
+    bilibili: `https://search.bilibili.com/all?keyword=${q}`,
+    zhihu: `https://www.zhihu.com/search?type=content&q=${q}`,
   };
   return urls[platform] || `https://google.com/search?q=${q}`;
 }

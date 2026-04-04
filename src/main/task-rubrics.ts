@@ -55,7 +55,7 @@ const RUBRICS: Record<TaskType, TaskRubric> = {
 };
 
 /** Returns the rubric for the given task type, defaulting to "general" for unknown values. */
-export function getTaskTypeRubric(taskType: string): TaskRubric {
+function getTaskTypeRubric(taskType: string): TaskRubric {
   const key = taskType as TaskType;
   return RUBRICS[key] ?? RUBRICS.general;
 }

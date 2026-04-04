@@ -54,7 +54,7 @@ export function Hero() {
         <div className="flex flex-col items-center text-center">
           <motion.div {...heroMotion(0.05)}>
             <span className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide bg-[var(--accent-soft)] text-[var(--accent)] dark:text-[var(--muted-strong)] border border-[var(--border)]">
-              Local-First · Desktop App
+              Agent Company
             </span>
           </motion.div>
 

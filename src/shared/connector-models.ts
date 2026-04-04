@@ -35,12 +35,3 @@ export function mergeConnectorModelEntries(
   });
 }
 
-export function resolveSelectedConnectorModel(
-  entries: ConnectorModelEntry[],
-  currentModel: string,
-): string {
-  if (currentModel && entries.some((entry) => entry.enabled && entry.id === currentModel)) {
-    return currentModel;
-  }
-  return entries.find((entry) => entry.enabled)?.id ?? "";
-}

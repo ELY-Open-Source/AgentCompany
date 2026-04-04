@@ -67,7 +67,7 @@ export class AgentApiServer {
   private emitEventCb: (event: DesktopEvent) => void;
   private callbacks: ApiServerEventCallbacks;
   private allowedOrigins: Set<string>;
-  private onBrowserActionCb: ((actionId: string, companyId: string, socialAccountId: string, actionType: string, payload: Record<string, unknown>) => void) | null = null;
+  private onBrowserActionCb: ((actionId: string, companyId: string) => void) | null = null;
 
   constructor(
     db: AppDatabase,
@@ -97,7 +97,7 @@ export class AgentApiServer {
     };
   }
 
-  setBrowserActionHandler(handler: (actionId: string, companyId: string, socialAccountId: string, actionType: string, payload: Record<string, unknown>) => void) {
+  setBrowserActionHandler(handler: (actionId: string, companyId: string) => void) {
     this.onBrowserActionCb = handler;
   }
 
@@ -269,7 +269,7 @@ export class AgentApiServer {
   get onDomainChanged_(): () => void { return this.onDomainChangedCb; }
   get onWakeAgent_(): (agentId: string, companyId: string, trigger: string) => string | null { return this.onWakeAgentCb; }
   get emitEvent_(): (event: DesktopEvent) => void { return this.emitEventCb; }
-  get onBrowserAction_(): ((actionId: string, companyId: string, socialAccountId: string, actionType: string, payload: Record<string, unknown>) => void) | null {
+  get onBrowserAction_(): ((actionId: string, companyId: string) => void) | null {
     return this.onBrowserActionCb;
   }
   get port_(): number { return this.port; }

@@ -70,7 +70,4 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-build/release/AgentCompany-0.4.61-arm64.dmg
-CLAUDE.md
-build/release/AgentCompany-0.4.90-arm64.dmg
 local-release/

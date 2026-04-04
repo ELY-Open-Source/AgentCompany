@@ -89,18 +89,27 @@ export function registerBrowserHandlers({
       return fail("ACCOUNT_NOT_FOUND", "Social account not found");
     }
 
-    browserActions.launchLoginBrowser(input.socialAccountId, account.platform).then((result) => {
+    browserActions.launchLoginBrowser(input.socialAccountId, account.platform).then(async (result) => {
       if (result.success) {
         const latestAccount = db.getSocialAccount(input.socialAccountId, account.companyId);
         if (!latestAccount) {
           return;
         }
+        let detectedName = "";
+        let detectedDisplay = "";
+        try {
+          const profile = await browserActions.extractProfileFromSession(input.socialAccountId, account.platform);
+          detectedName = profile.accountName;
+          detectedDisplay = profile.displayName;
+        } catch {
+          // Profile extraction is best-effort; proceed with login status update
+        }
         db.saveSocialAccount({
           id: latestAccount.id,
           companyId: latestAccount.companyId,
           platform: latestAccount.platform,
-          accountName: latestAccount.accountName,
-          displayName: latestAccount.displayName,
+          accountName: detectedName || latestAccount.accountName,
+          displayName: detectedDisplay || latestAccount.displayName,
           profileUrl: latestAccount.profileUrl,
           credentialSecretId: latestAccount.credentialSecretId,
           status: "logged_in",

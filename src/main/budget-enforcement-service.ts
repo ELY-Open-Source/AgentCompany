@@ -27,18 +27,16 @@ export interface BudgetGateResult {
 function getScopeLabel(db: AppDatabase, policy: BudgetPolicyRecord): string {
   if (policy.scopeType === "agent") {
     try {
-      const agents = db.listSnapshot({ companyId: null }).agents;
-      const agent = agents.find((a) => a.id === policy.scopeId);
-      return agent ? `Agent "${agent.name}"` : `Agent ${policy.scopeId.slice(0, 8)}`;
+      const agent = db.getAgent(policy.scopeId);
+      return `Agent "${agent.name}"`;
     } catch {
       return `Agent ${policy.scopeId.slice(0, 8)}`;
     }
   }
   if (policy.scopeType === "project") {
     try {
-      const projects = db.listSnapshot({ companyId: null }).projects;
-      const project = projects.find((p) => p.id === policy.scopeId);
-      return project ? `Project "${project.name}"` : `Project ${policy.scopeId.slice(0, 8)}`;
+      const row = db.queryAll<{ name: string }>("select name from projects where id = ?", policy.scopeId);
+      return row.length > 0 ? `Project "${row[0].name}"` : `Project ${policy.scopeId.slice(0, 8)}`;
     } catch {
       return `Project ${policy.scopeId.slice(0, 8)}`;
     }

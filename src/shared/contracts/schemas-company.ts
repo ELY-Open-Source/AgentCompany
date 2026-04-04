@@ -58,7 +58,7 @@ export const bootstrapOnboardingSchema = z.object({
 export const socialAccountInputSchema = z.object({
   id: optionalId,
   companyId: z.string().uuid(),
-  platform: z.enum(["twitter", "linkedin", "instagram", "facebook", "reddit", "youtube", "tiktok", "bluesky", "other"]),
+  platform: z.enum(["twitter", "linkedin", "instagram", "facebook", "reddit", "youtube", "tiktok", "bluesky", "discord", "threads", "pinterest", "telegram", "whatsapp", "wechat", "weibo", "xiaohongshu", "douyin", "bilibili", "zhihu", "other"]),
   accountName: z.string().min(1).max(120),
   displayName: z.string().max(120).default(""),
   profileUrl: z.string().max(500).default(""),

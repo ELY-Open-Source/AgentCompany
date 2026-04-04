@@ -23,7 +23,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve("src/main/index.ts"),
-          worker: resolve("src/main/orchestrator/worker.ts"),
+          worker: resolve("src/main/worker/worker-entry.ts"),
         },
       },
     },

@@ -13,13 +13,7 @@ interface SocialPanelProps {
   actions: BrowserActionRecord[];
   agents: Array<{ id: string; name: string }>;
   companyId: string;
-  onSave: (input: {
-    companyId: string;
-    platform: SocialPlatform;
-    accountName: string;
-    displayName: string;
-    requireApproval: boolean;
-  }) => Promise<void>;
+  onAddAndLogin: (platform: SocialPlatform, requireApproval: boolean) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onLogin: (accountId: string) => Promise<void>;
   onOpenPath: (path: string) => Promise<void>;
@@ -31,8 +25,8 @@ export function SocialAccountsPanel({
   accounts,
   actions,
   agents,
-  companyId,
-  onSave,
+  companyId: _companyId,
+  onAddAndLogin,
   onDelete,
   onLogin,
   onOpenPath,
@@ -43,10 +37,10 @@ export function SocialAccountsPanel({
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<"accounts" | "history">("accounts");
 
-  const handleAdd = useCallback(async (platform: SocialPlatform, accountName: string, displayName: string, requireApproval: boolean) => {
-    await onSave({ companyId, platform, accountName, displayName, requireApproval });
+  const handleAddAndLogin = useCallback(async (platform: SocialPlatform, requireApproval: boolean) => {
+    await onAddAndLogin(platform, requireApproval);
     setShowAddDialog(false);
-  }, [companyId, onSave]);
+  }, [onAddAndLogin]);
 
   return (
     <div className="space-y-5">
@@ -151,7 +145,7 @@ export function SocialAccountsPanel({
       <AnimatePresence>
         {showAddDialog ? (
           <AddAccountDialog
-            onAdd={(platform, accountName, displayName, requireApproval) => void handleAdd(platform, accountName, displayName, requireApproval)}
+            onAddAndLogin={(platform, requireApproval) => void handleAddAndLogin(platform, requireApproval)}
             onClose={() => setShowAddDialog(false)}
           />
         ) : null}
