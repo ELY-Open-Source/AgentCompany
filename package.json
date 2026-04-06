@@ -1,6 +1,6 @@
 {
   "name": "agent-company",
-  "version": "0.4.151",
+  "version": "0.4.155",
   "private": true,
   "type": "module",
   "description": "Cross-platform Electron desktop control plane for local-first AI agent companies.",
@@ -17,6 +17,8 @@
     "build:dir": "electron-vite build && node scripts/build-desktop.mjs --dir",
     "build:all": "node scripts/build-all-platforms.mjs",
     "release:cloudflare": "node scripts/release-cloudflare.mjs",
+    "release:cloudflare:public": "node scripts/release-public-cloudflare.mjs",
+    "release:boss": "node scripts/release-boss.mjs",
     "release:local": "node scripts/release-local.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
