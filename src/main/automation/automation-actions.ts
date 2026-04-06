@@ -247,25 +247,9 @@ export function executeAutomationAction(
         }
       } else {
         // No manager found — agent is likely the CEO or top-level.
-        // Post as company-wide message so the board and other leaders see it.
-        const escalationResult = dispatchAgentMessage(
-          { db, emitEvent, publishDomainChanged, wakeAgentIfPossible },
-          {
-            companyId: ctx.companyId,
-            fromAgentId: targetAgentId,
-            toAgentId: null,
-            channel: "company",
-            subject: `Escalation: ${taskTitle}`,
-            body: escalationBody,
-            priority: "urgent",
-          },
-          wakeTrigger,
-        );
-        if (!escalationResult.ok) {
-          logger.warn(
-            `[automation] Failed to escalate "${taskTitle}" to company channel: ${escalationResult.error.code} ${escalationResult.error.message}`,
-          );
-        }
+        // Skip posting to company channel to avoid flooding it with system noise.
+        // The task status change is already visible in the task list and activity log.
+        logger.info(`[automation] Skipping escalation for top-level agent "${agentName}" — no manager to escalate to.`);
       }
       break;
     }
