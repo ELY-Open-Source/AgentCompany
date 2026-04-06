@@ -3,6 +3,7 @@ import { getConnectorDefinition } from "../connectors";
 import type { WorkerServiceDependencies, workerMessageSchema } from "./worker-types";
 import { createCircuitBreaker } from "./circuit-breaker";
 import { handleFailureEscalation, handleSuccessReset } from "./failure-escalation";
+import { filterRunLogChunk } from "./run-log-filter";
 
 const LEASE_RENEWAL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -61,7 +62,10 @@ export async function handleWorkerMessage(
   }
 
   if (event.type === "run-log") {
-    await db.appendRunLog(event.runId, event.stream, event.chunk);
+    const filtered = filterRunLogChunk(event.stream, event.chunk);
+    if (filtered === null) return;
+
+    await db.appendRunLog(event.runId, event.stream, filtered);
     const runState = db.getRunAuthState(event.runId);
     if (runState) {
       persistRunEvent(db, logger, {
@@ -70,10 +74,10 @@ export async function handleWorkerMessage(
         agentId: runState.agentId,
         eventType: "run_log",
         stream: event.stream,
-        message: event.chunk,
+        message: filtered,
       });
     }
-    emitEvent(event);
+    emitEvent({ ...event, chunk: filtered });
 
     // Throttled lease renewal: keep execution lock alive for long-running tasks.
     // Without this, tasks exceeding the 15-minute stale lock timeout get reclaimed.
