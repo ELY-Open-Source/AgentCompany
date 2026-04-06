@@ -106,7 +106,18 @@ export const listAgentSkillsSchema = z.object({
   agentId: z.string().min(1),
 });
 
+export const terminalCommandKeys = [
+  "install_node_darwin",
+  "install_node_win32",
+  "install_node_linux",
+  "install_claude_unix",
+  "install_claude_win32",
+  "install_codex",
+  "install_gemini",
+] as const;
+
+export type TerminalCommandKey = (typeof terminalCommandKeys)[number];
+
 export const openTerminalCommandSchema = z.object({
-  title: z.string().min(1).max(200),
-  command: z.string().min(1),
+  commandKey: z.enum(terminalCommandKeys),
 });

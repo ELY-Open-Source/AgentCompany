@@ -131,6 +131,7 @@ export interface TaskRecord {
   sessionJson: string | null;
   sessionDisplayId: string | null;
   costUsd: number;
+  taskType: string | null;
   requiresUserReview: boolean;
   startedAt: string | null;
   completedAt: string | null;

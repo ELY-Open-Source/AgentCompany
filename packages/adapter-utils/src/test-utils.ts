@@ -35,11 +35,3 @@ export function summarizeProbeDetail(stdout: string, stderr: string, parsedError
   return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
 }
 
-export function normalizeEnv(input: unknown): Record<string, string> {
-  if (typeof input !== "object" || input === null || Array.isArray(input)) return {};
-  const env: Record<string, string> = {};
-  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
-    if (typeof value === "string") env[key] = value;
-  }
-  return env;
-}

@@ -114,7 +114,7 @@ function AttachmentPicker({ documents, attachments, onAdd, onRemove }: {
 function MentionDropdown({ agents, query, onSelect, position }: {
   agents: AgentRecord[];
   query: string;
-  onSelect: (agent: AgentRecord) => void;
+  onSelect: (agent: AgentRecord | null) => void;
   position: { top: number; left: number };
 }) {
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -136,7 +136,7 @@ function MentionDropdown({ agents, query, onSelect, position }: {
       else if (e.key === "Enter" || e.key === "Tab") {
         if (filtered[selectedIndex]) { e.preventDefault(); onSelect(filtered[selectedIndex]) }
       }
-      else if (e.key === "Escape") { onSelect(null as unknown as AgentRecord) }
+      else if (e.key === "Escape") { onSelect(null) }
     }
     document.addEventListener("keydown", handler, true)
     return () => document.removeEventListener("keydown", handler, true)

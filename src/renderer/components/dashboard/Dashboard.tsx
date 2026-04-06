@@ -85,15 +85,15 @@ export function Dashboard(props: DashboardProps) {
           <div className="mt-2 flex items-center gap-3 text-[13px] tracking-[0.005em] text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
-              {activeAgents.length} {activeAgents.length === 1 ? "agent" : "agents"} active
+              {activeAgents.length} {activeAgents.length === 1 ? t("dash.agentActive") : t("dash.agentsActive")}
             </span>
             <span className="h-3 w-px bg-[color:var(--border)]" />
             <span className="flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              {activeTasks.length} {activeTasks.length === 1 ? "task" : "tasks"} in progress
+              {activeTasks.length} {activeTasks.length === 1 ? t("dash.taskInProgress") : t("dash.tasksInProgress")}
             </span>
             <span className="h-3 w-px bg-[color:var(--border)]" />
-            <span>{tasks.filter((tk) => tk.status === "done").length} completed</span>
+            <span>{tasks.filter((tk) => tk.status === "done").length} {t("dash.completedCount")}</span>
           </div>
         </div>
       ) : null}
@@ -121,12 +121,12 @@ export function Dashboard(props: DashboardProps) {
           subtitle={pendingApprovals.length > 0 ? t("dash.needsAttention") : t("dash.allClear")}
         />
         <MetricCard
-          label="Agents"
+          label={t("common.agents")}
           value={activeAgents.length}
           icon={Robot}
           tone={activeAgents.filter((a) => a.status === "running").length > 0 ? "success" : "default"}
           onClick={() => onNavigate("agents")}
-          subtitle={`${activeAgents.filter((a) => a.status === "running").length} running`}
+          subtitle={`${activeAgents.filter((a) => a.status === "running").length} ${t("dash.running")}`}
         />
         <MetricCard
           label={t("dash.totalSpend")}
@@ -225,10 +225,10 @@ export function Dashboard(props: DashboardProps) {
       <section>
         <div className="mb-3 flex items-center justify-between">
           <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            Active Work
+            {t("dash.activeWork")}
           </div>
           <button type="button" onClick={() => onNavigate("runs")} className="flex items-center gap-1 text-[11px] font-medium text-primary transition hover:underline">
-            All runs <ArrowRight size={12} />
+            {t("dash.allRuns")} <ArrowRight size={12} />
           </button>
         </div>
         {activeWork.length > 0 ? (
@@ -263,7 +263,7 @@ export function Dashboard(props: DashboardProps) {
         ) : (
           <div className="rounded-lg border border-dashed border-border py-8 text-center">
             <div className="text-[13px] text-muted-foreground">{t("dash.allQuiet")}</div>
-            <div className="mt-1 text-[11px] text-muted-foreground">No tasks currently running</div>
+            <div className="mt-1 text-[11px] text-muted-foreground">{t("dash.noTasksRunning")}</div>
           </div>
         )}
       </section>

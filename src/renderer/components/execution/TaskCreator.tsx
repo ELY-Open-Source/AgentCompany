@@ -27,7 +27,7 @@ export function TaskCreator({ companyId, goals, projects, agents, workspaces, on
     <div className="grid min-w-0 gap-4 md:grid-cols-2">
       <Input label={t("exec.title")} value={title} onChange={setTitle} placeholder={t("exec.taskTitle")} />
       <Select label={t("exec.priority")} value={priority} onChange={setPriority} options={["critical","high","medium","low"].map((v) => ({ value: v, label: v }))} />
-      <div className="md:col-span-2"><TextArea label="Description" value={description} onChange={setDescription} placeholder="Describe the task" rows={5} /></div>
+      <div className="md:col-span-2"><TextArea label={t("exec.taskDescription")} value={description} onChange={setDescription} placeholder={t("exec.describeTask")} rows={5} /></div>
       <div className="md:col-span-2">
         <button type="button" onClick={() => setShowAdvanced(!showAdvanced)} className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground transition hover:text-foreground">
           <svg width="10" height="10" viewBox="0 0 10 10" className={`transition-transform ${showAdvanced ? "rotate-90" : ""}`}><path d="M3 1l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>

@@ -200,8 +200,9 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
               const ag = candidate.agent;
               if (!ag) return null;
               const manager = agents.find(a => a.id === ag.reportsTo);
-              const requestedBy = candidate.approval?.requestedByAgentId
-                ? agents.find(a => a.id === candidate.approval!.requestedByAgentId)
+              const approvalRequestedBy = candidate.approval?.requestedByAgentId ?? null;
+              const requestedBy = approvalRequestedBy
+                ? agents.find(a => a.id === approvalRequestedBy)
                 : null;
               return (
                 <div

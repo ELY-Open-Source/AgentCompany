@@ -7,6 +7,7 @@ import { registerMessageRoutes } from "./routes-messages";
 import { registerApprovalRoutes } from "./routes-approvals";
 import { registerFileRoutes } from "./routes-files";
 import { registerMiscRoutes } from "./routes-misc";
+import { registerMeetingRoutes } from "./routes-meetings";
 import { registerRunRoutes } from "./routes-runs";
 import type { AppDatabase } from "../database";
 
@@ -33,6 +34,7 @@ export function createApiServer(
   registerApprovalRoutes(server);
   registerFileRoutes(server);
   registerMiscRoutes(server);
+  registerMeetingRoutes(server);
   registerRunRoutes(server);
   return server;
 }

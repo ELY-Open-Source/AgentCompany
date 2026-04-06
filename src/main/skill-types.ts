@@ -1,62 +1,6 @@
-/**
- * Source type for a skill -- matches the company_skills.source_type column.
- */
-export type SkillSourceType =
-  | "github"
-  | "local_path"
-  | "url"
-  | "skills_sh"
-  | "managed";
-
-/**
- * Trust level derived from the file inventory of a skill package.
- * Determines what content is injected and how cautiously.
- */
-export type TrustLevel =
-  | "markdown_only"
-  | "assets"
-  | "scripts_executables";
-
-/**
- * A single file entry within a skill package inventory.
- */
-export interface FileInventoryEntry {
-  path: string;
-  kind: "skill" | "reference" | "script" | "asset" | "markdown" | "other";
-}
-
-/**
- * Full row interface matching the company_skills table.
- * Property names use camelCase (JS convention) even though DB columns are snake_case.
- */
-export interface SkillRecord {
-  id: string;
-  companyId: string;
-  key: string;
-  slug: string;
-  name: string;
-  description: string | null;
-  markdown: string;
-  sourceType: SkillSourceType;
-  sourceLocator: string | null;
-  sourceRef: string | null;
-  trustLevel: TrustLevel;
-  compatibility: string;
-  fileInventory: FileInventoryEntry[];
-  metadata: Record<string, unknown> | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
- * Result returned after importing or updating a skill.
- */
-export interface SkillImportResult {
-  skillId: string;
-  key: string;
-  name: string;
-  isUpdate: boolean;
-}
+// Re-export shared types that were previously duplicated here.
+// Canonical definitions live in @shared/types (records-core.ts & enums.ts).
+export type { SkillSourceType, TrustLevel, FileInventoryEntry, SkillRecord, SkillImportResult, SkillUpdateStatus } from "@shared/types";
 
 /**
  * Skill execution context mode — controls how the skill is invoked.
@@ -104,17 +48,6 @@ export interface ManagedSkillRef {
 export interface SkillAssignment {
   agentId: string;
   skillId: string;
-}
-
-/**
- * Update status for a skill -- used to check if a newer version is available.
- */
-export interface SkillUpdateStatus {
-  skillId: string;
-  key: string;
-  currentRef: string | null;
-  latestRef: string | null;
-  hasUpdate: boolean;
 }
 
 /**

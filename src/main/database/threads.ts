@@ -13,13 +13,7 @@ import type {
   ThreadWaitingFor,
   ThreadWaitStateRecord,
 } from "@shared/types";
-
-type SqliteRow = Record<string, any>;
-type ReadAll = <T>(sql: string, ...params: SQLInputValue[]) => T[];
-
-function nowIso(): string {
-  return new Date().toISOString();
-}
+import { type ReadAll, type SqliteRow, nowIso } from "./helpers";
 
 export function buildThreadMethods(getDb: () => DatabaseSync, readAll: ReadAll) {
   function getThread(threadId: string, companyId: string): ConversationThreadRecord | null {

@@ -1,4 +1,4 @@
-import { spawn, execSync, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { constants as fsConstants, promises as fs } from "node:fs";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -356,7 +356,7 @@ export async function runChildProcess(
 function killProcessTree(pid: number): void {
   if (process.platform === "win32") {
     try {
-      execSync(`taskkill /T /F /PID ${pid}`, { stdio: "ignore", timeout: 5000 });
+      spawnSync("taskkill", ["/T", "/F", "/PID", String(pid)], { stdio: "ignore", timeout: 5000 });
     } catch { /* process already exited */ }
   } else {
     try {

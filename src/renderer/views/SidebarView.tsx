@@ -9,6 +9,7 @@ import {
 } from "@phosphor-icons/react";
 import type { CompanyRecord, ProfileSnapshot, SectionId } from "@shared/types";
 import { SectionButton } from "../components/ui";
+import { NEW_ENTITY_ID } from "../lib/constants";
 
 type NavItem = { id: SectionId; label: string; icon: typeof Gear };
 
@@ -129,7 +130,7 @@ export function SidebarView({
                     <button
                       type="button"
                       className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                      onClick={() => { void setCompany("__new__"); setCompanySwitcherOpen(false); }}
+                      onClick={() => { void setCompany(NEW_ENTITY_ID); setCompanySwitcherOpen(false); }}
                     >
                       <Plus size={14} />
                       <span>{t("app.newCompany")}</span>
@@ -168,7 +169,7 @@ export function SidebarView({
       <div className={`border-t border-border py-2 ${sidebarCollapsed ? "px-1.5" : "px-3"}`}>
         <SectionButton
           active={section === "settings"}
-          label="Settings"
+          label={t("nav.settings")}
           icon={Gear}
           onClick={() => setSection("settings")}
           collapsed={sidebarCollapsed}

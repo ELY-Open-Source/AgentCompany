@@ -108,6 +108,8 @@ describe("selective IPC event types", () => {
           return "budget-changed";
         case "thread-wait-state-updated":
           return "thread-wait-state-updated";
+        case "recovery-needed":
+          return "recovery-needed";
         default: {
           const _exhaustive: never = event;
           return _exhaustive;

@@ -187,7 +187,8 @@ export function createServiceGraph({
         try {
           const snapshot = db.listSnapshot();
           return snapshot.runs.filter((r) => r.status === "running" || r.status === "queued").length;
-        } catch {
+        } catch (error) {
+          logger.warn("[service-graph] getActiveRunCount failed:", error);
           return 0;
         }
       },
@@ -224,7 +225,7 @@ export function createServiceGraph({
       emitEvent,
       notify,
       createRunToken,
-      getApiPort: () => apiServerRef.current?.getPort() ?? 0,
+      getApiPort: () => apiServerRef.current?.port ?? 0,
       dispatchAutomation,
       hasWorkerReady: () => Boolean(workerService?.getWorker()),
       enqueueWorkerRun: (payload) => {
@@ -239,7 +240,8 @@ export function createServiceGraph({
               cachedSkillService = createSkillService({ db, profileDir: db.profileDir, logger });
             }
             return cachedSkillService.listRuntimeSkillEntries(companyId, agentId, connectorId);
-          } catch {
+          } catch (error) {
+            logger.warn(`[service-graph] listRuntimeSkillEntries failed for agent ${agentId}:`, error);
             return [];
           }
         };
@@ -249,7 +251,8 @@ export function createServiceGraph({
       getSessionHandoff: (taskId: string) => {
         try {
           return getOrCreateSessionManagementService().getHandoffContext(taskId);
-        } catch {
+        } catch (error) {
+          logger.warn(`[service-graph] getSessionHandoff failed for task ${taskId}:`, error);
           return null;
         }
       },
@@ -265,7 +268,8 @@ export function createServiceGraph({
             return { rotated: true, handoff };
           }
           return { rotated: false, handoff: null };
-        } catch {
+        } catch (error) {
+          logger.warn(`[service-graph] evaluatePreRunSessionRotation failed for task ${taskId}:`, error);
           return { rotated: false, handoff: null };
         }
       },

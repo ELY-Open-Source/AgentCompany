@@ -182,33 +182,39 @@ export function validateAgentMessageInput(
 }
 
 function resolveProjectWakeTargets(
+  db: AppDatabase,
   input: NormalizedAgentMessageInput,
-  snapshot: ReturnType<AppDatabase["listSnapshot"]>,
 ): string[] {
   if (!input.channelTargetId) return [];
-  const project = snapshot.projects.find(
-    (entry) => entry.id === input.channelTargetId && entry.companyId === input.companyId,
+  const projectRows = db.queryAll<{ leadAgentId: string | null }>(
+    "select lead_agent_id as leadAgentId from projects where id = ? and company_id = ? limit 1",
+    input.channelTargetId, input.companyId,
   );
+  const project = projectRows[0] ?? null;
   const participantIds = new Set<string>();
   if (project?.leadAgentId) participantIds.add(project.leadAgentId);
-  for (const task of snapshot.tasks) {
-    if (task.companyId !== input.companyId) continue;
-    if (task.projectId !== input.channelTargetId) continue;
-    if (task.assigneeAgentId) participantIds.add(task.assigneeAgentId);
+  const taskAssignees = db.queryAll<{ assigneeAgentId: string | null }>(
+    "select assignee_agent_id as assigneeAgentId from tasks where project_id = ? and company_id = ? and assignee_agent_id is not null",
+    input.channelTargetId, input.companyId,
+  );
+  for (const t of taskAssignees) {
+    if (t.assigneeAgentId) participantIds.add(t.assigneeAgentId);
   }
 
-  return Array.from(participantIds).filter((agentId) => {
-    if (agentId === input.fromAgentId) return false;
-    const agent = snapshot.agents.find((entry) => entry.id === agentId);
-    return Boolean(agent && agent.companyId === input.companyId && agent.status !== "terminated");
-  });
+  if (participantIds.size === 0) return [];
+  const ids = Array.from(participantIds).filter((id) => id !== input.fromAgentId);
+  if (ids.length === 0) return [];
+  const activeAgents = db.queryAll<{ id: string }>(
+    `select id from agents where id in (${ids.map(() => "?").join(",")}) and company_id = ? and status != 'terminated'`,
+    ...ids, input.companyId,
+  );
+  return activeAgents.map((a) => a.id);
 }
 
 export function resolveMessageWakeTargets(
   db: AppDatabase,
   input: NormalizedAgentMessageInput,
 ): string[] {
-  const snapshot = db.listSnapshot();
   const wakeTargets = new Set<string>();
 
   if (input.channel === "direct" && input.toAgentId && input.toAgentId !== input.fromAgentId) {
@@ -216,39 +222,38 @@ export function resolveMessageWakeTargets(
   }
 
   if (input.channel === "department" && input.channelTargetId) {
-    for (const agent of snapshot.agents) {
-      if (agent.companyId !== input.companyId) continue;
-      if (agent.status === "terminated") continue;
-      if (agent.id === input.fromAgentId) continue;
-      if (agent.department === input.channelTargetId) {
-        wakeTargets.add(agent.id);
-      }
+    const deptAgents = db.queryAll<{ id: string }>(
+      "select id from agents where company_id = ? and department = ? and status != 'terminated'",
+      input.companyId, input.channelTargetId,
+    );
+    for (const agent of deptAgents) {
+      if (agent.id !== input.fromAgentId) wakeTargets.add(agent.id);
     }
   }
 
   if (input.channel === "company") {
-    const topLevel = snapshot.agents.filter(
-      (agent) => agent.companyId === input.companyId && !agent.reportsTo && agent.status !== "terminated",
+    const topLevel = db.queryAll<{ id: string }>(
+      "select id from agents where company_id = ? and reports_to is null and status != 'terminated'",
+      input.companyId,
     );
     for (const agent of topLevel) {
-      if (agent.id !== input.fromAgentId) {
-        wakeTargets.add(agent.id);
-      }
+      if (agent.id !== input.fromAgentId) wakeTargets.add(agent.id);
     }
   }
 
   if (input.channel === "project") {
-    for (const agentId of resolveProjectWakeTargets(input, snapshot)) {
+    for (const agentId of resolveProjectWakeTargets(db, input)) {
       wakeTargets.add(agentId);
     }
   }
 
   if (input.channel === "incident") {
-    for (const agent of snapshot.agents) {
-      if (agent.companyId !== input.companyId) continue;
-      if (agent.status === "terminated" || agent.status === "pending_approval") continue;
-      if (agent.id === input.fromAgentId) continue;
-      wakeTargets.add(agent.id);
+    const activeAgents = db.queryAll<{ id: string }>(
+      "select id from agents where company_id = ? and status not in ('terminated', 'pending_approval')",
+      input.companyId,
+    );
+    for (const agent of activeAgents) {
+      if (agent.id !== input.fromAgentId) wakeTargets.add(agent.id);
     }
   }
 
@@ -291,8 +296,11 @@ export function dispatchAgentMessage(
     !normalized.fromHumanUser &&
     (message.channel !== "direct" || message.toAgentId === HUMAN_SENDER_ID)
   ) {
-    const snapshot = deps.db.listSnapshot();
-    const senderName = snapshot.agents.find((entry) => entry.id === message.fromAgentId)?.name ?? "Agent";
+    const senderRows = deps.db.queryAll<{ name: string }>(
+      "select name from agents where id = ? limit 1",
+      message.fromAgentId,
+    );
+    const senderName = senderRows[0]?.name ?? "Agent";
     deps.notify({
       title: truncateForNotification(`${senderName} · ${message.subject}`, 80),
       body: truncateForNotification(message.body, 140),
@@ -312,10 +320,15 @@ export function dispatchAgentMessage(
   const mentionResults: MentionResult[] = [];
 
   if (deps.wakeAgentIfPossible) {
-    const snapshot = deps.db.listSnapshot();
+    const agentNameRows = wakeTargets.length > 0
+      ? deps.db.queryAll<{ id: string; name: string }>(
+          `select id, name from agents where id in (${wakeTargets.map(() => "?").join(",")}) and company_id = ?`,
+          ...wakeTargets, normalized.companyId,
+        )
+      : [];
+    const agentNameMap = new Map(agentNameRows.map((a) => [a.id, a.name]));
     for (const wakeTarget of wakeTargets) {
-      const agent = snapshot.agents.find((a) => a.id === wakeTarget && a.companyId === normalized.companyId);
-      const agentName = agent?.name ?? wakeTarget;
+      const agentName = agentNameMap.get(wakeTarget) ?? wakeTarget;
       const runId = deps.wakeAgentIfPossible(wakeTarget, normalized.companyId, wakeTrigger);
       const hasQueuedWake = !runId && deps.db.listWakeupRequests(normalized.companyId, {
         agentId: wakeTarget,

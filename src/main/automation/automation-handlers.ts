@@ -38,7 +38,8 @@ export function handleTaskStatusChange(
   let task: ReturnType<typeof db.getTask> | null = null;
   try {
     task = db.getTask(taskId);
-  } catch {
+  } catch (error) {
+    deps.logger.warn(`[automation] handleTaskStatusChange: task ${taskId} not found:`, error);
     return;
   }
   if (!task) return;
@@ -64,8 +65,8 @@ export function handleTaskStatusChange(
       const agent = db.getAgent(task.assigneeAgentId);
       context.department = agent.department ?? undefined;
     }
-  } catch {
-    // Agent may have been deleted after the task update; keep the transition without department context.
+  } catch (error) {
+    deps.logger.warn(`[automation] Agent ${task.assigneeAgentId} deleted after task update — continuing without department context:`, error);
   }
 
   dispatchAutomation("task_status_changed", context);
@@ -114,7 +115,8 @@ export function handleTaskCreated(
   let task: ReturnType<typeof db.getTask> | null = null;
   try {
     task = db.getTask(taskId);
-  } catch {
+  } catch (error) {
+    deps.logger.warn(`[automation] handleTaskCreated: task ${taskId} not found:`, error);
     return;
   }
   if (!task) return;

@@ -7,27 +7,28 @@ import {
   Terminal,
 } from "@phosphor-icons/react";
 import { ActionButton } from "../ui";
+import type { TerminalCommandKey } from "@shared/contracts";
 
 interface NodeCheckStepProps {
   nodeStatus: { installed: boolean; version: string | null } | null;
   checking: boolean;
   onCheck: () => void;
-  onInstall: (command: string) => void;
+  onInstall: (commandKey: TerminalCommandKey) => void;
   onContinue: () => void;
   onBack: () => void;
   t: (key: string) => string;
 }
 
-const INSTALL_COMMANDS: Record<string, { label: string; code: string; command: string }> = {
+const INSTALL_COMMANDS: Record<string, { label: string; code: string; commandKey: TerminalCommandKey }> = {
   darwin: {
     label: "macOS",
     code: "brew install node@22",
-    command: "brew install node@22",
+    commandKey: "install_node_darwin",
   },
   win32: {
     label: "Windows",
     code: "winget install -e --id OpenJS.NodeJS.LTS",
-    command: "winget install -e --id OpenJS.NodeJS.LTS",
+    commandKey: "install_node_win32",
   },
   linux: {
     label: "Linux",
@@ -42,7 +43,7 @@ nvm install 22
 
 # Verify the Node.js version:
 node -v`,
-    command: `curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash && \\. "$HOME/.nvm/nvm.sh" && nvm install 22`,
+    commandKey: "install_node_linux",
   },
 };
 
@@ -109,7 +110,7 @@ export function NodeCheckStep({
           </pre>
           <ActionButton
             label={t("onboarding.installNodeTerminal")}
-            onClick={() => onInstall(platformInfo.command)}
+            onClick={() => onInstall(platformInfo.commandKey)}
             icon={Terminal}
           />
         </div>

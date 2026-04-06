@@ -189,7 +189,7 @@ export function CompanyOnboarding({
             nodeStatus={nodeStatus}
             nodeChecking={nodeChecking}
             onCheckNode={() => void checkNode()}
-            onInstallCommand={(title, command) => void handleInstallCommand(title, command)}
+            onInstallCommand={(commandKey) => void handleInstallCommand(commandKey)}
             connectors={connectors}
             hasAtLeastOneReady={hasAtLeastOneReady}
             onTestConnector={(id) => void handleTestConnector(id)}

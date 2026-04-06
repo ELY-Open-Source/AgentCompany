@@ -141,7 +141,7 @@ export function buildTaskCrudMethods(
     listAgentTasks(agentId: string, companyId: string, statuses: string[]): TaskRecord[] {
       const placeholders = statuses.map(() => "?").join(",");
       return readAll<TaskRecord>(
-        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, created_at as createdAt, updated_at as updatedAt
+        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, task_type as taskType, created_at as createdAt, updated_at as updatedAt
          from tasks
         where company_id = ? and assignee_agent_id = ? and status in (${placeholders})
         order by

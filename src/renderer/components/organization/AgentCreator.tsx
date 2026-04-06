@@ -5,6 +5,7 @@ import type { AgentRecord, ConnectorRecord, WorkspaceRecord } from "@shared/type
 import { isConnectorExecutionReady } from "@shared/connector-policy";
 import { unwrap } from "../../lib/desktop";
 import { ActionButton, Input, Select, TextArea } from "../ui";
+import { useT } from "../../i18n";
 
 export function AgentCreator({
   companyId,
@@ -66,27 +67,28 @@ export function AgentCreator({
     }
   }, [executionReadyConnectors, connectorId]);
 
+  const t = useT();
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   return (
     <div className="grid min-w-0 gap-4">
-      <Input label="Agent name" value={name} onChange={setName} placeholder="Agent name" hint="Display name shown in org chart and messages" />
-      <Input label="Role" value={role} onChange={setRole} placeholder="e.g. Engineer, PM, CEO" hint="Determines which tasks the agent can handle" />
-      <Input label="Title" value={title} onChange={setTitle} placeholder="Title" hint="Job title shown under the name" />
+      <Input label={t("org.agentName")} value={name} onChange={setName} placeholder={t("org.agentName")} hint="Display name shown in org chart and messages" />
+      <Input label={t("agent.role")} value={role} onChange={setRole} placeholder="e.g. Engineer, PM, CEO" hint="Determines which tasks the agent can handle" />
+      <Input label={t("agent.title")} value={title} onChange={setTitle} placeholder={t("agent.title")} hint="Job title shown under the name" />
       <Select
-        label="Connector"
+        label={t("org.connector")}
         value={connectorId}
         onChange={(value) => setConnectorId(value as ConnectorRecord["id"])}
         options={executionReadyConnectors.map((connector) => ({ value: connector.id, label: connector.id.startsWith("claude_compat") && connector.notes ? connector.notes : connector.label }))}
       />
       {executionReadyConnectors.length === 0 ? (
         <p className="text-[12px] text-warning">
-          No execution-ready connector is available. Fix connector health before requesting hires.
+          {t("org.noConnectorAvailable")}
         </p>
       ) : null}
       {availableModels.length > 0 ? (
         <Select
-          label="Model"
+          label={t("org.model")}
           value={model}
           onChange={setModel}
           options={availableModels.map((m) => ({ value: m.id, label: m.label }))}
@@ -94,11 +96,11 @@ export function AgentCreator({
       ) : null}
       {supportsEffort ? (
         <Select
-          label="Thinking effort"
+          label={t("org.thinkingEffort")}
           value={thinkingEffort}
           onChange={setThinkingEffort}
           options={[
-            { value: "", label: "Default" },
+            { value: "", label: t("org.default") },
             { value: "low", label: "Low" },
             { value: "medium", label: "Medium" },
             { value: "high", label: "High" },
@@ -107,32 +109,32 @@ export function AgentCreator({
       ) : null}
       <button type="button" onClick={() => setShowAdvanced(!showAdvanced)} className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground transition hover:text-foreground">
         <svg width="10" height="10" viewBox="0 0 10 10" className={`transition-transform ${showAdvanced ? "rotate-90" : ""}`}><path d="M3 1l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>
-        Advanced settings
+        {t("org.advancedSettings")}
       </button>
       <AnimatePresence>
       {showAdvanced ? (
         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }} className="grid gap-4 overflow-hidden">
           <Select
-            label="Workspace"
+            label={t("agent.workspace")}
             value={workspaceId}
             onChange={setWorkspaceId}
             options={[
-              { value: "", label: "No workspace" },
+              { value: "", label: t("agent.noWorkspace") },
               ...workspaces.map((workspace) => ({ value: workspace.id, label: workspace.name })),
             ]}
           />
           <Select
-            label="Reports to"
+            label={t("agent.reportsTo")}
             value={reportsTo}
             onChange={setReportsTo}
             options={[
-              { value: "", label: "No manager" },
+              { value: "", label: t("agent.noManager") },
               ...agents.map((a) => ({ value: a.id, label: a.name })),
             ]}
           />
-          <Input label="Monthly budget (USD)" value={budget} onChange={setBudget} placeholder="120" type="number" hint="Spending cap per month; agent pauses when exceeded" />
+          <Input label={t("org.monthlyBudget")} value={budget} onChange={setBudget} placeholder="120" type="number" hint="Spending cap per month; agent pauses when exceeded" />
           <TextArea
-            label="Capabilities"
+            label={t("agent.capabilities")}
             value={capabilities}
             onChange={setCapabilities}
             placeholder="What this agent does"
@@ -142,17 +144,17 @@ export function AgentCreator({
       ) : null}
       </AnimatePresence>
       <p className="text-[12px] text-muted-foreground">
-        New agents enter the hiring pipeline first. Approval activates the agent and keeps onboarding, budgets, and org history linked to the same record.
+        {t("org.hireRequestNote")}
       </p>
       <ActionButton
-        label="Submit hire request"
+        label={t("org.submitHireRequest")}
         tone="accent"
         onClick={() =>
           void (async () => {
             try {
               setRequestError(null);
               if (!selectedConnector) {
-                setRequestError("Select an execution-ready connector before requesting a hire.");
+                setRequestError(t("org.selectConnectorFirst"));
                 return;
               }
               const meta: Record<string, string> = {};
@@ -180,7 +182,7 @@ export function AgentCreator({
               setRequestError(null);
               await onSaved();
             } catch (error) {
-              setRequestError(error instanceof Error ? error.message : "Hire request failed.");
+              setRequestError(error instanceof Error ? error.message : t("org.hireRequestFailed"));
             }
           })()
         }

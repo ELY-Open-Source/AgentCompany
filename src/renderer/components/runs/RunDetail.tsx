@@ -91,7 +91,7 @@ export function RunDetail({
             <ActionButton
               label={t("runs.openLogFile")}
               icon={FolderOpen}
-              onClick={() => void onOpenLogPath(selectedRun.logPath!)}
+              onClick={() => { const p = selectedRun.logPath; if (p) void onOpenLogPath(p); }}
             />
           </div>
         ) : null}

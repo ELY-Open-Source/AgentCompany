@@ -132,7 +132,7 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       handleTaskStatusChange: (taskId, companyId, previousStatus, newStatus) =>
         requireAutomationService().handleTaskStatusChange(taskId, companyId, previousStatus, newStatus),
       handleApprovalCreated: (approvalId, companyId, taskId, approvalType, summary) => {
-        state.threadIntegration!.onApprovalCreated(approvalId, companyId, taskId, approvalType, summary);
+        state.threadIntegration?.onApprovalCreated(approvalId, companyId, taskId, approvalType, summary);
       },
       handleApprovalResolved: (approvalId, companyId, decision) => {
         requireAutomationService().handleApprovalResolved(approvalId, companyId, decision);
@@ -153,7 +153,7 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
         initializeAgentTokenSigningKey(requireDb().profileDir);
         requireBrowserActionService().resetBrowserManager();
       },
-      getApiPort: () => state.apiServer?.getPort() ?? 0,
+      getApiPort: () => state.apiServer?.port ?? 0,
       notify: (options) => requireIpcSupport().notify(options),
       listConnectorModels: async (connectorId) => {
         const policy = getConnectorModelPolicy(requireDb(), connectorId as ConnectorId);

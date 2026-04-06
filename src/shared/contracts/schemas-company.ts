@@ -51,7 +51,7 @@ export const bootstrapOnboardingSchema = z.object({
   executionMode: z.enum(["ai_ceo", "ai_cofounder"]).default("ai_ceo"),
   goalTitle: z.string().default(""),
   goalDescription: z.string().default(""),
-  connectorId: z.enum(["codex_local", "claude_local", "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5", "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10", "gemini_local"]).optional(),
+  connectorId: connectorInputSchema.shape.id.optional(),
   connectorModel: z.string().default(""),
 });
 

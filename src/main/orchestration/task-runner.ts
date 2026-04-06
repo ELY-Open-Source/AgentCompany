@@ -1,13 +1,15 @@
 import { randomUUID } from "node:crypto";
 import type { AppDatabase } from "../database";
+import type { AgentRecord, ConnectorRecord } from "@shared/types";
 import type { DesktopResult } from "@shared/contracts";
 import type { OrchestrationDependencies } from "./types";
+import type { RunDispatchParams } from "./turn-context";
 
 export function createTaskRunner(
   deps: OrchestrationDependencies,
   resolveWorkspace: (task: { workspaceId: string | null; projectId?: string | null }, agent: { workspaceId: string | null }, companyId: string) => { workspace: ReturnType<AppDatabase["getWorkspace"]>; lockMode: "exclusive" | "shared" | "none"; source: string },
-  getRunEligibilityFailure: (agent: any, connector: any, projectId?: string | null) => string | null,
-  dispatchRunToWorker: (params: any) => void,
+  getRunEligibilityFailure: (agent: AgentRecord, connector: ConnectorRecord, projectId?: string | null) => string | null,
+  dispatchRunToWorker: (params: RunDispatchParams) => void,
   hasActiveRun: (filter: { taskId?: string; agentId?: string; companyId: string }) => boolean,
 ) {
   const {

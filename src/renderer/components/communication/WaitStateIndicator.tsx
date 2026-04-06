@@ -51,7 +51,7 @@ export default function WaitStateIndicator({ waitState, onReply, onNavigateAppro
       </div>
       {isApproval && onNavigateApproval ? (
         <button
-          onClick={() => onNavigateApproval(waitState.relatedApprovalId!)}
+          onClick={() => { const id = waitState.relatedApprovalId; if (id) onNavigateApproval(id); }}
           className="flex shrink-0 items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600"
         >
           <CheckCircle size={14} />

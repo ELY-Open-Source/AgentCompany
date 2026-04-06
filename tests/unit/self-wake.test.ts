@@ -1,62 +1,27 @@
 import { describe, expect, it } from "vitest";
+import { createCircuitBreaker, MAX_CONSECUTIVE_WAKES } from "@main/worker/circuit-breaker";
 
 /**
- * Tests for the self-wake circuit breaker pattern used in worker-service.ts.
+ * Tests for the self-wake circuit breaker used in worker-message-handler.ts.
  *
  * The circuit breaker prevents infinite self-wake loops when an agent is stuck
  * on a task. After MAX_CONSECUTIVE_WAKES (5) consecutive wakes without progress
- * (i.e., without a task status change), self-wake is suppressed and the agent's
+ * (i.e., without a successful run), self-wake is suppressed and the agent's
  * manager is notified instead.
  */
 
-const MAX_CONSECUTIVE_WAKES = 5;
-
-/**
- * Standalone circuit breaker logic extracted for testability.
- * Mirrors the pattern used inside createWorkerService.
- */
-function createCircuitBreaker(maxConsecutive: number = MAX_CONSECUTIVE_WAKES) {
-  const consecutiveWakeMap = new Map<string, number>();
-
-  return {
-    /** Attempt a self-wake. Returns true if allowed, false if circuit breaker trips. */
-    tryWake(agentId: string, companyId: string): boolean {
-      const wakeKey = `${agentId}:${companyId}`;
-      const count = consecutiveWakeMap.get(wakeKey) ?? 0;
-
-      if (count >= maxConsecutive) {
-        consecutiveWakeMap.delete(wakeKey);
-        return false; // Circuit breaker tripped
-      }
-
-      consecutiveWakeMap.set(wakeKey, count + 1);
-      return true;
-    },
-
-    /** Reset the counter for an agent (called on task progress). */
-    reset(agentId: string, companyId: string): void {
-      const wakeKey = `${agentId}:${companyId}`;
-      consecutiveWakeMap.delete(wakeKey);
-    },
-
-    /** Get the current count for an agent. */
-    getCount(agentId: string, companyId: string): number {
-      const wakeKey = `${agentId}:${companyId}`;
-      return consecutiveWakeMap.get(wakeKey) ?? 0;
-    },
-  };
-}
-
 describe("self-wake circuit breaker", () => {
   it("allows the first self-wake (counter=1)", () => {
-    const cb = createCircuitBreaker();
+    const map = new Map<string, number>();
+    const cb = createCircuitBreaker(map);
     const allowed = cb.tryWake("agent-1", "company-1");
     expect(allowed).toBe(true);
     expect(cb.getCount("agent-1", "company-1")).toBe(1);
   });
 
   it("allows wakes up to MAX_CONSECUTIVE_WAKES-1 (counter=4)", () => {
-    const cb = createCircuitBreaker();
+    const map = new Map<string, number>();
+    const cb = createCircuitBreaker(map);
     for (let i = 0; i < MAX_CONSECUTIVE_WAKES - 1; i++) {
       expect(cb.tryWake("agent-1", "company-1")).toBe(true);
     }
@@ -64,7 +29,8 @@ describe("self-wake circuit breaker", () => {
   });
 
   it("trips after MAX_CONSECUTIVE_WAKES (5) consecutive wakes without progress", () => {
-    const cb = createCircuitBreaker();
+    const map = new Map<string, number>();
+    const cb = createCircuitBreaker(map);
     // First 5 wakes succeed (counter goes 0->1, 1->2, 2->3, 3->4, 4->5)
     for (let i = 0; i < MAX_CONSECUTIVE_WAKES; i++) {
       expect(cb.tryWake("agent-1", "company-1")).toBe(true);
@@ -75,7 +41,8 @@ describe("self-wake circuit breaker", () => {
   });
 
   it("deletes the counter after circuit breaker trips (reset for next cycle)", () => {
-    const cb = createCircuitBreaker();
+    const map = new Map<string, number>();
+    const cb = createCircuitBreaker(map);
     for (let i = 0; i < MAX_CONSECUTIVE_WAKES; i++) {
       cb.tryWake("agent-1", "company-1");
     }
@@ -86,7 +53,8 @@ describe("self-wake circuit breaker", () => {
   });
 
   it("resets counter to 0 on task status change", () => {
-    const cb = createCircuitBreaker();
+    const map = new Map<string, number>();
+    const cb = createCircuitBreaker(map);
     cb.tryWake("agent-1", "company-1");
     cb.tryWake("agent-1", "company-1");
     expect(cb.getCount("agent-1", "company-1")).toBe(2);
@@ -97,7 +65,8 @@ describe("self-wake circuit breaker", () => {
   });
 
   it("maintains per-agent isolation (different agents have separate counters)", () => {
-    const cb = createCircuitBreaker();
+    const map = new Map<string, number>();
+    const cb = createCircuitBreaker(map);
     // Agent 1 wakes 4 times
     for (let i = 0; i < 4; i++) {
       cb.tryWake("agent-1", "company-1");
@@ -111,7 +80,8 @@ describe("self-wake circuit breaker", () => {
   });
 
   it("maintains per-company isolation for the same agent", () => {
-    const cb = createCircuitBreaker();
+    const map = new Map<string, number>();
+    const cb = createCircuitBreaker(map);
     cb.tryWake("agent-1", "company-1");
     cb.tryWake("agent-1", "company-1");
     cb.tryWake("agent-1", "company-2");
@@ -121,7 +91,8 @@ describe("self-wake circuit breaker", () => {
   });
 
   it("allows wakes again after reset even if previously near limit", () => {
-    const cb = createCircuitBreaker();
+    const map = new Map<string, number>();
+    const cb = createCircuitBreaker(map);
     // Get to 4 wakes
     for (let i = 0; i < MAX_CONSECUTIVE_WAKES - 1; i++) {
       cb.tryWake("agent-1", "company-1");
@@ -138,7 +109,8 @@ describe("self-wake circuit breaker", () => {
   });
 
   it("resetting one agent does not affect another", () => {
-    const cb = createCircuitBreaker();
+    const map = new Map<string, number>();
+    const cb = createCircuitBreaker(map);
     cb.tryWake("agent-1", "company-1");
     cb.tryWake("agent-1", "company-1");
     cb.tryWake("agent-2", "company-1");
@@ -148,5 +120,15 @@ describe("self-wake circuit breaker", () => {
     cb.reset("agent-1", "company-1");
     expect(cb.getCount("agent-1", "company-1")).toBe(0);
     expect(cb.getCount("agent-2", "company-1")).toBe(3);
+  });
+
+  it("shares state with the underlying map (same map = same state)", () => {
+    const map = new Map<string, number>();
+    const cb1 = createCircuitBreaker(map);
+    const cb2 = createCircuitBreaker(map);
+    cb1.tryWake("agent-1", "company-1");
+    cb1.tryWake("agent-1", "company-1");
+    // cb2 wraps the same map, so it sees the same count
+    expect(cb2.getCount("agent-1", "company-1")).toBe(2);
   });
 });

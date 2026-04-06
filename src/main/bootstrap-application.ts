@@ -165,7 +165,7 @@ export async function bootstrapApplication({
     getMainWindow: () => serviceGraph?.getDesktopShellService()?.getMainWindow() ?? null,
     getDb: () => ({
       hasCompany: (companyId: string) => db.hasCompany(companyId),
-      belongsToCompany: (table: string, id: string, companyId: string) => db.belongsToCompany(table as any, id, companyId),
+      belongsToCompany: (table: string, id: string, companyId: string) => db.belongsToCompany(table as Parameters<typeof db.belongsToCompany>[0], id, companyId),
     }),
     notificationService,
   });
@@ -201,10 +201,10 @@ export async function bootstrapApplication({
     automation.handleApprovalResolved(approvalId, companyId, decision);
     threadIntegration.onApprovalResolved(approvalId, companyId, decision);
   };
-  const dispatchAutomation = (trigger: string, ctx: Record<string, unknown>) => {
+  const dispatchAutomation = (trigger: string, ctx: import("./automation/types").AutomationEventContext) => {
     const automation = serviceGraph.getAutomationService();
     if (!automation) throw new Error("Automation service is not initialized.");
-    automation.dispatchAutomation(trigger, ctx as any);
+    automation.dispatchAutomation(trigger, ctx);
   };
 
   const handleApprovalCreated = (approvalId: string, companyId: string, taskId: string | null, approvalType: string, summary: string) => {
@@ -332,7 +332,7 @@ export async function bootstrapApplication({
       emitEvent({
         type: "recovery-needed",
         interruptedRuns,
-      } as any); // DesktopEvent will need extending
+      });
       notify({
         title: "Session Recovered",
         body: `${interruptedRuns.length} interrupted task(s) detected from previous session`,
@@ -368,8 +368,8 @@ export async function bootstrapApplication({
             resumedAgents.add(run.agentId);
             wakeAgentIfPossible(run.agentId, run.companyId, "app_restart_resume");
           }
-        } catch {
-          // Task or agent may have been deleted — skip
+        } catch (error) {
+          log.warn(`[bootstrap] Skipped shutdown recovery for run ${run.id} (task/agent may have been deleted):`, error);
         }
       }
       if (resumedAgents.size > 0) {

@@ -51,7 +51,7 @@ export async function notifyHireApproved(
       source: input.source,
       sourceId: input.sourceId,
       approvedAt: input.approvedAt ?? new Date().toISOString(),
-      message: db.listSnapshot().locale === "zh"
+      message: (db.queryAll<{ value: string }>("select value from settings where key = 'locale' limit 1")[0]?.value ?? "en") === "zh"
         ? `你已被批准为"${agent.title}"。你现在已激活，可以接收任务。`
         : `Your hire as "${agent.title}" in the company has been approved. You are now active and ready to receive tasks.`,
     };

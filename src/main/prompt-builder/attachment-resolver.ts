@@ -36,7 +36,7 @@ export function resolveAttachmentContent(
   }
 
   const docEntries = entries.filter(
-    (e) => e.type === "document" && typeof e.id === "string",
+    (e): e is typeof e & { id: string } => e.type === "document" && typeof e.id === "string",
   );
   if (docEntries.length === 0) return "";
 
@@ -44,7 +44,7 @@ export function resolveAttachmentContent(
   const resolved: Array<{ title: string; content: string }> = [];
 
   for (const entry of docEntries) {
-    const doc = docMap.get(entry.id!);
+    const doc = docMap.get(entry.id);
     if (!doc || !doc.content) continue;
     resolved.push({ title: doc.title || entry.title || "Untitled", content: doc.content });
   }

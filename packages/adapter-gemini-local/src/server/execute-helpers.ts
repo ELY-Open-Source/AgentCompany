@@ -2,22 +2,29 @@ import fs from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { AdapterExecutionContext, ManagedSkillRef } from "@agentcompany/adapter-utils";
+import {
+  hasNonEmptyEnvValue,
+  buildSkillsCandidates,
+  resolveSkillsDir,
+  parseManagedSkills,
+  parseExtraArgs,
+  buildCommonAgentCompanyEnv,
+  resolveSessionResumeState,
+} from "@agentcompany/adapter-utils";
 import {
   createManagedSkillSymlinks,
 } from "@agentcompany/adapter-utils/server-utils";
 
-const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
-export const SKILLS_CANDIDATES = [
-  path.resolve(__moduleDir, "../../skills"),
-  path.resolve(__moduleDir, "../../../../../skills"),
-];
+export {
+  hasNonEmptyEnvValue,
+  parseManagedSkills,
+  parseExtraArgs,
+  buildCommonAgentCompanyEnv,
+  resolveSessionResumeState,
+};
 
-export function hasNonEmptyEnvValue(env: Record<string, string>, key: string): boolean {
-  const raw = env[key];
-  return typeof raw === "string" && raw.trim().length > 0;
-}
+export const SKILLS_CANDIDATES = buildSkillsCandidates(import.meta.url);
 
 export function resolveGeminiBillingType(env: Record<string, string>): "api" | "subscription" {
   return hasNonEmptyEnvValue(env, "GEMINI_API_KEY") || hasNonEmptyEnvValue(env, "GOOGLE_API_KEY")
@@ -54,11 +61,7 @@ export function renderApiAccessNote(env: Record<string, string>): string {
 }
 
 export async function resolveAgentCompanySkillsDir(): Promise<string | null> {
-  for (const candidate of SKILLS_CANDIDATES) {
-    const isDir = await fs.stat(candidate).then((s) => s.isDirectory()).catch(() => false);
-    if (isDir) return candidate;
-  }
-  return null;
+  return resolveSkillsDir(SKILLS_CANDIDATES);
 }
 
 export function geminiSkillsHome(): string {
@@ -75,13 +78,12 @@ export async function ensureGeminiSkillsInjected(
 ): Promise<void> {
   const skillsHome = geminiSkillsHome();
 
-  // Use managed skills when available; fall back to static repo scan
   if (managedSkills.length > 0) {
     await createManagedSkillSymlinks(managedSkills, skillsHome, onLog);
     return;
   }
 
-  const skillsDir = await resolveAgentCompanySkillsDir();
+  const skillsDir = await resolveSkillsDir(SKILLS_CANDIDATES);
   if (!skillsDir) return;
 
   try {

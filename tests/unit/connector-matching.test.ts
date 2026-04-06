@@ -1,17 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  matchConnector,
   inferTaskType,
   getConnectorStrengths,
   TASK_TYPE_PREFERENCE,
   CONNECTOR_STRENGTHS as _CONNECTOR_STRENGTHS,
   ROLE_DEPARTMENT_HINTS as _ROLE_DEPARTMENT_HINTS,
 } from "../../src/main/connector-matching";
-import type { ConnectorId, ConnectorStatus } from "@shared/types";
-
-function makeConnector(id: ConnectorId, status: ConnectorStatus = "ready", label?: string) {
-  return { id, status, label: label ?? id };
-}
 
 describe("connector-matching", () => {
   describe("TASK_TYPE_PREFERENCE", () => {
@@ -127,135 +121,6 @@ describe("connector-matching", () => {
       expect(result).toBeTruthy();
       expect(typeof result).toBe("string");
       expect(result.length).toBeGreaterThan(10);
-    });
-  });
-
-  describe("matchConnector", () => {
-    const allReady = [
-      makeConnector("claude_local", "ready", "Claude Code"),
-      makeConnector("codex_local", "ready", "Codex"),
-      makeConnector("gemini_local", "ready", "Gemini CLI"),
-    ];
-
-    it("recommends claude_local for code tasks when all ready", () => {
-      const result = matchConnector({
-        taskType: "code",
-        agentRole: "engineer",
-        agentDepartment: "engineering",
-        availableConnectors: allReady,
-      });
-      expect(result.recommendedConnectorId).toBe("claude_local");
-    });
-
-    it("recommends gemini_local for research tasks when all ready", () => {
-      const result = matchConnector({
-        taskType: "research",
-        agentRole: "researcher",
-        agentDepartment: "research",
-        availableConnectors: allReady,
-      });
-      expect(result.recommendedConnectorId).toBe("gemini_local");
-    });
-
-    it("recommends claude_local for content tasks when all ready", () => {
-      const result = matchConnector({
-        taskType: "content",
-        agentRole: "marketer",
-        agentDepartment: "marketing",
-        availableConnectors: [
-          makeConnector("claude_local", "ready", "Claude Code"),
-        ],
-      });
-      expect(result.recommendedConnectorId).toBe("claude_local");
-    });
-
-    it("falls back when preferred connector is offline", () => {
-      const result = matchConnector({
-        taskType: "research",
-        agentRole: "researcher",
-        agentDepartment: "research",
-        availableConnectors: [
-          makeConnector("gemini_local", "not_installed", "Gemini CLI"),
-          makeConnector("claude_local", "ready", "Claude Code"),
-          makeConnector("codex_local", "ready", "Codex"),
-        ],
-      });
-      // gemini is not ready, so should fallback to claude_local (next in research preference)
-      expect(result.recommendedConnectorId).toBe("claude_local");
-    });
-
-    it("uses first available connector when none are ready", () => {
-      const result = matchConnector({
-        taskType: "code",
-        agentRole: "engineer",
-        agentDepartment: "engineering",
-        availableConnectors: [
-          makeConnector("claude_local", "detected", "Claude Code"),
-          makeConnector("codex_local", "auth_required", "Codex"),
-        ],
-      });
-      // None ready, should pick first available
-      expect(result.recommendedConnectorId).toBe("claude_local");
-    });
-
-    it("returns claude_local as ultimate fallback with empty connector list", () => {
-      const result = matchConnector({
-        taskType: "code",
-        agentRole: "engineer",
-        agentDepartment: "engineering",
-        availableConnectors: [],
-      });
-      expect(result.recommendedConnectorId).toBe("claude_local");
-    });
-
-    it("returns a different fallback when multiple connectors are ready", () => {
-      const result = matchConnector({
-        taskType: "code",
-        agentRole: "engineer",
-        agentDepartment: "engineering",
-        availableConnectors: allReady,
-      });
-      expect(result.fallbackConnectorId).not.toBeNull();
-      expect(result.fallbackConnectorId).not.toBe(result.recommendedConnectorId);
-    });
-
-    it("returns null fallback when only one connector is ready", () => {
-      const result = matchConnector({
-        taskType: "code",
-        agentRole: "engineer",
-        agentDepartment: "engineering",
-        availableConnectors: [
-          makeConnector("claude_local", "ready", "Claude Code"),
-          makeConnector("codex_local", "not_installed", "Codex"),
-        ],
-      });
-      expect(result.fallbackConnectorId).toBeNull();
-    });
-
-    it("includes a descriptive reason string", () => {
-      const result = matchConnector({
-        taskType: "code",
-        agentRole: "engineer",
-        agentDepartment: "engineering",
-        availableConnectors: allReady,
-      });
-      expect(result.reason).toBeTruthy();
-      expect(typeof result.reason).toBe("string");
-      expect(result.reason.length).toBeGreaterThan(5);
-    });
-
-    it("handles degraded connectors as non-ready", () => {
-      const result = matchConnector({
-        taskType: "research",
-        agentRole: "analyst",
-        agentDepartment: "research",
-        availableConnectors: [
-          makeConnector("gemini_local", "degraded", "Gemini CLI"),
-          makeConnector("claude_local", "ready", "Claude Code"),
-        ],
-      });
-      // gemini is degraded, should skip to claude_local
-      expect(result.recommendedConnectorId).toBe("claude_local");
     });
   });
 });

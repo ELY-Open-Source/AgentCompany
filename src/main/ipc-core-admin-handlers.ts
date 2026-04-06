@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import {
   IPC_CHANNELS,
   companyInputSchema,
@@ -96,12 +95,7 @@ export function registerCoreAdminHandlers({
   });
 
   registerHandle(IPC_CHANNELS.checkNodeInstalled, async () => {
-    try {
-      const raw = execSync("node --version", { encoding: "utf8", timeout: 10000 }).trim();
-      return ok({ installed: true, version: raw || null });
-    } catch {
-      return ok({ installed: false, version: null });
-    }
+    return ok({ installed: true, version: process.version });
   });
 
   registerHandle(IPC_CHANNELS.openTerminalCommand, async (_event, payload) => {

@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
     inputs:
       publish:
@@ -108,7 +110,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      - name: Upload release files
+      - name: Upload to CI release (Cloudflare transport)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -125,6 +127,15 @@ jobs:
             build/release/*.blockmap \
             build/release/latest-mac.yml \
             --clobber
+      - name: Upload artifacts for release job
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: |
+            build/release/*.dmg
+            build/release/*.zip
+            build/release/*.blockmap
+            build/release/latest-mac.yml
 
   build-windows:
     name: Windows (${{ matrix.arch }})
@@ -136,8 +147,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - arch: x64-ia32
-            builder_args: --win --x64 --ia32
+          - arch: x64
+            builder_args: --win --x64
           - arch: arm64
             builder_args: --win --arm64
     steps:
@@ -157,7 +168,7 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.WIN_CERTIFICATE_P12_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD }}
-      - name: Upload release files
+      - name: Upload to CI release (Cloudflare transport)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -174,6 +185,14 @@ jobs:
             build/release/*.blockmap \
             build/release/latest.yml \
             --clobber
+      - name: Upload artifacts for release job
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.arch }}
+          path: |
+            build/release/*.exe
+            build/release/*.blockmap
+            build/release/latest.yml
 
   build-linux:
     name: Linux (${{ matrix.arch }})
@@ -199,9 +218,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Install snapcraft (x64 only)
-        if: matrix.arch == 'x64'
-        run: sudo snap install snapcraft --classic
       - name: Build electron-vite
         run: pnpm exec electron-vite build
       - name: Package
@@ -224,6 +240,16 @@ jobs:
             build/release/*.blockmap \
             build/release/latest-linux.yml \
             --clobber
+      - name: Upload artifacts for release job
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: |
+            build/release/*.AppImage
+            build/release/*.deb
+            build/release/*.rpm
+            build/release/*.blockmap
+            build/release/latest-linux.yml
 
   # ─────────────────────────────────────────────
   # Stage 4: Publish to GitHub Releases

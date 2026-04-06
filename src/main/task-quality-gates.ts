@@ -5,6 +5,11 @@
  * minimum description quality, acceptance criteria, and capability matching.
  */
 
+import type { DesktopEvent } from "@shared/types";
+import type { AppDatabase } from "@main/database";
+import type { NotificationOptions } from "@main/notification-service";
+import type { dispatchAgentMessage } from "@main/message-dispatch";
+import type { resolveApprovalDecision } from "@main/approval-policy";
 import { validateTaskRubric } from "@main/task-rubrics";
 
 export interface TaskValidationResult {
@@ -13,12 +18,12 @@ export interface TaskValidationResult {
   warnings: string[];
 }
 
-export interface CapabilityMatchResult {
+interface CapabilityMatchResult {
   matched: boolean;
   warning?: string;
 }
 
-export interface CapabilityMatchDb {
+interface CapabilityMatchDb {
   getAgent(id: string): { name: string; capabilities: string };
   listAgentSkillAssignments(id: string): string[];
   getCompanySkill(companyId: string, skillId: string): { name: string; description: string | null; slug: string } | null;
@@ -152,52 +157,15 @@ export function checkCapabilityMatch(
 export const REVIEW_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes (D-08)
 
 export interface SweepStaleReviewsDeps {
-  db: {
-    queryAll: <T>(sql: string, ...params: unknown[]) => T[];
-    getManagerForAgent: (agentId: string) => { id: string; name: string; companyId: string } | null;
-    getChainOfCommand: (agentId: string) => Array<{ id: string; name: string }>;
-    advanceTaskStatus: (taskId: string, newStatus: string, comment?: string) => { previousStatus: string };
-  };
-  dispatchAgentMessage: (
-    deps: {
-      db: SweepStaleReviewsDeps["db"];
-      emitEvent: (...args: unknown[]) => void;
-      publishDomainChanged: () => void;
-      wakeAgentIfPossible: (agentId: string, companyId: string, trigger: string) => void;
-    },
-    message: {
-      companyId: string;
-      fromAgentId: string;
-      toAgentId: string | null;
-      channel: string;
-      subject: string;
-      body: string;
-      priority: string;
-    },
-    wakeTrigger: string,
-  ) => { ok: boolean };
-  resolveApprovalDecision: (params: {
-    db: SweepStaleReviewsDeps["db"];
-    handleApprovalResolved: (approvalId: string, companyId: string, decision: string) => void;
-    companyId: string;
-    approvalId: string;
-    state: "approved" | "rejected" | "revision_requested";
-    decisionNote?: string;
-    detail?: string | null;
-    actor?: string;
-  }) => void;
-  notify: (options: {
-    title: string;
-    body: string;
-    urgency?: string;
-    navigation?: { section: string; entityId?: string };
-    batchKey?: string;
-  }) => void;
+  db: AppDatabase;
+  dispatchAgentMessage: typeof dispatchAgentMessage;
+  resolveApprovalDecision: typeof resolveApprovalDecision;
+  notify: (options: NotificationOptions) => void;
   handleTaskStatusChange: (taskId: string, companyId: string, previousStatus: string, newStatus: string) => void;
   handleApprovalResolved: (approvalId: string, companyId: string, decision: string) => void;
-  emitEvent: (...args: unknown[]) => void;
+  emitEvent: (event: DesktopEvent) => void;
   publishDomainChanged: () => void;
-  wakeAgentIfPossible: (agentId: string, companyId: string, trigger: string) => void;
+  wakeAgentIfPossible: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
   getCompanyExecutionMode: (companyId: string) => string;
   logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void };
 }

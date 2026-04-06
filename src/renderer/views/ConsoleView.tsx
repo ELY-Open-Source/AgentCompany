@@ -86,7 +86,7 @@ export function ConsoleView({
                   </div>
                   {selectedRun.logPath ? (
                     <div className="pt-1">
-                      <ActionButton label={t("common.openLog")} onClick={() => void openPathWithFeedback(selectedRun.logPath!)} icon={FolderOpen} />
+                      <ActionButton label={t("common.openLog")} onClick={() => { const p = selectedRun.logPath; if (p) void openPathWithFeedback(p); }} icon={FolderOpen} />
                     </div>
                   ) : null}
                 </div>

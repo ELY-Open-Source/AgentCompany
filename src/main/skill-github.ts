@@ -15,6 +15,50 @@ interface Logger {
   error: (...args: unknown[]) => void;
 }
 
+/** 1 MB — generous upper bound for a single SKILL.md file. */
+const MAX_SKILL_BYTES = 1024 * 1024;
+
+/** 10 MB — upper bound for the recursive git tree JSON response. */
+const MAX_TREE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Read a fetch Response body with a byte-size ceiling.
+ * Throws if the body exceeds `maxBytes`.
+ */
+async function readResponseWithLimit(response: Response, maxBytes: number): Promise<string> {
+  const contentLength = response.headers.get("Content-Length");
+  if (contentLength !== null && Number(contentLength) > maxBytes) {
+    throw new Error(`Response too large: ${contentLength} bytes (max ${maxBytes})`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    // Fallback: body not streamable (e.g. older Node fetch polyfill)
+    const text = await response.text();
+    if (text.length > maxBytes) {
+      throw new Error(`Response body too large: ${text.length} bytes (max ${maxBytes})`);
+    }
+    return text;
+  }
+
+  const decoder = new TextDecoder();
+  let totalBytes = 0;
+  let result = "";
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel();
+      throw new Error(`Response body exceeded ${maxBytes} bytes`);
+    }
+    result += decoder.decode(value, { stream: true });
+  }
+  result += decoder.decode();
+  return result;
+}
+
 /**
  * Resolve the latest commit SHA for a given ref (branch, tag, or HEAD).
  * Returns the 40-character hex SHA on success, null on error.
@@ -43,7 +87,7 @@ export async function resolveGitHubCommitSha(
       }
       return null;
     }
-    const sha = (await response.text()).trim();
+    const sha = (await readResponseWithLimit(response, MAX_SKILL_BYTES)).trim();
     return /^[0-9a-f]{40}$/i.test(sha) ? sha : null;
   } catch (err) {
     logger?.error("GitHub commit resolve network error:", err);
@@ -75,7 +119,7 @@ export async function fetchGitHubSkills(
       logger?.warn(`GitHub tree fetch failed: ${treeResponse.status} for ${owner}/${repo}@${ref}`);
       return { skills: [], commitSha: ref };
     }
-    const treeData = (await treeResponse.json()) as {
+    const treeData = JSON.parse(await readResponseWithLimit(treeResponse, MAX_TREE_BYTES)) as {
       tree?: Array<{ path: string; type: string }>;
       sha?: string;
     };
@@ -115,7 +159,7 @@ export async function fetchGitHubSkills(
           logger?.warn(`Failed to download ${rawUrl}: ${contentResponse.status}`);
           continue;
         }
-        const markdown = await contentResponse.text();
+        const markdown = await readResponseWithLimit(contentResponse, MAX_SKILL_BYTES);
 
         // Collect sibling files in the same directory (or subdirectories)
         const skillDir =

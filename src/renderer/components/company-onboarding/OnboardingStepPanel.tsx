@@ -1,6 +1,7 @@
 import type { AppLocale } from "@shared/locale";
 import type { ConnectorId, OnboardingBootstrapResult, ProfileSnapshot } from "@shared/types";
 import type { ConnectorModelEntry } from "@shared/connector-models";
+import type { TerminalCommandKey } from "@shared/contracts";
 import { AnimatePresence } from "framer-motion";
 import type { TranslationFn } from "../../i18n";
 import { OnboardingHero, type OnboardingStep } from "./OnboardingHero";
@@ -22,7 +23,7 @@ interface OnboardingStepPanelProps {
   nodeStatus: { installed: boolean; version: string | null } | null;
   nodeChecking: boolean;
   onCheckNode: () => void;
-  onInstallCommand: (title: string, command: string) => void;
+  onInstallCommand: (commandKey: TerminalCommandKey) => void;
   connectors: ProfileSnapshot["connectors"];
   hasAtLeastOneReady: boolean;
   onTestConnector: (connectorId: string) => void;
@@ -148,7 +149,7 @@ export function OnboardingStepPanel({
                 nodeStatus={nodeStatus}
                 checking={nodeChecking}
                 onCheck={onCheckNode}
-                onInstall={(command) => onInstallCommand("Install Node.js", command)}
+                onInstall={(commandKey) => onInstallCommand(commandKey)}
                 onContinue={onContinueFromNodeCheck}
                 onBack={() => onBack("welcome")}
                 t={t}

@@ -27,6 +27,17 @@ export function decodeBodyToUtf8(raw: Buffer): string {
   }
 }
 
+/**
+ * Extract a required route parameter or throw a 400-level error.
+ * The HTTP router guarantees all named params are present when a route
+ * matches, but TypeScript cannot prove this statically.
+ */
+export function requireParam(params: Record<string, string>, name: string): string {
+  const value = params[name];
+  if (value === undefined) throw Object.assign(new Error(`Missing route parameter: ${name}`), { statusCode: 400 });
+  return value;
+}
+
 export type RequestHandler = (
   req: IncomingMessage,
   res: ServerResponse,
@@ -58,16 +69,16 @@ export interface ApiServerEventCallbacks {
 }
 
 export class AgentApiServer {
-  private routes: Route[] = [];
-  private server: ReturnType<typeof createServer> | null = null;
-  private port = 0;
-  private db: AppDatabase;
-  private onDomainChangedCb: () => void;
-  private onWakeAgentCb: (agentId: string, companyId: string, trigger: string) => string | null;
-  private emitEventCb: (event: DesktopEvent) => void;
-  private callbacks: ApiServerEventCallbacks;
-  private allowedOrigins: Set<string>;
-  private onBrowserActionCb: ((actionId: string, companyId: string) => void) | null = null;
+  private _routes: Route[] = [];
+  private _server: ReturnType<typeof createServer> | null = null;
+  private _port = 0;
+  private _db: AppDatabase;
+  private _onDomainChangedCb: () => void;
+  private _onWakeAgentCb: (agentId: string, companyId: string, trigger: string) => string | null;
+  private _emitEventCb: (event: DesktopEvent) => void;
+  private _callbacks: ApiServerEventCallbacks;
+  private _allowedOrigins: Set<string>;
+  private _onBrowserActionCb: ((actionId: string, companyId: string) => void) | null = null;
 
   constructor(
     db: AppDatabase,
@@ -76,12 +87,12 @@ export class AgentApiServer {
     callbacks?: Partial<ApiServerEventCallbacks>,
     allowedOrigins: Iterable<string> = ["app://-"],
   ) {
-    this.db = db;
-    this.onDomainChangedCb = onDomainChanged;
-    this.onWakeAgentCb = onWakeAgent;
-    this.emitEventCb = callbacks?.emitEvent ?? (() => {});
-    this.allowedOrigins = new Set(Array.from(allowedOrigins).filter(Boolean));
-    this.callbacks = {
+    this._db = db;
+    this._onDomainChangedCb = onDomainChanged;
+    this._onWakeAgentCb = onWakeAgent;
+    this._emitEventCb = callbacks?.emitEvent ?? (() => {});
+    this._allowedOrigins = new Set(Array.from(allowedOrigins).filter(Boolean));
+    this._callbacks = {
       onDomainChanged,
       onWakeAgent,
       onTaskCreated: callbacks?.onTaskCreated ?? (() => {}),
@@ -98,29 +109,26 @@ export class AgentApiServer {
   }
 
   setBrowserActionHandler(handler: (actionId: string, companyId: string) => void) {
-    this.onBrowserActionCb = handler;
-  }
-
-  getPort(): number {
-    return this.port;
+    this._onBrowserActionCb = handler;
   }
 
   async start(): Promise<number> {
     return new Promise((resolve, reject) => {
-      this.server = createServer((req, res) => void this.handleRequest(req, res));
-      this.server.listen(0, "127.0.0.1", () => {
-        const addr = this.server!.address();
-        this.port = typeof addr === "object" && addr ? addr.port : 0;
-        log.info(`[api] Agent API server listening on http://127.0.0.1:${this.port}`);
-        resolve(this.port);
+      this._server = createServer((req, res) => void this.handleRequest(req, res));
+      this._server.listen(0, "127.0.0.1", () => {
+        const srv = this._server;
+        const addr = srv ? srv.address() : null;
+        this._port = typeof addr === "object" && addr ? addr.port : 0;
+        log.info(`[api] Agent API server listening on http://127.0.0.1:${this._port}`);
+        resolve(this._port);
       });
-      this.server.on("error", reject);
+      this._server.on("error", reject);
     });
   }
 
   stop() {
-    this.server?.close();
-    this.server = null;
+    this._server?.close();
+    this._server = null;
   }
 
   addRoute(method: string, path: string, handler: RequestHandler) {
@@ -129,13 +137,13 @@ export class AgentApiServer {
       paramNames.push(name);
       return "([^/]+)";
     });
-    this.routes.push({ method, pattern: new RegExp(`^${patternStr}$`), paramNames, handler });
+    this._routes.push({ method, pattern: new RegExp(`^${patternStr}$`), paramNames, handler });
   }
 
   private async handleRequest(req: IncomingMessage, res: ServerResponse) {
     const origin = req.headers.origin;
     if (origin) {
-      if (!this.allowedOrigins.has(origin)) {
+      if (!this._allowedOrigins.has(origin)) {
         this.json(res, 403, { error: "Origin not allowed" });
         return;
       }
@@ -151,7 +159,7 @@ export class AgentApiServer {
       return;
     }
 
-    const url = new URL(req.url ?? "/", `http://127.0.0.1:${this.port}`);
+    const url = new URL(req.url ?? "/", `http://127.0.0.1:${this._port}`);
     const pathname = url.pathname;
     const method = (req.method ?? "GET").toUpperCase();
 
@@ -173,7 +181,7 @@ export class AgentApiServer {
       return;
     }
 
-    const runState = this.db.getRunAuthState(token.runId);
+    const runState = this._db.getRunAuthState(token.runId);
     if (!runState || runState.companyId !== token.companyId || runState.agentId !== token.agentId) {
       this.json(res, 403, { error: "Token references an unknown or mismatched run" });
       return;
@@ -184,14 +192,14 @@ export class AgentApiServer {
       return;
     }
 
-    for (const route of this.routes) {
+    for (const route of this._routes) {
       if (route.method !== method) continue;
       const match = pathname.match(route.pattern);
       if (!match) continue;
 
       const params: Record<string, string> = {};
-      route.paramNames.forEach((name, i) => {
-        params[name] = match[i + 1]!;
+      route.paramNames.forEach((name: string, i: number) => {
+        params[name] = match[i + 1] ?? "";
       });
 
       let body: unknown = null;
@@ -257,20 +265,18 @@ export class AgentApiServer {
     companyId: string,
     refs: Array<{ id: string | null | undefined; table: "agents" | "goals" | "projects" | "tasks" | "workspaces" | "approvals"; label: string }>,
   ) {
-    const invalid = refs.find((ref) => ref.id && !this.db.belongsToCompany(ref.table, ref.id, companyId));
+    const invalid = refs.find((ref) => ref.id && !this._db.belongsToCompany(ref.table, ref.id, companyId));
     if (!invalid) return false;
     this.json(res, 422, { error: `${invalid.label} does not belong to the current company` });
     return true;
   }
 
   // Accessors for route registrars
-  get db_(): AppDatabase { return this.db; }
-  get callbacks_(): ApiServerEventCallbacks { return this.callbacks; }
-  get onDomainChanged_(): () => void { return this.onDomainChangedCb; }
-  get onWakeAgent_(): (agentId: string, companyId: string, trigger: string) => string | null { return this.onWakeAgentCb; }
-  get emitEvent_(): (event: DesktopEvent) => void { return this.emitEventCb; }
-  get onBrowserAction_(): ((actionId: string, companyId: string) => void) | null {
-    return this.onBrowserActionCb;
-  }
-  get port_(): number { return this.port; }
+  get db(): AppDatabase { return this._db; }
+  get callbacks(): ApiServerEventCallbacks { return this._callbacks; }
+  get onDomainChanged(): () => void { return this._onDomainChangedCb; }
+  get onWakeAgent(): (agentId: string, companyId: string, trigger: string) => string | null { return this._onWakeAgentCb; }
+  get emitEvent(): (event: DesktopEvent) => void { return this._emitEventCb; }
+  get onBrowserAction(): ((actionId: string, companyId: string) => void) | null { return this._onBrowserActionCb; }
+  get port(): number { return this._port; }
 }

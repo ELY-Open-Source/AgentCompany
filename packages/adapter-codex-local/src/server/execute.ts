@@ -1,13 +1,10 @@
-import fs from "node:fs/promises";
 import path from "node:path";
-import type { AdapterExecutionContext, AdapterExecutionResult, ManagedSkillRef } from "@agentcompany/adapter-utils";
+import fs from "node:fs/promises";
+import type { AdapterExecutionContext, AdapterExecutionResult } from "@agentcompany/adapter-utils";
 import {
   asString,
   asNumber,
   asBoolean,
-  asStringArray,
-  parseObject,
-  buildAgentCompanyEnv,
   redactEnvForLogs,
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
@@ -22,6 +19,10 @@ import {
   stripCodexRolloutNoise,
   resolveCodexBillingType,
   ensureCodexSkillsInjected,
+  parseManagedSkills,
+  parseExtraArgs,
+  buildCommonAgentCompanyEnv,
+  resolveSessionResumeState,
 } from "./execute-helpers.js";
 
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
@@ -43,155 +44,32 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     asBoolean(config.dangerouslyBypassSandbox, false),
   );
 
-  const workspaceContext = parseObject(context.agentCompanyWorkspace);
-  const workspaceCwd = asString(workspaceContext.cwd, "");
-  const workspaceSource = asString(workspaceContext.source, "");
-  const workspaceStrategy = asString(workspaceContext.strategy, "");
-  const workspaceId = asString(workspaceContext.workspaceId, "");
-  const workspaceRepoUrl = asString(workspaceContext.repoUrl, "");
-  const workspaceRepoRef = asString(workspaceContext.repoRef, "");
-  const workspaceBranch = asString(workspaceContext.branchName, "");
-  const workspaceWorktreePath = asString(workspaceContext.worktreePath, "");
-  const workspaceHints = Array.isArray(context.agentCompanyWorkspaces)
-    ? context.agentCompanyWorkspaces.filter(
-        (value): value is Record<string, unknown> => typeof value === "object" && value !== null,
-      )
-    : [];
-  const runtimeServiceIntents = Array.isArray(context.agentCompanyRuntimeServiceIntents)
-    ? context.agentCompanyRuntimeServiceIntents.filter(
-        (value): value is Record<string, unknown> => typeof value === "object" && value !== null,
-      )
-    : [];
-  const runtimeServices = Array.isArray(context.agentCompanyRuntimeServices)
-    ? context.agentCompanyRuntimeServices.filter(
-        (value): value is Record<string, unknown> => typeof value === "object" && value !== null,
-      )
-    : [];
-  const runtimePrimaryUrl = asString(context.agentCompanyRuntimePrimaryUrl, "");
-  const configuredCwd = asString(config.cwd, "");
-  const useConfiguredInsteadOfAgentHome = workspaceSource === "agent_home" && configuredCwd.length > 0;
-  const effectiveWorkspaceCwd = useConfiguredInsteadOfAgentHome ? "" : workspaceCwd;
-  const cwd = effectiveWorkspaceCwd || configuredCwd || process.cwd();
-  await ensureAbsoluteDirectory(cwd, { createIfMissing: true });
-  const managedSkills: ManagedSkillRef[] = Array.isArray(config.managedSkills)
-    ? (config.managedSkills as ManagedSkillRef[]).filter(
-        (s) => typeof s.runtimeName === "string" && typeof s.sourcePath === "string",
-      )
-    : [];
+  const { env, cwd, workspaceId, workspaceRepoUrl, workspaceRepoRef } =
+    await buildCommonAgentCompanyEnv(
+      { runId, agent, config, context, authToken },
+      { ensureAbsoluteDirectory },
+    );
+
+  const managedSkills = parseManagedSkills(config);
   await ensureCodexSkillsInjected(managedSkills, onLog);
-  const envConfig = parseObject(config.env);
-  const hasExplicitApiKey =
-    typeof envConfig.AGENT_COMPANY_API_KEY === "string" && envConfig.AGENT_COMPANY_API_KEY.trim().length > 0;
-  const env: Record<string, string> = { ...buildAgentCompanyEnv(agent) };
-  env.AGENT_COMPANY_RUN_ID = runId;
-  const wakeTaskId =
-    (typeof context.taskId === "string" && context.taskId.trim().length > 0 && context.taskId.trim()) ||
-    (typeof context.issueId === "string" && context.issueId.trim().length > 0 && context.issueId.trim()) ||
-    null;
-  const wakeReason =
-    typeof context.wakeReason === "string" && context.wakeReason.trim().length > 0
-      ? context.wakeReason.trim()
-      : null;
-  const wakeCommentId =
-    (typeof context.wakeCommentId === "string" && context.wakeCommentId.trim().length > 0 && context.wakeCommentId.trim()) ||
-    (typeof context.commentId === "string" && context.commentId.trim().length > 0 && context.commentId.trim()) ||
-    null;
-  const approvalId =
-    typeof context.approvalId === "string" && context.approvalId.trim().length > 0
-      ? context.approvalId.trim()
-      : null;
-  const approvalStatus =
-    typeof context.approvalStatus === "string" && context.approvalStatus.trim().length > 0
-      ? context.approvalStatus.trim()
-      : null;
-  const linkedIssueIds = Array.isArray(context.issueIds)
-    ? context.issueIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-    : [];
-  if (wakeTaskId) {
-    env.AGENT_COMPANY_TASK_ID = wakeTaskId;
-  }
-  if (wakeReason) {
-    env.AGENT_COMPANY_WAKE_REASON = wakeReason;
-  }
-  if (wakeCommentId) {
-    env.AGENT_COMPANY_WAKE_COMMENT_ID = wakeCommentId;
-  }
-  if (approvalId) {
-    env.AGENT_COMPANY_APPROVAL_ID = approvalId;
-  }
-  if (approvalStatus) {
-    env.AGENT_COMPANY_APPROVAL_STATUS = approvalStatus;
-  }
-  if (linkedIssueIds.length > 0) {
-    env.AGENT_COMPANY_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
-  }
-  if (effectiveWorkspaceCwd) {
-    env.AGENT_COMPANY_WORKSPACE_CWD = effectiveWorkspaceCwd;
-  }
-  if (workspaceSource) {
-    env.AGENT_COMPANY_WORKSPACE_SOURCE = workspaceSource;
-  }
-  if (workspaceStrategy) {
-    env.AGENT_COMPANY_WORKSPACE_STRATEGY = workspaceStrategy;
-  }
-  if (workspaceId) {
-    env.AGENT_COMPANY_WORKSPACE_ID = workspaceId;
-  }
-  if (workspaceRepoUrl) {
-    env.AGENT_COMPANY_WORKSPACE_REPO_URL = workspaceRepoUrl;
-  }
-  if (workspaceRepoRef) {
-    env.AGENT_COMPANY_WORKSPACE_REPO_REF = workspaceRepoRef;
-  }
-  if (workspaceBranch) {
-    env.AGENT_COMPANY_WORKSPACE_BRANCH = workspaceBranch;
-  }
-  if (workspaceWorktreePath) {
-    env.AGENT_COMPANY_WORKSPACE_WORKTREE_PATH = workspaceWorktreePath;
-  }
-  if (workspaceHints.length > 0) {
-    env.AGENT_COMPANY_WORKSPACES_JSON = JSON.stringify(workspaceHints);
-  }
-  if (runtimeServiceIntents.length > 0) {
-    env.AGENT_COMPANY_RUNTIME_SERVICE_INTENTS_JSON = JSON.stringify(runtimeServiceIntents);
-  }
-  if (runtimeServices.length > 0) {
-    env.AGENT_COMPANY_RUNTIME_SERVICES_JSON = JSON.stringify(runtimeServices);
-  }
-  if (runtimePrimaryUrl) {
-    env.AGENT_COMPANY_RUNTIME_PRIMARY_URL = runtimePrimaryUrl;
-  }
-  for (const [k, v] of Object.entries(envConfig)) {
-    if (typeof v === "string") env[k] = v;
-  }
-  if (!hasExplicitApiKey && authToken) {
-    env.AGENT_COMPANY_API_KEY = authToken;
-  }
+
   const billingType = resolveCodexBillingType(env);
   const runtimeEnv = ensurePathInEnv(env);
   await ensureCommandResolvable(command, cwd, runtimeEnv);
 
   const timeoutSec = asNumber(config.timeoutSec, 0);
   const graceSec = asNumber(config.graceSec, 20);
-  const extraArgs = (() => {
-    const fromExtraArgs = asStringArray(config.extraArgs);
-    if (fromExtraArgs.length > 0) return fromExtraArgs;
-    return asStringArray(config.args);
-  })();
+  const extraArgs = parseExtraArgs(config);
 
-  const runtimeSessionParams = parseObject(runtime.sessionParams);
-  const runtimeSessionId = asString(runtimeSessionParams.sessionId, runtime.sessionId ?? "");
-  const runtimeSessionCwd = asString(runtimeSessionParams.cwd, "");
-  const canResumeSession =
-    runtimeSessionId.length > 0 &&
-    (runtimeSessionCwd.length === 0 || path.resolve(runtimeSessionCwd) === path.resolve(cwd));
-  const sessionId = canResumeSession ? runtimeSessionId : null;
+  const { sessionId, runtimeSessionId, runtimeSessionCwd, canResumeSession } =
+    resolveSessionResumeState(runtime, cwd);
   if (runtimeSessionId && !canResumeSession) {
     await onLog(
       "stderr",
       `[agent-company] Codex session "${runtimeSessionId}" was saved for cwd "${runtimeSessionCwd}" and will not be resumed in "${cwd}".\n`,
     );
   }
+
   const instructionsFilePath = asString(config.instructionsFilePath, "").trim();
   const instructionsDir = instructionsFilePath ? `${path.dirname(instructionsFilePath)}/` : "";
   let instructionsPrefix = "";
@@ -244,8 +122,6 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     if (model) args.push("--model", model);
     if (modelReasoningEffort) args.push("-c", `model_reasoning_effort=${JSON.stringify(modelReasoningEffort)}`);
     if (extraArgs.length > 0) {
-      // Filter out flags the adapter already manages to prevent duplicates
-      // (e.g. user shell aliases that inject --dangerously-bypass-approvals-and-sandbox)
       const managedFlags = [
         "--dangerously-bypass-approvals-and-sandbox",
         "--json",
@@ -353,7 +229,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       provider: "openai",
       model,
       billingType,
-      costUsd: null,
+      costUsd: attempt.parsed.costUsd,
       resultJson: {
         stdout: attempt.proc.stdout,
         stderr: attempt.proc.stderr,

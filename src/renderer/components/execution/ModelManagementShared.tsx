@@ -1,28 +1,8 @@
 import { CaretDown, CaretRight } from "@phosphor-icons/react";
 import type { ProfileSnapshot } from "@shared/types";
+import { COMPATIBLE_PROVIDERS } from "../company-onboarding/ProvidersStepShared";
 
-/* ------------------------------------------------------------------ */
-/*  Compatible-API provider presets (mirrors ProvidersStep)             */
-/* ------------------------------------------------------------------ */
-
-export const COMPATIBLE_PROVIDERS = [
-  { id: "minimax", label: "MiniMax", baseUrl: "https://api.minimax.io/anthropic", docUrl: "https://platform.minimax.io/docs/token-plan/claude-code" },
-  { id: "minimax_cn", label: "MiniMax (CN)", baseUrl: "https://api.minimaxi.com/anthropic", docUrl: "https://platform.minimax.io/docs/token-plan/claude-code" },
-  { id: "kimi", label: "Kimi", baseUrl: "https://api.kimi.com/coding/", docUrl: "https://www.kimi.com/code/docs/en/more/third-party-agents.html" },
-  { id: "kimi_cn", label: "Kimi CN", baseUrl: "https://api.moonshot.cn/anthropic", docUrl: "https://platform.moonshot.cn/docs/guide/agent-support" },
-  { id: "glm", label: "GLM (ZhiPu)", baseUrl: "https://api.z.ai/api/anthropic", docUrl: "https://docs.z.ai/devpack/tool/claude" },
-  { id: "openrouter", label: "OpenRouter", baseUrl: "https://openrouter.ai/api", docUrl: "https://openrouter.ai/docs/guides/coding-agents/claude-code-integration" },
-  { id: "tencent", label: "Tencent Coding Plan", baseUrl: "https://api.lkeap.cloud.tencent.com/coding/anthropic", docUrl: "https://cloud.tencent.com/document/product/1772/128951" },
-  { id: "poe", label: "POE", baseUrl: "https://api.poe.com", docUrl: "https://creator.poe.com/docs/external-applications/claude-code" },
-  { id: "deepseek", label: "DeepSeek", baseUrl: "https://api.deepseek.com/anthropic", docUrl: "https://api-docs.deepseek.com/guides/anthropic_api" },
-  { id: "alibaba", label: "Alibaba Coding Plan", baseUrl: "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic", docUrl: "https://www.alibabacloud.com/help/en/model-studio/claude-code-coding-plan" },
-  { id: "alibaba_cn", label: "Alibaba Coding Plan (CN)", baseUrl: "https://coding.dashscope.aliyuncs.com/apps/anthropic", docUrl: "https://help.aliyun.com/zh/model-studio/claude-code-coding-plan" },
-  { id: "bailing", label: "BaiLing", baseUrl: "https://api.tbox.cn/api/anthropic", docUrl: "https://alipaytbox.yuque.com/sxs0ba/ling/best_practices_claudecode" },
-  { id: "nanogpt", label: "NanoGPT", baseUrl: "https://nano-gpt.com/api/v1", docUrl: "https://docs.nano-gpt.com/integrations/claude-code#manual-configuration-all-platforms" },
-  { id: "zhipu_cn", label: "ZhiPu (CN)", baseUrl: "https://open.bigmodel.cn/api/anthropic", docUrl: "https://docs.bigmodel.cn/cn/coding-plan/tool/claude" },
-  { id: "ollama", label: "Ollama (Local)", baseUrl: "http://localhost:11434", docUrl: "https://docs.ollama.com/integrations/claude-code" },
-  { id: "custom", label: "Custom", baseUrl: "", docUrl: "" },
-] as const;
+export { COMPATIBLE_PROVIDERS };
 
 export const COMPAT_SLOTS = [
   "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5",

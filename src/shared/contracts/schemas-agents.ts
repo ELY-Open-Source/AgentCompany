@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { optionalId } from "./helpers";
+import { DEPARTMENT_IDS, optionalId } from "./helpers";
 import { connectorInputSchema } from "./schemas-company";
 
 export const agentInputSchema = z.object({
@@ -8,7 +8,7 @@ export const agentInputSchema = z.object({
   name: z.string().min(2).max(80),
   role: z.string().min(2).max(80),
   title: z.string().default(""),
-  department: z.enum(["executive", "engineering", "product", "marketing", "sales", "hr", "finance", "legal", "operations", "customer_support", "research", "design"]).nullable().optional(),
+  department: DEPARTMENT_IDS.nullable().optional(),
   reportsTo: optionalId,
   connectorId: connectorInputSchema.shape.id,
   workspaceId: optionalId,
@@ -25,7 +25,7 @@ export const hireRequestSchema = z.object({
   name: z.string().min(2).max(80),
   role: z.string().min(2).max(80),
   title: z.string().default(""),
-  department: z.enum(["executive", "engineering", "product", "marketing", "sales", "hr", "finance", "legal", "operations", "customer_support", "research", "design"]).nullable().optional(),
+  department: DEPARTMENT_IDS.nullable().optional(),
   reportsTo: optionalId,
   connectorId: connectorInputSchema.shape.id,
   workspaceId: optionalId,

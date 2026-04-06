@@ -1,4 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  handleFailureEscalation,
+  handleSuccessReset,
+  type EscalationDeps,
+} from "@main/worker/failure-escalation";
 
 /**
  * Tests for the retry-aware failure escalation pipeline.
@@ -11,125 +16,10 @@ import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } fr
  *   5. Task succeeds -> reset retry count
  */
 
-// We test the escalation logic by extracting the relevant handler from worker-service
-// and verifying the calls it makes to the database and notification system.
-
-interface MockDb {
-  getTaskRetryCount: MockInstance & ((taskId: string) => number);
-  incrementTaskRetryCount: MockInstance & ((taskId: string) => void);
-  resetTaskRetryCount: MockInstance & ((taskId: string) => void);
-  getChainOfCommand: MockInstance & ((agentId: string) => { id: string; name: string }[]);
-  getCeoForCompany: MockInstance & ((companyId: string) => { id: string; name: string } | null);
-  advanceTaskStatus: MockInstance & ((taskId: string, status: string, note: string) => { previousStatus: string });
-}
-
-interface MockDeps {
-  db: MockDb;
-  wakeAgentIfPossible: MockInstance & ((agentId: string, companyId: string, reason: string) => string);
-  notify: MockInstance & ((...args: unknown[]) => void);
-  logger: { info: MockInstance & ((...args: unknown[]) => void); warn: MockInstance & ((...args: unknown[]) => void); error: MockInstance & ((...args: unknown[]) => void) };
-}
-
 const MAX_RETRY_ATTEMPTS = 2;
 const RETRY_COOLDOWN_MS = 30_000;
 
-/**
- * Simulate the escalation logic extracted from worker-service.ts.
- * This mirrors the actual implementation to verify behavior.
- */
-function simulateFailureEscalation(
-  deps: MockDeps,
-  run: { taskId: string; agentId: string; companyId: string },
-  task: { title: string } | null,
-  eventStatus: "failed" | "timed_out",
-): { action: string; retryScheduled?: boolean } {
-  const { db, wakeAgentIfPossible, notify, logger } = deps;
-
-  if (eventStatus === "failed" || eventStatus === "timed_out") {
-    const retryCount = db.getTaskRetryCount(run.taskId);
-
-    if (retryCount < MAX_RETRY_ATTEMPTS) {
-      db.incrementTaskRetryCount(run.taskId);
-      db.advanceTaskStatus(
-        run.taskId,
-        "todo",
-        `Run ${eventStatus} (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS}). Auto-retrying after ${RETRY_COOLDOWN_MS / 1000}s cooldown.`,
-      );
-      logger.info(
-        `[escalation] Retrying task ${run.taskId} (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS}) for agent ${run.agentId}`,
-      );
-      // In real code this is setTimeout; we just mark it
-      wakeAgentIfPossible(run.agentId, run.companyId, "retry_failed");
-      return { action: "retry", retryScheduled: true };
-    } else {
-      db.resetTaskRetryCount(run.taskId);
-      logger.warn(
-        `[escalation] Task ${run.taskId} failed ${MAX_RETRY_ATTEMPTS} times. Escalating to manager.`,
-      );
-
-      let escalated = false;
-      try {
-        const chain = db.getChainOfCommand(run.agentId);
-        if (chain.length > 0) {
-          wakeAgentIfPossible(chain[0].id, run.companyId, "report_failed");
-          escalated = true;
-          logger.info(
-            `[escalation] Escalated task ${run.taskId} to manager ${chain[0].name} (${chain[0].id})`,
-          );
-        }
-      } catch {
-        // Chain lookup failed (agent deleted)
-      }
-
-      if (!escalated) {
-        try {
-          const ceo = db.getCeoForCompany(run.companyId);
-          if (ceo) {
-            wakeAgentIfPossible(ceo.id, run.companyId, "report_failed");
-            escalated = true;
-            logger.info(
-              `[escalation] Escalated task ${run.taskId} to CEO ${ceo.name} (${ceo.id})`,
-            );
-          }
-        } catch {
-          /* CEO lookup failed */
-        }
-      }
-
-      if (!escalated) {
-        const taskTitle = task?.title ?? run.taskId;
-        notify(
-          "Task failed -- manual intervention needed",
-          `"${taskTitle}" failed ${MAX_RETRY_ATTEMPTS} times and no manager is available to handle it.`,
-        );
-        logger.error(
-          `[escalation] Task ${run.taskId} failed with no escalation target. User notified.`,
-        );
-        return { action: "user_notified" };
-      }
-
-      return { action: "escalated" };
-    }
-  }
-
-  return { action: "none" };
-}
-
-function simulateSuccessReset(
-  deps: MockDeps,
-  run: { taskId: string },
-  eventStatus: "succeeded",
-): void {
-  if (eventStatus === "succeeded") {
-    try {
-      deps.db.resetTaskRetryCount(run.taskId);
-    } catch {
-      /* best effort */
-    }
-  }
-}
-
-function createMockDeps(): MockDeps {
+function createMockDeps(): EscalationDeps {
   return {
     db: {
       getTaskRetryCount: vi.fn().mockReturnValue(0),
@@ -146,17 +36,19 @@ function createMockDeps(): MockDeps {
       warn: vi.fn(),
       error: vi.fn(),
     },
-  } as unknown as MockDeps;
+  };
 }
 
 const RUN = { taskId: "task-1", agentId: "agent-1", companyId: "company-1" };
 const TASK = { title: "Implement feature X" };
 
 describe("Failure Escalation Pipeline", () => {
-  let deps: MockDeps;
+  let deps: EscalationDeps;
+  let scheduleRetry: ReturnType<typeof vi.fn<(fn: () => void, delayMs: number) => void>>;
 
   beforeEach(() => {
     deps = createMockDeps();
+    scheduleRetry = vi.fn<(fn: () => void, delayMs: number) => void>();
     vi.useFakeTimers();
   });
 
@@ -166,9 +58,11 @@ describe("Failure Escalation Pipeline", () => {
 
   describe("Retry path (count < MAX_RETRY_ATTEMPTS)", () => {
     it("retries on first failure (retry_count=0)", () => {
-      deps.db.getTaskRetryCount.mockReturnValue(0);
+      (deps.db.getTaskRetryCount as ReturnType<typeof vi.fn>).mockReturnValue(0);
 
-      const result = simulateFailureEscalation(deps, RUN, TASK, "failed");
+      const result = handleFailureEscalation(
+        deps, RUN, TASK, "failed", MAX_RETRY_ATTEMPTS, RETRY_COOLDOWN_MS, scheduleRetry,
+      );
 
       expect(result.action).toBe("retry");
       expect(deps.db.incrementTaskRetryCount).toHaveBeenCalledWith("task-1");
@@ -177,13 +71,15 @@ describe("Failure Escalation Pipeline", () => {
         "todo",
         expect.stringContaining("attempt 1/2"),
       );
-      expect(deps.wakeAgentIfPossible).toHaveBeenCalledWith("agent-1", "company-1", "retry_failed");
+      expect(scheduleRetry).toHaveBeenCalled();
     });
 
     it("retries on second failure (retry_count=1)", () => {
-      deps.db.getTaskRetryCount.mockReturnValue(1);
+      (deps.db.getTaskRetryCount as ReturnType<typeof vi.fn>).mockReturnValue(1);
 
-      const result = simulateFailureEscalation(deps, RUN, TASK, "failed");
+      const result = handleFailureEscalation(
+        deps, RUN, TASK, "failed", MAX_RETRY_ATTEMPTS, RETRY_COOLDOWN_MS, scheduleRetry,
+      );
 
       expect(result.action).toBe("retry");
       expect(deps.db.incrementTaskRetryCount).toHaveBeenCalledWith("task-1");
@@ -192,18 +88,33 @@ describe("Failure Escalation Pipeline", () => {
         "todo",
         expect.stringContaining("attempt 2/2"),
       );
+      expect(scheduleRetry).toHaveBeenCalled();
+    });
+
+    it("calls wakeAgentIfPossible via scheduleRetry callback", () => {
+      (deps.db.getTaskRetryCount as ReturnType<typeof vi.fn>).mockReturnValue(0);
+
+      handleFailureEscalation(
+        deps, RUN, TASK, "failed", MAX_RETRY_ATTEMPTS, RETRY_COOLDOWN_MS, scheduleRetry,
+      );
+
+      // Invoke the scheduled callback synchronously to verify it wakes the agent
+      const [fn] = scheduleRetry.mock.calls[0]!;
+      fn();
       expect(deps.wakeAgentIfPossible).toHaveBeenCalledWith("agent-1", "company-1", "retry_failed");
     });
   });
 
   describe("Escalation path (count >= MAX_RETRY_ATTEMPTS)", () => {
     it("escalates to chain[0] manager after max retries", () => {
-      deps.db.getTaskRetryCount.mockReturnValue(2);
-      deps.db.getChainOfCommand.mockReturnValue([
+      (deps.db.getTaskRetryCount as ReturnType<typeof vi.fn>).mockReturnValue(2);
+      (deps.db.getChainOfCommand as ReturnType<typeof vi.fn>).mockReturnValue([
         { id: "manager-1", name: "Manager Alpha" },
       ]);
 
-      const result = simulateFailureEscalation(deps, RUN, TASK, "failed");
+      const result = handleFailureEscalation(
+        deps, RUN, TASK, "failed", MAX_RETRY_ATTEMPTS, RETRY_COOLDOWN_MS, scheduleRetry,
+      );
 
       expect(result.action).toBe("escalated");
       expect(deps.db.resetTaskRetryCount).toHaveBeenCalledWith("task-1");
@@ -212,11 +123,13 @@ describe("Failure Escalation Pipeline", () => {
     });
 
     it("falls through to CEO when chain is empty", () => {
-      deps.db.getTaskRetryCount.mockReturnValue(2);
-      deps.db.getChainOfCommand.mockReturnValue([]);
-      deps.db.getCeoForCompany.mockReturnValue({ id: "ceo-1", name: "CEO Boss" });
+      (deps.db.getTaskRetryCount as ReturnType<typeof vi.fn>).mockReturnValue(2);
+      (deps.db.getChainOfCommand as ReturnType<typeof vi.fn>).mockReturnValue([]);
+      (deps.db.getCeoForCompany as ReturnType<typeof vi.fn>).mockReturnValue({ id: "ceo-1", name: "CEO Boss" });
 
-      const result = simulateFailureEscalation(deps, RUN, TASK, "failed");
+      const result = handleFailureEscalation(
+        deps, RUN, TASK, "failed", MAX_RETRY_ATTEMPTS, RETRY_COOLDOWN_MS, scheduleRetry,
+      );
 
       expect(result.action).toBe("escalated");
       expect(deps.db.resetTaskRetryCount).toHaveBeenCalledWith("task-1");
@@ -225,28 +138,32 @@ describe("Failure Escalation Pipeline", () => {
     });
 
     it("falls through to CEO when chain lookup throws", () => {
-      deps.db.getTaskRetryCount.mockReturnValue(2);
-      deps.db.getChainOfCommand.mockImplementation(() => {
+      (deps.db.getTaskRetryCount as ReturnType<typeof vi.fn>).mockReturnValue(2);
+      (deps.db.getChainOfCommand as ReturnType<typeof vi.fn>).mockImplementation(() => {
         throw new Error("Agent deleted");
       });
-      deps.db.getCeoForCompany.mockReturnValue({ id: "ceo-1", name: "CEO Boss" });
+      (deps.db.getCeoForCompany as ReturnType<typeof vi.fn>).mockReturnValue({ id: "ceo-1", name: "CEO Boss" });
 
-      const result = simulateFailureEscalation(deps, RUN, TASK, "failed");
+      const result = handleFailureEscalation(
+        deps, RUN, TASK, "failed", MAX_RETRY_ATTEMPTS, RETRY_COOLDOWN_MS, scheduleRetry,
+      );
 
       expect(result.action).toBe("escalated");
       expect(deps.wakeAgentIfPossible).toHaveBeenCalledWith("ceo-1", "company-1", "report_failed");
     });
 
     it("notifies user when both chain and CEO are unavailable", () => {
-      deps.db.getTaskRetryCount.mockReturnValue(2);
-      deps.db.getChainOfCommand.mockReturnValue([]);
-      deps.db.getCeoForCompany.mockReturnValue(null);
+      (deps.db.getTaskRetryCount as ReturnType<typeof vi.fn>).mockReturnValue(2);
+      (deps.db.getChainOfCommand as ReturnType<typeof vi.fn>).mockReturnValue([]);
+      (deps.db.getCeoForCompany as ReturnType<typeof vi.fn>).mockReturnValue(null);
 
-      const result = simulateFailureEscalation(deps, RUN, TASK, "failed");
+      const result = handleFailureEscalation(
+        deps, RUN, TASK, "failed", MAX_RETRY_ATTEMPTS, RETRY_COOLDOWN_MS, scheduleRetry,
+      );
 
       expect(result.action).toBe("user_notified");
       expect(deps.notify).toHaveBeenCalledWith(
-        "Task failed -- manual intervention needed",
+        expect.stringContaining("manual intervention"),
         expect.stringContaining("Implement feature X"),
       );
       expect(deps.notify).toHaveBeenCalledWith(
@@ -256,11 +173,13 @@ describe("Failure Escalation Pipeline", () => {
     });
 
     it("uses taskId as fallback when task is null", () => {
-      deps.db.getTaskRetryCount.mockReturnValue(2);
-      deps.db.getChainOfCommand.mockReturnValue([]);
-      deps.db.getCeoForCompany.mockReturnValue(null);
+      (deps.db.getTaskRetryCount as ReturnType<typeof vi.fn>).mockReturnValue(2);
+      (deps.db.getChainOfCommand as ReturnType<typeof vi.fn>).mockReturnValue([]);
+      (deps.db.getCeoForCompany as ReturnType<typeof vi.fn>).mockReturnValue(null);
 
-      const result = simulateFailureEscalation(deps, RUN, null, "failed");
+      const result = handleFailureEscalation(
+        deps, RUN, null, "failed", MAX_RETRY_ATTEMPTS, RETRY_COOLDOWN_MS, scheduleRetry,
+      );
 
       expect(result.action).toBe("user_notified");
       expect(deps.notify).toHaveBeenCalledWith(
@@ -272,21 +191,25 @@ describe("Failure Escalation Pipeline", () => {
 
   describe("Timed out runs follow same path", () => {
     it("retries timed_out runs the same as failed runs", () => {
-      deps.db.getTaskRetryCount.mockReturnValue(0);
+      (deps.db.getTaskRetryCount as ReturnType<typeof vi.fn>).mockReturnValue(0);
 
-      const result = simulateFailureEscalation(deps, RUN, TASK, "timed_out");
+      const result = handleFailureEscalation(
+        deps, RUN, TASK, "timed_out", MAX_RETRY_ATTEMPTS, RETRY_COOLDOWN_MS, scheduleRetry,
+      );
 
       expect(result.action).toBe("retry");
       expect(deps.db.incrementTaskRetryCount).toHaveBeenCalledWith("task-1");
     });
 
     it("escalates timed_out runs after max retries", () => {
-      deps.db.getTaskRetryCount.mockReturnValue(2);
-      deps.db.getChainOfCommand.mockReturnValue([
+      (deps.db.getTaskRetryCount as ReturnType<typeof vi.fn>).mockReturnValue(2);
+      (deps.db.getChainOfCommand as ReturnType<typeof vi.fn>).mockReturnValue([
         { id: "manager-1", name: "Manager Alpha" },
       ]);
 
-      const result = simulateFailureEscalation(deps, RUN, TASK, "timed_out");
+      const result = handleFailureEscalation(
+        deps, RUN, TASK, "timed_out", MAX_RETRY_ATTEMPTS, RETRY_COOLDOWN_MS, scheduleRetry,
+      );
 
       expect(result.action).toBe("escalated");
       expect(deps.db.resetTaskRetryCount).toHaveBeenCalledWith("task-1");
@@ -295,19 +218,17 @@ describe("Failure Escalation Pipeline", () => {
 
   describe("Success resets retry count", () => {
     it("resets retry_count on successful completion", () => {
-      simulateSuccessReset(deps, { taskId: "task-1" }, "succeeded");
-
+      handleSuccessReset(deps.db, "task-1");
       expect(deps.db.resetTaskRetryCount).toHaveBeenCalledWith("task-1");
     });
 
     it("handles reset errors gracefully", () => {
-      deps.db.resetTaskRetryCount.mockImplementation(() => {
+      (deps.db.resetTaskRetryCount as ReturnType<typeof vi.fn>).mockImplementation(() => {
         throw new Error("DB error");
       });
 
-      // Should not throw
       expect(() => {
-        simulateSuccessReset(deps, { taskId: "task-1" }, "succeeded");
+        handleSuccessReset(deps.db, "task-1");
       }).not.toThrow();
     });
   });

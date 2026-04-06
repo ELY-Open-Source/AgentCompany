@@ -1,10 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { WorkflowPipelineRecord } from "@shared/types";
-import type { ReadAll } from "./helpers";
+import type { ReadAll, SqliteRow } from "./helpers";
 import { ensureId, nowIso } from "./helpers";
-
-type SqliteRow = Record<string, any>;
 
 export function buildAutomationMethods(
   getDb: () => DatabaseSync,

@@ -1,5 +1,3 @@
-import type { TranscriptEntry } from "./types.js";
-
 export const REDACTED_HOME_PATH_USER = "[]";
 
 const HOME_PATH_PATTERNS = [
@@ -49,33 +47,3 @@ export function redactHomePathUserSegmentsInValue<T>(value: T): T {
   return redacted as T;
 }
 
-export function redactTranscriptEntryPaths(entry: TranscriptEntry): TranscriptEntry {
-  switch (entry.kind) {
-    case "assistant":
-    case "thinking":
-    case "user":
-    case "stderr":
-    case "system":
-    case "stdout":
-      return { ...entry, text: redactHomePathUserSegments(entry.text) };
-    case "tool_call":
-      return { ...entry, name: redactHomePathUserSegments(entry.name), input: redactHomePathUserSegmentsInValue(entry.input) };
-    case "tool_result":
-      return { ...entry, content: redactHomePathUserSegments(entry.content) };
-    case "init":
-      return {
-        ...entry,
-        model: redactHomePathUserSegments(entry.model),
-        sessionId: redactHomePathUserSegments(entry.sessionId),
-      };
-    case "result":
-      return {
-        ...entry,
-        text: redactHomePathUserSegments(entry.text),
-        subtype: redactHomePathUserSegments(entry.subtype),
-        errors: entry.errors.map((error) => redactHomePathUserSegments(error)),
-      };
-    default:
-      return entry;
-  }
-}

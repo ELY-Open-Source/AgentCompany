@@ -1,6 +1,6 @@
 import type { DepartmentId } from "./types";
 
-export const DEPARTMENT_LABELS: Record<string, string> = {
+export const DEPARTMENT_LABELS: Record<DepartmentId, string> = {
   executive: "Executive Suite",
   engineering: "Engineering",
   product: "Product & Design",
@@ -17,18 +17,7 @@ export const DEPARTMENT_LABELS: Record<string, string> = {
 
 export const DEPARTMENT_OPTIONS: Array<{ value: DepartmentId | ""; label: string }> = [
   { value: "", label: "Any department" },
-  { value: "executive", label: "Executive" },
-  { value: "engineering", label: "Engineering" },
-  { value: "product", label: "Product" },
-  { value: "marketing", label: "Marketing" },
-  { value: "sales", label: "Sales" },
-  { value: "hr", label: "Human Resources" },
-  { value: "finance", label: "Finance" },
-  { value: "legal", label: "Legal" },
-  { value: "operations", label: "Operations" },
-  { value: "customer_support", label: "Customer Support" },
-  { value: "research", label: "Research" },
-  { value: "design", label: "Design" },
+  ...(Object.entries(DEPARTMENT_LABELS) as [DepartmentId, string][]).map(([value, label]) => ({ value, label })),
 ];
 
 export const DEPARTMENT_COLORS: Record<DepartmentId, string> = {
@@ -42,6 +31,6 @@ export const DEPARTMENT_COLORS: Record<DepartmentId, string> = {
   legal: "#a78bfa",
   operations: "#f97316",
   customer_support: "#06b6d4",
-  research: "#8b5cf6",
+  research: "#0ea5e9",
   design: "#f43f5e",
 };

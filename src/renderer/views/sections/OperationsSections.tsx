@@ -284,7 +284,7 @@ export function OperationsSections({
               <WorkspaceList
                 workspaces={companyWorkspaces}
                 projects={companyProjects}
-                companyId={currentCompany!.id}
+                companyId={currentCompany.id}
                 selectedWorkspaceId={selectedWorkspace?.id ?? null}
                 onSelect={setSelectedWorkspaceId}
                 onOpen={openPathWithFeedback}
@@ -306,7 +306,7 @@ export function OperationsSections({
                 />
               </Panel>
               <Panel title="Add workspace">
-                <WorkspaceCreator companyId={currentCompany!.id} projects={companyProjects} onSaved={refresh} />
+                <WorkspaceCreator companyId={currentCompany.id} projects={companyProjects} onSaved={refresh} />
               </Panel>
             </div>
           }
@@ -316,7 +316,7 @@ export function OperationsSections({
       {section === "settings" && currentCompany ? (
         <div className="space-y-10">
           <Panel title={locale === "zh" ? "配置" : "Profile and release"}>
-            <SettingsPane snapshot={snapshot} secrets={companySecrets} companyId={currentCompany!.id} onSaved={refresh} />
+            <SettingsPane snapshot={snapshot} secrets={companySecrets} companyId={currentCompany.id} onSaved={refresh} />
           </Panel>
           <Panel title={locale === "zh" ? "模型管理" : "Model Management"}>
             <ModelManagement connectors={snapshot.connectors} locale={locale} onSaved={refresh} />

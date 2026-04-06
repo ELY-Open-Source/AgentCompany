@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AppDatabase } from "../database";
+import type { DesktopEvent, RunRecord } from "@shared/types";
 import type { NotificationOptions } from "../notification-service";
 import type { createBudgetEnforcementService } from "../budget-enforcement-service";
 import type { createSessionManagementService } from "../session-management-service";
@@ -48,7 +49,7 @@ export interface WorkerServiceDependencies {
   workerPath: string;
   isQuitting: () => boolean;
   publishDomainChanged: () => void;
-  emitEvent: (event: any) => void;
+  emitEvent: (event: DesktopEvent) => void;
   wakeAgentIfPossible: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
   dispatchRunToWorker: (params: {
     runId: string;
@@ -63,7 +64,7 @@ export interface WorkerServiceDependencies {
     snapshot: ReturnType<AppDatabase["listSnapshot"]>;
     trigger: string;
   }) => void;
-  processRunCompletion: (run: any, event: z.infer<typeof workerMessageSchema> & { type: "run-finished" }) => void;
+  processRunCompletion: (run: RunRecord, event: z.infer<typeof workerMessageSchema> & { type: "run-finished" }) => void;
   onRunStarted?: (runId: string, taskId: string, agentId: string, companyId: string) => void;
   onRunCompleted?: (runId: string, taskId: string, agentId: string, companyId: string, status: string, summary: string | null, errorMessage: string | null) => void;
   notify: (options: NotificationOptions) => void;

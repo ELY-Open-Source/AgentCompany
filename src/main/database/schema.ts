@@ -182,7 +182,8 @@ export function runMigrations(
         let skipped = 0;
         for (const task of tasksWithSessions) {
           try {
-            JSON.parse(task.sessionJson!);
+            if (!task.sessionJson) continue;
+            JSON.parse(task.sessionJson);
             const agent = task.assigneeAgentId ? db.prepare("SELECT connector_id FROM agents WHERE id = ?").get(task.assigneeAgentId) as { connector_id: string } | undefined : undefined;
             const adapterType = agent?.connector_id ?? "unknown";
             const sessionId = randomUUID();

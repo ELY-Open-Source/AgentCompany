@@ -80,7 +80,12 @@ const activeByAgent = new Map<string, string>();
 const activeByWorkspace = new Map<string, string>();
 const queue: RunJob[] = [];
 const cancelledRuns = new Set<string>();
-const allowUnsafeConnectorBypass = process.env.AGENTCOMPANY_ALLOW_UNSAFE_CONNECTOR_BYPASS !== "false";
+const allowUnsafeConnectorBypass =
+  process.env.AGENTCOMPANY_ALLOW_UNSAFE_CONNECTOR_BYPASS === "true" &&
+  process.env.NODE_ENV === "development";
+if (allowUnsafeConnectorBypass) {
+  process.stderr.write("[SECURITY WARNING] AGENTCOMPANY_ALLOW_UNSAFE_CONNECTOR_BYPASS is enabled (development only) — sandbox, approvals, and permissions checks are disabled.\n");
+}
 
 function post(message: ChildMessage) {
   parentPort.postMessage(message);
@@ -133,8 +138,8 @@ function buildConnectorExecutionConfig(job: RunJob, sanitizedEnv: Record<string,
     case "gemini_local":
       return {
         ...baseConfig,
-        yolo: true,
-        approvalMode: "yolo",
+        yolo: allowUnsafeConnectorBypass,
+        approvalMode: allowUnsafeConnectorBypass ? "yolo" : "suggest",
         sandbox: true,
       };
     default:

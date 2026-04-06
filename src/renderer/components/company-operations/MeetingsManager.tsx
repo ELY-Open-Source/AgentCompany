@@ -5,6 +5,7 @@ import { ActionButton, ConfirmDialog, InlineNotice, Input, ListFrame, ListRow, M
 import { useT } from "../../i18n";
 import { meetingTypeOptions, meetingStatusOptions, splitTags, parseTags, parseParticipantIds, formatParticipantIds } from "./helpers";
 import { SectionHeader } from "./SectionHeader";
+import { NEW_ENTITY_ID } from "../../lib/constants";
 
 function MeetingEditor({ companyId, agents, meeting, onSaved }: {
   companyId: string; agents: AgentRecord[]; meeting: MeetingRecord | null; onSaved: () => Promise<void>;
@@ -77,7 +78,7 @@ export function MeetingsManager({ companyId, meetings, agents, onRefresh }: {
 
   return (
     <div>
-      <SectionHeader title={t("ops.meetings")} count={meetings.length} action={() => setEditingId("__new__")} />
+      <SectionHeader title={t("ops.meetings")} count={meetings.length} action={() => setEditingId(NEW_ENTITY_ID)} />
       <ListFrame>
         {meetings.map((meeting) => (
           <ListRow key={meeting.id}>
@@ -99,7 +100,7 @@ export function MeetingsManager({ companyId, meetings, agents, onRefresh }: {
         ))}
       </ListFrame>
       <Modal open={editingId !== null} title={activeMeeting ? activeMeeting.title : "New meeting"} onClose={() => setEditingId(null)} width="760px">
-        <MeetingEditor companyId={companyId} agents={agents} meeting={editingId === "__new__" ? null : activeMeeting} onSaved={async () => { setEditingId(null); await onRefresh(); }} />
+        <MeetingEditor companyId={companyId} agents={agents} meeting={editingId === NEW_ENTITY_ID ? null : activeMeeting} onSaved={async () => { setEditingId(null); await onRefresh(); }} />
       </Modal>
       <ConfirmDialog open={deleteId !== null} title="Delete meeting" message="This removes the meeting and its operational context from the company timeline." onCancel={() => setDeleteId(null)} onConfirm={async () => { if (!deleteId) return; const result = await window.agentCompany.deleteMeeting({ id: deleteId, companyId }); setDeleteId(null); if (result.ok) await onRefresh(); }} />
     </div>

@@ -4,6 +4,7 @@ import {
   sweepStaleReviews,
 } from "../../src/main/task-quality-gates";
 import type { SweepStaleReviewsDeps } from "../../src/main/task-quality-gates";
+import type { AppDatabase } from "../../src/main/database";
 
 describe("sweepStaleReviews", () => {
   const NOW = Date.now();
@@ -17,7 +18,7 @@ describe("sweepStaleReviews", () => {
         getManagerForAgent: vi.fn().mockReturnValue(null),
         getChainOfCommand: vi.fn().mockReturnValue([]),
         advanceTaskStatus: vi.fn().mockReturnValue({ previousStatus: "in_review" }),
-      },
+      } as unknown as AppDatabase,
       getCompanyExecutionMode: vi.fn().mockReturnValue("ai_ceo"),
       dispatchAgentMessage: vi.fn().mockReturnValue({ ok: true }),
       resolveApprovalDecision: vi.fn(),

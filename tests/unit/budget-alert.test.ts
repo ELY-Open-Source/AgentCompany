@@ -1,147 +1,113 @@
 import { describe, it, expect, vi } from "vitest";
+import { checkBudgetThreshold } from "@main/automation/automation-run-completion";
 
 /**
- * Tests for budget alert notification logic.
+ * Tests for budget alert notification logic in automation-run-completion.ts.
  *
  * Budget alerts fire at two thresholds:
- *   1. 80% utilization -> warning notification with agent name and percentage
- *   2. 100% utilization -> paused notification indicating budget exhaustion
- *   3. No notification when budgetMonthlyUsd is 0 (unlimited budget)
- *   4. Percentage is calculated as Math.round((spentMonthlyUsd / budgetMonthlyUsd) * 100)
+ *   1. >= 80% utilization  -> warning notification with agent name and percentage
+ *   2. >= 100% utilization -> exhaustion notification (both fire)
+ *   3. budgetMonthlyUsd <= 0 (unlimited) -> no notification
  */
 
-/**
- * Extract and test the budget notification logic that lives in automation-service.ts
- * handleRunFinished -> budget threshold section.
- *
- * The actual code pattern in automation-service.ts:
- *   if (agent.budgetMonthlyUsd > 0) {
- *     const utilization = agent.spentMonthlyUsd / agent.budgetMonthlyUsd;
- *     if (utilization >= 0.8) {
- *       // 80% threshold warning
- *       const pct = Math.round(utilization * 100);
- *       notify("Budget Alert", `${agent.name} is at ${pct}% of monthly budget ...`);
- *       if (utilization >= 1.0) {
- *         // 100% exhaustion notification
- *         notify("Budget Alert", `${agent.name} paused -- monthly budget exhausted ...`);
- *       }
- *     }
- *   }
- */
-function simulateBudgetNotification(
-  notify: (title: string, body: string) => void,
-  agent: { name: string; budgetMonthlyUsd: number; spentMonthlyUsd: number },
-) {
-  if (agent.budgetMonthlyUsd > 0) {
-    const utilization = agent.spentMonthlyUsd / agent.budgetMonthlyUsd;
-    if (utilization >= 0.8) {
-      const pct = Math.round(utilization * 100);
-      notify(
-        "Budget Alert",
-        `${agent.name} is at ${pct}% of monthly budget ($${agent.spentMonthlyUsd.toFixed(2)} / $${agent.budgetMonthlyUsd.toFixed(2)})`,
-      );
-      if (utilization >= 1.0) {
-        notify(
-          "Budget Alert",
-          `${agent.name} paused -- monthly budget exhausted ($${agent.spentMonthlyUsd.toFixed(2)} / $${agent.budgetMonthlyUsd.toFixed(2)})`,
-        );
-      }
-    }
-  }
+/** Identity localizer: returns the English string, as in the production default path. */
+function en(enStr: string, _zh: string): string {
+  return enStr;
 }
 
 describe("Budget Alert Notifications", () => {
   it("fires warning notification at 80% budget utilization", () => {
     const notify = vi.fn();
-    simulateBudgetNotification(notify, {
-      name: "Alice",
-      budgetMonthlyUsd: 100,
-      spentMonthlyUsd: 85,
-    });
+    checkBudgetThreshold(
+      { name: "Alice", budgetMonthlyUsd: 100, spentMonthlyUsd: 85 },
+      notify,
+      en,
+    );
     expect(notify).toHaveBeenCalledTimes(1);
-    expect(notify).toHaveBeenCalledWith(
-      "Budget Alert",
-      expect.stringContaining("Alice"),
-    );
-    expect(notify).toHaveBeenCalledWith(
-      "Budget Alert",
-      expect.stringContaining("85%"),
-    );
-    expect(notify).toHaveBeenCalledWith(
-      "Budget Alert",
-      expect.stringContaining("% of monthly budget"),
-    );
+    const call = notify.mock.calls[0]![0] as { title: string; body: string };
+    expect(call.title).toContain("Budget");
+    expect(call.body).toContain("Alice");
+    expect(call.body).toContain("85%");
   });
 
-  it("fires paused notification at 100% budget utilization", () => {
+  it("fires both notifications at >= 100% utilization", () => {
     const notify = vi.fn();
-    simulateBudgetNotification(notify, {
-      name: "Bob",
-      budgetMonthlyUsd: 50,
-      spentMonthlyUsd: 55,
-    });
-    // Both the 80% and 100% notifications should fire
+    checkBudgetThreshold(
+      { name: "Bob", budgetMonthlyUsd: 50, spentMonthlyUsd: 55 },
+      notify,
+      en,
+    );
     expect(notify).toHaveBeenCalledTimes(2);
-    // Second call should be the exhaustion notification
-    expect(notify).toHaveBeenCalledWith(
-      "Budget Alert",
-      expect.stringContaining("paused"),
-    );
-    expect(notify).toHaveBeenCalledWith(
-      "Budget Alert",
-      expect.stringContaining("budget exhausted"),
-    );
+    const bodies = notify.mock.calls.map((c) => (c[0] as { body: string }).body);
+    // Second call is the exhaustion notification
+    expect(bodies[1]).toContain("100%");
   });
 
-  it("correctly calculates percentage as Math.round(utilization * 100)", () => {
+  it("correctly rounds percentage as Math.round(utilization * 100)", () => {
     const notify = vi.fn();
     // 83.333...% should round to 83%
-    simulateBudgetNotification(notify, {
-      name: "Charlie",
-      budgetMonthlyUsd: 60,
-      spentMonthlyUsd: 50,
-    });
-    expect(notify).toHaveBeenCalledWith(
-      "Budget Alert",
-      expect.stringContaining("83%"),
+    checkBudgetThreshold(
+      { name: "Charlie", budgetMonthlyUsd: 60, spentMonthlyUsd: 50 },
+      notify,
+      en,
     );
+    const body = (notify.mock.calls[0]![0] as { body: string }).body;
+    expect(body).toContain("83%");
   });
 
   it("does not fire notification when budgetMonthlyUsd is 0 (unlimited)", () => {
     const notify = vi.fn();
-    simulateBudgetNotification(notify, {
-      name: "Diana",
-      budgetMonthlyUsd: 0,
-      spentMonthlyUsd: 500,
-    });
+    checkBudgetThreshold(
+      { name: "Diana", budgetMonthlyUsd: 0, spentMonthlyUsd: 500 },
+      notify,
+      en,
+    );
     expect(notify).not.toHaveBeenCalled();
   });
 
   it("does not fire notification when utilization is below 80%", () => {
     const notify = vi.fn();
-    simulateBudgetNotification(notify, {
-      name: "Eve",
-      budgetMonthlyUsd: 100,
-      spentMonthlyUsd: 50,
-    });
+    checkBudgetThreshold(
+      { name: "Eve", budgetMonthlyUsd: 100, spentMonthlyUsd: 50 },
+      notify,
+      en,
+    );
     expect(notify).not.toHaveBeenCalled();
   });
 
   it("fires both notifications at exactly 100%", () => {
     const notify = vi.fn();
-    simulateBudgetNotification(notify, {
-      name: "Frank",
-      budgetMonthlyUsd: 100,
-      spentMonthlyUsd: 100,
-    });
+    checkBudgetThreshold(
+      { name: "Frank", budgetMonthlyUsd: 100, spentMonthlyUsd: 100 },
+      notify,
+      en,
+    );
     expect(notify).toHaveBeenCalledTimes(2);
-    // First call: 80% threshold warning
-    expect(notify.mock.calls[0]![0]).toBe("Budget Alert");
-    expect(notify.mock.calls[0]![1]).toContain("100%");
-    expect(notify.mock.calls[0]![1]).toContain("% of monthly budget");
-    // Second call: exhaustion notification
-    expect(notify.mock.calls[1]![0]).toBe("Budget Alert");
-    expect(notify.mock.calls[1]![1]).toContain("paused");
-    expect(notify.mock.calls[1]![1]).toContain("budget exhausted");
+    const first = notify.mock.calls[0]![0] as { title: string; body: string };
+    const second = notify.mock.calls[1]![0] as { title: string; body: string };
+    expect(first.body).toContain("100%");
+    expect(second.title).toContain("Exhausted");
+  });
+
+  it("does not fire notification when budgetMonthlyUsd is negative", () => {
+    const notify = vi.fn();
+    checkBudgetThreshold(
+      { name: "Grace", budgetMonthlyUsd: -10, spentMonthlyUsd: 500 },
+      notify,
+      en,
+    );
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it("fires only the warning (not exhaustion) at exactly 80%", () => {
+    const notify = vi.fn();
+    checkBudgetThreshold(
+      { name: "Hank", budgetMonthlyUsd: 100, spentMonthlyUsd: 80 },
+      notify,
+      en,
+    );
+    expect(notify).toHaveBeenCalledTimes(1);
+    const body = (notify.mock.calls[0]![0] as { body: string }).body;
+    expect(body).toContain("80%");
   });
 });

@@ -3,7 +3,18 @@ import { taskInputSchema } from "@shared/contracts";
 import { canAssignTask, canUpdateTask } from "../agent-permissions";
 import { inferTaskType } from "../connector-matching";
 import { validateTaskCreation } from "../task-quality-gates";
-import type { AgentApiServer } from "./server-core";
+import { requireParam, type AgentApiServer } from "./server-core";
+
+type TaskListRow = {
+  id: string; companyId: string; projectId: string | null; goalId: string | null;
+  parentId: string | null; title: string; description: string;
+  assigneeAgentId: string | null; workspaceId: string | null; status: string;
+  priority: string; activeRunId: string | null; sessionJson: string | null;
+  sessionDisplayId: string | null; costUsd: number | null;
+  requiresUserReview: number; startedAt: string | null;
+  completedAt: string | null; cancelledAt: string | null;
+  createdAt: string; updatedAt: string;
+};
 
 const taskUpdateSchema = z.object({
   status: z.enum(["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"]).optional(),
@@ -19,18 +30,18 @@ const checkoutSchema = z.object({
 });
 
 export function registerTaskRoutes(server: AgentApiServer) {
-  const db = server.db_;
-  const callbacks = server.callbacks_;
-  const onDomainChanged = server.onDomainChanged_;
-  const onWakeAgent = server.onWakeAgent_;
+  const db = server.db;
+  const callbacks = server.callbacks;
+  const onDomainChanged = server.onDomainChanged;
+  const onWakeAgent = server.onWakeAgent;
 
   server.addRoute("GET", "/api/companies/:companyId/issues", (req, res, params, token) => {
-    const companyId = params.companyId!;
+    const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const url = new URL(req.url ?? "/", `http://127.0.0.1:${server.port_}`);
+    const url = new URL(req.url ?? "/", `http://127.0.0.1:${server.port}`);
     const assigneeAgentId = url.searchParams.get("assigneeAgentId");
     const statusFilter = url.searchParams.get("status");
     const statuses = statusFilter ? statusFilter.split(",") : ["todo", "in_progress", "blocked"];
@@ -39,15 +50,18 @@ export function registerTaskRoutes(server: AgentApiServer) {
       const tasks = db.listAgentTasks(assigneeAgentId, companyId, statuses);
       server.json(res, 200, tasks);
     } else {
-      const snapshot = db.listSnapshot();
-      const tasks = snapshot.tasks.filter((t) => t.companyId === companyId && statuses.includes(t.status));
+      const placeholders = statuses.map(() => "?").join(", ");
+      const tasks = db.queryAll<TaskListRow>(
+        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, requires_user_review as requiresUserReview, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks where company_id = ? and status in (${placeholders}) order by created_at desc`,
+        companyId, ...statuses,
+      ).map((t) => ({ ...t, requiresUserReview: Boolean(t.requiresUserReview), startedAt: t.startedAt ?? null, completedAt: t.completedAt ?? null, cancelledAt: t.cancelledAt ?? null }));
       server.json(res, 200, tasks);
     }
   });
 
   server.addRoute("GET", "/api/issues/:issueId", (_req, res, params, token) => {
     try {
-      const task = db.getTask(params.issueId!);
+      const task = db.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) {
         server.json(res, 404, { error: "Task not found" });
         return;
@@ -71,7 +85,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
     }
     let task;
     try {
-      task = db.getTask(params.issueId!);
+      task = db.getTask(requireParam(params, "issueId"));
     } catch {
       server.json(res, 404, { error: "Task not found" });
       return;
@@ -85,7 +99,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
       return;
     }
     const previousStatus = task.status;
-    const success = db.checkoutTask(params.issueId!, token.runId);
+    const success = db.checkoutTask(task.id, token.runId);
     if (!success) {
       server.json(res, 409, { error: "Task cannot be checked out — already assigned or not in valid status" });
       return;
@@ -105,7 +119,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
     const update = parsedUpdate.data;
 
     try {
-      const task = db.getTask(params.issueId!);
+      const task = db.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) {
         server.json(res, 404, { error: "Task not found" });
         return;
@@ -277,7 +291,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("POST", "/api/companies/:companyId/issues", (_req, res, params, token, body) => {
-    const companyId = params.companyId!;
+    const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });
       return;

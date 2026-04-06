@@ -2,7 +2,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { AdapterExecutionContext, AdapterExecutionResult } from "@agentcompany/adapter-utils";
 import type { RunProcessResult } from "@agentcompany/adapter-utils/server-utils";
-import type { ManagedSkillRef } from "@agentcompany/adapter-utils";
 import {
   asString,
   asNumber,
@@ -26,6 +25,8 @@ import {
   buildLoginResult,
   resolveClaudeBillingType,
   buildClaudeRuntimeConfig,
+  parseManagedSkills,
+  resolveSessionResumeState,
 } from "./execute-helpers.js";
 
 export async function runClaudeLogin(input: {
@@ -104,11 +105,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     extraArgs,
   } = runtimeConfig;
   const billingType = resolveClaudeBillingType(env);
-  const managedSkills: ManagedSkillRef[] = Array.isArray(config.managedSkills)
-    ? (config.managedSkills as ManagedSkillRef[]).filter(
-        (s) => typeof s.runtimeName === "string" && typeof s.sourcePath === "string",
-      )
-    : [];
+  const managedSkills = parseManagedSkills(config);
   const skillsDir = await buildSkillsDir(managedSkills, onLog);
 
   // When instructionsFilePath is configured, create a combined temp file that
@@ -123,13 +120,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     effectiveInstructionsFilePath = combinedPath;
   }
 
-  const runtimeSessionParams = parseObject(runtime.sessionParams);
-  const runtimeSessionId = asString(runtimeSessionParams.sessionId, runtime.sessionId ?? "");
-  const runtimeSessionCwd = asString(runtimeSessionParams.cwd, "");
-  const canResumeSession =
-    runtimeSessionId.length > 0 &&
-    (runtimeSessionCwd.length === 0 || path.resolve(runtimeSessionCwd) === path.resolve(cwd));
-  const sessionId = canResumeSession ? runtimeSessionId : null;
+  const sessionResume = resolveSessionResumeState(runtime, cwd);
+  const { sessionId, runtimeSessionId, runtimeSessionCwd, canResumeSession } = sessionResume;
   if (runtimeSessionId && !canResumeSession) {
     await onLog(
       "stderr",

@@ -23,7 +23,7 @@ ${task.projectId ? `- Project: ${projects.find((p) => p.id === task.projectId)?.
 ${task.goalId ? `- Goal: ${goals.find((g) => g.id === task.goalId)?.title ?? task.goalId}` : ""}
 `);
 
-  const taskType = ((task as unknown as Record<string, unknown>).task_type as string) ?? inferTaskType(agent.department);
+  const taskType = task.taskType ?? inferTaskType(agent.department);
 
   if (taskType === "research") {
     lines.push(`# Deliverable Requirements (Research Task)

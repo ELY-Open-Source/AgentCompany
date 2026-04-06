@@ -116,6 +116,44 @@ export interface SaveTaskResult {
   capabilityWarning?: string;
 }
 
+export interface ConfigRevisionSummary {
+  id: string;
+  agentId: string;
+  revisionNumber: number;
+  changedKeys: string[];
+  source: string;
+  rolledBackFromRevisionId: string | null;
+  createdByAgentId: string | null;
+  createdByUserId: string | null;
+  createdAt: string;
+}
+
+export interface ConfigRevisionDetail extends ConfigRevisionSummary {
+  configBefore: Record<string, unknown>;
+  configAfter: Record<string, unknown>;
+}
+
+export interface RunEventRecord {
+  id: number;
+  runId: string;
+  agentId: string;
+  seq: number;
+  eventType: string;
+  stream: string | null;
+  level: string | null;
+  message: string | null;
+  payload: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface HeartbeatPolicy {
+  enabled: boolean;
+  intervalSec: number;
+  cooldownSec: number;
+  maxConcurrentRuns: number;
+  wakeOnDemand: boolean;
+}
+
 export type DesktopApi = {
   loadSnapshot: () => Promise<DesktopResult<ProfileSnapshot>>;
   pickDirectory: () => Promise<DesktopResult<string | null>>;
@@ -214,15 +252,15 @@ export type DesktopApi = {
   getAgent: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<AgentRecord>>;
   getRun: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<RunRecord>>;
   getApproval: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<ApprovalRecord>>;
-  listConfigRevisions: (companyId: string, agentId: string) => Promise<DesktopResult<unknown[]>>;
-  getConfigRevision: (companyId: string, revisionId: string) => Promise<DesktopResult<unknown>>;
-  rollbackConfigRevision: (companyId: string, agentId: string, revisionId: string) => Promise<DesktopResult<boolean>>;
-  listRunEvents: (companyId: string, runId: string, opts?: { offset?: number; limit?: number }) => Promise<DesktopResult<unknown[]>>;
-  getAgentPermissions: (agentId: string) => Promise<DesktopResult<unknown>>;
+  listConfigRevisions: (companyId: string, agentId: string) => Promise<DesktopResult<ConfigRevisionSummary[]>>;
+  getConfigRevision: (companyId: string, revisionId: string) => Promise<DesktopResult<ConfigRevisionDetail>>;
+  rollbackConfigRevision: (companyId: string, agentId: string, revisionId: string) => Promise<DesktopResult<{ revisionId: string }>>;
+  listRunEvents: (companyId: string, runId: string, opts?: { offset?: number; limit?: number }) => Promise<DesktopResult<RunEventRecord[]>>;
+  getAgentPermissions: (agentId: string) => Promise<DesktopResult<Record<string, boolean>>>;
   setAgentPermission: (companyId: string, agentId: string, permissionKey: string, enabled: boolean) => Promise<DesktopResult<boolean>>;
-  getHeartbeatPolicy: (agentId: string, companyId: string) => Promise<DesktopResult<unknown>>;
+  getHeartbeatPolicy: (agentId: string, companyId: string) => Promise<DesktopResult<HeartbeatPolicy>>;
   setHeartbeatPolicy: (companyId: string, agentId: string, policy: Record<string, unknown>) => Promise<DesktopResult<boolean>>;
-  getRuntimeState: (agentId: string, companyId: string) => Promise<DesktopResult<unknown>>;
+  getRuntimeState: (agentId: string, companyId: string) => Promise<DesktopResult<Record<string, unknown>>>;
   setRuntimeState: (companyId: string, agentId: string, state: Record<string, unknown>) => Promise<DesktopResult<boolean>>;
   // Thread runtime
   createThread: (input: z.infer<typeof createThreadSchema>) => Promise<DesktopResult<ConversationThreadRecord>>;

@@ -104,7 +104,7 @@ function ApprovalDocumentsPanel({
         reference,
         document: documents.find((entry) => entry.id === reference.id) ?? null,
       }))
-      .filter((entry) => entry.document)
+      .filter((entry): entry is typeof entry & { document: NonNullable<typeof entry.document> } => entry.document != null)
     : []
 
   return (
@@ -112,9 +112,9 @@ function ApprovalDocumentsPanel({
       <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-primary">Linked Documents</div>
       {fullDocs.length > 0 ? fullDocs.map(({ reference, document }) => (
         <ApprovalDocumentEditor
-          key={document!.id}
+          key={document.id}
           companyId={companyId}
-          document={document!}
+          document={document}
           fallback={reference}
         />
       )) : references.map((reference) => (

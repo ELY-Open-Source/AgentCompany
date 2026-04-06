@@ -14,6 +14,7 @@ export default tseslint.config(
       "oldreference/**",
       "Reference/**",
       "boss-build/**",
+      "local-release/**",
       "builtin-skills/**",
       "node_modules/**",
       "**/node_modules/**",

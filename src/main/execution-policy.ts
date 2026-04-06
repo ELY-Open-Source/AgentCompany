@@ -14,7 +14,7 @@ import type { AppDatabase } from "./database";
 import type { ApprovalType, ExecutionMode } from "@shared/types";
 
 /** Approval types that always require human review in co-founder mode. */
-export const COFOUNDER_MANDATORY_APPROVALS = new Set<ApprovalType>([
+const COFOUNDER_MANDATORY_APPROVALS = new Set<ApprovalType>([
   "deliverable_review",
   "document_review",
   "plan_review",

@@ -48,8 +48,6 @@ export type ConnectorStatus =
   | "degraded"
   | "error";
 
-export type SenderKind = "agent" | "human" | "system";
-
 export type TaskType = "code" | "research" | "content" | "management" | "general";
 
 export type WorkspaceState = "ready" | "busy" | "blocked" | "missing" | "error";
@@ -109,8 +107,6 @@ export type DepartmentId =
   | "customer_support"
   | "research"
   | "design";
-
-export type BudgetAlertLevel = "warn" | "hard_stop";
 
 export type SkillSourceType = "github" | "local_path" | "url" | "skills_sh" | "managed";
 export type TrustLevel = "markdown_only" | "assets" | "scripts_executables";
@@ -232,9 +228,6 @@ export type MessagePriority = "urgent" | "normal" | "low";
 
 export type WorkflowStatus = "draft" | "active" | "paused" | "completed" | "failed";
 
-export type WorkProductType = "preview_url" | "pull_request" | "branch" | "commit" | "artifact" | "document" | "runtime_service";
-export type WorkProductStatus = "active" | "ready_for_review" | "approved" | "changes_requested" | "merged" | "closed" | "failed" | "archived" | "draft";
-export type WorkProductReviewState = "none" | "needs_board_review" | "approved" | "changes_requested";
 
 export type InboxItemType = "pending_approval" | "failed_run" | "budget_warning" | "blocked_task" | "review_needed" | "agent_message";
 

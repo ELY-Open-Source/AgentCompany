@@ -1,6 +1,12 @@
 import { z } from "zod";
-import { validateTaskCreation } from "../task-quality-gates";
-import type { AgentApiServer } from "./server-core";
+import { requireParam, type AgentApiServer } from "./server-core";
+
+type KnowledgeRow = {
+  id: string; companyId: string; category: string; topic: string;
+  content: string; authorAgentId: string; importance: string;
+  tagsJson: string; referencedEntityType: string | null;
+  referencedEntityId: string | null; createdAt: string; updatedAt: string;
+};
 
 const socialDraftSchema = z.object({
   socialAccountId: z.string().uuid(),
@@ -11,12 +17,11 @@ const socialDraftSchema = z.object({
 });
 
 export function registerMiscRoutes(server: AgentApiServer) {
-  const db = server.db_;
-  const onDomainChanged = server.onDomainChanged_;
-  const onWakeAgent = server.onWakeAgent_;
+  const db = server.db;
+  const onDomainChanged = server.onDomainChanged;
 
   server.addRoute("POST", "/api/companies/:companyId/browser/action", async (_req, res, params, token, body) => {
-    const companyId = params.companyId!;
+    const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
@@ -36,8 +41,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
 
     const input = parsed.data;
 
-    const snapshot = db.listSnapshot();
-    const account = snapshot.socialAccounts.find(a => a.id === input.socialAccountId && a.companyId === companyId);
+    const account = db.getSocialAccount(input.socialAccountId, companyId);
     if (!account) {
       server.json(res, 404, { error: "Social account not found" });
       return;
@@ -98,7 +102,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
 
     onDomainChanged();
 
-    const onBrowserAction = server.onBrowserAction_;
+    const onBrowserAction = server.onBrowserAction;
     if (onBrowserAction) {
       onBrowserAction(actionId, companyId);
     }
@@ -111,7 +115,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const accounts = db.listSocialAccounts(params.companyId!);
+    const accounts = db.listSocialAccounts(requireParam(params, "companyId"));
     const sanitized = accounts.map(a => ({
       id: a.id,
       platform: a.platform,
@@ -125,7 +129,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("POST", "/api/companies/:companyId/social/draft", async (_req, res, params, token, body) => {
-    const companyId = params.companyId!;
+    const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
@@ -169,153 +173,13 @@ export function registerMiscRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const url = new URL(req.url ?? "/", `http://127.0.0.1:${server.port_}`);
+    const url = new URL(req.url ?? "/", `http://127.0.0.1:${server.port}`);
     const socialAccountId = url.searchParams.get("socialAccountId") ?? undefined;
     const status = url.searchParams.get("status") ?? undefined;
     const limit = Number(url.searchParams.get("limit") || 50);
 
-    const actions = db.listBrowserActions(params.companyId!, { socialAccountId, status, limit });
+    const actions = db.listBrowserActions(requireParam(params, "companyId"), { socialAccountId, status, limit });
     server.json(res, 200, actions);
-  });
-
-  server.addRoute("POST", "/api/companies/:companyId/meetings", (_req, res, params, token, body) => {
-    if (params.companyId !== token.companyId) {
-      server.json(res, 403, { error: "Company mismatch" });
-      return;
-    }
-
-    const meetingCreateSchema = z.object({
-      type: z.string().default("department_sync"),
-      title: z.string().default("Meeting"),
-      participantAgentIds: z.string().default("[]"),
-      scheduledAt: z.string().default(new Date().toISOString()),
-      durationMinutes: z.number().default(30),
-      agendaJson: z.string().default("[]"),
-    });
-
-    const parsed = meetingCreateSchema.safeParse(body);
-    if (!parsed.success) {
-      server.json(res, 400, { error: "Invalid meeting payload", details: parsed.error.issues });
-      return;
-    }
-
-    const input = parsed.data;
-    try {
-      const parsedParticipants = JSON.parse(input.participantAgentIds) as string[];
-      for (const agentId of parsedParticipants) {
-        if (typeof agentId !== "string" || !db.belongsToCompany("agents", agentId, token.companyId)) {
-          server.json(res, 400, { error: "Meeting participants must belong to the current company" });
-          return;
-        }
-      }
-    } catch {
-      server.json(res, 400, { error: "participantAgentIds must be a JSON array of agent ids" });
-      return;
-    }
-    const id = db.saveMeeting({
-      companyId: token.companyId,
-      type: input.type,
-      title: input.title,
-      organizerAgentId: token.agentId,
-      participantAgentIds: input.participantAgentIds,
-      scheduledAt: input.scheduledAt,
-      durationMinutes: input.durationMinutes,
-      agendaJson: input.agendaJson,
-      status: "scheduled",
-    });
-    onDomainChanged();
-    server.json(res, 201, { id });
-  });
-
-  server.addRoute("GET", "/api/companies/:companyId/meetings", (_req, res, params, token) => {
-    if (params.companyId !== token.companyId) {
-      server.json(res, 403, { error: "Company mismatch" });
-      return;
-    }
-    const snapshot = db.listSnapshot();
-    const meetings = snapshot.meetings.filter(m => m.companyId === token.companyId);
-    server.json(res, 200, meetings);
-  });
-
-  server.addRoute("PATCH", "/api/meetings/:meetingId", (_req, res, params, token, body) => {
-    const snapshot = db.listSnapshot();
-    const existing = snapshot.meetings.find(m => m.id === params.meetingId && m.companyId === token.companyId);
-    if (!existing) {
-      server.json(res, 404, { error: "Meeting not found" });
-      return;
-    }
-
-    const meetingUpdateSchema = z.object({
-      type: z.string().optional(),
-      title: z.string().optional(),
-      notesJson: z.string().optional(),
-      decisionsJson: z.string().optional(),
-      actionItemsJson: z.string().optional(),
-      status: z.string().optional(),
-      scheduledAt: z.string().optional(),
-    });
-
-    const parsed = meetingUpdateSchema.safeParse(body);
-    if (!parsed.success) {
-      server.json(res, 400, { error: "Invalid meeting update payload", details: parsed.error.issues });
-      return;
-    }
-
-    const data = parsed.data;
-    let actionItems: Array<{ title?: string; assigneeAgentId?: string; description?: string }> = [];
-    if (data.actionItemsJson) {
-      try {
-        actionItems = JSON.parse(data.actionItemsJson) as Array<{ title?: string; assigneeAgentId?: string; description?: string }>;
-      } catch {
-        server.json(res, 400, { error: "actionItemsJson must be valid JSON" });
-        return;
-      }
-      for (const item of actionItems) {
-        if (item.assigneeAgentId && !db.belongsToCompany("agents", item.assigneeAgentId, token.companyId)) {
-          server.json(res, 400, { error: "Meeting action item assignees must belong to the current company" });
-          return;
-        }
-      }
-    }
-    db.saveMeeting({
-      id: params.meetingId,
-      companyId: token.companyId,
-      type: data.type ?? "department_sync",
-      title: data.title ?? "Meeting",
-      notesJson: data.notesJson,
-      decisionsJson: data.decisionsJson,
-      actionItemsJson: data.actionItemsJson,
-      status: data.status,
-      scheduledAt: data.scheduledAt ?? new Date().toISOString(),
-    });
-    onDomainChanged();
-    // When action items are added, create tasks for them automatically
-    if (actionItems.length > 0) {
-      for (const item of actionItems) {
-        if (item.title && typeof item.title === "string") {
-          const meetingTaskValidation = validateTaskCreation(
-            { title: item.title, description: item.description ?? `Action item from meeting: ${data.title ?? existing.title}` },
-            false,
-          );
-          if (!meetingTaskValidation.valid) {
-            // Log but skip invalid meeting action items rather than failing the whole request
-            continue;
-          }
-          db.saveTask({
-            companyId: token.companyId,
-            title: item.title,
-            description: item.description ?? `Action item from meeting: ${data.title ?? existing.title}`,
-            assigneeAgentId: item.assigneeAgentId ?? null,
-            status: item.assigneeAgentId ? "todo" : "backlog",
-            priority: "medium",
-          });
-          if (item.assigneeAgentId) {
-            onWakeAgent(item.assigneeAgentId, token.companyId, "assignment");
-          }
-        }
-      }
-    }
-    server.json(res, 200, { updated: true });
   });
 
   server.addRoute("POST", "/api/companies/:companyId/knowledge", (_req, res, params, token, body) => {
@@ -362,15 +226,17 @@ export function registerMiscRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const snapshot = db.listSnapshot();
-    const entries = snapshot.knowledgeBase.filter(k => k.companyId === token.companyId);
+    const entries = db.queryAll<KnowledgeRow>(
+      "select id, company_id as companyId, category, topic, content, author_agent_id as authorAgentId, importance, tags_json as tagsJson, referenced_entity_type as referencedEntityType, referenced_entity_id as referencedEntityId, created_at as createdAt, updated_at as updatedAt from knowledge_base where company_id = ? order by updated_at desc",
+      token.companyId,
+    );
     server.json(res, 200, entries);
   });
 
   // ── Skill REST API endpoints ──────────────────────────────────────
 
   server.addRoute("GET", "/api/companies/:companyId/skills", (_req, res, params, token) => {
-    const companyId = params.companyId!;
+    const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
@@ -388,7 +254,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("GET", "/api/skills/:skillId", (_req, res, params, token) => {
-    const skill = db.getCompanySkill(token.companyId, params.skillId!);
+    const skill = db.getCompanySkill(token.companyId, requireParam(params, "skillId"));
     if (!skill) {
       server.json(res, 404, { error: "Skill not found" });
       return;

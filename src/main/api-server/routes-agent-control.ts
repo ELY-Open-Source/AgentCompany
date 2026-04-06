@@ -1,14 +1,14 @@
 import { z } from "zod";
 import { canControlAgent } from "../agent-permissions";
-import type { AgentApiServer } from "./server-core";
+import { requireParam, type AgentApiServer } from "./server-core";
 
 export function registerAgentControlRoutes(server: AgentApiServer) {
-  const db = server.db_;
-  const onDomainChanged = server.onDomainChanged_;
-  const onWakeAgent = server.onWakeAgent_;
+  const db = server.db;
+  const onDomainChanged = server.onDomainChanged;
+  const onWakeAgent = server.onWakeAgent;
 
   server.addRoute("POST", "/api/agents/:agentId/wake", (_req, res, params, token, body) => {
-    const targetAgentId = params.agentId!;
+    const targetAgentId = requireParam(params, "agentId");
     const targetAgent = (() => {
       try {
         return db.getAgent(targetAgentId);
@@ -47,12 +47,14 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("PATCH", "/api/agents/:agentId/heartbeat", (_req, res, params, token) => {
-    const targetAgentId = params.agentId!;
-    const snapshot = db.listSnapshot();
-    const targetAgent = snapshot.agents.find(
-      (a) => a.id === targetAgentId && a.companyId === token.companyId,
-    );
-    if (!targetAgent) {
+    const targetAgentId = requireParam(params, "agentId");
+    let targetAgent;
+    try {
+      targetAgent = db.getAgent(targetAgentId);
+    } catch {
+      targetAgent = null;
+    }
+    if (!targetAgent || targetAgent.companyId !== token.companyId) {
       server.json(res, 404, { error: "Agent not found or not in the same company" });
       return;
     }
@@ -78,35 +80,37 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("GET", "/api/agents/:agentId/skills", (_req, res, params, token) => {
-    const agentId = params.agentId!;
-    const snapshot = db.listSnapshot();
-    const agent = snapshot.agents.find((a) => a.id === agentId && a.companyId === token.companyId);
-    if (!agent) {
+    const agentId = requireParam(params, "agentId");
+    let agent;
+    try { agent = db.getAgent(agentId); } catch { agent = null; }
+    if (!agent || agent.companyId !== token.companyId) {
       server.json(res, 404, { error: "Agent not found in your company" });
       return;
     }
     const skillIds = db.listAgentSkillAssignments(agentId);
-    const skills = skillIds.map((sid) => db.getCompanySkill(token.companyId, sid)).filter(Boolean);
+    const skills = skillIds
+      .map((sid) => db.getCompanySkill(token.companyId, sid))
+      .filter((s): s is NonNullable<typeof s> => s != null);
     server.json(res, 200, skills.map((s) => ({
-      id: s!.id,
-      name: s!.name,
-      slug: s!.slug,
-      description: s!.description,
-      sourceType: s!.sourceType,
-      trustLevel: s!.trustLevel,
+      id: s.id,
+      name: s.name,
+      slug: s.slug,
+      description: s.description,
+      sourceType: s.sourceType,
+      trustLevel: s.trustLevel,
     })));
   });
 
   server.addRoute("POST", "/api/agents/:agentId/skills", (_req, res, params, token, body) => {
-    const agentId = params.agentId!;
+    const agentId = requireParam(params, "agentId");
     const parsed = z.object({ skillId: z.string().uuid() }).safeParse(body);
     if (!parsed.success) {
       server.json(res, 400, { error: "Invalid body: skillId (uuid) required" });
       return;
     }
-    const snapshot = db.listSnapshot();
-    const agent = snapshot.agents.find((a) => a.id === agentId && a.companyId === token.companyId);
-    if (!agent) {
+    let agent;
+    try { agent = db.getAgent(agentId); } catch { agent = null; }
+    if (!agent || agent.companyId !== token.companyId) {
       server.json(res, 404, { error: "Agent not found in your company" });
       return;
     }
@@ -121,11 +125,11 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("DELETE", "/api/agents/:agentId/skills/:skillId", (_req, res, params, token) => {
-    const agentId = params.agentId!;
-    const skillId = params.skillId!;
-    const snapshot = db.listSnapshot();
-    const agent = snapshot.agents.find((a) => a.id === agentId && a.companyId === token.companyId);
-    if (!agent) {
+    const agentId = requireParam(params, "agentId");
+    const skillId = requireParam(params, "skillId");
+    let agent;
+    try { agent = db.getAgent(agentId); } catch { agent = null; }
+    if (!agent || agent.companyId !== token.companyId) {
       server.json(res, 404, { error: "Agent not found in your company" });
       return;
     }

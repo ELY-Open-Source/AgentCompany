@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { optionalId } from "./helpers";
+import { MESSAGE_CHANNELS, optionalId } from "./helpers";
 
 export const agentMessageInputSchema = z.object({
   companyId: z.string().uuid(),
@@ -8,7 +8,7 @@ export const agentMessageInputSchema = z.object({
     (v) => (v === "" ? null : v),
     z.union([z.string().uuid(), z.literal("__board__")]).nullable().optional(),
   ),
-  channel: z.enum(["direct", "department", "company", "project", "incident"]).default("direct"),
+  channel: MESSAGE_CHANNELS.default("direct"),
   channelTargetId: z.string().nullable().optional(),
   subject: z.preprocess((v) => (v === "" ? "(no subject)" : v), z.string().min(1).max(200)),
   body: z.string().min(1).max(8000),
@@ -46,7 +46,7 @@ export const agentMessageInputSchema = z.object({
 export const messageQuerySchema = z.object({
   companyId: z.string().uuid(),
   agentId: z.string().uuid().optional(),
-  channel: z.enum(["direct", "department", "company", "project", "incident"]).optional(),
+  channel: MESSAGE_CHANNELS.optional(),
   channelTargetId: z.string().nullable().optional(),
   unreadOnly: z.boolean().optional(),
   limit: z.number().int().min(1).max(500).default(200),
@@ -55,7 +55,7 @@ export const messageQuerySchema = z.object({
 export const searchMessagesSchema = z.object({
   companyId: z.string().uuid(),
   query: z.string().min(1).max(200),
-  channel: z.enum(["direct", "department", "company", "project", "incident"]).optional(),
+  channel: MESSAGE_CHANNELS.optional(),
   channelTargetId: z.string().nullable().optional(),
   limit: z.number().int().min(1).max(100).default(50),
 });

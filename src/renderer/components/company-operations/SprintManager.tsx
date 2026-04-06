@@ -5,6 +5,7 @@ import { ActionButton, ConfirmDialog, InlineNotice, Input, ListFrame, ListRow, M
 import { useT } from "../../i18n";
 import { sprintStatusOptions } from "./helpers";
 import { SectionHeader } from "./SectionHeader";
+import { NEW_ENTITY_ID } from "../../lib/constants";
 
 function SprintEditor({ companyId, sprint, onSaved }: {
   companyId: string; sprint: SprintRecord | null; onSaved: () => Promise<void>;
@@ -69,7 +70,7 @@ export function SprintManager({ companyId, sprints, onRefresh }: {
 
   return (
     <div>
-      <SectionHeader title={t("ops.sprintBoard")} count={sprints.length} action={() => setEditingId("__new__")} />
+      <SectionHeader title={t("ops.sprintBoard")} count={sprints.length} action={() => setEditingId(NEW_ENTITY_ID)} />
       <ListFrame>
         {sprints.map((sprint) => (
           <ListRow key={sprint.id}>
@@ -91,7 +92,7 @@ export function SprintManager({ companyId, sprints, onRefresh }: {
         ))}
       </ListFrame>
       <Modal open={editingId !== null} title={activeSprint ? activeSprint.name : "New sprint"} onClose={() => setEditingId(null)} width="720px">
-        <SprintEditor companyId={companyId} sprint={editingId === "__new__" ? null : activeSprint} onSaved={async () => { setEditingId(null); await onRefresh(); }} />
+        <SprintEditor companyId={companyId} sprint={editingId === NEW_ENTITY_ID ? null : activeSprint} onSaved={async () => { setEditingId(null); await onRefresh(); }} />
       </Modal>
       <ConfirmDialog open={deleteId !== null} title="Delete sprint" message="This removes the sprint board entry. Historical run and task records remain." onCancel={() => setDeleteId(null)} onConfirm={async () => { if (!deleteId) return; const result = await window.agentCompany.deleteSprint({ id: deleteId, companyId }); setDeleteId(null); if (result.ok) await onRefresh(); }} />
     </div>

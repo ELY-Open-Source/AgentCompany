@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { mkdir, writeFile, rm } from "node:fs/promises";
 import { join, resolve, basename, dirname, relative } from "node:path";
 import type { AppDatabase } from "../database";
@@ -17,6 +17,20 @@ import {
   parseSkillImportSource,
 } from "../skill-keys.js";
 import { createGitHubImporter } from "./import-github";
+
+const BLOCKED_PATH_PREFIXES_UNIX = ["/etc", "/var", "/proc", "/sys", "/dev", "/boot", "/sbin", "/usr/sbin"];
+const BLOCKED_PATH_PREFIXES_WIN = ["C:\\Windows", "C:\\Program Files", "C:\\ProgramData"];
+
+function assertNotSystemPath(realPath: string): void {
+  const normalized = realPath.replace(/\\/g, "/");
+  const blocked = process.platform === "win32" ? BLOCKED_PATH_PREFIXES_WIN : BLOCKED_PATH_PREFIXES_UNIX;
+  for (const prefix of blocked) {
+    const normalizedPrefix = prefix.replace(/\\/g, "/");
+    if (normalized === normalizedPrefix || normalized.startsWith(normalizedPrefix + "/")) {
+      throw new Error(`Importing skills from system directory is not allowed: ${realPath}`);
+    }
+  }
+}
 
 interface ImportDeps {
   db: AppDatabase;
@@ -97,7 +111,8 @@ export function createSkillImporter({ db, profileDir: _profileDir, logger, skill
       }
 
       if (/^https?:\/\//i.test(source)) {
-        const results = await importFromUrl(companyId, source);
+        const { fetchWithSsrfProtection } = await import("./url-validation");
+        const results = await importFromUrl(companyId, source, fetchWithSsrfProtection);
         return ok(results);
       }
 
@@ -118,6 +133,10 @@ export function createSkillImporter({ db, profileDir: _profileDir, logger, skill
     if (!existsSync(resolvedPath)) {
       throw new Error(`Local path does not exist: ${resolvedPath}`);
     }
+
+    // Resolve symlinks to prevent traversal attacks (agent importing /tmp/evil-link → /etc/shadow)
+    const realPath = realpathSync(resolvedPath);
+    assertNotSystemPath(realPath);
 
     const stat = statSync(resolvedPath);
     const results: SkillImportResult[] = [];
@@ -228,8 +247,9 @@ export function createSkillImporter({ db, profileDir: _profileDir, logger, skill
   async function importFromUrl(
     companyId: string,
     url: string,
+    safeFetch: (target: string) => Promise<Response>,
   ): Promise<SkillImportResult[]> {
-    const response = await fetch(url);
+    const response = await safeFetch(url);
     if (!response.ok) {
       throw new Error(`Failed to fetch skill from URL: ${response.status} ${url}`);
     }

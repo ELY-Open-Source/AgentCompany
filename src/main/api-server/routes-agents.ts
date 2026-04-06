@@ -3,12 +3,44 @@ import { hireRequestSchema } from "@shared/contracts";
 import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
 import { canManageOrganization, canRequestHire } from "../agent-permissions";
 import { resolveApprovalDecision, shouldAutoApproveApproval } from "../approval-policy";
-import type { AgentApiServer } from "./server-core";
+import { requireParam, type AgentApiServer } from "./server-core";
+
+type AgentStandupRow = {
+  id: string; companyId: string; name: string; role: string;
+  status: string; reportsTo: string | null; department: string | null;
+};
+
+type TaskStandupRow = {
+  id: string; companyId: string; title: string;
+  assigneeAgentId: string | null; status: string; priority: string;
+};
+
+type ApprovalStandupRow = {
+  id: string; companyId: string; type: string;
+  requestedByAgentId: string; state: string;
+  payloadSummary: string | null; decisionNote: string | null;
+};
+
+type TaskCommentRow = {
+  id: string; taskId: string; authorName: string;
+  body: string; createdAt: string;
+};
+
+type AgentListRow = {
+  id: string; companyId: string; name: string; role: string;
+  title: string | null; department: string | null; status: string;
+  reportsTo: string | null; connectorId: string; workspaceId: string | null;
+  model: string | null; capabilities: string | null;
+  budgetMonthlyUsd: number | null; spentMonthlyUsd: number | null;
+  metadataJson: string; heartbeatEnabled: number;
+  heartbeatIntervalSec: number | null; lastHeartbeatAt: string | null;
+  createdAt: string; updatedAt: string;
+};
 
 export function registerAgentRoutes(server: AgentApiServer) {
-  const db = server.db_;
-  const callbacks = server.callbacks_;
-  const onDomainChanged = server.onDomainChanged_;
+  const db = server.db;
+  const callbacks = server.callbacks;
+  const onDomainChanged = server.onDomainChanged;
   server.addRoute("GET", "/api/agents/me", (_req, res, _params, token) => {
     const agent = db.getAgent(token.agentId);
     const chainOfCommand = db.getChainOfCommand(token.agentId);
@@ -17,17 +49,29 @@ export function registerAgentRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("GET", "/api/agents/me/standup", (_req, res, _params, token) => {
-    const snapshot = db.listSnapshot();
-    const agent = snapshot.agents.find((a) => a.id === token.agentId);
-    if (!agent) {
+    const agent = db.getAgent(token.agentId);
+    if (!agent || agent.companyId !== token.companyId) {
       server.json(res, 404, { error: "Agent not found" });
       return;
     }
 
-    const myTasks = snapshot.tasks.filter((t) => t.assigneeAgentId === token.agentId && t.companyId === token.companyId);
-    const directReports = snapshot.agents.filter((a) => a.reportsTo === token.agentId && a.companyId === token.companyId);
+    const companyAgents = db.queryAll<AgentStandupRow>(
+      "select id, company_id as companyId, name, role, status, reports_to as reportsTo, department from agents where company_id = ? order by created_at asc",
+      token.companyId,
+    );
+    const companyTasks = db.queryAll<TaskStandupRow>(
+      "select id, company_id as companyId, title, assignee_agent_id as assigneeAgentId, status, priority from tasks where company_id = ? order by created_at desc",
+      token.companyId,
+    );
+    const companyApprovals = db.queryAll<ApprovalStandupRow>(
+      "select id, company_id as companyId, type, requested_by_agent_id as requestedByAgentId, state, payload_summary as payloadSummary, decision_note as decisionNote from approvals where company_id = ? order by created_at desc",
+      token.companyId,
+    );
+
+    const myTasks = companyTasks.filter((t) => t.assigneeAgentId === token.agentId);
+    const directReports = companyAgents.filter((a) => a.reportsTo === token.agentId);
     const reportIds = new Set(directReports.map((a) => a.id));
-    const reportTasks = snapshot.tasks.filter((t) => t.assigneeAgentId && reportIds.has(t.assigneeAgentId) && t.companyId === token.companyId);
+    const reportTasks = companyTasks.filter((t) => t.assigneeAgentId && reportIds.has(t.assigneeAgentId));
 
     const tasksAwaitingMyReview = reportTasks.filter((t) => t.status === "in_review");
     const blockedReportTasks = reportTasks.filter((t) => t.status === "blocked");
@@ -35,22 +79,25 @@ export function registerAgentRoutes(server: AgentApiServer) {
     const myInProgressTasks = myTasks.filter((t) => t.status === "in_progress");
     const myTodoTasks = myTasks.filter((t) => t.status === "todo");
 
-    const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
-    const recentComments = snapshot.comments
-      .filter((c) => {
-        const isMyTask = myTasks.some((t) => t.id === c.taskId);
-        const isReportTask = reportTasks.some((t) => t.id === c.taskId);
-        return (isMyTask || isReportTask) && new Date(c.createdAt).getTime() > twoHoursAgo;
-      })
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 20);
+    const allRelevantTaskIds = new Set([...myTasks.map((t) => t.id), ...reportTasks.map((t) => t.id)]);
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const recentComments = allRelevantTaskIds.size > 0
+      ? db.queryAll<TaskCommentRow>(
+          `select id, task_id as taskId, author_name as authorName, body, created_at as createdAt from task_comments where task_id in (${[...allRelevantTaskIds].map(() => "?").join(",")}) and created_at > ? order by created_at desc limit 20`,
+          ...[...allRelevantTaskIds], twoHoursAgo,
+        )
+      : [];
 
-    const myPendingApprovals = snapshot.approvals.filter(
-      (a) => a.requestedByAgentId === token.agentId && a.state === "pending" && a.companyId === token.companyId,
+    const myPendingApprovals = companyApprovals.filter(
+      (a) => a.requestedByAgentId === token.agentId && a.state === "pending",
     );
-    const myResolvedApprovals = snapshot.approvals.filter(
-      (a) => a.requestedByAgentId === token.agentId && a.state !== "pending" && a.companyId === token.companyId,
+    const myResolvedApprovals = companyApprovals.filter(
+      (a) => a.requestedByAgentId === token.agentId && a.state !== "pending",
     ).slice(0, 5);
+
+    const agentNameMap = new Map(companyAgents.map((a) => [a.id, a.name]));
+    const taskTitleMap = new Map(companyTasks.map((t) => [t.id, t.title]));
+    const socialAccounts = db.listSocialAccounts(token.companyId);
 
     server.json(res, 200, {
       agent: { id: agent.id, name: agent.name, role: agent.role, status: agent.status },
@@ -66,18 +113,18 @@ export function registerAgentRoutes(server: AgentApiServer) {
       tasksAwaitingReview: tasksAwaitingMyReview.map((t) => ({
         id: t.id,
         title: t.title,
-        assignee: snapshot.agents.find((a) => a.id === t.assigneeAgentId)?.name ?? "Unknown",
+        assignee: agentNameMap.get(t.assigneeAgentId ?? "") ?? "Unknown",
         priority: t.priority,
       })),
       blockedTasks: [...blockedReportTasks, ...myBlockedTasks].map((t) => ({
         id: t.id,
         title: t.title,
-        assignee: snapshot.agents.find((a) => a.id === t.assigneeAgentId)?.name ?? "Unknown",
+        assignee: agentNameMap.get(t.assigneeAgentId ?? "") ?? "Unknown",
         priority: t.priority,
       })),
       recentComments: recentComments.map((c) => ({
         taskId: c.taskId,
-        taskTitle: snapshot.tasks.find((t) => t.id === c.taskId)?.title ?? "",
+        taskTitle: taskTitleMap.get(c.taskId) ?? "",
         author: c.authorName,
         body: c.body.slice(0, 200),
         createdAt: c.createdAt,
@@ -96,7 +143,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
         decisionNote: a.decisionNote,
       })),
       reportStatuses: directReports.map((r) => {
-        const rTasks = snapshot.tasks.filter((t) => t.assigneeAgentId === r.id && t.companyId === token.companyId);
+        const rTasks = companyTasks.filter((t) => t.assigneeAgentId === r.id);
         return {
           id: r.id,
           name: r.name,
@@ -108,16 +155,14 @@ export function registerAgentRoutes(server: AgentApiServer) {
           tasksDone: rTasks.filter((t) => t.status === "done").length,
         };
       }),
-      socialAccounts: snapshot.socialAccounts
-        .filter((a) => a.companyId === token.companyId)
-        .map((a) => ({
-          id: a.id,
-          platform: a.platform,
-          accountName: a.accountName,
-          displayName: a.displayName,
-          status: a.status,
-          requireApproval: a.requireApproval,
-        })),
+      socialAccounts: socialAccounts.map((a) => ({
+        id: a.id,
+        platform: a.platform,
+        accountName: a.accountName,
+        displayName: a.displayName,
+        status: a.status,
+        requireApproval: a.requireApproval,
+      })),
     });
   });
 
@@ -132,14 +177,14 @@ export function registerAgentRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("GET", "/api/agents/:agentId/metrics", (_req, res, params, token) => {
-    const snapshot = db.listSnapshot();
-    const agent = snapshot.agents.find((entry) => entry.id === params.agentId && entry.companyId === token.companyId);
-    if (!agent) {
+    const agentId = requireParam(params, "agentId");
+    const agent = db.getAgent(agentId);
+    if (!agent || agent.companyId !== token.companyId) {
       server.json(res, 404, { error: "Agent not found" });
       return;
     }
     const companyMetrics = db.getCompanyMetrics(token.companyId, 30);
-    const agentMetric = companyMetrics.agentMetrics.find((metric) => metric.agentId === params.agentId);
+    const agentMetric = companyMetrics.agentMetrics.find((metric) => metric.agentId === agentId);
     if (!agentMetric) {
       server.json(res, 404, { error: "Metrics not found" });
       return;
@@ -148,14 +193,20 @@ export function registerAgentRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("GET", "/api/agents/:agentId", (_req, res, params, token) => {
-    const snapshot = db.listSnapshot();
-    const agent = snapshot.agents.find(a => a.id === params.agentId && a.companyId === token.companyId);
-    if (!agent) {
+    let agent;
+    try {
+      agent = db.getAgent(requireParam(params, "agentId"));
+    } catch {
       server.json(res, 404, { error: "Agent not found" });
       return;
     }
-    const directReports = snapshot.agents.filter(a => a.reportsTo === agent.id && a.companyId === token.companyId);
-    const manager = agent.reportsTo ? snapshot.agents.find(a => a.id === agent.reportsTo) : null;
+    if (agent.companyId !== token.companyId) {
+      server.json(res, 404, { error: "Agent not found" });
+      return;
+    }
+    const directReports = db.getDirectReports(agent.id, token.companyId);
+    const reportsTo = agent.reportsTo;
+    const manager = reportsTo ? (() => { try { return db.getAgent(reportsTo); } catch { return null; } })() : null;
     server.json(res, 200, {
       ...agent,
       manager: manager ? { id: manager.id, name: manager.name, role: manager.role } : null,
@@ -168,13 +219,15 @@ export function registerAgentRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const snapshot = db.listSnapshot();
-    const agents = snapshot.agents.filter((a) => a.companyId === params.companyId);
+    const agents = db.queryAll<AgentListRow>(
+      "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? order by created_at asc",
+      params.companyId,
+    ).map((a) => ({ ...a, heartbeatEnabled: Boolean(a.heartbeatEnabled) }));
     server.json(res, 200, agents);
   });
 
   server.addRoute("POST", "/api/companies/:companyId/agents", (_req, res, params, token, body) => {
-    const companyId = params.companyId!;
+    const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
@@ -231,8 +284,9 @@ export function registerAgentRoutes(server: AgentApiServer) {
     }
 
     // Prevent duplicate agents: reject if a non-terminated agent with the same name already exists
-    const existingAgents = db.listSnapshot().agents.filter(
-      (a) => a.companyId === companyId && a.status !== "terminated",
+    const existingAgents = db.queryAll<{ id: string; name: string; role: string }>(
+      "select id, name, role from agents where company_id = ? and status != 'terminated'",
+      companyId,
     );
     const duplicateByName = existingAgents.find(
       (a) => a.name.toLowerCase() === input.name.toLowerCase(),
@@ -242,8 +296,9 @@ export function registerAgentRoutes(server: AgentApiServer) {
       return;
     }
     // Also check pending hire approvals with the same name to prevent concurrent duplicate requests
-    const pendingHires = db.listSnapshot().approvals.filter(
-      (a) => a.companyId === companyId && a.type === "hire_agent" && a.state === "pending",
+    const pendingHires = db.queryAll<{ payloadJson: string | null }>(
+      "select payload_json as payloadJson from approvals where company_id = ? and type = 'hire_agent' and state = 'pending'",
+      companyId,
     );
     for (const pending of pendingHires) {
       try {

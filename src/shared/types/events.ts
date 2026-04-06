@@ -94,6 +94,14 @@ export interface ThreadWaitStateUpdatedEvent {
   action: "created" | "resolved";
 }
 
+export interface RecoveryNeededEvent {
+  type: "recovery-needed";
+  interruptedRuns: Array<{
+    runId: string; taskId: string; taskTitle: string; agentId: string;
+    agentName: string; connectorId: string; interruptedAt: string;
+  }>;
+}
+
 export type DesktopEvent =
   | LogChunkEvent
   | DomainChangedEvent
@@ -109,4 +117,5 @@ export type DesktopEvent =
   | ApprovalUpdatedEvent
   | AgentUpdatedEvent
   | BudgetChangedEvent
-  | ThreadWaitStateUpdatedEvent;
+  | ThreadWaitStateUpdatedEvent
+  | RecoveryNeededEvent;

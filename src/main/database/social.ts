@@ -1,10 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import type { BrowserActionRecord, SocialAccountRecord } from "@shared/types";
-import type { ReadAll, Transaction } from "./helpers";
+import type { ReadAll, SqliteRow, Transaction } from "./helpers";
 import { ensureId, nowIso, toBoolean } from "./helpers";
-
-type SqliteRow = Record<string, any>;
 
 export function buildSocialMethods(
   getDb: () => DatabaseSync,

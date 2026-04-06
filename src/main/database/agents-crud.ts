@@ -112,8 +112,8 @@ export function buildAgentCrudMethods(
           };
           const changedKeys = Object.keys(afterConfig).filter(
             (k) =>
-              JSON.stringify((afterConfig as any)[k]) !==
-              JSON.stringify((beforeConfig as any)[k]),
+              JSON.stringify((afterConfig as Record<string, unknown>)[k]) !==
+              JSON.stringify((beforeConfig as Record<string, unknown>)[k]),
           );
           if (changedKeys.length > 0) {
             try {

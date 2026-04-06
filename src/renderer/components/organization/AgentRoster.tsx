@@ -89,15 +89,15 @@ export function AgentRoster({
                     <div>
                       <div className={`truncate text-[14px] font-semibold text-foreground`}>{agent.name}</div>
                       <div className="truncate text-[11px] text-muted-foreground">
-                        {agent.role} · {agent.title || "No title"}
+                        {agent.role} · {agent.title || t("org.noTitle")}
                       </div>
                     </div>
                   </div>
                   <StatusPill status={agent.status} />
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>Connector: {connector?.id.startsWith("claude_compat") && connector.notes ? connector.notes : connector?.label ?? agent.connectorId}</span>
-                  {workspace && <span>Workspace: {workspace.name}</span>}
+                  <span>{t("org.connectorLabel")} {connector?.id.startsWith("claude_compat") && connector.notes ? connector.notes : connector?.label ?? agent.connectorId}</span>
+                  {workspace && <span>{t("org.workspaceLabel")} {workspace.name}</span>}
                 </div>
                 <div className="mt-1.5">
                   <BudgetBar spent={agent.spentMonthlyUsd} budget={agent.budgetMonthlyUsd} />

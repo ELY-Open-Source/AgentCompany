@@ -15,7 +15,7 @@ export function buildEntityCrudMethods(
     getTask(id: string): TaskRecord {
       const row = getDb()
         .prepare(
-          "select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, requires_user_review as requiresUserReview, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks where id = ?",
+          "select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, task_type as taskType, requires_user_review as requiresUserReview, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks where id = ?",
         )
         .get(id) as TaskRecord | undefined;
       if (!row) throw new Error(`Task not found: ${id}`);
@@ -152,8 +152,19 @@ export function buildEntityCrudMethods(
       budgetMonthlyUsd: number; payloadSummary: string; impactSummary: string;
       payloadJson?: string | null;
     }, selfDeps: {
-      saveAgent: (input: any) => string;
-      requestApproval: (input: any) => string;
+      saveAgent: (input: {
+        companyId: string; name: string; role: string; title: string;
+        department: string | null; status: AgentRecord["status"];
+        reportsTo: string | null; connectorId: ConnectorId;
+        workspaceId: string | null; model: string | null;
+        metadataJson: string; capabilities: string; budgetMonthlyUsd: number;
+      }) => string;
+      requestApproval: (input: {
+        companyId: string; requestedByAgentId: string | null;
+        relatedAgentId: string; type: string;
+        payloadSummary: string; impactSummary: string;
+        payloadJson: string | null;
+      }) => string;
     }) {
       return transaction(() => {
         const agentId = selfDeps.saveAgent({

@@ -57,7 +57,7 @@ export function SocialAccountsPanel({
           </div>
         </div>
         <ActionButton
-          label="Add Account"
+          label={t("social.addAccount")}
           onClick={() => setShowAddDialog(true)}
           icon={Plus}
           tone="accent"
@@ -68,11 +68,9 @@ export function SocialAccountsPanel({
         <div className="flex items-start gap-2 text-[12px] text-primary">
           <Browser size={16} className="mt-0.5 shrink-0" />
           <div>
-            <div className="font-medium">How it works</div>
+            <div className="font-medium">{t("social.howItWorks")}</div>
             <div className="mt-1 text-[11px] opacity-80">
-              Add your social media accounts here. Click "Login" to open a browser where you can sign in.
-              Your session is saved locally so marketing agents can post content, reply to users, and browse feeds
-              using browser automation. All actions are logged and can require Board approval.
+              {t("social.howItWorksDesc")}
             </div>
           </div>
         </div>
@@ -88,7 +86,7 @@ export function SocialAccountsPanel({
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          Accounts ({accounts.length})
+          {t("social.accounts")} ({accounts.length})
         </button>
         <button
           type="button"
@@ -99,7 +97,7 @@ export function SocialAccountsPanel({
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          Action History ({actions.length})
+          {t("social.actionHistory")} ({actions.length})
         </button>
       </div>
 
@@ -113,7 +111,7 @@ export function SocialAccountsPanel({
             </div>
             <div className="mt-4">
               <ActionButton
-                label="Add Account"
+                label={t("social.addAccount")}
                 onClick={() => setShowAddDialog(true)}
                 icon={Plus}
                 tone="accent"

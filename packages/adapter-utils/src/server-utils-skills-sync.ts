@@ -225,30 +225,6 @@ export function resolveAgentCompanyDesiredSkillNames(
 }
 
 /**
- * Write desired skills back to adapter config.
- */
-export function writeAgentCompanySkillSyncPreference(
-  config: Record<string, unknown>,
-  desiredSkills: string[],
-): Record<string, unknown> {
-  const next = { ...config };
-  const raw = next.agentCompanySkillSync;
-  const current =
-    typeof raw === "object" && raw !== null && !Array.isArray(raw)
-      ? { ...(raw as Record<string, unknown>) }
-      : {};
-  current.desiredSkills = Array.from(
-    new Set(
-      desiredSkills
-        .map((value) => value.trim())
-        .filter(Boolean),
-    ),
-  );
-  next.agentCompanySkillSync = current;
-  return next;
-}
-
-/**
  * Create or repair a symlink from source to target skill directory.
  * Returns the action taken: "created", "repaired", or "skipped".
  */

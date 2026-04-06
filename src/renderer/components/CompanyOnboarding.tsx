@@ -1,2 +1,2 @@
 // Backward-compatible re-exports from decomposed onboarding components
-export { CompanyOnboarding } from "./CompanyOnboarding/OnboardingWizard";
+export { CompanyOnboarding } from "./company-onboarding/OnboardingWizard";

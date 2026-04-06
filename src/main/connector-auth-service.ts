@@ -143,33 +143,80 @@ export async function openConnectorAuthTerminal(connectorId: ConnectorId, comman
 /*  Generic terminal command (for install flows, etc.)                 */
 /* ------------------------------------------------------------------ */
 
-export async function openGenericTerminal(input: { title: string; command: string }) {
+const TERMINAL_COMMAND_MAP: Record<string, { title: string; unix: string | null; win32: string | null }> = {
+  install_node_darwin: {
+    title: "Install Node.js",
+    unix: "brew install node@22",
+    win32: null,
+  },
+  install_node_win32: {
+    title: "Install Node.js",
+    unix: null,
+    win32: "winget install -e --id OpenJS.NodeJS.LTS",
+  },
+  install_node_linux: {
+    title: "Install Node.js",
+    unix: `curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash && \\. "$HOME/.nvm/nvm.sh" && nvm install 22`,
+    win32: null,
+  },
+  install_claude_unix: {
+    title: "Install Claude Code",
+    unix: "curl -fsSL https://claude.ai/install.sh | bash",
+    win32: null,
+  },
+  install_claude_win32: {
+    title: "Install Claude Code",
+    unix: null,
+    win32: "irm https://claude.ai/install.ps1 | iex",
+  },
+  install_codex: {
+    title: "Install Codex",
+    unix: "npm i -g @openai/codex",
+    win32: "npm i -g @openai/codex",
+  },
+  install_gemini: {
+    title: "Install Gemini CLI",
+    unix: "npm install -g @google/gemini-cli",
+    win32: "npm install -g @google/gemini-cli",
+  },
+};
+
+export async function openGenericTerminal(input: { commandKey: string }) {
+  const spec = TERMINAL_COMMAND_MAP[input.commandKey];
+  if (!spec) {
+    throw new Error(`Unknown terminal command key: ${input.commandKey}`);
+  }
+
   const cwd = process.env.HOME || homedir() || process.cwd();
+  const command = process.platform === "win32" ? spec.win32 : spec.unix;
+  if (!command) {
+    throw new Error(`Command "${input.commandKey}" is not available on this platform.`);
+  }
 
   if (process.platform === "win32") {
     const winScript = [
       `@echo off`,
-      `echo AgentCompany - ${input.title}`,
+      `echo AgentCompany - ${spec.title}`,
       `echo.`,
       `cd /d "${cwd}"`,
-      input.command,
+      command,
       `echo.`,
       `echo Done. You can close this terminal.`,
       `pause`,
     ].join(" & ");
-    return spawnTerminalWithScript(winScript, input.title, cwd);
+    return spawnTerminalWithScript(winScript, spec.title, cwd);
   }
 
   const shell = process.env.SHELL || "/bin/zsh";
   const script = [
     "clear",
-    `echo ${quoteShell(`AgentCompany — ${input.title}`)}`,
+    `echo ${quoteShell(`AgentCompany — ${spec.title}`)}`,
     "echo",
     `cd ${quoteShell(cwd)}`,
-    input.command,
+    command,
     "echo",
     `echo ${quoteShell("Done. You can close this terminal.")}`,
     `exec ${quoteShell(shell)} -l`,
   ].join("; ");
-  return spawnTerminalWithScript(script, input.title, cwd);
+  return spawnTerminalWithScript(script, spec.title, cwd);
 }

@@ -1,12 +1,12 @@
 import { agentMessageInputSchema } from "@shared/contracts";
 import { dispatchAgentMessage } from "../message-dispatch";
-import type { AgentApiServer } from "./server-core";
+import { requireParam, type AgentApiServer } from "./server-core";
 
 export function registerMessageRoutes(server: AgentApiServer) {
-  const db = server.db_;
-  const onDomainChanged = server.onDomainChanged_;
-  const onWakeAgent = server.onWakeAgent_;
-  const emitEvent = server.emitEvent_;
+  const db = server.db;
+  const onDomainChanged = server.onDomainChanged;
+  const onWakeAgent = server.onWakeAgent;
+  const emitEvent = server.emitEvent;
 
   server.addRoute("POST", "/api/issues/:issueId/comments", (_req, res, params, token, body) => {
     const input = body as { body?: string } | null;
@@ -19,7 +19,7 @@ export function registerMessageRoutes(server: AgentApiServer) {
       return;
     }
     try {
-      const task = db.getTask(params.issueId!);
+      const task = db.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) {
         server.json(res, 404, { error: "Task not found" });
         return;
@@ -35,7 +35,7 @@ export function registerMessageRoutes(server: AgentApiServer) {
       onDomainChanged();
 
       // Fire comment automation rules
-      server.callbacks_.onCommentPosted(task.id, task.companyId, token.agentId);
+      server.callbacks.onCommentPosted(task.id, task.companyId, token.agentId);
 
       const wokenForComment = new Set<string>();
       if (task.assigneeAgentId && task.assigneeAgentId !== token.agentId) {
@@ -66,7 +66,7 @@ export function registerMessageRoutes(server: AgentApiServer) {
 
   server.addRoute("GET", "/api/issues/:issueId/comments", (_req, res, params, token) => {
     try {
-      const task = db.getTask(params.issueId!);
+      const task = db.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) {
         server.json(res, 404, { error: "Task not found" });
         return;
@@ -75,12 +75,12 @@ export function registerMessageRoutes(server: AgentApiServer) {
       server.json(res, 404, { error: "Task not found" });
       return;
     }
-    const comments = db.listComments(params.issueId!);
+    const comments = db.listComments(requireParam(params, "issueId"));
     server.json(res, 200, comments);
   });
 
   server.addRoute("POST", "/api/companies/:companyId/messages", (_req, res, params, token, body) => {
-    const companyId = params.companyId!;
+    const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
@@ -100,13 +100,13 @@ export function registerMessageRoutes(server: AgentApiServer) {
       {
         db,
         emitEvent,
-        notify: server.callbacks_.notify,
+        notify: server.callbacks.notify,
         publishDomainChanged: onDomainChanged,
         wakeAgentIfPossible: (agentId, cid, trigger) => {
           if (!agentId) return null;
           return onWakeAgent(agentId, cid, trigger);
         },
-        onHumanMessage: server.callbacks_.onHumanMessage,
+        onHumanMessage: server.callbacks.onHumanMessage,
       },
       parsed.data,
       "message",
@@ -120,13 +120,13 @@ export function registerMessageRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("GET", "/api/companies/:companyId/messages", (req, res, params, token) => {
-    const companyId = params.companyId!;
+    const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
 
-    const url = new URL(req.url ?? "/", `http://127.0.0.1:${server.port_}`);
+    const url = new URL(req.url ?? "/", `http://127.0.0.1:${server.port}`);
     const channelParam = url.searchParams.get("channel");
     const channelTargetId = url.searchParams.get("channelTargetId");
     const unreadOnly = url.searchParams.get("unreadOnly") === "true";
@@ -149,12 +149,12 @@ export function registerMessageRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("POST", "/api/companies/:companyId/messages/:messageId/read", (_req, res, params, token) => {
-    const companyId = params.companyId!;
+    const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const message = db.getAgentMessage(params.messageId!, companyId);
+    const message = db.getAgentMessage(requireParam(params, "messageId"), companyId);
     if (!message) {
       server.json(res, 404, { error: "Message not found" });
       return;
@@ -168,7 +168,7 @@ export function registerMessageRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "This message is not visible to the current agent" });
       return;
     }
-    db.markAgentMessageRead(params.messageId!, companyId, token.agentId);
+    db.markAgentMessageRead(requireParam(params, "messageId"), companyId, token.agentId);
     onDomainChanged();
     server.json(res, 200, { ok: true });
   });

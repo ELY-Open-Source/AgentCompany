@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { optionalId } from "./helpers";
+import { DEPARTMENT_IDS, optionalId } from "./helpers";
 
 export const deleteEntitySchema = z.object({
   id: z.string().uuid(),
@@ -35,14 +35,8 @@ export const automationRuleInputSchema = z.object({
     "create_document", "auto_approve", "reassign_task", "run_task",
   ]),
   actionConfigJson: z.string().default("{}"),
-  sourceDepartment: z.enum([
-    "executive", "engineering", "product", "marketing", "sales",
-    "hr", "finance", "legal", "operations", "customer_support", "research", "design",
-  ]).nullable().optional(),
-  targetDepartment: z.enum([
-    "executive", "engineering", "product", "marketing", "sales",
-    "hr", "finance", "legal", "operations", "customer_support", "research", "design",
-  ]).nullable().optional(),
+  sourceDepartment: DEPARTMENT_IDS.nullable().optional(),
+  targetDepartment: DEPARTMENT_IDS.nullable().optional(),
   priority: z.number().int().min(0).max(100).default(50),
   status: z.enum(["active", "paused", "disabled", "error"]).default("active"),
 });

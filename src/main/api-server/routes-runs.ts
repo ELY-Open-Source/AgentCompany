@@ -1,5 +1,5 @@
 import type { TokenPayload } from "../agent-auth";
-import type { AgentApiServer } from "./server-core";
+import { requireParam, type AgentApiServer } from "./server-core";
 
 const DEFAULT_EVENT_LIMIT = 500;
 const MAX_EVENT_LIMIT = 5_000;
@@ -15,7 +15,7 @@ function parsePositiveInt(value: string | null, fallback: number) {
 }
 
 function resolveAuthorizedRun(server: AgentApiServer, token: TokenPayload, runId: string) {
-  const runState = server.db_.getRunAuthState(runId);
+  const runState = server.db.getRunAuthState(runId);
   if (!runState || runState.companyId !== token.companyId || runState.agentId !== token.agentId) {
     return null;
   }
@@ -29,29 +29,29 @@ function writeSse(res: Parameters<AgentApiServer["json"]>[0], event: string, dat
 
 export function registerRunRoutes(server: AgentApiServer) {
   server.addRoute("GET", "/api/runs/:runId/events", (req, res, params, token) => {
-    const runId = params.runId!;
+    const runId = requireParam(params, "runId");
     const runState = resolveAuthorizedRun(server, token, runId);
     if (!runState) {
       server.json(res, 404, { error: "Run not found for the current agent token" });
       return;
     }
 
-    const url = new URL(req.url ?? "/", `http://127.0.0.1:${server.port_}`);
+    const url = new URL(req.url ?? "/", `http://127.0.0.1:${server.port}`);
     const offset = parsePositiveInt(url.searchParams.get("offset"), 0);
     const limit = Math.min(parsePositiveInt(url.searchParams.get("limit"), DEFAULT_EVENT_LIMIT), MAX_EVENT_LIMIT);
-    const events = server.db_.listRunEvents(runId, token.companyId, { offset, limit });
+    const events = server.db.listRunEvents(runId, token.companyId, { offset, limit });
     server.json(res, 200, { events, nextOffset: offset + events.length });
   });
 
   server.addRoute("GET", "/api/runs/:runId/events/stream", (req, res, params, token) => {
-    const runId = params.runId!;
+    const runId = requireParam(params, "runId");
     const runState = resolveAuthorizedRun(server, token, runId);
     if (!runState) {
       server.json(res, 404, { error: "Run not found for the current agent token" });
       return;
     }
 
-    const url = new URL(req.url ?? "/", `http://127.0.0.1:${server.port_}`);
+    const url = new URL(req.url ?? "/", `http://127.0.0.1:${server.port}`);
     let cursor = parsePositiveInt(url.searchParams.get("after"), 0);
 
     res.writeHead(200, {
@@ -64,7 +64,7 @@ export function registerRunRoutes(server: AgentApiServer) {
     writeSse(res, "connected", { runId, after: cursor });
 
     const flushPendingEvents = () => {
-      const events = server.db_
+      const events = server.db
         .listRunEvents(runId, token.companyId, { offset: 0, limit: MAX_EVENT_LIMIT })
         .filter((event) => event.seq > cursor);
       for (const event of events) {

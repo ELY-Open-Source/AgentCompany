@@ -1,9 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { SkillRecord, FileInventoryEntry, SkillSourceType, TrustLevel } from "../skill-types.js";
-import type { ReadAll } from "./helpers";
+import type { ReadAll, SqliteRow } from "./helpers";
 import { nowIso, parseJson } from "./helpers";
-
-type SqliteRow = Record<string, any>;
 
 export function buildSkillMethods(
   getDb: () => DatabaseSync,

@@ -1,4 +1,5 @@
 import { DEPARTMENT_LABELS } from "@shared/constants";
+import type { DepartmentId } from "@shared/types";
 import { getLocalePromptInstruction } from "@shared/localization";
 import {
   buildTaskSection,
@@ -229,7 +230,7 @@ ${deptMembers.map((a) => `- ${a.name} (${a.role}) [${a.status}]`).join("\n")}` :
     }
     if (deptMap.size > 1) {
       const deptLines = Array.from(deptMap.entries()).map(([dept, members]) => {
-        const label = DEPARTMENT_LABELS[dept] ?? dept;
+        const label = DEPARTMENT_LABELS[dept as DepartmentId] ?? dept;
         return `  ${label} (${members.length}): ${members.map((m) => m.name).join(", ")}`;
       });
       sections.push(`# Company Department Map

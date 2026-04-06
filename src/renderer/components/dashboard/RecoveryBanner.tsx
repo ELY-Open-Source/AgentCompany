@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Warning, ArrowClockwise, X, Trash } from "@phosphor-icons/react";
+import type { DesktopEvent } from "@shared/types/events";
 
 interface InterruptedRun {
   runId: string;
@@ -16,7 +17,7 @@ export function RecoveryBanner() {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = window.agentCompany?.subscribe?.((event: any) => {
+    const unsubscribe = window.agentCompany?.subscribe?.((event: DesktopEvent) => {
       if (event.type === "recovery-needed" && event.interruptedRuns) {
         setRuns(event.interruptedRuns);
       }

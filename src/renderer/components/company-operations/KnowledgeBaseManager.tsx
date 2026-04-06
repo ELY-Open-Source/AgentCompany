@@ -5,6 +5,7 @@ import { ActionButton, ConfirmDialog, InlineNotice, Input, ListFrame, ListRow, M
 import { useT } from "../../i18n";
 import { knowledgeCategoryOptions, importanceOptions, splitTags, parseTags } from "./helpers";
 import { SectionHeader } from "./SectionHeader";
+import { NEW_ENTITY_ID } from "../../lib/constants";
 
 function KnowledgeEditor({ companyId, entry, onSaved }: {
   companyId: string; entry: KnowledgeEntryRecord | null; onSaved: () => Promise<void>;
@@ -63,7 +64,7 @@ export function KnowledgeBaseManager({ companyId, entries, onRefresh }: {
 
   return (
     <div>
-      <SectionHeader title={t("ops.knowledgeBase")} count={entries.length} action={() => setEditingId("__new__")} />
+      <SectionHeader title={t("ops.knowledgeBase")} count={entries.length} action={() => setEditingId(NEW_ENTITY_ID)} />
       <ListFrame>
         {entries.map((entry) => (
           <ListRow key={entry.id}>
@@ -85,7 +86,7 @@ export function KnowledgeBaseManager({ companyId, entries, onRefresh }: {
         ))}
       </ListFrame>
       <Modal open={editingId !== null} title={activeEntry ? activeEntry.topic : "New knowledge entry"} onClose={() => setEditingId(null)} width="760px">
-        <KnowledgeEditor companyId={companyId} entry={editingId === "__new__" ? null : activeEntry} onSaved={async () => { setEditingId(null); await onRefresh(); }} />
+        <KnowledgeEditor companyId={companyId} entry={editingId === NEW_ENTITY_ID ? null : activeEntry} onSaved={async () => { setEditingId(null); await onRefresh(); }} />
       </Modal>
       <ConfirmDialog open={deleteId !== null} title="Delete knowledge entry" message="This will permanently delete this entry." onCancel={() => setDeleteId(null)} onConfirm={async () => { if (!deleteId) return; const result = await window.agentCompany.deleteKnowledgeEntry({ id: deleteId, companyId }); setDeleteId(null); if (result.ok) await onRefresh(); }} />
     </div>

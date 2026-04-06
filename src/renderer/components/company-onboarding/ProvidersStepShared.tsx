@@ -7,6 +7,7 @@ import {
   Terminal,
 } from "@phosphor-icons/react";
 import type { ProfileSnapshot } from "@shared/types";
+import type { TerminalCommandKey } from "@shared/contracts";
 
 /* ------------------------------------------------------------------ */
 /*  Compatible-API provider presets                                    */
@@ -15,8 +16,6 @@ import type { ProfileSnapshot } from "@shared/types";
 export const COMPATIBLE_PROVIDERS = [
   { id: "minimax", label: "MiniMax", baseUrl: "https://api.minimax.io/anthropic", docUrl: "https://platform.minimax.io/docs/token-plan/claude-code" },
   { id: "minimax_cn", label: "MiniMax (CN)", baseUrl: "https://api.minimaxi.com/anthropic", docUrl: "https://platform.minimax.io/docs/token-plan/claude-code" },
-  { id: "kimi", label: "Kimi", baseUrl: "https://api.kimi.com/coding/", docUrl: "https://www.kimi.com/code/docs/en/more/third-party-agents.html" },
-  { id: "kimi_cn", label: "Kimi CN", baseUrl: "https://api.moonshot.cn/anthropic", docUrl: "https://platform.moonshot.cn/docs/guide/agent-support#macos-%E5%92%8C-linux-1" },
   { id: "glm", label: "GLM (ZhiPu)", baseUrl: "https://api.z.ai/api/anthropic", docUrl: "https://docs.z.ai/devpack/tool/claude" },
   { id: "openrouter", label: "OpenRouter", baseUrl: "https://openrouter.ai/api", docUrl: "https://openrouter.ai/docs/guides/coding-agents/claude-code-integration" },
   { id: "tencent", label: "Tencent Coding Plan", baseUrl: "https://api.lkeap.cloud.tencent.com/coding/anthropic", docUrl: "https://cloud.tencent.com/document/product/1772/128951" },
@@ -135,19 +134,21 @@ export function ProviderCard({
 export function InstallBlock({
   macLinuxCmd,
   windowsCmd,
+  commandKeyUnix,
+  commandKeyWin32,
   onInstall,
-  title,
   t,
 }: {
   macLinuxCmd: string;
   windowsCmd: string | null;
-  onInstall: (title: string, command: string) => void;
-  title: string;
+  commandKeyUnix: TerminalCommandKey;
+  commandKeyWin32: TerminalCommandKey | null;
+  onInstall: (commandKey: TerminalCommandKey) => void;
   t: (key: string) => string;
 }) {
   const platform = window.agentCompany?.platform ?? "linux";
   const isWindows = platform === "win32";
-  const cmd = isWindows && windowsCmd ? windowsCmd : macLinuxCmd;
+  const commandKey = isWindows && commandKeyWin32 ? commandKeyWin32 : commandKeyUnix;
 
   return (
     <div className="space-y-2">
@@ -164,7 +165,7 @@ export function InstallBlock({
       )}
       <button
         type="button"
-        onClick={() => onInstall(title, cmd)}
+        onClick={() => onInstall(commandKey)}
         className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-foreground transition hover:bg-muted"
       >
         <Terminal size={14} />
@@ -192,7 +193,7 @@ export function CompatProviderCard({
   connector: ProfileSnapshot["connectors"][number] | null;
   claudeInstalled: boolean;
   onSaveConnector: ProvidersStepSaveConnector;
-  onInstallCommand: (title: string, command: string) => void;
+  onInstallCommand: (commandKey: TerminalCommandKey) => void;
   expanded: boolean;
   onToggle: () => void;
   t: (key: string) => string;
@@ -266,8 +267,9 @@ export function CompatProviderCard({
         <InstallBlock
           macLinuxCmd="curl -fsSL https://claude.ai/install.sh | bash"
           windowsCmd="irm https://claude.ai/install.ps1 | iex"
+          commandKeyUnix="install_claude_unix"
+          commandKeyWin32="install_claude_win32"
           onInstall={onInstallCommand}
-          title="Install Claude Code"
           t={t}
         />
       )}

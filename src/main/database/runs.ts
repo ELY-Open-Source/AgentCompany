@@ -4,9 +4,7 @@ import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import type { ConnectorId, RunLogChunk, RunRecord } from "@shared/types";
-import { type ReadAll, type Transaction, nowIso, toBoolean } from "./helpers";
-
-type SqliteRow = Record<string, any>;
+import { type ReadAll, type SqliteRow, type Transaction, nowIso, toBoolean } from "./helpers";
 
 /**
  * Find the last complete UTF-8 character boundary in a buffer.
@@ -325,7 +323,7 @@ export function buildRunMethods(
     }> {
       const offset = opts?.offset ?? 0;
       const limit = opts?.limit ?? 500;
-      return readAll<any>(
+      return readAll<SqliteRow>(
         "SELECT id, run_id, agent_id, seq, event_type, stream, level, message, payload, created_at FROM run_events WHERE run_id = ? AND company_id = ? ORDER BY seq ASC LIMIT ? OFFSET ?",
         runId, companyId, limit, offset
       ).map((row: SqliteRow) => ({

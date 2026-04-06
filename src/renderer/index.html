@@ -2,6 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!--
+      CSP: 'unsafe-inline' in style-src is required because:
+      1. Framer Motion injects <style> elements at runtime (AnimatePresence/PopChild)
+      2. OnboardingHero.tsx uses inline <style> for @keyframes
+      3. Tailwind CSS v4 Vite plugin injects <style> during dev mode (HMR)
+      Removing it breaks animations and dev workflow. Nonce-based CSP is not feasible
+      because Framer Motion's runtime style injection does not support nonces.
+    -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self';"

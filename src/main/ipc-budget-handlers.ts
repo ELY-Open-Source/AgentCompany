@@ -26,13 +26,6 @@ export function registerBudgetHandlers({
   budgetService,
   db,
 }: BudgetHandlerDependencies) {
-  function requireBudgetService() {
-    if (!budgetService) {
-      return fail("SERVICE_NOT_READY", "Budget enforcement service is not initialized.");
-    }
-    return null;
-  }
-
   // ---- Save (create/update) a budget policy ----
   registerHandle(IPC_CHANNELS.saveBudgetPolicy, async (_event, payload) => {
     const parsed = budgetPolicyInputSchema.parse(payload);
@@ -92,8 +85,9 @@ export function registerBudgetHandlers({
     const parsed = getBudgetStatusSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    const serviceError = requireBudgetService();
-    if (serviceError) return serviceError;
-    return ok(budgetService!.getBudgetStatus(parsed.companyId));
+    if (!budgetService) {
+      return fail("SERVICE_NOT_READY", "Budget enforcement service is not initialized.");
+    }
+    return ok(budgetService.getBudgetStatus(parsed.companyId));
   });
 }

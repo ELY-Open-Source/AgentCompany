@@ -109,8 +109,10 @@ export function registerCoreTaskGraphHandlers({
     let previousStatus: string | null = null;
     let previousAssigneeAgentId: string | null = null;
     if (!isNew) {
+      const taskId = parsed.id;
+      if (!taskId) return fail("INVALID_TASK_STATE", "Task ID required for updates.");
       try {
-        const existingTask = db.getTask(parsed.id!);
+        const existingTask = db.getTask(taskId);
         previousStatus = existingTask.status;
         previousAssigneeAgentId = existingTask.assigneeAgentId;
       } catch {

@@ -62,7 +62,9 @@ export function registerCoreAgentGraphHandlers({
     }
     const existingAgent = (() => {
       try {
-        return db.getAgent(parsed.id!);
+        const agentId = parsed.id;
+        if (!agentId) return null;
+        return db.getAgent(agentId);
       } catch {
         return null;
       }

@@ -79,12 +79,21 @@ export function createUpdaterService({
       return false;
     }
     const updateUrl = process.env.AGENTCOMPANY_UPDATE_URL?.trim();
+    if (updateUrl && !updateUrl.startsWith("https://")) {
+      logger.error("[updater] AGENTCOMPANY_UPDATE_URL must use HTTPS — refusing insecure update source.");
+      return false;
+    }
     if (!app.isPackaged && (!updateUrl || updateUrl.includes("example.invalid"))) {
       logger.info("[updater] Skipping update check because no real update URL is configured.");
       return false;
     }
     try {
-      autoUpdater.logger = logger as any;
+      autoUpdater.logger = {
+        info: (...args: unknown[]) => logger.info(...args),
+        warn: (...args: unknown[]) => logger.info("[warn]", ...args),
+        error: (...args: unknown[]) => logger.error(...args),
+        debug: () => undefined,
+      };
       autoUpdater.autoDownload = true;
       autoUpdater.autoInstallOnAppQuit = true;
       const result = await autoUpdater.checkForUpdates();

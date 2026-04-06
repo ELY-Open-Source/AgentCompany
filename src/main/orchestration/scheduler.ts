@@ -1,5 +1,6 @@
 import type { OrchestrationDependencies } from "./types";
 import { sweepStaleReviews } from "../task-quality-gates";
+import type { SweepStaleReviewsDeps } from "../task-quality-gates";
 import { resolveApprovalDecision } from "../approval-policy";
 import { dispatchAgentMessage } from "../message-dispatch";
 
@@ -134,12 +135,12 @@ export function createScheduler(
 
             // TASK-04: Stale review escalation sweep
             try {
-              const escalated = sweepStaleReviews(company.id, {
-                db: db as unknown as import("../task-quality-gates").SweepStaleReviewsDeps["db"],
+              const sweepDeps: SweepStaleReviewsDeps = {
+                db,
+                dispatchAgentMessage,
+                resolveApprovalDecision,
+                notify,
                 getCompanyExecutionMode: (cId: string) => db.getCompanyExecutionMode(cId),
-                dispatchAgentMessage: dispatchAgentMessage as unknown as import("../task-quality-gates").SweepStaleReviewsDeps["dispatchAgentMessage"],
-                resolveApprovalDecision: resolveApprovalDecision as unknown as import("../task-quality-gates").SweepStaleReviewsDeps["resolveApprovalDecision"],
-                notify: notify as unknown as import("../task-quality-gates").SweepStaleReviewsDeps["notify"],
                 handleTaskStatusChange: (taskId: string, cId: string, previousStatus: string, newStatus: string) => {
                   deps.dispatchAutomation("task_status_changed", { companyId: cId, taskId, previousStatus, newStatus });
                   publishDomainChanged();
@@ -150,11 +151,11 @@ export function createScheduler(
                 },
                 emitEvent: deps.emitEvent,
                 publishDomainChanged,
-                wakeAgentIfPossible: (agentId: string, cId: string, trigger: string) => {
-                  wakeAgentIfPossible(agentId, cId, trigger);
-                },
+                wakeAgentIfPossible: (agentId: string | null | undefined, cId: string, trigger: string) =>
+                  agentId != null ? wakeAgentIfPossible(agentId, cId, trigger) ?? null : null,
                 logger,
-              });
+              };
+              const escalated = sweepStaleReviews(company.id, sweepDeps);
               if (escalated > 0) {
                 logger.info(`[heartbeat] Auto-escalated ${escalated} stale review(s) for company ${company.name}`);
                 publishDomainChanged();

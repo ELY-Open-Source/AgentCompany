@@ -20,13 +20,13 @@ function safeParseState(filePath: string): StoredWindowState | null {
     const parsed = JSON.parse(raw) as Partial<StoredWindowState>;
     if (!parsed.bounds || typeof parsed.bounds !== "object") return null;
     const { width, height, x, y } = parsed.bounds as Partial<Rectangle>;
-    if (![width, height].every((value) => typeof value === "number" && Number.isFinite(value))) {
+    if (typeof width !== "number" || !Number.isFinite(width) || typeof height !== "number" || !Number.isFinite(height)) {
       return null;
     }
     return {
       bounds: {
-        width: width!,
-        height: height!,
+        width,
+        height,
         x: typeof x === "number" && Number.isFinite(x) ? x : DEFAULT_BOUNDS.x,
         y: typeof y === "number" && Number.isFinite(y) ? y : DEFAULT_BOUNDS.y,
       },

@@ -132,13 +132,14 @@ export function buildWakeupMethods(
           promoted = deferred.length;
         } else {
           const [first, ...rest] = deferred;
+          if (!first) return 0;
           getDb().prepare(
             `UPDATE wakeup_requests SET status = 'queued', updated_at = ? WHERE id = ?`,
-          ).run(ts, first!.id);
+          ).run(ts, first.id);
           if (rest.length > 0) {
-            const firstTriggers: Array<{ trigger: string; at: string; detail: string }> = first!.trigger_detail ? JSON.parse(first!.trigger_detail) : [];
+            const firstTriggers: Array<{ trigger: string; at: string; detail: string }> = first.trigger_detail ? JSON.parse(first.trigger_detail) : [];
             let addedCount = 0;
-            let mergedCtx = first!.context_snapshot;
+            let mergedCtx = first.context_snapshot;
             for (const d of rest) {
               const dTriggers: Array<{ trigger: string; at: string; detail: string }> = d.trigger_detail ? JSON.parse(d.trigger_detail) : [];
               firstTriggers.push(...dTriggers);
@@ -147,7 +148,7 @@ export function buildWakeupMethods(
             }
             getDb().prepare(
               `UPDATE wakeup_requests SET trigger_detail = ?, coalesced_count = coalesced_count + ?, context_snapshot = ?, updated_at = ? WHERE id = ?`,
-            ).run(JSON.stringify(firstTriggers), addedCount, mergedCtx, ts, first!.id);
+            ).run(JSON.stringify(firstTriggers), addedCount, mergedCtx, ts, first.id);
             for (const d of rest) {
               getDb().prepare("DELETE FROM wakeup_requests WHERE id = ?").run(d.id);
             }

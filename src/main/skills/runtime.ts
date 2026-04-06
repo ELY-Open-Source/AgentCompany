@@ -218,7 +218,7 @@ export function createSkillRuntime({ db, logger, skillsRoot, skillFilesDir, impo
     }
 
     if (normalizedRole === "ceo" || normalizedRole.includes("chief")) {
-      categories = roleCategories.ceo!;
+      categories = roleCategories.ceo ?? ["basic-for-all"];
     }
 
     for (const skill of allSkills) {

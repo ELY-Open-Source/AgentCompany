@@ -45,15 +45,15 @@ export function ProjectList({
             <div className="mb-2 text-[13px] text-muted-foreground">{project.description}</div>
             <div className="flex flex-wrap gap-4 text-[11px] text-muted-foreground">
               <span>
-                Goal: {goals.find((g) => g.id === project.goalId)?.title ?? "None"}
+                {t("org.goalLabel")} {goals.find((g) => g.id === project.goalId)?.title ?? t("exec.noGoal")}
               </span>
               <span>
-                Lead: {agents.find((a) => a.id === project.leadAgentId)?.name ?? "Unassigned"}
+                {t("org.leadLabel")} {agents.find((a) => a.id === project.leadAgentId)?.name ?? t("exec.unassigned")}
               </span>
-              {project.targetDate && <span>Target: {project.targetDate}</span>}
+              {project.targetDate && <span>{t("org.targetLabel")} {project.targetDate}</span>}
               {wsCount > 0 && (
                 <span>
-                  {wsCount} workspace{wsCount !== 1 ? "s" : ""}
+                  {wsCount !== 1 ? t("org.workspacesCount").replace("{0}", String(wsCount)) : t("org.workspaceCount").replace("{0}", String(wsCount))}
                 </span>
               )}
             </div>

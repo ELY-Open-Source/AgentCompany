@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { NEW_ENTITY_ID } from "../../lib/constants";
 import type {
   AgentRecord,
   ApprovalRecord,
@@ -123,6 +124,8 @@ export function ExecutionSections({
   const [costsTab, setCostsTab] = useState<"costs" | "policies" | "incidents">("costs");
   const selectedGoal = companyGoals.find((g) => g.id === selectedGoalId) ?? null;
 
+  if (!currentCompany) return null;
+
   return (
     <>
       {section === "runs" ? (
@@ -179,11 +182,11 @@ export function ExecutionSections({
 
       {section === "tasks" ? (
         <>
-          <Panel title="Goals" action={<ActionButton label="New goal" icon={Target} tone="accent" onClick={() => setSelectedGoalId("__new__")} />}>
+          <Panel title="Goals" action={<ActionButton label="New goal" icon={Target} tone="accent" onClick={() => setSelectedGoalId(NEW_ENTITY_ID)} />}>
             <GoalList goals={companyGoals} agents={companyAgents} selectedGoalId={selectedGoalId} onSelect={setSelectedGoalId} />
           </Panel>
-          <Modal open={selectedGoalId === "__new__" && section === "tasks"} title="New goal" onClose={() => setSelectedGoalId(null)}>
-            <GoalCreator companyId={currentCompany!.id} agents={companyAgents} goals={companyGoals} onSaved={async () => { setSelectedGoalId(null); await refresh(); }} />
+          <Modal open={selectedGoalId === NEW_ENTITY_ID && section === "tasks"} title="New goal" onClose={() => setSelectedGoalId(null)}>
+            <GoalCreator companyId={currentCompany.id} agents={companyAgents} goals={companyGoals} onSaved={async () => { setSelectedGoalId(null); await refresh(); }} />
           </Modal>
           <Modal open={!!selectedGoal && section === "tasks"} title={selectedGoal ? `Edit: ${selectedGoal.title}` : ""} onClose={() => setSelectedGoalId(null)}>
             {selectedGoal ? (
@@ -192,7 +195,7 @@ export function ExecutionSections({
                 goal={selectedGoal}
                 goals={companyGoals}
                 agents={companyAgents}
-                companyId={currentCompany!.id}
+                companyId={currentCompany.id}
                 onSaved={async () => { setSelectedGoalId(null); await refresh(); }}
                 onDeleted={async () => { setSelectedGoalId(null); await refresh(); }}
               />
@@ -219,7 +222,7 @@ export function ExecutionSections({
                     <Kanban size={14} />
                   </button>
                 </div>
-                <ActionButton label="New task" icon={ListChecks} tone="accent" onClick={() => setSelectedTaskId("__new__")} />
+                <ActionButton label="New task" icon={ListChecks} tone="accent" onClick={() => setSelectedTaskId(NEW_ENTITY_ID)} />
               </div>
             }
           >
@@ -229,8 +232,8 @@ export function ExecutionSections({
               <TaskQueue tasks={tasks} runs={runs} onSelect={setSelectedTaskId} selectedTaskId={selectedTask?.id ?? null} />
             )}
           </Panel>
-          <Modal open={selectedTaskId === "__new__"} title="New task" onClose={() => setSelectedTaskId(null)}>
-            <TaskCreator companyId={currentCompany!.id} goals={companyGoals} projects={companyProjects} agents={companyAgents} workspaces={companyWorkspaces} onSaved={async () => { setSelectedTaskId(null); await refresh(); }} />
+          <Modal open={selectedTaskId === NEW_ENTITY_ID} title="New task" onClose={() => setSelectedTaskId(null)}>
+            <TaskCreator companyId={currentCompany.id} goals={companyGoals} projects={companyProjects} agents={companyAgents} workspaces={companyWorkspaces} onSaved={async () => { setSelectedTaskId(null); await refresh(); }} />
           </Modal>
           <Modal open={!!selectedTask} title={selectedTask?.title ?? ""} onClose={() => setSelectedTaskId(null)} width="720px">
             {selectedTask ? (
@@ -242,7 +245,7 @@ export function ExecutionSections({
                 goals={companyGoals}
                 projects={companyProjects}
                 workspaces={companyWorkspaces}
-                companyId={currentCompany!.id}
+                companyId={currentCompany.id}
                 comments={(snapshot.comments ?? []).filter((comment) => comment.taskId === selectedTask.id)}
                 onRefresh={refresh}
                 onRun={startRun}
@@ -250,7 +253,7 @@ export function ExecutionSections({
                 onCreateApproval={async () => {
                   const isBlocked = selectedTask.status === "blocked";
                   const approvalId = unwrap(await window.agentCompany.requestApproval({
-                    companyId: currentCompany!.id,
+                    companyId: currentCompany.id,
                     relatedTaskId: selectedTask.id,
                     requestedByAgentId: selectedTask.assigneeAgentId,
                     type: isBlocked ? "secret_access" : "approve_ceo_strategy",
@@ -291,9 +294,9 @@ export function ExecutionSections({
                 agents={companyAgents}
                 tasks={tasks}
                 documents={companyDocuments}
-                companyId={currentCompany!.id}
+                companyId={currentCompany.id}
                 onDecide={async (state, note) => {
-                  unwrap(await window.agentCompany.decideApproval({ companyId: currentCompany!.id, approvalId: selectedApproval.id, state, decisionNote: note ?? `${state} from desktop control surface.` }));
+                  unwrap(await window.agentCompany.decideApproval({ companyId: currentCompany.id, approvalId: selectedApproval.id, state, decisionNote: note ?? `${state} from desktop control surface.` }));
                   await refresh();
                 }}
                 onDeleted={async () => { setSelectedApprovalId(null); await refresh(); }}
@@ -338,13 +341,13 @@ export function ExecutionSections({
             />
           ) : costsTab === "policies" ? (
             <PolicyList
-              companyId={currentCompany!.id}
+              companyId={currentCompany.id}
               agents={companyAgents.map((a) => ({ id: a.id, name: a.name }))}
               projects={companyProjects.map((p) => ({ id: p.id, name: p.name }))}
             />
           ) : (
             <IncidentList
-              companyId={currentCompany!.id}
+              companyId={currentCompany.id}
               agents={companyAgents.map((a) => ({ id: a.id, name: a.name }))}
               projects={companyProjects.map((p) => ({ id: p.id, name: p.name }))}
             />

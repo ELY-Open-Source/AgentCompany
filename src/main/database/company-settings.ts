@@ -52,13 +52,16 @@ export function buildCompanySettingsMethods(
           ).length;
 
           // Avg run duration
-          const finishedRuns = agentRuns.filter((r) => r.startedAt && r.finishedAt);
+          const finishedRuns = agentRuns.filter(
+            (r): r is typeof r & { startedAt: string; finishedAt: string } =>
+              Boolean(r.startedAt && r.finishedAt),
+          );
           const avgDuration =
             finishedRuns.length > 0
               ? finishedRuns.reduce(
                   (sum, r) =>
                     sum +
-                    (new Date(r.finishedAt!).getTime() - new Date(r.startedAt!).getTime()) / 1000,
+                    (new Date(r.finishedAt).getTime() - new Date(r.startedAt).getTime()) / 1000,
                   0,
                 ) / finishedRuns.length
               : 0;

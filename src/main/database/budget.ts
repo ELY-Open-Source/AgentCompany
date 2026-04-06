@@ -1,10 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import type { BudgetIncidentRecord, BudgetPolicyRecord } from "@shared/types";
-import type { ReadAll, Transaction } from "./helpers";
+import type { ReadAll, SqliteRow, Transaction } from "./helpers";
 import { nowIso } from "./helpers";
-
-type SqliteRow = Record<string, any>;
 
 function mapPolicyRow(r: SqliteRow): BudgetPolicyRecord {
   return {

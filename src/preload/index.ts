@@ -32,9 +32,13 @@ const api: DesktopApi = {
   checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates),
   deleteCompany: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.deleteCompany, companyId),
   deleteAgent: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteAgent, input),
+  /** @planned — handler not yet implemented in ipc-core-task-graph-handlers.ts */
   deleteTask: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteTask, input),
+  /** @planned — handler not yet implemented in ipc-core-task-graph-handlers.ts */
   deleteGoal: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteGoal, input),
+  /** @planned — handler not yet implemented in ipc-core-task-graph-handlers.ts */
   deleteProject: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteProject, input),
+  /** @planned — handler not yet implemented in ipc-core-agent-graph-handlers.ts */
   deleteWorkspace: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteWorkspace, input),
   deleteApproval: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteApproval, input),
   deleteSecret: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteSecret, input),

@@ -1,4 +1,5 @@
 import type { AppDatabase } from "../database";
+import type { DesktopEvent } from "@shared/types";
 import type { NotificationOptions } from "../notification-service";
 import type { createBudgetEnforcementService } from "../budget-enforcement-service";
 import type { RuntimeSkillEntry } from "../skill-types";
@@ -54,7 +55,7 @@ export interface OrchestrationDependencies {
     error: (...args: unknown[]) => void;
   };
   publishDomainChanged: () => void;
-  emitEvent: (event: any) => void;
+  emitEvent: (event: DesktopEvent) => void;
   notify: (options: NotificationOptions) => void;
   createRunToken: (agentId: string, companyId: string, runId: string) => string;
   getApiPort: () => number;

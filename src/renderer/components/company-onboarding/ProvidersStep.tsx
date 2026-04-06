@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight, FloppyDisk, SignIn } from "@phosphor-icons/react";
 import type { ProfileSnapshot } from "@shared/types";
+import type { TerminalCommandKey } from "@shared/contracts";
 import { ActionButton } from "../ui";
 import {
   CompatProviderCard,
@@ -20,7 +21,7 @@ interface ProvidersStepProps {
   onTestConnector: (connectorId: string) => void;
   onSaveConnector: (connectorId: string, envBindingText: string, model: string | null, notes?: string) => void;
   onLoginConnector: (connectorId: string) => void;
-  onInstallCommand: (title: string, command: string) => void;
+  onInstallCommand: (commandKey: TerminalCommandKey) => void;
   hasAtLeastOneReady: boolean;
   onContinue: () => void;
   onBack: () => void;
@@ -125,8 +126,9 @@ export function ProvidersStep({
             <InstallBlock
               macLinuxCmd="curl -fsSL https://claude.ai/install.sh | bash"
               windowsCmd="irm https://claude.ai/install.ps1 | iex"
+              commandKeyUnix="install_claude_unix"
+              commandKeyWin32="install_claude_win32"
               onInstall={onInstallCommand}
-              title="Install Claude Code"
               t={t}
             />
           )}
@@ -171,8 +173,9 @@ export function ProvidersStep({
             <InstallBlock
               macLinuxCmd="npm i -g @openai/codex"
               windowsCmd={null}
+              commandKeyUnix="install_codex"
+              commandKeyWin32={null}
               onInstall={onInstallCommand}
-              title="Install Codex"
               t={t}
             />
           )}
@@ -217,8 +220,9 @@ export function ProvidersStep({
             <InstallBlock
               macLinuxCmd="npm install -g @google/gemini-cli"
               windowsCmd={null}
+              commandKeyUnix="install_gemini"
+              commandKeyWin32={null}
               onInstall={onInstallCommand}
-              title="Install Gemini CLI"
               t={t}
             />
           )}

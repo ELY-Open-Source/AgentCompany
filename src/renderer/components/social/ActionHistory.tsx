@@ -65,7 +65,7 @@ export function ActionHistory({ actions, agents, onOpenPath, onCancelAction, onN
                 {action.taskId ? (
                   <button
                     type="button"
-                    onClick={() => onNavigate("tasks", action.taskId!)}
+                    onClick={() => { const id = action.taskId; if (id) onNavigate("tasks", id); }}
                     className="rounded-[5px] bg-muted px-2 py-1 text-[10px] font-medium text-muted-foreground transition hover:text-foreground"
                   >
                     Open task
@@ -74,7 +74,7 @@ export function ActionHistory({ actions, agents, onOpenPath, onCancelAction, onN
                 {action.approvalId ? (
                   <button
                     type="button"
-                    onClick={() => onNavigate("approvals", action.approvalId!)}
+                    onClick={() => { const id = action.approvalId; if (id) onNavigate("approvals", id); }}
                     className="rounded-[5px] bg-muted px-2 py-1 text-[10px] font-medium text-muted-foreground transition hover:text-foreground"
                   >
                     Open approval
@@ -83,7 +83,7 @@ export function ActionHistory({ actions, agents, onOpenPath, onCancelAction, onN
                 {action.screenshotPath ? (
                   <button
                     type="button"
-                    onClick={() => void onOpenPath(action.screenshotPath!)}
+                    onClick={() => { const p = action.screenshotPath; if (p) void onOpenPath(p); }}
                     className="inline-flex items-center gap-1 rounded-[5px] bg-muted px-2 py-1 text-[10px] font-medium text-muted-foreground transition hover:text-foreground"
                   >
                     <ArrowSquareOut size={10} />

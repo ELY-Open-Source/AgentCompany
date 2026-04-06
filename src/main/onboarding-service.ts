@@ -98,10 +98,14 @@ export function createOnboardingService({
     });
   }
 
+  function getLocale(): string {
+    return db.queryAll<{ value: string }>("select value from settings where key = 'locale' limit 1")[0]?.value ?? "en";
+  }
+
   function createDefaultWorkspace(companyId: string, workspacePath: string) {
     const trimmedPath = workspacePath.trim();
     if (!trimmedPath) return null;
-    const wsLocale = db.listSnapshot().locale;
+    const wsLocale = getLocale();
     return db.saveWorkspace({
       companyId,
       name: wsLocale === "zh" ? "默认工作区" : "Default Workspace",
@@ -113,22 +117,33 @@ export function createOnboardingService({
   }
 
   function createInitialExecutionLoop(companyId: string, workspaceId: string | null): OnboardingBootstrapSummary {
-    const snapshot = db.listSnapshot();
-    const company = snapshot.companies.find((entry) => entry.id === companyId) ?? null;
+    const companyRows = db.queryAll<{ id: string; name: string; description: string }>(
+      "select id, name, description from companies where id = ? limit 1",
+      companyId,
+    );
+    const company = companyRows[0] ?? null;
     if (!company) {
       throw new Error("Company no longer exists during onboarding bootstrap.");
     }
 
-    const leadAgent = snapshot.agents.find((agent) => agent.companyId === companyId && !agent.reportsTo) ?? null;
+    const leadAgentRows = db.queryAll<{ id: string; companyId: string; name: string; role: string; title: string; department: string | null; status: string; reportsTo: string | null; connectorId: string; workspaceId: string | null; model: string | null; metadataJson: string; capabilities: string; budgetMonthlyUsd: number; heartbeatEnabled: number; heartbeatIntervalSec: number }>(
+      "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, metadata_json as metadataJson, capabilities, budget_monthly_usd as budgetMonthlyUsd, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec from agents where company_id = ? and reports_to is null limit 1",
+      companyId,
+    );
+    const leadAgent = leadAgentRows[0] ?? null;
     if (!leadAgent) {
       throw new Error("Unable to find the lead agent for the company bootstrap.");
     }
 
     updateAgentWorkspaceBinding(leadAgent.id, workspaceId);
 
+    const goalRows = db.queryAll<{ id: string; title: string; status: string }>(
+      "select id, title, status from goals where company_id = ? order by created_at asc",
+      companyId,
+    );
     const activeGoal =
-      snapshot.goals.find((goal) => goal.companyId === companyId && goal.status === "active")
-      ?? snapshot.goals.find((goal) => goal.companyId === companyId)
+      goalRows.find((goal) => goal.status === "active")
+      ?? goalRows[0]
       ?? null;
 
     const kickoffProjectName = activeGoal ? `Execution plan: ${activeGoal.title}` : "Initial operating plan";
@@ -146,7 +161,7 @@ export function createOnboardingService({
       status: "in_progress",
     });
 
-    const kickoffLocale = db.listSnapshot().locale;
+    const kickoffLocale = getLocale();
     const kickoffTaskTitle = activeGoal
       ? (kickoffLocale === "zh" ? `落地目标：${activeGoal.title}` : `Operationalize goal: ${activeGoal.title}`)
       : (kickoffLocale === "zh" ? "建立首个运营节奏" : "Establish the first operating cadence");
@@ -195,8 +210,8 @@ export function createOnboardingService({
   }
 
   function bootstrapOnboarding(input: BootstrapInput): OnboardingBootstrapSummary {
-    const snapshot = db.listSnapshot();
-    const selectedConnectorId = resolveOnboardingConnector(snapshot.connectors, input.connectorId);
+    const connectors = db.listSnapshot({ companyId: null }).connectors;
+    const selectedConnectorId = resolveOnboardingConnector(connectors, input.connectorId);
     const modelSelection = validateConnectorModelSelection(db, selectedConnectorId, input.connectorModel ?? null);
     if (!modelSelection.ok) {
       throw new Error(modelSelection.error);
@@ -224,7 +239,7 @@ export function createOnboardingService({
       });
     }
 
-    const ceoLocale = db.listSnapshot().locale;
+    const ceoLocale = getLocale();
     const ceoId = db.saveAgent({
       companyId,
       name: "CEO",

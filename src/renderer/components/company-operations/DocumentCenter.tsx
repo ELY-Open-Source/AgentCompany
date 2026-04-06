@@ -5,6 +5,7 @@ import { ActionButton, ConfirmDialog, InlineNotice, Input, ListFrame, ListRow, M
 import { useT } from "../../i18n";
 import { documentTypeOptions, documentStatusOptions, splitTags, parseTags } from "./helpers";
 import { SectionHeader } from "./SectionHeader";
+import { NEW_ENTITY_ID } from "../../lib/constants";
 
 function DocumentEditor({ companyId, agents, projects, goals, document, onSaved }: {
   companyId: string; agents: AgentRecord[]; projects: ProjectRecord[]; goals: GoalRecord[];
@@ -75,7 +76,7 @@ export function DocumentCenter({ companyId, documents, agents, projects, goals, 
 
   return (
     <div>
-      <SectionHeader title={t("ops.documentCenter")} count={documents.length} action={() => setEditingId("__new__")} />
+      <SectionHeader title={t("ops.documentCenter")} count={documents.length} action={() => setEditingId(NEW_ENTITY_ID)} />
       <ListFrame>
         {documents.map((document) => (
           <ListRow key={document.id}>
@@ -97,7 +98,7 @@ export function DocumentCenter({ companyId, documents, agents, projects, goals, 
         ))}
       </ListFrame>
       <Modal open={editingId !== null} title={activeDocument ? activeDocument.title : "New document"} onClose={() => setEditingId(null)} width="760px">
-        <DocumentEditor companyId={companyId} agents={agents} projects={projects} goals={goals} document={editingId === "__new__" ? null : activeDocument} onSaved={async () => { setEditingId(null); await onRefresh(); }} />
+        <DocumentEditor companyId={companyId} agents={agents} projects={projects} goals={goals} document={editingId === NEW_ENTITY_ID ? null : activeDocument} onSaved={async () => { setEditingId(null); await onRefresh(); }} />
       </Modal>
       <ConfirmDialog open={deleteId !== null} title="Delete document" message="This removes the document from the company knowledge base." onCancel={() => setDeleteId(null)} onConfirm={async () => { if (!deleteId) return; const result = await window.agentCompany.deleteDocument({ id: deleteId, companyId }); setDeleteId(null); if (result.ok) await onRefresh(); }} />
     </div>

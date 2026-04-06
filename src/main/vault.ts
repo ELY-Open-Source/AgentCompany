@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, readFileSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { safeStorage } from "electron";
 
@@ -68,13 +68,18 @@ export class SecretVault {
 
   private ensureKey(): Buffer {
     mkdirSync(this.profileDir, { recursive: true });
-    if (!existsSync(this.keyPath)) {
+    try {
+      const fd = openSync(this.keyPath, "wx", 0o600);
       const nextKey = randomBytes(32);
-      writeFileSync(this.keyPath, nextKey);
-      chmodSync(this.keyPath, 0o600);
+      writeSync(fd, nextKey);
+      closeSync(fd);
       return nextKey;
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+        return readFileSync(this.keyPath);
+      }
+      throw err;
     }
-    return readFileSync(this.keyPath);
   }
 
   private canUseSafeStorage() {

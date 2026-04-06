@@ -1,15 +1,41 @@
 import { z } from "zod";
 import { goalInputSchema, projectInputSchema } from "@shared/contracts";
 import { canManageGoal, canManageProject } from "../agent-permissions";
-import type { AgentApiServer } from "./server-core";
+import { requireParam, type AgentApiServer } from "./server-core";
+
+type ProjectRow = {
+  id: string; companyId: string; goalId: string | null; name: string;
+  description: string; leadAgentId: string | null; status: string;
+  targetDate: string | null; createdAt: string; updatedAt: string;
+};
+
+type GoalRow = {
+  id: string; companyId: string; title: string; description: string;
+  parentId: string | null; ownerAgentId: string | null; status: string;
+  createdAt: string; updatedAt: string;
+};
+
+type SprintRow = {
+  id: string; companyId: string; name: string; goal: string;
+  startDate: string; endDate: string; status: string;
+  retrospectiveNotes: string | null; velocityPoints: number;
+  completedPoints: number; createdAt: string; updatedAt: string;
+};
+
+type AgentStatusRow = { id: string; status: string };
+type TaskStatusRow  = { id: string; status: string };
+type ActivityRow = {
+  id: string; companyId: string; actor: string; action: string;
+  entityType: string; entityId: string; detail: string | null; createdAt: string;
+};
 
 export function registerWorkGraphRoutes(server: AgentApiServer) {
-  const db = server.db_;
-  const onDomainChanged = server.onDomainChanged_;
-  const onWakeAgent = server.onWakeAgent_;
+  const db = server.db;
+  const onDomainChanged = server.onDomainChanged;
+  const onWakeAgent = server.onWakeAgent;
 
   server.addRoute("POST", "/api/companies/:companyId/projects", (_req, res, params, token, body) => {
-    const companyId = params.companyId!;
+    const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
@@ -61,7 +87,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("PATCH", "/api/projects/:projectId", (_req, res, params, token, body) => {
-    const projectId = params.projectId!;
+    const projectId = requireParam(params, "projectId");
 
     const updateSchema = z.object({
       name: z.string().min(2).max(120).optional(),
@@ -78,8 +104,11 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       return;
     }
 
-    const snapshot = db.listSnapshot();
-    const existing = snapshot.projects.find(p => p.id === projectId && p.companyId === token.companyId);
+    const projectRows = db.queryAll<ProjectRow>(
+      "select id, company_id as companyId, goal_id as goalId, name, description, lead_agent_id as leadAgentId, status, target_date as targetDate, created_at as createdAt, updated_at as updatedAt from projects where id = ? and company_id = ? limit 1",
+      projectId, token.companyId,
+    );
+    const existing = projectRows[0] ?? null;
     if (!existing) {
       server.json(res, 404, { error: "Project not found" });
       return;
@@ -109,7 +138,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("POST", "/api/companies/:companyId/goals", (_req, res, params, token, body) => {
-    const companyId = params.companyId!;
+    const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
@@ -151,7 +180,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("PATCH", "/api/goals/:goalId", (_req, res, params, token, body) => {
-    const goalId = params.goalId!;
+    const goalId = requireParam(params, "goalId");
 
     const updateSchema = z.object({
       title: z.string().min(2).max(120).optional(),
@@ -166,8 +195,11 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       return;
     }
 
-    const snapshot = db.listSnapshot();
-    const existing = snapshot.goals.find(g => g.id === goalId && g.companyId === token.companyId);
+    const goalRows = db.queryAll<GoalRow>(
+      "select id, company_id as companyId, title, description, parent_id as parentId, owner_agent_id as ownerAgentId, status, created_at as createdAt, updated_at as updatedAt from goals where id = ? and company_id = ? limit 1",
+      goalId, token.companyId,
+    );
+    const existing = goalRows[0] ?? null;
     if (!existing) {
       server.json(res, 404, { error: "Goal not found" });
       return;
@@ -199,8 +231,10 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const snapshot = db.listSnapshot();
-    const goals = snapshot.goals.filter((g) => g.companyId === params.companyId);
+    const goals = db.queryAll<GoalRow>(
+      "select id, company_id as companyId, title, description, parent_id as parentId, owner_agent_id as ownerAgentId, status, created_at as createdAt, updated_at as updatedAt from goals where company_id = ? order by created_at asc",
+      params.companyId,
+    );
     server.json(res, 200, goals);
   });
 
@@ -209,24 +243,28 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const snapshot = db.listSnapshot();
-    const projects = snapshot.projects.filter((p) => p.companyId === params.companyId);
+    const projects = db.queryAll<ProjectRow>(
+      "select id, company_id as companyId, goal_id as goalId, name, description, lead_agent_id as leadAgentId, status, target_date as targetDate, created_at as createdAt, updated_at as updatedAt from projects where company_id = ? order by created_at desc",
+      params.companyId,
+    );
     server.json(res, 200, projects);
   });
 
   server.addRoute("GET", "/api/companies/:companyId/sprints", (_req, res, params, token) => {
-    const companyId = params.companyId!;
+    const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const snapshot = db.listSnapshot();
-    const sprints = snapshot.sprints.filter(s => s.companyId === companyId);
+    const sprints = db.queryAll<SprintRow>(
+      "select id, company_id as companyId, name, goal, start_date as startDate, end_date as endDate, status, retrospective_notes as retrospectiveNotes, velocity_points as velocityPoints, completed_points as completedPoints, created_at as createdAt, updated_at as updatedAt from sprints where company_id = ? order by start_date desc",
+      companyId,
+    );
     server.json(res, 200, sprints);
   });
 
   server.addRoute("POST", "/api/companies/:companyId/sprints", (_req, res, params, token, body) => {
-    const companyId = params.companyId!;
+    const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
@@ -252,18 +290,23 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("GET", "/api/companies/:companyId/dashboard", (_req, res, params, token) => {
-    const companyId = params.companyId!;
+    const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const snapshot = db.listSnapshot();
-    const agents = snapshot.agents.filter((a) => a.companyId === companyId);
-    const tasks = snapshot.tasks.filter((t) => t.companyId === companyId);
-    const recentActivity = snapshot.activity
-      .filter((a) => a.companyId === companyId)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 20);
+    const agents = db.queryAll<AgentStatusRow>(
+      "select id, status from agents where company_id = ?",
+      companyId,
+    );
+    const tasks = db.queryAll<TaskStatusRow>(
+      "select id, status from tasks where company_id = ?",
+      companyId,
+    );
+    const recentActivity = db.queryAll<ActivityRow>(
+      "select id, company_id as companyId, actor, action, entity_type as entityType, entity_id as entityId, detail, created_at as createdAt from activity where company_id = ? order by created_at desc limit 20",
+      companyId,
+    );
 
     const tasksByStatus: Record<string, number> = {};
     for (const t of tasks) {

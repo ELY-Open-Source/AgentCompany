@@ -1,66 +1,17 @@
 import { describe, expect, it } from "vitest";
+import {
+  needsDeliverableCheck,
+  determinePostRunStatus,
+} from "@main/automation/automation-run-completion";
 
 /**
- * Tests for non-code task deliverable enforcement in automation-service.ts.
+ * Tests for non-code task deliverable enforcement in automation-run-completion.ts.
  *
  * When a run completes successfully on a non-code task (research, content),
  * the system checks whether the agent produced a tangible deliverable
  * (knowledge entry, document, or substantial comment). If not, the task
  * stays in_progress and the manager is notified.
  */
-
-type TaskType = "code" | "research" | "content" | "management" | "general";
-
-interface DeliverableCheckInput {
-  taskType: TaskType;
-  hasKnowledgeEntry: boolean;
-  hasDocument: boolean;
-  hasSubstantialComment: boolean;
-}
-
-/**
- * Standalone deliverable-check logic extracted for testability.
- * Mirrors the checkRunProducedDeliverable function inside automation-service.ts.
- */
-function needsDeliverableCheck(taskType: TaskType): boolean {
-  return taskType === "research" || taskType === "content";
-}
-
-function hasDeliverable(input: DeliverableCheckInput): boolean {
-  if (!needsDeliverableCheck(input.taskType)) {
-    // Code/management/general tasks don't require deliverable check
-    return true;
-  }
-  return input.hasKnowledgeEntry || input.hasDocument || input.hasSubstantialComment;
-}
-
-/**
- * Determines the next status after a successful run.
- * Returns { nextStatus, comment } for how the task should be advanced.
- */
-function determinePostRunStatus(input: DeliverableCheckInput): {
-  nextStatus: "in_review" | "in_progress";
-  comment: string;
-} {
-  if (!needsDeliverableCheck(input.taskType)) {
-    return {
-      nextStatus: "in_review",
-      comment: "Run completed successfully. Awaiting review.",
-    };
-  }
-
-  if (hasDeliverable(input)) {
-    return {
-      nextStatus: "in_review",
-      comment: "Run completed with deliverable. Awaiting review.",
-    };
-  }
-
-  return {
-    nextStatus: "in_progress",
-    comment: `${input.taskType} task run completed but no deliverable artifact was detected. Flagging for manager review.`,
-  };
-}
 
 describe("non-code task deliverable enforcement", () => {
   describe("needsDeliverableCheck", () => {

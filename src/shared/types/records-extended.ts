@@ -16,9 +16,6 @@ import type {
   MessageChannel,
   MessagePriority,
   WorkflowStatus,
-  WorkProductType,
-  WorkProductStatus,
-  WorkProductReviewState,
   ThreadType,
   ThreadActorType,
   ThreadEventType,
@@ -96,59 +93,6 @@ export interface DocumentRecord {
   status: DocumentStatus;
   tagsJson: string;
   latestRevisionId: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface DocumentRevisionRecord {
-  id: string;
-  companyId: string;
-  documentId: string;
-  revisionNumber: number;
-  body: string;
-  changeSummary: string | null;
-  createdByAgentId: string | null;
-  createdByUserId: string | null;
-  createdAt: string;
-}
-
-export interface ApprovalCommentRecord {
-  id: string;
-  companyId: string;
-  approvalId: string;
-  authorAgentId: string | null;
-  authorUserId: string | null;
-  body: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface WorkProductRecord {
-  id: string;
-  companyId: string;
-  projectId: string | null;
-  taskId: string;
-  type: WorkProductType;
-  provider: string;
-  externalId: string | null;
-  title: string;
-  url: string | null;
-  status: WorkProductStatus;
-  reviewState: WorkProductReviewState;
-  isPrimary: boolean;
-  summary: string | null;
-  metadataJson: string | null;
-  createdByRunId: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface TaskDocumentLink {
-  id: string;
-  companyId: string;
-  taskId: string;
-  documentId: string;
-  key: string;
   createdAt: string;
   updatedAt: string;
 }

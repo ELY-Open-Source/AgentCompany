@@ -7,6 +7,7 @@ import type {
   ProfileSnapshot,
   SectionId,
 } from "@shared/types";
+import { NEW_ENTITY_ID } from "../../lib/constants";
 import {
   Target,
   UserPlus,
@@ -26,6 +27,7 @@ import {
 } from "../../components/organization";
 import { HiringPipeline } from "../../components/hiring";
 import { ActionButton, Modal, Panel } from "../../components/ui";
+import { useT } from "../../i18n";
 
 interface OrganizationSectionsProps {
   section: SectionId;
@@ -62,16 +64,19 @@ export function OrganizationSections({
   setSection,
   refresh,
 }: OrganizationSectionsProps) {
+  const t = useT();
   const selectedAgent = companyAgents.find((a) => a.id === selectedAgentId) ?? null;
   const selectedGoal = companyGoals.find((g) => g.id === selectedGoalId) ?? null;
   const selectedProject = companyProjects.find((p) => p.id === selectedProjectId) ?? null;
+
+  if (!currentCompany) return null;
 
   return (
     <>
       {section === "agents" ? (
         <>
           <OrgChart agents={companyAgents} connectors={snapshot.connectors} onSelectAgent={(id) => setSelectedAgentId(id)} />
-          <Panel title="Agent roster" action={<ActionButton label="New hire request" icon={UserPlus} tone="accent" onClick={() => setSelectedAgentId("__new__")} />}>
+          <Panel title={t("org.agentRoster")} action={<ActionButton label={t("org.newHireRequest")} icon={UserPlus} tone="accent" onClick={() => setSelectedAgentId(NEW_ENTITY_ID)} />}>
             <AgentRoster
               agents={companyAgents}
               connectors={snapshot.connectors}
@@ -80,9 +85,9 @@ export function OrganizationSections({
               onSelect={setSelectedAgentId}
             />
           </Panel>
-          <Modal open={selectedAgentId === "__new__"} title="Request new hire" onClose={() => setSelectedAgentId(null)}>
+          <Modal open={selectedAgentId === NEW_ENTITY_ID} title={t("org.requestNewHire")} onClose={() => setSelectedAgentId(null)}>
             <AgentCreator
-              companyId={currentCompany!.id}
+              companyId={currentCompany.id}
               connectors={snapshot.connectors}
               workspaces={companyWorkspaces}
               agents={companyAgents}
@@ -101,7 +106,7 @@ export function OrganizationSections({
                 connectors={snapshot.connectors}
                 workspaces={companyWorkspaces}
                 agents={companyAgents}
-                companyId={currentCompany!.id}
+                companyId={currentCompany.id}
                 onSaved={refresh}
                 onDeleted={async () => { setSelectedAgentId(null); await refresh(); }}
               />
@@ -117,7 +122,7 @@ export function OrganizationSections({
       {section === "hiring" && currentCompany ? (
         <HiringPipeline
           agents={companyAgents}
-          approvals={(snapshot?.approvals ?? []).filter(a => a.companyId === currentCompany!.id)}
+          approvals={(snapshot?.approvals ?? []).filter(a => a.companyId === currentCompany.id)}
           onRefresh={refresh}
           onNavigateToAgent={(id) => { setSelectedAgentId(id); setSection("agents"); }}
         />
@@ -125,11 +130,11 @@ export function OrganizationSections({
 
       {section === "goals" ? (
         <>
-          <Panel title="Goal stack" action={<ActionButton label="New goal" icon={Target} tone="accent" onClick={() => setSelectedGoalId("__new__")} />}>
+          <Panel title={t("org.goalStack")} action={<ActionButton label={t("org.newGoal")} icon={Target} tone="accent" onClick={() => setSelectedGoalId(NEW_ENTITY_ID)} />}>
             <GoalList goals={companyGoals} agents={companyAgents} selectedGoalId={selectedGoalId} onSelect={setSelectedGoalId} />
           </Panel>
-          <Modal open={selectedGoalId === "__new__"} title="New goal" onClose={() => setSelectedGoalId(null)}>
-            <GoalCreator companyId={currentCompany!.id} agents={companyAgents} goals={companyGoals} onSaved={async () => { setSelectedGoalId(null); await refresh(); }} />
+          <Modal open={selectedGoalId === NEW_ENTITY_ID} title={t("org.newGoal")} onClose={() => setSelectedGoalId(null)}>
+            <GoalCreator companyId={currentCompany.id} agents={companyAgents} goals={companyGoals} onSaved={async () => { setSelectedGoalId(null); await refresh(); }} />
           </Modal>
           <Modal open={!!selectedGoal} title={selectedGoal ? `Edit: ${selectedGoal.title}` : ""} onClose={() => setSelectedGoalId(null)}>
             {selectedGoal ? (
@@ -138,7 +143,7 @@ export function OrganizationSections({
                 goal={selectedGoal}
                 goals={companyGoals}
                 agents={companyAgents}
-                companyId={currentCompany!.id}
+                companyId={currentCompany.id}
                 onSaved={async () => { setSelectedGoalId(null); await refresh(); }}
                 onDeleted={async () => { setSelectedGoalId(null); await refresh(); }}
               />
@@ -149,11 +154,11 @@ export function OrganizationSections({
 
       {section === "projects" ? (
         <>
-          <Panel title="Projects" action={<ActionButton label="New project" icon={Kanban} tone="accent" onClick={() => setSelectedProjectId("__new__")} />}>
+          <Panel title={t("nav.projects")} action={<ActionButton label={t("org.newProject")} icon={Kanban} tone="accent" onClick={() => setSelectedProjectId(NEW_ENTITY_ID)} />}>
             <ProjectList projects={companyProjects} goals={companyGoals} agents={companyAgents} workspaces={companyWorkspaces} selectedProjectId={selectedProjectId} onSelect={setSelectedProjectId} />
           </Panel>
-          <Modal open={selectedProjectId === "__new__"} title="New project" onClose={() => setSelectedProjectId(null)}>
-            <ProjectCreator companyId={currentCompany!.id} goals={companyGoals} agents={companyAgents} onSaved={async () => { setSelectedProjectId(null); await refresh(); }} />
+          <Modal open={selectedProjectId === NEW_ENTITY_ID} title={t("org.newProject")} onClose={() => setSelectedProjectId(null)}>
+            <ProjectCreator companyId={currentCompany.id} goals={companyGoals} agents={companyAgents} onSaved={async () => { setSelectedProjectId(null); await refresh(); }} />
           </Modal>
           <Modal open={!!selectedProject} title={selectedProject ? `Edit: ${selectedProject.name}` : ""} onClose={() => setSelectedProjectId(null)}>
             {selectedProject ? (
@@ -162,7 +167,7 @@ export function OrganizationSections({
                 project={selectedProject}
                 goals={companyGoals}
                 agents={companyAgents}
-                companyId={currentCompany!.id}
+                companyId={currentCompany.id}
                 onSaved={async () => { setSelectedProjectId(null); await refresh(); }}
                 onDeleted={async () => { setSelectedProjectId(null); await refresh(); }}
               />

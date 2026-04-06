@@ -1,6 +1,8 @@
 import { useCallback } from "react";
 import type { ConnectorId } from "@shared/types";
 import type { ProfileSnapshot } from "@shared/types";
+import type { openTerminalCommandSchema } from "@shared/contracts";
+import type { z } from "zod";
 import { unwrap } from "../../lib/desktop";
 
 export function useConnectorCallbacks(connectors: ProfileSnapshot["connectors"]) {
@@ -48,9 +50,9 @@ export function useConnectorCallbacks(connectors: ProfileSnapshot["connectors"])
     }, 5000);
   }, []);
 
-  const handleInstallCommand = useCallback(async (title: string, command: string) => {
+  const handleInstallCommand = useCallback(async (commandKey: z.infer<typeof openTerminalCommandSchema>["commandKey"]) => {
     try {
-      unwrap(await window.agentCompany.openTerminalCommand({ title, command }));
+      unwrap(await window.agentCompany.openTerminalCommand({ commandKey }));
     } catch {
       // Terminal open failure is non-fatal
       return;

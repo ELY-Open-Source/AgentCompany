@@ -33,5 +33,18 @@ export {
   REDACTED_HOME_PATH_USER,
   redactHomePathUserSegments,
   redactHomePathUserSegmentsInValue,
-  redactTranscriptEntryPaths,
 } from "./log-redaction.js";
+export type {
+  CommonAgentCompanyEnvInput,
+  CommonAgentCompanyEnvResult,
+  SessionResumeState,
+} from "./execute-helpers.js";
+export {
+  hasNonEmptyEnvValue,
+  buildSkillsCandidates,
+  resolveSkillsDir,
+  parseManagedSkills,
+  parseExtraArgs,
+  buildCommonAgentCompanyEnv,
+  resolveSessionResumeState,
+} from "./execute-helpers.js";

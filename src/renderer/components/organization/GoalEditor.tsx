@@ -3,6 +3,7 @@ import { Pencil, Trash } from "@phosphor-icons/react";
 import type { AgentRecord, GoalRecord } from "@shared/types";
 import { ActionButton, Input, Select, TextArea } from "../ui";
 import { ConfirmDelete } from "./helpers";
+import { useT } from "../../i18n";
 
 export function GoalEditor({
   goal,
@@ -24,47 +25,48 @@ export function GoalEditor({
   const [status, setStatus] = useState<GoalRecord["status"]>(goal.status);
   const [parentId, setParentId] = useState(goal.parentId ?? "");
   const [ownerAgentId, setOwnerAgentId] = useState(goal.ownerAgentId ?? "");
+  const t = useT();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const parentCandidates = goals.filter((g) => g.id !== goal.id);
 
   return (
     <div className="grid gap-4">
-      <Input label="Goal title" value={title} onChange={setTitle} placeholder="Goal title" />
-      <TextArea label="Description" value={description} onChange={setDescription} placeholder="Description" />
+      <Input label={t("org.goalTitle")} value={title} onChange={setTitle} placeholder={t("org.goalTitle")} />
+      <TextArea label={t("org.description")} value={description} onChange={setDescription} placeholder={t("org.description")} />
       <Select
-        label="Status"
+        label={t("org.status")}
         value={status}
         onChange={(v) => setStatus(v as GoalRecord["status"])}
         options={[
-          { value: "planned", label: "Planned" },
-          { value: "active", label: "Active" },
-          { value: "achieved", label: "Achieved" },
-          { value: "cancelled", label: "Cancelled" },
+          { value: "planned", label: t("org.statusPlanned") },
+          { value: "active", label: t("org.statusActive") },
+          { value: "achieved", label: t("org.statusAchieved") },
+          { value: "cancelled", label: t("org.statusCancelled") },
         ]}
       />
       <Select
-        label="Parent goal"
+        label={t("org.parentGoal")}
         value={parentId}
         onChange={setParentId}
         options={[
-          { value: "", label: "No parent goal" },
+          { value: "", label: t("org.noParentGoal") },
           ...parentCandidates.map((g) => ({ value: g.id, label: g.title })),
         ]}
       />
       <Select
-        label="Owner agent"
+        label={t("org.ownerAgent")}
         value={ownerAgentId}
         onChange={setOwnerAgentId}
         options={[
-          { value: "", label: "No owner" },
+          { value: "", label: t("org.noOwner") },
           ...agents.map((a) => ({ value: a.id, label: a.name })),
         ]}
       />
 
       <div className="flex items-center gap-3 flex-wrap">
         <ActionButton
-          label="Save changes"
+          label={t("org.saveChanges")}
           tone="accent"
           icon={Pencil}
           onClick={() =>
@@ -99,7 +101,7 @@ export function GoalEditor({
           />
         ) : (
           <ActionButton
-            label="Delete"
+            label={t("common.delete")}
             tone="danger"
             icon={Trash}
             onClick={() => setConfirmingDelete(true)}

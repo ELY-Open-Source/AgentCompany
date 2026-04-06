@@ -1,6 +1,6 @@
 import type { IpcMainInvokeEvent } from "electron";
 import type { DesktopResult } from "@shared/contracts";
-import type { DesktopEvent, SectionId } from "@shared/types";
+import type { ConnectorId, DesktopEvent, SectionId } from "@shared/types";
 import type { AppDatabase } from "./database";
 
 type CompanyScopedTable = "workspaces" | "agents" | "goals" | "projects" | "tasks" | "approvals" | "runs" | "secrets";
@@ -25,9 +25,9 @@ export interface RegisterCoreHandlersDependencies {
   handleApprovalResolved: (approvalId: string, companyId: string, decision: string) => void;
   dispatchAutomation: (trigger: string, ctx: { companyId: string; [key: string]: unknown }) => void;
   queueTaskRun: (taskId: string, trigger: string, actor: string) => DesktopResult<string>;
-  checkConnector: (id: any) => Promise<void>;
-  openConnectorAuthTerminal: (id: any) => Promise<boolean>;
-  openGenericTerminal: (input: { title: string; command: string }) => Promise<boolean>;
+  checkConnector: (id: ConnectorId) => Promise<void>;
+  openConnectorAuthTerminal: (id: ConnectorId) => Promise<boolean>;
+  openGenericTerminal: (input: { commandKey: string }) => Promise<boolean>;
   checkForUpdates: () => Promise<boolean>;
   getWorkerProcess: () => { postMessage: (message: unknown) => void } | null;
   resetAfterRestore: () => void;

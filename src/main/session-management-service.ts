@@ -110,7 +110,7 @@ export function createSessionManagementService({ db, logger }: SessionManagement
     if (errorRuns.length > 0) {
       sections.push("## Errors Encountered");
       for (const run of errorRuns) {
-        sections.push(`- ${run.errorMessage!.slice(0, 150)} (${run.finishedAt ?? "unknown"})`);
+        sections.push(`- ${(run.errorMessage ?? "").slice(0, 150)} (${run.finishedAt ?? "unknown"})`);
       }
       sections.push("");
     }
