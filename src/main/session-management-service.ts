@@ -10,7 +10,7 @@ interface SessionManagementDependencies {
 // D-01/D-02: Exported for testing and external override. Conservative defaults.
 export const DEFAULT_THRESHOLDS = {
   maxRuns: 20,
-  maxTokens: 500_000,
+  maxTokens: 150_000,
   maxAgeHours: 72,
 };
 

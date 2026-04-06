@@ -11,8 +11,11 @@ const rootDir = join(__dirname, "..");
 const packageJsonPath = join(rootDir, "package.json");
 const landingDir = join(rootDir, "landing");
 const localReleaseDir = join(rootDir, "local-release");
+const bossOutDir = join(rootDir, "boss-build", "build", "out");
 const remoteWorkflowFile = ".github/workflows/remote-release-platforms.yml";
 const remoteWorkflowName = "remote-release-platforms.yml";
+const remoteBossWorkflowFile = ".github/workflows/remote-boss-platforms.yml";
+const remoteBossWorkflowName = "remote-boss-platforms.yml";
 const pagesProjectName = "agentcompany";
 const pagesBranch = "main";
 const versionPattern = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/;
@@ -209,7 +212,21 @@ async function ensureRemoteBuildPrerequisites(repo) {
   if (!existsSync(join(rootDir, remoteWorkflowFile))) {
     throw new Error(`Required workflow file missing locally: ${remoteWorkflowFile}`);
   }
+  if (!existsSync(join(rootDir, remoteBossWorkflowFile))) {
+    throw new Error(`Required workflow file missing locally: ${remoteBossWorkflowFile}`);
+  }
   await assertRemoteWorkflowExists(repo);
+  try {
+    await run("gh", [
+      "api",
+      `repos/${repo.nameWithOwner}/contents/${remoteBossWorkflowFile}?ref=${repo.defaultBranch}`,
+    ], { capture: true });
+  } catch {
+    throw new Error(
+      `Remote workflow ${remoteBossWorkflowFile} was not found on ${repo.defaultBranch}. ` +
+      "Commit and push this Boss automation workflow before using scripts/release-cloudflare.mjs.",
+    );
+  }
   await run("gh", ["auth", "status"], { capture: true });
   await run("npx", ["wrangler", "whoami", "--json"], { capture: true });
 }
@@ -281,7 +298,7 @@ async function createSnapshotBranch(repo, branchName, version) {
   return tempDir;
 }
 
-async function waitForWorkflowRun(repo, branchName, timeoutMs) {
+async function waitForWorkflowRun(repo, workflowName, branchName, timeoutMs) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     const runs = await ghJson([
@@ -290,7 +307,7 @@ async function waitForWorkflowRun(repo, branchName, timeoutMs) {
       "--repo",
       repo.nameWithOwner,
       "--workflow",
-      remoteWorkflowName,
+      workflowName,
       "--branch",
       branchName,
       "--limit",
@@ -315,6 +332,24 @@ async function dispatchRemoteWorkflow(repo, branchName, releaseTag, releaseTitle
     repo.nameWithOwner,
     "--ref",
     branchName,
+    "-f",
+    `release_tag=${releaseTag}`,
+    "-f",
+    `release_title=${releaseTitle}`,
+  ]);
+}
+
+async function dispatchRemoteBossWorkflow(repo, branchName, version, releaseTag, releaseTitle) {
+  await run("gh", [
+    "workflow",
+    "run",
+    remoteBossWorkflowName,
+    "--repo",
+    repo.nameWithOwner,
+    "--ref",
+    branchName,
+    "-f",
+    `version=${version}`,
     "-f",
     `release_tag=${releaseTag}`,
     "-f",
@@ -354,6 +389,20 @@ async function downloadRemoteAssets(repo, releaseTag) {
     downloadRoot,
   ]);
   return downloadRoot;
+}
+
+async function stageBossRemoteAssets(downloadRoot) {
+  await mkdir(bossOutDir, { recursive: true });
+  const files = await readdir(downloadRoot);
+  for (const fileName of files) {
+    if (fileName.endsWith(".exe") || fileName.endsWith(".blockmap")) {
+      await cp(join(downloadRoot, fileName), join(bossOutDir, fileName));
+    }
+  }
+}
+
+async function buildBossMac(version) {
+  await run("node", ["boss-build/build-boss-edition.mjs", `--platform=mac`, `--version=${version}`]);
 }
 
 async function stageRemoteAssets(downloadRoot) {
@@ -505,7 +554,7 @@ async function main() {
 
   try {
     await dispatchRemoteWorkflow(repo, branchName, releaseTag, releaseTitle);
-    const runSummary = await waitForWorkflowRun(repo, branchName, 60_000);
+    const runSummary = await waitForWorkflowRun(repo, remoteWorkflowName, branchName, 60_000);
     const runInfo = await waitForWorkflowCompletion(repo, runSummary.databaseId, 45 * 60 * 1000);
     if (runInfo.conclusion !== "success") {
       throw new Error(`Remote workflow failed: ${runInfo.url}`);
@@ -519,8 +568,23 @@ async function main() {
     const deployUrl = await buildAndDeployLanding();
     await verifyPublishedAssets(nextVersion, deployUrl);
 
+    await mkdir(bossOutDir, { recursive: true });
+    await rm(join(bossOutDir, "AgentCompany-Boss-Setup-" + nextVersion + ".exe"), { force: true }).catch(() => {});
+    const bossReleaseTag = `boss-transport-${nextVersion}-${timestamp}`;
+    const bossReleaseTitle = `Boss Release ${nextVersion}`;
+    await dispatchRemoteBossWorkflow(repo, branchName, nextVersion, bossReleaseTag, bossReleaseTitle);
+    await buildBossMac(nextVersion);
+    const bossRunSummary = await waitForWorkflowRun(repo, remoteBossWorkflowName, branchName, 60_000);
+    const bossRunInfo = await waitForWorkflowCompletion(repo, bossRunSummary.databaseId, 30 * 60 * 1000);
+    if (bossRunInfo.conclusion !== "success") {
+      throw new Error(`Boss remote workflow failed: ${bossRunInfo.url}`);
+    }
+    const bossDownloadRoot = await downloadRemoteAssets(repo, bossReleaseTag);
+    await stageBossRemoteAssets(bossDownloadRoot);
+
     if (!options.keepTransportRelease) {
       await cleanupRemoteTransportRelease(repo, releaseTag);
+      await cleanupRemoteTransportRelease(repo, bossReleaseTag);
     }
     if (options.deleteRemoteBranch) {
       await cleanupRemoteBranch(repo, branchName);
@@ -532,6 +596,7 @@ async function main() {
       version: nextVersion,
       remoteBranch: branchName,
       remoteWorkflowRun: runInfo.url,
+      bossOutDir,
       releaseTag,
       deployUrl,
       updateUrl: process.env.AGENTCOMPANY_UPDATE_URL ?? null,
