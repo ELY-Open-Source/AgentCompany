@@ -12,7 +12,7 @@ export type PlatformDownload = {
   assets: PlatformDownloadAsset[];
 };
 
-export const releaseVersion = "0.4.156";
+export const releaseVersion = "0.4.159";
 
 export const platformDownloads: PlatformDownload[] = [
   {
@@ -23,13 +23,13 @@ export const platformDownloads: PlatformDownload[] = [
       {
         id: "macos-arm64-dmg",
         label: "Apple Silicon DMG",
-        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-0.4.156-arm64.dmg",
+        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-0.4.159-arm64.dmg",
         note: "arm64",
       },
       {
         id: "macos-x64-dmg",
         label: "Intel Mac DMG",
-        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-0.4.156.dmg",
+        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-0.4.159.dmg",
         note: "x64",
       },
     ],
@@ -42,7 +42,7 @@ export const platformDownloads: PlatformDownload[] = [
       {
         id: "windows-universal-installer",
         label: "Windows Universal Installer",
-        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany.Setup.0.4.156.exe",
+        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany.Setup.0.4.159.exe",
         note: "arm64 + x64 + ia32",
       },
     ],
@@ -55,37 +55,37 @@ export const platformDownloads: PlatformDownload[] = [
       {
         id: "linux-x64-appimage",
         label: "Linux x64 AppImage",
-        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-0.4.156.AppImage",
+        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-0.4.159.AppImage",
         note: "x64",
       },
       {
         id: "linux-x64-deb",
         label: "Linux x64 DEB",
-        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/agent-company_0.4.156_amd64.deb",
+        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/agent-company_0.4.159_amd64.deb",
         note: "x64",
       },
       {
         id: "linux-x64-rpm",
         label: "Linux x64 RPM",
-        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/agent-company-0.4.156.x86_64.rpm",
+        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/agent-company-0.4.159.x86_64.rpm",
         note: "x64",
       },
       {
         id: "linux-arm64-appimage",
         label: "Linux ARM64 AppImage",
-        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-0.4.156-arm64.AppImage",
+        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/AgentCompany-0.4.159-arm64.AppImage",
         note: "arm64",
       },
       {
         id: "linux-arm64-deb",
         label: "Linux ARM64 DEB",
-        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/agent-company_0.4.156_arm64.deb",
+        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/agent-company_0.4.159_arm64.deb",
         note: "arm64",
       },
       {
         id: "linux-arm64-rpm",
         label: "Linux ARM64 RPM",
-        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/agent-company-0.4.156.aarch64.rpm",
+        href: "https://pub-a19a3a2c1d2e4fa3a9c120b184024448.r2.dev/AC/agent-company-0.4.159.aarch64.rpm",
         note: "arm64",
       },
     ],
