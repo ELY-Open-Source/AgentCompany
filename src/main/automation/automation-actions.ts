@@ -209,6 +209,11 @@ export function executeAutomationAction(
       } catch {
         // Keep the fallback title when the task no longer exists.
       }
+      // Heartbeat tasks are internal system tasks — skip escalation messages to avoid flooding channels.
+      if (taskTitle.startsWith("[Heartbeat]")) {
+        logger.info(`[automation] Skipping escalation for heartbeat task "${taskTitle}"`);
+        break;
+      }
       const manager = db.getManagerForAgent(targetAgentId);
       const escalationBody = (config.body as string) ?? `Task "${taskTitle}" needs your attention. ${agentName} has flagged this as requiring manager intervention.`;
       // Pick the most descriptive wake trigger based on the originating event
