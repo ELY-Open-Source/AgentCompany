@@ -29,7 +29,7 @@ const claudeCompatModule: ServerAdapterModule = {
   execute: claudeExecute,
   testEnvironment: claudeTestEnvironment,
   sessionCodec: claudeSessionCodec,
-  nativeContextManagement: true,
+  nativeContextManagement: false,
   models: claudeModels,
 };
 
