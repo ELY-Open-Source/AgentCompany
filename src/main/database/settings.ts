@@ -84,11 +84,11 @@ export function buildSettingsMethods(
     },
 
     setDisabledModels(connectorId: string, models: Array<{ id: string; label: string }>) {
-      if (models.length === 0) {
-        getDb().prepare("delete from settings where key = ?").run(`disabled_models:${connectorId}`);
-      } else {
-        setSetting(`disabled_models:${connectorId}`, JSON.stringify(models));
-      }
+      setSetting(`disabled_models:${connectorId}`, JSON.stringify(models));
+    },
+
+    hasModelPoolSettings(connectorId: string): boolean {
+      return getSetting(`disabled_models:${connectorId}`) !== null;
     },
 
     getLastBudgetResetMonth(companyId: string): string | null {

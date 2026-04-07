@@ -237,12 +237,16 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     recentDocuments: snapshot.documents
       .filter((document) => document.companyId === companyId && (document.authorAgentId === agent.id || document.reviewerAgentId === agent.id || document.status === "in_review"))
       .slice(0, 5),
-    allConnectors: snapshot.connectors.map((c) => ({
-      id: c.id,
-      label: c.label,
-      status: c.status,
-      enabledModels: resolveEnabledConnectorModels(db, c),
-    })),
+    allConnectors: snapshot.connectors
+      .filter((c) => c.status === "ready")
+      .filter((c) => c.id.startsWith("claude_compat") || db.hasModelPoolSettings(c.id))
+      .map((c) => ({
+        id: c.id,
+        label: c.label,
+        status: c.status,
+        enabledModels: resolveEnabledConnectorModels(db, c),
+      }))
+      .filter((c) => c.enabledModels.length > 0),
     sessionHandoff,
     skillNames,
     skillEntries: skills.map((s) => ({

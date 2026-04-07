@@ -63,7 +63,7 @@ export function Navbar() {
         <div className="flex h-16 items-center justify-between">
           <a href="#" className="flex items-center gap-2.5 shrink-0" aria-label="AgentCompany home">
             <IconMark />
-            <span className="text-[var(--text)] font-semibold text-lg tracking-tight">AgentCompany</span>
+            <span className="text-[var(--text)] font-serif text-xl font-normal tracking-[-0.4px]">AgentCompany</span>
           </a>
 
           <div className="hidden md:flex items-center gap-8">
@@ -78,7 +78,7 @@ export function Navbar() {
             <ThemeToggle />
             <a
               href="#download"
-              className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-[var(--cta)] text-[var(--text-on-cta)] hover:bg-[var(--cta-hover)] hover:scale-[1.03] active:scale-[0.98] transition-all duration-200"
+              className="inline-flex items-center px-5 py-2 rounded-full text-sm font-medium bg-[var(--cta)] text-[var(--text-on-cta)] hover:bg-[var(--cta-hover)] hover:scale-[1.03] active:scale-[0.98] transition-all duration-200"
             >
               Download
             </a>
@@ -121,7 +121,7 @@ export function Navbar() {
           <a
             href="#download"
             onClick={() => setMobileOpen(false)}
-            className="block px-3 py-2.5 rounded-lg text-sm font-medium text-center bg-[var(--cta)] text-[var(--text-on-cta)] hover:bg-[var(--cta-hover)] transition-colors duration-200 mt-2"
+            className="block px-3 py-2.5 rounded-full text-sm font-medium text-center bg-[var(--cta)] text-[var(--text-on-cta)] hover:bg-[var(--cta-hover)] transition-colors duration-200 mt-2"
           >
             Download
           </a>

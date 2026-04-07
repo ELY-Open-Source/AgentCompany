@@ -381,7 +381,11 @@ Always verify API responses before reporting — only report successful actions.
 
   // Reinforce locale at the end of prompt (recency bias helps LLMs follow this)
   if (localeInstruction) {
-    sections.push(`# 语言要求提醒\n${localeInstruction}\n请记住：你的所有输出必须使用中文。\n`);
+    if ((ctx.locale ?? "en") === "zh") {
+      sections.push(`# 语言要求提醒\n${localeInstruction}\n请记住：你的所有输出必须使用中文。\n`);
+    } else {
+      sections.push(`# Language Requirement Reminder\n${localeInstruction}\nRemember: ALL your output must be in English.\n`);
+    }
   }
 
   return sections.join("\n");

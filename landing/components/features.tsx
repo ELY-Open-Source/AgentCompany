@@ -71,7 +71,7 @@ function FeaturePair({ feature }: { feature: (typeof features)[number] }) {
       viewport={{ once: true, amount: 0.3 }}
       className={`order-2 ${imageLeft ? "lg:order-1" : "lg:order-2"}`}
     >
-      <div className="rounded-2xl overflow-hidden shadow-[0_4px_32px_-8px_rgba(0,0,0,0.1)] border border-[var(--border)] bg-[var(--panel)] transition-shadow duration-500 hover:shadow-[0_8px_48px_-12px_rgba(0,0,0,0.15)]">
+      <div className="rounded-[22px] overflow-hidden shadow-[0_4px_32px_-8px_rgba(0,0,0,0.06)] border border-[var(--border)] bg-[var(--panel)] transition-shadow duration-500 hover:shadow-[0_8px_48px_-12px_rgba(0,0,0,0.10)]">
         <img src={image} alt={imageAlt} width="1920" height="1080" className="w-full h-auto block" loading="lazy" />
       </div>
     </motion.div>
@@ -162,7 +162,7 @@ export function Features() {
                   transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
                 },
               }}
-              className="group bg-[var(--panel)] rounded-2xl border border-[var(--border)] overflow-hidden transition-all duration-300 hover:shadow-[0_8px_40px_-12px_rgba(0,0,0,0.12)] hover:-translate-y-1.5"
+              className="group bg-[var(--panel)] rounded-[22px] border border-[var(--border)] overflow-hidden transition-all duration-300 hover:shadow-[0_8px_40px_-12px_rgba(0,0,0,0.08)] hover:-translate-y-1.5"
             >
               <div className="overflow-hidden">
                 <img
