@@ -3,7 +3,7 @@ import type { AppLocale } from "./locale";
 /**
  * Returns a locale-appropriate system prompt instruction for AI agents.
  * When locale is "zh", the instruction tells the agent to respond entirely in Chinese.
- * For "en" (or any other locale), returns an empty string (no additional instruction needed).
+ * When locale is "en", the instruction tells the agent to respond entirely in English.
  */
 export function getLocalePromptInstruction(locale: AppLocale): string {
   if (locale === "zh") {
@@ -14,5 +14,10 @@ export function getLocalePromptInstruction(locale: AppLocale): string {
       "不要使用英文回复，除非是代码、变量名、API 端点等技术术语。",
     ].join("\n");
   }
-  return "";
+  return [
+    "Important language requirement: You MUST communicate entirely in English.",
+    "This includes: task descriptions, comments, messages, reports, documents, approvals, notifications — ALL output must be in English.",
+    "Even if some existing content or context is in another language, all your responses and created content must be in English.",
+    "Do not respond in other languages, except for code, variable names, API endpoints, and other technical terms.",
+  ].join("\n");
 }

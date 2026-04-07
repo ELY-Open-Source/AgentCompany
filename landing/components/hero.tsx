@@ -60,10 +60,10 @@ export function Hero() {
 
           <motion.h1
             {...heroMotion(0.15)}
-            className="mt-8 font-serif italic text-[clamp(2.75rem,2rem+3.8vw,5rem)] tracking-[-0.02em] text-[var(--text)] leading-[1.08]"
+            className="mt-8 font-serif text-[clamp(2.75rem,2rem+3.8vw,5rem)] font-normal leading-[1.0] tracking-[-0.03em] text-[var(--text)]"
           >
             Launch an AI Company <br className="hidden sm:block" />
-            <span className="text-[var(--cta)]">in Minutes</span>
+            <span className="text-[var(--accent)]">in Minutes</span>
           </motion.h1>
 
           <motion.p
@@ -77,7 +77,7 @@ export function Hero() {
           <motion.div {...heroMotion(0.35)} className="mt-12">
             <a
               href="#download"
-              className="group inline-flex items-center justify-center px-9 py-4 rounded-xl text-[17px] font-semibold bg-[var(--cta)] text-[var(--text-on-cta)] hover:bg-[var(--cta-hover)] hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 will-change-transform shadow-[0_4px_24px_-4px_var(--cta),0_8px_40px_-12px_var(--cta)]"
+              className="group inline-flex items-center justify-center px-8 py-4 rounded-full text-base font-medium bg-[var(--cta)] text-[var(--text-on-cta)] hover:bg-[var(--cta-hover)] hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 will-change-transform"
             >
               See Downloads
               <svg
@@ -119,7 +119,7 @@ export function Hero() {
             alt="AgentCompany dashboard showing autonomous AI agents managing a company"
             width="1920"
             height="1080"
-            className="w-full h-auto block rounded-2xl border border-[var(--border)] shadow-[0_8px_40px_-8px_rgba(0,0,0,0.12),0_20px_80px_-20px_var(--glow-warm)] transition-shadow duration-500"
+            className="w-full h-auto block rounded-[22px] border border-[var(--border)] shadow-[0_8px_40px_-8px_rgba(0,0,0,0.08)] transition-shadow duration-500"
             loading="eager"
           />
         </motion.div>

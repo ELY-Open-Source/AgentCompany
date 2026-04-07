@@ -168,6 +168,7 @@ export class AppDatabaseBase {
   canOpenPath(targetPath: string) { return this.settings.canOpenPath(targetPath); }
   getDisabledModels(connectorId: string) { return this.settings.getDisabledModels(connectorId); }
   setDisabledModels(connectorId: string, models: Array<{ id: string; label: string }>) { this.settings.setDisabledModels(connectorId, models); }
+  hasModelPoolSettings(connectorId: string) { return this.settings.hasModelPoolSettings(connectorId); }
   getLastBudgetResetMonth(companyId: string) { return this.settings.getLastBudgetResetMonth(companyId); }
   setLastBudgetResetMonth(companyId: string, month: string) { this.settings.setLastBudgetResetMonth(companyId, month); }
 

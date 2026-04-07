@@ -53,7 +53,7 @@ function DemoPanel() {
 
   return (
     <div ref={anchorRef} className="relative">
-      <div className="rounded-2xl overflow-hidden border border-[var(--border)] bg-[var(--panel)] shadow-[0_8px_40px_-8px_rgba(0,0,0,0.1),0_24px_80px_-24px_var(--glow-warm)]">
+      <div className="rounded-[22px] overflow-hidden border border-[var(--border)] bg-[var(--panel)] shadow-[0_8px_40px_-8px_rgba(0,0,0,0.06)]">
         <div className="flex items-center gap-2 px-4 py-3 bg-[var(--panel-soft)] border-b border-[var(--border)]">
           <span className="w-3 h-3 rounded-full bg-[#ff5f57]" aria-hidden="true" />
           <span className="w-3 h-3 rounded-full bg-[#febc2e]" aria-hidden="true" />
