@@ -5,6 +5,7 @@ import { Footer } from "../components/footer";
 import { Hero } from "../components/hero";
 import { HowItWorks } from "../components/how-it-works";
 import { Navbar } from "../components/navbar";
+import { RuntimesBar } from "../components/runtimes-bar";
 
 export default function Page() {
   return (
@@ -20,6 +21,7 @@ export default function Page() {
 
       <main id="main">
         <Hero />
+        <RuntimesBar />
         <Features />
         <HowItWorks />
         <FAQ />

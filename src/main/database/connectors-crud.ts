@@ -90,6 +90,53 @@ export function buildConnectorMethods(
       const currentRows = readAll<Partial<ConnectorRecord>>(
         "select id, label, description, status, command, version, auth_state as authState, last_checked_at as lastCheckedAt, last_error as lastError, model, env_binding_text as envBindingText, notes from connectors",
       );
+      // Migrate first compat slot if its definition defaults have changed (edition upgrade).
+      // When the definition ships with preset notes that differ from the DB, relocate the
+      // old user config to the next empty compat slot so definition defaults take effect.
+      const firstCompat = currentRows.find((r) => r.id === "claude_compatible");
+      if (firstCompat?.envBindingText && firstCompat.notes) {
+        let firstDef: { notes: string } | undefined;
+        try { firstDef = getConnectorDefinition("claude_compatible"); } catch { /* skip */ }
+        if (firstDef?.notes && firstCompat.notes !== firstDef.notes) {
+          const migrationTargets: ConnectorId[] = [
+            "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5",
+            "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10",
+          ];
+          const occupied = new Set(
+            currentRows
+              .filter((r) => r.id !== "claude_compatible" && r.id?.startsWith("claude_compat") && r.envBindingText)
+              .map((r) => r.id),
+          );
+          const targetId = migrationTargets.find((id) => !occupied.has(id));
+          if (targetId) {
+            const migrated = {
+              envBindingText: firstCompat.envBindingText,
+              notes: firstCompat.notes,
+              model: firstCompat.model,
+              status: firstCompat.status,
+              authState: firstCompat.authState,
+              version: firstCompat.version,
+              lastCheckedAt: firstCompat.lastCheckedAt,
+              lastError: firstCompat.lastError,
+            };
+            const targetRow = currentRows.find((r) => r.id === targetId);
+            if (targetRow) {
+              Object.assign(targetRow, migrated);
+            } else {
+              currentRows.push({ id: targetId as ConnectorId, ...migrated });
+            }
+            firstCompat.envBindingText = undefined;
+            firstCompat.notes = undefined;
+            firstCompat.model = undefined;
+            firstCompat.status = undefined;
+            firstCompat.authState = undefined;
+            firstCompat.version = undefined;
+            firstCompat.lastCheckedAt = undefined;
+            firstCompat.lastError = undefined;
+          }
+        }
+      }
+
       const merged = buildDefaultConnectorRows(currentRows);
       const statement = getDb().prepare(
         "insert or replace into connectors (id, label, description, status, command, version, auth_state, last_checked_at, last_error, model, env_binding_text, notes, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -101,6 +148,35 @@ export function buildConnectorMethods(
           row.command, row.version, row.authState, row.lastCheckedAt,
           row.lastError, row.model, row.envBindingText, row.notes, updatedAt,
         );
+      }
+
+      // One-time migration: mark native connectors that are actively used by
+      // agents as model-pool-managed so they remain visible to the CEO after
+      // the opt-in policy change. Connectors not used by any agent stay
+      // unmanaged and will not appear in CEO prompts until the user explicitly
+      // enables models for them in Settings > Model Management.
+      const migrationKey = "migration:model_pool_opt_in_v1";
+      const migrated = readAll<{ value: string }>("SELECT value FROM settings WHERE key = ?", migrationKey);
+      if (migrated.length === 0) {
+        const usedIds = new Set(
+          readAll<{ connector_id: string }>(
+            "SELECT DISTINCT connector_id FROM agents WHERE status NOT IN ('terminated')",
+          ).map((r) => r.connector_id),
+        );
+        const nativeIds = ["codex_local", "claude_local", "gemini_local"];
+        const upsert = getDb().prepare(
+          "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        );
+        for (const id of nativeIds) {
+          const hasSettings = readAll<{ key: string }>(
+            "SELECT key FROM settings WHERE key = ?",
+            `disabled_models:${id}`,
+          );
+          if (hasSettings.length === 0 && usedIds.has(id)) {
+            upsert.run(`disabled_models:${id}`, "[]");
+          }
+        }
+        upsert.run(migrationKey, "1");
       }
     },
   };
