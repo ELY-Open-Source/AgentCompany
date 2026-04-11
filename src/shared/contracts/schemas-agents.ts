@@ -2,12 +2,16 @@ import { z } from "zod";
 import { DEPARTMENT_IDS, optionalId } from "./helpers";
 import { connectorInputSchema } from "./schemas-company";
 
+const agentNameSchema = z.string().trim().min(2).max(80);
+const agentRoleSchema = z.string().trim().min(2).max(80);
+const agentTitleSchema = z.string().trim().max(80).default("");
+
 export const agentInputSchema = z.object({
   id: optionalId,
   companyId: z.string().uuid(),
-  name: z.string().min(2).max(80),
-  role: z.string().min(2).max(80),
-  title: z.string().default(""),
+  name: agentNameSchema,
+  role: agentRoleSchema,
+  title: agentTitleSchema,
   department: DEPARTMENT_IDS.nullable().optional(),
   reportsTo: optionalId,
   connectorId: connectorInputSchema.shape.id,
@@ -22,9 +26,9 @@ export const agentInputSchema = z.object({
 export const hireRequestSchema = z.object({
   companyId: z.string().uuid(),
   requestedByAgentId: optionalId,
-  name: z.string().min(2).max(80),
-  role: z.string().min(2).max(80),
-  title: z.string().default(""),
+  name: agentNameSchema,
+  role: agentRoleSchema,
+  title: agentTitleSchema,
   department: DEPARTMENT_IDS.nullable().optional(),
   reportsTo: optionalId,
   connectorId: connectorInputSchema.shape.id,

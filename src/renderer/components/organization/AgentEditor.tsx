@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pencil, Trash } from "@phosphor-icons/react";
-import type { AgentRecord, BudgetPolicyRecord, ConnectorRecord, WorkspaceRecord } from "@shared/types";
+import { DEPARTMENT_OPTIONS } from "@shared/constants";
+import type { AgentRecord, BudgetPolicyRecord, ConnectorRecord, DepartmentId, WorkspaceRecord } from "@shared/types";
 import { getConnectorExecutionReadinessIssue, isConnectorExecutionReady } from "@shared/connector-policy";
 import { unwrap } from "../../lib/desktop";
+import { buildBudgetPolicyInput, getBudgetPolicyAmountDollars } from "../../lib/budget-policy-input";
 import { useAppStore } from "../../state/store";
 import { useT } from "../../i18n";
 import { ActionButton, Input, Select, TextArea } from "../ui";
@@ -30,6 +32,7 @@ export function AgentEditor({
   const [name, setName] = useState(agent.name);
   const [role, setRole] = useState(agent.role);
   const [title, setTitle] = useState(agent.title);
+  const [department, setDepartment] = useState<DepartmentId | "">(agent.department ?? "");
   const [status, setStatus] = useState<AgentRecord["status"]>(agent.status);
   const [connectorId, setConnectorId] = useState<ConnectorRecord["id"]>(agent.connectorId);
   const [model, setModel] = useState(agent.model ?? "");
@@ -108,18 +111,22 @@ export function AgentEditor({
     void (async () => {
       const result = await window.agentCompany.listBudgetPolicies(companyId);
       if (result.ok) {
-        const policy = result.data.find(
-          (p) => p.scopeType === "agent" && p.scopeId === agent.id
-        );
+        const policy = result.data
+          .filter((p) => p.scopeType === "agent" && p.scopeId === agent.id)
+          .sort((left, right) => {
+            if (left.isActive !== right.isActive) return left.isActive ? -1 : 1;
+            return right.updatedAt.localeCompare(left.updatedAt);
+          })[0];
         if (policy) {
           setAgentPolicy(policy);
-          setBudget(String((policy.amount / 100).toFixed(2)));
+          setBudget(getBudgetPolicyAmountDollars(policy));
         }
       }
     })();
   }, [companyId, agent.id]);
 
   const managerCandidates = agents.filter((a) => a.id !== agent.id);
+  const selectedDepartment: DepartmentId | null = department === "" ? null : department;
 
   async function persistAgentDraft() {
     const meta = { ...existingMeta };
@@ -130,9 +137,10 @@ export function AgentEditor({
     unwrap(await window.agentCompany.saveAgent({
       id: agent.id,
       companyId,
-      name,
-      role,
-      title,
+      name: name.trim(),
+      role: role.trim(),
+      title: title.trim(),
+      department: selectedDepartment,
       status,
       connectorId,
       workspaceId: workspaceId || null,
@@ -140,22 +148,24 @@ export function AgentEditor({
       model: model || null,
       metadataJson: JSON.stringify(meta),
       budgetMonthlyUsd: budgetDollars,
-      capabilities,
+      capabilities: capabilities.trim(),
     }));
 
     if (budgetDollars > 0 && agent.id) {
-      await window.agentCompany.saveBudgetPolicy({
+      const payload = buildBudgetPolicyInput({
+        policyId: agentPolicy?.id ?? null,
         companyId,
         scopeType: "agent",
         scopeId: agent.id,
-        metric: "billed_cents",
-        windowKind: "calendar_month_utc",
-        amount: Math.round(budgetDollars * 100),
-        warnPercent: agentPolicy?.warnPercent ?? 80,
+        amountDollars: String(budgetDollars),
+        warnPercent: String(agentPolicy?.warnPercent ?? 80),
         hardStopEnabled: agentPolicy?.hardStopEnabled ?? true,
         notifyEnabled: agentPolicy?.notifyEnabled ?? true,
-        isActive: true,
       });
+      if (!payload) {
+        throw new Error("Agent budget policy is invalid.");
+      }
+      unwrap(await window.agentCompany.saveBudgetPolicy(payload));
     }
   }
 
@@ -175,6 +185,16 @@ export function AgentEditor({
       <Input label={t("agent.name")} value={name} onChange={setName} placeholder={t("agent.name")} readOnly={pendingApproval} disabled={pendingApproval} />
       <Input label={t("agent.role")} value={role} onChange={setRole} placeholder={t("agent.role")} readOnly={pendingApproval} disabled={pendingApproval} />
       <Input label={t("agent.title")} value={title} onChange={setTitle} placeholder={t("agent.title")} readOnly={pendingApproval} disabled={pendingApproval} />
+      <Select
+        label={t("comm.department")}
+        value={department}
+        onChange={(value) => setDepartment(value as DepartmentId | "")}
+        disabled={pendingApproval}
+        options={DEPARTMENT_OPTIONS.map((option) => ({
+          value: option.value,
+          label: option.value === "" ? t("comm.selectDepartment") : option.label,
+        }))}
+      />
       <Select
         label={t("agent.status")}
         value={status}

@@ -13,6 +13,7 @@ export default tseslint.config(
       "dist/**",
       "oldreference/**",
       "Reference/**",
+      "claude-code-source-reference/**",
       "boss-build/**",
       "local-release/**",
       "builtin-skills/**",

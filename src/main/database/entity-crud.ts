@@ -33,6 +33,7 @@ export function buildEntityCrudMethods(
         )
         .get(id) as AgentRecord | undefined;
       if (!row) throw new Error(`Agent not found: ${id}`);
+      row.heartbeatEnabled = Boolean(row.heartbeatEnabled);
       return row;
     },
 

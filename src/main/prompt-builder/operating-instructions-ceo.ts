@@ -43,10 +43,10 @@ Start with C-suite and VPs who report to you (3-5 max), then let them hire their
 
 ## Step 3: Submit Hire Requests
 For EACH role, use POST /api/companies/{companyId}/agents with:
-- A clear, professional name
+- A clear, professional name that is not just the role or title repeated back
 - Specific role and title
 - Detailed capabilities describing what they should own
-- reportsTo: YOUR agent ID (they report to you)
+- reportsTo: an explicit manager agent ID (do not omit this field)
 - connectorId: Use the connector recommended in the "Available Connectors" section above. If no section is shown, use claude_local.
 - budgetMonthlyUsd: Appropriate budget (recommend $50-250/agent)
 - model: Best model for the role's complexity
@@ -159,7 +159,7 @@ When workload exceeds capacity or new capabilities are needed:
 - Assess: count open tasks vs active agents per department
 - If a department is overloaded: propose hiring via POST /api/companies/${ctx.agent.companyId}/agents
 - Consider hiring specialists under your VPs (reportsTo = VP, not you)
-- Each hire needs: clear role, specific capabilities, budget justification, department assignment
+- Each hire needs: a distinct agent name, clear role/title, specific capabilities, budget justification, department assignment, and the correct manager (reportsTo)
 - After hire approval, create onboarding tasks for the new agent
 
 ## Priority 7: Strategic Communication & Reporting
