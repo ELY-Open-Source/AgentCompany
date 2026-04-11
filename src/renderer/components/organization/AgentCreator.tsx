@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Robot } from "@phosphor-icons/react";
-import type { AgentRecord, ConnectorRecord, WorkspaceRecord } from "@shared/types";
+import { DEPARTMENT_OPTIONS } from "@shared/constants";
+import type { AgentRecord, ConnectorRecord, DepartmentId, WorkspaceRecord } from "@shared/types";
 import { isConnectorExecutionReady } from "@shared/connector-policy";
 import { unwrap } from "../../lib/desktop";
 import { ActionButton, Input, Select, TextArea } from "../ui";
@@ -27,6 +28,7 @@ export function AgentCreator({
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [title, setTitle] = useState("");
+  const [department, setDepartment] = useState<DepartmentId | "">("");
   const [connectorId, setConnectorId] = useState(executionReadyConnectors[0]?.id ?? "");
   const [model, setModel] = useState("");
   const [availableModels, setAvailableModels] = useState<Array<{ id: string; label: string }>>([]);
@@ -69,6 +71,7 @@ export function AgentCreator({
 
   const t = useT();
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const selectedDepartment: DepartmentId | null = department === "" ? null : department;
 
   return (
     <div className="grid min-w-0 gap-4">
@@ -114,6 +117,15 @@ export function AgentCreator({
       <AnimatePresence>
       {showAdvanced ? (
         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }} className="grid gap-4 overflow-hidden">
+          <Select
+            label={t("comm.department")}
+            value={department}
+            onChange={(value) => setDepartment(value as DepartmentId | "")}
+            options={DEPARTMENT_OPTIONS.map((option) => ({
+              value: option.value,
+              label: option.value === "" ? t("comm.selectDepartment") : option.label,
+            }))}
+          />
           <Select
             label={t("agent.workspace")}
             value={workspaceId}
@@ -162,21 +174,22 @@ export function AgentCreator({
               unwrap(await window.agentCompany.requestHire({
                 companyId,
                 requestedByAgentId: null,
-                name,
-                role,
-                title,
-                department: null,
+                name: name.trim(),
+                role: role.trim(),
+                title: title.trim(),
+                department: selectedDepartment,
                 connectorId: connectorId as ConnectorRecord["id"],
                 workspaceId: workspaceId || null,
                 reportsTo: reportsTo || null,
                 model: model || null,
                 metadataJson: JSON.stringify(meta),
-                capabilities,
+                capabilities: capabilities.trim(),
                 budgetMonthlyUsd: Number(budget || 0),
               }));
               setName("");
               setRole("");
               setTitle("");
+              setDepartment("");
               setCapabilities("");
               setReportsTo("");
               setRequestError(null);

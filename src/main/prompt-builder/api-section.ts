@@ -313,7 +313,7 @@ Body: {
 ### Propose a Hire
 POST /api/companies/${ctx.agent.companyId}/agents
 Body: {
-  "name": "New hire name",
+  "name": "New hire display name (must not repeat role/title)",
   "role": "role_title",
   "title": "Descriptive title",
   "department": "engineering|product|marketing|sales|hr|finance|legal|operations|customer_support|research|design|executive",

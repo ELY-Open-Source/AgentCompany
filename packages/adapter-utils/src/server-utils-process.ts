@@ -35,6 +35,8 @@ interface SpawnTarget {
   args: string[];
 }
 
+const WINDOWS_CMD_SCRIPT_EXTENSIONS = new Set([".bat", ".cmd"]);
+
 type ChildProcessWithEvents = ChildProcess & {
   on(event: "error", listener: (err: Error) => void): ChildProcess;
   on(
@@ -105,7 +107,23 @@ function quoteForCmd(arg: string) {
   return /[\s"&<>|^()]/.test(escaped) ? `"${escaped}"` : escaped;
 }
 
-async function resolveSpawnTarget(
+export function buildWindowsSpawnTarget(
+  executable: string,
+  args: string[],
+  shell: string,
+): SpawnTarget {
+  const extension = path.extname(executable).toLowerCase();
+  if (!WINDOWS_CMD_SCRIPT_EXTENSIONS.has(extension)) {
+    return { command: executable, args };
+  }
+  const commandLine = [quoteForCmd(executable), ...args.map(quoteForCmd)].join(" ");
+  return {
+    command: shell,
+    args: ["/d", "/c", `chcp 65001 >nul && ${commandLine}`],
+  };
+}
+
+export async function resolveSpawnTarget(
   command: string,
   args: string[],
   cwd: string,
@@ -123,11 +141,7 @@ async function resolveSpawnTarget(
   // Chinese/CJK character corruption. The default Windows code page (e.g. 936/GBK)
   // corrupts multi-byte UTF-8 characters passed through cmd.exe, curl, etc.
   const shell = env.ComSpec || process.env.ComSpec || "cmd.exe";
-  const commandLine = [quoteForCmd(executable), ...args.map(quoteForCmd)].join(" ");
-  return {
-    command: shell,
-    args: ["/d", "/s", "/c", `chcp 65001 >nul && ${commandLine}`],
-  };
+  return buildWindowsSpawnTarget(executable, args, shell);
 }
 
 export function ensurePathInEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {

@@ -110,7 +110,7 @@ describe("recursive org execution", () => {
         method: "POST",
         headers: harness.headers,
         body: JSON.stringify({
-          name: "Engineering IC",
+          name: "Avery Chen",
           role: "Engineer",
           title: "Frontend Engineer",
           department: "engineering",
@@ -166,6 +166,100 @@ describe("recursive org execution", () => {
     }
   });
 
+  it("routes cross-department hires to the relevant department lead when reportsTo is omitted", async () => {
+    const harness = await createHarness();
+    try {
+      const hrId = harness.db.saveAgent({
+        companyId: harness.companyId,
+        name: "HR Director",
+        role: "HR Director",
+        title: "Director of People",
+        status: "active",
+        reportsTo: harness.ceoId,
+        connectorId: "codex_local",
+        workspaceId: harness.workspaceId,
+        model: null,
+        capabilities: "Coordinate staffing",
+        budgetMonthlyUsd: 180,
+        department: "hr",
+      });
+      const hrTaskId = harness.db.saveTask({
+        companyId: harness.companyId,
+        title: "Fill engineering gap",
+        description: "Request a backend engineer for the engineering team.",
+        assigneeAgentId: hrId,
+        workspaceId: harness.workspaceId,
+        priority: "high",
+        status: "in_progress",
+      });
+      const hrRun = harness.db.createRun({
+        companyId: harness.companyId,
+        taskId: hrTaskId,
+        agentId: hrId,
+        workspaceId: harness.workspaceId,
+        connectorId: "codex_local",
+      });
+      const hrToken = createAgentToken(hrId, harness.companyId, hrRun.id);
+
+      const response = await fetch(`${harness.baseUrl}/api/companies/${harness.companyId}/agents`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${hrToken}`,
+          "X-Agent-Company-Run-Id": hrRun.id,
+          "Content-Type": "application/json; charset=utf-8",
+        },
+        body: JSON.stringify({
+          name: "Avery Chen",
+          role: "Backend Engineer",
+          title: "Backend Engineer Golang",
+          department: "engineering",
+          connectorId: "codex_local",
+          workspaceId: harness.workspaceId,
+          model: null,
+          capabilities: "Go, PostgreSQL, distributed systems",
+          budgetMonthlyUsd: 180,
+        }),
+      });
+
+      expect(response.status).toBe(201);
+      const body = await response.json() as { agentId: string };
+      const pendingHire = harness.db.getAgent(body.agentId);
+      expect(pendingHire.department).toBe("engineering");
+      expect(pendingHire.reportsTo).toBe(harness.ctoId);
+    } finally {
+      harness.server.stop();
+      harness.db.close();
+    }
+  });
+
+  it("rejects multi-word hire names that only repeat the job title", async () => {
+    const harness = await createHarness();
+    try {
+      const response = await fetch(`${harness.baseUrl}/api/companies/${harness.companyId}/agents`, {
+        method: "POST",
+        headers: harness.headers,
+        body: JSON.stringify({
+          name: "Backend Engineer Golang",
+          role: "Backend Engineer",
+          title: "Backend Engineer Golang",
+          department: "engineering",
+          connectorId: "codex_local",
+          workspaceId: harness.workspaceId,
+          model: null,
+          capabilities: "Go, APIs",
+          budgetMonthlyUsd: 180,
+        }),
+      });
+
+      expect(response.status).toBe(422);
+      const body = await response.json() as { error: string };
+      expect(body.error).toContain("Hire name");
+    } finally {
+      harness.server.stop();
+      harness.db.close();
+    }
+  });
+
   it("manager cannot route a hire outside their reporting branch", async () => {
     const harness = await createHarness();
     try {
@@ -201,9 +295,9 @@ describe("recursive org execution", () => {
         }),
       });
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(422);
       const body = await response.json() as { error: string };
-      expect(body.error).toContain("must report to you or a manager in your reporting chain");
+      expect(body.error).toContain("same department");
     } finally {
       harness.server.stop();
       harness.db.close();

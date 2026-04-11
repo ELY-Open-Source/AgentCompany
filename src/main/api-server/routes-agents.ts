@@ -1,7 +1,13 @@
 import log from "electron-log/main.js";
 import { hireRequestSchema } from "@shared/contracts";
 import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
-import { canManageOrganization, canRequestHire } from "../agent-permissions";
+import {
+  canManageOrganization,
+  canRequestHire,
+  getHireNameValidationError,
+  getHireRoutingValidationError,
+  resolveHireReportsTo,
+} from "../agent-permissions";
 import { resolveApprovalDecision, shouldAutoApproveApproval } from "../approval-policy";
 import { requireParam, type AgentApiServer } from "./server-core";
 
@@ -236,32 +242,59 @@ export function registerAgentRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Current agent is not allowed to request hires" });
       return;
     }
+    const reportsToProvided =
+      typeof body === "object" &&
+      body !== null &&
+      Object.prototype.hasOwnProperty.call(body, "reportsTo");
     const parsed = hireRequestSchema.safeParse({
       companyId,
       requestedByAgentId: token.agentId,
       ...(typeof body === "object" && body ? body : {}),
-      reportsTo:
-        typeof body === "object" && body && "reportsTo" in body
-          ? (body as { reportsTo?: string | null }).reportsTo
-          : token.agentId,
     });
     if (!parsed.success) {
       server.json(res, 400, { error: "Invalid hire payload" });
       return;
     }
     const input = parsed.data;
+    const resolvedReportsTo = resolveHireReportsTo(
+      db,
+      companyId,
+      token.agentId,
+      reportsToProvided ? input.reportsTo : undefined,
+      input.department ?? null,
+    );
+    const nameError = getHireNameValidationError({
+      name: input.name,
+      role: input.role,
+      title: input.title,
+    });
+    if (nameError) {
+      server.json(res, 422, { error: nameError });
+      return;
+    }
+    const routingError = getHireRoutingValidationError(
+      db,
+      companyId,
+      token.agentId,
+      resolvedReportsTo,
+      input.department ?? null,
+    );
+    if (routingError) {
+      server.json(res, 422, { error: routingError });
+      return;
+    }
     if (server.companyRefError(res, companyId, [
       { id: input.requestedByAgentId, table: "agents", label: "requesting agent" },
-      { id: input.reportsTo, table: "agents", label: "manager" },
+      { id: resolvedReportsTo, table: "agents", label: "manager" },
       { id: input.workspaceId, table: "workspaces", label: "workspace" },
     ])) {
       return;
     }
     if (
-      input.reportsTo &&
-      input.reportsTo !== token.agentId &&
+      resolvedReportsTo &&
+      resolvedReportsTo !== token.agentId &&
       !canManageOrganization(db, companyId, token.agentId) &&
-      !db.getChainOfCommand(input.reportsTo).some((agent) => agent.id === token.agentId)
+      !db.getChainOfCommand(resolvedReportsTo).some((agent) => agent.id === token.agentId)
     ) {
       server.json(res, 403, { error: "Requested hire must report to you or a manager in your reporting chain." });
       return;
@@ -310,12 +343,12 @@ export function registerAgentRoutes(server: AgentApiServer) {
       } catch { /* invalid payloadJson, skip */ }
     }
 
-    const managerLabel = input.reportsTo
+    const managerLabel = resolvedReportsTo
       ? (() => {
         try {
-          return db.getAgent(input.reportsTo).name;
+          return db.getAgent(resolvedReportsTo).name;
         } catch {
-          return input.reportsTo;
+          return resolvedReportsTo;
         }
       })()
       : "the company board";
@@ -329,7 +362,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
         role: input.role,
         title: input.title,
         department: input.department ?? null,
-        reportsTo: input.reportsTo ?? token.agentId,
+        reportsTo: resolvedReportsTo,
         connectorId: input.connectorId,
         workspaceId: input.workspaceId ?? null,
         model: input.model ?? null,
@@ -339,6 +372,9 @@ export function registerAgentRoutes(server: AgentApiServer) {
         payloadSummary: `Hire ${input.name} as ${input.role}`,
         impactSummary: input.capabilities || `${input.name} will report to ${managerLabel}.`,
         payloadJson: JSON.stringify({
+          name: input.name,
+          role: input.role,
+          title: input.title,
           requestedByAgentId: input.requestedByAgentId ?? token.agentId,
           requestedConfigurationSnapshot: {
             connectorId: input.connectorId,
@@ -347,7 +383,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
             metadataJson: input.metadataJson ?? "{}",
             capabilities: input.capabilities,
             budgetMonthlyUsd: input.budgetMonthlyUsd,
-            reportsTo: input.reportsTo ?? token.agentId,
+            reportsTo: resolvedReportsTo,
             department: input.department ?? null,
             title: input.title,
           },

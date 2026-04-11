@@ -50,8 +50,30 @@ export function buildBudgetMethods(
       notifyEnabled?: boolean;
       isActive?: boolean;
     }): string {
-      const id = input.id || randomUUID();
       const ts = nowIso();
+      const metric = input.metric ?? "billed_cents";
+      const windowKind = input.windowKind ?? "calendar_month_utc";
+      const scopedExisting = input.id
+        ? []
+        : readAll<{ id: string; createdAt: string }>(
+            `SELECT id, created_at as createdAt
+               FROM budget_policies
+              WHERE company_id = ? AND scope_type = ? AND scope_id = ? AND metric = ? AND window_kind = ?
+              ORDER BY created_at ASC`,
+            input.companyId,
+            input.scopeType,
+            input.scopeId,
+            metric,
+            windowKind,
+          );
+      const existing = input.id
+        ? getDb()
+            .prepare("SELECT id, created_at as createdAt FROM budget_policies WHERE id = ?")
+            .get(input.id) as { id: string; createdAt: string } | undefined
+        : scopedExisting[0];
+      const staleIds = input.id ? [] : scopedExisting.slice(1).map((policy) => policy.id);
+      const id = existing?.id ?? input.id ?? randomUUID();
+      const createdAt = existing?.createdAt ?? ts;
       getDb()
         .prepare(
           `INSERT OR REPLACE INTO budget_policies
@@ -61,12 +83,18 @@ export function buildBudgetMethods(
         )
         .run(
           id, input.companyId, input.scopeType, input.scopeId,
-          input.metric ?? "billed_cents", input.windowKind ?? "calendar_month_utc",
+          metric, windowKind,
           input.amount, input.warnPercent ?? 80,
           (input.hardStopEnabled ?? true) ? 1 : 0,
           (input.notifyEnabled ?? true) ? 1 : 0,
-          (input.isActive ?? true) ? 1 : 0, ts, ts,
+          (input.isActive ?? true) ? 1 : 0, createdAt, ts,
         );
+      if (staleIds.length > 0) {
+        const placeholders = staleIds.map(() => "?").join(", ");
+        getDb()
+          .prepare(`UPDATE budget_policies SET is_active = 0, updated_at = ? WHERE id IN (${placeholders})`)
+          .run(ts, ...staleIds);
+      }
       return id;
     },
 
