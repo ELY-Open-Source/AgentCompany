@@ -80,14 +80,28 @@ export function createHeartbeat(
       return null;
     }
 
+    const companyMode = db.getCompanyExecutionMode(companyId);
+    const approvalSettings = db.getCompanyApprovalSettings(companyId);
+    const shouldEnforceHumanReview =
+      companyMode === "ai_cofounder" || approvalSettings?.reviewDeliverables === true;
+
     // Block heartbeat when agent has tasks awaiting user deliverable review
-    if (!isMessageWake && (db.hasAgentPendingDeliverableReview(agentId, companyId) || db.hasAgentTaskAwaitingReview(agentId, companyId))) {
+    if (
+      shouldEnforceHumanReview &&
+      !isMessageWake &&
+      (db.hasAgentPendingDeliverableReview(agentId, companyId) || db.hasAgentTaskAwaitingReview(agentId, companyId))
+    ) {
       logger.debug(`[heartbeat] Skipping ${agent.name} — awaiting user deliverable review.`);
       return null;
     }
 
     // Block CEO heartbeat when company has any pending deliverable reviews
-    if (!isMessageWake && !agent.reportsTo && db.hasPendingDeliverableReviews(companyId)) {
+    if (
+      shouldEnforceHumanReview &&
+      !isMessageWake &&
+      !agent.reportsTo &&
+      db.hasPendingDeliverableReviews(companyId)
+    ) {
       logger.debug(`[heartbeat] Skipping CEO ${agent.name} — company has pending deliverable reviews.`);
       return null;
     }

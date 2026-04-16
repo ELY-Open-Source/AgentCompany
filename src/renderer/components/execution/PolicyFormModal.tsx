@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { BudgetPolicyRecord } from "@shared/types";
 import { ActionButton, Input, Modal, Select } from "../ui";
+import { buildBudgetPolicyInput, getBudgetPolicyAmountDollars } from "../../lib/budget-policy-input";
 
 interface PolicyFormModalProps {
   open: boolean;
@@ -25,7 +26,7 @@ export function PolicyFormModal({ open, onClose, onSaved, companyId, editingPoli
     if (editingPolicy) {
       setScopeType(editingPolicy.scopeType);
       setScopeId(editingPolicy.scopeId);
-      setAmountDollars((editingPolicy.amount / 100).toFixed(2));
+      setAmountDollars(getBudgetPolicyAmountDollars(editingPolicy));
       setWarnPercent(String(editingPolicy.warnPercent));
       setHardStopEnabled(editingPolicy.hardStopEnabled);
       setNotifyEnabled(editingPolicy.notifyEnabled);
@@ -52,24 +53,19 @@ export function PolicyFormModal({ open, onClose, onSaved, companyId, editingPoli
   async function handleSave() {
     setSaving(true);
     try {
-      const amountCents = Math.round(parseFloat(amountDollars) * 100);
-      if (Number.isNaN(amountCents) || amountCents <= 0) return;
-
-      const wp = parseInt(warnPercent, 10);
-      if (Number.isNaN(wp) || wp < 1 || wp > 100) return;
-
-      const result = await window.agentCompany.saveBudgetPolicy({
+      const payload = buildBudgetPolicyInput({
+        policyId: editingPolicy?.id ?? null,
         companyId,
         scopeType,
         scopeId,
-        metric: "billed_cents",
-        windowKind: "calendar_month_utc",
-        amount: amountCents,
-        warnPercent: wp,
+        amountDollars,
+        warnPercent,
         hardStopEnabled,
         notifyEnabled,
-        isActive: true,
       });
+      if (!payload) return;
+
+      const result = await window.agentCompany.saveBudgetPolicy(payload);
       if (result.ok) {
         onSaved();
         onClose();

@@ -1,7 +1,10 @@
 import type { AppDatabase } from "./database";
 import type { TaskRecord } from "@shared/types";
 
-function safeGetAgent(db: AppDatabase, agentId: string) {
+function safeGetAgent(db: AppDatabase, agentId: string | null | undefined) {
+  if (!agentId) {
+    return null;
+  }
   try {
     return db.getAgent(agentId);
   } catch {
@@ -23,7 +26,7 @@ const MANAGEMENT_KEYWORDS = [
   "lead",
 ];
 
-function hasManagementAuthority(agent: { role: string; title: string; department: string | null }) {
+export function hasManagementAuthority(agent: { role: string; title: string; department: string | null }) {
   if (agent.department === "hr") {
     return true;
   }
@@ -87,6 +90,155 @@ export function canRequestHire(db: AppDatabase, companyId: string, agentId: stri
     return true;
   }
   return hasManagementAuthority(agent);
+}
+
+function getDepartmentLeadCandidateId(
+  db: AppDatabase,
+  companyId: string,
+  department: string,
+  excludeAgentId: string | null,
+): string | null {
+  const candidates = db.queryAll<{
+    id: string;
+    role: string;
+    title: string;
+    department: string | null;
+    createdAt: string;
+  }>(
+    `select id, role, title, department, created_at as createdAt
+       from agents
+      where company_id = ?
+        and department = ?
+        and status not in ('terminated', 'pending_approval')`,
+    companyId,
+    department,
+  );
+
+  const ranked = candidates
+    .filter((candidate) => candidate.id !== excludeAgentId)
+    .map((candidate) => ({
+      id: candidate.id,
+      hasReports: db.getDirectReports(candidate.id, companyId).length > 0,
+      leadershipScore: hasManagementAuthority(candidate) ? 1 : 0,
+      chainDepth: db.getChainOfCommand(candidate.id).length,
+      createdAt: candidate.createdAt,
+    }))
+    .filter((candidate) => candidate.hasReports || candidate.leadershipScore > 0)
+    .sort((left, right) => {
+      if (left.hasReports !== right.hasReports) return left.hasReports ? -1 : 1;
+      if (left.leadershipScore !== right.leadershipScore) return right.leadershipScore - left.leadershipScore;
+      if (left.chainDepth !== right.chainDepth) return left.chainDepth - right.chainDepth;
+      return left.createdAt.localeCompare(right.createdAt);
+    });
+
+  return ranked[0]?.id ?? null;
+}
+
+export function resolveHireReportsTo(
+  db: AppDatabase,
+  companyId: string,
+  requestedByAgentId: string | null | undefined,
+  explicitReportsTo: string | null | undefined,
+  department: string | null | undefined,
+): string | null {
+  if (explicitReportsTo !== undefined) {
+    return explicitReportsTo;
+  }
+
+  const requester = requestedByAgentId ? safeGetAgent(db, requestedByAgentId) : null;
+  if (requester && requester.companyId !== companyId) {
+    return null;
+  }
+
+  if (!department) {
+    return requester?.id ?? db.getCeoForCompany(companyId)?.id ?? null;
+  }
+
+  if (requester && (requester.department === department || !requester.reportsTo)) {
+    return requester.id;
+  }
+
+  const departmentLeadId = getDepartmentLeadCandidateId(db, companyId, department, requester?.id ?? null);
+  if (departmentLeadId) {
+    return departmentLeadId;
+  }
+
+  if (requester) {
+    return requester.id;
+  }
+
+  return db.getCeoForCompany(companyId)?.id ?? null;
+}
+
+function normalizeComparableText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_\-()[\]{}]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function isAllowedRoleAcronym(value: string): boolean {
+  return /^[A-Z]{2,5}$/.test(value.trim());
+}
+
+export function getHireNameValidationError(input: {
+  name: string;
+  role: string;
+  title: string;
+}): string | null {
+  const normalizedName = normalizeComparableText(input.name);
+  if (!normalizedName) {
+    return "Hire requests require a real display name.";
+  }
+  const normalizedRole = normalizeComparableText(input.role);
+  const normalizedTitle = normalizeComparableText(input.title);
+  if (normalizedName === normalizedRole && !isAllowedRoleAcronym(input.name)) {
+    return "Hire name must be a real display name, not just the role.";
+  }
+  if (
+    normalizedTitle.length > 0 &&
+    normalizedName === normalizedTitle &&
+    !isAllowedRoleAcronym(input.name)
+  ) {
+    return "Hire name must be a real display name, not just the title.";
+  }
+  return null;
+}
+
+export function getHireRoutingValidationError(
+  db: AppDatabase,
+  companyId: string,
+  requestedByAgentId: string | null | undefined,
+  reportsTo: string | null | undefined,
+  department: string | null | undefined,
+): string | null {
+  const requester = requestedByAgentId ? safeGetAgent(db, requestedByAgentId) : null;
+  const manager = reportsTo ? safeGetAgent(db, reportsTo) : null;
+  const requestedDepartment = department ?? null;
+
+  if (requester && requester.companyId !== companyId) {
+    return "Requesting agent does not belong to the current company.";
+  }
+  if (!requestedDepartment) {
+    return null;
+  }
+  if (reportsTo != null && !manager) {
+    return "Selected manager not found.";
+  }
+  if (manager && manager.companyId !== companyId) {
+    return "Selected manager does not belong to the current company.";
+  }
+
+  if (
+    manager &&
+    manager.reportsTo != null &&
+    manager.department !== requestedDepartment
+  ) {
+    return "Selected manager must belong to the same department as the new hire, unless they are a top-level executive.";
+  }
+
+  return null;
 }
 
 export function canAssignTask(db: AppDatabase, companyId: string, actorAgentId: string, targetAgentId: string | null): boolean {

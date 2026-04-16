@@ -71,3 +71,4 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 local-release/
+.omx/

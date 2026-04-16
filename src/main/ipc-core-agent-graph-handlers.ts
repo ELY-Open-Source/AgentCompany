@@ -7,6 +7,7 @@ import {
 } from "@shared/contracts";
 import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
 import { resolveApprovalDecision, shouldAutoApproveApproval } from "./approval-policy";
+import { getHireNameValidationError, getHireRoutingValidationError, resolveHireReportsTo } from "./agent-permissions";
 import { validateConnectorModelSelection } from "./connector-model-policy";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
 
@@ -146,9 +147,16 @@ export function registerCoreAgentGraphHandlers({
     const parsed = hireRequestSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
+    const resolvedReportsTo = resolveHireReportsTo(
+      db,
+      parsed.companyId,
+      parsed.requestedByAgentId ?? null,
+      parsed.reportsTo,
+      parsed.department ?? null,
+    );
     const invalidReference = findInvalidReference(parsed.companyId, [
       { id: parsed.requestedByAgentId, table: "agents", label: "requesting agent" },
-      { id: parsed.reportsTo, table: "agents", label: "manager" },
+      { id: resolvedReportsTo, table: "agents", label: "manager" },
       { id: parsed.workspaceId, table: "workspaces", label: "workspace" },
     ]);
     if (invalidReference) {
@@ -168,16 +176,34 @@ export function registerCoreAgentGraphHandlers({
     if (connectorIssue) {
       return fail("CONNECTOR_NOT_READY", connectorIssue);
     }
+    const nameError = getHireNameValidationError({
+      name: parsed.name,
+      role: parsed.role,
+      title: parsed.title,
+    });
+    if (nameError) {
+      return fail("INVALID_HIRE_NAME", nameError);
+    }
+    const routingError = getHireRoutingValidationError(
+      db,
+      parsed.companyId,
+      parsed.requestedByAgentId ?? null,
+      parsed.reportsTo,
+      parsed.department ?? null,
+    );
+    if (routingError) {
+      return fail("INVALID_HIRE_ROUTING", routingError);
+    }
     const modelSelection = validateConnectorModelSelection(db, parsed.connectorId, parsed.model ?? null);
     if (!modelSelection.ok) {
       return fail("CONNECTOR_MODEL_NOT_ALLOWED", modelSelection.error);
     }
-    const managerLabel = parsed.reportsTo
+    const managerLabel = resolvedReportsTo
       ? (() => {
         try {
-          return db.getAgent(parsed.reportsTo).name;
+          return db.getAgent(resolvedReportsTo).name;
         } catch {
-          return parsed.reportsTo;
+          return resolvedReportsTo;
         }
       })()
       : "the company board";
@@ -192,7 +218,7 @@ export function registerCoreAgentGraphHandlers({
         role: parsed.role,
         title: parsed.title,
         department: parsed.department ?? null,
-        reportsTo: parsed.reportsTo ?? null,
+        reportsTo: resolvedReportsTo,
         connectorId: parsed.connectorId,
         workspaceId: parsed.workspaceId ?? null,
         model: parsed.model ?? null,
@@ -202,6 +228,9 @@ export function registerCoreAgentGraphHandlers({
         payloadSummary,
         impactSummary,
         payloadJson: JSON.stringify({
+          name: parsed.name,
+          role: parsed.role,
+          title: parsed.title,
           requestedByAgentId: parsed.requestedByAgentId ?? null,
           requestedConfigurationSnapshot: {
             connectorId: parsed.connectorId,
@@ -210,7 +239,7 @@ export function registerCoreAgentGraphHandlers({
             metadataJson: parsed.metadataJson ?? "{}",
             capabilities: parsed.capabilities,
             budgetMonthlyUsd: parsed.budgetMonthlyUsd,
-            reportsTo: parsed.reportsTo ?? null,
+            reportsTo: resolvedReportsTo,
             department: parsed.department ?? null,
             title: parsed.title,
           },

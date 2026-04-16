@@ -32,6 +32,7 @@ describe("ipc-core-admin-handlers connector saves", () => {
       db,
       ensureCompanyExists: () => null,
       publishDomainChanged: vi.fn(),
+      handleApprovalResolved: vi.fn(),
       checkConnector: vi.fn(),
       openConnectorAuthTerminal: vi.fn(),
       openGenericTerminal: vi.fn(),

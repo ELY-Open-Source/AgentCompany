@@ -8,6 +8,7 @@ import {
   secretInputSchema,
 } from "@shared/contracts";
 import { validateConnectorConfigurationModel, validateConnectorModelSelection } from "./connector-model-policy";
+import { reconcileExecutionModeChange } from "./execution-mode-reconciler";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
 
 export function registerCoreAdminHandlers({
@@ -15,16 +16,30 @@ export function registerCoreAdminHandlers({
   db,
   ensureCompanyExists,
   publishDomainChanged,
+  handleApprovalResolved,
   checkConnector,
   openConnectorAuthTerminal,
   openGenericTerminal,
 }: Pick<
   RegisterCoreHandlersDependencies,
-  "registerHandle" | "db" | "ensureCompanyExists" | "publishDomainChanged" | "checkConnector" | "openConnectorAuthTerminal" | "openGenericTerminal"
+  "registerHandle" | "db" | "ensureCompanyExists" | "publishDomainChanged" | "handleApprovalResolved" | "checkConnector" | "openConnectorAuthTerminal" | "openGenericTerminal"
 >) {
   registerHandle(IPC_CHANNELS.saveCompany, async (_event, payload) => {
     const parsed = companyInputSchema.parse(payload);
+    const previousMode = parsed.id ? db.getCompanyExecutionMode(parsed.id) : parsed.executionMode;
+    const previousApprovalSettings = parsed.id
+      ? db.getCompanyApprovalSettings(parsed.id)
+      : { autoApproveHires: parsed.autoApproveHires, reviewDeliverables: parsed.reviewDeliverables };
     const id = db.saveCompany(parsed);
+    reconcileExecutionModeChange({
+      db,
+      companyId: id,
+      previousExecutionMode: previousMode,
+      nextExecutionMode: parsed.executionMode,
+      previousReviewDeliverables: previousApprovalSettings?.reviewDeliverables ?? false,
+      nextReviewDeliverables: parsed.reviewDeliverables,
+      handleApprovalResolved,
+    });
     db.addActivity({
       companyId: id,
       actor: "board",
