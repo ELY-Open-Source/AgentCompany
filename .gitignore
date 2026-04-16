@@ -13,7 +13,8 @@ win-unpacked
 build
 .omc
 .omx
-.planning
+.planning/*
+!.planning/**/
 paperclip-reference
 Reference
 .pnpm-store
