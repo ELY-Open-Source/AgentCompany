@@ -13,9 +13,9 @@ Every API call MUST include these headers:
   Content-Type: application/json; charset=utf-8
   X-Agent-Company-Run-Id: ${ctx.runId}
 
-IMPORTANT: On Windows, prefer using Node.js fetch() for API calls instead of curl,
-because curl on Windows may corrupt non-ASCII characters (Chinese, Japanese, etc.).
-If you must use curl, write the JSON body to a temp file first and use curl -d @file.
+Prefer Node.js fetch() over curl so non-ASCII bodies (Chinese, Japanese, etc.) are transmitted
+correctly across all platforms. When curl is the only option, write the JSON body to a temp
+file first and pass it via \`-d @file\` (shown in the POST example below).
 
 Example using fetch (Node.js) — PREFERRED:
   const res = await fetch(\`\${process.env.AGENT_COMPANY_API_URL}/api/agents/me\`, {

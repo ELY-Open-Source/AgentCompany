@@ -20,11 +20,18 @@ function deriveHeartbeatWakeTrigger(triggerType: string, previousStatus: string 
 }
 
 // Map the run/state combination → wake trigger for escalation to manager.
+// Status-based mapping takes precedence; rule-trigger mapping is the fallback.
+const ESCALATION_STATUS_TRIGGER_MAP: Record<string, string> = {
+  in_review: "subtask_completed",
+  blocked: "report_blocked",
+};
+const ESCALATION_RULE_TRIGGER_MAP: Record<string, string> = {
+  run_completed: "subtask_completed",
+  run_failed: "report_failed",
+};
 function deriveEscalationWakeTrigger(newStatus: string | null, ruleTrigger: string | null): string {
-  if (newStatus === "in_review") return "subtask_completed";
-  if (newStatus === "blocked") return "report_blocked";
-  if (ruleTrigger === "run_completed") return "subtask_completed";
-  if (ruleTrigger === "run_failed") return "report_failed";
+  if (newStatus && ESCALATION_STATUS_TRIGGER_MAP[newStatus]) return ESCALATION_STATUS_TRIGGER_MAP[newStatus];
+  if (ruleTrigger && ESCALATION_RULE_TRIGGER_MAP[ruleTrigger]) return ESCALATION_RULE_TRIGGER_MAP[ruleTrigger];
   return "report_blocked";
 }
 
