@@ -409,17 +409,28 @@ export function runMigrations(
     },
     {
       version: 28, name: "add_snapshot_hot_path_indexes",
-      sql: `CREATE INDEX IF NOT EXISTS idx_tasks_company_created_at ON tasks(company_id, created_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_tasks_company_updated_at ON tasks(company_id, updated_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_approvals_company_created_at ON approvals(company_id, created_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_task_comments_company_created_at ON task_comments(company_id, created_at);
-            CREATE INDEX IF NOT EXISTS idx_documents_company_updated_at ON documents(company_id, updated_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_meetings_company_scheduled_at ON meetings(company_id, scheduled_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_sprints_company_start_date ON sprints(company_id, start_date DESC);
-            CREATE INDEX IF NOT EXISTS idx_runs_agent_created_at ON runs(agent_id, created_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_cost_entries_agent_created_at ON cost_entries(agent_id, created_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_activity_company_actor_action ON activity(company_id, actor, action);
-            CREATE INDEX IF NOT EXISTS idx_tasks_company_assignee_status ON tasks(company_id, assignee_agent_id, status)`,
+      fn: () => {
+        // Some tables (task_comments / documents / meetings / sprints / agent_messages)
+        // are created by ensureOptionalColumns, which runs AFTER runMigrations on
+        // a fresh DB. Guard each CREATE INDEX with a tableExists check so the
+        // migration is safe on both fresh and migrated databases.
+        const indexPlan: Array<{ table: string; sql: string }> = [
+          { table: "tasks", sql: "CREATE INDEX IF NOT EXISTS idx_tasks_company_created_at ON tasks(company_id, created_at DESC)" },
+          { table: "tasks", sql: "CREATE INDEX IF NOT EXISTS idx_tasks_company_updated_at ON tasks(company_id, updated_at DESC)" },
+          { table: "approvals", sql: "CREATE INDEX IF NOT EXISTS idx_approvals_company_created_at ON approvals(company_id, created_at DESC)" },
+          { table: "task_comments", sql: "CREATE INDEX IF NOT EXISTS idx_task_comments_company_created_at ON task_comments(company_id, created_at)" },
+          { table: "documents", sql: "CREATE INDEX IF NOT EXISTS idx_documents_company_updated_at ON documents(company_id, updated_at DESC)" },
+          { table: "meetings", sql: "CREATE INDEX IF NOT EXISTS idx_meetings_company_scheduled_at ON meetings(company_id, scheduled_at DESC)" },
+          { table: "sprints", sql: "CREATE INDEX IF NOT EXISTS idx_sprints_company_start_date ON sprints(company_id, start_date DESC)" },
+          { table: "runs", sql: "CREATE INDEX IF NOT EXISTS idx_runs_agent_created_at ON runs(agent_id, created_at DESC)" },
+          { table: "cost_entries", sql: "CREATE INDEX IF NOT EXISTS idx_cost_entries_agent_created_at ON cost_entries(agent_id, created_at DESC)" },
+          { table: "activity", sql: "CREATE INDEX IF NOT EXISTS idx_activity_company_actor_action ON activity(company_id, actor, action)" },
+          { table: "tasks", sql: "CREATE INDEX IF NOT EXISTS idx_tasks_company_assignee_status ON tasks(company_id, assignee_agent_id, status)" },
+        ];
+        for (const { table, sql } of indexPlan) {
+          if (tableExists(db, table)) db.exec(sql);
+        }
+      },
     },
     {
       version: 29, name: "add_run_events_seq_unique_index",

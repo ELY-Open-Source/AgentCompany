@@ -110,6 +110,20 @@ describe("selective IPC event types", () => {
           return "thread-wait-state-updated";
         case "recovery-needed":
           return "recovery-needed";
+        case "oauth:status":
+          return "oauth:status";
+        case "oauth:auth-url":
+          return "oauth:auth-url";
+        case "oauth:progress":
+          return "oauth:progress";
+        case "oauth:prompt-request":
+          return "oauth:prompt-request";
+        case "oauth:manual-code-request":
+          return "oauth:manual-code-request";
+        case "credentials-changed":
+          return "credentials-changed";
+        case "agent-event":
+          return "agent-event";
         default: {
           const _exhaustive: never = event;
           return _exhaustive;
