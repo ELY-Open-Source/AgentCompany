@@ -53,13 +53,24 @@ function spawnTerminalWithScript(script: string, _title: string, _cwd: string): 
     return true;
   }
 
-  // Linux — try multiple terminal emulators
-  const linuxCandidates: Array<[string, string[]]> = [
+  // Linux — try $TERMINAL first, then a broad list of common emulators.
+  // Supported list documented in docs/platform-support.md.
+  const linuxCandidates: Array<[string, string[]]> = [];
+  const envTerminal = process.env.TERMINAL?.trim();
+  if (envTerminal) {
+    linuxCandidates.push([envTerminal, ["-e", "sh", "-lc", script]]);
+  }
+  linuxCandidates.push(
     ["x-terminal-emulator", ["-e", "sh", "-lc", script]],
     ["gnome-terminal", ["--", "sh", "-lc", script]],
     ["konsole", ["-e", "sh", "-lc", script]],
     ["xfce4-terminal", ["-e", `sh -lc ${quoteShell(script)}`]],
-  ];
+    ["kitty", ["sh", "-lc", script]],
+    ["alacritty", ["-e", "sh", "-lc", script]],
+    ["wezterm", ["start", "--", "sh", "-lc", script]],
+    ["tilix", ["-e", "sh", "-lc", script]],
+    ["terminator", ["-e", `sh -lc ${quoteShell(script)}`]],
+  );
 
   for (const [binary, args] of linuxCandidates) {
     const availability = spawnSync("sh", ["-lc", `command -v ${quoteShell(binary)}`], {
