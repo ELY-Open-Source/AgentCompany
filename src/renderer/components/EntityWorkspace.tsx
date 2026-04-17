@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
+import { Eyebrow } from "./ui";
 
+/**
+ * Two-slot workspace layout with a section header.
+ * Use `Panel` for single-slot sections; use this when rendering a primary + secondary pane.
+ */
 export function EntityWorkspace({
   title,
   eyebrow,
@@ -14,8 +19,8 @@ export function EntityWorkspace({
   return (
     <div className="space-y-14">
       <div>
-        {eyebrow ? <div className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{eyebrow}</div> : null}
-        <h2 className={`${eyebrow ? "mt-2" : ""} text-[18px] font-semibold tracking-[-0.01em] text-foreground`}>{title}</h2>
+        {eyebrow ? <Eyebrow className="mb-1">{eyebrow}</Eyebrow> : null}
+        <h2 className="text-[20px] font-bold tracking-[-0.025em] text-foreground">{title}</h2>
       </div>
       <div className="space-y-14">{primary}{secondary}</div>
     </div>
