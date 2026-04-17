@@ -1,6 +1,7 @@
-import { calculateCost, getModel, type Usage } from "@mariozechner/pi-ai";
+import { calculateCost, type Usage } from "@mariozechner/pi-ai";
 import type { AppDatabase } from "@main/database";
 import { getConnectorDefinition } from "@main/connectors";
+import { resolveModel } from "@main/model-resolver";
 
 export interface CostWriterDeps {
   db: AppDatabase;
@@ -29,7 +30,7 @@ export class CostWriter {
     try {
       const definition = getConnectorDefinition(input.connectorId);
       if (definition.provider) {
-        const model = getModel(definition.provider as never, input.modelId as never);
+        const model = resolveModel(definition.provider, input.modelId);
         if (model) {
           const cost = calculateCost(model, input.usage);
           amountUsd = Number.isFinite(cost.total) ? cost.total : null;

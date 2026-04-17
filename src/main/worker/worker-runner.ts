@@ -1,7 +1,8 @@
 import { Agent } from "@mariozechner/pi-agent-core";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import { getModel, streamSimple } from "@mariozechner/pi-ai";
+import { streamSimple } from "@mariozechner/pi-ai";
 import { createCodingTools } from "@mariozechner/pi-coding-agent";
+import { resolveModel, resolveExtraStreamHeaders } from "../model-resolver";
 import type { RunStatus } from "@shared/types";
 import type { ChildMessage, RunJob } from "./worker-helpers";
 import { applyEnvOverrides, buildRedactor } from "./worker-helpers";
@@ -73,8 +74,12 @@ export class WorkerRunner {
 
       const restoreEnv = applyEnvOverrides(prepared.extraEnv);
       try {
-        const model = getModel(prepared.provider as never, job.model as never);
+        const model = resolveModel(prepared.provider, job.model);
+        if (!model) {
+          throw new Error(`Unknown model ${job.model} for provider ${prepared.provider}.`);
+        }
         resolvedModelId = model.id;
+        const extraHeaders = resolveExtraStreamHeaders(prepared.provider, prepared.apiKey);
 
         const cwd = job.workspacePath ?? process.cwd();
         const tools = createCodingTools(cwd) as never;
@@ -87,7 +92,11 @@ export class WorkerRunner {
             messages: prepared.priorMessages,
           },
           streamFn: (m, messages, options) =>
-            streamSimple(m, messages, { ...options, apiKey: prepared.apiKey }),
+            streamSimple(m, messages, {
+              ...options,
+              apiKey: prepared.apiKey,
+              headers: { ...(options?.headers ?? {}), ...(extraHeaders ?? {}) },
+            }),
           beforeToolCall: async (context) => {
             const verdict = await rpc.invoke(job.runId, "beforeToolCall", {
               agentId: job.agentId,

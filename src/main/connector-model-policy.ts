@@ -1,6 +1,6 @@
-import { getModels } from "@mariozechner/pi-ai";
 import type { ConnectorId } from "@shared/types";
 import { getConnectorDefinition } from "./connectors";
+import { resolveModels } from "./model-resolver";
 
 interface ConnectorModelPolicyDeps {
   getConnector: (id: ConnectorId) => { id: ConnectorId; label?: string | null; model: string | null };
@@ -26,13 +26,15 @@ function uniqueModels(models: Array<{ id: string; label: string }>) {
   return Array.from(byId.values());
 }
 
+/**
+ * Returns the models available for a given pi-ai provider id, going through
+ * `resolveModels` so that providers not in pi-ai's built-in catalog (currently
+ * the two Fireworks connectors, which serve `accounts/fireworks/routers/...`
+ * and curated `accounts/fireworks/models/...` ids) are represented in the UI
+ * model picker instead of collapsing to an empty list.
+ */
 function listProviderModels(provider: string): Array<{ id: string; label: string }> {
-  try {
-    const models = getModels(provider as never);
-    return models.map((model) => ({ id: model.id, label: model.name ?? model.id }));
-  } catch {
-    return [];
-  }
+  return resolveModels(provider).map((model) => ({ id: model.id, label: model.name }));
 }
 
 export function getConnectorModelPolicy(
