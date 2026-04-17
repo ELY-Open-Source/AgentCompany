@@ -13,6 +13,12 @@
 import type { AppDatabase } from "./database";
 import type { ApprovalType, ExecutionMode } from "@shared/types";
 
+function assertExecutionMode(value: string): asserts value is ExecutionMode {
+  if (value !== "ai_ceo" && value !== "ai_cofounder") {
+    throw new Error(`Invalid execution mode returned from database: ${value}`);
+  }
+}
+
 /** Approval types that always require human review in co-founder mode. */
 const COFOUNDER_MANDATORY_APPROVALS = new Set<ApprovalType>([
   "deliverable_review",
@@ -48,7 +54,9 @@ export function shouldAutoApprove(
   companyId: string,
   approvalType: string,
 ): boolean {
-  const mode = db.getCompanyExecutionMode(companyId) as ExecutionMode;
+  const rawMode = db.getCompanyExecutionMode(companyId);
+  assertExecutionMode(rawMode);
+  const mode = rawMode;
 
   // Co-founder mode: mandatory types always require human decision
   if (mode === "ai_cofounder" && COFOUNDER_MANDATORY_APPROVALS.has(approvalType as ApprovalType)) {
