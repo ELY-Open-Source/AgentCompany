@@ -15,7 +15,6 @@ export function buildSkillMethods(
       slug: row.slug,
       name: row.name,
       description: row.description ?? null,
-      markdown: row.markdown ?? "",
       sourceType: (row.source_type ?? "local_path") as SkillSourceType,
       sourceLocator: row.source_locator ?? null,
       sourceRef: row.source_ref ?? null,
@@ -31,7 +30,7 @@ export function buildSkillMethods(
   return {
     upsertCompanySkill(skill: {
       id: string; companyId: string; key: string; slug: string; name: string;
-      description: string | null; markdown: string; sourceType: string;
+      description: string | null; sourceType: string;
       sourceLocator: string | null; sourceRef: string | null; trustLevel: string;
       compatibility: string; fileInventory: string; metadata: string | null;
       createdAt: string; updatedAt: string;
@@ -43,15 +42,14 @@ export function buildSkillMethods(
 
       getDb().prepare(`
         INSERT INTO company_skills (
-          id, company_id, key, slug, name, description, markdown,
+          id, company_id, key, slug, name, description,
           source_type, source_locator, source_ref, trust_level,
           compatibility, file_inventory, metadata, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(company_id, key) DO UPDATE SET
           slug = excluded.slug,
           name = excluded.name,
           description = excluded.description,
-          markdown = excluded.markdown,
           source_ref = excluded.source_ref,
           trust_level = excluded.trust_level,
           file_inventory = excluded.file_inventory,
@@ -59,7 +57,7 @@ export function buildSkillMethods(
           updated_at = excluded.updated_at
       `).run(
         skill.id, skill.companyId, skill.key, skill.slug,
-        skill.name, skill.description, skill.markdown,
+        skill.name, skill.description,
         skill.sourceType, skill.sourceLocator, skill.sourceRef,
         skill.trustLevel, skill.compatibility, skill.fileInventory,
         skill.metadata, skill.createdAt, skill.updatedAt,

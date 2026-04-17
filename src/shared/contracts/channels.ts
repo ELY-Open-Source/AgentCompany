@@ -75,6 +75,7 @@ export const IPC_CHANNELS = {
   importSkill: "agent-company:import-skill",
   listSkills: "agent-company:list-skills",
   getSkillDetail: "agent-company:get-skill-detail",
+  getSkillMarkdown: "agent-company:get-skill-markdown",
   deleteSkill: "agent-company:delete-skill",
   assignSkillToAgent: "agent-company:assign-skill-to-agent",
   removeSkillFromAgent: "agent-company:remove-skill-from-agent",

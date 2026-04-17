@@ -739,6 +739,96 @@ export function runMigrations(
         );
       },
     },
+    {
+      // Drop the `markdown` column from company_skills. SKILL.md on disk
+      // (profile/skills/{companyId}/{slug}/SKILL.md) is the authoritative
+      // source of truth read by pi-coding-agent's loadSkills. The DB column
+      // duplicated that content. UI now loads the body live via IPC.
+      //
+      // SQLite can't DROP COLUMN cleanly pre-3.35 and even the supported path
+      // is implemented as an invisible rebuild, so we do an explicit
+      // drift-safe rebuild mirroring v35/v36:
+      //   1. Snapshot row count
+      //   2. PRAGMA table_info to discover the live column set
+      //   3. CREATE company_skills_new without `markdown`
+      //   4. Copy every kept column
+      //   5. Assert copied count matches
+      //   6. DROP old, RENAME new, recreate indexes
+      //
+      // FK from agent_skill_assignments(skill_id) -> company_skills(id) must
+      // survive. PRAGMA defer_foreign_keys = ON keeps checks deferred until
+      // transaction commit (by which time RENAME has restored the table).
+      version: 37, name: "drop_company_skills_markdown",
+      fn: () => {
+        if (!tableExists(db, "company_skills")) {
+          log.info("[migration v37] company_skills table absent; skipping");
+          return;
+        }
+        if (!columnExists(db, "company_skills", "markdown")) {
+          log.info("[migration v37] company_skills.markdown already absent; skipping");
+          return;
+        }
+
+        const beforeCount = (db
+          .prepare("SELECT COUNT(*) as cnt FROM company_skills")
+          .get() as { cnt: number }).cnt;
+
+        const existingCols = (db
+          .prepare("PRAGMA table_info(company_skills)")
+          .all() as Array<{ name: string; type: string; notnull: number; dflt_value: unknown; pk: number }>);
+        const keepCols = existingCols.filter((c) => c.name !== "markdown");
+
+        db.exec("PRAGMA defer_foreign_keys = ON");
+
+        // Declared v14 column set (minus markdown). Drift columns preserved
+        // verbatim from PRAGMA metadata.
+        const declaredCols = new Map<string, string>([
+          ["id", "TEXT PRIMARY KEY"],
+          ["company_id", "TEXT NOT NULL"],
+          ["key", "TEXT NOT NULL"],
+          ["slug", "TEXT NOT NULL"],
+          ["name", "TEXT NOT NULL"],
+          ["description", "TEXT"],
+          ["source_type", "TEXT NOT NULL DEFAULT 'local_path'"],
+          ["source_locator", "TEXT"],
+          ["source_ref", "TEXT"],
+          ["trust_level", "TEXT NOT NULL DEFAULT 'markdown_only'"],
+          ["compatibility", "TEXT NOT NULL DEFAULT 'compatible'"],
+          ["file_inventory", "TEXT NOT NULL DEFAULT '[]'"],
+          ["metadata", "TEXT"],
+          ["created_at", "TEXT NOT NULL"],
+          ["updated_at", "TEXT NOT NULL"],
+        ]);
+
+        const ddl = keepCols.map((c) => {
+          const declared = declaredCols.get(c.name);
+          if (declared) return `${c.name} ${declared}`;
+          return `${c.name} ${c.type || "TEXT"}`;
+        });
+
+        db.exec(`CREATE TABLE company_skills_new (${ddl.join(", ")})`);
+
+        const copyCols = keepCols.map((c) => c.name).join(", ");
+        db.exec(`INSERT INTO company_skills_new (${copyCols}) SELECT ${copyCols} FROM company_skills`);
+
+        const afterCount = (db
+          .prepare("SELECT COUNT(*) as cnt FROM company_skills_new")
+          .get() as { cnt: number }).cnt;
+        if (afterCount !== beforeCount) {
+          throw new Error(
+            `company_skills copy row count mismatch: before=${beforeCount} after=${afterCount}; aborting before DROP`,
+          );
+        }
+
+        db.exec("DROP TABLE company_skills");
+        db.exec("ALTER TABLE company_skills_new RENAME TO company_skills");
+
+        db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_company_skills_company_key ON company_skills(company_id, key)");
+        db.exec("CREATE INDEX IF NOT EXISTS idx_company_skills_company_name ON company_skills(company_id, name)");
+
+        log.info(`[migration v37] dropped company_skills.markdown; preserved ${afterCount} row(s)`);
+      },
+    },
   ];
 
   for (const migration of migrations) {

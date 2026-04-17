@@ -327,7 +327,6 @@ export interface SkillRecord {
   slug: string;
   name: string;
   description: string | null;
-  markdown: string;
   sourceType: SkillSourceType;
   sourceLocator: string | null;
   sourceRef: string | null;

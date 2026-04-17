@@ -162,7 +162,6 @@ export function createGitHubImporter({ db, logger, skillFilesDir }: GitHubImport
         slug: rawSlug,
         name,
         description,
-        markdown: ghSkill.markdown,
         sourceType,
         sourceLocator: url,
         sourceRef: commitSha,

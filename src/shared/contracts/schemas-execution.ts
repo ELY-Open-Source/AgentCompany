@@ -70,6 +70,11 @@ export const getSkillDetailSchema = z.object({
   skillId: z.string().min(1),
 });
 
+export const getSkillMarkdownSchema = z.object({
+  companyId: z.string().min(1),
+  slug: z.string().min(1),
+});
+
 export const deleteSkillSchema = z.object({
   companyId: z.string().min(1),
   skillId: z.string().min(1),

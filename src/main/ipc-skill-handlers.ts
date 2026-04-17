@@ -1,8 +1,11 @@
+import { join } from "node:path";
+import { readFile } from "node:fs/promises";
 import {
   IPC_CHANNELS,
   importSkillSchema,
   listSkillsSchema,
   getSkillDetailSchema,
+  getSkillMarkdownSchema,
   deleteSkillSchema,
   assignSkillToAgentSchema,
   removeSkillFromAgentSchema,
@@ -80,6 +83,28 @@ export function registerSkillHandlers({
     if (svcResult.error) return svcResult.error;
     const svc = svcResult.service;
     return svc.getDetail(parsed.companyId, parsed.skillId);
+  });
+
+  // ---- Read SKILL.md body live from disk ----
+  registerHandle(IPC_CHANNELS.getSkillMarkdown, async (_event, payload) => {
+    const parsed = getSkillMarkdownSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    const svcResult = requireSkillService();
+    if (svcResult.error) return svcResult.error;
+    const svc = svcResult.service;
+    const dir = svc.skillFilesDir(parsed.companyId, parsed.slug);
+    const path = join(dir, "SKILL.md");
+    try {
+      const content = await readFile(path, "utf-8");
+      return ok(content);
+    } catch (err) {
+      const e = err as NodeJS.ErrnoException;
+      if (e.code === "ENOENT") {
+        return fail("SKILL_NOT_FOUND", `SKILL.md not found at ${path}`);
+      }
+      return fail("SKILL_READ_FAILED", e.message ?? String(err));
+    }
   });
 
   // ---- Delete a skill ----

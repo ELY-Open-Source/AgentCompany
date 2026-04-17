@@ -5,6 +5,7 @@ export type SkillsApi = {
   importSkill: (companyId: string, source: string) => Promise<DesktopResult<SkillImportResult[]>>;
   listSkills: (companyId: string) => Promise<DesktopResult<SkillRecord[]>>;
   getSkillDetail: (companyId: string, skillId: string) => Promise<DesktopResult<SkillRecord>>;
+  getSkillMarkdown: (companyId: string, slug: string) => Promise<DesktopResult<string>>;
   deleteSkill: (companyId: string, skillId: string) => Promise<DesktopResult<void>>;
   assignSkillToAgent: (companyId: string, agentId: string, skillId: string) => Promise<DesktopResult<void>>;
   removeSkillFromAgent: (companyId: string, agentId: string, skillId: string) => Promise<DesktopResult<void>>;

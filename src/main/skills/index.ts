@@ -58,5 +58,6 @@ export function createSkillService({ db, profileDir, logger }: SkillServiceDepen
     listRuntimeSkillEntries: runtime.listRuntimeSkillEntries,
     scanWorkspaceSkills: runtime.scanWorkspaceSkills,
     seedBuiltinSkills: runtime.seedBuiltinSkills,
+    skillFilesDir,
   };
 }

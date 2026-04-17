@@ -96,6 +96,8 @@ export function SkillDetail({
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+  const [skillMarkdown, setSkillMarkdown] = useState<string | null>(null);
+  const [markdownError, setMarkdownError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +120,24 @@ export function SkillDetail({
     void load();
     return () => { cancelled = true; };
   }, [companyId, skillId, addToast, setSelectedSkillFilePath]);
+
+  useEffect(() => {
+    if (!detail) return;
+    let cancelled = false;
+    setSkillMarkdown(null);
+    setMarkdownError(null);
+    async function load(companyIdArg: string, slugArg: string) {
+      const result = await window.agentCompany.getSkillMarkdown(companyIdArg, slugArg);
+      if (cancelled) return;
+      if (result.ok) {
+        setSkillMarkdown(result.data);
+      } else {
+        setMarkdownError(result.error.message);
+      }
+    }
+    void load(detail.companyId, detail.slug);
+    return () => { cancelled = true; };
+  }, [detail]);
 
   const handleCheckUpdate = useCallback(async () => {
     if (!detail) return;
@@ -173,7 +193,11 @@ export function SkillDetail({
   // Determine content for the file viewer
   const isSkillMd = selectedSkillFilePath === "SKILL.md";
   const fileContent = isSkillMd
-    ? stripFrontmatter(detail.markdown ?? "")
+    ? (markdownError
+        ? markdownError
+        : skillMarkdown === null
+          ? t("skill.loading")
+          : stripFrontmatter(skillMarkdown))
     : null;
 
   const selectedFileEntry = !isSkillMd

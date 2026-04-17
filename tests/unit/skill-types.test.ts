@@ -58,7 +58,6 @@ describe("skill-types", () => {
         slug: "slug",
         name: "Test Skill",
         description: null,
-        markdown: "# Test",
         sourceType: "github",
         sourceLocator: "https://github.com/owner/repo",
         sourceRef: "abc123",

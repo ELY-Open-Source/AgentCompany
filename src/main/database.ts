@@ -36,7 +36,7 @@ export class AppDatabase extends AppDatabaseBase {
 
   // ─── Skills ────────────────────────────────────────────────────────────────
 
-  upsertCompanySkill(skill: { id: string; companyId: string; key: string; slug: string; name: string; description: string | null; markdown: string; sourceType: string; sourceLocator: string | null; sourceRef: string | null; trustLevel: string; compatibility: string; fileInventory: string; metadata: string | null; createdAt: string; updatedAt: string }) { return this.skills.upsertCompanySkill(skill); }
+  upsertCompanySkill(skill: { id: string; companyId: string; key: string; slug: string; name: string; description: string | null; sourceType: string; sourceLocator: string | null; sourceRef: string | null; trustLevel: string; compatibility: string; fileInventory: string; metadata: string | null; createdAt: string; updatedAt: string }) { return this.skills.upsertCompanySkill(skill); }
   listCompanySkills(companyId: string) { return this.skills.listCompanySkills(companyId); }
   getCompanySkill(companyId: string, skillId: string) { return this.skills.getCompanySkill(companyId, skillId); }
   deleteCompanySkill(companyId: string, skillId: string) { return this.skills.deleteCompanySkill(companyId, skillId); }

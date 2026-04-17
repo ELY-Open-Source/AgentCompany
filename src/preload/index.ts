@@ -86,6 +86,8 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.listSkills, { companyId }),
   getSkillDetail: (companyId, skillId) =>
     ipcRenderer.invoke(IPC_CHANNELS.getSkillDetail, { companyId, skillId }),
+  getSkillMarkdown: (companyId, slug) =>
+    ipcRenderer.invoke(IPC_CHANNELS.getSkillMarkdown, { companyId, slug }),
   deleteSkill: (companyId, skillId) =>
     ipcRenderer.invoke(IPC_CHANNELS.deleteSkill, { companyId, skillId }),
   assignSkillToAgent: (companyId, agentId, skillId) =>
