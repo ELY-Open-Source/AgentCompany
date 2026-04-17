@@ -433,6 +433,48 @@ export function runMigrations(
       sql: `CREATE INDEX IF NOT EXISTS idx_approvals_company_state_type ON approvals(company_id, state, type);
             CREATE INDEX IF NOT EXISTS idx_approvals_related_task ON approvals(related_task_id)`,
     },
+    {
+      // Typed seniority enum replaces English keyword substring matching for
+      // leadership detection. Free-text `role` stays UI-editable; `role_level`
+      // is inferred once on insert/update via inferRoleLevel().
+      version: 31, name: "add_agents_role_level",
+      fn: () => {
+        if (!columnExists(db, "agents", "role_level")) {
+          db.prepare("ALTER TABLE agents ADD COLUMN role_level TEXT NOT NULL DEFAULT 'ic'").run();
+        }
+      },
+    },
+    {
+      // pi-mono session transcripts + credential vault. Idempotent; safe to
+      // re-apply on fresh DBs or DBs that already have the tables.
+      version: 32, name: "create_pi_mono_session_and_credentials_tables",
+      sql: `CREATE TABLE IF NOT EXISTS session_entries (
+              id TEXT PRIMARY KEY,
+              task_session_id TEXT NOT NULL,
+              sequence INTEGER NOT NULL,
+              kind TEXT NOT NULL,
+              role TEXT,
+              payload_json TEXT NOT NULL,
+              is_superseded INTEGER NOT NULL DEFAULT 0,
+              created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_session_entries_session ON session_entries(task_session_id, sequence);
+            CREATE INDEX IF NOT EXISTS idx_session_entries_active ON session_entries(task_session_id, is_superseded, sequence);
+            CREATE TABLE IF NOT EXISTS credentials (
+              connector_id TEXT PRIMARY KEY,
+              kind TEXT NOT NULL,
+              backend TEXT NOT NULL,
+              ciphertext BLOB NOT NULL,
+              display_hint TEXT NOT NULL DEFAULT '',
+              status TEXT NOT NULL DEFAULT 'active',
+              expires_at TEXT,
+              last_refreshed_at TEXT,
+              last_error TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_credentials_status ON credentials(status)`,
+    },
   ];
 
   for (const migration of migrations) {

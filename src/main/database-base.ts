@@ -22,6 +22,8 @@ import { buildAutomationMethods } from "./database/automation";
 import { buildKnowledgeMethods } from "./database/knowledge";
 import { buildWakeupMethods } from "./database/wakeup";
 import { buildBackupMethods } from "./database/backup";
+import { buildSessionEntryMethods } from "./database/session-entries";
+import { buildCredentialMethods } from "./database/credentials";
 import { initializeDatabase } from "./database/schema";
 import { SecretVault } from "./vault";
 import type { AgentStatus, ConnectorId, ProfileSnapshot, RunStatus } from "@shared/types";
@@ -64,6 +66,8 @@ export class AppDatabaseBase {
   public readonly knowledgeMod: ReturnType<typeof buildKnowledgeMethods>;
   public readonly wakeup: ReturnType<typeof buildWakeupMethods>;
   public readonly backupMod: ReturnType<typeof buildBackupMethods>;
+  public readonly sessionEntries: ReturnType<typeof buildSessionEntryMethods>;
+  public readonly credentialsTable: ReturnType<typeof buildCredentialMethods>;
 
   constructor(rootDir: string) {
     this.profileDir = rootDir;
@@ -134,6 +138,8 @@ export class AppDatabaseBase {
     });
     this.knowledgeMod = buildKnowledgeMethods(getDb, ra);
     this.wakeup = buildWakeupMethods(getDb, ra, tx);
+    this.sessionEntries = buildSessionEntryMethods(getDb, ra, tx);
+    this.credentialsTable = buildCredentialMethods(getDb, ra, tx);
     this.backupMod = buildBackupMethods({
       getDb, setDb: (db) => { this.db = db; },
       openConnection: () => this.openConnection(),
