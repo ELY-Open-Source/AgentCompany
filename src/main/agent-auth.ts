@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 let signingKey: Buffer | null = null;
@@ -56,24 +56,15 @@ function getSigningKey() {
 }
 
 export function initializeAgentTokenSigningKey(profileDir: string) {
-  const keyPath = join(profileDir, "agent-api-signing.key");
+  // Rotate the signing key on every launch. Any token issued by a prior
+  // process becomes unverifiable — agent sessions re-authenticate when
+  // they resume, so the cost of invalidating in-flight tokens is bounded
+  // and the blast radius of a leaked key is "until next restart".
   mkdirSync(profileDir, { recursive: true });
-  try {
-    const nextKey = randomBytes(32);
-    writeFileSync(keyPath, nextKey, { flag: "wx", mode: 0o600 });
-    signingKey = nextKey;
-    return;
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code !== "EEXIST") {
-      throw error;
-    }
-  }
-  const persistedKey = readFileSync(keyPath);
-  if (persistedKey.length !== 32) {
-    throw new Error(`Invalid agent API signing key length at ${keyPath}. Expected 32 bytes, received ${persistedKey.length}.`);
-  }
-  signingKey = persistedKey;
+  const keyPath = join(profileDir, "agent-api-signing.key");
+  const nextKey = randomBytes(32);
+  writeFileSync(keyPath, nextKey, { mode: 0o600 });
+  signingKey = nextKey;
 }
 
 export function createAgentToken(agentId: string, companyId: string, runId: string): string {
