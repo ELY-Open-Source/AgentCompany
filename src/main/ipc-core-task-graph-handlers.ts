@@ -6,6 +6,7 @@ import {
   taskInputSchema,
 } from "@shared/contracts";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
+import { isHeartbeatTaskTitle } from "./orchestration/heartbeat-task";
 import { validateTaskCreation, checkCapabilityMatch } from "./task-quality-gates";
 
 export function registerCoreTaskGraphHandlers({
@@ -100,7 +101,7 @@ export function registerCoreTaskGraphHandlers({
     }
     const isNew = !parsed.id;
     if (isNew) {
-      const isHeartbeat = parsed.title.startsWith("[Heartbeat]");
+      const isHeartbeat = isHeartbeatTaskTitle(parsed.title);
       const validation = validateTaskCreation(parsed, isHeartbeat);
       if (!validation.valid) {
         return fail("TASK_VALIDATION_FAILED", validation.errors.join("; "));

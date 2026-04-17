@@ -132,13 +132,15 @@ export function buildThreadMethods(getDb: () => DatabaseSync, readAll: ReadAll) 
       companyId: string,
       options: { limit?: number; offset?: number } = {},
     ): ConversationEventRecord[] {
-      if (!getThread(threadId, companyId)) return [];
       const limit = options.limit ?? 50;
       const offset = options.offset ?? 0;
       const rows = readAll<SqliteRow>(
         `SELECT id, thread_id, actor_id, actor_type, event_type, body, metadata_json, created_at
-         FROM conversation_events WHERE thread_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?`,
-        threadId, limit, offset,
+         FROM conversation_events
+         WHERE thread_id = ?
+           AND thread_id IN (SELECT id FROM conversation_threads WHERE id = ? AND company_id = ?)
+         ORDER BY created_at ASC LIMIT ? OFFSET ?`,
+        threadId, threadId, companyId, limit, offset,
       );
       return rows.map((r) => ({
         id: r.id as string,

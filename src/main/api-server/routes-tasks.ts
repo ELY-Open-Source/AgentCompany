@@ -3,6 +3,7 @@ import { taskInputSchema } from "@shared/contracts";
 import { IMPORTANT_DOC_TYPES } from "@shared/document-categories";
 import { canAssignTask, canUpdateTask } from "../agent-permissions";
 import { inferTaskType } from "../connector-matching";
+import { isHeartbeatTaskTitle } from "../orchestration/heartbeat-task";
 import { validateTaskCreation } from "../task-quality-gates";
 import { requireParam, type AgentApiServer } from "./server-core";
 
@@ -303,7 +304,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Current agent is not allowed to assign this task to the selected agent" });
       return;
     }
-    const isHeartbeat = input.title.startsWith("[Heartbeat]");
+    const isHeartbeat = isHeartbeatTaskTitle(input.title);
     const taskValidation = validateTaskCreation({ title: input.title, description: input.description ?? "" }, isHeartbeat);
     if (!taskValidation.valid) {
       server.json(res, 422, { error: taskValidation.errors.join("; ") });

@@ -29,11 +29,13 @@ export function registerSkillHandlers({
   skillService,
   db,
 }: SkillHandlerDependencies) {
-  function requireSkillService() {
+  function requireSkillService():
+    | { service: NonNullable<typeof skillService>; error?: undefined }
+    | { service?: undefined; error: ReturnType<typeof fail> } {
     if (!skillService) {
-      return fail("SERVICE_NOT_READY", "Skill service is not initialized.");
+      return { error: fail("SERVICE_NOT_READY", "Skill service is not initialized.") };
     }
-    return skillService;
+    return { service: skillService };
   }
 
   // ---- Import skill from source (GitHub URL, local path, raw URL, skills.sh) ----
@@ -41,8 +43,9 @@ export function registerSkillHandlers({
     const parsed = importSkillSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    const svc = requireSkillService();
-    if ("ok" in svc) return svc;
+    const svcResult = requireSkillService();
+    if (svcResult.error) return svcResult.error;
+    const svc = svcResult.service;
     const result = await svc.importFromSource(parsed.companyId, parsed.source);
     if (result.ok) {
       publishDomainChanged();
@@ -55,8 +58,9 @@ export function registerSkillHandlers({
     const parsed = listSkillsSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    const svc = requireSkillService();
-    if ("ok" in svc) return svc;
+    const svcResult = requireSkillService();
+    if (svcResult.error) return svcResult.error;
+    const svc = svcResult.service;
     // Scan workspace .agents/skills/ directories for new skills before listing
     try {
       await svc.scanWorkspaceSkills(parsed.companyId);
@@ -71,8 +75,9 @@ export function registerSkillHandlers({
     const parsed = getSkillDetailSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    const svc = requireSkillService();
-    if ("ok" in svc) return svc;
+    const svcResult = requireSkillService();
+    if (svcResult.error) return svcResult.error;
+    const svc = svcResult.service;
     return svc.getDetail(parsed.companyId, parsed.skillId);
   });
 
@@ -81,8 +86,9 @@ export function registerSkillHandlers({
     const parsed = deleteSkillSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    const svc = requireSkillService();
-    if ("ok" in svc) return svc;
+    const svcResult = requireSkillService();
+    if (svcResult.error) return svcResult.error;
+    const svc = svcResult.service;
     const result = await svc.deleteSkill(parsed.companyId, parsed.skillId);
     if (result.ok) {
       publishDomainChanged();
@@ -95,8 +101,9 @@ export function registerSkillHandlers({
     const parsed = assignSkillToAgentSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    const svc = requireSkillService();
-    if ("ok" in svc) return svc;
+    const svcResult = requireSkillService();
+    if (svcResult.error) return svcResult.error;
+    const svc = svcResult.service;
     const result = svc.assignToAgent(parsed.companyId, parsed.agentId, parsed.skillId);
     if (result.ok) {
       publishDomainChanged();
@@ -109,8 +116,9 @@ export function registerSkillHandlers({
     const parsed = removeSkillFromAgentSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    const svc = requireSkillService();
-    if ("ok" in svc) return svc;
+    const svcResult = requireSkillService();
+    if (svcResult.error) return svcResult.error;
+    const svc = svcResult.service;
     const result = svc.removeFromAgent(parsed.companyId, parsed.agentId, parsed.skillId);
     if (result.ok) {
       publishDomainChanged();
@@ -123,8 +131,9 @@ export function registerSkillHandlers({
     const parsed = checkSkillUpdateSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    const svc = requireSkillService();
-    if ("ok" in svc) return svc;
+    const svcResult = requireSkillService();
+    if (svcResult.error) return svcResult.error;
+    const svc = svcResult.service;
     return svc.checkUpdateStatus(parsed.companyId, parsed.skillId);
   });
 
