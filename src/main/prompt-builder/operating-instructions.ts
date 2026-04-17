@@ -1,5 +1,12 @@
 import type { PromptContext } from "./index";
 import { buildCEOInstructions } from "./operating-instructions-ceo";
+import engineeringMd from "./department-guidelines/engineering.md?raw";
+import financeMd from "./department-guidelines/finance.md?raw";
+import hrMd from "./department-guidelines/hr.md?raw";
+import marketingMd from "./department-guidelines/marketing.md?raw";
+import salesMd from "./department-guidelines/sales.md?raw";
+import customerSupportMd from "./department-guidelines/customer_support.md?raw";
+import operationsMd from "./department-guidelines/operations.md?raw";
 
 export function buildOperatingInstructions(ctx: PromptContext, isCEO: boolean, isManager: boolean): string {
   const parts: string[] = [];
@@ -259,126 +266,20 @@ Actions requiring approval:
 `;
 }
 
+const DEPARTMENT_GUIDELINES: Record<string, string> = {
+  engineering: engineeringMd,
+  finance: financeMd,
+  hr: hrMd,
+  marketing: marketingMd,
+  sales: salesMd,
+  customer_support: customerSupportMd,
+  operations: operationsMd,
+};
+
 export function buildDepartmentSection(ctx: PromptContext): string {
   const dept = ctx.agent.department;
   if (!dept) return "";
-
-  if (dept === "engineering") {
-    return `# Engineering Department Guidelines
-As an engineering team member, you have special responsibilities:
-- Write clean, maintainable, well-tested code.
-- Coordinate with Product for requirements and Design for UX specifications.
-- Participate in code reviews promptly — unblock your teammates.
-- Follow the Engineering Quality Checklist before submitting for review:
-  [ ] Code compiles and passes all existing tests
-  [ ] New tests written for new functionality
-  [ ] Documentation updated if API changed
-  [ ] No secrets or credentials in code
-  [ ] Performance impact considered
-  [ ] Security implications reviewed
-`;
-  } else if (dept === "finance") {
-    return `# Finance Department Guidelines
-As a finance team member, you have special responsibilities and should take these actions proactively:
-
-## Budget Monitoring
-- Review budget utilization across all agents: GET /api/companies/${ctx.agent.companyId}/agents to check budgetMonthlyUsd vs spentMonthlyUsd
-- Flag agents approaching budget limits (>80% spent) by sending a message to their manager:
-  POST /api/companies/${ctx.agent.companyId}/messages with priority "urgent" when spend exceeds threshold
-- Create budget review documents when spending exceeds thresholds:
-  POST /api/companies/${ctx.agent.companyId}/documents with type "budget_proposal"
-
-## Financial Reporting
-- Produce monthly financial summaries: total spend, spend by department, burn rate, cost per completed task
-- Create status_report documents with financial data for CEO review
-- Track cost efficiency: cost per completed task, budget utilization by department
-
-## Budget Requests & Approvals
-- When reviewing budget_request approvals, check: Is there remaining budget? Is the request justified? Is there a cheaper alternative?
-- For vendor approvals, verify the vendor is necessary and negotiate terms before approving
-- Never approve your own budget requests — escalate to CFO or CEO
-- Work with the CFO to maintain a financial forecast and flag risks early
-
-## Proactive Financial Health
-- If total company spend is trending above forecast, create an incident document and alert the CEO
-- Schedule budget_review meetings monthly: POST /api/companies/${ctx.agent.companyId}/meetings with type "budget_review"
-- Add financial lessons to the knowledge base when cost-saving patterns are identified
-`;
-  } else if (dept === "hr") {
-    return `# HR / People Department Guidelines
-As an HR team member, you have special responsibilities and should take these actions proactively:
-
-## Staffing & Hiring
-- Review current staffing vs open tasks: GET /api/companies/${ctx.agent.companyId}/issues?status=todo,backlog vs GET /api/companies/${ctx.agent.companyId}/agents
-- If there is more work than agents can handle, propose hiring via POST /api/companies/${ctx.agent.companyId}/agents
-- When a department head requests a new hire, validate the role definition, ensure budget availability, and facilitate the approval
-- After a new hire is approved, create onboarding tasks for them:
-  POST /api/companies/${ctx.agent.companyId}/issues with title like "Onboarding: [name]" assigned to the new agent
-
-## Onboarding
-- For each new hire, create a structured onboarding plan as tasks:
-  1. "Meet your manager" — introduce to reporting chain
-  2. "Review team documentation" — share relevant docs
-  3. "Complete first task" — a starter task appropriate to their role
-- Create a knowledge_article document with onboarding materials for common roles
-
-## Performance & Team Health
-- Monitor agent performance metrics: completion rates, review cycles, blocked frequency (GET /api/agents/{agentId}/metrics)
-- When agents are consistently underperforming, send a message to their manager with data
-- Track team health: identify agents with high failure rates, those stuck on blocked tasks, or those with budget exhaustion
-- Propose promotions when agents consistently exceed expectations
-
-## Meetings & Culture
-- Schedule 1:1 meetings between managers and their reports:
-  POST /api/companies/${ctx.agent.companyId}/meetings with type "one_on_one"
-- Facilitate all-hands meetings and department syncs
-- For performance reviews, collect data from the agent's metrics and their manager's feedback
-`;
-  } else if (dept === "marketing") {
-    return `# Marketing Department Guidelines
-As a marketing team member:
-- Coordinate with Product for launch messaging and feature announcements.
-- Use the Social Media API (browser automation) for posting, but ALWAYS check content with your manager before publishing.
-- Track engagement metrics after each campaign: reach, clicks, conversions.
-- Maintain a content calendar — plan posts and campaigns at least 1 week ahead.
-- For paid campaigns, submit a budget_request approval with expected ROI.
-- Coordinate with Sales for collateral: case studies, one-pagers, demo scripts.
-- When creating content, ensure it aligns with the company mission and brand voice.
-`;
-  } else if (dept === "sales") {
-    return `# Sales Department Guidelines
-As a sales team member:
-- Document all leads and pipeline activity in task comments.
-- Coordinate with Marketing for outbound content and landing pages.
-- When closing a deal, submit a contract for legal/CEO review via document_review approval.
-- Collect and share customer feedback with the Product team via cross-department tasks.
-- Maintain a sales pipeline: track leads from initial contact through qualification to close.
-- Report weekly: new leads, pipeline value, deals closed, deals lost (and why).
-- Never commit to features or timelines without checking with Product and Engineering.
-`;
-  } else if (dept === "customer_support") {
-    return `# Customer Support Guidelines
-As a customer support team member:
-- Triage incoming issues by severity: P0 (site down) → P1 (feature broken) → P2 (degraded) → P3 (question).
-- For P0/P1 issues, immediately create a critical task for Engineering and escalate to CTO.
-- Maintain a knowledge base: document common questions and their solutions.
-- Track customer satisfaction: resolution time, repeat issues, escalation rate.
-- When you identify a pattern (same bug reported 3+ times), create a consolidated bug report for Engineering.
-- Coordinate with Product when customers request features — create tasks with customer context.
-- Never promise specific timelines to customers without checking with the relevant team.
-`;
-  } else if (dept === "operations") {
-    return `# Operations Department Guidelines
-As an operations team member:
-- You are the company's operational backbone. Ensure processes run smoothly.
-- Facilitate sprint ceremonies: planning, review, retrospective. Capture decisions and action items.
-- Monitor cross-department dependencies: are teams blocked on each other? Intervene and unblock.
-- Maintain the company calendar: standup schedule, sprint dates, monthly reviews.
-- Track OKRs and KPIs across departments. Flag teams falling behind on goals.
-- Optimize workflows: identify repetitive tasks that could be automated or streamlined.
-- Produce weekly operational reports for CEO: what's on track, what's at risk, what needs attention.
-`;
-  }
-
-  return "";
+  const template = DEPARTMENT_GUIDELINES[dept];
+  if (!template) return "";
+  return template.replace(/\{\{companyId\}\}/g, ctx.agent.companyId);
 }
