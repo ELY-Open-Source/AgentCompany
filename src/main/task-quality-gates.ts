@@ -45,6 +45,17 @@ export const ACCEPTANCE_CRITERIA_KEYWORDS: readonly string[] = [
   "deliverable:",
   "expected outcome",
   "exit criteria",
+  // Chinese equivalents so zh-locale task descriptions are not rejected
+  // for lacking English keywords.
+  "验收标准",
+  "完成标准",
+  "成功标准",
+  "交付物",
+  "交付要求",
+  "完成条件",
+  "预期结果",
+  "需求:",
+  "要求:",
 ];
 
 
@@ -149,8 +160,21 @@ export function checkCapabilityMatch(
   // Agent has capabilities but no overlap — warn
   return {
     matched: false,
-    warning: `Agent "${agent.name}" may lack skills for this task. Their capabilities (${agent.capabilities.slice(0, 80)}...) have no overlap with the task description. Consider reassigning.`,
+    warning: `Agent "${agent.name}" may lack skills for this task. Their capabilities (${truncateAtWordBoundary(agent.capabilities, 80)}...) have no overlap with the task description. Consider reassigning.`,
   };
+}
+
+/** Truncate `text` at or before `maxLength`, preferring the last whitespace
+ * boundary so the warning does not cut mid-word. Falls back to hard slice
+ * when a single token exceeds `maxLength`. */
+function truncateAtWordBoundary(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  const slice = text.slice(0, maxLength);
+  const lastSpace = slice.search(/\s\S*$/);
+  if (lastSpace > maxLength * 0.5) {
+    return slice.slice(0, lastSpace);
+  }
+  return slice;
 }
 
 
