@@ -77,13 +77,16 @@ export function InlineNotice({
 /*  ConfirmDialog                                                      */
 /* ------------------------------------------------------------------ */
 
-export function ConfirmDialog({ open, title, message, errorMessage, onConfirm, onCancel }: {
+export function ConfirmDialog({ open, title, message, errorMessage, onConfirm, onCancel, confirmTone = "danger", confirmLabel = "Confirm", cancelLabel = "Cancel" }: {
   open: boolean;
   title: string;
   message: string;
   errorMessage?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
+  confirmTone?: "default" | "accent" | "danger";
+  confirmLabel?: string;
+  cancelLabel?: string;
 }) {
   const trapRef = useFocusTrap(open);
 
@@ -123,8 +126,8 @@ export function ConfirmDialog({ open, title, message, errorMessage, onConfirm, o
             <div className="text-[13px] text-muted-foreground mb-6">{message}</div>
             {errorMessage ? <div className="mb-4"><InlineNotice message={errorMessage} /></div> : null}
             <div className="flex gap-3 justify-end">
-              <ActionButton label="Cancel" onClick={onCancel} />
-              <ActionButton label="Confirm" tone="danger" onClick={onConfirm} />
+              <ActionButton label={cancelLabel} onClick={onCancel} />
+              <ActionButton label={confirmLabel} tone={confirmTone} onClick={onConfirm} />
             </div>
           </motion.div>
         </motion.div>
