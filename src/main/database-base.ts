@@ -243,6 +243,7 @@ export class AppDatabaseBase {
   renewTaskLease(taskId: string, runId: string) { return this.tasks.renewTaskLease(taskId, runId); }
   listAgentTasks(agentId: string, companyId: string, statuses: string[]) { return this.tasks.listAgentTasks(agentId, companyId, statuses); }
   findReusableHeartbeatTask(agentId: string, companyId: string) { return this.tasks.findReusableHeartbeatTask(agentId, companyId); }
+  acquireHeartbeatTask(input: { agentId: string; companyId: string; runId: string; workspaceId: string | null; title: string; description: string; priority: string }) { return this.tasks.acquireHeartbeatTask(input); }
   cleanupDuplicateHeartbeatTasks(companyId: string) { return this.tasks.cleanupDuplicateHeartbeatTasks(companyId); }
   listReviewTasksForManager(managerId: string, companyId: string) { return this.tasks.listReviewTasksForManager(managerId, companyId); }
   countActiveTasksForCompany(companyId: string) { return this.tasks.countActiveTasksForCompany(companyId); }

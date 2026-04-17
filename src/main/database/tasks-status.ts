@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { TaskRecord } from "@shared/types";
 import {
@@ -122,6 +123,107 @@ export function buildTaskStatusMethods(
         row.requiresUserReview = Boolean(row.requiresUserReview);
       }
       return row ?? null;
+    },
+
+    acquireHeartbeatTask(input: {
+      agentId: string;
+      companyId: string;
+      runId: string;
+      workspaceId: string | null;
+      title: string;
+      description: string;
+      priority: string;
+    }): TaskRecord | null {
+      return transaction<TaskRecord | null>(() => {
+        const ts = nowIso();
+        const db = getDb();
+
+        const claimable = db
+          .prepare(
+            `SELECT id, status FROM tasks
+             WHERE company_id = ? AND assignee_agent_id = ? AND title LIKE '[Heartbeat]%'
+               AND status IN ('todo', 'backlog', 'done', 'in_review')
+               AND checkout_run_id IS NULL
+             ORDER BY
+               CASE status WHEN 'todo' THEN 0 WHEN 'backlog' THEN 1 WHEN 'in_review' THEN 2 WHEN 'done' THEN 3 ELSE 4 END ASC,
+               updated_at DESC, rowid DESC
+             LIMIT 1`,
+          )
+          .get(input.companyId, input.agentId) as { id: string; status: string } | undefined;
+
+        let taskId: string | null = null;
+        if (claimable) {
+          const claimResult = db
+            .prepare(
+              `UPDATE tasks
+                 SET checkout_run_id = ?, execution_locked_at = ?, status = 'in_progress',
+                     started_at = COALESCE(started_at, ?), completed_at = NULL, cancelled_at = NULL,
+                     updated_at = ?
+               WHERE id = ? AND checkout_run_id IS NULL
+                 AND status IN ('todo', 'backlog', 'done', 'in_review')`,
+            )
+            .run(input.runId, ts, ts, ts, claimable.id);
+          if (claimResult.changes > 0) {
+            taskId = claimable.id;
+          } else {
+            return null;
+          }
+        } else {
+          const inflight = db
+            .prepare(
+              `SELECT 1 FROM tasks
+               WHERE company_id = ? AND assignee_agent_id = ? AND title LIKE '[Heartbeat]%'
+                 AND status NOT IN ('done', 'cancelled')
+               LIMIT 1`,
+            )
+            .get(input.companyId, input.agentId);
+          if (inflight) return null;
+
+          taskId = randomUUID();
+          db.prepare(
+            `INSERT INTO tasks
+               (id, company_id, project_id, goal_id, parent_id, title, description,
+                assignee_agent_id, workspace_id, status, priority,
+                checkout_run_id, execution_locked_at, started_at,
+                created_at, updated_at)
+             VALUES (?, ?, NULL, NULL, NULL, ?, ?, ?, ?, 'in_progress', ?, ?, ?, ?, ?, ?)`,
+          ).run(
+            taskId,
+            input.companyId,
+            input.title,
+            input.description,
+            input.agentId,
+            input.workspaceId,
+            input.priority,
+            input.runId,
+            ts,
+            ts,
+            ts,
+            ts,
+          );
+        }
+
+        const row = db
+          .prepare(
+            `SELECT id, company_id as companyId, project_id as projectId, goal_id as goalId,
+                    parent_id as parentId, title, description,
+                    assignee_agent_id as assigneeAgentId, workspace_id as workspaceId,
+                    status, priority, active_run_id as activeRunId,
+                    session_json as sessionJson, session_display_id as sessionDisplayId,
+                    cost_usd as costUsd, requires_user_review as requiresUserReview,
+                    task_type as taskType,
+                    started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt,
+                    created_at as createdAt, updated_at as updatedAt
+             FROM tasks WHERE id = ?`,
+          )
+          .get(taskId) as TaskRecord | undefined;
+        if (!row) return null;
+        row.requiresUserReview = Boolean(row.requiresUserReview);
+        row.startedAt = row.startedAt ?? null;
+        row.completedAt = row.completedAt ?? null;
+        row.cancelledAt = row.cancelledAt ?? null;
+        return row;
+      });
     },
 
     cleanupDuplicateHeartbeatTasks(companyId: string): number {

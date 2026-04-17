@@ -112,9 +112,26 @@ export function createHeartbeat(
     const isTimer = trigger === "timer";
     const candidateTasks = assignedTasks;
 
-    let task = candidateTasks.find((entry) => !entry.activeRunId) ?? null;
+    const candidateTask = candidateTasks.find((entry) => !entry.activeRunId) ?? null;
+    const runId = randomUUID();
+    let task: ReturnType<AppDatabase["getTask"]> | null = null;
 
-    if (!task) {
+    if (candidateTask) {
+      const checkoutSuccess = db.checkoutTask(candidateTask.id, runId);
+      if (!checkoutSuccess) {
+        db.addActivity({
+          companyId,
+          actor: "system",
+          action: "execution.checkout_rejected",
+          entityType: "task",
+          entityId: candidateTask.id,
+          detail: `Agent ${agent.name} lost checkout race on task "${candidateTask.title}"`,
+        });
+        logger.info(`[heartbeat] Agent ${agent.name} lost checkout race on task ${candidateTask.title}`);
+        return null;
+      }
+      task = db.getTask(candidateTask.id);
+    } else {
       const hasActiveAssignedRun = candidateTasks.some(
         (entry) => entry.activeRunId && hasActiveRun({ taskId: entry.id, companyId }),
       );
@@ -133,52 +150,30 @@ export function createHeartbeat(
         return null;
       }
 
-      // Paperclip-style task reuse: coalesce into existing heartbeat task instead of creating duplicates
-      const reusableTask = db.findReusableHeartbeatTask(agentId, companyId);
-      if (reusableTask) {
-        db.advanceTaskStatus(reusableTask.id, "todo", `Heartbeat task recycled for ${trigger} cycle.`);
-        task = db.getTask(reusableTask.id);
-        logger.info(`[heartbeat] Reusing existing heartbeat task for ${agent.name}: ${task.title}`);
-      } else {
-        const taskTitle = isCeo
-          ? `[Heartbeat] ${agent.name} — Strategic planning & task delegation`
-          : isManager
-            ? `[Heartbeat] ${agent.name} — Review team & delegate work`
-            : `[Heartbeat] ${agent.name} — Check for work`;
-        const taskDescription = isCeo
-          ? "Review active company goals. Break each goal into projects and actionable tasks. Assign tasks to department leads and team members. Create tasks using the API. This is your primary responsibility as CEO — ensure every goal has a clear execution plan with assigned owners."
-          : isManager
-            ? "Review your department's goals and your team's workload. Create tasks for your direct reports if they have capacity. Review any work submitted for your approval. Ensure your team is productive and unblocked."
-            : `Automated heartbeat run for ${agent.name}. Review assigned tasks, check goals, and take action as needed.`;
+      const taskTitle = isCeo
+        ? `[Heartbeat] ${agent.name} — Strategic planning & task delegation`
+        : isManager
+          ? `[Heartbeat] ${agent.name} — Review team & delegate work`
+          : `[Heartbeat] ${agent.name} — Check for work`;
+      const taskDescription = isCeo
+        ? "Review active company goals. Break each goal into projects and actionable tasks. Assign tasks to department leads and team members. Create tasks using the API. This is your primary responsibility as CEO — ensure every goal has a clear execution plan with assigned owners."
+        : isManager
+          ? "Review your department's goals and your team's workload. Create tasks for your direct reports if they have capacity. Review any work submitted for your approval. Ensure your team is productive and unblocked."
+          : `Automated heartbeat run for ${agent.name}. Review assigned tasks, check goals, and take action as needed.`;
 
-        const taskId = db.saveTask({
-          companyId,
-          title: taskTitle,
-          description: taskDescription,
-          assigneeAgentId: agentId,
-          workspaceId: agent.workspaceId ?? undefined,
-          status: "todo",
-          priority: isCeo ? "high" : "medium",
-        });
-        task = db.getTask(taskId);
-        logger.info(`[heartbeat] Created heartbeat task for ${agent.name}: ${taskTitle}`);
-      }
-    }
-
-    // Generate runId upfront for CAS checkout (EXEC-01, EXEC-02)
-    const runId = randomUUID();
-    const checkoutSuccess = db.checkoutTask(task.id, runId);
-    if (!checkoutSuccess) {
-      db.addActivity({
+      task = db.acquireHeartbeatTask({
+        agentId,
         companyId,
-        actor: "system",
-        action: "execution.checkout_rejected",
-        entityType: "task",
-        entityId: task.id,
-        detail: `Agent ${agent.name} lost checkout race on task "${task.title}"`,
+        runId,
+        workspaceId: agent.workspaceId ?? null,
+        title: taskTitle,
+        description: taskDescription,
+        priority: isCeo ? "high" : "medium",
       });
-      logger.info(`[heartbeat] Agent ${agent.name} lost checkout race on task ${task.title}`);
-      return null;
+      if (!task) {
+        return null;
+      }
+      logger.info(`[heartbeat] Acquired heartbeat task for ${agent.name}: ${task.title}`);
     }
 
     const workspaceResolution = resolveWorkspace(task, agent, companyId);
