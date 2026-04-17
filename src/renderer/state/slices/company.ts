@@ -14,14 +14,12 @@ import type { SidebarBadges } from "@shared/contracts";
 
 export interface CompanySlice {
   snapshot: ProfileSnapshot | null;
-  currentCompanyId: string | null;
   companyMetrics: CompanyMetrics | null;
   standupReport: StandupReport | null;
   inboxItems: InboxItem[];
   badges: SidebarBadges | null;
   error: string | null;
   setSnapshot: (snapshot: ProfileSnapshot | null) => void;
-  setCurrentCompanyId: (id: string | null) => void;
   setCompanyMetrics: (metrics: CompanyMetrics | null) => void;
   setStandupReport: (report: StandupReport | null) => void;
   setInboxItems: (items: InboxItem[]) => void;
@@ -46,7 +44,6 @@ export const createCompanySlice: StateCreator<
   CompanySlice
 > = (set, get) => ({
   snapshot: null,
-  currentCompanyId: null,
   companyMetrics: null,
   standupReport: null,
   inboxItems: [],
@@ -55,10 +52,6 @@ export const createCompanySlice: StateCreator<
   setSnapshot: (snapshot) =>
     set((state) => {
       state.snapshot = snapshot;
-    }),
-  setCurrentCompanyId: (id) =>
-    set((state) => {
-      state.currentCompanyId = id;
     }),
   setCompanyMetrics: (metrics) =>
     set((state) => {
@@ -166,7 +159,7 @@ export const createCompanySlice: StateCreator<
     }),
 
   refreshBadges: async () => {
-    const companyId = get().currentCompanyId;
+    const companyId = get().snapshot?.currentCompanyId ?? null;
     if (!companyId) return;
     try {
       const result = await window.agentCompany.getSidebarBadges(companyId);

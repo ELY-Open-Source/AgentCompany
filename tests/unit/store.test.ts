@@ -495,8 +495,8 @@ describe("CompanySlice patch methods", () => {
     const mockBadges = { tasks: 5, approvals: 2, runs: 0, messages: 3 };
     mockGetSidebarBadges.mockResolvedValue({ ok: true, data: mockBadges });
 
-    // Set current company ID first
-    useAppStore.getState().setCurrentCompanyId("company-1");
+    // Seed snapshot with currentCompanyId -- refreshBadges reads from snapshot
+    useAppStore.getState().setSnapshot(makeSnapshot());
 
     await useAppStore.getState().refreshBadges();
 

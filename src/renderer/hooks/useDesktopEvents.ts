@@ -13,7 +13,7 @@ export function useDesktopEvents(
     const store = useAppStore;
 
     async function handleGranularBatch(events: GranularEventEntry[]) {
-      const companyId = store.getState().currentCompanyId;
+      const companyId = store.getState().snapshot?.currentCompanyId ?? null;
       if (!companyId) {
         void refreshRef.current();
         return;
