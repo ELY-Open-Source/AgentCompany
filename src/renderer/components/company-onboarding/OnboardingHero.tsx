@@ -9,7 +9,6 @@ import {
   Target,
 } from "@phosphor-icons/react";
 import type { AppLocale } from "@shared/locale";
-import { AsciiAnimation } from "./AsciiAnimation";
 
 export type OnboardingStep =
   | "welcome"
@@ -83,8 +82,6 @@ export function OnboardingHero({
           animation: "hero-drift 12s ease-in-out infinite alternate",
         }}
       />
-
-      <AsciiAnimation />
 
       <motion.div
         initial={{ opacity: 0, y: 24 }}
@@ -160,39 +157,7 @@ export function OnboardingHero({
           ))}
         </motion.div>
 
-        {/* ELYDORA signature */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          className="mt-12 flex items-center gap-3"
-        >
-          <div
-            className="h-px w-8"
-            style={{
-              background: "linear-gradient(90deg, var(--primary), transparent)",
-            }}
-          />
-          <span
-            className="select-none text-[10px] font-semibold uppercase tracking-[0.2em]"
-            style={{
-              background: "linear-gradient(135deg, var(--primary) 0%, var(--muted-foreground) 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            by ELYDORA
-          </span>
-        </motion.div>
       </motion.div>
-
-      <style>{`
-        @keyframes hero-drift {
-          0% { transform: translate(0, 0) scale(1); }
-          100% { transform: translate(-4%, 3%) scale(1.05); }
-        }
-      `}</style>
     </div>
   );
 }
