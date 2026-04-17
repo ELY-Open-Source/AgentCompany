@@ -4,6 +4,7 @@ import { ArrowBendUpLeft, PaperPlaneTilt, X, ChatCircle, UserCircle, Paperclip, 
 import type { AgentMessageRecord, AgentRecord, DocumentRecord, MessageChannel } from "@shared/types"
 import { unwrap } from "../../lib/desktop"
 import { cmdOrCtrlLabel } from "../../lib/platform"
+import { getAgentInitials } from "../../lib/formatters"
 import { useAppStore } from "../../state/store"
 import { ActionButton, InlineNotice } from "../ui"
 import { useT } from "../../i18n"
@@ -166,7 +167,7 @@ function MentionDropdown({ agents, query, onSelect, position }: {
           } ${i === 0 ? "rounded-t-xl" : ""} ${i === filtered.length - 1 ? "rounded-b-xl" : ""}`}
         >
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
-            {agent.name.slice(0, 2).toUpperCase()}
+            {getAgentInitials(agent.name)}
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-[12px] font-semibold text-foreground">{agent.name}</div>
@@ -314,7 +315,7 @@ export function MessageComposer({ agents, companyId, channel, channelTargetId, d
 
       <div className="relative flex items-end gap-2">
         <AttachmentPicker documents={documents} attachments={attachments} onAdd={handleAddAttachment} onRemove={handleRemoveAttachment} />
-        <textarea ref={textareaRef} value={body} onChange={handleBodyChange} onKeyDown={handleKeyDown} placeholder="Type a message... (use @ to mention agents)" aria-label="Message body" rows={2} className="min-h-[40px] min-w-0 flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2" style={{ focusRingColor: "var(--primary)" } as React.CSSProperties} />
+        <textarea ref={textareaRef} value={body} onChange={handleBodyChange} onKeyDown={handleKeyDown} placeholder="Type a message... (use @ to mention agents)" aria-label="Message body" rows={2} className="min-h-[40px] min-w-0 flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring" />
         <SendButton sending={sending} disabled={!body.trim() || (channel === "direct" && !directRecipientId)} onClick={() => void handleSend()} label="Send message" />
       </div>
 
@@ -342,7 +343,7 @@ export function TaskDiscussionComposer({ companyId, taskId, onSent }: { companyI
     <div className="border-t border-border bg-card px-4 py-3">
       {sendError ? <div className="mb-3"><InlineNotice message={sendError} /></div> : null}
       <div className="flex items-end gap-2">
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Reply in task discussion..." aria-label="Task discussion reply" rows={2} className="min-h-[40px] min-w-0 flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2" style={{ focusRingColor: "var(--primary)" } as React.CSSProperties} />
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Reply in task discussion..." aria-label="Task discussion reply" rows={2} className="min-h-[40px] min-w-0 flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring" />
         <SendButton sending={sending} disabled={!body.trim()} onClick={() => void handleSend()} label="Send task comment" />
       </div>
     </div>
