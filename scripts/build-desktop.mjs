@@ -349,24 +349,7 @@ function runElectronBuilder() {
   });
 }
 
-for (let attempt = 0; attempt < 5; attempt++) {
-  try {
-    await rm(buildDir, { recursive: true, force: true });
-    break;
-  } catch (rmErr) {
-    const retryable = rmErr.code === "EBUSY" || rmErr.code === "ENOTEMPTY" || rmErr.code === "EPERM";
-    if (attempt < 4 && retryable) {
-      const delay = (attempt + 1) * 3000;
-      console.log(
-        `[build-desktop] Build dir cleanup blocked (${rmErr.code}), retrying in ${delay / 1000}s... ` +
-        `(attempt ${attempt + 1}/5)`,
-      );
-      await new Promise((r) => setTimeout(r, delay));
-    } else {
-      throw rmErr;
-    }
-  }
-}
+await rm(buildDir, { recursive: true, force: true });
 await mkdir(buildDir, { recursive: true });
 const buildVersion = env.AGENTCOMPANY_BUILD_VERSION?.trim() || await resolveBuildVersion();
 await writeRuntimeConfig(buildVersion);
