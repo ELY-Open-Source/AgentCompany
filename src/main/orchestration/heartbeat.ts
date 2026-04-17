@@ -46,13 +46,11 @@ export function createHeartbeat(
     if (getRunEligibilityFailure(agent, connector, null)) {
       return null;
     }
-    // Extended heartbeat policy checks (Paperclip parity)
-    let heartbeatPolicy = { cooldownSec: 10, maxConcurrentRuns: 1, wakeOnDemand: true };
-    try {
-      heartbeatPolicy = db.getHeartbeatPolicy(agent.id);
-    } catch {
-      // Non-fatal: use defaults
-    }
+    // Extended heartbeat policy checks (Paperclip parity).
+    // Let getHeartbeatPolicy throw — a missing row signals data corruption
+    // and silently falling back hides the gate that decides whether the
+    // agent runs at all.
+    const heartbeatPolicy = db.getHeartbeatPolicy(agent.id);
 
     // maxConcurrentRuns check: count active runs for this agent
     const activeRunCount = db.countActiveRunsForAgent(agent.id, companyId);
