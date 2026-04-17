@@ -1,4 +1,5 @@
 import { useCallback, useDeferredValue, useMemo } from "react";
+import { useShallow } from "zustand/shallow";
 import type { AgentRecord, GoalRecord, ProjectRecord, RunRecord, SectionId, TaskRecord } from "@shared/types";
 
 import { createTranslator } from "../i18n";
@@ -62,28 +63,46 @@ export function useUIController() {
     [sidebarNav, t],
   );
 
-  const section = useAppStore((s) => s.section);
-  const setSection = useAppStore((s) => s.setSection);
-  const consoleOpen = useAppStore((s) => s.consoleOpen);
-  const setConsoleOpen = useAppStore((s) => s.setConsoleOpen);
-  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
-  const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
-  const companySwitcherOpen = useAppStore((s) => s.companySwitcherOpen);
-  const setCompanySwitcherOpen = useAppStore((s) => s.setCompanySwitcherOpen);
-  const confirmDeleteCompanyId = useAppStore((s) => s.confirmDeleteCompanyId);
-  const setConfirmDeleteCompanyId = useAppStore((s) => s.setConfirmDeleteCompanyId);
-  const taskViewMode = useAppStore((s) => s.taskViewMode);
-  const setTaskViewMode = useAppStore((s) => s.setTaskViewMode);
-  const showOnboarding = useAppStore((s) => s.showOnboarding);
-  const setShowOnboarding = useAppStore((s) => s.setShowOnboarding);
-  const initialOnboardingLocked = useAppStore((s) => s.initialOnboardingLocked);
-  const setInitialOnboardingLocked = useAppStore((s) => s.setInitialOnboardingLocked);
-  const commandPaletteOpen = useAppStore((s) => s.commandPaletteOpen);
-  const setCommandPaletteOpen = useAppStore((s) => s.setCommandPaletteOpen);
-  const commandPaletteSearch = useAppStore((s) => s.commandPaletteSearch);
-  const setCommandPaletteSearch = useAppStore((s) => s.setCommandPaletteSearch);
-  const selectedPaletteIndex = useAppStore((s) => s.selectedPaletteIndex);
-  const setSelectedPaletteIndex = useAppStore((s) => s.setSelectedPaletteIndex);
+  const {
+    section,
+    consoleOpen,
+    sidebarCollapsed,
+    companySwitcherOpen,
+    confirmDeleteCompanyId,
+    taskViewMode,
+    showOnboarding,
+    initialOnboardingLocked,
+    commandPaletteOpen,
+    commandPaletteSearch,
+    selectedPaletteIndex,
+  } = useAppStore(
+    useShallow((s) => ({
+      section: s.section,
+      consoleOpen: s.consoleOpen,
+      sidebarCollapsed: s.sidebarCollapsed,
+      companySwitcherOpen: s.companySwitcherOpen,
+      confirmDeleteCompanyId: s.confirmDeleteCompanyId,
+      taskViewMode: s.taskViewMode,
+      showOnboarding: s.showOnboarding,
+      initialOnboardingLocked: s.initialOnboardingLocked,
+      commandPaletteOpen: s.commandPaletteOpen,
+      commandPaletteSearch: s.commandPaletteSearch,
+      selectedPaletteIndex: s.selectedPaletteIndex,
+    })),
+  );
+  const {
+    setSection,
+    setConsoleOpen,
+    setSidebarCollapsed,
+    setCompanySwitcherOpen,
+    setConfirmDeleteCompanyId,
+    setTaskViewMode,
+    setShowOnboarding,
+    setInitialOnboardingLocked,
+    setCommandPaletteOpen,
+    setCommandPaletteSearch,
+    setSelectedPaletteIndex,
+  } = useAppStore.getState();
 
   const handleLocaleChange = useCallback(async (newLocale: AppLocale) => {
     useAppStore.getState().setLocale(newLocale);
