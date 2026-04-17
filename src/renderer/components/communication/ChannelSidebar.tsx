@@ -6,12 +6,12 @@ import { AgentAvatar } from "./MessageItem"
 import type { ChannelDescriptor, TaskDiscussionDescriptor } from "./ChannelHeader"
 import { useT } from "../../i18n"
 
-const channelConfig: Record<MessageChannel, { label: string; icon: React.ElementType; color: string }> = {
-  direct: { label: "Direct Messages", icon: EnvelopeSimple, color: "var(--primary)" },
-  department: { label: "Department", icon: Buildings, color: "var(--muted-foreground)" },
-  company: { label: "Company-wide", icon: Megaphone, color: "var(--primary)" },
-  project: { label: "Project", icon: Hash, color: "var(--primary)" },
-  incident: { label: "Incident", icon: Fire, color: "var(--destructive)" },
+const channelConfig: Record<MessageChannel, { label: string; icon: React.ElementType }> = {
+  direct: { label: "Direct Messages", icon: EnvelopeSimple },
+  department: { label: "Department", icon: Buildings },
+  company: { label: "Company-wide", icon: Megaphone },
+  project: { label: "Project", icon: Hash },
+  incident: { label: "Incident", icon: Fire },
 }
 
 function ChannelItem({
@@ -45,11 +45,8 @@ function ChannelItem({
       {descriptor.channel === "direct" && agent ? (
         <AgentAvatar agent={agent} size="sm" />
       ) : (
-        <div
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-          style={{ backgroundColor: `${config.color}18` }}
-        >
-          <Icon size={14} weight={active ? "fill" : "regular"} style={{ color: config.color }} />
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted">
+          <Icon size={14} weight={active ? "fill" : "regular"} className="text-muted-foreground" />
         </div>
       )}
 

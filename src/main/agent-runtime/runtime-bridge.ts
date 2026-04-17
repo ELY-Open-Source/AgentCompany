@@ -1,0 +1,207 @@
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AppDatabase } from "@main/database";
+import type { DesktopEvent } from "@shared/types";
+import { ensureTaskThread } from "@main/thread-integration/thread-helpers";
+import { SqliteSessionStore } from "./sqlite-session-store";
+import { HumanApprovalHook } from "./approval-hook";
+import { CostWriter } from "./cost-writer";
+
+export interface RuntimeBridgeDeps {
+  db: AppDatabase;
+  emitEvent: (event: DesktopEvent) => void;
+  logger: {
+    info: (...args: unknown[]) => void;
+    warn: (...args: unknown[]) => void;
+    error: (...args: unknown[]) => void;
+  };
+}
+
+interface ActiveRunContext {
+  runId: string;
+  agentId: string;
+  companyId: string;
+  taskId: string | null;
+  connectorId: string;
+  modelId: string;
+  taskSessionId: string;
+}
+
+/**
+ * Single owner of pi runtime side-effects in main.
+ *
+ * - Forwards `agent-event` from the worker to the renderer (push channel).
+ * - Persists each `message_end` message via `SqliteSessionStore`.
+ * - Calls `CostWriter` for assistant messages with usage.
+ * - Translates `beforeToolCall` RPC into an approval row + waits.
+ * - Translates `afterToolCall` RPC into best-effort audit hooks.
+ */
+export class RuntimeBridge {
+  readonly approvalHook: HumanApprovalHook;
+  private readonly costWriter: CostWriter;
+  private readonly activeRuns = new Map<string, ActiveRunContext>();
+  private readonly sessionStores = new Map<string, SqliteSessionStore>();
+
+  constructor(private readonly deps: RuntimeBridgeDeps) {
+    this.approvalHook = new HumanApprovalHook({
+      db: deps.db,
+      emitEvent: deps.emitEvent,
+      logger: deps.logger,
+    });
+    this.costWriter = new CostWriter({ db: deps.db, logger: deps.logger });
+  }
+
+  registerActiveRun(context: ActiveRunContext): void {
+    this.activeRuns.set(context.runId, context);
+    this.getOrCreateStore(context.taskSessionId);
+  }
+
+  releaseActiveRun(runId: string): void {
+    this.activeRuns.delete(runId);
+  }
+
+  loadPriorMessages(taskSessionId: string): AgentMessage[] {
+    return this.getOrCreateStore(taskSessionId).loadMessages();
+  }
+
+  private getOrCreateStore(taskSessionId: string): SqliteSessionStore {
+    const existing = this.sessionStores.get(taskSessionId);
+    if (existing) return existing;
+    const store = new SqliteSessionStore(this.deps.db, taskSessionId);
+    this.sessionStores.set(taskSessionId, store);
+    return store;
+  }
+
+  /** Receives an `agent-event` envelope from the worker; emits to renderer. */
+  handleAgentEvent(envelope: {
+    runId: string;
+    agentId: string;
+    companyId: string;
+    taskId: string | null;
+    emittedAt: string;
+    event: { type: string } & Record<string, unknown>;
+  }): void {
+    this.deps.emitEvent({
+      type: "agent-event",
+      runId: envelope.runId,
+      agentId: envelope.agentId,
+      companyId: envelope.companyId,
+      taskId: envelope.taskId,
+      emittedAt: envelope.emittedAt,
+      event: envelope.event,
+    });
+
+    if (envelope.event.type === "message_end") {
+      const ctx = this.activeRuns.get(envelope.runId);
+      const messageRaw = envelope.event.message as
+        | { role?: string; usage?: unknown; content?: unknown; toolCallId?: string }
+        | undefined;
+      if (ctx && messageRaw?.role === "assistant" && messageRaw.usage) {
+        this.costWriter.observeAssistantMessage({
+          runId: ctx.runId,
+          companyId: ctx.companyId,
+          agentId: ctx.agentId,
+          taskId: ctx.taskId,
+          connectorId: ctx.connectorId,
+          modelId: ctx.modelId,
+          usage: messageRaw.usage as never,
+        });
+      }
+      this.recordThreadEvent(envelope, messageRaw);
+    }
+  }
+
+  /**
+   * Project the pi `message_end` event into the task thread as a
+   * `conversation_events` row so renderer thread views stay live.
+   * Best-effort: thread persistence failures must not interrupt the run.
+   */
+  private recordThreadEvent(
+    envelope: { runId: string; agentId: string; companyId: string; taskId: string | null },
+    message: { role?: string; content?: unknown; toolCallId?: string } | undefined,
+  ): void {
+    if (!envelope.taskId || !message?.role) return;
+    let task: { title: string } | null = null;
+    try {
+      task = this.deps.db.getTask(envelope.taskId);
+    } catch {
+      return;
+    }
+    if (!task) return;
+    try {
+      const thread = ensureTaskThread(this.deps.db, envelope.taskId, envelope.companyId, task.title);
+      const body = extractTextBody(message.content);
+      const actorType: "agent" | "user" | "system" = message.role === "user"
+        ? "user"
+        : message.role === "assistant"
+          ? "agent"
+          : "system";
+      this.deps.db.addThreadEvent({
+        threadId: thread.id,
+        actorId: envelope.agentId,
+        actorType,
+        eventType: message.role === "toolResult" ? "system_note" : "message",
+        body: body.length > 4000 ? `${body.slice(0, 3997)}...` : body,
+        metadataJson: JSON.stringify({ runId: envelope.runId, role: message.role }),
+      });
+    } catch (error) {
+      this.deps.logger.warn(
+        `[runtime-bridge] failed to project agent-event into thread for task ${envelope.taskId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  /** Handles RPC requests issued by the worker (`rpc-request` envelope). */
+  async handleRpc(request: {
+    rpcId: string;
+    method: "beforeToolCall" | "afterToolCall" | "persistMessage";
+    runId: string;
+    payload: unknown;
+  }): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> {
+    try {
+      if (request.method === "beforeToolCall") {
+        const ctx = this.activeRuns.get(request.runId);
+        if (!ctx) return { ok: true, result: {} };
+        const payload = request.payload as {
+          agentId: string;
+          companyId: string;
+          taskId: string | null;
+          toolCallId: string;
+          toolName: string;
+          args: unknown;
+        };
+        const verdict = await this.approvalHook.before(request.runId, payload);
+        return { ok: true, result: verdict };
+      }
+      if (request.method === "afterToolCall") {
+        const payload = request.payload as { toolCallId: string; toolName: string; isError: boolean };
+        await this.approvalHook.after(request.runId, payload);
+        return { ok: true, result: undefined };
+      }
+      if (request.method === "persistMessage") {
+        const payload = request.payload as { taskSessionId: string; message: AgentMessage };
+        this.getOrCreateStore(payload.taskSessionId).appendMessage(payload.message);
+        return { ok: true, result: undefined };
+      }
+      return { ok: false, error: `Unknown RPC method: ${(request as { method: string }).method}` };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+}
+
+/** Best-effort textual rendering of a pi message's content for thread rows. */
+function extractTextBody(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  const parts: string[] = [];
+  for (const block of content) {
+    if (!block || typeof block !== "object") continue;
+    const obj = block as { type?: string; text?: string; thinking?: string; name?: string };
+    if (obj.type === "text" && typeof obj.text === "string") parts.push(obj.text);
+    else if (obj.type === "thinking" && typeof obj.thinking === "string") parts.push(`[thinking] ${obj.thinking}`);
+    else if (obj.type === "toolCall" && typeof obj.name === "string") parts.push(`[tool:${obj.name}]`);
+  }
+  return parts.join("\n").trim();
+}

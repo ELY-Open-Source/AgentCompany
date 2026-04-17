@@ -61,18 +61,121 @@ function RulesPanel({ rules, companyId, onRefresh }: { rules: AutomationRuleReco
 
   return (
     <div className="space-y-5">
-      {actionError ? <div className="flex items-center justify-between rounded-lg bg-destructive-muted px-3.5 py-2.5 text-[12px] font-medium text-destructive"><span>{actionError}</span><button type="button" onClick={() => setActionError(null)} className="ml-2 rounded p-0.5 hover:bg-destructive hover:text-primary-foreground"><X size={12} /></button></div> : null}
-      <div className="flex items-center justify-between"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><Lightning size={20} weight="fill" /></div><div><h2 className="text-[16px] font-bold text-foreground">Automation Rules</h2><p className="text-[12px] text-muted-foreground">{counts.active} active, {counts.paused} paused{counts.error > 0 ? `, ${counts.error} errored` : ""}</p></div></div><ActionButton label="New Rule" onClick={() => setShowCreate(true)} icon={Plus} tone="accent" /></div>
-      {rules.length > 0 ? <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">{[{ l: "Total Rules", v: counts.total, accent: false }, { l: "Total Executions", v: rules.reduce((s, r) => s + r.executionCount, 0), accent: true }, { l: "Recent Activity", v: actLog.length, accent: true }].map((s) => <div key={s.l} className="rounded-lg border border-border bg-card px-4 py-3.5"><div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{s.l}</div><div className={`text-[26px] font-bold tabular-nums ${s.accent ? "text-primary" : ""}`}>{s.v}</div></div>)}</div> : null}
-      <div className="flex gap-1 rounded-lg bg-muted p-1"><button type="button" onClick={() => setActiveTab("rules")} className={`flex-1 rounded-lg px-3 py-1.5 text-[12px] font-medium transition ${activeTab === "rules" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>Rules ({rules.length})</button><button type="button" onClick={() => setActiveTab("activity")} className={`flex-1 rounded-lg px-3 py-1.5 text-[12px] font-medium transition ${activeTab === "activity" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>Activity Log ({actLog.length})</button></div>
-      {activeTab === "rules" ? <>
-        {rules.length > 0 ? <div className="flex flex-wrap items-center gap-1.5">{(["all","active","paused","error"] as const).map((s) => <button key={s} type="button" onClick={() => setFilterStatus(s)} className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition ${filterStatus === s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-[color:var(--border)]"}`}>{s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}</button>)}</div> : null}
-        {filtered.length === 0 && rules.length === 0 ? <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center"><Lightning size={36} className="mb-3 text-muted-foreground" /><div className="text-[14px] font-medium text-muted-foreground">No automation rules</div><div className="mx-auto mt-1 max-w-[42ch] text-[12px] leading-relaxed text-muted-foreground">Create your first rule to make the company autonomous.</div><div className="mt-4"><ActionButton label="Create First Rule" onClick={() => setShowCreate(true)} icon={Lightning} tone="accent" /></div></div>
-        : filtered.length === 0 ? <div className="py-8 text-center text-[13px] text-muted-foreground">No rules match the current filter.</div>
-        : <div className="space-y-2"><AnimatePresence>{filtered.map((r) => <RuleCard key={r.id} rule={r} onToggle={() => void handleToggle(r)} onDelete={() => setDelTarget(r)} onEdit={() => setEditRule(r)} />)}</AnimatePresence></div>}
-      </> : <AutomationActivityLog entries={actLog} />}
-      <AnimatePresence>{showCreate ? <RuleFormModal open={showCreate} editingRule={null} companyId={companyId} onClose={() => setShowCreate(false)} onSaved={onRefresh} /> : null}{editRule ? <RuleFormModal open={!!editRule} editingRule={editRule} companyId={companyId} onClose={() => setEditRule(null)} onSaved={onRefresh} /> : null}</AnimatePresence>
-      <ConfirmDialog open={!!delTarget} title="Delete rule" message={delTarget ? `Are you sure you want to delete ${delTarget.name}? This action cannot be undone.` : ""} onConfirm={() => void handleDelete()} onCancel={() => setDelTarget(null)} />
+      {actionError ? (
+        <div className="flex items-center justify-between rounded-lg bg-destructive-muted px-3.5 py-2.5 text-[12px] font-medium text-destructive">
+          <span>{actionError}</span>
+          <button type="button" onClick={() => setActionError(null)} className="ml-2 rounded p-0.5 hover:bg-destructive hover:text-primary-foreground">
+            <X size={12} />
+          </button>
+        </div>
+      ) : null}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Lightning size={20} weight="fill" />
+          </div>
+          <div>
+            <h2 className="text-[16px] font-bold text-foreground">Automation Rules</h2>
+            <p className="text-[12px] text-muted-foreground">
+              {counts.active} active, {counts.paused} paused{counts.error > 0 ? `, ${counts.error} errored` : ""}
+            </p>
+          </div>
+        </div>
+        <ActionButton label="New Rule" onClick={() => setShowCreate(true)} icon={Plus} tone="accent" />
+      </div>
+      {rules.length > 0 ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {[
+            { l: "Total Rules", v: counts.total, accent: false },
+            { l: "Total Executions", v: rules.reduce((s, r) => s + r.executionCount, 0), accent: true },
+            { l: "Recent Activity", v: actLog.length, accent: true },
+          ].map((s) => (
+            <div key={s.l} className="rounded-lg border border-border bg-card px-4 py-3.5">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{s.l}</div>
+              <div className={`text-[26px] font-bold tabular-nums ${s.accent ? "text-primary" : ""}`}>{s.v}</div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div className="flex gap-1 rounded-lg bg-muted p-1">
+        <button
+          type="button"
+          onClick={() => setActiveTab("rules")}
+          className={`flex-1 rounded-lg px-3 py-1.5 text-[12px] font-medium transition ${activeTab === "rules" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          Rules ({rules.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("activity")}
+          className={`flex-1 rounded-lg px-3 py-1.5 text-[12px] font-medium transition ${activeTab === "activity" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          Activity Log ({actLog.length})
+        </button>
+      </div>
+      {activeTab === "rules" ? (
+        <>
+          {rules.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(["all", "active", "paused", "error"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setFilterStatus(s)}
+                  className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition ${filterStatus === s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-[color:var(--border)]"}`}
+                >
+                  {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {filtered.length === 0 && rules.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
+              <Lightning size={36} className="mb-3 text-muted-foreground" />
+              <div className="text-[14px] font-medium text-muted-foreground">No automation rules</div>
+              <div className="mx-auto mt-1 max-w-[42ch] text-[12px] leading-relaxed text-muted-foreground">
+                Create your first rule to make the company autonomous.
+              </div>
+              <div className="mt-4">
+                <ActionButton label="Create First Rule" onClick={() => setShowCreate(true)} icon={Lightning} tone="accent" />
+              </div>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="py-8 text-center text-[13px] text-muted-foreground">No rules match the current filter.</div>
+          ) : (
+            <div className="space-y-2">
+              <AnimatePresence>
+                {filtered.map((r) => (
+                  <RuleCard
+                    key={r.id}
+                    rule={r}
+                    onToggle={() => void handleToggle(r)}
+                    onDelete={() => setDelTarget(r)}
+                    onEdit={() => setEditRule(r)}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </>
+      ) : (
+        <AutomationActivityLog entries={actLog} />
+      )}
+      <AnimatePresence>
+        {showCreate ? (
+          <RuleFormModal open={showCreate} editingRule={null} companyId={companyId} onClose={() => setShowCreate(false)} onSaved={onRefresh} />
+        ) : null}
+        {editRule ? (
+          <RuleFormModal open={!!editRule} editingRule={editRule} companyId={companyId} onClose={() => setEditRule(null)} onSaved={onRefresh} />
+        ) : null}
+      </AnimatePresence>
+      <ConfirmDialog
+        open={!!delTarget}
+        title="Delete rule"
+        message={delTarget ? `Are you sure you want to delete ${delTarget.name}? This action cannot be undone.` : ""}
+        onConfirm={() => void handleDelete()}
+        onCancel={() => setDelTarget(null)}
+      />
     </div>
   )
 }
@@ -85,12 +188,71 @@ function WorkflowsPanel({ workflows, companyId, onRefresh }: { workflows: Workfl
   const counts = useMemo(() => ({ total: workflows.length, active: workflows.filter((w) => w.status === "active").length, draft: workflows.filter((w) => w.status === "draft").length }), [workflows])
   return (
     <div className="space-y-5">
-      {actionError ? <div className="flex items-center justify-between rounded-lg bg-destructive-muted px-3.5 py-2.5 text-[12px] font-medium text-destructive"><span>{actionError}</span><button type="button" onClick={() => setActionError(null)} className="ml-2 rounded p-0.5 hover:bg-destructive hover:text-primary-foreground"><X size={12} /></button></div> : null}
-      <div className="flex items-center justify-between"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><ArrowsClockwise size={20} weight="fill" /></div><div><h2 className="text-[16px] font-bold text-foreground">Workflow Pipelines</h2><p className="text-[12px] text-muted-foreground">{counts.active} active, {counts.draft} draft{counts.total > counts.active + counts.draft ? `, ${counts.total - counts.active - counts.draft} other` : ""}</p></div></div><ActionButton label="New Workflow" onClick={() => setShowCreate(true)} icon={Plus} tone="accent" /></div>
-      {workflows.length === 0 ? <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center"><ArrowsClockwise size={36} className="mb-3 text-muted-foreground" /><div className="text-[14px] font-medium text-muted-foreground">No workflow pipelines</div><div className="mx-auto mt-1 max-w-[42ch] text-[12px] leading-relaxed text-muted-foreground">Workflows chain actions into multi-step pipelines.</div><div className="mt-4"><ActionButton label="Create First Workflow" onClick={() => setShowCreate(true)} icon={ArrowsClockwise} tone="accent" /></div></div>
-      : <div className="space-y-2"><AnimatePresence>{workflows.map((wf) => <WorkflowCard key={wf.id} workflow={wf} isRunning={runningId === wf.id} onDelete={() => setDelTarget(wf)} onEdit={() => setEditWf(wf)} onRun={() => void handleRun(wf)} />)}</AnimatePresence></div>}
-      <AnimatePresence>{showCreate ? <WorkflowFormModal open={showCreate} editingWorkflow={null} companyId={companyId} onClose={() => setShowCreate(false)} onSaved={onRefresh} /> : null}{editWf ? <WorkflowFormModal open={!!editWf} editingWorkflow={editWf} companyId={companyId} onClose={() => setEditWf(null)} onSaved={onRefresh} /> : null}</AnimatePresence>
-      <ConfirmDialog open={!!delTarget} title="Delete workflow" message={delTarget ? `Are you sure you want to delete ${delTarget.name}? This action cannot be undone.` : ""} onConfirm={() => void handleDelete()} onCancel={() => setDelTarget(null)} />
+      {actionError ? (
+        <div className="flex items-center justify-between rounded-lg bg-destructive-muted px-3.5 py-2.5 text-[12px] font-medium text-destructive">
+          <span>{actionError}</span>
+          <button type="button" onClick={() => setActionError(null)} className="ml-2 rounded p-0.5 hover:bg-destructive hover:text-primary-foreground">
+            <X size={12} />
+          </button>
+        </div>
+      ) : null}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <ArrowsClockwise size={20} weight="fill" />
+          </div>
+          <div>
+            <h2 className="text-[16px] font-bold text-foreground">Workflow Pipelines</h2>
+            <p className="text-[12px] text-muted-foreground">
+              {counts.active} active, {counts.draft} draft
+              {counts.total > counts.active + counts.draft ? `, ${counts.total - counts.active - counts.draft} other` : ""}
+            </p>
+          </div>
+        </div>
+        <ActionButton label="New Workflow" onClick={() => setShowCreate(true)} icon={Plus} tone="accent" />
+      </div>
+      {workflows.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
+          <ArrowsClockwise size={36} className="mb-3 text-muted-foreground" />
+          <div className="text-[14px] font-medium text-muted-foreground">No workflow pipelines</div>
+          <div className="mx-auto mt-1 max-w-[42ch] text-[12px] leading-relaxed text-muted-foreground">
+            Workflows chain actions into multi-step pipelines.
+          </div>
+          <div className="mt-4">
+            <ActionButton label="Create First Workflow" onClick={() => setShowCreate(true)} icon={ArrowsClockwise} tone="accent" />
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <AnimatePresence>
+            {workflows.map((wf) => (
+              <WorkflowCard
+                key={wf.id}
+                workflow={wf}
+                isRunning={runningId === wf.id}
+                onDelete={() => setDelTarget(wf)}
+                onEdit={() => setEditWf(wf)}
+                onRun={() => void handleRun(wf)}
+              />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+      <AnimatePresence>
+        {showCreate ? (
+          <WorkflowFormModal open={showCreate} editingWorkflow={null} companyId={companyId} onClose={() => setShowCreate(false)} onSaved={onRefresh} />
+        ) : null}
+        {editWf ? (
+          <WorkflowFormModal open={!!editWf} editingWorkflow={editWf} companyId={companyId} onClose={() => setEditWf(null)} onSaved={onRefresh} />
+        ) : null}
+      </AnimatePresence>
+      <ConfirmDialog
+        open={!!delTarget}
+        title="Delete workflow"
+        message={delTarget ? `Are you sure you want to delete ${delTarget.name}? This action cannot be undone.` : ""}
+        onConfirm={() => void handleDelete()}
+        onCancel={() => setDelTarget(null)}
+      />
     </div>
   )
 }
@@ -99,12 +261,52 @@ export function AutomationPanel({ rules, workflows, companyId, onRefresh }: { ru
   const t = useT(); const [activeSection, setActiveSection] = useState<"rules"|"workflows">("rules")
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-primary/20 bg-gradient-to-br from-primary/5 to-primary/[0.02] px-5 py-4"><div className="flex items-start gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Robot size={20} weight="fill" /></div><div><div className="text-[13px] font-semibold text-foreground">{t("auto.automationEngine")}</div><div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">Rules trigger actions based on company events. Workflows chain multiple steps into pipelines. Together, they let your AI company run fully autonomously.</div></div></div></div>
-      <div className="flex gap-1 rounded-lg bg-muted p-1">
-        <button type="button" onClick={() => setActiveSection("rules")} className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-[13px] font-medium transition ${activeSection === "rules" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}><Lightning size={15} weight={activeSection === "rules" ? "fill" : "regular"} className={activeSection === "rules" ? "text-primary" : ""} />Automation Rules ({rules.length})</button>
-        <button type="button" onClick={() => setActiveSection("workflows")} className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-[13px] font-medium transition ${activeSection === "workflows" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}><ArrowsClockwise size={15} weight={activeSection === "workflows" ? "fill" : "regular"} className={activeSection === "workflows" ? "text-primary" : ""} />Workflows ({workflows.length})</button>
+      <div className="rounded-lg border border-primary/20 bg-gradient-to-br from-primary/5 to-primary/[0.02] px-5 py-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Robot size={20} weight="fill" />
+          </div>
+          <div>
+            <div className="text-[13px] font-semibold text-foreground">{t("auto.automationEngine")}</div>
+            <div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+              Rules trigger actions based on company events. Workflows chain multiple steps into pipelines. Together, they let your AI company run fully autonomously.
+            </div>
+          </div>
+        </div>
       </div>
-      <AnimatePresence mode="wait"><motion.div key={activeSection} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}>{activeSection === "rules" ? <RulesPanel rules={rules} companyId={companyId} onRefresh={onRefresh} /> : <WorkflowsPanel workflows={workflows} companyId={companyId} onRefresh={onRefresh} />}</motion.div></AnimatePresence>
+      <div className="flex gap-1 rounded-lg bg-muted p-1">
+        <button
+          type="button"
+          onClick={() => setActiveSection("rules")}
+          className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-[13px] font-medium transition ${activeSection === "rules" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <Lightning size={15} weight={activeSection === "rules" ? "fill" : "regular"} className={activeSection === "rules" ? "text-primary" : ""} />
+          Automation Rules ({rules.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSection("workflows")}
+          className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-[13px] font-medium transition ${activeSection === "workflows" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <ArrowsClockwise size={15} weight={activeSection === "workflows" ? "fill" : "regular"} className={activeSection === "workflows" ? "text-primary" : ""} />
+          Workflows ({workflows.length})
+        </button>
+      </div>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeSection}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+        >
+          {activeSection === "rules" ? (
+            <RulesPanel rules={rules} companyId={companyId} onRefresh={onRefresh} />
+          ) : (
+            <WorkflowsPanel workflows={workflows} companyId={companyId} onRefresh={onRefresh} />
+          )}
+        </motion.div>
+      </AnimatePresence>
     </div>
   )
 }
