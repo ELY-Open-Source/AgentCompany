@@ -9,6 +9,33 @@ import type { ConnectorId, ProfileSnapshot } from "@shared/types";
 import { unwrap } from "../../lib/desktop";
 import type { TranslationFn } from "../../i18n";
 
+/**
+ * Structural equality over the per-connector model catalog. Returns true
+ * when the two maps hold the same connector ids, each list in the same
+ * order, and each entry has the same id/label/enabled flag. Used to keep
+ * React state references stable across snapshot refreshes so an open
+ * native <select> dropdown is not torn down mid-interaction.
+ */
+function connectorCatalogsEqual(
+  a: Record<string, ConnectorModelEntry[]>,
+  b: Record<string, ConnectorModelEntry[]>,
+): boolean {
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  for (const key of keysA) {
+    const listA = a[key];
+    const listB = b[key];
+    if (!listB || listA.length !== listB.length) return false;
+    for (let i = 0; i < listA.length; i++) {
+      const x = listA[i];
+      const y = listB[i];
+      if (x.id !== y.id || x.label !== y.label || x.enabled !== y.enabled) return false;
+    }
+  }
+  return true;
+}
+
 interface UseConnectorModelSelectionResult {
   executionReadyConnectors: ProfileSnapshot["connectors"];
   hasAtLeastOneReady: boolean;
@@ -100,10 +127,18 @@ export function useConnectorModelSelection(
           executionReadyConnectors.map(async (connector) => [connector.id, await loadConnectorModels(connector)] as const),
         );
         if (cancelled) return;
-        setConnectorModelsById(Object.fromEntries(entries));
+        const next = Object.fromEntries(entries);
+        // Guard against no-op state updates: snapshot refreshes re-run this
+        // effect with the same CONNECTORS data, and returning a new object
+        // reference here cascades through `connectorModels` → `modelOptions`
+        // and collapses any open native <select> dropdown. Only call
+        // setConnectorModelsById when the catalog actually changed.
+        setConnectorModelsById((previous) =>
+          connectorCatalogsEqual(previous, next) ? previous : next,
+        );
       } catch {
         if (cancelled) return;
-        setConnectorModelsById({});
+        setConnectorModelsById((previous) => (Object.keys(previous).length === 0 ? previous : {}));
         setSelectedModel("");
       } finally {
         if (!cancelled) {
