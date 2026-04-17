@@ -3,6 +3,7 @@ import type { AppDatabase } from "../database";
 import type { AgentRecord, ConnectorRecord } from "@shared/types";
 import type { OrchestrationDependencies } from "./types";
 import type { RunDispatchParams } from "./turn-context";
+import { HEARTBEAT_TASK_TITLE_PREFIX } from "./heartbeat-task";
 
 export function createHeartbeat(
   deps: OrchestrationDependencies,
@@ -151,10 +152,10 @@ export function createHeartbeat(
       }
 
       const taskTitle = isCeo
-        ? `[Heartbeat] ${agent.name} — Strategic planning & task delegation`
+        ? `${HEARTBEAT_TASK_TITLE_PREFIX} ${agent.name} — Strategic planning & task delegation`
         : isManager
-          ? `[Heartbeat] ${agent.name} — Review team & delegate work`
-          : `[Heartbeat] ${agent.name} — Check for work`;
+          ? `${HEARTBEAT_TASK_TITLE_PREFIX} ${agent.name} — Review team & delegate work`
+          : `${HEARTBEAT_TASK_TITLE_PREFIX} ${agent.name} — Check for work`;
       const taskDescription = isCeo
         ? "Review active company goals. Break each goal into projects and actionable tasks. Assign tasks to department leads and team members. Create tasks using the API. This is your primary responsibility as CEO — ensure every goal has a clear execution plan with assigned owners."
         : isManager

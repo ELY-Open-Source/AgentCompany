@@ -3,6 +3,7 @@ import type { RunRecord, SectionId } from "@shared/types";
 import type { NotificationOptions } from "../notification-service";
 import type { AutomationEventContext, RunFinishedEvent } from "./types";
 import { IMPORTANT_DOCUMENT_TYPES } from "./types";
+import { isHeartbeatTaskTitle } from "../orchestration/heartbeat-task";
 
 function localizeNotification(locale: string | null | undefined, en: string, zh: string): string {
   return locale === "zh" ? zh : en;
@@ -290,7 +291,7 @@ export function processRunCompletion(
     }
   }
 
-  if (isSuccess && task.title.startsWith("[Heartbeat]") && effectiveStatus !== "done") {
+  if (isSuccess && isHeartbeatTaskTitle(task.title) && effectiveStatus !== "done") {
     db.advanceTaskStatus(task.id, "done", "Heartbeat check completed.");
     handleTaskStatusChange(task.id, run.companyId, effectiveStatus, "done");
   }

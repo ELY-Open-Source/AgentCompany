@@ -3,6 +3,29 @@ import type { AutomationAction, DesktopEvent } from "@shared/types";
 import { dispatchAgentMessage } from "../message-dispatch";
 import { validateTaskCreation } from "../task-quality-gates";
 import type { AutomationEventContext } from "./types";
+import { isHeartbeatTaskTitle } from "../orchestration/heartbeat-task";
+
+// Map trigger type → default wake trigger when automation fires a heartbeat.
+const HEARTBEAT_WAKE_TRIGGER_MAP: Record<string, string> = {
+  run_completed: "subtask_completed",
+  run_failed: "report_failed",
+  hire_approved: "assignment",
+  agent_idle: "timer",
+};
+
+function deriveHeartbeatWakeTrigger(triggerType: string, previousStatus: string | null): string {
+  if (triggerType === "task_status_changed" && previousStatus === "in_review") return "comment";
+  return HEARTBEAT_WAKE_TRIGGER_MAP[triggerType] ?? "manual";
+}
+
+// Map the run/state combination → wake trigger for escalation to manager.
+function deriveEscalationWakeTrigger(newStatus: string | null, ruleTrigger: string | null): string {
+  if (newStatus === "in_review") return "subtask_completed";
+  if (newStatus === "blocked") return "report_blocked";
+  if (ruleTrigger === "run_completed") return "subtask_completed";
+  if (ruleTrigger === "run_failed") return "report_failed";
+  return "report_blocked";
+}
 
 export interface ActionDeps {
   db: AppDatabase;
@@ -81,7 +104,7 @@ export function executeAutomationAction(
       const description = (config.description as string) ?? "";
       const priority = (config.priority as string) ?? "medium";
       const assigneeAgentId = (config.assigneeAgentId as string) ?? null;
-      const isHeartbeat = title.startsWith("[Heartbeat]");
+      const isHeartbeat = isHeartbeatTaskTitle(title);
       const taskValidation = validateTaskCreation({ title, description }, isHeartbeat);
       if (!taskValidation.valid) {
         logger.warn(`[automation] Skipping create_task — validation failed: ${taskValidation.errors.join("; ")}`);
@@ -152,16 +175,7 @@ export function executeAutomationAction(
         }
       }
       if (targetAgentId) {
-        // Derive a descriptive wake trigger from the automation context
-        const triggerType = rule.trigger ?? "";
-        const wakeTrigger =
-          triggerType === "task_status_changed" && ctx.previousStatus === "in_review" ? "comment"
-            : triggerType === "run_completed" ? "subtask_completed"
-              : triggerType === "run_failed" ? "report_failed"
-                : triggerType === "hire_approved" ? "assignment"
-                  : triggerType === "agent_idle" ? "timer"
-                    : "manual";
-        wakeAgentIfPossible(targetAgentId, ctx.companyId, wakeTrigger);
+        wakeAgentIfPossible(targetAgentId, ctx.companyId, deriveHeartbeatWakeTrigger(rule.trigger ?? "", ctx.previousStatus ?? null));
       }
       break;
     }
@@ -204,22 +218,13 @@ export function executeAutomationAction(
         // Keep the fallback title when the task no longer exists.
       }
       // Heartbeat tasks are internal system tasks — skip escalation messages to avoid flooding channels.
-      if (taskTitle.startsWith("[Heartbeat]")) {
+      if (isHeartbeatTaskTitle(taskTitle)) {
         logger.info(`[automation] Skipping escalation for heartbeat task "${taskTitle}"`);
         break;
       }
       const manager = db.getManagerForAgent(targetAgentId);
       const escalationBody = (config.body as string) ?? `Task "${taskTitle}" needs your attention. ${agentName} has flagged this as requiring manager intervention.`;
-      // Pick the most descriptive wake trigger based on the originating event
-      const wakeTrigger = ctx.newStatus === "in_review"
-        ? "subtask_completed"
-        : ctx.newStatus === "blocked"
-          ? "report_blocked"
-          : rule.trigger === "run_completed"
-            ? "subtask_completed"
-            : rule.trigger === "run_failed"
-              ? "report_failed"
-              : "report_blocked";
+      const wakeTrigger = deriveEscalationWakeTrigger(ctx.newStatus ?? null, rule.trigger ?? null);
       if (manager) {
         const escalationResult = dispatchAgentMessage(
           { db, emitEvent, publishDomainChanged, wakeAgentIfPossible },
