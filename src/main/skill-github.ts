@@ -15,8 +15,11 @@ interface Logger {
   error: (...args: unknown[]) => void;
 }
 
-/** 1 MB — generous upper bound for a single SKILL.md file. */
-const MAX_SKILL_BYTES = 1024 * 1024;
+/** 2 MB — generous upper bound for a single SKILL.md (markdown) file. */
+export const MAX_SKILL_BYTES = 2 * 1024 * 1024;
+
+/** 32 MB — aggregate upper bound for all SKILL.md content from a single skill pack. */
+export const MAX_TOTAL_BYTES = 32 * 1024 * 1024;
 
 /** 10 MB — upper bound for the recursive git tree JSON response. */
 const MAX_TREE_BYTES = 10 * 1024 * 1024;
@@ -149,6 +152,7 @@ export async function fetchGitHubSkills(
     }
 
     const skills: GitHubSkillData[] = [];
+    let totalBytes = 0;
 
     for (const skillMdPath of skillMdPaths) {
       try {
@@ -159,7 +163,20 @@ export async function fetchGitHubSkills(
           logger?.warn(`Failed to download ${rawUrl}: ${contentResponse.status}`);
           continue;
         }
-        const markdown = await readResponseWithLimit(contentResponse, MAX_SKILL_BYTES);
+        const remainingBudget = MAX_TOTAL_BYTES - totalBytes;
+        const perFileCap = Math.min(MAX_SKILL_BYTES, Math.max(0, remainingBudget));
+        if (perFileCap === 0) {
+          throw new Error(
+            `Skill pack exceeded aggregate limit of ${MAX_TOTAL_BYTES} bytes`,
+          );
+        }
+        const markdown = await readResponseWithLimit(contentResponse, perFileCap);
+        totalBytes += Buffer.byteLength(markdown, "utf-8");
+        if (totalBytes > MAX_TOTAL_BYTES) {
+          throw new Error(
+            `Skill pack exceeded aggregate limit of ${MAX_TOTAL_BYTES} bytes`,
+          );
+        }
 
         // Collect sibling files in the same directory (or subdirectories)
         const skillDir =

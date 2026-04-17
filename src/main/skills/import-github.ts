@@ -15,6 +15,8 @@ import {
 import {
   resolveGitHubCommitSha,
   fetchGitHubSkills,
+  MAX_SKILL_BYTES,
+  MAX_TOTAL_BYTES,
 } from "../skill-github.js";
 
 interface GitHubImportDeps {
@@ -49,6 +51,11 @@ export function createGitHubImporter({ db, logger, skillFilesDir }: GitHubImport
     markdown: string,
     _inventory: FileInventoryEntry[],
   ): Promise<string> {
+    if (markdown.length * 2 > MAX_SKILL_BYTES) {
+      throw new Error(
+        `SKILL.md exceeds ${MAX_SKILL_BYTES}-byte limit`,
+      );
+    }
     const dir = skillFilesDir(companyId, slug);
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, "SKILL.md"), markdown, "utf-8");
@@ -83,8 +90,16 @@ export function createGitHubImporter({ db, logger, skillFilesDir }: GitHubImport
     const results: SkillImportResult[] = [];
     const sourceType: SkillSourceType = originalSkillsShUrl ? "skills_sh" : "github";
     const nowTs = new Date().toISOString();
+    let totalMaterializedBytes = 0;
 
     for (const ghSkill of githubSkills) {
+      const skillBytes = Buffer.byteLength(ghSkill.markdown, "utf-8");
+      totalMaterializedBytes += skillBytes;
+      if (totalMaterializedBytes > MAX_TOTAL_BYTES) {
+        throw new Error(
+          `Skill pack exceeded aggregate limit of ${MAX_TOTAL_BYTES} bytes`,
+        );
+      }
       const parsed = parseFrontmatterMarkdown(ghSkill.markdown);
       const rawSlug =
         normalizeSkillSlug(parsed.frontmatter.slug as string | undefined) ??

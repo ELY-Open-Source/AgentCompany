@@ -17,6 +17,7 @@ import {
   parseSkillImportSource,
 } from "../skill-keys.js";
 import { createGitHubImporter } from "./import-github";
+import { MAX_SKILL_BYTES } from "../skill-github.js";
 
 const BLOCKED_PATH_PREFIXES_UNIX = ["/etc", "/var", "/proc", "/sys", "/dev", "/boot", "/sbin", "/usr/sbin"];
 const BLOCKED_PATH_PREFIXES_WIN = ["C:\\Windows", "C:\\Program Files", "C:\\ProgramData"];
@@ -63,6 +64,11 @@ export function createSkillImporter({ db, profileDir: _profileDir, logger, skill
     markdown: string,
     _inventory: FileInventoryEntry[],
   ): Promise<string> {
+    if (markdown.length * 2 > MAX_SKILL_BYTES) {
+      throw new Error(
+        `SKILL.md exceeds ${MAX_SKILL_BYTES}-byte limit`,
+      );
+    }
     const dir = skillFilesDir(companyId, slug);
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, "SKILL.md"), markdown, "utf-8");
