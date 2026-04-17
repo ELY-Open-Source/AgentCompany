@@ -12,6 +12,7 @@ import { SectionButton } from "../components/ui";
 import { NEW_ENTITY_ID } from "../lib/constants";
 
 type NavItem = { id: SectionId; label: string; icon: typeof Gear };
+type NavGroup = { items: NavItem[] };
 
 interface SidebarViewProps {
   isMac: boolean;
@@ -19,7 +20,7 @@ interface SidebarViewProps {
   setSidebarCollapsed: (value: boolean) => void;
   section: SectionId;
   setSection: (section: SectionId) => void;
-  sidebarNav: NavItem[];
+  sidebarGroups: NavGroup[];
   navBadges: Partial<Record<SectionId, { count: number; tone: "default" | "warn" | "danger" }>>;
   companySwitcherOpen: boolean;
   setCompanySwitcherOpen: (value: boolean) => void;
@@ -39,7 +40,7 @@ export function SidebarView({
   setSidebarCollapsed,
   section,
   setSection,
-  sidebarNav,
+  sidebarGroups,
   navBadges,
   companySwitcherOpen,
   setCompanySwitcherOpen,
@@ -152,19 +153,16 @@ export function SidebarView({
         </div>
       )}
       <nav aria-label="Main navigation" className={`flex-1 overflow-y-auto pb-3 ${sidebarCollapsed ? "px-1.5 pt-2" : "px-3 pt-2"}`}>
-        {/* Core: Overview, Team, Work */}
-        <div className="space-y-0.5">
-          {sidebarNav.slice(0, 3).map((item) => (
-            <SectionButton key={item.id} active={section === item.id} label={item.label} icon={item.icon} onClick={() => setSection(item.id)} badge={navBadges[item.id]?.count} badgeTone={navBadges[item.id]?.tone} collapsed={sidebarCollapsed} />
-          ))}
-        </div>
-        <div className={`my-2 border-t border-border ${sidebarCollapsed ? "mx-1" : "mx-2"}`} />
-        {/* Collaborate & Extend: Communication, Skills, Documents, Approvals, Social */}
-        <div className="space-y-0.5">
-          {sidebarNav.slice(3).map((item) => (
-            <SectionButton key={item.id} active={section === item.id} label={item.label} icon={item.icon} onClick={() => setSection(item.id)} badge={navBadges[item.id]?.count} badgeTone={navBadges[item.id]?.tone} collapsed={sidebarCollapsed} />
-          ))}
-        </div>
+        {sidebarGroups.map((group, idx) => (
+          <div key={idx}>
+            {idx > 0 ? <div className={`my-2 border-t border-border ${sidebarCollapsed ? "mx-1" : "mx-2"}`} /> : null}
+            <div className="space-y-0.5">
+              {group.items.map((item) => (
+                <SectionButton key={item.id} active={section === item.id} label={item.label} icon={item.icon} onClick={() => setSection(item.id)} badge={navBadges[item.id]?.count} badgeTone={navBadges[item.id]?.tone} collapsed={sidebarCollapsed} />
+              ))}
+            </div>
+          </div>
+        ))}
       </nav>
       <div className={`border-t border-border py-2 ${sidebarCollapsed ? "px-1.5" : "px-3"}`}>
         <SectionButton

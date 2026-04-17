@@ -23,12 +23,16 @@ import type { AppLocale } from "@shared/locale";
 
 type NavItemDef = { id: SectionId; labelKey: string; icon: typeof SquaresFour };
 export type NavItem = { id: SectionId; label: string; icon: typeof SquaresFour };
+export type NavGroup = { items: NavItem[] };
 export type PaletteAction = { key: string; section: SectionId; entityId?: string };
 
-const sidebarNavDefs: NavItemDef[] = [
+const sidebarCoreDefs: NavItemDef[] = [
   { id: "overview", labelKey: "nav.overview", icon: SquaresFour },
   { id: "inbox", labelKey: "nav.inbox", icon: Tray },
   { id: "communication", labelKey: "nav.communication", icon: ChatCircle },
+];
+
+const sidebarCollaborateDefs: NavItemDef[] = [
   { id: "tasks", labelKey: "nav.work", icon: ListChecks },
   { id: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
   { id: "agents", labelKey: "nav.agents", icon: UsersThree },
@@ -51,9 +55,16 @@ export function useUIController() {
   const locale = useAppStore((s) => s.locale);
   const t = useMemo(() => createTranslator(locale), [locale]);
 
-  const sidebarNav: NavItem[] = useMemo(
-    () => sidebarNavDefs.map((item) => ({ id: item.id, label: t(item.labelKey), icon: item.icon })),
+  const sidebarGroups: NavGroup[] = useMemo(
+    () => [
+      { items: sidebarCoreDefs.map((item) => ({ id: item.id, label: t(item.labelKey), icon: item.icon })) },
+      { items: sidebarCollaborateDefs.map((item) => ({ id: item.id, label: t(item.labelKey), icon: item.icon })) },
+    ],
     [t],
+  );
+  const sidebarNav: NavItem[] = useMemo(
+    () => sidebarGroups.flatMap((group) => group.items),
+    [sidebarGroups],
   );
   const navItems: NavItem[] = useMemo(
     () =>
@@ -160,6 +171,7 @@ export function useUIController() {
     t,
     handleLocaleChange,
     sidebarNav,
+    sidebarGroups,
     navItems,
     section,
     setSection,

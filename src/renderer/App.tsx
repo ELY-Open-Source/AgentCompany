@@ -170,7 +170,7 @@ export function App() {
         setSidebarCollapsed={ui.setSidebarCollapsed}
         section={ui.section}
         setSection={ui.setSection}
-        sidebarNav={ui.sidebarNav}
+        sidebarGroups={ui.sidebarGroups}
         navBadges={company.navBadges}
         companySwitcherOpen={ui.companySwitcherOpen}
         setCompanySwitcherOpen={ui.setCompanySwitcherOpen}
