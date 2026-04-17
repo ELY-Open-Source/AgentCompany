@@ -259,16 +259,28 @@ export function registerCoreOperationHandlers({
 
   registerHandle(IPC_CHANNELS.listConfigRevisions, async (_event, payload) => {
     const parsed = listConfigRevisionsSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    if (!db.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
+      return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
+    }
     return ok(db.listConfigRevisions(parsed.agentId, parsed.companyId));
   });
 
   registerHandle(IPC_CHANNELS.getConfigRevision, async (_event, payload) => {
     const parsed = getConfigRevisionSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
     return ok(db.getConfigRevision(parsed.revisionId, parsed.companyId));
   });
 
   registerHandle(IPC_CHANNELS.rollbackConfigRevision, async (_event, payload) => {
     const parsed = rollbackConfigRevisionSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    if (!db.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
+      return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
+    }
     const newRevisionId = db.rollbackConfigRevision(parsed.agentId, parsed.revisionId, parsed.companyId);
     publishDomainChanged();
     return ok({ revisionId: newRevisionId });
@@ -276,6 +288,11 @@ export function registerCoreOperationHandlers({
 
   registerHandle(IPC_CHANNELS.listRunEvents, async (_event, payload) => {
     const parsed = listRunEventsSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    if (!db.belongsToCompany("runs", parsed.runId, parsed.companyId)) {
+      return fail("RUN_NOT_FOUND", "Run not found in the current company.");
+    }
     return ok(db.listRunEvents(parsed.runId, parsed.companyId, { offset: parsed.offset, limit: parsed.limit }));
   });
 
@@ -286,6 +303,11 @@ export function registerCoreOperationHandlers({
 
   registerHandle(IPC_CHANNELS.setAgentPermission, async (_event, payload) => {
     const parsed = setAgentPermissionSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    if (!db.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
+      return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
+    }
     db.setAgentPermission(parsed.agentId, parsed.companyId, parsed.permissionKey, parsed.enabled);
     publishDomainChanged();
     return ok(null);
@@ -293,11 +315,21 @@ export function registerCoreOperationHandlers({
 
   registerHandle(IPC_CHANNELS.getHeartbeatPolicy, async (_event, payload) => {
     const parsed = heartbeatPolicySchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    if (!db.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
+      return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
+    }
     return ok(db.getHeartbeatPolicy(parsed.agentId));
   });
 
   registerHandle(IPC_CHANNELS.setHeartbeatPolicy, async (_event, payload) => {
     const parsed = setHeartbeatPolicySchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    if (!db.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
+      return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
+    }
     const { companyId, agentId, ...policy } = parsed;
     db.setHeartbeatPolicy(agentId, companyId, policy);
     publishDomainChanged();
@@ -306,11 +338,21 @@ export function registerCoreOperationHandlers({
 
   registerHandle(IPC_CHANNELS.getRuntimeState, async (_event, payload) => {
     const parsed = runtimeStateSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    if (!db.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
+      return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
+    }
     return ok(db.getRuntimeState(parsed.agentId));
   });
 
   registerHandle(IPC_CHANNELS.setRuntimeState, async (_event, payload) => {
     const parsed = setRuntimeStateSchema.parse(payload);
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    if (!db.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
+      return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
+    }
     db.setRuntimeState(parsed.agentId, parsed.companyId, parsed.state);
     return ok(null);
   });
