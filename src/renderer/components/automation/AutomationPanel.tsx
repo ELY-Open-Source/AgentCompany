@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { ArrowRight, ArrowsClockwise, Lightning, Plus, Robot, Trash, X } from "@phosphor-icons/react"
+import { ArrowRight, ArrowsClockwise, Lightning, Plus, Robot, X } from "@phosphor-icons/react"
 import type { AutomationAction, AutomationRuleRecord, AutomationStatus, AutomationTrigger, WorkflowPipelineRecord } from "@shared/types"
-import { ActionButton } from "../ui"
+import { ActionButton, ConfirmDialog } from "../ui"
 import { useT } from "../../i18n"
 import { ACCENT, LINE, triggerConfig, actionConfig, type AutomationLogEntry } from "./automation-config"
 import { timeAgo } from "../../lib/formatters"
@@ -10,19 +10,6 @@ import { RuleCard } from "./RuleCard"
 import { RuleFormModal } from "./RuleEditor"
 import { WorkflowCard } from "./WorkflowList"
 import { WorkflowFormModal } from "./WorkflowEditor"
-
-function DeleteConfirmDialog({ open, entityName, onConfirm, onCancel }: { open: boolean; entityName: string; onConfirm: () => void; onCancel: () => void }) {
-  if (!open) return null
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
-      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} transition={{ duration: 0.15 }} className="w-full max-w-[min(380px,90vw)] rounded-lg border bg-card p-6 shadow-xl" style={{ borderColor: LINE }} onClick={(e) => e.stopPropagation()}>
-        <div className="mb-1 flex items-center gap-2"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-destructive-muted"><Trash size={16} className="text-destructive" /></div><h3 className="text-[15px] font-bold text-foreground">Delete</h3></div>
-        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">Are you sure you want to delete <strong className="text-foreground">{entityName}</strong>? This action cannot be undone.</p>
-        <div className="mt-5 flex justify-end gap-3"><button type="button" onClick={onCancel} className="rounded-lg px-4 py-2 text-[12px] font-medium text-muted-foreground transition hover:bg-muted">Cancel</button><ActionButton label="Delete" onClick={onConfirm} icon={Trash} tone="danger" /></div>
-      </motion.div>
-    </motion.div>
-  )
-}
 
 function AutomationActivityLog({ entries }: { entries: AutomationLogEntry[] }) {
   if (entries.length === 0) return <div className="py-6 text-center text-[13px] text-muted-foreground">No activity yet</div>
@@ -58,7 +45,7 @@ function RulesPanel({ rules, companyId, onRefresh }: { rules: AutomationRuleReco
         : <div className="space-y-2"><AnimatePresence>{filtered.map((r) => <RuleCard key={r.id} rule={r} onToggle={() => void handleToggle(r)} onDelete={() => setDelTarget(r)} onEdit={() => setEditRule(r)} />)}</AnimatePresence></div>}
       </> : <AutomationActivityLog entries={actLog} />}
       <AnimatePresence>{showCreate ? <RuleFormModal open={showCreate} editingRule={null} companyId={companyId} onClose={() => setShowCreate(false)} onSaved={onRefresh} /> : null}{editRule ? <RuleFormModal open={!!editRule} editingRule={editRule} companyId={companyId} onClose={() => setEditRule(null)} onSaved={onRefresh} /> : null}</AnimatePresence>
-      <AnimatePresence>{delTarget ? <DeleteConfirmDialog open={!!delTarget} entityName={delTarget.name} onConfirm={() => void handleDelete()} onCancel={() => setDelTarget(null)} /> : null}</AnimatePresence>
+      <ConfirmDialog open={!!delTarget} title="Delete rule" message={delTarget ? `Are you sure you want to delete ${delTarget.name}? This action cannot be undone.` : ""} onConfirm={() => void handleDelete()} onCancel={() => setDelTarget(null)} />
     </div>
   )
 }
@@ -76,7 +63,7 @@ function WorkflowsPanel({ workflows, companyId, onRefresh }: { workflows: Workfl
       {workflows.length === 0 ? <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center" style={{ borderColor: LINE }}><ArrowsClockwise size={36} className="mb-3 text-muted-foreground" /><div className="text-[14px] font-medium text-muted-foreground">No workflow pipelines</div><div className="mx-auto mt-1 max-w-[42ch] text-[12px] leading-relaxed text-muted-foreground">Workflows chain actions into multi-step pipelines.</div><div className="mt-4"><ActionButton label="Create First Workflow" onClick={() => setShowCreate(true)} icon={ArrowsClockwise} tone="accent" /></div></div>
       : <div className="space-y-2"><AnimatePresence>{workflows.map((wf) => <WorkflowCard key={wf.id} workflow={wf} isRunning={runningId === wf.id} onDelete={() => setDelTarget(wf)} onEdit={() => setEditWf(wf)} onRun={() => void handleRun(wf)} />)}</AnimatePresence></div>}
       <AnimatePresence>{showCreate ? <WorkflowFormModal open={showCreate} editingWorkflow={null} companyId={companyId} onClose={() => setShowCreate(false)} onSaved={onRefresh} /> : null}{editWf ? <WorkflowFormModal open={!!editWf} editingWorkflow={editWf} companyId={companyId} onClose={() => setEditWf(null)} onSaved={onRefresh} /> : null}</AnimatePresence>
-      <AnimatePresence>{delTarget ? <DeleteConfirmDialog open={!!delTarget} entityName={delTarget.name} onConfirm={() => void handleDelete()} onCancel={() => setDelTarget(null)} /> : null}</AnimatePresence>
+      <ConfirmDialog open={!!delTarget} title="Delete workflow" message={delTarget ? `Are you sure you want to delete ${delTarget.name}? This action cannot be undone.` : ""} onConfirm={() => void handleDelete()} onCancel={() => setDelTarget(null)} />
     </div>
   )
 }
