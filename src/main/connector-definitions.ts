@@ -11,6 +11,45 @@ import { agentConfigurationDoc as geminiDoc, DEFAULT_GEMINI_LOCAL_MODEL, models 
 import { execute as geminiExecute, sessionCodec as geminiSessionCodec, testEnvironment as geminiTestEnvironment } from "@agentcompany/adapter-gemini-local/server";
 import type { CapabilityMatrix, ConnectorId } from "@shared/types";
 
+/**
+ * OAuth provider id recognized by pi-ai (see
+ * `@mariozechner/pi-ai/oauth`). Listed providers are the ones pi-ai ships with
+ * built-in OAuth flow handlers.
+ */
+export type PiOAuthProviderId =
+  | "anthropic"
+  | "openai-codex"
+  | "github-copilot"
+  | "gemini-cli"
+  | "antigravity";
+
+export type ConnectorAuthKind =
+  | "oauth"
+  | "api_key"
+  | "aws"
+  | "azure"
+  | "gcp_adc";
+
+/**
+ * Declarative auth descriptor for a connector. The pi-mono runtime uses this
+ * to know which credential kind to expect, which OAuth provider to invoke,
+ * and which environment variable to read as a fallback API key.
+ *
+ * Legacy consumers reference `auth.type`; credential-store/oauth code uses
+ * the canonical `kind`. Both aliases point at the same value.
+ */
+export interface ConnectorAuth {
+  kind: ConnectorAuthKind;
+  /** Alias of `kind` for legacy resolver code. */
+  type: ConnectorAuthKind;
+  /** pi-ai OAuth provider id (only set when `kind === "oauth"`). */
+  provider?: PiOAuthProviderId;
+  /** Alias of `provider` for legacy resolver code. */
+  oauthId?: PiOAuthProviderId;
+  /** Environment variable fallback for `kind === "api_key"`. */
+  envKey?: string;
+}
+
 export interface ConnectorDefinition {
   id: ConnectorId;
   label: string;
@@ -22,6 +61,21 @@ export interface ConnectorDefinition {
   configurationDoc: string;
   module: ServerAdapterModule;
   listModels?: () => Promise<Array<{ id: string; label: string }>>;
+  /** pi-ai provider id (e.g. "anthropic", "openai"). Optional — unset for
+   * adapter-based connectors that do not resolve through pi-ai. */
+  provider?: string;
+  /** Auth schema; optional so existing entries stay source-compatible. */
+  auth?: ConnectorAuth;
+  /** Featured in the onboarding provider picker. */
+  onboardingFeatured?: boolean;
+}
+
+function oauthAuth(provider: PiOAuthProviderId): ConnectorAuth {
+  return { kind: "oauth", type: "oauth", provider, oauthId: provider };
+}
+
+function apiKeyAuth(envKey?: string): ConnectorAuth {
+  return { kind: "api_key", type: "api_key", envKey };
 }
 
 const claudeCompatModule: ServerAdapterModule = {
@@ -94,6 +148,9 @@ export const CONNECTORS: ConnectorDefinition[] = [
       models: codexModels,
     },
     listModels: async () => codexModels,
+    provider: "openai",
+    auth: oauthAuth("openai-codex"),
+    onboardingFeatured: true,
   },
   {
     id: "claude_local",
@@ -119,8 +176,15 @@ export const CONNECTORS: ConnectorDefinition[] = [
       models: claudeModels,
     },
     listModels: async () => claudeModels,
+    provider: "anthropic",
+    auth: oauthAuth("anthropic"),
+    onboardingFeatured: true,
   },
-  ...claudeCompatSlots,
+  ...claudeCompatSlots.map((slot) => ({
+    ...slot,
+    provider: "anthropic",
+    auth: apiKeyAuth("ANTHROPIC_API_KEY"),
+  })),
   {
     id: "gemini_local",
     label: "Gemini CLI",
@@ -145,5 +209,8 @@ export const CONNECTORS: ConnectorDefinition[] = [
       models: geminiModels,
     },
     listModels: async () => geminiModels,
+    provider: "google",
+    auth: oauthAuth("gemini-cli"),
+    onboardingFeatured: true,
   },
 ];

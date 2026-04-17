@@ -1,6 +1,8 @@
 import type { ConnectorRecord } from "@shared/types";
 import { CONNECTORS } from "./connector-definitions";
+export { CONNECTORS } from "./connector-definitions";
 export type { ConnectorDefinition } from "./connector-definitions";
+export { findConnectorDefinition, listFeaturedOnboardingConnectors } from "./connector-definitions-lookup";
 
 const RESERVED_ENV_BINDING_KEYS = new Set([
   "PATH",
