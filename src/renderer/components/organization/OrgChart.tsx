@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Heartbeat } from "../ui/icons";
+import { CornersOut, Heartbeat, Minus, Plus } from "../ui/icons";
 import type { AgentRecord, ConnectorRecord } from "@shared/types";
-import { getAgentInitials } from "../../lib/formatters";
+import { formatConnectorLabel, getAgentInitials } from "../../lib/formatters";
 import { EmptyState } from "../ui";
 import { useT } from "../../i18n";
-import { buildOrgTree, layoutForest, flattenLayout, collectEdges, statusDotColor, adapterLabels, CARD_W, CARD_H, CHART_PADDING } from "./orgTreeLayout";
+import { buildOrgTree, layoutForest, flattenLayout, collectEdges, statusDotColor, CARD_W, CARD_H, CHART_PADDING } from "./orgTreeLayout";
 
 export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentRecord[]; connectors?: ConnectorRecord[]; onSelectAgent?: (agentId: string) => void }) {
   const t = useT();
@@ -75,8 +75,14 @@ export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentR
   return (
     <div ref={containerRef} className="relative min-h-[400px] h-[clamp(400px,60vh,720px)] w-full overflow-hidden rounded-lg border border-border bg-background" style={{ cursor: dragging ? "grabbing" : "grab" }} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onWheel={handleWheel}>
       <div className="absolute right-3 top-3 z-10 flex flex-col gap-1">
-        {[{ label: "+", ariaLabel: t("org.zoomIn"), action: zoomIn }, { label: "\u2212", ariaLabel: t("org.zoomOut"), action: zoomOut }, { label: t("org.fit"), ariaLabel: t("org.fitChart"), action: fitToScreen }].map((btn) => (
-          <button key={btn.ariaLabel} className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-[12px] text-foreground transition hover:bg-muted" onClick={btn.action} aria-label={btn.ariaLabel}>{btn.label}</button>
+        {[
+          { icon: Plus, ariaLabel: t("org.zoomIn"), action: zoomIn },
+          { icon: Minus, ariaLabel: t("org.zoomOut"), action: zoomOut },
+          { icon: CornersOut, ariaLabel: t("org.fitChart"), action: fitToScreen },
+        ].map(({ icon: Icon, ariaLabel, action }) => (
+          <button key={ariaLabel} className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" onClick={action} aria-label={ariaLabel}>
+            <Icon size={16} weight="regular" />
+          </button>
         ))}
       </div>
       <svg className="pointer-events-none absolute inset-0" style={{ width: "100%", height: "100%" }}>
@@ -93,9 +99,7 @@ export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentR
         {allNodes.map((node) => {
           const dotColor = statusDotColor[node.agent.status] ?? "var(--muted-foreground)";
           const connectorRecord = connectors?.find((c) => c.id === node.agent.connectorId);
-          const connectorLabel = (connectorRecord?.id.startsWith("claude_compat") && connectorRecord.notes)
-            ? connectorRecord.notes
-            : adapterLabels[node.agent.connectorId] ?? node.agent.connectorId;
+          const connectorLabel = formatConnectorLabel(connectorRecord, node.agent.connectorId);
           const initials = getAgentInitials(node.agent.name);
           const isRunning = node.agent.status === "running";
           const isActive = node.agent.status === "active" || isRunning;
@@ -122,7 +126,7 @@ export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentR
                   <span className="truncate text-[14px] font-semibold leading-tight text-foreground">{node.agent.name}</span>
                   <span className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{node.agent.title || node.agent.role}</span>
                   <div className="mt-1.5 flex items-center gap-2">
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{connectorLabel}</span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold tracking-tight text-muted-foreground">{connectorLabel}</span>
                     {node.agent.heartbeatEnabled ? <Heartbeat size={10} className="text-success" /> : null}
                   </div>
                 </div>

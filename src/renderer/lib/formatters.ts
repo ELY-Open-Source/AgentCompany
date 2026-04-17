@@ -46,6 +46,19 @@ export function getAgentInitials(name: string): string {
     .toUpperCase();
 }
 
+/**
+ * Resolve the user-visible label for a connector reference. The org chart
+ * and agent roster share this so there is one definition of "what do I
+ * show for `agent.connectorId`?" — prefer the registered label, fall
+ * back to the raw id when a connector row is missing (e.g. pending sync).
+ */
+export function formatConnectorLabel(
+  connector: { label?: string | null; id?: string | null } | null | undefined,
+  fallbackConnectorId: string,
+): string {
+  return connector?.label || connector?.id || fallbackConnectorId;
+}
+
 export function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);

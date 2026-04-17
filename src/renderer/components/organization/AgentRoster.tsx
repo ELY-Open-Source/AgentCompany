@@ -5,6 +5,7 @@ import type { AgentRecord, ConnectorRecord, WorkspaceRecord } from "@shared/type
 import { EmptyState, StatusPill } from "../ui"
 import { useT } from "../../i18n"
 import { useRovingTabIndex } from "../../lib/keyboard"
+import { formatConnectorLabel } from "../../lib/formatters"
 import { BudgetBar } from "./helpers"
 
 export function AgentRoster({
@@ -96,7 +97,7 @@ export function AgentRoster({
                   <StatusPill status={agent.status} />
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>{t("org.connectorLabel")} {connector?.id.startsWith("claude_compat") && connector.notes ? connector.notes : connector?.label ?? agent.connectorId}</span>
+                  <span>{t("org.connectorLabel")} {formatConnectorLabel(connector, agent.connectorId)}</span>
                   {workspace && <span>{t("org.workspaceLabel")} {workspace.name}</span>}
                 </div>
                 <div className="mt-1.5">

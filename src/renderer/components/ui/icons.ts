@@ -43,6 +43,7 @@ export {
   Clock,
   ClockCounterClockwise,
   Command,
+  CornersOut,
   Copy,
   Cpu,
   CurrencyCircleDollar,
