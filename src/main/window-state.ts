@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { BrowserWindow, Rectangle } from "electron";
 
@@ -15,12 +15,20 @@ const DEFAULT_BOUNDS: Rectangle = {
 };
 
 function safeParseState(filePath: string): StoredWindowState | null {
+  // First-run: file absent is normal, not corruption. Return null silently.
+  if (!existsSync(filePath)) return null;
   try {
     const raw = readFileSync(filePath, "utf8");
     const parsed = JSON.parse(raw) as Partial<StoredWindowState>;
-    if (!parsed.bounds || typeof parsed.bounds !== "object") return null;
+    if (!parsed.bounds || typeof parsed.bounds !== "object") {
+       
+      console.warn(`[window-state] ${filePath} is missing bounds; using default geometry.`);
+      return null;
+    }
     const { width, height, x, y } = parsed.bounds as Partial<Rectangle>;
     if (typeof width !== "number" || !Number.isFinite(width) || typeof height !== "number" || !Number.isFinite(height)) {
+       
+      console.warn(`[window-state] ${filePath} has non-numeric bounds; using default geometry.`);
       return null;
     }
     return {
@@ -32,7 +40,10 @@ function safeParseState(filePath: string): StoredWindowState | null {
       },
       maximized: parsed.maximized === true,
     };
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+     
+    console.warn(`[window-state] ${filePath} unreadable (${message}); using default geometry.`);
     return null;
   }
 }
