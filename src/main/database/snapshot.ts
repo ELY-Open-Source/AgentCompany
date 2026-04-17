@@ -76,23 +76,23 @@ export function buildSnapshotMethods(
         ...companyArgs,
       ),
       tasks: readAll<TaskRecord>(
-        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, task_type as taskType, requires_user_review as requiresUserReview, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks${companyWhere} order by created_at desc`,
+        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, task_type as taskType, requires_user_review as requiresUserReview, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks${companyWhere} order by created_at desc limit 2000`,
         ...companyArgs,
       ).map((record) => ({ ...record, requiresUserReview: toBoolean(record.requiresUserReview), startedAt: record.startedAt ?? null, completedAt: record.completedAt ?? null, cancelledAt: record.cancelledAt ?? null })) as TaskRecord[],
       approvals: readAll<ApprovalRecord>(
-        `select id, company_id as companyId, related_task_id as relatedTaskId, related_agent_id as relatedAgentId, requested_by_agent_id as requestedByAgentId, type, payload_summary as payloadSummary, impact_summary as impactSummary, payload_json as payloadJson, decision_note as decisionNote, state, created_at as createdAt, updated_at as updatedAt from approvals${companyWhere} order by created_at desc`,
+        `select id, company_id as companyId, related_task_id as relatedTaskId, related_agent_id as relatedAgentId, requested_by_agent_id as requestedByAgentId, type, payload_summary as payloadSummary, impact_summary as impactSummary, payload_json as payloadJson, decision_note as decisionNote, state, created_at as createdAt, updated_at as updatedAt from approvals${companyWhere} order by created_at desc limit 1000`,
         ...companyArgs,
       ),
       runs: readAll<RunRecord>(
-        `select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId, connector_id as connectorId, status, summary, error_message as errorMessage, exit_code as exitCode, signal, model, session_display_id as sessionDisplayId, cost_usd as costUsd, unattributed_cost as unattributedCost, started_at as startedAt, finished_at as finishedAt, log_path as logPath, created_at as createdAt, updated_at as updatedAt from runs${companyWhere} order by created_at desc${companyId ? "" : " limit 500"}`,
+        `select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId, connector_id as connectorId, status, summary, error_message as errorMessage, exit_code as exitCode, signal, model, session_display_id as sessionDisplayId, cost_usd as costUsd, unattributed_cost as unattributedCost, started_at as startedAt, finished_at as finishedAt, log_path as logPath, created_at as createdAt, updated_at as updatedAt from runs${companyWhere} order by created_at desc limit ${companyId ? 2000 : 2000}`,
         ...companyArgs,
       ).map((record) => ({ ...record, unattributedCost: Boolean(record.unattributedCost) })) as RunRecord[],
       costs: readAll<CostRecord>(
-        `select id, company_id as companyId, run_id as runId, task_id as taskId, agent_id as agentId, connector_id as connectorId, amount_usd as amountUsd, unattributed, created_at as createdAt from cost_entries${companyWhere} order by created_at desc${companyId ? "" : " limit 500"}`,
+        `select id, company_id as companyId, run_id as runId, task_id as taskId, agent_id as agentId, connector_id as connectorId, amount_usd as amountUsd, unattributed, created_at as createdAt from cost_entries${companyWhere} order by created_at desc limit ${companyId ? 2000 : 2000}`,
         ...companyArgs,
       ).map((entry) => ({ ...entry, unattributed: Boolean(entry.unattributed) })) as CostRecord[],
       activity: readAll<ActivityRecord>(
-        `select id, company_id as companyId, actor, action, entity_type as entityType, entity_id as entityId, detail, created_at as createdAt from activity${companyWhere} order by created_at desc${companyId ? "" : " limit 250"}`,
+        `select id, company_id as companyId, actor, action, entity_type as entityType, entity_id as entityId, detail, created_at as createdAt from activity${companyWhere} order by created_at desc limit ${companyId ? 1000 : 1000}`,
         ...companyArgs,
       ),
       secrets: readAll<SecretRecord>(
@@ -140,7 +140,7 @@ export function buildSnapshotMethods(
         createdAt: r.created_at, updatedAt: r.updated_at,
       })),
       sprints: readAll<SqliteRow>(
-        `select id, company_id, name, goal, start_date, end_date, status, retrospective_notes, velocity_points, completed_points, created_at, updated_at from sprints${companyWhere} order by start_date desc`,
+        `select id, company_id, name, goal, start_date, end_date, status, retrospective_notes, velocity_points, completed_points, created_at, updated_at from sprints${companyWhere} order by start_date desc limit 500`,
         ...companyArgs,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, name: r.name, goal: r.goal,
@@ -160,7 +160,7 @@ export function buildSnapshotMethods(
         createdAt: r.created_at, updatedAt: r.updated_at,
       })),
       agentMessages: readAll<SqliteRow>(
-        `select id, company_id, from_agent_id, to_agent_id, sender_kind, channel, channel_target_id, subject, body, priority, read_at, parent_message_id, attachments_json, created_at from agent_messages${companyWhere} order by created_at desc${companyId ? "" : " limit 500"}`,
+        `select id, company_id, from_agent_id, to_agent_id, sender_kind, channel, channel_target_id, subject, body, priority, read_at, parent_message_id, attachments_json, created_at from agent_messages${companyWhere} order by created_at desc limit ${companyId ? 1000 : 1000}`,
         ...companyArgs,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, fromAgentId: r.from_agent_id,
