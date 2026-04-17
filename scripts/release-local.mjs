@@ -1,10 +1,10 @@
 import { spawn } from "node:child_process";
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareR2ReleaseHost, uploadReleaseFiles } from "./release-local/r2.mjs";
+import { loadEnvFile } from "./release/lib/dotenv.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, "..");
@@ -58,22 +58,6 @@ Environment loading:
   - .env.release.local
   - existing shell environment (takes precedence)
 `);
-}
-
-async function loadEnvFile(filePath) {
-  if (!existsSync(filePath)) return;
-  const content = await readFile(filePath, "utf8");
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const separatorIndex = line.indexOf("=");
-    if (separatorIndex <= 0) continue;
-    const key = line.slice(0, separatorIndex).trim();
-    if (!key || process.env[key]) continue;
-    const rawValue = line.slice(separatorIndex + 1).trim();
-    if (!rawValue) continue;
-    process.env[key] = rawValue.replace(/^['"]|['"]$/g, "");
-  }
 }
 
 function hasDocker() {
