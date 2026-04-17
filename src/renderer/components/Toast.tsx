@@ -4,9 +4,9 @@ import { useAppStore } from "../state/store"
 import { useReducedMotion } from "./ui"
 
 const TONE_CONFIG = {
-  success: { icon: CheckCircle, bg: "var(--muted-foreground)", border: "var(--primary)", text: "var(--primary)" },
-  danger: { icon: XCircle, bg: "var(--destructive)", border: "var(--destructive)", text: "var(--destructive)" },
-  warn: { icon: Warning, bg: "var(--muted-foreground)", border: "var(--warning)", text: "var(--warning)" },
+  success: { icon: CheckCircle, className: "bg-success-muted border-success text-success" },
+  danger: { icon: XCircle, className: "bg-destructive-muted border-destructive text-destructive" },
+  warn: { icon: Warning, className: "bg-warning-muted border-warning text-warning" },
 } as const
 
 export default function ToastContainer() {
@@ -29,18 +29,16 @@ export default function ToastContainer() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={reduced ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.96 }}
               transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="flex w-[320px] items-start gap-2.5 rounded-lg border px-4 py-3 shadow-lg"
-              style={{ backgroundColor: cfg.bg, borderColor: cfg.border }}
+              className={`flex w-[320px] items-start gap-2.5 rounded-lg border px-4 py-3 shadow-lg ${cfg.className}`}
             >
-              <Icon size={16} weight="fill" className="mt-px shrink-0" style={{ color: cfg.text }} />
-              <span className="min-w-0 flex-1 break-words text-[13px] font-medium" style={{ color: cfg.text }}>
+              <Icon size={16} weight="fill" className="mt-px shrink-0" />
+              <span className="min-w-0 flex-1 break-words text-[13px] font-medium">
                 {toast.message}
               </span>
               <button
                 type="button"
                 onClick={() => dismiss(toast.id)}
                 className="shrink-0 rounded-[4px] p-0.5 opacity-60 transition hover:opacity-100"
-                style={{ color: cfg.text }}
                 aria-label="Dismiss"
               >
                 <X size={12} />

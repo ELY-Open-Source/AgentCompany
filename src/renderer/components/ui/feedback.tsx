@@ -57,10 +57,10 @@ export function InlineNotice({
   action?: ReactNode;
 }) {
   const toneClass = tone === "success"
-    ? "border-[color:var(--primary)] bg-success-muted text-success"
+    ? "border-success bg-success-muted text-success"
     : tone === "warn"
-      ? "border-[color:var(--warning)] bg-warning-muted text-warning"
-      : "border-[color:var(--destructive)] bg-destructive-muted text-destructive";
+      ? "border-warning bg-warning-muted text-warning"
+      : "border-destructive bg-destructive-muted text-destructive";
   return (
     <div className={`rounded-lg border px-4 py-3 text-[13px] ${toneClass}`} role={tone === "danger" ? "alert" : "status"}>
       {action ? (
