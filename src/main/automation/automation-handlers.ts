@@ -31,7 +31,13 @@ export function handleTaskStatusChange(
   newStatus: string,
 ): void {
   if (deps.isQuitting()) return;
-  if (previousStatus === newStatus) return;
+  if (previousStatus === newStatus) {
+    // Caller should gate this; log the no-op so the offender can be traced.
+    deps.logger.warn(
+      `[automation] handleTaskStatusChange called with no-op status (${previousStatus}) for task ${taskId} — caller should gate this.`,
+    );
+    return;
+  }
   const { db, wakeAgentIfPossible } = deps;
   const { dispatchAutomation } = callbacks;
 
