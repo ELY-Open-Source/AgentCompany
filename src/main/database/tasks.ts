@@ -1,6 +1,8 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ReadAll, Transaction } from "./helpers";
 import { buildTaskCrudMethods } from "./tasks-crud";
+import { buildTaskQueryMethods } from "./task-queries";
+import { buildTaskSessionMethods } from "./task-sessions-crud";
 import { buildTaskStatusMethods } from "./tasks-status";
 
 export function buildTaskMethods(
@@ -14,6 +16,8 @@ export function buildTaskMethods(
 ) {
   return {
     ...buildTaskCrudMethods(getDb, readAll, transaction, deps),
+    ...buildTaskQueryMethods(getDb, readAll, transaction),
+    ...buildTaskSessionMethods(getDb, readAll, transaction),
     ...buildTaskStatusMethods(getDb, readAll, transaction, deps),
   };
 }

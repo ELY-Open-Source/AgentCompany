@@ -3,6 +3,7 @@ import type { AgentRecord } from "@shared/types";
 import type { ReadAll, Transaction } from "./helpers";
 import { buildAgentCrudMethods } from "./agents-crud";
 import { buildAgentHierarchyMethods } from "./agents-hierarchy";
+import { buildAgentPermissionMethods } from "./agent-permissions";
 
 export function buildAgentMethods(
   getDb: () => DatabaseSync,
@@ -29,5 +30,6 @@ export function buildAgentMethods(
   return {
     ...buildAgentCrudMethods(getDb, readAll, transaction, deps),
     ...buildAgentHierarchyMethods(getDb, readAll, transaction, { getAgent: deps.getAgent }),
+    ...buildAgentPermissionMethods(getDb, readAll, transaction),
   };
 }

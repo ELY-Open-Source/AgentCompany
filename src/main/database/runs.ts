@@ -1,34 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { writeFileSync, readFileSync, existsSync, statSync, openSync, readSync, closeSync } from "node:fs";
-import { appendFile } from "node:fs/promises";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
-import log from "electron-log/main.js";
-import type { ConnectorId, RunLogChunk, RunRecord } from "@shared/types";
-import { type ReadAll, type SqliteRow, type Transaction, nowIso, toBoolean } from "./helpers";
-
-/**
- * Find the last complete UTF-8 character boundary in a buffer.
- * Returns the number of bytes up to (and including) the last complete character.
- * This prevents corrupting multi-byte CJK characters when slicing at chunk edges.
- */
-function findUtf8Boundary(buffer: Buffer, bytesRead: number): number {
-  if (bytesRead === 0) return 0;
-  let pos = bytesRead - 1;
-  while (pos >= 0 && (buffer[pos] & 0xc0) === 0x80) {
-    pos--;
-  }
-  if (pos < 0) return bytesRead;
-  const lead = buffer[pos];
-  let charLen: number;
-  if ((lead & 0x80) === 0) charLen = 1;
-  else if ((lead & 0xe0) === 0xc0) charLen = 2;
-  else if ((lead & 0xf0) === 0xe0) charLen = 3;
-  else if ((lead & 0xf8) === 0xf0) charLen = 4;
-  else return bytesRead;
-  if (pos + charLen <= bytesRead) return bytesRead;
-  return pos;
-}
+import type { ConnectorId, RunRecord } from "@shared/types";
+import { type ReadAll, type Transaction, nowIso, toBoolean } from "./helpers";
+import { buildRunLogMethods } from "./run-logs";
+import { buildRunEventMethods } from "./run-events";
+import { buildCostEntryMethods } from "./cost-entries";
 
 export function buildRunMethods(
   getDb: () => DatabaseSync,
@@ -39,6 +17,10 @@ export function buildRunMethods(
   },
 ) {
   return {
+    ...buildRunLogMethods(getDb, readAll, transaction),
+    ...buildRunEventMethods(getDb, readAll, transaction),
+    ...buildCostEntryMethods(getDb, readAll, transaction),
+
     getRun(id: string): RunRecord {
       const row = getDb()
         .prepare(
@@ -80,56 +62,6 @@ export function buildRunMethods(
       });
       writeFileSync(logPath, "", "utf8");
       return { id, logPath };
-    },
-
-    appendRunLog(runId: string, stream: "stdout" | "stderr", chunk: string) {
-      const run = getDb().prepare("select log_path as logPath from runs where id = ?").get(runId) as { logPath: string | null } | undefined;
-      if (!run?.logPath) return;
-      return appendFile(run.logPath, `[${new Date().toISOString()}][${stream}] ${chunk}`, "utf8");
-    },
-
-    readRunLog(runId: string) {
-      const run = getDb().prepare("select log_path as logPath from runs where id = ?").get(runId) as { logPath: string | null } | undefined;
-      if (!run?.logPath) return "";
-      try {
-        return readFileSync(run.logPath, "utf8");
-      } catch (err) {
-        log.warn(`[database/runs] readFileSync failed for run ${runId} log ${run.logPath}:`, err instanceof Error ? err.message : String(err));
-        return "";
-      }
-    },
-
-    readRunLogChunk(runId: string, offset = 0, limit = 65_536): RunLogChunk {
-      const run = getDb().prepare("select log_path as logPath from runs where id = ?").get(runId) as { logPath: string | null } | undefined;
-      if (!run?.logPath || !existsSync(run.logPath)) {
-        return { content: "", offset: 0, nextOffset: 0, totalBytes: 0, eof: true };
-      }
-
-      const totalBytes = statSync(run.logPath).size;
-      const safeOffset = Math.max(0, Math.min(offset, totalBytes));
-      const safeLimit = Math.max(1_024, Math.min(limit, 262_144));
-      const bytesToRead = Math.max(0, Math.min(safeLimit, totalBytes - safeOffset));
-
-      if (bytesToRead === 0) {
-        return { content: "", offset: safeOffset, nextOffset: safeOffset, totalBytes, eof: true };
-      }
-
-      const fileDescriptor = openSync(run.logPath, "r");
-      try {
-        const buffer = Buffer.allocUnsafe(bytesToRead);
-        const bytesRead = readSync(fileDescriptor, buffer, 0, bytesToRead, safeOffset);
-        const safeBytesRead = findUtf8Boundary(buffer, bytesRead);
-        const nextOffset = safeOffset + safeBytesRead;
-        return {
-          content: buffer.subarray(0, safeBytesRead).toString("utf8"),
-          offset: safeOffset,
-          nextOffset,
-          totalBytes,
-          eof: nextOffset >= totalBytes,
-        };
-      } finally {
-        closeSync(fileDescriptor);
-      }
     },
 
     markRunStatus(runId: string, status: RunRecord["status"], message: string | null) {
@@ -270,39 +202,6 @@ export function buildRunMethods(
       return Boolean(row?.present);
     },
 
-    /**
-     * Single writer for `cost_entries`. CostWriter calls this per
-     * `message_end`; tests also call it to simulate per-turn cost.
-     * finishRun reads SUM(cost_entries) for the run-level aggregate,
-     * so this is the authoritative path for cost attribution.
-     */
-    recordCostEntry(input: {
-      runId: string;
-      companyId: string;
-      agentId: string;
-      taskId: string | null;
-      connectorId: string;
-      amountUsd: number | null;
-      unattributed: boolean;
-    }): string {
-      const id = randomUUID();
-      const ts = nowIso();
-      const projectRow = input.taskId
-        ? getDb().prepare("SELECT project_id FROM tasks WHERE id = ?").get(input.taskId) as { project_id: string | null } | undefined
-        : undefined;
-      const projectId = projectRow?.project_id ?? null;
-      getDb()
-        .prepare(
-          "insert into cost_entries (id, company_id, run_id, task_id, agent_id, connector_id, amount_usd, unattributed, project_id, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .run(
-          id, input.companyId, input.runId, input.taskId, input.agentId,
-          input.connectorId, input.amountUsd,
-          input.unattributed ? 1 : 0, projectId, ts,
-        );
-      return id;
-    },
-
     listQueuedRuns() {
       return readAll<RunRecord>(
         `select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId,
@@ -335,73 +234,6 @@ export function buildRunMethods(
          and t.status = 'blocked'
          order by r.finished_at desc`
       );
-    },
-
-    appendRunEvent(input: {
-      companyId: string; runId: string; agentId: string;
-      eventType: string; stream?: string | null; level?: string | null;
-      message?: string | null; payload?: Record<string, unknown> | null;
-    }): void {
-      const ts = nowIso();
-      transaction(() => {
-        const lastSeq = getDb().prepare(
-          "SELECT MAX(seq) as maxSeq FROM run_events WHERE run_id = ?"
-        ).get(input.runId) as { maxSeq: number | null } | undefined;
-        const seq = (lastSeq?.maxSeq ?? 0) + 1;
-        getDb().prepare(
-          "INSERT INTO run_events (company_id, run_id, agent_id, seq, event_type, stream, level, message, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        ).run(
-          input.companyId, input.runId, input.agentId, seq,
-          input.eventType, input.stream ?? null, input.level ?? null,
-          input.message ?? null, input.payload ? JSON.stringify(input.payload) : null, ts
-        );
-      });
-    },
-
-    listRunEvents(runId: string, companyId: string, opts?: { offset?: number; limit?: number }): Array<{
-      id: number; runId: string; agentId: string; seq: number; eventType: string;
-      stream: string | null; level: string | null; message: string | null;
-      payload: Record<string, unknown> | null; createdAt: string;
-    }> {
-      const offset = opts?.offset ?? 0;
-      const limit = opts?.limit ?? 500;
-      return readAll<SqliteRow>(
-        "SELECT id, run_id, agent_id, seq, event_type, stream, level, message, payload, created_at FROM run_events WHERE run_id = ? AND company_id = ? ORDER BY seq ASC LIMIT ? OFFSET ?",
-        runId, companyId, limit, offset
-      ).map((row: SqliteRow) => ({
-        id: row.id,
-        runId: row.run_id,
-        agentId: row.agent_id,
-        seq: row.seq,
-        eventType: row.event_type,
-        stream: row.stream,
-        level: row.level,
-        message: row.message,
-        payload: row.payload ? JSON.parse(row.payload) : null,
-        createdAt: row.created_at,
-      }));
-    },
-
-    listRunEventsAfter(runId: string, companyId: string, afterSeq: number, limit: number): Array<{
-      id: number; runId: string; agentId: string; seq: number; eventType: string;
-      stream: string | null; level: string | null; message: string | null;
-      payload: Record<string, unknown> | null; createdAt: string;
-    }> {
-      return readAll<SqliteRow>(
-        "SELECT id, run_id, agent_id, seq, event_type, stream, level, message, payload, created_at FROM run_events WHERE run_id = ? AND company_id = ? AND seq > ? ORDER BY seq ASC LIMIT ?",
-        runId, companyId, afterSeq, limit
-      ).map((row: SqliteRow) => ({
-        id: row.id,
-        runId: row.run_id,
-        agentId: row.agent_id,
-        seq: row.seq,
-        eventType: row.event_type,
-        stream: row.stream,
-        level: row.level,
-        message: row.message,
-        payload: row.payload ? JSON.parse(row.payload) : null,
-        createdAt: row.created_at,
-      }));
     },
 
     updateRunActor(runId: string, actorType: string, actorId: string | null): void {

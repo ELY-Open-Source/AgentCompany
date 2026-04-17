@@ -2,6 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { ProfileSnapshot } from "@shared/types";
 import type { ReadAll, Transaction } from "./helpers";
 import { buildCompanyCrudMethods } from "./company-crud";
+import { buildCompanyMetricsMethods } from "./company-metrics";
 import { buildCompanySettingsMethods } from "./company-settings";
 
 export function buildCompanyMethods(
@@ -18,5 +19,6 @@ export function buildCompanyMethods(
   return {
     ...buildCompanyCrudMethods(getDb, readAll, transaction, deps),
     ...buildCompanySettingsMethods(getDb, readAll, transaction, { listSnapshot: deps.listSnapshot }),
+    ...buildCompanyMetricsMethods(getDb, readAll, transaction),
   };
 }
