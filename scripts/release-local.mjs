@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import { dirname, join } from "node:path";
@@ -11,7 +12,8 @@ const rootDir = join(__dirname, "..");
 const buildReleaseDir = join(rootDir, "build", "release");
 const localReleaseDir = join(rootDir, "local-release");
 const pnpmVersion = "10.24.0";
-const dockerNodeModulesVolume = `${process.cwd().split("/").filter(Boolean).at(-1) ?? "agentcompany"}-node-modules`;
+const checkoutHash = createHash("sha1").update(rootDir).digest("hex").slice(0, 10);
+const dockerNodeModulesVolume = `agentcompany-node-modules-${checkoutHash}`;
 
 function parseArgs(argv) {
   const options = {
