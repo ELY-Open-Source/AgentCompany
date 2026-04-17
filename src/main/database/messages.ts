@@ -87,8 +87,10 @@ export function buildMessageMethods(
         limit?: number;
       },
     ): AgentMessageRecord[] {
-      let sql =
-        "select id, company_id as companyId, from_agent_id as fromAgentId, to_agent_id as toAgentId, sender_kind as senderKind, channel, channel_target_id as channelTargetId, subject, body, priority, read_at as readAt, parent_message_id as parentMessageId, attachments_json as attachmentsJson, created_at as createdAt from agent_messages where company_id = ?";
+      const limit = opts?.limit ?? 200;
+      const selectCols =
+        "select id, company_id as companyId, from_agent_id as fromAgentId, to_agent_id as toAgentId, sender_kind as senderKind, channel, channel_target_id as channelTargetId, subject, body, priority, read_at as readAt, parent_message_id as parentMessageId, attachments_json as attachmentsJson, created_at as createdAt from agent_messages";
+      let sql = `${selectCols} where company_id = ?`;
       const params: SQLInputValue[] = [companyId];
       if (opts?.messageId) {
         sql += " and id = ?";
@@ -102,10 +104,14 @@ export function buildMessageMethods(
         sql += " and channel_target_id = ?";
         params.push(opts.channelTargetId);
       }
-      sql += " order by created_at asc";
 
-      let messages = readAll<AgentMessageRecord>(sql, ...params);
       if (!opts?.agentId) {
+        sql += " order by created_at desc";
+        if (limit > 0) {
+          sql += " limit ?";
+          params.push(limit);
+        }
+        const rows = readAll<AgentMessageRecord>(sql, ...params).reverse();
         const boardReadReceiptMap = new Map(
           readAll<{ messageId: string; readAt: string }>(
             `select reads.message_id as messageId, reads.read_at as readAt
@@ -116,85 +122,90 @@ export function buildMessageMethods(
             companyId,
           ).map((row) => [row.messageId, row.readAt]),
         );
-        messages = messages.map((message) => ({
+        let result = rows.map((message) => ({
           ...message,
           readAt: boardReadReceiptMap.get(message.id) ?? null,
         }));
+        if (opts?.unreadOnly) {
+          result = result.filter((message) => !message.readAt);
+        }
+        return result;
       }
-      if (opts?.agentId) {
-        let department: string | null = null;
-        try {
-          const agent = deps.getAgent(opts.agentId);
-          if (agent.companyId === companyId) {
-            department = agent.department;
-          }
-        } catch {
-          department = null;
-        }
 
-        const relevantProjectIds = new Set<string>();
-        for (const row of readAll<{ projectId: string | null }>(
-          "select distinct project_id as projectId from tasks where company_id = ? and assignee_agent_id = ? and project_id is not null",
-          companyId,
-          opts.agentId,
-        )) {
-          if (row.projectId) relevantProjectIds.add(row.projectId);
+      let department: string | null = null;
+      try {
+        const agent = deps.getAgent(opts.agentId);
+        if (agent.companyId === companyId) {
+          department = agent.department;
         }
-        for (const row of readAll<{ id: string }>(
-          "select id from projects where company_id = ? and lead_agent_id = ?",
-          companyId,
-          opts.agentId,
-        )) {
-          relevantProjectIds.add(row.id);
-        }
+      } catch {
+        department = null;
+      }
 
-        const readReceiptMap = new Map(
-          readAll<{ messageId: string; readAt: string }>(
-            `select reads.message_id as messageId, reads.read_at as readAt
+      const relevantProjectIds = new Set<string>();
+      for (const row of readAll<{ projectId: string | null }>(
+        "select distinct project_id as projectId from tasks where company_id = ? and assignee_agent_id = ? and project_id is not null",
+        companyId,
+        opts.agentId,
+      )) {
+        if (row.projectId) relevantProjectIds.add(row.projectId);
+      }
+      for (const row of readAll<{ id: string }>(
+        "select id from projects where company_id = ? and lead_agent_id = ?",
+        companyId,
+        opts.agentId,
+      )) {
+        relevantProjectIds.add(row.id);
+      }
+
+      const visibilityClauses: string[] = [
+        "from_agent_id = ?",
+        "(channel = 'direct' and to_agent_id = ?)",
+        "channel in ('company','incident')",
+      ];
+      const visibilityParams: SQLInputValue[] = [opts.agentId, opts.agentId];
+      if (department) {
+        visibilityClauses.push("(channel = 'department' and channel_target_id = ?)");
+        visibilityParams.push(department);
+      }
+      if (relevantProjectIds.size > 0) {
+        const placeholders = Array.from(relevantProjectIds).map(() => "?").join(",");
+        visibilityClauses.push(`(channel = 'project' and channel_target_id in (${placeholders}))`);
+        visibilityParams.push(...Array.from(relevantProjectIds));
+      }
+      sql += ` and (${visibilityClauses.join(" or ")})`;
+      params.push(...visibilityParams);
+      sql += " order by created_at desc";
+      if (limit > 0) {
+        sql += " limit ?";
+        params.push(limit);
+      }
+      const rows = readAll<AgentMessageRecord>(sql, ...params).reverse();
+
+      const readReceiptMap = new Map(
+        readAll<{ messageId: string; readAt: string }>(
+          `select reads.message_id as messageId, reads.read_at as readAt
              from agent_message_reads reads
              join agent_messages messages on messages.id = reads.message_id
             where reads.agent_id = ? and messages.company_id = ?`,
-            opts.agentId,
-            companyId,
-          ).map((row) => [row.messageId, row.readAt]),
-        );
+          opts.agentId,
+          companyId,
+        ).map((row) => [row.messageId, row.readAt]),
+      );
 
-        messages = messages
-          .filter((message) => {
-            if (message.fromAgentId === opts.agentId) {
-              return true;
-            }
-            if (message.channel === "direct") {
-              return message.toAgentId === opts.agentId;
-            }
-            if (message.channel === "company" || message.channel === "incident") {
-              return true;
-            }
-            if (message.channel === "department") {
-              return Boolean(department) && message.channelTargetId === department;
-            }
-            if (message.channel === "project") {
-              return Boolean(
-                message.channelTargetId && relevantProjectIds.has(message.channelTargetId),
-              );
-            }
-            return false;
-          })
-          .map((message) => {
-            if (message.fromAgentId === opts.agentId) {
-              return { ...message, readAt: message.createdAt };
-            }
-            return {
-              ...message,
-              readAt: readReceiptMap.get(message.id) ?? null,
-            };
-          });
-      }
+      let messages = rows.map((message) => {
+        if (message.fromAgentId === opts.agentId) {
+          return { ...message, readAt: message.createdAt };
+        }
+        return {
+          ...message,
+          readAt: readReceiptMap.get(message.id) ?? null,
+        };
+      });
       if (opts?.unreadOnly) {
         messages = messages.filter((message) => !message.readAt);
       }
-      const limit = opts?.limit ?? 200;
-      return limit > 0 ? messages.slice(-limit) : messages;
+      return messages;
     },
 
     searchMessages(
