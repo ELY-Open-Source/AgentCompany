@@ -20,6 +20,19 @@ export function createBrowserActionService({
     return browserManagerRef.current;
   }
 
+  /**
+   * Returns the approval record for `approvalId`, or null if the record is
+   * missing. Isolates the "approval row disappeared" case so the caller does
+   * not need to nest a try/catch around the state machine.
+   */
+  function getApprovalOrNull(approvalId: string): ReturnType<typeof db.getApprovalRecord> | null {
+    try {
+      return db.getApprovalRecord(approvalId);
+    } catch {
+      return null;
+    }
+  }
+
   async function dispatchBrowserAction(actionId: string, companyId: string) {
     const action = db.getBrowserAction(actionId, companyId);
     if (!action) {
@@ -29,12 +42,7 @@ export function createBrowserActionService({
       throw new Error(`Browser action ${actionId} is ${action.status} and cannot be dispatched.`);
     }
     if (action.approvalId) {
-      let approval: ReturnType<typeof db.getApprovalRecord> | null = null;
-      try {
-        approval = db.getApprovalRecord(action.approvalId);
-      } catch {
-        // Record not found
-      }
+      const approval = getApprovalOrNull(action.approvalId);
       if (!approval || approval.companyId !== companyId) {
         throw new Error(`Browser action approval ${action.approvalId} does not belong to company ${companyId}.`);
       }
