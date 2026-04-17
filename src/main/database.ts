@@ -18,9 +18,7 @@ export class AppDatabase extends AppDatabaseBase {
   getAgentMessage(messageId: string, companyId: string) { return this.messages.getAgentMessage(messageId, companyId); }
   listAgentMessages(companyId: string, opts?: { agentId?: string; messageId?: string; channel?: string; channelTargetId?: string | null; unreadOnly?: boolean; limit?: number }) { return this.messages.listAgentMessages(companyId, opts); }
   searchMessages(companyId: string, query: string, opts?: { channel?: string; channelTargetId?: string | null; limit?: number }) { return this.messages.searchMessages(companyId, query, opts); }
-  markMessageRead(messageId: string, companyId: string) { return this.messages.markMessageRead(messageId, companyId); }
   markMessageReadForReader(messageId: string, companyId: string, readerAgentId?: string | null) { return this.messages.markMessageReadForReader(messageId, companyId, readerAgentId); }
-  markAgentMessageRead(messageId: string, companyId: string, agentId: string) { return this.messages.markAgentMessageRead(messageId, companyId, agentId); }
 
   // ─── Social & Browser Actions ──────────────────────────────────────────────
 

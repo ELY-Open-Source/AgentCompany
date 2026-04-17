@@ -168,7 +168,7 @@ export function registerMessageRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "This message is not visible to the current agent" });
       return;
     }
-    db.markAgentMessageRead(requireParam(params, "messageId"), companyId, token.agentId);
+    db.markMessageReadForReader(requireParam(params, "messageId"), companyId, token.agentId);
     onDomainChanged();
     server.json(res, 200, { ok: true });
   });

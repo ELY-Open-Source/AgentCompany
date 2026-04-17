@@ -227,19 +227,6 @@ export function buildMessageMethods(
       return readAll<AgentMessageRecord>(sql, ...params);
     },
 
-    markMessageRead(messageId: string, companyId: string): void {
-      const ts = nowIso();
-      getDb()
-        .prepare(
-          `insert into agent_message_reads (message_id, agent_id, read_at)
-       select id, ?, ?
-         from agent_messages
-        where id = ? and company_id = ?
-       on conflict(message_id, agent_id) do update set read_at = excluded.read_at`,
-        )
-        .run(BOARD_READER_ID, ts, messageId, companyId);
-    },
-
     markMessageReadForReader(
       messageId: string,
       companyId: string,
@@ -255,23 +242,6 @@ export function buildMessageMethods(
        on conflict(message_id, agent_id) do update set read_at = excluded.read_at`,
         )
         .run(readerAgentId ?? BOARD_READER_ID, ts, messageId, companyId);
-    },
-
-    markAgentMessageRead(
-      messageId: string,
-      companyId: string,
-      agentId: string,
-    ): void {
-      const ts = nowIso();
-      getDb()
-        .prepare(
-          `insert into agent_message_reads (message_id, agent_id, read_at)
-       select id, ?, ?
-         from agent_messages
-        where id = ? and company_id = ?
-       on conflict(message_id, agent_id) do update set read_at = excluded.read_at`,
-        )
-        .run(agentId, ts, messageId, companyId);
     },
   };
 }

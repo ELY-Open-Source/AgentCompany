@@ -1195,7 +1195,7 @@ describe("Agent Messages", () => {
       body: "Hello",
     });
 
-    db.markMessageRead(msgId, companyId);
+    db.markMessageReadForReader(msgId, companyId);
     const messages = db.listAgentMessages(companyId);
     const updatedMessage = messages.find((message) => message.id === msgId);
     expect(updatedMessage?.readAt).toBeTruthy();
@@ -1219,7 +1219,7 @@ describe("Agent Messages", () => {
     expect(recipientViewBefore).toHaveLength(1);
     expect(recipientViewBefore[0].id).toBe(msgId);
 
-    db.markAgentMessageRead(msgId, companyId, agentBId);
+    db.markMessageReadForReader(msgId, companyId, agentBId);
 
     const recipientViewAfter = db.listAgentMessages(companyId, { agentId: agentBId, unreadOnly: true });
     expect(recipientViewAfter).toHaveLength(0);
