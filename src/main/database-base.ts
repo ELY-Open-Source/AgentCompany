@@ -378,7 +378,12 @@ export class AppDatabaseBase {
   }
 
   protected openConnection(): DatabaseSync {
-    return new DatabaseSync(this.dbPath, { timeout: 5000 });
+    const db = new DatabaseSync(this.dbPath, { timeout: 5000 });
+    db.exec("pragma journal_mode = WAL;");
+    db.exec("pragma busy_timeout = 5000;");
+    db.exec("pragma synchronous = NORMAL;");
+    db.exec("pragma foreign_keys = ON;");
+    return db;
   }
 
   protected transaction<T>(operation: () => T): T {
