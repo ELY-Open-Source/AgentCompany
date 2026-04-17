@@ -1,13 +1,6 @@
 import { z } from "zod";
 import { requireParam, type AgentApiServer } from "./server-core";
 
-type KnowledgeRow = {
-  id: string; companyId: string; category: string; topic: string;
-  content: string; authorAgentId: string; importance: string;
-  tagsJson: string; referencedEntityType: string | null;
-  referencedEntityId: string | null; createdAt: string; updatedAt: string;
-};
-
 const socialDraftSchema = z.object({
   socialAccountId: z.string().uuid(),
   platform: z.string(),
@@ -226,10 +219,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const entries = db.queryAll<KnowledgeRow>(
-      "select id, company_id as companyId, category, topic, content, author_agent_id as authorAgentId, importance, tags_json as tagsJson, referenced_entity_type as referencedEntityType, referenced_entity_id as referencedEntityId, created_at as createdAt, updated_at as updatedAt from knowledge_base where company_id = ? order by updated_at desc",
-      token.companyId,
-    );
+    const entries = db.listKnowledgeEntries(token.companyId);
     server.json(res, 200, entries);
   });
 
