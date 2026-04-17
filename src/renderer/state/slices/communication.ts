@@ -33,6 +33,12 @@ export const createCommunicationSlice: StateCreator<
     set((state) => {
       state.searchQuery = query;
       state.searchRequestId += 1;
+      if (query === "") {
+        state.searchLoading = false;
+        state.searchResults = [];
+      } else {
+        state.searchLoading = true;
+      }
     }),
   setSearchScope: (scope) =>
     set((state) => {
