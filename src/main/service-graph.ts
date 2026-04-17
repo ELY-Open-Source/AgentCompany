@@ -14,6 +14,7 @@ import { createWorkerService } from "./worker-service";
 import { createAppLifecycleService } from "./app-lifecycle-service";
 import { createBudgetEnforcementService } from "./budget-enforcement-service";
 import { createSessionManagementService } from "./session-management-service";
+import { createPiRuntimeServices, type PiRuntimeServices } from "./service-graph-pi-runtime";
 import type { DesktopEvent, RunRecord } from "@shared/types";
 import type { AutomationEventContext } from "./automation-service";
 import type { NotificationOptions } from "./notification-service";
@@ -82,6 +83,7 @@ export function createServiceGraph({
   let skillService: ReturnType<typeof createSkillService> | null = null;
   let budgetEnforcementService: ReturnType<typeof createBudgetEnforcementService> | null = null;
   let sessionManagementService: ReturnType<typeof createSessionManagementService> | null = null;
+  const piRuntimeRef: { current: PiRuntimeServices | null } = { current: null };
 
   function getOrCreateSkillService() {
     if (!skillService) throw new Error("Skill service is not initialized.");
@@ -184,10 +186,22 @@ export function createServiceGraph({
     });
     desktopShellService.initialize();
 
+    piRuntimeRef.current = createPiRuntimeServices({
+      db,
+      emitEvent,
+      logger,
+      refreshConnectorHealth: async (connectorId: string) => {
+        if (connectorHealthService) {
+          await connectorHealthService.checkConnector(connectorId as never);
+        }
+      },
+    });
+
     connectorHealthService = createConnectorHealthService({
       db,
       logger,
       publishDomainChanged,
+      credentialStore: piRuntimeRef.current.credentialStore,
     });
 
     workerService = createWorkerService({
@@ -205,6 +219,7 @@ export function createServiceGraph({
       notify,
       budgetService: getOrCreateBudgetEnforcementService(),
       sessionService: getOrCreateSessionManagementService(),
+      getRuntimeBridge: () => piRuntimeRef.current?.runtimeBridge ?? null,
     });
 
     orchestrationService = createOrchestrationService({
@@ -324,6 +339,8 @@ export function createServiceGraph({
         skillService = null;
         budgetEnforcementService = null;
         sessionManagementService = null;
+        piRuntimeRef.current?.release();
+        piRuntimeRef.current = null;
         db.close();
         // Force exit after grace period — covers all platforms (macOS Dock, Windows tray, Linux)
         // Worker child processes (claude/codex CLI) may keep the event loop alive indefinitely
@@ -346,5 +363,6 @@ export function createServiceGraph({
     getOrCreateSkillService,
     getOrCreateBudgetEnforcementService,
     getOrCreateSessionManagementService,
+    getPiRuntime: () => piRuntimeRef.current,
   };
 }

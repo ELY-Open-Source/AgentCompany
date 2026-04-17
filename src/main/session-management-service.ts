@@ -1,6 +1,5 @@
 import type { AppDatabase } from "./database";
-import { getConnectorDefinition } from "./connectors";
-import type { ConnectorId, TaskSessionRecord } from "@shared/types";
+import type { TaskSessionRecord } from "@shared/types";
 
 interface SessionManagementDependencies {
   db: AppDatabase;
@@ -38,20 +37,11 @@ export function createSessionManagementService({ db, logger }: SessionManagement
   // company-level overrides; omitted fields fall back to DEFAULT_THRESHOLDS.
   function evaluateRotation(
     session: TaskSessionRecord,
-    connectorId: string,
+    _connectorId: string,
     thresholdsOverride?: RotationThresholds,
   ): { shouldRotate: boolean; reason: string | null } {
-    // D-04: Check adapter exemption
-    try {
-      const connector = getConnectorDefinition(connectorId as ConnectorId);
-      if (connector.module.nativeContextManagement === true) {
-        return { shouldRotate: false, reason: null };
-      }
-    } catch {
-      // Unknown connector - proceed with rotation check
-    }
-
-    // Merge overrides with defaults (per D-01 configurability)
+    // Pi-mono delegates context management to pi-agent-core compaction hooks;
+    // AgentCompany always applies its own rotation thresholds.
     const thresholds = { ...DEFAULT_THRESHOLDS, ...thresholdsOverride };
 
     // D-01: Any-of thresholds - first trigger wins

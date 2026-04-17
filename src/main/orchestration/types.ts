@@ -44,6 +44,10 @@ export interface EnqueueRunPayload {
   systemPrompt: string | null;
   trigger: string | null;
   managedSkills: Array<{ runtimeName: string; sourcePath: string }>;
+  /** Task session id used by SqliteSessionStore to load/append messages. */
+  taskSessionId: string;
+  /** Execution mode from the owning company. */
+  executionMode: "ai_ceo" | "ai_cofounder";
 }
 
 export interface OrchestrationDependencies {

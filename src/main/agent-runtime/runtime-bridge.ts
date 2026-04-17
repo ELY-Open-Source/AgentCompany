@@ -5,6 +5,8 @@ import { ensureTaskThread } from "@main/thread-integration/thread-helpers";
 import { SqliteSessionStore } from "./sqlite-session-store";
 import { HumanApprovalHook } from "./approval-hook";
 import { CostWriter } from "./cost-writer";
+import type { CredentialResolver } from "@main/credentials";
+import { getConnectorDefinition } from "@main/connectors";
 
 export interface RuntimeBridgeDeps {
   db: AppDatabase;
@@ -14,6 +16,7 @@ export interface RuntimeBridgeDeps {
     warn: (...args: unknown[]) => void;
     error: (...args: unknown[]) => void;
   };
+  credentialResolver: CredentialResolver;
 }
 
 interface ActiveRunContext {
@@ -155,7 +158,7 @@ export class RuntimeBridge {
   /** Handles RPC requests issued by the worker (`rpc-request` envelope). */
   async handleRpc(request: {
     rpcId: string;
-    method: "beforeToolCall" | "afterToolCall" | "persistMessage";
+    method: "beforeToolCall" | "afterToolCall" | "persistMessage" | "prepareRun";
     runId: string;
     payload: unknown;
   }): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> {
@@ -183,6 +186,37 @@ export class RuntimeBridge {
         const payload = request.payload as { taskSessionId: string; message: AgentMessage };
         this.getOrCreateStore(payload.taskSessionId).appendMessage(payload.message);
         return { ok: true, result: undefined };
+      }
+      if (request.method === "prepareRun") {
+        const payload = request.payload as {
+          connectorId: string;
+          taskSessionId: string;
+          agentId: string;
+          companyId: string;
+          taskId: string | null;
+          modelId: string;
+        };
+        this.registerActiveRun({
+          runId: request.runId,
+          agentId: payload.agentId,
+          companyId: payload.companyId,
+          taskId: payload.taskId,
+          connectorId: payload.connectorId,
+          modelId: payload.modelId,
+          taskSessionId: payload.taskSessionId,
+        });
+        const definition = getConnectorDefinition(payload.connectorId);
+        const resolved = await this.deps.credentialResolver.resolve(payload.connectorId);
+        const priorMessages = this.getOrCreateStore(payload.taskSessionId).loadMessages();
+        return {
+          ok: true,
+          result: {
+            provider: definition.provider,
+            apiKey: resolved.apiKey,
+            extraEnv: resolved.extraEnv ?? {},
+            priorMessages,
+          },
+        };
       }
       return { ok: false, error: `Unknown RPC method: ${(request as { method: string }).method}` };
     } catch (error) {

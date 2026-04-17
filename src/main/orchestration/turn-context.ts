@@ -133,18 +133,25 @@ function resolveSession(
   deps: Pick<TurnContextDeps, "evaluatePreRunSessionRotation" | "logger">,
 ) {
   const activeSession = db.getActiveTaskSession(task.id);
-  let taskSession = activeSession
+  let taskSession: {
+    id: string | null;
+    sessionParams: Record<string, unknown> | null;
+    sessionDisplayId: string | null;
+  } = activeSession
     ? {
-        sessionParams: activeSession.sessionParamsJson ? JSON.parse(activeSession.sessionParamsJson) as Record<string, unknown> : null,
+        id: activeSession.id,
+        sessionParams: activeSession.sessionParamsJson
+          ? (JSON.parse(activeSession.sessionParamsJson) as Record<string, unknown>)
+          : null,
         sessionDisplayId: activeSession.sessionDisplayId,
       }
-    : db.getTaskSession(task.id);
+    : { id: null, ...db.getTaskSession(task.id) };
 
   let finalHandoff = sessionHandoff;
   if (deps.evaluatePreRunSessionRotation && activeSession) {
     const rotationResult = deps.evaluatePreRunSessionRotation(task.id, connectorId);
     if (rotationResult.rotated) {
-      taskSession = { sessionParams: null, sessionDisplayId: null };
+      taskSession = { id: null, sessionParams: null, sessionDisplayId: null };
       if (!finalHandoff && rotationResult.handoff) {
         finalHandoff = rotationResult.handoff;
       }
@@ -220,7 +227,7 @@ function buildConnectorCatalog(
 ) {
   return connectors
     .filter((c) => c.status === "ready")
-    .filter((c) => c.id.startsWith("claude_compat") || db.hasModelPoolSettings(c.id))
+    .filter((c) => db.hasModelPoolSettings(c.id))
     .map((c) => ({
       id: c.id,
       label: c.label,
@@ -336,5 +343,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     systemPrompt,
     trigger,
     managedSkills: skills.map((s) => ({ runtimeName: s.runtimeName, sourcePath: s.sourcePath })),
+    taskSessionId: taskSession.id ?? runId,
+    executionMode: db.getCompanyExecutionMode(companyId) as "ai_ceo" | "ai_cofounder",
   };
 }
