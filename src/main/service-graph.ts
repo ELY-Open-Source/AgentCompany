@@ -321,7 +321,7 @@ export function createServiceGraph({
       shouldQuit: () => isQuittingRef.current,
       onBeforeQuit: () => {
         isQuittingRef.current = true;
-        orchestrationService?.stopHeartbeatScheduler();
+        orchestrationService?.stopAllSchedulers();
         automationService?.destroy();
         apiServerRef.current?.stop();
         apiServerRef.current = null;

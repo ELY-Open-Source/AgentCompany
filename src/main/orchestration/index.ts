@@ -40,7 +40,7 @@ export function createOrchestrationService(deps: OrchestrationDependencies) {
     queueTaskRun: taskRunner.queueTaskRun,
     resumeQueuedRuns: taskRunner.resumeQueuedRuns,
     startAgentHeartbeatRun: heartbeat.startAgentHeartbeatRun,
-    startHeartbeatScheduler: scheduler.startHeartbeatScheduler,
-    stopHeartbeatScheduler: scheduler.stopHeartbeatScheduler,
+    startAllSchedulers: scheduler.startAllSchedulers,
+    stopAllSchedulers: scheduler.stopAllSchedulers,
   };
 }

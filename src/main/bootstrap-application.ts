@@ -321,7 +321,7 @@ export async function bootstrapApplication({
     log.info(`[bootstrap] Connector health checks completed (${healthCheckResults.filter((r) => r.status === "fulfilled").length}/${connectors.length} succeeded)`);
   }
 
-  serviceGraph.getOrchestrationService()?.startHeartbeatScheduler();
+  serviceGraph.getOrchestrationService()?.startAllSchedulers();
 
   // Check for crash recovery -- emit recovery notification before resuming queued runs
   const interruptedCount = db.lastInterruptedCount;
