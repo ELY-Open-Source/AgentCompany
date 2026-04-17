@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Trash, XCircle } from "@phosphor-icons/react";
 import { ActionButton } from "./primitives";
 import { useFocusTrap } from "./hooks";
 
@@ -134,6 +135,28 @@ export function ConfirmDialog({ open, title, message, errorMessage, onConfirm, o
         </motion.div>
       ) : null}
     </AnimatePresence>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  InlineConfirmDelete                                                */
+/* ------------------------------------------------------------------ */
+
+export function InlineConfirmDelete({
+  entityLabel,
+  onConfirm,
+  onCancel,
+}: {
+  entityLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-[color:var(--destructive)] bg-destructive-muted px-4 py-3">
+      <span className="text-[13px] text-destructive">Delete {entityLabel}?</span>
+      <ActionButton label="Yes, delete" tone="danger" onClick={onConfirm} icon={Trash} />
+      <ActionButton label="Cancel" onClick={onCancel} icon={XCircle} />
+    </div>
   );
 }
 

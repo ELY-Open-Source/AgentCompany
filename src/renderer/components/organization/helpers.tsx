@@ -1,44 +1,13 @@
-import { Heartbeat, Lightning, Trash, XCircle } from "@phosphor-icons/react";
+import { Heartbeat, Lightning } from "@phosphor-icons/react";
 import type { AgentRecord } from "@shared/types";
-import { ActionButton, Select } from "../ui";
-import { formatMoney, formatTime } from "../../lib/formatters";
+import { ActionButton, BudgetBar, InlineConfirmDelete, Select } from "../ui";
+import { formatTime } from "../../lib/formatters";
 import { unwrap } from "../../lib/desktop";
 
-export function BudgetBar({ spent, budget }: { spent: number; budget: number }) {
-  const pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
-  const overBudget = spent > budget && budget > 0;
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[color:var(--border)]">
-        <div
-          className={`h-full rounded-full transition-all ${overBudget ? "bg-destructive" : "bg-success"}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className={`text-[11px] ${overBudget ? "text-destructive" : "text-muted-foreground"}`}>
-        {formatMoney(spent)} / {formatMoney(budget)}
-      </span>
-    </div>
-  );
-}
-
-export function ConfirmDelete({
-  entityLabel,
-  onConfirm,
-  onCancel,
-}: {
-  entityLabel: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border border-[color:var(--destructive)] bg-destructive-muted px-4 py-3">
-      <span className="text-[13px] text-destructive">Delete {entityLabel}?</span>
-      <ActionButton label="Yes, delete" tone="danger" onClick={onConfirm} icon={Trash} />
-      <ActionButton label="Cancel" onClick={onCancel} icon={XCircle} />
-    </div>
-  );
-}
+// Re-exports kept so existing importers continue to work while BudgetBar and
+// the inline-delete confirmation live in the shared UI library.
+export { BudgetBar };
+export const ConfirmDelete = InlineConfirmDelete;
 
 const HEARTBEAT_INTERVALS = [
   { value: "30", label: "30 seconds" },
