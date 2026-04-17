@@ -5,6 +5,26 @@ import type { SkillImportResult, RuntimeSkillEntry } from "../skill-types.js";
 import { estimateTokens, parseFrontmatterMarkdown, extractRuntimeSemantics } from "../skill-format.js";
 import { resolveTokenBudget } from "../skill-types.js";
 
+/**
+ * Role/department keywords → builtin skill category manifest. Centralized at
+ * module scope so future changes do not silently drift from the category
+ * names used by `meta.builtinCategory` on disk.
+ *
+ * Category names mirror SKILL.md directory names (mixed-case is
+ * load-bearing; e.g. "iOS-Dev" and "Video-maker" match file system layout).
+ */
+const ROLE_SKILL_CATEGORIES: Record<string, readonly string[]> = {
+  ceo: ["basic-for-all", "software-engineer", "document-process", "frontend-design", "marketing", "iOS-Dev", "my-writing-style", "Video-maker"],
+  engineer: ["basic-for-all", "software-engineer"],
+  designer: ["basic-for-all", "frontend-design"],
+  marketing: ["basic-for-all", "marketing", "my-writing-style"],
+  writer: ["basic-for-all", "document-process", "my-writing-style"],
+  ios: ["basic-for-all", "software-engineer", "iOS-Dev"],
+  mobile: ["basic-for-all", "software-engineer", "iOS-Dev"],
+  video: ["basic-for-all", "Video-maker"],
+  frontend: ["basic-for-all", "software-engineer", "frontend-design"],
+};
+
 interface RuntimeDeps {
   db: AppDatabase;
   profileDir: string;
@@ -194,31 +214,19 @@ export function createSkillRuntime({ db, logger, skillsRoot, skillFilesDir, impo
     const allSkills = db.listCompanySkills(companyId);
     let assigned = 0;
 
-    const roleCategories: Record<string, string[]> = {
-      ceo: ["basic-for-all", "software-engineer", "document-process", "frontend-design", "marketing", "iOS-Dev", "my-writing-style", "Video-maker"],
-      engineer: ["basic-for-all", "software-engineer"],
-      designer: ["basic-for-all", "frontend-design"],
-      marketing: ["basic-for-all", "marketing", "my-writing-style"],
-      writer: ["basic-for-all", "document-process", "my-writing-style"],
-      ios: ["basic-for-all", "software-engineer", "iOS-Dev"],
-      mobile: ["basic-for-all", "software-engineer", "iOS-Dev"],
-      video: ["basic-for-all", "Video-maker"],
-      frontend: ["basic-for-all", "software-engineer", "frontend-design"],
-    };
-
     const normalizedRole = role.toLowerCase();
     const normalizedDept = department?.toLowerCase() ?? "";
 
-    let categories = roleCategories[normalizedRole] ?? ["basic-for-all"];
+    let categories = ROLE_SKILL_CATEGORIES[normalizedRole] ?? ["basic-for-all"];
 
-    for (const [key, cats] of Object.entries(roleCategories)) {
+    for (const [key, cats] of Object.entries(ROLE_SKILL_CATEGORIES)) {
       if (normalizedDept.includes(key) || normalizedRole.includes(key)) {
         categories = [...new Set([...categories, ...cats])];
       }
     }
 
     if (normalizedRole === "ceo" || normalizedRole.includes("chief")) {
-      categories = roleCategories.ceo ?? ["basic-for-all"];
+      categories = ROLE_SKILL_CATEGORIES.ceo ?? ["basic-for-all"];
     }
 
     for (const skill of allSkills) {
