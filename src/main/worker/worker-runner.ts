@@ -45,6 +45,7 @@ export class WorkerRunner {
     this.abortControllers.set(job.runId, abortController);
 
     post({ type: "run-status", runId: job.runId, status: "running", message: `Running agent ${job.agentName}.` });
+    post({ type: "run-log", runId: job.runId, stream: "stdout", chunk: `[runner] starting run for ${job.agentName} (${job.connectorId}/${job.model ?? "?"})\n` });
 
     let resolvedModelId: string | null = job.model;
     let finalUsage: { inputTokens: number | null; outputTokens: number | null; costUsd: number | null } = {
@@ -72,6 +73,7 @@ export class WorkerRunner {
       }
       const prepared = prepareResponse.result as PrepareRunResult;
 
+      post({ type: "run-log", runId: job.runId, stream: "stdout", chunk: `[runner] prepareRun ok, resolving model\n` });
       const restoreEnv = applyEnvOverrides(prepared.extraEnv);
       try {
         const model = resolveModel(prepared.provider, job.model);
@@ -80,6 +82,7 @@ export class WorkerRunner {
         }
         resolvedModelId = model.id;
         const extraHeaders = resolveExtraStreamHeaders(prepared.provider, prepared.apiKey);
+        post({ type: "run-log", runId: job.runId, stream: "stdout", chunk: `[runner] model=${model.id} provider=${prepared.provider} — constructing Agent\n` });
 
         const cwd = job.workspacePath ?? process.cwd();
         const tools = createCodingTools(cwd) as never;
@@ -123,6 +126,10 @@ export class WorkerRunner {
 
         const unsubscribe = agent.subscribe(async (event) => {
           const timestamp = new Date().toISOString();
+          // Surface every pi AgentEvent type as a raw Console probe so the
+          // operator can see the live event stream even when projection
+          // misses a type or the agent is stuck inside a particular phase.
+          post({ type: "run-log", runId: job.runId, stream: "stdout", chunk: `[pi-event] ${event.type}\n` });
           post({
             type: "agent-event",
             runId: job.runId,
@@ -159,9 +166,11 @@ export class WorkerRunner {
             content: [{ type: "text", text: promptContent }],
             timestamp: Date.now(),
           };
+          post({ type: "run-log", runId: job.runId, stream: "stdout", chunk: `[runner] calling agent.prompt (${promptContent.length} chars)\n` });
           const runPromise = agent.prompt(promptMessage);
           abortController.signal.addEventListener("abort", () => agent.abort(), { once: true });
           await runPromise;
+          post({ type: "run-log", runId: job.runId, stream: "stdout", chunk: `[runner] agent.prompt resolved\n` });
         } finally {
           unsubscribe();
         }
