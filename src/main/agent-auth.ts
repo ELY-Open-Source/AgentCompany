@@ -5,6 +5,17 @@ import { join } from "node:path";
 let signingKey: Buffer | null = null;
 const TOKEN_TTL_MS = 48 * 60 * 60 * 1000; // 48 hours
 
+// Once-per-process warning when a malformed token shape is seen. Helps
+// diagnose schema breaks after upgrades — without leaking the full token.
+let loggedMalformedTokenWarning = false;
+function warnMalformedTokenOnce(token: string, reason: string) {
+  if (loggedMalformedTokenWarning) return;
+  loggedMalformedTokenWarning = true;
+  const fingerprint = token.slice(0, 8);
+   
+  console.warn(`[agent-auth] token shape invalid (${reason}); first8="${fingerprint}..."`);
+}
+
 interface TokenPayload {
   agentId: string;
   companyId: string;
@@ -43,7 +54,9 @@ function verify(token: string): TokenPayload | null {
     const payload = JSON.parse(Buffer.from(body, "base64url").toString()) as TokenPayload;
     if (Date.now() > payload.exp) return null;
     return payload;
-  } catch {
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    warnMalformedTokenOnce(token, reason);
     return null;
   }
 }
