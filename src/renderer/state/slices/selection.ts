@@ -6,7 +6,14 @@ export interface SelectionSlice {
   selectedConnectorId: string | null;
   selectedApprovalId: string | null;
   selectedRunId: string | null;
+  /** Highlighted agent (roster row / orgchart card). Navigation target.
+   *  Does NOT control the Edit modal — see editingAgentId. */
   selectedAgentId: string | null;
+  /** Agent whose Edit modal is currently open, or NEW_ENTITY_ID for the
+   *  new-hire request modal. Only set by explicit user action (row click,
+   *  card click, "Request new hire" button); never by navigation or
+   *  onboarding defaults. Cleared on modal close. */
+  editingAgentId: string | null;
   selectedGoalId: string | null;
   selectedProjectId: string | null;
   selectedWorkspaceId: string | null;
@@ -16,6 +23,7 @@ export interface SelectionSlice {
   setSelectedApprovalId: (id: string | null) => void;
   setSelectedRunId: (id: string | null) => void;
   setSelectedAgentId: (id: string | null) => void;
+  setEditingAgentId: (id: string | null) => void;
   setSelectedGoalId: (id: string | null) => void;
   setSelectedProjectId: (id: string | null) => void;
   setSelectedWorkspaceId: (id: string | null) => void;
@@ -34,6 +42,7 @@ export const createSelectionSlice: StateCreator<
   selectedApprovalId: null,
   selectedRunId: null,
   selectedAgentId: null,
+  editingAgentId: null,
   selectedGoalId: null,
   selectedProjectId: null,
   selectedWorkspaceId: null,
@@ -58,6 +67,10 @@ export const createSelectionSlice: StateCreator<
     set((state) => {
       state.selectedAgentId = id;
     }),
+  setEditingAgentId: (id) =>
+    set((state) => {
+      state.editingAgentId = id;
+    }),
   setSelectedGoalId: (id) =>
     set((state) => {
       state.selectedGoalId = id;
@@ -80,6 +93,7 @@ export const createSelectionSlice: StateCreator<
       state.selectedApprovalId = null;
       state.selectedRunId = null;
       state.selectedAgentId = null;
+      state.editingAgentId = null;
       state.selectedGoalId = null;
       state.selectedProjectId = null;
       state.selectedWorkspaceId = null;

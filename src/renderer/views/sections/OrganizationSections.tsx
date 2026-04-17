@@ -35,7 +35,7 @@ export function OrganizationSections({ section }: OrganizationSectionsProps) {
     companyGoals,
     companyProjects,
     companyWorkspaces,
-    selectedAgent,
+    editingAgent,
     selectedGoal,
     selectedProject,
   } = useSectionContext();
@@ -43,11 +43,21 @@ export function OrganizationSections({ section }: OrganizationSectionsProps) {
 
   const selectedAgentId = useAppStore((s) => s.selectedAgentId);
   const setSelectedAgentId = useAppStore((s) => s.setSelectedAgentId);
+  const editingAgentId = useAppStore((s) => s.editingAgentId);
+  const setEditingAgentId = useAppStore((s) => s.setEditingAgentId);
   const selectedGoalId = useAppStore((s) => s.selectedGoalId);
   const setSelectedGoalId = useAppStore((s) => s.setSelectedGoalId);
   const selectedProjectId = useAppStore((s) => s.selectedProjectId);
   const setSelectedProjectId = useAppStore((s) => s.setSelectedProjectId);
   const setSection = useAppStore((s) => s.setSection);
+
+  // Open the Edit modal on row / card click. `selectedAgentId` is updated
+  // alongside so the roster highlight follows the user's last interaction
+  // even after the modal closes.
+  const openAgentEditor = (id: string) => {
+    setSelectedAgentId(id);
+    setEditingAgentId(id);
+  };
 
   if (!snapshot || !currentCompany) return null;
 
@@ -55,41 +65,45 @@ export function OrganizationSections({ section }: OrganizationSectionsProps) {
     <>
       {section === "agents" ? (
         <>
-          <OrgChart agents={companyAgents} connectors={snapshot.connectors} onSelectAgent={(id) => setSelectedAgentId(id)} />
-          <Panel title={t("org.agentRoster")} action={<ActionButton label={t("org.newHireRequest")} icon={UserPlus} tone="accent" onClick={() => setSelectedAgentId(NEW_ENTITY_ID)} />}>
+          <OrgChart agents={companyAgents} connectors={snapshot.connectors} onSelectAgent={openAgentEditor} />
+          <Panel title={t("org.agentRoster")} action={<ActionButton label={t("org.newHireRequest")} icon={UserPlus} tone="accent" onClick={() => setEditingAgentId(NEW_ENTITY_ID)} />}>
             <AgentRoster
               agents={companyAgents}
               connectors={snapshot.connectors}
               workspaces={companyWorkspaces}
               selectedAgentId={selectedAgentId}
-              onSelect={setSelectedAgentId}
+              onSelect={openAgentEditor}
             />
           </Panel>
-          <Modal open={selectedAgentId === NEW_ENTITY_ID} title={t("org.requestNewHire")} onClose={() => setSelectedAgentId(null)}>
+          <Modal open={editingAgentId === NEW_ENTITY_ID} title={t("org.requestNewHire")} onClose={() => setEditingAgentId(null)}>
             <AgentCreator
               companyId={currentCompany.id}
               connectors={snapshot.connectors}
               workspaces={companyWorkspaces}
               agents={companyAgents}
               onSaved={async () => {
-                setSelectedAgentId(null);
+                setEditingAgentId(null);
                 setSection("hiring");
                 await refresh();
               }}
             />
           </Modal>
-          <Modal open={!!selectedAgent} title={selectedAgent ? `Edit: ${selectedAgent.name}` : ""} onClose={() => setSelectedAgentId(null)}>
-            {selectedAgent ? (
+          <Modal
+            open={!!editingAgent}
+            title={editingAgent ? t("org.editAgentTitle").replace("{name}", editingAgent.name).replace("{role}", editingAgent.role) : ""}
+            onClose={() => setEditingAgentId(null)}
+          >
+            {editingAgent ? (
               <AgentEditor
-                key={selectedAgentId}
-                agent={selectedAgent}
+                key={editingAgent.id}
+                agent={editingAgent}
                 connectors={snapshot.connectors}
                 workspaces={companyWorkspaces}
                 agents={companyAgents}
                 companyId={currentCompany.id}
                 onSaved={refresh}
-                onCancel={() => setSelectedAgentId(null)}
-                onDeleted={async () => { setSelectedAgentId(null); await refresh(); }}
+                onCancel={() => setEditingAgentId(null)}
+                onDeleted={async () => { setEditingAgentId(null); await refresh(); }}
               />
             ) : null}
           </Modal>

@@ -342,6 +342,7 @@ export const zh: Record<string, string> = {
   "org.agentRoster": "智能体名册",
   "org.newHireRequest": "新招聘申请",
   "org.editAgent": "编辑",
+  "org.editAgentTitle": "编辑 {name}（{role}）",
   "org.requestNewHire": "申请新招聘",
   "org.goalStack": "目标栈",
   "org.newGoal": "新目标",

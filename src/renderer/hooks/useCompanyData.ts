@@ -19,6 +19,7 @@ export function useCompanyData(
   const selectedTaskId = useAppStore((s) => s.selectedTaskId);
   const selectedApprovalId = useAppStore((s) => s.selectedApprovalId);
   const selectedAgentId = useAppStore((s) => s.selectedAgentId);
+  const editingAgentId = useAppStore((s) => s.editingAgentId);
   const selectedGoalId = useAppStore((s) => s.selectedGoalId);
   const selectedProjectId = useAppStore((s) => s.selectedProjectId);
   const selectedWorkspaceId = useAppStore((s) => s.selectedWorkspaceId);
@@ -57,6 +58,10 @@ export function useCompanyData(
   const selectedAgent = useMemo(
     () => companyAgents.find((a) => a.id === selectedAgentId) ?? null,
     [companyAgents, selectedAgentId],
+  );
+  const editingAgent = useMemo(
+    () => companyAgents.find((a) => a.id === editingAgentId) ?? null,
+    [companyAgents, editingAgentId],
   );
   const selectedGoal = useMemo(
     () => companyGoals.find((g) => g.id === selectedGoalId) ?? null,
@@ -104,6 +109,7 @@ export function useCompanyData(
     selectedApproval,
     selectedRun,
     selectedAgent,
+    editingAgent,
     selectedGoal,
     selectedProject,
     selectedWorkspace,
@@ -128,6 +134,7 @@ export function useCompanyData(
     selectedApproval,
     selectedRun,
     selectedAgent,
+    editingAgent,
     selectedGoal,
     selectedProject,
     selectedWorkspace,

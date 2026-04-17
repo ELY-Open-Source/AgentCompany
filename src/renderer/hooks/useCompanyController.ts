@@ -181,6 +181,7 @@ export function useCompanyController() {
     selectedApproval: companyData.selectedApproval,
     selectedRun: companyData.selectedRun,
     selectedAgent: companyData.selectedAgent,
+    editingAgent: companyData.editingAgent,
     selectedGoal: companyData.selectedGoal,
     selectedProject: companyData.selectedProject,
     selectedWorkspace: companyData.selectedWorkspace,

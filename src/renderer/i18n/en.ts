@@ -342,6 +342,7 @@ export const en: Record<string, string> = {
   "org.agentRoster": "Agent roster",
   "org.newHireRequest": "New hire request",
   "org.editAgent": "Edit",
+  "org.editAgentTitle": "Edit {name} ({role})",
   "org.requestNewHire": "Request new hire",
   "org.goalStack": "Goal stack",
   "org.newGoal": "New goal",
