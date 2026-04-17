@@ -1,7 +1,7 @@
 import type { SectionId } from "@shared/types";
 import { Inbox, StandupView, PerformanceView } from "../../components/inbox";
 import { Dashboard } from "../../components/dashboard";
-import { EntityWorkspace } from "../../components/EntityWorkspace";
+import { TwoPaneLayout } from "../../components/TwoPaneLayout";
 import {
   SettingsPane,
   ModelManagement,
@@ -230,7 +230,7 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
       ) : null}
 
       {section === "workspaces" && currentCompany ? (
-        <EntityWorkspace
+        <TwoPaneLayout
           title="Workspaces"
           eyebrow={undefined}
           primary={

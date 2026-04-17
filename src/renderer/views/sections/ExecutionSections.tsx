@@ -8,7 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import { ConnectorEditor } from "../../components/connectors";
 import { KanbanBoard } from "../../components/dashboard";
-import { EntityWorkspace } from "../../components/EntityWorkspace";
+import { TwoPaneLayout } from "../../components/TwoPaneLayout";
 import { RunCenter } from "../../components/runs";
 import {
   ActivityList,
@@ -294,7 +294,7 @@ export function ExecutionSections({ section }: ExecutionSectionsProps) {
             ))}
           </div>
           {costsTab === "costs" ? (
-            <EntityWorkspace
+            <TwoPaneLayout
               title="Costs"
               eyebrow={undefined}
               primary={

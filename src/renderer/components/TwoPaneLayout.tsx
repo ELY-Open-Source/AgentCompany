@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 import { Eyebrow } from "./ui";
 
 /**
- * Two-slot workspace layout with a section header.
- * Use `Panel` for single-slot sections; use this when rendering a primary + secondary pane.
+ * Two-pane layout with a section header.
+ * Use `Panel` (from ui/) for single-slot sections. Use this when rendering a primary + secondary pane.
  */
-export function EntityWorkspace({
+export function TwoPaneLayout({
   title,
   eyebrow,
   primary,
