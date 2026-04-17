@@ -16,7 +16,7 @@
     "build": "electron-vite build && node scripts/build-desktop.mjs",
     "build:dir": "electron-vite build && node scripts/build-desktop.mjs --dir",
     "build:all": "node scripts/build-all-platforms.mjs",
-    "release:cloudflare": "node scripts/release-cloudflare.mjs",
+    "release:cloudflare": "node scripts/release-public-cloudflare.mjs && node scripts/release-boss.mjs",
     "release:cloudflare:public": "node scripts/release-public-cloudflare.mjs",
     "release:boss": "node scripts/release-boss.mjs",
     "release:local": "node scripts/release-local.mjs",
