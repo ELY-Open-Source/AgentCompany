@@ -2,10 +2,6 @@ import { spawn } from "node:child_process";
 import { readdir } from "node:fs/promises";
 import { extname } from "node:path";
 
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 async function runCommand(command, args, capture = false) {
   return await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -118,22 +114,7 @@ async function collectSignTargets(rootPath) {
 async function signTarget(targetPath, context) {
   const fileOptions = context.optionsForFile?.(targetPath) ?? {};
   const args = buildCodesignArgs(targetPath, context.identity, context.keychain, fileOptions);
-
-  let lastError;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      await runCodesign(args);
-      return;
-    } catch (error) {
-      lastError = error;
-      if (attempt === 2) {
-        throw error;
-      }
-      await delay(5000);
-    }
-  }
-
-  throw lastError;
+  await runCodesign(args);
 }
 
 export default async function sign(context) {
