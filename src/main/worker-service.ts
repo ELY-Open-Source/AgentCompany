@@ -100,13 +100,20 @@ export function createWorkerService({
       // because the worker died before it could forward SIGTERM to its children.
       try {
         worker.postMessage({ type: "shutdown" });
-      } catch { /* worker may already be dead */ }
+      } catch (error) {
+        logger.debug(
+          `[worker-service] shutdown postMessage failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
 
-      // Safety net: force-kill worker after 2s if shutdown didn't complete
+      // Safety net: force-kill worker after 2s if shutdown didn't complete.
+      // Track the timer so we can cancel it the moment the worker cleanly
+      // exits — otherwise the pending timer keeps the event loop alive.
       const ref = worker;
-      setTimeout(() => {
+      const killTimer = setTimeout(() => {
         try { ref.kill(); } catch { /* already dead */ }
       }, 2000);
+      ref.once("exit", () => clearTimeout(killTimer));
       worker = null;
     }
 
