@@ -121,6 +121,7 @@ export class AppDatabase extends AppDatabaseBase {
   saveSprint(input: { id?: string | null; companyId: string; name: string; goal?: string; startDate: string; endDate: string; status?: string; retrospectiveNotes?: string; velocityPoints?: number; completedPoints?: number }) { return this.knowledgeMod.saveSprint(input); }
   deleteSprint(id: string, companyId: string) { this.knowledgeMod.deleteSprint(id, companyId); }
   listSprints(companyId: string) { return this.knowledgeMod.listSprints(companyId); }
+  runProducedDeliverable(runId: string, companyId: string, taskId: string) { return this.knowledgeMod.runProducedDeliverable(runId, companyId, taskId); }
 
   // ─── Automation ────────────────────────────────────────────────────────────
 
