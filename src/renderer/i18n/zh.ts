@@ -6,7 +6,6 @@ export const zh: Record<string, string> = {
   "nav.performance": "绩效",
   "nav.runs": "运行",
   "nav.agents": "团队",
-  "nav.orgchart": "组织架构",
   "nav.hiring": "招聘",
   "nav.communication": "消息",
   "nav.goals": "目标",
@@ -340,6 +339,12 @@ export const zh: Record<string, string> = {
 
   // ── 组织页面 ──
   "org.agentRoster": "团队成员",
+  "team.summary.members": "成员",
+  "team.summary.running": "运行中",
+  "team.summary.attention": "需关注",
+  "team.summary.pendingHires": "待审招聘",
+  "team.summary.budget": "本月预算",
+  "team.summary.budgetFormat": "{spent} / {budget} · {pct}%",
   "org.newHireRequest": "新招聘申请",
   "org.editAgent": "编辑",
   "org.editAgentTitle": "编辑 {name}（{role}）",

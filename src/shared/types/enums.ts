@@ -8,7 +8,6 @@ export type SectionId =
   | "runs"
   | "connectors"
   | "agents"
-  | "orgchart"
   | "hiring"
   | "goals"
   | "projects"

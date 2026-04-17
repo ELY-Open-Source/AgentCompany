@@ -184,7 +184,7 @@ describe("notification-service", () => {
       title: "Agent Hired",
       body: "Alice joined",
       urgency: "informational",
-      navigation: { section: "orgchart", entityId: "agent-1" },
+      navigation: { section: "agents", entityId: "agent-1" },
       batchKey: "agent_hired",
     });
 
@@ -192,7 +192,7 @@ describe("notification-service", () => {
       title: "Agent Hired",
       body: "Bob joined",
       urgency: "informational",
-      navigation: { section: "orgchart", entityId: "agent-2" },
+      navigation: { section: "agents", entityId: "agent-2" },
       batchKey: "agent_hired",
     });
 

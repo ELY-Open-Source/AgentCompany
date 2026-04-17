@@ -12,6 +12,7 @@ import { GoalCreator } from "../../components/organization/GoalCreator";
 import { GoalEditor } from "../../components/organization/GoalEditor";
 import { GoalList } from "../../components/organization/GoalList";
 import { OrgChart } from "../../components/organization/OrgChart";
+import { TeamHeaderSummary } from "../../components/organization/TeamHeaderSummary";
 import { ProjectCreator } from "../../components/organization/ProjectCreator";
 import { ProjectEditor } from "../../components/organization/ProjectEditor";
 import { ProjectList } from "../../components/organization/ProjectList";
@@ -35,6 +36,7 @@ export function OrganizationSections({ section }: OrganizationSectionsProps) {
     companyGoals,
     companyProjects,
     companyWorkspaces,
+    pendingApprovals,
     editingAgent,
     selectedGoal,
     selectedProject,
@@ -65,6 +67,7 @@ export function OrganizationSections({ section }: OrganizationSectionsProps) {
     <>
       {section === "agents" ? (
         <>
+          <TeamHeaderSummary agents={companyAgents} pendingApprovals={pendingApprovals} />
           <OrgChart agents={companyAgents} connectors={snapshot.connectors} onSelectAgent={openAgentEditor} />
           <Panel title={t("org.agentRoster")} action={<ActionButton label={t("org.newHireRequest")} icon={UserPlus} tone="accent" onClick={() => setEditingAgentId(NEW_ENTITY_ID)} />}>
             <AgentRoster
@@ -108,10 +111,6 @@ export function OrganizationSections({ section }: OrganizationSectionsProps) {
             ) : null}
           </Modal>
         </>
-      ) : null}
-
-      {section === "orgchart" ? (
-        <OrgChart agents={companyAgents} connectors={snapshot.connectors} onSelectAgent={(id) => { setSelectedAgentId(id); setSection("agents"); }} />
       ) : null}
 
       {section === "hiring" && currentCompany ? (

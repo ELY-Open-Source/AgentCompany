@@ -6,7 +6,6 @@ export const en: Record<string, string> = {
   "nav.performance": "Performance",
   "nav.runs": "Runs",
   "nav.agents": "Team",
-  "nav.orgchart": "Org Chart",
   "nav.hiring": "Hiring",
   "nav.communication": "Messages",
   "nav.goals": "Goals",
@@ -340,6 +339,12 @@ export const en: Record<string, string> = {
 
   // ── Organization page ──
   "org.agentRoster": "Team members",
+  "team.summary.members": "Members",
+  "team.summary.running": "Running",
+  "team.summary.attention": "Attention",
+  "team.summary.pendingHires": "Pending hires",
+  "team.summary.budget": "This month",
+  "team.summary.budgetFormat": "{spent} / {budget} · {pct}%",
   "org.newHireRequest": "New hire request",
   "org.editAgent": "Edit",
   "org.editAgentTitle": "Edit {name} ({role})",

@@ -123,7 +123,7 @@ export function handleApprovalResolved(
         title: localizeNotification(hireLocale, "Agent Hired", "新员工入职"),
         body: localizeNotification(hireLocale, `${agent.name} joined as ${agent.role}`, `${agent.name} 已加入，职位：${agent.role}`),
         urgency: "informational",
-        navigation: { section: "orgchart", entityId: agent.id },
+        navigation: { section: "agents", entityId: agent.id },
         batchKey: "agent_hired",
       });
 
