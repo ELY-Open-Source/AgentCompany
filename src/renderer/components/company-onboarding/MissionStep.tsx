@@ -2,30 +2,24 @@ import { motion } from "framer-motion";
 import { Cpu, Lightning } from "@phosphor-icons/react";
 import { ActionButton, Input, TextArea } from "../ui";
 import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
+import { useOnboarding } from "./OnboardingContext";
 
 interface MissionStepProps {
-  goalTitle: string;
-  setGoalTitle: (v: string) => void;
-  goalDescription: string;
-  setGoalDescription: (v: string) => void;
   onLaunch: () => void;
   onBack: () => void;
-  loading: boolean;
-  error: string | null;
-  t: (key: string) => string;
 }
 
-export function MissionStep({
-  goalTitle,
-  setGoalTitle,
-  goalDescription,
-  setGoalDescription,
-  onLaunch,
-  onBack,
-  loading,
-  error,
-  t,
-}: MissionStepProps) {
+export function MissionStep({ onLaunch, onBack }: MissionStepProps) {
+  const {
+    goalTitle,
+    setGoalTitle,
+    goalDescription,
+    setGoalDescription,
+    loading,
+    error,
+    t,
+  } = useOnboarding();
+
   return (
     <motion.div
       key="mission"

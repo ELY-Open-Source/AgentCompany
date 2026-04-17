@@ -1,23 +1,16 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Brain, UserCircle, type Icon } from "@phosphor-icons/react";
-import type { ExecutionMode } from "@shared/types";
 import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
+import { useOnboarding } from "./OnboardingContext";
 
 interface ExecutionModeStepProps {
-  executionMode: ExecutionMode;
-  setExecutionMode: (mode: ExecutionMode) => void;
   onContinue: () => void;
   onBack: () => void;
-  t: (key: string) => string;
 }
 
-export function ExecutionModeStep({
-  executionMode,
-  setExecutionMode,
-  onContinue,
-  onBack,
-  t,
-}: ExecutionModeStepProps) {
+export function ExecutionModeStep({ onContinue, onBack }: ExecutionModeStepProps) {
+  const { executionMode, setExecutionMode, t } = useOnboarding();
+
   return (
     <motion.div
       key="executionmode"

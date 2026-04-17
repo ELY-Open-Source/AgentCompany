@@ -1,25 +1,17 @@
 import { motion } from "framer-motion";
 import { CheckCircle, Rocket } from "@phosphor-icons/react";
-import type { OnboardingBootstrapResult, ProfileSnapshot } from "@shared/types";
 import { ActionButton } from "../ui";
+import { useOnboarding } from "./OnboardingContext";
 
 interface LaunchStepProps {
-  launchSummary: OnboardingBootstrapResult;
-  selectedConnector: ProfileSnapshot["connectors"][number] | null;
   onFinish: () => void;
-  loading: boolean;
-  error: string | null;
-  t: (key: string) => string;
 }
 
-export function LaunchStep({
-  launchSummary,
-  selectedConnector,
-  onFinish,
-  loading,
-  error,
-  t,
-}: LaunchStepProps) {
+export function LaunchStep({ onFinish }: LaunchStepProps) {
+  const { launchSummary, selectedConnector, loading, error, t } = useOnboarding();
+
+  if (!launchSummary) return null;
+
   return (
     <motion.div
       key="launch"

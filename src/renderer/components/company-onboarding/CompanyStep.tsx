@@ -1,53 +1,36 @@
 import { motion } from "framer-motion";
 import { Buildings, FolderOpen } from "@phosphor-icons/react";
-import type { ConnectorId, ProfileSnapshot } from "@shared/types";
-import type { AppLocale } from "@shared/locale";
+import type { ConnectorId } from "@shared/types";
 import { ActionButton, Input, TextArea, Select } from "../ui";
 import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
+import { useOnboarding } from "./OnboardingContext";
 
 interface CompanyStepProps {
-  companyName: string;
-  setCompanyName: (v: string) => void;
-  companyDescription: string;
-  setCompanyDescription: (v: string) => void;
-  selectedConnectorId: ConnectorId | "";
-  setSelectedConnectorId: (v: ConnectorId | "") => void;
-  selectedModel: string;
-  setSelectedModel: (v: string) => void;
-  executionReadyConnectors: ProfileSnapshot["connectors"];
-  modelOptions: Array<{ id: string; label: string }>;
-  loadingModels: boolean;
-  workspacePath: string;
-  setWorkspacePath: (v: string) => void;
-  onPickDirectory: () => void;
   onContinue: () => void;
   onBack: () => void;
-  error: string | null;
-  currentLocale: AppLocale;
-  t: (key: string) => string;
 }
 
-export function CompanyStep({
-  companyName,
-  setCompanyName,
-  companyDescription,
-  setCompanyDescription,
-  selectedConnectorId,
-  setSelectedConnectorId,
-  selectedModel,
-  setSelectedModel,
-  executionReadyConnectors,
-  modelOptions,
-  loadingModels,
-  workspacePath,
-  setWorkspacePath,
-  onPickDirectory,
-  onContinue,
-  onBack,
-  error,
-  currentLocale,
-  t,
-}: CompanyStepProps) {
+export function CompanyStep({ onContinue, onBack }: CompanyStepProps) {
+  const {
+    companyName,
+    setCompanyName,
+    companyDescription,
+    setCompanyDescription,
+    selectedConnectorId,
+    setSelectedConnectorId,
+    selectedModel,
+    setSelectedModel,
+    executionReadyConnectors,
+    modelOptions,
+    loadingModels,
+    workspacePath,
+    setWorkspacePath,
+    onPickDirectory,
+    error,
+    currentLocale,
+    t,
+  } = useOnboarding();
+
   return (
     <motion.div
       key="company"

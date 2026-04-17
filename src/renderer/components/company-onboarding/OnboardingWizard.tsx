@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ConnectorId, ExecutionMode, OnboardingBootstrapResult, ProfileSnapshot } from "@shared/types";
 import type { AppLocale } from "@shared/locale";
 import { useT } from "../../i18n";
@@ -8,6 +8,7 @@ import { WelcomeStep } from "./WelcomeStep";
 import { OnboardingStepPanel } from "./OnboardingStepPanel";
 import { useConnectorCallbacks } from "./useConnectorCallbacks";
 import { useConnectorModelSelection } from "./useConnectorModelSelection";
+import { OnboardingProvider, type OnboardingContextValue } from "./OnboardingContext";
 
 export function CompanyOnboarding({
   connectors,
@@ -159,6 +160,85 @@ export function CompanyOnboarding({
   const isWelcome = step === "welcome";
   const heroStep: OnboardingStep = step as OnboardingStep;
 
+  const contextValue = useMemo<OnboardingContextValue>(
+    () => ({
+      currentLocale,
+      t,
+      error,
+      loading,
+      nodeStatus,
+      nodeChecking,
+      onCheckNode: () => void checkNode(),
+      onInstallCommand: (commandKey) => void handleInstallCommand(commandKey),
+      connectors,
+      hasAtLeastOneReady,
+      onTestConnector: (id) => void handleTestConnector(id),
+      onSaveConnector: (id, env, model, notes) => void handleSaveConnector(id, env, model, notes),
+      onLoginConnector: (id) => void handleLoginConnector(id),
+      companyName,
+      setCompanyName,
+      companyDescription,
+      setCompanyDescription,
+      selectedConnectorId,
+      setSelectedConnectorId,
+      selectedModel,
+      setSelectedModel,
+      selectedConnector,
+      executionReadyConnectors,
+      connectorModelPools,
+      modelOptions,
+      loadingModels,
+      totalEnabledModels,
+      selectedConnectorEnabledModels,
+      onToggleConnectorModel: (connectorId, modelId) => void toggleConnectorModel(connectorId, modelId),
+      workspacePath,
+      setWorkspacePath,
+      onPickDirectory: () => void pickDirectory(),
+      executionMode,
+      setExecutionMode,
+      goalTitle,
+      setGoalTitle,
+      goalDescription,
+      setGoalDescription,
+      launchSummary,
+    }),
+    [
+      currentLocale,
+      t,
+      error,
+      loading,
+      nodeStatus,
+      nodeChecking,
+      checkNode,
+      handleInstallCommand,
+      connectors,
+      hasAtLeastOneReady,
+      handleTestConnector,
+      handleSaveConnector,
+      handleLoginConnector,
+      companyName,
+      companyDescription,
+      selectedConnectorId,
+      setSelectedConnectorId,
+      selectedModel,
+      setSelectedModel,
+      selectedConnector,
+      executionReadyConnectors,
+      connectorModelPools,
+      modelOptions,
+      loadingModels,
+      totalEnabledModels,
+      selectedConnectorEnabledModels,
+      toggleConnectorModel,
+      workspacePath,
+      pickDirectory,
+      executionMode,
+      goalTitle,
+      goalDescription,
+      launchSummary,
+    ],
+  );
+
   return (
     <div
       className={`relative h-[100dvh] overflow-hidden bg-background ${
@@ -178,51 +258,12 @@ export function CompanyOnboarding({
           t={t}
         />
       ) : (
-        <>
+        <OnboardingProvider value={contextValue}>
           <OnboardingStepPanel
             step={heroStep}
-            currentLocale={currentLocale}
-            t={t}
             canCancel={canCancel}
             onCancel={onCancel}
             isFirstLaunch={isFirstLaunch}
-            nodeStatus={nodeStatus}
-            nodeChecking={nodeChecking}
-            onCheckNode={() => void checkNode()}
-            onInstallCommand={(commandKey) => void handleInstallCommand(commandKey)}
-            connectors={connectors}
-            hasAtLeastOneReady={hasAtLeastOneReady}
-            onTestConnector={(id) => void handleTestConnector(id)}
-            onSaveConnector={(id, env, model, notes) => void handleSaveConnector(id, env, model, notes)}
-            onLoginConnector={(id) => void handleLoginConnector(id)}
-            error={error}
-            companyName={companyName}
-            setCompanyName={setCompanyName}
-            companyDescription={companyDescription}
-            setCompanyDescription={setCompanyDescription}
-            selectedConnectorId={selectedConnectorId}
-            setSelectedConnectorId={setSelectedConnectorId}
-            selectedModel={selectedModel}
-            setSelectedModel={setSelectedModel}
-            executionReadyConnectors={executionReadyConnectors}
-            connectorModelPools={connectorModelPools}
-            modelOptions={modelOptions}
-            loadingModels={loadingModels}
-            totalEnabledModels={totalEnabledModels}
-            selectedConnectorEnabledModels={selectedConnectorEnabledModels}
-            onToggleConnectorModel={(connectorId, modelId) => void toggleConnectorModel(connectorId, modelId)}
-            workspacePath={workspacePath}
-            setWorkspacePath={setWorkspacePath}
-            onPickDirectory={() => void pickDirectory()}
-            executionMode={executionMode}
-            setExecutionMode={setExecutionMode}
-            goalTitle={goalTitle}
-            setGoalTitle={setGoalTitle}
-            goalDescription={goalDescription}
-            setGoalDescription={setGoalDescription}
-            loading={loading}
-            launchSummary={launchSummary}
-            selectedConnector={selectedConnector}
             onBack={setStep}
             onContinueFromNodeCheck={() => { setError(null); setStep("providers"); }}
             onContinueFromProviders={() => { setError(null); setStep("company"); }}
@@ -232,7 +273,7 @@ export function CompanyOnboarding({
             onLaunchCompany={() => void launchCompany()}
             onFinishLaunch={() => void finishLaunch()}
           />
-        </>
+        </OnboardingProvider>
       )}
     </div>
   );

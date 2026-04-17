@@ -9,15 +9,11 @@ import {
 import { ActionButton } from "../ui";
 import type { TerminalCommandKey } from "@shared/contracts";
 import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
+import { useOnboarding } from "./OnboardingContext";
 
 interface NodeCheckStepProps {
-  nodeStatus: { installed: boolean; version: string | null } | null;
-  checking: boolean;
-  onCheck: () => void;
-  onInstall: (commandKey: TerminalCommandKey) => void;
   onContinue: () => void;
   onBack: () => void;
-  t: (key: string) => string;
 }
 
 const INSTALL_COMMANDS: Record<string, { label: string; code: string; commandKey: TerminalCommandKey }> = {
@@ -48,15 +44,8 @@ node -v`,
   },
 };
 
-export function NodeCheckStep({
-  nodeStatus,
-  checking,
-  onCheck,
-  onInstall,
-  onContinue,
-  onBack,
-  t,
-}: NodeCheckStepProps) {
+export function NodeCheckStep({ onContinue, onBack }: NodeCheckStepProps) {
+  const { nodeStatus, nodeChecking, onCheckNode, onInstallCommand, t } = useOnboarding();
   const platform = window.agentCompany.platform;
   const platformInfo = INSTALL_COMMANDS[platform] ?? INSTALL_COMMANDS.linux;
 
@@ -79,7 +68,7 @@ export function NodeCheckStep({
 
       {/* Status */}
       <div className="mb-5 flex items-center gap-2.5 text-[13px]">
-        {checking ? (
+        {nodeChecking ? (
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-primary" />
         ) : nodeStatus?.installed ? (
           <CheckCircle size={18} weight="fill" className="shrink-0 text-success" />
@@ -87,7 +76,7 @@ export function NodeCheckStep({
           <XCircle size={18} weight="fill" className="shrink-0 text-destructive" />
         ) : null}
 
-        {checking ? (
+        {nodeChecking ? (
           <span className="text-muted-foreground">{t("onboarding.providerChecking")}...</span>
         ) : nodeStatus?.installed ? (
           <span className="font-medium text-success">
@@ -111,7 +100,7 @@ export function NodeCheckStep({
           </pre>
           <ActionButton
             label={t("onboarding.installNodeTerminal")}
-            onClick={() => onInstall(platformInfo.commandKey)}
+            onClick={() => onInstallCommand(platformInfo.commandKey)}
             icon={Terminal}
           />
         </div>
@@ -121,7 +110,7 @@ export function NodeCheckStep({
       <div className="mb-6">
         <ActionButton
           label={t("onboarding.checkAgain")}
-          onClick={onCheck}
+          onClick={onCheckNode}
           icon={ArrowCounterClockwise}
         />
       </div>

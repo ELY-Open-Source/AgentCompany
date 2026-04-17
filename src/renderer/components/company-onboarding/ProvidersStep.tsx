@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight, FloppyDisk, SignIn } from "@phosphor-icons/react";
-import type { ProfileSnapshot } from "@shared/types";
-import type { TerminalCommandKey } from "@shared/contracts";
 import { ActionButton } from "../ui";
 import {
   CompatProviderCard,
@@ -12,22 +10,15 @@ import {
   INPUT_CLS,
 } from "./ProvidersStepShared";
 import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
+import { useOnboarding } from "./OnboardingContext";
 
 /* ------------------------------------------------------------------ */
 /*  Props                                                              */
 /* ------------------------------------------------------------------ */
 
 interface ProvidersStepProps {
-  connectors: ProfileSnapshot["connectors"];
-  onTestConnector: (connectorId: string) => void;
-  onSaveConnector: (connectorId: string, envBindingText: string, model: string | null, notes?: string) => void;
-  onLoginConnector: (connectorId: string) => void;
-  onInstallCommand: (commandKey: TerminalCommandKey) => void;
-  hasAtLeastOneReady: boolean;
   onContinue: () => void;
   onBack: () => void;
-  error: string | null;
-  t: (key: string) => string;
 }
 
 const COMPAT_SLOTS = ["claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5", "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10"] as const;
@@ -36,18 +27,18 @@ const COMPAT_SLOTS = ["claude_compatible", "claude_compat_2", "claude_compat_3",
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 
-export function ProvidersStep({
-  connectors,
-  onTestConnector,
-  onSaveConnector,
-  onLoginConnector,
-  onInstallCommand,
-  hasAtLeastOneReady,
-  onContinue,
-  onBack,
-  error,
-  t,
-}: ProvidersStepProps) {
+export function ProvidersStep({ onContinue, onBack }: ProvidersStepProps) {
+  const {
+    connectors,
+    onTestConnector,
+    onSaveConnector,
+    onLoginConnector,
+    onInstallCommand,
+    hasAtLeastOneReady,
+    error,
+    t,
+  } = useOnboarding();
+
   const [expandedCard, setExpandedCard] = useState<string | null>("claude");
 
   const claudeConnector = connectors.find((c) => c.id === "claude_local");

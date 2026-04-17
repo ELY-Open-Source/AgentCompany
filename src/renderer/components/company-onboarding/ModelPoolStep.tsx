@@ -1,39 +1,26 @@
 import { motion } from "framer-motion";
-import type { ConnectorModelEntry } from "@shared/connector-models";
-import type { ConnectorId, ProfileSnapshot } from "@shared/types";
-import type { AppLocale } from "@shared/locale";
 import { ActionButton } from "../ui";
 import { ModelToggleList, StatusBadge } from "../execution/ModelManagementShared";
 import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
+import { useOnboarding } from "./OnboardingContext";
 
 interface ModelPoolStepProps {
-  currentLocale: AppLocale;
-  connectorModelPools: Array<{
-    connector: ProfileSnapshot["connectors"][number];
-    models: ConnectorModelEntry[];
-  }>;
-  error: string | null;
   onBack: () => void;
   onContinue: () => void;
-  onToggleConnectorModel: (connectorId: ConnectorId, modelId: string) => void;
-  selectedConnectorId: ConnectorId | "";
-  selectedConnectorEnabledModels: number;
-  totalEnabledModels: number;
-  t: (key: string) => string;
 }
 
-export function ModelPoolStep({
-  currentLocale,
-  connectorModelPools,
-  error,
-  onBack,
-  onContinue,
-  onToggleConnectorModel,
-  selectedConnectorId,
-  selectedConnectorEnabledModels,
-  totalEnabledModels,
-  t,
-}: ModelPoolStepProps) {
+export function ModelPoolStep({ onBack, onContinue }: ModelPoolStepProps) {
+  const {
+    currentLocale,
+    connectorModelPools,
+    error,
+    onToggleConnectorModel,
+    selectedConnectorId,
+    selectedConnectorEnabledModels,
+    totalEnabledModels,
+    t,
+  } = useOnboarding();
+
   const selectedConnectorIsRunnable = selectedConnectorEnabledModels > 0;
   const hasAnyEnabledModels = totalEnabledModels > 0;
   const canContinue = hasAnyEnabledModels && selectedConnectorIsRunnable;
