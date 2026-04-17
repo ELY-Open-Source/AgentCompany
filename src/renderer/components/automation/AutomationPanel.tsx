@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { ArrowRight, ArrowsClockwise, Lightning, Plus, Robot, X } from "@phosphor-icons/react"
+import { ArrowRight, ArrowsClockwise, Lightning, Plus, Robot, X } from "../ui/icons"
 import type { AutomationAction, AutomationRuleRecord, AutomationStatus, AutomationTrigger, WorkflowPipelineRecord } from "@shared/types"
 import { ActionButton, ConfirmDialog } from "../ui"
 import { useT } from "../../i18n"

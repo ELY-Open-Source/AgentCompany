@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, ShieldCheck, Trash, Warning } from "@phosphor-icons/react";
+import { Plus, ShieldCheck, Trash, Warning } from "../ui/icons";
 import type { BudgetPolicyRecord, BudgetStatusSummary } from "@shared/types";
 import { ActionButton, EmptyState, ListFrame, ListRow } from "../ui";
 import { PolicyFormModal } from "./PolicyFormModal";

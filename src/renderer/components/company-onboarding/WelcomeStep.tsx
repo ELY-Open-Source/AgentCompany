@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { GlobeSimple, Rocket } from "@phosphor-icons/react";
+import { GlobeSimple, Rocket } from "../ui/icons";
 import type { AppLocale } from "@shared/locale";
 import { APP_LOCALES, LOCALE_LABELS } from "@shared/locale";
 import { ActionButton } from "../ui";

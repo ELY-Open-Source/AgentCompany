@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Warning, ArrowClockwise, X, Trash } from "@phosphor-icons/react";
+import { Warning, ArrowClockwise, X, Trash } from "../ui/icons";
 import type { DesktopEvent } from "@shared/types/events";
 
 interface InterruptedRun {

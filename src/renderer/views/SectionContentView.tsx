@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { WarningCircle } from "@phosphor-icons/react";
+import { WarningCircle } from "../components/ui/icons";
 import type { SectionId } from "@shared/types";
 import { ErrorBoundary } from "../components/ui";
 import { OrganizationSections } from "./sections/OrganizationSections";

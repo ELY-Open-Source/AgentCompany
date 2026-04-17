@@ -4,7 +4,7 @@ import {
   ArrowRight,
   ArrowCounterClockwise,
   Terminal,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import { ActionButton } from "../ui";
 import type { TerminalCommandKey } from "@shared/contracts";
 import { OnboardingStep } from "./OnboardingStep";

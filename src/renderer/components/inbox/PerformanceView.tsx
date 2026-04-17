@@ -1,4 +1,4 @@
-import { Target } from "@phosphor-icons/react";
+import { Target } from "../ui/icons";
 import type { CompanyMetrics, SectionId } from "@shared/types";
 import { formatDuration, formatMoney, getAgentInitials } from "../../lib/formatters";
 import { useT } from "../../i18n";

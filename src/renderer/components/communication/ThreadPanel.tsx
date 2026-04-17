@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { X, ChatCircleDots, ArrowBendUpLeft } from "@phosphor-icons/react"
+import { X, ChatCircleDots, ArrowBendUpLeft } from "../ui/icons"
 import { motion } from "framer-motion"
 import type { AgentRecord, ConversationEventRecord, ThreadWaitStateRecord, ConversationThreadRecord, DocumentRecord } from "@shared/types"
 import WaitStateIndicator, { type WaitStateInfo } from "./WaitStateIndicator"

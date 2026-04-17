@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { ListChecks } from "@phosphor-icons/react"
+import { ListChecks } from "../ui/icons"
 import type { GoalRecord, ProfileSnapshot, ProjectRecord, WorkspaceRecord, TaskRecord } from "@shared/types"
 import { useT } from "../../i18n"
 import { unwrap } from "../../lib/desktop"

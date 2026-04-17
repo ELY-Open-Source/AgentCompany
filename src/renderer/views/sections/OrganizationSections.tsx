@@ -4,7 +4,7 @@ import {
   Target,
   UserPlus,
   Kanban,
-} from "@phosphor-icons/react";
+} from "../../components/ui/icons";
 import {
   AgentCreator,
   AgentEditor,

@@ -4,7 +4,7 @@ import {
   Clock,
   Heartbeat,
   Warning,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import type { SectionId, StandupReport } from "@shared/types";
 import { getAgentInitials } from "../../lib/formatters";
 import { useT } from "../../i18n";

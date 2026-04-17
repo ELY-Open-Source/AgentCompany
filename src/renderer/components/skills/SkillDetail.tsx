@@ -7,7 +7,7 @@ import {
   Link,
   PuzzlePiece,
   Trash,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import type { AgentRecord, SkillRecord, SkillUpdateStatus } from "@shared/types";
 import { useAppStore } from "../../state/store";
 import { ActionButton, StatusPill } from "../ui";

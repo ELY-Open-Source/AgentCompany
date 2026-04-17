@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle, Warning } from "@phosphor-icons/react";
+import { CheckCircle, Warning } from "../ui/icons";
 import type { BudgetIncidentRecord } from "@shared/types";
 import { ActionButton, EmptyState, ListFrame, ListRow } from "../ui";
 import { formatTime } from "../../lib/formatters";

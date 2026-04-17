@@ -4,7 +4,7 @@ import {
   Lightning,
   ListChecks,
   WarningCircle,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import type { AgentRecord, RunRecord, TaskRecord, WorkspaceRecord } from "@shared/types";
 import { formatMoney, formatTime } from "../../lib/formatters";
 import { ActionButton, Panel, StatusPill } from "../ui";

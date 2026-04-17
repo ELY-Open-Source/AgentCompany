@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Warning } from "@phosphor-icons/react"
+import { Warning } from "../ui/icons"
 import type { BudgetStatusSummary, ProfileSnapshot } from "@shared/types"
 import { formatMoney } from "../../lib/formatters"
 import { ListFrame, ListRow } from "../ui"

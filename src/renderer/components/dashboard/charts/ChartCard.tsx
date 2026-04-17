@@ -1,4 +1,4 @@
-import { ChartLine } from "@phosphor-icons/react";
+import { ChartLine } from "../../ui/icons";
 
 interface ChartCardProps {
   title: string;

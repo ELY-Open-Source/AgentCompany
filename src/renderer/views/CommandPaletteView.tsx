@@ -6,7 +6,7 @@ import {
   Target,
   TerminalWindow,
   UsersThree,
-} from "@phosphor-icons/react";
+} from "../components/ui/icons";
 import type { AgentRecord, GoalRecord, ProjectRecord, RunRecord, SectionId, TaskRecord } from "@shared/types";
 import { ListFrame, ListRow, StatusPill } from "../components/ui";
 

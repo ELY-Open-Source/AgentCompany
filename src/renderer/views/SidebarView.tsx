@@ -6,7 +6,7 @@ import {
   Plus,
   SidebarSimple,
   Trash,
-} from "@phosphor-icons/react";
+} from "../components/ui/icons";
 import type { CompanyRecord, ProfileSnapshot, SectionId } from "@shared/types";
 import { SectionButton } from "../components/ui";
 import { NEW_ENTITY_ID } from "../lib/constants";

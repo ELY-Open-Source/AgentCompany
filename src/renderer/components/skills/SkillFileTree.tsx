@@ -5,7 +5,7 @@ import {
   FileText,
   FolderOpen,
   FolderSimple,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import type { FileInventoryEntry } from "@shared/types";
 
 export type SkillTreeNode = {

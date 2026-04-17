@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Copy, Minus, Square, X } from "@phosphor-icons/react";
+import { Copy, Minus, Square, X } from "./ui/icons";
 
 export default function TitleBar() {
   const [maximized, setMaximized] = useState(false);

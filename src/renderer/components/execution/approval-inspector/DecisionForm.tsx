@@ -1,4 +1,4 @@
-import { CheckCircle, ClockCounterClockwise, Trash, XCircle } from "@phosphor-icons/react"
+import { CheckCircle, ClockCounterClockwise, Trash, XCircle } from "../../ui/icons"
 import { ActionButton, TextArea } from "../../ui"
 import { useT } from "../../../i18n"
 

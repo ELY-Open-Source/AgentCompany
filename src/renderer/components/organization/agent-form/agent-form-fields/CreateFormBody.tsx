@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Robot } from "@phosphor-icons/react";
+import { Robot } from "../../../ui/icons";
 import { DEPARTMENT_OPTIONS } from "@shared/constants";
 import type {
   AgentRecord,

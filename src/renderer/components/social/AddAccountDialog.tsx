@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SignIn } from "@phosphor-icons/react";
+import { SignIn } from "../ui/icons";
 import type { SocialPlatform } from "@shared/types";
 import { ActionButton, Modal } from "../ui";
 import { platformConfig } from "./social-config";

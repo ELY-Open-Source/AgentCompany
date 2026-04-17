@@ -4,7 +4,7 @@ import {
   Check,
   UserPlus,
   X,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import type { AgentRecord, ApprovalRecord } from "@shared/types";
 import { useT } from "../../i18n";
 import { getAgentInitials } from "../../lib/formatters";

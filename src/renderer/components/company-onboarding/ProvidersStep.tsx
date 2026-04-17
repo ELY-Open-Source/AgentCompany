@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, FloppyDisk, SignIn } from "@phosphor-icons/react";
+import { ArrowRight, FloppyDisk, SignIn } from "../ui/icons";
 import { ActionButton } from "../ui";
 import {
   CompatProviderCard,

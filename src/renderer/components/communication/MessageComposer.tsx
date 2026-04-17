@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { ArrowBendUpLeft, X, ChatCircle, UserCircle, Paperclip, FileText } from "@phosphor-icons/react"
+import { ArrowBendUpLeft, X, ChatCircle, UserCircle, Paperclip, FileText } from "../ui/icons"
 import type { AgentMessageRecord, AgentRecord, DocumentRecord, MessageChannel } from "@shared/types"
 import { unwrap } from "../../lib/desktop"
 import { cmdOrCtrlLabel } from "../../lib/platform"

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { CheckCircle } from "@phosphor-icons/react"
+import { CheckCircle } from "../../ui/icons"
 import type { ApprovalRecord, DocumentRecord } from "@shared/types"
 import { extractApprovalDocumentReferences, type ApprovalDocumentReference } from "@shared/approval-documents"
 import { unwrap } from "../../../lib/desktop"

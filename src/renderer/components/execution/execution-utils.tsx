@@ -1,7 +1,7 @@
 import type { ApprovalRecord } from "@shared/types"
 import {
   Robot, CheckSquare, Play, ShieldCheck, Gear, FolderOpen, Key, Target, Briefcase, Buildings,
-} from "@phosphor-icons/react"
+} from "../ui/icons"
 import { safeJson } from "../../lib/safe-json"
 
 export function describeActionError(error: unknown) {

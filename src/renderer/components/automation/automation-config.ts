@@ -1,5 +1,5 @@
 import type { AutomationAction, AutomationStatus, AutomationTrigger, WorkflowStatus, WorkflowStep } from "@shared/types"
-import { ArrowsClockwise, Eye, Funnel, Lightning, Pause, Play, Plus, Robot, Timer, Trash } from "@phosphor-icons/react"
+import { ArrowsClockwise, Eye, Funnel, Lightning, Pause, Play, Plus, Robot, Timer, Trash } from "../ui/icons"
 import { DEPARTMENT_OPTIONS } from "@shared/constants"
 
 export const triggerConfig: Record<AutomationTrigger, { label: string; description: string; icon: typeof Lightning }> = {

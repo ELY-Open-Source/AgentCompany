@@ -6,7 +6,7 @@
  * Provides a primary action button to reply or navigate to the approval.
  */
 
-import { Hourglass, ChatCircle, CheckCircle } from "@phosphor-icons/react"
+import { Hourglass, ChatCircle, CheckCircle } from "../ui/icons"
 import type { AgentRecord } from "@shared/types"
 
 export interface WaitStateInfo {

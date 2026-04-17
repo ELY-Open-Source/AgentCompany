@@ -1,4 +1,4 @@
-import { CheckCircle } from "@phosphor-icons/react";
+import { CheckCircle } from "../ui/icons";
 import type { AgentRecord, GoalRecord } from "@shared/types";
 import { EmptyState, ListFrame, ListRow, StatusPill } from "../ui";
 import { useT } from "../../i18n";

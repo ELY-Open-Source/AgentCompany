@@ -6,7 +6,7 @@ import {
   Warning,
   Eye,
   ChatCircle,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import type { InboxItemType } from "@shared/types";
 
 export const typeConfig: Record<InboxItemType, { icon: React.ElementType; color: string; bg: string; label: string }> = {

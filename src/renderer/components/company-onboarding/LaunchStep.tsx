@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { CheckCircle, Rocket } from "@phosphor-icons/react";
+import { CheckCircle, Rocket } from "../ui/icons";
 import { ActionButton } from "../ui";
 import { useOnboarding } from "./OnboardingContext";
 

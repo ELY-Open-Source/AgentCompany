@@ -1,7 +1,7 @@
 import { useRef, useCallback } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { motion } from "framer-motion"
-import { EnvelopeSimple, Buildings, Megaphone, Hash, Fire } from "@phosphor-icons/react"
+import { EnvelopeSimple, Buildings, Megaphone, Hash, Fire } from "../ui/icons"
 import type { AgentMessageRecord, AgentRecord, MessageChannel } from "@shared/types"
 import { AgentAvatar } from "./MessageItem"
 import { formatMessageTime } from "../../lib/formatters"

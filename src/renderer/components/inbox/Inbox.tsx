@@ -4,7 +4,7 @@ import {
   Bell,
   Robot,
   Tray,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import type { InboxItem, InboxItemType, SectionId } from "@shared/types";
 import { timeAgo } from "../../lib/formatters";
 import { useT } from "../../i18n";

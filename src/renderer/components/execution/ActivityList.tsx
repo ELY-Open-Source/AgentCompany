@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { Lightning, MagnifyingGlass } from "@phosphor-icons/react"
+import { Lightning, MagnifyingGlass } from "../ui/icons"
 import type { ActivityRecord } from "@shared/types"
 import { useT } from "../../i18n"
 import { formatTime } from "../../lib/formatters"

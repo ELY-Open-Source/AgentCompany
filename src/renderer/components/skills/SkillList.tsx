@@ -7,7 +7,7 @@ import {
   Globe,
   Link,
   PuzzlePiece,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import type { SkillRecord } from "@shared/types";
 import { SkillFileTree, buildTree } from "./SkillFileTree";
 

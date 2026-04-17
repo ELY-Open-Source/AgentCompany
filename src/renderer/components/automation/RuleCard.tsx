@@ -1,5 +1,5 @@
 import { motion } from "framer-motion"
-import { ArrowRight, CaretRight, Gear, Lightning, Pause, Play, Trash } from "@phosphor-icons/react"
+import { ArrowRight, CaretRight, Gear, Lightning, Pause, Play, Trash } from "../ui/icons"
 import type { AutomationRuleRecord } from "@shared/types"
 import { timeAgo } from "../../lib/formatters"
 import { triggerConfig, actionConfig, statusColors } from "./automation-config"

@@ -2,7 +2,7 @@ import {
   ArrowSquareOut,
   ClockCounterClockwise,
   Robot,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import type { BrowserActionRecord } from "@shared/types";
 import { timeAgo } from "../../lib/formatters";
 import { actionTypeLabels } from "./social-config";

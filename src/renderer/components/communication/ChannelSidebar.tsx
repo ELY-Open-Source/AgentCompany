@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { EnvelopeSimple, Hash, Buildings, Megaphone, Fire, MagnifyingGlass, Funnel } from "@phosphor-icons/react"
+import { EnvelopeSimple, Hash, Buildings, Megaphone, Fire, MagnifyingGlass, Funnel } from "../ui/icons"
 import type { AgentRecord, MessageChannel } from "@shared/types"
 import { AgentAvatar } from "./MessageItem"
 import type { ChannelDescriptor, TaskDiscussionDescriptor } from "./ChannelHeader"

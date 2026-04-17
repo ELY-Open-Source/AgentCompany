@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle, SignIn } from "@phosphor-icons/react";
+import { CheckCircle, SignIn } from "./ui/icons";
 import type { ConnectorRecord } from "@shared/types";
 import { unwrap } from "../lib/desktop";
 import { ActionButton, InlineNotice, Input, Select, StatusPill, TextArea } from "./ui";

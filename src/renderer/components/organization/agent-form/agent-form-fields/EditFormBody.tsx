@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pencil, Trash } from "@phosphor-icons/react";
+import { Pencil, Trash } from "../../../ui/icons";
 import { DEPARTMENT_OPTIONS } from "@shared/constants";
 import type {
   AgentRecord,

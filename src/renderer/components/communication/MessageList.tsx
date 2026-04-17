@@ -1,6 +1,6 @@
 import { useRef, useEffect, useMemo } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { ChatCircle, Tray } from "@phosphor-icons/react"
+import { ChatCircle, Tray } from "../ui/icons"
 import type { AgentMessageRecord, AgentRecord, CommentRecord, TaskRecord } from "@shared/types"
 import { MessageBubble, TaskCommentBubble } from "./MessageItem"
 import type { AnyChannel } from "./ChannelHeader"

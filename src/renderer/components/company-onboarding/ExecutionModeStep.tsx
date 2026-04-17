@@ -1,4 +1,4 @@
-import { ArrowRight, Brain, UserCircle, type Icon } from "@phosphor-icons/react";
+import { ArrowRight, Brain, UserCircle, type Icon } from "../ui/icons";
 import { OnboardingStep } from "./OnboardingStep";
 import { useOnboarding } from "./OnboardingContext";
 

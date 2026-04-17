@@ -7,7 +7,7 @@ import {
   ShieldCheck,
   Warning,
   XCircle,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import type { ActivityRecord, AgentRecord } from "@shared/types";
 import { timeAgo } from "../../lib/formatters";
 

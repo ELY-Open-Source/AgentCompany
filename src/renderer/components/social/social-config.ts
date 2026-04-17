@@ -25,7 +25,7 @@ import {
   Notebook,
   MusicNote,
   Lightbulb,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import type { SocialPlatform } from "@shared/types";
 
 export const platformConfig: Record<SocialPlatform, { label: string; color: string; bgColor: string; icon: ElementType }> = {

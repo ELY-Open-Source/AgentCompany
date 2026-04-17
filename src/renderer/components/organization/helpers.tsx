@@ -1,4 +1,4 @@
-import { Heartbeat, Lightning } from "@phosphor-icons/react";
+import { Heartbeat, Lightning } from "../ui/icons";
 import type { AgentRecord } from "@shared/types";
 import { ActionButton, BudgetBar, InlineConfirmDelete, Select } from "../ui";
 import { formatTime } from "../../lib/formatters";

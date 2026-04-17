@@ -1,4 +1,4 @@
-import { Clock, Link as LinkIcon } from "@phosphor-icons/react"
+import { Clock, Link as LinkIcon } from "../ui/icons"
 import { platformConfig } from "../social/social-config"
 import type { SocialPlatform } from "@shared/types"
 import { safeJson } from "../../lib/safe-json"

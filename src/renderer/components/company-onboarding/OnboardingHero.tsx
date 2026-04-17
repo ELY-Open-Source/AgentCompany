@@ -7,7 +7,7 @@ import {
   Rocket,
   SlidersHorizontal,
   Target,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import type { AppLocale } from "@shared/locale";
 
 export type OnboardingStep =

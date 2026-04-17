@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, type ReactNode, type KeyboardEvent, type ChangeEvent } from "react";
-import { PaperPlaneTilt } from "@phosphor-icons/react";
+import { PaperPlaneTilt } from "../../ui/icons";
 import { ActionButton, InlineNotice } from "../../ui";
 
 export interface ComposerShellProps {

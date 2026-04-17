@@ -5,7 +5,7 @@ import {
   CaretRight,
   FloppyDisk,
   Terminal,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import type { ProfileSnapshot } from "@shared/types";
 import type { TerminalCommandKey } from "@shared/contracts";
 

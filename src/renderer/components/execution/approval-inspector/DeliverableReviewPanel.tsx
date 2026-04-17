@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { CaretDown, CaretUp } from "@phosphor-icons/react"
+import { CaretDown, CaretUp } from "../../ui/icons"
 import type { AgentRecord, ApprovalRecord, DocumentRecord } from "@shared/types"
 import { useApprovalPayload } from "./useApprovalPayload"
 

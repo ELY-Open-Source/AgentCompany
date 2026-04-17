@@ -1,6 +1,6 @@
 import { useRef } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { CheckCircle } from "@phosphor-icons/react"
+import { CheckCircle } from "../ui/icons"
 import type { AgentRecord, ConnectorRecord, WorkspaceRecord } from "@shared/types"
 import { EmptyState, StatusPill } from "../ui"
 import { useT } from "../../i18n"

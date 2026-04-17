@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { FolderOpen } from "@phosphor-icons/react"
+import { FolderOpen } from "../ui/icons"
 import type { ProjectRecord } from "@shared/types"
 import { useT } from "../../i18n"
 import { unwrap } from "../../lib/desktop"

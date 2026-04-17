@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Robot, ArrowRight } from "@phosphor-icons/react"
+import { Robot, ArrowRight } from "../ui/icons"
 import type { CommentRecord, ProfileSnapshot } from "@shared/types"
 import { useT } from "../../i18n"
 import { formatTime } from "../../lib/formatters"

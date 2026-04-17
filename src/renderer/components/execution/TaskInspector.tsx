@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react"
-import { CheckCircle, ListChecks, Pencil, Play, ShieldCheck, Trash, XCircle, Warning, Robot, ArrowRight } from "@phosphor-icons/react"
+import { CheckCircle, ListChecks, Pencil, Play, ShieldCheck, Trash, XCircle, Warning, Robot, ArrowRight } from "../ui/icons"
 import type { CommentRecord, GoalRecord, ProfileSnapshot, ProjectRecord, RunRecord, TaskRecord, TaskStatus, WorkspaceRecord } from "@shared/types"
 import { useT } from "../../i18n"
 import { formatMoney, formatTime } from "../../lib/formatters"

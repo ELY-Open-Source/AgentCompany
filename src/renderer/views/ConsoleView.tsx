@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { FolderOpen, TerminalWindow, X } from "@phosphor-icons/react";
+import { FolderOpen, TerminalWindow, X } from "../components/ui/icons";
 import type { RunRecord } from "@shared/types";
 import { ActionButton, Select, StatusPill } from "../components/ui";
 import { formatMoney, formatTime } from "../lib/formatters";

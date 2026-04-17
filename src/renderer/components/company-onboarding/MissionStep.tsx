@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Cpu, Lightning } from "@phosphor-icons/react";
+import { Cpu, Lightning } from "../ui/icons";
 import { ActionButton, Input, TextArea } from "../ui";
 import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
 import { useOnboarding } from "./OnboardingContext";

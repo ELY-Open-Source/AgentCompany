@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Briefcase, Robot } from "@phosphor-icons/react";
+import { Briefcase, Robot } from "../ui/icons";
 import type { AgentRecord, RunRecord, TaskRecord } from "@shared/types";
 
 interface KanbanProps {

@@ -1,4 +1,4 @@
-import { Briefcase, Robot } from "@phosphor-icons/react"
+import { Briefcase, Robot } from "../../ui/icons"
 import type { AgentRecord, ApprovalRecord, TaskRecord } from "@shared/types"
 import { formatTime } from "../../../lib/formatters"
 import { StatusPill } from "../../ui"

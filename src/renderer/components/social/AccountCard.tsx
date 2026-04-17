@@ -1,4 +1,4 @@
-import { ShieldCheck, SignIn, Trash } from "@phosphor-icons/react";
+import { ShieldCheck, SignIn, Trash } from "../ui/icons";
 import type { SocialAccountRecord } from "@shared/types";
 import { timeAgo } from "../../lib/formatters";
 import { platformConfig } from "./social-config";

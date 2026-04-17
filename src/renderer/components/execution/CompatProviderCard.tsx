@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ArrowSquareOut, FloppyDisk, Plus, Trash } from "@phosphor-icons/react";
+import { ArrowSquareOut, FloppyDisk, Plus, Trash } from "../ui/icons";
 import type { ConnectorRecord } from "@shared/types";
 import { unwrap } from "../../lib/desktop";
 import {

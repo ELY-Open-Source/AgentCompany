@@ -1,5 +1,5 @@
 import type { AgentMessageRecord, CommentRecord, TaskRecord, MessageChannel } from "@shared/types"
-import { CaretDown } from "@phosphor-icons/react"
+import { CaretDown } from "../ui/icons"
 import { useT } from "../../i18n"
 
 export interface ChannelDescriptor {

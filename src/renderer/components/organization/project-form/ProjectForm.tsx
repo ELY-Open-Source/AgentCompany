@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Kanban, Pencil, Trash } from "@phosphor-icons/react";
+import { Kanban, Pencil, Trash } from "../../ui/icons";
 import type { AgentRecord, GoalRecord, ProjectRecord } from "@shared/types";
 import { ActionButton, Input, Select, TextArea } from "../../ui";
 import { ConfirmDelete } from "../helpers";

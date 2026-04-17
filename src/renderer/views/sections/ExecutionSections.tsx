@@ -5,7 +5,7 @@ import {
   Kanban,
   ListChecks,
   Target,
-} from "@phosphor-icons/react";
+} from "../../components/ui/icons";
 import { ConnectorEditor } from "../../components/connectors";
 import { KanbanBoard } from "../../components/dashboard";
 import { TwoPaneLayout } from "../../components/TwoPaneLayout";

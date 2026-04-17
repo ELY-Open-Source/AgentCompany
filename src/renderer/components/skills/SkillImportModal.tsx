@@ -4,7 +4,7 @@ import {
   GithubLogo,
   Globe,
   Link,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import { Modal, ActionButton, Input } from "../ui";
 import { useAppStore } from "../../state/store";
 

@@ -1,4 +1,4 @@
-import { Robot } from "@phosphor-icons/react"
+import { Robot } from "../ui/icons"
 import type { AgentRecord, TaskRecord } from "@shared/types"
 import { useT } from "../../i18n"
 import { EmptyState, ListFrame } from "../ui"

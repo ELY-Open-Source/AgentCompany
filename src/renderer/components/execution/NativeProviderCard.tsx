@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { FloppyDisk, SignIn } from "@phosphor-icons/react";
+import { FloppyDisk, SignIn } from "../ui/icons";
 import type { ConnectorRecord } from "@shared/types";
 import { unwrap } from "../../lib/desktop";
 import {

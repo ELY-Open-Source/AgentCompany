@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Heartbeat } from "@phosphor-icons/react";
+import { Heartbeat } from "../ui/icons";
 import type { AgentRecord, ConnectorRecord } from "@shared/types";
 import { getAgentInitials } from "../../lib/formatters";
 import { EmptyState } from "../ui";

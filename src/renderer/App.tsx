@@ -1,5 +1,5 @@
 import { useCallback, useMemo, type ReactNode } from "react";
-import { CircleNotch, TerminalWindow } from "@phosphor-icons/react";
+import { CircleNotch, TerminalWindow } from "./components/ui/icons";
 import { LocaleContext, TranslationContext, type TranslationFn } from "./i18n";
 import type { AppLocale } from "@shared/locale";
 import { CompanyOnboarding } from "./components/CompanyOnboarding";

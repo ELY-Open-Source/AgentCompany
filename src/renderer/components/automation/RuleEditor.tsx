@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { Gear, Lightning } from "@phosphor-icons/react"
+import { Gear, Lightning } from "../ui/icons"
 import type { AutomationAction, AutomationRuleRecord, AutomationTrigger, DepartmentId } from "@shared/types"
 import { ActionButton, Modal, Select } from "../ui"
 import { triggerConfig, actionConfig, departmentOptions, safeJsonStringify } from "./automation-config"

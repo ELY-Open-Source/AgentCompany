@@ -8,7 +8,7 @@ import {
   WarningCircle,
   ArrowBendUpLeft,
   UserCircle,
-} from "@phosphor-icons/react"
+} from "../ui/icons"
 import type { AgentMessageRecord, AgentRecord, CommentRecord, DepartmentId } from "@shared/types"
 import { getAgentInitials, formatMessageTime } from "../../lib/formatters"
 import { safeJson } from "../../lib/safe-json"

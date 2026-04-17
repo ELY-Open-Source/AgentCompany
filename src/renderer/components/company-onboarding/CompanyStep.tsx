@@ -1,4 +1,4 @@
-import { Buildings, FolderOpen } from "@phosphor-icons/react";
+import { Buildings, FolderOpen } from "../ui/icons";
 import type { ConnectorId } from "@shared/types";
 import { ActionButton, Input, TextArea, Select } from "../ui";
 import { OnboardingStep } from "./OnboardingStep";

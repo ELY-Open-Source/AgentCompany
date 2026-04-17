@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { Browser, Megaphone, Plus } from "@phosphor-icons/react";
+import { Browser, Megaphone, Plus } from "../ui/icons";
 import type { BrowserActionRecord, SocialAccountRecord, SocialPlatform } from "@shared/types";
 import { ActionButton } from "../ui";
 import { useT } from "../../i18n";

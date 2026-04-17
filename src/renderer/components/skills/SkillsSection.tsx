@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   MagnifyingGlass,
   Plus,
-} from "@phosphor-icons/react";
+} from "../ui/icons";
 import type { AgentRecord } from "@shared/types";
 import { useAppStore } from "../../state/store";
 import { ActionButton, EmptyState } from "../ui";

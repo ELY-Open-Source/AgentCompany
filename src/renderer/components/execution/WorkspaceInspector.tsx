@@ -1,4 +1,4 @@
-import { ArrowSquareOut } from "@phosphor-icons/react"
+import { ArrowSquareOut } from "../ui/icons"
 import type { AgentRecord, DocumentRecord, ProjectRecord, RunRecord, TaskRecord, WorkspaceRecord } from "@shared/types"
 import { useT } from "../../i18n"
 import { formatTime } from "../../lib/formatters"

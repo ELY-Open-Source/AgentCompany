@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { FloppyDisk, NotePencil, Rows, Trash } from "@phosphor-icons/react";
+import { FloppyDisk, NotePencil, Rows, Trash } from "../ui/icons";
 import type { SprintRecord } from "@shared/types";
 import { ActionButton, ConfirmDialog, InlineNotice, Input, ListFrame, ListRow, Modal, Select, StatusPill, TextArea } from "../ui";
 import { useT } from "../../i18n";

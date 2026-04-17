@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Warning, X } from "@phosphor-icons/react";
+import { Warning, X } from "../ui/icons";
 import { AnimatePresence, motion } from "framer-motion";
 import type { AgentRecord, BudgetIncidentRecord, SectionId } from "@shared/types";
 import { useReducedMotion } from "../ui";

@@ -18,7 +18,7 @@ import {
   ShieldCheck,
   Megaphone,
   FolderOpen,
-} from "@phosphor-icons/react";
+} from "../components/ui/icons";
 import type { AppLocale } from "@shared/locale";
 
 type NavItemDef = { id: SectionId; labelKey: string; icon: typeof SquaresFour };

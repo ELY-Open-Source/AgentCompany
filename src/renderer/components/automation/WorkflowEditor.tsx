@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { ArrowsClockwise, Gear } from "@phosphor-icons/react"
+import { ArrowsClockwise, Gear } from "../ui/icons"
 import type { AutomationTrigger, WorkflowPipelineRecord, WorkflowStatus } from "@shared/types"
 import { ActionButton, Modal, Select } from "../ui"
 import { triggerConfig, safeJsonStringify } from "./automation-config"

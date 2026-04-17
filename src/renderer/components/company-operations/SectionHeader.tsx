@@ -1,4 +1,4 @@
-import { Plus } from "@phosphor-icons/react";
+import { Plus } from "../ui/icons";
 import { ActionButton } from "../ui";
 
 export function SectionHeader({

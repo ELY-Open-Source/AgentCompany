@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import { Clock } from "@phosphor-icons/react"
+import { Clock } from "../../ui/icons"
 import { InlineNotice } from "../../ui"
 
 export type ScheduleMode = "immediate" | "scheduled"

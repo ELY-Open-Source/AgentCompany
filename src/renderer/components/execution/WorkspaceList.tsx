@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ArrowSquareOut, FolderOpen, Trash } from "@phosphor-icons/react"
+import { ArrowSquareOut, FolderOpen, Trash } from "../ui/icons"
 import type { ProjectRecord, WorkspaceRecord } from "@shared/types"
 import { useT } from "../../i18n"
 import { unwrap } from "../../lib/desktop"

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { ArrowClockwise, CheckCircle, ClockCounterClockwise, Download, Trash } from "@phosphor-icons/react"
+import { ArrowClockwise, CheckCircle, ClockCounterClockwise, Download, Trash } from "../ui/icons"
 import type { ProfileSnapshot, SecretRecord } from "@shared/types"
 import type { AppLocale } from "@shared/locale"
 import { APP_LOCALES, LOCALE_LABELS } from "@shared/locale"

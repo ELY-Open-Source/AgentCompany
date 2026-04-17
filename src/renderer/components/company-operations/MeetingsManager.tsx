@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CalendarBlank, FloppyDisk, NotePencil, Trash } from "@phosphor-icons/react";
+import { CalendarBlank, FloppyDisk, NotePencil, Trash } from "../ui/icons";
 import type { AgentRecord, MeetingRecord } from "@shared/types";
 import { ActionButton, ConfirmDialog, InlineNotice, Input, ListFrame, ListRow, Modal, Select, StatusPill } from "../ui";
 import { useT } from "../../i18n";

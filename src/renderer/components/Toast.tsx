@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion"
-import { CheckCircle, Warning, X, XCircle } from "@phosphor-icons/react"
+import { CheckCircle, Warning, X, XCircle } from "./ui/icons"
 import { useAppStore } from "../state/store"
 import { useReducedMotion } from "./ui"
 

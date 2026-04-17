@@ -1,4 +1,4 @@
-import { CaretDown, CaretRight } from "@phosphor-icons/react";
+import { CaretDown, CaretRight } from "../ui/icons";
 import type { ProfileSnapshot } from "@shared/types";
 import { COMPATIBLE_PROVIDERS } from "../company-onboarding/ProvidersStepShared";
 
@@ -138,7 +138,7 @@ export function ToggleSwitch({ checked, onChange, label }: { checked: boolean; o
 /*  Model toggle list                                                  */
 /* ------------------------------------------------------------------ */
 
-import { X as XIcon } from "@phosphor-icons/react";
+import { X as XIcon } from "../ui/icons";
 
 export function ModelToggleList({
   models,
