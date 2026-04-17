@@ -20,6 +20,7 @@ export function createWorkerService({
   notify,
   budgetService,
   sessionService,
+  getRuntimeBridge,
 }: WorkerServiceDependencies) {
   const MAX_RETRY_ATTEMPTS = 2;
   const RETRY_COOLDOWN_MS = 30_000; // 30 seconds
@@ -110,7 +111,7 @@ export function createWorkerService({
       await handleWorkerMessage(
         message,
         worker,
-        { db, logger, isQuitting, emitEvent, wakeAgentIfPossible, processRunCompletion, onRunStarted, onRunCompleted, notify, budgetService, sessionService },
+        { db, logger, isQuitting, emitEvent, wakeAgentIfPossible, processRunCompletion, onRunStarted, onRunCompleted, notify, budgetService, sessionService, getRuntimeBridge },
         workerMessageSchema,
         destroyed,
         MAX_RETRY_ATTEMPTS,

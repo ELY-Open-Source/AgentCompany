@@ -4,6 +4,7 @@ import type { DesktopEvent, RunRecord } from "@shared/types";
 import type { NotificationOptions } from "../notification-service";
 import type { createBudgetEnforcementService } from "../budget-enforcement-service";
 import type { createSessionManagementService } from "../session-management-service";
+import type { RuntimeBridge } from "../agent-runtime";
 
 const runStatusSchema = z.enum(["queued", "running", "succeeded", "failed", "cancelled", "timed_out", "interrupted"]);
 
@@ -35,6 +36,22 @@ export const workerMessageSchema = z.union([
     unattributedCost: z.boolean(),
     inputTokens: z.number().nullable(),
     outputTokens: z.number().nullable(),
+  }),
+  z.object({
+    type: z.literal("agent-event"),
+    runId: z.string().uuid(),
+    agentId: z.string(),
+    companyId: z.string(),
+    taskId: z.string().nullable(),
+    emittedAt: z.string(),
+    event: z.record(z.string(), z.unknown()).and(z.object({ type: z.string() })),
+  }),
+  z.object({
+    type: z.literal("rpc-request"),
+    rpcId: z.string(),
+    runId: z.string().uuid(),
+    method: z.enum(["beforeToolCall", "afterToolCall", "persistMessage", "prepareRun"]),
+    payload: z.unknown(),
   }),
 ]);
 
@@ -70,4 +87,6 @@ export interface WorkerServiceDependencies {
   notify: (options: NotificationOptions) => void;
   budgetService?: ReturnType<typeof createBudgetEnforcementService>;
   sessionService?: ReturnType<typeof createSessionManagementService>;
+  /** Forwards `agent-event` from worker to renderer and routes RPC to main services. */
+  getRuntimeBridge?: () => RuntimeBridge | null;
 }

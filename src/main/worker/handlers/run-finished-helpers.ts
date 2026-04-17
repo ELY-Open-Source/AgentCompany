@@ -1,5 +1,4 @@
 import type { z } from "zod";
-import { getConnectorDefinition } from "../../connectors";
 import { createCircuitBreaker } from "../circuit-breaker";
 import { handleFailureEscalation, handleSuccessReset } from "../failure-escalation";
 import { persistRunEvent } from "../run-event-recorder";
@@ -53,8 +52,6 @@ export function finalizeRun(
     },
   });
 
-  const connector = getConnectorDefinition(run.connectorId);
-
   let task: TaskRecord | null = null;
   try {
     task = db.getTask(run.taskId);
@@ -63,17 +60,10 @@ export function finalizeRun(
   }
 
   if (task) {
-    if (event.sessionParams && connector.module.sessionCodec) {
-      const serialized = connector.module.sessionCodec.serialize(event.sessionParams);
-      db.updateTaskSession(
-        task.id,
-        serialized,
-        connector.module.sessionCodec.getDisplayId?.(serialized ?? null) ?? event.sessionDisplayId ?? null,
-      );
-    }
-    if (!event.sessionParams) {
-      db.updateTaskSession(task.id, null, null);
-    }
+    // Pi-mono sessions are persisted through SqliteSessionStore via RuntimeBridge;
+    // worker-reported sessionParams is an opaque JSON snapshot of whatever the
+    // orchestrator wants to stamp onto the task_sessions row.
+    db.updateTaskSession(task.id, event.sessionParams, event.sessionDisplayId ?? null);
   }
 
   leaseRenewalMap.delete(event.runId);
