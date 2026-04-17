@@ -5,7 +5,7 @@ import {
   Globe,
   Link,
 } from "@phosphor-icons/react";
-import { Modal, ActionButton } from "../ui";
+import { Modal, ActionButton, Input } from "../ui";
 import { useAppStore } from "../../state/store";
 
 type TabId = "github" | "local" | "url" | "skills_sh";
@@ -143,21 +143,13 @@ export function SkillImportModal({
         <div className="space-y-3">
           {activeTab === "local" ? (
             <div className="flex gap-2">
-              <input
-                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-[14px] text-foreground placeholder:text-muted-foreground"
-                value={source}
-                onChange={(e) => setSource(e.target.value)}
-                placeholder={placeholder.local}
-              />
+              <div className="flex-1">
+                <Input value={source} onChange={setSource} placeholder={placeholder.local} />
+              </div>
               <ActionButton label="Browse" onClick={() => void handleBrowse()} />
             </div>
           ) : (
-            <input
-              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-[14px] text-foreground placeholder:text-muted-foreground"
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
-              placeholder={placeholder[activeTab]}
-            />
+            <Input value={source} onChange={setSource} placeholder={placeholder[activeTab]} />
           )}
 
           {activeTab === "skills_sh" && (

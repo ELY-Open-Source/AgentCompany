@@ -5,7 +5,7 @@ import {
 } from "@phosphor-icons/react";
 import type { AgentRecord } from "@shared/types";
 import { useAppStore } from "../../state/store";
-import { EmptyState } from "../ui";
+import { ActionButton, EmptyState } from "../ui";
 import { SkillList } from "./SkillList";
 import { SkillImportModal } from "./SkillImportModal";
 import { SkillDetail } from "./SkillDetail";
@@ -106,14 +106,12 @@ export function SkillsSection({
               title="No skills imported"
               detail="Import skills from GitHub, a local path, or skills.sh to get started."
               action={
-                <button
-                  type="button"
-                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 inline-flex items-center gap-2 rounded-lg border border-transparent bg-primary px-4 py-2.5 text-[12px] font-bold text-primary-foreground shadow-[0_1px_3px_rgba(74,93,122,0.35)] transition hover:bg-primary/90"
+                <ActionButton
+                  label="Import Skill"
+                  icon={Plus}
+                  tone="accent"
                   onClick={() => setSkillImportModalOpen(true)}
-                >
-                  <Plus size={14} weight="bold" />
-                  Import Skill
-                </button>
+                />
               }
             />
           ) : (
