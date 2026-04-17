@@ -182,6 +182,34 @@ export class AgentApiServer {
     this._routes.push({ method, pattern: new RegExp(`^${patternStr}$`), paramNames, handler });
   }
 
+  private authenticateRequest(
+    req: IncomingMessage,
+  ):
+    | { ok: true; token: TokenPayload }
+    | { ok: false; status: number; error: string } {
+    const authHeader = req.headers.authorization;
+    if (typeof authHeader !== "string" || !authHeader.startsWith("Bearer ")) {
+      return { ok: false, status: 401, error: "Missing or invalid Authorization header" };
+    }
+    const token = validateAgentToken(authHeader.slice(7));
+    if (!token) {
+      return { ok: false, status: 401, error: "Invalid or expired token" };
+    }
+    const runHeader = req.headers["x-agent-company-run-id"];
+    const claimedRunId = Array.isArray(runHeader) ? runHeader[0] : runHeader;
+    if (typeof claimedRunId !== "string" || claimedRunId.trim() !== token.runId) {
+      return { ok: false, status: 401, error: "Missing or mismatched X-Agent-Company-Run-Id header" };
+    }
+    const runState = this._db.getRunAuthState(token.runId);
+    if (!runState || runState.companyId !== token.companyId || runState.agentId !== token.agentId) {
+      return { ok: false, status: 403, error: "Token references an unknown or mismatched run" };
+    }
+    if (!["queued", "running"].includes(runState.status)) {
+      return { ok: false, status: 401, error: "Run token is no longer active" };
+    }
+    return { ok: true, token };
+  }
+
   private async handleRequest(req: IncomingMessage, res: ServerResponse) {
     const origin = req.headers.origin;
     const authHeader = req.headers.authorization;
@@ -217,33 +245,12 @@ export class AgentApiServer {
     const pathname = url.pathname;
     const method = (req.method ?? "GET").toUpperCase();
 
-    if (!hasBearer || typeof authHeader !== "string") {
-      this.json(res, 401, { error: "Missing or invalid Authorization header" });
+    const auth = this.authenticateRequest(req);
+    if (!auth.ok) {
+      this.json(res, auth.status, { error: auth.error });
       return;
     }
-    const token = validateAgentToken(authHeader.slice(7));
-    if (!token) {
-      this.json(res, 401, { error: "Invalid or expired token" });
-      return;
-    }
-
-    const runHeader = req.headers["x-agent-company-run-id"];
-    const claimedRunId = Array.isArray(runHeader) ? runHeader[0] : runHeader;
-    if (typeof claimedRunId !== "string" || claimedRunId.trim() !== token.runId) {
-      this.json(res, 401, { error: "Missing or mismatched X-Agent-Company-Run-Id header" });
-      return;
-    }
-
-    const runState = this._db.getRunAuthState(token.runId);
-    if (!runState || runState.companyId !== token.companyId || runState.agentId !== token.agentId) {
-      this.json(res, 403, { error: "Token references an unknown or mismatched run" });
-      return;
-    }
-
-    if (!["queued", "running"].includes(runState.status)) {
-      this.json(res, 401, { error: "Run token is no longer active" });
-      return;
-    }
+    const token = auth.token;
 
     const retryAfter = this._rateLimiter.consume(`${token.companyId}:${token.agentId}`);
     if (retryAfter !== null) {
