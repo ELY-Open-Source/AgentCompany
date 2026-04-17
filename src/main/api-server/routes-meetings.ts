@@ -1,6 +1,7 @@
+import log from "electron-log/main.js";
 import { z } from "zod";
 import { validateTaskCreation } from "../task-quality-gates";
-import type { AgentApiServer } from "./server-core";
+import { requireParam, type AgentApiServer } from "./server-core";
 
 export function registerMeetingRoutes(server: AgentApiServer) {
   const db = server.db;
@@ -66,11 +67,7 @@ export function registerMeetingRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("PATCH", "/api/meetings/:meetingId", (_req, res, params, token, body) => {
-    const meetingId = params.meetingId;
-    if (!meetingId) {
-      server.json(res, 400, { error: "Missing meetingId" });
-      return;
-    }
+    const meetingId = requireParam(params, "meetingId");
     const existing = db.getMeeting(meetingId, token.companyId);
     if (!existing) {
       server.json(res, 404, { error: "Meeting not found" });
@@ -130,7 +127,9 @@ export function registerMeetingRoutes(server: AgentApiServer) {
             false,
           );
           if (!meetingTaskValidation.valid) {
-            // Log but skip invalid meeting action items rather than failing the whole request
+            log.warn(
+              `[meetings] Skipped invalid action item from meeting ${existing.id}: ${meetingTaskValidation.errors.join("; ")}`,
+            );
             continue;
           }
           db.saveTask({
