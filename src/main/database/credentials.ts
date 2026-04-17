@@ -166,11 +166,12 @@ export function buildCredentialMethods(
     ciphertext: Uint8Array,
     expiresAt: string | null,
   ): void {
+    const ts = nowIso();
     getDb()
       .prepare(
         "update credentials set backend = ?, ciphertext = ?, expires_at = ?, last_refreshed_at = ?, status = 'active', last_error = null, updated_at = ? where connector_id = ?",
       )
-      .run(backend, ciphertext, expiresAt, nowIso(), nowIso(), connectorId);
+      .run(backend, ciphertext, expiresAt, ts, ts, connectorId);
   }
 
   return { list, get, upsert, remove, setStatus, markRefreshed };

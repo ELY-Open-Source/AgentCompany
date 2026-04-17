@@ -53,8 +53,9 @@ export function buildAutomationMethods(
 
     recordAutomationExecution(ruleId: string, companyId: string, ruleName: string, trigger: string, action: string, detail: string) {
       const id = randomUUID();
-      getDb().prepare("insert into automation_log (id, company_id, rule_id, rule_name, trigger, action, detail, executed_at) values (?, ?, ?, ?, ?, ?, ?, ?)").run(id, companyId, ruleId, ruleName, trigger, action, detail, nowIso());
-      getDb().prepare("update automation_rules set execution_count = execution_count + 1, last_executed_at = ? where id = ?").run(nowIso(), ruleId);
+      const ts = nowIso();
+      getDb().prepare("insert into automation_log (id, company_id, rule_id, rule_name, trigger, action, detail, executed_at) values (?, ?, ?, ?, ?, ?, ?, ?)").run(id, companyId, ruleId, ruleName, trigger, action, detail, ts);
+      getDb().prepare("update automation_rules set execution_count = execution_count + 1, last_executed_at = ? where id = ?").run(ts, ruleId);
     },
 
     getAutomationLog(companyId: string) {
