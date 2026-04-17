@@ -40,27 +40,30 @@ export class AppDatabaseBase {
   readonly vault: SecretVault;
   protected db: DatabaseSync;
 
-  protected readonly threads: ReturnType<typeof buildThreadMethods>;
-  protected readonly company: ReturnType<typeof buildCompanyMethods>;
-  protected readonly agents: ReturnType<typeof buildAgentMethods>;
-  protected readonly tasks: ReturnType<typeof buildTaskMethods>;
-  protected readonly messages: ReturnType<typeof buildMessageMethods>;
-  protected readonly runs: ReturnType<typeof buildRunMethods>;
-  protected readonly snap: ReturnType<typeof buildSnapshotMethods>;
-  protected readonly settings: ReturnType<typeof buildSettingsMethods>;
-  protected readonly connectorsCrud: ReturnType<typeof buildConnectorMethods>;
-  protected readonly workspacesMod: ReturnType<typeof buildWorkspaceMethods>;
-  protected readonly approvalsMod: ReturnType<typeof buildApprovalMethods>;
-  protected readonly social: ReturnType<typeof buildSocialMethods>;
-  protected readonly activityMod: ReturnType<typeof buildActivityMethods>;
-  protected readonly skills: ReturnType<typeof buildSkillMethods>;
-  protected readonly budget: ReturnType<typeof buildBudgetMethods>;
-  protected readonly entityCrud: ReturnType<typeof buildEntityCrudMethods>;
-  protected readonly documentsMod: ReturnType<typeof buildDocumentMethods>;
-  protected readonly automationMod: ReturnType<typeof buildAutomationMethods>;
-  protected readonly knowledgeMod: ReturnType<typeof buildKnowledgeMethods>;
-  protected readonly wakeup: ReturnType<typeof buildWakeupMethods>;
-  protected readonly backupMod: ReturnType<typeof buildBackupMethods>;
+  // Domain modules. New code should prefer `db.tasks.saveTask(...)` over the
+  // legacy pass-through methods on AppDatabase. Pass-through remains for
+  // back-compat until all call sites migrate.
+  public readonly threads: ReturnType<typeof buildThreadMethods>;
+  public readonly company: ReturnType<typeof buildCompanyMethods>;
+  public readonly agents: ReturnType<typeof buildAgentMethods>;
+  public readonly tasks: ReturnType<typeof buildTaskMethods>;
+  public readonly messages: ReturnType<typeof buildMessageMethods>;
+  public readonly runs: ReturnType<typeof buildRunMethods>;
+  public readonly snap: ReturnType<typeof buildSnapshotMethods>;
+  public readonly settings: ReturnType<typeof buildSettingsMethods>;
+  public readonly connectorsCrud: ReturnType<typeof buildConnectorMethods>;
+  public readonly workspacesMod: ReturnType<typeof buildWorkspaceMethods>;
+  public readonly approvalsMod: ReturnType<typeof buildApprovalMethods>;
+  public readonly social: ReturnType<typeof buildSocialMethods>;
+  public readonly activityMod: ReturnType<typeof buildActivityMethods>;
+  public readonly skills: ReturnType<typeof buildSkillMethods>;
+  public readonly budget: ReturnType<typeof buildBudgetMethods>;
+  public readonly entityCrud: ReturnType<typeof buildEntityCrudMethods>;
+  public readonly documentsMod: ReturnType<typeof buildDocumentMethods>;
+  public readonly automationMod: ReturnType<typeof buildAutomationMethods>;
+  public readonly knowledgeMod: ReturnType<typeof buildKnowledgeMethods>;
+  public readonly wakeup: ReturnType<typeof buildWakeupMethods>;
+  public readonly backupMod: ReturnType<typeof buildBackupMethods>;
 
   constructor(rootDir: string) {
     this.profileDir = rootDir;
