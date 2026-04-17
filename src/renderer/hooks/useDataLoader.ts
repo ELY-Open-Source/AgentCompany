@@ -8,43 +8,32 @@ export function useDataLoader(
   section: SectionId,
   selectedConnectorId: string | null,
   selectedRunId: string | null,
-  setSnapshot: (snapshot: ProfileSnapshot) => void,
-  setError: (error: string | null) => void,
-  setInitialOnboardingLocked: (locked: boolean) => void,
-  setSelectedConnectorId: (id: string | null) => void,
-  setSelectedRunId: (id: string | null) => void,
-  setBadges: (badges: Parameters<ReturnType<typeof useAppStore.getState>["setBadges"]>[0]) => void,
-  setInboxItems: (items: Parameters<ReturnType<typeof useAppStore.getState>["setInboxItems"]>[0]) => void,
-  setSocialAccounts: (accounts: Parameters<ReturnType<typeof useAppStore.getState>["setSocialAccounts"]>[0]) => void,
-  setBrowserActions: (actions: Parameters<ReturnType<typeof useAppStore.getState>["setBrowserActions"]>[0]) => void,
-  setCompanyMetrics: (metrics: Parameters<ReturnType<typeof useAppStore.getState>["setCompanyMetrics"]>[0]) => void,
-  setStandupReport: (report: Parameters<ReturnType<typeof useAppStore.getState>["setStandupReport"]>[0]) => void,
 ) {
   const refresh = useCallback(async () => {
+    const store = useAppStore.getState();
     try {
       const next = unwrap<ProfileSnapshot>(await window.agentCompany.loadSnapshot());
-      setSnapshot(next);
+      store.setSnapshot(next);
       if (next.companies.length === 0) {
-        setInitialOnboardingLocked(true);
+        store.setInitialOnboardingLocked(true);
       }
-      if (!selectedConnectorId && next.connectors[0]) setSelectedConnectorId(next.connectors[0].id);
-      if (!selectedRunId && next.runs[0]) setSelectedRunId(next.runs[0].id);
+      if (!selectedConnectorId && next.connectors[0]) store.setSelectedConnectorId(next.connectors[0].id);
+      if (!selectedRunId && next.runs[0]) store.setSelectedRunId(next.runs[0].id);
       if (next.currentCompanyId) {
         const badgeResult = await window.agentCompany.getSidebarBadges(next.currentCompanyId);
-        if (badgeResult.ok) setBadges(badgeResult.data);
+        if (badgeResult.ok) store.setBadges(badgeResult.data);
         const inboxResult = await window.agentCompany.getInbox(next.currentCompanyId);
-        if (inboxResult.ok) setInboxItems(inboxResult.data);
-        setSocialAccounts(next.socialAccounts?.filter(a => a.companyId === next.currentCompanyId) ?? []);
+        if (inboxResult.ok) store.setInboxItems(inboxResult.data);
+        store.setSocialAccounts(next.socialAccounts?.filter((a) => a.companyId === next.currentCompanyId) ?? []);
         const browserActionResult = await window.agentCompany.listBrowserActions({ companyId: next.currentCompanyId, limit: 50 });
         if (browserActionResult.ok) {
-          setBrowserActions(browserActionResult.data);
+          store.setBrowserActions(browserActionResult.data);
         }
       }
-      setError(null);
+      store.setError(null);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
+      store.setError(nextError instanceof Error ? nextError.message : String(nextError));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- Zustand setters are stable references
   }, [selectedConnectorId, selectedRunId]);
 
   // Section-based data loading
@@ -52,33 +41,33 @@ export function useDataLoader(
     if (!snapshot?.currentCompanyId) return;
     const companyId = snapshot.currentCompanyId;
     let cancelled = false;
+    const store = useAppStore.getState();
 
     if (section === "inbox") {
       void window.agentCompany.getInbox(companyId).then((result) => {
-        if (!cancelled && result.ok) setInboxItems(result.data);
+        if (!cancelled && result.ok) store.setInboxItems(result.data);
       });
     }
 
     if (section === "performance") {
       void window.agentCompany.getCompanyMetrics({ companyId, days: 30 }).then((result) => {
-        if (!cancelled && result.ok) setCompanyMetrics(result.data);
+        if (!cancelled && result.ok) store.setCompanyMetrics(result.data);
       });
     }
 
     if (section === "standup") {
       void window.agentCompany.getStandupReport(companyId).then((result) => {
-        if (!cancelled && result.ok) setStandupReport(result.data);
+        if (!cancelled && result.ok) store.setStandupReport(result.data);
       });
     }
 
     if (section === "social") {
-      setSocialAccounts(snapshot.socialAccounts?.filter((a) => a.companyId === companyId) ?? []);
+      store.setSocialAccounts(snapshot.socialAccounts?.filter((a) => a.companyId === companyId) ?? []);
     }
 
     return () => {
       cancelled = true;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- Zustand setters are stable references
   }, [section, snapshot]);
 
   return { refresh };

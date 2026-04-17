@@ -9,28 +9,22 @@ import { useCompanyData } from "./useCompanyData";
 
 export function useCompanyController() {
   const snapshot = useAppStore((s) => s.snapshot);
-  const setSnapshot = useAppStore((s) => s.setSnapshot);
   const section = useAppStore((s) => s.section);
-  const setError = useAppStore((s) => s.setError);
-  const setInitialOnboardingLocked = useAppStore((s) => s.setInitialOnboardingLocked);
-  const setSection = useAppStore((s) => s.setSection);
-  const setShowOnboarding = useAppStore((s) => s.setShowOnboarding);
-  const setSelectedRunId = useAppStore((s) => s.setSelectedRunId);
-  const setSelectedAgentId = useAppStore((s) => s.setSelectedAgentId);
-  const setSelectedConnectorId = useAppStore((s) => s.setSelectedConnectorId);
   const selectedConnectorId = useAppStore((s) => s.selectedConnectorId);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
-  const setBadges = useAppStore((s) => s.setBadges);
-  const setInboxItems = useAppStore((s) => s.setInboxItems);
-  const setSocialAccounts = useAppStore((s) => s.setSocialAccounts);
-  const setBrowserActions = useAppStore((s) => s.setBrowserActions);
-  const setCompanyMetrics = useAppStore((s) => s.setCompanyMetrics);
-  const setStandupReport = useAppStore((s) => s.setStandupReport);
-  const setConfirmDeleteCompanyId = useAppStore((s) => s.setConfirmDeleteCompanyId);
-  const setCompanySwitcherOpen = useAppStore((s) => s.setCompanySwitcherOpen);
   const locale = useAppStore((s) => s.locale);
-  const setLocale = useAppStore((s) => s.setLocale);
   const incrementLogRevision = useAppStore((s) => s.incrementLogRevision);
+  const {
+    setError,
+    setInitialOnboardingLocked,
+    setSection,
+    setShowOnboarding,
+    setSelectedRunId,
+    setSelectedAgentId,
+    setConfirmDeleteCompanyId,
+    setCompanySwitcherOpen,
+    setLocale,
+  } = useAppStore.getState();
 
   const currentCompany = useMemo<CompanyRecord | null>(() => {
     if (!snapshot) return null;
@@ -56,13 +50,7 @@ export function useCompanyController() {
     store.setSkillImportModalOpen(false);
   }, []);
 
-  const { refresh } = useDataLoader(
-    snapshot, section, selectedConnectorId, selectedRunId,
-    setSnapshot, setError, setInitialOnboardingLocked,
-    setSelectedConnectorId, setSelectedRunId,
-    setBadges, setInboxItems, setSocialAccounts, setBrowserActions,
-    setCompanyMetrics, setStandupReport,
-  );
+  const { refresh } = useDataLoader(snapshot, section, selectedConnectorId, selectedRunId);
 
   const logBufferRef = useRef<Record<string, string>>({});
 
