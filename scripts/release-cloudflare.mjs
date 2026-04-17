@@ -63,6 +63,7 @@ async function main() {
     console.log("Public release + Boss release wrapper.");
     console.log("Runs scripts/release-public-cloudflare.mjs, then scripts/release-boss.mjs using the final package version.");
     console.log("");
+    process.exit(0);
   }
 
   await run("node", ["scripts/release-public-cloudflare.mjs", ...options.passThroughArgs]);
