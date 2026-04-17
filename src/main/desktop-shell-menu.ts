@@ -121,7 +121,12 @@ export function createDesktopShellMenu(deps: DesktopShellMenuDependencies) {
             click: () => onShortcut("refresh"),
           },
           { type: "separator" },
-          { role: "toggleDevTools", visible: isDev },
+          {
+            role: "toggleDevTools",
+            // Hidden in packaged builds unless opted in via env var so power
+            // users can still inspect rendered state without a dev build.
+            visible: isDev || process.env.AGENTCOMPANY_ENABLE_DEVTOOLS === "true",
+          },
         ],
       },
       {

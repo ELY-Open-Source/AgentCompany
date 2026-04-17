@@ -186,11 +186,9 @@ export function buildSnapshotMethods(
 
     listRendererSnapshot(): ProfileSnapshot {
       const currentCompanyId = deps.getCurrentCompanyId();
-      if (!currentCompanyId) {
-        return listSnapshot();
-      }
-      const snapshot = listSnapshot({ companyId: currentCompanyId });
-      return snapshot;
+      return currentCompanyId
+        ? listSnapshot({ companyId: currentCompanyId })
+        : listSnapshot();
     },
   };
 }

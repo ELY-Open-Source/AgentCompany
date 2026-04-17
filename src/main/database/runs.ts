@@ -128,13 +128,13 @@ export function buildRunMethods(
       }
     },
 
-    markRunStatus(runId: string, status: RunRecord["status"], message: string) {
+    markRunStatus(runId: string, status: RunRecord["status"], message: string | null) {
       const ts = nowIso();
       const startedAt = status === "running" ? ts : null;
       transaction(() => {
         getDb()
           .prepare(
-            "update runs set status = ?, summary = case when ? != '' then ? else summary end, started_at = coalesce(started_at, ?), updated_at = ? where id = ?",
+            "update runs set status = ?, summary = case when ? is not null then ? else summary end, started_at = coalesce(started_at, ?), updated_at = ? where id = ?",
           )
           .run(status, message, message, startedAt, ts, runId);
 
