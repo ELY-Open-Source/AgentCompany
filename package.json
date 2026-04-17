@@ -34,10 +34,9 @@
     "postinstall": "node scripts/postinstall.mjs"
   },
   "dependencies": {
-    "@agentcompany/adapter-claude-local": "workspace:*",
-    "@agentcompany/adapter-codex-local": "workspace:*",
-    "@agentcompany/adapter-gemini-local": "workspace:*",
-    "@agentcompany/adapter-utils": "workspace:*",
+    "@mariozechner/pi-agent-core": "^0.67.6",
+    "@mariozechner/pi-ai": "^0.67.6",
+    "@mariozechner/pi-coding-agent": "^0.67.6",
     "@phosphor-icons/react": "2.1.10",
     "@tanstack/react-virtual": "^3.13.23",
     "electron-log": "5.4.3",

@@ -3,16 +3,9 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 
-const bundledMainDependencies = [
-  "@agentcompany/adapter-claude-local",
-  "@agentcompany/adapter-codex-local",
-  "@agentcompany/adapter-gemini-local",
-  "@agentcompany/adapter-utils",
-];
-
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: bundledMainDependencies })],
+    plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
         "@shared": resolve("src/shared"),
