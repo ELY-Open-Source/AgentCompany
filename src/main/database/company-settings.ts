@@ -185,128 +185,176 @@ export function buildCompanySettingsMethods(
     },
 
     getStandupReport(companyId: string): StandupReport {
-      const snapshot = deps.listSnapshot({ companyId });
-      const agents = snapshot.agents.filter(
-        (a) => a.status !== "terminated" && a.status !== "pending_approval",
-      );
-      const tasks = snapshot.tasks;
-      const runs = snapshot.runs;
-      const costs = snapshot.costs;
-
+      const db = getDb();
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const recentActivity = snapshot.activity.filter(
-        (a) => a.companyId === companyId && a.createdAt > oneDayAgo,
+
+      type AgentRow = {
+        id: string; name: string; role: string; status: StandupReport["agentReports"][number]["status"];
+        budgetMonthlyUsd: number; spentMonthlyUsd: number;
+      };
+      const agents = readAll<AgentRow>(
+        `select id, name, role, status,
+                budget_monthly_usd as budgetMonthlyUsd,
+                spent_monthly_usd as spentMonthlyUsd
+           from agents
+          where company_id = ? and status != 'terminated' and status != 'pending_approval'
+          order by created_at asc`,
+        companyId,
       );
+
+      const recentCompletedTasksCount = (db.prepare(
+        "select count(*) as c from tasks where company_id = ? and status = 'done' and updated_at > ?",
+      ).get(companyId, oneDayAgo) as { c: number }).c;
+
+      const recentRunStats = db.prepare(
+        `select
+            count(*) as total,
+            sum(case when status = 'succeeded' then 1 else 0 end) as succeeded,
+            sum(case when status = 'failed' or status = 'timed_out' then 1 else 0 end) as failed
+          from runs where company_id = ? and created_at > ?`,
+      ).get(companyId, oneDayAgo) as { total: number; succeeded: number | null; failed: number | null };
+      const recentRunsTotal = recentRunStats.total ?? 0;
+      const successfulRuns = recentRunStats.succeeded ?? 0;
+      const failedRuns = recentRunStats.failed ?? 0;
+
+      const blockedTaskRows = readAll<{ id: string; title: string; assigneeAgentId: string | null }>(
+        `select id, title, assignee_agent_id as assigneeAgentId
+           from tasks where company_id = ? and status = 'blocked'`,
+        companyId,
+      );
+
+      const pendingApprovals = (db.prepare(
+        "select count(*) as c from approvals where company_id = ? and state = 'pending'",
+      ).get(companyId) as { c: number }).c;
+
+      const activeSprint = db.prepare(
+        `select name, velocity_points as velocityPoints, completed_points as completedPoints
+           from sprints where company_id = ? and status = 'active' order by start_date desc limit 1`,
+      ).get(companyId) as { name: string; velocityPoints: number; completedPoints: number } | undefined;
+
+      const urgentUnread = (db.prepare(
+        `select count(*) as c
+           from agent_messages messages
+           left join agent_message_reads reads
+             on reads.message_id = messages.id and reads.agent_id = '__board__'
+          where messages.company_id = ?
+            and reads.read_at is null
+            and (messages.priority = 'urgent' or messages.channel = 'incident')`,
+      ).get(companyId) as { c: number }).c;
+
+      const tasksByAgentRows = readAll<{
+        agentId: string; inProgress: number; blocked: number; completed24h: number;
+      }>(
+        `select assignee_agent_id as agentId,
+                sum(case when status = 'in_progress' then 1 else 0 end) as inProgress,
+                sum(case when status = 'blocked' then 1 else 0 end) as blocked,
+                sum(case when status = 'done' and updated_at > ? then 1 else 0 end) as completed24h
+           from tasks
+          where company_id = ? and assignee_agent_id is not null
+          group by assignee_agent_id`,
+        oneDayAgo,
+        companyId,
+      );
+      const tasksByAgent = new Map(tasksByAgentRows.map((row) => [row.agentId, row]));
+
+      const recentRunsByAgent = readAll<{
+        agentId: string; runCount: number; lastStatus: string | null; lastAt: string | null;
+      }>(
+        `select agent_id as agentId,
+                count(*) as runCount,
+                (select status from runs r2 where r2.agent_id = runs.agent_id and r2.company_id = runs.company_id and r2.created_at > ? order by created_at desc limit 1) as lastStatus,
+                max(created_at) as lastAt
+           from runs
+          where company_id = ? and created_at > ?
+          group by agent_id`,
+        oneDayAgo,
+        companyId,
+        oneDayAgo,
+      );
+      const runsByAgent = new Map(recentRunsByAgent.map((row) => [row.agentId, row]));
+
+      const costByAgentRows = readAll<{ agentId: string; cost24h: number }>(
+        `select agent_id as agentId, coalesce(sum(amount_usd), 0) as cost24h
+           from cost_entries
+          where company_id = ? and agent_id is not null and created_at > ?
+          group by agent_id`,
+        companyId,
+        oneDayAgo,
+      );
+      const costByAgent = new Map(costByAgentRows.map((row) => [row.agentId, row.cost24h]));
+
+      const reviewByAgentRows = readAll<{ actor: string; cycles: number }>(
+        `select actor, count(*) as cycles
+           from activity
+          where company_id = ? and created_at > ?
+            and action in ('task.status_changed', 'task.updated', 'task.auto_assigned')
+          group by actor`,
+        companyId,
+        oneDayAgo,
+      );
+      const reviewByAgent = new Map(reviewByAgentRows.map((row) => [row.actor, row.cycles]));
+
+      const agentNameMap = new Map(agents.map((a) => [a.id, a.name]));
 
       const companyHighlights: string[] = [];
       const blockers: string[] = [];
-
-      const recentCompletedTasks = tasks.filter(
-        (t) => t.status === "done" && t.updatedAt > oneDayAgo,
-      );
-      if (recentCompletedTasks.length > 0) {
-        companyHighlights.push(`${recentCompletedTasks.length} task(s) completed in last 24h`);
+      if (recentCompletedTasksCount > 0) {
+        companyHighlights.push(`${recentCompletedTasksCount} task(s) completed in last 24h`);
       }
-
-      const recentRuns = runs.filter((r) => r.createdAt > oneDayAgo);
-      const successfulRuns = recentRuns.filter((r) => r.status === "succeeded").length;
-      const failedRuns = recentRuns.filter(
-        (r) => r.status === "failed" || r.status === "timed_out",
-      ).length;
-      if (recentRuns.length > 0) {
+      if (recentRunsTotal > 0) {
         companyHighlights.push(
-          `${recentRuns.length} runs (${successfulRuns} succeeded, ${failedRuns} failed)`,
+          `${recentRunsTotal} runs (${successfulRuns} succeeded, ${failedRuns} failed)`,
         );
       }
-
-      const blockedTasks = tasks.filter((t) => t.status === "blocked");
-      for (const task of blockedTasks) {
-        const assignee = agents.find((a) => a.id === task.assigneeAgentId);
-        blockers.push(`${task.title} — blocked (${assignee?.name ?? "unassigned"})`);
+      for (const task of blockedTaskRows) {
+        const assigneeName = task.assigneeAgentId ? agentNameMap.get(task.assigneeAgentId) ?? null : null;
+        blockers.push(`${task.title} — blocked (${assigneeName ?? "unassigned"})`);
       }
-
-      const pendingApprovals = snapshot.approvals.filter(
-        (a) => a.companyId === companyId && a.state === "pending",
-      ).length;
-      const totalBudget = agents.reduce((sum, a) => sum + a.budgetMonthlyUsd, 0);
-      const totalSpent = agents.reduce((sum, a) => sum + a.spentMonthlyUsd, 0);
-      const budgetUtilization =
-        totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
-
-      // Active sprint progress
-      const activeSprint = snapshot.sprints.find(
-        (s) => s.companyId === companyId && s.status === "active",
-      );
       if (activeSprint) {
-        const pct =
-          activeSprint.velocityPoints > 0
-            ? Math.round(
-                (activeSprint.completedPoints / activeSprint.velocityPoints) * 100,
-              )
-            : 0;
+        const pct = activeSprint.velocityPoints > 0
+          ? Math.round((activeSprint.completedPoints / activeSprint.velocityPoints) * 100)
+          : 0;
         companyHighlights.push(
           `Sprint "${activeSprint.name}": ${activeSprint.completedPoints}/${activeSprint.velocityPoints} pts (${pct}%)`,
         );
       }
-
-      // Unread messages requiring attention
-      const urgentUnread = snapshot.agentMessages.filter(
-        (m) =>
-          m.companyId === companyId &&
-          !m.readAt &&
-          (m.priority === "urgent" || m.channel === "incident"),
-      ).length;
       if (urgentUnread > 0) {
         blockers.push(`${urgentUnread} urgent unread message(s) need attention`);
       }
 
+      const totalBudget = agents.reduce((sum, a) => sum + a.budgetMonthlyUsd, 0);
+      const totalSpent = agents.reduce((sum, a) => sum + a.spentMonthlyUsd, 0);
+      const budgetUtilization = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+
       const agentReports = agents.map((agent) => {
-        const agentTasks = tasks.filter((t) => t.assigneeAgentId === agent.id);
-        const agentRuns = runs.filter((r) => r.agentId === agent.id);
-        const agentRecentRuns = agentRuns.filter((r) => r.createdAt > oneDayAgo);
-        const agentCosts = costs.filter(
-          (c) => c.agentId === agent.id && c.createdAt > oneDayAgo,
-        );
-        const lastRun = agentRecentRuns.sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-        )[0];
-
+        const taskAgg = tasksByAgent.get(agent.id);
+        const runAgg = runsByAgent.get(agent.id);
+        const completed24h = taskAgg?.completed24h ?? 0;
+        const runs24h = runAgg?.runCount ?? 0;
+        const reviewedTasks = reviewByAgent.get(agent.id) ?? 0;
         const highlights: string[] = [];
-        const completedRecently = agentTasks.filter(
-          (t) => t.status === "done" && t.updatedAt > oneDayAgo,
-        );
-        if (completedRecently.length > 0)
-          highlights.push(`Completed ${completedRecently.length} task(s)`);
-        if (agentRecentRuns.length > 0)
-          highlights.push(`${agentRecentRuns.length} run(s) in last 24h`);
-        const reviewedTasks = recentActivity.filter(
-          (a) =>
-            a.actor === agent.id &&
-            (a.action === "task.status_changed" ||
-              a.action === "task.updated" ||
-              a.action === "task.auto_assigned"),
-        ).length;
+        if (completed24h > 0) highlights.push(`Completed ${completed24h} task(s)`);
+        if (runs24h > 0) highlights.push(`${runs24h} run(s) in last 24h`);
         if (reviewedTasks > 0) highlights.push(`${reviewedTasks} status update(s)`);
-
         return {
           agentId: agent.id,
           agentName: agent.name,
           role: agent.role,
           status: agent.status,
-          tasksInProgress: agentTasks.filter((t) => t.status === "in_progress").length,
-          tasksCompleted24h: completedRecently.length,
-          tasksBlocked: agentTasks.filter((t) => t.status === "blocked").length,
-          lastRunStatus: (lastRun?.status ?? null) as RunStatus | null,
-          lastRunAt: lastRun?.createdAt ?? null,
-          costLast24h: agentCosts.reduce((sum, c) => sum + (c.amountUsd ?? 0), 0),
+          tasksInProgress: taskAgg?.inProgress ?? 0,
+          tasksCompleted24h: completed24h,
+          tasksBlocked: taskAgg?.blocked ?? 0,
+          lastRunStatus: (runAgg?.lastStatus ?? null) as RunStatus | null,
+          lastRunAt: runAgg?.lastAt ?? null,
+          costLast24h: costByAgent.get(agent.id) ?? 0,
           highlights,
         };
       });
 
       const summaryParts: string[] = [];
       if (agents.length > 0) summaryParts.push(`${agents.length} active agents`);
-      summaryParts.push(`${recentCompletedTasks.length} tasks done`);
-      if (blockedTasks.length > 0) summaryParts.push(`${blockedTasks.length} blocked`);
+      summaryParts.push(`${recentCompletedTasksCount} tasks done`);
+      if (blockedTaskRows.length > 0) summaryParts.push(`${blockedTaskRows.length} blocked`);
       if (pendingApprovals > 0) summaryParts.push(`${pendingApprovals} pending approvals`);
 
       return {
