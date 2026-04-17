@@ -2,7 +2,7 @@ import type { AppDatabase } from "../database";
 import type { DesktopEvent } from "@shared/types";
 import type { NotificationOptions } from "../notification-service";
 import type { createBudgetEnforcementService } from "../budget-enforcement-service";
-import type { RuntimeSkillEntry } from "../skill-types";
+import type { ProjectedSkill } from "../skill-types";
 
 export type WorkspaceLockMode = "exclusive" | "shared" | "none";
 
@@ -43,7 +43,6 @@ export interface EnqueueRunPayload {
   sessionParams: Record<string, unknown> | null;
   systemPrompt: string | null;
   trigger: string | null;
-  managedSkills: Array<{ runtimeName: string; sourcePath: string }>;
   /** Task session id used by SqliteSessionStore to load/append messages. */
   taskSessionId: string;
   /** Execution mode from the owning company. */
@@ -67,7 +66,7 @@ export interface OrchestrationDependencies {
   hasWorkerReady: () => boolean;
   enqueueWorkerRun: (payload: EnqueueRunPayload) => void;
   isQuitting: () => boolean;
-  listRuntimeSkillEntries: (companyId: string, agentId: string, connectorId: string) => RuntimeSkillEntry[];
+  listRuntimeSkillEntries: (companyId: string, agentId: string, connectorId: string) => ProjectedSkill[];
   budgetService: ReturnType<typeof createBudgetEnforcementService>;
   /** Checkpoint engine for unified co-founder mode pause decisions. */
   checkpointEngine?: { shouldPauseHeartbeat: (companyId: string, agentId: string) => boolean };

@@ -1,12 +1,6 @@
 import { useState } from "react";
-import {
-  FIELD_INPUT,
-  FIELD_LABEL,
-  FORM_BUTTON,
-  FORM_BUTTON_SECONDARY,
-  FORM_ERROR,
-  FORM_FIELDSET,
-} from "./form-shared";
+import { ActionButton, Input } from "../../ui";
+import { useT } from "../../../i18n";
 
 interface Props {
   connectorId: string;
@@ -14,6 +8,7 @@ interface Props {
 }
 
 export function VertexForm({ connectorId, onSaved }: Props) {
+  const t = useT();
   const [project, setProject] = useState("");
   const [location, setLocation] = useState("");
   const [credentialsPath, setCredentialsPath] = useState("");
@@ -24,7 +19,7 @@ export function VertexForm({ connectorId, onSaved }: Props) {
     const desktop = window.agentCompany;
     if (!desktop) return;
     if (project.trim().length === 0 || location.trim().length === 0) {
-      setError("Project and location are required.");
+      setError(t("form.vertex.errProjectLocationRequired"));
       return;
     }
     setBusy(true);
@@ -61,55 +56,36 @@ export function VertexForm({ connectorId, onSaved }: Props) {
         event.preventDefault();
         void handleSubmit();
       }}
-      className={FORM_FIELDSET}
+      className="space-y-3"
     >
+      <Input label={t("form.vertex.project")} value={project} onChange={setProject} disabled={busy} placeholder="my-gcp-project" />
+      <Input label={t("form.vertex.location")} value={location} onChange={setLocation} disabled={busy} placeholder="us-central1" />
       <div>
-        <label className={FIELD_LABEL}>GCP project id</label>
-        <input
-          type="text"
-          value={project}
-          onChange={(event) => setProject(event.target.value)}
-          disabled={busy}
-          className={FIELD_INPUT}
-          placeholder="my-gcp-project"
-        />
-      </div>
-      <div>
-        <label className={FIELD_LABEL}>Region / location</label>
-        <input
-          type="text"
-          value={location}
-          onChange={(event) => setLocation(event.target.value)}
-          disabled={busy}
-          className={FIELD_INPUT}
-          placeholder="us-central1"
-        />
-      </div>
-      <div>
-        <label className={FIELD_LABEL}>Credentials JSON path (optional — leave blank for ADC)</label>
-        <div className="mt-1 flex gap-2">
-          <input
-            type="text"
-            value={credentialsPath}
-            onChange={(event) => setCredentialsPath(event.target.value)}
-            disabled={busy}
-            className={FIELD_INPUT}
-            placeholder="/path/to/service-account.json"
-          />
-          <button
-            type="button"
-            onClick={() => void pickCredentialsFile()}
-            disabled={busy}
-            className={FORM_BUTTON_SECONDARY}
-          >
-            Browse
-          </button>
+        <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">{t("form.vertex.credentialsPath")}</div>
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <Input
+              value={credentialsPath}
+              onChange={setCredentialsPath}
+              disabled={busy}
+              placeholder="/path/to/service-account.json"
+            />
+          </div>
+          <ActionButton label={t("form.vertex.browse")} disabled={busy} onClick={() => void pickCredentialsFile()} />
         </div>
       </div>
-      {error ? <div className={FORM_ERROR}>{error}</div> : null}
-      <button type="submit" disabled={busy} className={FORM_BUTTON}>
-        {busy ? "Saving…" : "Save"}
-      </button>
+      {error ? (
+        <div role="alert" className="rounded-md border border-[color:var(--destructive)] bg-destructive-muted px-3 py-2 text-[11px] text-destructive">
+          {error}
+        </div>
+      ) : null}
+      <ActionButton
+        type="submit"
+        label={busy ? t("form.saving") : t("form.save")}
+        tone="accent"
+        disabled={busy}
+        loading={busy}
+      />
     </form>
   );
 }

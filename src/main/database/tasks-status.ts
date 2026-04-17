@@ -111,9 +111,10 @@ export function buildTaskStatusMethods(
                 status, priority, active_run_id as activeRunId,
                 session_json as sessionJson, session_display_id as sessionDisplayId,
                 cost_usd as costUsd, requires_user_review as requiresUserReview,
+                is_heartbeat as isHeartbeat,
                 created_at as createdAt, updated_at as updatedAt
          FROM tasks
-         WHERE company_id = ? AND assignee_agent_id = ? AND title LIKE '[Heartbeat]%'
+         WHERE company_id = ? AND assignee_agent_id = ? AND is_heartbeat = 1
            AND status IN ('done', 'in_review')
          ORDER BY updated_at DESC, rowid DESC
          LIMIT 1`,
@@ -121,6 +122,7 @@ export function buildTaskStatusMethods(
         .get(companyId, agentId) as TaskRecord | undefined;
       if (row) {
         row.requiresUserReview = Boolean(row.requiresUserReview);
+        row.isHeartbeat = Boolean(row.isHeartbeat);
       }
       return row ?? null;
     },
@@ -141,7 +143,7 @@ export function buildTaskStatusMethods(
         const claimable = db
           .prepare(
             `SELECT id, status FROM tasks
-             WHERE company_id = ? AND assignee_agent_id = ? AND title LIKE '[Heartbeat]%'
+             WHERE company_id = ? AND assignee_agent_id = ? AND is_heartbeat = 1
                AND status IN ('todo', 'backlog', 'done', 'in_review')
                AND checkout_run_id IS NULL
              ORDER BY
@@ -172,7 +174,7 @@ export function buildTaskStatusMethods(
           const inflight = db
             .prepare(
               `SELECT 1 FROM tasks
-               WHERE company_id = ? AND assignee_agent_id = ? AND title LIKE '[Heartbeat]%'
+               WHERE company_id = ? AND assignee_agent_id = ? AND is_heartbeat = 1
                  AND status NOT IN ('done', 'cancelled')
                LIMIT 1`,
             )
@@ -184,9 +186,9 @@ export function buildTaskStatusMethods(
             `INSERT INTO tasks
                (id, company_id, project_id, goal_id, parent_id, title, description,
                 assignee_agent_id, workspace_id, status, priority,
-                checkout_run_id, execution_locked_at, started_at,
+                checkout_run_id, execution_locked_at, started_at, is_heartbeat,
                 created_at, updated_at)
-             VALUES (?, ?, NULL, NULL, NULL, ?, ?, ?, ?, 'in_progress', ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, NULL, NULL, NULL, ?, ?, ?, ?, 'in_progress', ?, ?, ?, ?, 1, ?, ?)`,
           ).run(
             taskId,
             input.companyId,
@@ -211,7 +213,7 @@ export function buildTaskStatusMethods(
                     status, priority, active_run_id as activeRunId,
                     session_json as sessionJson, session_display_id as sessionDisplayId,
                     cost_usd as costUsd, requires_user_review as requiresUserReview,
-                    task_type as taskType,
+                    is_heartbeat as isHeartbeat, task_type as taskType,
                     started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt,
                     created_at as createdAt, updated_at as updatedAt
              FROM tasks WHERE id = ?`,
@@ -219,6 +221,7 @@ export function buildTaskStatusMethods(
           .get(taskId) as TaskRecord | undefined;
         if (!row) return null;
         row.requiresUserReview = Boolean(row.requiresUserReview);
+        row.isHeartbeat = Boolean(row.isHeartbeat);
         row.startedAt = row.startedAt ?? null;
         row.completedAt = row.completedAt ?? null;
         row.cancelledAt = row.cancelledAt ?? null;
@@ -231,13 +234,13 @@ export function buildTaskStatusMethods(
       const result = getDb()
         .prepare(
           `UPDATE tasks SET status = 'cancelled', updated_at = ?
-         WHERE company_id = ? AND title LIKE '[Heartbeat]%'
+         WHERE company_id = ? AND is_heartbeat = 1
            AND status IN ('done', 'in_review', 'todo', 'blocked', 'backlog')
            AND id NOT IN (
              SELECT id FROM (
                SELECT id, ROW_NUMBER() OVER (PARTITION BY assignee_agent_id ORDER BY updated_at DESC, rowid DESC) as rn
                FROM tasks
-               WHERE company_id = ? AND title LIKE '[Heartbeat]%' AND status != 'cancelled'
+               WHERE company_id = ? AND is_heartbeat = 1 AND status != 'cancelled'
              ) WHERE rn = 1
            )`,
         )
@@ -252,10 +255,11 @@ export function buildTaskStatusMethods(
               t.assignee_agent_id as assigneeAgentId, t.workspace_id as workspaceId,
               t.status, t.priority, t.active_run_id as activeRunId,
               t.session_json as sessionJson, t.session_display_id as sessionDisplayId,
-              t.cost_usd as costUsd, t.created_at as createdAt, t.updated_at as updatedAt
+              t.cost_usd as costUsd, t.is_heartbeat as isHeartbeat,
+              t.created_at as createdAt, t.updated_at as updatedAt
        from tasks t
        inner join agents a on t.assignee_agent_id = a.id
-       where t.company_id = ? and t.status = 'in_review' and a.reports_to = ?
+       where t.company_id = ? and t.status = 'in_review' and a.reports_to = ? and t.is_heartbeat = 0
        order by ${taskPriorityOrderSql("t.priority")} desc, t.created_at asc`,
         companyId,
         managerId,

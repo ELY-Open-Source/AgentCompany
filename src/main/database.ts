@@ -170,7 +170,13 @@ export class AppDatabase extends AppDatabaseBase {
   listSubscriptions(threadId: string) { return this.threads.listSubscriptions(threadId); }
   listSubscribedThreads(subscriberId: string, companyId: string) { return this.threads.listSubscribedThreads(subscriberId, companyId); }
 
-  // ─── Public query ──────────────────────────────────────────────────────────
+  // ─── Internal raw-SQL escape hatch ────────────────────────────────────────
+  //
+  // Not part of the public API. New callers MUST add a typed method on the
+  // appropriate `database/<module>.ts` and route through there. The existing
+  // call sites remain only to avoid a repo-wide migration; see
+  // `.planning/review2/02-persistence-ipc.md` DB-001 for the migration list.
 
+  /** @internal */
   queryAll<T>(sql: string, ...params: SQLInputValue[]): T[] { return this.readAll<T>(sql, ...params); }
 }

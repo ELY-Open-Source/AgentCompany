@@ -8,7 +8,7 @@ import {
 import { ActionButton } from "../ui";
 import type { TerminalCommandKey } from "@shared/contracts";
 import { OnboardingStep } from "./OnboardingStep";
-import { useOnboarding } from "./OnboardingContext";
+import { useOnboardingWizard } from "./OnboardingContext";
 
 interface NodeCheckStepProps {
   onContinue: () => void;
@@ -44,7 +44,7 @@ node -v`,
 };
 
 export function NodeCheckStep({ onContinue, onBack }: NodeCheckStepProps) {
-  const { nodeStatus, nodeChecking, onCheckNode, onInstallCommand, t } = useOnboarding();
+  const { nodeStatus, nodeChecking, onCheckNode, onInstallCommand, t } = useOnboardingWizard();
   const platform = window.agentCompany.platform;
   const platformInfo = INSTALL_COMMANDS[platform] ?? INSTALL_COMMANDS.linux;
 

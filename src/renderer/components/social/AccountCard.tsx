@@ -1,6 +1,7 @@
 import { ShieldCheck, SignIn, Trash } from "../ui/icons";
 import type { SocialAccountRecord } from "@shared/types";
 import { timeAgo } from "../../lib/formatters";
+import { Card } from "../ui";
 import { platformConfig } from "./social-config";
 
 interface AccountCardProps {
@@ -39,7 +40,7 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
   );
 
   return (
-    <div className="group flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3.5 transition duration-150 hover:border-border hover:shadow-md hover:-translate-y-px">
+    <Card padding="none" className="group flex items-center gap-3 px-4 py-3.5 transition duration-150 hover:border-border hover:shadow-md hover:-translate-y-px">
       <div
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
         style={{ backgroundColor: platform.bgColor, color: platform.color }}
@@ -94,6 +95,6 @@ export function AccountCard({ account, onLogin, onDelete, onClick }: AccountCard
           <Trash size={14} />
         </button>
       </div>
-    </div>
+    </Card>
   );
 }

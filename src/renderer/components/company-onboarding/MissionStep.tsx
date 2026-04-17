@@ -1,24 +1,29 @@
+import { useCallback, useState } from "react";
 import { motion } from "framer-motion";
 import { Cpu, Lightning } from "../ui/icons";
 import { ActionButton, Input, TextArea } from "../ui";
 import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
-import { useOnboarding } from "./OnboardingContext";
+import { useOnboardingWizard } from "./OnboardingContext";
+
+export interface MissionStepValues {
+  goalTitle: string;
+  goalDescription: string;
+}
 
 interface MissionStepProps {
-  onLaunch: () => void;
+  initialValues: MissionStepValues;
+  onLaunch: (values: MissionStepValues) => void;
   onBack: () => void;
 }
 
-export function MissionStep({ onLaunch, onBack }: MissionStepProps) {
-  const {
-    goalTitle,
-    setGoalTitle,
-    goalDescription,
-    setGoalDescription,
-    loading,
-    error,
-    t,
-  } = useOnboarding();
+export function MissionStep({ initialValues, onLaunch, onBack }: MissionStepProps) {
+  const { loading, error, t } = useOnboardingWizard();
+  const [goalTitle, setGoalTitle] = useState(initialValues.goalTitle);
+  const [goalDescription, setGoalDescription] = useState(initialValues.goalDescription);
+
+  const handleLaunch = useCallback(() => {
+    onLaunch({ goalTitle, goalDescription });
+  }, [goalTitle, goalDescription, onLaunch]);
 
   return (
     <motion.div
@@ -80,7 +85,7 @@ export function MissionStep({ onLaunch, onBack }: MissionStepProps) {
         </button>
         <ActionButton
           label={loading ? t("onboarding.launching") : t("onboarding.launchCompany")}
-          onClick={onLaunch}
+          onClick={handleLaunch}
           icon={Lightning}
           tone="accent"
           loading={loading}

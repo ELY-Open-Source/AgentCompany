@@ -106,6 +106,14 @@ export function prepareServices(deps: PrepareServicesDeps): ServiceGraphHandles 
     onRunCompleted: (runId, taskId, agentId, companyId, status, summary, errorMessage) =>
       runHousekeeping.onRunCompleted(runId, taskId, agentId, companyId, status, summary, errorMessage),
     checkpointEngine,
+    // Lazy forwarder — ipcSupport is constructed below but only invoked
+    // inside serviceGraph.init(), which runs after that point.
+    registerHandle: (channel, handler) => {
+      if (!ipcSupport) {
+        throw new Error("IPC support is not initialized.");
+      }
+      ipcSupport.registerHandle(channel, handler);
+    },
   });
   ipcSupport = createIpcSupport({
     isDev: deps.isDev,

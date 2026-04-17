@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { BudgetPolicyRecord } from "@shared/types";
 import { ActionButton, Input, Modal, Select } from "../ui";
 import { buildBudgetPolicyInput, getBudgetPolicyAmountDollars } from "../../lib/budget-policy-input";
+import { useT } from "../../i18n";
 
 interface PolicyFormModalProps {
   open: boolean;
@@ -14,6 +15,7 @@ interface PolicyFormModalProps {
 }
 
 export function PolicyFormModal({ open, onClose, onSaved, companyId, editingPolicy, agents, projects }: PolicyFormModalProps) {
+  const t = useT();
   const [scopeType, setScopeType] = useState<"company" | "agent" | "project">("company");
   const [scopeId, setScopeId] = useState(companyId);
   const [amountDollars, setAmountDollars] = useState("100");
@@ -79,23 +81,23 @@ export function PolicyFormModal({ open, onClose, onSaved, companyId, editingPoli
     <Modal
       open={open}
       onClose={onClose}
-      title={editingPolicy ? "Edit Budget Policy" : "Add Budget Policy"}
+      title={editingPolicy ? t("policy.editTitle") : t("policy.addTitle")}
     >
       <div className="grid gap-4">
         <Select
-          label="Scope"
+          label={t("policy.scope")}
           value={scopeType}
           onChange={(v) => setScopeType(v as "company" | "agent" | "project")}
           options={[
-            { value: "company", label: "Company" },
-            { value: "agent", label: "Agent" },
-            { value: "project", label: "Project" },
+            { value: "company", label: t("policy.scopeCompany") },
+            { value: "agent", label: t("policy.scopeAgent") },
+            { value: "project", label: t("policy.scopeProject") },
           ]}
         />
 
         {scopeType === "agent" ? (
           <Select
-            label="Agent"
+            label={t("policy.scopeAgent")}
             value={scopeId}
             onChange={setScopeId}
             options={agents.map((a) => ({ value: a.id, label: a.name }))}
@@ -104,7 +106,7 @@ export function PolicyFormModal({ open, onClose, onSaved, companyId, editingPoli
 
         {scopeType === "project" ? (
           <Select
-            label="Project"
+            label={t("policy.scopeProject")}
             value={scopeId}
             onChange={setScopeId}
             options={projects.map((p) => ({ value: p.id, label: p.name }))}
@@ -112,7 +114,7 @@ export function PolicyFormModal({ open, onClose, onSaved, companyId, editingPoli
         ) : null}
 
         <Input
-          label="Monthly Budget (USD)"
+          label={t("policy.monthlyBudget")}
           value={amountDollars}
           onChange={setAmountDollars}
           type="number"
@@ -120,7 +122,7 @@ export function PolicyFormModal({ open, onClose, onSaved, companyId, editingPoli
         />
 
         <Input
-          label="Warning Threshold (%)"
+          label={t("policy.warningThreshold")}
           value={warnPercent}
           onChange={setWarnPercent}
           type="number"
@@ -134,7 +136,7 @@ export function PolicyFormModal({ open, onClose, onSaved, companyId, editingPoli
             onChange={(e) => setHardStopEnabled(e.target.checked)}
             className="h-4 w-4 rounded border-border accent-[color:var(--primary)]"
           />
-          <span className="text-[13px] text-foreground">Enable hard stop (block new runs at 100%)</span>
+          <span className="text-[13px] text-foreground">{t("policy.hardStop")}</span>
         </label>
 
         <label className="flex items-center gap-2.5">
@@ -144,19 +146,13 @@ export function PolicyFormModal({ open, onClose, onSaved, companyId, editingPoli
             onChange={(e) => setNotifyEnabled(e.target.checked)}
             className="h-4 w-4 rounded border-border accent-[color:var(--primary)]"
           />
-          <span className="text-[13px] text-foreground">Send notifications</span>
+          <span className="text-[13px] text-foreground">{t("policy.sendNotifications")}</span>
         </label>
 
         <div className="flex items-center justify-end gap-3 pt-2">
-          <button
-            type="button"
-            className="rounded-lg px-4 py-2 text-[13px] font-medium text-muted-foreground transition hover:text-foreground"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
+          <ActionButton label={t("policy.cancel")} onClick={onClose} />
           <ActionButton
-            label={saving ? "Saving..." : "Save Policy"}
+            label={saving ? t("policy.saving") : t("policy.savePolicy")}
             tone="accent"
             disabled={saving}
             onClick={() => void handleSave()}

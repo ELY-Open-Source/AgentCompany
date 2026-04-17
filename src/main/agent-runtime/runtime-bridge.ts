@@ -3,7 +3,6 @@ import type { AppDatabase } from "@main/database";
 import type { DesktopEvent } from "@shared/types";
 import { ensureTaskThread } from "@main/thread-integration/thread-helpers";
 import { SqliteSessionStore } from "./sqlite-session-store";
-import { HumanApprovalHook } from "./approval-hook";
 import { CostWriter } from "./cost-writer";
 import type { CredentialResolver } from "@main/credentials";
 import { getConnectorDefinition } from "@main/connectors";
@@ -132,35 +131,33 @@ interface ActiveRunContext {
  * - Forwards `agent-event` from the worker to the renderer (push channel).
  * - Persists each `message_end` message via `SqliteSessionStore`.
  * - Calls `CostWriter` for assistant messages with usage.
- * - Translates `beforeToolCall` RPC into an approval row + waits.
- * - Translates `afterToolCall` RPC into best-effort audit hooks.
+ *
+ * Tool-call gating runs fully in the model layer (AI CEO and AI Co-Founder
+ * both autonomous); no `beforeToolCall` / `afterToolCall` IPC hop exists.
  */
 export class RuntimeBridge {
-  readonly approvalHook: HumanApprovalHook;
   private readonly costWriter: CostWriter;
   private readonly activeRuns = new Map<string, ActiveRunContext>();
   private readonly sessionStores = new Map<string, SqliteSessionStore>();
 
   constructor(private readonly deps: RuntimeBridgeDeps) {
-    this.approvalHook = new HumanApprovalHook({
-      db: deps.db,
-      emitEvent: deps.emitEvent,
-      logger: deps.logger,
-    });
-    this.costWriter = new CostWriter({ db: deps.db, logger: deps.logger });
+    this.costWriter = new CostWriter({ db: deps.db });
   }
 
-  registerActiveRun(context: ActiveRunContext): void {
+  private registerActiveRun(context: ActiveRunContext): void {
     this.activeRuns.set(context.runId, context);
     this.getOrCreateStore(context.taskSessionId);
   }
 
-  releaseActiveRun(runId: string): void {
+  /**
+   * Evicts the per-run `activeRuns` context and the per-session store cache.
+   * Callers must invoke after a `run-finished` worker message so the maps
+   * stay bounded by concurrent-run count rather than process lifetime.
+   */
+  releaseRunResources(runId: string): void {
+    const ctx = this.activeRuns.get(runId);
     this.activeRuns.delete(runId);
-  }
-
-  loadPriorMessages(taskSessionId: string): AgentMessage[] {
-    return this.getOrCreateStore(taskSessionId).loadMessages();
+    if (ctx) this.sessionStores.delete(ctx.taskSessionId);
   }
 
   private getOrCreateStore(taskSessionId: string): SqliteSessionStore {
@@ -206,15 +203,26 @@ export class RuntimeBridge {
         | { role?: string; usage?: unknown; content?: unknown; toolCallId?: string }
         | undefined;
       if (ctx && messageRaw?.role === "assistant" && messageRaw.usage) {
-        this.costWriter.observeAssistantMessage({
-          runId: ctx.runId,
-          companyId: ctx.companyId,
-          agentId: ctx.agentId,
-          taskId: ctx.taskId,
-          connectorId: ctx.connectorId,
-          modelId: ctx.modelId,
-          usage: messageRaw.usage as never,
-        });
+        try {
+          this.costWriter.observeAssistantMessage({
+            runId: ctx.runId,
+            companyId: ctx.companyId,
+            agentId: ctx.agentId,
+            taskId: ctx.taskId,
+            connectorId: ctx.connectorId,
+            modelId: ctx.modelId,
+            usage: messageRaw.usage as never,
+          });
+        } catch (error) {
+          // Cost writer fails closed (RUNTIME-105) — surface the failure
+          // loudly so operators can see a pricing catalog break, but let
+          // the run continue so the agent's work is not lost. The missing
+          // row means budget enforcement under-counts this message; a
+          // repeated failure in the same run is still visible in logs.
+          this.deps.logger.error(
+            `[runtime-bridge] cost recording failed for run ${ctx.runId}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }
       this.recordThreadEvent(envelope, messageRaw);
     }
@@ -265,30 +273,11 @@ export class RuntimeBridge {
   /** Handles RPC requests issued by the worker (`rpc-request` envelope). */
   async handleRpc(request: {
     rpcId: string;
-    method: "beforeToolCall" | "afterToolCall" | "persistMessage" | "prepareRun";
+    method: "persistMessage" | "prepareRun";
     runId: string;
     payload: unknown;
   }): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> {
     try {
-      if (request.method === "beforeToolCall") {
-        const ctx = this.activeRuns.get(request.runId);
-        if (!ctx) return { ok: true, result: {} };
-        const payload = request.payload as {
-          agentId: string;
-          companyId: string;
-          taskId: string | null;
-          toolCallId: string;
-          toolName: string;
-          args: unknown;
-        };
-        const verdict = await this.approvalHook.before(request.runId, payload);
-        return { ok: true, result: verdict };
-      }
-      if (request.method === "afterToolCall") {
-        const payload = request.payload as { toolCallId: string; toolName: string; isError: boolean };
-        await this.approvalHook.after(request.runId, payload);
-        return { ok: true, result: undefined };
-      }
       if (request.method === "persistMessage") {
         const payload = request.payload as { taskSessionId: string; message: AgentMessage };
         this.getOrCreateStore(payload.taskSessionId).appendMessage(payload.message);

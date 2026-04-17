@@ -69,7 +69,7 @@ export class AppDatabaseBase {
   public readonly sessionEntries: ReturnType<typeof buildSessionEntryMethods>;
   public readonly credentialsTable: ReturnType<typeof buildCredentialMethods>;
 
-  constructor(rootDir: string) {
+  constructor(rootDir: string, options: { isPackaged?: boolean } = {}) {
     this.profileDir = rootDir;
     this.dbPath = join(rootDir, "profile.sqlite");
     this.logsDir = join(rootDir, "logs");
@@ -79,7 +79,7 @@ export class AppDatabaseBase {
     mkdirSync(this.logsDir, { recursive: true });
     mkdirSync(this.artifactsDir, { recursive: true });
     mkdirSync(this.backupsDir, { recursive: true });
-    this.vault = new SecretVault(rootDir);
+    this.vault = new SecretVault(rootDir, { isPackaged: options.isPackaged });
     this.db = this.openConnection();
 
     const getDb = () => this.db;
@@ -241,6 +241,12 @@ export class AppDatabaseBase {
   getHeartbeatPolicy(agentId: string) { return this.agents.getHeartbeatPolicy(agentId); }
   setHeartbeatPolicy(agentId: string, companyId: string, policy: { enabled?: boolean; intervalSec?: number; cooldownSec?: number; maxConcurrentRuns?: number; wakeOnDemand?: boolean }) { return this.agents.setHeartbeatPolicy(agentId, companyId, policy); }
   countActiveRunsForAgent(agentId: string, companyId: string) { return this.agents.countActiveRunsForAgent(agentId, companyId); }
+  listDepartmentAgentIds(companyId: string, department: string) { return this.agents.listDepartmentAgentIds(companyId, department); }
+  listTopLevelAgentIds(companyId: string) { return this.agents.listTopLevelAgentIds(companyId); }
+  listIncidentPingableAgentIds(companyId: string) { return this.agents.listIncidentPingableAgentIds(companyId); }
+  findAgentName(agentId: string) { return this.agents.findAgentName(agentId); }
+  listAgentNamesByIds(companyId: string, agentIds: readonly string[]) { return this.agents.listAgentNamesByIds(companyId, agentIds); }
+  listActiveAgentIdsFromIds(companyId: string, agentIds: readonly string[]) { return this.agents.listActiveAgentIdsFromIds(companyId, agentIds); }
 
   // ─── Tasks ─────────────────────────────────────────────────────────────────
 
@@ -258,8 +264,8 @@ export class AppDatabaseBase {
   checkoutTask(taskId: string, runId: string) { return this.tasks.checkoutTask(taskId, runId); }
   releaseTaskLock(taskId: string, runId: string) { return this.tasks.releaseTaskLock(taskId, runId); }
   renewTaskLease(taskId: string, runId: string) { return this.tasks.renewTaskLease(taskId, runId); }
-  listAgentTasks(agentId: string, companyId: string, statuses: string[]) { return this.tasks.listAgentTasks(agentId, companyId, statuses); }
-  listTasksByStatuses(companyId: string, statuses: string[]) { return this.tasks.listTasksByStatuses(companyId, statuses); }
+  listAgentTasks(agentId: string, companyId: string, statuses: string[], options?: { includeHeartbeat?: boolean }) { return this.tasks.listAgentTasks(agentId, companyId, statuses, options); }
+  listTasksByStatuses(companyId: string, statuses: string[], options?: { includeHeartbeat?: boolean }) { return this.tasks.listTasksByStatuses(companyId, statuses, options); }
   listTasksForStandup(companyId: string) { return this.tasks.listTasksForStandup(companyId); }
   listAssigneeTasksForStandup(companyId: string, agentId: string) { return this.tasks.listAssigneeTasksForStandup(companyId, agentId); }
   listTasksForAssignees(companyId: string, assigneeIds: string[]) { return this.tasks.listTasksForAssignees(companyId, assigneeIds); }
@@ -282,6 +288,9 @@ export class AppDatabaseBase {
   dismissInterruptedTask(taskId: string) { return this.tasks.dismissInterruptedTask(taskId); }
   markInterruptedTaskFailed(taskId: string) { return this.tasks.markInterruptedTaskFailed(taskId); }
   setTaskType(taskId: string, taskType: string) { return this.tasks.setTaskType(taskId, taskType); }
+  listProjectTaskAssigneeIds(projectId: string, companyId: string) { return this.tasks.listProjectTaskAssigneeIds(projectId, companyId); }
+  listReviewTasksForSweep(companyId: string) { return this.tasks.listReviewTasksForSweep(companyId); }
+  getTaskType(taskId: string) { return this.tasks.getTaskType(taskId); }
 
   // ─── Runs ──────────────────────────────────────────────────────────────────
 
@@ -322,6 +331,8 @@ export class AppDatabaseBase {
   listAgentResolvedApprovals(companyId: string, agentId: string, limit?: number) { return this.approvalsMod.listAgentResolvedApprovals(companyId, agentId, limit); }
   listPendingHireApprovalPayloads(companyId: string) { return this.approvalsMod.listPendingHireApprovalPayloads(companyId); }
   listApprovalsForApi(companyId: string, filters: { requestedByAgentId?: string; relatedTaskId?: string; statuses?: string[] | null }) { return this.approvalsMod.listApprovalsForApi(companyId, filters); }
+  findPendingApprovalForTask(companyId: string, taskId: string) { return this.approvalsMod.findPendingApprovalForTask(companyId, taskId); }
+  hasPendingReviewApprovalForAgent(companyId: string, agentId: string) { return this.approvalsMod.hasPendingReviewApprovalForAgent(companyId, agentId); }
 
   // ─── Workspaces ────────────────────────────────────────────────────────────
 

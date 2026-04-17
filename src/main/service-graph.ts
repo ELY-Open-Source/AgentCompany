@@ -1,23 +1,25 @@
-import { app, nativeTheme } from "electron";
+import { nativeTheme } from "electron";
+import type { IpcMainInvokeEvent } from "electron";
 import type { AgentApiServer } from "./api-server";
 import type { AppDatabase } from "./database";
 import { BrowserManager } from "./browser-manager";
-import { createAutomationService, autoAssignSkillsToAgent } from "./automation-service";
-import { createBrowserActionService } from "./browser-action-service";
+import type { DesktopResult } from "@shared/contracts";
 import { createConnectorHealthService } from "./connector-health-service";
-import { createDesktopShellService } from "./desktop-shell-service";
-import { createOnboardingService } from "./onboarding-service";
-import { createOrchestrationService } from "./orchestration-service";
-import { createSkillService } from "./skill-service";
-import { createUpdaterService } from "./updater-service";
-import { createWorkerService } from "./worker-service";
-import { createAppLifecycleService } from "./app-lifecycle-service";
-import { createBudgetEnforcementService } from "./budget-enforcement-service";
-import { createSessionManagementService } from "./session-management-service";
 import { createPiRuntimeServices, type PiRuntimeServices } from "./service-graph-pi-runtime";
-import type { DesktopEvent, RunRecord } from "@shared/types";
-import type { AutomationEventContext } from "./automation-service";
+import type { DesktopEvent } from "@shared/types";
 import type { NotificationOptions } from "./notification-service";
+import type { createAutomationService } from "./automation-service";
+import type { createBrowserActionService } from "./browser-action-service";
+import type { createOnboardingService } from "./onboarding-service";
+import type { createOrchestrationService } from "./orchestration-service";
+import type { createUpdaterService } from "./updater-service";
+import { createLeafServices } from "./service-graph/create-leaf-services";
+import { createDesktopShell } from "./service-graph/create-desktop-shell";
+import { buildWorkerService } from "./service-graph/create-worker-service";
+import { buildOrchestrationService } from "./service-graph/create-orchestration-service";
+import { createBackgroundServices } from "./service-graph/create-background-services";
+import { createLifecycle } from "./service-graph/create-lifecycle";
+import { LateBinding } from "./service-graph/late-binding";
 
 interface ServiceGraphDependencies {
   db: AppDatabase;
@@ -46,145 +48,93 @@ interface ServiceGraphDependencies {
   onRunCompleted?: (runId: string, taskId: string, agentId: string, companyId: string, status: string, summary: string | null, errorMessage: string | null) => void;
   /** Checkpoint engine for unified co-founder mode pause decisions in scheduler. */
   checkpointEngine?: { shouldPauseHeartbeat: (companyId: string, agentId: string) => boolean };
+  /** Trusted-sender IPC wrapper from createIpcSupport. Window-control channels use it. */
+  registerHandle: (
+    channel: string,
+    handler: (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<DesktopResult<unknown>> | DesktopResult<unknown>,
+  ) => void;
 }
 
-export function createServiceGraph({
-  db,
-  apiServerRef,
-  browserManagerRef,
-  isQuittingRef,
-  preloadPath,
-  rendererDist,
-  iconPath,
-  isDev,
-  devServerUrl,
-  windowStatePath,
-  workerPath,
-  logger,
-  emitEvent,
-  publishDomainChanged,
-  notify,
-  createRunToken,
-  seedDefaultAutomationRules,
-  onRunStarted,
-  onRunCompleted,
-  checkpointEngine,
-}: ServiceGraphDependencies) {
+/**
+ * Thin orchestrator: assembles services in a deterministic topological order
+ * and exposes them via read-only getters. All wiring is performed via
+ * explicit dependency passing; late-bound cycles are handled by
+ * `LateBinding` slots that throw if accessed before assignment.
+ */
+export function createServiceGraph(deps: ServiceGraphDependencies) {
+  const {
+    db,
+    apiServerRef,
+    browserManagerRef,
+    isQuittingRef,
+    preloadPath,
+    rendererDist,
+    iconPath,
+    isDev,
+    devServerUrl,
+    windowStatePath,
+    workerPath,
+    logger,
+    emitEvent,
+    publishDomainChanged,
+    notify,
+    createRunToken,
+    seedDefaultAutomationRules,
+    onRunStarted,
+    onRunCompleted,
+    checkpointEngine,
+    registerHandle,
+  } = deps;
+
+  // Service slots owned by the graph. Null before init() completes and after
+  // the lifecycle drain has torn services down.
+  let desktopShellService: ReturnType<typeof createDesktopShell> | null = null;
+  let connectorHealthService: ReturnType<typeof createConnectorHealthService> | null = null;
+  let workerService: ReturnType<typeof buildWorkerService> | null = null;
+  let orchestrationService: ReturnType<typeof createOrchestrationService> | null = null;
   let automationService: ReturnType<typeof createAutomationService> | null = null;
   let browserActionService: ReturnType<typeof createBrowserActionService> | null = null;
-  let connectorHealthService: ReturnType<typeof createConnectorHealthService> | null = null;
   let onboardingService: ReturnType<typeof createOnboardingService> | null = null;
-  let desktopShellService: ReturnType<typeof createDesktopShellService> | null = null;
-  let orchestrationService: ReturnType<typeof createOrchestrationService> | null = null;
-  let workerService: ReturnType<typeof createWorkerService> | null = null;
   let updaterService: ReturnType<typeof createUpdaterService> | null = null;
-  let appLifecycleService: ReturnType<typeof createAppLifecycleService> | null = null;
-  // Eagerly constructed inside init() and resolved via getOrCreate* getters.
-  let skillService: ReturnType<typeof createSkillService> | null = null;
-  let budgetEnforcementService: ReturnType<typeof createBudgetEnforcementService> | null = null;
-  let sessionManagementService: ReturnType<typeof createSessionManagementService> | null = null;
+  let appLifecycleService: ReturnType<typeof createLifecycle> | null = null;
+  let leaf: ReturnType<typeof createLeafServices> | null = null;
   const piRuntimeRef: { current: PiRuntimeServices | null } = { current: null };
 
-  function getOrCreateSkillService() {
-    if (!skillService) throw new Error("Skill service is not initialized.");
-    return skillService;
+  // Late-bound slots resolve circular construction: worker needs orchestration
+  // (for dispatchRunToWorker), orchestration needs worker (for enqueueWorkerRun),
+  // orchestration needs automation (for dispatchAutomation), automation/orchestration
+  // need browser-action (for dispatchBrowserAction). Each is filled inside
+  // init() before the corresponding getter closure is ever invoked.
+  const orchestrationRef = new LateBinding<ReturnType<typeof createOrchestrationService>>("orchestrationService");
+  const automationRef = new LateBinding<ReturnType<typeof createAutomationService>>("automationService");
+  const browserActionRef = new LateBinding<ReturnType<typeof createBrowserActionService>>("browserActionService");
+  const updaterRef = new LateBinding<ReturnType<typeof createUpdaterService>>("updaterService");
+
+  function requireLeaf() {
+    if (!leaf) throw new Error("Leaf services are not initialized.");
+    return leaf;
   }
-
-  function getOrCreateBudgetEnforcementService() {
-    if (!budgetEnforcementService) throw new Error("Budget enforcement service is not initialized.");
-    return budgetEnforcementService;
-  }
-
-  function getOrCreateSessionManagementService() {
-    if (!sessionManagementService) throw new Error("Session management service is not initialized.");
-    return sessionManagementService;
-  }
-
-  const wakeAgentIfPossible =(agentId: string | null | undefined, companyId: string, trigger: string) => {
-    if (!orchestrationService) {
-      throw new Error("Orchestration service is not initialized.");
-    }
-    return orchestrationService.wakeAgentIfPossible(agentId, companyId, trigger);
-  };
-
-  const dispatchBrowserAction = async (actionId: string, companyId: string) => {
-    if (!browserActionService) {
-      throw new Error("Browser action service is not initialized");
-    }
-    return browserActionService.dispatchBrowserAction(actionId, companyId);
-  };
-
-  const dispatchAutomation = (trigger: string, ctx: AutomationEventContext) => {
-    if (!automationService) {
-      throw new Error("Automation service is not initialized.");
-    }
-    automationService.dispatchAutomation(trigger, ctx);
-  };
-
-  const processRunCompletion = (run: RunRecord, event: Parameters<ReturnType<typeof createAutomationService>["processRunCompletion"]>[1]) => {
-    if (!automationService) {
-      throw new Error("Automation service is not initialized.");
-    }
-    automationService.processRunCompletion(run, event);
-  };
-
-  const queueTaskRun = (taskId: string, trigger: string, actor: string) => {
-    if (!orchestrationService) {
-      throw new Error("Orchestration service is not initialized.");
-    }
-    return orchestrationService.queueTaskRun(taskId, trigger, actor);
-  };
-
-  const dispatchRunToWorker = (params: Parameters<ReturnType<typeof createOrchestrationService>["dispatchRunToWorker"]>[0]) => {
-    if (!orchestrationService) {
-      throw new Error("Orchestration service is not initialized.");
-    }
-    return orchestrationService.dispatchRunToWorker(params);
-  };
 
   function init() {
     nativeTheme.themeSource = db.listSnapshot().theme;
-    // Eagerly construct leaf services that other services depend on. Keeps
-    // the graph deterministic and lets getOrCreate* getters stay pure readers.
-    skillService = createSkillService({ db, profileDir: db.profileDir, logger });
-    budgetEnforcementService = createBudgetEnforcementService({ db, logger, notify, publishDomainChanged });
-    sessionManagementService = createSessionManagementService({ db, logger });
 
-    desktopShellService = createDesktopShellService({
+    leaf = createLeafServices({ db, logger, notify, publishDomainChanged });
+
+    desktopShellService = createDesktopShell({
+      db,
       preloadPath,
       rendererDist,
       iconPath,
       isDev,
       devServerUrl,
       windowStatePath,
-      shouldQuit: () => isQuittingRef.current,
-      onRequestQuit: () => {
-        isQuittingRef.current = true;
-      },
-      onCheckForUpdates: async () => {
-        if (!updaterService) throw new Error("Updater service is not initialized.");
-        await updaterService.checkForUpdates();
-      },
-      onBackupProfile: async () => {
-        const target = await import("electron").then(({ dialog }) => dialog.showOpenDialog({
-          properties: ["openDirectory", "createDirectory"],
-        }));
-        if (target.canceled || target.filePaths.length === 0) return;
-        await db.exportBackup(`${target.filePaths[0]!}/agentcompany-backup-${Date.now()}`);
-      },
-      onShortcut: (action) => emitEvent({ type: "shortcut", action }),
+      isQuittingRef,
+      emitEvent,
       notify,
-      getActiveRunCount: () => {
-        try {
-          const snapshot = db.listSnapshot();
-          return snapshot.runs.filter((r) => r.status === "running" || r.status === "queued").length;
-        } catch (error) {
-          logger.warn("[service-graph] getActiveRunCount failed:", error);
-          return 0;
-        }
-      },
+      registerHandle,
+      updaterRef,
+      logger,
     });
-    desktopShellService.initialize();
 
     piRuntimeRef.current = createPiRuntimeServices({
       db,
@@ -204,25 +154,24 @@ export function createServiceGraph({
       credentialStore: piRuntimeRef.current.credentialStore,
     });
 
-    workerService = createWorkerService({
+    workerService = buildWorkerService({
       db,
       logger,
       workerPath,
-      isQuitting: () => isQuittingRef.current,
+      isQuittingRef,
       publishDomainChanged,
       emitEvent,
-      wakeAgentIfPossible,
-      dispatchRunToWorker,
-      processRunCompletion: (run, event) => processRunCompletion(run, event),
+      orchestrationRef,
+      automationRef,
       onRunStarted,
       onRunCompleted,
       notify,
-      budgetService: getOrCreateBudgetEnforcementService(),
-      sessionService: getOrCreateSessionManagementService(),
-      getRuntimeBridge: () => piRuntimeRef.current?.runtimeBridge ?? null,
+      budgetService: leaf.budgetEnforcementService,
+      sessionService: leaf.sessionManagementService,
+      piRuntimeRef,
     });
 
-    orchestrationService = createOrchestrationService({
+    orchestrationService = buildOrchestrationService({
       db,
       logger,
       publishDomainChanged,
@@ -230,104 +179,52 @@ export function createServiceGraph({
       notify,
       createRunToken,
       getApiPort: () => apiServerRef.current?.port ?? 0,
-      dispatchAutomation,
-      hasWorkerReady: () => Boolean(workerService?.getWorker()),
-      enqueueWorkerRun: (payload) => {
-        workerService?.getWorker()?.postMessage({ type: "enqueue-run", payload });
-      },
-      isQuitting: () => isQuittingRef.current,
-      listRuntimeSkillEntries: (companyId: string, agentId: string, connectorId: string) => {
-        try {
-          return getOrCreateSkillService().listRuntimeSkillEntries(companyId, agentId, connectorId);
-        } catch (error) {
-          logger.warn(`[service-graph] listRuntimeSkillEntries failed for agent ${agentId}:`, error);
-          return [];
-        }
-      },
-      budgetService: getOrCreateBudgetEnforcementService(),
+      isQuittingRef,
+      skillService: leaf.skillService,
+      budgetService: leaf.budgetEnforcementService,
+      sessionService: leaf.sessionManagementService,
+      workerService,
+      automationRef,
+      browserActionRef,
       checkpointEngine,
-      getSessionHandoff: (taskId: string) => {
-        try {
-          return getOrCreateSessionManagementService().getHandoffContext(taskId);
-        } catch (error) {
-          logger.warn(`[service-graph] getSessionHandoff failed for task ${taskId}:`, error);
-          return null;
-        }
-      },
-      evaluatePreRunSessionRotation: (taskId: string, connectorId: string) => {
-        try {
-          const sessionSvc = getOrCreateSessionManagementService();
-          const activeSession = db.getActiveTaskSession(taskId);
-          if (!activeSession) return { rotated: false, handoff: null };
-          const result = sessionSvc.evaluateRotation(activeSession, connectorId);
-          if (result.shouldRotate) {
-            sessionSvc.rotateSession(activeSession);
-            const handoff = sessionSvc.getHandoffContext(taskId);
-            return { rotated: true, handoff };
-          }
-          return { rotated: false, handoff: null };
-        } catch (error) {
-          logger.warn(`[service-graph] evaluatePreRunSessionRotation failed for task ${taskId}:`, error);
-          return { rotated: false, handoff: null };
-        }
-      },
     });
+    orchestrationRef.set(orchestrationService);
+
     workerService.createWorker();
 
-    automationService = createAutomationService({
+    const background = createBackgroundServices({
       db,
       logger,
       emitEvent,
       publishDomainChanged,
       notify,
-      wakeAgentIfPossible,
-      dispatchBrowserAction,
-      isQuitting: () => isQuittingRef.current,
-    });
-
-    onboardingService = createOnboardingService({
-      db,
-      seedDefaultAutomationRules,
-      queueTaskRun,
-      publishDomainChanged,
-      scanAndAssignSkills: async (companyId: string, agentId: string) => {
-        const svc = getOrCreateSkillService();
-        await svc.seedBuiltinSkills(companyId);
-        svc.assignRoleSkillsToAgent(companyId, agentId, "CEO");
-        await svc.scanWorkspaceSkills(companyId);
-        autoAssignSkillsToAgent(db, logger, companyId, agentId);
-      },
-    });
-
-    browserActionService = createBrowserActionService({
-      db,
+      isQuittingRef,
       browserManagerRef,
-      publishDomainChanged,
+      skillService: leaf.skillService,
+      orchestrationService,
+      seedDefaultAutomationRules,
     });
-    browserActionService.resetBrowserManager();
+    automationService = background.automationService;
+    browserActionService = background.browserActionService;
+    onboardingService = background.onboardingService;
+    updaterService = background.updaterService;
+    automationRef.set(automationService);
+    browserActionRef.set(browserActionService);
+    updaterRef.set(updaterService);
 
-    updaterService = createUpdaterService({
+    appLifecycleService = createLifecycle({
       db,
       logger,
-      notify,
-    });
-    updaterService.attachListeners();
-
-    appLifecycleService = createAppLifecycleService({
-      getMainWindow: () => desktopShellService?.getMainWindow() ?? null,
-      ensureWindow: async () => desktopShellService?.ensureWindow() ?? null,
-      shouldQuit: () => isQuittingRef.current,
-      onBeforeQuit: () => {
-        isQuittingRef.current = true;
-        orchestrationService?.stopAllSchedulers();
-        automationService?.destroy();
-        apiServerRef.current?.stop();
-        apiServerRef.current = null;
-        browserManagerRef.current?.shutdown();
-        browserManagerRef.current = null;
-        desktopShellService?.destroy();
+      isQuittingRef,
+      apiServerRef,
+      browserManagerRef,
+      piRuntimeRef,
+      orchestrationService,
+      automationService,
+      workerService,
+      desktopShellService,
+      clearServiceRefs: () => {
         desktopShellService = null;
-        workerService?.destroy();
         workerService = null;
         browserActionService = null;
         automationService = null;
@@ -336,16 +233,14 @@ export function createServiceGraph({
         orchestrationService = null;
         updaterService = null;
         appLifecycleService = null;
-        skillService = null;
-        budgetEnforcementService = null;
-        sessionManagementService = null;
-        piRuntimeRef.current?.release();
-        piRuntimeRef.current = null;
-        db.close();
-        // Force exit after grace period — covers all platforms (macOS Dock, Windows tray, Linux)
-        // Worker child processes (claude/codex CLI) may keep the event loop alive indefinitely
-        setTimeout(() => { app.exit(0); }, 3000);
+        leaf = null;
       },
+      lateBindings: [
+        orchestrationRef as LateBinding<unknown>,
+        automationRef as LateBinding<unknown>,
+        browserActionRef as LateBinding<unknown>,
+        updaterRef as LateBinding<unknown>,
+      ],
     });
   }
 
@@ -360,9 +255,9 @@ export function createServiceGraph({
     getOnboardingService: () => onboardingService,
     getUpdaterService: () => updaterService,
     getAppLifecycleService: () => appLifecycleService,
-    getOrCreateSkillService,
-    getOrCreateBudgetEnforcementService,
-    getOrCreateSessionManagementService,
+    getOrCreateSkillService: () => requireLeaf().skillService,
+    getOrCreateBudgetEnforcementService: () => requireLeaf().budgetEnforcementService,
+    getOrCreateSessionManagementService: () => requireLeaf().sessionManagementService,
     getPiRuntime: () => piRuntimeRef.current,
   };
 }

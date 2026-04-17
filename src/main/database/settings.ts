@@ -1,6 +1,7 @@
 import { existsSync, lstatSync, realpathSync, unlinkSync } from "node:fs";
 import { extname, resolve, sep } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import log from "electron-log/main.js";
 import type { ReadAll } from "./helpers";
 import { nowIso } from "./helpers";
 
@@ -14,7 +15,10 @@ function isWithinOrEqual(targetPath: string, rootPath: string) {
 function safeRealpath(targetPath: string) {
   try {
     return realpathSync(targetPath);
-  } catch {
+  } catch (error) {
+    log.debug(
+      `[db/settings] realpathSync fallback for ${targetPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return resolve(targetPath);
   }
 }
@@ -113,7 +117,11 @@ export function buildSettingsMethods(
         if (run.logPath) {
           try {
             unlinkSync(run.logPath);
-          } catch { /* Log files may already be gone */ }
+          } catch (error) {
+            log.warn(
+              `[db/settings] purgeExpiredRunLogs: unlink failed for run ${run.id} (${run.logPath}): ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
         }
         getDb()
           .prepare("update runs set log_path = null, updated_at = ? where id = ?")

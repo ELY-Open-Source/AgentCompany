@@ -76,8 +76,10 @@ export function handleFailureEscalation(
         `[escalation] Escalated task ${run.taskId} to manager ${chain[0].name} (${chain[0].id})`,
       );
     }
-  } catch {
-    // Chain lookup failed (agent deleted)
+  } catch (error) {
+    logger.warn(
+      `[escalation] Chain-of-command lookup failed for agent ${run.agentId}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   if (!escalated) {
@@ -90,7 +92,11 @@ export function handleFailureEscalation(
           `[escalation] Escalated task ${run.taskId} to CEO ${ceo.name} (${ceo.id})`,
         );
       }
-    } catch { /* CEO lookup failed */ }
+    } catch (error) {
+      logger.warn(
+        `[escalation] CEO lookup failed for company ${run.companyId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   if (!escalated) {
@@ -111,8 +117,13 @@ export function handleFailureEscalation(
 export function handleSuccessReset(
   db: EscalationDeps["db"],
   taskId: string,
+  logger?: EscalationDeps["logger"],
 ): void {
   try {
     db.resetTaskRetryCount(taskId);
-  } catch { /* best effort */ }
+  } catch (error) {
+    logger?.warn(
+      `[escalation] resetTaskRetryCount failed for task ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }

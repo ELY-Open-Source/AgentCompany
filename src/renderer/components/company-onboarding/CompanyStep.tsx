@@ -1,20 +1,34 @@
+import { useCallback, useState } from "react";
 import { Buildings, FolderOpen } from "../ui/icons";
 import type { ConnectorId } from "@shared/types";
 import { ActionButton, Input, TextArea, Select } from "../ui";
 import { OnboardingStep } from "./OnboardingStep";
-import { useOnboarding } from "./OnboardingContext";
+import {
+  useOnboardingConnectors,
+  useOnboardingWizard,
+} from "./OnboardingContext";
+
+export interface CompanyStepValues {
+  companyName: string;
+  companyDescription: string;
+  workspacePath: string;
+}
 
 interface CompanyStepProps {
-  onContinue: () => void;
+  initialValues: CompanyStepValues;
+  onPickDirectory: () => Promise<string | null>;
+  onContinue: (values: CompanyStepValues) => void;
   onBack: () => void;
 }
 
-export function CompanyStep({ onContinue, onBack }: CompanyStepProps) {
+export function CompanyStep({
+  initialValues,
+  onPickDirectory,
+  onContinue,
+  onBack,
+}: CompanyStepProps) {
+  const { currentLocale, t, error } = useOnboardingWizard();
   const {
-    companyName,
-    setCompanyName,
-    companyDescription,
-    setCompanyDescription,
     selectedConnectorId,
     setSelectedConnectorId,
     selectedModel,
@@ -22,13 +36,20 @@ export function CompanyStep({ onContinue, onBack }: CompanyStepProps) {
     executionReadyConnectors,
     modelOptions,
     loadingModels,
-    workspacePath,
-    setWorkspacePath,
-    onPickDirectory,
-    error,
-    currentLocale,
-    t,
-  } = useOnboarding();
+  } = useOnboardingConnectors();
+
+  const [companyName, setCompanyName] = useState(initialValues.companyName);
+  const [companyDescription, setCompanyDescription] = useState(initialValues.companyDescription);
+  const [workspacePath, setWorkspacePath] = useState(initialValues.workspacePath);
+
+  const handlePick = useCallback(async () => {
+    const picked = await onPickDirectory();
+    if (picked) setWorkspacePath(picked);
+  }, [onPickDirectory]);
+
+  const handleContinue = useCallback(() => {
+    onContinue({ companyName, companyDescription, workspacePath });
+  }, [companyName, companyDescription, workspacePath, onContinue]);
 
   return (
     <OnboardingStep
@@ -88,7 +109,10 @@ export function CompanyStep({ onContinue, onBack }: CompanyStepProps) {
             htmlFor="onboarding-workspace-path"
             className="mb-1.5 block text-[12px] font-medium text-muted-foreground"
           >
-            {t("onboarding.workspaceFolder")} <span className="font-normal text-muted-foreground">{t("onboarding.workspaceFolderOptional")}</span>
+            {t("onboarding.workspaceFolder")}{" "}
+            <span className="font-normal text-muted-foreground">
+              {t("onboarding.workspaceFolderOptional")}
+            </span>
           </label>
           <div className="flex gap-3">
             <Input
@@ -98,7 +122,11 @@ export function CompanyStep({ onContinue, onBack }: CompanyStepProps) {
               onChange={setWorkspacePath}
               placeholder={t("onboarding.workspaceFolderPlaceholder")}
             />
-            <ActionButton label={currentLocale === "zh" ? "选择" : "Choose"} onClick={onPickDirectory} icon={FolderOpen} />
+            <ActionButton
+              label={currentLocale === "zh" ? "选择" : "Choose"}
+              onClick={() => void handlePick()}
+              icon={FolderOpen}
+            />
           </div>
           <div className="mt-1.5 text-[11px] text-muted-foreground">
             {t("onboarding.workspaceHelp")}
@@ -122,7 +150,7 @@ export function CompanyStep({ onContinue, onBack }: CompanyStepProps) {
         </button>
         <ActionButton
           label={t("onboarding.continue")}
-          onClick={onContinue}
+          onClick={handleContinue}
           icon={Buildings}
           tone="accent"
           disabled={!companyName.trim() || !selectedConnectorId}

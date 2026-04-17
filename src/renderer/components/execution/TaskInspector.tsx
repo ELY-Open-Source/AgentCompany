@@ -4,7 +4,7 @@ import type { CommentRecord, GoalRecord, ProfileSnapshot, ProjectRecord, RunReco
 import { useT } from "../../i18n"
 import { formatMoney, formatTime } from "../../lib/formatters"
 import { unwrap } from "../../lib/desktop"
-import { ActionButton, ConfirmDialog, InlineNotice, Input, Select, StatusPill, TextArea } from "../ui"
+import { ActionButton, ConfirmDialog, Eyebrow, InlineNotice, Input, Select, StatusPill, TextArea } from "../ui"
 import { describeActionError } from "./execution-utils"
 import { TaskComments } from "./TaskComments"
 import { useAppStore } from "../../state/store"
@@ -80,7 +80,7 @@ export function TaskInspector({ task, tasks, runs, agents, goals, projects, work
       )}
       {(() => { const subtasks = tasks.filter((t) => t.parentId === task.id); if (subtasks.length === 0) return null; return (
         <div className="space-y-2">
-          <div className="flex items-center gap-2"><ListChecks size={14} className="text-muted-foreground" /><span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t("exec.subtasks")} ({subtasks.length})</span><span className="text-[10px] text-success">{t("exec.doneCount").replace("{0}", String(subtasks.filter((st) => st.status === "done").length)).replace("{1}", String(subtasks.length))}</span></div>
+          <div className="flex items-center gap-2"><ListChecks size={14} className="text-muted-foreground" /><Eyebrow>{t("exec.subtasks")} ({subtasks.length})</Eyebrow><span className="text-[10px] text-success">{t("exec.doneCount").replace("{0}", String(subtasks.filter((st) => st.status === "done").length)).replace("{1}", String(subtasks.length))}</span></div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-success transition-all duration-300" style={{ width: `${subtasks.length > 0 ? (subtasks.filter((t) => t.status === "done").length / subtasks.length) * 100 : 0}%` }} /></div>
           <div className="space-y-1">{subtasks.map((sub) => { const subAssignee = agentMap.get(sub.assigneeAgentId ?? ""); return (
             <div key={sub.id} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] bg-muted">
@@ -89,7 +89,7 @@ export function TaskInspector({ task, tasks, runs, agents, goals, projects, work
               {subAssignee ? <span className="shrink-0 text-[10px] text-muted-foreground">{subAssignee.name}</span> : null}<StatusPill status={sub.status} />
             </div>) })}</div></div>) })()}
       <TaskComments taskId={task.id} companyId={task.companyId} agents={agents} comments={comments} onRefresh={onRefresh} />
-      {runs.length > 0 && <div className="space-y-2"><div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t("exec.runHistory")}</div><div className="space-y-2">{runs.slice(0, 8).map((run) => { const runAgent = agentMap.get(run.agentId); const isActive = run.status === "running" || run.status === "queued"; return (
+      {runs.length > 0 && <div className="space-y-2"><Eyebrow>{t("exec.runHistory")}</Eyebrow><div className="space-y-2">{runs.slice(0, 8).map((run) => { const runAgent = agentMap.get(run.agentId); const isActive = run.status === "running" || run.status === "queued"; return (
         <div key={run.id} className={`rounded-lg border px-3 py-2.5 ${isActive ? "border-[color:var(--primary)] bg-success-muted" : run.status === "failed" || run.status === "timed_out" ? "border-[color:var(--destructive)] border-opacity-30 bg-destructive-muted" : "border-border bg-muted"}`}>
           <div className="flex items-center justify-between gap-2"><div className="min-w-0 flex-1"><div className="flex items-center gap-2">{isActive ? <span className="h-2 w-2 animate-pulse rounded-full bg-success" /> : null}<span className="truncate text-[13px] font-medium text-foreground">{run.summary || (isActive ? t("exec.runningEllipsis") : t("exec.completedRun"))}</span></div><div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">{runAgent ? <span>{runAgent.name}</span> : null}<span>{run.connectorId.replace("_local", "")}</span>{run.model ? <span className="font-mono">{run.model}</span> : null}<span>{formatTime(run.startedAt)}</span>{run.costUsd != null && run.costUsd > 0 ? <span className="font-mono tabular-nums">{formatMoney(run.costUsd)}</span> : null}</div></div><StatusPill status={run.status} /></div>
           {run.errorMessage ? <div className="mt-1.5 rounded bg-destructive-muted px-2 py-1 text-[11px] text-destructive break-words">{run.errorMessage}</div> : null}

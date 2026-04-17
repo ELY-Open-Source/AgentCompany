@@ -15,6 +15,7 @@ export function registerCoreWorkGraphHandlers(
     | "handleApprovalResolved"
     | "handleTaskCreated"
     | "handleTaskStatusChange"
+    | "logger"
   >,
 ) {
   registerCoreAgentGraphHandlers({
@@ -35,5 +36,6 @@ export function registerCoreWorkGraphHandlers(
     wakeAgentIfPossible: deps.wakeAgentIfPossible,
     handleTaskCreated: deps.handleTaskCreated,
     handleTaskStatusChange: deps.handleTaskStatusChange,
+    logger: deps.logger,
   });
 }

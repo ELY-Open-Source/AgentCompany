@@ -13,7 +13,6 @@ import { handleTaskStatusChange, handleTaskCreated } from "./automation-handlers
 import type { HandlerDeps } from "./automation-handlers";
 
 export type { AutomationEventContext } from "./types";
-export { autoAssignSkillsToAgent } from "./automation-skills";
 
 export function createAutomationService({
   db,

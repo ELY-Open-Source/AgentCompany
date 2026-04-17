@@ -42,9 +42,14 @@ export async function handleWorkerMessage(
     case "run-status":
       handleRunStatus(event, deps, context);
       return;
-    case "run-finished":
-      handleRunFinished(event, deps, context);
+    case "run-finished": {
+      try {
+        handleRunFinished(event, deps, context);
+      } finally {
+        deps.getRuntimeBridge?.()?.releaseRunResources(event.runId);
+      }
       return;
+    }
     case "agent-event": {
       const bridge = deps.getRuntimeBridge?.();
       if (bridge) {

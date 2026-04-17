@@ -75,7 +75,7 @@ export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentR
   return (
     <div ref={containerRef} className="relative min-h-[400px] h-[clamp(400px,60vh,720px)] w-full overflow-hidden rounded-lg border border-border bg-background" style={{ cursor: dragging ? "grabbing" : "grab" }} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onWheel={handleWheel}>
       <div className="absolute right-3 top-3 z-10 flex flex-col gap-1">
-        {[{ label: "+", ariaLabel: "Zoom in", action: zoomIn }, { label: "\u2212", ariaLabel: "Zoom out", action: zoomOut }, { label: "Fit", ariaLabel: "Fit chart to screen", action: fitToScreen }].map((btn) => (
+        {[{ label: "+", ariaLabel: t("org.zoomIn"), action: zoomIn }, { label: "\u2212", ariaLabel: t("org.zoomOut"), action: zoomOut }, { label: t("org.fit"), ariaLabel: t("org.fitChart"), action: fitToScreen }].map((btn) => (
           <button key={btn.ariaLabel} className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-[12px] text-foreground transition hover:bg-muted" onClick={btn.action} aria-label={btn.ariaLabel}>{btn.label}</button>
         ))}
       </div>
@@ -91,7 +91,7 @@ export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentR
       </svg>
       <div className="absolute inset-0" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "0 0" }}>
         {allNodes.map((node) => {
-          const dotColor = statusDotColor[node.agent.status] ?? "#a3a3a3";
+          const dotColor = statusDotColor[node.agent.status] ?? "var(--muted-foreground)";
           const connectorRecord = connectors?.find((c) => c.id === node.agent.connectorId);
           const connectorLabel = (connectorRecord?.id.startsWith("claude_compat") && connectorRecord.notes)
             ? connectorRecord.notes
@@ -103,7 +103,7 @@ export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentR
           const isPending = node.agent.status === "pending_approval";
           const isCEO = node.children.length > 0 && !node.agent.reportsTo;
           return (
-            <div key={node.agent.id} data-org-card role="button" tabIndex={0} aria-label={`${node.agent.name}, ${node.agent.title || node.agent.role}, ${node.agent.status}`} className={`absolute cursor-pointer select-none rounded-lg border bg-card shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${isRunning ? "border-[color:var(--primary)] shadow-[0_0_12px_rgba(74,222,128,0.15)]" : isError ? "border-[color:var(--destructive)] border-opacity-50" : isPending ? "border-[color:var(--destructive)] border-dashed" : "border-border hover:border-border"}`} style={{ left: node.x, top: node.y, width: CARD_W, minHeight: CARD_H }} onClick={() => onSelectAgent?.(node.agent.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelectAgent?.(node.agent.id); } }}>
+            <div key={node.agent.id} data-org-card role="button" tabIndex={0} aria-label={t("org.agentAria").replace("{name}", node.agent.name).replace("{title}", node.agent.title || node.agent.role).replace("{status}", node.agent.status)} className={`absolute cursor-pointer select-none rounded-lg border bg-card shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${isRunning ? "border-[color:var(--primary)] shadow-[0_0_12px_color-mix(in_oklch,var(--success)_15%,transparent)]" : isError ? "border-[color:var(--destructive)] border-opacity-50" : isPending ? "border-[color:var(--destructive)] border-dashed" : "border-border hover:border-border"}`} style={{ left: node.x, top: node.y, width: CARD_W, minHeight: CARD_H }} onClick={() => onSelectAgent?.(node.agent.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelectAgent?.(node.agent.id); } }}>
               <div className={`rounded-t-[7px] ${isCEO ? "h-[4px] bg-primary" : node.children.length > 0 ? "h-[3px] bg-warning" : "h-[2px] bg-[color:var(--muted-foreground)] opacity-30"}`} />
               <div className="flex items-center gap-3 px-4 py-3">
                 <div className="relative shrink-0">
@@ -116,7 +116,7 @@ export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentR
                   ) : (
                     <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[color:var(--card)]" style={{ backgroundColor: dotColor }} aria-hidden="true" />
                   )}
-                  <span className="sr-only">{`Status: ${node.agent.status}`}</span>
+                  <span className="sr-only">{t("org.statusAria").replace("{status}", node.agent.status)}</span>
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col items-start">
                   <span className="truncate text-[14px] font-semibold leading-tight text-foreground">{node.agent.name}</span>

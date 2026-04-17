@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 import type { RunRecord, CostRecord, AgentRecord } from "@shared/types";
-import { useReducedMotion } from "../ui";
+import { Eyebrow, useReducedMotion } from "../ui";
+import { useT } from "../../i18n";
 import {
   aggregateRunsByDay,
   aggregateCostsByDay,
@@ -22,6 +23,7 @@ interface ChartSectionProps {
 }
 
 export function ChartSection({ runs, costs, agents, companyId }: ChartSectionProps) {
+  const t = useT();
   const reducedMotion = useReducedMotion();
 
   const dailyRuns = useMemo(() => aggregateRunsByDay(runs, 14), [runs]);
@@ -34,39 +36,39 @@ export function ChartSection({ runs, costs, agents, companyId }: ChartSectionPro
   const hasRunData = dailyRuns.some((d) => d.total > 0);
   const hasCostData = dailyCosts.some((d) => d.total > 0);
 
+  const totalRuns = dailyRuns.reduce((s, d) => s + d.total, 0);
+
   const content = (
     <div className="space-y-6">
       {/* Section header */}
-      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        Performance
-      </div>
+      <Eyebrow>{t("chart.performance")}</Eyebrow>
 
       {/* 2-column chart grid */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <ChartCard
-          title="Run Activity"
-          ariaLabel={`Run activity chart showing ${dailyRuns.reduce((s, d) => s + d.total, 0)} total runs over 14 days`}
+          title={t("chart.runActivity")}
+          ariaLabel={t("chart.runActivityAria").replace("{count}", String(totalRuns))}
           isEmpty={!hasRunData}
         >
           <RunActivityChart data={dailyRuns} reducedMotion={reducedMotion} />
         </ChartCard>
         <ChartCard
-          title="Success Rate"
-          ariaLabel="Success rate chart showing percentage of succeeded runs over 14 days"
+          title={t("chart.successRate")}
+          ariaLabel={t("chart.successRateAria")}
           isEmpty={!hasRunData}
         >
           <SuccessRateChart data={dailyRuns} reducedMotion={reducedMotion} />
         </ChartCard>
         <ChartCard
-          title="Cost Trend"
-          ariaLabel="Cost trend chart showing daily spend over 14 days"
+          title={t("chart.costTrend")}
+          ariaLabel={t("chart.costTrendAria")}
           isEmpty={!hasCostData}
         >
           <CostTrendChart data={dailyCosts} reducedMotion={reducedMotion} />
         </ChartCard>
         <ChartCard
-          title="Agent Workload"
-          ariaLabel="Agent workload chart showing run distribution across agents"
+          title={t("chart.agentWorkload")}
+          ariaLabel={t("chart.agentWorkloadAria")}
           isEmpty={agentWorkload.length === 0}
         >
           <AgentWorkloadChart data={agentWorkload} reducedMotion={reducedMotion} />
@@ -74,9 +76,7 @@ export function ChartSection({ runs, costs, agents, companyId }: ChartSectionPro
       </div>
 
       {/* Budget Utilization section */}
-      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        Budget Utilization
-      </div>
+      <Eyebrow>{t("chart.budgetUtilization")}</Eyebrow>
       <BudgetUtilization companyId={companyId} agents={agents} />
     </div>
   );

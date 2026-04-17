@@ -4,7 +4,8 @@ import type { ApprovalRecord, DocumentRecord } from "@shared/types"
 import { extractApprovalDocumentReferences, type ApprovalDocumentReference } from "@shared/approval-documents"
 import { unwrap } from "../../../lib/desktop"
 import { useAppStore } from "../../../state/store"
-import { ActionButton, InlineNotice, Input, TextArea } from "../../ui"
+import { ActionButton, Card, Eyebrow, InlineNotice, Input, TextArea } from "../../ui"
+import { useT } from "../../../i18n"
 import { describeActionError } from "../execution-utils"
 
 function ApprovalDocumentEditor({
@@ -16,6 +17,7 @@ function ApprovalDocumentEditor({
   document: DocumentRecord
   fallback?: ApprovalDocumentReference
 }) {
+  const t = useT()
   const addToast = useAppStore((s) => s.addToast)
   const [title, setTitle] = useState(document.title)
   const [content, setContent] = useState(document.content ?? "")
@@ -24,7 +26,7 @@ function ApprovalDocumentEditor({
 
   async function handleSave() {
     if (!title.trim()) {
-      setSaveError("Document title is required.")
+      setSaveError(t("approval.documentTitleRequired"))
       return
     }
     setSaving(true)
@@ -47,7 +49,7 @@ function ApprovalDocumentEditor({
           tagsJson: document.tagsJson,
         }),
       )
-      addToast(`Saved document: ${title.trim()}`, "success")
+      addToast(t("approval.documentSavedToast").replace("{title}", title.trim()), "success")
     } catch (error) {
       setSaveError(describeActionError(error))
     } finally {
@@ -56,7 +58,7 @@ function ApprovalDocumentEditor({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-border px-4 py-3">
+    <Card padding="sm" className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate text-[13px] font-medium text-foreground">{fallback?.title ?? document.title}</div>
@@ -65,7 +67,7 @@ function ApprovalDocumentEditor({
           </div>
         </div>
         <ActionButton
-          label={saving ? "Saving..." : "Save changes"}
+          label={saving ? t("approval.saving") : t("approval.saveChanges")}
           icon={CheckCircle}
           tone="accent"
           onClick={() => void handleSave()}
@@ -73,9 +75,9 @@ function ApprovalDocumentEditor({
         />
       </div>
       {saveError ? <InlineNotice message={saveError} /> : null}
-      <Input label="Title" value={title} onChange={setTitle} placeholder="Document title" />
-      <TextArea label="Content" value={content} onChange={setContent} rows={12} placeholder="Document content" />
-    </div>
+      <Input label={t("approval.docTitle")} value={title} onChange={setTitle} placeholder={t("approval.docTitlePlaceholder")} />
+      <TextArea label={t("approval.docContent")} value={content} onChange={setContent} rows={12} placeholder={t("approval.docContentPlaceholder")} />
+    </Card>
   )
 }
 
@@ -88,6 +90,7 @@ export function ApprovalDocumentsPanel({
   documents?: DocumentRecord[]
   companyId: string
 }) {
+  const t = useT()
   const references = useMemo(
     () => extractApprovalDocumentReferences(approval.payloadJson),
     [approval.payloadJson],
@@ -109,7 +112,7 @@ export function ApprovalDocumentsPanel({
 
   return (
     <div className="space-y-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-primary">Linked Documents</div>
+      <Eyebrow tone="primary">{t("approval.linkedDocuments")}</Eyebrow>
       {fullDocs.length > 0
         ? fullDocs.map(({ reference, document }) => (
             <ApprovalDocumentEditor
@@ -120,15 +123,15 @@ export function ApprovalDocumentsPanel({
             />
           ))
         : references.map((reference) => (
-            <div key={reference.id} className="rounded-lg border border-border bg-muted px-4 py-3">
+            <Card key={reference.id} padding="sm" className="bg-muted">
               <div className="text-[13px] font-medium text-foreground">{reference.title ?? reference.id}</div>
               <div className="text-[11px] text-muted-foreground">
                 {reference.type?.replaceAll("_", " ") ?? "document"} · {reference.id}
               </div>
               <div className="mt-2 text-[12px] text-muted-foreground">
-                The linked document is not loaded in the current snapshot yet. Reopen the approval after the next refresh.
+                {t("approval.documentNotLoaded")}
               </div>
-            </div>
+            </Card>
           ))}
       {approval.impactSummary ? (
         <div className="text-[11px] text-muted-foreground">{approval.impactSummary}</div>

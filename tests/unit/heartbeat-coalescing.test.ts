@@ -70,7 +70,7 @@ function createHeartbeatTask(
   status: string,
   agentName = "Agent",
 ): string {
-  return db.saveTask({
+  const id = db.saveTask({
     companyId,
     title: `[Heartbeat] ${agentName} — Check for work`,
     description: `Automated heartbeat run for ${agentName}.`,
@@ -78,6 +78,11 @@ function createHeartbeatTask(
     status,
     priority: "medium",
   });
+  // saveTask is a generic user-task write path and does not set the
+  // heartbeat flag. Flip it directly so this fixture matches what
+  // acquireHeartbeatTask would produce at runtime.
+  db.queryAll("UPDATE tasks SET is_heartbeat = 1 WHERE id = ?", id);
+  return id;
 }
 
 // ---------------------------------------------------------------------------

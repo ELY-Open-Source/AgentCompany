@@ -24,12 +24,11 @@
     "lint:fix": "eslint . --fix",
     "test": "node --disable-warning=ExperimentalWarning ./node_modules/vitest/vitest.mjs run",
     "typecheck": "tsc --noEmit",
-    "typecheck:all": "pnpm -r typecheck",
     "test:unit": "node --disable-warning=ExperimentalWarning ./node_modules/vitest/vitest.mjs run --config vitest.config.ts tests/unit",
     "test:integration": "node --disable-warning=ExperimentalWarning ./node_modules/vitest/vitest.mjs run --config vitest.config.ts tests/integration",
     "test:e2e": "node --no-warnings ./node_modules/@playwright/test/cli.js test -c tests/e2e/playwright.config.ts",
     "test:run": "pnpm test:unit && pnpm test:integration && pnpm test:e2e",
-    "verify": "pnpm typecheck && pnpm lint && pnpm typecheck:all && pnpm test:unit && pnpm test:integration && pnpm test:e2e",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:integration && pnpm test:e2e",
     "verify:release": "pnpm verify && pnpm build:dir",
     "postinstall": "node scripts/postinstall.mjs"
   },

@@ -40,6 +40,7 @@ export function ensureOptionalColumns(db: DatabaseSync) {
   addColumnIfMissing("tasks", "checkout_run_id", "alter table tasks add column checkout_run_id text");
   addColumnIfMissing("tasks", "execution_locked_at", "alter table tasks add column execution_locked_at text");
   addColumnIfMissing("tasks", "active_session_id", "alter table tasks add column active_session_id text");
+  addColumnIfMissing("tasks", "is_heartbeat", "alter table tasks add column is_heartbeat integer not null default 0");
   addColumnIfMissing("cost_entries", "project_id", "alter table cost_entries add column project_id text");
   db.exec(`
     create table if not exists task_comments (id text primary key, company_id text not null, task_id text not null, author_agent_id text, author_name text not null, body text not null, created_at text not null);
@@ -453,6 +454,20 @@ export function runMigrations(
         if (!columnExists(db, "agents", "role_level")) {
           db.prepare("ALTER TABLE agents ADD COLUMN role_level TEXT NOT NULL DEFAULT 'ic'").run();
         }
+      },
+    },
+    {
+      // Explicit flag for synthesized heartbeat tasks. Replaces title-prefix
+      // sniffing (`title LIKE '[Heartbeat]%'`) across queries, filters, and
+      // automation gates. Backfills from existing `[Heartbeat]` titles so the
+      // new column agrees with historical data on first boot.
+      version: 33, name: "add_tasks_is_heartbeat",
+      fn: () => {
+        if (!columnExists(db, "tasks", "is_heartbeat")) {
+          db.prepare("ALTER TABLE tasks ADD COLUMN is_heartbeat INTEGER NOT NULL DEFAULT 0").run();
+        }
+        db.prepare("UPDATE tasks SET is_heartbeat = 1 WHERE is_heartbeat = 0 AND title LIKE '[Heartbeat]%'").run();
+        db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_is_heartbeat ON tasks(is_heartbeat)");
       },
     },
     {

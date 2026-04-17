@@ -6,7 +6,7 @@
 import type { AppDatabase } from "./database";
 import { createSkillService } from "./skill-service";
 import type { createSessionManagementService } from "./session-management-service";
-import type { RuntimeSkillEntry } from "./skill-types";
+import type { ProjectedSkill } from "./skill-types";
 
 interface Logger {
   info: (...args: unknown[]) => void;
@@ -16,7 +16,7 @@ interface Logger {
 
 export function makeListRuntimeSkillEntries(deps: { db: AppDatabase; logger: Logger }) {
   let cache: ReturnType<typeof createSkillService> | null = null;
-  return (companyId: string, agentId: string, connectorId: string): RuntimeSkillEntry[] => {
+  return (companyId: string, agentId: string, connectorId: string): ProjectedSkill[] => {
     try {
       if (!cache) cache = createSkillService({ db: deps.db, profileDir: deps.db.profileDir, logger: deps.logger });
       return cache.listRuntimeSkillEntries(companyId, agentId, connectorId);

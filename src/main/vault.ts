@@ -3,11 +3,19 @@ import { closeSync, mkdirSync, openSync, readFileSync, writeSync } from "node:fs
 import { join } from "node:path";
 import { safeStorage } from "electron";
 
+export interface SecretVaultOptions {
+  /** When true, the AES-GCM file-key fallback is refused even if the env flag
+   * is set. Packaged main-process callers should pass `app.isPackaged`. */
+  isPackaged?: boolean;
+}
+
 export class SecretVault {
   private readonly keyPath: string;
+  private readonly isPackaged: boolean;
 
-  constructor(private readonly profileDir: string) {
+  constructor(private readonly profileDir: string, options: SecretVaultOptions = {}) {
     this.keyPath = join(profileDir, "vault.key");
+    this.isPackaged = options.isPackaged === true;
   }
 
   getBackendLabel(): string {
@@ -104,6 +112,9 @@ export class SecretVault {
   }
 
   private allowInsecureVaultFallback() {
+    // Hard gate: the AES-GCM fallback is a dev-only escape hatch. Packaged
+    // builds must refuse it regardless of the env flag.
+    if (this.isPackaged) return false;
     return process.env.AGENTCOMPANY_ALLOW_INSECURE_VAULT === "true";
   }
 }

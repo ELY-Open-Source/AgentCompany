@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import log from "electron-log/main.js";
 import type { ApprovalRecord } from "@shared/types";
 import type { ReadAll, Transaction } from "./helpers";
 import { normalizeOptionalId, nowIso, parseJson } from "./helpers";
@@ -54,7 +55,11 @@ export function buildApprovalMethods(
         try {
           const payload = JSON.parse(input.payloadJson) as { agentId?: string };
           relatedAgentId = payload.agentId ?? null;
-        } catch { /* ignore malformed payload */ }
+        } catch (error) {
+          log.warn(
+            `[db/approvals] malformed payloadJson on hire_agent request for company ${input.companyId}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }
       if (input.type === "hire_agent") {
         if (!relatedAgentId) {
@@ -345,6 +350,41 @@ export function buildApprovalMethods(
           stmt.run(taskId, approvalId, companyId, linkedByAgentId ?? null, ts);
         }
       });
+    },
+
+    /**
+     * Returns the first pending approval linked to a task (id + type),
+     * or null when none exists. Used by task-quality-gates to decide
+     * whether an in-review task still has a blocking approval.
+     */
+    findPendingApprovalForTask(companyId: string, taskId: string): { id: string; type: string } | null {
+      const row = getDb()
+        .prepare(
+          `SELECT id, type FROM approvals
+           WHERE company_id = ? AND related_task_id = ? AND state = 'pending'
+           LIMIT 1`,
+        )
+        .get(companyId, taskId) as { id: string; type: string } | undefined;
+      return row ?? null;
+    },
+
+    /**
+     * Returns true when the given agent has a pending review-type approval
+     * against one of their tasks. Used by checkpoint-engine to decide
+     * whether heartbeat should pause in co-founder mode.
+     */
+    hasPendingReviewApprovalForAgent(companyId: string, agentId: string): boolean {
+      const row = getDb()
+        .prepare(
+          `SELECT 1 as hit FROM approvals a
+           JOIN tasks t ON a.related_task_id = t.id
+           WHERE a.company_id = ? AND a.state = 'pending'
+           AND t.assignee_agent_id = ?
+           AND a.type IN ('plan_review','scope_review','draft_review','strategy_review','deliverable_review','exception_review')
+           LIMIT 1`,
+        )
+        .get(companyId, agentId) as { hit: number } | undefined;
+      return row !== undefined;
     },
   };
 }

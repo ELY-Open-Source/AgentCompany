@@ -14,7 +14,8 @@ describe("sweepStaleReviews", () => {
   function makeSweepDeps(overrides: Partial<SweepStaleReviewsDeps> = {}): SweepStaleReviewsDeps {
     return {
       db: {
-        queryAll: vi.fn().mockReturnValue([]),
+        listReviewTasksForSweep: vi.fn().mockReturnValue([]),
+        findPendingApprovalForTask: vi.fn().mockReturnValue(null),
         getManagerForAgent: vi.fn().mockReturnValue(null),
         getChainOfCommand: vi.fn().mockReturnValue([]),
         advanceTaskStatus: vi.fn().mockReturnValue({ previousStatus: "in_review" }),
@@ -36,12 +37,13 @@ describe("sweepStaleReviews", () => {
   it("escalates to manager's manager when task in_review for 35 minutes", () => {
     const deps = makeSweepDeps();
     const dbMock = deps.db as unknown as {
-      queryAll: ReturnType<typeof vi.fn>;
+      listReviewTasksForSweep: ReturnType<typeof vi.fn>;
+      findPendingApprovalForTask: ReturnType<typeof vi.fn>;
       getManagerForAgent: ReturnType<typeof vi.fn>;
       getChainOfCommand: ReturnType<typeof vi.fn>;
     };
 
-    dbMock.queryAll.mockReturnValueOnce([
+    dbMock.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
     ]);
     dbMock.getManagerForAgent.mockReturnValueOnce({ id: "manager-1", name: "Manager One", companyId: "company-1" });
@@ -64,9 +66,9 @@ describe("sweepStaleReviews", () => {
 
   it("does not escalate when task in_review for only 25 minutes", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn> };
+    const dbMock = deps.db as unknown as { listReviewTasksForSweep: ReturnType<typeof vi.fn> };
 
-    dbMock.queryAll.mockReturnValueOnce([
+    dbMock.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: TWENTY_FIVE_MIN_AGO, title: "Build login" },
     ]);
 
@@ -79,16 +81,16 @@ describe("sweepStaleReviews", () => {
   it("notifies the human when the reviewer has no higher manager", () => {
     const deps = makeSweepDeps();
     const dbMock = deps.db as unknown as {
-      queryAll: ReturnType<typeof vi.fn>;
+      listReviewTasksForSweep: ReturnType<typeof vi.fn>;
+      findPendingApprovalForTask: ReturnType<typeof vi.fn>;
       getManagerForAgent: ReturnType<typeof vi.fn>;
       getChainOfCommand: ReturnType<typeof vi.fn>;
     };
 
-    dbMock.queryAll
-      .mockReturnValueOnce([
-        { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
-      ])
-      .mockReturnValueOnce([]);
+    dbMock.listReviewTasksForSweep.mockReturnValueOnce([
+      { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
+    ]);
+    dbMock.findPendingApprovalForTask.mockReturnValueOnce(null);
     dbMock.getManagerForAgent.mockReturnValueOnce({ id: "ceo-1", name: "CEO", companyId: "company-1" });
     dbMock.getChainOfCommand.mockReturnValueOnce([]);
 
@@ -108,17 +110,18 @@ describe("sweepStaleReviews", () => {
   it("auto-approves pending approval linked to a stale review task", () => {
     const deps = makeSweepDeps();
     const dbMock = deps.db as unknown as {
-      queryAll: ReturnType<typeof vi.fn>;
+      listReviewTasksForSweep: ReturnType<typeof vi.fn>;
+      findPendingApprovalForTask: ReturnType<typeof vi.fn>;
       getManagerForAgent: ReturnType<typeof vi.fn>;
       getChainOfCommand: ReturnType<typeof vi.fn>;
     };
 
-    dbMock.queryAll.mockReturnValueOnce([
+    dbMock.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
     ]);
     dbMock.getManagerForAgent.mockReturnValueOnce({ id: "manager-1", name: "Manager", companyId: "company-1" });
     dbMock.getChainOfCommand.mockReturnValueOnce([{ id: "higher-1", name: "Higher" }]);
-    dbMock.queryAll.mockReturnValueOnce([{ id: "approval-1", type: "deliverable_review" }]);
+    dbMock.findPendingApprovalForTask.mockReturnValueOnce({ id: "approval-1", type: "deliverable_review" });
 
     sweepStaleReviews("company-1", deps, NOW);
 
@@ -137,17 +140,18 @@ describe("sweepStaleReviews", () => {
   it("swallows resolveApprovalDecision races gracefully", () => {
     const deps = makeSweepDeps();
     const dbMock = deps.db as unknown as {
-      queryAll: ReturnType<typeof vi.fn>;
+      listReviewTasksForSweep: ReturnType<typeof vi.fn>;
+      findPendingApprovalForTask: ReturnType<typeof vi.fn>;
       getManagerForAgent: ReturnType<typeof vi.fn>;
       getChainOfCommand: ReturnType<typeof vi.fn>;
     };
 
-    dbMock.queryAll.mockReturnValueOnce([
+    dbMock.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
     ]);
     dbMock.getManagerForAgent.mockReturnValueOnce({ id: "manager-1", name: "Manager", companyId: "company-1" });
     dbMock.getChainOfCommand.mockReturnValueOnce([{ id: "higher-1", name: "Higher" }]);
-    dbMock.queryAll.mockReturnValueOnce([{ id: "approval-1", type: "deliverable_review" }]);
+    dbMock.findPendingApprovalForTask.mockReturnValueOnce({ id: "approval-1", type: "deliverable_review" });
     (deps.resolveApprovalDecision as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
       throw new Error("Approval already decided");
     });
@@ -158,18 +162,19 @@ describe("sweepStaleReviews", () => {
   it("advances task status to done after escalation", () => {
     const deps = makeSweepDeps();
     const dbMock = deps.db as unknown as {
-      queryAll: ReturnType<typeof vi.fn>;
+      listReviewTasksForSweep: ReturnType<typeof vi.fn>;
+      findPendingApprovalForTask: ReturnType<typeof vi.fn>;
       getManagerForAgent: ReturnType<typeof vi.fn>;
       getChainOfCommand: ReturnType<typeof vi.fn>;
       advanceTaskStatus: ReturnType<typeof vi.fn>;
     };
 
-    dbMock.queryAll.mockReturnValueOnce([
+    dbMock.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
     ]);
     dbMock.getManagerForAgent.mockReturnValueOnce({ id: "manager-1", name: "Manager", companyId: "company-1" });
     dbMock.getChainOfCommand.mockReturnValueOnce([{ id: "higher-1", name: "Higher" }]);
-    dbMock.queryAll.mockReturnValueOnce([]);
+    dbMock.findPendingApprovalForTask.mockReturnValueOnce(null);
 
     sweepStaleReviews("company-1", deps, NOW);
 
@@ -183,9 +188,9 @@ describe("sweepStaleReviews", () => {
 
   it("skips tasks without an assignee", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn> };
+    const dbMock = deps.db as unknown as { listReviewTasksForSweep: ReturnType<typeof vi.fn> };
 
-    dbMock.queryAll.mockReturnValueOnce([
+    dbMock.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: null, updatedAt: THIRTY_FIVE_MIN_AGO, title: "Orphan task" },
     ]);
 
@@ -203,9 +208,9 @@ describe("sweepStaleReviews", () => {
     const deps = makeSweepDeps({
       getCompanyExecutionMode: vi.fn().mockReturnValue("ai_cofounder"),
     });
-    const dbMock = deps.db as unknown as { queryAll: ReturnType<typeof vi.fn> };
+    const dbMock = deps.db as unknown as { listReviewTasksForSweep: ReturnType<typeof vi.fn> };
 
-    dbMock.queryAll.mockReturnValueOnce([
+    dbMock.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: TWENTY_FIVE_MIN_AGO, title: "Review me" },
     ]);
 
@@ -222,15 +227,15 @@ describe("sweepStaleReviews", () => {
       getCompanyExecutionMode: vi.fn().mockReturnValue("ai_cofounder"),
     });
     const dbMock = deps.db as unknown as {
-      queryAll: ReturnType<typeof vi.fn>;
+      listReviewTasksForSweep: ReturnType<typeof vi.fn>;
+      findPendingApprovalForTask: ReturnType<typeof vi.fn>;
       getManagerForAgent: ReturnType<typeof vi.fn>;
     };
 
-    dbMock.queryAll
-      .mockReturnValueOnce([
-        { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Review me" },
-      ])
-      .mockReturnValueOnce([{ id: "approval-1", type: "deliverable_review" }]);
+    dbMock.listReviewTasksForSweep.mockReturnValueOnce([
+      { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Review me" },
+    ]);
+    dbMock.findPendingApprovalForTask.mockReturnValueOnce({ id: "approval-1", type: "deliverable_review" });
     dbMock.getManagerForAgent.mockReturnValueOnce({ id: "manager-1", name: "Manager", companyId: "company-1" });
 
     const count = sweepStaleReviews("company-1", deps, NOW);

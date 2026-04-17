@@ -6,6 +6,7 @@ import { unwrap } from "../lib/desktop";
 import { useDesktopEvents } from "./useDesktopEvents";
 import { useDataLoader } from "./useDataLoader";
 import { useCompanyData } from "./useCompanyData";
+import type { SectionContextValue } from "./useSectionContext";
 
 export function useCompanyController() {
   const snapshot = useAppStore((s) => s.snapshot);
@@ -22,7 +23,14 @@ export function useCompanyController() {
 
   const companyData = useCompanyData(snapshot, currentCompany);
 
-  const selectedConnector = snapshot?.connectors.find((connector) => connector.id === selectedConnectorId) ?? snapshot?.connectors[0] ?? null;
+  // HOOK-005 fix: memoize selectedConnector so its identity is stable.
+  const selectedConnector = useMemo(
+    () =>
+      snapshot?.connectors.find((connector) => connector.id === selectedConnectorId) ??
+      snapshot?.connectors[0] ??
+      null,
+    [snapshot, selectedConnectorId],
+  );
 
   const clearCompanyScopedUiState = useCallback(() => {
     const store = useAppStore.getState();
@@ -39,7 +47,7 @@ export function useCompanyController() {
     store.setSkillImportModalOpen(false);
   }, []);
 
-  const { refresh } = useDataLoader(snapshot, section, selectedConnectorId, selectedRunId);
+  const { refresh } = useDataLoader(snapshot, section);
 
   const logBufferRef = useRef<Record<string, string>>({});
 
@@ -134,7 +142,15 @@ export function useCompanyController() {
     catch (err) { store.setError(err instanceof Error ? err.message : String(err)); }
   }, []);
 
-  return {
+  // HOOK-002 fix: return a STABLE useMemo'd object. Deps are each primitive
+  // field that affects consumers; companyData and snapshot are already
+  // stable refs thanks to the memoizations above.
+  const sectionContextValue = useMemo<SectionContextValue>(
+    () => ({ snapshot, currentCompany, selectedConnector, ...companyData }),
+    [snapshot, currentCompany, selectedConnector, companyData],
+  );
+
+  return useMemo(() => ({
     snapshot,
     currentCompany,
     selectedConnector,
@@ -144,6 +160,42 @@ export function useCompanyController() {
     deleteCompany,
     handleOnboardingDone,
     openPathWithFeedback,
-    ...companyData,
-  };
+    sectionContextValue,
+    // Fields forwarded from companyData so existing consumers keep working
+    // without a wider refactor.
+    tasks: companyData.tasks,
+    approvals: companyData.approvals,
+    pendingApprovals: companyData.pendingApprovals,
+    runs: companyData.runs,
+    companyAgents: companyData.companyAgents,
+    companyGoals: companyData.companyGoals,
+    companyProjects: companyData.companyProjects,
+    companyWorkspaces: companyData.companyWorkspaces,
+    companyCosts: companyData.companyCosts,
+    filteredActivity: companyData.filteredActivity,
+    companySecrets: companyData.companySecrets,
+    companyDocuments: companyData.companyDocuments,
+    companyKnowledge: companyData.companyKnowledge,
+    companyMeetings: companyData.companyMeetings,
+    companySprints: companyData.companySprints,
+    selectedTask: companyData.selectedTask,
+    selectedApproval: companyData.selectedApproval,
+    selectedRun: companyData.selectedRun,
+    selectedAgent: companyData.selectedAgent,
+    selectedGoal: companyData.selectedGoal,
+    selectedProject: companyData.selectedProject,
+    selectedWorkspace: companyData.selectedWorkspace,
+    navBadges: companyData.navBadges,
+  }), [
+    snapshot,
+    currentCompany,
+    selectedConnector,
+    refresh,
+    setCompany,
+    deleteCompany,
+    handleOnboardingDone,
+    openPathWithFeedback,
+    sectionContextValue,
+    companyData,
+  ]);
 }

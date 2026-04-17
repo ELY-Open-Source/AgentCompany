@@ -17,7 +17,11 @@ export interface NotificationOptions {
 interface NotificationServiceDependencies {
   getMainWindow: () => BrowserWindow | null;
   emitEvent: (event: DesktopEvent) => void;
-  logger: { info: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
+  logger: {
+    info: (...args: unknown[]) => void;
+    warn: (...args: unknown[]) => void;
+    error: (...args: unknown[]) => void;
+  };
   /** Returns the active UI locale ("en", "zh", ...). Batch summary copy is
    * localized; fallbacks to "en" when unset. */
   getLocale?: () => string | null | undefined;
@@ -198,7 +202,13 @@ export function createNotificationService(deps: NotificationServiceDependencies)
     // Dismiss any still-visible notifications so Windows toast host does not
     // leave ghost toasts after quit.
     for (const notification of activeNotifications) {
-      try { notification.close(); } catch { /* toast may have already closed */ }
+      try {
+        notification.close();
+      } catch (error) {
+        deps.logger.warn(
+          `[notification] notification.close() during destroy failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
     activeNotifications.clear();
   }

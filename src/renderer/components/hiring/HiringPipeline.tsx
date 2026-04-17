@@ -10,7 +10,7 @@ import { useT } from "../../i18n";
 import { getAgentInitials } from "../../lib/formatters";
 import { unwrap } from "../../lib/desktop";
 import { safeJson } from "../../lib/safe-json";
-import { ActionButton, EmptyState, Panel, StatusPill } from "../ui";
+import { ActionButton, Card, EmptyState, Panel, StatusPill } from "../ui";
 import {
   type HiringStage,
   type HiringCandidate,
@@ -157,7 +157,7 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
                                 companyId: a.companyId,
                                 approvalId: a.id,
                                 state: "approved",
-                                decisionNote: "Hire approved via hiring pipeline",
+                                decisionNote: t("hiring.approvedNote"),
                               }));
                               await onRefresh();
                             }}
@@ -171,7 +171,7 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
                                 companyId: a.companyId,
                                 approvalId: a.id,
                                 state: "rejected",
-                                decisionNote: "Hire rejected via hiring pipeline",
+                                decisionNote: t("hiring.rejectedNote"),
                               }));
                               await onRefresh();
                             }}
@@ -244,26 +244,26 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
       </Panel>
 
       <div className="grid grid-cols-4 gap-3">
-        <div className="rounded-lg px-4 py-3 border border-border bg-card">
+        <Card padding="sm">
           <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{t("hiring.totalAgents")}</div>
           <div className="text-2xl font-bold text-foreground mt-1">{agents.filter(a => a.status !== "terminated").length}</div>
-        </div>
-        <div className="rounded-lg px-4 py-3 border border-border bg-card">
+        </Card>
+        <Card padding="sm">
           <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{t("hiring.pendingHires")}</div>
           <div className="text-2xl font-bold text-warning mt-1">{agents.filter(a => a.status === "pending_approval").length}</div>
-        </div>
-        <div className="rounded-lg px-4 py-3 border border-border bg-card">
+        </Card>
+        <Card padding="sm">
           <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{t("hiring.departments")}</div>
           <div className="text-2xl font-bold text-foreground mt-1">
             {new Set(agents.filter(a => a.department && a.status !== "terminated").map(a => a.department)).size}
           </div>
-        </div>
-        <div className="rounded-lg px-4 py-3 border border-border bg-card">
+        </Card>
+        <Card padding="sm">
           <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{t("hiring.monthlyPayroll")}</div>
           <div className="text-2xl font-bold text-foreground mt-1">
             ${agents.filter(a => a.status !== "terminated" && a.status !== "pending_approval").reduce((s, a) => s + a.budgetMonthlyUsd, 0).toLocaleString()}
           </div>
-        </div>
+        </Card>
       </div>
 
       <Panel title={t("hiring.departmentHeadcount")}>

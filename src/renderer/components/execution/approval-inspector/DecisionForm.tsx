@@ -1,5 +1,5 @@
 import { CheckCircle, ClockCounterClockwise, Trash, XCircle } from "../../ui/icons"
-import { ActionButton, TextArea } from "../../ui"
+import { ActionButton, Eyebrow, TextArea } from "../../ui"
 import { useT } from "../../../i18n"
 
 export type DecisionState = "approved" | "rejected" | "revision_requested"
@@ -28,13 +28,13 @@ export function DecisionForm({
     <>
       {!isDecided ? (
         <div>
-          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            Decision note
-          </label>
+          <Eyebrow className="mb-1">
+            {t("approval.decisionNote")}
+          </Eyebrow>
           <TextArea
             value={decisionNote}
             onChange={onDecisionNoteChange}
-            placeholder="Add a note (optional)"
+            placeholder={t("approval.decisionNotePlaceholder")}
             rows={3}
           />
         </div>
@@ -43,7 +43,7 @@ export function DecisionForm({
         {!isDecided ? (
           <>
             <ActionButton
-              label={isSocialPost ? "Approve & Post" : t("exec.approve")}
+              label={isSocialPost ? t("approval.approvePost") : t("exec.approve")}
               tone="accent"
               onClick={() => onDecide("approved")}
               icon={CheckCircle}
@@ -66,7 +66,7 @@ export function DecisionForm({
         ) : null}
         {isDecided ? (
           <ActionButton
-            label="Delete"
+            label={t("approval.delete")}
             onClick={onRequestDelete}
             icon={Trash}
             tone="danger"

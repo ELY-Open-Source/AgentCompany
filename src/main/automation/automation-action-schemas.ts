@@ -10,6 +10,7 @@
  */
 
 import { z } from "zod";
+import { approvalTypeEnum } from "@shared/types";
 
 const messageChannelSchema = z.enum(["direct", "department", "company", "project", "incident"]);
 const messagePrioritySchema = z.enum(["urgent", "normal", "low"]);
@@ -41,7 +42,7 @@ export const triggerHeartbeatConfigSchema = z.object({
 });
 
 export const createApprovalConfigSchema = z.object({
-  approvalType: z.string().optional(),
+  approvalType: approvalTypeEnum.optional(),
   summary: z.string().optional(),
   impact: z.string().optional(),
 });

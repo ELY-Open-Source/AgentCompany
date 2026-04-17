@@ -1,5 +1,6 @@
 import type { AgentRecord, AgentMessageRecord, ApprovalRecord, DocumentRecord, ExecutionMode, GoalRecord, KnowledgeEntryRecord, MeetingRecord, ProjectRecord, SprintRecord, TaskRecord } from "@shared/types";
 import type { AppLocale } from "@shared/locale";
+import type { ProjectedSkill } from "../skill-types";
 import { buildSystemPrompt } from "./system-prompt";
 import { renderWakeReason } from "./wake-reasons";
 import { getSystemMessages } from "./messages";
@@ -35,10 +36,8 @@ export interface PromptContext {
   allConnectors?: Array<{ id: string; label: string; status: string; enabledModels?: string[] }>;
   /** D-07: Handoff markdown from a rotated session, injected as context for the agent */
   sessionHandoff?: string | null;
-  /** Names of skills injected into this agent's runtime environment */
-  skillNames?: string[];
-  /** Full skill entries with semantic metadata for capability manifest */
-  skillEntries?: Array<{ name: string; whenToUse: string; allowedTools: string[]; effort: string; contextMode: string }>;
+  /** Skills visible to this agent via pi's progressive-disclosure model. */
+  skills?: ProjectedSkill[];
   /** All company documents for attachment content resolution in messages */
   companyDocuments?: DocumentRecord[];
   /** Company-wide skill catalog for capability-aware delegation. */
@@ -51,6 +50,15 @@ export function buildTaskPrompt(ctx: PromptContext): string {
   const m = getSystemMessages(ctx.locale);
   const systemPrompt = buildSystemPrompt(ctx);
   const parts: string[] = [systemPrompt];
+
+  // Volatile per-turn context lives AFTER the cacheable system prefix so the
+  // Anthropic prompt cache hits across heartbeats. Putting the wall-clock
+  // time inside the system prompt would invalidate the cache on every call.
+  const now = new Date();
+  const dateStr = now.toISOString().split("T")[0];
+  const timeStr = now.toISOString().split("T")[1]?.slice(0, 5) ?? "00:00";
+  const dayOfWeek = m.dayNames[now.getUTCDay()] ?? "";
+  parts.push(`\n${m.currentDateSection(dayOfWeek, dateStr, timeStr)}`);
 
   if (ctx.wakeReason) {
     const explanation = renderWakeReason(ctx.wakeReason, {

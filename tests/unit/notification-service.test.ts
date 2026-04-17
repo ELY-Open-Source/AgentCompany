@@ -49,7 +49,7 @@ describe("notification-service", () => {
   let service: ReturnType<typeof createNotificationService>;
   let mockGetMainWindow: ReturnType<typeof vi.fn>;
   let mockEmitEvent: ReturnType<typeof vi.fn>;
-  let mockLogger: { info: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
+  let mockLogger: { info: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -59,13 +59,14 @@ describe("notification-service", () => {
     mockEmitEvent = vi.fn();
     mockLogger = {
       info: vi.fn(),
+      warn: vi.fn(),
       error: vi.fn(),
     };
 
     service = createNotificationService({
       getMainWindow: mockGetMainWindow as unknown as () => BrowserWindow | null,
       emitEvent: mockEmitEvent as unknown as (event: DesktopEvent) => void,
-      logger: mockLogger as { info: (...args: unknown[]) => void; error: (...args: unknown[]) => void },
+      logger: mockLogger as { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void },
     });
   });
 

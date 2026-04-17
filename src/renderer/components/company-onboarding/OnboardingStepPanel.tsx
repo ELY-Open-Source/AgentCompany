@@ -1,13 +1,14 @@
 import { AnimatePresence } from "framer-motion";
+import type { ExecutionMode } from "@shared/types";
 import { OnboardingHero, type OnboardingStep } from "./OnboardingHero";
 import { NodeCheckStep } from "./NodeCheckStep";
 import { ProvidersStep } from "./ProvidersStep";
-import { CompanyStep } from "./CompanyStep";
+import { CompanyStep, type CompanyStepValues } from "./CompanyStep";
 import { ModelPoolStep } from "./ModelPoolStep";
 import { ExecutionModeStep } from "./ExecutionModeStep";
-import { MissionStep } from "./MissionStep";
+import { MissionStep, type MissionStepValues } from "./MissionStep";
 import { LaunchStep } from "./LaunchStep";
-import { useOnboarding } from "./OnboardingContext";
+import { useOnboardingWizard } from "./OnboardingContext";
 
 interface OnboardingStepPanelProps {
   step: OnboardingStep;
@@ -17,11 +18,15 @@ interface OnboardingStepPanelProps {
   onBack: (step: OnboardingStep) => void;
   onContinueFromNodeCheck: () => void;
   onContinueFromProviders: () => void;
-  onContinueFromCompany: () => void;
+  onContinueFromCompany: (values: CompanyStepValues) => void;
   onContinueFromModelPool: () => void;
-  onContinueFromExecutionMode: () => void;
-  onLaunchCompany: () => void;
+  onContinueFromExecutionMode: (mode: ExecutionMode) => void;
+  onLaunchCompany: (values: MissionStepValues) => void;
   onFinishLaunch: () => void;
+  onPickDirectory: () => Promise<string | null>;
+  companyValues: CompanyStepValues;
+  missionValues: MissionStepValues;
+  executionMode: ExecutionMode;
 }
 
 export function OnboardingStepPanel({
@@ -37,16 +42,16 @@ export function OnboardingStepPanel({
   onContinueFromExecutionMode,
   onLaunchCompany,
   onFinishLaunch,
+  onPickDirectory,
+  companyValues,
+  missionValues,
+  executionMode,
 }: OnboardingStepPanelProps) {
-  const { currentLocale, t, launchSummary } = useOnboarding();
+  const { currentLocale, t, launchSummary } = useOnboardingWizard();
 
   return (
     <>
-      <OnboardingHero
-        step={step}
-        currentLocale={currentLocale}
-        t={t}
-      />
+      <OnboardingHero step={step} currentLocale={currentLocale} t={t} />
 
       <div className="min-h-0 overflow-y-auto border-l border-border bg-background">
         <div className="relative flex min-h-full items-center px-6 py-10 md:px-10">
@@ -77,6 +82,8 @@ export function OnboardingStepPanel({
 
             {step === "company" ? (
               <CompanyStep
+                initialValues={companyValues}
+                onPickDirectory={onPickDirectory}
                 onContinue={onContinueFromCompany}
                 onBack={() => onBack("providers")}
               />
@@ -91,6 +98,7 @@ export function OnboardingStepPanel({
 
             {step === "executionmode" ? (
               <ExecutionModeStep
+                initialValue={executionMode}
                 onContinue={onContinueFromExecutionMode}
                 onBack={() => onBack("modelpool")}
               />
@@ -98,6 +106,7 @@ export function OnboardingStepPanel({
 
             {step === "mission" ? (
               <MissionStep
+                initialValues={missionValues}
                 onLaunch={onLaunchCompany}
                 onBack={() => onBack("executionmode")}
               />

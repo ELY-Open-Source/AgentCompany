@@ -92,6 +92,12 @@ export function handleWorkerExit(
     const recoverySnapshot = db.listSnapshot();
     for (const candidate of requeueCandidates) {
       try {
+        // The crashed run may still own a workspace lock acquired during the
+        // original dispatch; release it before re-dispatch so the replay
+        // does not self-collide with "Workspace is locked by another run".
+        if (candidate.workspaceId) {
+          db.releaseWorkspaceLock(candidate.workspaceId, candidate.id);
+        }
         const task = db.getTask(candidate.taskId);
         const agent = db.getAgent(candidate.agentId);
         const connector = db.getConnector(agent.connectorId);

@@ -3,7 +3,7 @@ import type { AgentRecord, ApprovalRecord, DocumentRecord, TaskRecord } from "@s
 import { extractApprovalDocumentReferences } from "@shared/approval-documents"
 import { useT } from "../../../i18n"
 import { unwrap } from "../../../lib/desktop"
-import { ConfirmDialog, InlineNotice } from "../../ui"
+import { Card, ConfirmDialog, Eyebrow, InlineNotice } from "../../ui"
 import { useAppStore } from "../../../state/store"
 import { describeActionError } from "../execution-utils"
 import { SocialDraftPreview } from "../SocialDraftPreview"
@@ -69,12 +69,12 @@ export function ApprovalInspector({
 
     if (isSocialPost && state === "approved" && scheduleMode === "scheduled") {
       if (!scheduledAt) {
-        setScheduleError("Please select a date and time for scheduling.")
+        setScheduleError(t("approval.scheduleSelectTime"))
         return
       }
       const chosenTime = new Date(scheduledAt).getTime()
       if (chosenTime <= Date.now()) {
-        setScheduleError("Scheduled time must be in the future.")
+        setScheduleError(t("approval.scheduleFuture"))
         return
       }
     }
@@ -87,9 +87,9 @@ export function ApprovalInspector({
         noteForDecision = noteForDecision ? `${noteForDecision} ${scheduleInfo}` : scheduleInfo
       }
       await onDecide(state, noteForDecision)
-      if (state === "approved") addToast("Approval granted — agent is moving forward", "success")
-      else if (state === "rejected") addToast("Approval rejected", "warn")
-      else if (state === "revision_requested") addToast("Revision requested — agent will revise and resubmit", "warn")
+      if (state === "approved") addToast(t("approval.granted"), "success")
+      else if (state === "rejected") addToast(t("approval.rejectedToast"), "warn")
+      else if (state === "revision_requested") addToast(t("approval.revisionRequested"), "warn")
     } catch (error) {
       setActionError(describeActionError(error))
     } finally {
@@ -115,14 +115,17 @@ export function ApprovalInspector({
         <ApprovalSummary approval={approval} requestingAgent={requestingAgent} relatedTask={relatedTask} />
         {approval.type === "hire_agent" ? <ProposedHireCard approval={approval} agents={agents} /> : null}
         {approval.type === "approve_ceo_strategy" ? (
-          <div className="rounded-lg border border-[color:var(--destructive)] border-opacity-30 bg-warning-muted px-4 py-3">
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-warning">
-              Organization Strategy
-            </div>
+          <Card
+            padding="sm"
+            className="border-[color:var(--destructive)] border-opacity-30 bg-warning-muted"
+          >
+            <Eyebrow tone="warning" className="mb-2">
+              {t("approval.orgStrategy")}
+            </Eyebrow>
             <div className="whitespace-pre-wrap text-[12px] leading-relaxed text-foreground">
               {approval.payloadSummary}
             </div>
-          </div>
+          </Card>
         ) : null}
         <ApprovalDocumentsPanel approval={approval} documents={documents} companyId={companyId} />
         {approval.type === "deliverable_review" && !hasDocumentReferences ? (
@@ -160,7 +163,7 @@ export function ApprovalInspector({
 
       {approval.decisionNote ? (
         <div className="border-t border-border pt-4 text-[13px] text-muted-foreground">
-          Last note: {approval.decisionNote}
+          {t("approval.lastNote")} {approval.decisionNote}
         </div>
       ) : null}
     </div>

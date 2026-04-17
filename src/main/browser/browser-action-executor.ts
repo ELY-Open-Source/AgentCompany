@@ -313,7 +313,11 @@ export async function runAction(
     try {
       const image: NativeImage = await win.webContents.capturePage();
       if (!image.isEmpty()) writeFileSync(screenshotPath, image.toPNG());
-    } catch { /* ignore */ }
+    } catch (screenshotError) {
+      log.warn(
+        `[browser] failure screenshot capture failed for action ${action.id}: ${screenshotError instanceof Error ? screenshotError.message : String(screenshotError)}`,
+      );
+    }
 
     if (!win.isDestroyed()) win.close();
 

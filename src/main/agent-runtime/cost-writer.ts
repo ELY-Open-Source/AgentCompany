@@ -5,7 +5,6 @@ import { resolveModel } from "@main/model-resolver";
 
 export interface CostWriterDeps {
   db: AppDatabase;
-  logger: { warn: (...args: unknown[]) => void };
 }
 
 interface ObserveInput {
@@ -26,21 +25,24 @@ export class CostWriter {
   constructor(private readonly deps: CostWriterDeps) {}
 
   observeAssistantMessage(input: ObserveInput): void {
-    let amountUsd: number | null = null;
-    try {
-      const definition = getConnectorDefinition(input.connectorId);
-      if (definition.provider) {
-        const model = resolveModel(definition.provider, input.modelId);
-        if (model) {
-          const cost = calculateCost(model, input.usage);
-          amountUsd = Number.isFinite(cost.total) ? cost.total : null;
-        }
-      }
-    } catch (error) {
-      this.deps.logger.warn(
-        `[cost-writer] cost calculation failed for ${input.connectorId}/${input.modelId}: ${error instanceof Error ? error.message : String(error)}`,
+    // Fail closed on cost calculation — budget policies read `cost_entries`
+    // to enforce spending gates; an "unattributed" row would silently let
+    // an agent run unbounded. If pricing cannot be resolved, refuse to
+    // persist the row and let the caller see the error. The failure is
+    // visible (throws) instead of invisible (null amount, unattributed=1).
+    const definition = getConnectorDefinition(input.connectorId);
+    if (!definition.provider) {
+      throw new Error(`[cost-writer] connector ${input.connectorId} has no provider mapping`);
+    }
+    const model = resolveModel(definition.provider, input.modelId);
+    if (!model) {
+      throw new Error(`[cost-writer] model ${input.modelId} not found for provider ${definition.provider}`);
+    }
+    const cost = calculateCost(model, input.usage);
+    if (!Number.isFinite(cost.total)) {
+      throw new Error(
+        `[cost-writer] cost calculation returned non-finite total for ${input.connectorId}/${input.modelId}`,
       );
-      amountUsd = null;
     }
 
     this.deps.db.queryAll(
@@ -51,8 +53,8 @@ export class CostWriter {
       input.taskId,
       input.agentId,
       input.connectorId,
-      amountUsd,
-      amountUsd === null ? 1 : 0,
+      cost.total,
+      0,
       new Date().toISOString(),
     );
   }

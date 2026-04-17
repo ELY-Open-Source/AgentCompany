@@ -30,16 +30,14 @@ import { CLOUD_CONNECTORS } from "./connector-definitions-data-cloud";
 
 /**
  * OAuth provider id recognised by the AgentCompany credential layer. These
- * map 1:1 to pi-ai's five built-in OAuth handlers, with the Google handlers
- * shortened from `google-gemini-cli` / `google-antigravity` to `gemini-cli` /
- * `antigravity` in the UI.
+ * match pi-ai's five built-in OAuth handler ids verbatim.
  */
 export type PiOAuthProviderId =
   | "anthropic"
   | "openai-codex"
   | "github-copilot"
-  | "gemini-cli"
-  | "antigravity";
+  | "google-gemini-cli"
+  | "google-antigravity";
 
 export type ConnectorAuthKind = "oauth" | "api_key" | "aws" | "azure" | "gcp_adc";
 

@@ -84,6 +84,10 @@ export async function notifyHireApproved(
         entityId: input.agentId,
         detail: message,
       });
-    } catch { /* activity logging itself failed — nothing more we can do */ }
+    } catch (activityError) {
+      log.error(
+        `[hire-hook] Activity logging also failed for agent ${input.agentId}: ${activityError instanceof Error ? activityError.message : String(activityError)}`,
+      );
+    }
   }
 }

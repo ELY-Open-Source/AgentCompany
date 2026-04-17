@@ -107,29 +107,19 @@ const api: DesktopApi = {
   getBudgetStatus: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.getBudgetStatus, { companyId }),
   recoveryRetry: (taskId: string, agentId: string, companyId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.recoveryRetry, { taskId, agentId, companyId }),
-  recoveryDismiss: (taskId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.recoveryDismiss, { taskId }),
-  recoveryFail: (taskId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.recoveryFail, { taskId }),
+  recoveryDismiss: (taskId: string, companyId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.recoveryDismiss, { taskId, companyId }),
+  recoveryFail: (taskId: string, companyId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.recoveryFail, { taskId, companyId }),
   getTask: (input) => ipcRenderer.invoke(IPC_CHANNELS.getTask, input),
   getAgent: (input) => ipcRenderer.invoke(IPC_CHANNELS.getAgent, input),
   getRun: (input) => ipcRenderer.invoke(IPC_CHANNELS.getRun, input),
   getApproval: (input) => ipcRenderer.invoke(IPC_CHANNELS.getApproval, input),
-  listConfigRevisions: (companyId: string, agentId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.listConfigRevisions, { companyId, agentId }),
-  getConfigRevision: (companyId: string, revisionId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.getConfigRevision, { companyId, revisionId }),
-  rollbackConfigRevision: (companyId: string, agentId: string, revisionId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.rollbackConfigRevision, { companyId, agentId, revisionId }),
   listRunEvents: (companyId: string, runId: string, opts?: { offset?: number; limit?: number }) =>
     ipcRenderer.invoke(IPC_CHANNELS.listRunEvents, { companyId, runId, ...opts }),
-  getAgentPermissions: (agentId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.getAgentPermissions, { agentId }),
-  setAgentPermission: (companyId: string, agentId: string, permissionKey: string, enabled: boolean) =>
-    ipcRenderer.invoke(IPC_CHANNELS.setAgentPermission, { companyId, agentId, permissionKey, enabled }),
   getHeartbeatPolicy: (agentId: string, companyId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.getHeartbeatPolicy, { companyId, agentId }),
-  setHeartbeatPolicy: (companyId: string, agentId: string, policy: Record<string, unknown>) =>
+  setHeartbeatPolicy: (companyId, agentId, policy) =>
     ipcRenderer.invoke(IPC_CHANNELS.setHeartbeatPolicy, { companyId, agentId, ...policy }),
   getRuntimeState: (agentId: string, companyId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.getRuntimeState, { companyId, agentId }),
@@ -159,10 +149,19 @@ const api: DesktopApi = {
     };
   },
   platform: process.platform as "win32" | "darwin" | "linux",
-  windowMinimize: () => ipcRenderer.invoke(IPC_CHANNELS.windowMinimize),
-  windowMaximize: () => ipcRenderer.invoke(IPC_CHANNELS.windowMaximize),
-  windowClose: () => ipcRenderer.invoke(IPC_CHANNELS.windowClose),
-  windowIsMaximized: () => ipcRenderer.invoke(IPC_CHANNELS.windowIsMaximized) as Promise<boolean>,
+  windowMinimize: async () => {
+    await ipcRenderer.invoke(IPC_CHANNELS.windowMinimize);
+  },
+  windowMaximize: async () => {
+    await ipcRenderer.invoke(IPC_CHANNELS.windowMaximize);
+  },
+  windowClose: async () => {
+    await ipcRenderer.invoke(IPC_CHANNELS.windowClose);
+  },
+  windowIsMaximized: async () => {
+    const result = (await ipcRenderer.invoke(IPC_CHANNELS.windowIsMaximized)) as { ok: true; data: boolean } | { ok: false };
+    return result.ok ? result.data : false;
+  },
   // Credentials (pi-mono)
   listCredentials: () => ipcRenderer.invoke(IPC_CHANNELS.credentialsList),
   saveCredential: (input) => ipcRenderer.invoke(IPC_CHANNELS.credentialsSave, input),

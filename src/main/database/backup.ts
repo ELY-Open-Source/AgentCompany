@@ -32,8 +32,6 @@ export function buildBackupMethods(
         backupDatabase(deps.getDb(), join(targetDir, "profile.sqlite")),
         cp(deps.logsDir, join(targetDir, "logs"), { recursive: true, force: true }),
         cp(deps.artifactsDir, join(targetDir, "artifacts"), { recursive: true, force: true }),
-        copyIfExists(join(deps.profileDir, "vault.key"), join(targetDir, "vault.key")),
-        copyIfExists(join(deps.profileDir, "agent-api-signing.key"), join(targetDir, "agent-api-signing.key")),
         copyIfExists(`${deps.dbPath}-wal`, join(targetDir, "profile.sqlite-wal")),
         copyIfExists(`${deps.dbPath}-shm`, join(targetDir, "profile.sqlite-shm")),
       ];

@@ -1,3 +1,4 @@
+import log from "electron-log/main.js";
 import type { AgentRecord, AgentMessageRecord, ApprovalRecord, DocumentRecord, KnowledgeEntryRecord, MeetingRecord, TaskRecord } from "@shared/types";
 import { inferTaskType } from "../connector-matching";
 import { resolveAttachmentContent } from "./attachment-resolver";
@@ -112,7 +113,11 @@ export function buildMessagesSection(ctx: MessagesSectionCtx): string | null {
         if (Array.isArray(atts) && atts.length > 0) {
           attachmentNote = ` [Attached: ${atts.map((a) => a.title ?? "document").join(", ")}]`;
         }
-      } catch { /* malformed attachment JSON */ }
+      } catch (error) {
+        log.warn(
+          `[prompt-builder] malformed attachmentsJson on message ${m.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
       if (ctx.companyDocuments && ctx.companyDocuments.length > 0) {
         attachmentContent = resolveAttachmentContent(m.attachmentsJson, ctx.companyDocuments, 4000);
       }
@@ -142,7 +147,14 @@ export function buildMeetingsSection(ctx: MeetingsSectionCtx): string | null {
   const meetingLines = ctx.upcomingMeetings.slice(0, 5).map((m) => {
     const organizer = m.organizerAgentId ? (ctx.allAgents.find(a => a.id === m.organizerAgentId)?.name ?? "Unknown") : "TBD";
     let participants: string[];
-    try { participants = JSON.parse(m.participantAgentIds); } catch { participants = []; }
+    try {
+      participants = JSON.parse(m.participantAgentIds);
+    } catch (error) {
+      log.warn(
+        `[prompt-builder] malformed participantAgentIds on meeting ${m.id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      participants = [];
+    }
     const participantNames = participants
       .map(id => ctx.allAgents.find(a => a.id === id)?.name ?? id)
       .join(", ");

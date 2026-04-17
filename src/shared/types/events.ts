@@ -98,7 +98,7 @@ export interface RecoveryNeededEvent {
   type: "recovery-needed";
   interruptedRuns: Array<{
     runId: string; taskId: string; taskTitle: string; agentId: string;
-    agentName: string; connectorId: string; interruptedAt: string;
+    agentName: string; companyId: string; connectorId: string; interruptedAt: string;
   }>;
 }
 

@@ -8,6 +8,8 @@
 
 import { Hourglass, ChatCircle, CheckCircle } from "../ui/icons"
 import type { AgentRecord } from "@shared/types"
+import { useT } from "../../i18n"
+import { timeAgo } from "../../lib/formatters"
 
 export interface WaitStateInfo {
   id: string
@@ -26,44 +28,34 @@ interface WaitStateIndicatorProps {
   onNavigateApproval?: (approvalId: string) => void
 }
 
-function formatWaitDuration(createdAt: string): string {
-  const diff = Date.now() - new Date(createdAt).getTime()
-  const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return "just now"
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
-
 export default function WaitStateIndicator({ waitState, onReply, onNavigateApproval }: WaitStateIndicatorProps) {
+  const t = useT()
   const isApproval = waitState.waitingFor === "user_approval" && waitState.relatedApprovalId
   const isReview = waitState.waitingFor === "user_review"
-  const duration = formatWaitDuration(waitState.createdAt)
+  const duration = timeAgo(waitState.createdAt)
 
   return (
-    <div className="flex items-center gap-3 rounded-md border-l-2 border-amber-500 bg-amber-50 px-3 py-2 dark:border-amber-400 dark:bg-amber-950/30">
-      <Hourglass size={18} weight="fill" className="shrink-0 text-amber-600 dark:text-amber-400" />
+    <div className="flex items-center gap-3 rounded-md border-l-2 border-warning bg-warning-muted px-3 py-2">
+      <Hourglass size={18} weight="fill" className="shrink-0 text-warning" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-foreground">{waitState.reason}</p>
-        <p className="text-xs text-muted-foreground">Waiting since {duration}</p>
+        <p className="text-xs text-muted-foreground">{t("wait.waitingSince")} {duration}</p>
       </div>
       {isApproval && onNavigateApproval ? (
         <button
           onClick={() => { const id = waitState.relatedApprovalId; if (id) onNavigateApproval(id); }}
-          className="flex shrink-0 items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600"
+          className="flex shrink-0 items-center gap-1.5 rounded-md bg-warning px-3 py-1.5 text-xs font-medium text-primary-foreground hover:brightness-95"
         >
           <CheckCircle size={14} />
-          Review
+          {t("wait.review")}
         </button>
       ) : (
         <button
           onClick={() => onReply(waitState.id, waitState.threadId)}
-          className="flex shrink-0 items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600"
+          className="flex shrink-0 items-center gap-1.5 rounded-md bg-warning px-3 py-1.5 text-xs font-medium text-primary-foreground hover:brightness-95"
         >
           <ChatCircle size={14} />
-          {isReview ? "Review" : "Reply"}
+          {isReview ? t("wait.review") : t("wait.reply")}
         </button>
       )}
     </div>

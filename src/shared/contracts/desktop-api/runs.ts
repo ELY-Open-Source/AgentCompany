@@ -12,6 +12,6 @@ export type RunsApi = {
   getRun: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<RunRecord>>;
   listRunEvents: (companyId: string, runId: string, opts?: { offset?: number; limit?: number }) => Promise<DesktopResult<RunEventRecord[]>>;
   recoveryRetry: (taskId: string, agentId: string, companyId: string) => Promise<DesktopResult<null>>;
-  recoveryDismiss: (taskId: string) => Promise<DesktopResult<null>>;
-  recoveryFail: (taskId: string) => Promise<DesktopResult<null>>;
+  recoveryDismiss: (taskId: string, companyId: string) => Promise<DesktopResult<null>>;
+  recoveryFail: (taskId: string, companyId: string) => Promise<DesktopResult<null>>;
 };

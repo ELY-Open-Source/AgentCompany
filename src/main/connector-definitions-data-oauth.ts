@@ -7,11 +7,10 @@
  * token in the `credentials` table, and passes it as the API key when
  * invoking pi-ai.
  *
- * The `oauthId` surfaced here is the AgentCompany internal id that the
- * catalog test pins (`anthropic` / `openai-codex` / `github-copilot` /
- * `gemini-cli` / `antigravity`). It is mapped to the pi-ai provider id
- * when resolving the actual OAuth flow — e.g. `gemini-cli` →
- * `google-gemini-cli`, `antigravity` → `google-antigravity`.
+ * The `oauthId` surfaced here matches pi-ai's five registered provider ids
+ * verbatim (`anthropic` / `openai-codex` / `github-copilot` /
+ * `google-gemini-cli` / `google-antigravity`) and is passed straight to
+ * `getOAuthProvider`.
  */
 
 import type { ConnectorDefinition } from "./connector-definitions";
@@ -58,7 +57,7 @@ export const OAUTH_CONNECTORS: ConnectorDefinition[] = [
     description:
       "Google Gemini models via Cloud Code Assist OAuth. Free tier works with any Google account (rate-limited).",
     defaultModel: "gemini-2.5-pro",
-    auth: { type: "oauth", oauthId: "gemini-cli" },
+    auth: { type: "oauth", oauthId: "google-gemini-cli" },
     notes:
       "For paid Cloud Code Assist, set GOOGLE_CLOUD_PROJECT. Google-gemini-cli OAuth provider id in pi-ai.",
   },
@@ -69,7 +68,7 @@ export const OAUTH_CONNECTORS: ConnectorDefinition[] = [
     description:
       "Google Antigravity sandbox with Gemini 3, Claude, and GPT-OSS models. Free with any Google account.",
     defaultModel: "claude-sonnet-4-5",
-    auth: { type: "oauth", oauthId: "antigravity" },
+    auth: { type: "oauth", oauthId: "google-antigravity" },
     notes: "Maps to pi-ai OAuth provider id `google-antigravity`.",
   },
 ];

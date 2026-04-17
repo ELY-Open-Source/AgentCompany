@@ -3,13 +3,15 @@ import {
   app,
   BrowserWindow,
   dialog,
-  ipcMain,
   Menu,
   nativeImage,
   shell,
   Tray,
 } from "electron";
+import type { IpcMainInvokeEvent } from "electron";
 import { IPC_CHANNELS } from "@shared/contracts";
+import type { DesktopResult } from "@shared/contracts";
+import { ok } from "./ipc-core-common";
 
 export interface DesktopShellMenuDependencies {
   iconPath: string;
@@ -20,6 +22,10 @@ export interface DesktopShellMenuDependencies {
   getMainWindow: () => BrowserWindow | null;
   ensureWindow: () => Promise<BrowserWindow | null>;
   requestQuitWithConfirmation: () => Promise<void>;
+  registerHandle: (
+    channel: string,
+    handler: (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<DesktopResult<unknown>> | DesktopResult<unknown>,
+  ) => void;
 }
 
 export function createDesktopShellMenu(deps: DesktopShellMenuDependencies) {
@@ -32,6 +38,7 @@ export function createDesktopShellMenu(deps: DesktopShellMenuDependencies) {
     getMainWindow,
     ensureWindow,
     requestQuitWithConfirmation,
+    registerHandle,
   } = deps;
 
   let appTray: Tray | null = null;
@@ -231,18 +238,29 @@ export function createDesktopShellMenu(deps: DesktopShellMenuDependencies) {
   }
 
   function registerWindowControlIpc() {
-    // Window control IPC for custom title bar (Windows/Linux frameless windows)
-    ipcMain.handle(IPC_CHANNELS.windowMinimize, () => { getMainWindow()?.minimize(); });
-    ipcMain.handle(IPC_CHANNELS.windowMaximize, () => {
+    // Window control IPC for custom title bar (Windows/Linux frameless windows).
+    // Routed through registerHandle so the trusted-sender check blocks
+    // embedded webContents from closing/minimizing the app.
+    registerHandle(IPC_CHANNELS.windowMinimize, () => {
+      getMainWindow()?.minimize();
+      return ok(null);
+    });
+    registerHandle(IPC_CHANNELS.windowMaximize, () => {
       const mainWindow = getMainWindow();
       if (mainWindow?.isMaximized()) {
         mainWindow.unmaximize();
       } else {
         mainWindow?.maximize();
       }
+      return ok(null);
     });
-    ipcMain.handle(IPC_CHANNELS.windowClose, () => { getMainWindow()?.close(); });
-    ipcMain.handle(IPC_CHANNELS.windowIsMaximized, () => getMainWindow()?.isMaximized() ?? false);
+    registerHandle(IPC_CHANNELS.windowClose, () => {
+      getMainWindow()?.close();
+      return ok(null);
+    });
+    registerHandle(IPC_CHANNELS.windowIsMaximized, () => {
+      return ok(getMainWindow()?.isMaximized() ?? false);
+    });
   }
 
   function destroy() {

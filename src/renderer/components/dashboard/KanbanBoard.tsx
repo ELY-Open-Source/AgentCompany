@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { Briefcase, Robot } from "../ui/icons";
 import type { AgentRecord, RunRecord, TaskRecord } from "@shared/types";
+import { useT } from "../../i18n";
+import { Eyebrow } from "../ui";
 
 interface KanbanProps {
   tasks: TaskRecord[];
@@ -9,13 +11,13 @@ interface KanbanProps {
   onSelectTask: (taskId: string) => void;
 }
 
-const KANBAN_COLUMNS: Array<{ status: TaskRecord["status"]; label: string; tone: string; dotColor: string }> = [
-  { status: "backlog", label: "Backlog", tone: "text-muted-foreground", dotColor: "bg-[color:var(--muted-foreground)]" },
-  { status: "todo", label: "Todo", tone: "text-warning", dotColor: "bg-warning" },
-  { status: "in_progress", label: "In Progress", tone: "text-primary", dotColor: "bg-primary" },
-  { status: "in_review", label: "In Review", tone: "text-warning", dotColor: "bg-warning" },
-  { status: "done", label: "Done", tone: "text-success", dotColor: "bg-success" },
-  { status: "blocked", label: "Blocked", tone: "text-destructive", dotColor: "bg-destructive" },
+const KANBAN_COLUMNS: Array<{ status: TaskRecord["status"]; labelKey: string; tone: string; dotColor: string }> = [
+  { status: "backlog", labelKey: "kanban.backlog", tone: "text-muted-foreground", dotColor: "bg-[color:var(--muted-foreground)]" },
+  { status: "todo", labelKey: "kanban.todo", tone: "text-warning", dotColor: "bg-warning" },
+  { status: "in_progress", labelKey: "kanban.inProgress", tone: "text-primary", dotColor: "bg-primary" },
+  { status: "in_review", labelKey: "kanban.inReview", tone: "text-warning", dotColor: "bg-warning" },
+  { status: "done", labelKey: "kanban.done", tone: "text-success", dotColor: "bg-success" },
+  { status: "blocked", labelKey: "kanban.blocked", tone: "text-destructive", dotColor: "bg-destructive" },
 ];
 
 const priorityColors: Record<string, string> = {
@@ -26,6 +28,7 @@ const priorityColors: Record<string, string> = {
 };
 
 export function KanbanBoard({ tasks, agents, runs, onSelectTask }: KanbanProps) {
+  const t = useT();
   const tasksByStatus = useMemo(() => {
     const grouped: Record<string, TaskRecord[]> = {};
     for (const col of KANBAN_COLUMNS) grouped[col.status] = [];
@@ -46,8 +49,8 @@ export function KanbanBoard({ tasks, agents, runs, onSelectTask }: KanbanProps) 
     return (
       <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
         <Briefcase size={32} className="mb-3 text-muted-foreground" />
-        <div className="text-[14px] font-medium text-muted-foreground">No tasks yet</div>
-        <div className="mt-1 text-[12px] text-muted-foreground">Tasks created by agents will appear here on the board</div>
+        <div className="text-[14px] font-medium text-muted-foreground">{t("kanban.noTasks")}</div>
+        <div className="mt-1 text-[12px] text-muted-foreground">{t("kanban.noTasksDetail")}</div>
       </div>
     );
   }
@@ -60,7 +63,7 @@ export function KanbanBoard({ tasks, agents, runs, onSelectTask }: KanbanProps) 
           <div key={col.status} className="flex w-[220px] min-w-[160px] shrink-0 flex-col lg:w-[240px]">
             <div className="mb-2 flex items-center gap-2 px-1">
               <span className={`h-2.5 w-2.5 rounded-full ${col.dotColor}`} aria-hidden="true" />
-              <span className={`text-[11px] font-semibold uppercase tracking-[0.08em] ${col.tone}`}>{col.label}</span>
+              <Eyebrow className={col.tone}>{t(col.labelKey)}</Eyebrow>
               <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground">
                 {colTasks.length}
               </span>
@@ -85,18 +88,18 @@ export function KanbanBoard({ tasks, agents, runs, onSelectTask }: KanbanProps) 
                           {assignee.name}
                         </span>
                       ) : (
-                        <span className="text-[10px] italic text-muted-foreground">Unassigned</span>
+                        <span className="text-[10px] italic text-muted-foreground">{t("kanban.unassigned")}</span>
                       )}
                       {isRunning ? (
                         <span className="flex items-center gap-1 whitespace-nowrap text-[10px] text-success">
                           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" aria-hidden="true" />
-                          Running
+                          {t("kanban.running")}
                         </span>
                       ) : null}
                     </div>
                     {task.priority === "critical" || task.priority === "high" ? (
                       <div className={`mt-1 text-[9px] font-bold uppercase tracking-[0.12em] ${task.priority === "critical" ? "text-destructive" : "text-warning"}`}>
-                        {task.priority}
+                        {task.priority === "critical" ? t("kanban.priority.critical") : t("kanban.priority.high")}
                       </div>
                     ) : null}
                   </button>

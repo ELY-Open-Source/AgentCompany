@@ -1,7 +1,10 @@
 import { ActionButton } from "../ui";
 import { ModelToggleList, StatusBadge } from "../execution/ModelManagementShared";
 import { OnboardingStep } from "./OnboardingStep";
-import { useOnboarding } from "./OnboardingContext";
+import {
+  useOnboardingConnectors,
+  useOnboardingWizard,
+} from "./OnboardingContext";
 
 interface ModelPoolStepProps {
   onBack: () => void;
@@ -9,16 +12,14 @@ interface ModelPoolStepProps {
 }
 
 export function ModelPoolStep({ onBack, onContinue }: ModelPoolStepProps) {
+  const { error, t } = useOnboardingWizard();
   const {
-    currentLocale,
     connectorModelPools,
-    error,
     onToggleConnectorModel,
     selectedConnectorId,
     selectedConnectorEnabledModels,
     totalEnabledModels,
-    t,
-  } = useOnboarding();
+  } = useOnboardingConnectors();
 
   const selectedConnectorIsRunnable = selectedConnectorEnabledModels > 0;
   const hasAnyEnabledModels = totalEnabledModels > 0;
@@ -53,23 +54,20 @@ export function ModelPoolStep({ onBack, onContinue }: ModelPoolStepProps) {
                     </span>
                     {connector.id === selectedConnectorId ? (
                       <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-primary">
-                        {currentLocale === "zh" ? "CEO 当前运行时" : "CEO runtime"}
+                        {t("models.ceoRuntime")}
                       </span>
                     ) : null}
                   </div>
                   <div className="mt-1 text-[11px] text-muted-foreground">
-                    {currentLocale === "zh"
-                      ? `已启用 ${enabledCount} / ${models.length || 0} 个模型`
-                      : `${enabledCount} / ${models.length || 0} models enabled`}
+                    {t("models.poolSummary").replace("{enabled}", String(enabledCount)).replace("{total}", String(models.length || 0))}
                   </div>
                 </div>
-                <StatusBadge status={connector.status} zh={currentLocale === "zh"} />
+                <StatusBadge status={connector.status} />
               </div>
               <ModelToggleList
                 models={models}
                 onToggle={(modelId) => void onToggleConnectorModel(connector.id, modelId)}
                 canRemove={false}
-                zh={currentLocale === "zh"}
               />
             </div>
           );

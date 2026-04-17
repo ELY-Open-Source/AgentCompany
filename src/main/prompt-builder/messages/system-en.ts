@@ -270,20 +270,6 @@ export function importantRulesSection(companyId: string, agentId: string, runId:
 `;
 }
 
-export function skillManifestEntries(entries: Array<{ name: string; whenToUse: string; allowedTools: string[]; effort: string }>): string {
-  const lines = entries.map((s) => {
-    const parts = [`- ${s.name}`];
-    if (s.whenToUse) parts.push(`  Use when: ${s.whenToUse}`);
-    if (s.allowedTools.length > 0) parts.push(`  Allowed tools: ${s.allowedTools.join(", ")}`);
-    if (s.effort !== "medium") parts.push(`  Effort: ${s.effort}`);
-    return parts.join("\n");
-  });
-  return `Your domain skills:\n${lines.join("\n")}\nThese skills are loaded into your environment — use them when relevant to your work.`;
-}
-
-export function skillManifestNames(names: string[]): string {
-  return `Your domain skills: ${names.join(", ")}. These skills are loaded into your environment and provide domain expertise — use them when relevant to your work.`;
-}
 
 export const wakeReasonHeading = "# Wake Reason";
 

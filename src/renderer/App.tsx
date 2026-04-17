@@ -2,7 +2,7 @@ import { useCallback, useMemo, type ReactNode } from "react";
 import { CircleNotch, TerminalWindow } from "./components/ui/icons";
 import { LocaleContext, TranslationContext, type TranslationFn } from "./i18n";
 import type { AppLocale } from "@shared/locale";
-import { CompanyOnboarding } from "./components/CompanyOnboarding";
+import { CompanyOnboarding } from "./components/company-onboarding/OnboardingWizard";
 import TitleBar from "./components/TitleBar";
 import ToastContainer from "./components/Toast";
 import { SidebarView } from "./views/SidebarView";
@@ -14,6 +14,7 @@ import { useUIController } from "./hooks/useUIController";
 import { useCompanyController } from "./hooks/useCompanyController";
 import { useCommandPaletteHotkeys } from "./hooks/useCommandPaletteHotkeys";
 import { AppActionsContext, type AppActions } from "./hooks/useAppActions";
+import { SectionContext } from "./hooks/useSectionContext";
 import { unwrap } from "./lib/desktop";
 
 function Shell({
@@ -157,6 +158,7 @@ export function App() {
     <LocaleContext.Provider value={ui.locale}>
     <TranslationContext.Provider value={ui.t}>
     <AppActionsContext.Provider value={appActions}>
+    <SectionContext.Provider value={company.sectionContextValue}>
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
     {showCustomTitleBar && <TitleBar />}
     <div className={`grid min-h-0 flex-1 overflow-hidden transition-[grid-template-columns] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] ${ui.sidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[220px_minmax(0,1fr)]"}`}>
@@ -247,6 +249,7 @@ export function App() {
       <ToastContainer />
     </div>
     </div>
+    </SectionContext.Provider>
     </AppActionsContext.Provider>
     </TranslationContext.Provider>
     </LocaleContext.Provider>

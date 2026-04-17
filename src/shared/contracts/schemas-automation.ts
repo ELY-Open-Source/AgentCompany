@@ -1,17 +1,12 @@
 import { z } from "zod";
-import { DEPARTMENT_IDS } from "./helpers";
+import { DEPARTMENT_IDS, automationTriggerEnum } from "./helpers";
 
 export const automationRuleInputSchema = z.object({
   id: z.preprocess((v) => (v === "" ? null : v), z.string().uuid().nullable().optional()),
   companyId: z.string().uuid(),
   name: z.string().min(2).max(120),
   description: z.string().max(500).default(""),
-  trigger: z.enum([
-    "task_status_changed", "task_created", "task_blocked", "task_reassigned",
-    "run_completed", "run_failed", "approval_created", "approval_resolved",
-    "budget_threshold", "agent_idle", "comment_posted", "document_created",
-    "schedule", "hire_approved", "sprint_started", "sprint_ended",
-  ]),
+  trigger: automationTriggerEnum,
   conditionsJson: z.string().default("{}"),
   action: z.enum([
     "assign_task", "create_task", "notify_agent", "send_message",

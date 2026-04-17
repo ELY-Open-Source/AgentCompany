@@ -40,22 +40,22 @@ describe("CredentialResolver", () => {
   });
 
   it("resolves an api_key connector backed by an env variable", async () => {
-    process.env.MY_TEST_OPENAI_KEY = "sk-from-env-1234";
+    process.env.OPENAI_API_KEY = "sk-from-env-1234";
     store.save("openai", {
       kind: "api_key",
-      value: { source: "env", value: "MY_TEST_OPENAI_KEY" },
+      value: { source: "env", value: "OPENAI_API_KEY" },
     });
     try {
       const resolved = await resolver.resolve("openai");
       expect(resolved.apiKey).toBe("sk-from-env-1234");
     } finally {
-      delete process.env.MY_TEST_OPENAI_KEY;
+      delete process.env.OPENAI_API_KEY;
     }
   });
 
   it("throws CREDENTIAL_MISSING when the env-backed key is unset", async () => {
-    delete process.env.UNSET_TEST_KEY;
-    store.save("xai", { kind: "api_key", value: { source: "env", value: "UNSET_TEST_KEY" } });
+    delete process.env.XAI_API_KEY;
+    store.save("xai", { kind: "api_key", value: { source: "env", value: "XAI_API_KEY" } });
     await expect(resolver.resolve("xai")).rejects.toBeInstanceOf(CredentialError);
   });
 

@@ -23,6 +23,7 @@ interface RunnerDeps {
 
 export class WorkerRunner {
   private readonly abortControllers = new Map<string, AbortController>();
+  private readonly runPromises = new Map<string, Promise<void>>();
 
   constructor(private readonly deps: RunnerDeps) {}
 
@@ -31,21 +32,37 @@ export class WorkerRunner {
     if (controller) controller.abort();
   }
 
-  cancelAll(): void {
+  /**
+   * Aborts every in-flight run and returns a promise that resolves once
+   * each `run()` has settled (success, failure, or abort). Callers (the
+   * worker shutdown handler) must `await` this before `process.exit` so
+   * pending `persistMessage` RPCs and the final `run-finished` post reach
+   * the parent before the worker dies.
+   */
+  async cancelAll(): Promise<void> {
     for (const controller of this.abortControllers.values()) {
       controller.abort();
     }
+    const pending = [...this.runPromises.values()];
     this.abortControllers.clear();
+    await Promise.allSettled(pending);
   }
 
-  async run(job: RunJob): Promise<void> {
+  run(job: RunJob): Promise<void> {
+    const promise = this.runImpl(job).finally(() => {
+      this.runPromises.delete(job.runId);
+    });
+    this.runPromises.set(job.runId, promise);
+    return promise;
+  }
+
+  private async runImpl(job: RunJob): Promise<void> {
     const { post, rpc, isCancelled } = this.deps;
     const redact = buildRedactor(job.env);
     const abortController = new AbortController();
     this.abortControllers.set(job.runId, abortController);
 
     post({ type: "run-status", runId: job.runId, status: "running", message: `Running agent ${job.agentName}.` });
-    post({ type: "run-log", runId: job.runId, stream: "stdout", chunk: `[runner] starting run for ${job.agentName} (${job.connectorId}/${job.model ?? "?"})\n` });
 
     let resolvedModelId: string | null = job.model;
     let finalUsage: { inputTokens: number | null; outputTokens: number | null; costUsd: number | null } = {
@@ -54,6 +71,14 @@ export class WorkerRunner {
       costUsd: null,
     };
     let errorMessage: string | null = null;
+
+    // Inject the AgentCompany job env (AGENT_COMPANY_API_URL / API_KEY /
+    // AGENT_ID / COMPANY_ID / RUN_ID / TASK_ID / WAKE_REASON + provider
+    // secret bindings) into the worker's process.env BEFORE Agent
+    // construction, so the agent's bash-tool children can call back into
+    // our HTTP API via fetch(process.env.AGENT_COMPANY_API_URL). Restored
+    // in the outer finally regardless of success / abort / throw.
+    const restoreJobEnv = applyEnvOverrides(job.env);
 
     try {
       if (!job.model) {
@@ -73,8 +98,7 @@ export class WorkerRunner {
       }
       const prepared = prepareResponse.result as PrepareRunResult;
 
-      post({ type: "run-log", runId: job.runId, stream: "stdout", chunk: `[runner] prepareRun ok, resolving model\n` });
-      const restoreEnv = applyEnvOverrides(prepared.extraEnv);
+      const restoreProviderEnv = applyEnvOverrides(prepared.extraEnv);
       try {
         const model = resolveModel(prepared.provider, job.model);
         if (!model) {
@@ -82,7 +106,6 @@ export class WorkerRunner {
         }
         resolvedModelId = model.id;
         const extraHeaders = resolveExtraStreamHeaders(prepared.provider, prepared.apiKey);
-        post({ type: "run-log", runId: job.runId, stream: "stdout", chunk: `[runner] model=${model.id} provider=${prepared.provider} — constructing Agent\n` });
 
         const cwd = job.workspacePath ?? process.cwd();
         const tools = createCodingTools(cwd) as never;
@@ -100,36 +123,10 @@ export class WorkerRunner {
               apiKey: prepared.apiKey,
               headers: { ...(options?.headers ?? {}), ...(extraHeaders ?? {}) },
             }),
-          beforeToolCall: async (context) => {
-            const verdict = await rpc.invoke(job.runId, "beforeToolCall", {
-              agentId: job.agentId,
-              companyId: job.companyId,
-              taskId: job.taskId,
-              toolCallId: context.toolCall.id,
-              toolName: context.toolCall.name,
-              args: context.args,
-            });
-            if (verdict.ok) {
-              return verdict.result as { block?: boolean; reason?: string } | undefined;
-            }
-            return { block: true, reason: verdict.error };
-          },
-          afterToolCall: async (context) => {
-            await rpc.invoke(job.runId, "afterToolCall", {
-              toolCallId: context.toolCall.id,
-              toolName: context.toolCall.name,
-              isError: context.isError,
-            });
-            return undefined;
-          },
         });
 
         const unsubscribe = agent.subscribe(async (event) => {
           const timestamp = new Date().toISOString();
-          // Surface every pi AgentEvent type as a raw Console probe so the
-          // operator can see the live event stream even when projection
-          // misses a type or the agent is stuck inside a particular phase.
-          post({ type: "run-log", runId: job.runId, stream: "stdout", chunk: `[pi-event] ${event.type}\n` });
           post({
             type: "agent-event",
             runId: job.runId,
@@ -166,22 +163,21 @@ export class WorkerRunner {
             content: [{ type: "text", text: promptContent }],
             timestamp: Date.now(),
           };
-          post({ type: "run-log", runId: job.runId, stream: "stdout", chunk: `[runner] calling agent.prompt (${promptContent.length} chars)\n` });
           const runPromise = agent.prompt(promptMessage);
           abortController.signal.addEventListener("abort", () => agent.abort(), { once: true });
           await runPromise;
-          post({ type: "run-log", runId: job.runId, stream: "stdout", chunk: `[runner] agent.prompt resolved\n` });
         } finally {
           unsubscribe();
         }
       } finally {
-        restoreEnv();
+        restoreProviderEnv();
       }
     } catch (error) {
       errorMessage = error instanceof Error ? error.message : String(error);
       post({ type: "run-log", runId: job.runId, stream: "stderr", chunk: redact(errorMessage) });
     } finally {
       this.abortControllers.delete(job.runId);
+      restoreJobEnv();
     }
 
     const status: RunStatus = isCancelled(job.runId)

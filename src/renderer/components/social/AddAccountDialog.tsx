@@ -2,6 +2,7 @@ import { useState } from "react";
 import { SignIn } from "../ui/icons";
 import type { SocialPlatform } from "@shared/types";
 import { ActionButton, Modal } from "../ui";
+import { useT } from "../../i18n";
 import { platformConfig } from "./social-config";
 
 interface AddAccountDialogProps {
@@ -10,14 +11,15 @@ interface AddAccountDialogProps {
 }
 
 export function AddAccountDialog({ onAddAndLogin, onClose }: AddAccountDialogProps) {
+  const t = useT();
   const [platform, setPlatform] = useState<SocialPlatform>("twitter");
   const [requireApproval, setRequireApproval] = useState(true);
 
   return (
-    <Modal open onClose={onClose} title="Add Social Account" width="420px">
+    <Modal open onClose={onClose} title={t("social.addAccountTitle")} width="420px">
       <div className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-[12px] font-medium text-muted-foreground">Platform</label>
+          <label className="mb-1.5 block text-[12px] font-medium text-muted-foreground">{t("social.platformLabel")}</label>
           <div className="max-h-[240px] overflow-y-auto rounded-lg border border-border p-1.5">
             <div className="grid grid-cols-3 gap-1.5">
               {(Object.entries(platformConfig) as [SocialPlatform, typeof platformConfig.twitter][]).map(([key, config]) => (
@@ -50,23 +52,23 @@ export function AddAccountDialog({ onAddAndLogin, onClose }: AddAccountDialogPro
               className="h-4 w-4 rounded border-border accent-[color:var(--primary)]"
             />
             <div>
-              <div className="text-[12px] font-medium text-foreground">Require Board Approval for Posts</div>
+              <div className="text-[12px] font-medium text-foreground">{t("social.requireApprovalTitle")}</div>
               <div className="mt-0.5 text-[10px] text-muted-foreground">
-                Agents must get approval before publishing content to this account
+                {t("social.requireApprovalBody")}
               </div>
             </div>
           </label>
         </div>
 
         <div className="rounded-lg bg-accent px-4 py-3 text-[11px] text-muted-foreground">
-          A browser window will open for you to sign in. Your username and profile info will be detected automatically after login.
+          {t("social.signInHint")}
         </div>
       </div>
 
       <div className="mt-6 flex justify-end gap-3">
-        <ActionButton label="Cancel" onClick={onClose} />
+        <ActionButton label={t("social.cancel")} onClick={onClose} />
         <ActionButton
-          label="Login"
+          label={t("social.loginButton")}
           onClick={() => onAddAndLogin(platform, requireApproval)}
           icon={SignIn}
           tone="accent"

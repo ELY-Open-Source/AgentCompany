@@ -5,19 +5,17 @@ import {
   UserPlus,
   Kanban,
 } from "../../components/ui/icons";
-import {
-  AgentCreator,
-  AgentEditor,
-  AgentRoster,
-  GoalCreator,
-  GoalEditor,
-  GoalList,
-  OrgChart,
-  ProjectCreator,
-  ProjectEditor,
-  ProjectList,
-} from "../../components/organization";
-import { HiringPipeline } from "../../components/hiring";
+import { AgentCreator } from "../../components/organization/AgentCreator";
+import { AgentEditor } from "../../components/organization/AgentEditor";
+import { AgentRoster } from "../../components/organization/AgentRoster";
+import { GoalCreator } from "../../components/organization/GoalCreator";
+import { GoalEditor } from "../../components/organization/GoalEditor";
+import { GoalList } from "../../components/organization/GoalList";
+import { OrgChart } from "../../components/organization/OrgChart";
+import { ProjectCreator } from "../../components/organization/ProjectCreator";
+import { ProjectEditor } from "../../components/organization/ProjectEditor";
+import { ProjectList } from "../../components/organization/ProjectList";
+import { HiringPipeline } from "../../components/hiring/HiringPipeline";
 import { ActionButton, Modal, Panel } from "../../components/ui";
 import { useT } from "../../i18n";
 import { useAppStore } from "../../state/store";

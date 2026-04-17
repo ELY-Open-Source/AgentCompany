@@ -1,14 +1,18 @@
 import { motion } from "framer-motion";
 import { CheckCircle, Rocket } from "../ui/icons";
 import { ActionButton } from "../ui";
-import { useOnboarding } from "./OnboardingContext";
+import {
+  useOnboardingConnectors,
+  useOnboardingWizard,
+} from "./OnboardingContext";
 
 interface LaunchStepProps {
   onFinish: () => void;
 }
 
 export function LaunchStep({ onFinish }: LaunchStepProps) {
-  const { launchSummary, selectedConnector, loading, error, t } = useOnboarding();
+  const { launchSummary, loading, error, t } = useOnboardingWizard();
+  const { selectedConnector } = useOnboardingConnectors();
 
   if (!launchSummary) return null;
 

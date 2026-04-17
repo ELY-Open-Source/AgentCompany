@@ -136,8 +136,11 @@ export function useConnectorModelSelection(
         setConnectorModelsById((previous) =>
           connectorCatalogsEqual(previous, next) ? previous : next,
         );
-      } catch {
+      } catch (error) {
         if (cancelled) return;
+        console.warn(
+          `[onboarding/useConnectorModelSelection] connector model fetch failed; clearing catalog: ${error instanceof Error ? error.message : String(error)}`,
+        );
         setConnectorModelsById((previous) => (Object.keys(previous).length === 0 ? previous : {}));
         setSelectedModel("");
       } finally {

@@ -7,7 +7,7 @@ import {
   listFeaturedOnboardingConnectors,
 } from "@shared/connector-catalog";
 import { OnboardingStep } from "./OnboardingStep";
-import { useOnboarding } from "./OnboardingContext";
+import { useOnboardingWizard } from "./OnboardingContext";
 import { OnboardingProviderDispatch } from "./provider-cards/ProviderCard";
 
 interface ProvidersStepProps {
@@ -20,7 +20,7 @@ const FEATURED_IDS = new Set(FEATURED.map((entry) => entry.id));
 const ADVANCED = CONNECTOR_CATALOG.filter((entry) => !FEATURED_IDS.has(entry.id));
 
 export function ProvidersStep({ onContinue, onBack }: ProvidersStepProps) {
-  const { t, error } = useOnboarding();
+  const { t, error } = useOnboardingWizard();
   const [credentialsMap, setCredentialsMap] = useState<Map<string, CredentialSummary>>(
     new Map(),
   );

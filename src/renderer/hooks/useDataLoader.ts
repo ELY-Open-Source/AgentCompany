@@ -6,9 +6,11 @@ import { useAppStore } from "../state/store";
 export function useDataLoader(
   snapshot: ProfileSnapshot | null,
   section: SectionId,
-  selectedConnectorId: string | null,
-  selectedRunId: string | null,
 ) {
+  // HOOK-006 fix: empty deps. The callback reads selectedConnectorId /
+  // selectedRunId via getState() at call time so its identity stays stable
+  // across connector/run selection changes and AppActions consumers do not
+  // cascade re-render.
   const refresh = useCallback(async () => {
     const store = useAppStore.getState();
     try {
@@ -17,8 +19,10 @@ export function useDataLoader(
       if (next.companies.length === 0) {
         store.setInitialOnboardingLocked(true);
       }
-      if (!selectedConnectorId && next.connectors[0]) store.setSelectedConnectorId(next.connectors[0].id);
-      if (!selectedRunId && next.runs[0]) store.setSelectedRunId(next.runs[0].id);
+      const currentSelectedConnectorId = useAppStore.getState().selectedConnectorId;
+      const currentSelectedRunId = useAppStore.getState().selectedRunId;
+      if (!currentSelectedConnectorId && next.connectors[0]) store.setSelectedConnectorId(next.connectors[0].id);
+      if (!currentSelectedRunId && next.runs[0]) store.setSelectedRunId(next.runs[0].id);
       if (next.currentCompanyId) {
         const badgeResult = await window.agentCompany.getSidebarBadges(next.currentCompanyId);
         if (badgeResult.ok) store.setBadges(badgeResult.data);
@@ -34,11 +38,14 @@ export function useDataLoader(
     } catch (nextError) {
       store.setError(nextError instanceof Error ? nextError.message : String(nextError));
     }
-  }, [selectedConnectorId, selectedRunId]);
+  }, []);
 
-  // Section-based data loading; resets when section OR company changes so
-  // in-flight requests for the previous company cannot overwrite new state.
   const currentCompanyId = snapshot?.currentCompanyId ?? null;
+  // HOOK-003 fix: IPC effect keyed on [section, currentCompanyId,
+  // snapshotRevision]. snapshotRevision only bumps on full-snapshot swaps
+  // (setSnapshot / refreshSnapshot), so granular patchTask/patchRun/etc. do
+  // not re-trigger inbox/metrics/standup IPC fetches.
+  const snapshotRevision = useAppStore((s) => s.snapshotRevision);
   useEffect(() => {
     if (!currentCompanyId) return;
     const companyId = currentCompanyId;
@@ -63,14 +70,22 @@ export function useDataLoader(
       });
     }
 
-    if (section === "social") {
-      store.setSocialAccounts(snapshot?.socialAccounts?.filter((a) => a.companyId === companyId) ?? []);
-    }
-
     return () => {
       cancelled = true;
     };
-  }, [section, currentCompanyId, snapshot]);
+  }, [section, currentCompanyId, snapshotRevision]);
+
+  // Social accounts are read directly from the snapshot (no IPC), so keep
+  // them reactive to snapshot mutations independently of the IPC effect
+  // above.
+  const socialAccounts = snapshot?.socialAccounts;
+  useEffect(() => {
+    if (!currentCompanyId) return;
+    if (section !== "social") return;
+    useAppStore.getState().setSocialAccounts(
+      socialAccounts?.filter((a) => a.companyId === currentCompanyId) ?? [],
+    );
+  }, [section, currentCompanyId, socialAccounts]);
 
   return { refresh };
 }

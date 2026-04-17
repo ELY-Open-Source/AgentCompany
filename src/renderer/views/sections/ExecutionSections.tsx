@@ -7,27 +7,23 @@ import {
   Target,
 } from "../../components/ui/icons";
 import { ConnectorEditor } from "../../components/connectors";
-import { KanbanBoard } from "../../components/dashboard";
+import { KanbanBoard } from "../../components/dashboard/KanbanBoard";
 import { TwoPaneLayout } from "../../components/TwoPaneLayout";
-import { RunCenter } from "../../components/runs";
-import {
-  ActivityList,
-  ApprovalInspector,
-  ApprovalList,
-  BudgetSummary,
-  CostList,
-  PendingReviewList,
-  TaskCreator,
-  TaskInspector,
-  TaskQueue,
-} from "../../components/execution";
+import { RunCenter } from "../../components/runs/RunCenter";
+import { ActivityList } from "../../components/execution/ActivityList";
+import { ApprovalInspector } from "../../components/execution/approval-inspector";
+import { ApprovalList } from "../../components/execution/ApprovalList";
+import { BudgetSummary } from "../../components/execution/BudgetSummary";
+import { CostList } from "../../components/execution/CostList";
+import { PendingReviewList } from "../../components/execution/PendingReviewList";
+import { TaskCreator } from "../../components/execution/TaskCreator";
+import { TaskInspector } from "../../components/execution/TaskInspector";
+import { TaskQueue } from "../../components/execution/TaskQueue";
 import { PolicyList } from "../../components/execution/PolicyList";
 import { IncidentList } from "../../components/execution/IncidentList";
-import {
-  GoalCreator,
-  GoalEditor,
-  GoalList,
-} from "../../components/organization";
+import { GoalCreator } from "../../components/organization/GoalCreator";
+import { GoalEditor } from "../../components/organization/GoalEditor";
+import { GoalList } from "../../components/organization/GoalList";
 import { ActionButton, ListFrame, ListRow, Modal, Panel, StatusPill } from "../../components/ui";
 import { unwrap } from "../../lib/desktop";
 import { useAppStore } from "../../state/store";

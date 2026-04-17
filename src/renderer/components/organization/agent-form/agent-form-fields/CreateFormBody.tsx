@@ -112,21 +112,21 @@ export function CreateFormBody({
         value={name}
         onChange={setName}
         placeholder={t("org.agentName")}
-        hint="Display name shown in org chart and messages"
+        hint={t("agent.form.nameHint")}
       />
       <Input
         label={t("agent.role")}
         value={role}
         onChange={setRole}
-        placeholder="e.g. Engineer, PM, CEO"
-        hint="Determines which tasks the agent can handle"
+        placeholder={t("agent.form.rolePlaceholder")}
+        hint={t("agent.form.roleHint")}
       />
       <Input
         label={t("agent.title")}
         value={title}
         onChange={setTitle}
         placeholder={t("agent.title")}
-        hint="Job title shown under the name"
+        hint={t("agent.form.titleHint")}
       />
       <Select
         label={t("org.connector")}
@@ -152,9 +152,9 @@ export function CreateFormBody({
           onChange={setThinkingEffort}
           options={[
             { value: "", label: t("org.default") },
-            { value: "low", label: "Low" },
-            { value: "medium", label: "Medium" },
-            { value: "high", label: "High" },
+            { value: "low", label: t("agent.form.effortLow") },
+            { value: "medium", label: t("agent.form.effortMedium") },
+            { value: "high", label: t("agent.form.effortHigh") },
           ]}
         />
       ) : null}
@@ -224,16 +224,16 @@ export function CreateFormBody({
               label={t("org.monthlyBudget")}
               value={budget}
               onChange={setBudget}
-              placeholder="120"
+              placeholder={t("agent.form.budgetPlaceholder")}
               type="number"
-              hint="Spending cap per month; agent pauses when exceeded"
+              hint={t("agent.form.budgetHint")}
             />
             <TextArea
               label={t("agent.capabilities")}
               value={capabilities}
               onChange={setCapabilities}
-              placeholder="What this agent does"
-              hint="Skills and domain knowledge injected into the agent's system prompt"
+              placeholder={t("agent.form.capabilitiesPlaceholder")}
+              hint={t("agent.form.capabilitiesHint")}
             />
           </motion.div>
         ) : null}

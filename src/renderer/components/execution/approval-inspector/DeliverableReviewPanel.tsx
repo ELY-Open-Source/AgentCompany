@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react"
 import { CaretDown, CaretUp } from "../../ui/icons"
 import type { AgentRecord, ApprovalRecord, DocumentRecord } from "@shared/types"
+import { Card, Eyebrow } from "../../ui"
+import { useT } from "../../../i18n"
 import { useApprovalPayload } from "./useApprovalPayload"
 
 interface DocRef {
@@ -36,6 +38,7 @@ export function DeliverableReviewPanel({
   documents?: DocumentRecord[]
   agents: AgentRecord[]
 }) {
+  const t = useT()
   const payload = useApprovalPayload(approval)
   const docRefs = useMemo(() => toDocRefs(payload?.documents), [payload])
   const docIds = useMemo(() => toDocIds(payload?.documentIds, docRefs), [payload, docRefs])
@@ -52,13 +55,13 @@ export function DeliverableReviewPanel({
 
   return (
     <div className="space-y-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-primary">Deliverable Review</div>
+      <Eyebrow tone="primary">{t("approval.deliverableReview")}</Eyebrow>
       {fullDocs.length > 0 ? (
         fullDocs.map((doc) => {
           const isExpanded = expandedDocId === doc.id
           const author = doc.authorAgentId ? agents.find((a) => a.id === doc.authorAgentId) : null
           return (
-            <div key={doc.id} className="rounded-lg border border-border overflow-hidden">
+            <Card key={doc.id} padding="none" className="overflow-hidden">
               <button
                 type="button"
                 onClick={() => setExpandedDocId(isExpanded ? null : doc.id)}
@@ -78,28 +81,29 @@ export function DeliverableReviewPanel({
                 <div className="border-t border-border px-4 py-3">
                   {author ? (
                     <div className="mb-2 text-[11px] text-muted-foreground">
-                      Author: <span className="font-medium text-foreground">{author.name}</span> ({author.role})
+                      {t("approval.hireAuthor")} <span className="font-medium text-foreground">{author.name}</span> ({author.role})
                     </div>
                   ) : null}
                   <div className="whitespace-pre-wrap text-[12px] leading-relaxed text-foreground">
-                    {doc.content || "No content."}
+                    {doc.content || t("approval.docEmpty")}
                   </div>
                 </div>
               ) : null}
-            </div>
+            </Card>
           )
         })
       ) : docRefs.length > 0 ? (
         docRefs.map((doc) => (
-          <div
+          <Card
             key={doc.id}
-            className="flex items-center gap-2 rounded-lg border border-border bg-muted px-4 py-3 text-[12px]"
+            padding="sm"
+            className="flex items-center gap-2 bg-muted text-[12px]"
           >
             <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
               {doc.type.replaceAll("_", " ")}
             </span>
             <span className="font-medium text-foreground">{doc.title}</span>
-          </div>
+          </Card>
         ))
       ) : (
         <div className="text-[12px] text-muted-foreground">{approval.payloadSummary}</div>

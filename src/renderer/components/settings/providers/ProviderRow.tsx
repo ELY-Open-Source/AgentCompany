@@ -5,48 +5,65 @@ import { ApiKeyForm } from "../forms/ApiKeyForm";
 import { AzureForm } from "../forms/AzureForm";
 import { AwsForm } from "../forms/AwsForm";
 import { VertexForm } from "../forms/VertexForm";
+import { ActionButton } from "../../ui";
+import { useT, type TranslationFn } from "../../../i18n";
 
 interface Props {
   entry: ConnectorCatalogEntry;
   credential: CredentialSummary | null;
 }
 
-const KIND_LABEL: Record<ConnectorCatalogEntry["auth"]["type"], string> = {
-  oauth: "OAuth",
-  api_key: "API key",
-  azure: "Azure",
-  aws: "AWS",
-  gcp_adc: "Vertex (ADC)",
-};
+function kindLabel(
+  auth: ConnectorCatalogEntry["auth"]["type"],
+  t: TranslationFn,
+): string {
+  switch (auth) {
+    case "oauth":
+      return t("providers.kindOAuth");
+    case "api_key":
+      return t("providers.kindApiKey");
+    case "azure":
+      return t("providers.kindAzure");
+    case "aws":
+      return t("providers.kindAws");
+    case "gcp_adc":
+      return t("providers.kindGcp");
+  }
+}
 
 const STATUS_STYLE: Record<string, { dot: string; text: string }> = {
-  active: { dot: "bg-emerald-400", text: "text-emerald-400" },
-  expired: { dot: "bg-amber-400", text: "text-amber-400" },
-  error: { dot: "bg-red-400", text: "text-red-400" },
+  active: { dot: "bg-success", text: "text-success" },
+  expired: { dot: "bg-warning", text: "text-warning" },
+  error: { dot: "bg-destructive", text: "text-destructive" },
   not_configured: { dot: "bg-muted-foreground/30", text: "text-muted-foreground" },
   revoked: { dot: "bg-muted-foreground/30", text: "text-muted-foreground" },
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  active: "Connected",
-  expired: "Expired",
-  error: "Error",
-  not_configured: "Not configured",
-  revoked: "Revoked",
-};
-
-const ACTION_BASE =
-  "rounded px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-40";
-const ACTION_PRIMARY = ACTION_BASE + " bg-foreground text-background hover:opacity-90";
-const ACTION_SECONDARY = ACTION_BASE + " text-muted-foreground hover:text-foreground";
+function statusLabel(status: string, t: TranslationFn): string {
+  switch (status) {
+    case "active":
+      return t("providers.statusConnected");
+    case "expired":
+      return t("providers.statusExpired");
+    case "error":
+      return t("providers.statusError");
+    case "not_configured":
+      return t("providers.statusNotConfigured");
+    case "revoked":
+      return t("providers.statusRevoked");
+    default:
+      return status;
+  }
+}
 
 export function ProviderRow({ entry, credential }: Props) {
+  const t = useT();
   const [busy, setBusy] = useState<"login" | "remove" | "test" | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const status = credential?.status ?? "not_configured";
   const statusStyle = STATUS_STYLE[status] ?? STATUS_STYLE.not_configured;
-  const statusLabel = STATUS_LABEL[status] ?? status;
+  const statusLabelText = statusLabel(status, t);
   const hasCredential = credential !== null;
 
   const handleOAuthLogin = async () => {
@@ -80,7 +97,9 @@ export function ProviderRow({ entry, credential }: Props) {
       return;
     }
     setFeedback(
-      result.data.ok ? `OK — ${result.data.message}` : `Failed — ${result.data.message}`,
+      result.data.ok
+        ? t("providers.testOk").replace("{message}", result.data.message)
+        : t("providers.testFailed").replace("{message}", result.data.message),
     );
   };
 
@@ -88,7 +107,7 @@ export function ProviderRow({ entry, credential }: Props) {
     if (!editing || entry.auth.type === "oauth") return null;
     const onSaved = () => {
       setEditing(false);
-      setFeedback("Saved.");
+      setFeedback(t("providers.saved"));
     };
     const apiKeyEnv = entry.auth.type === "api_key" ? entry.auth.envKey : undefined;
     if (entry.auth.type === "api_key")
@@ -109,7 +128,7 @@ export function ProviderRow({ entry, credential }: Props) {
     <li className="px-4 py-3 transition-colors hover:bg-muted/30">
       <div className="flex items-center gap-4">
         <span
-          aria-label={`status: ${statusLabel}`}
+          aria-label={t("providers.statusAria").replace("{label}", statusLabelText)}
           className={`block h-2 w-2 flex-shrink-0 rounded-full ${statusStyle.dot}`}
         />
         <div className="min-w-0 flex-1">
@@ -118,52 +137,54 @@ export function ProviderRow({ entry, credential }: Props) {
               {entry.label}
             </div>
             <div className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/70">
-              {KIND_LABEL[entry.auth.type]}
+              {kindLabel(entry.auth.type, t)}
             </div>
           </div>
           <div className={`truncate text-[11px] ${statusStyle.text}`}>
-            {hasCredential ? (credential.displayHint ?? statusLabel) : statusLabel}
+            {hasCredential ? (credential.displayHint ?? statusLabelText) : statusLabelText}
           </div>
         </div>
         <div className="flex flex-shrink-0 items-center gap-1">
           {isOAuth ? (
-            <button
-              type="button"
+            <ActionButton
+              label={
+                busy === "login"
+                  ? t("providers.opening")
+                  : hasCredential
+                    ? t("providers.reLogin")
+                    : t("providers.login")
+              }
               disabled={disabled}
               onClick={() => void handleOAuthLogin()}
-              className={hasCredential ? ACTION_SECONDARY : ACTION_PRIMARY}
-            >
-              {busy === "login" ? "Opening…" : hasCredential ? "Re-login" : "Login"}
-            </button>
+              tone={hasCredential ? "default" : "accent"}
+            />
           ) : (
-            <button
-              type="button"
+            <ActionButton
+              label={
+                editing
+                  ? t("providers.close")
+                  : hasCredential
+                    ? t("providers.edit")
+                    : t("providers.configure")
+              }
               disabled={disabled}
               onClick={() => setEditing((current) => !current)}
-              className={hasCredential || editing ? ACTION_SECONDARY : ACTION_PRIMARY}
-            >
-              {editing ? "Close" : hasCredential ? "Edit" : "Configure"}
-            </button>
+              tone={hasCredential || editing ? "default" : "accent"}
+            />
           )}
           {hasCredential ? (
-            <button
-              type="button"
+            <ActionButton
+              label={busy === "test" ? t("providers.testing") : t("providers.test")}
               disabled={disabled}
               onClick={() => void handleTest()}
-              className={ACTION_SECONDARY}
-            >
-              {busy === "test" ? "Testing…" : "Test"}
-            </button>
+            />
           ) : null}
           {hasCredential ? (
-            <button
-              type="button"
+            <ActionButton
+              label={busy === "remove" ? t("providers.removing") : t("providers.remove")}
               disabled={disabled}
               onClick={() => void handleRemove()}
-              className={ACTION_SECONDARY}
-            >
-              {busy === "remove" ? "Removing…" : "Remove"}
-            </button>
+            />
           ) : null}
         </div>
       </div>

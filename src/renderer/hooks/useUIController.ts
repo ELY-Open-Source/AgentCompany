@@ -120,7 +120,13 @@ export function useUIController() {
 
   const handleLocaleChange = useCallback(async (newLocale: AppLocale) => {
     useAppStore.getState().setLocale(newLocale);
-    try { await window.agentCompany.updateSettings({ locale: newLocale }); } catch { /* local state already updated */ }
+    try {
+      await window.agentCompany.updateSettings({ locale: newLocale });
+    } catch (error) {
+      console.warn(
+        `[renderer/useUIController] persist locale=${newLocale} failed (local state already updated): ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }, []);
 
   const paletteTrapRef = useFocusTrap(commandPaletteOpen);
@@ -167,40 +173,82 @@ export function useUIController() {
     ...matchedProjects.map((project) => ({ key: `project:${project.id}`, section: "projects" as const, entityId: project.id })),
   ]), []);
 
-  return {
-    pageTransition,
-    panelTransition,
-    locale,
-    t,
-    handleLocaleChange,
-    sidebarNav,
-    sidebarGroups,
-    navItems,
-    section,
-    setSection,
-    consoleOpen,
-    setConsoleOpen,
-    sidebarCollapsed,
-    setSidebarCollapsed,
-    companySwitcherOpen,
-    setCompanySwitcherOpen,
-    confirmDeleteCompanyId,
-    setConfirmDeleteCompanyId,
-    taskViewMode,
-    setTaskViewMode,
-    showOnboarding,
-    setShowOnboarding,
-    initialOnboardingLocked,
-    setInitialOnboardingLocked,
-    commandPaletteOpen,
-    setCommandPaletteOpen,
-    commandPaletteSearch,
-    setCommandPaletteSearch,
-    selectedPaletteIndex,
-    setSelectedPaletteIndex,
-    paletteQuery,
-    paletteTrapRef,
-    buildPaletteResults,
-    buildPaletteActions,
-  };
+  // HOOK-001 fix: wrap the 27-field return in a stable useMemo so downstream
+  // `useMemo([ui, ...])` consumers do not bust on every render. Every field
+  // is listed in the dep array; Zustand setters from getState() are stable
+  // references.
+  return useMemo(
+    () => ({
+      pageTransition,
+      panelTransition,
+      locale,
+      t,
+      handleLocaleChange,
+      sidebarNav,
+      sidebarGroups,
+      navItems,
+      section,
+      setSection,
+      consoleOpen,
+      setConsoleOpen,
+      sidebarCollapsed,
+      setSidebarCollapsed,
+      companySwitcherOpen,
+      setCompanySwitcherOpen,
+      confirmDeleteCompanyId,
+      setConfirmDeleteCompanyId,
+      taskViewMode,
+      setTaskViewMode,
+      showOnboarding,
+      setShowOnboarding,
+      initialOnboardingLocked,
+      setInitialOnboardingLocked,
+      commandPaletteOpen,
+      setCommandPaletteOpen,
+      commandPaletteSearch,
+      setCommandPaletteSearch,
+      selectedPaletteIndex,
+      setSelectedPaletteIndex,
+      paletteQuery,
+      paletteTrapRef,
+      buildPaletteResults,
+      buildPaletteActions,
+    }),
+    [
+      pageTransition,
+      panelTransition,
+      locale,
+      t,
+      handleLocaleChange,
+      sidebarNav,
+      sidebarGroups,
+      navItems,
+      section,
+      setSection,
+      consoleOpen,
+      setConsoleOpen,
+      sidebarCollapsed,
+      setSidebarCollapsed,
+      companySwitcherOpen,
+      setCompanySwitcherOpen,
+      confirmDeleteCompanyId,
+      setConfirmDeleteCompanyId,
+      taskViewMode,
+      setTaskViewMode,
+      showOnboarding,
+      setShowOnboarding,
+      initialOnboardingLocked,
+      setInitialOnboardingLocked,
+      commandPaletteOpen,
+      setCommandPaletteOpen,
+      commandPaletteSearch,
+      setCommandPaletteSearch,
+      selectedPaletteIndex,
+      setSelectedPaletteIndex,
+      paletteQuery,
+      paletteTrapRef,
+      buildPaletteResults,
+      buildPaletteActions,
+    ],
+  );
 }

@@ -1,54 +1,16 @@
 import { describe, it, expect } from "vitest";
-import {
-  TOKEN_BUDGETS,
-  resolveTokenBudget,
-} from "@main/skill-types";
 import type {
   SkillSourceType,
   TrustLevel,
   FileInventoryEntry,
   SkillRecord,
   SkillImportResult,
-  RuntimeSkillEntry,
-  ManagedSkillRef,
+  ProjectedSkill,
   SkillAssignment,
   SkillUpdateStatus,
 } from "@main/skill-types";
 
 describe("skill-types", () => {
-  describe("TOKEN_BUDGETS", () => {
-    it("has entries for all supported connector types", () => {
-      expect(TOKEN_BUDGETS).toHaveProperty("claude-pro");
-      expect(TOKEN_BUDGETS).toHaveProperty("anthropic");
-      expect(TOKEN_BUDGETS).toHaveProperty("gemini-cli");
-      expect(TOKEN_BUDGETS).toHaveProperty("google");
-    });
-
-    it("has numeric token caps for each connector", () => {
-      expect(TOKEN_BUDGETS["claude-pro"]).toBe(50000);
-      expect(TOKEN_BUDGETS["anthropic"]).toBe(50000);
-      expect(TOKEN_BUDGETS["gemini-cli"]).toBe(50000);
-      expect(TOKEN_BUDGETS["google"]).toBe(50000);
-    });
-  });
-
-  describe("resolveTokenBudget", () => {
-    it("returns exact match for known connector types", () => {
-      expect(resolveTokenBudget("claude-pro")).toBe(50000);
-      expect(resolveTokenBudget("anthropic")).toBe(50000);
-      expect(resolveTokenBudget("gemini-cli")).toBe(50000);
-    });
-
-    it("resolves anthropic-family connectors to the larger injection budget", () => {
-      expect(resolveTokenBudget("amazon-bedrock")).toBe(50000);
-      expect(resolveTokenBudget("google-vertex")).toBe(50000);
-    });
-
-    it("returns 30000 default for unknown connector types", () => {
-      expect(resolveTokenBudget("unknown_connector")).toBe(30000);
-    });
-  });
-
   describe("type shape checks", () => {
     it("SkillSourceType accepts all five source kinds", () => {
       const sources: SkillSourceType[] = [
@@ -121,31 +83,15 @@ describe("skill-types", () => {
       expect(result.isUpdate).toBe(false);
     });
 
-    it("RuntimeSkillEntry has runtimeName, sourcePath, name, tokenEstimate and semantics", () => {
-      const entry: RuntimeSkillEntry = {
-        runtimeName: "claude",
-        sourcePath: "/path/to/skill",
+    it("ProjectedSkill matches pi-coding-agent Skill projection", () => {
+      const entry: ProjectedSkill = {
         name: "test-skill",
-        tokenEstimate: 1000,
-        allowedTools: ["read", "write"],
-        hooks: ["on_task_start"],
-        contextMode: "inline",
-        isAgent: false,
-        effort: "medium",
-        whenToUse: "when writing code",
+        description: "What this skill does and when to use it.",
+        filePath: "/abs/path/to/test-skill/SKILL.md",
+        baseDir: "/abs/path/to/test-skill",
       };
-      expect(entry.tokenEstimate).toBe(1000);
-      expect(entry.allowedTools).toEqual(["read", "write"]);
-      expect(entry.contextMode).toBe("inline");
-    });
-
-    it("ManagedSkillRef has runtimeName and sourcePath only", () => {
-      const ref: ManagedSkillRef = {
-        runtimeName: "claude",
-        sourcePath: "/path/to/skill",
-      };
-      expect(ref.runtimeName).toBe("claude");
-      expect(ref.sourcePath).toBe("/path/to/skill");
+      expect(entry.name).toBe("test-skill");
+      expect(entry.filePath.endsWith("SKILL.md")).toBe(true);
     });
 
     it("SkillAssignment has agentId and skillId", () => {

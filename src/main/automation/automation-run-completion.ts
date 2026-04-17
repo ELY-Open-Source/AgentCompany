@@ -3,7 +3,6 @@ import type { RunRecord, SectionId } from "@shared/types";
 import type { NotificationOptions } from "../notification-service";
 import type { AutomationEventContext, RunFinishedEvent } from "./types";
 import { IMPORTANT_DOCUMENT_TYPES } from "./types";
-import { isHeartbeatTaskTitle } from "../orchestration/heartbeat-task";
 
 function localizeNotification(locale: string | null | undefined, en: string, zh: string): string {
   return locale === "zh" ? zh : en;
@@ -225,11 +224,11 @@ export function processRunCompletion(
   let effectiveStatus = task.status;
 
   if (isSuccess && effectiveStatus === "in_progress") {
-    // Check if non-code task produced a deliverable before auto-advancing
+    // Delegate the task-type → deliverable-required decision to the pure
+    // helper so production and tests share a single source of truth.
     const taskType = task.taskType ?? "general";
-    const needsDeliverable = taskType === "research" || taskType === "content";
 
-    if (needsDeliverable) {
+    if (needsDeliverableCheck(taskType)) {
       const hasDeliverable = checkRunProducedDeliverable(db, run.id, run.companyId, task.id);
       if (!hasDeliverable) {
         // Don't auto-advance -- flag for manager review
@@ -243,7 +242,11 @@ export function processRunCompletion(
           if (chain.length > 0) {
             wakeAgentIfPossible(chain[0].id, run.companyId, "review_needed");
           }
-        } catch { /* best effort */ }
+        } catch (error) {
+          deps.logger.warn(
+            `[automation] deliverable-review manager wake failed for agent ${run.agentId}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
         publishDomainChanged();
         // Skip the normal in_review advance
       } else {
@@ -257,7 +260,7 @@ export function processRunCompletion(
     }
   }
 
-  if (isSuccess && isHeartbeatTaskTitle(task.title) && effectiveStatus !== "done") {
+  if (isSuccess && task.isHeartbeat && effectiveStatus !== "done") {
     db.advanceTaskStatus(task.id, "done", "Heartbeat check completed.");
     handleTaskStatusChange(task.id, run.companyId, effectiveStatus, "done");
   }

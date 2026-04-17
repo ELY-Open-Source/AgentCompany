@@ -1,12 +1,6 @@
 import { useState } from "react";
-import {
-  FIELD_INPUT,
-  FIELD_LABEL,
-  FIELD_SELECT,
-  FORM_BUTTON,
-  FORM_ERROR,
-  FORM_FIELDSET,
-} from "./form-shared";
+import { ActionButton, Input, Select } from "../../ui";
+import { useT } from "../../../i18n";
 
 interface Props {
   connectorId: string;
@@ -16,6 +10,7 @@ interface Props {
 type AuthMode = "profile" | "iam" | "bearer";
 
 export function AwsForm({ connectorId, onSaved }: Props) {
+  const t = useT();
   const [authMode, setAuthMode] = useState<AuthMode>("profile");
   const [region, setRegion] = useState("us-east-1");
   const [awsProfile, setAwsProfile] = useState("");
@@ -34,18 +29,18 @@ export function AwsForm({ connectorId, onSaved }: Props) {
     const desktop = window.agentCompany;
     if (!desktop) return;
     if (authMode === "profile" && awsProfile.trim().length === 0) {
-      setError("AWS profile name required.");
+      setError(t("form.aws.errProfileRequired"));
       return;
     }
     if (
       authMode === "iam" &&
       (accessKeyId.trim().length === 0 || secretAccessKey.trim().length === 0)
     ) {
-      setError("Access key id and secret access key required for IAM auth.");
+      setError(t("form.aws.errIamRequired"));
       return;
     }
     if (authMode === "bearer" && bearerToken.trim().length === 0) {
-      setError("Bearer token required.");
+      setError(t("form.aws.errBearerRequired"));
       return;
     }
     setBusy(true);
@@ -84,97 +79,35 @@ export function AwsForm({ connectorId, onSaved }: Props) {
         event.preventDefault();
         void handleSubmit();
       }}
-      className={FORM_FIELDSET}
+      className="space-y-3"
     >
-      <div>
-        <label className={FIELD_LABEL}>Auth mode</label>
-        <select
-          value={authMode}
-          onChange={(event) => setAuthMode(event.target.value as AuthMode)}
-          disabled={busy}
-          className={FIELD_SELECT}
-        >
-          <option value="profile">AWS profile (~/.aws/credentials)</option>
-          <option value="iam">IAM access key + secret</option>
-          <option value="bearer">Bedrock bearer token</option>
-        </select>
-      </div>
-      <div>
-        <label className={FIELD_LABEL}>AWS region</label>
-        <input
-          type="text"
-          value={region}
-          onChange={(event) => setRegion(event.target.value)}
-          disabled={busy}
-          className={FIELD_INPUT}
-          placeholder="us-east-1"
-        />
-      </div>
+      <Select
+        label={t("form.aws.authMode")}
+        value={authMode}
+        onChange={(v) => setAuthMode(v as AuthMode)}
+        disabled={busy}
+        options={[
+          { value: "profile", label: t("form.aws.authProfile") },
+          { value: "iam", label: t("form.aws.authIam") },
+          { value: "bearer", label: t("form.aws.authBearer") },
+        ]}
+      />
+      <Input label={t("form.aws.region")} value={region} onChange={setRegion} disabled={busy} placeholder="us-east-1" />
       {authMode === "profile" ? (
-        <div>
-          <label className={FIELD_LABEL}>Profile name</label>
-          <input
-            type="text"
-            value={awsProfile}
-            onChange={(event) => setAwsProfile(event.target.value)}
-            disabled={busy}
-            className={FIELD_INPUT}
-            placeholder="default"
-          />
-        </div>
+        <Input label={t("form.aws.profileName")} value={awsProfile} onChange={setAwsProfile} disabled={busy} placeholder="default" />
       ) : null}
       {authMode === "iam" ? (
         <>
-          <div>
-            <label className={FIELD_LABEL}>Access key id</label>
-            <input
-              type="text"
-              value={accessKeyId}
-              onChange={(event) => setAccessKeyId(event.target.value)}
-              disabled={busy}
-              className={FIELD_INPUT}
-              autoComplete="off"
-            />
-          </div>
-          <div>
-            <label className={FIELD_LABEL}>Secret access key</label>
-            <input
-              type="password"
-              value={secretAccessKey}
-              onChange={(event) => setSecretAccessKey(event.target.value)}
-              disabled={busy}
-              className={FIELD_INPUT}
-              autoComplete="off"
-            />
-          </div>
-          <div>
-            <label className={FIELD_LABEL}>Session token (optional)</label>
-            <input
-              type="password"
-              value={sessionToken}
-              onChange={(event) => setSessionToken(event.target.value)}
-              disabled={busy}
-              className={FIELD_INPUT}
-              autoComplete="off"
-            />
-          </div>
+          <Input label={t("form.aws.accessKeyId")} value={accessKeyId} onChange={setAccessKeyId} disabled={busy} />
+          <Input label={t("form.aws.secretAccessKey")} type="password" value={secretAccessKey} onChange={setSecretAccessKey} disabled={busy} />
+          <Input label={t("form.aws.sessionToken")} type="password" value={sessionToken} onChange={setSessionToken} disabled={busy} />
         </>
       ) : null}
       {authMode === "bearer" ? (
-        <div>
-          <label className={FIELD_LABEL}>Bearer token</label>
-          <input
-            type="password"
-            value={bearerToken}
-            onChange={(event) => setBearerToken(event.target.value)}
-            disabled={busy}
-            className={FIELD_INPUT}
-            autoComplete="off"
-          />
-        </div>
+        <Input label={t("form.aws.bearerToken")} type="password" value={bearerToken} onChange={setBearerToken} disabled={busy} />
       ) : null}
       <details className="rounded-md border border-border/50 px-3 py-2 text-[12px]">
-        <summary className="cursor-pointer select-none text-muted-foreground">Advanced</summary>
+        <summary className="cursor-pointer select-none text-muted-foreground">{t("form.aws.advanced")}</summary>
         <div className="mt-3 space-y-2">
           <label className="flex items-center gap-2 text-[12px] text-foreground">
             <input
@@ -183,19 +116,16 @@ export function AwsForm({ connectorId, onSaved }: Props) {
               onChange={(event) => setForceCache(event.target.checked)}
               disabled={busy}
             />
-            Force prompt cache (AWS_BEDROCK_FORCE_CACHE)
+            {t("form.aws.forceCache")}
           </label>
-          <div>
-            <label className={FIELD_LABEL}>Endpoint URL (optional)</label>
-            <input
-              type="url"
-              value={endpointUrl}
-              onChange={(event) => setEndpointUrl(event.target.value)}
-              disabled={busy}
-              className={FIELD_INPUT}
-              placeholder="https://bedrock-runtime.your-region.amazonaws.com"
-            />
-          </div>
+          <Input
+            label={t("form.aws.endpointUrl")}
+            type="url"
+            value={endpointUrl}
+            onChange={setEndpointUrl}
+            disabled={busy}
+            placeholder="https://bedrock-runtime.your-region.amazonaws.com"
+          />
           <label className="flex items-center gap-2 text-[12px] text-foreground">
             <input
               type="checkbox"
@@ -203,7 +133,7 @@ export function AwsForm({ connectorId, onSaved }: Props) {
               onChange={(event) => setSkipAuth(event.target.checked)}
               disabled={busy}
             />
-            Skip auth (AWS_BEDROCK_SKIP_AUTH)
+            {t("form.aws.skipAuth")}
           </label>
           <label className="flex items-center gap-2 text-[12px] text-foreground">
             <input
@@ -212,14 +142,22 @@ export function AwsForm({ connectorId, onSaved }: Props) {
               onChange={(event) => setForceHttp1(event.target.checked)}
               disabled={busy}
             />
-            Force HTTP/1.1 (AWS_BEDROCK_FORCE_HTTP1)
+            {t("form.aws.forceHttp1")}
           </label>
         </div>
       </details>
-      {error ? <div className={FORM_ERROR}>{error}</div> : null}
-      <button type="submit" disabled={busy} className={FORM_BUTTON}>
-        {busy ? "Saving…" : "Save"}
-      </button>
+      {error ? (
+        <div role="alert" className="rounded-md border border-[color:var(--destructive)] bg-destructive-muted px-3 py-2 text-[11px] text-destructive">
+          {error}
+        </div>
+      ) : null}
+      <ActionButton
+        type="submit"
+        label={busy ? t("form.saving") : t("form.save")}
+        tone="accent"
+        disabled={busy}
+        loading={busy}
+      />
     </form>
   );
 }

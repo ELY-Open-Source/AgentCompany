@@ -44,10 +44,7 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
         if (mode !== "ai_cofounder") return null;
 
         const task = db.getTask(taskId);
-        const taskType = db.queryAll<{ taskType: string }>(
-          "SELECT task_type as taskType FROM tasks WHERE id = ? LIMIT 1",
-          taskId,
-        )[0]?.taskType;
+        const taskType = db.getTaskType(taskId);
 
         // Only create plan checkpoints for non-code task types
         if (!taskType || !CHECKPOINT_TASK_TYPES.has(taskType)) return null;
@@ -136,16 +133,7 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
         }
 
         // Check for pending approvals related to this agent's tasks
-        const pendingApprovals = db.queryAll<{ id: string }>(
-          `SELECT a.id FROM approvals a
-           JOIN tasks t ON a.related_task_id = t.id
-           WHERE a.company_id = ? AND a.state = 'pending'
-           AND t.assignee_agent_id = ?
-           AND a.type IN ('plan_review','scope_review','draft_review','strategy_review','deliverable_review','exception_review')
-           LIMIT 1`,
-          companyId, agentId,
-        );
-        return pendingApprovals.length > 0;
+        return db.hasPendingReviewApprovalForAgent(companyId, agentId);
       } catch (err) {
         logger.error(`[checkpoint] shouldPauseHeartbeat failed: ${err instanceof Error ? err.message : String(err)}`);
         return false;

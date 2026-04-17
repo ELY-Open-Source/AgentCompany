@@ -212,7 +212,11 @@ export function createHeartbeat(
       const actorType = trigger === "timer" || trigger === "bootstrap" ? "system" : "agent";
       const actorId = trigger === "timer" || trigger === "bootstrap" ? null : trigger;
       db.updateRunActor(run.id, actorType, actorId);
-    } catch { /* Non-fatal */ }
+    } catch (error) {
+      logger.warn(
+        `[heartbeat] updateRunActor failed for run ${run.id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     db.addActivity({
       companyId,

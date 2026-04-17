@@ -93,8 +93,10 @@ export function useDesktopEvents(
               break;
             }
           }
-        } catch {
-          // IPC error during entity fetch -- fall back to full refresh (per pitfall 1)
+        } catch (error) {
+          console.warn(
+            `[renderer/useDesktopEvents] granular fetch failed for ${entry.type}/${entry.entityId}; falling back to full refresh: ${error instanceof Error ? error.message : String(error)}`,
+          );
           needsFullRefresh = true;
           break;
         }

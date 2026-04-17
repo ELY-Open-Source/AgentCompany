@@ -8,6 +8,7 @@ import {
   ChatCircle,
 } from "../ui/icons";
 import type { InboxItemType } from "@shared/types";
+import { Card } from "../ui";
 
 export const typeConfig: Record<InboxItemType, { icon: React.ElementType; color: string; bg: string; label: string }> = {
   pending_approval: { icon: ShieldCheck, color: "var(--destructive)", bg: "var(--muted-foreground)", label: "Approval" },
@@ -45,11 +46,11 @@ export function CompactMetric({ label, value, tone = "default", subtitle }: {
   };
 
   return (
-    <div className="rounded-lg border border-border bg-card px-4 py-3">
+    <Card padding="sm">
       <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</div>
       <div className={`text-[22px] font-bold ${toneMap[tone]}`}>{value}</div>
       {subtitle ? <div className="text-[10px] text-muted-foreground">{subtitle}</div> : null}
-    </div>
+    </Card>
   );
 }
 

@@ -265,20 +265,6 @@ export function importantRulesSection(companyId: string, agentId: string, runId:
 `;
 }
 
-export function skillManifestEntries(entries: Array<{ name: string; whenToUse: string; allowedTools: string[]; effort: string }>): string {
-  const lines = entries.map((s) => {
-    const parts = [`- ${s.name}`];
-    if (s.whenToUse) parts.push(`  使用场景：${s.whenToUse}`);
-    if (s.allowedTools.length > 0) parts.push(`  允许工具：${s.allowedTools.join("、")}`);
-    if (s.effort !== "medium") parts.push(`  资源消耗：${s.effort}`);
-    return parts.join("\n");
-  });
-  return `你的领域 skill：\n${lines.join("\n")}\n这些 skill 已加载到你的运行环境 —— 相关时请使用它们。`;
-}
-
-export function skillManifestNames(names: string[]): string {
-  return `你的领域 skill：${names.join("、")}。这些 skill 已加载到你的运行环境，为你提供领域专长 —— 相关时请使用它们。`;
-}
 
 export const wakeReasonHeading = "# 唤醒原因";
 

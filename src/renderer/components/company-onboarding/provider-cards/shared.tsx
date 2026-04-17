@@ -2,9 +2,7 @@ import { CaretDown, CaretRight } from "../../ui/icons";
 import type { ReactNode } from "react";
 import type { CredentialSummary } from "@shared/contracts/schemas-credentials";
 import type { TranslationFn } from "../../../i18n";
-
-export const INPUT_CLS =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring w-full rounded-lg border border-border bg-card px-3 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground";
+import { Card } from "../../ui";
 
 export type OnboardingCardStatus = CredentialSummary["status"] | "checking" | "not_configured";
 
@@ -24,7 +22,7 @@ export function OnboardingProviderCard({
   children: ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
+    <Card padding="none" className="overflow-hidden">
       <button
         type="button"
         onClick={onToggle}
@@ -46,7 +44,7 @@ export function OnboardingProviderCard({
         <div className="flex-shrink-0 pt-0.5">{badge}</div>
       </button>
       {expanded ? <div className="space-y-3 px-4 pb-4">{children}</div> : null}
-    </div>
+    </Card>
   );
 }
 

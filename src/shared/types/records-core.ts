@@ -74,8 +74,14 @@ export interface AgentRecord {
   name: string;
   role: string;
   title: string;
-  /** Seniority enum used for leadership detection; free-text `role` remains UI-editable. */
-  roleLevel: AgentRoleLevel;
+  /**
+   * Seniority enum used for leadership detection; free-text `role` remains
+   * UI-editable. Optional on the read model because the DB column has a
+   * `DEFAULT 'ic'` and no write path (agent-form / saveAgent / hireRequest)
+   * currently accepts it. Consumers use `agentIsLeader()` which handles the
+   * null/undefined case via keyword fallback.
+   */
+  roleLevel?: AgentRoleLevel | null;
   department: DepartmentId | null;
   status: AgentStatus;
   reportsTo: string | null;
@@ -136,6 +142,7 @@ export interface TaskRecord {
   costUsd: number;
   taskType: string | null;
   requiresUserReview: boolean;
+  isHeartbeat: boolean;
   startedAt: string | null;
   completedAt: string | null;
   cancelledAt: string | null;

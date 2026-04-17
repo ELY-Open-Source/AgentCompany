@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { DesktopEvent } from "@shared/types";
 import { ActionButton, Modal } from "../../ui";
+import { useT } from "../../../i18n";
 
 const desktop = (typeof window !== "undefined" ? window.agentCompany : null) as
   | (Window["agentCompany"] | null);
@@ -28,6 +29,7 @@ type PendingPrompt =
  * and replies via `submitOAuthPrompt` / `submitOAuthManualCode`.
  */
 export function OAuthPromptDialog() {
+  const t = useT();
   const [pending, setPending] = useState<PendingPrompt | null>(null);
   const [value, setValue] = useState("");
 
@@ -88,7 +90,7 @@ export function OAuthPromptDialog() {
   };
 
   const isManualCode = pending?.kind === "manual-code";
-  const title = isManualCode ? "Finish signing in" : "Provider needs more info";
+  const title = isManualCode ? t("oauth.finishSignIn") : t("oauth.providerNeedsInfo");
   const submitDisabled = !pending
     ? true
     : value.trim().length === 0 && !(pending.kind === "prompt" && pending.allowEmpty);
@@ -107,23 +109,23 @@ export function OAuthPromptDialog() {
                 <li>
                   {pending.authUrl ? (
                     <>
-                      Open{" "}
+                      {t("oauth.openAuthPage")}{" "}
                       <a
                         href={pending.authUrl}
                         target="_blank"
                         rel="noreferrer"
                         className="text-foreground underline decoration-dotted underline-offset-4 hover:text-accent-foreground"
                       >
-                        the authorization page
+                        {t("oauth.theAuthPage")}
                       </a>{" "}
-                      and click <strong className="text-foreground">Authorize</strong>.
+                      {t("oauth.authAction")} <strong className="text-foreground">{t("oauth.authorizeButton")}</strong>.
                     </>
                   ) : (
-                    <>Complete authorization in the browser window that opened.</>
+                    <>{t("oauth.fallbackInstruction")}</>
                   )}
                 </li>
-                <li>Copy the authorization code shown on the confirmation page.</li>
-                <li>Paste it below and press <strong className="text-foreground">Submit</strong>.</li>
+                <li>{t("oauth.copyCode")}</li>
+                <li>{t("oauth.pasteAndSubmit")} <strong className="text-foreground">{t("oauth.submit")}</strong>.</li>
               </ol>
             </div>
           ) : (
@@ -137,8 +139,8 @@ export function OAuthPromptDialog() {
             type={isManualCode ? "password" : "text"}
             value={value}
             onChange={(event) => setValue(event.target.value)}
-            placeholder={isManualCode ? "Authorization code" : pending.placeholder}
-            aria-label={isManualCode ? "Authorization code" : (pending as { message: string }).message}
+            placeholder={isManualCode ? t("oauth.authCodePlaceholder") : pending.placeholder}
+            aria-label={isManualCode ? t("oauth.authCodeAria") : (pending as { message: string }).message}
             onKeyDown={(event) => {
               if (event.key === "Enter") void handleSubmit();
             }}
@@ -148,8 +150,8 @@ export function OAuthPromptDialog() {
           />
 
           <div className="mt-5 flex items-center justify-end gap-2">
-            <ActionButton label="Cancel" onClick={() => void handleCancel()} />
-            <ActionButton label="Submit" tone="accent" onClick={() => void handleSubmit()} disabled={submitDisabled} />
+            <ActionButton label={t("oauth.cancel")} onClick={() => void handleCancel()} />
+            <ActionButton label={t("oauth.submit")} tone="accent" onClick={() => void handleSubmit()} disabled={submitDisabled} />
           </div>
         </>
       ) : null}

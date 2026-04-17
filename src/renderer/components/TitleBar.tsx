@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { Copy, Minus, Square, X } from "./ui/icons";
+import { useT } from "../i18n";
 
 export default function TitleBar() {
+  const t = useT();
   const [maximized, setMaximized] = useState(false);
 
   const refreshMaximized = useCallback(() => {
@@ -26,7 +28,7 @@ export default function TitleBar() {
       <div className="flex h-full">
         <button
           type="button"
-          aria-label="Minimize"
+          aria-label={t("titlebar.minimize")}
           className="titlebar-button flex h-full w-[46px] items-center justify-center text-muted-foreground transition hover:bg-muted hover:text-foreground"
           onClick={() => void window.agentCompany.windowMinimize()}
         >
@@ -34,7 +36,7 @@ export default function TitleBar() {
         </button>
         <button
           type="button"
-          aria-label={maximized ? "Restore" : "Maximize"}
+          aria-label={maximized ? t("titlebar.restore") : t("titlebar.maximize")}
           className="titlebar-button flex h-full w-[46px] items-center justify-center text-muted-foreground transition hover:bg-muted hover:text-foreground"
           onClick={() => {
             void window.agentCompany.windowMaximize().then(refreshMaximized);
@@ -48,8 +50,8 @@ export default function TitleBar() {
         </button>
         <button
           type="button"
-          aria-label="Close"
-          className="titlebar-button flex h-full w-[46px] items-center justify-center text-muted-foreground transition hover:bg-red-500 hover:text-white"
+          aria-label={t("titlebar.close")}
+          className="titlebar-button flex h-full w-[46px] items-center justify-center text-muted-foreground transition hover:bg-destructive hover:text-primary-foreground"
           onClick={() => void window.agentCompany.windowClose()}
         >
           <X size={14} weight="bold" />

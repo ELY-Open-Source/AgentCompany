@@ -57,6 +57,17 @@ export class CredentialResolver {
           if (stored.value.source === "literal") {
             return { apiKey: stored.value.value };
           }
+          // Only the connector's own declared envKey may be read from process.env.
+          // Arbitrary env var names would let a malicious payload exfil secrets
+          // like CSC_KEY_PASSWORD or AWS_SECRET_ACCESS_KEY by routing them to a
+          // provider as the "api key".
+          if (stored.value.value !== auth.envKey) {
+            throw new CredentialError(
+              "CREDENTIAL_INVALID",
+              connectorId,
+              `Env var ${stored.value.value} is not permitted for connector ${connectorId}.`,
+            );
+          }
           const fromEnv = process.env[stored.value.value];
           if (!fromEnv) throw new CredentialError("CREDENTIAL_MISSING", connectorId, `Env var ${stored.value.value} is not set.`);
           return { apiKey: fromEnv };

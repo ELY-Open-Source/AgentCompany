@@ -151,7 +151,13 @@ export function createWorkerService({
       // exits — otherwise the pending timer keeps the event loop alive.
       const ref = worker;
       const killTimer = setTimeout(() => {
-        try { ref.kill(); } catch { /* already dead */ }
+        try {
+          ref.kill();
+        } catch (error) {
+          logger.debug(
+            `[worker-service] worker kill() failed (likely already dead): ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }, 2000);
       ref.once("exit", () => clearTimeout(killTimer));
       worker = null;
@@ -180,7 +186,11 @@ export function createWorkerService({
           db.releaseTaskLock(run.taskId, run.id);
         }
       }
-    } catch { /* best effort during shutdown */ }
+    } catch (error) {
+      logger.warn(
+        `[worker-service] interrupted-run cleanup during shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   return {

@@ -37,33 +37,39 @@ function enqueue(job: RunJob) {
     status: "queued",
     message: "Run queued in orchestration worker.",
   });
-  void maybeStartQueuedRuns();
+  maybeStartQueuedRuns();
 }
 
-async function maybeStartQueuedRuns() {
-  const readyJobs = [...queue];
-  for (const job of readyJobs) {
-    if (activeByAgent.has(job.agentId)) continue;
+/**
+ * Walks the queue in-place and dispatches every job whose agent + workspace
+ * are not currently busy. Claims (activeByAgent / activeByWorkspace) are
+ * written BEFORE the job is removed from the queue and BEFORE `startRun`
+ * fires — this is the atomic point of commit for orchestrator ordering.
+ * Hardens against a future refactor that adds an `await` before the claim
+ * inside `startRun`, which would open a re-entrancy window.
+ */
+function maybeStartQueuedRuns() {
+  let i = 0;
+  while (i < queue.length) {
+    const job = queue[i];
+    if (activeByAgent.has(job.agentId)) { i += 1; continue; }
     const lockKey = workspaceKey(job);
-    if (lockKey && activeByWorkspace.has(lockKey)) continue;
-    const index = queue.findIndex((entry) => entry.runId === job.runId);
-    if (index >= 0) queue.splice(index, 1);
-    void startRun(job);
+    if (lockKey && activeByWorkspace.has(lockKey)) { i += 1; continue; }
+    activeByAgent.set(job.agentId, job.runId);
+    if (lockKey) activeByWorkspace.set(lockKey, job.runId);
+    queue.splice(i, 1);
+    void startRun(job, lockKey);
   }
 }
 
-async function startRun(job: RunJob) {
-  const lockKey = workspaceKey(job);
-  activeByAgent.set(job.agentId, job.runId);
-  if (lockKey) activeByWorkspace.set(lockKey, job.runId);
-
+async function startRun(job: RunJob, lockKey: string | null) {
   try {
     await runner.run(job);
   } finally {
     cancelledRuns.delete(job.runId);
     activeByAgent.delete(job.agentId);
     if (lockKey) activeByWorkspace.delete(lockKey);
-    void maybeStartQueuedRuns();
+    maybeStartQueuedRuns();
   }
 }
 
@@ -109,8 +115,17 @@ parentPort.on("message", (event) => {
     return;
   }
   if (message.type === "shutdown") {
-    runner.cancelAll();
-    rpc.cancelAll("Worker shutting down.");
-    process.exit(0);
+    void (async () => {
+      // Graceful drain: abort every active run and await its promise
+      // settlement so that final `run-finished` messages and
+      // `persistMessage` RPCs reach the parent before we exit. Bounded by
+      // a 5s budget so a stuck run does not wedge the shutdown handshake
+      // (the parent has its own kill-timer as a safety net).
+      const drainBudgetMs = 5_000;
+      const timeout = new Promise<void>((resolve) => setTimeout(resolve, drainBudgetMs));
+      await Promise.race([runner.cancelAll(), timeout]);
+      rpc.cancelAll("Worker shutting down.");
+      process.exit(0);
+    })();
   }
 });

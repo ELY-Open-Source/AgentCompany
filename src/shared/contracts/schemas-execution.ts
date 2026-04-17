@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { automationTriggerEnum } from "./helpers";
 
 export const startRunSchema = z.object({
   companyId: z.string().uuid(),
@@ -45,12 +46,7 @@ export const workflowInputSchema = z.object({
   name: z.string().min(2).max(120),
   description: z.string().max(500).default(""),
   stepsJson: z.string().default("[]"),
-  triggerType: z.enum([
-    "task_status_changed", "task_created", "task_blocked", "task_reassigned",
-    "run_completed", "run_failed", "approval_created", "approval_resolved",
-    "budget_threshold", "agent_idle", "comment_posted", "document_created",
-    "schedule", "hire_approved", "sprint_started", "sprint_ended",
-  ]),
+  triggerType: automationTriggerEnum,
   triggerConfigJson: z.string().default("{}"),
   status: z.enum(["draft", "active", "paused", "completed", "failed"]).default("draft"),
 });

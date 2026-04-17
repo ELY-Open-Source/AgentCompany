@@ -128,7 +128,7 @@ export function EditFormBody({
         notifyEnabled: agentPolicy?.notifyEnabled ?? true,
       });
       if (!payload) {
-        throw new Error("Agent budget policy is invalid.");
+        throw new Error(t("agent.form.budgetPolicyInvalid"));
       }
       unwrap(await window.agentCompany.saveBudgetPolicy(payload));
     }
@@ -147,7 +147,7 @@ export function EditFormBody({
       );
       await onSaved();
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Failed to wake agent.");
+      setSaveError(error instanceof Error ? error.message : t("agent.form.wakeFailed"));
     }
   }
 
@@ -157,7 +157,7 @@ export function EditFormBody({
       await persistAgentDraft();
       await onSaved();
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Failed to save agent.");
+      setSaveError(error instanceof Error ? error.message : t("agent.form.saveFailed"));
     }
   }
 
@@ -206,12 +206,12 @@ export function EditFormBody({
           pendingApproval
             ? [{ value: "pending_approval", label: t("agent.pendingApproval") }]
             : [
-                { value: "idle", label: "Idle" },
-                { value: "active", label: "Active" },
-                { value: "running", label: "Running" },
-                { value: "paused", label: "Paused" },
-                { value: "error", label: "Error" },
-                { value: "terminated", label: "Terminated" },
+                { value: "idle", label: t("agent.form.statusIdle") },
+                { value: "active", label: t("agent.form.statusActive") },
+                { value: "running", label: t("agent.form.statusRunning") },
+                { value: "paused", label: t("agent.form.statusPaused") },
+                { value: "error", label: t("agent.form.statusError") },
+                { value: "terminated", label: t("agent.form.statusTerminated") },
               ]
         }
       />
@@ -244,10 +244,10 @@ export function EditFormBody({
           onChange={setThinkingEffort}
           disabled={pendingApproval}
           options={[
-            { value: "", label: "Default" },
-            { value: "low", label: "Low" },
-            { value: "medium", label: "Medium" },
-            { value: "high", label: "High" },
+            { value: "", label: t("agent.form.effortDefault") },
+            { value: "low", label: t("agent.form.effortLow") },
+            { value: "medium", label: t("agent.form.effortMedium") },
+            { value: "high", label: t("agent.form.effortHigh") },
           ]}
         />
       ) : null}
@@ -275,7 +275,7 @@ export function EditFormBody({
         label={t("agent.budget")}
         value={budget}
         onChange={setBudget}
-        placeholder="120"
+        placeholder={t("agent.form.budgetPlaceholder")}
         type="number"
         readOnly={pendingApproval}
         disabled={pendingApproval}
@@ -331,7 +331,7 @@ export function EditFormBody({
           />
         ) : (
           <ActionButton
-            label="Delete"
+            label={t("agent.form.delete")}
             tone="danger"
             icon={Trash}
             disabled={pendingApproval}
@@ -341,8 +341,7 @@ export function EditFormBody({
       </div>
       {pendingApproval ? (
         <p className="text-[12px] text-muted-foreground">
-          Pending hires are read-only here. Use Hiring or Approvals to approve or reject
-          the request before editing the agent profile.
+          {t("agent.form.pendingReadOnly")}
         </p>
       ) : null}
       {saveError ? <p className="text-[12px] text-destructive">{saveError}</p> : null}

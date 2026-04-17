@@ -1,20 +1,23 @@
 import type { SectionId } from "@shared/types";
-import { Inbox, StandupView, PerformanceView } from "../../components/inbox";
-import { Dashboard } from "../../components/dashboard";
+import { Inbox } from "../../components/inbox/Inbox";
+import { StandupView } from "../../components/inbox/StandupView";
+import { PerformanceView } from "../../components/inbox/PerformanceView";
+import { Dashboard } from "../../components/dashboard/Dashboard";
 import { TwoPaneLayout } from "../../components/TwoPaneLayout";
-import {
-  SettingsPane,
-  WorkspaceCreator,
-  WorkspaceInspector,
-  WorkspaceList,
-} from "../../components/execution";
+import { SettingsPane } from "../../components/execution/SettingsPane";
+import { WorkspaceCreator } from "../../components/execution/WorkspaceCreator";
+import { WorkspaceInspector } from "../../components/execution/WorkspaceInspector";
+import { WorkspaceList } from "../../components/execution/WorkspaceList";
 import { ProvidersPanel } from "../../components/settings/providers";
 import { OAuthPromptDialog } from "../../components/settings/dialogs/OAuthPromptDialog";
-import { SocialAccountsPanel } from "../../components/social";
-import { AutomationPanel } from "../../components/automation";
-import { CommunicationHub } from "../../components/communication";
+import { SocialAccountsPanel } from "../../components/social/SocialPanel";
+import { AutomationPanel } from "../../components/automation/AutomationPanel";
+import { CommunicationHub } from "../../components/communication/CommunicationHub";
 import { SkillsSection } from "../../components/skills";
-import { DocumentCenter, KnowledgeBaseManager, MeetingsManager, SprintManager } from "../../components/company-operations";
+import { DocumentCenter } from "../../components/company-operations/DocumentCenter";
+import { KnowledgeBaseManager } from "../../components/company-operations/KnowledgeBaseManager";
+import { MeetingsManager } from "../../components/company-operations/MeetingsManager";
+import { SprintManager } from "../../components/company-operations/SprintManager";
 import { Panel } from "../../components/ui";
 import { unwrap } from "../../lib/desktop";
 import { useAppStore } from "../../state/store";

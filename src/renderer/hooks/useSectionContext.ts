@@ -1,40 +1,24 @@
-import { useMemo } from "react";
-import type { CompanyRecord } from "@shared/types";
-import { useAppStore } from "../state/store";
-import { useCompanyData } from "./useCompanyData";
+import { createContext, useContext } from "react";
+import type { CompanyRecord, ConnectorRecord, ProfileSnapshot } from "@shared/types";
+import type { CompanyData } from "./useCompanyData";
 
 /**
- * Shared data context for section views. Subscribes to the Zustand store
- * for snapshot + current company, derives per-company collections and
- * currently-selected entities via useCompanyData.
- *
- * Sections call this hook directly instead of receiving 30+ props through
- * SectionContentView.
+ * Shared data context for section views. Provided once at the App layer
+ * (via useCompanyController) so that section roots do not each run
+ * useCompanyData independently. Fixes HOOK-004 (4x duplicate filter work).
  */
-export function useSectionContext() {
-  const snapshot = useAppStore((s) => s.snapshot);
+export interface SectionContextValue extends CompanyData {
+  snapshot: ProfileSnapshot | null;
+  currentCompany: CompanyRecord | null;
+  selectedConnector: ConnectorRecord | null;
+}
 
-  const currentCompany = useMemo<CompanyRecord | null>(() => {
-    if (!snapshot) return null;
-    return (
-      snapshot.companies.find((company) => company.id === snapshot.currentCompanyId) ??
-      snapshot.companies[0] ??
-      null
-    );
-  }, [snapshot]);
+export const SectionContext = createContext<SectionContextValue | null>(null);
 
-  const companyData = useCompanyData(snapshot, currentCompany);
-
-  const selectedConnectorId = useAppStore((s) => s.selectedConnectorId);
-  const selectedConnector =
-    snapshot?.connectors.find((connector) => connector.id === selectedConnectorId) ??
-    snapshot?.connectors[0] ??
-    null;
-
-  return {
-    snapshot,
-    currentCompany,
-    selectedConnector,
-    ...companyData,
-  };
+export function useSectionContext(): SectionContextValue {
+  const value = useContext(SectionContext);
+  if (!value) {
+    throw new Error("useSectionContext must be used inside <SectionContext.Provider>");
+  }
+  return value;
 }

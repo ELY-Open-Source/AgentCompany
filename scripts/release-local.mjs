@@ -160,6 +160,30 @@ function getDockerBuildCommands(platform) {
   ];
 }
 
+// Paths under rootDir that the container needs. Credentials, env files, docs,
+// screenshots, pi-mono-reference, and other host-only state are deliberately
+// excluded to keep secrets out of the Wine/Linux builder image.
+const containerSourceMounts = [
+  { host: "src", mode: "ro" },
+  { host: "scripts", mode: "ro" },
+  { host: "assets", mode: "ro" },
+  { host: "builtin-skills", mode: "ro" },
+  { host: "electron-builder.yml", mode: "ro" },
+  { host: "package.json", mode: "ro" },
+  { host: "pnpm-lock.yaml", mode: "ro" },
+  { host: "electron.vite.config.ts", mode: "ro" },
+  { host: "tsconfig.json", mode: "ro" },
+  { host: "tsconfig.base.json", mode: "ro" },
+  { host: "tsconfig.check.json", mode: "ro" },
+  { host: "eslint.config.mjs", mode: "ro" },
+];
+
+// Writable host paths — electron-vite writes to out/, electron-builder writes to build/.
+const containerOutputMounts = [
+  { host: "out" },
+  { host: "build" },
+];
+
 async function runDockerBuild(platform) {
   const isWindows = platform === "win";
   const image = isWindows ? "electronuserland/builder:wine" : "electronuserland/builder";
@@ -172,16 +196,28 @@ async function runDockerBuild(platform) {
     "pnpm exec electron-vite build",
     ...getDockerBuildCommands(platform),
   ].join(" && ");
+  // Ensure host-side output dirs exist before binding (docker would otherwise create
+  // them as root-owned on Linux hosts).
+  for (const mount of containerOutputMounts) {
+    await mkdir(join(rootDir, mount.host), { recursive: true });
+  }
   const dockerArgs = [
     "run",
     "--rm",
     "--platform", "linux/amd64",
-    "-v", `${rootDir}:/project`,
+  ];
+  for (const mount of containerSourceMounts) {
+    dockerArgs.push("-v", `${join(rootDir, mount.host)}:/project/${mount.host}:${mount.mode}`);
+  }
+  for (const mount of containerOutputMounts) {
+    dockerArgs.push("-v", `${join(rootDir, mount.host)}:/project/${mount.host}`);
+  }
+  dockerArgs.push(
     "-v", `${dockerNodeModulesVolume}:/project/node_modules`,
     "-v", `${join(cacheDir, "electron")}:/root/.cache/electron`,
     "-v", `${join(cacheDir, "electron-builder")}:/root/.cache/electron-builder`,
     "-w", "/project",
-  ];
+  );
   for (const [key, value] of Object.entries(env)) {
     dockerArgs.push("-e", `${key}=${value}`);
   }

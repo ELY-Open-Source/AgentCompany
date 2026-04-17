@@ -408,5 +408,80 @@ export function buildAgentHierarchyMethods(
         )
         .run(merged.enabled ? 1 : 0, merged.intervalSec, policyJson, ts, agentId, companyId);
     },
+
+    /**
+     * Returns ids of non-terminated agents in a department. Used by
+     * `resolveMessageWakeTargets` to fan out "department" channel messages.
+     */
+    listDepartmentAgentIds(companyId: string, department: string): string[] {
+      return readAll<{ id: string }>(
+        "select id from agents where company_id = ? and department = ? and status != 'terminated'",
+        companyId,
+        department,
+      ).map((row) => row.id);
+    },
+
+    /**
+     * Returns ids of non-terminated agents that have no manager (top of the
+     * reporting tree). Used by `resolveMessageWakeTargets` for "company"
+     * channel broadcast.
+     */
+    listTopLevelAgentIds(companyId: string): string[] {
+      return readAll<{ id: string }>(
+        "select id from agents where company_id = ? and reports_to is null and status != 'terminated'",
+        companyId,
+      ).map((row) => row.id);
+    },
+
+    /**
+     * Returns ids of agents that can receive incident pings: everybody not
+     * terminated or still pending approval.
+     */
+    listIncidentPingableAgentIds(companyId: string): string[] {
+      return readAll<{ id: string }>(
+        "select id from agents where company_id = ? and status not in ('terminated', 'pending_approval')",
+        companyId,
+      ).map((row) => row.id);
+    },
+
+    /**
+     * Returns the agent's display name, or null if the agent no longer
+     * exists. Used for notification subject lines.
+     */
+    findAgentName(agentId: string): string | null {
+      const row = getDb()
+        .prepare("select name from agents where id = ? limit 1")
+        .get(agentId) as { name: string } | undefined;
+      return row?.name ?? null;
+    },
+
+    /**
+     * Returns (id, name) pairs for the given ids, scoped to company. Used
+     * for batched name resolution when fanning out message wake targets.
+     */
+    listAgentNamesByIds(companyId: string, agentIds: readonly string[]): Array<{ id: string; name: string }> {
+      if (agentIds.length === 0) return [];
+      const placeholders = agentIds.map(() => "?").join(",");
+      return readAll<{ id: string; name: string }>(
+        `select id, name from agents where id in (${placeholders}) and company_id = ?`,
+        ...agentIds,
+        companyId,
+      );
+    },
+
+    /**
+     * Returns ids of active agents with the given ids, filtered to the
+     * company scope. Used by project-channel wake targeting to drop
+     * terminated members before pinging.
+     */
+    listActiveAgentIdsFromIds(companyId: string, agentIds: readonly string[]): string[] {
+      if (agentIds.length === 0) return [];
+      const placeholders = agentIds.map(() => "?").join(",");
+      return readAll<{ id: string }>(
+        `select id from agents where id in (${placeholders}) and company_id = ? and status != 'terminated'`,
+        ...agentIds,
+        companyId,
+      ).map((row) => row.id);
+    },
   };
 }

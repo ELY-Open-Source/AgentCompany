@@ -11,6 +11,7 @@ import { MessageComposer, TaskDiscussionComposer, NoChannelComposer } from "./Me
 import { SearchResults } from "./SearchResults"
 import ThreadPanel from "./ThreadPanel"
 import { deriveChannels, deriveTaskDiscussionChannels, getChannelMessages } from "./channel-utils"
+import { useT, type TranslationFn } from "../../i18n"
 
 
 interface CommunicationHubProps {
@@ -19,12 +20,12 @@ interface CommunicationHubProps {
   onEntityConsumed?: () => void; onNavigateToTask: (taskId: string) => void; onRefresh: () => void
 }
 
-function SearchScopeToggle({ scope, onChangeScope }: { scope: "global" | "channel"; onChangeScope: (scope: "global" | "channel") => void }) {
+function SearchScopeToggle({ scope, onChangeScope, t }: { scope: "global" | "channel"; onChangeScope: (scope: "global" | "channel") => void; t: TranslationFn }) {
   return (
     <div
       className="inline-flex items-center gap-0.5 rounded-full bg-card p-0.5"
       role="radiogroup"
-      aria-label="Search scope"
+      aria-label={t("comm.searchScope")}
     >
       <button
         type="button"
@@ -38,7 +39,7 @@ function SearchScopeToggle({ scope, onChangeScope }: { scope: "global" | "channe
             : "bg-muted text-muted-foreground"
         }`}
       >
-        All Channels
+        {t("comm.allChannels")}
       </button>
       <button
         type="button"
@@ -52,13 +53,14 @@ function SearchScopeToggle({ scope, onChangeScope }: { scope: "global" | "channe
             : "bg-muted text-muted-foreground"
         }`}
       >
-        This Channel
+        {t("comm.thisChannel")}
       </button>
     </div>
   )
 }
 
 export function CommunicationHub({ messages, comments, tasks, agents, projects, documents, companyId, selectedEntityId, onEntityConsumed, onNavigateToTask, onRefresh }: CommunicationHubProps) {
+  const t = useT()
   const [selectedChannelKey, setSelectedChannelKey] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)
   const [replyTo, setReplyTo] = useState<AgentMessageRecord | null>(null)
@@ -156,7 +158,10 @@ export function CommunicationHub({ messages, comments, tasks, agents, projects, 
         } else {
           setSearchResults([], currentRequestId)
         }
-      } catch {
+      } catch (error) {
+        console.warn(
+          `[communication] searchMessages failed: ${error instanceof Error ? error.message : String(error)}`,
+        )
         setSearchResults([], currentRequestId)
       }
     }, 300)
@@ -203,7 +208,7 @@ export function CommunicationHub({ messages, comments, tasks, agents, projects, 
     void (async () => {
       for (const id of ids) pendingReadIdsRef.current.add(id)
       setOptimisticReadIds((c) => { const n = new Set(c); for (const id of ids) n.add(id); return n })
-      const results = await Promise.all(ids.map(async (id) => { try { unwrap(await window.agentCompany.markMessageRead({ messageId: id, companyId })); return { id, ok: true as const } } catch { return { id, ok: false as const } } }))
+      const results = await Promise.all(ids.map(async (id) => { try { unwrap(await window.agentCompany.markMessageRead({ messageId: id, companyId })); return { id, ok: true as const } } catch (error) { console.warn(`[communication] markMessageRead(${id}) failed: ${error instanceof Error ? error.message : String(error)}`); return { id, ok: false as const } } }))
       const failed = results.filter((r) => !r.ok).map((r) => r.id)
       for (const id of ids) pendingReadIdsRef.current.delete(id)
       if (!cancelled && failed.length > 0) setOptimisticReadIds((c) => { const n = new Set(c); for (const id of failed) n.delete(id); return n })
@@ -220,16 +225,22 @@ export function CommunicationHub({ messages, comments, tasks, agents, projects, 
 
   const channelGroups = useMemo(() => {
     const groups: Array<{ type: MessageChannel; label: string; items: ChannelDescriptor[] }> = []
-    const cfgs: Record<MessageChannel, string> = { company: "Company-wide", department: "Department", project: "Project", incident: "Incident", direct: "Direct Messages" }
+    const cfgs: Record<MessageChannel, string> = {
+      company: t("comm.channelGroup.company"),
+      department: t("comm.channelGroup.department"),
+      project: t("comm.channelGroup.project"),
+      incident: t("comm.channelGroup.incident"),
+      direct: t("comm.channelGroup.direct"),
+    }
     for (const type of (["company", "department", "project", "incident", "direct"] as MessageChannel[])) {
       const items = channels.filter((c): c is ChannelDescriptor => c.kind === "message" && c.channel === type)
       if (items.length > 0) groups.push({ type, label: cfgs[type], items })
     }
     return groups
-  }, [channels])
+  }, [channels, t])
 
   const scopeToggleElement = isSearchActive ? (
-    <SearchScopeToggle scope={searchScope} onChangeScope={setSearchScope} />
+    <SearchScopeToggle scope={searchScope} onChangeScope={setSearchScope} t={t} />
   ) : null
 
   return (

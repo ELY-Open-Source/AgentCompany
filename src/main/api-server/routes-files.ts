@@ -1,3 +1,4 @@
+import log from "electron-log/main.js";
 import { z } from "zod";
 import { IMPORTANT_DOC_TYPE_SET } from "@shared/document-categories";
 import { requireParam, type AgentApiServer } from "./server-core";
@@ -109,7 +110,11 @@ export function registerFileRoutes(server: AgentApiServer) {
         if (run.companyId === token.companyId) {
           taskId = run.taskId;
         }
-      } catch { /* run may have finished or been deleted */ }
+      } catch (error) {
+        log.warn(
+          `[api/documents] getRun(${token.runId}) failed while deriving taskId: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
     // Fire document creation automation rules
     callbacks.onDocumentCreated(token.companyId, token.agentId, projectId, id, docTitle, docType, taskId);
@@ -143,11 +148,19 @@ export function registerFileRoutes(server: AgentApiServer) {
               if (agent.heartbeatEnabled) {
                 db.setHeartbeat(token.agentId, false, agent.heartbeatIntervalSec || 120);
               }
-            } catch { /* best effort */ }
+            } catch (error) {
+              log.warn(
+                `[api/documents] heartbeat pause for agent ${token.agentId} failed: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
             onDomainChanged();
           }
         }
-      } catch { /* deliverable review gate is best-effort */ }
+      } catch (error) {
+        log.warn(
+          `[api/documents] deliverable review gate failed for company ${token.companyId}, document ${id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
 
     server.json(res, 201, { id });
@@ -258,7 +271,10 @@ export function registerFileRoutes(server: AgentApiServer) {
       if (task.companyId !== token.companyId) { server.json(res, 404, { error: "Task not found" }); return; }
       const products = db.listWorkProductsForTask(task.id, task.companyId);
       server.json(res, 200, products);
-    } catch { server.json(res, 404, { error: "Task not found" }); }
+    } catch (error) {
+      log.warn(`[api/work-products] list failed for issue ${params.issueId}: ${error instanceof Error ? error.message : String(error)}`);
+      server.json(res, 404, { error: "Task not found" });
+    }
   });
 
   server.addRoute("POST", "/api/issues/:issueId/work-products", (_req, res, params, token, body) => {
@@ -286,7 +302,10 @@ export function registerFileRoutes(server: AgentApiServer) {
       });
       onDomainChanged();
       server.json(res, 201, { id });
-    } catch { server.json(res, 404, { error: "Task not found" }); }
+    } catch (error) {
+      log.warn(`[api/work-products] create failed for issue ${params.issueId}: ${error instanceof Error ? error.message : String(error)}`);
+      server.json(res, 404, { error: "Task not found" });
+    }
   });
 
   server.addRoute("PATCH", "/api/work-products/:workProductId", (_req, res, params, token, body) => {
@@ -317,7 +336,10 @@ export function registerFileRoutes(server: AgentApiServer) {
       if (task.companyId !== token.companyId) { server.json(res, 404, { error: "Task not found" }); return; }
       const links = db.listDocumentsForTask(task.id, task.companyId);
       server.json(res, 200, links);
-    } catch { server.json(res, 404, { error: "Task not found" }); }
+    } catch (error) {
+      log.warn(`[api/task-documents] list failed for issue ${params.issueId}: ${error instanceof Error ? error.message : String(error)}`);
+      server.json(res, 404, { error: "Task not found" });
+    }
   });
 
   server.addRoute("PUT", "/api/issues/:issueId/documents/:key", (_req, res, params, token, body) => {
@@ -337,7 +359,10 @@ export function registerFileRoutes(server: AgentApiServer) {
       const linkId = db.linkDocumentToTask(task.id, documentId, task.companyId, key);
       onDomainChanged();
       server.json(res, 200, { id: linkId, key });
-    } catch { server.json(res, 404, { error: "Task not found" }); }
+    } catch (error) {
+      log.warn(`[api/task-documents] link failed for issue ${params.issueId}: ${error instanceof Error ? error.message : String(error)}`);
+      server.json(res, 404, { error: "Task not found" });
+    }
   });
 
   server.addRoute("DELETE", "/api/issues/:issueId/documents/:key", (_req, res, params, token) => {
@@ -348,6 +373,9 @@ export function registerFileRoutes(server: AgentApiServer) {
       db.unlinkDocumentFromTask(task.id, key, task.companyId);
       onDomainChanged();
       server.json(res, 200, { unlinked: true });
-    } catch { server.json(res, 404, { error: "Task not found" }); }
+    } catch (error) {
+      log.warn(`[api/task-documents] unlink failed for issue ${params.issueId}: ${error instanceof Error ? error.message : String(error)}`);
+      server.json(res, 404, { error: "Task not found" });
+    }
   });
 }

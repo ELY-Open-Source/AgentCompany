@@ -1,7 +1,11 @@
 import { createDesktopShellWindow, type DesktopShellWindowDependencies } from "./desktop-shell-window";
-import { createDesktopShellMenu } from "./desktop-shell-menu";
+import { createDesktopShellMenu, type DesktopShellMenuDependencies } from "./desktop-shell-menu";
 
-export function createDesktopShellService(deps: DesktopShellWindowDependencies) {
+export type DesktopShellServiceDependencies = DesktopShellWindowDependencies & {
+  registerHandle: DesktopShellMenuDependencies["registerHandle"];
+};
+
+export function createDesktopShellService(deps: DesktopShellServiceDependencies) {
   const window = createDesktopShellWindow(deps);
   const menu = createDesktopShellMenu({
     iconPath: deps.iconPath,
@@ -12,6 +16,7 @@ export function createDesktopShellService(deps: DesktopShellWindowDependencies) 
     getMainWindow: window.getMainWindow,
     ensureWindow: window.ensureWindow,
     requestQuitWithConfirmation: window.requestQuitWithConfirmation,
+    registerHandle: deps.registerHandle,
   });
 
   function initialize() {

@@ -1,3 +1,4 @@
+import log from "electron-log/main.js";
 import type { AgentApiServer } from "../api-server";
 import type { AppDatabase } from "../database";
 import type { DesktopEvent, SectionId } from "@shared/types";
@@ -68,7 +69,11 @@ export function wireApiServer(deps: WireApiServerDeps): AgentApiServer {
       try {
         const task = deps.db.getTask(taskId);
         deps.checkpointEngine.onTaskStarted(taskId, companyId, task.assigneeAgentId);
-      } catch { /* task may not exist */ }
+      } catch (error) {
+        log.warn(
+          `[wire-api-server] checkpointEngine.onTaskStarted failed for task ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
   };
   const onApprovalResolved = (approvalId: string, companyId: string, decision: string) => {

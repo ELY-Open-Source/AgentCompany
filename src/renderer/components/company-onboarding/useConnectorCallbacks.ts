@@ -9,8 +9,10 @@ export function useConnectorCallbacks(connectors: ProfileSnapshot["connectors"])
   const handleTestConnector = useCallback(async (connectorId: string) => {
     try {
       unwrap(await window.agentCompany.testConnector(connectorId as ConnectorId));
-    } catch {
-      // Health check result is stored in DB and reflected via domain-changed
+    } catch (error) {
+      console.warn(
+        `[onboarding/useConnectorCallbacks] testConnector(${connectorId}) failed (result reflected via domain-changed): ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }, []);
 
@@ -27,16 +29,20 @@ export function useConnectorCallbacks(connectors: ProfileSnapshot["connectors"])
       }));
       // Run health check AFTER save completes so the probe uses the new config
       unwrap(await window.agentCompany.testConnector(connectorId as ConnectorId));
-    } catch {
-      // Error is non-fatal; result reflected via domain-changed
+    } catch (error) {
+      console.warn(
+        `[onboarding/useConnectorCallbacks] saveConnector+testConnector(${connectorId}) failed (result reflected via domain-changed): ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }, [connectors]);
 
   const handleLoginConnector = useCallback(async (connectorId: string) => {
     try {
       unwrap(await window.agentCompany.openConnectorAuthTerminal(connectorId as ConnectorId));
-    } catch {
-      // Terminal open failure is non-fatal
+    } catch (error) {
+      console.warn(
+        `[onboarding/useConnectorCallbacks] openConnectorAuthTerminal(${connectorId}) failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return;
     }
     // Poll connector health after login terminal opens (same pattern as ConnectorEditor)
@@ -46,15 +52,21 @@ export function useConnectorCallbacks(connectors: ProfileSnapshot["connectors"])
       if (attempts > 12) { clearInterval(poll); return; }
       try {
         unwrap(await window.agentCompany.testConnector(connectorId as ConnectorId));
-      } catch { /* health check result reflected via domain-changed */ }
+      } catch (error) {
+        console.warn(
+          `[onboarding/useConnectorCallbacks] post-login testConnector(${connectorId}) failed (attempt ${attempts}): ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }, 5000);
   }, []);
 
   const handleInstallCommand = useCallback(async (commandKey: z.infer<typeof openTerminalCommandSchema>["commandKey"]) => {
     try {
       unwrap(await window.agentCompany.openTerminalCommand({ commandKey }));
-    } catch {
-      // Terminal open failure is non-fatal
+    } catch (error) {
+      console.warn(
+        `[onboarding/useConnectorCallbacks] openTerminalCommand(${commandKey}) failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return;
     }
     // Poll all connectors after install (install may make a new CLI available)
@@ -64,7 +76,13 @@ export function useConnectorCallbacks(connectors: ProfileSnapshot["connectors"])
       if (attempts > 12) { clearInterval(poll); return; }
       for (const c of connectors) {
         if (c.status !== "ready") {
-          try { unwrap(await window.agentCompany.testConnector(c.id as ConnectorId)); } catch { /* reflected via domain-changed */ }
+          try {
+            unwrap(await window.agentCompany.testConnector(c.id as ConnectorId));
+          } catch (error) {
+            console.warn(
+              `[onboarding/useConnectorCallbacks] post-install testConnector(${c.id}) failed (attempt ${attempts}): ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
         }
       }
     }, 5000);

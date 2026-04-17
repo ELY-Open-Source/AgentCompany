@@ -162,6 +162,7 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
         const policy = getConnectorModelPolicy(requireDb(), connectorId as ConnectorId);
         return policy.enabledModels;
       },
+      logger: log,
     });
 
     registerDomainHandlers({

@@ -8,6 +8,7 @@ import {
 import type { SectionId, StandupReport } from "@shared/types";
 import { getAgentInitials } from "../../lib/formatters";
 import { useT } from "../../i18n";
+import { Card, Eyebrow } from "../ui";
 
 interface StandupProps {
   report: StandupReport | null;
@@ -28,7 +29,7 @@ export function StandupView({ report, onNavigate }: StandupProps) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-border bg-card p-5">
+      <Card padding="lg">
         <div className="flex items-center gap-3 mb-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent">
             <Heartbeat size={20} weight="fill" className="text-primary" />
@@ -36,7 +37,7 @@ export function StandupView({ report, onNavigate }: StandupProps) {
           <div>
             <h2 className="text-[16px] font-bold text-foreground">{t("standup.dailyStandup")}</h2>
             <p className="text-[12px] text-muted-foreground">
-              Generated {new Date(report.generatedAt).toLocaleString()}
+              {t("standup.generatedAt").replace("{time}", new Date(report.generatedAt).toLocaleString())}
             </p>
           </div>
         </div>
@@ -64,11 +65,11 @@ export function StandupView({ report, onNavigate }: StandupProps) {
             <div className="text-[10px] text-muted-foreground">{t("standup.budgetUsed")}</div>
           </div>
         </div>
-      </div>
+      </Card>
 
       {report.companyHighlights.length > 0 ? (
         <section>
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t("standup.highlights")}</div>
+          <Eyebrow className="mb-2">{t("standup.highlights")}</Eyebrow>
           <div className="space-y-1.5">
             {report.companyHighlights.map((h, i) => (
               <div key={i} className="flex items-center gap-2 rounded-lg bg-success-muted px-3 py-2 text-[12px] text-success">
@@ -82,7 +83,7 @@ export function StandupView({ report, onNavigate }: StandupProps) {
 
       {report.blockers.length > 0 ? (
         <section>
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-destructive">Blockers</div>
+          <Eyebrow tone="destructive" className="mb-2">{t("standup.blockers")}</Eyebrow>
           <div className="space-y-1.5">
             {report.blockers.map((b, i) => (
               <div key={i} className="flex items-center gap-2 rounded-lg bg-destructive-muted px-3 py-2 text-[12px] text-destructive">
@@ -95,7 +96,7 @@ export function StandupView({ report, onNavigate }: StandupProps) {
       ) : null}
 
       <section>
-        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t("standup.agentStatus")}</div>
+        <Eyebrow className="mb-2">{t("standup.agentStatus")}</Eyebrow>
         <div className="space-y-2">
           {report.agentReports.map((ar) => (
             <button
@@ -125,9 +126,9 @@ export function StandupView({ report, onNavigate }: StandupProps) {
                   <span className="text-[10px] text-muted-foreground">{ar.role}</span>
                 </div>
                 <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
-                  {ar.tasksInProgress > 0 ? <span className="text-primary">{ar.tasksInProgress} in progress</span> : null}
-                  {ar.tasksCompleted24h > 0 ? <span className="text-success">{ar.tasksCompleted24h} done</span> : null}
-                  {ar.tasksBlocked > 0 ? <span className="text-destructive">{ar.tasksBlocked} blocked</span> : null}
+                  {ar.tasksInProgress > 0 ? <span className="text-primary">{t("standup.runHighlight.tasksInProgress").replace("{n}", String(ar.tasksInProgress))}</span> : null}
+                  {ar.tasksCompleted24h > 0 ? <span className="text-success">{t("standup.runHighlight.tasksDone").replace("{n}", String(ar.tasksCompleted24h))}</span> : null}
+                  {ar.tasksBlocked > 0 ? <span className="text-destructive">{t("standup.runHighlight.tasksBlocked").replace("{n}", String(ar.tasksBlocked))}</span> : null}
                   {ar.costLast24h > 0 ? <span className="tabular-nums">${ar.costLast24h.toFixed(2)}</span> : null}
                 </div>
                 {ar.highlights.length > 0 ? (

@@ -204,23 +204,22 @@ describe("skill-aware capability registry", () => {
         .filter((workspace) => workspace.companyId === companyId)
         .map((workspace) => ({ name: workspace.name, localPath: workspace.localPath })),
       companyDocuments: [],
-      skillEntries: [
+      skills: [
         {
-          name: "React Standards",
-          whenToUse: "building React UI",
-          allowedTools: ["read", "edit"],
-          effort: "high",
-          contextMode: "inline",
+          name: "react-standards",
+          description: "Use when building React UI with hooks and Tailwind.",
+          filePath: "/tmp/react-standards/SKILL.md",
+          baseDir: "/tmp/react-standards",
         },
       ],
-      skillNames: ["React Standards"],
     });
 
     expect(prompt).toContain("# Company Capability Registry");
     expect(prompt).toContain("React UI (`react-ui`)");
     expect(prompt).toContain("Primary:");
     expect(prompt).toContain("Ready Connectors");
-    expect(prompt).toContain("Your domain skills:");
+    expect(prompt).toContain("<available_skills>");
+    expect(prompt).toContain("<name>react-standards</name>");
 
     db.close();
   });

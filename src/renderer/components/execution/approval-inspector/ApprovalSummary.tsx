@@ -2,6 +2,7 @@ import { Briefcase, Robot } from "../../ui/icons"
 import type { AgentRecord, ApprovalRecord, TaskRecord } from "@shared/types"
 import { formatTime } from "../../../lib/formatters"
 import { StatusPill } from "../../ui"
+import { useT } from "../../../i18n"
 import { TypeBadge } from "./TypeBadge"
 
 export function ApprovalSummary({
@@ -13,6 +14,7 @@ export function ApprovalSummary({
   requestingAgent: AgentRecord | null
   relatedTask: TaskRecord | null
 }) {
+  const t = useT()
   return (
     <>
       <div className="flex items-center gap-3">
@@ -26,8 +28,8 @@ export function ApprovalSummary({
       <div className="grid gap-2 text-[13px] md:grid-cols-2">
         <div className="flex items-center gap-2 text-muted-foreground">
           <Robot size={14} />
-          Requested by:{" "}
-          <span className="font-medium text-foreground">{requestingAgent?.name ?? "Unknown"}</span>
+          {t("approval.requestedBy")}{" "}
+          <span className="font-medium text-foreground">{requestingAgent?.name ?? t("approval.unknownRequester")}</span>
           {requestingAgent?.role ? (
             <span className="text-[10px] text-muted-foreground">({requestingAgent.role})</span>
           ) : null}
@@ -35,15 +37,15 @@ export function ApprovalSummary({
         {relatedTask ? (
           <div className="flex items-center gap-2 text-muted-foreground">
             <Briefcase size={14} />
-            Task: <span className="font-medium text-foreground">{relatedTask.title}</span>
+            {t("approval.task")} <span className="font-medium text-foreground">{relatedTask.title}</span>
           </div>
         ) : null}
         <div className="text-muted-foreground">
-          Created: <span className="font-mono text-foreground">{formatTime(approval.createdAt)}</span>
+          {t("approval.created")} <span className="font-mono text-foreground">{formatTime(approval.createdAt)}</span>
         </div>
         {approval.updatedAt !== approval.createdAt ? (
           <div className="text-muted-foreground">
-            Updated: <span className="font-mono text-foreground">{formatTime(approval.updatedAt)}</span>
+            {t("approval.updated")} <span className="font-mono text-foreground">{formatTime(approval.updatedAt)}</span>
           </div>
         ) : null}
       </div>

@@ -8,6 +8,7 @@ interface InterruptedRun {
   taskTitle: string;
   agentId: string;
   agentName: string;
+  companyId: string;
   connectorId: string;
   interruptedAt: string;
 }
@@ -30,12 +31,12 @@ export function RecoveryBanner() {
   if (runs.length === 0 || dismissed) return null;
 
   const handleRetry = async (run: InterruptedRun) => {
-    await window.agentCompany?.recoveryRetry(run.taskId, run.agentId, "");
+    await window.agentCompany?.recoveryRetry(run.taskId, run.agentId, run.companyId);
     setRuns(prev => prev.filter(r => r.runId !== run.runId));
   };
 
   const handleFail = async (run: InterruptedRun) => {
-    await window.agentCompany?.recoveryFail(run.taskId);
+    await window.agentCompany?.recoveryFail(run.taskId, run.companyId);
     setRuns(prev => prev.filter(r => r.runId !== run.runId));
   };
 

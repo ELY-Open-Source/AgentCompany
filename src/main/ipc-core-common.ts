@@ -34,6 +34,11 @@ export interface RegisterCoreHandlersDependencies {
   getApiPort: () => number;
   listConnectorModels: (connectorId: string) => Promise<Array<{ id: string; label: string }>>;
   notify: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
+  logger: {
+    info: (...args: unknown[]) => void;
+    warn: (...args: unknown[]) => void;
+    error: (...args: unknown[]) => void;
+  };
 }
 
 export function ok<T>(data: T): DesktopResult<T> {

@@ -1,6 +1,8 @@
 import { useMemo } from "react"
 import type { AgentRecord, ApprovalRecord } from "@shared/types"
 import { formatMoney } from "../../../lib/formatters"
+import { Card, Eyebrow } from "../../ui"
+import { useT } from "../../../i18n"
 import { useApprovalPayload } from "./useApprovalPayload"
 
 interface HireSnapshot {
@@ -25,6 +27,7 @@ export function ProposedHireCard({
   approval: ApprovalRecord
   agents: AgentRecord[]
 }) {
+  const t = useT()
   const payload = useApprovalPayload(approval)
 
   const { proposedAgent, reqSnap, mgr } = useMemo(() => {
@@ -42,52 +45,52 @@ export function ProposedHireCard({
 
   if (!proposedAgent && !reqSnap) return null
 
-  const name = proposedAgent?.name ?? reqSnap?.name ?? "Unspecified"
-  const role = proposedAgent?.role ?? reqSnap?.role ?? "Unspecified"
+  const name = proposedAgent?.name ?? reqSnap?.name ?? t("approval.proposedUnspecified")
+  const role = proposedAgent?.role ?? reqSnap?.role ?? t("approval.proposedUnspecified")
   const title = proposedAgent?.title || reqSnap?.title
   const capabilities = proposedAgent?.capabilities || reqSnap?.capabilities
-  const connectorId = proposedAgent?.connectorId ?? reqSnap?.connectorId ?? "Unknown"
+  const connectorId = proposedAgent?.connectorId ?? reqSnap?.connectorId ?? t("approval.proposedUnknown")
   const budget = proposedAgent?.budgetMonthlyUsd ?? reqSnap?.budgetMonthlyUsd ?? 0
 
   return (
-    <div className="rounded-lg border border-[color:var(--primary)] border-opacity-30 bg-accent px-4 py-3">
-      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-primary">Proposed Hire</div>
+    <Card padding="sm" className="border-[color:var(--primary)] border-opacity-30 bg-accent">
+      <Eyebrow tone="primary" className="mb-2">{t("approval.proposedHire")}</Eyebrow>
       <div className="grid gap-1.5 text-[12px]">
         <div>
-          <span className="text-muted-foreground">Name:</span>{" "}
+          <span className="text-muted-foreground">{t("approval.proposedName")}</span>{" "}
           <span className="font-medium text-foreground">{name}</span>
         </div>
         <div>
-          <span className="text-muted-foreground">Role:</span>{" "}
+          <span className="text-muted-foreground">{t("approval.proposedRole")}</span>{" "}
           <span className="text-foreground">{role}</span>
         </div>
         {title ? (
           <div>
-            <span className="text-muted-foreground">Title:</span>{" "}
+            <span className="text-muted-foreground">{t("approval.proposedTitle")}</span>{" "}
             <span className="text-foreground">{title}</span>
           </div>
         ) : null}
         {capabilities ? (
           <div>
-            <span className="text-muted-foreground">Capabilities:</span>{" "}
+            <span className="text-muted-foreground">{t("approval.proposedCapabilities")}</span>{" "}
             <span className="text-foreground">{capabilities}</span>
           </div>
         ) : null}
         <div>
-          <span className="text-muted-foreground">Connector:</span>{" "}
+          <span className="text-muted-foreground">{t("approval.proposedConnector")}</span>{" "}
           <span className="font-mono text-foreground">{connectorId}</span>
         </div>
         <div>
-          <span className="text-muted-foreground">Budget:</span>{" "}
-          <span className="font-mono text-foreground">{formatMoney(budget)}/mo</span>
+          <span className="text-muted-foreground">{t("approval.proposedBudget")}</span>{" "}
+          <span className="font-mono text-foreground">{formatMoney(budget)}{t("approval.budgetSuffix")}</span>
         </div>
         {mgr ? (
           <div>
-            <span className="text-muted-foreground">Reports to:</span>{" "}
+            <span className="text-muted-foreground">{t("approval.proposedReportsTo")}</span>{" "}
             <span className="text-foreground">{mgr.name}</span>
           </div>
         ) : null}
       </div>
-    </div>
+    </Card>
   )
 }

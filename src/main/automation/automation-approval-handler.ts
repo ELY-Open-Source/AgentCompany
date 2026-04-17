@@ -3,7 +3,6 @@ import type { AppDatabase } from "../database";
 import type { NotificationOptions } from "../notification-service";
 import { extractApprovalDocumentIds } from "@shared/approval-documents";
 import { notifyHireApproved } from "../hire-hook";
-import { autoAssignSkillsToAgent } from "./automation-skills";
 import type { AutomationEventContext } from "./types";
 import { normalizeWorkflowSteps } from "./automation-workflow";
 
@@ -95,140 +94,110 @@ export function handleApprovalResolved(
   });
 
   if (approval.type === "hire_agent" && decision === "approved" && approval.relatedAgentId) {
-    try {
-      const agent = db.getAgent(approval.relatedAgentId);
+    const agent = db.getAgent(approval.relatedAgentId);
 
-      if (agent.status === "idle") {
-        db.addActivity({
-          companyId,
-          actor: "system",
-          action: "agent.hired",
-          entityType: "agent",
-          entityId: agent.id,
-          detail: `${agent.name} hire approved and activated.`,
-        });
+    if (agent.status === "idle") {
+      db.addActivity({
+        companyId,
+        actor: "system",
+        action: "agent.hired",
+        entityType: "agent",
+        entityId: agent.id,
+        detail: `${agent.name} hire approved and activated.`,
+      });
 
-        const skillsAssigned = autoAssignSkillsToAgent(db, logger, companyId, agent.id);
-        if (skillsAssigned > 0) {
-          db.addActivity({
-            companyId,
-            actor: "system",
-            action: "skills.auto_assigned",
-            entityType: "agent",
-            entityId: agent.id,
-            detail: `Auto-assigned ${skillsAssigned} skill(s) to ${agent.name} based on role/department matching.`,
-          });
-        }
+      dispatchAutomation("hire_approved", {
+        companyId,
+        agentId: agent.id,
+      });
+      wakeAgentIfPossible(agent.id, companyId, "assignment");
 
-        dispatchAutomation("hire_approved", {
-          companyId,
-          agentId: agent.id,
-        });
-        wakeAgentIfPossible(agent.id, companyId, "assignment");
-
-        const ceo = db.getCeoForCompany(companyId);
-        if (ceo && ceo.id !== agent.id) {
-          wakeAgentIfPossible(ceo.id, companyId, "assignment");
-        }
-
-        publishDomainChanged();
-        const hireLocale = db.listSnapshot().locale;
-        notify({
-          title: localizeNotification(hireLocale, "Agent Hired", "新员工入职"),
-          body: localizeNotification(hireLocale, `${agent.name} joined as ${agent.role}`, `${agent.name} 已加入，职位：${agent.role}`),
-          urgency: "informational",
-          navigation: { section: "orgchart", entityId: agent.id },
-          batchKey: "agent_hired",
-        });
-
-        // Notify adapter that hire was approved (Paperclip hire-hook parity)
-        void notifyHireApproved(db, {
-          companyId,
-          agentId: agent.id,
-          source: "approval",
-          sourceId: approvalId,
-          approvedAt: new Date().toISOString(),
-        }).catch(() => {});
+      const ceo = db.getCeoForCompany(companyId);
+      if (ceo && ceo.id !== agent.id) {
+        wakeAgentIfPossible(ceo.id, companyId, "assignment");
       }
-    } catch {
-      // Hire follow-up is best-effort; approval state is already committed in storage.
+
+      publishDomainChanged();
+      const hireLocale = db.listSnapshot().locale;
+      notify({
+        title: localizeNotification(hireLocale, "Agent Hired", "新员工入职"),
+        body: localizeNotification(hireLocale, `${agent.name} joined as ${agent.role}`, `${agent.name} 已加入，职位：${agent.role}`),
+        urgency: "informational",
+        navigation: { section: "orgchart", entityId: agent.id },
+        batchKey: "agent_hired",
+      });
+
+      // Notify adapter that hire was approved (Paperclip hire-hook parity)
+      void notifyHireApproved(db, {
+        companyId,
+        agentId: agent.id,
+        source: "approval",
+        sourceId: approvalId,
+        approvedAt: new Date().toISOString(),
+      }).catch(() => {});
     }
   }
 
   if (approval.type === "deliverable_review") {
-    try {
-      // Update linked document statuses from payloadJson
-      const documentIds = extractApprovalDocumentIds(approval.payloadJson);
-      const docStatus = decision === "approved"
-        ? "approved"
-        : decision === "rejected" || decision === "revision_requested"
-          ? "draft"
-          : "in_review";
-      for (const docId of documentIds) {
-        db.updateDocumentStatus(docId, companyId, docStatus);
-      }
-
-      if (approval.relatedTaskId) {
-        const task = db.getTask(approval.relatedTaskId);
-        if (task.assigneeAgentId) {
-          try {
-            const agent = db.getAgent(task.assigneeAgentId);
-            if (!agent.heartbeatEnabled) {
-              db.setHeartbeat(task.assigneeAgentId, true, agent.heartbeatIntervalSec || 120);
-              logger.info(`[deliverable-review] Resumed heartbeat for ${agent.name} after user ${decision}.`);
-            }
-          } catch { /* agent lookup non-fatal */ }
-        }
-        if (decision === "approved") {
-          db.advanceTaskStatus(task.id, "done", "Board approved deliverable.");
-          handleTaskStatusChange(task.id, companyId, task.status, "done");
-          db.addActivity({ companyId, actor: "board", action: "deliverable.approved", entityType: "task", entityId: task.id, detail: approval.decisionNote || "Deliverable approved by board." });
-        } else if (decision === "rejected") {
-          recordReviewFeedbackKnowledge(db, approval, decision);
-          db.advanceTaskStatus(task.id, "in_progress", `Board rejected deliverable: ${approval.decisionNote || "No reason given."}`);
-          handleTaskStatusChange(task.id, companyId, task.status, "in_progress");
-          if (task.assigneeAgentId) {
-            wakeAgentIfPossible(task.assigneeAgentId, companyId, "revision_needed");
-          }
-        } else if (decision === "revision_requested") {
-          db.advanceTaskStatus(task.id, "in_progress", `Board requested revisions: ${approval.decisionNote || "No reason given."}`);
-          handleTaskStatusChange(task.id, companyId, task.status, "in_progress");
-          recordReviewFeedbackKnowledge(db, approval, decision);
-          if (task.assigneeAgentId) {
-            wakeAgentIfPossible(task.assigneeAgentId, companyId, "revision_needed");
-          }
-        }
-      } else if (approval.requestedByAgentId) {
-        // Document-only review (no task) — resume the producing agent
-        try {
-          const agent = db.getAgent(approval.requestedByAgentId);
-          if (!agent.heartbeatEnabled) {
-            db.setHeartbeat(approval.requestedByAgentId, true, agent.heartbeatIntervalSec || 120);
-            logger.info(`[deliverable-review] Resumed heartbeat for ${agent.name} after user ${decision}.`);
-          }
-        } catch { /* agent lookup non-fatal */ }
-        if (decision !== "approved") {
-          wakeAgentIfPossible(approval.requestedByAgentId, companyId, "revision_needed");
-        }
-      }
-
-      publishDomainChanged();
-    } catch {
-      // Deliverable review follow-up is non-fatal — approval state is already committed.
+    const documentIds = extractApprovalDocumentIds(approval.payloadJson);
+    const docStatus = decision === "approved"
+      ? "approved"
+      : decision === "rejected" || decision === "revision_requested"
+        ? "draft"
+        : "in_review";
+    for (const docId of documentIds) {
+      db.updateDocumentStatus(docId, companyId, docStatus);
     }
+
+    if (approval.relatedTaskId) {
+      const task = db.getTask(approval.relatedTaskId);
+      if (task.assigneeAgentId) {
+        const agent = db.getAgent(task.assigneeAgentId);
+        if (!agent.heartbeatEnabled) {
+          db.setHeartbeat(task.assigneeAgentId, true, agent.heartbeatIntervalSec || 120);
+          logger.info(`[deliverable-review] Resumed heartbeat for ${agent.name} after user ${decision}.`);
+        }
+      }
+      if (decision === "approved") {
+        db.advanceTaskStatus(task.id, "done", "Board approved deliverable.");
+        handleTaskStatusChange(task.id, companyId, task.status, "done");
+        db.addActivity({ companyId, actor: "board", action: "deliverable.approved", entityType: "task", entityId: task.id, detail: approval.decisionNote || "Deliverable approved by board." });
+      } else if (decision === "rejected") {
+        recordReviewFeedbackKnowledge(db, approval, decision);
+        db.advanceTaskStatus(task.id, "in_progress", `Board rejected deliverable: ${approval.decisionNote || "No reason given."}`);
+        handleTaskStatusChange(task.id, companyId, task.status, "in_progress");
+        if (task.assigneeAgentId) {
+          wakeAgentIfPossible(task.assigneeAgentId, companyId, "revision_needed");
+        }
+      } else if (decision === "revision_requested") {
+        db.advanceTaskStatus(task.id, "in_progress", `Board requested revisions: ${approval.decisionNote || "No reason given."}`);
+        handleTaskStatusChange(task.id, companyId, task.status, "in_progress");
+        recordReviewFeedbackKnowledge(db, approval, decision);
+        if (task.assigneeAgentId) {
+          wakeAgentIfPossible(task.assigneeAgentId, companyId, "revision_needed");
+        }
+      }
+    } else if (approval.requestedByAgentId) {
+      const agent = db.getAgent(approval.requestedByAgentId);
+      if (!agent.heartbeatEnabled) {
+        db.setHeartbeat(approval.requestedByAgentId, true, agent.heartbeatIntervalSec || 120);
+        logger.info(`[deliverable-review] Resumed heartbeat for ${agent.name} after user ${decision}.`);
+      }
+      if (decision !== "approved") {
+        wakeAgentIfPossible(approval.requestedByAgentId, companyId, "revision_needed");
+      }
+    }
+
+    publishDomainChanged();
   }
 
   if (approval.type === "draft_review" || approval.type === "strategy_review") {
-    try {
-      const documentIds = extractApprovalDocumentIds(approval.payloadJson);
-      const docStatus = decision === "approved" ? "approved" : "draft";
-      for (const docId of documentIds) {
-        db.updateDocumentStatus(docId, companyId, docStatus);
-      }
-      publishDomainChanged();
-    } catch {
-      // Document checkpoint follow-up is non-fatal — approval state is already committed.
+    const documentIds = extractApprovalDocumentIds(approval.payloadJson);
+    const docStatus = decision === "approved" ? "approved" : "draft";
+    for (const docId of documentIds) {
+      db.updateDocumentStatus(docId, companyId, docStatus);
     }
+    publishDomainChanged();
   }
 
   // Handle budget override approvals

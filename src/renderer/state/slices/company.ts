@@ -14,6 +14,13 @@ import type { SidebarBadges } from "@shared/contracts";
 
 export interface CompanySlice {
   snapshot: ProfileSnapshot | null;
+  /**
+   * Bumps only on full-snapshot replacements (setSnapshot / refreshSnapshot).
+   * Granular patch/remove methods DO NOT bump this counter so that
+   * section-IPC effects keyed on `snapshotRevision` fire only for genuine
+   * re-fetches, not on every task/run/agent patch.
+   */
+  snapshotRevision: number;
   companyMetrics: CompanyMetrics | null;
   standupReport: StandupReport | null;
   inboxItems: InboxItem[];
@@ -44,6 +51,7 @@ export const createCompanySlice: StateCreator<
   CompanySlice
 > = (set, get) => ({
   snapshot: null,
+  snapshotRevision: 0,
   companyMetrics: null,
   standupReport: null,
   inboxItems: [],
@@ -52,6 +60,7 @@ export const createCompanySlice: StateCreator<
   setSnapshot: (snapshot) =>
     set((state) => {
       state.snapshot = snapshot;
+      state.snapshotRevision += 1;
     }),
   setCompanyMetrics: (metrics) =>
     set((state) => {
@@ -79,6 +88,7 @@ export const createCompanySlice: StateCreator<
       if (result.ok) {
         set((state) => {
           state.snapshot = result.data;
+          state.snapshotRevision += 1;
         });
       } else {
         set((state) => {
@@ -168,8 +178,10 @@ export const createCompanySlice: StateCreator<
           state.badges = result.data;
         });
       }
-    } catch {
-      /* ignore -- badges are non-critical */
+    } catch (error) {
+      console.warn(
+        `[renderer/company] refreshBadges failed for company ${companyId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   },
 });

@@ -13,14 +13,17 @@ import type { AgentMessageRecord, AgentRecord, CommentRecord, DepartmentId } fro
 import { getAgentInitials, formatMessageTime } from "../../lib/formatters"
 import { safeJson } from "../../lib/safe-json"
 import { DEPARTMENT_COLORS } from "@shared/constants"
+import { useT, type TranslationFn } from "../../i18n"
 
 const HUMAN_SENDER_ID = "__board__";
 
 
-const priorityConfig: Record<string, { label: string; className: string }> = {
-  urgent: { label: "Urgent", className: "bg-destructive-muted text-destructive" },
-  normal: { label: "Normal", className: "bg-muted text-muted-foreground" },
-  low: { label: "Low", className: "bg-muted text-muted-foreground" },
+function priorityConfig(t: TranslationFn): Record<string, { label: string; className: string }> {
+  return {
+    urgent: { label: t("msg.priority.urgent"), className: "bg-destructive-muted text-destructive" },
+    normal: { label: t("msg.priority.normal"), className: "bg-muted text-muted-foreground" },
+    low: { label: t("msg.priority.low"), className: "bg-muted text-muted-foreground" },
+  }
 }
 
 function getDepartmentColor(department: DepartmentId | null | undefined): string {
@@ -62,11 +65,13 @@ export const MessageBubble = memo(function MessageBubble({
   replyCount: number
   onReply: () => void
 }) {
+  const t = useT()
+  const priorityMap = priorityConfig(t)
   const isUnread = !message.readAt
   const isHuman = message.fromAgentId === HUMAN_SENDER_ID
   const deptColor = agent ? getDepartmentColor(agent.department) : "var(--muted-foreground)"
   const senderColor = isHuman ? "var(--primary)" : deptColor
-  const senderName = isHuman ? "You" : (agent?.name ?? "Unknown Agent")
+  const senderName = isHuman ? t("msg.you") : (agent?.name ?? t("msg.unknownAgent"))
 
   return (
     <motion.div
@@ -105,14 +110,14 @@ export const MessageBubble = memo(function MessageBubble({
           </span>
           {message.priority !== "normal" ? (
             <span
-              className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] ${priorityConfig[message.priority]?.className ?? ""}`}
+              className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] ${priorityMap[message.priority]?.className ?? ""}`}
             >
               {message.priority === "urgent" ? <WarningCircle size={10} weight="fill" /> : null}
-              {priorityConfig[message.priority]?.label}
+              {priorityMap[message.priority]?.label}
             </span>
           ) : null}
           {isUnread ? (
-            <Circle size={8} weight="fill" className="shrink-0" style={{ color: "var(--primary)" }} aria-label="Unread" />
+            <Circle size={8} weight="fill" className="shrink-0" style={{ color: "var(--primary)" }} aria-label={t("msg.unread")} />
           ) : (
             <CheckCircle
               size={10}
@@ -145,7 +150,7 @@ export const MessageBubble = memo(function MessageBubble({
               style={{ color: "var(--primary)" }}
             >
               <ChatCircle size={12} />
-              {replyCount} {replyCount === 1 ? "reply" : "replies"}
+              {replyCount} {t("msg.replies")}
             </button>
           ) : null}
           <button
@@ -154,7 +159,7 @@ export const MessageBubble = memo(function MessageBubble({
             className="flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-medium text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground group-hover:opacity-100"
           >
             <ArrowBendUpLeft size={10} />
-            Reply
+            {t("msg.reply")}
           </button>
         </div>
       </div>

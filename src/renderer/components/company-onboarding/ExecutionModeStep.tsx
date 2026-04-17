@@ -1,14 +1,18 @@
+import { useState } from "react";
 import { ArrowRight, Brain, UserCircle, type Icon } from "../ui/icons";
+import type { ExecutionMode } from "@shared/types";
 import { OnboardingStep } from "./OnboardingStep";
-import { useOnboarding } from "./OnboardingContext";
+import { useOnboardingWizard } from "./OnboardingContext";
 
 interface ExecutionModeStepProps {
-  onContinue: () => void;
+  initialValue: ExecutionMode;
+  onContinue: (mode: ExecutionMode) => void;
   onBack: () => void;
 }
 
-export function ExecutionModeStep({ onContinue, onBack }: ExecutionModeStepProps) {
-  const { executionMode, setExecutionMode, t } = useOnboarding();
+export function ExecutionModeStep({ initialValue, onContinue, onBack }: ExecutionModeStepProps) {
+  const { t } = useOnboardingWizard();
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>(initialValue);
 
   return (
     <OnboardingStep
@@ -49,7 +53,7 @@ export function ExecutionModeStep({ onContinue, onBack }: ExecutionModeStepProps
         </button>
         <button
           type="button"
-          onClick={onContinue}
+          onClick={() => onContinue(executionMode)}
           className="flex items-center gap-2 rounded-md bg-[color:var(--primary)] px-4 py-2 text-[13px] font-medium text-white transition hover:opacity-90"
         >
           {t("onboarding.continue")}

@@ -5,13 +5,16 @@ import type { AgentRecord, MessageChannel } from "@shared/types"
 import { AgentAvatar } from "./MessageItem"
 import type { ChannelDescriptor, TaskDiscussionDescriptor } from "./ChannelHeader"
 import { useT } from "../../i18n"
+import { Eyebrow } from "../ui"
 
-const channelConfig: Record<MessageChannel, { label: string; icon: React.ElementType }> = {
-  direct: { label: "Direct Messages", icon: EnvelopeSimple },
-  department: { label: "Department", icon: Buildings },
-  company: { label: "Company-wide", icon: Megaphone },
-  project: { label: "Project", icon: Hash },
-  incident: { label: "Incident", icon: Fire },
+type ChannelConfig = { labelKey: string; icon: React.ElementType }
+
+const channelConfig: Record<MessageChannel, ChannelConfig> = {
+  direct: { labelKey: "comm.channelLabel.direct", icon: EnvelopeSimple },
+  department: { labelKey: "comm.channelLabel.department", icon: Buildings },
+  company: { labelKey: "comm.channelLabel.company", icon: Megaphone },
+  project: { labelKey: "comm.channelLabel.project", icon: Hash },
+  incident: { labelKey: "comm.channelLabel.incident", icon: Fire },
 }
 
 function ChannelItem({
@@ -111,9 +114,7 @@ export function ChannelSidebar({
       <div className="flex-1 overflow-y-auto px-2 py-3">
         {channelGroups.map((group) => (
           <div key={group.type} className="mb-3">
-            <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              {group.label}
-            </div>
+            <Eyebrow className="mb-1 px-2">{group.label}</Eyebrow>
             {group.items.map((ch) => {
               const stats = unreadByChannel.get(ch.key)
               return (
@@ -133,9 +134,7 @@ export function ChannelSidebar({
 
         {taskDiscussionChannels.length > 0 ? (
           <div className="mb-3">
-            <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              {t("comm.taskDiscussions")}
-            </div>
+            <Eyebrow className="mb-1 px-2">{t("comm.taskDiscussions")}</Eyebrow>
             {taskDiscussionChannels.map((discussion) => (
               <button
                 key={discussion.key}
@@ -165,8 +164,8 @@ export function ChannelSidebar({
 
       <div className="border-t border-border px-4 py-2">
         <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>{totalChannels} channels</span>
-          <span>{agents.length} agents</span>
+          <span>{t("comm.channelsTotal").replace("{count}", String(totalChannels))}</span>
+          <span>{t("comm.agentsTotal").replace("{count}", String(agents.length))}</span>
         </div>
       </div>
     </motion.div>

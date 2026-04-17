@@ -27,7 +27,7 @@ import { ActivityFeed } from "./ActivityFeed";
 import { RecoveryBanner } from "./RecoveryBanner";
 import { BudgetAlertBanner } from "./BudgetAlertBanner";
 import { ChartSection } from "./ChartSection";
-import { AttentionRow } from "../ui";
+import { AttentionRow, Eyebrow } from "../ui";
 
 export interface DashboardProps {
   companyName?: string;
@@ -142,10 +142,10 @@ export function Dashboard(props: DashboardProps) {
       {/* Needs Attention — moved to top, only shows when items exist */}
       {hasAttentionItems ? (
         <section>
-          <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-warning">
+          <Eyebrow tone="warning" className="mb-3 flex items-center gap-2">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-warning" />
             {t("dash.needsAttentionSection")}
-          </div>
+          </Eyebrow>
           <div className="space-y-1.5">
             {pendingApprovals.slice(0, 5).map((approval, i) => {
               const requester = approval.requestedByAgentId ? agentMap.get(approval.requestedByAgentId) : undefined;
@@ -201,9 +201,7 @@ export function Dashboard(props: DashboardProps) {
       {/* Active Work — what's running right now */}
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            {t("dash.activeWork")}
-          </div>
+          <Eyebrow>{t("dash.activeWork")}</Eyebrow>
           <button type="button" onClick={() => onNavigate("runs")} className="flex items-center gap-1 text-[11px] font-medium text-primary transition hover:underline">
             {t("dash.allRuns")} <ArrowRight size={12} />
           </button>
@@ -250,9 +248,7 @@ export function Dashboard(props: DashboardProps) {
       {/* Recent Activity */}
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            {t("dash.recentActivity")}
-          </div>
+          <Eyebrow>{t("dash.recentActivity")}</Eyebrow>
         </div>
         <div className="max-h-[360px] overflow-y-auto rounded-lg border border-border bg-card py-2">
           <ActivityFeed activity={activity} agents={agents} limit={10} />

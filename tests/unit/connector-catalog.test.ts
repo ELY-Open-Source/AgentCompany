@@ -48,7 +48,7 @@ describe("CONNECTORS catalog", () => {
   });
 
   it("OAuth connectors carry one of the five pi OAuth provider ids", () => {
-    const validOauthIds = new Set(["anthropic", "openai-codex", "github-copilot", "gemini-cli", "antigravity"]);
+    const validOauthIds = new Set(["anthropic", "openai-codex", "github-copilot", "google-gemini-cli", "google-antigravity"]);
     const oauthConnectors = CONNECTORS.filter((c) => c.auth?.type === "oauth");
     for (const connector of oauthConnectors) {
       if (connector.auth?.type !== "oauth") throw new Error("unreachable");

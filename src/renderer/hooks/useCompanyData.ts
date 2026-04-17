@@ -39,13 +39,37 @@ export function useCompanyData(
   const companyMeetings = useMemo(() => filterByCompany(snapshot?.meetings, currentCompany), [snapshot, currentCompany]);
   const companySprints = useMemo(() => filterByCompany(snapshot?.sprints, currentCompany), [snapshot, currentCompany]);
 
-  const selectedTask = selectedTaskId ? (tasks.find((task) => task.id === selectedTaskId) ?? null) : null;
-  const selectedApproval = selectedApprovalId ? (approvals.find((approval) => approval.id === selectedApprovalId) ?? null) : null;
-  const selectedRun = runs.find((run) => run.id === selectedRunId) ?? runs[0] ?? null;
-  const selectedAgent = companyAgents.find((a) => a.id === selectedAgentId) ?? null;
-  const selectedGoal = companyGoals.find((g) => g.id === selectedGoalId) ?? null;
-  const selectedProject = companyProjects.find((p) => p.id === selectedProjectId) ?? null;
-  const selectedWorkspace = companyWorkspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? companyWorkspaces[0] ?? null;
+  // HOOK-005 fix: memoize selection derivations so their identity is stable
+  // across renders when the backing collections and selected id have not
+  // changed.
+  const selectedTask = useMemo(
+    () => (selectedTaskId ? (tasks.find((task) => task.id === selectedTaskId) ?? null) : null),
+    [selectedTaskId, tasks],
+  );
+  const selectedApproval = useMemo(
+    () => (selectedApprovalId ? (approvals.find((approval) => approval.id === selectedApprovalId) ?? null) : null),
+    [selectedApprovalId, approvals],
+  );
+  const selectedRun = useMemo(
+    () => runs.find((run) => run.id === selectedRunId) ?? runs[0] ?? null,
+    [runs, selectedRunId],
+  );
+  const selectedAgent = useMemo(
+    () => companyAgents.find((a) => a.id === selectedAgentId) ?? null,
+    [companyAgents, selectedAgentId],
+  );
+  const selectedGoal = useMemo(
+    () => companyGoals.find((g) => g.id === selectedGoalId) ?? null,
+    [companyGoals, selectedGoalId],
+  );
+  const selectedProject = useMemo(
+    () => companyProjects.find((p) => p.id === selectedProjectId) ?? null,
+    [companyProjects, selectedProjectId],
+  );
+  const selectedWorkspace = useMemo(
+    () => companyWorkspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? companyWorkspaces[0] ?? null,
+    [companyWorkspaces, selectedWorkspaceId],
+  );
 
   const navBadgesSource = useAppStore((s) => s.badges);
   const navBadges = useMemo<Partial<Record<SectionId, { count: number; tone: "default" | "warn" | "danger" }>>>(() => navBadgesSource ? {
@@ -60,7 +84,7 @@ export function useCompanyData(
     communication: navBadgesSource.unreadMessages > 0 ? { count: navBadgesSource.unreadMessages, tone: "warn" } : undefined,
   } : {}, [navBadgesSource]);
 
-  return {
+  return useMemo(() => ({
     tasks,
     approvals,
     pendingApprovals,
@@ -84,5 +108,31 @@ export function useCompanyData(
     selectedProject,
     selectedWorkspace,
     navBadges,
-  };
+  }), [
+    tasks,
+    approvals,
+    pendingApprovals,
+    runs,
+    companyAgents,
+    companyGoals,
+    companyProjects,
+    companyWorkspaces,
+    companyCosts,
+    filteredActivity,
+    companySecrets,
+    companyDocuments,
+    companyKnowledge,
+    companyMeetings,
+    companySprints,
+    selectedTask,
+    selectedApproval,
+    selectedRun,
+    selectedAgent,
+    selectedGoal,
+    selectedProject,
+    selectedWorkspace,
+    navBadges,
+  ]);
 }
+
+export type CompanyData = ReturnType<typeof useCompanyData>;

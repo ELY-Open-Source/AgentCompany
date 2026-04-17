@@ -3,6 +3,7 @@ import type { CompanyMetrics, SectionId } from "@shared/types";
 import { formatDuration, formatMoney, getAgentInitials } from "../../lib/formatters";
 import { useT } from "../../i18n";
 import { CompactMetric, RunProgressBar } from "./inbox-helpers";
+import { Card, Eyebrow } from "../ui";
 
 interface PerformanceProps {
   metrics: CompanyMetrics | null;
@@ -48,8 +49,8 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
         />
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-5">
-        <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Run Activity (30d)</div>
+      <Card padding="lg">
+        <Eyebrow className="mb-3">{t("perf.runActivity30d")}</Eyebrow>
         <div className="flex items-center gap-6">
           <div className="flex-1">
             <RunProgressBar
@@ -61,28 +62,28 @@ export function PerformanceView({ metrics, onNavigate }: PerformanceProps) {
           <div className="flex gap-4 text-[12px]">
             <span className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-success" />
-              <span className="text-muted-foreground">{metrics.successfulRuns} succeeded</span>
+              <span className="text-muted-foreground">{t("perf.runsSucceeded").replace("{n}", String(metrics.successfulRuns))}</span>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-destructive" />
-              <span className="text-muted-foreground">{metrics.failedRuns} failed</span>
+              <span className="text-muted-foreground">{t("perf.runsFailed").replace("{n}", String(metrics.failedRuns))}</span>
             </span>
           </div>
         </div>
-      </div>
+      </Card>
 
       <section>
-        <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Agent Performance</div>
+        <Eyebrow className="mb-3">{t("perf.agentPerformance")}</Eyebrow>
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-border bg-muted">
-                <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Agent</th>
-                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">Tasks Done</th>
-                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">Success %</th>
-                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">Runs</th>
-                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">Avg Duration</th>
-                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">Cost</th>
+                <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{t("perf.agent")}</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">{t("perf.tasksDoneCol")}</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">{t("perf.successPct")}</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">{t("perf.runsCol")}</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">{t("perf.avgDuration")}</th>
+                <th className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">{t("perf.costCol")}</th>
               </tr>
             </thead>
             <tbody>

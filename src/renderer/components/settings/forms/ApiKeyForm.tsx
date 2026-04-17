@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { ActionButton, Input } from "../../ui";
+import { useT } from "../../../i18n";
 
 const desktop = (typeof window !== "undefined" ? window.agentCompany : null) as
   | (Window["agentCompany"] | null);
@@ -10,6 +12,7 @@ interface Props {
 }
 
 export function ApiKeyForm({ connectorId, defaultEnvVar, onSaved }: Props) {
+  const t = useT();
   const [source, setSource] = useState<"literal" | "env">("literal");
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
@@ -52,21 +55,17 @@ export function ApiKeyForm({ connectorId, defaultEnvVar, onSaved }: Props) {
       }}
       className="space-y-3"
     >
-      <input
+      <Input
         type={isEnv ? "text" : "password"}
         value={value}
-        onChange={(event) => setValue(event.target.value)}
-        placeholder={isEnv ? (defaultEnvVar ?? "PROVIDER_API_KEY") : "Paste your API key"}
-        autoComplete="off"
-        spellCheck={false}
+        onChange={setValue}
+        placeholder={isEnv ? (defaultEnvVar ?? t("form.envVarPlaceholder")) : t("form.apiKeyPlaceholder")}
         disabled={busy}
-        autoFocus
-        aria-label={isEnv ? "Environment variable name" : "API key"}
-        className="block w-full rounded-md border border-border bg-background px-3 py-2.5 font-mono text-[12px] tracking-tight text-foreground outline-none transition-colors placeholder:font-sans placeholder:tracking-normal placeholder:text-muted-foreground/50 focus:border-foreground/50 disabled:opacity-50"
+        ariaLabel={isEnv ? t("form.envVarAriaLabel") : t("form.apiKeyAriaLabel")}
       />
 
       {error ? (
-        <div role="alert" className="text-[11px] text-red-400">
+        <div role="alert" className="text-[11px] text-destructive">
           {error}
         </div>
       ) : null}
@@ -78,15 +77,15 @@ export function ApiKeyForm({ connectorId, defaultEnvVar, onSaved }: Props) {
           disabled={busy}
           className="text-[11px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
         >
-          {isEnv ? "Paste key directly" : "Use environment variable instead"}
+          {isEnv ? t("form.pasteKey") : t("form.useEnvVar")}
         </button>
-        <button
+        <ActionButton
           type="submit"
+          label={busy ? t("form.saving") : t("form.save")}
+          tone="accent"
           disabled={!canSave}
-          className="rounded px-3 py-1.5 text-[11px] font-medium bg-foreground text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
-        >
-          {busy ? "Saving…" : "Save"}
-        </button>
+          loading={busy}
+        />
       </div>
     </form>
   );

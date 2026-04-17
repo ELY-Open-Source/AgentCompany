@@ -279,14 +279,15 @@ export function buildRunMethods(
 
     getInterruptedRunsForRecovery(): Array<{
       runId: string; taskId: string; taskTitle: string; agentId: string;
-      agentName: string; connectorId: string; interruptedAt: string;
+      agentName: string; companyId: string; connectorId: string; interruptedAt: string;
     }> {
       return readAll<{
         runId: string; taskId: string; taskTitle: string; agentId: string;
-        agentName: string; connectorId: string; interruptedAt: string;
+        agentName: string; companyId: string; connectorId: string; interruptedAt: string;
       }>(
         `select r.id as runId, r.task_id as taskId, t.title as taskTitle,
                 r.agent_id as agentId, a.name as agentName,
+                r.company_id as companyId,
                 r.connector_id as connectorId, r.finished_at as interruptedAt
          from runs r
          join tasks t on t.id = r.task_id

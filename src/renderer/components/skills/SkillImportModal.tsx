@@ -7,15 +7,9 @@ import {
 } from "../ui/icons";
 import { Modal, ActionButton, Input } from "../ui";
 import { useAppStore } from "../../state/store";
+import { useT } from "../../i18n";
 
 type TabId = "github" | "local" | "url" | "skills_sh";
-
-const tabs: { id: TabId; label: string; icon: typeof GithubLogo }[] = [
-  { id: "github", label: "GitHub", icon: GithubLogo },
-  { id: "local", label: "Local Path", icon: FolderSimple },
-  { id: "url", label: "HTTP URL", icon: Link },
-  { id: "skills_sh", label: "skills.sh", icon: Globe },
-];
 
 function isValidGithubSource(value: string): boolean {
   return /^(https:\/\/github\.com\/[\w.-]+\/[\w.-]+|[\w.-]+\/[\w.-]+)/.test(value.trim());
@@ -41,6 +35,13 @@ export function SkillImportModal({
   companyId: string;
   onImported: () => void;
 }) {
+  const t = useT();
+  const tabs: { id: TabId; label: string; icon: typeof GithubLogo }[] = [
+    { id: "github", label: t("skillImport.tabGithub"), icon: GithubLogo },
+    { id: "local", label: t("skillImport.tabLocal"), icon: FolderSimple },
+    { id: "url", label: t("skillImport.tabUrl"), icon: Link },
+    { id: "skills_sh", label: t("skillImport.tabSkillsSh"), icon: Globe },
+  ];
   const addToast = useAppStore((s) => s.addToast);
   const [activeTab, setActiveTab] = useState<TabId>("github");
   const [source, setSource] = useState("");
@@ -90,28 +91,28 @@ export function SkillImportModal({
       const result = await window.agentCompany.importSkill(companyId, trimmed);
       if (result.ok) {
         const count = result.data.length;
-        addToast(`Imported ${count} skill${count !== 1 ? "s" : ""} successfully`);
+        addToast(t("skillImport.imported").replace("{n}", String(count)));
         onImported();
         handleClose();
       } else {
         addToast(result.error.message, "danger");
       }
     } catch (error) {
-      addToast(error instanceof Error ? error.message : "Import failed", "danger");
+      addToast(error instanceof Error ? error.message : t("skillImport.failed"), "danger");
     } finally {
       setIsImporting(false);
     }
-  }, [source, companyId, addToast, onImported, handleClose]);
+  }, [source, companyId, addToast, onImported, handleClose, t]);
 
   const placeholder: Record<TabId, string> = {
-    github: "https://github.com/owner/repo or owner/repo",
-    local: "Enter or browse local path",
-    url: "https://example.com/path/to/skill",
-    skills_sh: "skills.sh install command or URL",
+    github: t("skillImport.placeholderGithub"),
+    local: t("skillImport.placeholderLocal"),
+    url: t("skillImport.placeholderUrl"),
+    skills_sh: t("skillImport.placeholderSkillsSh"),
   };
 
   return (
-    <Modal open={open} title="Import Skill" onClose={handleClose} width="560px">
+    <Modal open={open} title={t("skillImport.title")} onClose={handleClose} width="560px">
       <div className="space-y-5">
         {/* Tab bar */}
         <div className="flex gap-1 border-b border-border">
@@ -146,7 +147,7 @@ export function SkillImportModal({
               <div className="flex-1">
                 <Input value={source} onChange={setSource} placeholder={placeholder.local} />
               </div>
-              <ActionButton label="Browse" onClick={() => void handleBrowse()} />
+              <ActionButton label={t("skillImport.browse")} onClick={() => void handleBrowse()} />
             </div>
           ) : (
             <Input value={source} onChange={setSource} placeholder={placeholder[activeTab]} />
@@ -154,16 +155,16 @@ export function SkillImportModal({
 
           {activeTab === "skills_sh" && (
             <p className="text-[12px] text-muted-foreground">
-              Enter a skills.sh install command (e.g., <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">npx skills.sh install skill-name</code>) or a direct skills.sh URL.
+              {t("skillImport.skillsShHelp")}
             </p>
           )}
         </div>
 
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-2">
-          <ActionButton label="Cancel" onClick={handleClose} />
+          <ActionButton label={t("skillImport.cancel")} onClick={handleClose} />
           <ActionButton
-            label="Import"
+            label={t("skillImport.import")}
             tone="accent"
             onClick={() => void handleImport()}
             loading={isImporting}

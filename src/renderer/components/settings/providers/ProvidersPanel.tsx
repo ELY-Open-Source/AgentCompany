@@ -7,26 +7,28 @@ import {
   type ConnectorCatalogEntry,
 } from "@shared/connector-catalog";
 import { ProviderRow } from "./ProviderRow";
-
-const FILTERS: Array<{ id: "all" | "configured" | "available"; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "configured", label: "Connected" },
-  { id: "available", label: "Available" },
-];
-
-const GROUP_ORDER: Array<{ id: ConnectorAuthKind; label: string }> = [
-  { id: "oauth", label: "Sign in" },
-  { id: "api_key", label: "API key" },
-  { id: "azure", label: "Azure" },
-  { id: "aws", label: "AWS" },
-  { id: "gcp_adc", label: "Google Cloud" },
-];
+import { useT } from "../../../i18n";
 
 interface ProvidersPanelProps {
   catalog?: ConnectorCatalogEntry[];
 }
 
 export function ProvidersPanel({ catalog }: ProvidersPanelProps = {}) {
+  const t = useT();
+  const FILTERS: Array<{ id: "all" | "configured" | "available"; label: string }> = [
+    { id: "all", label: t("providers.filterAll") },
+    { id: "configured", label: t("providers.filterConfigured") },
+    { id: "available", label: t("providers.filterAvailable") },
+  ];
+
+  const GROUP_ORDER: Array<{ id: ConnectorAuthKind; label: string }> = [
+    { id: "oauth", label: t("providers.groupOAuth") },
+    { id: "api_key", label: t("providers.groupApiKey") },
+    { id: "azure", label: t("providers.groupAzure") },
+    { id: "aws", label: t("providers.groupAws") },
+    { id: "gcp_adc", label: t("providers.groupGcp") },
+  ];
+
   const entries = catalog ?? CONNECTOR_CATALOG;
   const [credentials, setCredentials] = useState<Map<string, CredentialSummary>>(new Map());
   const [filter, setFilter] = useState<"all" | "configured" | "available">("all");
@@ -78,7 +80,8 @@ export function ProvidersPanel({ catalog }: ProvidersPanelProps = {}) {
       ...group,
       items: byKind.get(group.id) ?? [],
     })).filter((group) => group.items.length > 0);
-  }, [filtered]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, t]);
 
   const configuredCount = useMemo(
     () => entries.filter((entry) => credentials.has(entry.id)).length,
@@ -86,7 +89,7 @@ export function ProvidersPanel({ catalog }: ProvidersPanelProps = {}) {
   );
 
   return (
-    <section aria-label="Providers" className="space-y-4">
+    <section aria-label={t("providers.ariaLabel")} className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-xs">
           <MagnifyingGlass
@@ -97,21 +100,21 @@ export function ProvidersPanel({ catalog }: ProvidersPanelProps = {}) {
           />
           <input
             type="search"
-            placeholder="Search providers"
+            placeholder={t("providers.search")}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            aria-label="Search providers"
+            aria-label={t("providers.search")}
             className="h-9 w-full rounded-md border border-border bg-background pl-8 pr-3 text-[13px] text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-foreground/40"
           />
         </div>
 
         <div className="flex items-center gap-3">
           <div className="hidden text-[11px] font-medium text-muted-foreground sm:block">
-            {configuredCount} / {entries.length} connected
+            {t("providers.connectedCount").replace("{n}", String(configuredCount)).replace("{total}", String(entries.length))}
           </div>
           <div
             role="tablist"
-            aria-label="Filter providers"
+            aria-label={t("providers.filterAriaLabel")}
             className="inline-flex rounded-md border border-border bg-background p-0.5"
           >
             {FILTERS.map((item) => {
@@ -140,7 +143,7 @@ export function ProvidersPanel({ catalog }: ProvidersPanelProps = {}) {
 
       {grouped.length === 0 ? (
         <div className="rounded-md border border-dashed border-border py-10 text-center text-[12px] text-muted-foreground">
-          No providers match the current filter.
+          {t("providers.noMatch")}
         </div>
       ) : (
         <div className="space-y-6">

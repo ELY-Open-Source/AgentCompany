@@ -6,7 +6,6 @@ import {
   taskInputSchema,
 } from "@shared/contracts";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
-import { isHeartbeatTaskTitle } from "./orchestration/heartbeat-task";
 import { validateTaskCreation, checkCapabilityMatch } from "./task-quality-gates";
 
 export function registerCoreTaskGraphHandlers({
@@ -19,6 +18,7 @@ export function registerCoreTaskGraphHandlers({
   wakeAgentIfPossible,
   handleTaskCreated,
   handleTaskStatusChange,
+  logger,
 }: Pick<
   RegisterCoreHandlersDependencies,
   | "registerHandle"
@@ -30,6 +30,7 @@ export function registerCoreTaskGraphHandlers({
   | "wakeAgentIfPossible"
   | "handleTaskCreated"
   | "handleTaskStatusChange"
+  | "logger"
 >) {
   registerHandle(IPC_CHANNELS.saveGoal, async (_event, payload) => {
     const parsed = goalInputSchema.parse(payload);
@@ -101,8 +102,9 @@ export function registerCoreTaskGraphHandlers({
     }
     const isNew = !parsed.id;
     if (isNew) {
-      const isHeartbeat = isHeartbeatTaskTitle(parsed.title);
-      const validation = validateTaskCreation(parsed, isHeartbeat);
+      // User-created tasks are never heartbeat tasks; the is_heartbeat flag
+      // is set only by acquireHeartbeatTask in the orchestrator.
+      const validation = validateTaskCreation(parsed, false);
       if (!validation.valid) {
         return fail("TASK_VALIDATION_FAILED", validation.errors.join("; "));
       }
@@ -143,7 +145,13 @@ export function registerCoreTaskGraphHandlers({
       }
       // User (board) manually advancing a flagged task to done: clear the review flag
       if (parsed.status === "done") {
-        try { db.setTaskRequiresUserReview(id, false); } catch { /* best effort */ }
+        try {
+          db.setTaskRequiresUserReview(id, false);
+        } catch (error) {
+          logger.warn(
+            `[ipc-task] setTaskRequiresUserReview(false) failed for task ${id}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }
       // Wake new assignee when task is reassigned (matches api-server.ts behavior)
       if (parsed.assigneeAgentId && parsed.assigneeAgentId !== previousAssigneeAgentId) {
@@ -157,7 +165,11 @@ export function registerCoreTaskGraphHandlers({
         if (!match.matched) {
           capabilityWarning = match.warning;
         }
-      } catch { /* capability check is advisory — never block task creation */ }
+      } catch (error) {
+        logger.warn(
+          `[ipc-task] capability check failed for new task ${id} (advisory, not blocking): ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
     emitEvent({ type: "task-updated", taskId: id, action: isNew ? "created" : "updated" });
     return ok({ id, capabilityWarning });

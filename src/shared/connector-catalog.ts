@@ -13,8 +13,8 @@ export type PiOAuthProviderId =
   | "anthropic"
   | "openai-codex"
   | "github-copilot"
-  | "gemini-cli"
-  | "antigravity";
+  | "google-gemini-cli"
+  | "google-antigravity";
 
 export type ConnectorAuthKind = "oauth" | "api_key" | "aws" | "azure" | "gcp_adc";
 
@@ -78,7 +78,7 @@ const OAUTH_ENTRIES: ConnectorCatalogEntry[] = [
     label: "Google Gemini CLI",
     description: "Google Gemini models via Cloud Code Assist OAuth. Free tier works with any Google account.",
     defaultModel: "gemini-2.5-pro",
-    auth: { type: "oauth", oauthId: "gemini-cli" },
+    auth: { type: "oauth", oauthId: "google-gemini-cli" },
     notes: "For paid Cloud Code Assist, set GOOGLE_CLOUD_PROJECT.",
   },
   {
@@ -87,7 +87,7 @@ const OAUTH_ENTRIES: ConnectorCatalogEntry[] = [
     label: "Google Antigravity",
     description: "Google Antigravity sandbox with Gemini 3, Claude, and GPT-OSS models.",
     defaultModel: "claude-sonnet-4-5",
-    auth: { type: "oauth", oauthId: "antigravity" },
+    auth: { type: "oauth", oauthId: "google-antigravity" },
     notes: "Free with any Google account.",
   },
 ];

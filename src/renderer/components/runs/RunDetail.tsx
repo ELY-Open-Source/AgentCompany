@@ -7,7 +7,7 @@ import {
 } from "../ui/icons";
 import type { AgentRecord, RunRecord, TaskRecord, WorkspaceRecord } from "@shared/types";
 import { formatMoney, formatTime } from "../../lib/formatters";
-import { ActionButton, Panel, StatusPill } from "../ui";
+import { ActionButton, Card, Panel, StatusPill } from "../ui";
 import type { TranslationFn } from "../../i18n";
 import { isActiveStatus } from "./run-helpers";
 import type { RunLogState } from "./run-helpers";
@@ -125,11 +125,11 @@ export function RunDetail({
         <div className="mb-3 flex items-center justify-between text-[11px] text-muted-foreground">
           <span>{logState.loading ? "Refreshing\u2026" : logState.eof ? "At latest tail" : "Tail window loaded"}</span>
         </div>
-        <div className="max-h-[420px] overflow-auto rounded-lg border border-border bg-card px-4 py-3">
+        <Card padding="sm" className="max-h-[420px] overflow-auto">
           <pre className="font-mono whitespace-pre-wrap text-[12px] leading-relaxed text-muted-foreground">
             {logState.content || "No log output captured yet."}
           </pre>
-        </div>
+        </Card>
       </Panel>
     </div>
   );

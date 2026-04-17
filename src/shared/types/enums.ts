@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export type SectionId =
   | "overview"
   | "inbox"
@@ -29,37 +31,12 @@ export type SectionId =
  * Pure pi-mono connector catalog ids. Five OAuth, eighteen API-key, three
  * cloud — see `src/main/connector-definitions.ts`. The id is what the UI, the
  * database `connectors` table, and the worker resolver all key on.
+ *
+ * Single source of truth: derived from the `connectorIdEnum` zod enum in
+ * `contracts/schemas-company.ts`. Adding a connector requires editing the zod
+ * enum only; the TS union updates automatically.
  */
-export type ConnectorId =
-  // OAuth (5)
-  | "claude-pro"
-  | "openai-codex"
-  | "github-copilot"
-  | "gemini-cli"
-  | "antigravity"
-  // API key (18)
-  | "anthropic"
-  | "openai"
-  | "google"
-  | "mistral"
-  | "groq"
-  | "cerebras"
-  | "xai"
-  | "openrouter"
-  | "vercel-ai-gateway"
-  | "zai"
-  | "opencode"
-  | "opencode-go"
-  | "huggingface"
-  | "kimi-coding"
-  | "minimax"
-  | "minimax-cn"
-  | "fireworks"
-  | "fireworks-firepass"
-  // Cloud (3)
-  | "amazon-bedrock"
-  | "azure-openai"
-  | "google-vertex";
+export type { ConnectorId } from "../contracts/schemas-company";
 
 export type ConnectorStatus =
   | "not_installed"
@@ -107,26 +84,29 @@ export type GoalStatus = "planned" | "active" | "achieved" | "cancelled";
 export type ProjectStatus = "backlog" | "planned" | "in_progress" | "completed" | "cancelled";
 export type TaskStatus = "backlog" | "todo" | "in_progress" | "in_review" | "done" | "blocked" | "cancelled";
 export type ApprovalState = "pending" | "approved" | "rejected" | "revision_requested";
-export type ApprovalType =
-  | "hire_agent"
-  | "approve_ceo_strategy"
-  | "dangerous_command"
-  | "secret_access"
-  | "budget_request"
-  | "promotion"
-  | "termination"
-  | "vendor_approval"
-  | "document_review"
-  | "production_deploy"
-  | "incident_escalation"
-  | "social_post"
-  | "deliverable_review"
-  | "budget_override"
-  | "plan_review"
-  | "scope_review"
-  | "draft_review"
-  | "strategy_review"
-  | "exception_review";
+export const approvalTypeEnum = z.enum([
+  "hire_agent",
+  "approve_ceo_strategy",
+  "dangerous_command",
+  "secret_access",
+  "budget_request",
+  "promotion",
+  "termination",
+  "vendor_approval",
+  "document_review",
+  "production_deploy",
+  "incident_escalation",
+  "social_post",
+  "deliverable_review",
+  "budget_override",
+  "plan_review",
+  "scope_review",
+  "draft_review",
+  "strategy_review",
+  "exception_review",
+]);
+
+export type ApprovalType = z.infer<typeof approvalTypeEnum>;
 export type RunStatus =
   | "queued"
   | "running"
@@ -229,23 +209,11 @@ export type KnowledgeCategory =
 
 export type SprintStatus = "planning" | "active" | "review" | "completed" | "cancelled";
 
-export type AutomationTrigger =
-  | "task_status_changed"
-  | "task_created"
-  | "task_blocked"
-  | "task_reassigned"
-  | "run_completed"
-  | "run_failed"
-  | "approval_created"
-  | "approval_resolved"
-  | "budget_threshold"
-  | "agent_idle"
-  | "comment_posted"
-  | "document_created"
-  | "schedule"
-  | "hire_approved"
-  | "sprint_started"
-  | "sprint_ended";
+/**
+ * Single source of truth: `automationTriggerEnum` in `contracts/helpers.ts`.
+ * Shared by `automationRuleInputSchema` and `workflowInputSchema`.
+ */
+export type { AutomationTrigger } from "../contracts/helpers";
 
 export type AutomationAction =
   | "assign_task"

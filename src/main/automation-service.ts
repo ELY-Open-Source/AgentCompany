@@ -1,2 +1,2 @@
-export { createAutomationService, autoAssignSkillsToAgent } from "./automation/index";
+export { createAutomationService } from "./automation/index";
 export type { AutomationEventContext } from "./automation/index";

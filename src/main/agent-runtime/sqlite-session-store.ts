@@ -19,12 +19,7 @@ export class SqliteSessionStore {
     const result: AgentMessage[] = [];
     for (const row of rows) {
       if (row.kind === "message") {
-        try {
-          result.push(JSON.parse(row.payloadJson) as AgentMessage);
-        } catch {
-          // Skip malformed entries (defensive) — preserves the rest of the
-          // transcript instead of failing the entire load.
-        }
+        result.push(JSON.parse(row.payloadJson) as AgentMessage);
       }
     }
     return result;

@@ -3,7 +3,6 @@ import type { AutomationAction, DesktopEvent } from "@shared/types";
 import { dispatchAgentMessage } from "../message-dispatch";
 import { validateTaskCreation } from "../task-quality-gates";
 import type { AutomationEventContext } from "./types";
-import { isHeartbeatTaskTitle } from "../orchestration/heartbeat-task";
 import { parseActionConfig, type AutomationActionConfigMap } from "./automation-action-schemas";
 
 // Map trigger type → default wake trigger when automation fires a heartbeat.
@@ -116,8 +115,9 @@ export function executeAutomationAction(
       const description = cfg.description ?? "";
       const priority = cfg.priority ?? "medium";
       const assigneeAgentId = cfg.assigneeAgentId ?? null;
-      const isHeartbeat = isHeartbeatTaskTitle(title);
-      const taskValidation = validateTaskCreation({ title, description }, isHeartbeat);
+      // Automation rules create user-facing tasks; heartbeat tasks are
+      // synthesized only by acquireHeartbeatTask, never via create_task.
+      const taskValidation = validateTaskCreation({ title, description }, false);
       if (!taskValidation.valid) {
         logger.warn(`[automation] Skipping create_task — validation failed: ${taskValidation.errors.join("; ")}`);
         break;
@@ -231,7 +231,15 @@ export function executeAutomationAction(
         // Keep the fallback title when the task no longer exists.
       }
       // Heartbeat tasks are internal system tasks — skip escalation messages to avoid flooding channels.
-      if (isHeartbeatTaskTitle(taskTitle)) {
+      let isHeartbeatTask = false;
+      if (ctx.taskId) {
+        try {
+          isHeartbeatTask = db.getTask(ctx.taskId).isHeartbeat === true;
+        } catch {
+          isHeartbeatTask = false;
+        }
+      }
+      if (isHeartbeatTask) {
         logger.info(`[automation] Skipping escalation for heartbeat task "${taskTitle}"`);
         break;
       }

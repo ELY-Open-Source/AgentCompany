@@ -7,13 +7,16 @@ import { AgentAvatar } from "./MessageItem"
 import { formatMessageTime } from "../../lib/formatters"
 import { EmptyState, useReducedMotion } from "../ui"
 import { useRovingTabIndex } from "../../lib/keyboard"
+import { useT } from "../../i18n"
 
-const channelConfig: Record<MessageChannel, { label: string; icon: React.ElementType; color: string }> = {
-  direct: { label: "Direct", icon: EnvelopeSimple, color: "var(--primary)" },
-  department: { label: "Department", icon: Buildings, color: "var(--muted-foreground)" },
-  company: { label: "Company", icon: Megaphone, color: "var(--primary)" },
-  project: { label: "Project", icon: Hash, color: "var(--primary)" },
-  incident: { label: "Incident", icon: Fire, color: "var(--destructive)" },
+type ChannelConfig = { labelKey: string; icon: React.ElementType; color: string }
+
+const channelConfig: Record<MessageChannel, ChannelConfig> = {
+  direct: { labelKey: "comm.channelLabel.directShort", icon: EnvelopeSimple, color: "var(--primary)" },
+  department: { labelKey: "comm.channelLabel.department", icon: Buildings, color: "var(--muted-foreground)" },
+  company: { labelKey: "comm.channelLabel.companyShort", icon: Megaphone, color: "var(--primary)" },
+  project: { labelKey: "comm.channelLabel.project", icon: Hash, color: "var(--primary)" },
+  incident: { labelKey: "comm.channelLabel.incident", icon: Fire, color: "var(--destructive)" },
 }
 
 function highlightMatch(text: string, query: string): React.ReactNode {
@@ -50,6 +53,7 @@ interface SearchResultsProps {
 }
 
 export function SearchResults({ results, query, loading, agents, onNavigateToResult }: SearchResultsProps) {
+  const t = useT()
   const reducedMotion = useReducedMotion()
   const parentRef = useRef<HTMLDivElement>(null)
   const agentMap = new Map(agents.map((a) => [a.id, a]))
@@ -81,8 +85,8 @@ export function SearchResults({ results, query, loading, agents, onNavigateToRes
     return (
       <div className="flex h-full items-center justify-center">
         <EmptyState
-          title="No messages matched your search"
-          detail="Try different keywords or search across all channels."
+          title={t("comm.searchEmptyTitle")}
+          detail={t("comm.searchEmptyDetail")}
         />
       </div>
     )
@@ -98,7 +102,7 @@ export function SearchResults({ results, query, loading, agents, onNavigateToRes
     <motion.div className="flex h-full flex-col" {...animationProps}>
       <div className="shrink-0 px-3 py-2">
         <span className="text-[11px] font-semibold text-muted-foreground">
-          {results.length} result{results.length !== 1 ? "s" : ""}
+          {(results.length === 1 ? t("comm.resultCount") : t("comm.resultCountPlural")).replace("{count}", String(results.length))}
         </span>
       </div>
 
@@ -106,7 +110,7 @@ export function SearchResults({ results, query, loading, agents, onNavigateToRes
         ref={parentRef}
         className="flex-1 overflow-auto"
         role="listbox"
-        aria-label="Search results"
+        aria-label={t("comm.searchResultsAria")}
         onKeyDown={handleKeyDown}
       >
         <div
@@ -153,14 +157,14 @@ export function SearchResults({ results, query, loading, agents, onNavigateToRes
                     {/* Row 1: Agent name, channel badge, timestamp */}
                     <div className="flex items-center gap-2">
                       <span className="truncate text-[11px] font-semibold text-foreground">
-                        {agent?.name ?? "Unknown Agent"}
+                        {agent?.name ?? t("comm.unknownAgent")}
                       </span>
                       <span
                         className="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium"
                         style={{ backgroundColor: `${config.color}18`, color: config.color }}
                       >
                         <ChannelIcon size={10} weight="bold" />
-                        {config.label}
+                        {t(config.labelKey)}
                       </span>
                       <span className="ml-auto whitespace-nowrap shrink-0 font-mono text-[11px] text-muted-foreground">
                         {formatMessageTime(message.createdAt)}

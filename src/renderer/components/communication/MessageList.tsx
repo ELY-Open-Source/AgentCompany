@@ -132,7 +132,7 @@ export function MessageList({
       ref={parentRef}
       className="h-full overflow-auto"
       role="listbox"
-      aria-label="Messages"
+      aria-label={t("comm.messagesAria")}
       onKeyDown={handleKeyDown}
     >
       <div

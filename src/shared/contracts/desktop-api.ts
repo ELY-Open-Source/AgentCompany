@@ -18,8 +18,6 @@ import type { WindowApi } from "./desktop-api/window";
 export type {
   DesktopResult,
   SaveTaskResult,
-  ConfigRevisionSummary,
-  ConfigRevisionDetail,
   RunEventRecord,
   HeartbeatPolicy,
 } from "./desktop-api/common";

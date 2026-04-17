@@ -8,7 +8,7 @@
 
 import { buildTaskPrompt } from "../prompt-builder";
 import type { AppDatabase } from "../database";
-import type { RuntimeSkillEntry } from "../skill-types";
+import type { ProjectedSkill } from "../skill-types";
 import type { ConnectorId, ExecutionMode } from "@shared/types";
 import type { WorkspaceLockMode, EnqueueRunPayload } from "./types";
 import { normalizeMessagesForPrompt, normalizeCommentsForPrompt } from "../message-normalize";
@@ -33,7 +33,7 @@ export interface TurnContextDeps {
   logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void };
   getApiPort: () => number;
   createRunToken: (agentId: string, companyId: string, runId: string) => string;
-  listRuntimeSkillEntries: (companyId: string, agentId: string, connectorId: string) => RuntimeSkillEntry[];
+  listRuntimeSkillEntries: (companyId: string, agentId: string, connectorId: string) => ProjectedSkill[];
   getSessionHandoff?: (taskId: string) => string | null;
   evaluatePreRunSessionRotation?: (taskId: string, connectorId: string) => {
     rotated: boolean;
@@ -109,7 +109,7 @@ function resolveSkills(
   connectorId: string,
   agentName: string,
   deps: Pick<TurnContextDeps, "listRuntimeSkillEntries" | "logger">,
-): RuntimeSkillEntry[] {
+): ProjectedSkill[] {
   try {
     return deps.listRuntimeSkillEntries(companyId, agentId, connectorId);
   } catch (err) {
@@ -162,13 +162,21 @@ function resolveSession(
   return { taskSession, sessionHandoff: finalHandoff };
 }
 
-function extractThinkingEffort(metadataJson: string | null): string | null {
+function extractThinkingEffort(
+  metadataJson: string | null,
+  logger: TurnContextDeps["logger"],
+  agentId: string,
+): string | null {
   try {
     const meta = JSON.parse(metadataJson || "{}");
     if (typeof meta.thinkingEffort === "string" && meta.thinkingEffort) {
       return meta.thinkingEffort;
     }
-  } catch { /* malformed metadata */ }
+  } catch (error) {
+    logger.warn(
+      `[run] malformed agent metadataJson for ${agentId}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
   return null;
 }
 
@@ -251,12 +259,9 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
   const assignedTasks = db.listAgentTasks(agent.id, companyId, ["todo", "in_progress", "blocked"]);
   const reviewTasks = db.listReviewTasksForManager(agent.id, companyId);
   const recentComments = assembleRecentComments(assignedTasks, reviewTasks, snapshot);
-  let sessionHandoff = resolveSessionHandoff(task.id, deps);
+  const initialHandoff = resolveSessionHandoff(task.id, deps);
+  const { taskSession, sessionHandoff } = resolveSession(db, task, connector.id, initialHandoff, deps);
   const skills = resolveSkills(companyId, agent.id, connector.id, agent.name, deps);
-
-  const skillNames = skills
-    .map((s) => s.name ?? s.runtimeName)
-    .filter(Boolean);
 
   const systemPrompt = apiUrl ? buildTaskPrompt({
     agent,
@@ -293,14 +298,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     recentDocuments: filterRecentDocuments(snapshot.documents, companyId, agent.id),
     allConnectors: buildConnectorCatalog(db, snapshot.connectors),
     sessionHandoff,
-    skillNames,
-    skillEntries: skills.map((s) => ({
-      name: s.name ?? s.runtimeName,
-      whenToUse: s.whenToUse,
-      allowedTools: s.allowedTools,
-      effort: s.effort,
-      contextMode: s.contextMode,
-    })),
+    skills,
     companySkillCatalog: db.listCompanySkills(companyId).map((skill) => ({
       name: skill.name,
       slug: skill.slug,
@@ -312,12 +310,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     companyDocuments: snapshot.documents.filter((d) => d.companyId === companyId),
   }) : null;
 
-  const { taskSession, sessionHandoff: finalHandoff } = resolveSession(db, task, connector.id, sessionHandoff, deps);
-  if (finalHandoff !== sessionHandoff && systemPrompt && finalHandoff) {
-    sessionHandoff = finalHandoff;
-  }
-
-  const thinkingEffort = extractThinkingEffort(agent.metadataJson);
+  const thinkingEffort = extractThinkingEffort(agent.metadataJson, deps.logger, agent.id);
   const modelSelection = validateConnectorModelSelection(db, connector.id, agent.model);
   if (!modelSelection.ok) {
     throw new Error(modelSelection.error);
@@ -342,7 +335,6 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     sessionParams: taskSession.sessionParams,
     systemPrompt,
     trigger,
-    managedSkills: skills.map((s) => ({ runtimeName: s.runtimeName, sourcePath: s.sourcePath })),
     taskSessionId: taskSession.id ?? runId,
     executionMode: db.getCompanyExecutionMode(companyId) as "ai_ceo" | "ai_cofounder",
   };

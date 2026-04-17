@@ -3,7 +3,6 @@ import {
   parseFrontmatterMarkdown,
   classifyInventoryKind,
   deriveTrustLevel,
-  estimateTokens,
 } from "@main/skill-format";
 import type { FileInventoryEntry } from "@main/skill-types";
 
@@ -175,26 +174,6 @@ describe("skill-format", () => {
 
     it("returns markdown_only for empty inventory", () => {
       expect(deriveTrustLevel([])).toBe("markdown_only");
-    });
-  });
-
-  describe("estimateTokens", () => {
-    it("returns 1 for a 4-character string", () => {
-      expect(estimateTokens("abcd")).toBe(1);
-    });
-
-    it("returns 0 for empty string", () => {
-      expect(estimateTokens("")).toBe(0);
-    });
-
-    it("rounds up with Math.ceil", () => {
-      expect(estimateTokens("ab")).toBe(1);
-      expect(estimateTokens("abcde")).toBe(2);
-    });
-
-    it("handles longer strings", () => {
-      const text = "a".repeat(100);
-      expect(estimateTokens(text)).toBe(25);
     });
   });
 });

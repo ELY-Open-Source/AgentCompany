@@ -1,5 +1,6 @@
 import { DEPARTMENT_LABELS } from "@shared/constants";
 import type { DepartmentId } from "@shared/types";
+import { formatSkillsForPrompt } from "@mariozechner/pi-coding-agent";
 import {
   buildTaskSection,
   buildReviewSection,
@@ -18,9 +19,9 @@ import {
   buildDepartmentSection,
 } from "./operating-instructions";
 import type { PromptContext } from "./index";
+import type { ProjectedSkill } from "../skill-types";
 import { roleMatchesLeadershipKeywords } from "../agent-role-helpers";
 import { getSystemMessages } from "./messages";
-import type { SystemMessages } from "./messages";
 
 function isLeadershipRole(ctx: PromptContext): boolean {
   // HR roles inherit leadership scope for manager-style prompts;
@@ -29,14 +30,28 @@ function isLeadershipRole(ctx: PromptContext): boolean {
   return roleMatchesLeadershipKeywords(ctx.agent.role, ctx.agent.title ?? null);
 }
 
-function buildSkillManifest(
-  m: SystemMessages,
-  skillEntries?: PromptContext["skillEntries"],
-  skillNames?: string[],
-): string {
-  if (skillEntries && skillEntries.length > 0) return m.skillManifestEntries(skillEntries);
-  if (skillNames && skillNames.length > 0) return m.skillManifestNames(skillNames);
-  return "";
+/**
+ * Render the skill manifest block using pi-coding-agent's XML format.
+ *
+ * The full SKILL.md content is NOT injected — only name/description/filePath.
+ * The agent loads SKILL.md on demand via the `read` tool (progressive
+ * disclosure). Pi's `formatSkillsForPrompt` expects its full `Skill` shape, so
+ * we supply synthetic values for the two fields we don't track (`sourceInfo`,
+ * `disableModelInvocation`). Cast is safe because pi's XML renderer only reads
+ * `name`, `description`, `filePath`, and `disableModelInvocation`.
+ */
+function buildSkillManifest(skills: ProjectedSkill[] | undefined): string {
+  if (!skills || skills.length === 0) return "";
+  const piShapedSkills = skills.map((s) => ({
+    name: s.name,
+    description: s.description,
+    filePath: s.filePath,
+    baseDir: s.baseDir,
+    disableModelInvocation: false,
+    // sourceInfo is required by pi's Skill interface but never read by
+    // formatSkillsForPrompt. Leaving it undefined and asserting the shape.
+  }));
+  return formatSkillsForPrompt(piShapedSkills as never);
 }
 
 export function buildSystemPrompt(ctx: PromptContext): string {
@@ -46,11 +61,10 @@ export function buildSystemPrompt(ctx: PromptContext): string {
   const isCEO = ctx.chainOfCommand.length === 0;
   const isManager = !isCEO && (ctx.directReports.length > 0 || isLeadershipRole(ctx));
 
-  const now = new Date();
-  const dateStr = now.toISOString().split("T")[0];
-  const timeStr = now.toISOString().split("T")[1]?.slice(0, 5) ?? "00:00";
-  const dayOfWeek = m.dayNames[now.getUTCDay()] ?? "";
-  sections.push(m.currentDateSection(dayOfWeek, dateStr, timeStr));
+  // NOTE: the current date/time is intentionally NOT rendered here. This
+  // function's output is intended to be cacheable by the Anthropic prompt
+  // cache keyed by a stable prefix; per-turn volatile values live in the
+  // buildTaskPrompt() tail so the cached prefix hits across heartbeats.
 
   const budgetPct = ctx.agent.budgetMonthlyUsd > 0
     ? Math.round((ctx.agent.spentMonthlyUsd / ctx.agent.budgetMonthlyUsd) * 100)
@@ -64,7 +78,7 @@ export function buildSystemPrompt(ctx: PromptContext): string {
     budgetMonthly: ctx.agent.budgetMonthlyUsd,
     spentMonthly: ctx.agent.spentMonthlyUsd,
     budgetPctUsed: budgetPct,
-    skillManifest: buildSkillManifest(m, ctx.skillEntries, ctx.skillNames),
+    skillManifest: buildSkillManifest(ctx.skills),
   }));
 
   const capabilityRegistrySection = buildCapabilityRegistrySection({

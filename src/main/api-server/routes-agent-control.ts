@@ -1,3 +1,4 @@
+import log from "electron-log/main.js";
 import { z } from "zod";
 import { canControlAgent } from "../agent-permissions";
 import { requireParam, type AgentApiServer } from "./server-core";
@@ -82,7 +83,12 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
   server.addRoute("GET", "/api/agents/:agentId/skills", (_req, res, params, token) => {
     const agentId = requireParam(params, "agentId");
     let agent;
-    try { agent = db.getAgent(agentId); } catch { agent = null; }
+    try {
+      agent = db.getAgent(agentId);
+    } catch (error) {
+      log.warn(`[api/agent-skills:GET] getAgent(${agentId}) failed: ${error instanceof Error ? error.message : String(error)}`);
+      agent = null;
+    }
     if (!agent || agent.companyId !== token.companyId) {
       server.json(res, 404, { error: "Agent not found in your company" });
       return;
@@ -109,7 +115,12 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
       return;
     }
     let agent;
-    try { agent = db.getAgent(agentId); } catch { agent = null; }
+    try {
+      agent = db.getAgent(agentId);
+    } catch (error) {
+      log.warn(`[api/agent-skills:POST] getAgent(${agentId}) failed: ${error instanceof Error ? error.message : String(error)}`);
+      agent = null;
+    }
     if (!agent || agent.companyId !== token.companyId) {
       server.json(res, 404, { error: "Agent not found in your company" });
       return;
@@ -128,7 +139,12 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
     const agentId = requireParam(params, "agentId");
     const skillId = requireParam(params, "skillId");
     let agent;
-    try { agent = db.getAgent(agentId); } catch { agent = null; }
+    try {
+      agent = db.getAgent(agentId);
+    } catch (error) {
+      log.warn(`[api/agent-skills:DELETE] getAgent(${agentId}) failed: ${error instanceof Error ? error.message : String(error)}`);
+      agent = null;
+    }
     if (!agent || agent.companyId !== token.companyId) {
       server.json(res, 404, { error: "Agent not found in your company" });
       return;

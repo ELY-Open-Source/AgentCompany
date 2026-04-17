@@ -35,7 +35,11 @@ export function recoverScheduledPosts(deps: RecoverScheduledPostsDeps): Set<Retu
           }, delay);
           timers.add(timer);
           deps.logger.info(`[bootstrap] Re-registered scheduled post timer: action ${action.id} in ${Math.round(delay / 1000)}s`);
-        } catch { /* ignore malformed payload */ }
+        } catch (error) {
+          deps.logger.warn(
+            `[bootstrap] malformed scheduled-post payload for action ${action.id}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }
     }
   } catch (error) {

@@ -98,15 +98,8 @@ export const IPC_CHANNELS = {
   recoveryRetry: "recovery:retry",
   recoveryDismiss: "recovery:dismiss",
   recoveryFail: "recovery:fail",
-  // Agent config revisions
-  listConfigRevisions: "agent-company:list-config-revisions",
-  getConfigRevision: "agent-company:get-config-revision",
-  rollbackConfigRevision: "agent-company:rollback-config-revision",
   // Run events
   listRunEvents: "agent-company:list-run-events",
-  // Agent permissions
-  getAgentPermissions: "agent-company:get-agent-permissions",
-  setAgentPermission: "agent-company:set-agent-permission",
   // Heartbeat policy
   getHeartbeatPolicy: "agent-company:get-heartbeat-policy",
   setHeartbeatPolicy: "agent-company:set-heartbeat-policy",

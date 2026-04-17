@@ -26,7 +26,10 @@ export function finalizeRun(
   let run: RunRecord;
   try {
     run = db.getRun(event.runId);
-  } catch {
+  } catch (error) {
+    logger.warn(
+      `[finalizeRun] getRun(${event.runId}) failed; run may have been deleted: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
 
@@ -55,7 +58,10 @@ export function finalizeRun(
   let task: TaskRecord | null = null;
   try {
     task = db.getTask(run.taskId);
-  } catch {
+  } catch (error) {
+    logger.warn(
+      `[finalizeRun] getTask(${run.taskId}) failed; task may have been deleted: ${error instanceof Error ? error.message : String(error)}`,
+    );
     task = null;
   }
 
@@ -120,7 +126,7 @@ export function emitAndNotifyCompletion(
   deps: HandlerDeps,
   rfCtx: RunFinishedContext,
 ): void {
-  const { db, emitEvent, notify } = deps;
+  const { db, emitEvent, notify, logger } = deps;
   const { run, task, runOutcome } = rfCtx;
 
   emitEvent({ type: "run-updated", runId: run.id, action: "completed" });
@@ -143,7 +149,10 @@ export function emitAndNotifyCompletion(
   let updatedAgent: ReturnType<HandlerDeps["db"]["getAgent"]> | null = null;
   try {
     updatedAgent = db.getAgent(run.agentId);
-  } catch {
+  } catch (error) {
+    logger.warn(
+      `[emitAndNotifyCompletion] getAgent(${run.agentId}) failed; skipping budget-paused notification: ${error instanceof Error ? error.message : String(error)}`,
+    );
     updatedAgent = null;
   }
 
@@ -177,14 +186,11 @@ export function runPostCompletionAutomation(
   const { destroyed, MAX_RETRY_ATTEMPTS, RETRY_COOLDOWN_MS, pendingRetryTimers } = context;
   const { run, task } = rfCtx;
 
-  // Policy-based incident check after run completion (Phase 5)
+  // Policy-based incident check after run completion (Phase 5). Reuse the
+  // `task` already resolved in finalizeRun instead of double-fetching with
+  // its own catch-and-swallow; if task is null the project-scope is null.
   if (budgetService && typeof event.costUsd === "number" && Number.isFinite(event.costUsd)) {
-    try {
-      const taskForBudget = db.getTask(run.taskId);
-      budgetService.checkAndCreateIncidents(run.companyId, run.agentId, taskForBudget?.projectId ?? null);
-    } catch (err) {
-      logger.error(`[budget] Incident check failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
+    budgetService.checkAndCreateIncidents(run.companyId, run.agentId, task?.projectId ?? null);
   }
 
   if ((event.status === "failed" || event.status === "timed_out") && !isQuitting() && !destroyed) {
@@ -252,7 +258,7 @@ export function runPostCompletionAutomation(
 
   // Reset retry count on successful completion
   if (event.status === "succeeded") {
-    handleSuccessReset(db, run.taskId);
+    handleSuccessReset(db, run.taskId, logger);
   }
 
   return { hadDeferredWakes };
@@ -294,13 +300,17 @@ export function triggerSelfWake(
         if (chain.length > 0) {
           wakeAgentIfPossible(chain[0].id, run.companyId, "report_stuck");
         }
-      } catch {
-        /* best effort */
+      } catch (error) {
+        logger.warn(
+          `[self-wake] chain-of-command lookup failed for agent ${run.agentId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     } else {
       wakeAgentIfPossible(run.agentId, run.companyId, "task_continuation");
     }
-  } catch {
-    // Best-effort self-wake; agent will pick up work on the next heartbeat cycle.
+  } catch (error) {
+    logger.warn(
+      `[self-wake] self-wake evaluation failed for agent ${run.agentId}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }

@@ -1,9 +1,9 @@
+import log from "electron-log/main.js";
 import { z } from "zod";
 import { taskInputSchema } from "@shared/contracts";
 import { IMPORTANT_DOC_TYPES } from "@shared/document-categories";
 import { canAssignTask, canUpdateTask } from "../agent-permissions";
 import { inferTaskType } from "../connector-matching";
-import { isHeartbeatTaskTitle } from "../orchestration/heartbeat-task";
 import { validateTaskCreation } from "../task-quality-gates";
 import { requireParam, type AgentApiServer } from "./server-core";
 
@@ -221,7 +221,11 @@ export function registerTaskRoutes(server: AgentApiServer) {
             if (parentTask.assigneeAgentId && parentTask.assigneeAgentId !== token.agentId) {
               onWakeAgent(parentTask.assigneeAgentId, task.companyId, "subtask_completed");
             }
-          } catch { /* parent task may have been deleted */ }
+          } catch (error) {
+            log.warn(
+              `[api/tasks] parent task lookup failed for ${task.parentId}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
         } else {
           const chain = db.getChainOfCommand(token.agentId);
           if (chain.length > 0) {
@@ -304,8 +308,9 @@ export function registerTaskRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Current agent is not allowed to assign this task to the selected agent" });
       return;
     }
-    const isHeartbeat = isHeartbeatTaskTitle(input.title);
-    const taskValidation = validateTaskCreation({ title: input.title, description: input.description ?? "" }, isHeartbeat);
+    // Agent-authored tasks are never heartbeat tasks; the is_heartbeat flag
+    // is set only by acquireHeartbeatTask in the orchestrator.
+    const taskValidation = validateTaskCreation({ title: input.title, description: input.description ?? "" }, false);
     if (!taskValidation.valid) {
       server.json(res, 422, { error: taskValidation.errors.join("; ") });
       return;

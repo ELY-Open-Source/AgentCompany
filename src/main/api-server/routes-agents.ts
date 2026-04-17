@@ -166,7 +166,16 @@ export function registerAgentRoutes(server: AgentApiServer) {
     }
     const directReports = db.getDirectReports(agent.id, token.companyId);
     const reportsTo = agent.reportsTo;
-    const manager = reportsTo ? (() => { try { return db.getAgent(reportsTo); } catch { return null; } })() : null;
+    const manager = reportsTo
+      ? (() => {
+          try {
+            return db.getAgent(reportsTo);
+          } catch (error) {
+            log.warn(`[api/agents] manager lookup failed for ${reportsTo}: ${error instanceof Error ? error.message : String(error)}`);
+            return null;
+          }
+        })()
+      : null;
     server.json(res, 200, {
       ...agent,
       manager: manager ? { id: manager.id, name: manager.name, role: manager.role } : null,
@@ -285,7 +294,11 @@ export function registerAgentRoutes(server: AgentApiServer) {
           server.json(res, 409, { error: `A hire request for "${input.name}" is already pending approval.` });
           return;
         }
-      } catch { /* invalid payloadJson, skip */ }
+      } catch (error) {
+        log.warn(
+          `[api/agents] invalid pending-hire payloadJson for company ${companyId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
 
     const managerLabel = resolvedReportsTo

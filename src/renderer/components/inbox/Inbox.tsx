@@ -48,13 +48,13 @@ export function Inbox({ items, onNavigate }: InboxProps) {
   };
 
   const filterButtons: Array<{ key: InboxItemType | "all"; label: string; count: number }> = [
-    { key: "all", label: "All", count: counts.all },
-    { key: "pending_approval", label: "Approvals", count: counts.pending_approval },
-    { key: "review_needed", label: "Reviews", count: counts.review_needed },
-    { key: "failed_run", label: "Failed", count: counts.failed_run },
-    { key: "blocked_task", label: "Blocked", count: counts.blocked_task },
-    { key: "budget_warning", label: "Budget", count: counts.budget_warning },
-    { key: "agent_message", label: "Messages", count: counts.agent_message },
+    { key: "all", label: t("inbox.filter.all"), count: counts.all },
+    { key: "pending_approval", label: t("inbox.filter.approvals"), count: counts.pending_approval },
+    { key: "review_needed", label: t("inbox.filter.reviews"), count: counts.review_needed },
+    { key: "failed_run", label: t("inbox.filter.failed"), count: counts.failed_run },
+    { key: "blocked_task", label: t("inbox.filter.blocked"), count: counts.blocked_task },
+    { key: "budget_warning", label: t("inbox.filter.budget"), count: counts.budget_warning },
+    { key: "agent_message", label: t("inbox.filter.messages"), count: counts.agent_message },
   ];
 
   return (
@@ -67,7 +67,7 @@ export function Inbox({ items, onNavigate }: InboxProps) {
           <div>
             <h2 className="text-[18px] font-bold tracking-[-0.02em] text-foreground">{t("inbox.title")}</h2>
             <p className="text-[12px] text-muted-foreground">
-              {counts.all} item{counts.all !== 1 ? "s" : ""} need{counts.all === 1 ? "s" : ""} your attention
+              {counts.all} {t("inbox.needsAttention")}
             </p>
           </div>
         </div>

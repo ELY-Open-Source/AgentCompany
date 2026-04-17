@@ -10,9 +10,10 @@ import {
 } from "../ui/icons";
 import type { AgentRecord, SkillRecord, SkillUpdateStatus } from "@shared/types";
 import { useAppStore } from "../../state/store";
-import { ActionButton, StatusPill } from "../ui";
+import { ActionButton, StatusPill, Eyebrow } from "../ui";
 import { SkillAgentToggles } from "./SkillAgentToggles";
 import { buildTree, SkillFileTree } from "./SkillFileTree";
+import { useT, type TranslationFn } from "../../i18n";
 
 const sourceIconMap: Record<string, typeof GithubLogo> = {
   github: GithubLogo,
@@ -22,13 +23,22 @@ const sourceIconMap: Record<string, typeof GithubLogo> = {
   managed: PuzzlePiece,
 };
 
-const sourceLabel: Record<string, string> = {
-  github: "GitHub",
-  local_path: "Local Path",
-  url: "URL",
-  skills_sh: "skills.sh",
-  managed: "Managed",
-};
+function sourceLabel(kind: string, t: TranslationFn): string {
+  switch (kind) {
+    case "github":
+      return t("skill.source.github");
+    case "local_path":
+      return t("skill.source.localPath");
+    case "url":
+      return t("skill.source.url");
+    case "skills_sh":
+      return t("skill.source.skillsSh");
+    case "managed":
+      return t("skill.source.managed");
+    default:
+      return kind;
+  }
+}
 
 const trustToneMap: Record<string, string> = {
   markdown_only: "ready",
@@ -36,11 +46,18 @@ const trustToneMap: Record<string, string> = {
   scripts_executables: "error",
 };
 
-const trustLabelMap: Record<string, string> = {
-  markdown_only: "Markdown only",
-  assets: "Has assets",
-  scripts_executables: "Contains scripts",
-};
+function trustLabel(level: string, t: TranslationFn): string {
+  switch (level) {
+    case "markdown_only":
+      return t("skill.trust.markdownOnly");
+    case "assets":
+      return t("skill.trust.assets");
+    case "scripts_executables":
+      return t("skill.trust.scripts");
+    default:
+      return level;
+  }
+}
 
 function stripFrontmatter(markdown: string): string {
   const normalized = markdown.replace(/\r\n/g, "\n");
@@ -50,8 +67,8 @@ function stripFrontmatter(markdown: string): string {
   return normalized.slice(closing + 5).trim();
 }
 
-function shortRef(ref: string | null | undefined): string {
-  if (!ref) return "untracked";
+function shortRef(ref: string | null | undefined, t: TranslationFn): string {
+  if (!ref) return t("skill.untracked");
   return ref.length > 7 ? ref.slice(0, 7) : ref;
 }
 
@@ -68,6 +85,7 @@ export function SkillDetail({
   onDeleted: () => void;
   onRefresh: () => void;
 }) {
+  const t = useT();
   const addToast = useAppStore((s) => s.addToast);
   const selectedSkillFilePath = useAppStore((s) => s.selectedSkillFilePath);
   const setSelectedSkillFilePath = useAppStore((s) => s.setSelectedSkillFilePath);
@@ -116,12 +134,12 @@ export function SkillDetail({
   const handleDelete = useCallback(async () => {
     const result = await window.agentCompany.deleteSkill(companyId, skillId);
     if (result.ok) {
-      addToast("Skill deleted", "success");
+      addToast(t("skill.deleted"), "success");
       onDeleted();
     } else {
       addToast(result.error.message, "danger");
     }
-  }, [companyId, skillId, addToast, onDeleted]);
+  }, [companyId, skillId, addToast, onDeleted, t]);
 
   const handleToggleDir = useCallback((path: string) => {
     setExpandedDirs((prev) => {
@@ -135,7 +153,7 @@ export function SkillDetail({
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center p-8 text-muted-foreground">
-        <div className="text-[13px]">Loading skill...</div>
+        <div className="text-[13px]">{t("skill.loading")}</div>
       </div>
     );
   }
@@ -143,7 +161,7 @@ export function SkillDetail({
   if (!detail) {
     return (
       <div className="flex flex-1 items-center justify-center p-8 text-muted-foreground">
-        <div className="text-[13px]">Skill not found</div>
+        <div className="text-[13px]">{t("skill.notFound")}</div>
       </div>
     );
   }
@@ -186,31 +204,31 @@ export function SkillDetail({
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px]">
           {/* Source */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Source</span>
+            <Eyebrow>{t("skill.source")}</Eyebrow>
             <span className="flex items-center gap-1.5">
               <SourceIcon size={14} className="text-muted-foreground" />
-              <span className="text-foreground">{sourceLabel[detail.sourceType] ?? detail.sourceType}</span>
+              <span className="text-foreground">{sourceLabel(detail.sourceType, t)}</span>
             </span>
           </div>
 
           {/* Trust level */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Trust</span>
+            <Eyebrow>{t("skill.trust")}</Eyebrow>
             <StatusPill status={trustToneMap[detail.trustLevel] ?? "default"} />
-            <span className="text-foreground">{trustLabelMap[detail.trustLevel] ?? detail.trustLevel}</span>
+            <span className="text-foreground">{trustLabel(detail.trustLevel, t)}</span>
           </div>
 
           {/* Compatibility */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Compat</span>
+            <Eyebrow>{t("skill.compat")}</Eyebrow>
             <span className="text-foreground">{detail.compatibility || "all"}</span>
           </div>
 
           {/* Ref (for GitHub sources) */}
           {isGitHubSource ? (
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Ref</span>
-              <span className="font-mono text-[12px] text-foreground">{shortRef(detail.sourceRef)}</span>
+              <Eyebrow>{t("skill.ref")}</Eyebrow>
+              <span className="font-mono text-[12px] text-foreground">{shortRef(detail.sourceRef, t)}</span>
             </div>
           ) : null}
         </div>
@@ -219,17 +237,17 @@ export function SkillDetail({
         {isGitHubSource ? (
           <div className="flex flex-wrap items-center gap-2 text-[13px]">
             <ActionButton
-              label="Check for updates"
+              label={t("skill.checkForUpdates")}
               icon={ArrowsClockwise}
               loading={checkingUpdate}
               onClick={() => void handleCheckUpdate()}
             />
             {updateStatus?.hasUpdate ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-0.5 text-[12px] font-medium text-primary">
-                Update available: {shortRef(updateStatus.currentRef)} &rarr; {shortRef(updateStatus.latestRef)}
+                {t("skill.updateAvailable")}: {shortRef(updateStatus.currentRef, t)} &rarr; {shortRef(updateStatus.latestRef, t)}
               </span>
             ) : updateStatus && !updateStatus.hasUpdate ? (
-              <span className="text-[12px] text-muted-foreground">Up to date</span>
+              <span className="text-[12px] text-muted-foreground">{t("skill.upToDate")}</span>
             ) : null}
           </div>
         ) : null}
@@ -250,7 +268,7 @@ export function SkillDetail({
                 onSelectPath={setSelectedSkillFilePath}
               />
             ) : (
-              <p className="px-3 py-2 text-[12px] text-muted-foreground">No files</p>
+              <p className="px-3 py-2 text-[12px] text-muted-foreground">{t("skill.noFiles")}</p>
             )}
           </div>
 
@@ -276,11 +294,11 @@ export function SkillDetail({
             ) : selectedFileEntry ? (
               <div className="rounded-lg bg-card p-4 text-[13px] text-muted-foreground">
                 <p className="font-medium text-foreground">{selectedFileEntry.path}</p>
-                <p className="mt-1">Kind: {selectedFileEntry.kind}</p>
-                <p className="mt-1 text-[12px] italic">File content preview is not available for non-SKILL.md files.</p>
+                <p className="mt-1">{t("skill.kind")}: {selectedFileEntry.kind}</p>
+                <p className="mt-1 text-[12px] italic">{t("skill.previewUnavailable")}</p>
               </div>
             ) : (
-              <p className="text-[13px] text-muted-foreground">Select a file to view its details.</p>
+              <p className="text-[13px] text-muted-foreground">{t("skill.selectFile")}</p>
             )}
           </div>
         </div>
@@ -288,9 +306,7 @@ export function SkillDetail({
 
       {/* Agent assignments section */}
       <div className="border-t border-border px-5 py-4">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-primary mb-3">
-          Agent Assignments
-        </h3>
+        <Eyebrow tone="primary" className="mb-3">{t("skill.agentAssignments")}</Eyebrow>
         <SkillAgentToggles mode="skill" companyId={companyId} skillId={skillId} agents={agents} />
       </div>
 
@@ -299,21 +315,21 @@ export function SkillDetail({
         {confirmingDelete ? (
           <div className="flex items-center gap-3">
             <p className="text-[13px] text-destructive">
-              Delete &ldquo;{detail.name}&rdquo;? This cannot be undone.
+              {t("skill.deleteConfirm").replace("{name}", detail.name)}
             </p>
             <ActionButton
-              label="Confirm Delete"
+              label={t("skill.confirmDelete")}
               tone="danger"
               onClick={() => void handleDelete()}
             />
             <ActionButton
-              label="Cancel"
+              label={t("skill.cancel")}
               onClick={() => setConfirmingDelete(false)}
             />
           </div>
         ) : (
           <ActionButton
-            label="Delete Skill"
+            label={t("skill.deleteSkill")}
             tone="danger"
             icon={Trash}
             onClick={() => setConfirmingDelete(true)}

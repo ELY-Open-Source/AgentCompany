@@ -1,29 +1,8 @@
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { loadSkills } from "@mariozechner/pi-coding-agent";
 import type { AppDatabase } from "../database";
-import type { SkillImportResult, RuntimeSkillEntry } from "../skill-types.js";
-import { estimateTokens, parseFrontmatterMarkdown, extractRuntimeSemantics } from "../skill-format.js";
-import { resolveTokenBudget } from "../skill-types.js";
-
-/**
- * Role/department keywords → builtin skill category manifest. Centralized at
- * module scope so future changes do not silently drift from the category
- * names used by `meta.builtinCategory` on disk.
- *
- * Category names mirror SKILL.md directory names (mixed-case is
- * load-bearing; e.g. "iOS-Dev" and "Video-maker" match file system layout).
- */
-const ROLE_SKILL_CATEGORIES: Record<string, readonly string[]> = {
-  ceo: ["basic-for-all", "software-engineer", "document-process", "frontend-design", "marketing", "iOS-Dev", "my-writing-style", "Video-maker"],
-  engineer: ["basic-for-all", "software-engineer"],
-  designer: ["basic-for-all", "frontend-design"],
-  marketing: ["basic-for-all", "marketing", "my-writing-style"],
-  writer: ["basic-for-all", "document-process", "my-writing-style"],
-  ios: ["basic-for-all", "software-engineer", "iOS-Dev"],
-  mobile: ["basic-for-all", "software-engineer", "iOS-Dev"],
-  video: ["basic-for-all", "Video-maker"],
-  frontend: ["basic-for-all", "software-engineer", "frontend-design"],
-};
+import type { SkillImportResult, ProjectedSkill } from "../skill-types.js";
 
 interface RuntimeDeps {
   db: AppDatabase;
@@ -40,55 +19,35 @@ interface RuntimeDeps {
 
 export function createSkillRuntime({ db, logger, skillsRoot, skillFilesDir, importFromLocal }: RuntimeDeps) {
   /**
-   * Build the list of RuntimeSkillEntry for adapter injection.
-   * Applies token budget enforcement: skills sorted by creation date,
-   * accumulated until budget exceeded, then skipped with warning.
+   * Project all company skills through pi-coding-agent's progressive-disclosure
+   * loader. Every agent in the company sees the full catalog — descriptions
+   * only, full SKILL.md loaded on-demand by the agent via the `read` tool.
+   *
+   * The agentId / connectorId parameters are retained for signature
+   * compatibility with the orchestrator but are intentionally unused: pi's
+   * model has no per-agent filtering and no per-connector token budget.
    */
   function listRuntimeSkillEntries(
     companyId: string,
-    agentId: string,
-    adapterType: string,
-  ): RuntimeSkillEntry[] {
-    const allSkills = db.listCompanySkills(companyId);
-    const agentAssignments = db.listAgentSkillAssignments(agentId);
-    const skills = allSkills.filter((s) => agentAssignments.includes(s.id));
+    _agentId: string,
+    _connectorId: string,
+  ): ProjectedSkill[] {
+    const companySkills = db.listCompanySkills(companyId);
+    const skillPaths = companySkills.map((s) => skillFilesDir(companyId, s.slug));
+    const { skills, diagnostics } = loadSkills({ skillPaths, includeDefaults: false });
 
-    const sorted = [...skills].sort(
-      (a, b) => a.createdAt.localeCompare(b.createdAt),
-    );
-
-    const budget = resolveTokenBudget(adapterType);
-    let accumulated = 0;
-    const entries: RuntimeSkillEntry[] = [];
-
-    for (const skill of sorted) {
-      const tokenEstimate = estimateTokens(skill.markdown);
-      if (accumulated + tokenEstimate > budget) {
-        logger.warn(
-          `Token budget exceeded for ${adapterType}: skipping skill "${skill.name}" (${tokenEstimate} tokens, budget ${budget}, used ${accumulated})`,
-        );
-        continue;
+    for (const diag of diagnostics) {
+      if (diag.type === "warning") {
+        logger.warn(`[skills] ${diag.message} (${diag.path})`);
       }
-      accumulated += tokenEstimate;
-
-      const { frontmatter } = parseFrontmatterMarkdown(skill.markdown);
-      const semantics = extractRuntimeSemantics(frontmatter);
-
-      entries.push({
-        runtimeName: skill.slug,
-        sourcePath: skillFilesDir(companyId, skill.slug),
-        name: skill.name,
-        tokenEstimate,
-        allowedTools: semantics.allowedTools,
-        hooks: semantics.hooks,
-        contextMode: semantics.contextMode,
-        isAgent: semantics.isAgent,
-        effort: semantics.effort,
-        whenToUse: semantics.whenToUse,
-      });
     }
 
-    return entries;
+    return skills.map((s) => ({
+      name: s.name,
+      description: s.description,
+      filePath: s.filePath,
+      baseDir: s.baseDir,
+    }));
   }
 
   /**
@@ -162,7 +121,14 @@ export function createSkillRuntime({ db, logger, skillsRoot, skillFilesDir, impo
       const { readdirSync, statSync: statSyncLocal } = await import("node:fs");
       categories = readdirSync(builtinDir).filter(name => {
         if (name.startsWith(".")) return false;
-        try { return statSyncLocal(join(builtinDir, name)).isDirectory(); } catch { return false; }
+        try {
+          return statSyncLocal(join(builtinDir, name)).isDirectory();
+        } catch (error) {
+          logger.warn(
+            `[skills] statSync failed for builtin entry ${name}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return false;
+        }
       });
     } catch {
       logger.warn(`[skills] Failed to read builtin skills directory: ${builtinDir}`);
@@ -182,7 +148,11 @@ export function createSkillRuntime({ db, logger, skillsRoot, skillFilesDir, impo
               existingMeta.sourceKind = "builtin";
               db.updateCompanySkillMetadata(companyId, result.skillId, JSON.stringify(existingMeta));
             }
-          } catch { /* non-fatal metadata update */ }
+          } catch (error) {
+            logger.warn(
+              `[skills] metadata update failed for skill ${result.skillId} (category ${category}): ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
         }
         allResults.push(...results);
         logger.info(`[skills] Seeded ${results.length} builtin skill(s) from category: ${category}`);
@@ -195,57 +165,9 @@ export function createSkillRuntime({ db, logger, skillsRoot, skillFilesDir, impo
     return allResults;
   }
 
-  function assignBasicSkillsToAgent(companyId: string, agentId: string): number {
-    const allSkills = db.listCompanySkills(companyId);
-    let assigned = 0;
-    for (const skill of allSkills) {
-      try {
-        const meta = skill.metadata ? JSON.parse(typeof skill.metadata === "string" ? skill.metadata : JSON.stringify(skill.metadata)) : {};
-        if (meta.builtinCategory === "basic-for-all") {
-          db.assignSkillToAgent(agentId, skill.id);
-          assigned++;
-        }
-      } catch { /* skip malformed metadata */ }
-    }
-    return assigned;
-  }
-
-  function assignRoleSkillsToAgent(companyId: string, agentId: string, role: string, department?: string | null): number {
-    const allSkills = db.listCompanySkills(companyId);
-    let assigned = 0;
-
-    const normalizedRole = role.toLowerCase();
-    const normalizedDept = department?.toLowerCase() ?? "";
-
-    let categories = ROLE_SKILL_CATEGORIES[normalizedRole] ?? ["basic-for-all"];
-
-    for (const [key, cats] of Object.entries(ROLE_SKILL_CATEGORIES)) {
-      if (normalizedDept.includes(key) || normalizedRole.includes(key)) {
-        categories = [...new Set([...categories, ...cats])];
-      }
-    }
-
-    if (normalizedRole === "ceo" || normalizedRole.includes("chief")) {
-      categories = ROLE_SKILL_CATEGORIES.ceo ?? ["basic-for-all"];
-    }
-
-    for (const skill of allSkills) {
-      try {
-        const meta = skill.metadata ? JSON.parse(typeof skill.metadata === "string" ? skill.metadata : JSON.stringify(skill.metadata)) : {};
-        if (meta.builtinCategory && categories.includes(meta.builtinCategory)) {
-          db.assignSkillToAgent(agentId, skill.id);
-          assigned++;
-        }
-      } catch { /* skip */ }
-    }
-    return assigned;
-  }
-
   return {
     listRuntimeSkillEntries,
     scanWorkspaceSkills,
     seedBuiltinSkills,
-    assignBasicSkillsToAgent,
-    assignRoleSkillsToAgent,
   };
 }

@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import { Clock } from "../../ui/icons"
 import { InlineNotice } from "../../ui"
+import { useT } from "../../../i18n"
 
 export type ScheduleMode = "immediate" | "scheduled"
 
@@ -25,11 +26,12 @@ export function SchedulePicker({
   onScheduledAtChange: (value: string) => void
   onClearError: () => void
 }) {
+  const t = useT()
   const minDatetime = useMemo(() => computeMinDatetime(), [])
 
   return (
     <div className="space-y-3">
-      <div role="radiogroup" aria-label="Post timing" className="space-y-2">
+      <div role="radiogroup" aria-label={t("approval.scheduleTimingAria")} className="space-y-2">
         <label className="flex cursor-pointer items-center gap-2">
           <input
             type="radio"
@@ -42,7 +44,7 @@ export function SchedulePicker({
             }}
             className="h-4 w-4 shrink-0 cursor-pointer accent-[color:var(--primary)]"
           />
-          <span className="text-[13px] font-medium text-foreground">Post immediately</span>
+          <span className="text-[13px] font-medium text-foreground">{t("approval.schedulePostNow")}</span>
         </label>
         <label className="flex cursor-pointer items-center gap-2">
           <input
@@ -53,7 +55,7 @@ export function SchedulePicker({
             onChange={() => onModeChange("scheduled")}
             className="h-4 w-4 shrink-0 cursor-pointer accent-[color:var(--primary)]"
           />
-          <span className="text-[13px] font-medium text-foreground">Schedule for later</span>
+          <span className="text-[13px] font-medium text-foreground">{t("approval.scheduleLater")}</span>
         </label>
       </div>
       {mode === "scheduled" ? (

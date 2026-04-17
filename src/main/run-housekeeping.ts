@@ -3,7 +3,11 @@ import type { ThreadIntegrationService } from "./thread-integration";
 
 interface RunHousekeepingDeps {
   db: AppDatabase;
-  logger: { info: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
+  logger: {
+    info: (...args: unknown[]) => void;
+    warn: (...args: unknown[]) => void;
+    error: (...args: unknown[]) => void;
+  };
   threadIntegration: ThreadIntegrationService;
 }
 
@@ -34,6 +38,7 @@ function shouldProduceKnowledge(
   db: AppDatabase,
   taskId: string,
   agentId: string,
+  logger: RunHousekeepingDeps["logger"],
 ): boolean {
   try {
     const taskTypeRow = db.queryAll<{ taskType: string | null }>(
@@ -43,13 +48,18 @@ function shouldProduceKnowledge(
     if (taskTypeRow?.taskType && KNOWLEDGE_PRODUCING_TASK_TYPES.has(taskTypeRow.taskType)) {
       return true;
     }
-  } catch {
-    // Task deleted; fall through to agent check
+  } catch (error) {
+    logger.warn(
+      `[run-housekeeping] task lookup failed for ${taskId}; falling back to agent department check: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
   try {
     const agent = db.getAgent(agentId);
     return Boolean(agent.department && KNOWLEDGE_PRODUCING_DEPARTMENTS.has(agent.department));
-  } catch {
+  } catch (error) {
+    logger.warn(
+      `[run-housekeeping] agent lookup failed for ${agentId}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return false;
   }
 }
@@ -79,14 +89,18 @@ export function createRunHousekeeping({ db, logger, threadIntegration }: RunHous
         status === "succeeded" &&
         summary &&
         summary.length > 50 &&
-        shouldProduceKnowledge(db, taskId, agentId)
+        shouldProduceKnowledge(db, taskId, agentId, logger)
       ) {
         try {
           let topic = `Run ${runId.slice(0, 8)}`;
           try {
             const task = db.getTask(taskId);
             topic = task.title;
-          } catch { /* task may have been deleted */ }
+          } catch (error) {
+            logger.warn(
+              `[run-housekeeping] getTask failed for ${taskId}; using run id as topic: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
 
           db.saveKnowledgeEntry({
             companyId,

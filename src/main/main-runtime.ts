@@ -1,3 +1,4 @@
+import { app } from "electron";
 import { AgentApiServer, createApiServer } from "./api-server";
 import { createAgentToken, initializeAgentTokenSigningKey } from "./agent-auth";
 import { bootstrapApplication } from "./bootstrap-application";
@@ -53,7 +54,7 @@ export function createMainRuntime({
       isDev,
       devServerOrigin,
       profileDir,
-      appDatabaseFactory: (targetProfileDir) => new AppDatabase(targetProfileDir),
+      appDatabaseFactory: (targetProfileDir) => new AppDatabase(targetProfileDir, { isPackaged: app.isPackaged }),
       initSigningKey: initializeAgentTokenSigningKey,
       windowStatePath,
       preloadPath,

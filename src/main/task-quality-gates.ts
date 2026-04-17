@@ -202,17 +202,7 @@ export function sweepStaleReviews(
   const isCofounderMode = deps.getCompanyExecutionMode(companyId) === "ai_cofounder";
 
   let escalatedCount = 0;
-  const reviewTasks = deps.db.queryAll<{
-    id: string;
-    assigneeAgentId: string | null;
-    updatedAt: string;
-    title: string;
-  }>(
-    `SELECT id, assignee_agent_id as assigneeAgentId, updated_at as updatedAt, title
-     FROM tasks
-     WHERE company_id = ? AND status = 'in_review'`,
-    companyId,
-  );
+  const reviewTasks = deps.db.listReviewTasksForSweep(companyId);
 
   for (const task of reviewTasks) {
     const reviewAge = now - new Date(task.updatedAt).getTime();
@@ -227,26 +217,20 @@ export function sweepStaleReviews(
     const chain = deps.db.getChainOfCommand(reviewer.id);
     const escalationTarget = chain.length > 0 ? chain[0] : null;
 
-    const pendingApprovals = deps.db.queryAll<{ id: string; type: string }>(
-      `SELECT id, type FROM approvals
-       WHERE company_id = ? AND related_task_id = ? AND state = 'pending'
-       LIMIT 1`,
-      companyId,
-      task.id,
-    );
+    const pendingApproval = deps.db.findPendingApprovalForTask(companyId, task.id);
 
     // In ai_cofounder mode, ALL approvals require human decision — never auto-advance.
-    if (isCofounderMode && pendingApprovals.length > 0) {
+    if (isCofounderMode && pendingApproval) {
       deps.notify({
         title: "Your Review Required",
         body: `"${task.title}" is waiting for your review. AI Co-Founder mode requires human sign-off.`,
         urgency: "critical",
-        navigation: { section: "approvals", entityId: pendingApprovals[0]?.id },
+        navigation: { section: "approvals", entityId: pendingApproval.id },
         batchKey: "cofounder_review_needed",
       });
       deps.logger.info("[sweepStaleReviews] Skipping auto-approval for co-founder task", {
         taskId: task.id,
-        approvalType: pendingApprovals[0]?.type,
+        approvalType: pendingApproval.type,
       });
       continue;
     }
@@ -283,13 +267,13 @@ export function sweepStaleReviews(
 
     // D-10: Auto-approve any pending approval linked to this task.
     // In ai_cofounder mode, protected approval types are already handled above (continue).
-    for (const approval of pendingApprovals) {
+    if (pendingApproval) {
       try {
         deps.resolveApprovalDecision({
           db: deps.db,
           handleApprovalResolved: deps.handleApprovalResolved,
           companyId,
-          approvalId: approval.id,
+          approvalId: pendingApproval.id,
           state: "approved",
           decisionNote: "Auto-approved: review timeout exceeded 30 minutes.",
           detail: "Auto-approved by review timeout escalation",

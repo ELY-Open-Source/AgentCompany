@@ -1,12 +1,13 @@
 import { CaretDown, CaretRight } from "../ui/icons";
 import type { ProfileSnapshot } from "@shared/types";
+import { Input } from "../ui";
+import { useT } from "../../i18n";
 
 /* ------------------------------------------------------------------ */
 /*  Shared                                                             */
 /* ------------------------------------------------------------------ */
 
-export const INPUT_CLS =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring w-full rounded-lg border border-border bg-card px-3 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground";
+export { Input };
 
 export interface ModelEntry {
   id: string;
@@ -25,12 +26,13 @@ export function parseEnvValue(text: string, key: string): string {
 /*  StatusBadge                                                        */
 /* ------------------------------------------------------------------ */
 
-export function StatusBadge({ status, zh }: { status: ConnectorStatus; zh: boolean }) {
+export function StatusBadge({ status }: { status: ConnectorStatus }) {
+  const t = useT();
   if (status === "ready") {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-success-muted px-2 py-0.5 text-[11px] font-medium text-success">
         <span className="h-1.5 w-1.5 rounded-full bg-success" />
-        {zh ? "就绪" : "Ready"}
+        {t("models.ready")}
       </span>
     );
   }
@@ -38,7 +40,7 @@ export function StatusBadge({ status, zh }: { status: ConnectorStatus; zh: boole
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
         <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
-        {zh ? "未安装" : "Not installed"}
+        {t("models.notInstalled")}
       </span>
     );
   }
@@ -46,7 +48,7 @@ export function StatusBadge({ status, zh }: { status: ConnectorStatus; zh: boole
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-muted px-2 py-0.5 text-[11px] font-medium text-warning">
         <span className="h-1.5 w-1.5 rounded-full bg-warning" />
-        {zh ? "需登录" : "Auth required"}
+        {t("models.authRequired")}
       </span>
     );
   }
@@ -54,7 +56,7 @@ export function StatusBadge({ status, zh }: { status: ConnectorStatus; zh: boole
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
         <span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-muted-foreground border-t-primary" />
-        {zh ? "检测中" : "Checking"}
+        {t("models.checking")}
       </span>
     );
   }
@@ -137,18 +139,17 @@ export function ModelToggleList({
   onToggle,
   onRemove,
   canRemove,
-  zh,
 }: {
   models: ModelEntry[];
   onToggle: (id: string) => void;
   onRemove?: (id: string) => void;
   canRemove: boolean;
-  zh: boolean;
 }) {
+  const t = useT();
   if (models.length === 0) {
     return (
       <div className="text-[12px] text-muted-foreground">
-        {zh ? "暂无模型" : "No models available"}
+        {t("models.noModels")}
       </div>
     );
   }
@@ -156,7 +157,7 @@ export function ModelToggleList({
   return (
     <div>
       <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">
-        {zh ? "模型" : "Models"} ({enabledCount}/{models.length} {zh ? "已启用" : "enabled"})
+        {t("models.label")} ({t("models.enabledCount").replace("{enabled}", String(enabledCount)).replace("{total}", String(models.length))})
       </div>
       <div className="space-y-1">
         {models.map((m) => (
@@ -168,7 +169,7 @@ export function ModelToggleList({
               <ToggleSwitch
                 checked={m.enabled}
                 onChange={() => onToggle(m.id)}
-                label={`${m.enabled ? "Disable" : "Enable"} ${m.label}`}
+                label={(m.enabled ? t("models.disableToggle") : t("models.enableToggle")).replace("{name}", m.label)}
               />
               <span
                 className={`text-[12px] ${m.enabled ? "text-foreground" : "text-muted-foreground line-through"}`}
@@ -181,7 +182,7 @@ export function ModelToggleList({
                 type="button"
                 onClick={() => onRemove(m.id)}
                 className="text-muted-foreground transition hover:text-destructive"
-                aria-label={`Remove ${m.label}`}
+                aria-label={t("models.removeModel").replace("{name}", m.label)}
               >
                 <XIcon size={12} />
               </button>

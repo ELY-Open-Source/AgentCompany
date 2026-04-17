@@ -193,29 +193,17 @@ function resolveProjectWakeTargets(
   input: NormalizedAgentMessageInput,
 ): string[] {
   if (!input.channelTargetId) return [];
-  const projectRows = db.queryAll<{ leadAgentId: string | null }>(
-    "select lead_agent_id as leadAgentId from projects where id = ? and company_id = ? limit 1",
-    input.channelTargetId, input.companyId,
-  );
-  const project = projectRows[0] ?? null;
+  const project = db.getProjectForUpdate(input.channelTargetId, input.companyId);
   const participantIds = new Set<string>();
   if (project?.leadAgentId) participantIds.add(project.leadAgentId);
-  const taskAssignees = db.queryAll<{ assigneeAgentId: string | null }>(
-    "select assignee_agent_id as assigneeAgentId from tasks where project_id = ? and company_id = ? and assignee_agent_id is not null",
-    input.channelTargetId, input.companyId,
-  );
-  for (const t of taskAssignees) {
-    if (t.assigneeAgentId) participantIds.add(t.assigneeAgentId);
+  for (const assigneeId of db.listProjectTaskAssigneeIds(input.channelTargetId, input.companyId)) {
+    participantIds.add(assigneeId);
   }
 
   if (participantIds.size === 0) return [];
   const ids = Array.from(participantIds).filter((id) => id !== input.fromAgentId);
   if (ids.length === 0) return [];
-  const activeAgents = db.queryAll<{ id: string }>(
-    `select id from agents where id in (${ids.map(() => "?").join(",")}) and company_id = ? and status != 'terminated'`,
-    ...ids, input.companyId,
-  );
-  return activeAgents.map((a) => a.id);
+  return db.listActiveAgentIdsFromIds(input.companyId, ids);
 }
 
 export function resolveMessageWakeTargets(
@@ -229,22 +217,14 @@ export function resolveMessageWakeTargets(
   }
 
   if (input.channel === "department" && input.channelTargetId) {
-    const deptAgents = db.queryAll<{ id: string }>(
-      "select id from agents where company_id = ? and department = ? and status != 'terminated'",
-      input.companyId, input.channelTargetId,
-    );
-    for (const agent of deptAgents) {
-      if (agent.id !== input.fromAgentId) wakeTargets.add(agent.id);
+    for (const agentId of db.listDepartmentAgentIds(input.companyId, input.channelTargetId)) {
+      if (agentId !== input.fromAgentId) wakeTargets.add(agentId);
     }
   }
 
   if (input.channel === "company") {
-    const topLevel = db.queryAll<{ id: string }>(
-      "select id from agents where company_id = ? and reports_to is null and status != 'terminated'",
-      input.companyId,
-    );
-    for (const agent of topLevel) {
-      if (agent.id !== input.fromAgentId) wakeTargets.add(agent.id);
+    for (const agentId of db.listTopLevelAgentIds(input.companyId)) {
+      if (agentId !== input.fromAgentId) wakeTargets.add(agentId);
     }
   }
 
@@ -255,12 +235,8 @@ export function resolveMessageWakeTargets(
   }
 
   if (input.channel === "incident") {
-    const activeAgents = db.queryAll<{ id: string }>(
-      "select id from agents where company_id = ? and status not in ('terminated', 'pending_approval')",
-      input.companyId,
-    );
-    for (const agent of activeAgents) {
-      if (agent.id !== input.fromAgentId) wakeTargets.add(agent.id);
+    for (const agentId of db.listIncidentPingableAgentIds(input.companyId)) {
+      if (agentId !== input.fromAgentId) wakeTargets.add(agentId);
     }
   }
 
@@ -303,11 +279,7 @@ export function dispatchAgentMessage(
     !normalized.fromHumanUser &&
     (message.channel !== "direct" || message.toAgentId === HUMAN_SENDER_ID)
   ) {
-    const senderRows = deps.db.queryAll<{ name: string }>(
-      "select name from agents where id = ? limit 1",
-      message.fromAgentId,
-    );
-    const senderName = senderRows[0]?.name ?? "Agent";
+    const senderName = deps.db.findAgentName(message.fromAgentId) ?? "Agent";
     deps.notify({
       title: truncateForNotification(`${senderName} · ${message.subject}`, 80),
       body: truncateForNotification(message.body, 140),
@@ -327,12 +299,7 @@ export function dispatchAgentMessage(
   const mentionResults: MentionResult[] = [];
 
   if (deps.wakeAgentIfPossible) {
-    const agentNameRows = wakeTargets.length > 0
-      ? deps.db.queryAll<{ id: string; name: string }>(
-          `select id, name from agents where id in (${wakeTargets.map(() => "?").join(",")}) and company_id = ?`,
-          ...wakeTargets, normalized.companyId,
-        )
-      : [];
+    const agentNameRows = deps.db.listAgentNamesByIds(normalized.companyId, wakeTargets);
     const agentNameMap = new Map(agentNameRows.map((a) => [a.id, a.name]));
     for (const wakeTarget of wakeTargets) {
       const agentName = agentNameMap.get(wakeTarget) ?? wakeTarget;

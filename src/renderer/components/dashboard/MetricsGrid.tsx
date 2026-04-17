@@ -1,4 +1,5 @@
 import type React from "react";
+import { Eyebrow } from "../ui";
 
 export function MetricCard({
   label,
@@ -48,7 +49,7 @@ export function MetricCard({
         <Icon size={24} weight="fill" className={toneMap[tone]} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</div>
+        <Eyebrow>{label}</Eyebrow>
         <div className={`text-[28px] font-bold tracking-[-0.02em] leading-none ${toneMap[tone]}`} style={{ fontVariantNumeric: "tabular-nums" }}>{value}</div>
         {subtitle ? <div className="mt-1.5 truncate text-[11px] font-medium text-muted-foreground">{subtitle}</div> : null}
       </div>

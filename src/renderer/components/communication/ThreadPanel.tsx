@@ -12,6 +12,7 @@ import { motion } from "framer-motion"
 import type { AgentRecord, ConversationEventRecord, ThreadWaitStateRecord, ConversationThreadRecord, DocumentRecord } from "@shared/types"
 import WaitStateIndicator, { type WaitStateInfo } from "./WaitStateIndicator"
 import { MessageComposer } from "./MessageComposer"
+import { useT, type TranslationFn } from "../../i18n"
 
 interface ThreadPanelProps {
   threadId: string
@@ -22,19 +23,19 @@ interface ThreadPanelProps {
   onNavigateApproval?: (approvalId: string) => void
 }
 
-function EventItem({ event, agents }: { event: ConversationEventRecord; agents: AgentRecord[] }) {
+function EventItem({ event, agents, t }: { event: ConversationEventRecord; agents: AgentRecord[]; t: TranslationFn }) {
   const actorName = event.actorType === "user"
-    ? "You"
+    ? t("thread.actor.you")
     : agents.find((a) => a.id === event.actorId)?.name ?? event.actorId
 
   const time = new Date(event.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 
   const iconClass = event.eventType === "status_change"
-    ? "text-blue-500"
+    ? "text-primary"
     : event.eventType === "approval_request"
-      ? "text-amber-500"
+      ? "text-warning"
       : event.eventType === "approval_decision"
-        ? "text-emerald-500"
+        ? "text-success"
         : "text-muted-foreground"
 
   return (
@@ -56,6 +57,7 @@ function EventItem({ event, agents }: { event: ConversationEventRecord; agents: 
 }
 
 export default function ThreadPanel({ threadId, companyId, agents, documents, onClose, onNavigateApproval }: ThreadPanelProps) {
+  const t = useT()
   const [thread, setThread] = useState<ConversationThreadRecord | null>(null)
   const [events, setEvents] = useState<ConversationEventRecord[]>([])
   const [waitStates, setWaitStates] = useState<ThreadWaitStateRecord[]>([])
@@ -106,12 +108,12 @@ export default function ThreadPanel({ threadId, companyId, agents, documents, on
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <ChatCircleDots size={18} className="text-muted-foreground" />
         <h3 className="flex-1 truncate text-sm font-medium text-foreground">
-          {thread?.title ?? "Thread"}
+          {thread?.title ?? t("thread.title")}
         </h3>
         <button
           onClick={onClose}
           className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label="Close thread"
+          aria-label={t("thread.close")}
         >
           <X size={16} />
         </button>
@@ -136,12 +138,12 @@ export default function ThreadPanel({ threadId, companyId, agents, documents, on
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {events.length === 0 ? (
           <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
-            No events yet
+            {t("thread.noEvents")}
           </div>
         ) : (
           <div className="divide-y divide-border/50 py-1">
             {events.map((event) => (
-              <EventItem key={event.id} event={event} agents={agents} />
+              <EventItem key={event.id} event={event} agents={agents} t={t} />
             ))}
           </div>
         )}

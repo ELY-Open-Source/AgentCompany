@@ -11,6 +11,12 @@ export const companyInputSchema = z.object({
   executionMode: z.enum(["ai_ceo", "ai_cofounder"]).default("ai_ceo"),
 });
 
+/**
+ * Pure pi-mono connector catalog ids. Single source of truth: this zod enum.
+ * The TS `ConnectorId` alias (`shared/types/enums.ts`) and the catalog
+ * (`shared/connector-catalog.ts`) both derive from it. Adding a connector
+ * requires editing this list only.
+ */
 export const connectorIdEnum = z.enum([
   // OAuth (5)
   "claude-pro",
@@ -42,6 +48,8 @@ export const connectorIdEnum = z.enum([
   "azure-openai",
   "google-vertex",
 ]);
+
+export type ConnectorId = z.infer<typeof connectorIdEnum>;
 
 export const connectorInputSchema = z.object({
   id: connectorIdEnum,

@@ -4,12 +4,12 @@ import type { ConnectorCatalogEntry } from "@shared/connector-catalog";
 import type { CredentialSummary } from "@shared/contracts/schemas-credentials";
 import type { TranslationFn } from "../../../i18n";
 import {
-  INPUT_CLS,
   InlineFeedback,
   OnboardingProviderCard,
   OnboardingStatusBadge,
   type OnboardingCardStatus,
 } from "./shared";
+import { Input } from "../../ui";
 
 interface ApiKeyCardProps {
   entry: ConnectorCatalogEntry;
@@ -96,14 +96,11 @@ export function ApiKeyProviderCard({
             {t("onboarding.providers.apiKeyLabel")}{" "}
             <span className="font-mono text-[11px] text-muted-foreground/70">({envKey})</span>
           </label>
-          <input
+          <Input
             type="password"
-            className={INPUT_CLS}
             value={value}
-            onChange={(event) => setValue(event.target.value)}
+            onChange={setValue}
             placeholder={connected ? t("onboarding.providers.apiKeyReplacePlaceholder") : ""}
-            autoComplete="off"
-            spellCheck={false}
             disabled={busy}
           />
         </div>

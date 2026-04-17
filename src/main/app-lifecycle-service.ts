@@ -4,6 +4,13 @@ interface AppLifecycleDependencies {
   getMainWindow: () => Electron.BrowserWindow | null;
   ensureWindow: () => Promise<Electron.BrowserWindow | null>;
   shouldQuit: () => boolean;
+  /**
+   * Invoked on the Electron `before-quit` event. The lifecycle service will
+   * call `event.preventDefault()` on the first invocation so the owner of
+   * this hook can perform an awaited drain and then invoke `app.exit()`
+   * explicitly when the drain resolves. Subsequent `before-quit` events are
+   * ignored because the drain is already in flight.
+   */
   onBeforeQuit: () => void;
 }
 
@@ -52,7 +59,13 @@ export function createAppLifecycleService({
       app.quit();
     });
 
-    app.on("before-quit", () => {
+    let drainStarted = false;
+    app.on("before-quit", (event) => {
+      if (drainStarted) return;
+      drainStarted = true;
+      // Block Electron's default quit until the owner's drain resolves. The
+      // owner must call app.exit() itself when drain is complete.
+      event.preventDefault();
       onBeforeQuit();
     });
   }
