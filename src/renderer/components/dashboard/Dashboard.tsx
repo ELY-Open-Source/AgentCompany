@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ElementType, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -28,6 +28,46 @@ import { ActivityFeed } from "./ActivityFeed";
 import { RecoveryBanner } from "./RecoveryBanner";
 import { BudgetAlertBanner } from "./BudgetAlertBanner";
 import { ChartSection } from "./ChartSection";
+
+const ATTENTION_STAGGER_MAX = 8;
+const ATTENTION_STAGGER_STEP = 0.04;
+
+function AttentionRow({
+  icon: Icon,
+  tone,
+  title,
+  subtitle,
+  onClick,
+  index,
+}: {
+  icon: ElementType;
+  tone: "warn" | "danger";
+  title: ReactNode;
+  subtitle: ReactNode;
+  onClick: () => void;
+  index: number;
+}) {
+  const iconClass = tone === "danger" ? "text-destructive" : "text-warning";
+  const bgClass = tone === "danger" ? "bg-destructive-muted" : "bg-warning-muted";
+  const delay = Math.min(index, ATTENTION_STAGGER_MAX) * ATTENTION_STAGGER_STEP;
+  return (
+    <motion.button
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.22, delay, ease: [0.16, 1, 0.3, 1] }}
+      type="button"
+      onClick={onClick}
+      className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 ${bgClass} px-4 py-3 text-left transition hover:border-opacity-40`}
+    >
+      <Icon size={18} className={`shrink-0 ${iconClass}`} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13px] font-medium text-foreground">{title}</div>
+        <div className="mt-0.5 text-[11px] text-muted-foreground">{subtitle}</div>
+      </div>
+      <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
+    </motion.button>
+  );
+}
 
 export interface DashboardProps {
   companyName?: string;
@@ -150,71 +190,48 @@ export function Dashboard(props: DashboardProps) {
             {pendingApprovals.slice(0, 5).map((approval, i) => {
               const requester = approval.requestedByAgentId ? agentMap.get(approval.requestedByAgentId) : undefined;
               return (
-                <motion.button
+                <AttentionRow
                   key={approval.id}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.22, delay: i * 0.04, ease: [0.16, 1, 0.3, 1] }}
-                  type="button"
-                  onClick={() => onNavigate("approvals", approval.id)}
-                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-warning-muted px-4 py-3 text-left transition hover:border-opacity-40"
-                >
-                  <ShieldCheck size={18} className="shrink-0 text-warning" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-medium text-foreground">{approval.payloadSummary}</div>
-                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                  icon={ShieldCheck}
+                  tone="warn"
+                  index={i}
+                  title={approval.payloadSummary}
+                  subtitle={
+                    <span className="flex items-center gap-2">
                       <span className="uppercase tracking-[0.1em]">{approval.type.replaceAll("_", " ")}</span>
                       {requester ? <span>by {requester.name}</span> : null}
-                    </div>
-                  </div>
-                  <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
-                </motion.button>
+                    </span>
+                  }
+                  onClick={() => onNavigate("approvals", approval.id)}
+                />
               );
             })}
             {failedRuns.slice(0, 3).map((run, i) => {
               const agent = agentMap.get(run.agentId);
               return (
-                <motion.button
+                <AttentionRow
                   key={run.id}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.22, delay: (pendingApprovals.length + i) * 0.04, ease: [0.16, 1, 0.3, 1] }}
-                  type="button"
+                  icon={XCircle}
+                  tone="danger"
+                  index={pendingApprovals.length + i}
+                  title={run.summary || "Run failed"}
+                  subtitle={`${agent?.name ?? ""} — ${run.errorMessage?.slice(0, 80) ?? "Unknown error"}`}
                   onClick={() => onNavigate("runs", run.id)}
-                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-destructive-muted px-4 py-3 text-left transition hover:border-opacity-40"
-                >
-                  <XCircle size={18} className="shrink-0 text-destructive" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-medium text-foreground">{run.summary || "Run failed"}</div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">
-                      {agent?.name} — {run.errorMessage?.slice(0, 80) ?? "Unknown error"}
-                    </div>
-                  </div>
-                  <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
-                </motion.button>
+                />
               );
             })}
             {urgentMessages.slice(0, 3).map((msg, i) => {
               const sender = agentMap.get(msg.fromAgentId);
               return (
-                <motion.button
+                <AttentionRow
                   key={msg.id}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.22, delay: (pendingApprovals.length + failedRuns.length + i) * 0.04, ease: [0.16, 1, 0.3, 1] }}
-                  type="button"
+                  icon={Warning}
+                  tone="warn"
+                  index={pendingApprovals.length + failedRuns.length + i}
+                  title={msg.subject}
+                  subtitle={`${sender?.name ?? "Unknown"} — ${msg.channel}${msg.priority === "urgent" ? " · urgent" : ""}`}
                   onClick={() => onNavigate("communication", msg.id)}
-                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 bg-warning-muted px-4 py-3 text-left transition hover:border-opacity-40"
-                >
-                  <Warning size={18} className="shrink-0 text-warning" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-medium text-foreground">{msg.subject}</div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">
-                      {sender?.name ?? "Unknown"} — {msg.channel}{msg.priority === "urgent" ? " · urgent" : ""}
-                    </div>
-                  </div>
-                  <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
-                </motion.button>
+                />
               );
             })}
           </div>
@@ -233,7 +250,7 @@ export function Dashboard(props: DashboardProps) {
         </div>
         {activeWork.length > 0 ? (
           <div className="rounded-lg border border-border bg-card divide-y divide-[color:var(--border)]">
-            {activeWork.map(({ run, agent, task }) => (
+            {activeWork.map(({ run, agent, task }, i) => (
               <button
                 key={run.id}
                 type="button"
@@ -244,7 +261,9 @@ export function Dashboard(props: DashboardProps) {
                   <Robot size={16} className="text-success" />
                   {run.status === "running" ? (
                     <span className="absolute -right-0.5 -top-0.5 h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-40" style={{ willChange: "transform" }} />
+                      {i < 2 ? (
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-40" style={{ willChange: "transform" }} />
+                      ) : null}
                       <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
                     </span>
                   ) : null}
