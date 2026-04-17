@@ -1,3 +1,4 @@
+import { getModels } from "@mariozechner/pi-ai";
 import type { ConnectorId } from "@shared/types";
 import { getConnectorDefinition } from "./connectors";
 
@@ -13,15 +14,6 @@ export interface ConnectorModelPolicyResult {
   defaultModel: string | null;
 }
 
-export function parseCompatConnectorModelCatalog(model: string | null | undefined): string[] {
-  return uniqueModels(
-    (model ?? "")
-      .split(",")
-      .map((entry) => ({ id: entry.trim(), label: entry.trim(), enabled: true }))
-      .filter((entry) => entry.id.length > 0),
-  ).map((entry) => entry.id);
-}
-
 function uniqueModels(models: Array<{ id: string; label: string }>) {
   const byId = new Map<string, { id: string; label: string }>();
   for (const model of models) {
@@ -34,6 +26,15 @@ function uniqueModels(models: Array<{ id: string; label: string }>) {
   return Array.from(byId.values());
 }
 
+function listProviderModels(provider: string): Array<{ id: string; label: string }> {
+  try {
+    const models = getModels(provider as never);
+    return models.map((model) => ({ id: model.id, label: model.name ?? model.id }));
+  } catch {
+    return [];
+  }
+}
+
 export function getConnectorModelPolicy(
   deps: ConnectorModelPolicyDeps,
   connectorId: ConnectorId,
@@ -42,19 +43,14 @@ export function getConnectorModelPolicy(
   const definition = getConnectorDefinition(connectorId);
   const disabledModels = new Set(deps.getDisabledModels(connectorId).map((model) => model.id));
 
-  const catalog = connectorId.startsWith("claude_compat")
-    ? parseCompatConnectorModelCatalog(connector.model).map((model) => ({ id: model, label: model }))
-    : (definition.module.models ?? []).map((model) => ({ id: model.id, label: model.label }));
-
+  const catalog = listProviderModels(definition.provider);
   const enabledModels = uniqueModels(catalog).filter((model) => !disabledModels.has(model.id));
 
   return {
     connectorId,
     connectorLabel: connector.label?.trim() || definition.label,
     enabledModels,
-    defaultModel: connectorId.startsWith("claude_compat")
-      ? null
-      : (connector.model?.trim() || definition.defaultModel),
+    defaultModel: connector.model?.trim() || definition.defaultModel,
   };
 }
 
@@ -90,22 +86,14 @@ export function validateConnectorModelSelection(
   return { ok: true, effectiveModel: policy.enabledModels[0]?.id ?? null };
 }
 
+/**
+ * Pi-mono catalog does not have free-form compat connectors; every connector
+ * has a fixed pi-ai provider. The configuration-level model validator is a
+ * no-op retained for IPC contract compatibility.
+ */
 export function validateConnectorConfigurationModel(
-  connectorId: ConnectorId,
-  model: string | null | undefined,
+  _connectorId: ConnectorId,
+  _model: string | null | undefined,
 ): { ok: true } | { ok: false; error: string } {
-  if (!connectorId.startsWith("claude_compat")) {
-    return { ok: true };
-  }
-
-  if (model == null) {
-    return { ok: true };
-  }
-
-  const catalog = parseCompatConnectorModelCatalog(model);
-  if (catalog.length === 0) {
-    return { ok: false, error: "Compatible connectors require at least one model in the configured model catalog." };
-  }
-
   return { ok: true };
 }

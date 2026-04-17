@@ -1,9 +1,9 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import { normalizeCommandValue } from "@agentcompany/adapter-utils/server-utils";
+import { spawnSync } from "node:child_process";
 import type { ConnectorId } from "@shared/types";
 
 function quoteShell(value: string) {
@@ -14,15 +14,8 @@ function escapeAppleScript(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-function quoteCmd(value: string) {
-  const normalized = normalizeCommandValue(value);
-  if (!normalized.length) return '""';
-  const escaped = normalized.replace(/"/g, '""');
-  return /[\s"&<>|^()]/.test(escaped) ? `"${escaped}"` : escaped;
-}
-
 /* ------------------------------------------------------------------ */
-/*  Shared terminal spawning — used by both auth and generic commands  */
+/*  Shared terminal spawning — used by generic install flows           */
 /* ------------------------------------------------------------------ */
 
 function writeWindowsBatchFile(lines: string[]): string {
@@ -95,72 +88,22 @@ function spawnTerminalWithScript(script: string, _title: string, _cwd: string): 
 }
 
 /* ------------------------------------------------------------------ */
-/*  Connector auth terminal (existing API — unchanged behavior)       */
+/*  Connector auth terminal — deprecated under pi-mono                 */
 /* ------------------------------------------------------------------ */
 
-function connectorAuthSpec(connectorId: ConnectorId, command: string) {
-  const normalizedCommand = normalizeCommandValue(command);
-  switch (connectorId) {
-    case "codex_local":
-      return {
-        title: "Codex Login",
-        shellCommand: `${quoteShell(normalizedCommand)} login`,
-        windowsCommand: `${quoteCmd(normalizedCommand)} login`,
-        intro: "AgentCompany is opening the Codex login flow.",
-      };
-    case "claude_local":
-      return {
-        title: "Claude Code Login",
-        shellCommand: `${quoteShell(normalizedCommand)} auth login`,
-        windowsCommand: `${quoteCmd(normalizedCommand)} auth login`,
-        intro: "AgentCompany is opening the Claude Code login flow.",
-      };
-    case "gemini_local":
-      return {
-        title: "Gemini CLI Login",
-        shellCommand: `${quoteShell(normalizedCommand)}`,
-        windowsCommand: quoteCmd(normalizedCommand),
-        intro: "AgentCompany is opening Gemini CLI. If authentication is required, use /auth in the Gemini session.",
-      };
-  }
-}
-
-export async function openConnectorAuthTerminal(connectorId: ConnectorId, command: string, cwd?: string) {
-  const targetCwd = cwd || process.env.HOME || homedir() || process.cwd();
-  const spec = connectorAuthSpec(connectorId, command);
-  if (!spec) return false;
-
-  if (process.platform === "win32") {
-    // Windows: emit a real .bat file instead of chaining commands with " & ".
-    // Chaining via " & " means any unescaped "&" in an embedded field (title,
-    // command, intro) would open a shell operator injection. A batch file has
-    // one command per line and is not subject to that risk.
-    const batchPath = writeWindowsBatchFile([
-      `@echo off`,
-      `echo ${spec.intro}`,
-      `echo.`,
-      `cd /d "${targetCwd}"`,
-      spec.windowsCommand,
-      `echo.`,
-      `echo You can close this terminal after the login flow completes.`,
-      `pause`,
-    ]);
-    return spawnTerminalWithScript(`"${batchPath}"`, spec.title, targetCwd);
-  }
-
-  // Unix: build a shell script
-  const shell = process.env.SHELL || "/bin/zsh";
-  const script = [
-    "clear",
-    `echo ${quoteShell(spec.intro)}`,
-    "echo",
-    `cd ${quoteShell(targetCwd)}`,
-    spec.shellCommand,
-    "echo",
-    `echo ${quoteShell("You can close this terminal after the login flow completes.")}`,
-    `exec ${quoteShell(shell)} -l`,
-  ].join("; ");
-  return spawnTerminalWithScript(script, spec.title, targetCwd);
+/**
+ * Pi-mono has no CLI auth flow. OAuth runs through `oauth-login-service`,
+ * API keys are entered via the Settings form, and cloud providers (AWS,
+ * Azure, GCP) use environment-driven credentials. The IPC handler still
+ * calls this function for legacy UI compatibility, so we keep the signature
+ * but treat it as a no-op that reports "not available".
+ */
+export async function openConnectorAuthTerminal(
+  _connectorId: ConnectorId,
+  _command: string,
+  _cwd?: string,
+): Promise<boolean> {
+  return false;
 }
 
 /* ------------------------------------------------------------------ */

@@ -1,10 +1,8 @@
-import { spawn } from "node:child_process";
-import { homedir } from "node:os";
-import { normalizeCommandValue } from "@agentcompany/adapter-utils/server-utils";
+import { getEnvApiKey } from "@mariozechner/pi-ai";
 import type { AppDatabase } from "./database";
 import { getConnectorDefinition } from "./connectors";
-import { buildSanitizedRuntimeEnv } from "./runtime-env";
 import type { ConnectorId } from "@shared/types";
+import type { CredentialStore } from "./credentials";
 
 interface ConnectorHealthDependencies {
   db: AppDatabase;
@@ -13,149 +11,117 @@ interface ConnectorHealthDependencies {
     error: (...args: unknown[]) => void;
   };
   publishDomainChanged: () => void;
+  credentialStore: CredentialStore;
 }
+
+type HealthState = {
+  status: "ready" | "auth_required" | "not_installed" | "error";
+  authState: "ok" | "required" | "error" | "unknown";
+  lastError: string | null;
+};
 
 export function createConnectorHealthService({
   db,
-  logger: _logger,
+  logger,
   publishDomainChanged,
+  credentialStore,
 }: ConnectorHealthDependencies) {
   function randomFallbackCompanyId() {
     const snapshot = db.listSnapshot();
     return snapshot.companies[0]?.id ?? "00000000-0000-0000-0000-000000000000";
   }
 
-  function resolveProbeCwd() {
-    const snapshot = db.listSnapshot();
-    const currentCompanyId = db.getCurrentCompanyId();
-    const preferredWorkspace = snapshot.workspaces.find((workspace) => workspace.companyId === currentCompanyId)
-      ?? snapshot.workspaces[0]
-      ?? null;
-    return preferredWorkspace?.localPath ?? process.env.USERPROFILE ?? process.env.HOME ?? homedir() ?? process.cwd();
-  }
+  function evaluateCredential(id: ConnectorId): HealthState {
+    const definition = getConnectorDefinition(id);
+    const stored = credentialStore.read(id);
 
-  function parseVersion(command: string): Promise<string | null> {
-    return new Promise((resolve) => {
-      let resolved = false;
-      const normalizedCommand = normalizeCommandValue(command);
-      const child = spawn(normalizedCommand, ["--version"], {
-        env: buildSanitizedRuntimeEnv(process.env, {}),
-        shell: false,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      let buffer = "";
-      child.stdout.on("data", (chunk) => {
-        buffer += String(chunk);
-      });
-      child.stderr.on("data", (chunk) => {
-        buffer += String(chunk);
-      });
-      child.on("error", () => {
-        if (!resolved) { resolved = true; resolve(null); }
-      });
-      child.on("close", () => {
-        if (!resolved) {
-          resolved = true;
-          const versionLine = buffer.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? null;
-          resolve(versionLine);
+    switch (definition.auth.type) {
+      case "oauth": {
+        if (stored?.kind !== "oauth") {
+          return { status: "auth_required", authState: "required", lastError: "OAuth login required." };
         }
-      });
-      // Kill the child after 8 seconds to avoid blocking startup.
-      setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          try { child.kill("SIGKILL"); } catch { /* process may have already exited */ }
-          resolve(null);
+        const creds = stored.value;
+        const expires = typeof creds.expires === "number" ? creds.expires : null;
+        if (expires !== null && expires <= Date.now()) {
+          return { status: "auth_required", authState: "required", lastError: "OAuth token expired." };
         }
-      }, 8_000);
-    });
+        return { status: "ready", authState: "ok", lastError: null };
+      }
+      case "api_key": {
+        if (stored?.kind === "api_key") {
+          return { status: "ready", authState: "ok", lastError: null };
+        }
+        if (definition.provider && getEnvApiKey(definition.provider as never)) {
+          return { status: "ready", authState: "ok", lastError: null };
+        }
+        return {
+          status: "auth_required",
+          authState: "required",
+          lastError: `API key required (${definition.auth.envKey}).`,
+        };
+      }
+      case "aws": {
+        if (stored?.kind !== "aws") {
+          return { status: "auth_required", authState: "required", lastError: "AWS credentials not configured." };
+        }
+        const cfg = stored.value;
+        if (cfg.authMode === "profile" && !cfg.awsProfile) {
+          return { status: "error", authState: "error", lastError: "AWS profile missing." };
+        }
+        if (cfg.authMode === "iam" && (!cfg.accessKeyId || !cfg.secretAccessKey)) {
+          return { status: "error", authState: "error", lastError: "AWS IAM keys missing." };
+        }
+        if (cfg.authMode === "bearer" && !cfg.bearerToken) {
+          return { status: "error", authState: "error", lastError: "AWS bearer token missing." };
+        }
+        return { status: "ready", authState: "ok", lastError: null };
+      }
+      case "azure": {
+        if (stored?.kind !== "azure") {
+          return { status: "auth_required", authState: "required", lastError: "Azure credentials not configured." };
+        }
+        const cfg = stored.value;
+        if (!cfg.apiKey) {
+          return { status: "error", authState: "error", lastError: "Azure OpenAI API key missing." };
+        }
+        if (!cfg.baseUrl && !cfg.resourceName) {
+          return { status: "error", authState: "error", lastError: "Azure requires baseUrl or resourceName." };
+        }
+        return { status: "ready", authState: "ok", lastError: null };
+      }
+      case "gcp_adc": {
+        if (stored?.kind !== "gcp_adc") {
+          return { status: "auth_required", authState: "required", lastError: "GCP ADC not configured." };
+        }
+        const cfg = stored.value;
+        if (!cfg.project || !cfg.location) {
+          return { status: "error", authState: "error", lastError: "GCP project/location missing." };
+        }
+        return { status: "ready", authState: "ok", lastError: null };
+      }
+    }
   }
 
   async function checkConnector(id: ConnectorId) {
-    const connector = db.getConnector(id);
-    const definition = getConnectorDefinition(id);
     const companyId = db.getCurrentCompanyId() ?? randomFallbackCompanyId();
-    const probeCwd = resolveProbeCwd();
-    const runtimeOverrides = db.resolveSecretEnv(connector.envBindingText, companyId);
 
     db.updateConnectorHealth({
       id,
       status: "detected",
-      authState: connector.authState,
-      version: connector.version,
+      authState: db.getConnector(id).authState,
+      version: null,
       lastError: null,
     });
     publishDomainChanged();
 
     try {
-      const testPromise = definition.module.testEnvironment({
-        companyId,
-        adapterType: id,
-        config: {
-          command: connector.command,
-          model: connector.model,
-          cwd: probeCwd,
-          env: buildSanitizedRuntimeEnv(process.env, runtimeOverrides),
-          approvalMode: "default",
-          sandbox: true,
-        },
-      });
-      const result = await Promise.race([
-        testPromise,
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Connector health check timed out after 45 seconds")), 45_000)),
-      ]);
-
-      // Check if the CLI command itself is missing before inspecting auth status.
-      // Without this, info-level hints like "run `gemini auth login`" would wrongly
-      // trigger auth_required even when the CLI binary doesn't exist.
-      const commandMissing = result.checks.some((check) =>
-        /command_unresolvable|command_not_found/i.test(check.code) && check.level === "error",
-      );
-
-      // Only consider warn/error-level checks for auth detection.
-      // Info-level checks (like gemini_api_key_missing) carry advisory hints
-      // that match auth patterns but do NOT indicate actual auth failure.
-      const authRequired = !commandMissing && result.checks.some((check) =>
-        check.level !== "info" && (
-          /auth_required|login_required/i.test(check.code) ||
-          /login is required|authentication is not ready|auth(?:entication)? required/i.test(check.message) ||
-          /run .*login|use \/auth|configure .*api key/i.test(check.hint ?? "")
-        ),
-      );
-      let authState: "ok" | "required" | "error" = "ok";
-      if (commandMissing) {
-        authState = "error";
-      } else if (authRequired) {
-        authState = "required";
-      } else if (result.status === "fail") {
-        authState = "error";
-      }
-      const version = commandMissing ? null : await parseVersion(connector.command);
-
-      // claude_compatible requires explicit env bindings (API key + base URL) to be
-      // considered ready. Without them, it just uses the official claude CLI auth
-      // which is not what the user intends for a compatible provider.
-      const needsCompatConfig = id.startsWith("claude_compat")
-        && !connector.envBindingText.includes("ANTHROPIC_BASE_URL");
-
+      const result = evaluateCredential(id);
       db.updateConnectorHealth({
         id,
-        status:
-          commandMissing
-            ? "not_installed"
-            : needsCompatConfig
-              ? "auth_required"
-              : authRequired
-                ? "auth_required"
-                : result.status === "pass" || result.status === "warn"
-                  ? "ready"
-                  : "error",
-        authState,
-        version,
-        lastError:
-          result.status === "fail" || result.status === "warn"
-            ? result.checks.map((check) => check.message).join(" | ")
-            : null,
+        status: result.status,
+        authState: result.authState,
+        version: null,
+        lastError: result.lastError,
       });
       db.addActivity({
         companyId,
@@ -165,15 +131,14 @@ export function createConnectorHealthService({
         entityId: id,
         detail: result.status,
       });
+      logger.info(`[connector] Health check for ${id}: ${result.status}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      _logger.error(`[connector] Health check failed for ${id}: ${errorMessage}`);
-      const isNotInstalled = /command.*not found|not executable|ENOENT/i.test(errorMessage);
-      const status = isNotInstalled ? "not_installed" : "error";
+      logger.error(`[connector] Health check failed for ${id}: ${errorMessage}`);
       db.updateConnectorHealth({
         id,
-        status,
-        authState: isNotInstalled ? "error" : "unknown",
+        status: "error",
+        authState: "unknown",
         version: null,
         lastError: errorMessage,
       });

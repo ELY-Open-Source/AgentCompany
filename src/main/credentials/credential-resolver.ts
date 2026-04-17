@@ -122,8 +122,10 @@ export class CredentialResolver {
         if (cfg.credentialsPath) env.GOOGLE_APPLICATION_CREDENTIALS = cfg.credentialsPath;
         return { apiKey: "", extraEnv: env };
       }
-      default:
-        throw new CredentialError("CREDENTIAL_INVALID", connectorId, `Unsupported auth kind: ${String(auth.type)}`);
+      default: {
+        const exhaustive: never = auth;
+        throw new CredentialError("CREDENTIAL_INVALID", connectorId, `Unsupported auth descriptor: ${JSON.stringify(exhaustive)}`);
+      }
     }
   }
 

@@ -74,11 +74,9 @@ export function registerCoreAdminHandlers({
     if (!connectorConfigValidation.ok) {
       return fail("CONNECTOR_MODEL_NOT_ALLOWED", connectorConfigValidation.error);
     }
-    if (!parsed.id.startsWith("claude_compat")) {
-      const modelSelection = validateConnectorModelSelection(db, parsed.id, parsed.model ?? null);
-      if (!modelSelection.ok) {
-        return fail("CONNECTOR_MODEL_NOT_ALLOWED", modelSelection.error);
-      }
+    const modelSelection = validateConnectorModelSelection(db, parsed.id, parsed.model ?? null);
+    if (!modelSelection.ok) {
+      return fail("CONNECTOR_MODEL_NOT_ALLOWED", modelSelection.error);
     }
     db.saveConnector({
       ...parsed,

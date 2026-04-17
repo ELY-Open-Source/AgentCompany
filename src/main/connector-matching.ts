@@ -1,12 +1,5 @@
 import type { ConnectorId, TaskType } from "@shared/types";
-
-export const TASK_TYPE_PREFERENCE: Record<TaskType, ConnectorId[]> = {
-  code: ["claude_local", "codex_local", "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5", "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10", "gemini_local"],
-  research: ["gemini_local", "claude_local", "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5", "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10", "codex_local"],
-  content: ["claude_local", "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5", "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10", "gemini_local", "codex_local"],
-  management: ["claude_local", "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5", "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10", "gemini_local", "codex_local"],
-  general: ["claude_local", "codex_local", "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5", "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10", "gemini_local"],
-};
+import { CONNECTORS } from "./connectors";
 
 export const ROLE_DEPARTMENT_HINTS: Record<string, TaskType> = {
   engineering: "code",
@@ -23,35 +16,61 @@ export const ROLE_DEPARTMENT_HINTS: Record<string, TaskType> = {
   legal: "management",
 };
 
-const COMPAT_STRENGTH = "Claude Code CLI with third-party API provider (DeepSeek, OpenRouter, Ollama, etc.). Cost-effective for worker agents.";
-
-export const CONNECTOR_STRENGTHS: Record<ConnectorId, string> = {
-  claude_local:
-    "Best for code generation, content writing, complex reasoning. Supports session resume, cost tracking.",
-  claude_compatible: COMPAT_STRENGTH,
-  claude_compat_2: COMPAT_STRENGTH,
-  claude_compat_3: COMPAT_STRENGTH,
-  claude_compat_4: COMPAT_STRENGTH,
-  claude_compat_5: COMPAT_STRENGTH,
-  claude_compat_6: COMPAT_STRENGTH,
-  claude_compat_7: COMPAT_STRENGTH,
-  claude_compat_8: COMPAT_STRENGTH,
-  claude_compat_9: COMPAT_STRENGTH,
-  claude_compat_10: COMPAT_STRENGTH,
-  codex_local:
-    "Optimized for code editing and generation. Supports session resume, structured output.",
-  gemini_local:
-    "Strong at research, analysis, and large-context tasks. Good for data processing.",
+/**
+ * Preferred provider ordering per task type. Resolved against `CONNECTORS` at
+ * module load so `TASK_TYPE_PREFERENCE` stays in sync with the pi-mono catalog
+ * without hard-coded id lists.
+ */
+const PROVIDER_PREFERENCE: Record<TaskType, string[]> = {
+  code: ["anthropic", "openai", "xai", "groq", "google", "openrouter", "mistral", "cerebras"],
+  research: ["google", "anthropic", "openai", "openrouter", "xai", "mistral", "groq"],
+  content: ["anthropic", "openai", "google", "mistral", "openrouter", "groq", "xai"],
+  management: ["anthropic", "openai", "google", "mistral", "openrouter", "groq", "xai"],
+  general: ["anthropic", "openai", "google", "openrouter", "mistral", "xai", "groq"],
 };
 
-export function inferTaskType(
-  department: string | null | undefined,
-): TaskType {
+function connectorsByProvider(provider: string): ConnectorId[] {
+  return CONNECTORS.filter((c) => c.provider === provider).map((c) => c.id);
+}
+
+function buildPreference(taskType: TaskType): ConnectorId[] {
+  const preferred: ConnectorId[] = [];
+  const seen = new Set<ConnectorId>();
+  for (const provider of PROVIDER_PREFERENCE[taskType]) {
+    for (const id of connectorsByProvider(provider)) {
+      if (!seen.has(id)) {
+        preferred.push(id);
+        seen.add(id);
+      }
+    }
+  }
+  // Ensure every catalog entry appears in the preference list so callers can
+  // always resolve to *some* connector even when the provider is not ranked.
+  for (const connector of CONNECTORS) {
+    if (!seen.has(connector.id)) {
+      preferred.push(connector.id);
+      seen.add(connector.id);
+    }
+  }
+  return preferred;
+}
+
+export const TASK_TYPE_PREFERENCE: Record<TaskType, ConnectorId[]> = {
+  code: buildPreference("code"),
+  research: buildPreference("research"),
+  content: buildPreference("content"),
+  management: buildPreference("management"),
+  general: buildPreference("general"),
+};
+
+export function inferTaskType(department: string | null | undefined): TaskType {
   if (!department) return "general";
   const lower = department.toLowerCase();
   return ROLE_DEPARTMENT_HINTS[lower] ?? "general";
 }
 
 export function getConnectorStrengths(connectorId: ConnectorId): string {
-  return CONNECTOR_STRENGTHS[connectorId] ?? "General-purpose AI connector.";
+  const definition = CONNECTORS.find((c) => c.id === connectorId);
+  if (!definition) return "General-purpose AI connector.";
+  return definition.description;
 }

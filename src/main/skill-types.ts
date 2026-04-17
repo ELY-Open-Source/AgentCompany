@@ -51,23 +51,28 @@ export interface SkillAssignment {
 }
 
 /**
- * Per-adapter token budgets for skill content injection.
+ * Default token budget used when a connector does not declare an override.
+ */
+const DEFAULT_TOKEN_BUDGET = 30000;
+
+/**
+ * Per-connector token budgets for skill content injection.
  * Values represent the maximum token count of skill content that can be
- * included in a single prompt for each adapter type.
+ * included in a single prompt for a given connector.
  */
 export const TOKEN_BUDGETS: Readonly<Record<string, number>> = {
-  claude_local: 50000,
-  codex_local: 30000,
-  gemini_local: 50000,
-  claude_compatible: 50000,
+  // High-context Anthropic-style connectors run with a larger injection budget.
+  "claude-pro": 50000,
+  "anthropic": 50000,
+  "amazon-bedrock": 50000,
+  "gemini-cli": 50000,
+  "google": 50000,
+  "google-vertex": 50000,
 };
 
 /**
- * Resolves the token budget for a given adapter type.
- * Handles claude_compat_2..10 variants by mapping them to claude_compatible.
+ * Resolves the token budget for a given connector id.
  */
-export function resolveTokenBudget(adapterType: string): number {
-  if (TOKEN_BUDGETS[adapterType] !== undefined) return TOKEN_BUDGETS[adapterType];
-  if (adapterType.startsWith("claude_compat")) return TOKEN_BUDGETS.claude_compatible;
-  return 30000;
+export function resolveTokenBudget(connectorId: string): number {
+  return TOKEN_BUDGETS[connectorId] ?? DEFAULT_TOKEN_BUDGET;
 }

@@ -1,9 +1,15 @@
 import type { DatabaseSync } from "node:sqlite";
-import { normalizeCommandValue } from "@agentcompany/adapter-utils/server-utils";
 import type { ConnectorId, ConnectorRecord } from "@shared/types";
 import type { ReadAll } from "./helpers";
 import { nowIso } from "./helpers";
-import { getConnectorDefinition, buildDefaultConnectorRows } from "../connectors";
+import { normalizeCommandValue } from "../connector-helpers";
+import {
+  CONNECTORS,
+  getConnectorDefinition,
+  buildDefaultConnectorRows,
+  renderConnectorConfigurationDoc,
+  PI_MONO_CAPABILITIES,
+} from "../connectors";
 
 
 export function buildConnectorMethods(
@@ -40,8 +46,8 @@ export function buildConnectorMethods(
         model: row.model,
         envBindingText: row.env_binding_text,
         notes: row.notes,
-        configurationDoc: definition.configurationDoc,
-        capabilityMatrix: definition.capabilityMatrix,
+        configurationDoc: renderConnectorConfigurationDoc(definition),
+        capabilityMatrix: PI_MONO_CAPABILITIES,
       });
     }
     return result;
@@ -120,8 +126,8 @@ export function buildConnectorMethods(
         model: row.model,
         envBindingText: row.env_binding_text,
         notes: row.notes,
-        configurationDoc: definition.configurationDoc,
-        capabilityMatrix: definition.capabilityMatrix,
+        configurationDoc: renderConnectorConfigurationDoc(definition),
+        capabilityMatrix: PI_MONO_CAPABILITIES,
       };
     },
 
@@ -132,56 +138,13 @@ export function buildConnectorMethods(
     },
 
     seedConnectors() {
-      getDb().prepare("delete from connectors where id not in ('codex_local', 'claude_local', 'gemini_local') and id not like 'claude_compat%'").run();
+      // Drop any connector row that is not declared in the pi-mono catalog.
+      const validIds = CONNECTORS.map((c) => `'${c.id}'`).join(",");
+      getDb().prepare(`delete from connectors where id not in (${validIds})`).run();
+
       const currentRows = readAll<Partial<ConnectorRecord>>(
         "select id, label, description, status, command, version, auth_state as authState, last_checked_at as lastCheckedAt, last_error as lastError, model, env_binding_text as envBindingText, notes from connectors",
       );
-      // Migrate first compat slot if its definition defaults have changed (edition upgrade).
-      // When the definition ships with preset notes that differ from the DB, relocate the
-      // old user config to the next empty compat slot so definition defaults take effect.
-      const firstCompat = currentRows.find((r) => r.id === "claude_compatible");
-      if (firstCompat?.envBindingText && firstCompat.notes) {
-        let firstDef: { notes: string } | undefined;
-        try { firstDef = getConnectorDefinition("claude_compatible"); } catch { /* skip */ }
-        if (firstDef?.notes && firstCompat.notes !== firstDef.notes) {
-          const migrationTargets: ConnectorId[] = [
-            "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5",
-            "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10",
-          ];
-          const occupied = new Set(
-            currentRows
-              .filter((r) => r.id !== "claude_compatible" && r.id?.startsWith("claude_compat") && r.envBindingText)
-              .map((r) => r.id),
-          );
-          const targetId = migrationTargets.find((id) => !occupied.has(id));
-          if (targetId) {
-            const migrated = {
-              envBindingText: firstCompat.envBindingText,
-              notes: firstCompat.notes,
-              model: firstCompat.model,
-              status: firstCompat.status,
-              authState: firstCompat.authState,
-              version: firstCompat.version,
-              lastCheckedAt: firstCompat.lastCheckedAt,
-              lastError: firstCompat.lastError,
-            };
-            const targetRow = currentRows.find((r) => r.id === targetId);
-            if (targetRow) {
-              Object.assign(targetRow, migrated);
-            } else {
-              currentRows.push({ id: targetId as ConnectorId, ...migrated });
-            }
-            firstCompat.envBindingText = undefined;
-            firstCompat.notes = undefined;
-            firstCompat.model = undefined;
-            firstCompat.status = undefined;
-            firstCompat.authState = undefined;
-            firstCompat.version = undefined;
-            firstCompat.lastCheckedAt = undefined;
-            firstCompat.lastError = undefined;
-          }
-        }
-      }
 
       const merged = buildDefaultConnectorRows(currentRows);
       const statement = getDb().prepare(
@@ -196,11 +159,11 @@ export function buildConnectorMethods(
         );
       }
 
-      // One-time migration: mark native connectors that are actively used by
-      // agents as model-pool-managed so they remain visible to the CEO after
-      // the opt-in policy change. Connectors not used by any agent stay
-      // unmanaged and will not appear in CEO prompts until the user explicitly
-      // enables models for them in Settings > Model Management.
+      // One-time migration: mark connectors actively used by agents as
+      // model-pool-managed so they remain visible to the CEO after the opt-in
+      // policy change. Connectors not used by any agent stay unmanaged and
+      // will not appear in CEO prompts until the user explicitly enables
+      // models for them in Settings > Model Management.
       const migrationKey = "migration:model_pool_opt_in_v1";
       const migrated = readAll<{ value: string }>("SELECT value FROM settings WHERE key = ?", migrationKey);
       if (migrated.length === 0) {
@@ -209,16 +172,15 @@ export function buildConnectorMethods(
             "SELECT DISTINCT connector_id FROM agents WHERE status NOT IN ('terminated')",
           ).map((r) => r.connector_id),
         );
-        const nativeIds = ["codex_local", "claude_local", "gemini_local"];
         const upsert = getDb().prepare(
           "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         );
-        for (const id of nativeIds) {
+        for (const id of usedIds) {
           const hasSettings = readAll<{ key: string }>(
             "SELECT key FROM settings WHERE key = ?",
             `disabled_models:${id}`,
           );
-          if (hasSettings.length === 0 && usedIds.has(id)) {
+          if (hasSettings.length === 0) {
             upsert.run(`disabled_models:${id}`, "[]");
           }
         }

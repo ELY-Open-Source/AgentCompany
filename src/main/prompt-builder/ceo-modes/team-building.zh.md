@@ -30,7 +30,7 @@
 - 具体的 role 和 title
 - 详尽的 capabilities 描述他们应拥有什么
 - reportsTo：明确的管理者 agent ID（不要省略）
-- connectorId：使用上方 "Available Connectors" 推荐的 connector。若无该章节，使用 claude_local。
+- connectorId：使用上方 "Available Connectors" 推荐的 connector。若无该章节，使用 claude-pro。
 - budgetMonthlyUsd：合适的预算（推荐 $50-250/agent）
 - model：与角色复杂度匹配的最佳模型
 - 每个招聘被批准并创建 agent 后，为其分配相关 skill：

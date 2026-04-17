@@ -41,7 +41,7 @@ const API_DOC_SECTIONS: Record<AppLocale, string[]> = {
 function render(template: string, ctx: PromptContext): string {
   const connectorIds = ctx.allConnectors && ctx.allConnectors.length > 0
     ? ctx.allConnectors.map((c) => c.id).join("|")
-    : "claude_local";
+    : "claude-pro";
   return template
     .replace(/\{\{apiUrl\}\}/g, ctx.apiUrl)
     .replace(/\{\{companyId\}\}/g, ctx.agent.companyId)

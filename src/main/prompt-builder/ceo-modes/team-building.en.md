@@ -30,7 +30,7 @@ For EACH role, use POST /api/companies/{companyId}/agents with:
 - Specific role and title
 - Detailed capabilities describing what they should own
 - reportsTo: an explicit manager agent ID (do not omit this field)
-- connectorId: Use the connector recommended in the "Available Connectors" section above. If no section is shown, use claude_local.
+- connectorId: Use the connector recommended in the "Available Connectors" section above. If no section is shown, use claude-pro.
 - budgetMonthlyUsd: Appropriate budget (recommend $50-250/agent)
 - model: Best model for the role's complexity
 - After EACH hire is approved and the agent is created, assign relevant skills to them:

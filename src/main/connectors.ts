@@ -66,6 +66,12 @@ export function listInvalidEnvBindingKeys(text: string): string[] {
   });
 }
 
+export { PI_MONO_CAPABILITIES };
+
+export function renderConnectorConfigurationDoc(definition: ConnectorDefinition): string {
+  return renderConfigurationDoc(definition);
+}
+
 function renderConfigurationDoc(definition: ConnectorDefinition): string {
   switch (definition.auth.type) {
     case "oauth":
