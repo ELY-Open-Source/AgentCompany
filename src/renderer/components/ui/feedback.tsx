@@ -61,8 +61,9 @@ export function InlineNotice({
     : tone === "warn"
       ? "border-warning bg-warning-muted text-warning"
       : "border-destructive bg-destructive-muted text-destructive";
+  const role = tone === "danger" || (tone === "warn" && action) ? "alert" : "status";
   return (
-    <div className={`rounded-lg border px-4 py-3 text-[13px] ${toneClass}`} role={tone === "danger" ? "alert" : "status"}>
+    <div className={`rounded-lg border px-4 py-3 text-[13px] ${toneClass}`} role={role}>
       {action ? (
         <div className="flex items-start justify-between gap-3">
           <span>{message}</span>
