@@ -8,55 +8,42 @@ interface RovingTabIndexResult {
   getTabIndex: (index: number) => 0 | -1;
 }
 
+function nextIndexFor(key: string, current: number, itemCount: number): number | null {
+  if (key === "ArrowDown" || key === "j") return (current + 1) % itemCount;
+  if (key === "ArrowUp" || key === "k") return (current - 1 + itemCount) % itemCount;
+  if (key === "Home") return 0;
+  if (key === "End") return itemCount - 1;
+  return null;
+}
+
 /**
- * Core roving-tabindex logic, independent of React.
- * Used directly by tests and wrapped by `useRovingTabIndex` for React components.
+ * Core roving-tabindex logic, independent of React. Used directly by tests;
+ * the React version below reuses the same nextIndexFor resolver.
  */
 export function createRovingTabIndex(itemCount: number): RovingTabIndexResult {
-  let _focusedIndex = 0;
+  let focused = 0;
   const containerRef = { current: null as HTMLDivElement | null };
 
   const setFocusedIndex = (index: number) => {
-    _focusedIndex = index;
+    focused = index;
   };
 
   const handleKeyDown = (event: React.KeyboardEvent | { key: string; preventDefault: () => void }) => {
     if (itemCount === 0) return;
-
-    let nextIndex = _focusedIndex;
-
-    if (event.key === "ArrowDown" || event.key === "j") {
-      event.preventDefault();
-      nextIndex = (_focusedIndex + 1) % itemCount;
-    } else if (event.key === "ArrowUp" || event.key === "k") {
-      event.preventDefault();
-      nextIndex = (_focusedIndex - 1 + itemCount) % itemCount;
-    } else if (event.key === "Home") {
-      event.preventDefault();
-      nextIndex = 0;
-    } else if (event.key === "End") {
-      event.preventDefault();
-      nextIndex = itemCount - 1;
-    } else {
-      return;
-    }
-
-    _focusedIndex = nextIndex;
-
-    const target = containerRef.current?.querySelector(
-      `[data-index="${nextIndex}"]`,
-    ) as HTMLElement | null;
+    const next = nextIndexFor(event.key, focused, itemCount);
+    if (next === null) return;
+    event.preventDefault();
+    focused = next;
+    const target = containerRef.current?.querySelector(`[data-index="${next}"]`) as HTMLElement | null;
     target?.focus();
   };
 
-  const getTabIndex = (index: number): 0 | -1 => {
-    return index === _focusedIndex ? 0 : -1;
-  };
+  const getTabIndex = (index: number): 0 | -1 => (index === focused ? 0 : -1);
 
   return {
     containerRef,
     get focusedIndex() {
-      return _focusedIndex;
+      return focused;
     },
     setFocusedIndex,
     handleKeyDown,
@@ -77,37 +64,16 @@ export function useRovingTabIndex(itemCount: number): RovingTabIndexResult {
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent | { key: string; preventDefault: () => void }) => {
     if (itemCount === 0) return;
-
-    let nextIndex = focusedRef.current;
-
-    if (event.key === "ArrowDown" || event.key === "j") {
-      event.preventDefault();
-      nextIndex = (focusedRef.current + 1) % itemCount;
-    } else if (event.key === "ArrowUp" || event.key === "k") {
-      event.preventDefault();
-      nextIndex = (focusedRef.current - 1 + itemCount) % itemCount;
-    } else if (event.key === "Home") {
-      event.preventDefault();
-      nextIndex = 0;
-    } else if (event.key === "End") {
-      event.preventDefault();
-      nextIndex = itemCount - 1;
-    } else {
-      return;
-    }
-
-    focusedRef.current = nextIndex;
-    setFocusedIndexState(nextIndex);
-
-    const target = containerRef.current?.querySelector(
-      `[data-index="${nextIndex}"]`,
-    ) as HTMLElement | null;
+    const next = nextIndexFor(event.key, focusedRef.current, itemCount);
+    if (next === null) return;
+    event.preventDefault();
+    focusedRef.current = next;
+    setFocusedIndexState(next);
+    const target = containerRef.current?.querySelector(`[data-index="${next}"]`) as HTMLElement | null;
     target?.focus();
   }, [itemCount]);
 
-  const getTabIndex = useCallback((index: number): 0 | -1 => {
-    return index === focusedRef.current ? 0 : -1;
-  }, []);
+  const getTabIndex = useCallback((index: number): 0 | -1 => (index === focusedRef.current ? 0 : -1), []);
 
   return {
     containerRef,
