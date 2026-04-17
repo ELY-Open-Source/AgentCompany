@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
 import { mkdir, writeFile, rm } from "node:fs/promises";
 import { join, resolve, basename, dirname, relative } from "node:path";
 import type { AppDatabase } from "../database";
@@ -20,6 +20,9 @@ import { createGitHubImporter } from "./import-github";
 
 const BLOCKED_PATH_PREFIXES_UNIX = ["/etc", "/var", "/proc", "/sys", "/dev", "/boot", "/sbin", "/usr/sbin"];
 const BLOCKED_PATH_PREFIXES_WIN = ["C:\\Windows", "C:\\Program Files", "C:\\ProgramData"];
+
+const DEFAULT_SKILL_WALK_MAX_DEPTH = 8;
+const DEFAULT_SKILL_WALK_MAX_FILES = 256;
 
 function assertNotSystemPath(realPath: string): void {
   const normalized = realPath.replace(/\\/g, "/");
@@ -312,48 +315,125 @@ export function createSkillImporter({ db, profileDir: _profileDir, logger, skill
     return results;
   }
 
-  function findSkillMdFiles(rootDir: string): string[] {
+  function findSkillMdFiles(
+    rootDir: string,
+    opts?: { maxDepth?: number; maxFiles?: number },
+  ): string[] {
+    const maxDepth = opts?.maxDepth ?? DEFAULT_SKILL_WALK_MAX_DEPTH;
+    const maxFiles = opts?.maxFiles ?? DEFAULT_SKILL_WALK_MAX_FILES;
     const found: string[] = [];
-    function walk(dir: string) {
+    const visitedRealPaths = new Set<string>();
+    let filesSeen = 0;
+
+    function walk(dir: string, depth: number) {
+      if (depth > maxDepth) {
+        throw new Error(
+          `Skill directory too deep, refusing to walk beyond ${maxDepth} levels`,
+        );
+      }
+      let realDir: string;
       try {
-        const entries = readdirSync(dir, { withFileTypes: true });
-        for (const entry of entries) {
-          const fullPath = join(dir, entry.name);
-          if (entry.isDirectory()) {
-            walk(fullPath);
-          } else if (entry.name === "SKILL.md") {
-            found.push(fullPath);
-          }
-        }
+        realDir = realpathSync(dir);
       } catch {
-        // Skip unreadable directories
+        return;
+      }
+      if (visitedRealPaths.has(realDir)) {
+        return;
+      }
+      visitedRealPaths.add(realDir);
+
+      let entries: Dirent[];
+      try {
+        entries = readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        filesSeen++;
+        if (filesSeen > maxFiles) {
+          throw new Error(
+            `Skill directory contains too many files, refusing after ${maxFiles} entries`,
+          );
+        }
+        const fullPath = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(fullPath, depth + 1);
+        } else if (entry.name === "SKILL.md") {
+          found.push(fullPath);
+        }
       }
     }
-    walk(rootDir);
+    walk(rootDir, 0);
     return found;
   }
 
-  function buildLocalInventory(skillDir: string, skillMdPath: string): FileInventoryEntry[] {
+  function buildLocalInventory(
+    skillDir: string,
+    skillMdPath: string,
+    opts?: { maxDepth?: number; maxFiles?: number },
+  ): FileInventoryEntry[] {
+    const maxDepth = opts?.maxDepth ?? DEFAULT_SKILL_WALK_MAX_DEPTH;
+    const maxFiles = opts?.maxFiles ?? DEFAULT_SKILL_WALK_MAX_FILES;
     const inventory: FileInventoryEntry[] = [
       { path: "SKILL.md", kind: "skill" },
     ];
-    try {
-      const entries = readdirSync(skillDir, { withFileTypes: true, recursive: true });
+    const visitedRealPaths = new Set<string>();
+    let filesSeen = 0;
+
+    function walk(dir: string, depth: number) {
+      if (depth > maxDepth) {
+        throw new Error(
+          `Skill directory too deep, refusing to walk beyond ${maxDepth} levels`,
+        );
+      }
+      let realDir: string;
+      try {
+        realDir = realpathSync(dir);
+      } catch {
+        return;
+      }
+      if (visitedRealPaths.has(realDir)) {
+        return;
+      }
+      visitedRealPaths.add(realDir);
+
+      let entries: Dirent[];
+      try {
+        entries = readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
       for (const entry of entries) {
+        filesSeen++;
+        if (filesSeen > maxFiles) {
+          throw new Error(
+            `Skill directory contains too many files, refusing after ${maxFiles} entries`,
+          );
+        }
+        const fullPath = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(fullPath, depth + 1);
+          continue;
+        }
         if (!entry.isFile()) continue;
-        const entryPath = entry.parentPath
-          ? join(entry.parentPath, entry.name)
-          : join(skillDir, entry.name);
-        const fullPath = resolve(entryPath);
-        if (fullPath === skillMdPath) continue;
-        const relativePath = relative(skillDir, fullPath).replace(/\\/g, "/");
+        const resolvedPath = resolve(fullPath);
+        if (resolvedPath === skillMdPath) continue;
+        const relativePath = relative(skillDir, resolvedPath).replace(/\\/g, "/");
         inventory.push({
           path: relativePath,
           kind: classifyInventoryKind(relativePath),
         });
       }
-    } catch {
-      // If directory listing fails, return just the SKILL.md entry
+    }
+
+    try {
+      walk(skillDir, 0);
+    } catch (err) {
+      // Re-throw limit errors so caller can surface them; silently ignore others.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.startsWith("Skill directory too deep") || msg.startsWith("Skill directory contains too many files")) {
+        throw err;
+      }
     }
     return inventory;
   }
