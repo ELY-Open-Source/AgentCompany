@@ -1,7 +1,8 @@
 import type { AgentRecord, AgentMessageRecord, ApprovalRecord, DocumentRecord, ExecutionMode, GoalRecord, KnowledgeEntryRecord, MeetingRecord, ProjectRecord, SprintRecord, TaskRecord } from "@shared/types";
 import type { AppLocale } from "@shared/locale";
 import { buildSystemPrompt } from "./system-prompt";
-import { renderWakeReason } from "./wake-reasons/en";
+import { renderWakeReason } from "./wake-reasons";
+import { getSystemMessages } from "./messages";
 
 export interface PromptContext {
   agent: AgentRecord;
@@ -47,6 +48,7 @@ export interface PromptContext {
 }
 
 export function buildTaskPrompt(ctx: PromptContext): string {
+  const m = getSystemMessages(ctx.locale);
   const systemPrompt = buildSystemPrompt(ctx);
   const parts: string[] = [systemPrompt];
 
@@ -54,23 +56,16 @@ export function buildTaskPrompt(ctx: PromptContext): string {
     const explanation = renderWakeReason(ctx.wakeReason, {
       companyId: ctx.agent.companyId,
       agentId: ctx.agent.id,
-    });
-    parts.push(`\n# Wake Reason\n${explanation}\n`);
+    }, ctx.locale);
+    parts.push(`\n${m.wakeReasonHeading}\n${explanation}\n`);
   }
 
-  parts.push(`\n# Time Awareness
-Consider what phase of operations the company is in and prioritize accordingly:
-- Early in a sprint cycle → planning, task breakdown, delegation
-- Mid-sprint → execution, unblocking, progress updates
-- Late sprint → reviews, quality checks, retrospective preparation
-- End of month → status reports, budget reviews, performance check-ins
-- End of quarter → strategy reviews, goal setting, performance evaluations
-`);
+  parts.push(`\n${m.timeAwarenessSection}`);
 
   if (ctx.task) {
-    parts.push(`\n---\n\nYour immediate task:\n\nTitle: ${ctx.task.title}\nDescription: ${ctx.task.description || "No additional description."}\nPriority: ${ctx.task.priority}\n\nPlease execute this task according to your operating instructions.`);
+    parts.push(m.immediateTaskSection(ctx.task.title, ctx.task.description, ctx.task.priority));
   } else {
-    parts.push(`\n---\n\nYou have been woken for a heartbeat check. Review your assigned tasks and active goals, then take appropriate action. If there's nothing to do, respond with a brief status summary.`);
+    parts.push(m.heartbeatFallbackSection);
   }
 
   return parts.join("");
