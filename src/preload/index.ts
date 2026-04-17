@@ -32,13 +32,9 @@ const api: DesktopApi = {
   checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates),
   deleteCompany: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.deleteCompany, companyId),
   deleteAgent: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteAgent, input),
-  /** @planned — handler not yet implemented in ipc-core-task-graph-handlers.ts */
   deleteTask: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteTask, input),
-  /** @planned — handler not yet implemented in ipc-core-task-graph-handlers.ts */
   deleteGoal: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteGoal, input),
-  /** @planned — handler not yet implemented in ipc-core-task-graph-handlers.ts */
   deleteProject: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteProject, input),
-  /** @planned — handler not yet implemented in ipc-core-agent-graph-handlers.ts */
   deleteWorkspace: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteWorkspace, input),
   deleteApproval: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteApproval, input),
   deleteSecret: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteSecret, input),
@@ -167,6 +163,16 @@ const api: DesktopApi = {
   windowMaximize: () => ipcRenderer.invoke(IPC_CHANNELS.windowMaximize),
   windowClose: () => ipcRenderer.invoke(IPC_CHANNELS.windowClose),
   windowIsMaximized: () => ipcRenderer.invoke(IPC_CHANNELS.windowIsMaximized) as Promise<boolean>,
+  // Credentials (pi-mono)
+  listCredentials: () => ipcRenderer.invoke(IPC_CHANNELS.credentialsList),
+  saveCredential: (input) => ipcRenderer.invoke(IPC_CHANNELS.credentialsSave, input),
+  removeCredential: (input) => ipcRenderer.invoke(IPC_CHANNELS.credentialsRemove, input),
+  testCredential: (input) => ipcRenderer.invoke(IPC_CHANNELS.credentialsTest, input),
+  // OAuth (pi-mono)
+  startOAuth: (input) => ipcRenderer.invoke(IPC_CHANNELS.oauthStart, input),
+  cancelOAuth: (input) => ipcRenderer.invoke(IPC_CHANNELS.oauthCancel, input),
+  submitOAuthPrompt: (input) => ipcRenderer.invoke(IPC_CHANNELS.oauthPromptResponse, input),
+  submitOAuthManualCode: (input) => ipcRenderer.invoke(IPC_CHANNELS.oauthManualCodeResponse, input),
 };
 
 contextBridge.exposeInMainWorld("agentCompany", api);
