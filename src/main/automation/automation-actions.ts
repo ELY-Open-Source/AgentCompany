@@ -38,13 +38,7 @@ export function executeAutomationAction(
   const { db, logger, emitEvent, publishDomainChanged, wakeAgentIfPossible } = deps;
   const { handleTaskCreated, handleApprovalResolved, handleTaskStatusChange } = callbacks;
 
-  const config = (() => {
-    try {
-      return JSON.parse(rule.actionConfigJson) as Record<string, unknown>;
-    } catch {
-      return {};
-    }
-  })();
+  const config = JSON.parse(rule.actionConfigJson) as Record<string, unknown>;
 
   switch (rule.action as AutomationAction) {
     case "assign_task": {
