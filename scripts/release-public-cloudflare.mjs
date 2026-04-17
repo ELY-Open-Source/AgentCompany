@@ -1,10 +1,12 @@
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile, mkdir, cp, readdir } from "node:fs/promises";
-import os from "node:os";
+import { readFile, rm, writeFile, mkdir, cp, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareR2ReleaseHost, uploadReleaseFiles } from "./release-local/r2.mjs";
+import { loadEnvFile } from "./release/lib/dotenv.mjs";
+import { createRunner } from "./release/lib/process.mjs";
+import { createWorkflowHelpers } from "./release/lib/workflow.mjs";
+import { createSnapshotHelpers } from "./release/lib/snapshot.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, "..");
@@ -35,6 +37,22 @@ const syncExcludes = [
   "Certificates.p12",
   "developerID_application.cer",
 ];
+
+const run = createRunner(rootDir);
+const {
+  getGitHubHttpAuthHeader,
+  getRepoInfo,
+  assertRemoteWorkflowExists,
+  waitForWorkflowRun,
+  waitForWorkflowCompletion,
+  downloadRemoteAssets,
+  cleanupRemoteTransportRelease,
+} = createWorkflowHelpers(run);
+const {
+  createSnapshotBranch,
+  cleanupRemoteBranch,
+  cleanupLocalWorktree,
+} = createSnapshotHelpers(run, getGitHubHttpAuthHeader);
 
 function parseArgs(argv) {
   const options = {
@@ -83,105 +101,6 @@ Options:
 `);
 }
 
-async function loadEnvFile(filePath) {
-  if (!existsSync(filePath)) return;
-  const content = await readFile(filePath, "utf8");
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const separatorIndex = line.indexOf("=");
-    if (separatorIndex <= 0) continue;
-    const key = line.slice(0, separatorIndex).trim();
-    if (!key || process.env[key]) continue;
-    const rawValue = line.slice(separatorIndex + 1).trim();
-    if (!rawValue) continue;
-    process.env[key] = rawValue.replace(/^['"]|['"]$/g, "");
-  }
-}
-
-function run(command, args, options = {}) {
-  const {
-    cwd = rootDir,
-    env = process.env,
-    input = null,
-    capture = false,
-  } = options;
-
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd,
-      env,
-      stdio: capture ? ["pipe", "pipe", "pipe"] : ["pipe", "inherit", "inherit"],
-      shell: process.platform === "win32",
-    });
-
-    let stdout = "";
-    let stderr = "";
-    if (capture) {
-      child.stdout.on("data", (chunk) => {
-        stdout += chunk.toString();
-      });
-      child.stderr.on("data", (chunk) => {
-        stderr += chunk.toString();
-      });
-    }
-
-    if (input) {
-      child.stdin.write(input);
-    }
-    child.stdin.end();
-
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve({ stdout, stderr });
-        return;
-      }
-      reject(new Error(stderr || stdout || `${command} ${args.join(" ")} failed with exit code ${code ?? 1}`));
-    });
-  });
-}
-
-async function ghJson(args) {
-  const { stdout } = await run("gh", args, { capture: true });
-  return JSON.parse(stdout);
-}
-
-async function getGitHubHttpAuthHeader() {
-  const tokenResult = await run("gh", ["auth", "token"], { capture: true });
-  const token = tokenResult.stdout.trim();
-  if (!token) {
-    throw new Error("Unable to read a GitHub token from gh auth.");
-  }
-  return Buffer.from(`x-access-token:${token}`).toString("base64");
-}
-
-async function getRepoInfo() {
-  const info = await ghJson(["repo", "view", "--json", "nameWithOwner,defaultBranchRef"]);
-  const defaultBranch = info.defaultBranchRef?.name;
-  if (!info.nameWithOwner || !defaultBranch) {
-    throw new Error("Unable to resolve GitHub repository name/default branch from gh.");
-  }
-  return {
-    nameWithOwner: info.nameWithOwner,
-    defaultBranch,
-  };
-}
-
-async function assertRemoteWorkflowExists(repo) {
-  try {
-    await run("gh", [
-      "api",
-      `repos/${repo.nameWithOwner}/contents/${remoteWorkflowFile}?ref=${repo.defaultBranch}`,
-    ], { capture: true });
-  } catch {
-    throw new Error(
-      `Remote workflow ${remoteWorkflowFile} was not found on ${repo.defaultBranch}. ` +
-      "Commit and push this automation workflow before using scripts/release-cloudflare.mjs.",
-    );
-  }
-}
-
 async function readPackageJson() {
   return JSON.parse(await readFile(packageJsonPath, "utf8"));
 }
@@ -208,7 +127,12 @@ async function ensureRemoteBuildPrerequisites(repo) {
   if (!existsSync(join(rootDir, remoteWorkflowFile))) {
     throw new Error(`Required workflow file missing locally: ${remoteWorkflowFile}`);
   }
-  await assertRemoteWorkflowExists(repo);
+  await assertRemoteWorkflowExists(
+    repo,
+    remoteWorkflowFile,
+    `Remote workflow ${remoteWorkflowFile} was not found on ${repo.defaultBranch}. ` +
+    "Commit and push this automation workflow before using scripts/release-cloudflare.mjs.",
+  );
   await run("gh", ["auth", "status"], { capture: true });
   await run("npx", ["wrangler", "whoami", "--json"], { capture: true });
 }
@@ -222,36 +146,8 @@ async function buildMacAndUpload() {
   await run("node", ["scripts/release-local.mjs", "--platforms=mac", "--skip-verify"]);
 }
 
-async function createSnapshotBranch(repo, branchName, version) {
-  const tempDir = await mkdtemp(join(os.tmpdir(), "agentcompany-release-"));
-  const auth = await getGitHubHttpAuthHeader();
-  await run("git", [
-    "-c",
-    `http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}`,
-    "fetch",
-    `https://github.com/${repo.nameWithOwner}.git`,
-    repo.defaultBranch,
-  ]);
-  await run("git", ["worktree", "add", "--detach", tempDir, "FETCH_HEAD"]);
-  await run("git", ["-C", tempDir, "checkout", "-b", branchName]);
-
-  const rsyncArgs = ["-a", "--delete"];
-  for (const pattern of syncExcludes) {
-    rsyncArgs.push("--exclude", pattern);
-  }
-  rsyncArgs.push(`${rootDir}/`, `${tempDir}/`);
-  await run("rsync", rsyncArgs);
-
-  await run("git", ["-C", tempDir, "add", "-A"]);
-  const diffStatus = await run("git", ["-C", tempDir, "diff", "--cached", "--quiet"], { capture: true })
-    .then(() => false)
-    .catch(() => true);
-
-  if (!diffStatus) {
-    throw new Error("Snapshot branch has no staged changes after syncing the workspace.");
-  }
-
-  const commitMessage = [
+function buildSnapshotCommitMessage(version) {
+  return [
     `Package release ${version} from the current workspace snapshot`,
     "",
     "Constraint: Windows and Linux artifacts are built on native GitHub runners from a temporary snapshot branch",
@@ -262,47 +158,6 @@ async function createSnapshotBranch(repo, branchName, version) {
     "Tested: local verify/build stages before snapshot creation",
     "Not-tested: remote packaging before workflow execution",
   ].join("\n");
-  await run("git", ["-C", tempDir, "commit", "-m", commitMessage]);
-
-  await run(
-    "git",
-    [
-      "-C",
-      tempDir,
-      "-c",
-      `http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}`,
-      "push",
-      `https://github.com/${repo.nameWithOwner}.git`,
-      branchName,
-    ],
-  );
-
-  return tempDir;
-}
-
-async function waitForWorkflowRun(repo, workflowName, branchName, timeoutMs) {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    const runs = await ghJson([
-      "run",
-      "list",
-      "--repo",
-      repo.nameWithOwner,
-      "--workflow",
-      workflowName,
-      "--branch",
-      branchName,
-      "--limit",
-      "1",
-      "--json",
-      "databaseId,status,conclusion,url,displayTitle",
-    ]);
-    if (runs.length > 0) {
-      return runs[0];
-    }
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-  }
-  throw new Error(`Timed out waiting for workflow ${remoteWorkflowName} on branch ${branchName}.`);
 }
 
 async function dispatchRemoteWorkflow(repo, branchName, releaseTag, releaseTitle) {
@@ -319,40 +174,6 @@ async function dispatchRemoteWorkflow(repo, branchName, releaseTag, releaseTitle
     "-f",
     `release_title=${releaseTitle}`,
   ]);
-}
-
-async function waitForWorkflowCompletion(repo, runId, timeoutMs) {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    const runInfo = await ghJson([
-      "run",
-      "view",
-      String(runId),
-      "--repo",
-      repo.nameWithOwner,
-      "--json",
-      "status,conclusion,url",
-    ]);
-    if (runInfo.status === "completed") {
-      return runInfo;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 15000));
-  }
-  throw new Error(`Timed out waiting for workflow run ${runId} to complete.`);
-}
-
-async function downloadRemoteAssets(repo, releaseTag) {
-  const downloadRoot = await mkdtemp(join(os.tmpdir(), "agentcompany-transport-"));
-  await run("gh", [
-    "release",
-    "download",
-    releaseTag,
-    "--repo",
-    repo.nameWithOwner,
-    "-D",
-    downloadRoot,
-  ]);
-  return downloadRoot;
 }
 
 async function stageRemoteAssets(downloadRoot) {
@@ -458,19 +279,6 @@ async function verifyPublishedAssets(version, deployUrl) {
   }
 }
 
-async function cleanupRemoteTransportRelease(repo, releaseTag) {
-  await run("gh", ["release", "delete", releaseTag, "--repo", repo.nameWithOwner, "--yes"]);
-}
-
-async function cleanupRemoteBranch(repo, branchName) {
-  await run("gh", ["api", "-X", "DELETE", `repos/${repo.nameWithOwner}/git/refs/heads/${branchName}`]);
-}
-
-async function cleanupLocalWorktree(tempDir) {
-  await run("git", ["worktree", "remove", "--force", tempDir]);
-  await run("git", ["worktree", "prune"]);
-}
-
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   await loadEnvFile(join(rootDir, ".env.release.local"));
@@ -499,7 +307,13 @@ async function main() {
   const branchName = `release-build-${nextVersion.replace(/\./g, "-")}-${timestamp}`;
   const releaseTitle = `Remote Release ${nextVersion}`;
 
-  const tempDir = await createSnapshotBranch(repo, branchName, nextVersion);
+  const tempDir = await createSnapshotBranch({
+    repo,
+    branchName,
+    rootDir,
+    syncExcludes,
+    commitMessage: buildSnapshotCommitMessage(nextVersion),
+  });
   let cleanupPending = true;
 
   try {
