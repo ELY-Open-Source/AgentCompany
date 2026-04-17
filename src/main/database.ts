@@ -93,9 +93,9 @@ export class AppDatabase extends AppDatabaseBase {
   getDocumentLatestRevisionId(documentId: string) { return this.documentsMod.getDocumentLatestRevisionId(documentId); }
   listDocumentRevisions(documentId: string, companyId: string) { return this.documentsMod.listDocumentRevisions(documentId, companyId); }
   createWorkProduct(input: { companyId: string; taskId: string; projectId?: string | null; type: string; provider: string; externalId?: string | null; title: string; url?: string | null; status?: string; reviewState?: string; isPrimary?: boolean; summary?: string | null; metadataJson?: string | null; createdByRunId?: string | null }) { return this.documentsMod.createWorkProduct(input); }
-  updateWorkProduct(id: string, companyId: string, patch: Record<string, unknown>) { this.documentsMod.updateWorkProduct(id, companyId, patch); }
+  updateWorkProduct(id: string, companyId: string, patch: Parameters<ReturnType<typeof import("./database/documents").buildDocumentMethods>["updateWorkProduct"]>[2]) { return this.documentsMod.updateWorkProduct(id, companyId, patch); }
   listWorkProductsForTask(taskId: string, companyId: string) { return this.documentsMod.listWorkProductsForTask(taskId, companyId); }
-  deleteWorkProduct(id: string, companyId: string) { this.documentsMod.deleteWorkProduct(id, companyId); }
+  deleteWorkProduct(id: string, companyId: string) { return this.documentsMod.deleteWorkProduct(id, companyId); }
   linkDocumentToTask(taskId: string, documentId: string, companyId: string, key: string) { return this.documentsMod.linkDocumentToTask(taskId, documentId, companyId, key); }
   unlinkDocumentFromTask(taskId: string, key: string, companyId: string) { this.documentsMod.unlinkDocumentFromTask(taskId, key, companyId); }
   listDocumentsForTask(taskId: string, companyId: string) { return this.documentsMod.listDocumentsForTask(taskId, companyId); }

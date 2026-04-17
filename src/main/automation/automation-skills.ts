@@ -1,4 +1,5 @@
 import type { AppDatabase } from "../database";
+import { roleMatchesLeadershipKeywords } from "../agent-role-helpers";
 
 const DEPARTMENT_SKILL_KEYWORDS: Record<string, string[]> = {
   engineering: ["code", "engineer", "develop", "program", "software", "api", "backend", "frontend", "full-stack", "fullstack", "devops", "infrastructure", "system", "architect", "debug", "test", "ci", "cd", "deploy", "docker", "kubernetes", "database", "sql", "git", "typescript", "javascript", "python", "rust", "go", "java", "react", "node", "css", "html", "web"],
@@ -52,10 +53,10 @@ function scoreSkillAgentMatch(
     }
   }
 
-  // Executives need awareness of all domains
-  const executiveRoles = ["ceo", "cto", "coo", "cfo", "cmo", "vp", "chief", "director", "head", "lead"];
-  const roleLower = agent.role.toLowerCase();
-  if (executiveRoles.some((r) => roleLower.includes(r))) {
+  // Executives need awareness of all domains. Use the shared leadership
+  // keyword list with word-boundary matching so "lead" does not match
+  // "cleaner" / "leaderboard" in agent role strings.
+  if (roleMatchesLeadershipKeywords(agent.role, agent.title)) {
     score += 1;
   }
 

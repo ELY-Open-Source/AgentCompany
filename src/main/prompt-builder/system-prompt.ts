@@ -19,27 +19,15 @@ import {
   buildDepartmentSection,
 } from "./operating-instructions";
 import type { PromptContext } from "./index";
-
-const LEADERSHIP_KEYWORDS = [
-  "chief",
-  "cto",
-  "cmo",
-  "coo",
-  "cfo",
-  "vp",
-  "vice president",
-  "head",
-  "director",
-  "manager",
-  "lead",
-];
+import { roleMatchesLeadershipKeywords } from "../agent-role-helpers";
 
 function isLeadershipRole(ctx: PromptContext): boolean {
+  // HR roles inherit leadership scope for manager-style prompts;
+  // other departments rely on role/title keyword tokenization.
   if (ctx.agent.department === "hr") {
     return true;
   }
-  const text = `${ctx.agent.role} ${ctx.agent.title ?? ""}`.toLowerCase();
-  return LEADERSHIP_KEYWORDS.some((keyword) => text.includes(keyword));
+  return roleMatchesLeadershipKeywords(ctx.agent.role, ctx.agent.title ?? null);
 }
 
 function buildSkillManifest(

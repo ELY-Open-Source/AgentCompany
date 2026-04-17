@@ -294,7 +294,8 @@ export function registerFileRoutes(server: AgentApiServer) {
     if (!wpId) { server.json(res, 400, { error: "Missing workProductId" }); return; }
     const parsed = updateWorkProductSchema.safeParse(body);
     if (!parsed.success) { server.json(res, 400, { error: "Invalid input", details: parsed.error.flatten() }); return; }
-    db.updateWorkProduct(wpId, token.companyId, parsed.data);
+    const changes = db.updateWorkProduct(wpId, token.companyId, parsed.data);
+    if (changes === 0) { server.json(res, 404, { error: "Work product not found" }); return; }
     onDomainChanged();
     server.json(res, 200, { updated: true });
   });
@@ -302,7 +303,8 @@ export function registerFileRoutes(server: AgentApiServer) {
   server.addRoute("DELETE", "/api/work-products/:workProductId", (_req, res, params, token) => {
     const wpId = params.workProductId;
     if (!wpId) { server.json(res, 400, { error: "Missing workProductId" }); return; }
-    db.deleteWorkProduct(wpId, token.companyId);
+    const changes = db.deleteWorkProduct(wpId, token.companyId);
+    if (changes === 0) { server.json(res, 404, { error: "Work product not found" }); return; }
     onDomainChanged();
     server.json(res, 200, { deleted: true });
   });

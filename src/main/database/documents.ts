@@ -211,20 +211,48 @@ export function buildDocumentMethods(
       return id;
     },
 
-    updateWorkProduct(id: string, companyId: string, patch: Record<string, unknown>): void {
+    updateWorkProduct(
+      id: string,
+      companyId: string,
+      patch: {
+        type?: string;
+        provider?: string;
+        externalId?: string | null;
+        title?: string;
+        url?: string | null;
+        status?: string;
+        reviewState?: string;
+        isPrimary?: boolean;
+        summary?: string | null;
+        metadataJson?: string | null;
+      },
+    ): number {
       const ts = nowIso();
       const sets: string[] = ["updated_at = ?"];
-      const values: unknown[] = [ts];
-      const ALLOWED = new Set(["type", "provider", "external_id", "title", "url", "status", "review_state", "is_primary", "summary", "metadata_json"]);
-      for (const [key, value] of Object.entries(patch)) {
-        const col = key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
-        if (ALLOWED.has(col)) {
+      const values: SQLInputValue[] = [ts];
+      const map: Array<[keyof typeof patch, string, (v: unknown) => SQLInputValue]> = [
+        ["type", "type", (v) => (v as string) ?? null],
+        ["provider", "provider", (v) => (v as string) ?? null],
+        ["externalId", "external_id", (v) => (v as string | null) ?? null],
+        ["title", "title", (v) => (v as string) ?? null],
+        ["url", "url", (v) => (v as string | null) ?? null],
+        ["status", "status", (v) => (v as string) ?? null],
+        ["reviewState", "review_state", (v) => (v as string) ?? null],
+        ["isPrimary", "is_primary", (v) => (v ? 1 : 0)],
+        ["summary", "summary", (v) => (v as string | null) ?? null],
+        ["metadataJson", "metadata_json", (v) => (v as string | null) ?? null],
+      ];
+      for (const [key, col, coerce] of map) {
+        if (key in patch) {
           sets.push(`${col} = ?`);
-          values.push(col === "is_primary" ? (value ? 1 : 0) : value ?? null);
+          values.push(coerce(patch[key]));
         }
       }
       values.push(id, companyId);
-      getDb().prepare(`UPDATE work_products SET ${sets.join(", ")} WHERE id = ? AND company_id = ?`).run(...(values as SQLInputValue[]));
+      const result = getDb()
+        .prepare(`UPDATE work_products SET ${sets.join(", ")} WHERE id = ? AND company_id = ?`)
+        .run(...values);
+      return Number(result.changes ?? 0);
     },
 
     listWorkProductsForTask(taskId: string, companyId: string) {
@@ -247,8 +275,11 @@ export function buildDocumentMethods(
       }));
     },
 
-    deleteWorkProduct(id: string, companyId: string): void {
-      getDb().prepare("DELETE FROM work_products WHERE id = ? AND company_id = ?").run(id, companyId);
+    deleteWorkProduct(id: string, companyId: string): number {
+      const result = getDb()
+        .prepare("DELETE FROM work_products WHERE id = ? AND company_id = ?")
+        .run(id, companyId);
+      return Number(result.changes ?? 0);
     },
 
     // ── Task-Document Links ──
