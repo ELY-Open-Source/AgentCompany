@@ -47,6 +47,10 @@ export function buildBackupMethods(
       }
 
       // Validate
+      const currentSchemaVersion =
+        (deps.getDb()
+          .prepare("select coalesce(max(version), 0) as v from schema_migrations")
+          .get() as { v: number } | undefined)?.v ?? 0;
       const validationDb = new DatabaseSync(sourceDbPath);
       try {
         const requiredTables = ["settings", "companies", "connectors"] as const;
@@ -57,6 +61,23 @@ export function buildBackupMethods(
           if (!row) {
             throw new Error(`Backup is missing the required table "${table}".`);
           }
+        }
+        const hasMigrationsTable = validationDb
+          .prepare("select name from sqlite_master where type = 'table' and name = 'schema_migrations'")
+          .get() as { name: string } | undefined;
+        if (!hasMigrationsTable) {
+          throw new Error(
+            `Backup is missing schema_migrations. Expected schema version ${currentSchemaVersion}.`,
+          );
+        }
+        const backupVersion =
+          (validationDb
+            .prepare("select coalesce(max(version), 0) as v from schema_migrations")
+            .get() as { v: number } | undefined)?.v ?? 0;
+        if (backupVersion < currentSchemaVersion) {
+          throw new Error(
+            `Backup schema version ${backupVersion} is older than current ${currentSchemaVersion}. Restore would lose migrations.`,
+          );
         }
       } finally {
         validationDb.close();
@@ -79,8 +100,22 @@ export function buildBackupMethods(
       try {
         await applyBackup(sourceDir);
       } catch (error) {
-        await applyBackup(recoveryDir);
         const message = error instanceof Error ? error.message : String(error);
+        try {
+          await applyBackup(recoveryDir);
+        } catch (recoveryError) {
+          const recoveryMessage =
+            recoveryError instanceof Error ? recoveryError.message : String(recoveryError);
+          try {
+            deps.setDb(deps.openConnection());
+            deps.init();
+          } catch {
+            // Reopen failed. Caller sees original + recovery messages.
+          }
+          throw new Error(
+            `Restore failed: ${message}. Recovery also failed: ${recoveryMessage}. Previous profile is at ${recoveryDir}.`,
+          );
+        }
         throw new Error(`Restore failed. Previous profile was recovered from ${recoveryDir}. ${message}`);
       }
     },
