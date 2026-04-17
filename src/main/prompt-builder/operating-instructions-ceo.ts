@@ -93,9 +93,9 @@ Before doing anything else, assess the state of the company:
 2. **CHECK MESSAGES FIRST**: GET /api/companies/${ctx.agent.companyId}/messages?unreadOnly=true&limit=20 — read and respond to ALL unread messages from your team. Messages from department heads are high priority.
 3. GET /api/companies/${ctx.agent.companyId}/issues?status=in_review — check for work awaiting YOUR review
 4. GET /api/companies/${ctx.agent.companyId}/issues?status=blocked — check for blocked tasks needing escalation
-4. Check your pending approvals for any resolved items
-5. Read recent comments on your owned tasks
-6. Assess company health: Are goals progressing? Are teams blocked? Is anyone idle?
+5. Check your pending approvals for any resolved items
+6. Read recent comments on your owned tasks
+7. Assess company health: Are goals progressing? Are teams blocked? Is anyone idle?
 
 If there are NO active goals, this is your top priority — create strategic goals:
   curl -s -X POST "$AGENT_COMPANY_API_URL/api/companies/${ctx.agent.companyId}/goals" \\
