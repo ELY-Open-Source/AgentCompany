@@ -246,6 +246,16 @@ export function createDesktopShellWindow(deps: DesktopShellWindowDependencies) {
     const savedWindowState = loadWindowState(windowStatePath);
     const isWindows = process.platform === "win32";
     const isLinux = process.platform === "linux";
+    const webPreferences: Electron.WebPreferences = {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webviewTag: false,
+      devTools: isDev,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+    };
     mainWindow = new BrowserWindow({
       title: "AgentCompany",
       icon: windowIcon.isEmpty() ? undefined : windowIcon,
@@ -259,16 +269,7 @@ export function createDesktopShellWindow(deps: DesktopShellWindowDependencies) {
       frame: process.platform === "darwin",
       titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
       ...(isWindows || isLinux ? { titleBarOverlay: false } : {}),
-      webPreferences: {
-        preload: preloadPath,
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-        webviewTag: false,
-        devTools: isDev,
-        webSecurity: true,
-        allowRunningInsecureContent: false,
-      },
+      webPreferences,
     });
 
     if (isDev && devServerUrl) {
