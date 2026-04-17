@@ -4,6 +4,7 @@ import { dispatchAgentMessage } from "../message-dispatch";
 import { validateTaskCreation } from "../task-quality-gates";
 import type { AutomationEventContext } from "./types";
 import { isHeartbeatTaskTitle } from "../orchestration/heartbeat-task";
+import { parseActionConfig, type AutomationActionConfigMap } from "./automation-action-schemas";
 
 // Map trigger type → default wake trigger when automation fires a heartbeat.
 const HEARTBEAT_WAKE_TRIGGER_MAP: Record<string, string> = {
@@ -61,9 +62,12 @@ export function executeAutomationAction(
   const { db, logger, emitEvent, publishDomainChanged, wakeAgentIfPossible } = deps;
   const { handleTaskCreated, handleApprovalResolved, handleTaskStatusChange } = callbacks;
 
-  const config = JSON.parse(rule.actionConfigJson) as Record<string, unknown>;
+  const action = rule.action as AutomationAction;
+  // Validate config against the per-action schema; schema failures surface
+  // as thrown errors so the caller (evaluateAutomationRules) records + logs.
+  const config = parseActionConfig(action, rule.actionConfigJson) as AutomationActionConfigMap[typeof action] & Record<string, unknown>;
 
-  switch (rule.action as AutomationAction) {
+  switch (action) {
     case "assign_task": {
       if (ctx.taskId) {
         const assignedId = db.autoAssignTask(ctx.taskId, ctx.companyId);
@@ -100,10 +104,11 @@ export function executeAutomationAction(
       break;
     }
     case "create_task": {
-      const title = (config.title as string) ?? "[Auto] Task from automation rule";
-      const description = (config.description as string) ?? "";
-      const priority = (config.priority as string) ?? "medium";
-      const assigneeAgentId = (config.assigneeAgentId as string) ?? null;
+      const cfg = config as AutomationActionConfigMap["create_task"];
+      const title = cfg.title ?? "[Auto] Task from automation rule";
+      const description = cfg.description ?? "";
+      const priority = cfg.priority ?? "medium";
+      const assigneeAgentId = cfg.assigneeAgentId ?? null;
       const isHeartbeat = isHeartbeatTaskTitle(title);
       const taskValidation = validateTaskCreation({ title, description }, isHeartbeat);
       if (!taskValidation.valid) {
@@ -112,7 +117,7 @@ export function executeAutomationAction(
       }
       const taskId = db.saveTask({
         companyId: ctx.companyId,
-        projectId: ctx.projectId ?? (config.projectId as string) ?? null,
+        projectId: ctx.projectId ?? cfg.projectId ?? null,
         title,
         description,
         assigneeAgentId,
@@ -125,15 +130,16 @@ export function executeAutomationAction(
     }
     case "notify_agent":
     case "send_message": {
-      const toAgentId = (config.toAgentId as string) ?? ctx.agentId ?? null;
-      const fromAgentId = (config.fromAgentId as string) ?? ctx.agentId ?? toAgentId;
+      const cfg = config as AutomationActionConfigMap["notify_agent"];
+      const toAgentId = cfg.toAgentId ?? ctx.agentId ?? null;
+      const fromAgentId = cfg.fromAgentId ?? ctx.agentId ?? toAgentId;
       if (!fromAgentId) break;
       const defaultChannel = toAgentId ? "direct" : "company";
-      const requestedChannel = (config.channel as string) ?? defaultChannel;
-      const channel = ["direct", "department", "company", "project", "incident"].includes(requestedChannel)
+      const requestedChannel = cfg.channel ?? defaultChannel;
+      const channel = (["direct", "department", "company", "project", "incident"] as const).includes(requestedChannel)
         ? requestedChannel
         : defaultChannel;
-      let channelTargetId: string | null = (config.channelTargetId as string) ?? (config.department as string) ?? ctx.department ?? null;
+      let channelTargetId: string | null = cfg.channelTargetId ?? cfg.department ?? ctx.department ?? null;
       if (channel === "department" && !channelTargetId && fromAgentId) {
         try {
           const sender = db.getAgent(fromAgentId);
