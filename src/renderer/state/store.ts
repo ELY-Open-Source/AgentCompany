@@ -39,7 +39,7 @@ export const useAppStore = create<AppState>()(
     })),
     {
       name: "AgentCompany",
-      enabled: process.env.NODE_ENV === "development",
+      enabled: import.meta.env.DEV,
     }
   )
 );
