@@ -31,12 +31,51 @@ export function createWorkerService({
   let destroyed = false;
   const pendingRetryTimers = new Set<ReturnType<typeof setTimeout>>();
 
+  /** Crash-loop backoff state. Resets to 0 whenever a worker lives long enough
+   * (>HEALTHY_UPTIME_MS) between creation and exit. Past MAX_CRASH_LOOP
+   * consecutive fast-crashes we stop respawning and notify the user. */
+  const MAX_CRASH_LOOP = 5;
+  const BASE_BACKOFF_MS = 1_000;
+  const MAX_BACKOFF_MS = 30_000;
+  const HEALTHY_UPTIME_MS = 60_000;
+  const crashLoopState = { consecutive: 0, halted: false, lastCreatedAt: 0 };
+
+  function scheduleWorkerRespawn() {
+    if (crashLoopState.halted || destroyed || isQuitting()) return;
+    const uptimeMs = Date.now() - crashLoopState.lastCreatedAt;
+    if (uptimeMs >= HEALTHY_UPTIME_MS) {
+      crashLoopState.consecutive = 0;
+    } else {
+      crashLoopState.consecutive += 1;
+    }
+    if (crashLoopState.consecutive > MAX_CRASH_LOOP) {
+      crashLoopState.halted = true;
+      logger.error(
+        `[worker-service] Worker crashed ${crashLoopState.consecutive} times within ${HEALTHY_UPTIME_MS}ms; halting respawn.`,
+      );
+      notify({
+        title: "Orchestrator Unavailable",
+        body: "The background worker keeps crashing. Restart AgentCompany after checking logs.",
+        urgency: "critical",
+        navigation: { section: "overview" },
+      });
+      return;
+    }
+    const delay = Math.min(BASE_BACKOFF_MS * 2 ** (crashLoopState.consecutive - 1), MAX_BACKOFF_MS);
+    logger.info(`[worker-service] Respawning worker in ${delay}ms (attempt ${crashLoopState.consecutive}/${MAX_CRASH_LOOP})`);
+    setTimeout(() => {
+      if (destroyed || isQuitting() || crashLoopState.halted) return;
+      createWorker();
+    }, delay);
+  }
+
   function getWorker() {
     if (destroyed) return null;
     return worker;
   }
 
   function createWorker() {
+    crashLoopState.lastCreatedAt = Date.now();
     // S-01: Propagate packaged-build signal so the worker can hard-refuse
     // connector bypass flags in production.
     worker = utilityProcess.fork(workerPath, [], {
@@ -62,7 +101,7 @@ export function createWorkerService({
       handleWorkerExit(
         code,
         { db, logger, isQuitting, publishDomainChanged, emitEvent, wakeAgentIfPossible, dispatchRunToWorker },
-        createWorker,
+        scheduleWorkerRespawn,
         getWorker,
       );
     });
