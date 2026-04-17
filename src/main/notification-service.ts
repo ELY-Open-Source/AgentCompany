@@ -18,6 +18,9 @@ interface NotificationServiceDependencies {
   getMainWindow: () => BrowserWindow | null;
   emitEvent: (event: DesktopEvent) => void;
   logger: { info: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
+  /** Returns the active UI locale ("en", "zh", ...). Batch summary copy is
+   * localized; fallbacks to "en" when unset. */
+  getLocale?: () => string | null | undefined;
 }
 
 interface BatchState {
@@ -41,32 +44,41 @@ const NEVER_BATCH: ReadonlySet<string> = new Set([
   "budget_exhaustion",
 ]);
 
+interface LocalizedBatchCopy {
+  title: (count: number) => string;
+  body: string;
+}
+
 /**
- * Batch summary copy per batch key.
- * Used when the batch timer expires and accumulated events need a summary notification.
+ * Batch summary copy per batch key, per-locale. Used when the batch timer
+ * expires and accumulated events need a summary notification.
  */
-const BATCH_SUMMARY_COPY: Record<string, { title: (count: number) => string; body: string }> = {
+const BATCH_SUMMARY_COPY: Record<string, Record<"en" | "zh", LocalizedBatchCopy>> = {
   failed_runs: {
-    title: (count) => `${count} tasks failed`,
-    body: "Click to view failed runs",
+    en: { title: (count) => `${count} tasks failed`, body: "Click to view failed runs" },
+    zh: { title: (count) => `${count} 个任务失败`, body: "点击查看失败记录" },
   },
   agent_hired: {
-    title: (count) => `${count} agents hired`,
-    body: "Click to view organization",
+    en: { title: (count) => `${count} agents hired`, body: "Click to view organization" },
+    zh: { title: (count) => `${count} 位新员工入职`, body: "点击查看组织架构" },
   },
   budget_alerts: {
-    title: (count) => `${count} budget alerts`,
-    body: "Click to view cost details",
+    en: { title: (count) => `${count} budget alerts`, body: "Click to view cost details" },
+    zh: { title: (count) => `${count} 个预算提醒`, body: "点击查看成本详情" },
   },
   task_completed: {
-    title: (count) => `${count} tasks completed`,
-    body: "Click to view task list",
+    en: { title: (count) => `${count} tasks completed`, body: "Click to view task list" },
+    zh: { title: (count) => `${count} 个任务已完成`, body: "点击查看任务列表" },
   },
   agent_paused: {
-    title: (count) => `${count} agents paused`,
-    body: "Click to view paused agents",
+    en: { title: (count) => `${count} agents paused`, body: "Click to view paused agents" },
+    zh: { title: (count) => `${count} 位员工已暂停`, body: "点击查看已暂停员工" },
   },
 };
+
+function pickLocale(locale: string | null | undefined): "en" | "zh" {
+  return locale === "zh" ? "zh" : "en";
+}
 
 export function createNotificationService(deps: NotificationServiceDependencies) {
   /**
@@ -115,7 +127,9 @@ export function createNotificationService(deps: NotificationServiceDependencies)
     activeBatches.delete(key);
 
     if (batch && batch.count > 0) {
-      const copy = BATCH_SUMMARY_COPY[key];
+      const locale = pickLocale(deps.getLocale?.());
+      const copySet = BATCH_SUMMARY_COPY[key];
+      const copy = copySet?.[locale];
       const title = copy ? copy.title(batch.count) : `${batch.count} more events`;
       const body = copy ? copy.body : "Click to view";
 
