@@ -100,7 +100,7 @@ export function createBudgetEnforcementService({
     const policies = db.getActivePoliciesForRun(companyId, agentId, projectId);
 
     for (const policy of policies) {
-      // Guard against division by zero
+      // amount <= 0 disables the policy (and would otherwise divide by zero below).
       if (policy.amount <= 0) continue;
 
       const spent = db.getSpentInWindow(policy);
