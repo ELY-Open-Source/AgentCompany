@@ -2,15 +2,6 @@ import { z } from "zod";
 import { validateTaskCreation } from "../task-quality-gates";
 import type { AgentApiServer } from "./server-core";
 
-type MeetingRow = {
-  id: string; companyId: string; type: string; title: string;
-  organizerAgentId: string; participantAgentIds: string;
-  scheduledAt: string; durationMinutes: number;
-  agendaJson: string; notesJson: string | null;
-  decisionsJson: string | null; actionItemsJson: string | null;
-  status: string; createdAt: string; updatedAt: string;
-};
-
 export function registerMeetingRoutes(server: AgentApiServer) {
   const db = server.db;
   const onDomainChanged = server.onDomainChanged;
@@ -70,19 +61,17 @@ export function registerMeetingRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const meetings = db.queryAll<MeetingRow>(
-      "select id, company_id as companyId, type, title, organizer_agent_id as organizerAgentId, participant_agent_ids as participantAgentIds, scheduled_at as scheduledAt, duration_minutes as durationMinutes, agenda_json as agendaJson, notes_json as notesJson, decisions_json as decisionsJson, action_items_json as actionItemsJson, status, created_at as createdAt, updated_at as updatedAt from meetings where company_id = ? order by scheduled_at desc",
-      token.companyId,
-    );
+    const meetings = db.listMeetings(token.companyId);
     server.json(res, 200, meetings);
   });
 
   server.addRoute("PATCH", "/api/meetings/:meetingId", (_req, res, params, token, body) => {
-    const rows = db.queryAll<MeetingRow>(
-      "select id, company_id as companyId, type, title, organizer_agent_id as organizerAgentId, participant_agent_ids as participantAgentIds, scheduled_at as scheduledAt, duration_minutes as durationMinutes, agenda_json as agendaJson, notes_json as notesJson, decisions_json as decisionsJson, action_items_json as actionItemsJson, status, created_at as createdAt, updated_at as updatedAt from meetings where id = ? and company_id = ? limit 1",
-      params.meetingId, token.companyId,
-    );
-    const existing = rows[0] ?? null;
+    const meetingId = params.meetingId;
+    if (!meetingId) {
+      server.json(res, 400, { error: "Missing meetingId" });
+      return;
+    }
+    const existing = db.getMeeting(meetingId, token.companyId);
     if (!existing) {
       server.json(res, 404, { error: "Meeting not found" });
       return;
@@ -121,7 +110,7 @@ export function registerMeetingRoutes(server: AgentApiServer) {
       }
     }
     db.saveMeeting({
-      id: params.meetingId,
+      id: meetingId,
       companyId: token.companyId,
       type: data.type ?? "department_sync",
       title: data.title ?? "Meeting",

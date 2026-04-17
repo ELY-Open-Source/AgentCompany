@@ -2,11 +2,71 @@ import type { DatabaseSync } from "node:sqlite";
 import type { ReadAll } from "./helpers";
 import { ensureId, nowIso } from "./helpers";
 
+/**
+ * Meeting row shape returned by listMeetings / getMeeting — used by
+ * meeting routes. Mirrors the historical inline SQL projection so HTTP
+ * response bodies stay byte-stable.
+ */
+export type MeetingListRow = {
+  id: string;
+  companyId: string;
+  type: string;
+  title: string;
+  organizerAgentId: string;
+  participantAgentIds: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  agendaJson: string;
+  notesJson: string | null;
+  decisionsJson: string | null;
+  actionItemsJson: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+const MEETING_LIST_COLUMNS =
+  "select id, company_id as companyId, type, title, organizer_agent_id as organizerAgentId, participant_agent_ids as participantAgentIds, scheduled_at as scheduledAt, duration_minutes as durationMinutes, agenda_json as agendaJson, notes_json as notesJson, decisions_json as decisionsJson, action_items_json as actionItemsJson, status, created_at as createdAt, updated_at as updatedAt from meetings";
+
+/**
+ * Knowledge entry row shape returned by listKnowledgeEntries — used by
+ * GET /api/companies/:companyId/knowledge. Mirrors the historical inline
+ * SQL projection so HTTP responses stay byte-stable.
+ */
+export type KnowledgeListRow = {
+  id: string;
+  companyId: string;
+  category: string;
+  topic: string;
+  content: string;
+  authorAgentId: string;
+  importance: string;
+  tagsJson: string;
+  referencedEntityType: string | null;
+  referencedEntityId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export function buildKnowledgeMethods(
   getDb: () => DatabaseSync,
-  _readAll: ReadAll,
+  readAll: ReadAll,
 ) {
   return {
+    listMeetings(companyId: string): MeetingListRow[] {
+      return readAll<MeetingListRow>(
+        `${MEETING_LIST_COLUMNS} where company_id = ? order by scheduled_at desc`,
+        companyId,
+      );
+    },
+
+    getMeeting(meetingId: string, companyId: string): MeetingListRow | null {
+      const row = getDb()
+        .prepare(`${MEETING_LIST_COLUMNS} where id = ? and company_id = ? limit 1`)
+        .get(meetingId, companyId) as MeetingListRow | undefined;
+      return row ?? null;
+    },
+
     saveMeeting(input: {
       id?: string | null; companyId: string; type: string; title: string; organizerAgentId?: string | null;
       participantAgentIds?: string; scheduledAt: string; durationMinutes?: number;
@@ -55,6 +115,17 @@ export function buildKnowledgeMethods(
 
     deleteKnowledgeEntry(id: string, companyId: string) {
       getDb().prepare("delete from knowledge_base where id = ? and company_id = ?").run(id, companyId);
+    },
+
+    /**
+     * Returns all knowledge entries for a company, ordered by updated_at desc.
+     * Used by GET /api/companies/:companyId/knowledge.
+     */
+    listKnowledgeEntries(companyId: string): KnowledgeListRow[] {
+      return readAll<KnowledgeListRow>(
+        "select id, company_id as companyId, category, topic, content, author_agent_id as authorAgentId, importance, tags_json as tagsJson, referenced_entity_type as referencedEntityType, referenced_entity_id as referencedEntityId, created_at as createdAt, updated_at as updatedAt from knowledge_base where company_id = ? order by updated_at desc",
+        companyId,
+      );
     },
 
     saveSprint(input: {

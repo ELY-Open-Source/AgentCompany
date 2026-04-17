@@ -111,8 +111,11 @@ export class AppDatabase extends AppDatabaseBase {
 
   saveMeeting(input: { id?: string | null; companyId: string; type: string; title: string; organizerAgentId?: string | null; participantAgentIds?: string; scheduledAt: string; durationMinutes?: number; agendaJson?: string; notesJson?: string; decisionsJson?: string; actionItemsJson?: string; status?: string }) { return this.knowledgeMod.saveMeeting(input); }
   deleteMeeting(id: string, companyId: string) { this.knowledgeMod.deleteMeeting(id, companyId); }
+  listMeetings(companyId: string) { return this.knowledgeMod.listMeetings(companyId); }
+  getMeeting(meetingId: string, companyId: string) { return this.knowledgeMod.getMeeting(meetingId, companyId); }
   saveKnowledgeEntry(input: { id?: string | null; companyId: string; category: string; topic: string; content: string; authorAgentId?: string | null; importance?: string; tagsJson?: string; referencedEntityType?: string | null; referencedEntityId?: string | null; sourceRunId?: string | null }) { return this.knowledgeMod.saveKnowledgeEntry(input); }
   deleteKnowledgeEntry(id: string, companyId: string) { this.knowledgeMod.deleteKnowledgeEntry(id, companyId); }
+  listKnowledgeEntries(companyId: string) { return this.knowledgeMod.listKnowledgeEntries(companyId); }
   saveSprint(input: { id?: string | null; companyId: string; name: string; goal?: string; startDate: string; endDate: string; status?: string; retrospectiveNotes?: string; velocityPoints?: number; completedPoints?: number }) { return this.knowledgeMod.saveSprint(input); }
   deleteSprint(id: string, companyId: string) { this.knowledgeMod.deleteSprint(id, companyId); }
 
