@@ -23,6 +23,7 @@ export function App() {
   const setError = useAppStore((s) => s.setError);
   const setSelectedRunId = useAppStore((s) => s.setSelectedRunId);
   const setConsoleOpen = useAppStore((s) => s.setConsoleOpen);
+  const navigateTo = useAppStore((s) => s.navigateTo);
 
   const showCustomTitleBar = window.agentCompany.platform !== "darwin";
   const isMac = !showCustomTitleBar;
@@ -76,10 +77,6 @@ export function App() {
     () => new Map(paletteActions.map((action, index) => [action.key, index])),
     [paletteActions],
   );
-
-  const navigateTo = useCallback((targetSection: Parameters<typeof ui.navigateTo>[0], entityId?: string) => {
-    ui.navigateTo(targetSection, entityId, company.runs, company.tasks);
-  }, [ui, company.runs, company.tasks]);
 
   useCommandPaletteHotkeys({
     commandPaletteOpen: ui.commandPaletteOpen,

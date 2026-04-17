@@ -1,5 +1,6 @@
 import { useCallback, useDeferredValue, useMemo } from "react";
 import type { AgentRecord, GoalRecord, ProjectRecord, RunRecord, SectionId, TaskRecord } from "@shared/types";
+
 import { createTranslator } from "../i18n";
 import { useAppStore } from "../state/store";
 import { useFocusTrap, useReducedMotion } from "../components/ui";
@@ -84,15 +85,6 @@ export function useUIController() {
   const selectedPaletteIndex = useAppStore((s) => s.selectedPaletteIndex);
   const setSelectedPaletteIndex = useAppStore((s) => s.setSelectedPaletteIndex);
 
-  const setSelectedAgentId = useAppStore((s) => s.setSelectedAgentId);
-  const setSelectedConnectorId = useAppStore((s) => s.setSelectedConnectorId);
-  const setSelectedRunId = useAppStore((s) => s.setSelectedRunId);
-  const setSelectedTaskId = useAppStore((s) => s.setSelectedTaskId);
-  const setSelectedApprovalId = useAppStore((s) => s.setSelectedApprovalId);
-  const setSelectedGoalId = useAppStore((s) => s.setSelectedGoalId);
-  const setSelectedProjectId = useAppStore((s) => s.setSelectedProjectId);
-  const setSelectedCommunicationEntityId = useAppStore((s) => s.setSelectedCommunicationEntityId);
-
   const handleLocaleChange = useCallback(async (newLocale: AppLocale) => {
     useAppStore.getState().setLocale(newLocale);
     try { await window.agentCompany.updateSettings({ locale: newLocale }); } catch { /* local state already updated */ }
@@ -100,31 +92,7 @@ export function useUIController() {
 
   const paletteTrapRef = useFocusTrap(commandPaletteOpen);
 
-  // These are passed in from useAppController which has access to entity lists
-  // For standalone palette search, we expose the query and let consumers compute results
   const paletteQuery = useDeferredValue(commandPaletteSearch.trim().toLowerCase());
-
-  const navigateTo = useCallback((targetSection: SectionId, entityId?: string, runs?: RunRecord[], tasks?: TaskRecord[]) => {
-    setSection(targetSection);
-    if (entityId) {
-      if (targetSection === "agents") setSelectedAgentId(entityId);
-      else if (targetSection === "connectors") setSelectedConnectorId(entityId);
-      else if (targetSection === "runs") { setSelectedRunId(entityId); setConsoleOpen(true); }
-      else if (targetSection === "tasks") {
-        const matchingTask = tasks?.find((task) => task.id === entityId) ?? null;
-        if (matchingTask) { setSelectedTaskId(matchingTask.id); }
-        else {
-          const matchingRun = runs?.find((run) => run.id === entityId) ?? null;
-          if (matchingRun) { setSelectedRunId(matchingRun.id); setSelectedTaskId(matchingRun.taskId); setConsoleOpen(true); }
-        }
-      }
-      else if (targetSection === "approvals") setSelectedApprovalId(entityId);
-      else if (targetSection === "goals") setSelectedGoalId(entityId);
-      else if (targetSection === "projects") setSelectedProjectId(entityId);
-      else if (targetSection === "communication") setSelectedCommunicationEntityId(entityId);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- Zustand setters are stable references
-  }, []);
 
   const buildPaletteResults = useCallback((
     navItemsList: NavItem[],
@@ -198,7 +166,6 @@ export function useUIController() {
     setSelectedPaletteIndex,
     paletteQuery,
     paletteTrapRef,
-    navigateTo,
     buildPaletteResults,
     buildPaletteActions,
   };

@@ -29,7 +29,7 @@ export const createNavigationSlice: StateCreator<
   [["zustand/immer", never]],
   [],
   NavigationSlice
-> = (set) => ({
+> = (set, get) => ({
   section: "overview",
   commandPaletteOpen: false,
   commandPaletteSearch: "",
@@ -93,19 +93,33 @@ export const createNavigationSlice: StateCreator<
   navigateTo: (section, entityId) =>
     set((state) => {
       state.section = section;
-      if (entityId) {
-        if (section === "agents") state.selectedAgentId = entityId;
-        else if (section === "tasks") state.selectedTaskId = entityId;
-        else if (section === "approvals") state.selectedApprovalId = entityId;
-        else if (section === "runs") {
-          state.selectedRunId = entityId;
+      if (!entityId) return;
+      if (section === "agents") state.selectedAgentId = entityId;
+      else if (section === "approvals") state.selectedApprovalId = entityId;
+      else if (section === "runs") {
+        state.selectedRunId = entityId;
+        state.consoleOpen = true;
+      } else if (section === "goals") state.selectedGoalId = entityId;
+      else if (section === "projects") state.selectedProjectId = entityId;
+      else if (section === "connectors") state.selectedConnectorId = entityId;
+      else if (section === "communication")
+        state.selectedCommunicationEntityId = entityId;
+      else if (section === "skills") state.selectedSkillId = entityId;
+      else if (section === "tasks") {
+        const snapshot = get().snapshot;
+        const matchingTask = snapshot?.tasks.find((task) => task.id === entityId) ?? null;
+        if (matchingTask) {
+          state.selectedTaskId = matchingTask.id;
+          return;
+        }
+        const matchingRun = snapshot?.runs.find((run) => run.id === entityId) ?? null;
+        if (matchingRun) {
+          state.selectedRunId = matchingRun.id;
+          state.selectedTaskId = matchingRun.taskId;
           state.consoleOpen = true;
-        } else if (section === "goals") state.selectedGoalId = entityId;
-        else if (section === "projects") state.selectedProjectId = entityId;
-        else if (section === "connectors") state.selectedConnectorId = entityId;
-        else if (section === "communication")
-          state.selectedCommunicationEntityId = entityId;
-        else if (section === "skills") state.selectedSkillId = entityId;
+          return;
+        }
+        state.selectedTaskId = entityId;
       }
     }),
 });
