@@ -421,6 +421,18 @@ export function runMigrations(
             CREATE INDEX IF NOT EXISTS idx_activity_company_actor_action ON activity(company_id, actor, action);
             CREATE INDEX IF NOT EXISTS idx_tasks_company_assignee_status ON tasks(company_id, assignee_agent_id, status)`,
     },
+    {
+      version: 29, name: "add_run_events_seq_unique_index",
+      sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_run_events_run_seq_unique ON run_events(run_id, seq)`,
+    },
+    {
+      // Supports checkpoint-engine `shouldPauseHeartbeat` join + filter on
+      // (company_id, state, type) -> assignee_agent_id lookup. Without this
+      // SQLite scans the full approvals table on every heartbeat tick.
+      version: 30, name: "add_checkpoint_pause_indexes",
+      sql: `CREATE INDEX IF NOT EXISTS idx_approvals_company_state_type ON approvals(company_id, state, type);
+            CREATE INDEX IF NOT EXISTS idx_approvals_related_task ON approvals(related_task_id)`,
+    },
   ];
 
   for (const migration of migrations) {

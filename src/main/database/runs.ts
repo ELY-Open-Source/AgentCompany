@@ -303,17 +303,19 @@ export function buildRunMethods(
       message?: string | null; payload?: Record<string, unknown> | null;
     }): void {
       const ts = nowIso();
-      const lastSeq = getDb().prepare(
-        "SELECT MAX(seq) as maxSeq FROM run_events WHERE run_id = ?"
-      ).get(input.runId) as { maxSeq: number | null } | undefined;
-      const seq = (lastSeq?.maxSeq ?? 0) + 1;
-      getDb().prepare(
-        "INSERT INTO run_events (company_id, run_id, agent_id, seq, event_type, stream, level, message, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-      ).run(
-        input.companyId, input.runId, input.agentId, seq,
-        input.eventType, input.stream ?? null, input.level ?? null,
-        input.message ?? null, input.payload ? JSON.stringify(input.payload) : null, ts
-      );
+      transaction(() => {
+        const lastSeq = getDb().prepare(
+          "SELECT MAX(seq) as maxSeq FROM run_events WHERE run_id = ?"
+        ).get(input.runId) as { maxSeq: number | null } | undefined;
+        const seq = (lastSeq?.maxSeq ?? 0) + 1;
+        getDb().prepare(
+          "INSERT INTO run_events (company_id, run_id, agent_id, seq, event_type, stream, level, message, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        ).run(
+          input.companyId, input.runId, input.agentId, seq,
+          input.eventType, input.stream ?? null, input.level ?? null,
+          input.message ?? null, input.payload ? JSON.stringify(input.payload) : null, ts
+        );
+      });
     },
 
     listRunEvents(runId: string, companyId: string, opts?: { offset?: number; limit?: number }): Array<{
