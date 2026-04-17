@@ -195,6 +195,11 @@ export function createNotificationService(deps: NotificationServiceDependencies)
       clearTimeout(batch.timer);
     }
     activeBatches.clear();
+    // Dismiss any still-visible notifications so Windows toast host does not
+    // leave ghost toasts after quit.
+    for (const notification of activeNotifications) {
+      try { notification.close(); } catch { /* toast may have already closed */ }
+    }
     activeNotifications.clear();
   }
 
