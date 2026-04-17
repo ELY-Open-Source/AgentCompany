@@ -91,7 +91,9 @@ export function registerCoreReadHandlers({
   });
 
   registerHandle(IPC_CHANNELS.checkForUpdates, async () => {
-    return ok(await checkForUpdates());
+    // Invocation via IPC only happens when the user opens Settings and clicks
+    // "Check for updates". Pass manual:true so the Up-to-Date toast fires.
+    return ok(await checkForUpdates({ manual: true }));
   });
 
   registerHandle(IPC_CHANNELS.getSidebarBadges, async (_event, companyId) => {

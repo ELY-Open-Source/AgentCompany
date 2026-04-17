@@ -28,7 +28,7 @@ export interface RegisterCoreHandlersDependencies {
   checkConnector: (id: ConnectorId) => Promise<void>;
   openConnectorAuthTerminal: (id: ConnectorId) => Promise<boolean>;
   openGenericTerminal: (input: { commandKey: string }) => Promise<boolean>;
-  checkForUpdates: () => Promise<boolean>;
+  checkForUpdates: (options?: { manual?: boolean }) => Promise<boolean>;
   getWorkerProcess: () => { postMessage: (message: unknown) => void } | null;
   resetAfterRestore: () => void;
   getApiPort: () => number;

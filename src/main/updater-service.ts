@@ -14,12 +14,38 @@ interface UpdaterServiceDependencies {
   notify: (options: NotificationOptions) => void;
 }
 
+type SkipUpdateReason = "updates_disabled" | "insecure_url" | "dev_without_real_url";
+
+function shouldSkipUpdateCheck(input: {
+  isPackaged: boolean;
+  updatesEnabled: boolean;
+  updateUrl: string | undefined;
+  updatesDisabledEnv: boolean;
+}): SkipUpdateReason | null {
+  if (!input.updatesEnabled || input.updatesDisabledEnv) {
+    return "updates_disabled";
+  }
+  if (input.updateUrl && !input.updateUrl.startsWith("https://")) {
+    return "insecure_url";
+  }
+  if (!input.isPackaged && (!input.updateUrl || input.updateUrl.includes("example.invalid"))) {
+    return "dev_without_real_url";
+  }
+  return null;
+}
+
 export function createUpdaterService({
   db,
   logger,
   notify,
 }: UpdaterServiceDependencies) {
   let listenersAttached = false;
+  /**
+   * Set by checkForUpdates({ manual: true }) from the UI. Gates the
+   * "Up to Date" toast so the auto-every-24h check stays silent when
+   * nothing happened. Cleared inside the update-not-available handler.
+   */
+  let manualCheckPending = false;
 
   function attachListeners() {
     if (listenersAttached) {
@@ -31,6 +57,7 @@ export function createUpdaterService({
     });
     autoUpdater.on("update-available", (info) => {
       logger.info("[updater] update available", info.version);
+      manualCheckPending = false;
       notify({
         title: "Update Available",
         body: `Version ${info.version} is downloading in the background`,
@@ -55,6 +82,10 @@ export function createUpdaterService({
       });
     });
     autoUpdater.on("update-not-available", () => {
+      if (!manualCheckPending) {
+        return;
+      }
+      manualCheckPending = false;
       notify({
         title: "Up to Date",
         body: "You are running the latest version",
@@ -64,6 +95,7 @@ export function createUpdaterService({
     });
     autoUpdater.on("error", (error) => {
       logger.error("[updater] error", error);
+      manualCheckPending = false;
       notify({
         title: "Update Check Failed",
         body: "Could not check for updates. Try again later.",
@@ -73,19 +105,28 @@ export function createUpdaterService({
     });
   }
 
-  async function checkForUpdates() {
+  async function checkForUpdates(options: { manual?: boolean } = {}) {
     const snapshot = db.listSnapshot();
-    if (!snapshot.updatesEnabled || process.env.AGENTCOMPANY_DISABLE_UPDATES === "true") {
-      return false;
-    }
     const updateUrl = process.env.AGENTCOMPANY_UPDATE_URL?.trim();
-    if (updateUrl && !updateUrl.startsWith("https://")) {
+    const skipReason = shouldSkipUpdateCheck({
+      isPackaged: app.isPackaged,
+      updatesEnabled: snapshot.updatesEnabled,
+      updateUrl,
+      updatesDisabledEnv: process.env.AGENTCOMPANY_DISABLE_UPDATES === "true",
+    });
+    if (skipReason === "insecure_url") {
       logger.error("[updater] AGENTCOMPANY_UPDATE_URL must use HTTPS — refusing insecure update source.");
       return false;
     }
-    if (!app.isPackaged && (!updateUrl || updateUrl.includes("example.invalid"))) {
+    if (skipReason === "dev_without_real_url") {
       logger.info("[updater] Skipping update check because no real update URL is configured.");
       return false;
+    }
+    if (skipReason) {
+      return false;
+    }
+    if (options.manual) {
+      manualCheckPending = true;
     }
     try {
       autoUpdater.logger = {
@@ -100,6 +141,7 @@ export function createUpdaterService({
       return Boolean(result?.updateInfo);
     } catch (error) {
       logger.error(error);
+      manualCheckPending = false;
       return false;
     }
   }
