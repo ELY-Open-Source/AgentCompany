@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { AppDatabase } from "../database";
 import type { NotificationOptions } from "../notification-service";
 import { extractApprovalDocumentIds } from "@shared/approval-documents";
@@ -5,6 +6,12 @@ import { notifyHireApproved } from "../hire-hook";
 import { autoAssignSkillsToAgent } from "./automation-skills";
 import type { AutomationEventContext } from "./types";
 import { normalizeWorkflowSteps } from "./automation-workflow";
+
+const workflowApprovalPayloadSchema = z.object({
+  workflowId: z.string().optional(),
+  stepId: z.string().optional(),
+  stepName: z.string().optional(),
+}).passthrough();
 
 function localizeNotification(locale: string | null | undefined, en: string, zh: string): string {
   return locale === "zh" ? zh : en;
@@ -325,46 +332,47 @@ export function handleApprovalResolved(
     }
   }
 
-  if (approval.payloadJson) {
-    try {
-      const payload = JSON.parse(approval.payloadJson) as { workflowId?: string; stepId?: string };
-      if (payload.workflowId && payload.stepId) {
-        const workflow = db.getWorkflowRecord(payload.workflowId, companyId);
-        if (workflow) {
-          const steps = normalizeWorkflowSteps(JSON.parse(workflow.stepsJson || "[]"));
-          const stepIndex = steps.findIndex((step) => step.id === payload.stepId);
-          if (stepIndex >= 0) {
-            if (decision === "approved") {
-              steps[stepIndex]!.status = "pending";
-              db.updateWorkflowExecution({
-                id: workflow.id,
-                companyId,
-                status: "paused",
-                currentStepIndex: stepIndex,
-                stepsJson: JSON.stringify(steps),
-                lastRunAt: workflow.lastRunAt,
-              });
-              publishDomainChanged();
-              void runWorkflowPipeline(workflow.id, companyId).catch((error) => {
-                logger.error(`[workflow] Failed to resume workflow ${workflow.id} after approval ${approvalId}: ${error instanceof Error ? error.message : String(error)}`);
-              });
-            } else {
-              steps[stepIndex]!.status = decision === "revision_requested" ? "pending" : "failed";
-              db.updateWorkflowExecution({
-                id: workflow.id,
-                companyId,
-                status: decision === "revision_requested" ? "paused" : "failed",
-                currentStepIndex: stepIndex,
-                stepsJson: JSON.stringify(steps),
-                lastRunAt: workflow.lastRunAt,
-              });
-              publishDomainChanged();
-            }
+  // Workflow-step approvals are emitted by runWorkflowPipeline with
+  // type "dangerous_command" + workflowId/stepId in payloadJson. Gate the
+  // parse explicitly on that type instead of attempting a speculative
+  // JSON.parse for every approval.
+  if (approval.type === "dangerous_command" && approval.payloadJson) {
+    const payload = workflowApprovalPayloadSchema.safeParse(JSON.parse(approval.payloadJson));
+    if (payload.success && payload.data.workflowId && payload.data.stepId) {
+      const { workflowId, stepId } = payload.data;
+      const workflow = db.getWorkflowRecord(workflowId, companyId);
+      if (workflow) {
+        const steps = normalizeWorkflowSteps(JSON.parse(workflow.stepsJson || "[]"));
+        const stepIndex = steps.findIndex((step) => step.id === stepId);
+        if (stepIndex >= 0) {
+          if (decision === "approved") {
+            steps[stepIndex]!.status = "pending";
+            db.updateWorkflowExecution({
+              id: workflow.id,
+              companyId,
+              status: "paused",
+              currentStepIndex: stepIndex,
+              stepsJson: JSON.stringify(steps),
+              lastRunAt: workflow.lastRunAt,
+            });
+            publishDomainChanged();
+            void runWorkflowPipeline(workflow.id, companyId).catch((error) => {
+              logger.error(`[workflow] Failed to resume workflow ${workflow.id} after approval ${approvalId}: ${error instanceof Error ? error.message : String(error)}`);
+            });
+          } else {
+            steps[stepIndex]!.status = decision === "revision_requested" ? "pending" : "failed";
+            db.updateWorkflowExecution({
+              id: workflow.id,
+              companyId,
+              status: decision === "revision_requested" ? "paused" : "failed",
+              currentStepIndex: stepIndex,
+              stepsJson: JSON.stringify(steps),
+              lastRunAt: workflow.lastRunAt,
+            });
+            publishDomainChanged();
           }
         }
       }
-    } catch {
-      // Non-workflow approvals may use payloadJson for unrelated metadata.
     }
   }
 
