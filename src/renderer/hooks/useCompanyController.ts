@@ -133,7 +133,6 @@ export function useCompanyController() {
     store.setError(null);
     store.setSection("overview");
     if (summary.runId) store.setSelectedRunId(summary.runId);
-    if (summary.leadAgentId) store.setSelectedAgentId(summary.leadAgentId);
   }, [refresh]);
 
   const openPathWithFeedback = useCallback(async (path: string) => {
