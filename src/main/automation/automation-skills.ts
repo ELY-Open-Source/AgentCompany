@@ -1,7 +1,8 @@
 import type { AppDatabase } from "../database";
 import { roleMatchesLeadershipKeywords } from "../agent-role-helpers";
+import type { DepartmentId } from "@shared/types/enums";
 
-const DEPARTMENT_SKILL_KEYWORDS: Record<string, string[]> = {
+const DEPARTMENT_SKILL_KEYWORDS: Record<DepartmentId, string[]> = {
   engineering: ["code", "engineer", "develop", "program", "software", "api", "backend", "frontend", "full-stack", "fullstack", "devops", "infrastructure", "system", "architect", "debug", "test", "ci", "cd", "deploy", "docker", "kubernetes", "database", "sql", "git", "typescript", "javascript", "python", "rust", "go", "java", "react", "node", "css", "html", "web"],
   product: ["product", "feature", "requirement", "roadmap", "user story", "ux", "ui", "design", "prototype", "wireframe", "specification", "prd"],
   marketing: ["market", "content", "seo", "social media", "brand", "campaign", "analytics", "growth", "copywrite", "blog", "newsletter", "email"],
@@ -35,7 +36,7 @@ function scoreSkillAgentMatch(
 
   let score = 0;
 
-  const dept = agent.department ?? "";
+  const dept = (agent.department ?? "") as DepartmentId;
   const deptKeywords = DEPARTMENT_SKILL_KEYWORDS[dept] ?? [];
   for (const keyword of deptKeywords) {
     if (skillText.includes(keyword)) {
