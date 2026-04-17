@@ -161,7 +161,7 @@ export function App() {
     <AppActionsContext.Provider value={appActions}>
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
     {showCustomTitleBar && <TitleBar />}
-    <div className={`grid min-h-0 flex-1 overflow-hidden transition-[grid-template-columns] duration-200 ${ui.sidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[220px_minmax(0,1fr)]"}`} style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}>
+    <div className={`grid min-h-0 flex-1 overflow-hidden transition-[grid-template-columns] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] ${ui.sidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[220px_minmax(0,1fr)]"}`}>
 
       <SidebarView
         isMac={isMac}
@@ -192,8 +192,8 @@ export function App() {
             <div className="flex shrink-0 items-center gap-3 lg:gap-5">
               <button
                 type="button"
-                aria-label={ui.consoleOpen ? "Hide console" : "Show console"}
-                title={ui.consoleOpen ? "Hide console" : "Show console"}
+                aria-label={ui.consoleOpen ? ui.t("app.hideConsole") : ui.t("app.showConsole")}
+                title={ui.consoleOpen ? ui.t("app.hideConsole") : ui.t("app.showConsole")}
                 className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 inline-flex items-center gap-2 py-1 text-[12px] font-semibold text-muted-foreground transition hover:text-foreground"
                 onClick={() => ui.setConsoleOpen(!ui.consoleOpen)}
               >
