@@ -110,12 +110,11 @@ export async function handleWorkerMessage(
       });
     }
     if (event.status === "running") {
+      // D-02: Workspace lock is claimed authoritatively in main's
+      // dispatchRunToWorker before enqueue. Only lease renewal and
+      // run-started housekeeping run here.
       try {
         const run = db.getRun(event.runId);
-        if (run.workspaceId && !db.claimWorkspaceLock(run.workspaceId, run.id)) {
-          logger.error(`[workspace] Failed to claim lock for workspace ${run.workspaceId} when run ${run.id} entered running state. Cancelling run.`);
-          worker?.postMessage({ type: "cancel-run", runId: run.id });
-        }
         db.renewTaskLease(run.taskId, run.id);
         onRunStarted?.(run.id, run.taskId, run.agentId, run.companyId);
       } catch {

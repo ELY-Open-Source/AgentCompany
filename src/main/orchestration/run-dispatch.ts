@@ -86,6 +86,30 @@ export function createRunDispatch(deps: OrchestrationDependencies) {
       throw new Error(connectorIssue);
     }
 
+    // D-02: Claim the workspace lock synchronously before enqueuing the run.
+    // Previously the worker claimed the lock only after it emitted `running`,
+    // so two runs could race between enqueue and startup and both read the
+    // same workspace mid-write. Main is the authoritative coordinator.
+    if (
+      params.workspaceMode === "exclusive" &&
+      params.workspace &&
+      !db.claimWorkspaceLock(params.workspace.id, params.runId)
+    ) {
+      db.finishRun({
+        runId: params.runId,
+        status: "failed",
+        summary: null,
+        errorMessage: `Workspace ${params.workspace.id} is locked by another run.`,
+        exitCode: null,
+        signal: null,
+        model: null,
+        sessionDisplayId: null,
+        costUsd: null,
+        unattributedCost: true,
+      });
+      return;
+    }
+
     const payload = buildRunPayload(params, {
       db,
       logger,
