@@ -44,11 +44,12 @@ export function createAppLifecycleService({
     });
 
     app.on("window-all-closed", () => {
-      // On macOS, keep the app running when all windows are closed (standard behavior)
-      // UNLESS the user explicitly chose Quit (before-quit already fired).
-      if (process.platform !== "darwin" || shouldQuit()) {
-        app.quit();
+      // macOS keeps the app alive when all windows close (standard platform behavior),
+      // except after the user picked Quit (before-quit already fired -> shouldQuit()).
+      if (process.platform === "darwin" && !shouldQuit()) {
+        return;
       }
+      app.quit();
     });
 
     app.on("before-quit", () => {
