@@ -8,6 +8,7 @@ import {
   Trash,
 } from "../components/ui/icons";
 import type { CompanyRecord, ProfileSnapshot, SectionId } from "@shared/types";
+import type { TranslationFn } from "../i18n";
 import { SectionButton } from "../components/ui";
 import { NEW_ENTITY_ID } from "../lib/constants";
 
@@ -31,7 +32,7 @@ interface SidebarViewProps {
   setCompany: (companyId: string) => void;
   deleteCompany: (companyId: string) => void;
   setCommandPaletteOpen: (value: boolean) => void;
-  t: (key: string) => string;
+  t: TranslationFn;
 }
 
 export function SidebarView({
