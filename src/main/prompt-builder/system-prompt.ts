@@ -4,7 +4,6 @@ import { formatSkillsForPrompt } from "@mariozechner/pi-coding-agent";
 import {
   buildTaskSection,
   buildReviewSection,
-  buildMessagesSection,
   buildMeetingsSection,
   buildKnowledgeSection,
   buildDocumentsSection,
@@ -208,13 +207,6 @@ export function buildSystemPrompt(ctx: PromptContext): string {
       .join("\n");
     sections.push(m.recentCommentsSection(lines));
   }
-
-  const msgsSection = buildMessagesSection({
-    recentMessages: ctx.recentMessages ?? [],
-    allAgents: ctx.allAgents,
-    companyDocuments: ctx.companyDocuments ?? [],
-  });
-  if (msgsSection) sections.push(msgsSection);
 
   sections.push(buildDepartmentSection(ctx));
   sections.push(buildOperatingInstructions(ctx, isCEO, isManager));

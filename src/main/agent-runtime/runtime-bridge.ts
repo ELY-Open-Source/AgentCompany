@@ -6,6 +6,7 @@ import { SqliteSessionStore } from "./sqlite-session-store";
 import { CostWriter } from "./cost-writer";
 import type { CredentialResolver } from "@main/credentials";
 import { getConnectorDefinition } from "@main/connectors";
+import { projectInboxMessageToPi } from "./inbox-projection";
 
 /**
  * Projects a pi AgentEvent to a human-readable log line for the Console.
@@ -168,6 +169,23 @@ export class RuntimeBridge {
     return store;
   }
 
+  /**
+   * Resolve a display name for an agent id used in inbox header lines.
+   * Falls back to the id when the lookup fails so the transcript remains
+   * unambiguous instead of silently rendering "undefined".
+   */
+  private resolveAgentName(agentId: string): string {
+    try {
+      const name = this.deps.db.findAgentName(agentId);
+      if (name && name.length > 0) return name;
+    } catch (error) {
+      this.deps.logger.warn(
+        `[runtime-bridge] agent name lookup failed for ${agentId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    return agentId;
+  }
+
   /** Receives an `agent-event` envelope from the worker; emits to renderer. */
   handleAgentEvent(envelope: {
     runId: string;
@@ -303,7 +321,29 @@ export class RuntimeBridge {
         });
         const definition = getConnectorDefinition(payload.connectorId);
         const resolved = await this.deps.credentialResolver.resolve(payload.connectorId);
-        const priorMessages = this.getOrCreateStore(payload.taskSessionId).loadMessages();
+
+        // Project any pending inbox messages into the session transcript
+        // *before* loading priorMessages — the recipient must observe them
+        // as plain user turns in its context, and the transcript row is
+        // the single source of memory (recentMessages prompt block is
+        // gone). Append fails closed: if persistence throws, the inbox
+        // row stays unread and we surface the error so the worker aborts.
+        const store = this.getOrCreateStore(payload.taskSessionId);
+        const inboxRecords = this.deps.db.listAgentInboxUnread(payload.companyId, payload.agentId);
+        for (const record of inboxRecords) {
+          const projected = projectInboxMessageToPi(record, {
+            getAgentName: (id) => this.resolveAgentName(id),
+          });
+          store.appendMessage(projected);
+        }
+        if (inboxRecords.length > 0) {
+          this.deps.db.markAgentInboxDelivered(
+            payload.agentId,
+            inboxRecords.map((r) => r.id),
+          );
+        }
+
+        const priorMessages = store.loadMessages();
         return {
           ok: true,
           result: {

@@ -120,6 +120,7 @@ export class AppDatabaseBase {
     this.messages = buildMessageMethods(getDb, ra, {
       getAgent: (id) => this.getAgent(id),
       addActivity: (input) => this.addActivity(input),
+      transaction: tx,
     });
     this.runs = buildRunMethods(getDb, ra, tx, { logsDir: this.logsDir });
     this.workspacesMod = buildWorkspaceMethods(getDb, ra, tx);

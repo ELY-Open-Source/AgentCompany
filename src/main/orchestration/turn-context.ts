@@ -11,7 +11,7 @@ import type { AppDatabase } from "../database";
 import type { ProjectedSkill } from "../skill-types";
 import type { ConnectorId, ExecutionMode } from "@shared/types";
 import type { WorkspaceLockMode, EnqueueRunPayload } from "./types";
-import { normalizeMessagesForPrompt, normalizeCommentsForPrompt } from "../message-normalize";
+import { normalizeCommentsForPrompt } from "../message-normalize";
 import { getConnectorModelPolicy, validateConnectorModelSelection } from "../connector-model-policy";
 
 export interface RunDispatchParams {
@@ -291,7 +291,6 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
       status: account.status,
       requireApproval: account.requireApproval,
     })),
-    recentMessages: normalizeMessagesForPrompt(db.listAgentMessages(companyId, { agentId: agent.id, limit: 20 })),
     upcomingMeetings: filterUpcomingMeetings(snapshot.meetings, companyId, agent.id),
     relevantKnowledge: filterRelevantKnowledge(snapshot.knowledgeBase, companyId),
     activeSprint: snapshot.sprints.find((sprint) => sprint.companyId === companyId && sprint.status === "active") ?? null,

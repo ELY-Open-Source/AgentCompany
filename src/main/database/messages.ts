@@ -4,6 +4,7 @@ import type { AgentMessageRecord, AgentRecord } from "@shared/types";
 import {
   BOARD_READER_ID,
   type ReadAll,
+  type Transaction,
   nowIso,
 } from "./helpers";
 
@@ -13,6 +14,7 @@ export function buildMessageMethods(
   deps: {
     getAgent: (id: string) => AgentRecord;
     addActivity: (input: { companyId: string; actor: string; action: string; entityType: string; entityId: string; detail: string }) => void;
+    transaction: Transaction;
   },
 ) {
   return {
@@ -252,6 +254,110 @@ export function buildMessageMethods(
        on conflict(message_id, agent_id) do update set read_at = excluded.read_at`,
         )
         .run(readerAgentId ?? BOARD_READER_ID, ts, messageId, companyId);
+    },
+
+    /**
+     * List unread inbox messages for an agent, chronologically oldest-first,
+     * for pi-native transcript injection. Uses the same channel-subscription
+     * visibility rules as listAgentMessages (direct/company/incident always,
+     * department when agent belongs, project when assigned/lead).
+     *
+     * "Unread" means:
+     *  - Direct messages to this agent: `agent_messages.read_at IS NULL`.
+     *  - Channel messages: no matching row in `agent_message_reads` for
+     *    (message_id, agent_id).
+     *
+     * Messages where `from_agent_id = agentId` are excluded (agents don't
+     * inject their own sent messages back into their transcript).
+     */
+    listAgentInboxUnread(companyId: string, agentId: string): AgentMessageRecord[] {
+      let department: string | null = null;
+      try {
+        const agent = deps.getAgent(agentId);
+        if (agent.companyId === companyId) {
+          department = agent.department;
+        }
+      } catch {
+        department = null;
+      }
+
+      const relevantProjectIds = new Set<string>();
+      for (const row of readAll<{ projectId: string | null }>(
+        "select distinct project_id as projectId from tasks where company_id = ? and assignee_agent_id = ? and project_id is not null",
+        companyId,
+        agentId,
+      )) {
+        if (row.projectId) relevantProjectIds.add(row.projectId);
+      }
+      for (const row of readAll<{ id: string }>(
+        "select id from projects where company_id = ? and lead_agent_id = ?",
+        companyId,
+        agentId,
+      )) {
+        relevantProjectIds.add(row.id);
+      }
+
+      const visibilityClauses: string[] = [
+        "(channel = 'direct' and to_agent_id = ?)",
+        "channel in ('company','incident')",
+      ];
+      const visibilityParams: SQLInputValue[] = [agentId];
+      if (department) {
+        visibilityClauses.push("(channel = 'department' and channel_target_id = ?)");
+        visibilityParams.push(department);
+      }
+      if (relevantProjectIds.size > 0) {
+        const placeholders = Array.from(relevantProjectIds).map(() => "?").join(",");
+        visibilityClauses.push(`(channel = 'project' and channel_target_id in (${placeholders}))`);
+        visibilityParams.push(...Array.from(relevantProjectIds));
+      }
+
+      const selectCols =
+        "select id, company_id as companyId, from_agent_id as fromAgentId, to_agent_id as toAgentId, sender_kind as senderKind, channel, channel_target_id as channelTargetId, subject, body, priority, read_at as readAt, parent_message_id as parentMessageId, attachments_json as attachmentsJson, created_at as createdAt from agent_messages";
+      const sql = `${selectCols} where company_id = ? and from_agent_id != ? and (${visibilityClauses.join(" or ")}) order by created_at asc`;
+      const rows = readAll<AgentMessageRecord>(sql, companyId, agentId, ...visibilityParams);
+
+      const readIds = new Set(
+        readAll<{ messageId: string }>(
+          `select reads.message_id as messageId
+             from agent_message_reads reads
+             join agent_messages messages on messages.id = reads.message_id
+            where reads.agent_id = ? and messages.company_id = ?`,
+          agentId,
+          companyId,
+        ).map((row) => row.messageId),
+      );
+
+      return rows.filter((message) => {
+        if (message.channel === "direct" && message.toAgentId === agentId) {
+          return !message.readAt;
+        }
+        return !readIds.has(message.id);
+      });
+    },
+
+    /**
+     * Transactionally mark a batch of messages as delivered to `agentId`.
+     * - Direct messages: sets agent_messages.read_at = now() if currently null.
+     * - All messages (direct + channel): insert into agent_message_reads with
+     *   ON CONFLICT DO NOTHING so reprocessing is idempotent.
+     */
+    markAgentInboxDelivered(agentId: string, messageIds: string[]): void {
+      if (messageIds.length === 0) return;
+      const ts = nowIso();
+      deps.transaction(() => {
+        const db = getDb();
+        const directUpdate = db.prepare(
+          "update agent_messages set read_at = ? where id = ? and to_agent_id = ? and read_at is null",
+        );
+        const receiptInsert = db.prepare(
+          "insert into agent_message_reads (message_id, agent_id, read_at) values (?, ?, ?) on conflict(message_id, agent_id) do nothing",
+        );
+        for (const id of messageIds) {
+          directUpdate.run(ts, id, agentId);
+          receiptInsert.run(id, agentId, ts);
+        }
+      });
     },
   };
 }

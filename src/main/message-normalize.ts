@@ -1,18 +1,17 @@
 /**
  * Message Normalization Layer
  *
- * Normalizes messages and comments before they are injected into agent prompts.
+ * Normalizes comments before they are injected into agent prompts.
  * Prevents malformed, empty, or excessively long content from degrading
  * model output quality. Inspired by Reference/src/utils/messages.ts.
  *
  * Applied at the prompt-builder boundary — the last point before content
  * enters the model's context window.
+ *
+ * Inter-agent messages no longer flow through a prompt block; they are
+ * projected directly into the recipient's pi session transcript. See
+ * `agent-runtime/inbox-projection.ts`.
  */
-
-import type { AgentMessageRecord } from "@shared/types";
-
-/** Maximum body length for a single message in prompt context. */
-const MAX_MESSAGE_BODY_LENGTH = 800;
 
 /** Maximum comment body length in prompt context. */
 const MAX_COMMENT_BODY_LENGTH = 500;
@@ -35,48 +34,6 @@ function truncate(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;
   return text.slice(0, maxLen - 1) + "…";
 }
-
-/**
- * Normalize agent messages before prompt injection.
- * - Removes empty-body messages
- * - Cleans control characters
- * - Truncates overly long bodies
- * - Deduplicates consecutive identical messages from the same sender
- */
-export function normalizeMessagesForPrompt(
-  messages: AgentMessageRecord[],
-  limit: number = 15,
-): AgentMessageRecord[] {
-  const result: AgentMessageRecord[] = [];
-  let prevKey = "";
-
-  for (const msg of messages) {
-    const cleaned = cleanText(msg.body);
-    if (cleaned.length === 0) continue;
-
-    // Deduplicate consecutive identical messages from the same sender
-    const key = `${msg.fromAgentId}:${cleaned}`;
-    if (key === prevKey) continue;
-    prevKey = key;
-
-    result.push({
-      ...msg,
-      body: truncate(cleaned, MAX_MESSAGE_BODY_LENGTH),
-      subject: msg.subject ? truncate(cleanText(msg.subject), 120) : msg.subject,
-    });
-
-    if (result.length >= limit) break;
-  }
-
-  return result;
-}
-
-// ---------------------------------------------------------------------------
-// Transcript Repair — for session handoff / resume scenarios
-// Inspired by Reference/src/utils/messages.ts tool pairing logic.
-// Applied when session state is restored, not at every message send.
-// ---------------------------------------------------------------------------
-
 
 export interface CommentRecord {
   taskId: string;

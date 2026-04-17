@@ -1,7 +1,6 @@
 import log from "electron-log/main.js";
-import type { AgentRecord, AgentMessageRecord, ApprovalRecord, DocumentRecord, KnowledgeEntryRecord, MeetingRecord, TaskRecord } from "@shared/types";
+import type { AgentRecord, ApprovalRecord, DocumentRecord, KnowledgeEntryRecord, MeetingRecord, TaskRecord } from "@shared/types";
 import { inferTaskType } from "../connector-matching";
-import { resolveAttachmentContent } from "./attachment-resolver";
 
 interface TaskSectionCtx {
   task: TaskRecord;
@@ -86,53 +85,6 @@ REVIEW WORKFLOW — This is your HIGHEST PRIORITY after resolving blockers:
 3. To APPROVE: PATCH /api/issues/{issueId} with {"status": "done", "comment": "Approved. <your feedback>"}
 4. To REQUEST CHANGES: PATCH /api/issues/{issueId} with {"status": "in_progress", "comment": "Changes needed: <specific feedback>"}
 5. Do NOT ignore review requests — your team is blocked until you respond
-`;
-}
-
-interface MessagesSectionCtx {
-  recentMessages: AgentMessageRecord[];
-  allAgents: AgentRecord[];
-  companyDocuments?: DocumentRecord[];
-}
-
-export function buildMessagesSection(ctx: MessagesSectionCtx): string | null {
-  if (ctx.recentMessages.length === 0) return null;
-
-  const agentMap = new Map(ctx.allAgents.map((a) => [a.id, a.name]));
-  const msgLines = ctx.recentMessages.slice(0, 15).map((m) => {
-    const from = m.fromAgentId === "__board__" ? "Board (__board__)" : (agentMap.get(m.fromAgentId) ?? m.fromAgentId);
-    const channelLabel = m.channel === "direct"
-      ? `DM with ${m.fromAgentId === "__board__" ? "Board (__board__)" : from}`
-      : `#${m.channel}${m.channelTargetId ? `-${m.channelTargetId}` : ""}`;
-    const isUnread = !m.readAt;
-    let attachmentNote = "";
-    let attachmentContent = "";
-    if (m.attachmentsJson && m.attachmentsJson !== "[]") {
-      try {
-        const atts = JSON.parse(m.attachmentsJson) as Array<{ title?: string }>;
-        if (Array.isArray(atts) && atts.length > 0) {
-          attachmentNote = ` [Attached: ${atts.map((a) => a.title ?? "document").join(", ")}]`;
-        }
-      } catch (error) {
-        log.warn(
-          `[prompt-builder] malformed attachmentsJson on message ${m.id}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-      if (ctx.companyDocuments && ctx.companyDocuments.length > 0) {
-        attachmentContent = resolveAttachmentContent(m.attachmentsJson, ctx.companyDocuments, 4000);
-      }
-    }
-    const responseHint = m.channel === "direct"
-      ? ` Reply with channel=direct, toAgentId="${m.fromAgentId}", parentMessageId="${m.id}".`
-      : ` Reply in channel "${m.channel}"${m.channelTargetId ? ` with channelTargetId="${m.channelTargetId}"` : ""}, parentMessageId="${m.id}".`
-    const line = `- ${isUnread ? "[UNREAD] " : ""}[ID:${m.id}] [${channelLabel}] ${from}: "${m.subject}" — ${m.body.slice(0, 120)}${m.body.length > 120 ? "..." : ""}${attachmentNote}${responseHint}`;
-    return attachmentContent ? `${line}\n${attachmentContent}` : line;
-  });
-  const unreadCount = ctx.recentMessages.filter((m) => !m.readAt).length;
-
-  return `# Your Messages${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}
-${msgLines.join("\n")}
-${unreadCount > 0 ? "\n**ACTION REQUIRED**: Read and respond to unread messages before starting new work. Mark messages as read after processing: POST /api/companies/{companyId}/messages/{messageId}/read" : ""}
 `;
 }
 

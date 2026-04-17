@@ -1,4 +1,4 @@
-import type { AgentRecord, AgentMessageRecord, ApprovalRecord, DocumentRecord, ExecutionMode, GoalRecord, KnowledgeEntryRecord, MeetingRecord, ProjectRecord, SprintRecord, TaskRecord } from "@shared/types";
+import type { AgentRecord, ApprovalRecord, DocumentRecord, ExecutionMode, GoalRecord, KnowledgeEntryRecord, MeetingRecord, ProjectRecord, SprintRecord, TaskRecord } from "@shared/types";
 import type { AppLocale } from "@shared/locale";
 import type { ProjectedSkill } from "../skill-types";
 import { buildSystemPrompt } from "./system-prompt";
@@ -28,7 +28,6 @@ export interface PromptContext {
   recentComments: Array<{ taskId: string; taskTitle: string; authorName: string; body: string; createdAt: string }>;
   companyDescription: string;
   socialAccounts: Array<{ id: string; platform: string; accountName: string; status: string; requireApproval: boolean }>;
-  recentMessages?: AgentMessageRecord[];
   upcomingMeetings?: MeetingRecord[];
   relevantKnowledge?: KnowledgeEntryRecord[];
   activeSprint?: SprintRecord | null;
