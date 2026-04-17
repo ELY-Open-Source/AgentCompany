@@ -109,13 +109,6 @@ export class WorkerRunner {
         const cwd = job.workspacePath ?? process.cwd();
         const tools = createCodingTools(cwd) as never;
 
-        // Co-Founder mode gates tool calls through the HumanApprovalHook in
-        // main. CEO mode skips the hook entirely (zero IPC overhead per tool
-        // call). Two distinct Agent-construction paths instead of a runtime
-        // `if mode === ...` inside a shared hook body.
-        const gateToolCalls = job.executionMode === "ai_cofounder";
-        const TOOL_APPROVAL_TIMEOUT_MS = 30 * 60 * 1000;
-
         const agent = new Agent({
           initialState: {
             systemPrompt: job.systemPrompt ?? "",
@@ -129,29 +122,6 @@ export class WorkerRunner {
               apiKey: prepared.apiKey,
               headers: { ...(options?.headers ?? {}), ...(extraHeaders ?? {}) },
             }),
-          ...(gateToolCalls
-            ? {
-                beforeToolCall: async (context) => {
-                  const verdict = await rpc.invoke(
-                    job.runId,
-                    "beforeToolCall",
-                    {
-                      agentId: job.agentId,
-                      companyId: job.companyId,
-                      taskId: job.taskId,
-                      toolCallId: context.toolCall.id,
-                      toolName: context.toolCall.name,
-                      args: context.args,
-                    },
-                    { timeoutMs: TOOL_APPROVAL_TIMEOUT_MS },
-                  );
-                  if (verdict.ok) {
-                    return verdict.result as { block?: boolean; reason?: string } | undefined;
-                  }
-                  return { block: true, reason: verdict.error };
-                },
-              }
-            : {}),
         });
 
         const unsubscribe = agent.subscribe(async (event) => {
