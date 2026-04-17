@@ -1,48 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { MagnifyingGlass } from "../../ui/icons";
 import type { CredentialSummary } from "@shared/contracts/schemas-credentials";
+import {
+  CONNECTOR_CATALOG,
+  type ConnectorAuthKind,
+  type ConnectorCatalogEntry,
+} from "@shared/connector-catalog";
 import { ProviderRow } from "./ProviderRow";
-
-const desktop = (typeof window !== "undefined" ? window.agentCompany : null) as
-  | (Window["agentCompany"] | null);
-
-/** Provider catalog mirrored from the main process for renderer-only use.
- * Keep in sync with src/main/connector-definitions.ts when the catalog grows.
- * Each entry is referenced by its connectorId in IPC traffic. */
-export interface ProvidersPanelEntry {
-  id: string;
-  label: string;
-  kind: "oauth" | "api_key" | "azure" | "aws" | "gcp_adc";
-}
-
-const DEFAULT_CATALOG: ProvidersPanelEntry[] = [
-  { id: "claude-pro", label: "Claude Pro / Max", kind: "oauth" },
-  { id: "chatgpt-codex", label: "ChatGPT Plus / Pro (Codex)", kind: "oauth" },
-  { id: "github-copilot", label: "GitHub Copilot", kind: "oauth" },
-  { id: "gemini-cli", label: "Google Gemini CLI", kind: "oauth" },
-  { id: "antigravity", label: "Google Antigravity", kind: "oauth" },
-  { id: "anthropic", label: "Anthropic API", kind: "api_key" },
-  { id: "openai", label: "OpenAI API", kind: "api_key" },
-  { id: "google", label: "Google Gemini API", kind: "api_key" },
-  { id: "mistral", label: "Mistral", kind: "api_key" },
-  { id: "groq", label: "Groq", kind: "api_key" },
-  { id: "cerebras", label: "Cerebras", kind: "api_key" },
-  { id: "xai", label: "xAI", kind: "api_key" },
-  { id: "openrouter", label: "OpenRouter", kind: "api_key" },
-  { id: "vercel-ai-gateway", label: "Vercel AI Gateway", kind: "api_key" },
-  { id: "zai", label: "ZAI", kind: "api_key" },
-  { id: "opencode", label: "OpenCode Zen", kind: "api_key" },
-  { id: "opencode-go", label: "OpenCode Go", kind: "api_key" },
-  { id: "huggingface", label: "Hugging Face", kind: "api_key" },
-  { id: "kimi-coding", label: "Kimi For Coding", kind: "api_key" },
-  { id: "minimax", label: "MiniMax", kind: "api_key" },
-  { id: "minimax-cn", label: "MiniMax (China)", kind: "api_key" },
-  { id: "fireworks", label: "Fireworks AI", kind: "api_key" },
-  { id: "fireworks-firepass", label: "Fireworks Fire Pass", kind: "api_key" },
-  { id: "azure-openai", label: "Azure OpenAI", kind: "azure" },
-  { id: "amazon-bedrock", label: "AWS Bedrock", kind: "aws" },
-  { id: "google-vertex", label: "Google Vertex AI", kind: "gcp_adc" },
-];
 
 const FILTERS: Array<{ id: "all" | "configured" | "available"; label: string }> = [
   { id: "all", label: "All" },
@@ -50,7 +14,7 @@ const FILTERS: Array<{ id: "all" | "configured" | "available"; label: string }> 
   { id: "available", label: "Available" },
 ];
 
-const GROUP_ORDER: Array<{ id: ProvidersPanelEntry["kind"]; label: string }> = [
+const GROUP_ORDER: Array<{ id: ConnectorAuthKind; label: string }> = [
   { id: "oauth", label: "Sign in" },
   { id: "api_key", label: "API key" },
   { id: "azure", label: "Azure" },
@@ -58,29 +22,29 @@ const GROUP_ORDER: Array<{ id: ProvidersPanelEntry["kind"]; label: string }> = [
   { id: "gcp_adc", label: "Google Cloud" },
 ];
 
-interface Props {
-  catalog?: ProvidersPanelEntry[];
+interface ProvidersPanelProps {
+  catalog?: ConnectorCatalogEntry[];
 }
 
-export function ProvidersPanel({ catalog }: Props) {
-  const entries = catalog ?? DEFAULT_CATALOG;
+export function ProvidersPanel({ catalog }: ProvidersPanelProps = {}) {
+  const entries = catalog ?? CONNECTOR_CATALOG;
   const [credentials, setCredentials] = useState<Map<string, CredentialSummary>>(new Map());
   const [filter, setFilter] = useState<"all" | "configured" | "available">("all");
   const [search, setSearch] = useState("");
 
   useEffect(() => {
+    const desktop = window.agentCompany;
     if (!desktop) return;
     let cancelled = false;
-    void desktop.listCredentials().then((result) => {
+    const refresh = async () => {
+      const result = await desktop.listCredentials();
       if (cancelled || !result.ok) return;
       setCredentials(new Map(result.data.map((row) => [row.connectorId, row])));
-    });
+    };
+    void refresh();
     const unsubscribe = desktop.subscribe((event) => {
       if (event.type !== "credentials-changed") return;
-      void desktop.listCredentials().then((result) => {
-        if (!result.ok) return;
-        setCredentials(new Map(result.data.map((row) => [row.connectorId, row])));
-      });
+      void refresh();
     });
     return () => {
       cancelled = true;
@@ -89,24 +53,26 @@ export function ProvidersPanel({ catalog }: Props) {
   }, []);
 
   const filtered = useMemo(() => {
+    const needle = search.trim().toLowerCase();
     return entries.filter((entry) => {
       const hasCredential = credentials.has(entry.id);
       if (filter === "configured" && !hasCredential) return false;
       if (filter === "available" && hasCredential) return false;
-      if (search.trim()) {
-        const needle = search.trim().toLowerCase();
-        return entry.label.toLowerCase().includes(needle) || entry.id.includes(needle);
-      }
-      return true;
+      if (needle.length === 0) return true;
+      return (
+        entry.label.toLowerCase().includes(needle) ||
+        entry.id.includes(needle) ||
+        entry.provider.toLowerCase().includes(needle)
+      );
     });
   }, [entries, credentials, filter, search]);
 
   const grouped = useMemo(() => {
-    const byKind = new Map<ProvidersPanelEntry["kind"], ProvidersPanelEntry[]>();
+    const byKind = new Map<ConnectorAuthKind, ConnectorCatalogEntry[]>();
     for (const entry of filtered) {
-      const list = byKind.get(entry.kind) ?? [];
+      const list = byKind.get(entry.auth.type) ?? [];
       list.push(entry);
-      byKind.set(entry.kind, list);
+      byKind.set(entry.auth.type, list);
     }
     return GROUP_ORDER.map((group) => ({
       ...group,
