@@ -51,7 +51,7 @@ export function RunCenter({
       if (!query) {
         return true;
       }
-      const task = taskMap.get(run.taskId);
+      const task = run.taskId ? taskMap.get(run.taskId) : undefined;
       const agent = agentMap.get(run.agentId);
       const workspace = run.workspaceId ? workspaceMap.get(run.workspaceId) : null;
       return [

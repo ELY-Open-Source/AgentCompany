@@ -36,7 +36,9 @@ export async function handleRunLog(
   if (now - lastRenewal >= LEASE_RENEWAL_INTERVAL_MS) {
     try {
       const run = db.getRun(event.runId);
-      db.renewTaskLease(run.taskId, run.id);
+      if (run.taskId) {
+        db.renewTaskLease(run.taskId, run.id);
+      }
       leaseRenewalMap.set(event.runId, now);
     } catch {
       // Run not found — skip lease renewal

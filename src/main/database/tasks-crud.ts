@@ -33,7 +33,6 @@ export type TaskListByStatusesRow = {
   sessionDisplayId: string | null;
   costUsd: number | null;
   requiresUserReview: boolean;
-  isHeartbeat: boolean;
   startedAt: string | null;
   completedAt: string | null;
   cancelledAt: string | null;
@@ -170,23 +169,18 @@ export function buildTaskCrudMethods(
     },
 
     /**
-     * Returns actionable real work for an agent. Heartbeat tasks are
-     * excluded by default since they are synthesized wake-up placeholders;
-     * pass `{ includeHeartbeat: true }` to include them (heartbeat-loop
-     * callers that already filter by `is_heartbeat` do not need this).
+     * Returns actionable real work for an agent.
      */
     listAgentTasks(
       agentId: string,
       companyId: string,
       statuses: string[],
-      options: { includeHeartbeat?: boolean } = {},
     ): TaskRecord[] {
       const placeholders = statuses.map(() => "?").join(",");
-      const heartbeatClause = options.includeHeartbeat ? "" : " and is_heartbeat = 0";
       return readAll<TaskRecord>(
-        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, task_type as taskType, is_heartbeat as isHeartbeat, created_at as createdAt, updated_at as updatedAt
+        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, task_type as taskType, created_at as createdAt, updated_at as updatedAt
          from tasks
-        where company_id = ? and assignee_agent_id = ? and status in (${placeholders})${heartbeatClause}
+        where company_id = ? and assignee_agent_id = ? and status in (${placeholders})
         order by
           case status
             when 'in_progress' then 0
@@ -200,21 +194,19 @@ export function buildTaskCrudMethods(
         companyId,
         agentId,
         ...statuses,
-      ).map((t) => ({ ...t, isHeartbeat: Boolean(t.isHeartbeat) }));
+      );
     },
 
     /**
      * Returns the slim task projection (id, title, status, priority) for a
-     * single assignee, ordered by created_at desc. Used by the alternate
-     * me/standup builder in routes-agents-standup.ts. Heartbeat tasks are
-     * excluded so UI aggregations do not surface synthetic wake tasks.
+     * single assignee, ordered by created_at desc.
      */
     listAssigneeTasksForStandup(
       companyId: string,
       agentId: string,
     ): Array<{ id: string; title: string; status: string; priority: string }> {
       return readAll(
-        "select id, title, status, priority from tasks where company_id = ? and assignee_agent_id = ? and is_heartbeat = 0 order by created_at desc",
+        "select id, title, status, priority from tasks where company_id = ? and assignee_agent_id = ? order by created_at desc",
         companyId,
         agentId,
       );
@@ -222,9 +214,7 @@ export function buildTaskCrudMethods(
 
     /**
      * Returns the slim task projection for a set of assignees. Safe on
-     * an empty assignee list (returns []). Used by the alternate
-     * me/standup builder to fetch reports' tasks in one query. Heartbeat
-     * tasks are excluded.
+     * an empty assignee list (returns []).
      */
     listTasksForAssignees(
       companyId: string,
@@ -239,7 +229,7 @@ export function buildTaskCrudMethods(
       if (assigneeIds.length === 0) return [];
       const placeholders = assigneeIds.map(() => "?").join(",");
       return readAll(
-        `select id, title, status, priority, assignee_agent_id as assigneeAgentId from tasks where company_id = ? and assignee_agent_id in (${placeholders}) and is_heartbeat = 0 order by created_at desc`,
+        `select id, title, status, priority, assignee_agent_id as assigneeAgentId from tasks where company_id = ? and assignee_agent_id in (${placeholders}) order by created_at desc`,
         companyId,
         ...assigneeIds,
       );
@@ -247,7 +237,7 @@ export function buildTaskCrudMethods(
 
     /**
      * Returns the slim task projection used by the me/standup aggregation.
-     * Ordered by created_at desc. Heartbeat tasks are excluded.
+     * Ordered by created_at desc.
      */
     listTasksForStandup(companyId: string): Array<{
       id: string;
@@ -258,32 +248,26 @@ export function buildTaskCrudMethods(
       priority: string;
     }> {
       return readAll(
-        "select id, company_id as companyId, title, assignee_agent_id as assigneeAgentId, status, priority from tasks where company_id = ? and is_heartbeat = 0 order by created_at desc",
+        "select id, company_id as companyId, title, assignee_agent_id as assigneeAgentId, status, priority from tasks where company_id = ? order by created_at desc",
         companyId,
       );
     },
 
     /**
-     * Returns tasks filtered by status. Heartbeat tasks are excluded by
-     * default — they are synthesized wake placeholders and should not
-     * appear in the user-facing issue list. Pass `{ includeHeartbeat: true }`
-     * to include them.
+     * Returns tasks filtered by status.
      */
     listTasksByStatuses(
       companyId: string,
       statuses: string[],
-      options: { includeHeartbeat?: boolean } = {},
     ): TaskListByStatusesRow[] {
       const placeholders = statuses.map(() => "?").join(", ");
-      const heartbeatClause = options.includeHeartbeat ? "" : " and is_heartbeat = 0";
-      return readAll<TaskListByStatusesRow & { requiresUserReview: number | boolean; isHeartbeat: number | boolean }>(
-        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, requires_user_review as requiresUserReview, is_heartbeat as isHeartbeat, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks where company_id = ? and status in (${placeholders})${heartbeatClause} order by created_at desc`,
+      return readAll<TaskListByStatusesRow & { requiresUserReview: number | boolean }>(
+        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, requires_user_review as requiresUserReview, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks where company_id = ? and status in (${placeholders}) order by created_at desc`,
         companyId,
         ...statuses,
       ).map((t) => ({
         ...t,
         requiresUserReview: Boolean(t.requiresUserReview),
-        isHeartbeat: Boolean(t.isHeartbeat),
         startedAt: t.startedAt ?? null,
         completedAt: t.completedAt ?? null,
         cancelledAt: t.cancelledAt ?? null,
@@ -293,7 +277,7 @@ export function buildTaskCrudMethods(
     countActiveTasksForCompany(companyId: string): number {
       const row = getDb()
         .prepare(
-          "select count(*) as cnt from tasks where company_id = ? and status not in ('done', 'cancelled') and is_heartbeat = 0",
+          "select count(*) as cnt from tasks where company_id = ? and status not in ('done', 'cancelled')",
         )
         .get(companyId) as { cnt: number };
       return row.cnt;

@@ -11,14 +11,14 @@ import type { TaskValidationResult as _TaskValidationResult } from "../../src/ma
 
 describe("validateTaskCreation", () => {
   it("rejects description with 5 chars when not heartbeat", () => {
-    const result = validateTaskCreation({ title: "Fix bug", description: "Short" }, false);
+    const result = validateTaskCreation({ title: "Fix bug", description: "Short" });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes("at least 50 characters"))).toBe(true);
   });
 
   it("rejects description with exactly 49 chars when not heartbeat", () => {
     const desc = "A".repeat(49);
-    const result = validateTaskCreation({ title: "Fix bug", description: desc }, false);
+    const result = validateTaskCreation({ title: "Fix bug", description: desc });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes("at least 50 characters"))).toBe(true);
   });
@@ -29,20 +29,13 @@ describe("validateTaskCreation", () => {
     const padded = desc.slice(0, 50).padEnd(50, ".");
     expect(padded.length).toBe(50);
     // Must contain "done when"
-    const result = validateTaskCreation({ title: "Build login page", description: padded }, false);
+    const result = validateTaskCreation({ title: "Build login page", description: padded });
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
-  });
-
-  it("always returns valid for heartbeat tasks regardless of description", () => {
-    const result = validateTaskCreation({ title: "[Heartbeat] Check status", description: "Short" }, true);
-    expect(result.valid).toBe(true);
-    expect(result.errors).toHaveLength(0);
-    expect(result.warnings).toHaveLength(0);
   });
 
   it("rejects empty description when not heartbeat", () => {
-    const result = validateTaskCreation({ title: "Some task", description: "" }, false);
+    const result = validateTaskCreation({ title: "Some task", description: "" });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes("at least 50 characters"))).toBe(true);
   });
@@ -50,7 +43,7 @@ describe("validateTaskCreation", () => {
   it("rejects 60-char description without acceptance criteria keywords", () => {
     const desc = "This is a description that is long enough to pass length check";
     expect(desc.length).toBeGreaterThanOrEqual(50);
-    const result = validateTaskCreation({ title: "A task", description: desc }, false);
+    const result = validateTaskCreation({ title: "A task", description: desc });
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.toLowerCase().includes("acceptance criteria"))).toBe(true);
   });
@@ -58,13 +51,13 @@ describe("validateTaskCreation", () => {
   it("returns valid=true when description has both length and acceptance criteria", () => {
     const desc = "Implement the authentication flow for the login page. Done when: all tests pass and the form submits.";
     expect(desc.length).toBeGreaterThanOrEqual(50);
-    const result = validateTaskCreation({ title: "Auth flow", description: desc }, false);
+    const result = validateTaskCreation({ title: "Auth flow", description: desc });
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
 
   it("includes current character count in length error message", () => {
-    const result = validateTaskCreation({ title: "Fix", description: "Short" }, false);
+    const result = validateTaskCreation({ title: "Fix", description: "Short" });
     expect(result.errors.some(e => e.includes("currently 5"))).toBe(true);
   });
 });

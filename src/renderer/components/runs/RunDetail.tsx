@@ -47,7 +47,7 @@ export function RunDetail({
   onLoadOlderLogs,
   t,
 }: RunDetailProps) {
-  const task = taskMap.get(selectedRun.taskId);
+  const task = selectedRun.taskId ? taskMap.get(selectedRun.taskId) : undefined;
   const agent = agentMap.get(selectedRun.agentId);
 
   return (

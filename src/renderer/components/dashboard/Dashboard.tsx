@@ -70,7 +70,7 @@ export function Dashboard(props: DashboardProps) {
       .filter((r) => r.status === "running" || r.status === "queued")
       .map((run) => {
         const agent = agentMap.get(run.agentId);
-        const task = taskMap.get(run.taskId);
+        const task = run.taskId ? taskMap.get(run.taskId) : undefined;
         return { run, agent, task };
       })
       .slice(0, 8);

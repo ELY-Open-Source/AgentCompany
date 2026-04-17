@@ -44,8 +44,8 @@ interface ServiceGraphDependencies {
   notify: (options: NotificationOptions) => void;
   createRunToken: (agentId: string, companyId: string, runId: string) => string;
   seedDefaultAutomationRules: (companyId: string) => void;
-  onRunStarted?: (runId: string, taskId: string, agentId: string, companyId: string) => void;
-  onRunCompleted?: (runId: string, taskId: string, agentId: string, companyId: string, status: string, summary: string | null, errorMessage: string | null) => void;
+  onRunStarted?: (runId: string, taskId: string | null, agentId: string, companyId: string) => void;
+  onRunCompleted?: (runId: string, taskId: string | null, agentId: string, companyId: string, status: string, summary: string | null, errorMessage: string | null) => void;
   /** Checkpoint engine for unified co-founder mode pause decisions in scheduler. */
   checkpointEngine?: { shouldPauseHeartbeat: (companyId: string, agentId: string) => boolean };
   /** Trusted-sender IPC wrapper from createIpcSupport. Window-control channels use it. */

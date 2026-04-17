@@ -11,7 +11,7 @@ import type { WorkspaceLockMode } from "./types";
  */
 export function resolveWorkspaceWithLockMode(
   db: AppDatabase,
-  task: { workspaceId: string | null; projectId?: string | null },
+  task: { workspaceId: string | null; projectId?: string | null } | null,
   agent: { workspaceId: string | null },
   companyId: string,
 ): {
@@ -19,9 +19,11 @@ export function resolveWorkspaceWithLockMode(
   lockMode: WorkspaceLockMode;
   source: "task" | "agent" | "project" | "company_fallback" | "none";
 } {
-  const taskWorkspace = db.getWorkspace(task.workspaceId);
-  if (taskWorkspace) {
-    return { workspace: taskWorkspace, lockMode: "exclusive", source: "task" };
+  if (task) {
+    const taskWorkspace = db.getWorkspace(task.workspaceId);
+    if (taskWorkspace) {
+      return { workspace: taskWorkspace, lockMode: "exclusive", source: "task" };
+    }
   }
 
   const agentWorkspace = db.getWorkspace(agent.workspaceId);
@@ -29,7 +31,7 @@ export function resolveWorkspaceWithLockMode(
     return { workspace: agentWorkspace, lockMode: "exclusive", source: "agent" };
   }
 
-  const projectWorkspace = db.getProjectPrimaryWorkspace(task.projectId ?? null, companyId);
+  const projectWorkspace = db.getProjectPrimaryWorkspace(task?.projectId ?? null, companyId);
   if (projectWorkspace) {
     return { workspace: projectWorkspace, lockMode: "exclusive", source: "project" };
   }

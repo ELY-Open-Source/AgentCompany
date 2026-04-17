@@ -3,11 +3,10 @@ import type { AppDatabase } from "../database";
 import type { AgentRecord, ConnectorRecord } from "@shared/types";
 import type { OrchestrationDependencies } from "./types";
 import type { RunDispatchParams } from "./turn-context";
-import { HEARTBEAT_TASK_TITLE_PREFIX } from "./heartbeat-task";
 
 export function createHeartbeat(
   deps: OrchestrationDependencies,
-  resolveWorkspace: (task: { workspaceId: string | null; projectId?: string | null }, agent: { workspaceId: string | null }, companyId: string) => { workspace: ReturnType<AppDatabase["getWorkspace"]>; lockMode: "exclusive" | "shared" | "none"; source: string },
+  resolveWorkspace: (task: { workspaceId: string | null; projectId?: string | null } | null, agent: { workspaceId: string | null }, companyId: string) => { workspace: ReturnType<AppDatabase["getWorkspace"]>; lockMode: "exclusive" | "shared" | "none"; source: string },
   getRunEligibilityFailure: (agent: AgentRecord, connector: ConnectorRecord, projectId?: string | null) => string | null,
   dispatchRunToWorker: (params: RunDispatchParams) => void,
   hasActiveRun: (filter: { taskId?: string; agentId?: string; companyId: string }) => boolean,
@@ -149,42 +148,22 @@ export function createHeartbeat(
         return null;
       }
 
-      const taskTitle = isCeo
-        ? `${HEARTBEAT_TASK_TITLE_PREFIX} ${agent.name} — Strategic planning & task delegation`
-        : isManager
-          ? `${HEARTBEAT_TASK_TITLE_PREFIX} ${agent.name} — Review team & delegate work`
-          : `${HEARTBEAT_TASK_TITLE_PREFIX} ${agent.name} — Check for work`;
-      const taskDescription = isCeo
-        ? "Review active company goals. Break each goal into projects and actionable tasks. Assign tasks to department leads and team members. Create tasks using the API. This is your primary responsibility as CEO — ensure every goal has a clear execution plan with assigned owners."
-        : isManager
-          ? "Review your department's goals and your team's workload. Create tasks for your direct reports if they have capacity. Review any work submitted for your approval. Ensure your team is productive and unblocked."
-          : `Automated heartbeat run for ${agent.name}. Review assigned tasks, check goals, and take action as needed.`;
-
-      task = db.acquireHeartbeatTask({
-        agentId,
-        companyId,
-        runId,
-        workspaceId: agent.workspaceId ?? null,
-        title: taskTitle,
-        description: taskDescription,
-        priority: isCeo ? "high" : "medium",
-      });
-      if (!task) {
-        return null;
-      }
-      logger.info(`[heartbeat] Acquired heartbeat task for ${agent.name}: ${task.title}`);
+      // No task — this is a true heartbeat run. The run row carries
+      // task_id = NULL; workspace falls back to agent/project/company.
+      task = null;
+      logger.info(`[heartbeat] Starting taskless heartbeat run for ${agent.name}`);
     }
 
     const workspaceResolution = resolveWorkspace(task, agent, companyId);
     const workspace = workspaceResolution.workspace;
     logger.info(
-      `[heartbeat] Workspace resolution for ${agent.name}: task.workspaceId=${task.workspaceId ?? "null"}, agent.workspaceId=${agent.workspaceId ?? "null"}, projectId=${task.projectId ?? "null"}, source=${workspaceResolution.source}, mode=${workspaceResolution.lockMode}, resolved=${workspace?.name ?? "NONE"}, localPath=${workspace?.localPath ?? "NONE"}`,
+      `[heartbeat] Workspace resolution for ${agent.name}: task.workspaceId=${task?.workspaceId ?? "null"}, agent.workspaceId=${agent.workspaceId ?? "null"}, projectId=${task?.projectId ?? "null"}, source=${workspaceResolution.source}, mode=${workspaceResolution.lockMode}, resolved=${workspace?.name ?? "NONE"}, localPath=${workspace?.localPath ?? "NONE"}`,
     );
 
     const run = db.createRun({
       id: runId,
       companyId,
-      taskId: task.id,
+      taskId: task?.id ?? null,
       agentId: agent.id,
       workspaceId: workspaceResolution.lockMode === "exclusive" ? (workspace?.id ?? null) : null,
       connectorId: connector.id,

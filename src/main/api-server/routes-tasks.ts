@@ -310,9 +310,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Current agent is not allowed to assign this task to the selected agent" });
       return;
     }
-    // Agent-authored tasks are never heartbeat tasks; the is_heartbeat flag
-    // is set only by acquireHeartbeatTask in the orchestrator.
-    const taskValidation = validateTaskCreation({ title: input.title, description: input.description ?? "" }, false);
+    const taskValidation = validateTaskCreation({ title: input.title, description: input.description ?? "" });
     if (!taskValidation.valid) {
       server.json(res, 422, { error: taskValidation.errors.join("; ") });
       return;

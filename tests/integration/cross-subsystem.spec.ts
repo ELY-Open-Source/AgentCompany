@@ -171,7 +171,6 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
         description:
           "Implement the login page with email and password authentication. Done when: form renders, validation works, and API called on submit.",
       },
-      false,
     );
     expect(validation.valid).toBe(true);
     expect(validation.errors).toHaveLength(0);
@@ -251,7 +250,6 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
   it("quality gate rejects short description before pipeline starts", () => {
     const result = validateTaskCreation(
       { title: "Fix bug", description: "Short." },
-      false,
     );
     expect(result.valid).toBe(false);
     expect(result.errors.length).toBeGreaterThan(0);

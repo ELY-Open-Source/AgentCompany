@@ -60,7 +60,7 @@ export function buildRunMethods(
     createRun(input: {
       id?: string;
       companyId: string;
-      taskId: string;
+      taskId: string | null;
       agentId: string;
       workspaceId: string | null;
       connectorId: ConnectorId;
@@ -74,7 +74,9 @@ export function buildRunMethods(
             "insert into runs (id, company_id, task_id, agent_id, workspace_id, connector_id, status, summary, unattributed_cost, log_path, created_at, updated_at) values (?, ?, ?, ?, ?, ?, 'queued', '', 0, ?, ?, ?)",
           )
           .run(id, input.companyId, input.taskId, input.agentId, input.workspaceId, input.connectorId, logPath, ts, ts);
-        getDb().prepare("update tasks set active_run_id = ?, updated_at = ? where id = ?").run(id, ts, input.taskId);
+        if (input.taskId !== null) {
+          getDb().prepare("update tasks set active_run_id = ?, updated_at = ? where id = ?").run(id, ts, input.taskId);
+        }
       });
       writeFileSync(logPath, "", "utf8");
       return { id, logPath };
@@ -163,7 +165,7 @@ export function buildRunMethods(
       unattributedCost: boolean;
     }) {
       const run = getDb().prepare("select task_id as taskId, agent_id as agentId, company_id as companyId, connector_id as connectorId from runs where id = ?").get(input.runId) as
-        | { taskId: string; agentId: string; companyId: string; connectorId: ConnectorId }
+        | { taskId: string | null; agentId: string; companyId: string; connectorId: ConnectorId }
         | undefined;
       if (!run) return { budgetHardStopped: false };
       const ts = nowIso();
@@ -198,14 +200,18 @@ export function buildRunMethods(
             input.signal, input.model, input.sessionDisplayId, runCostUsd,
             input.unattributedCost ? 1 : 0, ts, ts, input.runId,
           );
-        getDb().prepare("update tasks set active_run_id = null, updated_at = ? where id = ?").run(ts, run.taskId);
-        getDb()
-          .prepare("UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?")
-          .run(ts, run.taskId, input.runId);
-        if (runCostUsd > 0) {
+        if (run.taskId !== null) {
+          getDb().prepare("update tasks set active_run_id = null, updated_at = ? where id = ?").run(ts, run.taskId);
           getDb()
-            .prepare("update tasks set cost_usd = cost_usd + ?, updated_at = ? where id = ?")
-            .run(runCostUsd, ts, run.taskId);
+            .prepare("UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?")
+            .run(ts, run.taskId, input.runId);
+        }
+        if (runCostUsd > 0) {
+          if (run.taskId !== null) {
+            getDb()
+              .prepare("update tasks set cost_usd = cost_usd + ?, updated_at = ? where id = ?")
+              .run(runCostUsd, ts, run.taskId);
+          }
           getDb()
             .prepare("update agents set spent_monthly_usd = spent_monthly_usd + ?, updated_at = ? where id = ?")
             .run(runCostUsd, ts, run.agentId);
@@ -223,17 +229,19 @@ export function buildRunMethods(
       return { budgetHardStopped };
     },
 
-    cancelRunForDeletion(runId: string, taskId: string, workspaceId: string | null, summary: string) {
+    cancelRunForDeletion(runId: string, taskId: string | null, workspaceId: string | null, summary: string) {
       const ts = nowIso();
       getDb()
         .prepare(
           "update runs set status = 'cancelled', summary = ?, error_message = null, exit_code = null, signal = null, model = null, session_display_id = null, cost_usd = null, unattributed_cost = 1, finished_at = ?, updated_at = ? where id = ?",
         )
         .run(summary, ts, ts, runId);
-      getDb().prepare("update tasks set active_run_id = null, updated_at = ? where id = ?").run(ts, taskId);
-      getDb()
-        .prepare("UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?")
-        .run(ts, taskId, runId);
+      if (taskId !== null) {
+        getDb().prepare("update tasks set active_run_id = null, updated_at = ? where id = ?").run(ts, taskId);
+        getDb()
+          .prepare("UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?")
+          .run(ts, taskId, runId);
+      }
       if (workspaceId) {
         getDb()
           .prepare(

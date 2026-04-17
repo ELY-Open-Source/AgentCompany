@@ -55,13 +55,15 @@ export function finalizeRun(
   });
 
   let task: TaskRecord | null = null;
-  try {
-    task = db.getTask(run.taskId);
-  } catch (error) {
-    logger.warn(
-      `[finalizeRun] getTask(${run.taskId}) failed; task may have been deleted: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    task = null;
+  if (run.taskId) {
+    try {
+      task = db.getTask(run.taskId);
+    } catch (error) {
+      logger.warn(
+        `[finalizeRun] getTask(${run.taskId}) failed; task may have been deleted: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      task = null;
+    }
   }
 
   if (task) {
@@ -192,13 +194,13 @@ export function runPostCompletionAutomation(
     budgetService.checkAndCreateIncidents(run.companyId, run.agentId, task?.projectId ?? null);
   }
 
-  if ((event.status === "failed" || event.status === "timed_out") && !isQuitting() && !destroyed) {
+  if ((event.status === "failed" || event.status === "timed_out") && !isQuitting() && !destroyed && run.taskId) {
     handleFailureEscalation(
       {
         db,
         wakeAgentIfPossible,
         notify: (title, body) =>
-          notify({ title, body, urgency: "critical", navigation: { section: "tasks", entityId: run.taskId } }),
+          notify({ title, body, urgency: "critical", navigation: { section: "tasks", entityId: run.taskId ?? "" } }),
         logger,
       },
       { taskId: run.taskId, agentId: run.agentId, companyId: run.companyId },
@@ -256,7 +258,7 @@ export function runPostCompletionAutomation(
   }
 
   // Reset retry count on successful completion
-  if (event.status === "succeeded") {
+  if (event.status === "succeeded" && run.taskId) {
     handleSuccessReset(db, run.taskId, logger);
   }
 

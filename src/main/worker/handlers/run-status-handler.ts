@@ -30,7 +30,9 @@ export function handleRunStatus(
     // run-started housekeeping run here.
     try {
       const run = db.getRun(event.runId);
-      db.renewTaskLease(run.taskId, run.id);
+      if (run.taskId) {
+        db.renewTaskLease(run.taskId, run.id);
+      }
       onRunStarted?.(run.id, run.taskId, run.agentId, run.companyId);
     } catch {
       // Run not found — skip status handling

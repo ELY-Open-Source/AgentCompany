@@ -21,7 +21,7 @@ export function createRunDispatch(deps: OrchestrationDependencies) {
   } = deps;
 
   function resolveWorkspace(
-    task: { workspaceId: string | null; projectId?: string | null },
+    task: { workspaceId: string | null; projectId?: string | null } | null,
     agent: { workspaceId: string | null },
     companyId: string,
   ) {

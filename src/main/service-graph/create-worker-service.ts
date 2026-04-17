@@ -23,8 +23,8 @@ export interface WorkerServiceDeps {
   emitEvent: (event: DesktopEvent) => void;
   orchestrationRef: LateBinding<ReturnType<typeof createOrchestrationService>>;
   automationRef: LateBinding<ReturnType<typeof createAutomationService>>;
-  onRunStarted?: (runId: string, taskId: string, agentId: string, companyId: string) => void;
-  onRunCompleted?: (runId: string, taskId: string, agentId: string, companyId: string, status: string, summary: string | null, errorMessage: string | null) => void;
+  onRunStarted?: (runId: string, taskId: string | null, agentId: string, companyId: string) => void;
+  onRunCompleted?: (runId: string, taskId: string | null, agentId: string, companyId: string, status: string, summary: string | null, errorMessage: string | null) => void;
   notify: (options: NotificationOptions) => void;
   budgetService: ReturnType<typeof createBudgetEnforcementService>;
   sessionService: ReturnType<typeof createSessionManagementService>;

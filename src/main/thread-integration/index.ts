@@ -202,7 +202,8 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
      * Called when a run starts for a task.
      * Records the run start in the task thread.
      */
-    onRunStarted(runId: string, taskId: string, agentId: string, companyId: string): void {
+    onRunStarted(runId: string, taskId: string | null, agentId: string, companyId: string): void {
+      if (!taskId) return;
       try {
         const thread = findTaskThread(db, taskId, companyId);
         if (!thread) return;

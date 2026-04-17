@@ -68,13 +68,16 @@ export function createRunHousekeeping({ db, logger, threadIntegration }: RunHous
   return {
     onRunCompleted(
       runId: string,
-      taskId: string,
+      taskId: string | null,
       agentId: string,
       companyId: string,
       status: string,
       summary: string | null,
       errorMessage: string | null,
     ): void {
+      // Skip thread integration + knowledge candidates for heartbeat runs
+      // (no task to attach them to).
+      if (!taskId) return;
       // 1. Record run completion in the task thread
       try {
         threadIntegration.onRunFinished(runId, taskId, agentId, companyId, status, errorMessage ?? null);

@@ -115,9 +115,7 @@ export function executeAutomationAction(
       const description = cfg.description ?? "";
       const priority = cfg.priority ?? "medium";
       const assigneeAgentId = cfg.assigneeAgentId ?? null;
-      // Automation rules create user-facing tasks; heartbeat tasks are
-      // synthesized only by acquireHeartbeatTask, never via create_task.
-      const taskValidation = validateTaskCreation({ title, description }, false);
+      const taskValidation = validateTaskCreation({ title, description });
       if (!taskValidation.valid) {
         logger.warn(`[automation] Skipping create_task — validation failed: ${taskValidation.errors.join("; ")}`);
         break;
@@ -230,20 +228,6 @@ export function executeAutomationAction(
         if (ctx.taskId) taskTitle = db.getTask(ctx.taskId).title;
       } catch (err) {
         logger.warn(`[automation] getTask failed for escalation task ${ctx.taskId}; using id as title:`, err instanceof Error ? err.message : String(err));
-      }
-      // Heartbeat tasks are internal system tasks — skip escalation messages to avoid flooding channels.
-      let isHeartbeatTask = false;
-      if (ctx.taskId) {
-        try {
-          isHeartbeatTask = db.getTask(ctx.taskId).isHeartbeat === true;
-        } catch (err) {
-          logger.warn(`[automation] getTask failed for heartbeat check on ${ctx.taskId}; treating as non-heartbeat:`, err instanceof Error ? err.message : String(err));
-          isHeartbeatTask = false;
-        }
-      }
-      if (isHeartbeatTask) {
-        logger.info(`[automation] Skipping escalation for heartbeat task "${taskTitle}"`);
-        break;
       }
       const manager = db.getManagerForAgent(targetAgentId);
       const escalationBody = (config.body as string) ?? `Task "${taskTitle}" needs your attention. ${agentName} has flagged this as requiring manager intervention.`;

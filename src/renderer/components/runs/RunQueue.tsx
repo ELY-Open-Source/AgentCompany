@@ -62,7 +62,7 @@ export function RunQueue({
         </div>
         <ListFrame>
           {filteredRuns.map((run) => {
-            const task = taskMap.get(run.taskId);
+            const task = run.taskId ? taskMap.get(run.taskId) : undefined;
             const agent = agentMap.get(run.agentId);
             const workspace = run.workspaceId ? workspaceMap.get(run.workspaceId) : null;
             const title = task?.title ?? (run.summary || `Run ${run.id.slice(0, 8)}`);

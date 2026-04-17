@@ -151,7 +151,6 @@ export interface TaskRecord {
   costUsd: number;
   taskType: string | null;
   requiresUserReview: boolean;
-  isHeartbeat: boolean;
   startedAt: string | null;
   completedAt: string | null;
   cancelledAt: string | null;
@@ -178,7 +177,7 @@ export interface ApprovalRecord {
 export interface RunRecord {
   id: string;
   companyId: string;
-  taskId: string;
+  taskId: string | null;
   agentId: string;
   workspaceId: string | null;
   connectorId: ConnectorId;

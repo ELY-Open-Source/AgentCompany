@@ -271,7 +271,6 @@ const fakeTask = (id: string, title = "Task"): TaskRecord => ({
   sessionJson: null,
   sessionDisplayId: null,
   requiresUserReview: false,
-  isHeartbeat: false,
   startedAt: null,
   completedAt: null,
   cancelledAt: null,

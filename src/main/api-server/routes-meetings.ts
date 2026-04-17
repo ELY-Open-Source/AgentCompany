@@ -126,7 +126,6 @@ export function registerMeetingRoutes(server: AgentApiServer) {
         if (item.title && typeof item.title === "string") {
           const meetingTaskValidation = validateTaskCreation(
             { title: item.title, description: item.description ?? `Action item from meeting: ${data.title ?? existing.title}` },
-            false,
           );
           if (!meetingTaskValidation.valid) {
             log.warn(

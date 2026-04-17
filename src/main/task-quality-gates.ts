@@ -78,13 +78,7 @@ export function checkAcceptanceCriteria(description: string): { hasCriteria: boo
 
 export function validateTaskCreation(
   input: { title: string; description: string; type?: string },
-  isHeartbeat: boolean,
 ): TaskValidationResult {
-  // Heartbeat tasks bypass all validation
-  if (isHeartbeat) {
-    return { valid: true, errors: [], warnings: [] };
-  }
-
   const errors: string[] = [];
   const warnings: string[] = [];
 

@@ -27,7 +27,8 @@ export interface AutomationDispatch {
 export interface EnqueueRunPayload {
   runId: string;
   companyId: string;
-  taskId: string;
+  /** Null for heartbeat runs (agent wake-ups with no assigned task). */
+  taskId: string | null;
   taskTitle: string;
   taskDescription: string;
   agentId: string;

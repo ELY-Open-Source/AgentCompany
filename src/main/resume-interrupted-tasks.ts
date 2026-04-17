@@ -34,10 +34,12 @@ export function resumeInterruptedTasks({
     const resumedAgents = new Set<string>();
     for (const run of shutdownRuns) {
       try {
-        const task = db.getTask(run.taskId);
-        if (task.status === "in_progress" || task.status === "blocked") {
-          db.advanceTaskStatus(run.taskId, "todo", "Auto-resumed after app restart.");
-          db.releaseTaskLock(run.taskId, run.id);
+        if (run.taskId) {
+          const task = db.getTask(run.taskId);
+          if (task.status === "in_progress" || task.status === "blocked") {
+            db.advanceTaskStatus(run.taskId, "todo", "Auto-resumed after app restart.");
+            db.releaseTaskLock(run.taskId, run.id);
+          }
         }
         if (!resumedAgents.has(run.agentId)) {
           resumedAgents.add(run.agentId);

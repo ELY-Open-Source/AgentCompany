@@ -7,7 +7,7 @@ import type { RunDispatchParams } from "./turn-context";
 
 export function createTaskRunner(
   deps: OrchestrationDependencies,
-  resolveWorkspace: (task: { workspaceId: string | null; projectId?: string | null }, agent: { workspaceId: string | null }, companyId: string) => { workspace: ReturnType<AppDatabase["getWorkspace"]>; lockMode: "exclusive" | "shared" | "none"; source: string },
+  resolveWorkspace: (task: { workspaceId: string | null; projectId?: string | null } | null, agent: { workspaceId: string | null }, companyId: string) => { workspace: ReturnType<AppDatabase["getWorkspace"]>; lockMode: "exclusive" | "shared" | "none"; source: string },
   getRunEligibilityFailure: (agent: AgentRecord, connector: ConnectorRecord, projectId?: string | null) => string | null,
   dispatchRunToWorker: (params: RunDispatchParams) => void,
   hasActiveRun: (filter: { taskId?: string; agentId?: string; companyId: string }) => boolean,
@@ -167,10 +167,10 @@ export function createTaskRunner(
       }
 
       try {
-        const task = db.getTask(run.taskId);
+        const task = run.taskId ? db.getTask(run.taskId) : null;
         const agent = db.getAgent(run.agentId);
         const connector = db.getConnector(run.connectorId);
-        const eligibilityFailure = getRunEligibilityFailure(agent, connector, task.projectId ?? null);
+        const eligibilityFailure = getRunEligibilityFailure(agent, connector, task?.projectId ?? null);
         if (eligibilityFailure) {
           if (eligibilityFailure === "CONNECTOR_MODEL_NOT_ALLOWED") {
             db.finishRun({
@@ -190,13 +190,13 @@ export function createTaskRunner(
               action: "run.recovery_blocked",
               entityType: "run",
               entityId: run.id,
-              detail: `Recovered queued run blocked by connector/model policy for task "${task.title}"`,
+              detail: `Recovered queued run blocked by connector/model policy for task "${task?.title ?? "(heartbeat)"}"`,
             });
             emitEvent({ type: "run-updated", runId: run.id, action: "completed" });
           }
           continue;
         }
-        const workspaceResolution = resolveWorkspace(task, agent, run.companyId);
+        const workspaceResolution = resolveWorkspace(task ?? null, agent, run.companyId);
         dispatchRunToWorker({
           runId: run.id,
           companyId: run.companyId,

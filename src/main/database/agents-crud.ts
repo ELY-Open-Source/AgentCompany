@@ -26,7 +26,7 @@ export function buildAgentCrudMethods(
       createdByAgentId?: string | null;
       createdByUserId?: string | null;
     }) => string;
-    cancelRunForDeletion: (runId: string, taskId: string, workspaceId: string | null, summary: string) => void;
+    cancelRunForDeletion: (runId: string, taskId: string | null, workspaceId: string | null, summary: string) => void;
     addActivity: (input: { companyId: string; actor: string; action: string; entityType: string; entityId: string; detail: string }) => void;
   },
 ) {
@@ -159,7 +159,7 @@ export function buildAgentCrudMethods(
     },
 
     deleteAgent(id: string, companyId: string): void {
-      const activeAgentRuns = readAll<{ id: string; taskId: string; workspaceId: string | null }>(
+      const activeAgentRuns = readAll<{ id: string; taskId: string | null; workspaceId: string | null }>(
         "select id, task_id as taskId, workspace_id as workspaceId from runs where agent_id = ? and company_id = ? and status in ('queued', 'running')",
         id,
         companyId,

@@ -102,9 +102,7 @@ export function registerCoreTaskGraphHandlers({
     }
     const isNew = !parsed.id;
     if (isNew) {
-      // User-created tasks are never heartbeat tasks; the is_heartbeat flag
-      // is set only by acquireHeartbeatTask in the orchestrator.
-      const validation = validateTaskCreation(parsed, false);
+      const validation = validateTaskCreation(parsed);
       if (!validation.valid) {
         return fail("TASK_VALIDATION_FAILED", validation.errors.join("; "));
       }

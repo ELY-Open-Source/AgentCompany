@@ -209,6 +209,7 @@ export function processRunCompletion(
   const { db, logger: _logger, publishDomainChanged, notify, wakeAgentIfPossible } = deps;
   const { dispatchAutomation, handleTaskStatusChange } = callbacks;
 
+  if (!run.taskId) return;
   let task: ReturnType<typeof db.getTask> | null = null;
   try {
     task = db.getTask(run.taskId);
@@ -260,14 +261,9 @@ export function processRunCompletion(
     }
   }
 
-  if (isSuccess && task.isHeartbeat && effectiveStatus !== "done") {
-    db.advanceTaskStatus(task.id, "done", "Heartbeat check completed.");
-    handleTaskStatusChange(task.id, run.companyId, effectiveStatus, "done");
-  }
-
   const automationContext: AutomationEventContext = {
     companyId: run.companyId,
-    taskId: run.taskId,
+    taskId: run.taskId ?? undefined,
     agentId: run.agentId,
     runId: run.id,
   };

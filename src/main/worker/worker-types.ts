@@ -71,7 +71,7 @@ export interface WorkerServiceDependencies {
     runId: string;
     companyId: string;
     agent: ReturnType<AppDatabase["getAgent"]>;
-    task: ReturnType<AppDatabase["getTask"]>;
+    task: ReturnType<AppDatabase["getTask"]> | null;
     connector: ReturnType<AppDatabase["getConnector"]>;
     workspace: ReturnType<AppDatabase["getWorkspace"]>;
     workspaceMode: "exclusive" | "shared" | "none";
@@ -81,8 +81,8 @@ export interface WorkerServiceDependencies {
     trigger: string;
   }) => void;
   processRunCompletion: (run: RunRecord, event: z.infer<typeof workerMessageSchema> & { type: "run-finished" }) => void;
-  onRunStarted?: (runId: string, taskId: string, agentId: string, companyId: string) => void;
-  onRunCompleted?: (runId: string, taskId: string, agentId: string, companyId: string, status: string, summary: string | null, errorMessage: string | null) => void;
+  onRunStarted?: (runId: string, taskId: string | null, agentId: string, companyId: string) => void;
+  onRunCompleted?: (runId: string, taskId: string | null, agentId: string, companyId: string, status: string, summary: string | null, errorMessage: string | null) => void;
   notify: (options: NotificationOptions) => void;
   budgetService?: ReturnType<typeof createBudgetEnforcementService>;
   sessionService?: ReturnType<typeof createSessionManagementService>;

@@ -22,7 +22,7 @@ export function buildAgentMethods(
       createdByAgentId?: string | null;
       createdByUserId?: string | null;
     }) => string;
-    cancelRunForDeletion: (runId: string, taskId: string, workspaceId: string | null, summary: string) => void;
+    cancelRunForDeletion: (runId: string, taskId: string | null, workspaceId: string | null, summary: string) => void;
     addActivity: (input: { companyId: string; actor: string; action: string; entityType: string; entityId: string; detail: string }) => void;
   },
 ) {

@@ -24,7 +24,7 @@ export function handleWorkerExit(
   const affectedCompanyIds = new Map<string, string>();
   const requeueCandidates: Array<{
     id: string;
-    taskId: string;
+    taskId: string | null;
     agentId: string;
     companyId: string;
     workspaceId: string | null;
@@ -48,7 +48,9 @@ export function handleWorkerExit(
         db.releaseWorkspaceLock(run.workspaceId, run.id);
       }
       // EXEC-02: Release execution lock on crash recovery
-      db.releaseTaskLock(run.taskId, run.id);
+      if (run.taskId) {
+        db.releaseTaskLock(run.taskId, run.id);
+      }
       affectedAgentIds.add(run.agentId);
       affectedCompanyIds.set(run.agentId, run.companyId);
 
@@ -97,7 +99,7 @@ export function handleWorkerExit(
         if (candidate.workspaceId) {
           db.releaseWorkspaceLock(candidate.workspaceId, candidate.id);
         }
-        const task = db.getTask(candidate.taskId);
+        const task = candidate.taskId ? db.getTask(candidate.taskId) : null;
         const agent = db.getAgent(candidate.agentId);
         const connector = db.getConnector(agent.connectorId);
         const { workspace, lockMode } = resolveWorkspaceWithLockMode(db, task, agent, candidate.companyId);

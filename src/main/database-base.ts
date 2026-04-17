@@ -268,14 +268,11 @@ export class AppDatabaseBase {
   checkoutTask(taskId: string, runId: string) { return this.tasks.checkoutTask(taskId, runId); }
   releaseTaskLock(taskId: string, runId: string) { return this.tasks.releaseTaskLock(taskId, runId); }
   renewTaskLease(taskId: string, runId: string) { return this.tasks.renewTaskLease(taskId, runId); }
-  listAgentTasks(agentId: string, companyId: string, statuses: string[], options?: { includeHeartbeat?: boolean }) { return this.tasks.listAgentTasks(agentId, companyId, statuses, options); }
-  listTasksByStatuses(companyId: string, statuses: string[], options?: { includeHeartbeat?: boolean }) { return this.tasks.listTasksByStatuses(companyId, statuses, options); }
+  listAgentTasks(agentId: string, companyId: string, statuses: string[]) { return this.tasks.listAgentTasks(agentId, companyId, statuses); }
+  listTasksByStatuses(companyId: string, statuses: string[]) { return this.tasks.listTasksByStatuses(companyId, statuses); }
   listTasksForStandup(companyId: string) { return this.tasks.listTasksForStandup(companyId); }
   listAssigneeTasksForStandup(companyId: string, agentId: string) { return this.tasks.listAssigneeTasksForStandup(companyId, agentId); }
   listTasksForAssignees(companyId: string, assigneeIds: string[]) { return this.tasks.listTasksForAssignees(companyId, assigneeIds); }
-  findReusableHeartbeatTask(agentId: string, companyId: string) { return this.tasks.findReusableHeartbeatTask(agentId, companyId); }
-  acquireHeartbeatTask(input: { agentId: string; companyId: string; runId: string; workspaceId: string | null; title: string; description: string; priority: string }) { return this.tasks.acquireHeartbeatTask(input); }
-  cleanupDuplicateHeartbeatTasks(companyId: string) { return this.tasks.cleanupDuplicateHeartbeatTasks(companyId); }
   listReviewTasksForManager(managerId: string, companyId: string) { return this.tasks.listReviewTasksForManager(managerId, companyId); }
   countActiveTasksForCompany(companyId: string) { return this.tasks.countActiveTasksForCompany(companyId); }
   listChildTasks(parentId: string, companyId: string) { return this.tasks.listChildTasks(parentId, companyId); }
@@ -300,7 +297,7 @@ export class AppDatabaseBase {
 
   getRun(id: string) { return this.runs.getRun(id); }
   getRunAuthState(runId: string) { return this.runs.getRunAuthState(runId); }
-  createRun(input: { id?: string; companyId: string; taskId: string; agentId: string; workspaceId: string | null; connectorId: ConnectorId }) { return this.runs.createRun(input); }
+  createRun(input: { id?: string; companyId: string; taskId: string | null; agentId: string; workspaceId: string | null; connectorId: ConnectorId }) { return this.runs.createRun(input); }
   appendRunLog(runId: string, stream: "stdout" | "stderr", chunk: string) { return this.runs.appendRunLog(runId, stream, chunk); }
   readRunLog(runId: string) { return this.runs.readRunLog(runId); }
   readRunLogChunk(runId: string, offset = 0, limit = 65_536) { return this.runs.readRunLogChunk(runId, offset, limit); }

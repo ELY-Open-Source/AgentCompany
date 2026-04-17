@@ -18,7 +18,10 @@ export interface RunDispatchParams {
   runId: string;
   companyId: string;
   agent: ReturnType<AppDatabase["getAgent"]>;
-  task: ReturnType<AppDatabase["getTask"]>;
+  // `task` is null for heartbeat runs (agent wake-ups with no assigned task).
+  // Downstream code (prompt builder, worker payload, session pointer)
+  // branches on this — when null, skip task-scoped state.
+  task: ReturnType<AppDatabase["getTask"]> | null;
   connector: ReturnType<AppDatabase["getConnector"]>;
   workspace: ReturnType<AppDatabase["getWorkspace"]>;
   workspaceMode: WorkspaceLockMode;
@@ -145,6 +148,15 @@ function resolveSession(
   // that read per-task active_session_id keep working.
   db.updateTasksActiveSessionForAgent(agent.id, agentSessionId);
 
+  // Heartbeat runs have no task; reuse the agent-scoped session with no
+  // task-specific active session lookup.
+  if (!task) {
+    return {
+      taskSession: { id: agentSessionId, sessionParams: null, sessionDisplayId: null },
+      sessionHandoff,
+    };
+  }
+
   const activeSession = db.getActiveTaskSession(task.id);
   let taskSession: {
     id: string | null;
@@ -267,12 +279,12 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
   const { db } = deps;
 
   const { env, apiUrl, apiKey } = assembleApiEnv(db, connector, companyId, agent.id, runId, trigger, deps);
-  env.AGENT_COMPANY_TASK_ID = task.id;
+  env.AGENT_COMPANY_TASK_ID = task?.id ?? "";
 
   const assignedTasks = db.listAgentTasks(agent.id, companyId, ["todo", "in_progress", "blocked"]);
   const reviewTasks = db.listReviewTasksForManager(agent.id, companyId);
   const recentComments = assembleRecentComments(assignedTasks, reviewTasks, snapshot);
-  const initialHandoff = resolveSessionHandoff(task.id, deps);
+  const initialHandoff = task ? resolveSessionHandoff(task.id, deps) : null;
   const { taskSession, sessionHandoff } = resolveSession(db, agent, task, companyId, connector.id, initialHandoff, deps);
   const skills = resolveSkills(companyId, agent.id, connector.id, agent.name, deps);
 
@@ -331,9 +343,9 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
   return {
     runId,
     companyId,
-    taskId: task.id,
-    taskTitle: task.title,
-    taskDescription: task.description,
+    taskId: task?.id ?? null,
+    taskTitle: task?.title ?? "",
+    taskDescription: task?.description ?? "",
     agentId: agent.id,
     agentName: agent.name,
     connectorId: connector.id,

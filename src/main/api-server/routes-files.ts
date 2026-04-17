@@ -108,7 +108,7 @@ export function registerFileRoutes(server: AgentApiServer) {
       try {
         const run = db.getRun(token.runId);
         if (run.companyId === token.companyId) {
-          taskId = run.taskId;
+          taskId = run.taskId ?? null;
         }
       } catch (error) {
         log.warn(
