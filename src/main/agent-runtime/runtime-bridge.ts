@@ -8,6 +8,55 @@ import { CostWriter } from "./cost-writer";
 import type { CredentialResolver } from "@main/credentials";
 import { getConnectorDefinition } from "@main/connectors";
 
+/**
+ * Projects a pi AgentEvent to a human-readable log line for the Console.
+ * Returns null when the event should not surface as log output (state-only
+ * events such as `turn_start` are already implied by run-status).
+ */
+function projectAgentEventToLogChunk(
+  event: { type: string } & Record<string, unknown>,
+): { stream: "stdout" | "stderr"; chunk: string } | null {
+  switch (event.type) {
+    case "assistant_message_delta": {
+      const delta = typeof event.delta === "string" ? event.delta : "";
+      if (!delta) return null;
+      return { stream: "stdout", chunk: delta };
+    }
+    case "tool_call_start": {
+      const toolName = typeof event.toolName === "string" ? event.toolName : "tool";
+      const argsPreview = summariseJson(event.args, 200);
+      return { stream: "stdout", chunk: `\n[tool:${toolName}] ${argsPreview}\n` };
+    }
+    case "tool_call_end": {
+      const toolName = typeof event.toolName === "string" ? event.toolName : "tool";
+      const isError = event.isError === true;
+      const resultPreview = summariseJson(event.result, 300);
+      const tag = isError ? "tool:error" : "tool:done";
+      return { stream: isError ? "stderr" : "stdout", chunk: `[${tag}:${toolName}] ${resultPreview}\n` };
+    }
+    case "error": {
+      const msg = typeof event.message === "string" ? event.message : "(unknown error)";
+      return { stream: "stderr", chunk: `[error] ${msg}\n` };
+    }
+    case "turn_end": {
+      return { stream: "stdout", chunk: "\n" };
+    }
+    default:
+      return null;
+  }
+}
+
+function summariseJson(value: unknown, maxLength: number): string {
+  if (value === undefined || value === null) return "";
+  try {
+    const json = typeof value === "string" ? value : JSON.stringify(value);
+    if (json.length <= maxLength) return json;
+    return `${json.slice(0, maxLength - 3)}...`;
+  } catch {
+    return "<unserialisable>";
+  }
+}
+
 export interface RuntimeBridgeDeps {
   db: AppDatabase;
   emitEvent: (event: DesktopEvent) => void;
@@ -92,6 +141,16 @@ export class RuntimeBridge {
       emittedAt: envelope.emittedAt,
       event: envelope.event,
     });
+
+    const logChunk = projectAgentEventToLogChunk(envelope.event);
+    if (logChunk) {
+      this.deps.emitEvent({
+        type: "run-log",
+        runId: envelope.runId,
+        stream: logChunk.stream,
+        chunk: logChunk.chunk,
+      });
+    }
 
     if (envelope.event.type === "message_end") {
       const ctx = this.activeRuns.get(envelope.runId);

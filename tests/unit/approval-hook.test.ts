@@ -11,7 +11,7 @@ beforeAll(() => {
 
 const noopLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
-describe("HumanApprovalHook", () => {
+describe("HumanApprovalHook — autonomous contract", () => {
   let tempDir: string;
   let db: AppDatabase;
   const emit = vi.fn();
@@ -28,7 +28,7 @@ describe("HumanApprovalHook", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  function scaffold() {
+  function scaffoldIds() {
     const companyId = db.saveCompany({
       name: "Approval Co",
       description: "fixture",
@@ -57,20 +57,20 @@ describe("HumanApprovalHook", () => {
     });
     const taskId = db.saveTask({
       companyId,
-      title: "Bash review fixture",
-      description: "needs approval",
+      title: "Autonomy fixture",
+      description: "no gate",
       assigneeAgentId: agentId,
       workspaceId,
       priority: "medium",
       status: "in_progress",
     });
-    return { companyId, workspaceId, agentId, taskId };
+    return { companyId, agentId, taskId };
   }
 
-  it("blocks the tool call with the approval note when the user denies", async () => {
-    const { companyId, agentId, taskId } = scaffold();
+  it("approves every tool call synchronously without writing an approval row", async () => {
+    const { companyId, agentId, taskId } = scaffoldIds();
     const hook = new HumanApprovalHook({ db, emitEvent: emit, logger: noopLogger });
-    const promise = hook.before("run-1", {
+    const verdict = await hook.before("run-1", {
       agentId,
       companyId,
       taskId,
@@ -78,22 +78,16 @@ describe("HumanApprovalHook", () => {
       toolName: "bash",
       args: { command: "rm -rf /" },
     });
-    // Allow the approval row to be written before resolving.
-    await new Promise((resolve) => setImmediate(resolve));
+    expect(verdict).toEqual({});
     const approvals = db.listSnapshot({ companyId }).approvals.filter((a) => a.state === "pending");
-    expect(approvals).toHaveLength(1);
-    const approvalId = approvals[0]!.id;
-    const resolved = hook.resolveApproval(approvalId, "reject", "denied: dangerous");
-    expect(resolved).toBe(true);
-    const verdict = await promise;
-    expect(verdict.block).toBe(true);
-    expect(verdict.reason).toBe("denied: dangerous");
+    expect(approvals).toHaveLength(0);
+    expect(emit).not.toHaveBeenCalled();
   });
 
-  it("approves the tool call when the user approves", async () => {
-    const { companyId, agentId, taskId } = scaffold();
+  it("approves non-destructive tool calls with the same auto-approve contract", async () => {
+    const { companyId, agentId, taskId } = scaffoldIds();
     const hook = new HumanApprovalHook({ db, emitEvent: emit, logger: noopLogger });
-    const promise = hook.before("run-2", {
+    const verdict = await hook.before("run-2", {
       agentId,
       companyId,
       taskId,
@@ -101,23 +95,17 @@ describe("HumanApprovalHook", () => {
       toolName: "edit",
       args: { path: "src/foo.ts" },
     });
-    await new Promise((resolve) => setImmediate(resolve));
-    const approvals = db.listSnapshot({ companyId }).approvals.filter((a) => a.state === "pending");
-    const approvalId = approvals[0]!.id;
-    hook.resolveApproval(approvalId, "approve", "");
-    const verdict = await promise;
-    expect(verdict.block).toBeUndefined();
+    expect(verdict).toEqual({});
   });
 
-  it("cancelAll resolves every pending approval as blocked", async () => {
-    const { companyId, agentId, taskId } = scaffold();
+  it("cancelAll is a no-op because no approvals are queued", async () => {
+    const { companyId, agentId, taskId } = scaffoldIds();
     const hook = new HumanApprovalHook({ db, emitEvent: emit, logger: noopLogger });
     const p1 = hook.before("run-x", { agentId, companyId, taskId, toolCallId: "a", toolName: "bash", args: { command: "ls" } });
     const p2 = hook.before("run-x", { agentId, companyId, taskId, toolCallId: "b", toolName: "write", args: { path: "/tmp/x" } });
-    await new Promise((resolve) => setImmediate(resolve));
     hook.cancelAll("Run cancelled.");
     const [v1, v2] = await Promise.all([p1, p2]);
-    expect(v1.block).toBe(true);
-    expect(v2.block).toBe(true);
+    expect(v1).toEqual({});
+    expect(v2).toEqual({});
   });
 });
