@@ -28,11 +28,12 @@ export function resolveApprovalDecision({
   detail?: string | null;
   actor?: string;
 }) {
+  const note = decisionNote ?? "";
   db.decideApproval({
     companyId,
     approvalId,
     state,
-    decisionNote: decisionNote ?? "",
+    decisionNote: note,
   });
   db.addActivity({
     companyId,
@@ -40,7 +41,7 @@ export function resolveApprovalDecision({
     action: `approval.${state}`,
     entityType: "approval",
     entityId: approvalId,
-    detail: detail ?? decisionNote ?? "",
+    detail: detail ?? note,
   });
   handleApprovalResolved(approvalId, companyId, state);
 }
