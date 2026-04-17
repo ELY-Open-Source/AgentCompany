@@ -115,7 +115,6 @@ pnpm typecheck
 pnpm lint
 pnpm test:unit
 pnpm test:integration
-pnpm test:packages
 pnpm test:e2e
 pnpm build:verify
 ```
