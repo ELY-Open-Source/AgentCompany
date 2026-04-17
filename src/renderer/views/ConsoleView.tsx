@@ -40,6 +40,7 @@ export function ConsoleView({
     // logRevision is intentionally part of deps: it bumps on every run-log
     // push into the ref, forcing this memo (and this component) to re-evaluate
     // the ref contents on re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedRun, logRevision, logBufferRef],
   );
   const runSelectOptions = useMemo(() => {

@@ -84,14 +84,12 @@ export function App() {
       company.companyGoals,
       company.companyProjects,
     ), [
-      ui.navItems,
-      ui.paletteQuery,
+      ui,
       company.companyAgents,
       company.tasks,
       company.runs,
       company.companyGoals,
       company.companyProjects,
-     
     ]);
 
   const paletteActions = useMemo(
