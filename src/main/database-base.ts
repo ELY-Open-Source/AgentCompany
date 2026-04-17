@@ -291,6 +291,7 @@ export class AppDatabaseBase {
   requestApproval(input: { companyId: string; relatedTaskId?: string | null; requestedByAgentId?: string | null; relatedAgentId?: string | null; type: string; payloadSummary: string; impactSummary: string; payloadJson?: string | null }) { return this.approvalsMod.requestApproval(input); }
   decideApproval(input: { companyId?: string | null; approvalId: string; state: string; decisionNote: string }) { return this.approvalsMod.decideApproval(input); }
   getApprovalRecord(id: string) { return this.approvalsMod.getApprovalRecord(id); }
+  findApprovalById(id: string) { return this.approvalsMod.findApprovalById(id); }
   deleteApproval(id: string, companyId: string) { this.approvalsMod.deleteApproval(id, companyId); }
   getBlockingApproval(companyId: string, agentId: string, taskId: string | null) { return this.approvalsMod.getBlockingApproval(companyId, agentId, taskId); }
   resubmitApproval(approvalId: string, companyId: string) { this.approvalsMod.resubmitApproval(approvalId, companyId); }

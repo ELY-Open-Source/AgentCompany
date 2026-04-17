@@ -23,6 +23,20 @@ export function buildApprovalMethods(
       return row;
     },
 
+    /**
+     * Non-throwing lookup by id. Returns null when the approval does not
+     * exist. Used by approval routes that need to branch on 404 rather
+     * than catching an exception.
+     */
+    findApprovalById(id: string): (ApprovalRecord & { payloadJson: string | null; relatedAgentId: string | null }) | null {
+      const row = getDb()
+        .prepare(
+          "select id, company_id as companyId, related_task_id as relatedTaskId, requested_by_agent_id as requestedByAgentId, related_agent_id as relatedAgentId, type, payload_summary as payloadSummary, impact_summary as impactSummary, payload_json as payloadJson, decision_note as decisionNote, state, created_at as createdAt, updated_at as updatedAt from approvals where id = ?",
+        )
+        .get(id) as (ApprovalRecord & { payloadJson: string | null; relatedAgentId: string | null }) | undefined;
+      return row ?? null;
+    },
+
     requestApproval(input: {
       companyId: string;
       relatedTaskId?: string | null;

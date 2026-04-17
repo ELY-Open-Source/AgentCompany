@@ -1,31 +1,14 @@
 import { z } from "zod";
 import log from "electron-log/main.js";
-import type { SQLInputValue } from "node:sqlite";
 import { approvalInputSchema } from "@shared/contracts";
 import { resolveApprovalDecision, shouldAutoApproveApproval } from "../approval-policy";
 import { requireParam, type AgentApiServer } from "./server-core";
-import type { AppDatabase } from "../database";
 
 const approvalListQuerySchema = z.object({
   requestedByAgentId: z.string().uuid().optional(),
   relatedTaskId: z.string().uuid().optional(),
   status: z.string().optional(),
 });
-
-type ApprovalRow = {
-  id: string; companyId: string; relatedTaskId: string | null; relatedAgentId: string | null;
-  requestedByAgentId: string | null; type: string; payloadSummary: string | null;
-  impactSummary: string | null; payloadJson: string | null; decisionNote: string | null;
-  state: string; createdAt: string; updatedAt: string;
-};
-
-function getApproval(db: AppDatabase, approvalId: string): ApprovalRow | null {
-  const rows = db.queryAll<ApprovalRow>(
-    "select id, company_id as companyId, related_task_id as relatedTaskId, related_agent_id as relatedAgentId, requested_by_agent_id as requestedByAgentId, type, payload_summary as payloadSummary, impact_summary as impactSummary, payload_json as payloadJson, decision_note as decisionNote, state, created_at as createdAt, updated_at as updatedAt from approvals where id = ? limit 1",
-    approvalId,
-  );
-  return rows[0] ?? null;
-}
 
 export function registerApprovalRoutes(server: AgentApiServer) {
   const db = server.db;
@@ -128,18 +111,16 @@ export function registerApprovalRoutes(server: AgentApiServer) {
       return;
     }
     const statuses = parsedQuery.data.status?.split(",").filter(Boolean) ?? null;
-    let sql = "select id, company_id as companyId, related_task_id as relatedTaskId, related_agent_id as relatedAgentId, requested_by_agent_id as requestedByAgentId, type, payload_summary as payloadSummary, impact_summary as impactSummary, payload_json as payloadJson, decision_note as decisionNote, state, created_at as createdAt, updated_at as updatedAt from approvals where company_id = ?";
-    const sqlArgs: unknown[] = [companyId];
-    if (parsedQuery.data.requestedByAgentId) { sql += " and requested_by_agent_id = ?"; sqlArgs.push(parsedQuery.data.requestedByAgentId); }
-    if (parsedQuery.data.relatedTaskId) { sql += " and related_task_id = ?"; sqlArgs.push(parsedQuery.data.relatedTaskId); }
-    if (statuses && statuses.length > 0) { sql += ` and state in (${statuses.map(() => "?").join(", ")})`; sqlArgs.push(...statuses); }
-    sql += " order by created_at desc";
-    const approvals = db.queryAll<ApprovalRow>(sql, ...(sqlArgs as SQLInputValue[]));
+    const approvals = db.listApprovalsForApi(companyId, {
+      requestedByAgentId: parsedQuery.data.requestedByAgentId,
+      relatedTaskId: parsedQuery.data.relatedTaskId,
+      statuses,
+    });
     server.json(res, 200, approvals);
   });
 
   server.addRoute("GET", "/api/approvals/:approvalId", (_req, res, params, token) => {
-    const approval = getApproval(db, requireParam(params, "approvalId"));
+    const approval = db.findApprovalById(requireParam(params, "approvalId"));
     if (!approval || approval.companyId !== token.companyId) {
       server.json(res, 404, { error: "Approval not found" });
       return;
@@ -153,7 +134,7 @@ export function registerApprovalRoutes(server: AgentApiServer) {
 
   server.addRoute("GET", "/api/approvals/:approvalId/comments", (_req, res, params, token) => {
     const approvalId = requireParam(params, "approvalId");
-    const approval = getApproval(db, approvalId);
+    const approval = db.findApprovalById(approvalId);
     if (!approval) { server.json(res, 404, { error: "Approval not found" }); return; }
     if (approval.companyId !== token.companyId) { server.json(res, 403, { error: "Company mismatch" }); return; }
     const comments = db.listApprovalComments(approvalId, approval.companyId);
@@ -161,7 +142,7 @@ export function registerApprovalRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("POST", "/api/approvals/:approvalId/comments", (_req, res, params, token, body) => {
-    const approval = getApproval(db, requireParam(params, "approvalId"));
+    const approval = db.findApprovalById(requireParam(params, "approvalId"));
     if (!approval) { server.json(res, 404, { error: "Approval not found" }); return; }
     if (approval.companyId !== token.companyId) { server.json(res, 403, { error: "Company mismatch" }); return; }
     const data = body as Record<string, unknown>;
@@ -185,7 +166,7 @@ export function registerApprovalRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("POST", "/api/approvals/:approvalId/resubmit", (_req, res, params, token) => {
-    const approval = getApproval(db, requireParam(params, "approvalId"));
+    const approval = db.findApprovalById(requireParam(params, "approvalId"));
     if (!approval) { server.json(res, 404, { error: "Approval not found" }); return; }
     if (approval.companyId !== token.companyId) { server.json(res, 403, { error: "Company mismatch" }); return; }
     if (approval.state !== "revision_requested") {
@@ -203,7 +184,7 @@ export function registerApprovalRoutes(server: AgentApiServer) {
 
   server.addRoute("GET", "/api/approvals/:approvalId/tasks", (_req, res, params, token) => {
     const approvalId = requireParam(params, "approvalId");
-    const approval = getApproval(db, approvalId);
+    const approval = db.findApprovalById(approvalId);
     if (!approval) { server.json(res, 404, { error: "Approval not found" }); return; }
     if (approval.companyId !== token.companyId) { server.json(res, 403, { error: "Company mismatch" }); return; }
     const taskIds = db.listTasksForApproval(approvalId);
@@ -212,7 +193,7 @@ export function registerApprovalRoutes(server: AgentApiServer) {
 
   server.addRoute("POST", "/api/approvals/:approvalId/tasks", (_req, res, params, token, body) => {
     const approvalId = requireParam(params, "approvalId");
-    const approval = getApproval(db, approvalId);
+    const approval = db.findApprovalById(approvalId);
     if (!approval) { server.json(res, 404, { error: "Approval not found" }); return; }
     if (approval.companyId !== token.companyId) { server.json(res, 403, { error: "Company mismatch" }); return; }
     const data = body as Record<string, unknown>;
