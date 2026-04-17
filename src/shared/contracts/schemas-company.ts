@@ -11,8 +11,40 @@ export const companyInputSchema = z.object({
   executionMode: z.enum(["ai_ceo", "ai_cofounder"]).default("ai_ceo"),
 });
 
+export const connectorIdEnum = z.enum([
+  // OAuth (5)
+  "claude-pro",
+  "openai-codex",
+  "github-copilot",
+  "gemini-cli",
+  "antigravity",
+  // API key (18)
+  "anthropic",
+  "openai",
+  "google",
+  "mistral",
+  "groq",
+  "cerebras",
+  "xai",
+  "openrouter",
+  "vercel-ai-gateway",
+  "zai",
+  "opencode",
+  "opencode-go",
+  "huggingface",
+  "kimi-coding",
+  "minimax",
+  "minimax-cn",
+  "fireworks",
+  "fireworks-firepass",
+  // Cloud (3)
+  "amazon-bedrock",
+  "azure-openai",
+  "google-vertex",
+]);
+
 export const connectorInputSchema = z.object({
-  id: z.enum(["codex_local", "claude_local", "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5", "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10", "gemini_local"]),
+  id: connectorIdEnum,
   command: z.string().min(1),
   model: z.string().nullable().optional(),
   envBindingText: z.string().default(""),
