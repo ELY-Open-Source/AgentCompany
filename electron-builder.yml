@@ -17,6 +17,11 @@ extraResources:
       - "**/*"
       - "!**/.DS_Store"
       - "!**/.git/**"
+      - "!**/node_modules/**"
+      - "!**/__pycache__/**"
+      - "!**/*.pyc"
+      - "!**/.pytest_cache/**"
+      - "!**/*.log"
 
 mac:
   category: public.app-category.developer-tools
