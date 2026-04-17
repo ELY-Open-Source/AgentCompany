@@ -1,8 +1,26 @@
+import { z } from "zod";
 import type { AppDatabase } from "../database";
 import type { AgentRecord } from "@shared/types";
 import { WORKFLOW_ACTIONS, type WorkflowStepState, type AutomationEventContext } from "./types";
 import type { ActionDeps, ActionCallbacks } from "./automation-actions";
 import { executeAutomationAction } from "./automation-actions";
+
+// Raw workflow step shape accepted from the DB `stepsJson` column. All fields
+// are optional/loose because legacy rows used free-form typeof checks; zod
+// applies the normalized defaults once via `.parse(...)`.
+const workflowStepInputSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().optional(),
+  action: z.string().optional(),
+  configJson: z.string().optional(),
+  assigneeDepartment: z.string().nullable().optional(),
+  assigneeAgentId: z.string().nullable().optional(),
+  requiresApproval: z.boolean().optional(),
+  timeoutSec: z.number().optional(),
+  status: z.enum(["pending", "running", "completed", "failed", "skipped"]).optional(),
+}).passthrough();
+
+const workflowStepsInputSchema = z.array(workflowStepInputSchema);
 
 export interface WorkflowDeps {
   db: AppDatabase;
@@ -15,27 +33,22 @@ export interface WorkflowDeps {
 }
 
 export function normalizeWorkflowSteps(raw: unknown): WorkflowStepState[] {
-  if (!Array.isArray(raw)) {
-    throw new Error("Workflow steps must be a JSON array.");
-  }
-  return raw.map((entry, index) => {
-    const step = (entry ?? {}) as Record<string, unknown>;
-    const rawAction = typeof step.action === "string" ? step.action : "send_message";
+  const parsed = workflowStepsInputSchema.parse(raw);
+  return parsed.map((step, index) => {
+    const rawAction = step.action ?? "send_message";
     if (!WORKFLOW_ACTIONS.has(rawAction as WorkflowStepState["action"])) {
       throw new Error(`Workflow step ${index + 1} has unsupported action "${rawAction}".`);
     }
     return {
-      id: typeof step.id === "string" && step.id ? step.id : `step-${index + 1}`,
-      name: typeof step.name === "string" && step.name ? step.name : `Step ${index + 1}`,
+      id: step.id && step.id.length > 0 ? step.id : `step-${index + 1}`,
+      name: step.name && step.name.length > 0 ? step.name : `Step ${index + 1}`,
       action: rawAction as WorkflowStepState["action"],
-      configJson: typeof step.configJson === "string" ? step.configJson : "{}",
-      assigneeDepartment: typeof step.assigneeDepartment === "string" ? step.assigneeDepartment : null,
-      assigneeAgentId: typeof step.assigneeAgentId === "string" ? step.assigneeAgentId : null,
+      configJson: step.configJson ?? "{}",
+      assigneeDepartment: step.assigneeDepartment ?? null,
+      assigneeAgentId: step.assigneeAgentId ?? null,
       requiresApproval: step.requiresApproval === true,
-      timeoutSec: typeof step.timeoutSec === "number" ? step.timeoutSec : 0,
-      status: ["pending", "running", "completed", "failed", "skipped"].includes(String(step.status))
-        ? (String(step.status) as WorkflowStepState["status"])
-        : "pending",
+      timeoutSec: step.timeoutSec ?? 0,
+      status: step.status ?? "pending",
     };
   });
 }
