@@ -340,6 +340,28 @@ export function buildRunMethods(
       }));
     },
 
+    listRunEventsAfter(runId: string, companyId: string, afterSeq: number, limit: number): Array<{
+      id: number; runId: string; agentId: string; seq: number; eventType: string;
+      stream: string | null; level: string | null; message: string | null;
+      payload: Record<string, unknown> | null; createdAt: string;
+    }> {
+      return readAll<SqliteRow>(
+        "SELECT id, run_id, agent_id, seq, event_type, stream, level, message, payload, created_at FROM run_events WHERE run_id = ? AND company_id = ? AND seq > ? ORDER BY seq ASC LIMIT ?",
+        runId, companyId, afterSeq, limit
+      ).map((row: SqliteRow) => ({
+        id: row.id,
+        runId: row.run_id,
+        agentId: row.agent_id,
+        seq: row.seq,
+        eventType: row.event_type,
+        stream: row.stream,
+        level: row.level,
+        message: row.message,
+        payload: row.payload ? JSON.parse(row.payload) : null,
+        createdAt: row.created_at,
+      }));
+    },
+
     updateRunActor(runId: string, actorType: string, actorId: string | null): void {
       getDb().prepare(
         "UPDATE runs SET actor_type = ?, actor_id = ?, updated_at = ? WHERE id = ?"

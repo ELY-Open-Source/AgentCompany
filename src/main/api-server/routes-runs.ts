@@ -3,7 +3,8 @@ import { requireParam, type AgentApiServer } from "./server-core";
 
 const DEFAULT_EVENT_LIMIT = 500;
 const MAX_EVENT_LIMIT = 5_000;
-const EVENT_POLL_INTERVAL_MS = 500;
+const SSE_BATCH_LIMIT = 500;
+const EVENT_POLL_INTERVAL_MS = 1_000;
 const SSE_HEARTBEAT_MS = 15_000;
 
 function parsePositiveInt(value: string | null, fallback: number) {
@@ -64,12 +65,14 @@ export function registerRunRoutes(server: AgentApiServer) {
     writeSse(res, "connected", { runId, after: cursor });
 
     const flushPendingEvents = () => {
-      const events = server.db
-        .listRunEvents(runId, token.companyId, { offset: 0, limit: MAX_EVENT_LIMIT })
-        .filter((event) => event.seq > cursor);
-      for (const event of events) {
-        writeSse(res, "run-event", event);
-        cursor = event.seq;
+      while (true) {
+        const events = server.db.listRunEventsAfter(runId, token.companyId, cursor, SSE_BATCH_LIMIT);
+        if (events.length === 0) return;
+        for (const event of events) {
+          writeSse(res, "run-event", event);
+          cursor = event.seq;
+        }
+        if (events.length < SSE_BATCH_LIMIT) return;
       }
     };
 

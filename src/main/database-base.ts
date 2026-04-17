@@ -276,6 +276,7 @@ export class AppDatabaseBase {
   getInterruptedRunsForRecovery() { return this.runs.getInterruptedRunsForRecovery(); }
   appendRunEvent(input: { companyId: string; runId: string; agentId: string; eventType: string; stream?: string | null; level?: string | null; message?: string | null; payload?: Record<string, unknown> | null }) { return this.runs.appendRunEvent(input); }
   listRunEvents(runId: string, companyId: string, opts?: { offset?: number; limit?: number }) { return this.runs.listRunEvents(runId, companyId, opts); }
+  listRunEventsAfter(runId: string, companyId: string, afterSeq: number, limit: number) { return this.runs.listRunEventsAfter(runId, companyId, afterSeq, limit); }
   updateRunActor(runId: string, actorType: string, actorId: string | null) { return this.runs.updateRunActor(runId, actorType, actorId); }
 
   // ─── Approvals ─────────────────────────────────────────────────────────────
