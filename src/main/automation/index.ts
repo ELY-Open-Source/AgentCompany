@@ -111,16 +111,16 @@ export function createAutomationService({
       const rules = db.listActiveAutomationRules(ctx.companyId, trigger);
       for (const rule of rules) {
         if (!matchesConditions(db, rule, ctx)) continue;
-        const executionKey = [
-          rule.id,
+        const executionKey = JSON.stringify({
+          ruleId: rule.id,
           trigger,
-          ctx.companyId,
-          ctx.taskId ?? "-",
-          ctx.agentId ?? "-",
-          ctx.runId ?? "-",
-          ctx.previousStatus ?? "-",
-          ctx.newStatus ?? "-",
-        ].join(":");
+          companyId: ctx.companyId,
+          taskId: ctx.taskId ?? null,
+          agentId: ctx.agentId ?? null,
+          runId: ctx.runId ?? null,
+          previousStatus: ctx.previousStatus ?? null,
+          newStatus: ctx.newStatus ?? null,
+        });
         if (activeAutomationExecutions.has(executionKey)) {
           logger.warn(`[automation] Skipping re-entrant execution for rule "${rule.name}" (${executionKey})`);
           continue;
@@ -168,16 +168,16 @@ export function createAutomationService({
       const workflows = db.listTriggerableWorkflows(ctx.companyId, trigger);
       for (const workflow of workflows) {
         if (!matchesEventConfig(db, workflow.triggerConfigJson, null, ctx)) continue;
-        const executionKey = [
-          workflow.id,
+        const executionKey = JSON.stringify({
+          workflowId: workflow.id,
           trigger,
-          ctx.companyId,
-          ctx.taskId ?? "-",
-          ctx.agentId ?? "-",
-          ctx.runId ?? "-",
-          ctx.previousStatus ?? "-",
-          ctx.newStatus ?? "-",
-        ].join(":");
+          companyId: ctx.companyId,
+          taskId: ctx.taskId ?? null,
+          agentId: ctx.agentId ?? null,
+          runId: ctx.runId ?? null,
+          previousStatus: ctx.previousStatus ?? null,
+          newStatus: ctx.newStatus ?? null,
+        });
         if (activeWorkflowTriggerExecutions.has(executionKey)) {
           logger.warn(`[workflow] Skipping re-entrant trigger for workflow "${workflow.name}" (${executionKey})`);
           continue;
