@@ -1,5 +1,6 @@
-import { ipcMain } from "electron";
+import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import { streamSimple, type SimpleStreamOptions } from "@mariozechner/pi-ai";
+import type { DesktopResult } from "@shared/contracts";
 import { IPC_CHANNELS } from "@shared/contracts";
 import {
   removeCredentialInputSchema,
@@ -13,27 +14,20 @@ import { resolveModel, resolveExtraStreamHeaders } from "./model-resolver";
 import type { CredentialResolver } from "./credentials/credential-resolver";
 import type { CredentialStore } from "./credentials/credential-store";
 import type { StoredCredentialPayload } from "./credentials/types";
-
-interface DesktopOk<T> { ok: true; data: T }
-interface DesktopErr { ok: false; error: { code: string; message: string } }
-type DesktopResult<T> = DesktopOk<T> | DesktopErr;
-
-function ok<T>(data: T): DesktopOk<T> { return { ok: true, data }; }
-function err(code: string, message: string): DesktopErr { return { ok: false, error: { code, message } }; }
+import { ok } from "./ipc-core-common";
 
 /** Strip credential-shaped substrings from an error message before sending it
- * back to the renderer. Catches the obvious patterns: Bearer tokens, OpenAI
- * `sk-` and Anthropic `sk-ant-` keys, AWS access key IDs, JWTs, and any ≥32-char
- * hex/base64 blob. */
+ * back to the renderer. Matches are anchored to issuer-specific prefixes so
+ * we do not shred diagnostic signals — git SHAs, UUIDs, model identifiers
+ * like `accounts/fireworks/models/...`, and other high-entropy-but-not-secret
+ * strings pass through unchanged. */
 function redactSecrets(message: string): string {
   return message
     .replace(/Bearer\s+[A-Za-z0-9\-_.~+/=]+/gi, "Bearer [REDACTED]")
     .replace(/sk-(ant|proj)-[A-Za-z0-9\-_]+/g, "sk-$1-[REDACTED]")
     .replace(/sk-[A-Za-z0-9]{20,}/g, "sk-[REDACTED]")
     .replace(/AKIA[0-9A-Z]{16}/g, "AKIA[REDACTED]")
-    .replace(/eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+/g, "[REDACTED-JWT]")
-    .replace(/[A-Fa-f0-9]{40,}/g, "[REDACTED-HEX]")
-    .replace(/[A-Za-z0-9+/]{48,}={0,2}/g, "[REDACTED-B64]");
+    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[REDACTED-JWT]");
 }
 
 function describeError(error: unknown): string {
@@ -48,6 +42,11 @@ interface CredentialHandlerDeps {
    * flips between `auth_required` and `ready` immediately, instead of waiting
    * for the next bootstrap pass. */
   refreshConnectorHealth: (connectorId: string) => Promise<void>;
+  registerHandle: (
+    channel: string,
+    handler: (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<DesktopResult<unknown>> | DesktopResult<unknown>,
+  ) => void;
+  fail: (code: string, message: string) => DesktopResult<never>;
   logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
 }
 
@@ -69,48 +68,47 @@ function serializeCredentialTest<T>(task: () => Promise<T>): Promise<T> {
 }
 
 export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () => void {
-  const handlers: Array<[string, (...args: unknown[]) => unknown]> = [];
+  const channels: string[] = [
+    IPC_CHANNELS.credentialsList,
+    IPC_CHANNELS.credentialsSave,
+    IPC_CHANNELS.credentialsRemove,
+    IPC_CHANNELS.credentialsTest,
+  ];
 
-  function handle<T>(channel: string, handler: (input: unknown) => Promise<DesktopResult<T>>) {
-    const wrapped = async (_event: unknown, input: unknown) => handler(input);
-    ipcMain.handle(channel, wrapped);
-    handlers.push([channel, wrapped as never]);
-  }
-
-  handle<CredentialSummary[]>(IPC_CHANNELS.credentialsList, async () => {
+  deps.registerHandle(IPC_CHANNELS.credentialsList, async () => {
     return ok(deps.store.list());
   });
 
-  handle<CredentialSummary>(IPC_CHANNELS.credentialsSave, async (raw) => {
+  deps.registerHandle(IPC_CHANNELS.credentialsSave, async (_event, raw) => {
     const parsed = saveCredentialInputSchema.safeParse(raw);
-    if (!parsed.success) return err("INVALID_INPUT", parsed.error.message);
+    if (!parsed.success) return deps.fail("INVALID_INPUT", parsed.error.message);
     const definition = (() => {
       try { return getConnectorDefinition(parsed.data.connectorId); }
       catch (e) { return e instanceof Error ? e.message : String(e); }
     })();
-    if (typeof definition === "string") return err("UNKNOWN_CONNECTOR", definition);
+    if (typeof definition === "string") return deps.fail("UNKNOWN_CONNECTOR", definition);
 
     const payload = parsed.data.payload;
     if (definition.auth.type === "oauth") {
-      return err("UNSUPPORTED_PAYLOAD", "Use OAuth login flow for OAuth connectors.");
+      return deps.fail("UNSUPPORTED_PAYLOAD", "Use OAuth login flow for OAuth connectors.");
     }
     if (definition.auth.type !== payload.kind) {
-      return err("MISMATCHED_KIND", `Connector ${parsed.data.connectorId} expects ${definition.auth.type} credential.`);
+      return deps.fail("MISMATCHED_KIND", `Connector ${parsed.data.connectorId} expects ${definition.auth.type} credential.`);
     }
     try {
       const stored = deps.store.save(parsed.data.connectorId, payload as StoredCredentialPayload, null);
       await deps.refreshConnectorHealth(parsed.data.connectorId);
       deps.emitEvent({ type: "credentials-changed", connectorId: parsed.data.connectorId });
-      return ok(stored);
+      return ok<CredentialSummary>(stored);
     } catch (error) {
       deps.logger.error(`[credentials] save failed for ${parsed.data.connectorId}: ${describeError(error)}`);
-      return err("SAVE_FAILED", "Could not save credential. Check application logs for details.");
+      return deps.fail("SAVE_FAILED", "Could not save credential. Check application logs for details.");
     }
   });
 
-  handle<boolean>(IPC_CHANNELS.credentialsRemove, async (raw) => {
+  deps.registerHandle(IPC_CHANNELS.credentialsRemove, async (_event, raw) => {
     const parsed = removeCredentialInputSchema.safeParse(raw);
-    if (!parsed.success) return err("INVALID_INPUT", parsed.error.message);
+    if (!parsed.success) return deps.fail("INVALID_INPUT", parsed.error.message);
     try {
       deps.store.remove(parsed.data.connectorId);
       await deps.refreshConnectorHealth(parsed.data.connectorId);
@@ -118,19 +116,19 @@ export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () =
       return ok(true);
     } catch (error) {
       deps.logger.error(`[credentials] remove failed for ${parsed.data.connectorId}: ${describeError(error)}`);
-      return err("REMOVE_FAILED", "Could not remove credential. Check application logs for details.");
+      return deps.fail("REMOVE_FAILED", "Could not remove credential. Check application logs for details.");
     }
   });
 
-  handle<{ ok: boolean; message: string }>(IPC_CHANNELS.credentialsTest, async (raw) => {
+  deps.registerHandle(IPC_CHANNELS.credentialsTest, async (_event, raw) => {
     const parsed = testCredentialInputSchema.safeParse(raw);
-    if (!parsed.success) return err("INVALID_INPUT", parsed.error.message);
+    if (!parsed.success) return deps.fail("INVALID_INPUT", parsed.error.message);
     let definition;
     try {
       definition = getConnectorDefinition(parsed.data.connectorId);
     } catch (error) {
       deps.logger.error(`[credentials] test failed lookup for ${parsed.data.connectorId}: ${describeError(error)}`);
-      return err("UNKNOWN_CONNECTOR", "Unknown connector.");
+      return deps.fail("UNKNOWN_CONNECTOR", "Unknown connector.");
     }
     let resolved;
     try {
@@ -199,6 +197,6 @@ export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () =
   });
 
   return () => {
-    for (const [channel] of handlers) ipcMain.removeHandler(channel);
+    for (const channel of channels) ipcMain.removeHandler(channel);
   };
 }
