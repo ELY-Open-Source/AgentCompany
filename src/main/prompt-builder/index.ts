@@ -46,7 +46,7 @@ export interface PromptContext {
 }
 
 export function buildTaskPrompt(ctx: PromptContext): string {
-  const m = getSystemMessages(ctx.locale);
+  const m = getSystemMessages();
   const systemPrompt = buildSystemPrompt(ctx);
   const parts: string[] = [systemPrompt];
 
@@ -63,7 +63,7 @@ export function buildTaskPrompt(ctx: PromptContext): string {
     const explanation = renderWakeReason(ctx.wakeReason, {
       companyId: ctx.agent.companyId,
       agentId: ctx.agent.id,
-    }, ctx.locale);
+    });
     parts.push(`\n${m.wakeReasonHeading}\n${explanation}\n`);
   }
 

@@ -1,8 +1,6 @@
 /**
  * English text fragments rendered by `system-prompt.ts` and `index.ts`. These
- * are the pieces that previously lived as inline template literals; moving
- * them here lets the same orchestration code render either locale via the
- * companion `system-zh.ts` bundle.
+ * are the pieces that previously lived as inline template literals.
  */
 
 export function currentDateSection(dayOfWeek: string, dateStr: string, timeStr: string): string {

@@ -1,8 +1,7 @@
 /**
  * English text fragments rendered by `operating-instructions.ts` for non-CEO
  * roles plus the company culture / time context footers and decision authority
- * boilerplate. Mirrored by `operating-zh.ts` so the locale dispatcher can pick
- * either bundle without introducing missing keys.
+ * boilerplate.
  */
 export const fullCompanyRosterHeading = "# Full Company Roster";
 

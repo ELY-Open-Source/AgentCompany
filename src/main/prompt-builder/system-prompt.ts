@@ -54,7 +54,7 @@ function buildSkillManifest(skills: ProjectedSkill[] | undefined): string {
 }
 
 export function buildSystemPrompt(ctx: PromptContext): string {
-  const m = getSystemMessages(ctx.locale);
+  const m = getSystemMessages();
   const sections: string[] = [];
 
   const isCEO = ctx.chainOfCommand.length === 0;
@@ -198,7 +198,7 @@ export function buildSystemPrompt(ctx: PromptContext): string {
   const approvalsSection = buildPendingApprovalsSection(ctx.pendingApprovals);
   if (approvalsSection) sections.push(approvalsSection);
 
-  sections.push(buildSOPSection(ctx.locale));
+  sections.push(buildSOPSection());
   sections.push(buildAPISection(ctx));
 
   if (ctx.recentComments.length > 0) {
@@ -242,6 +242,11 @@ export function buildSystemPrompt(ctx: PromptContext): string {
 
   sections.push(m.structuredOutputSection);
   sections.push(m.importantRulesSection(ctx.agent.companyId, ctx.agent.id, ctx.runId));
+
+  const localeName = ctx.locale === "zh" ? "Chinese" : null;
+  if (localeName) {
+    sections.push(`\n\nRespond to the user in ${localeName}.`);
+  }
 
   return sections.join("\n");
 }

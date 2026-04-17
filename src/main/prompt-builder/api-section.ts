@@ -1,7 +1,5 @@
-import type { AppLocale } from "@shared/locale";
 import type { PromptContext } from "./index";
 import { buildSocialSection } from "./api-endpoints";
-import { resolveLocale } from "./messages/locale";
 
 import headerEn from "./api-docs/header.en.md?raw";
 import agentControlEn from "./api-docs/agent-control.en.md?raw";
@@ -15,28 +13,10 @@ import meetingsEn from "./api-docs/meetings.en.md?raw";
 import agentsEn from "./api-docs/agents.en.md?raw";
 import sprintsEn from "./api-docs/sprints.en.md?raw";
 
-import headerZh from "./api-docs/header.zh.md?raw";
-import agentControlZh from "./api-docs/agent-control.zh.md?raw";
-import tasksZh from "./api-docs/tasks.zh.md?raw";
-import goalsProjectsZh from "./api-docs/goals-projects.zh.md?raw";
-import approvalsZh from "./api-docs/approvals.zh.md?raw";
-import messagesZh from "./api-docs/messages.zh.md?raw";
-import filesZh from "./api-docs/files.zh.md?raw";
-import knowledgeZh from "./api-docs/knowledge.zh.md?raw";
-import meetingsZh from "./api-docs/meetings.zh.md?raw";
-import agentsZh from "./api-docs/agents.zh.md?raw";
-import sprintsZh from "./api-docs/sprints.zh.md?raw";
-
-const API_DOC_SECTIONS: Record<AppLocale, string[]> = {
-  en: [
-    headerEn, agentControlEn, tasksEn, goalsProjectsEn, approvalsEn,
-    messagesEn, filesEn, knowledgeEn, meetingsEn, agentsEn, sprintsEn,
-  ],
-  zh: [
-    headerZh, agentControlZh, tasksZh, goalsProjectsZh, approvalsZh,
-    messagesZh, filesZh, knowledgeZh, meetingsZh, agentsZh, sprintsZh,
-  ],
-};
+const API_DOC_SECTIONS: string[] = [
+  headerEn, agentControlEn, tasksEn, goalsProjectsEn, approvalsEn,
+  messagesEn, filesEn, knowledgeEn, meetingsEn, agentsEn, sprintsEn,
+];
 
 function render(template: string, ctx: PromptContext): string {
   const connectorIds = ctx.allConnectors && ctx.allConnectors.length > 0
@@ -51,7 +31,6 @@ function render(template: string, ctx: PromptContext): string {
 }
 
 export function buildAPISection(ctx: PromptContext): string {
-  const sections = API_DOC_SECTIONS[resolveLocale(ctx.locale)];
-  const body = sections.map((s) => render(s, ctx).trimEnd()).join("\n\n");
+  const body = API_DOC_SECTIONS.map((s) => render(s, ctx).trimEnd()).join("\n\n");
   return `${body}\n${buildSocialSection(ctx)}`;
 }
