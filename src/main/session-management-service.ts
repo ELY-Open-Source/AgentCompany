@@ -17,8 +17,12 @@ export const DEFAULT_THRESHOLDS = {
 // D-01: Type for per-adapter or company-level threshold overrides
 export type RotationThresholds = Partial<typeof DEFAULT_THRESHOLDS>;
 
-// D-04: Handoff size cap to prevent prompt bloat
+// D-04: Handoff size cap to prevent prompt bloat.
+// 2000 characters ≈ 500 tokens — enough to resume context without crowding
+// out the system prompt + user message in an 8k-ish model window.
 const MAX_HANDOFF_LENGTH = 2000;
+// 5 runs of resume context is typically enough to bridge a rotation boundary;
+// older runs add diminishing value relative to the token cost.
 const MAX_HANDOFF_RUNS = 5;
 
 export function createSessionManagementService({ db, logger }: SessionManagementDependencies) {
