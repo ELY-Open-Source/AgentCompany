@@ -116,16 +116,16 @@ export function buildTaskCrudMethods(
     },
 
     deleteTask(id: string, companyId: string): void {
-      const activeTaskRuns = readAll<{
-        id: string;
-        taskId: string;
-        workspaceId: string | null;
-      }>(
-        "select id, task_id as taskId, workspace_id as workspaceId from runs where task_id = ? and company_id = ? and status in ('queued', 'running')",
-        id,
-        companyId,
-      );
       transaction(() => {
+        const activeTaskRuns = getDb()
+          .prepare(
+            "select id, task_id as taskId, workspace_id as workspaceId from runs where task_id = ? and company_id = ? and status in ('queued', 'running')",
+          )
+          .all(id, companyId) as Array<{
+          id: string;
+          taskId: string;
+          workspaceId: string | null;
+        }>;
         for (const run of activeTaskRuns) {
           const ts = nowIso();
           getDb()
