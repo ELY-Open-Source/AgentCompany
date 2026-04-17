@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { taskInputSchema } from "@shared/contracts";
+import { IMPORTANT_DOC_TYPES } from "@shared/document-categories";
 import { canAssignTask, canUpdateTask } from "../agent-permissions";
 import { inferTaskType } from "../connector-matching";
 import { validateTaskCreation } from "../task-quality-gates";
@@ -138,7 +139,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
       // Deliverable review gate: intercept agent trying to advance a flagged task to "done".
       // This MUST succeed — silently skipping review would let unreviewed work advance.
       if (update.status === "done" && task.requiresUserReview) {
-        const importantTypes = ["prd","technical_spec","design_doc","project_brief","proposal","budget_proposal","architecture_decision","contract","sop"];
+        const importantTypes = IMPORTANT_DOC_TYPES;
         const placeholders = importantTypes.map(() => "?").join(", ");
         const docs = db.queryAll<{ id: string; type: string; title: string }>(
           `select id, type, title from documents where company_id = ? and type in (${placeholders})

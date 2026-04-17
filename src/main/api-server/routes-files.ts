@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { IMPORTANT_DOC_TYPE_SET } from "@shared/document-categories";
 import { requireParam, type AgentApiServer } from "./server-core";
 
 type DocumentRow = {
@@ -133,8 +134,7 @@ export function registerFileRoutes(server: AgentApiServer) {
     // Deliverable review gate: check at document creation time (most reliable).
     // In ai_cofounder mode, checkpoint-engine handles document reviews via the
     // onDocumentCreated callback, so skip the direct approval here to avoid duplicates.
-    const IMPORTANT_DOC_TYPES = new Set(["prd","technical_spec","design_doc","project_brief","proposal","budget_proposal","architecture_decision","contract","sop"]);
-    if (IMPORTANT_DOC_TYPES.has(docType)) {
+    if (IMPORTANT_DOC_TYPE_SET.has(docType)) {
       try {
         const companySettings = db.getCompanyApprovalSettings(token.companyId);
         const company = companySettings ? { reviewDeliverables: companySettings.reviewDeliverables } : null;
