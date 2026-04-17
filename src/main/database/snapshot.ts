@@ -15,8 +15,7 @@ import type {
   TaskRecord,
   WorkspaceRecord,
 } from "@shared/types";
-import { type ReadAll, type SqliteRow, toBoolean } from "./helpers";
-const BOARD_READER_ID = "__board__";
+import { BOARD_READER_ID, type ReadAll, type SqliteRow, toBoolean } from "./helpers";
 
 export function buildSnapshotMethods(
   getDb: () => DatabaseSync,

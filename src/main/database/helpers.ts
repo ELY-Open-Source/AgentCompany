@@ -5,6 +5,8 @@ export type SqliteRow = Record<string, any>;
 export type ReadAll = <T>(sql: string, ...params: SQLInputValue[]) => T[];
 export type Transaction = <T>(operation: () => T) => T;
 
+export const BOARD_READER_ID = "__board__";
+
 export function nowIso(): string {
   return new Date().toISOString();
 }

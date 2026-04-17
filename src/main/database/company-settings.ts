@@ -8,6 +8,7 @@ import type {
   StandupReport,
 } from "@shared/types";
 import {
+  BOARD_READER_ID,
   type ReadAll,
   type Transaction,
 } from "./helpers";
@@ -415,7 +416,6 @@ export function buildCompanySettingsMethods(
       budgetWarnings: number;
       unreadMessages: number;
     } {
-      const BOARD_READER_ID = "__board__";
       const pendingApprovals =
         (
           getDb()

@@ -2,11 +2,10 @@ import { randomUUID } from "node:crypto";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import type { AgentMessageRecord, AgentRecord } from "@shared/types";
 import {
+  BOARD_READER_ID,
   type ReadAll,
   nowIso,
 } from "./helpers";
-
-const BOARD_READER_ID = "__board__";
 
 export function buildMessageMethods(
   getDb: () => DatabaseSync,
@@ -217,7 +216,7 @@ export function buildMessageMethods(
         limit?: number;
       },
     ): AgentMessageRecord[] {
-      const escaped = query.replace(/[%_]/g, "\\$&");
+      const escaped = query.replace(/[\\%_]/g, "\\$&");
       const pattern = `%${escaped}%`;
       let sql = `SELECT id, company_id AS companyId, from_agent_id AS fromAgentId,
       to_agent_id AS toAgentId, sender_kind AS senderKind, channel, channel_target_id AS channelTargetId,
