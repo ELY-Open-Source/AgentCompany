@@ -68,6 +68,46 @@ export interface ApiServerEventCallbacks {
   notify: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
 }
 
+/**
+ * Token-bucket rate limiter scoped per (companyId, agentId).
+ *
+ * An agent that exceeds the burst capacity (`maxTokens`) is rejected with 429
+ * until enough wall-clock time has passed for the bucket to refill at
+ * `refillRatePerSec` tokens/second. The bucket is in-memory and resets on
+ * process restart — agents misbehaving across restarts are detected at the
+ * next bucket; this is a defence against runaway loops, not a quota system.
+ */
+class AgentRateLimiter {
+  private buckets = new Map<string, { tokens: number; lastRefillMs: number }>();
+  private readonly maxTokens: number;
+  private readonly refillRatePerSec: number;
+
+  constructor(opts: { maxTokens: number; refillRatePerSec: number }) {
+    this.maxTokens = opts.maxTokens;
+    this.refillRatePerSec = opts.refillRatePerSec;
+  }
+
+  /** Returns retry-after seconds when blocked, or `null` to allow. */
+  consume(key: string): number | null {
+    const now = Date.now();
+    const existing = this.buckets.get(key);
+    const bucket = existing ?? { tokens: this.maxTokens, lastRefillMs: now };
+    if (existing) {
+      const elapsedSec = (now - existing.lastRefillMs) / 1000;
+      bucket.tokens = Math.min(this.maxTokens, existing.tokens + elapsedSec * this.refillRatePerSec);
+      bucket.lastRefillMs = now;
+    }
+    if (bucket.tokens < 1) {
+      this.buckets.set(key, bucket);
+      const tokensShort = 1 - bucket.tokens;
+      return Math.max(1, Math.ceil(tokensShort / this.refillRatePerSec));
+    }
+    bucket.tokens -= 1;
+    this.buckets.set(key, bucket);
+    return null;
+  }
+}
+
 export class AgentApiServer {
   private _routes: Route[] = [];
   private _server: ReturnType<typeof createServer> | null = null;
@@ -79,6 +119,8 @@ export class AgentApiServer {
   private _callbacks: ApiServerEventCallbacks;
   private _allowedOrigins: Set<string>;
   private _onBrowserActionCb: ((actionId: string, companyId: string) => void) | null = null;
+  /** 60 req/min sustained, 30 req burst per (companyId, agentId). */
+  private _rateLimiter = new AgentRateLimiter({ maxTokens: 30, refillRatePerSec: 1 });
 
   constructor(
     db: AppDatabase,
@@ -142,6 +184,15 @@ export class AgentApiServer {
 
   private async handleRequest(req: IncomingMessage, res: ServerResponse) {
     const origin = req.headers.origin;
+    const authHeader = req.headers.authorization;
+    const hasBearer = typeof authHeader === "string" && authHeader.startsWith("Bearer ");
+    const isPreflight = req.method === "OPTIONS";
+
+    // Origin policy:
+    //   - Bearer-token requests (agent CLIs, non-browser) are allowed without an Origin header.
+    //     If an Origin IS present, it must be in the allowlist.
+    //   - All other requests (browser-originating, including CORS preflight) MUST carry an
+    //     Origin header and it MUST be in the allowlist.
     if (origin) {
       if (!this._allowedOrigins.has(origin)) {
         this.json(res, 403, { error: "Origin not allowed" });
@@ -149,11 +200,14 @@ export class AgentApiServer {
       }
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
+    } else if (!hasBearer || isPreflight) {
+      this.json(res, 403, { error: "Origin header required" });
+      return;
     }
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Agent-Company-Run-Id");
 
-    if (req.method === "OPTIONS") {
+    if (isPreflight) {
       res.writeHead(204);
       res.end();
       return;
@@ -163,8 +217,7 @@ export class AgentApiServer {
     const pathname = url.pathname;
     const method = (req.method ?? "GET").toUpperCase();
 
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith("Bearer ")) {
+    if (!hasBearer || typeof authHeader !== "string") {
       this.json(res, 401, { error: "Missing or invalid Authorization header" });
       return;
     }
@@ -189,6 +242,13 @@ export class AgentApiServer {
 
     if (!["queued", "running"].includes(runState.status)) {
       this.json(res, 401, { error: "Run token is no longer active" });
+      return;
+    }
+
+    const retryAfter = this._rateLimiter.consume(`${token.companyId}:${token.agentId}`);
+    if (retryAfter !== null) {
+      res.setHeader("Retry-After", String(retryAfter));
+      this.json(res, 429, { error: "Rate limit exceeded", retryAfterSeconds: retryAfter });
       return;
     }
 
