@@ -1,4 +1,76 @@
-import { type ElementType } from "react";
+import { type ElementType, type ReactNode as ReactNodeType } from "react";
+
+/* ------------------------------------------------------------------ */
+/*  Spinner                                                            */
+/* ------------------------------------------------------------------ */
+
+export function Spinner({ size = 16, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg
+      className={`animate-spin ${className}`}
+      style={{ width: size, height: size }}
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+    >
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.3" />
+      <path d="M14 8a6 6 0 0 0-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Eyebrow                                                            */
+/* ------------------------------------------------------------------ */
+
+export function Eyebrow({
+  children,
+  tone = "muted",
+  className = "",
+}: {
+  children: ReactNodeType;
+  tone?: "muted" | "primary" | "warning" | "destructive" | "success";
+  className?: string;
+}) {
+  const toneClass =
+    tone === "primary"
+      ? "text-primary"
+      : tone === "warning"
+        ? "text-warning"
+        : tone === "destructive"
+          ? "text-destructive"
+          : tone === "success"
+            ? "text-success"
+            : "text-muted-foreground";
+  return (
+    <div className={`text-[11px] font-semibold uppercase tracking-[0.08em] ${toneClass} ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Card                                                               */
+/* ------------------------------------------------------------------ */
+
+export function Card({
+  children,
+  className = "",
+  padded = true,
+  as: Tag = "div",
+}: {
+  children: ReactNodeType;
+  className?: string;
+  padded?: boolean;
+  as?: "div" | "section" | "article";
+}) {
+  const padding = padded ? "p-4" : "";
+  return (
+    <Tag className={`rounded-lg border border-border bg-card ${padding} ${className}`}>
+      {children}
+    </Tag>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /*  Badge                                                              */
@@ -290,13 +362,19 @@ export function ActionButton({
   tone = "default",
   loading = false,
   disabled = false,
+  iconOnly = false,
+  type = "button",
+  ariaLabel,
 }: {
   label: string;
-  onClick: () => void;
+  onClick?: () => void;
   icon?: ElementType;
   tone?: "default" | "accent" | "danger";
   loading?: boolean;
   disabled?: boolean;
+  iconOnly?: boolean;
+  type?: "button" | "submit" | "reset";
+  ariaLabel?: string;
 }) {
   const isDisabled = loading || disabled;
   const toneClass =
@@ -306,22 +384,26 @@ export function ActionButton({
         ? "border-transparent bg-destructive text-primary-foreground shadow-[0_1px_3px_rgba(220,53,69,0.3)] hover:brightness-90"
         : "border-border bg-card text-foreground hover:bg-muted";
 
+  const sizing = iconOnly
+    ? "h-10 w-10 p-0 justify-center"
+    : "gap-2 px-4 py-2.5";
+
   return (
     <button
-      className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-[12px] font-bold transition-all duration-150 active:scale-[0.97] active:translate-y-px ${toneClass} ${isDisabled ? "pointer-events-none opacity-60" : ""} ${loading ? "scale-[0.98]" : ""}`}
+      type={type}
+      aria-label={iconOnly ? (ariaLabel ?? label) : ariaLabel}
+      title={iconOnly ? label : undefined}
+      className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 inline-flex items-center rounded-lg border text-[12px] font-bold transition-all duration-150 active:scale-[0.97] active:translate-y-px ${sizing} ${toneClass} ${isDisabled ? "pointer-events-none opacity-60" : ""} ${loading ? "scale-[0.98]" : ""}`}
       onClick={onClick}
       disabled={isDisabled}
       aria-busy={loading}
     >
       {loading ? (
-        <svg className="h-4 w-4 animate-spin" viewBox="0 0 16 16" fill="none">
-          <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.3" />
-          <path d="M14 8a6 6 0 0 0-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
+        <Spinner size={16} />
       ) : Icon ? (
         <Icon size={16} />
       ) : null}
-      <span>{label}</span>
+      {iconOnly ? null : <span>{label}</span>}
     </button>
   );
 }
