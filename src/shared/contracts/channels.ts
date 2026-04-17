@@ -133,4 +133,14 @@ export const IPC_CHANNELS = {
   windowMaximize: "window:maximize",
   windowClose: "window:close",
   windowIsMaximized: "window:isMaximized",
+  // Credentials (pi-mono)
+  credentialsList: "credentials:list",
+  credentialsSave: "credentials:save",
+  credentialsRemove: "credentials:remove",
+  credentialsTest: "credentials:test",
+  // OAuth (pi-mono)
+  oauthStart: "oauth:start",
+  oauthCancel: "oauth:cancel",
+  oauthPromptResponse: "oauth:submit-prompt",
+  oauthManualCodeResponse: "oauth:submit-manual-code",
 } as const;

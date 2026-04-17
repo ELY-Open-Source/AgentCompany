@@ -102,6 +102,69 @@ export interface RecoveryNeededEvent {
   }>;
 }
 
+// ─── pi-mono credentials / OAuth events ────────────────────────────────────
+
+export type OAuthStatusValue =
+  | "pending"
+  | "in_progress"
+  | "active"
+  | "error"
+  | "cancelled"
+  | "completed";
+
+export interface OAuthStatusEvent {
+  type: "oauth:status";
+  connectorId: string;
+  status: OAuthStatusValue;
+  message?: string;
+  errorMessage?: string;
+}
+
+export interface OAuthAuthUrlEvent {
+  type: "oauth:auth-url";
+  connectorId: string;
+  url: string;
+  instructions?: string;
+}
+
+export interface OAuthProgressEvent {
+  type: "oauth:progress";
+  connectorId: string;
+  message: string;
+}
+
+export interface OAuthPromptRequestEvent {
+  type: "oauth:prompt-request";
+  connectorId: string;
+  requestId: string;
+  message: string;
+  placeholder?: string;
+  allowEmpty?: boolean;
+}
+
+export interface OAuthManualCodeRequestEvent {
+  type: "oauth:manual-code-request";
+  connectorId: string;
+  requestId: string;
+  authUrl?: string;
+  instructions?: string;
+}
+
+export interface CredentialsChangedEvent {
+  type: "credentials-changed";
+  connectorId?: string;
+}
+
+export interface AgentEvent {
+  type: "agent-event";
+  runId: string;
+  agentId: string;
+  companyId: string;
+  taskId: string | null;
+  emittedAt: string;
+  event: { type: string } & Record<string, unknown>;
+}
+
 export type DesktopEvent =
   | LogChunkEvent
   | DomainChangedEvent
@@ -118,4 +181,11 @@ export type DesktopEvent =
   | AgentUpdatedEvent
   | BudgetChangedEvent
   | ThreadWaitStateUpdatedEvent
-  | RecoveryNeededEvent;
+  | RecoveryNeededEvent
+  | OAuthStatusEvent
+  | OAuthAuthUrlEvent
+  | OAuthProgressEvent
+  | OAuthPromptRequestEvent
+  | OAuthManualCodeRequestEvent
+  | CredentialsChangedEvent
+  | AgentEvent;
