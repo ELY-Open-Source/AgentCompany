@@ -23,6 +23,7 @@ interface NotificationServiceDependencies {
 interface BatchState {
   count: number;
   timer: ReturnType<typeof setTimeout>;
+  /** Latest section observed during the window. Summary navigates here on click. */
   section: SectionId;
 }
 
@@ -100,8 +101,13 @@ export function createNotificationService(deps: NotificationServiceDependencies)
       return;
     }
 
-    // Accumulate -- do not fire individual notification
+    // Accumulate -- do not fire individual notification.
+    // Track the most recent section so the summary links to where the latest event happened.
     existing.count++;
+    const nextSection = options.navigation?.section;
+    if (nextSection) {
+      existing.section = nextSection;
+    }
   }
 
   function flushBatch(key: string) {
