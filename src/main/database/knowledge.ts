@@ -173,6 +173,48 @@ export function buildKnowledgeMethods(
     },
 
     /**
+     * Returns true when the given run caused a durable deliverable — a
+     * knowledge entry, a document, or a substantial task comment (>100
+     * chars). Causal binding via source_run_id is preferred; time-window
+     * fallback handles legacy rows written before that column existed.
+     *
+     * Encapsulates the five raw SELECTs that automation-run-completion
+     * previously issued via db.queryAll, so schema changes to knowledge_base
+     * / documents / task_comments surface here rather than silently.
+     */
+    runProducedDeliverable(runId: string, companyId: string, taskId: string): boolean {
+      const causalKnowledge = readAll<{ id: string }>(
+        "select id from knowledge_base where company_id = ? and source_run_id = ? limit 1",
+        companyId, runId,
+      );
+      if (causalKnowledge.length > 0) return true;
+
+      const causalDocs = readAll<{ id: string }>(
+        "select id from documents where company_id = ? and source_run_id = ? limit 1",
+        companyId, runId,
+      );
+      if (causalDocs.length > 0) return true;
+
+      const legacyKnowledge = readAll<{ id: string }>(
+        "select id from knowledge_base where company_id = ? and source_run_id is null and created_at >= (select started_at from runs where id = ?) limit 1",
+        companyId, runId,
+      );
+      if (legacyKnowledge.length > 0) return true;
+
+      const legacyDocs = readAll<{ id: string }>(
+        "select id from documents where company_id = ? and source_run_id is null and created_at >= (select started_at from runs where id = ?) limit 1",
+        companyId, runId,
+      );
+      if (legacyDocs.length > 0) return true;
+
+      const recentComments = readAll<{ body: string }>(
+        "select body from task_comments where task_id = ? and created_at >= (select started_at from runs where id = ?) and length(body) > 100",
+        taskId, runId,
+      );
+      return recentComments.length > 0;
+    },
+
+    /**
      * Returns all sprints for a company, ordered by start_date desc.
      * Used by GET /api/companies/:companyId/sprints.
      */
