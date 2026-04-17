@@ -60,12 +60,12 @@ export class BrowserManager {
       log.warn(`[browser] Failed to fully clear session for ${socialAccountId}: ${error instanceof Error ? error.message : String(error)}`);
     }
 
+    const resolvedRoot = resolve(this.screenshotDir);
     await Promise.all(
       screenshotPaths
         .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
         .filter((screenshotPath) => {
           const resolvedPath = resolve(screenshotPath);
-          const resolvedRoot = resolve(this.screenshotDir);
           return resolvedPath === resolvedRoot || resolvedPath.startsWith(`${resolvedRoot}${sep}`);
         })
         .map((screenshotPath) => rm(screenshotPath, { force: true }).catch(() => undefined)),
