@@ -119,19 +119,19 @@ export const entityGetterSchema = z.object({
 });
 
 export const listConfigRevisionsSchema = z.object({
-  companyId: z.string().min(1),
-  agentId: z.string().min(1),
+  companyId: z.string().uuid(),
+  agentId: z.string().uuid(),
 });
 
 export const getConfigRevisionSchema = z.object({
-  companyId: z.string().min(1),
-  revisionId: z.string().min(1),
+  companyId: z.string().uuid(),
+  revisionId: z.string().uuid(),
 });
 
 export const rollbackConfigRevisionSchema = z.object({
-  companyId: z.string().min(1),
-  agentId: z.string().min(1),
-  revisionId: z.string().min(1),
+  companyId: z.string().uuid(),
+  agentId: z.string().uuid(),
+  revisionId: z.string().uuid(),
 });
 
 export const listRunEventsSchema = z.object({
