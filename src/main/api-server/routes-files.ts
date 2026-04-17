@@ -2,19 +2,6 @@ import { z } from "zod";
 import { IMPORTANT_DOC_TYPE_SET } from "@shared/document-categories";
 import { requireParam, type AgentApiServer } from "./server-core";
 
-type DocumentRow = {
-  id: string; companyId: string; type: string; title: string; content: string;
-  authorAgentId: string; reviewerAgentId: string | null; projectId: string | null;
-  goalId: string | null; parentDocId: string | null; version: number; status: string;
-  tagsJson: string; latestRevisionId: string | null; createdAt: string; updatedAt: string;
-};
-
-type DocumentLookupRow = {
-  id: string; companyId: string; type: string; title: string; content: string;
-  authorAgentId: string; reviewerAgentId: string | null; projectId: string | null;
-  goalId: string | null; version: number; status: string; tagsJson: string;
-};
-
 const createDocumentSchema = z.object({
   type: z.string().optional(),
   title: z.string().optional(),
@@ -171,10 +158,7 @@ export function registerFileRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const docs = db.queryAll<DocumentRow>(
-      "select id, company_id as companyId, type, title, content, author_agent_id as authorAgentId, reviewer_agent_id as reviewerAgentId, project_id as projectId, goal_id as goalId, parent_doc_id as parentDocId, version, status, tags_json as tagsJson, latest_revision_id as latestRevisionId, created_at as createdAt, updated_at as updatedAt from documents where company_id = ? order by updated_at desc",
-      token.companyId,
-    ).map((d) => ({ ...d, latestRevisionId: d.latestRevisionId ?? null }));
+    const docs = db.listDocuments(token.companyId);
     server.json(res, 200, docs);
   });
 
@@ -188,11 +172,7 @@ export function registerFileRoutes(server: AgentApiServer) {
       server.json(res, 400, { error: "Missing documentId" });
       return;
     }
-    const docRows = db.queryAll<DocumentLookupRow>(
-      "select id, company_id as companyId, type, title, content, author_agent_id as authorAgentId, reviewer_agent_id as reviewerAgentId, project_id as projectId, goal_id as goalId, version, status, tags_json as tagsJson from documents where id = ? and company_id = ? limit 1",
-      documentId, token.companyId,
-    );
-    const doc = docRows[0] ?? null;
+    const doc = db.getDocumentForUpdate(documentId, token.companyId);
     if (!doc) {
       server.json(res, 404, { error: "Document not found in this company" });
       return;

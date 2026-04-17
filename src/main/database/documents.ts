@@ -4,6 +4,49 @@ import type { AgentRecord } from "@shared/types";
 import type { ReadAll, SqliteRow, Transaction } from "./helpers";
 import { ensureId, nowIso, parseJson } from "./helpers";
 
+/**
+ * Document row shape returned by listDocuments — used by
+ * GET /api/companies/:companyId/documents. Mirrors the historical inline
+ * SQL projection so HTTP response bodies stay byte-stable for clients.
+ */
+export type DocumentListRow = {
+  id: string;
+  companyId: string;
+  type: string;
+  title: string;
+  content: string;
+  authorAgentId: string;
+  reviewerAgentId: string | null;
+  projectId: string | null;
+  goalId: string | null;
+  parentDocId: string | null;
+  version: number;
+  status: string;
+  tagsJson: string;
+  latestRevisionId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * Document lookup row used by the PATCH document handler — narrower
+ * projection without parent_doc_id / latest_revision_id / timestamps.
+ */
+export type DocumentLookupRow = {
+  id: string;
+  companyId: string;
+  type: string;
+  title: string;
+  content: string;
+  authorAgentId: string;
+  reviewerAgentId: string | null;
+  projectId: string | null;
+  goalId: string | null;
+  version: number;
+  status: string;
+  tagsJson: string;
+};
+
 export function buildDocumentMethods(
   getDb: () => DatabaseSync,
   readAll: ReadAll,
@@ -29,6 +72,33 @@ export function buildDocumentMethods(
         ).run(id, input.companyId, input.type, input.title, input.content ?? "", input.authorAgentId ?? null, input.reviewerAgentId ?? null, input.projectId ?? null, input.goalId ?? null, input.parentDocId ?? null, input.version ?? 1, input.status ?? "draft", input.tagsJson ?? "[]", input.sourceRunId ?? null, ts, ts);
       }
       return id;
+    },
+
+    /**
+     * Returns all documents for a company, ordered by updated_at desc.
+     * Used by GET /api/companies/:companyId/documents.
+     */
+    listDocuments(companyId: string): DocumentListRow[] {
+      return readAll<DocumentListRow>(
+        "select id, company_id as companyId, type, title, content, author_agent_id as authorAgentId, reviewer_agent_id as reviewerAgentId, project_id as projectId, goal_id as goalId, parent_doc_id as parentDocId, version, status, tags_json as tagsJson, latest_revision_id as latestRevisionId, created_at as createdAt, updated_at as updatedAt from documents where company_id = ? order by updated_at desc",
+        companyId,
+      ).map((d) => ({ ...d, latestRevisionId: d.latestRevisionId ?? null }));
+    },
+
+    /**
+     * Returns the lookup row needed for PATCH /api/companies/:companyId/documents/:documentId.
+     * Returns null when the document is missing or belongs to another company.
+     */
+    getDocumentForUpdate(
+      documentId: string,
+      companyId: string,
+    ): DocumentLookupRow | null {
+      const row = getDb()
+        .prepare(
+          "select id, company_id as companyId, type, title, content, author_agent_id as authorAgentId, reviewer_agent_id as reviewerAgentId, project_id as projectId, goal_id as goalId, version, status, tags_json as tagsJson from documents where id = ? and company_id = ? limit 1",
+        )
+        .get(documentId, companyId) as DocumentLookupRow | undefined;
+      return row ?? null;
     },
 
     updateDocumentStatus(id: string, companyId: string, status: string): void {
