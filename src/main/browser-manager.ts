@@ -8,6 +8,15 @@ import { getPlatformRules, attachWindowSecurity, assertAllowedUrl, waitForLoad, 
 
 export type { BrowserAction, BrowserActionResult } from "./browser/browser-types";
 
+/**
+ * Hard ceiling for a single browser action end-to-end (navigation, screenshot,
+ * login verification, scripted DOM interaction). A hung page would otherwise
+ * block every queued action for the same account forever; the renderer cannot
+ * be trusted to always call `cancelAction`. Five minutes matches the longest
+ * legitimate flow (first-time OAuth with 2FA).
+ */
+const ACTION_TIMEOUT_MS = 5 * 60 * 1000;
+
 export class BrowserManager {
   private screenshotDir: string;
   private queues = new Map<string, QueuedAction[]>();
@@ -172,19 +181,52 @@ export class BrowserManager {
     while (queue.length > 0) {
       const item = queue.shift()!;
       try {
-        const result = await runAction(
-          item.action,
-          this.screenshotDir,
-          this.getSession(item.action.socialAccountId),
-          this.cancelledActionIds,
-          this.activeActionWindows,
-        );
+        const result = await this.runActionWithDeadline(item.action);
         item.resolve(result);
       } catch (error) {
         item.reject(error instanceof Error ? error : new Error(String(error)));
       }
     }
     this.processing.delete(socialAccountId);
+  }
+
+  private runActionWithDeadline(action: BrowserAction): Promise<BrowserActionResult> {
+    // cancelAction reuses the same cancelledActionIds set + closes the active
+    // window, which runAction observes to return a cancelled result. Mirror
+    // that path on timeout so queued follow-ups are unblocked.
+    return new Promise<BrowserActionResult>((resolve, reject) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        this.cancelledActionIds.add(action.id);
+        const activeWindow = this.activeActionWindows.get(action.id);
+        if (activeWindow && !activeWindow.isDestroyed()) {
+          activeWindow.close();
+        }
+        log.warn(`[browser] action ${action.id} exceeded ${ACTION_TIMEOUT_MS}ms timeout`);
+      }, ACTION_TIMEOUT_MS);
+
+      runAction(
+        action,
+        this.screenshotDir,
+        this.getSession(action.socialAccountId),
+        this.cancelledActionIds,
+        this.activeActionWindows,
+      ).then(
+        (result) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(result);
+        },
+        (error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          reject(error instanceof Error ? error : new Error(String(error)));
+        },
+      );
+    });
   }
 
   private async verifyLoginSession(socialAccountId: string, platform: string): Promise<boolean> {
