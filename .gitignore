@@ -10,7 +10,7 @@ coverage/
 win-unpacked
 .blockmap
 .claude
-build
+/build
 .omc
 .omx
 .planning/*
