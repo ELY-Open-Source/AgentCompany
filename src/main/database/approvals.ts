@@ -335,12 +335,16 @@ export function buildApprovalMethods(
     },
 
     linkManyTasksToApproval(approvalId: string, taskIds: string[], companyId: string, linkedByAgentId?: string | null): void {
+      if (taskIds.length === 0) return;
       const ts = nowIso();
-      for (const taskId of taskIds) {
-        getDb().prepare(
+      transaction(() => {
+        const stmt = getDb().prepare(
           "INSERT OR IGNORE INTO task_approval_links (task_id, approval_id, company_id, linked_by_agent_id, created_at) VALUES (?, ?, ?, ?, ?)",
-        ).run(taskId, approvalId, companyId, linkedByAgentId ?? null, ts);
-      }
+        );
+        for (const taskId of taskIds) {
+          stmt.run(taskId, approvalId, companyId, linkedByAgentId ?? null, ts);
+        }
+      });
     },
   };
 }

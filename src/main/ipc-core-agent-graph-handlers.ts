@@ -61,15 +61,7 @@ export function registerCoreAgentGraphHandlers({
         "Create new agents through the hiring workflow so approval, onboarding, and org state stay synchronized.",
       );
     }
-    const existingAgent = (() => {
-      try {
-        const agentId = parsed.id;
-        if (!agentId) return null;
-        return db.getAgent(agentId);
-      } catch {
-        return null;
-      }
-    })();
+    const existingAgent = parsed.id ? db.findAgent(parsed.id) : null;
     if (!existingAgent || existingAgent.companyId !== parsed.companyId) {
       return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
     }
@@ -92,13 +84,7 @@ export function registerCoreAgentGraphHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
-    const connectorRecord = (() => {
-      try {
-        return db.getConnector(parsed.connectorId);
-      } catch {
-        return null;
-      }
-    })();
+    const connectorRecord = db.findConnector(parsed.connectorId);
     if (!connectorRecord) {
       return fail("CONNECTOR_NOT_FOUND", "The selected connector does not exist.");
     }
@@ -162,13 +148,7 @@ export function registerCoreAgentGraphHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
-    const connectorRecord = (() => {
-      try {
-        return db.getConnector(parsed.connectorId);
-      } catch {
-        return null;
-      }
-    })();
+    const connectorRecord = db.findConnector(parsed.connectorId);
     if (!connectorRecord) {
       return fail("CONNECTOR_NOT_FOUND", "The selected connector does not exist.");
     }

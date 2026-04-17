@@ -71,6 +71,17 @@ export function buildEntityCrudMethods(
       return row;
     },
 
+    findAgent(id: string): AgentRecord | null {
+      const row = getDb()
+        .prepare(
+          "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where id = ?",
+        )
+        .get(id) as AgentRecord | undefined;
+      if (!row) return null;
+      row.heartbeatEnabled = Boolean(row.heartbeatEnabled);
+      return row;
+    },
+
     /**
      * Returns all goals for a company. Used by GET /api/companies/:id/goals.
      */

@@ -197,12 +197,14 @@ export class AppDatabaseBase {
   saveConnector(input: { id: ConnectorId; command: string; model: string | null; envBindingText: string; notes: string }) { this.connectorsCrud.saveConnector(input); }
   updateConnectorHealth(input: { id: ConnectorId; status: string; authState: string; version: string | null; lastError: string | null }) { this.connectorsCrud.updateConnectorHealth(input); }
   getConnector(id: ConnectorId) { return this.connectorsCrud.getConnector(id); }
+  findConnector(id: ConnectorId) { return this.connectorsCrud.findConnector(id); }
 
   // ─── Agents ────────────────────────────────────────────────────────────────
 
   saveAgent(input: { id?: string | null; companyId: string; name: string; role: string; title: string; department?: string | null; status: AgentStatus; reportsTo?: string | null; connectorId: ConnectorId; workspaceId?: string | null; model?: string | null; metadataJson?: string; capabilities: string; budgetMonthlyUsd: number }) { return this.agents.saveAgent(input); }
   deleteAgent(id: string, companyId: string) { return this.agents.deleteAgent(id, companyId); }
   getAgent(id: string) { return this.entityCrud.getAgent(id); }
+  findAgent(id: string) { return this.entityCrud.findAgent(id); }
   setHeartbeat(agentId: string, enabled: boolean, intervalSec: number) { return this.agents.setHeartbeat(agentId, enabled, intervalSec); }
   markHeartbeatAt(agentId: string) { return this.agents.markHeartbeatAt(agentId); }
   resetMonthlyBudgets(companyId: string) { return this.agents.resetMonthlyBudgets(companyId); }

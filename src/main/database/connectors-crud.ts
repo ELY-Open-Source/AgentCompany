@@ -79,7 +79,7 @@ export function buildConnectorMethods(
         .run(input.status, input.authState, input.version, nowIso(), input.lastError, nowIso(), input.id);
     },
 
-    getConnector(id: ConnectorId): ConnectorRecord {
+    findConnector(id: ConnectorId): ConnectorRecord | null {
       const row = getDb()
         .prepare(
           "select id, label, description, status, command, version, auth_state, last_checked_at, last_error, model, env_binding_text, notes from connectors where id = ?",
@@ -100,8 +100,13 @@ export function buildConnectorMethods(
             notes: string;
           }
         | undefined;
-      if (!row) throw new Error(`Connector not found: ${id}`);
-      const definition = getConnectorDefinition(row.id as ConnectorId);
+      if (!row) return null;
+      let definition;
+      try {
+        definition = getConnectorDefinition(row.id as ConnectorId);
+      } catch {
+        return null;
+      }
       return {
         id: row.id as ConnectorId,
         label: row.label,
@@ -118,6 +123,12 @@ export function buildConnectorMethods(
         configurationDoc: definition.configurationDoc,
         capabilityMatrix: definition.capabilityMatrix,
       };
+    },
+
+    getConnector(id: ConnectorId): ConnectorRecord {
+      const result = this.findConnector(id);
+      if (!result) throw new Error(`Connector not found: ${id}`);
+      return result;
     },
 
     seedConnectors() {
