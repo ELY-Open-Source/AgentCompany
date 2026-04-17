@@ -211,6 +211,9 @@ export class AppDatabaseBase {
   getDirectReports(agentId: string, companyId: string) { return this.agents.getDirectReports(agentId, companyId); }
   getCeoForCompany(companyId: string) { return this.agents.getCeoForCompany(companyId); }
   listActiveAgentsForCompany(companyId: string) { return this.agents.listActiveAgentsForCompany(companyId); }
+  listAgentsForApi(companyId: string) { return this.agents.listAgentsForApi(companyId); }
+  listAgentsForStandup(companyId: string) { return this.agents.listAgentsForStandup(companyId); }
+  listExistingAgentsForHireCheck(companyId: string) { return this.agents.listExistingAgentsForHireCheck(companyId); }
   hasAgentAssignedTasks(agentId: string, companyId: string) { return this.agents.hasAgentAssignedTasks(agentId, companyId); }
   updateAgentStatus(agentId: string, status: string) { return this.agents.updateAgentStatus(agentId, status); }
   isAgentPendingApproval(agentId: string) { return this.agents.isAgentPendingApproval(agentId); }
@@ -244,6 +247,7 @@ export class AppDatabaseBase {
   renewTaskLease(taskId: string, runId: string) { return this.tasks.renewTaskLease(taskId, runId); }
   listAgentTasks(agentId: string, companyId: string, statuses: string[]) { return this.tasks.listAgentTasks(agentId, companyId, statuses); }
   listTasksByStatuses(companyId: string, statuses: string[]) { return this.tasks.listTasksByStatuses(companyId, statuses); }
+  listTasksForStandup(companyId: string) { return this.tasks.listTasksForStandup(companyId); }
   findReusableHeartbeatTask(agentId: string, companyId: string) { return this.tasks.findReusableHeartbeatTask(agentId, companyId); }
   acquireHeartbeatTask(input: { agentId: string; companyId: string; runId: string; workspaceId: string | null; title: string; description: string; priority: string }) { return this.tasks.acquireHeartbeatTask(input); }
   cleanupDuplicateHeartbeatTasks(companyId: string) { return this.tasks.cleanupDuplicateHeartbeatTasks(companyId); }
@@ -297,6 +301,9 @@ export class AppDatabaseBase {
   listApprovalsForTask(taskId: string) { return this.approvalsMod.listApprovalsForTask(taskId); }
   listTasksForApproval(approvalId: string) { return this.approvalsMod.listTasksForApproval(approvalId); }
   linkManyTasksToApproval(approvalId: string, taskIds: string[], companyId: string, linkedByAgentId?: string | null) { this.approvalsMod.linkManyTasksToApproval(approvalId, taskIds, companyId, linkedByAgentId); }
+  listApprovalsForStandup(companyId: string) { return this.approvalsMod.listApprovalsForStandup(companyId); }
+  listPendingHireApprovalPayloads(companyId: string) { return this.approvalsMod.listPendingHireApprovalPayloads(companyId); }
+  listApprovalsForApi(companyId: string, filters: { requestedByAgentId?: string; relatedTaskId?: string; statuses?: string[] | null }) { return this.approvalsMod.listApprovalsForApi(companyId, filters); }
 
   // ─── Workspaces ────────────────────────────────────────────────────────────
 
@@ -406,5 +413,6 @@ export class AppDatabaseBase {
 
   addActivity(input: { companyId: string; actor: string; action: string; entityType: string; entityId: string; detail: string }) { this.activityMod.addActivity(input); }
   addComment(input: { companyId: string; taskId: string; authorAgentId: string | null; authorName: string; body: string }) { return this.activityMod.addComment(input); }
+  listRecentTaskComments(taskIds: string[], sinceIso: string, limit: number) { return this.activityMod.listRecentTaskComments(taskIds, sinceIso, limit); }
   recordConfigRevision(input: { companyId: string; agentId: string; changedKeys: string[]; configBefore: Record<string, unknown>; configAfter: Record<string, unknown>; source?: string; rolledBackFromRevisionId?: string | null; createdByAgentId?: string | null; createdByUserId?: string | null }) { return this.documentsMod.recordConfigRevision(input); }
 }

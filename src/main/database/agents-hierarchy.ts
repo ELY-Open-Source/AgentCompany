@@ -8,6 +8,47 @@ import {
   toBoolean,
 } from "./helpers";
 
+/**
+ * Agent row shape returned by listAgentsForApi. Mirrors the historical
+ * inline SQL projection in routes-agents.ts so HTTP response bodies
+ * stay byte-stable. heartbeatEnabled is exposed as a boolean.
+ */
+export type AgentApiRow = {
+  id: string;
+  companyId: string;
+  name: string;
+  role: string;
+  title: string | null;
+  department: string | null;
+  status: string;
+  reportsTo: string | null;
+  connectorId: string;
+  workspaceId: string | null;
+  model: string | null;
+  capabilities: string | null;
+  budgetMonthlyUsd: number | null;
+  spentMonthlyUsd: number | null;
+  metadataJson: string;
+  heartbeatEnabled: boolean;
+  heartbeatIntervalSec: number | null;
+  lastHeartbeatAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * Slim agent projection used by the me/standup aggregation.
+ */
+export type AgentStandupRow = {
+  id: string;
+  companyId: string;
+  name: string;
+  role: string;
+  status: string;
+  reportsTo: string | null;
+  department: string | null;
+};
+
 export function buildAgentHierarchyMethods(
   getDb: () => DatabaseSync,
   readAll: ReadAll,
@@ -72,6 +113,44 @@ export function buildAgentHierarchyMethods(
       getDb()
         .prepare("update agents set last_heartbeat_at = ? where id = ?")
         .run(nowIso(), agentId);
+    },
+
+    /**
+     * Returns all agents for a company with the full API projection used
+     * by GET /api/companies/:companyId/agents. Mirrors the historical
+     * inline SQL and maps heartbeat_enabled into a boolean.
+     */
+    listAgentsForApi(companyId: string): AgentApiRow[] {
+      return readAll<AgentApiRow & { heartbeatEnabled: number | boolean }>(
+        "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? order by created_at asc",
+        companyId,
+      ).map((a) => ({ ...a, heartbeatEnabled: Boolean(a.heartbeatEnabled) })) as AgentApiRow[];
+    },
+
+    /**
+     * Returns the slim standup projection used by
+     * GET /api/agents/me/standup — only the fields that feed the
+     * aggregation (id, name, role, status, reportsTo, department).
+     */
+    listAgentsForStandup(companyId: string): AgentStandupRow[] {
+      return readAll<AgentStandupRow>(
+        "select id, company_id as companyId, name, role, status, reports_to as reportsTo, department from agents where company_id = ? order by created_at asc",
+        companyId,
+      );
+    },
+
+    /**
+     * Returns the duplicate-detection projection used by
+     * POST /api/companies/:id/agents to reject hires with a name that
+     * already belongs to a non-terminated agent.
+     */
+    listExistingAgentsForHireCheck(
+      companyId: string,
+    ): Array<{ id: string; name: string; role: string }> {
+      return readAll<{ id: string; name: string; role: string }>(
+        "select id, name, role from agents where company_id = ? and status != 'terminated'",
+        companyId,
+      );
     },
 
     listHeartbeatEligibleAgents(companyId: string): AgentRecord[] {

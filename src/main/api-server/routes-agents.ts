@@ -11,38 +11,6 @@ import {
 import { resolveApprovalDecision, shouldAutoApproveApproval } from "../approval-policy";
 import { requireParam, type AgentApiServer } from "./server-core";
 
-type AgentStandupRow = {
-  id: string; companyId: string; name: string; role: string;
-  status: string; reportsTo: string | null; department: string | null;
-};
-
-type TaskStandupRow = {
-  id: string; companyId: string; title: string;
-  assigneeAgentId: string | null; status: string; priority: string;
-};
-
-type ApprovalStandupRow = {
-  id: string; companyId: string; type: string;
-  requestedByAgentId: string; state: string;
-  payloadSummary: string | null; decisionNote: string | null;
-};
-
-type TaskCommentRow = {
-  id: string; taskId: string; authorName: string;
-  body: string; createdAt: string;
-};
-
-type AgentListRow = {
-  id: string; companyId: string; name: string; role: string;
-  title: string | null; department: string | null; status: string;
-  reportsTo: string | null; connectorId: string; workspaceId: string | null;
-  model: string | null; capabilities: string | null;
-  budgetMonthlyUsd: number | null; spentMonthlyUsd: number | null;
-  metadataJson: string; heartbeatEnabled: number;
-  heartbeatIntervalSec: number | null; lastHeartbeatAt: string | null;
-  createdAt: string; updatedAt: string;
-};
-
 export function registerAgentRoutes(server: AgentApiServer) {
   const db = server.db;
   const callbacks = server.callbacks;
@@ -61,18 +29,9 @@ export function registerAgentRoutes(server: AgentApiServer) {
       return;
     }
 
-    const companyAgents = db.queryAll<AgentStandupRow>(
-      "select id, company_id as companyId, name, role, status, reports_to as reportsTo, department from agents where company_id = ? order by created_at asc",
-      token.companyId,
-    );
-    const companyTasks = db.queryAll<TaskStandupRow>(
-      "select id, company_id as companyId, title, assignee_agent_id as assigneeAgentId, status, priority from tasks where company_id = ? order by created_at desc",
-      token.companyId,
-    );
-    const companyApprovals = db.queryAll<ApprovalStandupRow>(
-      "select id, company_id as companyId, type, requested_by_agent_id as requestedByAgentId, state, payload_summary as payloadSummary, decision_note as decisionNote from approvals where company_id = ? order by created_at desc",
-      token.companyId,
-    );
+    const companyAgents = db.listAgentsForStandup(token.companyId);
+    const companyTasks = db.listTasksForStandup(token.companyId);
+    const companyApprovals = db.listApprovalsForStandup(token.companyId);
 
     const myTasks = companyTasks.filter((t) => t.assigneeAgentId === token.agentId);
     const directReports = companyAgents.filter((a) => a.reportsTo === token.agentId);
@@ -87,12 +46,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
 
     const allRelevantTaskIds = new Set([...myTasks.map((t) => t.id), ...reportTasks.map((t) => t.id)]);
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const recentComments = allRelevantTaskIds.size > 0
-      ? db.queryAll<TaskCommentRow>(
-          `select id, task_id as taskId, author_name as authorName, body, created_at as createdAt from task_comments where task_id in (${[...allRelevantTaskIds].map(() => "?").join(",")}) and created_at > ? order by created_at desc limit 20`,
-          ...[...allRelevantTaskIds], twoHoursAgo,
-        )
-      : [];
+    const recentComments = db.listRecentTaskComments([...allRelevantTaskIds], twoHoursAgo, 20);
 
     const myPendingApprovals = companyApprovals.filter(
       (a) => a.requestedByAgentId === token.agentId && a.state === "pending",
@@ -225,10 +179,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const agents = db.queryAll<AgentListRow>(
-      "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? order by created_at asc",
-      params.companyId,
-    ).map((a) => ({ ...a, heartbeatEnabled: Boolean(a.heartbeatEnabled) }));
+    const agents = db.listAgentsForApi(params.companyId);
     server.json(res, 200, agents);
   });
 
@@ -317,10 +268,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
     }
 
     // Prevent duplicate agents: reject if a non-terminated agent with the same name already exists
-    const existingAgents = db.queryAll<{ id: string; name: string; role: string }>(
-      "select id, name, role from agents where company_id = ? and status != 'terminated'",
-      companyId,
-    );
+    const existingAgents = db.listExistingAgentsForHireCheck(companyId);
     const duplicateByName = existingAgents.find(
       (a) => a.name.toLowerCase() === input.name.toLowerCase(),
     );
@@ -329,10 +277,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
       return;
     }
     // Also check pending hire approvals with the same name to prevent concurrent duplicate requests
-    const pendingHires = db.queryAll<{ payloadJson: string | null }>(
-      "select payload_json as payloadJson from approvals where company_id = ? and type = 'hire_agent' and state = 'pending'",
-      companyId,
-    );
+    const pendingHires = db.listPendingHireApprovalPayloads(companyId);
     for (const pending of pendingHires) {
       try {
         const payload = pending.payloadJson ? JSON.parse(pending.payloadJson) as Record<string, unknown> : {};

@@ -116,6 +116,81 @@ export function buildApprovalMethods(
       getDb().prepare("delete from approvals where id = ? and company_id = ?").run(id, companyId);
     },
 
+    /**
+     * Returns the slim approval projection used by
+     * GET /api/agents/me/standup. Ordered by created_at desc.
+     */
+    listApprovalsForStandup(companyId: string): Array<{
+      id: string;
+      companyId: string;
+      type: string;
+      requestedByAgentId: string | null;
+      state: string;
+      payloadSummary: string | null;
+      decisionNote: string | null;
+    }> {
+      return readAll(
+        "select id, company_id as companyId, type, requested_by_agent_id as requestedByAgentId, state, payload_summary as payloadSummary, decision_note as decisionNote from approvals where company_id = ? order by created_at desc",
+        companyId,
+      );
+    },
+
+    /**
+     * Returns pending `hire_agent` approval payloads for a company, used
+     * during hire-request creation to detect duplicate names across
+     * concurrent requests.
+     */
+    listPendingHireApprovalPayloads(
+      companyId: string,
+    ): Array<{ payloadJson: string | null }> {
+      return readAll<{ payloadJson: string | null }>(
+        "select payload_json as payloadJson from approvals where company_id = ? and type = 'hire_agent' and state = 'pending'",
+        companyId,
+      );
+    },
+
+    /**
+     * Returns the full approval row projection used by
+     * GET /api/companies/:id/approvals. Optional filters match the
+     * historical inline SQL behaviour.
+     */
+    listApprovalsForApi(companyId: string, filters: {
+      requestedByAgentId?: string;
+      relatedTaskId?: string;
+      statuses?: string[] | null;
+    }): Array<{
+      id: string;
+      companyId: string;
+      relatedTaskId: string | null;
+      relatedAgentId: string | null;
+      requestedByAgentId: string | null;
+      type: string;
+      payloadSummary: string | null;
+      impactSummary: string | null;
+      payloadJson: string | null;
+      decisionNote: string | null;
+      state: string;
+      createdAt: string;
+      updatedAt: string;
+    }> {
+      let sql = "select id, company_id as companyId, related_task_id as relatedTaskId, related_agent_id as relatedAgentId, requested_by_agent_id as requestedByAgentId, type, payload_summary as payloadSummary, impact_summary as impactSummary, payload_json as payloadJson, decision_note as decisionNote, state, created_at as createdAt, updated_at as updatedAt from approvals where company_id = ?";
+      const args: SQLInputValue[] = [companyId];
+      if (filters.requestedByAgentId) {
+        sql += " and requested_by_agent_id = ?";
+        args.push(filters.requestedByAgentId);
+      }
+      if (filters.relatedTaskId) {
+        sql += " and related_task_id = ?";
+        args.push(filters.relatedTaskId);
+      }
+      if (filters.statuses && filters.statuses.length > 0) {
+        sql += ` and state in (${filters.statuses.map(() => "?").join(", ")})`;
+        args.push(...filters.statuses);
+      }
+      sql += " order by created_at desc";
+      return readAll(sql, ...args);
+    },
+
     getBlockingApproval(companyId: string, agentId: string, taskId: string | null): ApprovalRecord | null {
       const taskCondition = taskId != null
         ? "(related_task_id = ? or requested_by_agent_id = ?)"

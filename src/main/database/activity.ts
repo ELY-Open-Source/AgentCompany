@@ -33,5 +33,31 @@ export function buildActivityMethods(
         taskId,
       );
     },
+
+    /**
+     * Returns the `limit` most recent task comments (author_name + body +
+     * createdAt) for a given set of task ids since `sinceIso`. Used by
+     * GET /api/agents/me/standup to build the "recent comments" feed.
+     */
+    listRecentTaskComments(
+      taskIds: string[],
+      sinceIso: string,
+      limit: number,
+    ): Array<{
+      id: string;
+      taskId: string;
+      authorName: string;
+      body: string;
+      createdAt: string;
+    }> {
+      if (taskIds.length === 0) return [];
+      const placeholders = taskIds.map(() => "?").join(",");
+      return readAll(
+        `select id, task_id as taskId, author_name as authorName, body, created_at as createdAt from task_comments where task_id in (${placeholders}) and created_at > ? order by created_at desc limit ?`,
+        ...taskIds,
+        sinceIso,
+        limit,
+      );
+    },
   };
 }
