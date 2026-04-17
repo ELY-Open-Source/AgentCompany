@@ -287,16 +287,21 @@ export function executeAutomationAction(
       break;
     }
     case "schedule_meeting": {
-      const meetingType = (config.meetingType as string) ?? "department_sync";
-      const title = (config.title as string) ?? "Auto-scheduled meeting";
+      const cfg = config as AutomationActionConfigMap["schedule_meeting"];
+      const meetingType = cfg.meetingType ?? "department_sync";
+      const title = cfg.title ?? "Auto-scheduled meeting";
+      // Prefer an absolute scheduledAt; otherwise honor scheduleOffsetMinutes.
+      // Default to +60min only when the rule specifies no time at all.
+      const offsetMinutes = cfg.scheduleOffsetMinutes ?? 60;
+      const scheduledAt = cfg.scheduledAt ?? new Date(Date.now() + offsetMinutes * 60_000).toISOString();
       db.saveMeeting({
         companyId: ctx.companyId,
         type: meetingType,
         title,
         organizerAgentId: ctx.agentId ?? null,
-        participantAgentIds: (config.participantAgentIds as string) ?? "[]",
-        scheduledAt: new Date(Date.now() + 3600_000).toISOString(),
-        durationMinutes: (config.durationMinutes as number) ?? 30,
+        participantAgentIds: cfg.participantAgentIds ?? "[]",
+        scheduledAt,
+        durationMinutes: cfg.durationMinutes ?? 30,
       });
       break;
     }

@@ -65,6 +65,10 @@ export const scheduleMeetingConfigSchema = z.object({
   title: z.string().optional(),
   participantAgentIds: z.string().optional(),
   durationMinutes: z.number().int().positive().optional(),
+  // Absolute ISO-8601 scheduling is preferred; otherwise callers can specify
+  // an offset in minutes from now (replaces the previous hard-coded 60min).
+  scheduledAt: z.string().optional(),
+  scheduleOffsetMinutes: z.number().int().positive().optional(),
 });
 
 export const createDocumentConfigSchema = z.object({
