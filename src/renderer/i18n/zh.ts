@@ -339,7 +339,7 @@ export const zh: Record<string, string> = {
   "hiring.proposedBy": "由...推荐",
 
   // ── 组织页面 ──
-  "org.agentRoster": "智能体名册",
+  "org.agentRoster": "团队成员",
   "org.newHireRequest": "新招聘申请",
   "org.editAgent": "编辑",
   "org.editAgentTitle": "编辑 {name}（{role}）",
@@ -704,7 +704,7 @@ export const zh: Record<string, string> = {
   "dash.points": "点数",
 
   // ── 组织 ──
-  "org.noAgentsYet": "暂无已招聘的智能体",
+  "org.noAgentsYet": "还没有团队成员",
   "org.noAgentsDetail": "招到人后会显示在这里。",
   "org.noTitle": "无职位",
   "org.noGoalsYet": "暂未设定目标",
@@ -739,7 +739,6 @@ export const zh: Record<string, string> = {
   "org.default": "默认",
   "org.model": "模型",
   "org.interval": "间隔",
-  "org.fit": "适配",
   "org.description": "描述",
   "org.status": "状态",
   "org.statusPlanned": "已规划",
@@ -748,7 +747,7 @@ export const zh: Record<string, string> = {
   "org.statusCancelled": "已取消",
   "org.connector": "连接器",
   "org.advancedSettings": "高级设置",
-  "org.hireRequestNote": "新智能体先进招聘管线。审批通过后激活，入职、预算和组织历史记录全部挂在同一条记录下。",
+  "org.hireRequestNote": "新成员先进招聘管线，审批通过后激活。入职、预算和组织历史记录都挂在同一条记录下。",
   "org.connectorLabel": "连接器：",
   "org.workspaceLabel": "工作区：",
   "org.goalLabel": "目标：",
@@ -1390,7 +1389,7 @@ export const zh: Record<string, string> = {
   "agent.form.statusTerminated": "已终止",
   "agent.form.rootDeleteBlocked": "顶层成员无法删除。先把下属重新分配给其他上级。",
   "agent.form.rootTerminateBlocked": "顶层成员无法终止。先把下属重新分配给其他上级。",
-  "agent.form.pendingReadOnly": "待招聘状态为只读。先在招聘或审批里批准或拒绝，再编辑智能体资料。",
+  "agent.form.pendingReadOnly": "待招聘状态为只读。先在招聘或审批里批准或拒绝，再编辑成员资料。",
   "agent.form.saveFailed": "保存智能体失败。",
   "agent.form.wakeFailed": "唤醒智能体失败。",
   "agent.form.budgetPolicyInvalid": "智能体预算策略无效。",

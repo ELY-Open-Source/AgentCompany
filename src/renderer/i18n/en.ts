@@ -339,7 +339,7 @@ export const en: Record<string, string> = {
   "hiring.proposedBy": "Proposed by",
 
   // ── Organization page ──
-  "org.agentRoster": "Agent roster",
+  "org.agentRoster": "Team members",
   "org.newHireRequest": "New hire request",
   "org.editAgent": "Edit",
   "org.editAgentTitle": "Edit {name} ({role})",
@@ -704,8 +704,8 @@ export const en: Record<string, string> = {
   "dash.points": "points",
 
   // ── Organization ──
-  "org.noAgentsYet": "No agents hired yet",
-  "org.noAgentsDetail": "Hired agents show up here.",
+  "org.noAgentsYet": "No team members yet",
+  "org.noAgentsDetail": "Hired members show up here.",
   "org.noTitle": "No title",
   "org.noGoalsYet": "No goals defined yet",
   "org.noGoalsDetail": "Goals set the team's priorities.",
@@ -739,7 +739,6 @@ export const en: Record<string, string> = {
   "org.default": "Default",
   "org.model": "Model",
   "org.interval": "Interval",
-  "org.fit": "Fit",
   "org.description": "Description",
   "org.status": "Status",
   "org.statusPlanned": "Planned",
