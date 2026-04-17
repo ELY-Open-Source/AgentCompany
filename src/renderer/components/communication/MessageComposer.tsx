@@ -1,29 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { ArrowBendUpLeft, PaperPlaneTilt, X, ChatCircle, UserCircle, Paperclip, FileText } from "@phosphor-icons/react"
+import { ArrowBendUpLeft, X, ChatCircle, UserCircle, Paperclip, FileText } from "@phosphor-icons/react"
 import type { AgentMessageRecord, AgentRecord, DocumentRecord, MessageChannel } from "@shared/types"
 import { unwrap } from "../../lib/desktop"
 import { cmdOrCtrlLabel } from "../../lib/platform"
 import { getAgentInitials } from "../../lib/formatters"
 import { useAppStore } from "../../state/store"
-import { ActionButton, InlineNotice } from "../ui"
+import { InlineNotice } from "../ui"
 import { useT } from "../../i18n"
+import { ComposerShell } from "./composer-shell/ComposerShell"
 
 const HUMAN_SENDER_ID = "__board__";
-
-function SendButton({ sending, disabled, onClick, label }: { sending: boolean; disabled: boolean; onClick: () => void; label: string }) {
-  return (
-    <ActionButton
-      label={label}
-      icon={PaperPlaneTilt}
-      tone="accent"
-      iconOnly
-      loading={sending}
-      disabled={disabled}
-      onClick={onClick}
-    />
-  )
-}
 
 // ─── Attachment Picker ──────────────────────────────────────────────────────
 
@@ -228,8 +215,7 @@ export function MessageComposer({ agents, companyId, channel, channelTargetId, d
     textareaRef.current?.focus()
   }, [mentionState])
 
-  const handleBodyChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value
+  const handleBodyChange = useCallback((value: string, e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setBody(value)
 
     const cursorPos = e.target.selectionStart
@@ -277,47 +263,65 @@ export function MessageComposer({ agents, companyId, channel, channelTargetId, d
     finally { setSending(false) }
   }, [body, channel, channelTargetId, companyId, directRecipientId, onSent, replyTo, subject, attachments, threadId, waitStateId, addToast])
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (mentionState.active) return // let MentionDropdown handle keys
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void handleSend() }
-  }, [handleSend, mentionState.active])
+  const handleKeyDownExtra = useCallback(() => {
+    return mentionState.active // when mention active, ComposerShell should skip its own Enter handler
+  }, [mentionState.active])
+
+  const directMissingNotice = channel === "direct" && !directRecipientId
+    ? <div className="mb-2"><InlineNotice message="Select a direct conversation partner before sending a DM." /></div>
+    : null
+
+  const replyBanner = (
+    <AnimatePresence>
+      {replyTo ? (
+        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-2 flex items-center gap-2 overflow-hidden rounded-lg bg-muted px-3 py-2">
+          <ArrowBendUpLeft size={12} className="text-primary" />
+          <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Replying to <span className="font-semibold">{agents.find((a) => a.id === replyTo.fromAgentId)?.name ?? "agent"}</span>{replyTo.subject ? `: ${replyTo.subject}` : ""}</span>
+          <button type="button" onClick={onCancelReply} className="shrink-0 rounded-[4px] p-0.5 text-muted-foreground transition hover:text-foreground"><X size={12} /></button>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  )
+
+  const subjectRow = (
+    <div className="mb-2 flex items-center gap-2">
+      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"><UserCircle size={16} weight="fill" /></div>
+      <span className="text-[11px] font-medium text-foreground">You (Board)</span>
+      {!replyTo ? <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject (optional)" aria-label="Message subject" className="min-w-0 flex-1 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] text-foreground placeholder:text-muted-foreground" /> : null}
+    </div>
+  )
+
+  const attachmentsRow = attachments.length > 0 ? (
+    <div className="mb-2 flex flex-wrap gap-1.5">
+      {attachments.map((att) => (
+        <span key={att.id} className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary">
+          <FileText size={10} />
+          <span className="max-w-[160px] truncate">{att.title}</span>
+          <button type="button" onClick={() => handleRemoveAttachment(att.id)} className="ml-0.5 rounded-sm p-0.5 transition hover:bg-primary/20"><X size={8} /></button>
+        </span>
+      ))}
+    </div>
+  ) : null
 
   return (
     <div className="relative border-t border-border bg-card px-4 py-3">
-      {sendError ? <div className="mb-3"><InlineNotice message={sendError} /></div> : null}
-      {channel === "direct" && !directRecipientId ? <div className="mb-2"><InlineNotice message="Select a direct conversation partner before sending a DM." /></div> : null}
-      <AnimatePresence>
-        {replyTo ? (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-2 flex items-center gap-2 overflow-hidden rounded-lg bg-muted px-3 py-2">
-            <ArrowBendUpLeft size={12} className="text-primary" />
-            <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">Replying to <span className="font-semibold">{agents.find((a) => a.id === replyTo.fromAgentId)?.name ?? "agent"}</span>{replyTo.subject ? `: ${replyTo.subject}` : ""}</span>
-            <button type="button" onClick={onCancelReply} className="shrink-0 rounded-[4px] p-0.5 text-muted-foreground transition hover:text-foreground"><X size={12} /></button>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-      <div className="mb-2 flex items-center gap-2">
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"><UserCircle size={16} weight="fill" /></div>
-        <span className="text-[11px] font-medium text-foreground">You (Board)</span>
-        {!replyTo ? <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject (optional)" aria-label="Message subject" className="min-w-0 flex-1 rounded-lg border border-border bg-card px-2.5 py-1 text-[11px] text-foreground placeholder:text-muted-foreground" /> : null}
-      </div>
-
-      {attachments.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          {attachments.map((att) => (
-            <span key={att.id} className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary">
-              <FileText size={10} />
-              <span className="max-w-[160px] truncate">{att.title}</span>
-              <button type="button" onClick={() => handleRemoveAttachment(att.id)} className="ml-0.5 rounded-sm p-0.5 transition hover:bg-primary/20"><X size={8} /></button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div className="relative flex items-end gap-2">
-        <AttachmentPicker documents={documents} attachments={attachments} onAdd={handleAddAttachment} onRemove={handleRemoveAttachment} />
-        <textarea ref={textareaRef} value={body} onChange={handleBodyChange} onKeyDown={handleKeyDown} placeholder="Type a message... (use @ to mention agents)" aria-label="Message body" rows={2} className="min-h-[40px] min-w-0 flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring" />
-        <SendButton sending={sending} disabled={!body.trim() || (channel === "direct" && !directRecipientId)} onClick={() => void handleSend()} label="Send message" />
-      </div>
+      {directMissingNotice}
+      <ComposerShell
+        ref={textareaRef}
+        value={body}
+        onChange={handleBodyChange}
+        onSend={() => void handleSend()}
+        placeholder="Type a message... (use @ to mention agents)"
+        sending={sending}
+        error={sendError}
+        shortcutHint={`Press ${cmdOrCtrlLabel()}+Enter to send`}
+        sendLabel="Send message"
+        sendDisabled={!body.trim() || (channel === "direct" && !directRecipientId)}
+        leading={<AttachmentPicker documents={documents} attachments={attachments} onAdd={handleAddAttachment} onRemove={handleRemoveAttachment} />}
+        belowHeader={<>{replyBanner}{subjectRow}{attachmentsRow}</>}
+        onKeyDownExtra={handleKeyDownExtra}
+        textareaAriaLabel="Message body"
+      />
 
       {mentionState.active && (
         <MentionDropdown
@@ -327,8 +331,6 @@ export function MessageComposer({ agents, companyId, channel, channelTargetId, d
           position={{ top: 60, left: 48 }}
         />
       )}
-
-      <div className="mt-1 text-[11px] text-muted-foreground">Press {cmdOrCtrlLabel()}+Enter to send</div>
     </div>
   )
 }
@@ -341,11 +343,16 @@ export function TaskDiscussionComposer({ companyId, taskId, onSent }: { companyI
   }, [body, companyId, taskId, onSent])
   return (
     <div className="border-t border-border bg-card px-4 py-3">
-      {sendError ? <div className="mb-3"><InlineNotice message={sendError} /></div> : null}
-      <div className="flex items-end gap-2">
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Reply in task discussion..." aria-label="Task discussion reply" rows={2} className="min-h-[40px] min-w-0 flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring" />
-        <SendButton sending={sending} disabled={!body.trim()} onClick={() => void handleSend()} label="Send task comment" />
-      </div>
+      <ComposerShell
+        value={body}
+        onChange={(v) => setBody(v)}
+        onSend={() => void handleSend()}
+        placeholder="Reply in task discussion..."
+        sending={sending}
+        error={sendError}
+        sendLabel="Send task comment"
+        textareaAriaLabel="Task discussion reply"
+      />
     </div>
   )
 }
