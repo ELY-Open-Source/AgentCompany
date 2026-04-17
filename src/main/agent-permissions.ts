@@ -29,13 +29,20 @@ const MANAGEMENT_KEYWORDS = [
   "lead",
 ];
 
+/** Regex union for MANAGEMENT_KEYWORDS with `\b`-anchored matching so short
+ * tokens like "vp" or "cmo" do not false-match inside "vpc" or "economical". */
+const MANAGEMENT_KEYWORD_PATTERN = new RegExp(
+  `\\b(?:${MANAGEMENT_KEYWORDS.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`,
+  "i",
+);
+
 export function hasManagementAuthority(agent: { role: string; title: string; department: string | null }) {
   if (agent.department === "hr") {
     return true;
   }
 
-  const text = `${agent.role} ${agent.title}`.toLowerCase();
-  return MANAGEMENT_KEYWORDS.some((keyword) => text.includes(keyword));
+  const text = `${agent.role} ${agent.title}`;
+  return MANAGEMENT_KEYWORD_PATTERN.test(text);
 }
 
 function hasOrganizationPermission(db: AppDatabase, agentId: string) {
