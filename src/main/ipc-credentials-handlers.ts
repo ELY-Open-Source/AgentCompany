@@ -89,6 +89,9 @@ export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () =
     if (typeof definition === "string") return deps.fail("UNKNOWN_CONNECTOR", definition);
 
     const payload = parsed.data.payload;
+    if (!definition.auth) {
+      return deps.fail("UNSUPPORTED_PAYLOAD", `Connector ${parsed.data.connectorId} has no auth schema.`);
+    }
     if (definition.auth.type === "oauth") {
       return deps.fail("UNSUPPORTED_PAYLOAD", "Use OAuth login flow for OAuth connectors.");
     }
@@ -141,9 +144,17 @@ export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () =
 
     const runTest = async (): Promise<DesktopResult<{ ok: boolean; message: string }>> => {
       try {
-        const model = resolveModel(definition.provider, definition.defaultModel);
-        if (!model) return ok({ ok: false, message: `Unknown model ${definition.defaultModel} for provider ${definition.provider}` });
-        const extraHeaders = resolveExtraStreamHeaders(definition.provider, resolved.apiKey);
+        if (!definition.provider) {
+          return ok({ ok: false, message: `Connector ${parsed.data.connectorId} has no pi-ai provider id configured.` });
+        }
+        if (!definition.defaultModel) {
+          return ok({ ok: false, message: `Connector ${parsed.data.connectorId} has no default model configured.` });
+        }
+        const provider = definition.provider;
+        const defaultModel = definition.defaultModel;
+        const model = resolveModel(provider, defaultModel);
+        if (!model) return ok({ ok: false, message: `Unknown model ${defaultModel} for provider ${provider}` });
+        const extraHeaders = resolveExtraStreamHeaders(provider, resolved.apiKey);
         const options: SimpleStreamOptions = {
           apiKey: resolved.apiKey,
           maxTokens: 1,

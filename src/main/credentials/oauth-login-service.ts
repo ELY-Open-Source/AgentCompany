@@ -31,12 +31,13 @@ export class OAuthLoginService {
 
   async start(connectorId: string): Promise<void> {
     const definition = getConnectorDefinition(connectorId);
-    if (definition.auth.type !== "oauth") {
+    if (!definition.auth || definition.auth.type !== "oauth" || !definition.auth.oauthId) {
       throw new Error(`Connector ${connectorId} does not use OAuth.`);
     }
-    const provider = getOAuthProvider(definition.auth.oauthId);
+    const oauthId = definition.auth.oauthId;
+    const provider = getOAuthProvider(oauthId);
     if (!provider) {
-      throw new Error(`Unknown OAuth provider: ${definition.auth.oauthId}`);
+      throw new Error(`Unknown OAuth provider: ${oauthId}`);
     }
 
     if (this.active.has(connectorId)) {
