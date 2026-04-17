@@ -8,6 +8,8 @@ import {
 } from "@shared/contracts";
 import { fail, ok, type RegisterDomainHandlersDependencies } from "./ipc-domain-common";
 
+const inflightBrowserLogins = new Set<string>();
+
 export function registerBrowserHandlers({
   registerHandle,
   db,
@@ -89,6 +91,10 @@ export function registerBrowserHandlers({
       return fail("ACCOUNT_NOT_FOUND", "Social account not found");
     }
 
+    if (inflightBrowserLogins.has(input.socialAccountId)) {
+      return fail("LOGIN_IN_PROGRESS", "A login for this account is already in progress.");
+    }
+    inflightBrowserLogins.add(input.socialAccountId);
     browserActions.launchLoginBrowser(input.socialAccountId, account.platform).then(async (result) => {
       if (result.success) {
         const latestAccount = db.getSocialAccount(input.socialAccountId, account.companyId);
@@ -119,6 +125,8 @@ export function registerBrowserHandlers({
       }
     }).catch((error) => {
       logger.error(`[browser] Login failed: ${error}`);
+    }).finally(() => {
+      inflightBrowserLogins.delete(input.socialAccountId);
     });
 
     return ok(true);
