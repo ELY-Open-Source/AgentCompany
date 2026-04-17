@@ -25,6 +25,7 @@ import type {
 } from "./records-extended";
 
 export interface ProfileSnapshot {
+  // ─── Profile-level (shared across all companies) ─────────────────────────
   currentCompanyId: string | null;
   profilePath: string;
   updatesEnabled: boolean;
@@ -35,6 +36,7 @@ export interface ProfileSnapshot {
   };
   companies: CompanyRecord[];
   connectors: ConnectorRecord[];
+  // ─── Company-scoped collections (current company only) ───────────────────
   workspaces: WorkspaceRecord[];
   agents: AgentRecord[];
   goals: GoalRecord[];
@@ -55,4 +57,42 @@ export interface ProfileSnapshot {
   agentMessages: AgentMessageRecord[];
   workflows: WorkflowPipelineRecord[];
 }
+
+/** Fields that are shared across companies and loaded regardless of currentCompanyId. */
+export const PROFILE_LEVEL_KEYS = [
+  "currentCompanyId",
+  "profilePath",
+  "updatesEnabled",
+  "theme",
+  "locale",
+  "backend",
+  "companies",
+  "connectors",
+] as const satisfies ReadonlyArray<keyof ProfileSnapshot>;
+
+/** Fields that are filtered to the current company; switching companies reloads these. */
+export const COMPANY_SCOPED_KEYS = [
+  "workspaces",
+  "agents",
+  "goals",
+  "projects",
+  "tasks",
+  "approvals",
+  "runs",
+  "costs",
+  "activity",
+  "secrets",
+  "comments",
+  "socialAccounts",
+  "meetings",
+  "documents",
+  "knowledgeBase",
+  "sprints",
+  "automationRules",
+  "agentMessages",
+  "workflows",
+] as const satisfies ReadonlyArray<keyof ProfileSnapshot>;
+
+export type ProfileLevelKey = typeof PROFILE_LEVEL_KEYS[number];
+export type CompanyScopedKey = typeof COMPANY_SCOPED_KEYS[number];
 
