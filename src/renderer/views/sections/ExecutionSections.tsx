@@ -38,6 +38,30 @@ interface ExecutionSectionsProps {
   section: SectionId;
 }
 
+// Policy: blocked tasks need an operator unblock via secret_access approval;
+// everything else routes through CEO strategy review.
+function buildTaskEscalation(task: {
+  status: string;
+  title: string;
+}): {
+  type: "secret_access" | "approve_ceo_strategy";
+  payloadSummary: string;
+  impactSummary: string;
+} {
+  if (task.status === "blocked") {
+    return {
+      type: "secret_access",
+      payloadSummary: `Blocker: ${task.title} — needs operator assistance`,
+      impactSummary: "Agent is blocked and needs operator input (credentials, access, or decision).",
+    };
+  }
+  return {
+    type: "approve_ceo_strategy",
+    payloadSummary: `Review needed: ${task.title}`,
+    impactSummary: "No automated reviewer available. Operator review required.",
+  };
+}
+
 export function ExecutionSections({ section }: ExecutionSectionsProps) {
   const {
     snapshot,
@@ -202,18 +226,12 @@ export function ExecutionSections({ section }: ExecutionSectionsProps) {
                 onRun={startRun}
                 onCancelRun={cancelRun}
                 onCreateApproval={async () => {
-                  const isBlocked = selectedTask.status === "blocked";
+                  const escalation = buildTaskEscalation(selectedTask);
                   const approvalId = unwrap(await window.agentCompany.requestApproval({
                     companyId: currentCompany.id,
                     relatedTaskId: selectedTask.id,
                     requestedByAgentId: selectedTask.assigneeAgentId,
-                    type: isBlocked ? "secret_access" : "approve_ceo_strategy",
-                    payloadSummary: isBlocked
-                      ? `Blocker: ${selectedTask.title} — needs operator assistance`
-                      : `Review needed: ${selectedTask.title}`,
-                    impactSummary: isBlocked
-                      ? "Agent is blocked and needs operator input (credentials, access, or decision)."
-                      : "No automated reviewer available. Operator review required.",
+                    ...escalation,
                   }));
                   setSelectedApprovalId(approvalId);
                   await refresh();
