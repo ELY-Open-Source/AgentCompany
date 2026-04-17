@@ -46,11 +46,14 @@ const paletteOnlyNavDefs: NavItemDef[] = [
   { id: "knowledge", labelKey: "nav.knowledge", icon: BookOpen },
 ];
 
+const NO_MOTION = { duration: 0 } as const;
+const PAGE_TRANSITION = { duration: 0.32, ease: [0.16, 1, 0.3, 1] as const } as const;
+const PANEL_TRANSITION = { duration: 0.28, ease: [0.16, 1, 0.3, 1] as const } as const;
+
 export function useUIController() {
   const reducedMotion = useReducedMotion();
-  const noMotion = { duration: 0 };
-  const pageTransition = reducedMotion ? noMotion : { duration: 0.32, ease: [0.16, 1, 0.3, 1] as const };
-  const panelTransition = reducedMotion ? noMotion : { duration: 0.28, ease: [0.16, 1, 0.3, 1] as const };
+  const pageTransition = reducedMotion ? NO_MOTION : PAGE_TRANSITION;
+  const panelTransition = reducedMotion ? NO_MOTION : PANEL_TRANSITION;
 
   const locale = useAppStore((s) => s.locale);
   const t = useMemo(() => createTranslator(locale), [locale]);
