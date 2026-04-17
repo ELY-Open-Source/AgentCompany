@@ -18,27 +18,35 @@ export function buildAgentHierarchyMethods(
 ) {
   return {
     getChainOfCommand(agentId: string): AgentRecord[] {
-      const chain: AgentRecord[] = [];
-      const visited = new Set<string>();
-      let current: AgentRecord | undefined;
-      try {
-        current = deps.getAgent(agentId);
-      } catch {
-        return chain;
-      }
-      while (current?.reportsTo) {
-        if (visited.has(current.reportsTo)) {
-          break;
-        }
-        visited.add(current.reportsTo);
-        try {
-          current = deps.getAgent(current.reportsTo);
-          chain.push(current);
-        } catch {
-          break;
-        }
-      }
-      return chain;
+      const rows = readAll<AgentRecord & { depth: number }>(
+        `WITH RECURSIVE chain AS (
+           SELECT id, company_id as companyId, name, role, title, department, status,
+                  reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId,
+                  model, capabilities, budget_monthly_usd as budgetMonthlyUsd,
+                  spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson,
+                  heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec,
+                  last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt,
+                  0 as depth
+           FROM agents WHERE id = ?
+           UNION ALL
+           SELECT a.id, a.company_id, a.name, a.role, a.title, a.department, a.status,
+                  a.reports_to, a.connector_id, a.workspace_id,
+                  a.model, a.capabilities, a.budget_monthly_usd,
+                  a.spent_monthly_usd, a.metadata_json,
+                  a.heartbeat_enabled, a.heartbeat_interval_sec,
+                  a.last_heartbeat_at, a.created_at, a.updated_at,
+                  c.depth + 1
+           FROM agents a JOIN chain c ON a.id = c.reportsTo
+           WHERE c.depth < 20
+         )
+         SELECT * FROM chain ORDER BY depth`,
+        agentId,
+      );
+      // Skip self (depth 0); return ancestors from direct manager upward.
+      return rows.slice(1).map((record) => ({
+        ...record,
+        heartbeatEnabled: toBoolean(record.heartbeatEnabled),
+      })) as AgentRecord[];
     },
 
     getDirectReports(agentId: string, companyId: string): AgentRecord[] {
