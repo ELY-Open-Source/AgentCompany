@@ -22,12 +22,13 @@ const result = spawnSync("bash", [patchScriptPath], {
 });
 
 if (result.error) {
-  console.warn(`[postinstall] Electron name patch failed: ${result.error.message}`);
-  process.exit(0);
+  console.error(`[postinstall] Electron name patch failed: ${result.error.message}`);
+  process.exit(1);
 }
 
 if ((result.status ?? 0) !== 0) {
-  console.warn(`[postinstall] Electron name patch exited with status ${result.status}. Continuing install.`);
+  console.error(`[postinstall] Electron name patch exited with status ${result.status}.`);
+  process.exit(result.status ?? 1);
 }
 
 process.exit(0);
