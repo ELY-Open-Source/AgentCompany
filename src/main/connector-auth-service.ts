@@ -1,5 +1,8 @@
 import { spawn, spawnSync } from "node:child_process";
-import { homedir } from "node:os";
+import { writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
+import { randomBytes } from "node:crypto";
 import { normalizeCommandValue } from "@agentcompany/adapter-utils/server-utils";
 import type { ConnectorId } from "@shared/types";
 
@@ -21,6 +24,13 @@ function quoteCmd(value: string) {
 /* ------------------------------------------------------------------ */
 /*  Shared terminal spawning — used by both auth and generic commands  */
 /* ------------------------------------------------------------------ */
+
+function writeWindowsBatchFile(lines: string[]): string {
+  const fileName = `agent-company-${randomBytes(6).toString("hex")}.bat`;
+  const batchPath = join(tmpdir(), fileName);
+  writeFileSync(batchPath, lines.join("\r\n"), { encoding: "utf8" });
+  return batchPath;
+}
 
 function spawnTerminalWithScript(script: string, _title: string, _cwd: string): boolean {
   if (process.platform === "darwin") {
@@ -110,8 +120,11 @@ export async function openConnectorAuthTerminal(connectorId: ConnectorId, comman
   if (!spec) return false;
 
   if (process.platform === "win32") {
-    // Windows: build a CMD-compatible script directly
-    const winScript = [
+    // Windows: emit a real .bat file instead of chaining commands with " & ".
+    // Chaining via " & " means any unescaped "&" in an embedded field (title,
+    // command, intro) would open a shell operator injection. A batch file has
+    // one command per line and is not subject to that risk.
+    const batchPath = writeWindowsBatchFile([
       `@echo off`,
       `echo ${spec.intro}`,
       `echo.`,
@@ -120,8 +133,8 @@ export async function openConnectorAuthTerminal(connectorId: ConnectorId, comman
       `echo.`,
       `echo You can close this terminal after the login flow completes.`,
       `pause`,
-    ].join(" & ");
-    return spawnTerminalWithScript(winScript, spec.title, targetCwd);
+    ]);
+    return spawnTerminalWithScript(`"${batchPath}"`, spec.title, targetCwd);
   }
 
   // Unix: build a shell script
@@ -194,7 +207,7 @@ export async function openGenericTerminal(input: { commandKey: string }) {
   }
 
   if (process.platform === "win32") {
-    const winScript = [
+    const batchPath = writeWindowsBatchFile([
       `@echo off`,
       `echo AgentCompany - ${spec.title}`,
       `echo.`,
@@ -203,8 +216,8 @@ export async function openGenericTerminal(input: { commandKey: string }) {
       `echo.`,
       `echo Done. You can close this terminal.`,
       `pause`,
-    ].join(" & ");
-    return spawnTerminalWithScript(winScript, spec.title, cwd);
+    ]);
+    return spawnTerminalWithScript(`"${batchPath}"`, spec.title, cwd);
   }
 
   const shell = process.env.SHELL || "/bin/zsh";
