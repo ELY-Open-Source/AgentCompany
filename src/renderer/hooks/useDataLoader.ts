@@ -36,10 +36,12 @@ export function useDataLoader(
     }
   }, [selectedConnectorId, selectedRunId]);
 
-  // Section-based data loading
+  // Section-based data loading; resets when section OR company changes so
+  // in-flight requests for the previous company cannot overwrite new state.
+  const currentCompanyId = snapshot?.currentCompanyId ?? null;
   useEffect(() => {
-    if (!snapshot?.currentCompanyId) return;
-    const companyId = snapshot.currentCompanyId;
+    if (!currentCompanyId) return;
+    const companyId = currentCompanyId;
     let cancelled = false;
     const store = useAppStore.getState();
 
@@ -62,13 +64,13 @@ export function useDataLoader(
     }
 
     if (section === "social") {
-      store.setSocialAccounts(snapshot.socialAccounts?.filter((a) => a.companyId === companyId) ?? []);
+      store.setSocialAccounts(snapshot?.socialAccounts?.filter((a) => a.companyId === companyId) ?? []);
     }
 
     return () => {
       cancelled = true;
     };
-  }, [section, snapshot]);
+  }, [section, currentCompanyId, snapshot]);
 
   return { refresh };
 }
