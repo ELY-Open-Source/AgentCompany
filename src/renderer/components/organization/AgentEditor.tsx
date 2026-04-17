@@ -4,6 +4,7 @@ import { DEPARTMENT_OPTIONS } from "@shared/constants";
 import type { AgentRecord, BudgetPolicyRecord, ConnectorRecord, DepartmentId, WorkspaceRecord } from "@shared/types";
 import { getConnectorExecutionReadinessIssue, isConnectorExecutionReady } from "@shared/connector-policy";
 import { unwrap } from "../../lib/desktop";
+import { safeJson } from "../../lib/safe-json";
 import { buildBudgetPolicyInput, getBudgetPolicyAmountDollars } from "../../lib/budget-policy-input";
 import { useAppStore } from "../../state/store";
 import { useT } from "../../i18n";
@@ -43,8 +44,13 @@ export function AgentEditor({
   const [reportsTo, setReportsTo] = useState(agent.reportsTo ?? "");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const existingMeta = useMemo(() => { try { return JSON.parse(agent.metadataJson || "{}"); } catch { return {}; } }, [agent.metadataJson]);
-  const [thinkingEffort, setThinkingEffort] = useState<string>(existingMeta.thinkingEffort ?? "");
+  const existingMeta = useMemo(
+    () => safeJson<Record<string, unknown>>(agent.metadataJson, {}),
+    [agent.metadataJson],
+  );
+  const [thinkingEffort, setThinkingEffort] = useState<string>(
+    typeof existingMeta.thinkingEffort === "string" ? existingMeta.thinkingEffort : "",
+  );
   const supportsEffort = connectorId === "claude_local" || connectorId === "codex_local";
   const pendingApproval = agent.status === "pending_approval";
   const executionReadyConnectors = useMemo(

@@ -2,6 +2,7 @@ import type { ApprovalRecord } from "@shared/types"
 import {
   Robot, CheckSquare, Play, ShieldCheck, Gear, FolderOpen, Key, Target, Briefcase, Buildings,
 } from "@phosphor-icons/react"
+import { safeJson } from "../../lib/safe-json"
 
 export function describeActionError(error: unknown) {
   return error instanceof Error ? error.message : "The action could not be completed."
@@ -9,10 +10,8 @@ export function describeActionError(error: unknown) {
 
 export function parseApprovalPayloadJson(approval: ApprovalRecord): Record<string, unknown> | null {
   if (!approval.payloadJson) return null
-  try {
-    const parsed = JSON.parse(approval.payloadJson)
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, unknown>
-  } catch { return null }
+  const parsed = safeJson<unknown>(approval.payloadJson, null)
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, unknown>
   return null
 }
 

@@ -1,18 +1,15 @@
 import { useMemo } from "react"
 import type { ApprovalRecord } from "@shared/types"
+import { safeJson } from "../../../lib/safe-json"
 
 export function useApprovalPayload(approval: ApprovalRecord): Record<string, unknown> | null {
   return useMemo(() => {
     if (!approval.payloadJson) return null
-    try {
-      const parsed = JSON.parse(approval.payloadJson)
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>
-      }
-      return null
-    } catch {
-      return null
+    const parsed = safeJson<unknown>(approval.payloadJson, null)
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
     }
+    return null
   }, [approval.payloadJson])
 }
 

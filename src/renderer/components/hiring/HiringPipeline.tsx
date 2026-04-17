@@ -9,6 +9,7 @@ import type { AgentRecord, ApprovalRecord } from "@shared/types";
 import { useT } from "../../i18n";
 import { getAgentInitials } from "../../lib/formatters";
 import { unwrap } from "../../lib/desktop";
+import { safeJson } from "../../lib/safe-json";
 import { ActionButton, EmptyState, Panel, StatusPill } from "../ui";
 import {
   type HiringStage,
@@ -44,7 +45,8 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
     const approval = hireApprovals.find(a => {
       if (a.relatedAgentId === agent.id) return true;
       if (!a.payloadJson) return false;
-      try { return JSON.parse(a.payloadJson).agentId === agent.id; } catch { return false; }
+      const payload = safeJson<{ agentId?: string }>(a.payloadJson, {});
+      return payload.agentId === agent.id;
     }) ?? null;
     return {
       agent,

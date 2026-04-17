@@ -1,6 +1,7 @@
 import { Clock, Link as LinkIcon } from "@phosphor-icons/react"
 import { platformConfig } from "../social/social-config"
 import type { SocialPlatform } from "@shared/types"
+import { safeJson } from "../../lib/safe-json"
 
 const PLATFORM_CHAR_LIMITS: Record<string, number> = {
   twitter: 280,
@@ -26,19 +27,16 @@ interface DraftPayload {
 }
 
 function parseDraft(payloadJson: string): DraftPayload | null {
-  try {
-    const parsed = JSON.parse(payloadJson)
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return {
-        content: typeof parsed.content === "string" ? parsed.content : "",
-        mediaUrls: Array.isArray(parsed.mediaUrls) ? parsed.mediaUrls : [],
-        scheduledAt: typeof parsed.scheduledAt === "string" ? parsed.scheduledAt : null,
-        socialAccountId: typeof parsed.socialAccountId === "string" ? parsed.socialAccountId : "",
-        platform: typeof parsed.platform === "string" ? parsed.platform : "other",
-      }
-    }
-  } catch { /* invalid JSON */ }
-  return null
+  const parsed = safeJson<unknown>(payloadJson, null)
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null
+  const obj = parsed as Record<string, unknown>
+  return {
+    content: typeof obj.content === "string" ? obj.content : "",
+    mediaUrls: Array.isArray(obj.mediaUrls) ? (obj.mediaUrls as string[]) : [],
+    scheduledAt: typeof obj.scheduledAt === "string" ? obj.scheduledAt : null,
+    socialAccountId: typeof obj.socialAccountId === "string" ? obj.socialAccountId : "",
+    platform: typeof obj.platform === "string" ? obj.platform : "other",
+  }
 }
 
 function formatScheduledDate(isoDate: string): string {

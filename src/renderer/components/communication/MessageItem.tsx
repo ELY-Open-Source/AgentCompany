@@ -11,6 +11,7 @@ import {
 } from "@phosphor-icons/react"
 import type { AgentMessageRecord, AgentRecord, CommentRecord, DepartmentId } from "@shared/types"
 import { getAgentInitials, formatMessageTime } from "../../lib/formatters"
+import { safeJson } from "../../lib/safe-json"
 import { DEPARTMENT_COLORS } from "@shared/constants"
 
 const HUMAN_SENDER_ID = "__board__";
@@ -196,12 +197,7 @@ export function TaskCommentBubble({
 }
 
 function AttachmentList({ json }: { json: string }) {
-  let items: Array<{ type: string; id: string; title: string }> = []
-  try {
-    items = JSON.parse(json)
-  } catch {
-    return null
-  }
+  const items = safeJson<Array<{ type: string; id: string; title: string }>>(json, [])
   if (!items.length) return null
 
   return (

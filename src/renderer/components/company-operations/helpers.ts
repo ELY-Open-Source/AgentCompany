@@ -60,13 +60,10 @@ export function splitTags(value: string) {
   return JSON.stringify(value.split(",").map((item) => item.trim()).filter(Boolean));
 }
 
+import { safeJson } from "../../lib/safe-json";
+
 export function parseTags(value: string) {
-  try {
-    const tags = JSON.parse(value) as string[];
-    return tags.join(", ");
-  } catch {
-    return "";
-  }
+  return safeJson<string[]>(value, []).join(", ");
 }
 
 export function parseParticipantIds(value: string) {
@@ -79,12 +76,7 @@ export function parseParticipantIds(value: string) {
 import type { AgentRecord } from "@shared/types";
 
 export function formatParticipantIds(raw: string, agents: AgentRecord[]) {
-  try {
-    const ids = JSON.parse(raw) as string[];
-    return ids
-      .map((id) => agents.find((agent) => agent.id === id)?.name ?? id.slice(0, 8))
-      .join(", ");
-  } catch {
-    return "";
-  }
+  return safeJson<string[]>(raw, [])
+    .map((id) => agents.find((agent) => agent.id === id)?.name ?? id.slice(0, 8))
+    .join(", ");
 }
