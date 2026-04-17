@@ -9,6 +9,9 @@ import type { AppDatabase } from "./database";
 import { seedDefaultAutomationRules as seedDefaultAutomationRulesImpl } from "./default-automation-rules";
 import { registerCoreHandlers } from "./ipc-core-handlers";
 import { registerDomainHandlers } from "./ipc-domain-handlers";
+import { registerCredentialIpcHandlers } from "./ipc-credentials-handlers";
+import { registerOAuthIpcHandlers } from "./ipc-oauth-handlers";
+import { fail } from "./ipc-core-common";
 import type { ThreadIntegrationService } from "./thread-integration";
 
 type BootstrapResult = Awaited<ReturnType<typeof bootstrapApplication>>;
@@ -186,6 +189,30 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
         }
         publishDomainChanged();
       },
+    });
+
+    const piRuntime = requireServiceGraph().getPiRuntime();
+    if (!piRuntime) {
+      throw new Error("Pi-mono runtime services are not initialized.");
+    }
+
+    registerCredentialIpcHandlers({
+      store: piRuntime.credentialStore,
+      resolver: piRuntime.credentialResolver,
+      registerHandle: requireIpcSupport().registerHandle,
+      emitEvent,
+      refreshConnectorHealth: async (connectorId) => {
+        await requireConnectorHealthService().checkConnector(connectorId as ConnectorId);
+      },
+      fail,
+      logger: log,
+    });
+
+    registerOAuthIpcHandlers({
+      service: piRuntime.oauthLoginService,
+      registerHandle: requireIpcSupport().registerHandle,
+      fail,
+      logger: log,
     });
   }
 
