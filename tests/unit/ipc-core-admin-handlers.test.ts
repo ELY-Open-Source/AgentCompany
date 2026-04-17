@@ -2,9 +2,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { IpcMainInvokeEvent } from "electron";
+import type { DesktopResult } from "@shared/contracts";
 import { IPC_CHANNELS } from "@shared/contracts";
 import { AppDatabase } from "../../src/main/database";
 import { registerCoreAdminHandlers } from "../../src/main/ipc-core-admin-handlers";
+
+type IpcHandler = (
+  event: IpcMainInvokeEvent,
+  ...args: unknown[]
+) => Promise<DesktopResult<unknown>> | DesktopResult<unknown>;
 
 const tempDirs: string[] = [];
 
@@ -24,7 +31,7 @@ describe("ipc-core-admin-handlers connector saves", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const handlers = new Map<string, (...args: any[]) => any>();
+    const handlers = new Map<string, IpcHandler>();
     registerCoreAdminHandlers({
       registerHandle: (channel, handler) => {
         handlers.set(channel, handler);
@@ -43,7 +50,7 @@ describe("ipc-core-admin-handlers connector saves", () => {
       throw new Error("saveConnector handler was not registered.");
     }
 
-    const result = await saveConnector(null, {
+    const result = await saveConnector(null as unknown as IpcMainInvokeEvent, {
       id: "claude_compatible",
       command: "claude",
       model: "model-alpha,model-beta,model-gamma",

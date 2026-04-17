@@ -2,9 +2,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { IpcMainInvokeEvent } from "electron";
+import type { DesktopResult } from "@shared/contracts";
 import { IPC_CHANNELS } from "@shared/contracts";
 import { AppDatabase } from "../../src/main/database";
 import { registerCoreAgentGraphHandlers } from "../../src/main/ipc-core-agent-graph-handlers";
+
+type IpcHandler = (
+  event: IpcMainInvokeEvent,
+  ...args: unknown[]
+) => Promise<DesktopResult<unknown>> | DesktopResult<unknown>;
 
 const tempDirs: string[] = [];
 
@@ -60,7 +67,7 @@ describe("ipc-core-agent-graph-handlers model enforcement", () => {
       budgetMonthlyUsd: 250,
     });
 
-    const handlers = new Map<string, (...args: any[]) => any>();
+    const handlers = new Map<string, IpcHandler>();
     registerCoreAgentGraphHandlers({
       registerHandle: (channel, handler) => {
         handlers.set(channel, handler);
@@ -77,7 +84,7 @@ describe("ipc-core-agent-graph-handlers model enforcement", () => {
       throw new Error("saveAgent handler was not registered.");
     }
 
-    const result = await saveAgent(null, {
+    const result = await saveAgent(null as unknown as IpcMainInvokeEvent, {
       id: agentId,
       companyId,
       name: "CEO",

@@ -27,6 +27,15 @@ import { AppDatabase } from "../../src/main/database";
 import { createSessionManagementService } from "../../src/main/session-management-service";
 import type { ConnectorId } from "../../src/shared/types";
 
+type RawDb = {
+  db: {
+    prepare: (sql: string) => {
+      run: (...args: unknown[]) => void;
+      get: (...args: unknown[]) => unknown;
+    };
+  };
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -165,7 +174,7 @@ function createAndStartRun(
   }
 
   // Set agent status to "running" to simulate active execution
-  (db as any).db
+  (db as unknown as RawDb).db
     .prepare("UPDATE agents SET status = 'running' WHERE id = ?")
     .run(opts.agentId);
 
@@ -184,19 +193,19 @@ function verifyDbConsistency(db: AppDatabase): {
   orphanedCheckouts: number;
 } {
   const runningRuns = (
-    (db as any).db
+    (db as unknown as RawDb).db
       .prepare("SELECT count(*) as cnt FROM runs WHERE status = 'running'")
       .get() as { cnt: number }
   ).cnt;
 
   const runningAgents = (
-    (db as any).db
+    (db as unknown as RawDb).db
       .prepare("SELECT count(*) as cnt FROM agents WHERE status = 'running'")
       .get() as { cnt: number }
   ).cnt;
 
   const orphanedCheckouts = (
-    (db as any).db
+    (db as unknown as RawDb).db
       .prepare(
         `SELECT count(*) as cnt FROM tasks t
          LEFT JOIN runs r ON t.checkout_run_id = r.id
@@ -284,7 +293,7 @@ describe("Process Recovery -- Worker Crash Detection", () => {
     });
 
     // Verify lock is held before crash
-    const taskBefore = (db as any).db
+    const taskBefore = (db as unknown as RawDb).db
       .prepare(
         "SELECT checkout_run_id FROM tasks WHERE id = ?",
       )
@@ -330,7 +339,7 @@ describe("Process Recovery -- Worker Crash Detection", () => {
     });
 
     // Verify workspace is locked before crash
-    const wsBefore = (db as any).db
+    const wsBefore = (db as unknown as RawDb).db
       .prepare(
         "SELECT lock_holder_run_id FROM workspaces WHERE id = ?",
       )
@@ -340,7 +349,7 @@ describe("Process Recovery -- Worker Crash Detection", () => {
     simulateWorkerCrash(db);
 
     // Verify workspace lock is released
-    const wsAfter = (db as any).db
+    const wsAfter = (db as unknown as RawDb).db
       .prepare(
         "SELECT lock_holder_run_id FROM workspaces WHERE id = ?",
       )

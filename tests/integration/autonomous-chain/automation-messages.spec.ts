@@ -293,8 +293,8 @@ describe("Auto Task Assignment", () => {
     shared.db.saveAgent({ id: backendId, companyId: shared.companyId, name: "Backend Dev", role: "Backend", title: "Backend", connectorId: "codex_local", status: "active", capabilities: "backend", budgetMonthlyUsd: 100 });
     shared.db.saveAgent({ id: frontendId, companyId: shared.companyId, name: "Frontend Dev", role: "Frontend", title: "Frontend", connectorId: "codex_local", status: "active", capabilities: "frontend", budgetMonthlyUsd: 100 });
     // Exhaust budgets by recording spending via direct SQL (since finishRun would need a real run)
-    (shared.db as any).db.prepare("update agents set spent_monthly_usd = 100 where id = ?").run(backendId);
-    (shared.db as any).db.prepare("update agents set spent_monthly_usd = 100 where id = ?").run(frontendId);
+    (shared.db as unknown as { db: { prepare: (sql: string) => { run: (...args: unknown[]) => void } } }).db.prepare("update agents set spent_monthly_usd = 100 where id = ?").run(backendId);
+    (shared.db as unknown as { db: { prepare: (sql: string) => { run: (...args: unknown[]) => void } } }).db.prepare("update agents set spent_monthly_usd = 100 where id = ?").run(frontendId);
 
     const taskId = shared.db.saveTask({ companyId: shared.companyId, title: "No budget task", description: "Test", priority: "low", status: "todo" });
     const result = shared.db.autoAssignTask(taskId, shared.companyId);

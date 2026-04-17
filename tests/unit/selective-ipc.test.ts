@@ -141,17 +141,17 @@ async function handleGranularBatch(
   events: GranularEventEntry[],
   deps: {
     companyId: string | null;
-    getTask: (input: { companyId: string; id: string }) => Promise<{ ok: boolean; data?: any }>;
-    getRun: (input: { companyId: string; id: string }) => Promise<{ ok: boolean; data?: any }>;
-    getApproval: (input: { companyId: string; id: string }) => Promise<{ ok: boolean; data?: any }>;
-    getAgent: (input: { companyId: string; id: string }) => Promise<{ ok: boolean; data?: any }>;
-    patchTask: (task: any) => void;
+    getTask: (input: { companyId: string; id: string }) => Promise<{ ok: boolean; data?: unknown }>;
+    getRun: (input: { companyId: string; id: string }) => Promise<{ ok: boolean; data?: unknown }>;
+    getApproval: (input: { companyId: string; id: string }) => Promise<{ ok: boolean; data?: unknown }>;
+    getAgent: (input: { companyId: string; id: string }) => Promise<{ ok: boolean; data?: unknown }>;
+    patchTask: (task: unknown) => void;
     removeTask: (id: string) => void;
-    patchRun: (run: any) => void;
+    patchRun: (run: unknown) => void;
     removeRun: (id: string) => void;
-    patchApproval: (approval: any) => void;
+    patchApproval: (approval: unknown) => void;
     removeApproval: (id: string) => void;
-    patchAgent: (agent: any) => void;
+    patchAgent: (agent: unknown) => void;
     refreshBadges: () => Promise<void>;
     fullRefresh: () => void;
   },

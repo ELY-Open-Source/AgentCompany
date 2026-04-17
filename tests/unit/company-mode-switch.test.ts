@@ -2,10 +2,17 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { IpcMainInvokeEvent } from "electron";
+import type { DesktopResult } from "@shared/contracts";
 import { IPC_CHANNELS } from "@shared/contracts";
 import { AppDatabase } from "../../src/main/database";
 import { registerCoreAdminHandlers } from "../../src/main/ipc-core-admin-handlers";
 import { createThreadIntegration } from "../../src/main/thread-integration";
+
+type IpcHandler = (
+  event: IpcMainInvokeEvent,
+  ...args: unknown[]
+) => Promise<DesktopResult<unknown>> | DesktopResult<unknown>;
 
 const tempDirs: string[] = [];
 
@@ -109,7 +116,7 @@ describe("company mode switching", () => {
     expect(db.getTask(taskId).requiresUserReview).toBe(true);
     expect(db.getApprovalRecord(approvalId).state).toBe("pending");
 
-    const handlers = new Map<string, (...args: any[]) => any>();
+    const handlers = new Map<string, IpcHandler>();
     registerCoreAdminHandlers({
       registerHandle: (channel, handler) => {
         handlers.set(channel, handler);
@@ -130,7 +137,7 @@ describe("company mode switching", () => {
       throw new Error("saveCompany handler was not registered.");
     }
 
-    const result = await saveCompany(null, {
+    const result = await saveCompany(null as unknown as IpcMainInvokeEvent, {
       id: companyId,
       name: "Mode Switch Co",
       description: "Execution mode cleanup",

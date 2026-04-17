@@ -14,6 +14,15 @@ vi.mock("electron", () => ({
 
 import { AppDatabase, STALE_LOCK_TIMEOUT_MS } from "../../src/main/database";
 
+type RawDb = {
+  db: {
+    prepare: (sql: string) => {
+      run: (...args: unknown[]) => void;
+      get: (...args: unknown[]) => unknown;
+    };
+  };
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -150,7 +159,7 @@ describe("CAS checkout", () => {
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
     // Manually set task to in_progress
-    (db as any).db.prepare("UPDATE tasks SET status = 'in_progress' WHERE id = ?").run(taskId);
+    (db as unknown as RawDb).db.prepare("UPDATE tasks SET status = 'in_progress' WHERE id = ?").run(taskId);
 
     const { id: runId } = db.createRun({
       companyId,
@@ -193,7 +202,7 @@ describe("CAS checkout", () => {
       unattributedCost: false,
     });
 
-    const row = (db as any).db
+    const row = (db as unknown as RawDb).db
       .prepare("SELECT checkout_run_id, execution_locked_at FROM tasks WHERE id = ?")
       .get(taskId) as { checkout_run_id: string | null; execution_locked_at: string | null };
 
@@ -222,7 +231,7 @@ describe("CAS checkout", () => {
     // Deleting the agent triggers cancelRunForDeletion for active runs
     db.deleteAgent(agentId, companyId);
 
-    const row = (db as any).db
+    const row = (db as unknown as RawDb).db
       .prepare("SELECT checkout_run_id, execution_locked_at FROM tasks WHERE id = ?")
       .get(taskId) as { checkout_run_id: string | null; execution_locked_at: string | null };
 
@@ -249,7 +258,7 @@ describe("CAS checkout", () => {
 
     // Backdate execution_locked_at to 20 minutes ago
     const backdated = new Date(Date.now() - 20 * 60 * 1000).toISOString();
-    (db as any).db
+    (db as unknown as RawDb).db
       .prepare("UPDATE tasks SET execution_locked_at = ? WHERE id = ?")
       .run(backdated, taskId);
 
@@ -262,7 +271,7 @@ describe("CAS checkout", () => {
     const task = db.getTask(taskId);
     expect(task.status).toBe("todo");
 
-    const row = (db as any).db
+    const row = (db as unknown as RawDb).db
       .prepare("SELECT checkout_run_id, execution_locked_at FROM tasks WHERE id = ?")
       .get(taskId) as { checkout_run_id: string | null; execution_locked_at: string | null };
 

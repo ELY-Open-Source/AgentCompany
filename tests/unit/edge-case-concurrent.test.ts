@@ -14,6 +14,15 @@ vi.mock("electron", () => ({
 
 import { AppDatabase, STALE_LOCK_TIMEOUT_MS } from "../../src/main/database";
 
+type RawDb = {
+  db: {
+    prepare: (sql: string) => {
+      run: (...args: unknown[]) => void;
+      get: (...args: unknown[]) => unknown;
+    };
+  };
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -230,7 +239,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     db.releaseTaskLock(taskId, runIdA);
 
     // Verify lock fields are cleared
-    const row = (db as any).db
+    const row = (db as unknown as RawDb).db
       .prepare("SELECT checkout_run_id, execution_locked_at FROM tasks WHERE id = ?")
       .get(taskId) as { checkout_run_id: string | null; execution_locked_at: string | null };
     expect(row.checkout_run_id).toBeNull();
@@ -266,7 +275,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     expect(db.checkoutTask(taskId, runIdA)).toBe(true);
 
     // Backdate execution_locked_at to well past the stale timeout
-    (db as any).db
+    (db as unknown as RawDb).db
       .prepare("UPDATE tasks SET execution_locked_at = '2020-01-01T00:00:00Z' WHERE id = ?")
       .run(taskId);
 
@@ -276,7 +285,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     expect(recovered[0].companyId).toBe(companyId);
 
     // Checkout fields should be cleared
-    const row = (db as any).db
+    const row = (db as unknown as RawDb).db
       .prepare("SELECT checkout_run_id, execution_locked_at FROM tasks WHERE id = ?")
       .get(taskId) as { checkout_run_id: string | null; execution_locked_at: string | null };
     expect(row.checkout_run_id).toBeNull();
@@ -302,7 +311,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     expect(db.checkoutTask(taskId, runIdA)).toBe(true);
 
     // Backdate to make stale
-    (db as any).db
+    (db as unknown as RawDb).db
       .prepare("UPDATE tasks SET execution_locked_at = '2020-01-01T00:00:00Z' WHERE id = ?")
       .run(taskId);
 

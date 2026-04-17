@@ -736,8 +736,8 @@ describe("wiring integration", () => {
   function simulateRunFinishedSessionWiring(
     sessionService: ReturnType<typeof createMockSessionService>,
     db: {
-       
-      getActiveTaskSession: (...args: any[]) => any;
+
+      getActiveTaskSession: (...args: unknown[]) => { id: string; taskId: string; runCount: number; totalInputTokens: number; totalOutputTokens: number } | null;
     },
     task: { id: string } | null,
     event: { inputTokens: number | null; outputTokens: number | null; runId: string },
