@@ -60,11 +60,11 @@ Environment loading:
 `);
 }
 
-function hasDocker() {
-  return spawnSyncSuccess("docker", ["--version"]);
+function hasDockerInstalled() {
+  return spawnAndAwaitExitCode("docker", ["--version"]);
 }
 
-function spawnSyncSuccess(command, args) {
+function spawnAndAwaitExitCode(command, args) {
   return new Promise((resolve) => {
     const child = spawn(command, args, { stdio: "ignore" });
     child.on("error", () => resolve(false));
@@ -97,7 +97,7 @@ async function validatePreflight(platforms, upload) {
       "(APPLE_ID/APPLE_APP_SPECIFIC_PASSWORD/APPLE_TEAM_ID or APPLE_API_KEY trio).",
     );
   }
-  if ((platforms.includes("win") || platforms.includes("linux")) && !(await hasDocker())) {
+  if ((platforms.includes("win") || platforms.includes("linux")) && !(await hasDockerInstalled())) {
     throw new Error("Docker is required to build Windows/Linux locally from this macOS host.");
   }
   if (!upload) {
