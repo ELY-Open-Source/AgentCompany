@@ -3,32 +3,6 @@ import { goalInputSchema, projectInputSchema } from "@shared/contracts";
 import { canManageGoal, canManageProject } from "../agent-permissions";
 import { requireParam, type AgentApiServer } from "./server-core";
 
-type ProjectRow = {
-  id: string; companyId: string; goalId: string | null; name: string;
-  description: string; leadAgentId: string | null; status: string;
-  targetDate: string | null; createdAt: string; updatedAt: string;
-};
-
-type GoalRow = {
-  id: string; companyId: string; title: string; description: string;
-  parentId: string | null; ownerAgentId: string | null; status: string;
-  createdAt: string; updatedAt: string;
-};
-
-type SprintRow = {
-  id: string; companyId: string; name: string; goal: string;
-  startDate: string; endDate: string; status: string;
-  retrospectiveNotes: string | null; velocityPoints: number;
-  completedPoints: number; createdAt: string; updatedAt: string;
-};
-
-type AgentStatusRow = { id: string; status: string };
-type TaskStatusRow  = { id: string; status: string };
-type ActivityRow = {
-  id: string; companyId: string; actor: string; action: string;
-  entityType: string; entityId: string; detail: string | null; createdAt: string;
-};
-
 export function registerWorkGraphRoutes(server: AgentApiServer) {
   const db = server.db;
   const onDomainChanged = server.onDomainChanged;
@@ -104,11 +78,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       return;
     }
 
-    const projectRows = db.queryAll<ProjectRow>(
-      "select id, company_id as companyId, goal_id as goalId, name, description, lead_agent_id as leadAgentId, status, target_date as targetDate, created_at as createdAt, updated_at as updatedAt from projects where id = ? and company_id = ? limit 1",
-      projectId, token.companyId,
-    );
-    const existing = projectRows[0] ?? null;
+    const existing = db.getProjectForUpdate(projectId, token.companyId);
     if (!existing) {
       server.json(res, 404, { error: "Project not found" });
       return;
@@ -195,11 +165,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       return;
     }
 
-    const goalRows = db.queryAll<GoalRow>(
-      "select id, company_id as companyId, title, description, parent_id as parentId, owner_agent_id as ownerAgentId, status, created_at as createdAt, updated_at as updatedAt from goals where id = ? and company_id = ? limit 1",
-      goalId, token.companyId,
-    );
-    const existing = goalRows[0] ?? null;
+    const existing = db.getGoalForUpdate(goalId, token.companyId);
     if (!existing) {
       server.json(res, 404, { error: "Goal not found" });
       return;
@@ -231,10 +197,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const goals = db.queryAll<GoalRow>(
-      "select id, company_id as companyId, title, description, parent_id as parentId, owner_agent_id as ownerAgentId, status, created_at as createdAt, updated_at as updatedAt from goals where company_id = ? order by created_at asc",
-      params.companyId,
-    );
+    const goals = db.listGoals(params.companyId);
     server.json(res, 200, goals);
   });
 
@@ -243,10 +206,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const projects = db.queryAll<ProjectRow>(
-      "select id, company_id as companyId, goal_id as goalId, name, description, lead_agent_id as leadAgentId, status, target_date as targetDate, created_at as createdAt, updated_at as updatedAt from projects where company_id = ? order by created_at desc",
-      params.companyId,
-    );
+    const projects = db.listProjects(params.companyId);
     server.json(res, 200, projects);
   });
 
@@ -256,10 +216,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const sprints = db.queryAll<SprintRow>(
-      "select id, company_id as companyId, name, goal, start_date as startDate, end_date as endDate, status, retrospective_notes as retrospectiveNotes, velocity_points as velocityPoints, completed_points as completedPoints, created_at as createdAt, updated_at as updatedAt from sprints where company_id = ? order by start_date desc",
-      companyId,
-    );
+    const sprints = db.listSprints(companyId);
     server.json(res, 200, sprints);
   });
 
@@ -295,18 +252,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const agents = db.queryAll<AgentStatusRow>(
-      "select id, status from agents where company_id = ?",
-      companyId,
-    );
-    const tasks = db.queryAll<TaskStatusRow>(
-      "select id, status from tasks where company_id = ?",
-      companyId,
-    );
-    const recentActivity = db.queryAll<ActivityRow>(
-      "select id, company_id as companyId, actor, action, entity_type as entityType, entity_id as entityId, detail, created_at as createdAt from activity where company_id = ? order by created_at desc limit 20",
-      companyId,
-    );
+    const { agents, tasks, recentActivity } = db.getDashboardSnapshot(companyId);
 
     const tasksByStatus: Record<string, number> = {};
     for (const t of tasks) {

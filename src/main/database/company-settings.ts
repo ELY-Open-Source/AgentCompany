@@ -21,6 +21,44 @@ export function buildCompanySettingsMethods(
   },
 ) {
   return {
+    /**
+     * Returns the raw inputs for the GET /api/companies/:id/dashboard
+     * endpoint: agent statuses, task statuses, and the last 20 activity rows.
+     * Route code aggregates counts by status on top of this raw data.
+     */
+    getDashboardSnapshot(companyId: string): {
+      agents: Array<{ id: string; status: string }>;
+      tasks: Array<{ id: string; status: string }>;
+      recentActivity: Array<{
+        id: string;
+        companyId: string;
+        actor: string;
+        action: string;
+        entityType: string;
+        entityId: string;
+        detail: string | null;
+        createdAt: string;
+      }>;
+    } {
+      return {
+        agents: readAll<{ id: string; status: string }>(
+          "select id, status from agents where company_id = ?",
+          companyId,
+        ),
+        tasks: readAll<{ id: string; status: string }>(
+          "select id, status from tasks where company_id = ?",
+          companyId,
+        ),
+        recentActivity: readAll<{
+          id: string; companyId: string; actor: string; action: string;
+          entityType: string; entityId: string; detail: string | null; createdAt: string;
+        }>(
+          "select id, company_id as companyId, actor, action, entity_type as entityType, entity_id as entityId, detail, created_at as createdAt from activity where company_id = ? order by created_at desc limit 20",
+          companyId,
+        ),
+      };
+    },
+
     getCompanyMetrics(companyId: string, days: number = 30): CompanyMetrics {
       const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
       const db = getDb();

@@ -65,7 +65,11 @@ export class AppDatabase extends AppDatabaseBase {
   // ─── Entity CRUD ───────────────────────────────────────────────────────────
 
   saveGoal(input: { id?: string | null; companyId: string; title: string; description: string; parentId?: string | null; ownerAgentId?: string | null; status: string }) { return this.entityCrud.saveGoal(input); }
+  listGoals(companyId: string) { return this.entityCrud.listGoals(companyId); }
+  getGoalForUpdate(goalId: string, companyId: string) { return this.entityCrud.getGoalForUpdate(goalId, companyId); }
   saveProject(input: { id?: string | null; companyId: string; goalId?: string | null; name: string; description: string; leadAgentId?: string | null; targetDate?: string | null; status: string }) { return this.entityCrud.saveProject(input); }
+  listProjects(companyId: string) { return this.entityCrud.listProjects(companyId); }
+  getProjectForUpdate(projectId: string, companyId: string) { return this.entityCrud.getProjectForUpdate(projectId, companyId); }
   saveSecret(input: { id?: string | null; companyId: string; name: string; description: string; value: string }) { return this.entityCrud.saveSecret(input, this.vault); }
   resolveSecretEnv(bindingText: string, companyId: string) { return this.entityCrud.resolveSecretEnv(bindingText, companyId, this.vault, listInvalidEnvBindingKeys, parseEnvBindingText); }
   deleteGoal(id: string, companyId: string) { this.entityCrud.deleteGoal(id, companyId); }
@@ -118,6 +122,7 @@ export class AppDatabase extends AppDatabaseBase {
   listKnowledgeEntries(companyId: string) { return this.knowledgeMod.listKnowledgeEntries(companyId); }
   saveSprint(input: { id?: string | null; companyId: string; name: string; goal?: string; startDate: string; endDate: string; status?: string; retrospectiveNotes?: string; velocityPoints?: number; completedPoints?: number }) { return this.knowledgeMod.saveSprint(input); }
   deleteSprint(id: string, companyId: string) { this.knowledgeMod.deleteSprint(id, companyId); }
+  listSprints(companyId: string) { return this.knowledgeMod.listSprints(companyId); }
 
   // ─── Automation ────────────────────────────────────────────────────────────
 

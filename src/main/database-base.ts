@@ -190,6 +190,7 @@ export class AppDatabaseBase {
   getInbox(companyId: string) { return this.company.getInbox(companyId); }
   getCompanyMetrics(companyId: string, days: number = 30) { return this.company.getCompanyMetrics(companyId, days); }
   getStandupReport(companyId: string) { return this.company.getStandupReport(companyId); }
+  getDashboardSnapshot(companyId: string) { return this.company.getDashboardSnapshot(companyId); }
 
   // ─── Connectors ────────────────────────────────────────────────────────────
 

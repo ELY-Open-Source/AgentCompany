@@ -29,6 +29,26 @@ const MEETING_LIST_COLUMNS =
   "select id, company_id as companyId, type, title, organizer_agent_id as organizerAgentId, participant_agent_ids as participantAgentIds, scheduled_at as scheduledAt, duration_minutes as durationMinutes, agenda_json as agendaJson, notes_json as notesJson, decisions_json as decisionsJson, action_items_json as actionItemsJson, status, created_at as createdAt, updated_at as updatedAt from meetings";
 
 /**
+ * Sprint row shape returned by listSprints — used by
+ * GET /api/companies/:companyId/sprints. Mirrors the historical inline
+ * SQL projection.
+ */
+export type SprintListRow = {
+  id: string;
+  companyId: string;
+  name: string;
+  goal: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  retrospectiveNotes: string | null;
+  velocityPoints: number;
+  completedPoints: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
  * Knowledge entry row shape returned by listKnowledgeEntries — used by
  * GET /api/companies/:companyId/knowledge. Mirrors the historical inline
  * SQL projection so HTTP responses stay byte-stable.
@@ -150,6 +170,17 @@ export function buildKnowledgeMethods(
 
     deleteSprint(id: string, companyId: string) {
       getDb().prepare("delete from sprints where id = ? and company_id = ?").run(id, companyId);
+    },
+
+    /**
+     * Returns all sprints for a company, ordered by start_date desc.
+     * Used by GET /api/companies/:companyId/sprints.
+     */
+    listSprints(companyId: string): SprintListRow[] {
+      return readAll<SprintListRow>(
+        "select id, company_id as companyId, name, goal, start_date as startDate, end_date as endDate, status, retrospective_notes as retrospectiveNotes, velocity_points as velocityPoints, completed_points as completedPoints, created_at as createdAt, updated_at as updatedAt from sprints where company_id = ? order by start_date desc",
+        companyId,
+      );
     },
   };
 }

@@ -3,6 +3,40 @@ import type { AgentRecord, ConnectorId, TaskRecord } from "@shared/types";
 import type { ReadAll, Transaction } from "./helpers";
 import { ensureId, normalizeOptionalId, nowIso } from "./helpers";
 
+/**
+ * Goal row shape returned by listGoals / getGoalForUpdate. Mirrors the
+ * historical inline SQL projection in routes-work-graph.ts so HTTP
+ * responses stay byte-stable.
+ */
+export type GoalListRow = {
+  id: string;
+  companyId: string;
+  title: string;
+  description: string;
+  parentId: string | null;
+  ownerAgentId: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * Project row shape returned by listProjects / getProjectForUpdate.
+ * Mirrors the historical inline SQL projection in routes-work-graph.ts.
+ */
+export type ProjectListRow = {
+  id: string;
+  companyId: string;
+  goalId: string | null;
+  name: string;
+  description: string;
+  leadAgentId: string | null;
+  status: string;
+  targetDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export function buildEntityCrudMethods(
   getDb: () => DatabaseSync,
   readAll: ReadAll,
@@ -35,6 +69,53 @@ export function buildEntityCrudMethods(
       if (!row) throw new Error(`Agent not found: ${id}`);
       row.heartbeatEnabled = Boolean(row.heartbeatEnabled);
       return row;
+    },
+
+    /**
+     * Returns all goals for a company. Used by GET /api/companies/:id/goals.
+     */
+    listGoals(companyId: string): GoalListRow[] {
+      return readAll<GoalListRow>(
+        "select id, company_id as companyId, title, description, parent_id as parentId, owner_agent_id as ownerAgentId, status, created_at as createdAt, updated_at as updatedAt from goals where company_id = ? order by created_at asc",
+        companyId,
+      );
+    },
+
+    /**
+     * Returns the goal lookup row used by PATCH /api/goals/:goalId.
+     * Returns null when the goal is missing or belongs to another company.
+     */
+    getGoalForUpdate(goalId: string, companyId: string): GoalListRow | null {
+      const row = getDb()
+        .prepare(
+          "select id, company_id as companyId, title, description, parent_id as parentId, owner_agent_id as ownerAgentId, status, created_at as createdAt, updated_at as updatedAt from goals where id = ? and company_id = ? limit 1",
+        )
+        .get(goalId, companyId) as GoalListRow | undefined;
+      return row ?? null;
+    },
+
+    /**
+     * Returns all projects for a company. Used by
+     * GET /api/companies/:id/projects.
+     */
+    listProjects(companyId: string): ProjectListRow[] {
+      return readAll<ProjectListRow>(
+        "select id, company_id as companyId, goal_id as goalId, name, description, lead_agent_id as leadAgentId, status, target_date as targetDate, created_at as createdAt, updated_at as updatedAt from projects where company_id = ? order by created_at desc",
+        companyId,
+      );
+    },
+
+    /**
+     * Returns the project lookup row used by PATCH /api/projects/:projectId.
+     * Returns null when the project is missing or belongs to another company.
+     */
+    getProjectForUpdate(projectId: string, companyId: string): ProjectListRow | null {
+      const row = getDb()
+        .prepare(
+          "select id, company_id as companyId, goal_id as goalId, name, description, lead_agent_id as leadAgentId, status, target_date as targetDate, created_at as createdAt, updated_at as updatedAt from projects where id = ? and company_id = ? limit 1",
+        )
+        .get(projectId, companyId) as ProjectListRow | undefined;
+      return row ?? null;
     },
 
     saveGoal(input: { id?: string | null; companyId: string; title: string; description: string; parentId?: string | null; ownerAgentId?: string | null; status: string }) {
