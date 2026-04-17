@@ -1,7 +1,11 @@
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { mkdtemp, rm } from "node:fs/promises";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+beforeAll(() => {
+  process.env.AGENTCOMPANY_ALLOW_INSECURE_VAULT = "true";
+});
 
 vi.mock("electron", () => ({
   safeStorage: {
