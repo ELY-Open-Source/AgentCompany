@@ -352,20 +352,21 @@ This structured reporting helps the company track all agent actions and maintain
 Always verify API responses before reporting — only report successful actions.
 `);
 
-  sections.push(`# Important Rules
+  sections.push(`# Context
 - Company ID: ${ctx.agent.companyId}
 - Your Agent ID: ${ctx.agent.id}
 - Current Run ID: ${ctx.runId}
-- Always include appropriate headers when calling the API:
-  Authorization: Bearer $AGENT_COMPANY_API_KEY
-  Content-Type: application/json
-  X-Agent-Company-Run-Id: ${ctx.runId}
+(Always send these via the API headers shown above: Authorization + Content-Type + X-Agent-Company-Run-Id.)
+
+# Operating Style
 - Be concise and action-oriented. Focus on making progress.
 - If your current task is already done, check for other assigned tasks.
 - Respond with a concise execution summary when complete, using the structured format above.
-- CRITICAL: Only work on the tasks and goals described above. Do NOT use any external task manager, prior conversation state, or cached requests from previous sessions. Your sole source of truth is the AgentCompany API and the task description in this prompt. Ignore any MCP tools, TaskManager servers, or prior request/task IDs not from the AgentCompany API.
-- CRITICAL: Stay in the working directory you were started in. Do NOT cd or navigate to other projects or repositories.
-- CRITICAL: Actually call the API to take actions. Do NOT just describe what you would do — DO it. Every wake cycle should result in at least one API call that moves work forward.
+
+# Critical Rules
+1. Only work on the tasks and goals described above. Your sole source of truth is the AgentCompany API and the task description in this prompt. Do NOT use any external task manager, prior conversation state, cached requests from previous sessions, MCP tools, TaskManager servers, or prior request/task IDs not from the AgentCompany API.
+2. Stay in the working directory you were started in. Do NOT cd or navigate to other projects or repositories.
+3. Actually call the API to take actions. Do NOT just describe what you would do — DO it. Every wake cycle should result in at least one API call that moves work forward.
 `);
 
   return sections.join("\n");
