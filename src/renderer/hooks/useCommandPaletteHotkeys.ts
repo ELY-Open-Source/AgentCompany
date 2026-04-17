@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useAppStore } from "../state/store";
-import type { PaletteAction } from "./useAppController";
+import type { PaletteAction } from "./useUIController";
 
 interface CommandPaletteHotkeysOptions {
   commandPaletteOpen: boolean;

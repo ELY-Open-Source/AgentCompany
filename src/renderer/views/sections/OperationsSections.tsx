@@ -1,23 +1,4 @@
-import type {
-  AgentRecord,
-  BrowserActionRecord,
-  CompanyRecord,
-  DocumentRecord,
-  InboxItem,
-  CompanyMetrics,
-  KnowledgeEntryRecord,
-  MeetingRecord,
-  ProjectRecord,
-  RunRecord,
-  SectionId,
-  SocialAccountRecord,
-  SprintRecord,
-  StandupReport,
-  TaskRecord,
-  WorkspaceRecord,
-  ProfileSnapshot,
-} from "@shared/types";
-import type { AppLocale } from "@shared/locale";
+import type { SectionId } from "@shared/types";
 import { Inbox, StandupView, PerformanceView } from "../../components/inbox";
 import { Dashboard } from "../../components/dashboard";
 import { EntityWorkspace } from "../../components/EntityWorkspace";
@@ -35,78 +16,51 @@ import { SkillsSection } from "../../components/skills";
 import { DocumentCenter, KnowledgeBaseManager, MeetingsManager, SprintManager } from "../../components/company-operations";
 import { Panel } from "../../components/ui";
 import { unwrap } from "../../lib/desktop";
+import { useAppStore } from "../../state/store";
+import { useSectionContext } from "../../hooks/useSectionContext";
+import { useAppActions } from "../../hooks/useAppActions";
 
 interface OperationsSectionsProps {
   section: SectionId;
-  snapshot: ProfileSnapshot;
-  currentCompany: CompanyRecord | null;
-  locale: AppLocale;
-  tasks: TaskRecord[];
-  runs: RunRecord[];
-  companyAgents: AgentRecord[];
-  companyProjects: ProjectRecord[];
-  companyWorkspaces: WorkspaceRecord[];
-  companyDocuments: DocumentRecord[];
-  companyKnowledge: KnowledgeEntryRecord[];
-  companyMeetings: MeetingRecord[];
-  companySprints: SprintRecord[];
-  socialAccounts: SocialAccountRecord[];
-  browserActions: BrowserActionRecord[];
-  inboxItems: InboxItem[];
-  companyMetrics: CompanyMetrics | null;
-  standupReport: StandupReport | null;
-  companySecrets: ProfileSnapshot["secrets"];
-  selectedWorkspace: WorkspaceRecord | null;
-  setSelectedWorkspaceId: (id: string | null) => void;
-  selectedCommunicationEntityId: string | null;
-  setSelectedCommunicationEntityId: (id: string | null) => void;
-  setSelectedTaskId: (id: string | null) => void;
-  setSelectedApprovalId: (id: string | null) => void;
-  setSection: (section: SectionId) => void;
-  navigateTo: (section: SectionId, entityId?: string) => void;
-  refresh: () => Promise<void>;
-  openPathWithFeedback: (path: string) => Promise<void>;
-  setError: (error: string | null) => void;
-  filteredActivity: ReturnType<ProfileSnapshot["activity"]["filter"]>;
-  companyCosts: ReturnType<ProfileSnapshot["costs"]["filter"]>;
-  companyGoals: ReturnType<NonNullable<ProfileSnapshot["goals"]>["filter"]>;
 }
 
-export function OperationsSections({
-  section,
-  snapshot,
-  currentCompany,
-  locale,
-  tasks,
-  runs,
-  companyAgents,
-  companyProjects,
-  companyWorkspaces,
-  companyDocuments,
-  companyKnowledge,
-  companyMeetings,
-  companySprints,
-  socialAccounts,
-  browserActions,
-  inboxItems,
-  companyMetrics,
-  standupReport,
-  companySecrets,
-  selectedWorkspace,
-  setSelectedWorkspaceId,
-  selectedCommunicationEntityId,
-  setSelectedCommunicationEntityId,
-  setSelectedTaskId,
-  setSelectedApprovalId,
-  setSection,
-  navigateTo,
-  refresh,
-  openPathWithFeedback,
-  setError,
-  filteredActivity,
-  companyCosts,
-  companyGoals,
-}: OperationsSectionsProps) {
+export function OperationsSections({ section }: OperationsSectionsProps) {
+  const {
+    snapshot,
+    currentCompany,
+    tasks,
+    runs,
+    companyAgents,
+    companyProjects,
+    companyWorkspaces,
+    companyDocuments,
+    companyKnowledge,
+    companyMeetings,
+    companySprints,
+    companyCosts,
+    companyGoals,
+    companySecrets,
+    filteredActivity,
+    selectedWorkspace,
+  } = useSectionContext();
+  const { refresh, openPathWithFeedback, setError } = useAppActions();
+
+  const locale = useAppStore((s) => s.locale);
+  const inboxItems = useAppStore((s) => s.inboxItems);
+  const companyMetrics = useAppStore((s) => s.companyMetrics);
+  const standupReport = useAppStore((s) => s.standupReport);
+  const socialAccounts = useAppStore((s) => s.socialAccounts);
+  const browserActions = useAppStore((s) => s.browserActions);
+  const selectedCommunicationEntityId = useAppStore((s) => s.selectedCommunicationEntityId);
+  const setSelectedCommunicationEntityId = useAppStore((s) => s.setSelectedCommunicationEntityId);
+  const setSelectedWorkspaceId = useAppStore((s) => s.setSelectedWorkspaceId);
+  const setSelectedTaskId = useAppStore((s) => s.setSelectedTaskId);
+  const setSelectedApprovalId = useAppStore((s) => s.setSelectedApprovalId);
+  const setSection = useAppStore((s) => s.setSection);
+  const navigateTo = useAppStore((s) => s.navigateTo);
+
+  if (!snapshot) return null;
+
   return (
     <>
       {section === "overview" ? (

@@ -1,19 +1,6 @@
 import { useState } from "react";
 import { NEW_ENTITY_ID } from "../../lib/constants";
-import type {
-  AgentRecord,
-  ApprovalRecord,
-  CompanyRecord,
-  CostRecord,
-  DocumentRecord,
-  GoalRecord,
-  ProjectRecord,
-  RunRecord,
-  SectionId,
-  TaskRecord,
-  WorkspaceRecord,
-  ProfileSnapshot,
-} from "@shared/types";
+import type { SectionId } from "@shared/types";
 import {
   Kanban,
   ListChecks,
@@ -43,88 +30,52 @@ import {
 } from "../../components/organization";
 import { ActionButton, ListFrame, ListRow, Modal, Panel, StatusPill } from "../../components/ui";
 import { unwrap } from "../../lib/desktop";
+import { useAppStore } from "../../state/store";
+import { useSectionContext } from "../../hooks/useSectionContext";
+import { useAppActions } from "../../hooks/useAppActions";
 
 interface ExecutionSectionsProps {
   section: SectionId;
-  snapshot: ProfileSnapshot;
-  currentCompany: CompanyRecord | null;
-  tasks: TaskRecord[];
-  runs: RunRecord[];
-  approvals: ApprovalRecord[];
-  pendingApprovals: ApprovalRecord[];
-  companyAgents: AgentRecord[];
-  companyGoals: GoalRecord[];
-  companyProjects: ProjectRecord[];
-  companyWorkspaces: WorkspaceRecord[];
-  companyCosts: CostRecord[];
-  companyDocuments: DocumentRecord[];
-  filteredActivity: ReturnType<ProfileSnapshot["activity"]["filter"]>;
-  selectedRunId: string | null;
-  selectedTask: TaskRecord | null;
-  selectedTaskId: string | null;
-  setSelectedTaskId: (id: string | null) => void;
-  selectedConnector: ProfileSnapshot["connectors"][number] | null;
-  setSelectedConnectorId: (id: string | null) => void;
-  selectedApproval: ApprovalRecord | null;
-  selectedApprovalId: string | null;
-  setSelectedApprovalId: (id: string | null) => void;
-  selectedGoalId: string | null;
-  setSelectedGoalId: (id: string | null) => void;
-  taskViewMode: "list" | "kanban";
-  setTaskViewMode: (mode: "list" | "kanban") => void;
-  setSection: (section: SectionId) => void;
-  setConsoleOpen: (value: boolean) => void;
-  setSelectedRunId: (id: string | null) => void;
-  setSelectedCommunicationEntityId: (id: string | null) => void;
-  refresh: () => Promise<void>;
-  startRun: (taskId: string) => Promise<void>;
-  cancelRun: (runId: string) => Promise<void>;
-  openPathWithFeedback: (path: string) => Promise<void>;
-  setError: (error: string | null) => void;
 }
 
-export function ExecutionSections({
-  section,
-  snapshot,
-  currentCompany,
-  tasks,
-  runs,
-  approvals: _approvals,
-  pendingApprovals,
-  companyAgents,
-  companyGoals,
-  companyProjects,
-  companyWorkspaces,
-  companyCosts,
-  companyDocuments,
-  filteredActivity,
-  selectedRunId,
-  selectedTask,
-  selectedTaskId,
-  setSelectedTaskId,
-  selectedConnector,
-  setSelectedConnectorId,
-  selectedApproval,
-  selectedApprovalId: _selectedApprovalId,
-  setSelectedApprovalId,
-  selectedGoalId,
-  setSelectedGoalId,
-  taskViewMode,
-  setTaskViewMode,
-  setSection,
-  setConsoleOpen,
-  setSelectedRunId,
-  setSelectedCommunicationEntityId,
-  refresh,
-  startRun,
-  cancelRun,
-  openPathWithFeedback,
-  setError: _setError,
-}: ExecutionSectionsProps) {
-  const [costsTab, setCostsTab] = useState<"costs" | "policies" | "incidents">("costs");
-  const selectedGoal = companyGoals.find((g) => g.id === selectedGoalId) ?? null;
+export function ExecutionSections({ section }: ExecutionSectionsProps) {
+  const {
+    snapshot,
+    currentCompany,
+    tasks,
+    runs,
+    pendingApprovals,
+    companyAgents,
+    companyGoals,
+    companyProjects,
+    companyWorkspaces,
+    companyCosts,
+    companyDocuments,
+    filteredActivity,
+    selectedTask,
+    selectedConnector,
+    selectedApproval,
+    selectedGoal,
+  } = useSectionContext();
+  const { refresh, startRun, cancelRun, openPathWithFeedback } = useAppActions();
 
-  if (!currentCompany) return null;
+  const selectedRunId = useAppStore((s) => s.selectedRunId);
+  const setSelectedRunId = useAppStore((s) => s.setSelectedRunId);
+  const selectedTaskId = useAppStore((s) => s.selectedTaskId);
+  const setSelectedTaskId = useAppStore((s) => s.setSelectedTaskId);
+  const setSelectedConnectorId = useAppStore((s) => s.setSelectedConnectorId);
+  const setSelectedApprovalId = useAppStore((s) => s.setSelectedApprovalId);
+  const selectedGoalId = useAppStore((s) => s.selectedGoalId);
+  const setSelectedGoalId = useAppStore((s) => s.setSelectedGoalId);
+  const taskViewMode = useAppStore((s) => s.taskViewMode);
+  const setTaskViewMode = useAppStore((s) => s.setTaskViewMode);
+  const setSection = useAppStore((s) => s.setSection);
+  const setConsoleOpen = useAppStore((s) => s.setConsoleOpen);
+  const setSelectedCommunicationEntityId = useAppStore((s) => s.setSelectedCommunicationEntityId);
+
+  const [costsTab, setCostsTab] = useState<"costs" | "policies" | "incidents">("costs");
+
+  if (!snapshot || !currentCompany) return null;
 
   return (
     <>

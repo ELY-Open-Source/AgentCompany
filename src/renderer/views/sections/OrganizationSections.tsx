@@ -1,12 +1,4 @@
-import type {
-  AgentRecord,
-  CompanyRecord,
-  GoalRecord,
-  ProjectRecord,
-  WorkspaceRecord,
-  ProfileSnapshot,
-  SectionId,
-} from "@shared/types";
+import type { SectionId } from "@shared/types";
 import { NEW_ENTITY_ID } from "../../lib/constants";
 import {
   Target,
@@ -28,48 +20,38 @@ import {
 import { HiringPipeline } from "../../components/hiring";
 import { ActionButton, Modal, Panel } from "../../components/ui";
 import { useT } from "../../i18n";
+import { useAppStore } from "../../state/store";
+import { useSectionContext } from "../../hooks/useSectionContext";
+import { useAppActions } from "../../hooks/useAppActions";
 
 interface OrganizationSectionsProps {
   section: SectionId;
-  snapshot: ProfileSnapshot;
-  currentCompany: CompanyRecord | null;
-  companyAgents: AgentRecord[];
-  companyGoals: GoalRecord[];
-  companyProjects: ProjectRecord[];
-  companyWorkspaces: WorkspaceRecord[];
-  selectedAgentId: string | null;
-  setSelectedAgentId: (id: string | null) => void;
-  selectedGoalId: string | null;
-  setSelectedGoalId: (id: string | null) => void;
-  selectedProjectId: string | null;
-  setSelectedProjectId: (id: string | null) => void;
-  setSection: (section: SectionId) => void;
-  refresh: () => Promise<void>;
 }
 
-export function OrganizationSections({
-  section,
-  snapshot,
-  currentCompany,
-  companyAgents,
-  companyGoals,
-  companyProjects,
-  companyWorkspaces,
-  selectedAgentId,
-  setSelectedAgentId,
-  selectedGoalId,
-  setSelectedGoalId,
-  selectedProjectId,
-  setSelectedProjectId,
-  setSection,
-  refresh,
-}: OrganizationSectionsProps) {
+export function OrganizationSections({ section }: OrganizationSectionsProps) {
   const t = useT();
-  const selectedAgent = companyAgents.find((a) => a.id === selectedAgentId) ?? null;
-  const selectedGoal = companyGoals.find((g) => g.id === selectedGoalId) ?? null;
-  const selectedProject = companyProjects.find((p) => p.id === selectedProjectId) ?? null;
+  const {
+    snapshot,
+    currentCompany,
+    companyAgents,
+    companyGoals,
+    companyProjects,
+    companyWorkspaces,
+    selectedAgent,
+    selectedGoal,
+    selectedProject,
+  } = useSectionContext();
+  const { refresh } = useAppActions();
 
-  if (!currentCompany) return null;
+  const selectedAgentId = useAppStore((s) => s.selectedAgentId);
+  const setSelectedAgentId = useAppStore((s) => s.setSelectedAgentId);
+  const selectedGoalId = useAppStore((s) => s.selectedGoalId);
+  const setSelectedGoalId = useAppStore((s) => s.setSelectedGoalId);
+  const selectedProjectId = useAppStore((s) => s.selectedProjectId);
+  const setSelectedProjectId = useAppStore((s) => s.setSelectedProjectId);
+  const setSection = useAppStore((s) => s.setSection);
+
+  if (!snapshot || !currentCompany) return null;
 
   return (
     <>
