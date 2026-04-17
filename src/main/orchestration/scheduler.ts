@@ -27,19 +27,6 @@ export function createScheduler(
   function startHeartbeatScheduler() {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
 
-    // One-time cleanup of existing duplicate heartbeat tasks from before the coalescing fix
-    try {
-      const activeCompanies = db.listActiveCompanyIds();
-      for (const company of activeCompanies) {
-        const cleaned = db.cleanupDuplicateHeartbeatTasks(company.id);
-        if (cleaned > 0) {
-          logger.info(`[heartbeat] Cleaned up ${cleaned} duplicate heartbeat task(s) for company ${company.name}`);
-        }
-      }
-    } catch (err) {
-      logger.error(`[heartbeat] Heartbeat task cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
-
     heartbeatTimer = setInterval(() => {
       try {
         if (isQuitting() || !hasWorkerReady()) return;
