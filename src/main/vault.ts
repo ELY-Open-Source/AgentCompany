@@ -87,10 +87,6 @@ export class SecretVault {
   }
 
   private allowInsecureVaultFallback() {
-    return (
-      process.env.AGENTCOMPANY_ALLOW_INSECURE_VAULT === "true" ||
-      process.env.NODE_ENV === "test" ||
-      process.env.VITEST === "true"
-    );
+    return process.env.AGENTCOMPANY_ALLOW_INSECURE_VAULT === "true";
   }
 }
