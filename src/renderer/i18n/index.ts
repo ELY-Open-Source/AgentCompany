@@ -10,7 +10,16 @@ export type TranslationFn = (key: string, fallback?: string) => string;
 
 export function createTranslator(locale: AppLocale): TranslationFn {
   const dict = translations[locale] ?? translations[DEFAULT_LOCALE];
-  return (key: string, fallback?: string) => dict[key] ?? fallback ?? key;
+  const defaultDict = translations[DEFAULT_LOCALE];
+  return (key: string, fallback?: string) => {
+    const value = dict[key];
+    if (value !== undefined) return value;
+    if (import.meta.env.DEV && !defaultDict[key] && fallback === undefined) {
+       
+      console.warn(`[i18n] missing translation key: ${key}`);
+    }
+    return defaultDict[key] ?? fallback ?? key;
+  };
 }
 
 export const LocaleContext = createContext<AppLocale>(DEFAULT_LOCALE);
