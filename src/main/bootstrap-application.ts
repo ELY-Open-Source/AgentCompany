@@ -1,17 +1,18 @@
 import { app } from "electron";
-import log from "electron-log/main.js";
 import type { AgentApiServer } from "./api-server";
 import type { AppDatabase } from "./database";
 import type { BrowserManager } from "./browser-manager";
 import { prepareHostEnvironment } from "./host-environment-service";
-import { createServiceGraph } from "./service-graph";
-import { createIpcSupport } from "./ipc-support";
-import { createNotificationService } from "./notification-service";
-import type { NotificationOptions } from "./notification-service";
-import { createThreadIntegration } from "./thread-integration";
-import { createCheckpointEngine } from "./checkpoint-engine";
-import { createRunHousekeeping } from "./run-housekeeping";
-import type { DesktopEvent, SectionId } from "@shared/types";
+import type { createServiceGraph } from "./service-graph";
+import type { createIpcSupport } from "./ipc-support";
+import type { createThreadIntegration } from "./thread-integration";
+import { prepareLogger } from "./bootstrap/prepare-logger";
+import { prepareDatabase } from "./bootstrap/prepare-database";
+import { prepareServices } from "./bootstrap/prepare-services";
+import { wireApiServer, type CreateApiServerFn } from "./bootstrap/wire-api-server";
+import { recoverScheduledPosts } from "./bootstrap/recover-scheduled-posts";
+import { runStartupHealthChecks } from "./bootstrap/run-startup-health-checks";
+import { emitCrashRecoveryNotification, recoverShutdownInterruptedTasks } from "./bootstrap/recover-interrupted-tasks";
 
 interface BootstrapApplicationDependencies {
   hasSingleInstanceLock: boolean;
@@ -26,20 +27,7 @@ interface BootstrapApplicationDependencies {
   iconPath: string;
   devServerUrl?: string;
   workerPath: string;
-  createApiServer: (db: AppDatabase, callbacks: {
-    onDomainChanged: () => void;
-    onWakeAgent: (agentId: string, companyId: string, trigger: string) => string | null;
-    onTaskCreated: (taskId: string, companyId: string) => void;
-    onTaskStatusChanged: (taskId: string, companyId: string, prev: string, next: string) => void;
-    onCommentPosted: (taskId: string, companyId: string, authorAgentId: string | null) => void;
-    onApprovalCreated: (approvalId: string, companyId: string, taskId: string | null, approvalType: string, summary: string) => void;
-    onApprovalResolved: (approvalId: string, companyId: string, decision: string) => void;
-    onDocumentCreated: (companyId: string, authorAgentId: string | null, projectId: string | null, documentId: string, documentTitle: string, documentType: string, taskId: string | null) => void;
-    onAutoAssignTask: (taskId: string, companyId: string) => string | null;
-    onHumanMessage: (companyId: string, toAgentId?: string | null, threadId?: string | null, waitStateId?: string | null) => void;
-    emitEvent: (event: DesktopEvent) => void;
-    notify: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
-  }, allowedOrigins: string[]) => AgentApiServer;
+  createApiServer: CreateApiServerFn;
   createRunToken: (agentId: string, companyId: string, runId: string) => string;
   seedDefaultAutomationRules: (companyId: string) => void;
   isQuittingRef: { current: boolean };
@@ -52,198 +40,62 @@ interface BootstrapApplicationDependencies {
   }) => void;
 }
 
-export async function bootstrapApplication({
-  hasSingleInstanceLock,
-  isDev,
-  devServerOrigin,
-  profileDir,
-  appDatabaseFactory,
-  initSigningKey,
-  windowStatePath,
-  preloadPath,
-  rendererDist,
-  iconPath,
-  devServerUrl,
-  workerPath,
-  createApiServer,
-  createRunToken,
-  seedDefaultAutomationRules,
-  isQuittingRef,
-  onRuntimeReady,
-}: BootstrapApplicationDependencies) {
+export async function bootstrapApplication(deps: BootstrapApplicationDependencies) {
   await app.whenReady();
-  log.initialize();
-
-  // Configure log format for cleaner output
-  log.transports.console.format = "[{h}:{i}:{s}] [{level}] {text}";
-  log.transports.file.format = "[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}";
-
-  // In production, only show warnings and errors in console
-  // File logging always captures info+
-  if (app.isPackaged) {
-    log.transports.console.level = "warn";
-    log.transports.file.level = "info";
-  } else {
-    log.transports.console.level = "info";
-    log.transports.file.level = "debug";
-  }
+  const log = prepareLogger();
 
   await prepareHostEnvironment({ logger: log });
 
-  const db = appDatabaseFactory(profileDir);
-  db.init();
-  initSigningKey(db.profileDir);
+  const db = prepareDatabase({
+    profileDir: deps.profileDir,
+    appDatabaseFactory: deps.appDatabaseFactory,
+    initSigningKey: deps.initSigningKey,
+  });
 
   const apiServerRef = { current: null as AgentApiServer | null };
   const browserManagerRef = { current: null as BrowserManager | null };
-  let ipcSupport: ReturnType<typeof createIpcSupport> | null = null;
-  let serviceGraph: ReturnType<typeof createServiceGraph> | null = null;
 
-  const notificationService = createNotificationService({
-    getMainWindow: () => serviceGraph?.getDesktopShellService()?.getMainWindow() ?? null,
-    emitEvent: (event: DesktopEvent) => ipcSupport?.emitEvent(event),
-    logger: log,
-  });
-
-  const notify = (options: NotificationOptions) => {
-    if (!ipcSupport) {
-      throw new Error("IPC support is not initialized.");
-    }
-    ipcSupport.notify(options);
-  };
-  const emitEvent = (event: DesktopEvent) => {
-    ipcSupport?.emitEvent(event);
-  };
-  const publishDomainChanged = () => {
-    ipcSupport?.publishDomainChanged();
-  };
-
-  const threadIntegration = createThreadIntegration({
-    db,
-    logger: log,
-    emitEvent,
-    publishDomainChanged,
-    notify: (options) => notify({ ...options, urgency: "informational" }),
-  });
-  const checkpointEngine = createCheckpointEngine({
-    db,
-    logger: log,
-    threadIntegration,
-    publishDomainChanged,
-    notify,
-  });
-  const runHousekeeping = createRunHousekeeping({ db, logger: log, threadIntegration });
-
-  serviceGraph = createServiceGraph({
+  const services = prepareServices({
     db,
     apiServerRef,
     browserManagerRef,
-    isQuittingRef,
-    preloadPath,
-    rendererDist,
-    iconPath,
-    isDev,
-    devServerUrl,
-    windowStatePath,
-    workerPath,
+    isQuittingRef: deps.isQuittingRef,
+    preloadPath: deps.preloadPath,
+    rendererDist: deps.rendererDist,
+    iconPath: deps.iconPath,
+    isDev: deps.isDev,
+    devServerUrl: deps.devServerUrl,
+    devServerOrigin: deps.devServerOrigin,
+    windowStatePath: deps.windowStatePath,
+    workerPath: deps.workerPath,
     logger: log,
-    emitEvent,
-    publishDomainChanged,
-    notify,
-    createRunToken,
-    seedDefaultAutomationRules,
-    onRunStarted: (runId, taskId, agentId, companyId) =>
-      threadIntegration.onRunStarted(runId, taskId, agentId, companyId),
-    onRunCompleted: (runId, taskId, agentId, companyId, status, summary, errorMessage) =>
-      runHousekeeping.onRunCompleted(runId, taskId, agentId, companyId, status, summary, errorMessage),
-    checkpointEngine,
+    createRunToken: deps.createRunToken,
+    seedDefaultAutomationRules: deps.seedDefaultAutomationRules,
   });
-  ipcSupport = createIpcSupport({
-    isDev,
-    devServerOrigin,
-    logger: log,
-    getMainWindow: () => serviceGraph?.getDesktopShellService()?.getMainWindow() ?? null,
-    getDb: () => ({
-      hasCompany: (companyId: string) => db.hasCompany(companyId),
-      belongsToCompany: (table: string, id: string, companyId: string) => db.belongsToCompany(table as Parameters<typeof db.belongsToCompany>[0], id, companyId),
-    }),
-    notificationService,
-  });
-  serviceGraph.init();
+  const { serviceGraph, ipcSupport, threadIntegration, notificationService, checkpointEngine, notify, emitEvent, publishDomainChanged } = services;
 
   const wakeAgentIfPossible = (agentId: string | null | undefined, companyId: string, trigger: string) => {
     const orchestration = serviceGraph.getOrchestrationService();
     if (!orchestration) throw new Error("Orchestration service is not initialized.");
     return orchestration.wakeAgentIfPossible(agentId, companyId, trigger);
   };
-  const handleTaskCreated = (taskId: string, companyId: string) => {
-    const automation = serviceGraph.getAutomationService();
-    if (!automation) throw new Error("Automation service is not initialized.");
-    automation.handleTaskCreated(taskId, companyId);
-    threadIntegration.onTaskCreated(taskId, companyId);
-  };
-  const handleTaskStatusChange = (taskId: string, companyId: string, prev: string, next: string) => {
-    const automation = serviceGraph.getAutomationService();
-    if (!automation) throw new Error("Automation service is not initialized.");
-    automation.handleTaskStatusChange(taskId, companyId, prev, next);
-    threadIntegration.onTaskStatusChanged(taskId, companyId, prev, next);
-    // In co-founder mode, create plan_review checkpoint when task starts
-    if (prev === "todo" && next === "in_progress") {
-      try {
-        const task = db.getTask(taskId);
-        checkpointEngine.onTaskStarted(taskId, companyId, task.assigneeAgentId);
-      } catch { /* task may not exist */ }
-    }
-  };
-  const handleApprovalResolved = (approvalId: string, companyId: string, decision: string) => {
-    const automation = serviceGraph.getAutomationService();
-    if (!automation) throw new Error("Automation service is not initialized.");
-    automation.handleApprovalResolved(approvalId, companyId, decision);
-    threadIntegration.onApprovalResolved(approvalId, companyId, decision);
-  };
-  const dispatchAutomation = (trigger: string, ctx: import("./automation/types").AutomationEventContext) => {
-    const automation = serviceGraph.getAutomationService();
-    if (!automation) throw new Error("Automation service is not initialized.");
-    automation.dispatchAutomation(trigger, ctx);
-  };
 
-  const handleApprovalCreated = (approvalId: string, companyId: string, taskId: string | null, approvalType: string, summary: string) => {
-    threadIntegration.onApprovalCreated(approvalId, companyId, taskId, approvalType, summary);
-  };
-
-  const apiServer = createApiServer(db, {
-    onDomainChanged: publishDomainChanged,
-    onWakeAgent: (agentId, companyId, trigger) => wakeAgentIfPossible(agentId, companyId, trigger),
-    onTaskCreated: handleTaskCreated,
-    onTaskStatusChanged: handleTaskStatusChange,
-    onCommentPosted: (taskId, companyId, authorAgentId) => {
-      dispatchAutomation("comment_posted", { companyId, taskId, agentId: authorAgentId ?? undefined });
-    },
-    onApprovalCreated: handleApprovalCreated,
-    onApprovalResolved: handleApprovalResolved,
-    onDocumentCreated: (companyId, authorAgentId, projectId, documentId, documentTitle, documentType, taskId) => {
-      dispatchAutomation("document_created", { companyId, agentId: authorAgentId ?? undefined, projectId: projectId ?? undefined });
-      threadIntegration.onDocumentCreated(companyId, authorAgentId, taskId, documentTitle);
-      checkpointEngine.onDocumentDrafted(companyId, documentId, documentTitle, documentType, authorAgentId, taskId);
-    },
-    onAutoAssignTask: (taskId, companyId) => db.autoAssignTask(taskId, companyId),
-    onHumanMessage: (companyId, toAgentId, threadId, waitStateId) => {
-      threadIntegration.onHumanMessage(companyId, toAgentId, threadId, waitStateId);
-      publishDomainChanged();
-    },
+  const apiServer = wireApiServer({
+    db,
+    serviceGraph,
+    threadIntegration,
+    checkpointEngine,
     emitEvent,
     notify,
-  }, [isDev && devServerUrl ? new URL(devServerUrl).origin : null, "app://-"].filter((origin): origin is string => Boolean(origin)));
+    publishDomainChanged,
+    isDev: deps.isDev,
+    devServerUrl: deps.devServerUrl,
+    createApiServer: deps.createApiServer,
+  });
 
   apiServerRef.current = apiServer;
   await apiServer.start();
-  onRuntimeReady?.({
-    db,
-    apiServer,
-    serviceGraph,
-    ipcSupport,
-    threadIntegration,
-  });
+  deps.onRuntimeReady?.({ db, apiServer, serviceGraph, ipcSupport, threadIntegration });
 
   if (apiServer && serviceGraph.getBrowserActionService()) {
     apiServer.setBrowserActionHandler(async (actionId, companyId) => {
@@ -253,139 +105,49 @@ export async function bootstrapApplication({
     });
   }
 
-  // Re-register timers for scheduled social posts (survives app restart).
-  // Scan all companies for queued browser actions with a future scheduledAt time
-  // and set up setTimeout to dispatch them at the right moment.
-  const scheduledPostTimers = new Set<ReturnType<typeof setTimeout>>();
-  try {
-    const snapshot = db.listSnapshot();
-    for (const company of snapshot.companies) {
-      const queuedActions = db.listBrowserActions(company.id, { status: "queued" });
-      for (const action of queuedActions) {
-        if (action.payloadJson) {
-          try {
-            const payload = JSON.parse(action.payloadJson) as { scheduledAt?: string };
-            if (payload.scheduledAt) {
-              const delay = new Date(payload.scheduledAt).getTime() - Date.now();
-              if (delay > 0) {
-                const timer = setTimeout(() => {
-                  scheduledPostTimers.delete(timer);
-                  if (isQuittingRef.current) return;
-                  const browserActions = serviceGraph?.getBrowserActionService();
-                  if (browserActions) {
-                    void browserActions.dispatchBrowserAction(action.id, company.id);
-                  }
-                }, delay);
-                scheduledPostTimers.add(timer);
-                log.info(`[bootstrap] Re-registered scheduled post timer: action ${action.id} in ${Math.round(delay / 1000)}s`);
-              }
-              // If delay <= 0, the action is overdue -- normal dispatch cycle will pick it up
-            }
-          } catch { /* ignore malformed payload */ }
-        }
-      }
-    }
-  } catch (error) {
-    log.warn(`[bootstrap] Failed to re-register scheduled post timers: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  const scheduledPostTimers = recoverScheduledPosts({
+    db,
+    logger: log,
+    isQuittingRef: deps.isQuittingRef,
+    getBrowserActionService: () => serviceGraph.getBrowserActionService(),
+  });
 
   // Register cleanup for bootstrap-owned resources during quit.
-  // This runs BEFORE service-graph's onBeforeQuit (which is registered later).
+  // Runs BEFORE service-graph's onBeforeQuit (which is registered later).
   app.on("before-quit", () => {
-    for (const timer of scheduledPostTimers) {
-      clearTimeout(timer);
-    }
+    for (const timer of scheduledPostTimers) clearTimeout(timer);
     scheduledPostTimers.clear();
     notificationService.destroy();
   });
 
   // Show the window immediately so the user sees the app launch without delay.
   await serviceGraph.getDesktopShellService()?.ensureWindow();
-  serviceGraph.getAppLifecycleService()?.register(hasSingleInstanceLock);
+  serviceGraph.getAppLifecycleService()?.register(deps.hasSingleInstanceLock);
 
-  // Run connector health checks AFTER the window is visible.
-  // This ensures connectors have a known status before any agent run is attempted,
-  // but doesn't block the startup experience.
-  const connectorHealth = serviceGraph.getConnectorHealthService();
-  if (connectorHealth) {
-    const connectors = db.listSnapshot().connectors;
-    const healthCheckResults = await Promise.allSettled(
-      connectors.map((connector) => connectorHealth.checkConnector(connector.id)),
-    );
-    for (let i = 0; i < healthCheckResults.length; i++) {
-      const result = healthCheckResults[i]!;
-      if (result.status === "rejected") {
-        log.warn(`[bootstrap] Connector health check failed for ${connectors[i]?.id}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
-      }
-    }
-    log.info(`[bootstrap] Connector health checks completed (${healthCheckResults.filter((r) => r.status === "fulfilled").length}/${connectors.length} succeeded)`);
-  }
+  // Run connector health checks AFTER the window is visible to unblock startup.
+  await runStartupHealthChecks(db, serviceGraph.getConnectorHealthService(), log);
 
   serviceGraph.getOrchestrationService()?.startAllSchedulers();
 
-  // Check for crash recovery -- emit recovery notification before resuming queued runs
-  const interruptedCount = db.lastInterruptedCount;
-  if (interruptedCount > 0) {
-    log.warn(`[bootstrap] Detected ${interruptedCount} interrupted runs from previous session. Sending recovery notification.`);
-    const interruptedRuns = db.getInterruptedRunsForRecovery();
-    if (interruptedRuns.length > 0) {
-      emitEvent({
-        type: "recovery-needed",
-        interruptedRuns,
-      });
-      notify({
-        title: "Session Recovered",
-        body: `${interruptedRuns.length} interrupted task(s) detected from previous session`,
-        urgency: "informational",
-        navigation: { section: "overview" },
-      });
-    }
-  }
+  emitCrashRecoveryNotification({
+    db,
+    logger: log,
+    emitEvent,
+    notify,
+    publishDomainChanged,
+    wakeAgentIfPossible,
+  });
 
   serviceGraph.getOrchestrationService()?.resumeQueuedRuns();
 
-  // Resume tasks that were interrupted by a clean shutdown.
-  // The worker-service destroy() marks running/queued runs as "interrupted" with
-  // summary "Application shut down." but does NOT reset the tasks, so agents
-  // never re-wake to continue them. Fix: reset these tasks back to "todo" and
-  // wake the assigned agents via heartbeat.
-  try {
-    const snapshot = db.listSnapshot();
-    const shutdownRuns = snapshot.runs.filter(
-      (r) => r.status === "interrupted" &&
-        (r.summary === "Application shut down." || r.summary === "Worker process crashed."),
-    );
-    if (shutdownRuns.length > 0) {
-      const resumedAgents = new Set<string>();
-      for (const run of shutdownRuns) {
-        try {
-          const task = db.getTask(run.taskId);
-          if (task.status === "in_progress" || task.status === "blocked") {
-            db.advanceTaskStatus(run.taskId, "todo", "Auto-resumed after app restart.");
-            db.releaseTaskLock(run.taskId, run.id);
-          }
-          if (!resumedAgents.has(run.agentId)) {
-            resumedAgents.add(run.agentId);
-            wakeAgentIfPossible(run.agentId, run.companyId, "app_restart_resume");
-          }
-        } catch (error) {
-          log.warn(`[bootstrap] Skipped shutdown recovery for run ${run.id} (task/agent may have been deleted):`, error);
-        }
-      }
-      if (resumedAgents.size > 0) {
-        log.info(`[bootstrap] Resumed ${shutdownRuns.length} interrupted task(s) across ${resumedAgents.size} agent(s) after clean shutdown recovery.`);
-        publishDomainChanged();
-      }
-    }
-  } catch (err) {
-    log.warn(`[bootstrap] Shutdown recovery failed: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  return {
+  recoverShutdownInterruptedTasks({
     db,
-    apiServer,
-    serviceGraph,
-    ipcSupport,
-    threadIntegration,
-  };
+    logger: log,
+    emitEvent,
+    notify,
+    publishDomainChanged,
+    wakeAgentIfPossible,
+  });
+
+  return { db, apiServer, serviceGraph, ipcSupport, threadIntegration };
 }
