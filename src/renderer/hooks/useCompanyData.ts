@@ -2,6 +2,15 @@ import { useMemo } from "react";
 import type { CompanyRecord, ProfileSnapshot, SectionId } from "@shared/types";
 import { useAppStore } from "../state/store";
 
+function filterByCompany<T extends { companyId: string }>(
+  items: T[] | undefined,
+  currentCompany: CompanyRecord | null,
+): T[] {
+  if (!items) return [];
+  if (!currentCompany) return items;
+  return items.filter((item) => item.companyId === currentCompany.id);
+}
+
 export function useCompanyData(
   snapshot: ProfileSnapshot | null,
   currentCompany: CompanyRecord | null,
@@ -14,21 +23,21 @@ export function useCompanyData(
   const selectedProjectId = useAppStore((s) => s.selectedProjectId);
   const selectedWorkspaceId = useAppStore((s) => s.selectedWorkspaceId);
 
-  const tasks = useMemo(() => snapshot?.tasks.filter((task) => !currentCompany || task.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
-  const approvals = useMemo(() => snapshot?.approvals.filter((approval) => !currentCompany || approval.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const tasks = useMemo(() => filterByCompany(snapshot?.tasks, currentCompany), [snapshot, currentCompany]);
+  const approvals = useMemo(() => filterByCompany(snapshot?.approvals, currentCompany), [snapshot, currentCompany]);
   const pendingApprovals = useMemo(() => approvals.filter((approval) => approval.state === "pending"), [approvals]);
-  const runs = useMemo(() => snapshot?.runs.filter((run) => !currentCompany || run.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
-  const companyAgents = useMemo(() => snapshot?.agents.filter((a) => !currentCompany || a.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
-  const companyGoals = useMemo(() => snapshot?.goals.filter((g) => !currentCompany || g.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
-  const companyProjects = useMemo(() => snapshot?.projects.filter((p) => !currentCompany || p.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
-  const companyWorkspaces = useMemo(() => snapshot?.workspaces.filter((workspace) => !currentCompany || workspace.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
-  const companyCosts = useMemo(() => snapshot?.costs.filter((entry) => !currentCompany || entry.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
-  const filteredActivity = useMemo(() => snapshot?.activity.filter((entry) => !currentCompany || entry.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
-  const companySecrets = useMemo(() => snapshot?.secrets.filter((secret) => !currentCompany || secret.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
-  const companyDocuments = useMemo(() => snapshot?.documents?.filter((d) => !currentCompany || d.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
-  const companyKnowledge = useMemo(() => snapshot?.knowledgeBase?.filter((k) => !currentCompany || k.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
-  const companyMeetings = useMemo(() => snapshot?.meetings?.filter((m) => !currentCompany || m.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
-  const companySprints = useMemo(() => snapshot?.sprints?.filter((s) => !currentCompany || s.companyId === currentCompany.id) ?? [], [snapshot, currentCompany]);
+  const runs = useMemo(() => filterByCompany(snapshot?.runs, currentCompany), [snapshot, currentCompany]);
+  const companyAgents = useMemo(() => filterByCompany(snapshot?.agents, currentCompany), [snapshot, currentCompany]);
+  const companyGoals = useMemo(() => filterByCompany(snapshot?.goals, currentCompany), [snapshot, currentCompany]);
+  const companyProjects = useMemo(() => filterByCompany(snapshot?.projects, currentCompany), [snapshot, currentCompany]);
+  const companyWorkspaces = useMemo(() => filterByCompany(snapshot?.workspaces, currentCompany), [snapshot, currentCompany]);
+  const companyCosts = useMemo(() => filterByCompany(snapshot?.costs, currentCompany), [snapshot, currentCompany]);
+  const filteredActivity = useMemo(() => filterByCompany(snapshot?.activity, currentCompany), [snapshot, currentCompany]);
+  const companySecrets = useMemo(() => filterByCompany(snapshot?.secrets, currentCompany), [snapshot, currentCompany]);
+  const companyDocuments = useMemo(() => filterByCompany(snapshot?.documents, currentCompany), [snapshot, currentCompany]);
+  const companyKnowledge = useMemo(() => filterByCompany(snapshot?.knowledgeBase, currentCompany), [snapshot, currentCompany]);
+  const companyMeetings = useMemo(() => filterByCompany(snapshot?.meetings, currentCompany), [snapshot, currentCompany]);
+  const companySprints = useMemo(() => filterByCompany(snapshot?.sprints, currentCompany), [snapshot, currentCompany]);
 
   const selectedTask = selectedTaskId ? (tasks.find((task) => task.id === selectedTaskId) ?? null) : null;
   const selectedApproval = selectedApprovalId ? (approvals.find((approval) => approval.id === selectedApprovalId) ?? null) : null;
