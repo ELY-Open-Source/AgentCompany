@@ -13,7 +13,8 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
     const targetAgent = (() => {
       try {
         return db.getAgent(targetAgentId);
-      } catch {
+      } catch (err) {
+        log.warn(`[api/agent-control] getAgent failed for ${targetAgentId}:`, err instanceof Error ? err.message : String(err));
         return null;
       }
     })();
@@ -52,7 +53,8 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
     let targetAgent;
     try {
       targetAgent = db.getAgent(targetAgentId);
-    } catch {
+    } catch (err) {
+      log.warn(`[api/agent-control] getAgent failed for heartbeat ${targetAgentId}:`, err instanceof Error ? err.message : String(err));
       targetAgent = null;
     }
     if (!targetAgent || targetAgent.companyId !== token.companyId) {

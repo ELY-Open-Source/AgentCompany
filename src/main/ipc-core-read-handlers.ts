@@ -20,6 +20,7 @@ export function registerCoreReadHandlers({
   resetAfterRestore,
   getApiPort,
   listConnectorModels,
+  logger,
 }: Pick<
   RegisterCoreHandlersDependencies,
   | "registerHandle"
@@ -30,6 +31,7 @@ export function registerCoreReadHandlers({
   | "resetAfterRestore"
   | "getApiPort"
   | "listConnectorModels"
+  | "logger"
 >) {
   registerHandle(IPC_CHANNELS.loadSnapshot, () => ok(db.listRendererSnapshot()));
 
@@ -109,7 +111,8 @@ export function registerCoreReadHandlers({
     try {
       const parsed = connectorInputSchema.shape.id.parse(connectorId);
       return ok(await listConnectorModels(parsed));
-    } catch {
+    } catch (err) {
+      logger.warn(`[ipc] listConnectorModels failed for connector ${String(connectorId)}:`, err instanceof Error ? err.message : String(err));
       return ok([]);
     }
   });
@@ -118,7 +121,8 @@ export function registerCoreReadHandlers({
     try {
       const parsed = connectorInputSchema.shape.id.parse(connectorId);
       return ok(db.getDisabledModels(parsed));
-    } catch {
+    } catch (err) {
+      logger.warn(`[ipc] getConnectorDisabledModels failed for connector ${String(connectorId)}:`, err instanceof Error ? err.message : String(err));
       return ok([]);
     }
   });
@@ -180,7 +184,8 @@ export function registerCoreReadHandlers({
       const task = db.getTask(parsed.id);
       if (task.companyId !== parsed.companyId) return fail("TASK_NOT_FOUND", "Task not found in current company.");
       return ok(task);
-    } catch {
+    } catch (err) {
+      logger.warn(`[ipc] getTask failed for id ${parsed.id}:`, err instanceof Error ? err.message : String(err));
       return fail("TASK_NOT_FOUND", "Task not found.");
     }
   });
@@ -193,7 +198,8 @@ export function registerCoreReadHandlers({
       const agent = db.getAgent(parsed.id);
       if (agent.companyId !== parsed.companyId) return fail("AGENT_NOT_FOUND", "Agent not found in current company.");
       return ok(agent);
-    } catch {
+    } catch (err) {
+      logger.warn(`[ipc] getAgent failed for id ${parsed.id}:`, err instanceof Error ? err.message : String(err));
       return fail("AGENT_NOT_FOUND", "Agent not found.");
     }
   });
@@ -206,7 +212,8 @@ export function registerCoreReadHandlers({
       const run = db.getRun(parsed.id);
       if (run.companyId !== parsed.companyId) return fail("RUN_NOT_FOUND", "Run not found in current company.");
       return ok(run);
-    } catch {
+    } catch (err) {
+      logger.warn(`[ipc] getRun failed for id ${parsed.id}:`, err instanceof Error ? err.message : String(err));
       return fail("RUN_NOT_FOUND", "Run not found.");
     }
   });
@@ -219,7 +226,8 @@ export function registerCoreReadHandlers({
       const approval = db.getApprovalRecord(parsed.id);
       if (approval.companyId !== parsed.companyId) return fail("APPROVAL_NOT_FOUND", "Approval not found in current company.");
       return ok(approval);
-    } catch {
+    } catch (err) {
+      logger.warn(`[ipc] getApprovalRecord failed for id ${parsed.id}:`, err instanceof Error ? err.message : String(err));
       return fail("APPROVAL_NOT_FOUND", "Approval not found.");
     }
   });

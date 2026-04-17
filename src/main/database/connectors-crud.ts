@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import log from "electron-log/main.js";
 import type { ConnectorId, ConnectorRecord } from "@shared/types";
 import type { ReadAll } from "./helpers";
 import { nowIso } from "./helpers";
@@ -30,7 +31,8 @@ export function buildConnectorMethods(
       let definition;
       try {
         definition = getConnectorDefinition(row.id as ConnectorId);
-      } catch {
+      } catch (err) {
+        log.warn(`[database/connectors] Unknown connector id ${row.id}; skipping row:`, err instanceof Error ? err.message : String(err));
         continue;
       }
       result.push({
@@ -110,7 +112,8 @@ export function buildConnectorMethods(
       let definition;
       try {
         definition = getConnectorDefinition(row.id as ConnectorId);
-      } catch {
+      } catch (err) {
+        log.warn(`[database/connectors] Unknown connector id ${row.id} in findConnector:`, err instanceof Error ? err.message : String(err));
         return null;
       }
       return {

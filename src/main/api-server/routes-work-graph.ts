@@ -1,3 +1,4 @@
+import log from "electron-log/main.js";
 import { z } from "zod";
 import { goalInputSchema, projectInputSchema } from "@shared/contracts";
 import { canManageGoal, canManageProject } from "../agent-permissions";
@@ -102,7 +103,8 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       });
       onDomainChanged();
       server.json(res, 200, { ok: true });
-    } catch {
+    } catch (err) {
+      log.warn(`[api/work-graph] Failed to update project:`, err instanceof Error ? err.message : String(err));
       server.json(res, 500, { error: "Failed to update project" });
     }
   });
@@ -187,7 +189,8 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       });
       onDomainChanged();
       server.json(res, 200, { ok: true });
-    } catch {
+    } catch (err) {
+      log.warn(`[api/work-graph] Failed to update goal:`, err instanceof Error ? err.message : String(err));
       server.json(res, 500, { error: "Failed to update goal" });
     }
   });
@@ -241,7 +244,8 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       });
       onDomainChanged();
       server.json(res, 201, { id });
-    } catch {
+    } catch (err) {
+      log.warn(`[api/work-graph] Invalid sprint data:`, err instanceof Error ? err.message : String(err));
       server.json(res, 400, { error: "Invalid sprint data" });
     }
   });

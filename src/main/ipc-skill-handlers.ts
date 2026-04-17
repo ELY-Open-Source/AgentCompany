@@ -16,7 +16,7 @@ import type { AppDatabase } from "./database";
 
 interface SkillHandlerDependencies extends Pick<
   RegisterDomainHandlersDependencies,
-  "registerHandle" | "ensureCompanyExists" | "publishDomainChanged"
+  "registerHandle" | "ensureCompanyExists" | "publishDomainChanged" | "logger"
 > {
   skillService: ReturnType<typeof createSkillService> | null;
   db: AppDatabase;
@@ -28,6 +28,7 @@ export function registerSkillHandlers({
   publishDomainChanged,
   skillService,
   db,
+  logger,
 }: SkillHandlerDependencies) {
   function requireSkillService():
     | { service: NonNullable<typeof skillService>; error?: undefined }
@@ -64,8 +65,8 @@ export function registerSkillHandlers({
     // Scan workspace .agents/skills/ directories for new skills before listing
     try {
       await svc.scanWorkspaceSkills(parsed.companyId);
-    } catch {
-      // Non-fatal: scan failure should not block listing existing skills
+    } catch (err) {
+      logger.warn(`[ipc/skills] scanWorkspaceSkills failed for company ${parsed.companyId}:`, err instanceof Error ? err.message : String(err));
     }
     return ok(svc.listForCompany(parsed.companyId));
   });

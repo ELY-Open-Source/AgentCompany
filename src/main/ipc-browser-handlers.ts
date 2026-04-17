@@ -107,8 +107,8 @@ export function registerBrowserHandlers({
           const profile = await browserActions.extractProfileFromSession(input.socialAccountId, account.platform);
           detectedName = profile.accountName;
           detectedDisplay = profile.displayName;
-        } catch {
-          // Profile extraction is best-effort; proceed with login status update
+        } catch (err) {
+          logger.warn(`[ipc/browser] extractProfileFromSession failed for social account ${input.socialAccountId}:`, err instanceof Error ? err.message : String(err));
         }
         db.saveSocialAccount({
           id: latestAccount.id,

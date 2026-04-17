@@ -272,8 +272,8 @@ export function createSkillImporter({ db, profileDir: _profileDir, logger, skill
       const pathParts = urlObj.pathname.split("/").filter(Boolean);
       const lastPart = pathParts[pathParts.length - 1] ?? "";
       urlSlug = normalizeSkillSlug(lastPart.replace(/\.md$/i, ""));
-    } catch {
-      // ignore URL parsing errors
+    } catch (err) {
+      logger.warn(`[skill-import] Unable to parse skill URL for slug derivation (${url}):`, err instanceof Error ? err.message : String(err));
     }
     const rawSlug =
       normalizeSkillSlug(parsed.frontmatter.slug as string | undefined) ??
@@ -340,7 +340,8 @@ export function createSkillImporter({ db, profileDir: _profileDir, logger, skill
       let realDir: string;
       try {
         realDir = realpathSync(dir);
-      } catch {
+      } catch (err) {
+        logger.warn(`[skill-import] realpathSync failed for ${dir}:`, err instanceof Error ? err.message : String(err));
         return;
       }
       if (visitedRealPaths.has(realDir)) {
@@ -351,7 +352,8 @@ export function createSkillImporter({ db, profileDir: _profileDir, logger, skill
       let entries: Dirent[];
       try {
         entries = readdirSync(dir, { withFileTypes: true });
-      } catch {
+      } catch (err) {
+        logger.warn(`[skill-import] readdirSync failed for ${dir}:`, err instanceof Error ? err.message : String(err));
         return;
       }
       for (const entry of entries) {
@@ -395,7 +397,8 @@ export function createSkillImporter({ db, profileDir: _profileDir, logger, skill
       let realDir: string;
       try {
         realDir = realpathSync(dir);
-      } catch {
+      } catch (err) {
+        logger.warn(`[skill-import] realpathSync failed for ${dir}:`, err instanceof Error ? err.message : String(err));
         return;
       }
       if (visitedRealPaths.has(realDir)) {
@@ -406,7 +409,8 @@ export function createSkillImporter({ db, profileDir: _profileDir, logger, skill
       let entries: Dirent[];
       try {
         entries = readdirSync(dir, { withFileTypes: true });
-      } catch {
+      } catch (err) {
+        logger.warn(`[skill-import] readdirSync failed for ${dir}:`, err instanceof Error ? err.message : String(err));
         return;
       }
       for (const entry of entries) {

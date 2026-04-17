@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import { copyFile, cp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync, backup as backupDatabase } from "node:sqlite";
+import log from "electron-log/main.js";
 
 async function copyIfExists(source: string, destination: string) {
   if (!existsSync(source)) {
@@ -107,8 +108,8 @@ export function buildBackupMethods(
           try {
             deps.setDb(deps.openConnection());
             deps.init();
-          } catch {
-            // Reopen failed. Caller sees original + recovery messages.
+          } catch (reopenError) {
+            log.error(`[database/backup] Reopen failed after restore/recovery failure:`, reopenError instanceof Error ? reopenError.message : String(reopenError));
           }
           throw new Error(
             `Restore failed: ${message}. Recovery also failed: ${recoveryMessage}. Previous profile is at ${recoveryDir}.`,

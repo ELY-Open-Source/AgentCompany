@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import log from "electron-log/main.js";
 import type { AgentMessageRecord, AgentRecord } from "@shared/types";
 import {
   BOARD_READER_ID,
@@ -139,7 +140,8 @@ export function buildMessageMethods(
         if (agent.companyId === companyId) {
           department = agent.department;
         }
-      } catch {
+      } catch (err) {
+        log.warn(`[database/messages] getAgent failed for ${opts.agentId}; department filter disabled:`, err instanceof Error ? err.message : String(err));
         department = null;
       }
 
@@ -277,7 +279,8 @@ export function buildMessageMethods(
         if (agent.companyId === companyId) {
           department = agent.department;
         }
-      } catch {
+      } catch (err) {
+        log.warn(`[database/messages] getAgent failed for ${agentId} in listAgentInboxUnread; department filter disabled:`, err instanceof Error ? err.message : String(err));
         department = null;
       }
 

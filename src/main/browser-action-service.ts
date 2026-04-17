@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import log from "electron-log/main.js";
 import type { AppDatabase } from "./database";
 import { BrowserManager } from "./browser-manager";
 
@@ -28,7 +29,8 @@ export function createBrowserActionService({
   function getApprovalOrNull(approvalId: string): ReturnType<typeof db.getApprovalRecord> | null {
     try {
       return db.getApprovalRecord(approvalId);
-    } catch {
+    } catch (err) {
+      log.warn(`[browser-action] getApprovalRecord failed for ${approvalId}:`, err instanceof Error ? err.message : String(err));
       return null;
     }
   }

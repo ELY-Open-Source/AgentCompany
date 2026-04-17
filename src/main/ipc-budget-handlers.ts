@@ -13,7 +13,7 @@ import type { AppDatabase } from "./database";
 
 interface BudgetHandlerDependencies extends Pick<
   RegisterDomainHandlersDependencies,
-  "registerHandle" | "ensureCompanyExists" | "publishDomainChanged"
+  "registerHandle" | "ensureCompanyExists" | "publishDomainChanged" | "logger"
 > {
   budgetService: ReturnType<typeof createBudgetEnforcementService> | null;
   db: AppDatabase;
@@ -25,6 +25,7 @@ export function registerBudgetHandlers({
   publishDomainChanged,
   budgetService,
   db,
+  logger,
 }: BudgetHandlerDependencies) {
   // ---- Save (create/update) a budget policy ----
   registerHandle(IPC_CHANNELS.saveBudgetPolicy, async (_event, payload) => {
@@ -36,8 +37,8 @@ export function registerBudgetHandlers({
     if (budgetService) {
       try {
         budgetService.checkAutoResolve(parsed.companyId, id);
-      } catch {
-        // Best effort -- service may not be ready
+      } catch (err) {
+        logger.warn(`[ipc/budget] checkAutoResolve failed for policy ${id} in company ${parsed.companyId}:`, err instanceof Error ? err.message : String(err));
       }
     }
     publishDomainChanged();

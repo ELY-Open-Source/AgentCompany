@@ -102,8 +102,8 @@ export function handleTaskStatusChange(
           }
         }
       }
-    } catch {
-      // Parent task may have been deleted or reassigned during completion cascade evaluation.
+    } catch (err) {
+      deps.logger.warn(`[automation] Parent task ${task.parentId} lookup failed during completion cascade:`, err instanceof Error ? err.message : String(err));
     }
   }
 }

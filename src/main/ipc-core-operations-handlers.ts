@@ -32,6 +32,7 @@ export function registerCoreOperationHandlers({
   queueTaskRun,
   getWorkerProcess,
   notify,
+  logger,
 }: Pick<
   RegisterCoreHandlersDependencies,
   | "registerHandle"
@@ -46,6 +47,7 @@ export function registerCoreOperationHandlers({
   | "queueTaskRun"
   | "getWorkerProcess"
   | "notify"
+  | "logger"
 >) {
   registerHandle(IPC_CHANNELS.requestApproval, async (_event, payload) => {
     const parsed = approvalInputSchema.parse(payload);
@@ -201,8 +203,8 @@ export function registerCoreOperationHandlers({
         taskId: parsed.taskId,
         agentId: parsed.authorAgentId ?? undefined,
       });
-    } catch {
-      // Task may have been deleted between comment creation and wake evaluation.
+    } catch (err) {
+      logger.warn(`[ipc/core-operations] Post-comment wake/dispatch failed for task ${parsed.taskId}:`, err instanceof Error ? err.message : String(err));
     }
     return ok(comment.id);
   });

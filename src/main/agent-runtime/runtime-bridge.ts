@@ -266,7 +266,8 @@ export class RuntimeBridge {
     let task: { title: string } | null = null;
     try {
       task = this.deps.db.getTask(envelope.taskId);
-    } catch {
+    } catch (err) {
+      this.deps.logger.warn(`[runtime-bridge] getTask failed for ${envelope.taskId} in recordThreadEvent:`, err instanceof Error ? err.message : String(err));
       return;
     }
     if (!task) return;

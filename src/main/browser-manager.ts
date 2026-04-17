@@ -236,7 +236,8 @@ export class BrowserManager {
       rules.cookieOrigins.map(async (origin) => {
         try {
           return await ses.cookies.get({ url: origin });
-        } catch {
+        } catch (err) {
+          log.warn(`[browser-manager] cookies.get failed for origin ${origin}:`, err instanceof Error ? err.message : String(err));
           return [];
         }
       }),
@@ -293,7 +294,8 @@ export class BrowserManager {
         })()
       `);
       return result && (result.accountName || result.displayName) ? result : { accountName: "", displayName: "" };
-    } catch {
+    } catch (err) {
+      log.warn(`[browser-manager] extractProfileFromSession evaluation failed:`, err instanceof Error ? err.message : String(err));
       return { accountName: "", displayName: "" };
     } finally {
       if (!win.isDestroyed()) win.close();

@@ -30,6 +30,7 @@ export interface RegisterDomainHandlersDependencies {
   ) => void;
   db: AppDatabase;
   logger: {
+    warn: (...args: unknown[]) => void;
     error: (...args: unknown[]) => void;
   };
   ensureCompanyExists: (companyId: string) => DesktopResult<never> | null;

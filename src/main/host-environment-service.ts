@@ -7,6 +7,7 @@ import { app } from "electron";
 interface HostEnvironmentDependencies {
   logger: {
     info: (...args: unknown[]) => void;
+    warn: (...args: unknown[]) => void;
   };
 }
 
@@ -29,7 +30,8 @@ function enrichWindowsPath(logger: HostEnvironmentDependencies["logger"]) {
       return readdirSync(pythonBase)
         .filter((name) => /^Python\d+$/.test(name))
         .map((name) => join(pythonBase, name, "Scripts"));
-    } catch {
+    } catch (err) {
+      logger.warn(`[path] readdirSync failed for ${pythonBase}:`, err instanceof Error ? err.message : String(err));
       return [];
     }
   })();
@@ -94,8 +96,8 @@ export async function prepareHostEnvironment({
           logger.info(`[path] Added ${toAdd.length} shell PATH entries.`);
         }
       }
-    } catch {
-      // Non-fatal environment enrichment.
+    } catch (err) {
+      logger.warn(`[path] Shell PATH probe failed:`, err instanceof Error ? err.message : String(err));
     }
   } else {
     logger.info("[path] Skipping interactive shell PATH probe; using deterministic PATH setup only.");

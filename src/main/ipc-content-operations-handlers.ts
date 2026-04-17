@@ -32,6 +32,7 @@ export function registerContentOperationsHandlers({
   publishDomainChanged,
   wakeAgentIfPossible,
   dispatchAutomation,
+  logger,
 }: Pick<
   RegisterDomainHandlersDependencies,
   | "registerHandle"
@@ -41,6 +42,7 @@ export function registerContentOperationsHandlers({
   | "publishDomainChanged"
   | "wakeAgentIfPossible"
   | "dispatchAutomation"
+  | "logger"
 >) {
   registerHandle(IPC_CHANNELS.saveMeeting, async (_event, payload) => {
     const parsed = meetingInputSchema.parse(payload);
@@ -52,7 +54,8 @@ export function registerContentOperationsHandlers({
       participantAgentIds = Array.isArray(parsedParticipantIds)
         ? parsedParticipantIds.filter((value): value is string => typeof value === "string")
         : [];
-    } catch {
+    } catch (err) {
+      logger.warn(`[ipc/content] Meeting participants JSON parse failed:`, err instanceof Error ? err.message : String(err));
       return fail("INVALID_PARTICIPANTS", "Meeting participants must be valid JSON.");
     }
     const invalidReference = findInvalidReference(parsed.companyId, [
@@ -163,7 +166,8 @@ export function registerContentOperationsHandlers({
     if (parsed.id) {
       try {
         previousSprintStatus = db.listSnapshot().sprints.find((s: { id: string }) => s.id === parsed.id)?.status ?? null;
-      } catch {
+      } catch (err) {
+        logger.warn(`[ipc/content] listSnapshot failed while resolving sprint ${parsed.id} previous status:`, err instanceof Error ? err.message : String(err));
         previousSprintStatus = null;
       }
     }

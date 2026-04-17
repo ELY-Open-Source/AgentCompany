@@ -18,6 +18,7 @@ export function registerCoreAgentGraphHandlers({
   findInvalidReference,
   publishDomainChanged,
   handleApprovalResolved,
+  logger,
 }: Pick<
   RegisterCoreHandlersDependencies,
   | "registerHandle"
@@ -26,6 +27,7 @@ export function registerCoreAgentGraphHandlers({
   | "findInvalidReference"
   | "publishDomainChanged"
   | "handleApprovalResolved"
+  | "logger"
 >) {
   registerHandle(IPC_CHANNELS.saveWorkspace, async (_event, payload) => {
     const parsed = workspaceInputSchema.parse(payload);
@@ -182,7 +184,8 @@ export function registerCoreAgentGraphHandlers({
       ? (() => {
         try {
           return db.getAgent(resolvedReportsTo).name;
-        } catch {
+        } catch (err) {
+          logger.warn(`[ipc/agent-graph] getAgent failed for manager ${resolvedReportsTo}:`, err instanceof Error ? err.message : String(err));
           return resolvedReportsTo;
         }
       })()

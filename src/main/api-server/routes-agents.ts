@@ -156,7 +156,8 @@ export function registerAgentRoutes(server: AgentApiServer) {
     let agent;
     try {
       agent = db.getAgent(requireParam(params, "agentId"));
-    } catch {
+    } catch (err) {
+      log.warn(`[api/agents] getAgent failed:`, err instanceof Error ? err.message : String(err));
       server.json(res, 404, { error: "Agent not found" });
       return;
     }
@@ -262,7 +263,8 @@ export function registerAgentRoutes(server: AgentApiServer) {
     const connectorRecord = (() => {
       try {
         return db.getConnector(input.connectorId);
-      } catch {
+      } catch (err) {
+        log.warn(`[api/agents] getConnector failed for ${input.connectorId}:`, err instanceof Error ? err.message : String(err));
         return null;
       }
     })();
@@ -305,7 +307,8 @@ export function registerAgentRoutes(server: AgentApiServer) {
       ? (() => {
         try {
           return db.getAgent(resolvedReportsTo).name;
-        } catch {
+        } catch (err) {
+          log.warn(`[api/agents] getAgent failed for manager ${resolvedReportsTo}:`, err instanceof Error ? err.message : String(err));
           return resolvedReportsTo;
         }
       })()

@@ -1,3 +1,4 @@
+import log from "electron-log/main.js";
 import { resolveApprovalDecision } from "./approval-policy";
 import type { AppDatabase } from "./database";
 
@@ -35,7 +36,8 @@ function collectImpactedAgentIdsFromWaitStates(db: AppDatabase, companyId: strin
       if (task.assigneeAgentId) {
         agentIds.add(task.assigneeAgentId);
       }
-    } catch {
+    } catch (err) {
+      log.warn(`[execution-mode-reconciler] getTask failed for ${thread.relatedEntityId}:`, err instanceof Error ? err.message : String(err));
       continue;
     }
   }
@@ -71,7 +73,8 @@ function collectImpactedAgentIdsFromReviewState(db: AppDatabase, companyId: stri
       if (task.assigneeAgentId) {
         agentIds.add(task.assigneeAgentId);
       }
-    } catch {
+    } catch (err) {
+      log.warn(`[execution-mode-reconciler] getTask failed for approval ${approval.relatedTaskId}:`, err instanceof Error ? err.message : String(err));
       continue;
     }
   }
@@ -87,7 +90,8 @@ function resumeAgents(db: AppDatabase, companyId: string, agentIds: Iterable<str
       if (!agent.heartbeatEnabled) {
         db.setHeartbeat(agent.id, true, agent.heartbeatIntervalSec || 120);
       }
-    } catch {
+    } catch (err) {
+      log.warn(`[execution-mode-reconciler] resumeAgents failed for ${agentId}:`, err instanceof Error ? err.message : String(err));
       continue;
     }
   }

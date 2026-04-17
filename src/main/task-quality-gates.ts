@@ -5,6 +5,7 @@
  * minimum description quality, acceptance criteria, and capability matching.
  */
 
+import log from "electron-log/main.js";
 import type { DesktopEvent } from "@shared/types";
 import type { AppDatabase } from "@main/database";
 import type { NotificationOptions } from "@main/notification-service";
@@ -279,8 +280,8 @@ export function sweepStaleReviews(
           detail: "Auto-approved by review timeout escalation",
           actor: "system",
         });
-      } catch {
-        // Already decided (race condition with manual approval) -- skip silently (Pitfall 3)
+      } catch (err) {
+        log.warn(`[task-quality-gates] resolveApprovalDecision failed for approval ${pendingApproval.id} (likely already decided):`, err instanceof Error ? err.message : String(err));
       }
     }
 
@@ -288,8 +289,8 @@ export function sweepStaleReviews(
     try {
       deps.db.advanceTaskStatus(task.id, "done", "Auto-advanced: review timeout exceeded 30 minutes.");
       deps.handleTaskStatusChange(task.id, companyId, "in_review", "done");
-    } catch {
-      // Task may have been updated by manual action
+    } catch (err) {
+      log.warn(`[task-quality-gates] advanceTaskStatus failed for task ${task.id}:`, err instanceof Error ? err.message : String(err));
     }
 
     escalatedCount++;

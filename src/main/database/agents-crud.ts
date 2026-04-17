@@ -1,4 +1,5 @@
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import log from "electron-log/main.js";
 import type { AgentRecord, AgentRoleLevel, ConnectorId } from "@shared/types";
 import {
   type ReadAll,
@@ -125,8 +126,8 @@ export function buildAgentCrudMethods(
                 configBefore: beforeConfig,
                 configAfter: afterConfig,
               });
-            } catch {
-              /* Non-fatal: revision recording should never block agent save */
+            } catch (err) {
+              log.warn(`[database/agents] recordConfigRevision failed for agent ${id}:`, err instanceof Error ? err.message : String(err));
             }
           }
         }

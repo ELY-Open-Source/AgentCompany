@@ -68,7 +68,8 @@ export function createSessionManagementService({ db, logger }: SessionManagement
     let task: { title: string; description: string } | null = null;
     try {
       task = db.getTask(taskId);
-    } catch {
+    } catch (err) {
+      logger.warn(`[session-management] getTask failed for ${taskId} during handoff generation:`, err instanceof Error ? err.message : String(err));
       task = null;
     }
 

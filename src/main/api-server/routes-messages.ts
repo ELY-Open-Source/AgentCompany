@@ -1,3 +1,4 @@
+import log from "electron-log/main.js";
 import { agentMessageInputSchema } from "@shared/contracts";
 import { dispatchAgentMessage } from "../message-dispatch";
 import { requireParam, type AgentApiServer } from "./server-core";
@@ -59,7 +60,8 @@ export function registerMessageRoutes(server: AgentApiServer) {
       }
 
       server.json(res, 201, comment);
-    } catch {
+    } catch (err) {
+      log.warn(`[api/messages] addComment failed:`, err instanceof Error ? err.message : String(err));
       server.json(res, 404, { error: "Task not found" });
     }
   });
@@ -71,7 +73,8 @@ export function registerMessageRoutes(server: AgentApiServer) {
         server.json(res, 404, { error: "Task not found" });
         return;
       }
-    } catch {
+    } catch (err) {
+      log.warn(`[api/messages] getTask failed for comments list:`, err instanceof Error ? err.message : String(err));
       server.json(res, 404, { error: "Task not found" });
       return;
     }

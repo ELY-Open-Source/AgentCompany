@@ -24,12 +24,17 @@ export interface BudgetGateResult {
  * Returns a human-readable label for a budget policy scope.
  * Looks up entity names from the database for agent and project scopes.
  */
-function getScopeLabel(db: AppDatabase, policy: BudgetPolicyRecord): string {
+function getScopeLabel(
+  db: AppDatabase,
+  policy: BudgetPolicyRecord,
+  logger: { warn: (...args: unknown[]) => void },
+): string {
   if (policy.scopeType === "agent") {
     try {
       const agent = db.getAgent(policy.scopeId);
       return `Agent "${agent.name}"`;
-    } catch {
+    } catch (err) {
+      logger.warn(`[budget] getAgent failed for scope ${policy.scopeId}:`, err instanceof Error ? err.message : String(err));
       return `Agent ${policy.scopeId.slice(0, 8)}`;
     }
   }
@@ -37,7 +42,8 @@ function getScopeLabel(db: AppDatabase, policy: BudgetPolicyRecord): string {
     try {
       const row = db.queryAll<{ name: string }>("select name from projects where id = ?", policy.scopeId);
       return row.length > 0 ? `Project "${row[0].name}"` : `Project ${policy.scopeId.slice(0, 8)}`;
-    } catch {
+    } catch (err) {
+      logger.warn(`[budget] project name lookup failed for scope ${policy.scopeId}:`, err instanceof Error ? err.message : String(err));
       return `Project ${policy.scopeId.slice(0, 8)}`;
     }
   }
@@ -106,7 +112,7 @@ export function createBudgetEnforcementService({
       const spent = db.getSpentInWindow(policy);
       const utilization = spent / policy.amount;
       const warnThreshold = policy.warnPercent / 100;
-      const scopeLabel = getScopeLabel(db, policy);
+      const scopeLabel = getScopeLabel(db, policy, logger);
 
       if (utilization >= warnThreshold) {
         db.upsertBudgetIncident(policy, "warn_threshold", spent);

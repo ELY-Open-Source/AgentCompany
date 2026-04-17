@@ -151,7 +151,8 @@ export function executeAutomationAction(
         try {
           const sender = db.getAgent(fromAgentId);
           channelTargetId = sender.department ?? null;
-        } catch {
+        } catch (err) {
+          logger.warn(`[automation] getAgent failed for sender ${fromAgentId}; dropping department target:`, err instanceof Error ? err.message : String(err));
           channelTargetId = null;
         }
       }
@@ -221,21 +222,22 @@ export function executeAutomationAction(
       let agentName = "an agent";
       try {
         agentName = db.getAgent(targetAgentId).name;
-      } catch {
-        // Fall back to the generic label when the agent was deleted mid-flight.
+      } catch (err) {
+        logger.warn(`[automation] getAgent failed for escalation target ${targetAgentId}; using generic label:`, err instanceof Error ? err.message : String(err));
       }
       let taskTitle = ctx.taskId ?? "unknown";
       try {
         if (ctx.taskId) taskTitle = db.getTask(ctx.taskId).title;
-      } catch {
-        // Keep the fallback title when the task no longer exists.
+      } catch (err) {
+        logger.warn(`[automation] getTask failed for escalation task ${ctx.taskId}; using id as title:`, err instanceof Error ? err.message : String(err));
       }
       // Heartbeat tasks are internal system tasks — skip escalation messages to avoid flooding channels.
       let isHeartbeatTask = false;
       if (ctx.taskId) {
         try {
           isHeartbeatTask = db.getTask(ctx.taskId).isHeartbeat === true;
-        } catch {
+        } catch (err) {
+          logger.warn(`[automation] getTask failed for heartbeat check on ${ctx.taskId}; treating as non-heartbeat:`, err instanceof Error ? err.message : String(err));
           isHeartbeatTask = false;
         }
       }

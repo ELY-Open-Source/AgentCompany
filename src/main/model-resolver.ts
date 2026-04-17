@@ -8,6 +8,7 @@
  * other provider we delegate to pi-ai's `getModel` / `getModels`.
  */
 
+import log from "electron-log/main.js";
 import { getModel, getModels, type Api, type Model } from "@mariozechner/pi-ai";
 
 const FIREWORKS_BASE_URL = "https://api.fireworks.ai/inference";
@@ -54,7 +55,8 @@ export function resolveModel(provider: string, modelId: string): Model<Api> | nu
   }
   try {
     return getModel(provider as never, modelId as never) ?? null;
-  } catch {
+  } catch (err) {
+    log.warn(`[model-resolver] getModel failed for ${provider}/${modelId}:`, err instanceof Error ? err.message : String(err));
     return null;
   }
 }
@@ -69,7 +71,8 @@ export function resolveModels(provider: string): Array<{ id: string; name: strin
   try {
     const models = getModels(provider as never) ?? [];
     return models.map((model: { id: string; name?: string }) => ({ id: model.id, name: model.name ?? model.id }));
-  } catch {
+  } catch (err) {
+    log.warn(`[model-resolver] getModels failed for ${provider}:`, err instanceof Error ? err.message : String(err));
     return [];
   }
 }

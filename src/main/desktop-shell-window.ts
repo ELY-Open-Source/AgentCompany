@@ -12,6 +12,7 @@ import {
   session,
   shell,
 } from "electron";
+import log from "electron-log/main.js";
 import { attachWindowStatePersistence, loadWindowState } from "./window-state";
 import type { NotificationOptions } from "./notification-service";
 
@@ -96,8 +97,8 @@ export function createDesktopShellWindow(deps: DesktopShellWindowDependencies) {
     let activeRunCount = 0;
     try {
       activeRunCount = getActiveRunCount();
-    } catch {
-      // Cannot determine active runs — proceed with immediate quit as fail-safe
+    } catch (err) {
+      log.warn(`[desktop-shell-window] getActiveRunCount failed; quitting as fail-safe:`, err instanceof Error ? err.message : String(err));
       onRequestQuit();
       app.quit();
       return;
@@ -150,8 +151,8 @@ export function createDesktopShellWindow(deps: DesktopShellWindowDependencies) {
         }
       }
       // Cancel: do nothing
-    } catch {
-      // Dialog failed (e.g. window destroyed mid-flight) — quit as fail-safe
+    } catch (err) {
+      log.warn(`[desktop-shell-window] Quit confirmation dialog failed; quitting as fail-safe:`, err instanceof Error ? err.message : String(err));
       onRequestQuit();
       app.quit();
     } finally {

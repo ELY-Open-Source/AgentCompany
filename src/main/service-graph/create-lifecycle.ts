@@ -72,7 +72,8 @@ export function createLifecycle(deps: LifecycleDeps) {
       return db.listSnapshot().runs
         .filter((r) => r.status === "running" || r.status === "queued")
         .map((r) => r.id);
-    } catch {
+    } catch (err) {
+      logger.warn("[lifecycle] listActiveRunIds failed:", err instanceof Error ? err.message : String(err));
       return [];
     }
   }

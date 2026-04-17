@@ -4,6 +4,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import log from "electron-log/main.js";
 import type { ConnectorId } from "@shared/types";
 
 function quoteShell(value: string) {
@@ -79,8 +80,8 @@ function spawnTerminalWithScript(script: string, _title: string, _cwd: string): 
       });
       child.unref();
       return true;
-    } catch {
-      // Try next terminal candidate.
+    } catch (err) {
+      log.warn(`[connector-auth] Failed to spawn terminal ${binary}; trying next candidate:`, err instanceof Error ? err.message : String(err));
     }
   }
 

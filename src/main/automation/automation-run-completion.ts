@@ -274,8 +274,8 @@ export function processRunCompletion(
   try {
     const agent = db.getAgent(run.agentId);
     automationContext.department = agent.department ?? undefined;
-  } catch {
-    // Agent can disappear after a run completes; keep the context without department.
+  } catch (err) {
+    deps.logger.warn(`[automation] getAgent failed for ${run.agentId} during run completion; dropping department from context:`, err instanceof Error ? err.message : String(err));
   }
 
   if (isSuccess) {
@@ -295,8 +295,8 @@ export function processRunCompletion(
             }
           }
         }
-      } catch {
-        // Parent task may have been deleted or reassigned during cascade evaluation.
+      } catch (err) {
+        deps.logger.warn(`[automation] Parent task ${task.parentId} cascade failed during run completion:`, err instanceof Error ? err.message : String(err));
       }
     }
   }
@@ -326,8 +326,8 @@ export function processRunCompletion(
         notify,
         (en, zh) => localizeNotification(budgetLocale, en, zh),
       );
-    } catch {
-      // Budget follow-up is best-effort; do not fail run completion if the agent disappeared.
+    } catch (err) {
+      deps.logger.warn(`[automation] Budget follow-up failed for agent ${run.agentId}:`, err instanceof Error ? err.message : String(err));
     }
   }
 }

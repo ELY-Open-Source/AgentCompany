@@ -25,6 +25,7 @@ export function registerCoreWorkGraphHandlers(
     findInvalidReference: deps.findInvalidReference,
     publishDomainChanged: deps.publishDomainChanged,
     handleApprovalResolved: deps.handleApprovalResolved,
+    logger: deps.logger,
   });
   registerCoreTaskGraphHandlers({
     registerHandle: deps.registerHandle,

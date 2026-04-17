@@ -54,7 +54,8 @@ export function registerTaskRoutes(server: AgentApiServer) {
         return;
       }
       server.json(res, 200, task);
-    } catch {
+    } catch (err) {
+      log.warn(`[api/tasks] getTask failed:`, err instanceof Error ? err.message : String(err));
       server.json(res, 404, { error: "Task not found" });
     }
   });
@@ -73,7 +74,8 @@ export function registerTaskRoutes(server: AgentApiServer) {
     let task;
     try {
       task = db.getTask(requireParam(params, "issueId"));
-    } catch {
+    } catch (err) {
+      log.warn(`[api/tasks] getTask failed for checkout:`, err instanceof Error ? err.message : String(err));
       server.json(res, 404, { error: "Task not found" });
       return;
     }

@@ -21,6 +21,7 @@ export function registerDomainHandlers(dependencies: RegisterDomainHandlersDepen
     publishDomainChanged: dependencies.publishDomainChanged,
     skillService: dependencies.skillService,
     db: dependencies.db,
+    logger: dependencies.logger,
   });
   registerBudgetHandlers({
     registerHandle: dependencies.registerHandle,
@@ -28,5 +29,6 @@ export function registerDomainHandlers(dependencies: RegisterDomainHandlersDepen
     publishDomainChanged: dependencies.publishDomainChanged,
     budgetService: dependencies.budgetService,
     db: dependencies.db,
+    logger: dependencies.logger,
   });
 }

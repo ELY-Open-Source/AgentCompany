@@ -38,7 +38,8 @@ export function registerMeetingRoutes(server: AgentApiServer) {
           return;
         }
       }
-    } catch {
+    } catch (err) {
+      log.warn(`[api/meetings] participantAgentIds JSON parse failed:`, err instanceof Error ? err.message : String(err));
       server.json(res, 400, { error: "participantAgentIds must be a JSON array of agent ids" });
       return;
     }
@@ -95,7 +96,8 @@ export function registerMeetingRoutes(server: AgentApiServer) {
     if (data.actionItemsJson) {
       try {
         actionItems = JSON.parse(data.actionItemsJson) as Array<{ title?: string; assigneeAgentId?: string; description?: string }>;
-      } catch {
+      } catch (err) {
+        log.warn(`[api/meetings] actionItemsJson parse failed:`, err instanceof Error ? err.message : String(err));
         server.json(res, 400, { error: "actionItemsJson must be valid JSON" });
         return;
       }

@@ -3,6 +3,7 @@ import { writeFileSync, readFileSync, existsSync, statSync, openSync, readSync, 
 import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import log from "electron-log/main.js";
 import type { ConnectorId, RunLogChunk, RunRecord } from "@shared/types";
 import { type ReadAll, type SqliteRow, type Transaction, nowIso, toBoolean } from "./helpers";
 
@@ -90,7 +91,8 @@ export function buildRunMethods(
       if (!run?.logPath) return "";
       try {
         return readFileSync(run.logPath, "utf8");
-      } catch {
+      } catch (err) {
+        log.warn(`[database/runs] readFileSync failed for run ${runId} log ${run.logPath}:`, err instanceof Error ? err.message : String(err));
         return "";
       }
     },

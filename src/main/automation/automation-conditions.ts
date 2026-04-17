@@ -1,11 +1,16 @@
 import type { AppDatabase } from "../database";
 import type { AutomationEventContext } from "./types";
 
+type ConditionLogger = {
+  warn: (...args: unknown[]) => void;
+};
+
 export function matchesEventConfig(
   db: AppDatabase,
   configJson: string,
   sourceDepartment: string | null,
   ctx: AutomationEventContext,
+  logger?: ConditionLogger,
 ): boolean {
   if (sourceDepartment && ctx.department && sourceDepartment !== ctx.department) {
     return false;
@@ -21,8 +26,8 @@ export function matchesEventConfig(
       const task = ctx.taskId ? db.getTask(ctx.taskId) : null;
       if (task && task.priority !== conditions.priority) return false;
       // If task was deleted, skip this condition instead of rejecting the rule.
-    } catch {
-      // Entity missing — treat as condition not applicable, continue matching.
+    } catch (err) {
+      logger?.warn(`[automation-conditions] getTask failed for ${ctx.taskId}; treating priority condition as not applicable:`, err instanceof Error ? err.message : String(err));
     }
   }
   if (typeof conditions.budgetThresholdPct === "number" && ctx.agentId) {
@@ -33,8 +38,8 @@ export function matchesEventConfig(
         if (utilization < (conditions.budgetThresholdPct as number) / 100) return false;
       }
       // If budget is 0 (unlimited), skip budget condition instead of rejecting.
-    } catch {
-      // Agent missing — treat as condition not applicable, continue matching.
+    } catch (err) {
+      logger?.warn(`[automation-conditions] getAgent failed for ${ctx.agentId}; treating budget condition as not applicable:`, err instanceof Error ? err.message : String(err));
     }
   }
   if (conditions.taskId && ctx.taskId && conditions.taskId !== ctx.taskId) return false;
@@ -47,6 +52,7 @@ export function matchesConditions(
   db: AppDatabase,
   rule: { conditionsJson: string; sourceDepartment: string | null },
   ctx: AutomationEventContext,
+  logger?: ConditionLogger,
 ): boolean {
-  return matchesEventConfig(db, rule.conditionsJson, rule.sourceDepartment, ctx);
+  return matchesEventConfig(db, rule.conditionsJson, rule.sourceDepartment, ctx, logger);
 }

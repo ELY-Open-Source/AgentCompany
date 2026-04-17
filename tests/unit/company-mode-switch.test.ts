@@ -95,7 +95,7 @@ describe("company mode switching", () => {
 
     const threadIntegration = createThreadIntegration({
       db,
-      logger: { info: () => {}, error: () => {} },
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
     });
 
     threadIntegration.onTaskCreated(taskId, companyId);

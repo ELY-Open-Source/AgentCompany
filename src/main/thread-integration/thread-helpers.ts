@@ -5,7 +5,7 @@ import type { ThreadType } from "@shared/types";
 
 export interface ThreadIntegrationDeps {
   db: AppDatabase;
-  logger: { info: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
+  logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
   emitEvent?: (event: import("@shared/types").DesktopEvent) => void;
   publishDomainChanged?: () => void;
   notify?: (options: { title: string; body: string }) => void;
@@ -64,6 +64,7 @@ function resolveApprovalAnnouncementChannel(
   companyId: string,
   taskId: string | null,
   requestedByAgentId: string | null,
+  logger: ThreadIntegrationDeps["logger"],
 ): { channel: "department" | "project" | "company"; channelTargetId: string | null } | null {
   if (requestedByAgentId) {
     try {
@@ -71,8 +72,8 @@ function resolveApprovalAnnouncementChannel(
       if (requester.companyId === companyId && requester.department) {
         return { channel: "department", channelTargetId: requester.department };
       }
-    } catch {
-      // Fall through to task/project/company targeting.
+    } catch (err) {
+      logger.warn(`[thread-helpers] getAgent failed for requester ${requestedByAgentId}; falling through to task targeting:`, err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -82,8 +83,8 @@ function resolveApprovalAnnouncementChannel(
       if (task.companyId === companyId && task.projectId) {
         return { channel: "project", channelTargetId: task.projectId };
       }
-    } catch {
-      // Fall through to company-wide routing.
+    } catch (err) {
+      logger.warn(`[thread-helpers] getTask failed for task ${taskId}; falling through to company routing:`, err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -100,7 +101,7 @@ export function announceApprovalToBoard(
     payloadSummary: string;
     impactSummary: string;
   },
-  deps: Pick<ThreadIntegrationDeps, "emitEvent" | "publishDomainChanged">,
+  deps: Pick<ThreadIntegrationDeps, "emitEvent" | "publishDomainChanged" | "logger">,
 ): void {
   if (!approval.requestedByAgentId || !deps.emitEvent || !deps.publishDomainChanged) return;
 
@@ -109,6 +110,7 @@ export function announceApprovalToBoard(
     approval.companyId,
     approval.relatedTaskId,
     approval.requestedByAgentId,
+    deps.logger,
   );
   if (!target) return;
 

@@ -174,7 +174,7 @@ describe("message dispatch", () => {
     const { companyId, ctoId, taskId } = createScaffold(db);
     const threadIntegration = createThreadIntegration({
       db,
-      logger: { info: () => {}, error: () => {} },
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
     });
 
     threadIntegration.onTaskCreated(taskId, companyId);

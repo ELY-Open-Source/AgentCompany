@@ -19,6 +19,7 @@ export function registerRecoveryHandlers({
   ensureCompanyExists,
   publishDomainChanged,
   wakeAgentIfPossible,
+  logger,
 }: Pick<
   RegisterDomainHandlersDependencies,
   | "registerHandle"
@@ -26,6 +27,7 @@ export function registerRecoveryHandlers({
   | "ensureCompanyExists"
   | "publishDomainChanged"
   | "wakeAgentIfPossible"
+  | "logger"
 >) {
   registerHandle(IPC_CHANNELS.recoveryRetry, async (_event, payload) => {
     const parsed = recoveryRetrySchema.parse(payload);
@@ -37,8 +39,8 @@ export function registerRecoveryHandlers({
     db.retryInterruptedTask(parsed.taskId, parsed.agentId, parsed.companyId);
     try {
       wakeAgentIfPossible(parsed.agentId, parsed.companyId, "retry_interrupted");
-    } catch {
-      // Best effort -- agent may have been deleted
+    } catch (err) {
+      logger.warn(`[ipc/recovery] wakeAgentIfPossible failed for agent ${parsed.agentId}:`, err instanceof Error ? err.message : String(err));
     }
     publishDomainChanged();
     return ok(null);

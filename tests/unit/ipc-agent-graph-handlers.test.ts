@@ -77,6 +77,7 @@ describe("ipc-core-agent-graph-handlers model enforcement", () => {
       findInvalidReference: () => null,
       publishDomainChanged: vi.fn(),
       handleApprovalResolved: vi.fn(),
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     });
 
     const saveAgent = handlers.get(IPC_CHANNELS.saveAgent);

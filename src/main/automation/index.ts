@@ -109,7 +109,7 @@ export function createAutomationService({
     try {
       const rules = db.listActiveAutomationRules(ctx.companyId, trigger);
       for (const rule of rules) {
-        if (!matchesConditions(db, rule, ctx)) continue;
+        if (!matchesConditions(db, rule, ctx, logger)) continue;
         const executionKey = JSON.stringify({
           ruleId: rule.id,
           trigger,
@@ -166,7 +166,7 @@ export function createAutomationService({
     try {
       const workflows = db.listTriggerableWorkflows(ctx.companyId, trigger);
       for (const workflow of workflows) {
-        if (!matchesEventConfig(db, workflow.triggerConfigJson, null, ctx)) continue;
+        if (!matchesEventConfig(db, workflow.triggerConfigJson, null, ctx, logger)) continue;
         const executionKey = JSON.stringify({
           workflowId: workflow.id,
           trigger,

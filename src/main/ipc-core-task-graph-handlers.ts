@@ -118,7 +118,8 @@ export function registerCoreTaskGraphHandlers({
         const existingTask = db.getTask(taskId);
         previousStatus = existingTask.status;
         previousAssigneeAgentId = existingTask.assigneeAgentId;
-      } catch {
+      } catch (err) {
+        logger.warn(`[ipc/task-graph] getTask failed for ${taskId}; treating as new task:`, err instanceof Error ? err.message : String(err));
         previousStatus = null;
         previousAssigneeAgentId = null;
       }

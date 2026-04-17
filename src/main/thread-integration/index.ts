@@ -139,7 +139,7 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
           });
           notifyThreadSubscribers(db, thread.id, thread.title, approvalReason, notify);
         }
-        announceApprovalToBoard(db, approval, { emitEvent, publishDomainChanged });
+        announceApprovalToBoard(db, approval, { emitEvent, publishDomainChanged, logger });
       } catch (err) {
         logger.error(`[thread-integration] onApprovalCreated failed: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -305,7 +305,8 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
             try {
               const task = db.getTask(thread.relatedEntityId);
               if (task.assigneeAgentId !== toAgentId) continue;
-            } catch {
+            } catch (err) {
+              logger.warn(`[thread-integration] getTask failed for thread ${ws.threadId}:`, err instanceof Error ? err.message : String(err));
               continue;
             }
           }
@@ -321,7 +322,8 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
       try {
         const waitStates = db.listThreadWaitStates(companyId);
         return waitStates.length > 0;
-      } catch {
+      } catch (err) {
+        logger.warn(`[thread-integration] hasUnresolvedWaitStates query failed for company ${companyId}:`, err instanceof Error ? err.message : String(err));
         return false;
       }
     },
@@ -343,7 +345,8 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
           companyId, agentId,
         );
         return rows.length > 0;
-      } catch {
+      } catch (err) {
+        logger.warn(`[thread-integration] hasUnresolvedWaitStatesForAgent query failed (company=${companyId} agent=${agentId}):`, err instanceof Error ? err.message : String(err));
         return false;
       }
     },
@@ -355,7 +358,8 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
     countUnresolvedWaitStates(companyId: string): number {
       try {
         return db.listThreadWaitStates(companyId).length;
-      } catch {
+      } catch (err) {
+        logger.warn(`[thread-integration] countUnresolvedWaitStates failed for company ${companyId}:`, err instanceof Error ? err.message : String(err));
         return 0;
       }
     },
