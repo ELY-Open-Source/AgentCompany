@@ -9,24 +9,38 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function columnExists(db: DatabaseSync, table: string, column: string): boolean {
+  const rows = db.prepare(`pragma table_info(${table})`).all() as Array<{ name: string }>;
+  return rows.some((row) => row.name === column);
+}
+
+function tableExists(db: DatabaseSync, table: string): boolean {
+  const row = db
+    .prepare("select name from sqlite_master where type = 'table' and name = ?")
+    .get(table) as { name: string } | undefined;
+  return !!row;
+}
+
 export function ensureOptionalColumns(db: DatabaseSync) {
-  const addColumnIfMissing = (sql: string) => { try { db.prepare(sql).run(); } catch { /* column already exists */ } };
-  addColumnIfMissing("alter table connectors add column updated_at text");
-  addColumnIfMissing("alter table approvals add column payload_json text");
-  addColumnIfMissing("alter table agents add column heartbeat_enabled integer not null default 0");
-  addColumnIfMissing("alter table agents add column heartbeat_interval_sec integer not null default 120");
-  addColumnIfMissing("alter table agents add column last_heartbeat_at text");
-  addColumnIfMissing("alter table companies add column auto_approve_hires integer not null default 0");
-  addColumnIfMissing("alter table companies add column review_deliverables integer not null default 0");
-  addColumnIfMissing("alter table companies add column execution_mode text not null default 'ai_ceo'");
-  addColumnIfMissing("alter table tasks add column task_type text not null default 'general'");
-  addColumnIfMissing("alter table tasks add column requires_user_review integer not null default 0");
-  addColumnIfMissing("alter table tasks add column retry_count integer not null default 0");
-  addColumnIfMissing("alter table tasks add column last_failure_at text");
-  addColumnIfMissing("alter table tasks add column checkout_run_id text");
-  addColumnIfMissing("alter table tasks add column execution_locked_at text");
-  addColumnIfMissing("alter table tasks add column active_session_id text");
-  addColumnIfMissing("alter table cost_entries add column project_id text");
+  const addColumnIfMissing = (table: string, column: string, sql: string) => {
+    if (!columnExists(db, table, column)) db.prepare(sql).run();
+  };
+  addColumnIfMissing("connectors", "updated_at", "alter table connectors add column updated_at text");
+  addColumnIfMissing("approvals", "payload_json", "alter table approvals add column payload_json text");
+  addColumnIfMissing("agents", "heartbeat_enabled", "alter table agents add column heartbeat_enabled integer not null default 0");
+  addColumnIfMissing("agents", "heartbeat_interval_sec", "alter table agents add column heartbeat_interval_sec integer not null default 120");
+  addColumnIfMissing("agents", "last_heartbeat_at", "alter table agents add column last_heartbeat_at text");
+  addColumnIfMissing("companies", "auto_approve_hires", "alter table companies add column auto_approve_hires integer not null default 0");
+  addColumnIfMissing("companies", "review_deliverables", "alter table companies add column review_deliverables integer not null default 0");
+  addColumnIfMissing("companies", "execution_mode", "alter table companies add column execution_mode text not null default 'ai_ceo'");
+  addColumnIfMissing("tasks", "task_type", "alter table tasks add column task_type text not null default 'general'");
+  addColumnIfMissing("tasks", "requires_user_review", "alter table tasks add column requires_user_review integer not null default 0");
+  addColumnIfMissing("tasks", "retry_count", "alter table tasks add column retry_count integer not null default 0");
+  addColumnIfMissing("tasks", "last_failure_at", "alter table tasks add column last_failure_at text");
+  addColumnIfMissing("tasks", "checkout_run_id", "alter table tasks add column checkout_run_id text");
+  addColumnIfMissing("tasks", "execution_locked_at", "alter table tasks add column execution_locked_at text");
+  addColumnIfMissing("tasks", "active_session_id", "alter table tasks add column active_session_id text");
+  addColumnIfMissing("cost_entries", "project_id", "alter table cost_entries add column project_id text");
   db.exec(`
     create table if not exists task_comments (id text primary key, company_id text not null, task_id text not null, author_agent_id text, author_name text not null, body text not null, created_at text not null);
     create index if not exists idx_comments_task on task_comments(task_id);
@@ -41,14 +55,18 @@ export function ensureOptionalColumns(db: DatabaseSync) {
     create index if not exists idx_browser_actions_company on browser_actions(company_id);
     create index if not exists idx_browser_actions_account on browser_actions(social_account_id);
   `);
-  try {
+  if (tableExists(db, "agent_messages")) {
     db.exec(`
       create index if not exists idx_messages_company on agent_messages(company_id);
       create index if not exists idx_messages_channel on agent_messages(channel, channel_target_id);
-      create index if not exists idx_automation_rules_company_status on automation_rules(company_id, status);
-      create index if not exists idx_automation_log_company on automation_log(company_id);
     `);
-  } catch { /* tables may not exist yet */ }
+  }
+  if (tableExists(db, "automation_rules")) {
+    db.exec(`create index if not exists idx_automation_rules_company_status on automation_rules(company_id, status);`);
+  }
+  if (tableExists(db, "automation_log")) {
+    db.exec(`create index if not exists idx_automation_log_company on automation_log(company_id);`);
+  }
 }
 
 export function migrateSecretsTable(db: DatabaseSync, readAll: ReadAll) {
@@ -70,7 +88,6 @@ export function migrateSecretsTable(db: DatabaseSync, readAll: ReadAll) {
 }
 
 export function initializeDatabase(db: DatabaseSync, ra: ReadAll, tx: Transaction): void {
-  db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
   db.exec(`
       create table if not exists settings (key text primary key, value text not null);
       create table if not exists companies (id text primary key, name text not null, description text not null, status text not null, created_at text not null, updated_at text not null);
@@ -120,19 +137,17 @@ export function initializeDatabase(db: DatabaseSync, ra: ReadAll, tx: Transactio
     `);
 
   migrateSecretsTable(db, ra);
-  ensureOptionalColumns(db);
   db.exec(`create index if not exists idx_secrets_company on secrets(company_id);`);
   runMigrations(db, ra, tx);
+  ensureOptionalColumns(db);
 
-  try {
-    db.exec(`
-        create index if not exists idx_agents_department on agents(company_id, department);
-        create index if not exists idx_runs_company_created_at on runs(company_id, created_at desc);
-        create index if not exists idx_cost_entries_company_created_at on cost_entries(company_id, created_at desc);
-        create index if not exists idx_activity_company_created_at on activity(company_id, created_at desc);
-        create index if not exists idx_agent_messages_company_created_at on agent_messages(company_id, created_at desc);
-      `);
-  } catch { /* column may not exist if migrations failed */ }
+  db.exec(`
+      create index if not exists idx_agents_department on agents(company_id, department);
+      create index if not exists idx_runs_company_created_at on runs(company_id, created_at desc);
+      create index if not exists idx_cost_entries_company_created_at on cost_entries(company_id, created_at desc);
+      create index if not exists idx_activity_company_created_at on activity(company_id, created_at desc);
+      create index if not exists idx_agent_messages_company_created_at on agent_messages(company_id, created_at desc);
+    `);
 
   seedSettings(db);
 }
@@ -232,16 +247,20 @@ export function runMigrations(
       version: 19, name: "add_document_revisions_and_approval_comments",
       fn: () => {
         db.exec(`CREATE TABLE IF NOT EXISTS document_revisions (id TEXT PRIMARY KEY, company_id TEXT NOT NULL, document_id TEXT NOT NULL, revision_number INTEGER NOT NULL, body TEXT NOT NULL, change_summary TEXT, created_by_agent_id TEXT, created_by_user_id TEXT, created_at TEXT NOT NULL, FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE); CREATE UNIQUE INDEX IF NOT EXISTS idx_doc_rev_doc_num ON document_revisions(document_id, revision_number); CREATE INDEX IF NOT EXISTS idx_doc_rev_company ON document_revisions(company_id, document_id, created_at); CREATE TABLE IF NOT EXISTS approval_comments (id TEXT PRIMARY KEY, company_id TEXT NOT NULL, approval_id TEXT NOT NULL, author_agent_id TEXT, author_user_id TEXT, body TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY (approval_id) REFERENCES approvals(id) ON DELETE CASCADE); CREATE INDEX IF NOT EXISTS idx_approval_comments_approval ON approval_comments(approval_id, created_at)`);
-        try { db.prepare("ALTER TABLE documents ADD COLUMN latest_revision_id TEXT").run(); } catch { /* column already exists */ }
+        if (!columnExists(db, "documents", "latest_revision_id")) {
+          db.prepare("ALTER TABLE documents ADD COLUMN latest_revision_id TEXT").run();
+        }
       },
     },
     {
       version: 20, name: "add_task_timestamps_and_task_approval_links",
       fn: () => {
-        const addCol = (sql: string) => { try { db.prepare(sql).run(); } catch { /* already exists */ } };
-        addCol("ALTER TABLE tasks ADD COLUMN started_at TEXT");
-        addCol("ALTER TABLE tasks ADD COLUMN completed_at TEXT");
-        addCol("ALTER TABLE tasks ADD COLUMN cancelled_at TEXT");
+        const addCol = (table: string, column: string, sql: string) => {
+          if (!columnExists(db, table, column)) db.prepare(sql).run();
+        };
+        addCol("tasks", "started_at", "ALTER TABLE tasks ADD COLUMN started_at TEXT");
+        addCol("tasks", "completed_at", "ALTER TABLE tasks ADD COLUMN completed_at TEXT");
+        addCol("tasks", "cancelled_at", "ALTER TABLE tasks ADD COLUMN cancelled_at TEXT");
         db.exec(`CREATE TABLE IF NOT EXISTS task_approval_links (task_id TEXT NOT NULL, approval_id TEXT NOT NULL, company_id TEXT NOT NULL, linked_by_agent_id TEXT, created_at TEXT NOT NULL, PRIMARY KEY (task_id, approval_id), FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE, FOREIGN KEY (approval_id) REFERENCES approvals(id) ON DELETE CASCADE); CREATE INDEX IF NOT EXISTS idx_task_approval_links_task ON task_approval_links(task_id); CREATE INDEX IF NOT EXISTS idx_task_approval_links_approval ON task_approval_links(approval_id)`);
         db.prepare("UPDATE tasks SET started_at = updated_at WHERE started_at IS NULL AND status IN ('in_progress', 'in_review', 'done')").run();
         db.prepare("UPDATE tasks SET completed_at = updated_at WHERE completed_at IS NULL AND status = 'done'").run();
@@ -252,20 +271,24 @@ export function runMigrations(
       version: 21, name: "add_work_products_task_documents_wakeup_context",
       fn: () => {
         db.exec(`CREATE TABLE IF NOT EXISTS work_products (id TEXT PRIMARY KEY, company_id TEXT NOT NULL, project_id TEXT, task_id TEXT NOT NULL, type TEXT NOT NULL, provider TEXT NOT NULL, external_id TEXT, title TEXT NOT NULL, url TEXT, status TEXT NOT NULL DEFAULT 'active', review_state TEXT NOT NULL DEFAULT 'none', is_primary INTEGER NOT NULL DEFAULT 0, summary TEXT, metadata_json TEXT, created_by_run_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE); CREATE INDEX IF NOT EXISTS idx_work_products_task ON work_products(company_id, task_id, type); CREATE INDEX IF NOT EXISTS idx_work_products_updated ON work_products(company_id, updated_at); CREATE TABLE IF NOT EXISTS task_documents (id TEXT PRIMARY KEY, company_id TEXT NOT NULL, task_id TEXT NOT NULL, document_id TEXT NOT NULL, key TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE, FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE); CREATE UNIQUE INDEX IF NOT EXISTS idx_task_documents_task_key ON task_documents(company_id, task_id, key); CREATE UNIQUE INDEX IF NOT EXISTS idx_task_documents_doc ON task_documents(document_id)`);
-        try { db.prepare("ALTER TABLE wakeup_requests ADD COLUMN context_snapshot TEXT").run(); } catch { /* already exists */ }
+        if (!columnExists(db, "wakeup_requests", "context_snapshot")) {
+          db.prepare("ALTER TABLE wakeup_requests ADD COLUMN context_snapshot TEXT").run();
+        }
       },
     },
     {
       version: 22, name: "add_config_revisions_run_events_agent_permissions",
       fn: () => {
         db.exec(`CREATE TABLE IF NOT EXISTS agent_config_revisions (id TEXT PRIMARY KEY, company_id TEXT NOT NULL, agent_id TEXT NOT NULL, revision_number INTEGER NOT NULL, changed_keys TEXT NOT NULL DEFAULT '[]', config_before TEXT NOT NULL, config_after TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'patch', rolled_back_from_revision_id TEXT, created_by_agent_id TEXT, created_by_user_id TEXT, created_at TEXT NOT NULL, FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE); CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_config_rev_num ON agent_config_revisions(agent_id, revision_number); CREATE INDEX IF NOT EXISTS idx_agent_config_rev_agent ON agent_config_revisions(company_id, agent_id, created_at); CREATE TABLE IF NOT EXISTS run_events (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id TEXT NOT NULL, run_id TEXT NOT NULL, agent_id TEXT NOT NULL, seq INTEGER NOT NULL, event_type TEXT NOT NULL, stream TEXT, level TEXT, message TEXT, payload TEXT, created_at TEXT NOT NULL, FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE); CREATE INDEX IF NOT EXISTS idx_run_events_run ON run_events(run_id, seq); CREATE INDEX IF NOT EXISTS idx_run_events_company ON run_events(company_id, run_id)`);
-        const addCol = (sql: string) => { try { db.prepare(sql).run(); } catch { /* already exists */ } };
-        addCol("ALTER TABLE agents ADD COLUMN permissions_json TEXT NOT NULL DEFAULT '{}'");
-        addCol("ALTER TABLE agents ADD COLUMN heartbeat_policy_json TEXT");
-        addCol("ALTER TABLE agents ADD COLUMN runtime_state_json TEXT");
-        addCol("ALTER TABLE runs ADD COLUMN context_snapshot_json TEXT");
-        addCol("ALTER TABLE runs ADD COLUMN actor_type TEXT");
-        addCol("ALTER TABLE runs ADD COLUMN actor_id TEXT");
+        const addCol = (table: string, column: string, sql: string) => {
+          if (!columnExists(db, table, column)) db.prepare(sql).run();
+        };
+        addCol("agents", "permissions_json", "ALTER TABLE agents ADD COLUMN permissions_json TEXT NOT NULL DEFAULT '{}'");
+        addCol("agents", "heartbeat_policy_json", "ALTER TABLE agents ADD COLUMN heartbeat_policy_json TEXT");
+        addCol("agents", "runtime_state_json", "ALTER TABLE agents ADD COLUMN runtime_state_json TEXT");
+        addCol("runs", "context_snapshot_json", "ALTER TABLE runs ADD COLUMN context_snapshot_json TEXT");
+        addCol("runs", "actor_type", "ALTER TABLE runs ADD COLUMN actor_type TEXT");
+        addCol("runs", "actor_id", "ALTER TABLE runs ADD COLUMN actor_id TEXT");
       },
     },
     {
@@ -359,12 +382,7 @@ export function runMigrations(
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const isDuplicateColumn = /duplicate column|already exists/i.test(message);
-      if (isDuplicateColumn) {
-        db.prepare("insert or ignore into schema_migrations (version, name, applied_at) values (?, ?, ?)").run(migration.version, migration.name, nowIso());
-      } else {
-        throw new Error(`Migration ${migration.version} (${migration.name}) failed: ${message}`);
-      }
+      throw new Error(`Migration ${migration.version} (${migration.name}) failed: ${message}`);
     }
   }
 }
