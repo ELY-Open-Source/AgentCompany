@@ -19,21 +19,28 @@ interface RuntimeDeps {
 
 export function createSkillRuntime({ db, logger, skillsRoot, skillFilesDir, importFromLocal }: RuntimeDeps) {
   /**
-   * Project all company skills through pi-coding-agent's progressive-disclosure
-   * loader. Every agent in the company sees the full catalog — descriptions
-   * only, full SKILL.md loaded on-demand by the agent via the `read` tool.
+   * Project the agent's assigned skills through pi-coding-agent's
+   * progressive-disclosure loader. Users curate skill visibility per agent
+   * via `agent_skill_assignments`; runtime honors that selection by only
+   * passing assigned SKILL.md directories to `loadSkills`. Pi returns
+   * descriptions for the system prompt; the agent loads full SKILL.md
+   * on demand via the `read` tool.
    *
-   * The agentId / connectorId parameters are retained for signature
-   * compatibility with the orchestrator but are intentionally unused: pi's
-   * model has no per-agent filtering and no per-connector token budget.
+   * connectorId is retained for signature compatibility and reserved for
+   * future connector-specific policy (no current use).
    */
   function listRuntimeSkillEntries(
     companyId: string,
-    _agentId: string,
+    agentId: string,
     _connectorId: string,
   ): ProjectedSkill[] {
+    const assignedIds = new Set(db.listAgentSkillAssignments(agentId));
+    if (assignedIds.size === 0) return [];
     const companySkills = db.listCompanySkills(companyId);
-    const skillPaths = companySkills.map((s) => skillFilesDir(companyId, s.slug));
+    const skillPaths = companySkills
+      .filter((s) => assignedIds.has(s.id))
+      .map((s) => skillFilesDir(companyId, s.slug));
+    if (skillPaths.length === 0) return [];
     const { skills, diagnostics } = loadSkills({ skillPaths, includeDefaults: false });
 
     for (const diag of diagnostics) {
