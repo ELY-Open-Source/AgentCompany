@@ -259,7 +259,7 @@ export function SkillDetail({
             {/* File path bar */}
             <div className="mb-3 flex items-center gap-1 text-[12px] text-muted-foreground">
               {selectedSkillFilePath.split("/").map((segment, i, arr) => (
-                <span key={i} className="flex items-center gap-1">
+                <span key={`${segment}-${i}`} className="flex items-center gap-1">
                   {i > 0 ? <span className="opacity-40">/</span> : null}
                   <span className={i === arr.length - 1 ? "font-medium text-foreground" : ""}>
                     {segment}

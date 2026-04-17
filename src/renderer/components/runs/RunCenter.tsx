@@ -149,7 +149,8 @@ export function RunCenter({
   useEffect(() => {
     if (!selectedRun || !isActiveStatus(selectedRun.status)) return;
     let cancelled = false;
-    const intervalId = window.setInterval(async () => {
+    const tick = async () => {
+      if (document.visibilityState === "hidden") return;
       const latest = await window.agentCompany.getRunLogChunk({
         companyId: selectedRun.companyId,
         runId: selectedRun.id,
@@ -166,7 +167,8 @@ export function RunCenter({
         loading: false,
         error: null,
       });
-    }, 2500);
+    };
+    const intervalId = window.setInterval(tick, 2500);
 
     return () => {
       cancelled = true;
