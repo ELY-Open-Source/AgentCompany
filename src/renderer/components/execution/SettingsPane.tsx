@@ -6,6 +6,7 @@ import { APP_LOCALES, LOCALE_LABELS } from "@shared/locale"
 import { useLocale, useT } from "../../i18n"
 import { formatTime } from "../../lib/formatters"
 import { unwrap } from "../../lib/desktop"
+import { isMac } from "../../lib/platform"
 import { ActionButton, ConfirmDialog, EmptyState, InlineNotice, Select } from "../ui"
 import { describeActionError } from "./execution-utils"
 import { useAppStore } from "../../state/store"
@@ -50,8 +51,8 @@ export function SettingsPane({ snapshot, secrets, companyId, onSaved }: { snapsh
       <div><div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Keyboard Shortcuts</div>
         <div className="space-y-1 border-y border-border py-3">
           {([
-            [navigator.platform.includes("Mac") ? "⌘K" : "Ctrl+K", "Open command palette"],
-            [navigator.platform.includes("Mac") ? "⌘Enter" : "Ctrl+Enter", "Send message"],
+            [isMac() ? "⌘K" : "Ctrl+K", "Open command palette"],
+            [isMac() ? "⌘Enter" : "Ctrl+Enter", "Send message"],
             ["Escape", "Close modal / palette"],
             ["↑ / ↓", "Navigate palette results"],
             ["Enter", "Select palette result"],

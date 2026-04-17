@@ -3,17 +3,24 @@ import { AnimatePresence, motion } from "framer-motion"
 import { ArrowBendUpLeft, PaperPlaneTilt, X, ChatCircle, UserCircle, Paperclip, FileText } from "@phosphor-icons/react"
 import type { AgentMessageRecord, AgentRecord, DocumentRecord, MessageChannel } from "@shared/types"
 import { unwrap } from "../../lib/desktop"
+import { cmdOrCtrlLabel } from "../../lib/platform"
 import { useAppStore } from "../../state/store"
-import { InlineNotice } from "../ui"
+import { ActionButton, InlineNotice } from "../ui"
 import { useT } from "../../i18n"
 
 const HUMAN_SENDER_ID = "__board__";
 
 function SendButton({ sending, disabled, onClick, label }: { sending: boolean; disabled: boolean; onClick: () => void; label: string }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled || sending} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition hover:brightness-90 active:translate-y-px disabled:opacity-40 disabled:pointer-events-none" aria-label={label}>
-      {sending ? <svg className="h-4 w-4 animate-spin" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.3" /><path d="M14 8a6 6 0 0 0-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg> : <PaperPlaneTilt size={18} weight="fill" />}
-    </button>
+    <ActionButton
+      label={label}
+      icon={PaperPlaneTilt}
+      tone="accent"
+      iconOnly
+      loading={sending}
+      disabled={disabled}
+      onClick={onClick}
+    />
   )
 }
 
@@ -320,7 +327,7 @@ export function MessageComposer({ agents, companyId, channel, channelTargetId, d
         />
       )}
 
-      <div className="mt-1 text-[11px] text-muted-foreground">Press {navigator.platform.includes("Mac") ? "Cmd" : "Ctrl"}+Enter to send</div>
+      <div className="mt-1 text-[11px] text-muted-foreground">Press {cmdOrCtrlLabel()}+Enter to send</div>
     </div>
   )
 }
