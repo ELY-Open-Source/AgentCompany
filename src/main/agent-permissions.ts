@@ -7,8 +7,11 @@ function safeGetAgent(db: AppDatabase, agentId: string | null | undefined) {
   }
   try {
     return db.getAgent(agentId);
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Agent not found:")) {
+      return null;
+    }
+    throw error;
   }
 }
 
