@@ -128,19 +128,23 @@ export function createSessionManagementService({ db, logger }: SessionManagement
     return result;
   }
 
-  // Archive current session, generate handoff, create new session, update task pointer
+  // Archive current session, generate handoff, create new agent-scoped
+  // session, update the agent pointer and any task active-session pointers
+  // still referencing the old session.
   function rotateSession(session: TaskSessionRecord): string {
     const reason = "threshold_exceeded";
     const handoff = generateHandoff(session.taskId, session);
 
-    logger.info(`[session] Rotating session ${session.id} for task ${session.taskId}: ${reason}`);
+    logger.info(`[session] Rotating session ${session.id} for agent ${session.agentId}: ${reason}`);
 
     // 1. Archive old session
     db.archiveSession(session.id, reason, handoff);
 
-    // 2. Create new session row with fresh counters, carry forward session_params
+    // 2. Create new session row with fresh counters, carry forward
+    //    session_params. task_id is empty because the session is scoped
+    //    to the agent, not to any particular task.
     const newSessionId = db.createNewSession({
-      taskId: session.taskId,
+      taskId: "",
       companyId: session.companyId,
       agentId: session.agentId,
       adapterType: session.adapterType,
@@ -148,7 +152,12 @@ export function createSessionManagementService({ db, logger }: SessionManagement
       sessionDisplayId: session.sessionDisplayId,
     });
 
-    logger.info(`[session] New session ${newSessionId} created for task ${session.taskId}`);
+    // 3. Point the agent and any tasks still holding the old session id
+    //    at the freshly-minted session.
+    db.setAgentSessionId(session.agentId, newSessionId);
+    db.updateTasksActiveSessionForAgent(session.agentId, newSessionId);
+
+    logger.info(`[session] New session ${newSessionId} created for agent ${session.agentId}`);
     return newSessionId;
   }
 

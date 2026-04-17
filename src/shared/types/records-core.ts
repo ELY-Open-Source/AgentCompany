@@ -95,6 +95,15 @@ export interface AgentRecord {
   heartbeatEnabled: boolean;
   heartbeatIntervalSec: number;
   lastHeartbeatAt: string | null;
+  /**
+   * Agent-scoped active session id. One active session per agent (per
+   * company) — switching tasks appends a "now work on X" user turn to the
+   * agent's ongoing transcript rather than starting a fresh session.
+   * Optional on the read model for the same reason `roleLevel` is: existing
+   * callers constructing an AgentRecord literally (tests, fixtures) do not
+   * need to set it, and pre-migration rows legitimately have NULL.
+   */
+  sessionId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

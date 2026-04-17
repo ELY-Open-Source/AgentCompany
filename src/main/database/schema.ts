@@ -30,6 +30,8 @@ export function ensureOptionalColumns(db: DatabaseSync) {
   addColumnIfMissing("agents", "heartbeat_enabled", "alter table agents add column heartbeat_enabled integer not null default 0");
   addColumnIfMissing("agents", "heartbeat_interval_sec", "alter table agents add column heartbeat_interval_sec integer not null default 120");
   addColumnIfMissing("agents", "last_heartbeat_at", "alter table agents add column last_heartbeat_at text");
+  addColumnIfMissing("agents", "session_id", "alter table agents add column session_id text");
+  db.exec("create index if not exists idx_agents_session_id on agents(session_id)");
   addColumnIfMissing("companies", "auto_approve_hires", "alter table companies add column auto_approve_hires integer not null default 0");
   addColumnIfMissing("companies", "review_deliverables", "alter table companies add column review_deliverables integer not null default 0");
   addColumnIfMissing("companies", "execution_mode", "alter table companies add column execution_mode text not null default 'ai_ceo'");
@@ -500,6 +502,16 @@ export function runMigrations(
               updated_at TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_credentials_status ON credentials(status)`,
+    },
+    {
+      // Per-agent session scope. Agents carry a single active session across
+      // tasks — switching tasks becomes a "now work on X" user turn on the
+      // agent's ongoing transcript. Additive-only: existing task_sessions
+      // rows remain as historical records; new runs use the agent-scoped
+      // session created lazily on first post-upgrade run.
+      version: 34, name: "add_agents_session_id",
+      sql: `ALTER TABLE agents ADD COLUMN session_id TEXT;
+            CREATE INDEX IF NOT EXISTS idx_agents_session_id ON agents(session_id)`,
     },
   ];
 

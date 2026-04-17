@@ -127,11 +127,24 @@ function resolveEnabledConnectorModels(
 
 function resolveSession(
   db: AppDatabase,
+  agent: RunDispatchParams["agent"],
   task: RunDispatchParams["task"],
+  companyId: string,
   connectorId: string,
   sessionHandoff: string | null,
   deps: Pick<TurnContextDeps, "evaluatePreRunSessionRotation" | "logger">,
 ) {
+  // Per-agent session: one ongoing transcript per agent; switching tasks
+  // becomes a "now work on X" user turn rather than a fresh session.
+  const agentSessionId = db.ensureAgentSession({
+    agentId: agent.id,
+    companyId,
+    adapterType: connectorId,
+  });
+  // Mirror the agent's active session onto the task pointer so UI paths
+  // that read per-task active_session_id keep working.
+  db.updateTasksActiveSessionForAgent(agent.id, agentSessionId);
+
   const activeSession = db.getActiveTaskSession(task.id);
   let taskSession: {
     id: string | null;
@@ -145,7 +158,7 @@ function resolveSession(
           : null,
         sessionDisplayId: activeSession.sessionDisplayId,
       }
-    : { id: null, ...db.getTaskSession(task.id) };
+    : { id: agentSessionId, sessionParams: null, sessionDisplayId: null };
 
   let finalHandoff = sessionHandoff;
   if (deps.evaluatePreRunSessionRotation && activeSession) {
@@ -155,7 +168,7 @@ function resolveSession(
       if (!finalHandoff && rotationResult.handoff) {
         finalHandoff = rotationResult.handoff;
       }
-      deps.logger.info(`[session] Pre-run compaction for task ${task.id}: session rotated before execution`);
+      deps.logger.info(`[session] Pre-run compaction for agent ${agent.id}: session rotated before execution`);
     }
   }
 
@@ -260,7 +273,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
   const reviewTasks = db.listReviewTasksForManager(agent.id, companyId);
   const recentComments = assembleRecentComments(assignedTasks, reviewTasks, snapshot);
   const initialHandoff = resolveSessionHandoff(task.id, deps);
-  const { taskSession, sessionHandoff } = resolveSession(db, task, connector.id, initialHandoff, deps);
+  const { taskSession, sessionHandoff } = resolveSession(db, agent, task, companyId, connector.id, initialHandoff, deps);
   const skills = resolveSkills(companyId, agent.id, connector.id, agent.name, deps);
 
   const systemPrompt = apiUrl ? buildTaskPrompt({

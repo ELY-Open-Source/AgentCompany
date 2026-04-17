@@ -82,7 +82,7 @@ export function buildSessionEntryMethods(
       is_superseded: number;
       created_at: string;
     }>(
-      "select id, task_session_id, sequence, kind, role, payload_json, is_superseded, created_at from session_entries where task_session_id = ? and is_superseded = 0 order by sequence asc",
+      "select id, task_session_id, sequence, kind, role, payload_json, is_superseded, created_at from session_entries where task_session_id = ? and is_superseded = 0 order by created_at asc, sequence asc",
       taskSessionId,
     );
     return rows.map((row) => ({

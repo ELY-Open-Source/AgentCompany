@@ -260,6 +260,9 @@ export class AppDatabaseBase {
   incrementSessionUsage(sessionId: string, inputTokens: number, outputTokens: number, runId: string) { return this.tasks.incrementSessionUsage(sessionId, inputTokens, outputTokens, runId); }
   archiveSession(sessionId: string, reason: string, handoffMarkdown: string) { return this.tasks.archiveSession(sessionId, reason, handoffMarkdown); }
   createNewSession(input: { taskId: string; companyId: string; agentId: string; adapterType: string; sessionParamsJson: string | null; sessionDisplayId: string | null }) { return this.tasks.createNewSession(input); }
+  ensureAgentSession(input: { agentId: string; companyId: string; adapterType: string }) { return this.tasks.ensureAgentSession(input); }
+  setAgentSessionId(agentId: string, sessionId: string) { return this.tasks.setAgentSessionId(agentId, sessionId); }
+  updateTasksActiveSessionForAgent(agentId: string, sessionId: string) { return this.tasks.updateTasksActiveSessionForAgent(agentId, sessionId); }
   getRecentRunsForTask(taskId: string, limit: number) { return this.tasks.getRecentRunsForTask(taskId, limit); }
   getRecentActivityForTask(taskId: string, limit: number) { return this.tasks.getRecentActivityForTask(taskId, limit); }
   checkoutTask(taskId: string, runId: string) { return this.tasks.checkoutTask(taskId, runId); }

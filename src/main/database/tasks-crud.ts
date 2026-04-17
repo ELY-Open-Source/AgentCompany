@@ -440,6 +440,71 @@ export function buildTaskCrudMethods(
         .run(ts, reason, handoffMarkdown, ts, sessionId);
     },
 
+    /**
+     * Returns the agent's active session id, creating one lazily on first
+     * call. Session is scoped to the agent (not to any particular task);
+     * switching tasks emits a user turn on the ongoing transcript rather
+     * than spawning a new session.
+     *
+     * Existing agents with pre-migration per-task sessions start fresh
+     * after this upgrade: their first run creates a new agent-scoped
+     * session. The old task_sessions + session_entries rows remain in the
+     * DB as historical records but are not loaded for new runs. This is a
+     * one-time transcript reset, accepted over a risky merge on a live
+     * production DB.
+     */
+    ensureAgentSession(input: {
+      agentId: string;
+      companyId: string;
+      adapterType: string;
+    }): string {
+      const agentRow = getDb()
+        .prepare("SELECT session_id FROM agents WHERE id = ?")
+        .get(input.agentId) as { session_id: string | null } | undefined;
+      if (agentRow?.session_id) return agentRow.session_id;
+
+      const sessionId = randomUUID();
+      const ts = nowIso();
+      transaction(() => {
+        // task_id is left as empty string — the session is agent-scoped;
+        // the column persists for backwards-compatible schema but no
+        // longer keys the session to a particular task.
+        getDb()
+          .prepare(
+            `INSERT INTO task_sessions (id, company_id, task_id, agent_id, adapter_type,
+              session_params_json, session_display_id, run_count, total_input_tokens,
+              total_output_tokens, created_at, updated_at)
+             VALUES (?, ?, '', ?, ?, NULL, NULL, 0, 0, 0, ?, ?)`,
+          )
+          .run(sessionId, input.companyId, input.agentId, input.adapterType, ts, ts);
+        getDb()
+          .prepare("UPDATE agents SET session_id = ?, updated_at = ? WHERE id = ?")
+          .run(sessionId, ts, input.agentId);
+      });
+      return sessionId;
+    },
+
+    setAgentSessionId(agentId: string, sessionId: string): void {
+      const ts = nowIso();
+      getDb()
+        .prepare("UPDATE agents SET session_id = ?, updated_at = ? WHERE id = ?")
+        .run(sessionId, ts, agentId);
+    },
+
+    /**
+     * Point every task currently assigned to an agent at the agent's new
+     * active session. Called after session rotation so UI paths reading
+     * per-task active_session_id still see the agent's current session.
+     */
+    updateTasksActiveSessionForAgent(agentId: string, sessionId: string): void {
+      const ts = nowIso();
+      getDb()
+        .prepare(
+          "UPDATE tasks SET active_session_id = ?, updated_at = ? WHERE assignee_agent_id = ?",
+        )
+        .run(sessionId, ts, agentId);
+    },
+
     createNewSession(input: {
       taskId: string;
       companyId: string;
