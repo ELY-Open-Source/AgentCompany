@@ -8,8 +8,20 @@ if (!parentPort) {
   throw new Error("AgentCompany worker requires process.parentPort");
 }
 
-const activeByAgent = new Map<string, string>();
-const activeByWorkspace = new Map<string, string>();
+interface ActiveRun {
+  runId: string;
+  agentId: string;
+  workspaceKey: string | null;
+}
+
+/**
+ * Single source of truth for scheduling invariants: "one agent at a time"
+ * and "one exclusive-workspace lock at a time". Prior layout kept three
+ * parallel structures (`activeByAgent`, `activeByWorkspace`, queue) that
+ * had to be updated in lockstep. The Map-of-ActiveRun keyed by runId is
+ * the only authoritative record; agent/workspace busy checks iterate it.
+ */
+const active = new Map<string, ActiveRun>();
 const queue: RunJob[] = [];
 const cancelledRuns = new Set<string>();
 
@@ -24,9 +36,23 @@ const runner = new WorkerRunner({
   isCancelled: (runId) => cancelledRuns.has(runId),
 });
 
-function workspaceKey(job: RunJob) {
+function workspaceKey(job: RunJob): string | null {
   if (job.workspaceMode !== "exclusive") return null;
   return job.workspaceId ?? job.workspacePath ?? `task:${job.taskId}`;
+}
+
+function isAgentBusy(agentId: string): boolean {
+  for (const run of active.values()) {
+    if (run.agentId === agentId) return true;
+  }
+  return false;
+}
+
+function isWorkspaceBusy(lockKey: string): boolean {
+  for (const run of active.values()) {
+    if (run.workspaceKey === lockKey) return true;
+  }
+  return false;
 }
 
 function enqueue(job: RunJob) {
@@ -37,39 +63,34 @@ function enqueue(job: RunJob) {
     status: "queued",
     message: "Run queued in orchestration worker.",
   });
-  maybeStartQueuedRuns();
+  tickQueue();
 }
 
 /**
- * Walks the queue in-place and dispatches every job whose agent + workspace
- * are not currently busy. Claims (activeByAgent / activeByWorkspace) are
- * written BEFORE the job is removed from the queue and BEFORE `startRun`
- * fires — this is the atomic point of commit for orchestrator ordering.
- * Hardens against a future refactor that adds an `await` before the claim
- * inside `startRun`, which would open a re-entrancy window.
+ * Claim-before-dispatch: for each queued job whose agent + workspace are
+ * free, register the claim in `active` synchronously *before* calling
+ * `startRun`. No async window between claim and dispatch.
  */
-function maybeStartQueuedRuns() {
+function tickQueue() {
   let i = 0;
   while (i < queue.length) {
     const job = queue[i];
-    if (activeByAgent.has(job.agentId)) { i += 1; continue; }
+    if (isAgentBusy(job.agentId)) { i += 1; continue; }
     const lockKey = workspaceKey(job);
-    if (lockKey && activeByWorkspace.has(lockKey)) { i += 1; continue; }
-    activeByAgent.set(job.agentId, job.runId);
-    if (lockKey) activeByWorkspace.set(lockKey, job.runId);
+    if (lockKey && isWorkspaceBusy(lockKey)) { i += 1; continue; }
+    active.set(job.runId, { runId: job.runId, agentId: job.agentId, workspaceKey: lockKey });
     queue.splice(i, 1);
-    void startRun(job, lockKey);
+    void startRun(job);
   }
 }
 
-async function startRun(job: RunJob, lockKey: string | null) {
+async function startRun(job: RunJob) {
   try {
     await runner.run(job);
   } finally {
     cancelledRuns.delete(job.runId);
-    activeByAgent.delete(job.agentId);
-    if (lockKey) activeByWorkspace.delete(lockKey);
-    maybeStartQueuedRuns();
+    active.delete(job.runId);
+    tickQueue();
   }
 }
 
