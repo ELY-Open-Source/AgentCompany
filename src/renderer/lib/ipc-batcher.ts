@@ -20,9 +20,32 @@ export function entityKeyFromEvent(event: DesktopEvent): GranularEventEntry | nu
       return { type: "agent-updated", entityId: event.agentId, action: event.action };
     case "budget-changed":
       return { type: "budget-changed", entityId: event.companyId, action: "changed" };
+    // run-status is a run-level state change -- map onto run entity so
+    // granular patchRun refetches the run record.
+    case "run-status":
+      return { type: "run-updated", entityId: event.runId, action: "status_changed" };
+    // heartbeat-status mutates agent metadata (nextWakeAt / enabled) -- map
+    // onto agent entity so granular patchAgent refetches.
+    case "heartbeat-status":
+      return { type: "agent-updated", entityId: event.agentId, action: "updated" };
+    // agent-message posts a new comment under a task; patchTask refetch will
+    // pick up the task's updated comment list.
+    case "agent-message":
+      return { type: "task-updated", entityId: event.taskId, action: "updated" };
     default:
       return null;
   }
+}
+
+// Events that do NOT affect ProfileSnapshot and therefore must not trigger
+// a snapshot refresh -- they are handled exclusively by their own listeners.
+const SNAPSHOT_IRRELEVANT_EVENT_TYPES = new Set<DesktopEvent["type"]>([
+  "automation-fired",
+  "recovery-needed",
+]);
+
+export function isSnapshotIrrelevantEvent(event: DesktopEvent): boolean {
+  return SNAPSHOT_IRRELEVANT_EVENT_TYPES.has(event.type);
 }
 
 export function createDomainEventBatcher(

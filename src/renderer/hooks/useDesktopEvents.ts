@@ -1,6 +1,10 @@
 import { useEffect, type MutableRefObject } from "react";
 import type { DesktopEvent } from "@shared/types";
-import { createDomainEventBatcher, type GranularEventEntry } from "../lib/ipc-batcher";
+import {
+  createDomainEventBatcher,
+  isSnapshotIrrelevantEvent,
+  type GranularEventEntry,
+} from "../lib/ipc-batcher";
 import { useAppStore } from "../state/store";
 
 export function useDesktopEvents(
@@ -106,10 +110,13 @@ export function useDesktopEvents(
       }
     }
 
+    // 500ms window for full-refresh events (e.g. new-message,
+    // thread-wait-state-updated) so bursts coalesce into one reload.
+    // Granular entity events still flush at this window but are cheap.
     const batcher = createDomainEventBatcher(
       () => { void refreshRef.current(); },
       (events) => { void handleGranularBatch(events); },
-      50,
+      500,
     );
 
     const unsubscribe = window.agentCompany.subscribe((event: DesktopEvent) => {
@@ -140,7 +147,12 @@ export function useDesktopEvents(
         store.getState().navigateTo(event.section, event.entityId);
         return;
       }
-      // All data-mutating events go through the enhanced batcher
+      // One-shot events that do not affect ProfileSnapshot -- handled by
+      // their own listeners elsewhere, never trigger a snapshot refresh.
+      if (isSnapshotIrrelevantEvent(event)) {
+        return;
+      }
+      // All remaining data-mutating events go through the enhanced batcher
       batcher.push(event);
     });
     return () => {
