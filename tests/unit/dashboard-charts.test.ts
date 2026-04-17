@@ -63,6 +63,7 @@ function makeAgent(overrides: Partial<AgentRecord> = {}): AgentRecord {
     name: "Alice",
     role: "engineer",
     title: "Software Engineer",
+    roleLevel: "ic",
     department: "engineering",
     status: "active",
     reportsTo: null,
