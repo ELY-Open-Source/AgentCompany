@@ -1274,6 +1274,7 @@ export const zh: Record<string, string> = {
   "org.zoomIn": "放大",
   "org.zoomOut": "缩小",
   "org.fitChart": "适应画布",
+  "org.statusLegend": "状态",
   "org.agentAria": "{name}，{title}，{status}",
   "org.statusAria": "状态：{status}",
 
@@ -1380,6 +1381,8 @@ export const zh: Record<string, string> = {
   "agent.form.statusPaused": "已暂停",
   "agent.form.statusError": "错误",
   "agent.form.statusTerminated": "已终止",
+  "agent.form.rootDeleteBlocked": "顶层成员无法删除。先把下属重新分配给其他上级。",
+  "agent.form.rootTerminateBlocked": "顶层成员无法终止。先把下属重新分配给其他上级。",
   "agent.form.pendingReadOnly": "待招聘状态为只读。先在招聘或审批里批准或拒绝，再编辑智能体资料。",
   "agent.form.saveFailed": "保存智能体失败。",
   "agent.form.wakeFailed": "唤醒智能体失败。",

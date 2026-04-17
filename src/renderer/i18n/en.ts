@@ -1274,6 +1274,7 @@ export const en: Record<string, string> = {
   "org.zoomIn": "Zoom in",
   "org.zoomOut": "Zoom out",
   "org.fitChart": "Fit chart to screen",
+  "org.statusLegend": "Status",
   "org.agentAria": "{name}, {title}, {status}",
   "org.statusAria": "Status: {status}",
 
@@ -1380,6 +1381,8 @@ export const en: Record<string, string> = {
   "agent.form.statusPaused": "Paused",
   "agent.form.statusError": "Error",
   "agent.form.statusTerminated": "Terminated",
+  "agent.form.rootDeleteBlocked": "Top-of-chain agents cannot be deleted. Reassign their direct reports to another manager first.",
+  "agent.form.rootTerminateBlocked": "Top-of-chain agents cannot be terminated. Reassign their direct reports to another manager first.",
   "agent.form.pendingReadOnly": "Pending hires are read-only here. Use Hiring or Approvals to approve or reject the request before editing the agent profile.",
   "agent.form.saveFailed": "Failed to save agent.",
   "agent.form.wakeFailed": "Failed to wake agent.",

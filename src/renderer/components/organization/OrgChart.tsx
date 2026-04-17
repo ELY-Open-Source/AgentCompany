@@ -6,6 +6,16 @@ import { EmptyState } from "../ui";
 import { useT } from "../../i18n";
 import { buildOrgTree, layoutForest, flattenLayout, collectEdges, statusDotColor, CARD_W, CARD_H, CHART_PADDING } from "./orgTreeLayout";
 
+const LEGEND_ORDER: Array<{ status: string; labelKey: string }> = [
+  { status: "running", labelKey: "agent.form.statusRunning" },
+  { status: "active", labelKey: "agent.form.statusActive" },
+  { status: "idle", labelKey: "agent.form.statusIdle" },
+  { status: "paused", labelKey: "agent.form.statusPaused" },
+  { status: "pending_approval", labelKey: "agent.pendingApproval" },
+  { status: "error", labelKey: "agent.form.statusError" },
+  { status: "terminated", labelKey: "agent.form.statusTerminated" },
+];
+
 export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentRecord[]; connectors?: ConnectorRecord[]; onSelectAgent?: (agentId: string) => void }) {
   const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -18,6 +28,11 @@ export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentR
   const layout = useMemo(() => layoutForest(orgTree), [orgTree]);
   const allNodes = useMemo(() => flattenLayout(layout), [layout]);
   const edges = useMemo(() => collectEdges(layout), [layout]);
+  const legendEntries = useMemo(() => {
+    const present = new Set<string>();
+    for (const a of agents) present.add(a.status);
+    return LEGEND_ORDER.filter((entry) => present.has(entry.status));
+  }, [agents]);
   const bounds = useMemo(() => {
     if (allNodes.length === 0) return { width: 800, height: 600 };
     let maxX = 0, maxY = 0;
@@ -85,6 +100,17 @@ export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentR
           </button>
         ))}
       </div>
+      {legendEntries.length > 0 ? (
+        <div className="absolute left-3 top-3 z-10 flex flex-col gap-1 rounded-lg border border-border bg-card/95 px-3 py-2 text-[11px] backdrop-blur-sm" aria-label={t("org.statusLegend")}>
+          <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{t("org.statusLegend")}</div>
+          {legendEntries.map((entry) => (
+            <div key={entry.status} className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: statusDotColor[entry.status] ?? "var(--muted-foreground)" }} aria-hidden="true" />
+              <span className="text-muted-foreground">{t(entry.labelKey)}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <svg className="pointer-events-none absolute inset-0" style={{ width: "100%", height: "100%" }}>
         <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
           {edges.map(({ parent, child }) => {

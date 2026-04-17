@@ -78,6 +78,11 @@ export function EditFormBody({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const pendingApproval = agent.status === "pending_approval";
+  // Root agents (CEO / no reportsTo) must not be terminable or deletable from
+  // this form — their removal requires reassigning direct reports first, and
+  // we would rather the user see a disabled control + reason than discover
+  // the orphaning side-effect only after clicking through a confirm.
+  const isRootAgent = !agent.reportsTo;
 
   const skills = useAppStore((s) => s.skills);
   const setSkills = useAppStore((s) => s.setSkills);
@@ -211,12 +216,15 @@ export function EditFormBody({
                 { value: "running", label: t("agent.form.statusRunning") },
                 { value: "paused", label: t("agent.form.statusPaused") },
                 { value: "error", label: t("agent.form.statusError") },
-                { value: "terminated", label: t("agent.form.statusTerminated") },
+                ...(isRootAgent ? [] : [{ value: "terminated", label: t("agent.form.statusTerminated") }]),
               ]
         }
       />
       {pendingApproval ? (
         <p className="text-[12px] text-muted-foreground">{t("agent.pendingHireNote")}</p>
+      ) : null}
+      {isRootAgent && !pendingApproval ? (
+        <p className="text-[12px] text-muted-foreground">{t("agent.form.rootTerminateBlocked")}</p>
       ) : null}
       <Select
         label={t("agent.connector")}
@@ -334,7 +342,7 @@ export function EditFormBody({
             label={t("agent.form.delete")}
             tone="danger"
             icon={Trash}
-            disabled={pendingApproval}
+            disabled={pendingApproval || isRootAgent}
             onClick={() => setConfirmingDelete(true)}
           />
         )}
@@ -343,6 +351,9 @@ export function EditFormBody({
         <p className="text-[12px] text-muted-foreground">
           {t("agent.form.pendingReadOnly")}
         </p>
+      ) : null}
+      {isRootAgent && !pendingApproval ? (
+        <p className="text-[12px] text-muted-foreground">{t("agent.form.rootDeleteBlocked")}</p>
       ) : null}
       {saveError ? <p className="text-[12px] text-destructive">{saveError}</p> : null}
     </div>
