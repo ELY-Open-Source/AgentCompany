@@ -56,7 +56,7 @@ test("first launch onboarding advances into runtime setup and shell-ready flow",
     if (!(await providersContinue.isEnabled())) {
       await expect(page.getByText(/Set up one runtime to continue\./i)).toBeVisible();
       await expect(page.getByText(/Ready|Login required|Not installed|Checking|Error/i).first()).toBeVisible();
-      return;
+      test.skip(true, "runtime fixture missing: no enabled provider to continue past runtime setup");
     }
 
     await providersContinue.click();
@@ -146,7 +146,7 @@ test("onboarding model pool persists across relaunch for a ready connector", asy
     const providersContinue = page.getByRole("button", { name: /^Continue$/i });
     if (!(await providersContinue.isEnabled())) {
       await expect(page.getByText(/Set up one runtime to continue\./i)).toBeVisible();
-      return;
+      test.skip(true, "runtime fixture missing: no enabled provider to continue past runtime setup");
     }
     await providersContinue.click();
 
@@ -158,7 +158,7 @@ test("onboarding model pool persists across relaunch for a ready connector", asy
     const switches = page.getByRole("switch");
     const switchCount = await switches.count();
     if (switchCount < 2) {
-      return;
+      test.skip(true, "model pool fixture missing: need at least 2 model toggles to test persistence");
     }
 
     await switches.nth(1).click();
@@ -177,7 +177,7 @@ test("onboarding model pool persists across relaunch for a ready connector", asy
     const providersContinue = page.getByRole("button", { name: /^Continue$/i });
     if (!(await providersContinue.isEnabled())) {
       await expect(page.getByText(/Set up at least one provider to power your agents\./i)).toBeVisible();
-      return;
+      test.skip(true, "runtime fixture missing: no enabled provider persisted across relaunch");
     }
     await providersContinue.click();
 
