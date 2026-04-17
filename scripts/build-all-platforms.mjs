@@ -111,7 +111,7 @@ const otherPlatforms = Object.entries(PLATFORM_NAMES)
 if (otherPlatforms.length > 0) {
   console.log(`\n[build-all] NOTE: Build on these platforms for full D-07 coverage:`);
   for (const name of otherPlatforms) {
-    console.log(`  - ${name}: run 'pnpm build:all' on a ${name} host`);
+    console.log(`  - ${name}: run 'pnpm build:current' on a ${name} host`);
   }
 }
 

@@ -30,7 +30,7 @@
 
 ## What is AgentCompany?
 
-AgentCompany is a cross-platform desktop app that turns a single goal into a fully autonomous AI company. You provide a company name, description, and mission. A CEO agent self-organizes departments, hires specialists, delegates tasks, and delivers real results — code, content, research, business plans, and more — while you observe through a Slack-style command hub. Inspired by **[Paperclip](https://github.com/paperclipai/paperclip)**
+AgentCompany is a cross-platform desktop app that turns a single goal into a coordinated AI team. You provide a company name, description, and mission. A CEO agent self-organizes departments, delegates tasks, and produces deliverables — code, content, research, business plans, and more — while you observe and approve through a chat-based command hub. Inspired by **[Paperclip](https://github.com/paperclipai/paperclip)**
 
 ### Supported AI Runtimes
 
@@ -52,7 +52,7 @@ Your AI CEO builds the org chart — recruiting specialists, creating department
 </p>
 
 ### Real-Time Agent Communication
-Agents coordinate through Slack-style channels and direct messages. Watch strategic decisions unfold in real time.
+Agents coordinate through channel and direct-message threads. Watch decisions unfold in real time.
 
 <p align="center">
   <img src="screenshots/AI-Internal-Realtime-Message.jpeg" width="700" alt="Real-time messaging between AI agents" />
@@ -122,9 +122,9 @@ pnpm build:verify
 ## Packaging
 
 ```sh
-pnpm build        # Compile + package for current platform → /build/release
-pnpm build:dir    # Compile + unpackaged directory
-pnpm build:all    # Build for all platforms
+pnpm build         # Compile + package for current platform → /build/release
+pnpm build:dir     # Compile + unpackaged directory
+pnpm build:current # Build for current host platform (see note below for other OS)
 pnpm release:local # Signed/uploading release pipeline (see docs/release/local-r2.md)
 ```
 
@@ -155,7 +155,7 @@ packages/
 
 - **Local-first:** SQLite database, secrets in OS keychain, no external services required
 - **Security:** `contextIsolation: true`, `nodeIntegration: false`, Zod-validated IPC, JWT agent tokens
-- **Real autonomy:** Agents communicate, delegate, escalate, and produce deliverables without manual prompting
+- **Agent coordination:** Agents delegate tasks, escalate blockers, and produce deliverables through the orchestration runtime
 
 ---
 
@@ -168,7 +168,7 @@ packages/
 | Language | TypeScript 5.9 (strict) |
 | UI | React 19, Tailwind CSS 4, Framer Motion |
 | Build | electron-vite, Vite 7, electron-builder |
-| Database | SQLite (WAL mode, 25+ tables) |
+| Database | SQLite (WAL mode, schema in `src/main/database/`) |
 | Validation | Zod 4 |
 | Testing | Vitest, Playwright |
 
