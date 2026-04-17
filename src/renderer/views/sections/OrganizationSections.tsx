@@ -88,6 +88,7 @@ export function OrganizationSections({ section }: OrganizationSectionsProps) {
                 agents={companyAgents}
                 companyId={currentCompany.id}
                 onSaved={refresh}
+                onCancel={() => setSelectedAgentId(null)}
                 onDeleted={async () => { setSelectedAgentId(null); await refresh(); }}
               />
             ) : null}

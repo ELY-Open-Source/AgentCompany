@@ -20,6 +20,7 @@ interface AgentFormProps {
   agents: AgentRecord[];
   agent?: AgentRecord;
   onSaved: () => Promise<void>;
+  onCancel?: () => void;
   onDeleted?: () => Promise<void>;
 }
 
@@ -31,6 +32,7 @@ export function AgentForm({
   agents,
   agent,
   onSaved,
+  onCancel,
   onDeleted,
 }: AgentFormProps) {
   const form = useAgentForm({
@@ -105,6 +107,7 @@ export function AgentForm({
       persistedConnectorIssue={persistedConnectorIssue}
       form={form}
       onSaved={onSaved}
+      onCancel={onCancel ?? (() => {})}
       onDeleted={onDeleted}
     />
   );

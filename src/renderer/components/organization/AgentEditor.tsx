@@ -8,6 +8,7 @@ export function AgentEditor({
   agents,
   companyId,
   onSaved,
+  onCancel,
   onDeleted,
 }: {
   agent: AgentRecord;
@@ -16,6 +17,7 @@ export function AgentEditor({
   agents: AgentRecord[];
   companyId: string;
   onSaved: () => Promise<void>;
+  onCancel: () => void;
   onDeleted: () => Promise<void>;
 }) {
   return (
@@ -27,6 +29,7 @@ export function AgentEditor({
       agents={agents}
       agent={agent}
       onSaved={onSaved}
+      onCancel={onCancel}
       onDeleted={onDeleted}
     />
   );
