@@ -185,36 +185,74 @@ export function buildTaskCrudMethods(
       sessionJson: Record<string, unknown> | null,
       sessionDisplayId: string | null,
     ): void {
+      const ts = nowIso();
+      const sessionParamsJson = sessionJson ? JSON.stringify(sessionJson) : null;
+      const taskRow = getDb()
+        .prepare(
+          "select company_id as companyId, assignee_agent_id as assigneeAgentId, active_session_id as activeSessionId from tasks where id = ?",
+        )
+        .get(taskId) as
+        | { companyId: string; assigneeAgentId: string | null; activeSessionId: string | null }
+        | undefined;
+      if (!taskRow) throw new Error(`Task not found: ${taskId}`);
+      if (taskRow.activeSessionId) {
+        getDb()
+          .prepare(
+            "update task_sessions set session_params_json = ?, session_display_id = ?, updated_at = ? where id = ?",
+          )
+          .run(sessionParamsJson, sessionDisplayId, ts, taskRow.activeSessionId);
+        return;
+      }
+      if (sessionParamsJson === null && sessionDisplayId === null) return;
+      const agentId = taskRow.assigneeAgentId ?? "unassigned";
+      const agent = taskRow.assigneeAgentId
+        ? (getDb()
+            .prepare("select connector_id as connectorId from agents where id = ?")
+            .get(taskRow.assigneeAgentId) as { connectorId: string } | undefined)
+        : undefined;
+      const adapterType = agent?.connectorId ?? "unknown";
+      const sessionId = randomUUID();
       getDb()
         .prepare(
-          "update tasks set session_json = ?, session_display_id = ?, updated_at = ? where id = ?",
+          `insert into task_sessions (id, company_id, task_id, agent_id, adapter_type, session_params_json, session_display_id, created_at, updated_at)
+           values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
-          sessionJson ? JSON.stringify(sessionJson) : null,
-          sessionDisplayId,
-          nowIso(),
+          sessionId,
+          taskRow.companyId,
           taskId,
+          agentId,
+          adapterType,
+          sessionParamsJson,
+          sessionDisplayId,
+          ts,
+          ts,
         );
+      getDb()
+        .prepare("update tasks set active_session_id = ?, updated_at = ? where id = ?")
+        .run(sessionId, ts, taskId);
     },
 
     getTaskSession(taskId: string): {
       sessionParams: Record<string, unknown> | null;
       sessionDisplayId: string | null;
     } {
+      const taskRow = getDb()
+        .prepare("select active_session_id as activeSessionId from tasks where id = ?")
+        .get(taskId) as { activeSessionId: string | null } | undefined;
+      if (!taskRow?.activeSessionId) {
+        return { sessionParams: null, sessionDisplayId: null };
+      }
       const row = getDb()
         .prepare(
-          "select session_json as sessionJson, session_display_id as sessionDisplayId from tasks where id = ?",
+          "select session_params_json as sessionParamsJson, session_display_id as sessionDisplayId from task_sessions where id = ?",
         )
-        .get(taskId) as
-        | { sessionJson: string | null; sessionDisplayId: string | null }
+        .get(taskRow.activeSessionId) as
+        | { sessionParamsJson: string | null; sessionDisplayId: string | null }
         | undefined;
       let sessionParams: Record<string, unknown> | null = null;
-      if (row?.sessionJson) {
-        try {
-          sessionParams = JSON.parse(row.sessionJson) as Record<string, unknown>;
-        } catch {
-          sessionParams = null;
-        }
+      if (row?.sessionParamsJson) {
+        sessionParams = JSON.parse(row.sessionParamsJson) as Record<string, unknown>;
       }
       return {
         sessionParams,

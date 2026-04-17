@@ -365,6 +365,48 @@ export function runMigrations(
       version: 26, name: "add_source_run_id_for_causal_binding",
       sql: `ALTER TABLE documents ADD COLUMN source_run_id TEXT; ALTER TABLE knowledge_base ADD COLUMN source_run_id TEXT`,
     },
+    {
+      version: 27, name: "backfill_task_sessions_from_tasks_session_json",
+      fn: () => {
+        const legacyTasks = readAll<{
+          id: string;
+          companyId: string;
+          assigneeAgentId: string | null;
+          sessionJson: string;
+          sessionDisplayId: string | null;
+          updatedAt: string;
+          connectorId: string | null;
+        }>(
+          `SELECT t.id AS id, t.company_id AS companyId, t.assignee_agent_id AS assigneeAgentId,
+                  t.session_json AS sessionJson, t.session_display_id AS sessionDisplayId,
+                  t.updated_at AS updatedAt, a.connector_id AS connectorId
+             FROM tasks t
+             LEFT JOIN agents a ON a.id = t.assignee_agent_id
+            WHERE t.session_json IS NOT NULL
+              AND t.id NOT IN (SELECT task_id FROM task_sessions)`,
+        );
+        for (const task of legacyTasks) {
+          const sessionId = randomUUID();
+          db.prepare(
+            `INSERT OR IGNORE INTO task_sessions (id, company_id, task_id, agent_id, adapter_type, session_params_json, session_display_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ).run(
+            sessionId,
+            task.companyId,
+            task.id,
+            task.assigneeAgentId ?? "unassigned",
+            task.connectorId ?? "unknown",
+            task.sessionJson,
+            task.sessionDisplayId,
+            task.updatedAt,
+            task.updatedAt,
+          );
+          db.prepare(
+            "UPDATE tasks SET active_session_id = ? WHERE id = ? AND active_session_id IS NULL",
+          ).run(sessionId, task.id);
+        }
+      },
+    },
   ];
 
   for (const migration of migrations) {
