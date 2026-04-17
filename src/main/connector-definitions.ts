@@ -1,20 +1,38 @@
-import type { ServerAdapterModule } from "@agentcompany/adapter-utils";
-import { agentConfigurationDoc as claudeDoc, models as claudeModels } from "@agentcompany/adapter-claude-local";
-import { execute as claudeExecute, sessionCodec as claudeSessionCodec, testEnvironment as claudeTestEnvironment } from "@agentcompany/adapter-claude-local/server";
-import {
-  agentConfigurationDoc as codexDoc,
-  DEFAULT_CODEX_LOCAL_MODEL,
-  models as codexModels,
-} from "@agentcompany/adapter-codex-local";
-import { execute as codexExecute, sessionCodec as codexSessionCodec, testEnvironment as codexTestEnvironment } from "@agentcompany/adapter-codex-local/server";
-import { agentConfigurationDoc as geminiDoc, DEFAULT_GEMINI_LOCAL_MODEL, models as geminiModels } from "@agentcompany/adapter-gemini-local";
-import { execute as geminiExecute, sessionCodec as geminiSessionCodec, testEnvironment as geminiTestEnvironment } from "@agentcompany/adapter-gemini-local/server";
-import type { CapabilityMatrix, ConnectorId } from "@shared/types";
+/**
+ * Pi-mono connector catalog.
+ *
+ * The catalog is pure declarative data — there is no adapter module, no
+ * embedded CLI command, and no capability matrix. All provider dispatch is
+ * handled by pi-mono (`@mariozechner/pi-ai`) at runtime, which keys off the
+ * `provider` field and the auth descriptor.
+ *
+ * Shape and invariants are validated by `tests/unit/connector-catalog.test.ts`:
+ *
+ *   - Exactly 26 entries: 5 OAuth, 18 API key, 3 Cloud
+ *   - Each entry references a pi-ai `KnownProvider` (or one of the two
+ *     Fireworks ids resolved locally in `src/main/model-resolver.ts`)
+ *   - OAuth entries carry one of the five pi-ai OAuth provider ids
+ *   - API-key entries carry an `envKey` environment variable name
+ *   - The onboarding rail includes at least the `claude-pro` connector
+ *
+ * Entries live in three companion files to keep every module under the
+ * 400-line cap:
+ *
+ *   - `connector-definitions-data-oauth.ts`   — 5 OAuth providers
+ *   - `connector-definitions-data-apikey.ts`  — 18 API-key providers
+ *   - `connector-definitions-data-cloud.ts`   — 3 Cloud providers
+ */
+
+import type { ConnectorId } from "@shared/types";
+import { OAUTH_CONNECTORS } from "./connector-definitions-data-oauth";
+import { API_KEY_CONNECTORS } from "./connector-definitions-data-apikey";
+import { CLOUD_CONNECTORS } from "./connector-definitions-data-cloud";
 
 /**
- * OAuth provider id recognized by pi-ai (see
- * `@mariozechner/pi-ai/oauth`). Listed providers are the ones pi-ai ships with
- * built-in OAuth flow handlers.
+ * OAuth provider id recognised by the AgentCompany credential layer. These
+ * map 1:1 to pi-ai's five built-in OAuth handlers, with the Google handlers
+ * shortened from `google-gemini-cli` / `google-antigravity` to `gemini-cli` /
+ * `antigravity` in the UI.
  */
 export type PiOAuthProviderId =
   | "anthropic"
@@ -23,194 +41,59 @@ export type PiOAuthProviderId =
   | "gemini-cli"
   | "antigravity";
 
-export type ConnectorAuthKind =
-  | "oauth"
-  | "api_key"
-  | "aws"
-  | "azure"
-  | "gcp_adc";
+export type ConnectorAuthKind = "oauth" | "api_key" | "aws" | "azure" | "gcp_adc";
 
-/**
- * Declarative auth descriptor for a connector. The pi-mono runtime uses this
- * to know which credential kind to expect, which OAuth provider to invoke,
- * and which environment variable to read as a fallback API key.
- *
- * Legacy consumers reference `auth.type`; credential-store/oauth code uses
- * the canonical `kind`. Both aliases point at the same value.
- */
-export interface ConnectorAuth {
-  kind: ConnectorAuthKind;
-  /** Alias of `kind` for legacy resolver code. */
-  type: ConnectorAuthKind;
-  /** pi-ai OAuth provider id (only set when `kind === "oauth"`). */
-  provider?: PiOAuthProviderId;
-  /** Alias of `provider` for legacy resolver code. */
-  oauthId?: PiOAuthProviderId;
-  /** Environment variable fallback for `kind === "api_key"`. */
-  envKey?: string;
+export interface ConnectorAuthOAuth {
+  type: "oauth";
+  oauthId: PiOAuthProviderId;
 }
+
+export interface ConnectorAuthApiKey {
+  type: "api_key";
+  /** Fallback environment variable name (e.g. `ANTHROPIC_API_KEY`). */
+  envKey: string;
+}
+
+export interface ConnectorAuthAws {
+  type: "aws";
+}
+
+export interface ConnectorAuthAzure {
+  type: "azure";
+}
+
+export interface ConnectorAuthGcpAdc {
+  type: "gcp_adc";
+}
+
+export type ConnectorAuth =
+  | ConnectorAuthOAuth
+  | ConnectorAuthApiKey
+  | ConnectorAuthAws
+  | ConnectorAuthAzure
+  | ConnectorAuthGcpAdc;
 
 export interface ConnectorDefinition {
+  /** Stable AgentCompany id; the `connectors` table primary key. */
   id: ConnectorId;
+  /** pi-ai `KnownProvider` id (or a locally-resolved provider for Fireworks). */
+  provider: string;
+  /** Human-readable label for the Settings panel and onboarding rail. */
   label: string;
+  /** One-line explanation shown under the label. */
   description: string;
-  defaultCommand: string;
-  defaultModel: string | null;
-  notes: string;
-  capabilityMatrix: CapabilityMatrix;
-  configurationDoc: string;
-  module: ServerAdapterModule;
-  listModels?: () => Promise<Array<{ id: string; label: string }>>;
-  /** pi-ai provider id (e.g. "anthropic", "openai"). Optional — unset for
-   * adapter-based connectors that do not resolve through pi-ai. */
-  provider?: string;
-  /** Auth schema; optional so existing entries stay source-compatible. */
-  auth?: ConnectorAuth;
-  /** Featured in the onboarding provider picker. */
+  /** pi-ai model id used when the user has not picked a model yet. */
+  defaultModel: string;
+  /** Declarative auth descriptor; drives the credential resolver and OAuth flow. */
+  auth: ConnectorAuth;
+  /** Whether to surface this connector in the first-run onboarding picker. */
   onboardingFeatured?: boolean;
+  /** Optional extra guidance for the Settings panel. */
+  notes?: string;
 }
-
-function oauthAuth(provider: PiOAuthProviderId): ConnectorAuth {
-  return { kind: "oauth", type: "oauth", provider, oauthId: provider };
-}
-
-function apiKeyAuth(envKey?: string): ConnectorAuth {
-  return { kind: "api_key", type: "api_key", envKey };
-}
-
-const claudeCompatModule: ServerAdapterModule = {
-  type: "claude_local",
-  execute: claudeExecute,
-  testEnvironment: claudeTestEnvironment,
-  sessionCodec: claudeSessionCodec,
-  nativeContextManagement: false,
-  models: claudeModels,
-};
-
-const claudeCompatCapabilities: CapabilityMatrix = {
-  sessionResume: true,
-  gracefulCancel: true,
-  modelDiscovery: false,
-  structuredTranscript: true,
-  costAttribution: false,
-};
-
-const COMPAT_SLOT_IDS: ConnectorId[] = [
-  "claude_compatible",
-  "claude_compat_2",
-  "claude_compat_3",
-  "claude_compat_4",
-  "claude_compat_5",
-  "claude_compat_6",
-  "claude_compat_7",
-  "claude_compat_8",
-  "claude_compat_9",
-  "claude_compat_10",
-];
-
-const claudeCompatSlots: ConnectorDefinition[] = COMPAT_SLOT_IDS.map((id, i) => ({
-  id,
-  label: i === 0 ? "Claude Code Compatible API" : `Claude Code Compatible API (${i + 1})`,
-  description: i === 0
-    ? "Claude Code CLI connected to a third-party API provider (e.g. DeepSeek, OpenRouter, Ollama)."
-    : `Claude Code CLI compatible API slot ${i + 1} for a third-party provider.`,
-  defaultCommand: "claude",
-  defaultModel: null,
-  notes: "",
-  capabilityMatrix: claudeCompatCapabilities,
-  configurationDoc: claudeDoc,
-  module: claudeCompatModule,
-  listModels: async () => claudeModels,
-}));
 
 export const CONNECTORS: ConnectorDefinition[] = [
-  {
-    id: "codex_local",
-    label: "Codex",
-    description: "Local Codex CLI with session resume, structured event parsing, and model selection.",
-    defaultCommand: "codex",
-    defaultModel: DEFAULT_CODEX_LOCAL_MODEL,
-    notes: "",
-    capabilityMatrix: {
-      sessionResume: true,
-      gracefulCancel: true,
-      modelDiscovery: false,
-      structuredTranscript: true,
-      costAttribution: false,
-    },
-    configurationDoc: codexDoc,
-    module: {
-      type: "codex_local",
-      execute: codexExecute,
-      testEnvironment: codexTestEnvironment,
-      sessionCodec: codexSessionCodec,
-      nativeContextManagement: true,
-      models: codexModels,
-    },
-    listModels: async () => codexModels,
-    provider: "openai",
-    auth: oauthAuth("openai-codex"),
-    onboardingFeatured: true,
-  },
-  {
-    id: "claude_local",
-    label: "Claude Code",
-    description: "Local Claude Code CLI with session persistence and structured result parsing.",
-    defaultCommand: "claude",
-    defaultModel: claudeModels[0]?.id ?? null,
-    notes: "",
-    capabilityMatrix: {
-      sessionResume: true,
-      gracefulCancel: true,
-      modelDiscovery: false,
-      structuredTranscript: true,
-      costAttribution: true,
-    },
-    configurationDoc: claudeDoc,
-    module: {
-      type: "claude_local",
-      execute: claudeExecute,
-      testEnvironment: claudeTestEnvironment,
-      sessionCodec: claudeSessionCodec,
-      nativeContextManagement: true,
-      models: claudeModels,
-    },
-    listModels: async () => claudeModels,
-    provider: "anthropic",
-    auth: oauthAuth("anthropic"),
-    onboardingFeatured: true,
-  },
-  ...claudeCompatSlots.map((slot) => ({
-    ...slot,
-    provider: "anthropic",
-    auth: apiKeyAuth("ANTHROPIC_API_KEY"),
-  })),
-  {
-    id: "gemini_local",
-    label: "Gemini CLI",
-    description: "Local Gemini CLI with resume support and JSON event parsing.",
-    defaultCommand: "gemini",
-    defaultModel: DEFAULT_GEMINI_LOCAL_MODEL,
-    notes: "",
-    capabilityMatrix: {
-      sessionResume: true,
-      gracefulCancel: true,
-      modelDiscovery: false,
-      structuredTranscript: true,
-      costAttribution: true,
-    },
-    configurationDoc: geminiDoc,
-    module: {
-      type: "gemini_local",
-      execute: geminiExecute,
-      testEnvironment: geminiTestEnvironment,
-      sessionCodec: geminiSessionCodec,
-      nativeContextManagement: false,
-      models: geminiModels,
-    },
-    listModels: async () => geminiModels,
-    provider: "google",
-    auth: oauthAuth("gemini-cli"),
-    onboardingFeatured: true,
-  },
+  ...OAUTH_CONNECTORS,
+  ...API_KEY_CONNECTORS,
+  ...CLOUD_CONNECTORS,
 ];
