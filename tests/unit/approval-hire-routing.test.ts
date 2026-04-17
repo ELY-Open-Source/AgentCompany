@@ -24,7 +24,7 @@ describe("hire approval routing", () => {
     db.init();
 
     db.updateConnectorHealth({
-      id: "codex_local",
+      id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
@@ -51,7 +51,7 @@ describe("hire approval routing", () => {
       title: "Chief Executive Officer",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: null,
       capabilities: "Lead the company",
@@ -64,7 +64,7 @@ describe("hire approval routing", () => {
       title: "Chief Technology Officer",
       status: "active",
       reportsTo: ceoId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: null,
       capabilities: "Lead engineering",
@@ -80,7 +80,7 @@ describe("hire approval routing", () => {
       title: "Frontend Engineer",
       department: "engineering",
       reportsTo: ctoId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: null,
       metadataJson: "{}",

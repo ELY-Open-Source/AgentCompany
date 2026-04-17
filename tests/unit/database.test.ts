@@ -54,7 +54,7 @@ describe("AppDatabase", () => {
       title: "Lead operator",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: "gpt-5",
       capabilities: "Directs execution",
@@ -95,7 +95,7 @@ describe("AppDatabase", () => {
       value: "sk-test-secret",
     });
     db.saveConnector({
-      id: "codex_local",
+      id: "openai-codex",
       command: "codex",
       model: "gpt-5",
       envBindingText: "OPENAI_API_KEY=vault-openai",
@@ -189,14 +189,14 @@ describe("AppDatabase", () => {
       title: "Lead",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: null,
       capabilities: "Leads",
       budgetMonthlyUsd: 100,
     });
     db.saveConnector({
-      id: "codex_local",
+      id: "openai-codex",
       command: "codex",
       model: "gpt-5",
       envBindingText: "",
@@ -217,14 +217,14 @@ describe("AppDatabase", () => {
       taskId,
       agentId: leadId,
       workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
     const { id: runId2 } = db.createRun({
       companyId,
       taskId,
       agentId: leadId,
       workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
 
     expect(db.checkoutTask(taskId, runId1)).toBe(true);
@@ -255,7 +255,7 @@ describe("AppDatabase", () => {
       title: "Budget Owner",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: null,
       capabilities: "Ships work",
@@ -276,7 +276,7 @@ describe("AppDatabase", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
 
     const outcome = db.finishRun({
@@ -310,7 +310,7 @@ describe("AppDatabase", () => {
       title: "Manager",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId: null,
       model: null,
       capabilities: "Manages",
@@ -323,7 +323,7 @@ describe("AppDatabase", () => {
       title: "Pending Hire",
       status: "pending_approval",
       reportsTo: managerId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId: null,
       model: null,
       capabilities: "Will execute after approval",
@@ -362,7 +362,7 @@ describe("AppDatabase", () => {
       title: "Active",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId: null,
       model: null,
       capabilities: "Ships",
@@ -375,7 +375,7 @@ describe("AppDatabase", () => {
       title: "Pending",
       status: "pending_approval",
       reportsTo: activeAgentId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId: null,
       model: null,
       capabilities: "Waiting",
@@ -479,7 +479,7 @@ describe("AppDatabase", () => {
       title: "Test",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId: wsId,
       model: null,
       capabilities: "test",
@@ -495,7 +495,7 @@ describe("AppDatabase", () => {
       status: "todo",
     });
 
-    const run = db.createRun({ companyId, taskId, agentId, workspaceId: wsId, connectorId: "codex_local" });
+    const run = db.createRun({ companyId, taskId, agentId, workspaceId: wsId, connectorId: "openai-codex" });
     await db.appendRunLog(run.id, "stdout", "test log line\n");
 
     // Finish the run with a very old timestamp
@@ -544,7 +544,7 @@ describe("AppDatabase", () => {
       title: "CEO",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId: null,
       model: null,
       capabilities: "manage",
@@ -557,7 +557,7 @@ describe("AppDatabase", () => {
       title: "IC",
       status: "pending_approval",
       reportsTo: managerId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId: null,
       model: null,
       capabilities: "code",

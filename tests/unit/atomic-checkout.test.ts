@@ -37,7 +37,7 @@ function createTestCompany(db: AppDatabase): string {
 
 function createTestConnector(db: AppDatabase): void {
   db.saveConnector({
-    id: "codex_local",
+    id: "openai-codex",
     command: "codex",
     model: "gpt-5",
     envBindingText: "",
@@ -64,7 +64,7 @@ function createTestAgent(db: AppDatabase, companyId: string, workspaceId: string
     title: name,
     status: "active",
     reportsTo: null,
-    connectorId: "codex_local",
+    connectorId: "openai-codex",
     workspaceId,
     model: null,
     capabilities: "Executes tasks",
@@ -115,7 +115,7 @@ describe("CAS checkout", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
 
     const result = db.checkoutTask(taskId, runId);
@@ -137,14 +137,14 @@ describe("CAS checkout", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
     const { id: runId2 } = db.createRun({
       companyId,
       taskId,
       agentId,
       workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
 
     expect(db.checkoutTask(taskId, runId1)).toBe(true);
@@ -166,7 +166,7 @@ describe("CAS checkout", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
 
     expect(db.checkoutTask(taskId, runId)).toBe(false);
@@ -184,7 +184,7 @@ describe("CAS checkout", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
 
     db.checkoutTask(taskId, runId);
@@ -222,7 +222,7 @@ describe("CAS checkout", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
 
     db.checkoutTask(taskId, runId);
@@ -251,7 +251,7 @@ describe("CAS checkout", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
 
     db.checkoutTask(taskId, runId);
@@ -291,7 +291,7 @@ describe("CAS checkout", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
 
     db.checkoutTask(taskId, runId);

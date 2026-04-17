@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Trash, XCircle } from "@phosphor-icons/react";
+import { Trash, XCircle } from "./icons";
 import { ActionButton } from "./primitives";
 import { useFocusTrap } from "./hooks";
 

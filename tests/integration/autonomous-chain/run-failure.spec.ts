@@ -27,7 +27,7 @@ describe("Step 6: Run failure escalation (database layer)", () => {
       taskId,
       agentId,
       workspaceId: shared.workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
 
     shared.db.markRunStatus(run.id, "running", "Started");

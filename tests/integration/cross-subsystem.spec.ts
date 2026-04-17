@@ -52,10 +52,10 @@ const mockLogger = {
 
 /**
  * Creates a full entity scaffold with a budget policy:
- * company, workspace, connector (gemini_local), agent, goal, project, budget policy.
+ * company, workspace, connector (gemini-cli), agent, goal, project, budget policy.
  */
 function scaffold(db: AppDatabase, budgetAmountCents = 500): ScaffoldResult {
-  const connectorId: ConnectorId = "gemini_local";
+  const connectorId: ConnectorId = "gemini-cli";
 
   db.saveConnector({
     id: connectorId,
@@ -228,7 +228,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       taskId,
       companyId: s.companyId,
       agentId: s.agentId,
-      adapterType: "gemini_local",
+      adapterType: "gemini-cli",
       sessionParamsJson: null,
       sessionDisplayId: null,
     });
@@ -387,7 +387,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       taskId,
       companyId: s.companyId,
       agentId: s.agentId,
-      adapterType: "gemini_local",
+      adapterType: "gemini-cli",
       sessionParamsJson: null,
       sessionDisplayId: null,
     });

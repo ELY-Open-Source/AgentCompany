@@ -10,7 +10,7 @@ import {
 describe("shared contracts", () => {
   it("fills connector defaults for optional fields", () => {
     const parsed = connectorInputSchema.parse({
-      id: "codex_local",
+      id: "openai-codex",
       command: "codex",
     });
 

@@ -88,7 +88,7 @@ export function installSharedSetup(): SharedHandle {
       title: "Test",
       status: "idle",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId: state.workspaceId,
       model: null,
       capabilities: "Test capabilities",

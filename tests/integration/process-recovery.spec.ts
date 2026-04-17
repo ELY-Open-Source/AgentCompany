@@ -51,7 +51,7 @@ interface ScaffoldResult {
 
 /** Creates a full entity scaffold: company, workspace, connector, agent, goal, project. */
 function scaffold(db: AppDatabase): ScaffoldResult {
-  const connectorId: ConnectorId = "gemini_local";
+  const connectorId: ConnectorId = "gemini-cli";
 
   // Connector
   db.saveConnector({
@@ -445,7 +445,7 @@ describe("Process Recovery -- Context Preservation (D-02)", () => {
       taskId,
       companyId: s.companyId,
       agentId: s.agentId,
-      adapterType: "gemini_local",
+      adapterType: "gemini-cli",
       sessionParamsJson: null,
       sessionDisplayId: null,
     });
@@ -466,7 +466,7 @@ describe("Process Recovery -- Context Preservation (D-02)", () => {
 
     const rotationResult = sessionService.evaluateRotation(
       session!,
-      "gemini_local",
+      "gemini-cli",
       { maxRuns: 1 },
     );
     expect(rotationResult.shouldRotate).toBe(true);

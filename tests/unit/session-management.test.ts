@@ -41,7 +41,7 @@ function scaffold(db: AppDatabase) {
     title: "Developer",
     status: "active",
     reportsTo: null,
-    connectorId: "claude_local",
+    connectorId: "claude-pro",
     workspaceId,
     model: "claude-4-opus",
     capabilities: "Writes code",
@@ -107,7 +107,7 @@ describe("task_sessions CRUD", () => {
       taskId,
       companyId,
       agentId,
-      adapterType: "claude_local",
+      adapterType: "claude-pro",
       sessionParamsJson: JSON.stringify({ sessionId: "abc123" }),
       sessionDisplayId: "claude-abc123",
     });
@@ -118,7 +118,7 @@ describe("task_sessions CRUD", () => {
     expect(session!.taskId).toBe(taskId);
     expect(session!.companyId).toBe(companyId);
     expect(session!.agentId).toBe(agentId);
-    expect(session!.adapterType).toBe("claude_local");
+    expect(session!.adapterType).toBe("claude-pro");
     expect(session!.sessionParamsJson).toBe(JSON.stringify({ sessionId: "abc123" }));
     expect(session!.sessionDisplayId).toBe("claude-abc123");
     expect(session!.runCount).toBe(0);
@@ -135,7 +135,7 @@ describe("task_sessions CRUD", () => {
       taskId,
       companyId,
       agentId,
-      adapterType: "claude_local",
+      adapterType: "claude-pro",
       sessionParamsJson: null,
       sessionDisplayId: null,
     });
@@ -163,7 +163,7 @@ describe("task_sessions CRUD", () => {
       taskId,
       companyId,
       agentId,
-      adapterType: "claude_local",
+      adapterType: "claude-pro",
       sessionParamsJson: null,
       sessionDisplayId: null,
     });
@@ -183,7 +183,7 @@ describe("task_sessions CRUD", () => {
       taskId,
       companyId,
       agentId,
-      adapterType: "gemini_local",
+      adapterType: "gemini-cli",
       sessionParamsJson: JSON.stringify({ key: "val" }),
       sessionDisplayId: "gemini-session-1",
     });
@@ -195,14 +195,14 @@ describe("task_sessions CRUD", () => {
     const session = db.getActiveTaskSession(taskId);
     expect(session).not.toBeNull();
     expect(session!.id).toBe(sessionId);
-    expect(session!.adapterType).toBe("gemini_local");
+    expect(session!.adapterType).toBe("gemini-cli");
   });
 
   it("getRecentRunsForTask returns last N runs ordered by finished_at DESC", () => {
     const { taskId, companyId, agentId, workspaceId } = scaffold(db);
 
     // Create some runs
-    const run1 = db.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "claude_local" });
+    const run1 = db.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "claude-pro" });
     db.finishRun({
       runId: run1.id,
       status: "succeeded",
@@ -216,7 +216,7 @@ describe("task_sessions CRUD", () => {
       unattributedCost: false,
     });
 
-    const run2 = db.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "claude_local" });
+    const run2 = db.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "claude-pro" });
     db.finishRun({
       runId: run2.id,
       status: "failed",
@@ -242,22 +242,25 @@ describe("task_sessions CRUD", () => {
 });
 
 // ===========================================================================
-// adapter exemption
+// connector definition lookup
 // ===========================================================================
-describe("adapter exemption", () => {
-  it("claude_local connector has nativeContextManagement: true", () => {
-    const def = getConnectorDefinition("claude_local" as ConnectorId);
-    expect(def.module.nativeContextManagement).toBe(true);
+describe("connector definition lookup", () => {
+  it("resolves claude-pro definition from the pi-mono catalog", () => {
+    const def = getConnectorDefinition("claude-pro" as ConnectorId);
+    expect(def.id).toBe("claude-pro");
+    expect(def.provider).toBe("anthropic");
   });
 
-  it("codex_local connector has nativeContextManagement: true", () => {
-    const def = getConnectorDefinition("codex_local" as ConnectorId);
-    expect(def.module.nativeContextManagement).toBe(true);
+  it("resolves openai-codex definition from the pi-mono catalog", () => {
+    const def = getConnectorDefinition("openai-codex" as ConnectorId);
+    expect(def.id).toBe("openai-codex");
+    expect(def.provider).toBe("openai-codex");
   });
 
-  it("gemini_local connector has nativeContextManagement: false", () => {
-    const def = getConnectorDefinition("gemini_local" as ConnectorId);
-    expect(def.module.nativeContextManagement).toBe(false);
+  it("resolves gemini-cli definition from the pi-mono catalog", () => {
+    const def = getConnectorDefinition("gemini-cli" as ConnectorId);
+    expect(def.id).toBe("gemini-cli");
+    expect(def.provider).toBe("google-gemini-cli");
   });
 });
 
@@ -298,7 +301,7 @@ describe("session management service", () => {
         companyId: "co-1",
         taskId: "task-1",
         agentId: "agent-1",
-        adapterType: "gemini_local",
+        adapterType: "gemini-cli",
         sessionParamsJson: null,
         sessionDisplayId: null,
         lastRunId: null,
@@ -312,7 +315,7 @@ describe("session management service", () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      const result = svc.evaluateRotation(session, "gemini_local");
+      const result = svc.evaluateRotation(session, "gemini-cli");
       expect(result.shouldRotate).toBe(false);
       expect(result.reason).toBeNull();
     });
@@ -324,7 +327,7 @@ describe("session management service", () => {
         companyId: "co-1",
         taskId: "task-1",
         agentId: "agent-1",
-        adapterType: "gemini_local",
+        adapterType: "gemini-cli",
         sessionParamsJson: null,
         sessionDisplayId: null,
         lastRunId: null,
@@ -338,7 +341,7 @@ describe("session management service", () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      const result = svc.evaluateRotation(session, "gemini_local");
+      const result = svc.evaluateRotation(session, "gemini-cli");
       expect(result.shouldRotate).toBe(true);
       expect(result.reason).toBe("max_runs");
     });
@@ -350,7 +353,7 @@ describe("session management service", () => {
         companyId: "co-1",
         taskId: "task-1",
         agentId: "agent-1",
-        adapterType: "gemini_local",
+        adapterType: "gemini-cli",
         sessionParamsJson: null,
         sessionDisplayId: null,
         lastRunId: null,
@@ -364,7 +367,7 @@ describe("session management service", () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      const result = svc.evaluateRotation(session, "gemini_local");
+      const result = svc.evaluateRotation(session, "gemini-cli");
       expect(result.shouldRotate).toBe(true);
       expect(result.reason).toBe("max_tokens");
     });
@@ -377,7 +380,7 @@ describe("session management service", () => {
         companyId: "co-1",
         taskId: "task-1",
         agentId: "agent-1",
-        adapterType: "gemini_local",
+        adapterType: "gemini-cli",
         sessionParamsJson: null,
         sessionDisplayId: null,
         lastRunId: null,
@@ -391,24 +394,24 @@ describe("session management service", () => {
         createdAt: oldDate,
         updatedAt: oldDate,
       };
-      const result = svc.evaluateRotation(session, "gemini_local");
+      const result = svc.evaluateRotation(session, "gemini-cli");
       expect(result.shouldRotate).toBe(true);
       expect(result.reason).toBe("max_age_hours");
     });
   });
 
   // -------------------------------------------------------------------------
-  // adapter exemption in service
+  // uniform rotation under pi-mono
   // -------------------------------------------------------------------------
-  describe("adapter exemption in evaluateRotation", () => {
-    it("returns shouldRotate: false for nativeContextManagement=true even when thresholds exceeded", () => {
+  describe("uniform rotation under pi-mono", () => {
+    it("returns shouldRotate: true for all connectors when thresholds exceeded (pi-mono has no native exemption)", () => {
       const svc = createSessionManagementService({ db, logger: mockLogger });
       const session: TaskSessionRecord = {
         id: "sess-1",
         companyId: "co-1",
         taskId: "task-1",
         agentId: "agent-1",
-        adapterType: "claude_local",
+        adapterType: "claude-pro",
         sessionParamsJson: null,
         sessionDisplayId: null,
         lastRunId: null,
@@ -422,9 +425,9 @@ describe("session management service", () => {
         createdAt: new Date(Date.now() - 200 * 60 * 60 * 1000).toISOString(), // Way old
         updatedAt: new Date().toISOString(),
       };
-      const result = svc.evaluateRotation(session, "claude_local");
-      expect(result.shouldRotate).toBe(false);
-      expect(result.reason).toBeNull();
+      const result = svc.evaluateRotation(session, "claude-pro");
+      expect(result.shouldRotate).toBe(true);
+      expect(result.reason).not.toBeNull();
     });
   });
 
@@ -439,7 +442,7 @@ describe("session management service", () => {
         companyId: "co-1",
         taskId: "task-1",
         agentId: "agent-1",
-        adapterType: "gemini_local",
+        adapterType: "gemini-cli",
         sessionParamsJson: null,
         sessionDisplayId: null,
         lastRunId: null,
@@ -453,7 +456,7 @@ describe("session management service", () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      const result = svc.evaluateRotation(session, "gemini_local", { maxRuns: 5 });
+      const result = svc.evaluateRotation(session, "gemini-cli", { maxRuns: 5 });
       expect(result.shouldRotate).toBe(true);
       expect(result.reason).toBe("max_runs");
     });
@@ -465,7 +468,7 @@ describe("session management service", () => {
         companyId: "co-1",
         taskId: "task-1",
         agentId: "agent-1",
-        adapterType: "gemini_local",
+        adapterType: "gemini-cli",
         sessionParamsJson: null,
         sessionDisplayId: null,
         lastRunId: null,
@@ -479,7 +482,7 @@ describe("session management service", () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      const result = svc.evaluateRotation(session, "gemini_local", { maxTokens: 100000 });
+      const result = svc.evaluateRotation(session, "gemini-cli", { maxTokens: 100000 });
       expect(result.shouldRotate).toBe(true);
       expect(result.reason).toBe("max_tokens");
     });
@@ -491,7 +494,7 @@ describe("session management service", () => {
         companyId: "co-1",
         taskId: "task-1",
         agentId: "agent-1",
-        adapterType: "gemini_local",
+        adapterType: "gemini-cli",
         sessionParamsJson: null,
         sessionDisplayId: null,
         lastRunId: null,
@@ -505,7 +508,7 @@ describe("session management service", () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      const result = svc.evaluateRotation(session, "gemini_local");
+      const result = svc.evaluateRotation(session, "gemini-cli");
       expect(result.shouldRotate).toBe(false);
       expect(result.reason).toBeNull();
 
@@ -526,7 +529,7 @@ describe("session management service", () => {
         taskId,
         companyId,
         agentId,
-        adapterType: "claude_local",
+        adapterType: "claude-pro",
         sessionParamsJson: null,
         sessionDisplayId: null,
       });
@@ -552,13 +555,13 @@ describe("session management service", () => {
         taskId,
         companyId,
         agentId,
-        adapterType: "gemini_local",
+        adapterType: "gemini-cli",
         sessionParamsJson: null,
         sessionDisplayId: null,
       });
 
       // Create a completed run for history
-      const run = db.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "gemini_local" as ConnectorId });
+      const run = db.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "gemini-cli" as ConnectorId });
       db.finishRun({
         runId: run.id,
         status: "succeeded",
@@ -597,7 +600,7 @@ describe("session management service", () => {
         taskId,
         companyId,
         agentId,
-        adapterType: "gemini_local",
+        adapterType: "gemini-cli",
         sessionParamsJson: JSON.stringify({ resumeId: "old-abc" }),
         sessionDisplayId: "gemini-old",
       });
@@ -644,7 +647,7 @@ describe("session management service", () => {
         taskId,
         companyId,
         agentId,
-        adapterType: "gemini_local",
+        adapterType: "gemini-cli",
         sessionParamsJson: null,
         sessionDisplayId: null,
       });
@@ -663,7 +666,7 @@ describe("session management service", () => {
         taskId,
         companyId,
         agentId,
-        adapterType: "gemini_local",
+        adapterType: "gemini-cli",
         sessionParamsJson: null,
         sessionDisplayId: null,
       });
@@ -684,7 +687,7 @@ describe("session management service", () => {
         taskId,
         companyId,
         agentId,
-        adapterType: "gemini_local",
+        adapterType: "gemini-cli",
         sessionParamsJson: null,
         sessionDisplayId: null,
       });
@@ -773,7 +776,7 @@ describe("wiring integration", () => {
       db,
       { id: "task-1" },
       { inputTokens: 200, outputTokens: 100, runId: "run-1" },
-      "gemini_local",
+      "gemini-cli",
     );
 
     expect(sessionService.accumulateTokenUsage).toHaveBeenCalledWith("sess-1", 200, 100, "run-1");
@@ -789,10 +792,10 @@ describe("wiring integration", () => {
       db,
       { id: "task-1" },
       { inputTokens: 200, outputTokens: 100, runId: "run-1" },
-      "gemini_local",
+      "gemini-cli",
     );
 
-    expect(sessionService.evaluateRotation).toHaveBeenCalledWith(mockSession, "gemini_local");
+    expect(sessionService.evaluateRotation).toHaveBeenCalledWith(mockSession, "gemini-cli");
     // evaluateRotation called AFTER accumulateTokenUsage
     const accOrder = sessionService.accumulateTokenUsage.mock.invocationCallOrder[0];
     const evalOrder = sessionService.evaluateRotation.mock.invocationCallOrder[0];
@@ -815,7 +818,7 @@ describe("wiring integration", () => {
       db,
       { id: "task-1" },
       { inputTokens: 200, outputTokens: 100, runId: "run-1" },
-      "gemini_local",
+      "gemini-cli",
     );
 
     expect(sessionService.rotateSession).toHaveBeenCalledWith(updatedSession);
@@ -832,7 +835,7 @@ describe("wiring integration", () => {
       db,
       { id: "task-1" },
       { inputTokens: 200, outputTokens: 100, runId: "run-1" },
-      "gemini_local",
+      "gemini-cli",
     );
 
     expect(sessionService.rotateSession).not.toHaveBeenCalled();
@@ -847,7 +850,7 @@ describe("wiring integration", () => {
       db,
       null,
       { inputTokens: 200, outputTokens: 100, runId: "run-1" },
-      "gemini_local",
+      "gemini-cli",
     );
 
     expect(db.getActiveTaskSession).not.toHaveBeenCalled();
@@ -863,7 +866,7 @@ describe("wiring integration", () => {
       db,
       { id: "task-1" },
       { inputTokens: 200, outputTokens: 100, runId: "run-1" },
-      "gemini_local",
+      "gemini-cli",
     );
 
     expect(sessionService.accumulateTokenUsage).not.toHaveBeenCalled();
@@ -879,7 +882,7 @@ describe("wiring integration", () => {
       db,
       { id: "task-1" },
       { inputTokens: null, outputTokens: null, runId: "run-1" },
-      "gemini_local",
+      "gemini-cli",
     );
 
     expect(sessionService.accumulateTokenUsage).toHaveBeenCalledWith("sess-1", 0, 0, "run-1");

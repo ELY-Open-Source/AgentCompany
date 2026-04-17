@@ -25,7 +25,7 @@ describe("skill-aware capability registry", () => {
     db.init();
 
     db.updateConnectorHealth({
-      id: "codex_local",
+      id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
@@ -53,7 +53,7 @@ describe("skill-aware capability registry", () => {
       title: "Engineer",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: null,
       capabilities: "General software delivery",
@@ -66,7 +66,7 @@ describe("skill-aware capability registry", () => {
       title: "Frontend Specialist",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: null,
       capabilities: "General software delivery",
@@ -116,7 +116,7 @@ describe("skill-aware capability registry", () => {
     db.init();
 
     db.updateConnectorHealth({
-      id: "codex_local",
+      id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
@@ -143,7 +143,7 @@ describe("skill-aware capability registry", () => {
       title: "Chief Executive Officer",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: null,
       capabilities: "Lead the company",
@@ -193,7 +193,7 @@ describe("skill-aware capability registry", () => {
       recentComments: [],
       socialAccounts: [],
       allConnectors: snapshot.connectors
-        .filter((connector) => connector.id === "codex_local")
+        .filter((connector) => connector.id === "openai-codex")
         .map((connector) => ({ id: connector.id, label: connector.label, status: connector.status, enabledModels: ["gpt-5.4"] })),
       companySkillCatalog: db.listCompanySkills(companyId).map((skill) => ({
         name: skill.name,

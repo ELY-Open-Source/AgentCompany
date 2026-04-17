@@ -40,7 +40,7 @@ async function createHarness() {
     title: "Lead agent",
     status: "active",
     reportsTo: null,
-    connectorId: "codex_local",
+    connectorId: "openai-codex",
     workspaceId,
     model: null,
     capabilities: "Operate the company",
@@ -55,7 +55,7 @@ async function createHarness() {
     priority: "high",
     status: "todo",
   });
-  const run = db.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "codex_local" });
+  const run = db.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "openai-codex" });
   const token = createAgentToken(agentId, companyId, run.id);
   const server = createApiServer(db, () => {}, () => null);
   const port = await server.start();

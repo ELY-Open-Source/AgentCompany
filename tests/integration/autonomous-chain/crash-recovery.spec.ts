@@ -28,7 +28,7 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
       taskId,
       agentId,
       workspaceId: shared.workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
 
     shared.db.markRunStatus(run.id, "running", "Started");
@@ -66,7 +66,7 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
       taskId,
       agentId,
       workspaceId: shared.workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
 
     shared.db.markRunStatus(run.id, "running", "Started");

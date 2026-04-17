@@ -33,7 +33,7 @@ describe("company mode switching", () => {
     db.init();
 
     db.updateConnectorHealth({
-      id: "codex_local",
+      id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
@@ -63,7 +63,7 @@ describe("company mode switching", () => {
       title: "Chief Executive Officer",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: null,
       capabilities: "Lead the company",
@@ -76,7 +76,7 @@ describe("company mode switching", () => {
       title: "Lead Engineer",
       status: "active",
       reportsTo: ceoId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: null,
       capabilities: "Ship features",

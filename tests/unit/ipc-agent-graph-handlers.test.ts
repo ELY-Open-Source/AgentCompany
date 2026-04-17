@@ -32,13 +32,13 @@ describe("ipc-core-agent-graph-handlers model enforcement", () => {
     db.init();
 
     db.updateConnectorHealth({
-      id: "codex_local",
+      id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
       lastError: null,
     });
-    db.setDisabledModels("codex_local", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
+    db.setDisabledModels("openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
 
     const companyId = db.saveCompany({
       name: "Handler Test Co",
@@ -60,7 +60,7 @@ describe("ipc-core-agent-graph-handlers model enforcement", () => {
       title: "Chief Executive Officer",
       status: "idle",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: null,
       capabilities: "Lead the company",
@@ -93,7 +93,7 @@ describe("ipc-core-agent-graph-handlers model enforcement", () => {
       department: "executive",
       status: "idle",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: "gpt-5.4",
       metadataJson: "{}",

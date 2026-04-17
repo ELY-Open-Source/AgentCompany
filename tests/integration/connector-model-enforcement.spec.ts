@@ -70,7 +70,7 @@ describe("connector model enforcement", () => {
     db.init();
 
     db.updateConnectorHealth({
-      id: "codex_local",
+      id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
@@ -97,7 +97,7 @@ describe("connector model enforcement", () => {
       title: "Chief Executive Officer",
       status: "idle",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: "gpt-5.4",
       capabilities: "Lead the company",
@@ -113,7 +113,7 @@ describe("connector model enforcement", () => {
       status: "todo",
     });
 
-    db.setDisabledModels("codex_local", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
+    db.setDisabledModels("openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
 
     const { taskRunner } = createOrchestrationHarness(db);
     const result = taskRunner.queueTaskRun(taskId, "manual", "board");
@@ -134,7 +134,7 @@ describe("connector model enforcement", () => {
     db.init();
 
     db.updateConnectorHealth({
-      id: "codex_local",
+      id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
@@ -161,7 +161,7 @@ describe("connector model enforcement", () => {
       title: "Chief Executive Officer",
       status: "idle",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: "gpt-5.4",
       capabilities: "Lead the company",
@@ -182,12 +182,12 @@ describe("connector model enforcement", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
     const checkoutSuccess = db.checkoutTask(taskId, run.id);
     expect(checkoutSuccess).toBe(true);
 
-    db.setDisabledModels("codex_local", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
+    db.setDisabledModels("openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
 
     const { taskRunner } = createOrchestrationHarness(db);
     taskRunner.resumeQueuedRuns();

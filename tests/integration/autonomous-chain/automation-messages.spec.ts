@@ -91,13 +91,13 @@ describe("Agent Messages", () => {
   beforeEach(() => {
     agentAId = shared.db.saveAgent({
       companyId: shared.companyId, name: "Alice", role: "Engineer", title: "Senior Engineer",
-      department: "engineering", connectorId: "claude_local", status: "active",
+      department: "engineering", connectorId: "claude-pro", status: "active",
       capabilities: "Backend development, API design, code review",
       budgetMonthlyUsd: 100,
     });
     agentBId = shared.db.saveAgent({
       companyId: shared.companyId, name: "Bob", role: "Designer", title: "UX Designer",
-      department: "design", connectorId: "claude_local", status: "active",
+      department: "design", connectorId: "claude-pro", status: "active",
       capabilities: "UI design, wireframing, user research",
       budgetMonthlyUsd: 100,
     });
@@ -242,13 +242,13 @@ describe("Auto Task Assignment", () => {
   beforeEach(() => {
     backendId = shared.db.saveAgent({
       companyId: shared.companyId, name: "Backend Dev", role: "Backend Engineer", title: "Senior Backend",
-      department: "engineering", connectorId: "codex_local", status: "active",
+      department: "engineering", connectorId: "openai-codex", status: "active",
       capabilities: "API development, database design, Node.js, PostgreSQL, backend testing",
       budgetMonthlyUsd: 200,
     });
     frontendId = shared.db.saveAgent({
       companyId: shared.companyId, name: "Frontend Dev", role: "Frontend Engineer", title: "Senior Frontend",
-      department: "engineering", connectorId: "codex_local", status: "active",
+      department: "engineering", connectorId: "openai-codex", status: "active",
       capabilities: "React, TypeScript, CSS, Tailwind, responsive design, frontend testing, UI components",
       budgetMonthlyUsd: 200,
     });
@@ -290,8 +290,8 @@ describe("Auto Task Assignment", () => {
 
   it("returns null if all agents have exhausted their budget", () => {
     // Set positive budgets that are fully spent
-    shared.db.saveAgent({ id: backendId, companyId: shared.companyId, name: "Backend Dev", role: "Backend", title: "Backend", connectorId: "codex_local", status: "active", capabilities: "backend", budgetMonthlyUsd: 100 });
-    shared.db.saveAgent({ id: frontendId, companyId: shared.companyId, name: "Frontend Dev", role: "Frontend", title: "Frontend", connectorId: "codex_local", status: "active", capabilities: "frontend", budgetMonthlyUsd: 100 });
+    shared.db.saveAgent({ id: backendId, companyId: shared.companyId, name: "Backend Dev", role: "Backend", title: "Backend", connectorId: "openai-codex", status: "active", capabilities: "backend", budgetMonthlyUsd: 100 });
+    shared.db.saveAgent({ id: frontendId, companyId: shared.companyId, name: "Frontend Dev", role: "Frontend", title: "Frontend", connectorId: "openai-codex", status: "active", capabilities: "frontend", budgetMonthlyUsd: 100 });
     // Exhaust budgets by recording spending via direct SQL (since finishRun would need a real run)
     (shared.db as unknown as { db: { prepare: (sql: string) => { run: (...args: unknown[]) => void } } }).db.prepare("update agents set spent_monthly_usd = 100 where id = ?").run(backendId);
     (shared.db as unknown as { db: { prepare: (sql: string) => { run: (...args: unknown[]) => void } } }).db.prepare("update agents set spent_monthly_usd = 100 where id = ?").run(frontendId);

@@ -11,7 +11,7 @@ describe("buildCapabilityRegistrySection", () => {
         { name: "Primary", localPath: "/tmp/workspace" },
       ],
       allConnectors: [
-        { id: "codex_local", label: "Codex", status: "ready", enabledModels: ["gpt-5.4"] },
+        { id: "openai-codex", label: "Codex", status: "ready", enabledModels: ["gpt-5.4"] },
       ],
       companyDocuments: [
         {
@@ -38,7 +38,7 @@ describe("buildCapabilityRegistrySection", () => {
     expect(section).toContain("# Company Capability Registry");
     expect(section).toContain("React Standards (`react-standards`)");
     expect(section).toContain("Primary: /tmp/workspace");
-    expect(section).toContain("Codex (`codex_local`) — models: gpt-5.4");
+    expect(section).toContain("Codex (`openai-codex`) — models: gpt-5.4");
     expect(section).toContain("architecture_decision");
   });
 });

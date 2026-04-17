@@ -49,7 +49,7 @@ describe("HumanApprovalHook", () => {
       title: "Eng",
       status: "running",
       reportsTo: null,
-      connectorId: "claude_local",
+      connectorId: "claude-pro",
       workspaceId,
       model: null,
       capabilities: "Build",

@@ -1,7 +1,21 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+
+beforeAll(() => {
+  process.env.AGENTCOMPANY_ALLOW_INSECURE_VAULT = "true";
+});
+
+vi.mock("electron", () => ({
+  safeStorage: {
+    isEncryptionAvailable: () => false,
+    getSelectedStorageBackend: () => "basic_text",
+    encryptString: (value: string) => Buffer.from(value, "utf8"),
+    decryptString: (value: Buffer) => value.toString("utf8"),
+  },
+}));
+
 import { AppDatabase } from "../../src/main/database";
 
 const tempDirs: string[] = [];
@@ -45,7 +59,7 @@ describe("AppDatabase", () => {
       title: "Lead agent",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: null,
       capabilities: "Operate the company",
@@ -89,7 +103,7 @@ describe("AppDatabase", () => {
     });
 
     db.saveConnector({
-      id: "codex_local",
+      id: "openai-codex",
       command: "codex",
       model: null,
       envBindingText: "OPENAI_API_KEY=vault-openai",
@@ -105,7 +119,7 @@ describe("AppDatabase", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
     });
 
     await db.appendRunLog(run.id, "stdout", "hello from run\n");
@@ -190,7 +204,7 @@ describe("AppDatabase", () => {
       title: "",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId: alphaWorkspaceId,
       model: null,
       capabilities: "Lead alpha",
@@ -204,7 +218,7 @@ describe("AppDatabase", () => {
       title: "",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId: betaWorkspaceId,
       model: null,
       capabilities: "Lead beta",

@@ -24,7 +24,7 @@ describe("deliverable review feedback writeback", () => {
     db.init();
 
     db.updateConnectorHealth({
-      id: "codex_local",
+      id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
@@ -51,7 +51,7 @@ describe("deliverable review feedback writeback", () => {
       title: "Research Lead",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: null,
       capabilities: "Research and synthesis",

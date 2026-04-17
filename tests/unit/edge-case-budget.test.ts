@@ -26,7 +26,7 @@ function scaffold(db: AppDatabase) {
     status: "active",
   });
   db.saveConnector({
-    id: "gemini_local",
+    id: "gemini-cli",
     command: "gemini",
     model: "gemini-pro",
     envBindingText: "",
@@ -47,7 +47,7 @@ function scaffold(db: AppDatabase) {
     title: "Developer",
     status: "active",
     reportsTo: null,
-    connectorId: "gemini_local",
+    connectorId: "gemini-cli",
     workspaceId,
     model: null,
     capabilities: "Executes tasks",
@@ -134,7 +134,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     db.checkoutTask(taskId, run1.id);
     db.markRunStatus(run1.id, "running", "");
@@ -154,7 +154,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       taskId: taskId2,
       agentId,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     db.checkoutTask(taskId2, run0.id);
     db.markRunStatus(run0.id, "running", "");
@@ -222,7 +222,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     db.checkoutTask(taskId, run.id);
     db.markRunStatus(run.id, "running", "");
@@ -271,7 +271,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     db.checkoutTask(taskId, run.id);
     db.markRunStatus(run.id, "running", "");
@@ -329,7 +329,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     db.checkoutTask(taskId, run.id);
     db.markRunStatus(run.id, "running", "");
@@ -382,7 +382,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     db.checkoutTask(taskId, run.id);
     db.markRunStatus(run.id, "running", "");
@@ -429,7 +429,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     db.checkoutTask(taskId, run.id);
     db.markRunStatus(run.id, "running", "");

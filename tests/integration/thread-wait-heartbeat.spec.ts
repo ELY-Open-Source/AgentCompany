@@ -29,7 +29,7 @@ function createNoopLogger() {
 
 function createScaffold(db: AppDatabase) {
   db.updateConnectorHealth({
-    id: "codex_local",
+    id: "openai-codex",
     status: "ready",
     authState: "authenticated",
     version: "test",
@@ -57,7 +57,7 @@ function createScaffold(db: AppDatabase) {
     title: "Chief Executive Officer",
     status: "idle",
     reportsTo: null,
-    connectorId: "codex_local",
+    connectorId: "openai-codex",
     workspaceId,
     model: null,
     capabilities: "Lead the company",
@@ -70,7 +70,7 @@ function createScaffold(db: AppDatabase) {
     title: "Lead Engineer",
     status: "idle",
     reportsTo: ceoId,
-    connectorId: "codex_local",
+    connectorId: "openai-codex",
     workspaceId,
     model: null,
     capabilities: "Ship features",
@@ -140,7 +140,7 @@ describe("thread wait + heartbeat integration", () => {
       title: "Chief Marketing Officer",
       status: "idle",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId: db.getTask(taskId).workspaceId ?? null,
       model: null,
       capabilities: "Drive marketing work",

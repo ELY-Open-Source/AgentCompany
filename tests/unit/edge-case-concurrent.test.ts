@@ -37,7 +37,7 @@ function createTestCompany(db: AppDatabase): string {
 
 function createTestConnector(db: AppDatabase): void {
   db.saveConnector({
-    id: "gemini_local",
+    id: "gemini-cli",
     command: "gemini",
     model: "gemini-pro",
     envBindingText: "",
@@ -64,7 +64,7 @@ function createTestAgent(db: AppDatabase, companyId: string, workspaceId: string
     title: name,
     status: "active",
     reportsTo: null,
-    connectorId: "gemini_local",
+    connectorId: "gemini-cli",
     workspaceId,
     model: null,
     capabilities: "Executes tasks",
@@ -116,14 +116,14 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       taskId,
       agentId: agentA,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     const { id: runIdB } = db.createRun({
       companyId,
       taskId,
       agentId: agentB,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
 
     // Agent-A claims first
@@ -152,14 +152,14 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       taskId: taskId1,
       agentId: agentA,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     const { id: runIdB1 } = db.createRun({
       companyId,
       taskId: taskId1,
       agentId: agentB,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
 
     // Agent-A wins first task
@@ -174,7 +174,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       taskId: taskId2,
       agentId: agentB,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     const resultB2 = db.checkoutTask(taskId2, runIdB2);
     expect(resultB2).toBe(true);
@@ -198,7 +198,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       taskId,
       agentId: agentA,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     expect(db.checkoutTask(taskId, runIdA)).toBe(true);
 
@@ -208,7 +208,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       taskId,
       agentId: agentB,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     const result = db.checkoutTask(taskId, runIdB);
     expect(result).toBe(false);
@@ -231,7 +231,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       taskId,
       agentId: agentA,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     expect(db.checkoutTask(taskId, runIdA)).toBe(true);
 
@@ -252,7 +252,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       taskId,
       agentId: agentB,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     const result = db.checkoutTask(taskId, runIdB);
     expect(result).toBe(false);
@@ -270,7 +270,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       taskId,
       agentId: agentA,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     expect(db.checkoutTask(taskId, runIdA)).toBe(true);
 
@@ -306,7 +306,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       taskId,
       agentId: agentA,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     expect(db.checkoutTask(taskId, runIdA)).toBe(true);
 
@@ -328,7 +328,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       taskId,
       agentId: agentB,
       workspaceId,
-      connectorId: "gemini_local",
+      connectorId: "gemini-cli",
     });
     const result = db.checkoutTask(taskId, runIdB);
     expect(result).toBe(true);

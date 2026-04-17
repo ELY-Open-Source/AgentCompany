@@ -25,7 +25,7 @@ async function createHarness() {
   db.init();
 
   db.updateConnectorHealth({
-    id: "codex_local",
+    id: "openai-codex",
     status: "ready",
     authState: "authenticated",
     version: "test",
@@ -52,7 +52,7 @@ async function createHarness() {
     title: "Chief Executive Officer",
     status: "active",
     reportsTo: null,
-    connectorId: "codex_local",
+    connectorId: "openai-codex",
     workspaceId,
     model: null,
     capabilities: "Lead the company",
@@ -65,7 +65,7 @@ async function createHarness() {
     title: "Chief Technology Officer",
     status: "active",
     reportsTo: ceoId,
-    connectorId: "codex_local",
+    connectorId: "openai-codex",
     workspaceId,
     model: null,
     capabilities: "Lead engineering",
@@ -81,7 +81,7 @@ async function createHarness() {
     priority: "high",
     status: "in_progress",
   });
-  const run = db.createRun({ companyId, taskId, agentId: ctoId, workspaceId, connectorId: "codex_local" });
+  const run = db.createRun({ companyId, taskId, agentId: ctoId, workspaceId, connectorId: "openai-codex" });
   const token = createAgentToken(ctoId, companyId, run.id);
   const server = createApiServer(db, () => {}, () => null);
   const port = await server.start();
@@ -114,7 +114,7 @@ describe("recursive org execution", () => {
           role: "Engineer",
           title: "Frontend Engineer",
           department: "engineering",
-          connectorId: "codex_local",
+          connectorId: "openai-codex",
           workspaceId: harness.workspaceId,
           model: null,
           capabilities: "React, TypeScript, Tailwind, frontend delivery",
@@ -176,7 +176,7 @@ describe("recursive org execution", () => {
         title: "Director of People",
         status: "active",
         reportsTo: harness.ceoId,
-        connectorId: "codex_local",
+        connectorId: "openai-codex",
         workspaceId: harness.workspaceId,
         model: null,
         capabilities: "Coordinate staffing",
@@ -197,7 +197,7 @@ describe("recursive org execution", () => {
         taskId: hrTaskId,
         agentId: hrId,
         workspaceId: harness.workspaceId,
-        connectorId: "codex_local",
+        connectorId: "openai-codex",
       });
       const hrToken = createAgentToken(hrId, harness.companyId, hrRun.id);
 
@@ -213,7 +213,7 @@ describe("recursive org execution", () => {
           role: "Backend Engineer",
           title: "Backend Engineer Golang",
           department: "engineering",
-          connectorId: "codex_local",
+          connectorId: "openai-codex",
           workspaceId: harness.workspaceId,
           model: null,
           capabilities: "Go, PostgreSQL, distributed systems",
@@ -243,7 +243,7 @@ describe("recursive org execution", () => {
           role: "Backend Engineer",
           title: "Backend Engineer Golang",
           department: "engineering",
-          connectorId: "codex_local",
+          connectorId: "openai-codex",
           workspaceId: harness.workspaceId,
           model: null,
           capabilities: "Go, APIs",
@@ -270,7 +270,7 @@ describe("recursive org execution", () => {
         title: "Chief Marketing Officer",
         status: "active",
         reportsTo: harness.ceoId,
-        connectorId: "codex_local",
+        connectorId: "openai-codex",
         workspaceId: harness.workspaceId,
         model: null,
         capabilities: "Lead marketing",
@@ -287,7 +287,7 @@ describe("recursive org execution", () => {
           title: "Misrouted Engineer",
           department: "engineering",
           reportsTo: cmoId,
-          connectorId: "codex_local",
+          connectorId: "openai-codex",
           workspaceId: harness.workspaceId,
           model: null,
           capabilities: "Should not report outside the CTO branch",

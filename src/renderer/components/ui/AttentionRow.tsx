@@ -1,6 +1,6 @@
 import type { ElementType, ReactNode } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight } from "@phosphor-icons/react";
+import { ArrowRight } from "./icons";
 
 const ATTENTION_STAGGER_MAX = 8;
 const ATTENTION_STAGGER_STEP = 0.04;

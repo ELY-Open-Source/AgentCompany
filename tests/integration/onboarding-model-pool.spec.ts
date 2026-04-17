@@ -6,6 +6,16 @@ import { AppDatabase } from "../../src/main/database";
 import { createOnboardingService } from "../../src/main/onboarding-service";
 import { buildRunPayload } from "../../src/main/orchestration/turn-context";
 import { getConnectorDefinition } from "../../src/main/connectors";
+import { getModels } from "@mariozechner/pi-ai";
+
+function listProviderModels(provider: string): Array<{ id: string; label: string }> {
+  try {
+    const models = getModels(provider as never);
+    return models.map((model) => ({ id: model.id, label: model.name ?? model.id }));
+  } catch {
+    return [];
+  }
+}
 
 const tempDirs: string[] = [];
 
@@ -80,22 +90,22 @@ describe("onboarding model pool integration", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const codexDefinition = getConnectorDefinition("codex_local");
-    const enabledModel = codexDefinition.module.models?.[0]?.id;
-    const disabledModel = codexDefinition.module.models?.[1]?.id;
+    const codexDefinition = getConnectorDefinition("openai-codex");
+    const enabledModel = listProviderModels(codexDefinition.provider)[0]?.id;
+    const disabledModel = listProviderModels(codexDefinition.provider)[1]?.id;
 
     if (!enabledModel || !disabledModel) {
-      throw new Error("codex_local requires at least two models for this integration test.");
+      throw new Error("openai-codex requires at least two models for this integration test.");
     }
 
     db.updateConnectorHealth({
-      id: "codex_local",
+      id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
       lastError: null,
     });
-    db.setDisabledModels("codex_local", [{ id: disabledModel, label: disabledModel }]);
+    db.setDisabledModels("openai-codex", [{ id: disabledModel, label: disabledModel }]);
 
     const summary = createBootstrapHarness(db).bootstrapOnboarding({
       companyName: "Model Governance Co",
@@ -106,7 +116,7 @@ describe("onboarding model pool integration", () => {
       executionMode: "ai_ceo",
       goalTitle: "Launch runtime-safe company",
       goalDescription: "Ensure onboarding connector models flow into runtime decisions.",
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       connectorModel: enabledModel,
     });
 
@@ -115,9 +125,9 @@ describe("onboarding model pool integration", () => {
     }
 
     const agent = db.getAgent(summary.leadAgentId);
-    expect(agent.connectorId).toBe("codex_local");
+    expect(agent.connectorId).toBe("openai-codex");
     expect(agent.model).toBe(enabledModel);
-    expect(db.getDisabledModels("codex_local")).toEqual([{ id: disabledModel, label: disabledModel }]);
+    expect(db.getDisabledModels("openai-codex")).toEqual([{ id: disabledModel, label: disabledModel }]);
     expect(db.getCurrentCompanyId()).toBe(summary.companyId);
 
     const payload = buildKickoffPayload(db, summary);
@@ -128,7 +138,7 @@ describe("onboarding model pool integration", () => {
     expect(systemPrompt).toContain(enabledModel);
     const codexConnectorLine = systemPrompt
       .split("\n")
-      .find((line) => line.includes("**Codex**"));
+      .find((line) => line.includes("ChatGPT Plus/Pro (Codex)"));
     expect(codexConnectorLine).toBeDefined();
     expect(codexConnectorLine).not.toContain(`, ${disabledModel},`);
     expect(codexConnectorLine).not.toContain(` ${disabledModel}.`);
@@ -136,46 +146,53 @@ describe("onboarding model pool integration", () => {
     db.close();
   });
 
-  it("uses compat connector csv models minus disabled entries in runtime prompt context", async () => {
+  it("excludes disabled pi-ai models from anthropic connector runtime prompt context", async () => {
     const profileDir = await createTempDir("agentcompany-onboarding-compat-");
     const workspaceDir = await createTempDir("agentcompany-onboarding-compat-workspace-");
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.saveConnector({
-      id: "claude_compatible",
-      command: "claude",
-      model: "model-alpha,model-beta,model-gamma",
-      envBindingText: "",
-      notes: "Custom provider",
-    });
+    const anthropicDefinition = getConnectorDefinition("anthropic");
+    const anthropicModels = listProviderModels(anthropicDefinition.provider);
+    const enabledModel = anthropicModels[0]?.id;
+    const disabledModel = anthropicModels[1]?.id;
+    if (!enabledModel || !disabledModel) {
+      throw new Error("anthropic provider must expose at least two models from pi-ai.");
+    }
+
     db.updateConnectorHealth({
-      id: "claude_compatible",
+      id: "anthropic",
       status: "ready",
       authState: "authenticated",
       version: "test",
       lastError: null,
     });
-    db.setDisabledModels("claude_compatible", [{ id: "model-beta", label: "model-beta" }]);
+    db.setDisabledModels("anthropic", [{ id: disabledModel, label: disabledModel }]);
 
     const summary = createBootstrapHarness(db).bootstrapOnboarding({
-      companyName: "Compat Governance Co",
-      companyDescription: "Tests compat model governance",
+      companyName: "Anthropic Governance Co",
+      companyDescription: "Tests anthropic model governance",
       workspacePath: workspaceDir,
       autoApproveHires: true,
       reviewDeliverables: false,
       executionMode: "ai_ceo",
-      goalTitle: "Launch compat company",
-      goalDescription: "Ensure compat model pools survive onboarding and runtime prompt assembly.",
-      connectorId: "claude_compatible",
-      connectorModel: "model-alpha",
+      goalTitle: "Launch anthropic company",
+      goalDescription: "Ensure anthropic model pools survive onboarding and runtime prompt assembly.",
+      connectorId: "anthropic",
+      connectorModel: enabledModel,
     });
 
     const payload = buildKickoffPayload(db, summary);
     expect(payload.systemPrompt).not.toBeNull();
     const systemPrompt = payload.systemPrompt ?? "";
-    expect(systemPrompt).toContain("Enabled models: model-alpha, model-gamma.");
-    expect(systemPrompt).not.toContain("model-beta");
+    expect(systemPrompt).toContain("Enabled models:");
+    expect(systemPrompt).toContain(enabledModel);
+    const anthropicLine = systemPrompt
+      .split("\n")
+      .find((line) => line.includes(anthropicDefinition.label));
+    expect(anthropicLine).toBeDefined();
+    expect(anthropicLine).not.toContain(`, ${disabledModel},`);
+    expect(anthropicLine).not.toContain(` ${disabledModel}.`);
 
     db.close();
   });
@@ -187,7 +204,7 @@ describe("onboarding model pool integration", () => {
     db.init();
 
     db.updateConnectorHealth({
-      id: "codex_local",
+      id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
@@ -203,7 +220,7 @@ describe("onboarding model pool integration", () => {
       executionMode: "ai_ceo",
       goalTitle: "Launch default-mode company",
       goalDescription: "Leave the CEO model unset so runtime falls back to connector defaults.",
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       connectorModel: "",
     });
 
@@ -215,7 +232,7 @@ describe("onboarding model pool integration", () => {
     expect(agent.model).toBeNull();
 
     const payload = buildKickoffPayload(db, summary);
-    const defaultModel = getConnectorDefinition("codex_local").defaultModel;
+    const defaultModel = getConnectorDefinition("openai-codex").defaultModel;
     expect(payload.model).toBe(defaultModel);
 
     db.close();
@@ -227,22 +244,22 @@ describe("onboarding model pool integration", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const codexDefinition = getConnectorDefinition("codex_local");
+    const codexDefinition = getConnectorDefinition("openai-codex");
     const defaultModel = codexDefinition.defaultModel;
-    const fallbackModel = codexDefinition.module.models?.find((model) => model.id !== defaultModel)?.id;
+    const fallbackModel = listProviderModels(codexDefinition.provider).find((model) => model.id !== defaultModel)?.id;
 
     if (!defaultModel || !fallbackModel) {
-      throw new Error("codex_local requires a default and fallback model for reroute testing.");
+      throw new Error("openai-codex requires a default and fallback model for reroute testing.");
     }
 
     db.updateConnectorHealth({
-      id: "codex_local",
+      id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
       lastError: null,
     });
-    db.setDisabledModels("codex_local", [{ id: defaultModel, label: defaultModel }]);
+    db.setDisabledModels("openai-codex", [{ id: defaultModel, label: defaultModel }]);
 
     const summary = createBootstrapHarness(db).bootstrapOnboarding({
       companyName: "Default Reroute Co",
@@ -253,7 +270,7 @@ describe("onboarding model pool integration", () => {
       executionMode: "ai_ceo",
       goalTitle: "Launch rerouted company",
       goalDescription: "Ensure runtime picks the first enabled model when connector default is disabled.",
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       connectorModel: "",
     });
 
@@ -269,21 +286,21 @@ describe("onboarding model pool integration", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const codexDefinition = getConnectorDefinition("codex_local");
-    const disabledModel = codexDefinition.module.models?.[0]?.id;
+    const codexDefinition = getConnectorDefinition("openai-codex");
+    const disabledModel = listProviderModels(codexDefinition.provider)[0]?.id;
 
     if (!disabledModel) {
-      throw new Error("codex_local requires a model to validate onboarding rejection.");
+      throw new Error("openai-codex requires a model to validate onboarding rejection.");
     }
 
     db.updateConnectorHealth({
-      id: "codex_local",
+      id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
       lastError: null,
     });
-    db.setDisabledModels("codex_local", [{ id: disabledModel, label: disabledModel }]);
+    db.setDisabledModels("openai-codex", [{ id: disabledModel, label: disabledModel }]);
 
     expect(() => createBootstrapHarness(db).bootstrapOnboarding({
       companyName: "Rejected Model Co",
@@ -294,9 +311,9 @@ describe("onboarding model pool integration", () => {
       executionMode: "ai_ceo",
       goalTitle: "Reject disabled model bootstrap",
       goalDescription: "Invalid explicit models should fail before the CEO is created.",
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       connectorModel: disabledModel,
-    })).toThrow(`Codex does not allow model "${disabledModel}".`);
+    })).toThrow(`${codexDefinition.label} does not allow model "${disabledModel}".`);
 
     db.close();
   });

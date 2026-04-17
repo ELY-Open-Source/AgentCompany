@@ -17,36 +17,35 @@ import type {
 
 describe("skill-types", () => {
   describe("TOKEN_BUDGETS", () => {
-    it("has entries for all supported adapter types", () => {
-      expect(TOKEN_BUDGETS).toHaveProperty("claude_local");
-      expect(TOKEN_BUDGETS).toHaveProperty("codex_local");
-      expect(TOKEN_BUDGETS).toHaveProperty("gemini_local");
-      expect(TOKEN_BUDGETS).toHaveProperty("claude_compatible");
+    it("has entries for all supported connector types", () => {
+      expect(TOKEN_BUDGETS).toHaveProperty("claude-pro");
+      expect(TOKEN_BUDGETS).toHaveProperty("anthropic");
+      expect(TOKEN_BUDGETS).toHaveProperty("gemini-cli");
+      expect(TOKEN_BUDGETS).toHaveProperty("google");
     });
 
-    it("has numeric token caps for each adapter", () => {
-      expect(TOKEN_BUDGETS.claude_local).toBe(50000);
-      expect(TOKEN_BUDGETS.codex_local).toBe(30000);
-      expect(TOKEN_BUDGETS.gemini_local).toBe(50000);
-      expect(TOKEN_BUDGETS.claude_compatible).toBe(50000);
+    it("has numeric token caps for each connector", () => {
+      expect(TOKEN_BUDGETS["claude-pro"]).toBe(50000);
+      expect(TOKEN_BUDGETS["anthropic"]).toBe(50000);
+      expect(TOKEN_BUDGETS["gemini-cli"]).toBe(50000);
+      expect(TOKEN_BUDGETS["google"]).toBe(50000);
     });
   });
 
   describe("resolveTokenBudget", () => {
-    it("returns exact match for known adapter types", () => {
-      expect(resolveTokenBudget("claude_local")).toBe(50000);
-      expect(resolveTokenBudget("codex_local")).toBe(30000);
-      expect(resolveTokenBudget("gemini_local")).toBe(50000);
+    it("returns exact match for known connector types", () => {
+      expect(resolveTokenBudget("claude-pro")).toBe(50000);
+      expect(resolveTokenBudget("anthropic")).toBe(50000);
+      expect(resolveTokenBudget("gemini-cli")).toBe(50000);
     });
 
-    it("resolves claude_compat_* variants to claude_compatible budget", () => {
-      expect(resolveTokenBudget("claude_compat_2")).toBe(50000);
-      expect(resolveTokenBudget("claude_compat_10")).toBe(50000);
-      expect(resolveTokenBudget("claude_compatible")).toBe(50000);
+    it("resolves anthropic-family connectors to the larger injection budget", () => {
+      expect(resolveTokenBudget("amazon-bedrock")).toBe(50000);
+      expect(resolveTokenBudget("google-vertex")).toBe(50000);
     });
 
-    it("returns 30000 default for unknown adapter types", () => {
-      expect(resolveTokenBudget("unknown_adapter")).toBe(30000);
+    it("returns 30000 default for unknown connector types", () => {
+      expect(resolveTokenBudget("unknown_connector")).toBe(30000);
     });
   });
 

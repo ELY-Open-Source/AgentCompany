@@ -71,7 +71,7 @@ describe("agent model switching", () => {
     db.init();
 
     db.updateConnectorHealth({
-      id: "codex_local",
+      id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
@@ -98,7 +98,7 @@ describe("agent model switching", () => {
       title: "Frontend Engineer",
       status: "idle",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: "gpt-5.4",
       capabilities: "Build frontend features",
@@ -147,7 +147,7 @@ describe("agent model switching", () => {
       title: "Frontend Engineer",
       status: "idle",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: "gpt-5.3-codex",
       capabilities: "Build frontend features",

@@ -26,7 +26,7 @@ async function createHarness() {
   db.init();
 
   db.updateConnectorHealth({
-    id: "codex_local",
+    id: "openai-codex",
     status: "ready",
     authState: "authenticated",
     version: "test",
@@ -53,7 +53,7 @@ async function createHarness() {
     title: "Research Lead",
     status: "active",
     reportsTo: null,
-    connectorId: "codex_local",
+    connectorId: "openai-codex",
     workspaceId,
     model: null,
     capabilities: "Research and synthesis",
@@ -86,7 +86,7 @@ async function createHarness() {
     taskId,
     agentId,
     workspaceId,
-    connectorId: "codex_local",
+    connectorId: "openai-codex",
   });
   const token = createAgentToken(agentId, companyId, run.id);
   const server = createApiServer(db, () => {}, () => null);

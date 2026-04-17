@@ -10,7 +10,7 @@ const baseHireRequest = {
   title: "Backend Engineer",
   department: "engineering" as const,
   reportsTo: null,
-  connectorId: "codex_local" as const,
+  connectorId: "openai-codex" as const,
   workspaceId: null,
   model: null,
   metadataJson: "{}",

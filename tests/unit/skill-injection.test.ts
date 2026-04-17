@@ -6,7 +6,7 @@ describe("buildConnectorSection", () => {
     const section = buildConnectorSection({
       allConnectors: [
         {
-          id: "codex_local",
+          id: "openai-codex",
           label: "Codex",
           status: "ready",
           enabledModels: ["gpt-5.4", "gpt-5.4-mini"],
@@ -22,7 +22,7 @@ describe("buildConnectorSection", () => {
     const section = buildConnectorSection({
       allConnectors: [
         {
-          id: "codex_local",
+          id: "openai-codex",
           label: "Codex",
           status: "ready",
           enabledModels: ["gpt-5.4"],
@@ -38,7 +38,7 @@ describe("buildConnectorSection", () => {
     const section = buildConnectorSection({
       allConnectors: [
         {
-          id: "codex_local",
+          id: "openai-codex",
           label: "Codex",
           status: "ready",
           enabledModels: [],

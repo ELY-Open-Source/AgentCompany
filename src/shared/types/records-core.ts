@@ -6,6 +6,7 @@ import type {
   WorkspaceState,
   DepartmentId,
   AgentStatus,
+  AgentRoleLevel,
   GoalStatus,
   ProjectStatus,
   TaskStatus,
@@ -73,6 +74,8 @@ export interface AgentRecord {
   name: string;
   role: string;
   title: string;
+  /** Seniority enum used for leadership detection; free-text `role` remains UI-editable. */
+  roleLevel: AgentRoleLevel;
   department: DepartmentId | null;
   status: AgentStatus;
   reportsTo: string | null;

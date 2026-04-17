@@ -20,16 +20,16 @@ import type { ConnectorId } from "@shared/types";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function scaffold(db: AppDatabase, connectorId: ConnectorId = "gemini_local") {
+function scaffold(db: AppDatabase, connectorId: ConnectorId = "gemini-cli") {
   const companyId = db.saveCompany({
     name: "Session Edge Case Co",
     description: "Session rotation edge case tests (D-05.3)",
     status: "active",
   });
 
-  // Always save gemini_local (needed for most tests)
+  // Always save gemini-cli (needed for most tests)
   db.saveConnector({
-    id: "gemini_local",
+    id: "gemini-cli",
     command: "gemini",
     model: "gemini-pro",
     envBindingText: "",
@@ -119,7 +119,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       taskId,
       companyId,
       agentId,
-      adapterType: "gemini_local",
+      adapterType: "gemini-cli",
       sessionParamsJson: null,
       sessionDisplayId: null,
     });
@@ -135,7 +135,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     expect(session!.runCount).toBe(DEFAULT_THRESHOLDS.maxRuns);
 
     // Evaluate rotation -- should trigger
-    const result = sessionService.evaluateRotation(session!, "gemini_local");
+    const result = sessionService.evaluateRotation(session!, "gemini-cli");
     expect(result.shouldRotate).toBe(true);
     expect(result.reason).toBe("max_runs");
   });
@@ -148,7 +148,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       taskId,
       companyId,
       agentId,
-      adapterType: "gemini_local",
+      adapterType: "gemini-cli",
       sessionParamsJson: null,
       sessionDisplayId: null,
     });
@@ -162,7 +162,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     const totalTokens = session!.totalInputTokens + session!.totalOutputTokens;
     expect(totalTokens).toBe(550000);
 
-    const result = sessionService.evaluateRotation(session!, "gemini_local");
+    const result = sessionService.evaluateRotation(session!, "gemini-cli");
     expect(result.shouldRotate).toBe(true);
     expect(result.reason).toBe("max_tokens");
   });
@@ -175,7 +175,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       taskId,
       companyId,
       agentId,
-      adapterType: "gemini_local",
+      adapterType: "gemini-cli",
       sessionParamsJson: null,
       sessionDisplayId: null,
     });
@@ -191,7 +191,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "gemini_local" as ConnectorId,
+      connectorId: "gemini-cli" as ConnectorId,
     });
     db.finishRun({
       runId: run.id,
@@ -233,7 +233,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       taskId,
       companyId,
       agentId,
-      adapterType: "gemini_local",
+      adapterType: "gemini-cli",
       sessionParamsJson: JSON.stringify({ resumeKey: "abc" }),
       sessionDisplayId: "gemini-session-1",
     });
@@ -249,7 +249,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       taskId,
       companyId,
       agentId,
-      adapterType: "gemini_local",
+      adapterType: "gemini-cli",
       sessionParamsJson: JSON.stringify({ resumeKey: "abc" }),
       sessionDisplayId: "gemini-session-2",
     });
@@ -266,15 +266,15 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     expect(newSession!.totalOutputTokens).toBe(0);
   });
 
-  it("claude connector is exempt from rotation", () => {
-    const { companyId, agentId, taskId } = scaffold(db, "gemini_local");
+  it("claude connector triggers rotation under pi-mono (no native exemption)", () => {
+    const { companyId, agentId, taskId } = scaffold(db, "gemini-cli");
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
     const sessionId = db.createNewSession({
       taskId,
       companyId,
       agentId,
-      adapterType: "claude_local",
+      adapterType: "claude-pro",
       sessionParamsJson: null,
       sessionDisplayId: null,
     });
@@ -285,21 +285,21 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     }
 
     const session = db.getActiveTaskSession(taskId)!;
-    // Per Pitfall 6: claude_local has nativeContextManagement: true, exempt from rotation
-    const result = sessionService.evaluateRotation(session, "claude_local");
-    expect(result.shouldRotate).toBe(false);
-    expect(result.reason).toBeNull();
+    // Pi-mono delegates compaction to pi-agent-core; AgentCompany still applies rotation uniformly.
+    const result = sessionService.evaluateRotation(session, "claude-pro");
+    expect(result.shouldRotate).toBe(true);
+    expect(result.reason).not.toBeNull();
   });
 
-  it("codex connector is exempt from rotation", () => {
-    const { companyId, agentId, taskId } = scaffold(db, "gemini_local");
+  it("codex connector triggers rotation under pi-mono (no native exemption)", () => {
+    const { companyId, agentId, taskId } = scaffold(db, "gemini-cli");
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
     const sessionId = db.createNewSession({
       taskId,
       companyId,
       agentId,
-      adapterType: "codex_local",
+      adapterType: "openai-codex",
       sessionParamsJson: null,
       sessionDisplayId: null,
     });
@@ -310,10 +310,10 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     }
 
     const session = db.getActiveTaskSession(taskId)!;
-    // Per Pitfall 6: codex_local has nativeContextManagement: true, exempt from rotation
-    const result = sessionService.evaluateRotation(session, "codex_local");
-    expect(result.shouldRotate).toBe(false);
-    expect(result.reason).toBeNull();
+    // Pi-mono delegates compaction to pi-agent-core; AgentCompany still applies rotation uniformly.
+    const result = sessionService.evaluateRotation(session, "openai-codex");
+    expect(result.shouldRotate).toBe(true);
+    expect(result.reason).not.toBeNull();
   });
 
   it("handoff markdown available for next run context after rotation", () => {
@@ -325,7 +325,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       taskId,
       companyId,
       agentId,
-      adapterType: "gemini_local",
+      adapterType: "gemini-cli",
       sessionParamsJson: null,
       sessionDisplayId: null,
     });
@@ -337,7 +337,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       taskId,
       agentId,
       workspaceId,
-      connectorId: "gemini_local" as ConnectorId,
+      connectorId: "gemini-cli" as ConnectorId,
     });
     db.finishRun({
       runId: run.id,

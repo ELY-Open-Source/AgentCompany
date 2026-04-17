@@ -19,16 +19,20 @@ describe("parseEnvBindingText", () => {
 
 describe("buildDefaultConnectorRows", () => {
   it("preserves previously saved connector commands", () => {
-    const [codex] = buildDefaultConnectorRows([
+    const rows = buildDefaultConnectorRows([
       {
-        id: "codex_local",
+        id: "openai-codex",
         command: "/usr/local/bin/codex",
         status: "ready",
         notes: "custom note",
       },
     ]);
+    const codex = rows.find((row) => row.id === "openai-codex");
+    if (!codex) {
+      throw new Error("openai-codex connector not found in default rows.");
+    }
 
-    expect(codex.id).toBe("codex_local");
+    expect(codex.id).toBe("openai-codex");
     expect(codex.command).toBe("/usr/local/bin/codex");
     expect(codex.status).toBe("ready");
     expect(codex.notes).toBe("custom note");

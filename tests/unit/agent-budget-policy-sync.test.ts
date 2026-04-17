@@ -28,7 +28,7 @@ describe("agent budget policy synchronization", () => {
       status: "active",
     });
     db.updateConnectorHealth({
-      id: "codex_local",
+      id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
@@ -49,7 +49,7 @@ describe("agent budget policy synchronization", () => {
       title: "Backend Engineer",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: null,
       capabilities: "Build backend services",
@@ -78,7 +78,7 @@ describe("agent budget policy synchronization", () => {
       title: "Backend Engineer",
       status: "active",
       reportsTo: null,
-      connectorId: "codex_local",
+      connectorId: "openai-codex",
       workspaceId,
       model: null,
       capabilities: "Build backend services",

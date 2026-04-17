@@ -26,10 +26,16 @@ afterEach(async () => {
 });
 
 describe("ipc-core-admin-handlers connector saves", () => {
-  it("accepts compatible connector model catalogs stored as csv", async () => {
+  it("accepts a valid pi-ai model for a pi-mono connector", async () => {
     const profileDir = await createTempDir("agentcompany-admin-handler-");
     const db = new AppDatabase(profileDir);
     db.init();
+
+    const { getModels } = await import("@mariozechner/pi-ai");
+    const anthropicModel = getModels("anthropic" as never)[0]?.id;
+    if (!anthropicModel) {
+      throw new Error("pi-ai anthropic provider must expose at least one model.");
+    }
 
     const handlers = new Map<string, IpcHandler>();
     registerCoreAdminHandlers({
@@ -50,16 +56,26 @@ describe("ipc-core-admin-handlers connector saves", () => {
       throw new Error("saveConnector handler was not registered.");
     }
 
+    // Pi-mono connectors default to an empty command; the schema requires a
+    // non-empty one, so seed it before hitting the IPC handler.
+    db.saveConnector({
+      id: "anthropic",
+      command: "pi-mono",
+      model: null,
+      envBindingText: "",
+      notes: "",
+    });
+
     const result = await saveConnector(null as unknown as IpcMainInvokeEvent, {
-      id: "claude_compatible",
-      command: "claude",
-      model: "model-alpha,model-beta,model-gamma",
+      id: "anthropic",
+      command: "pi-mono",
+      model: anthropicModel,
       envBindingText: "ANTHROPIC_BASE_URL=https://example.com/anthropic",
-      notes: "Compat provider",
+      notes: "Pi-mono connector",
     }) as { ok: boolean; error?: { code: string; message: string } };
 
     expect(result.ok).toBe(true);
-    expect(db.getConnector("claude_compatible").model).toBe("model-alpha,model-beta,model-gamma");
+    expect(db.getConnector("anthropic").model).toBe(anthropicModel);
 
     db.close();
   });

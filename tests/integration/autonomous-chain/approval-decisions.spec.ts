@@ -65,7 +65,7 @@ describe("Step 4: Hire approval + decideApproval", () => {
       type: "hire_agent",
       payloadSummary: "Hire CTO",
       impactSummary: "Test",
-      payloadJson: JSON.stringify({ agentId: hireId, config: { connector: "codex_local" } }),
+      payloadJson: JSON.stringify({ agentId: hireId, config: { connector: "openai-codex" } }),
     });
 
     const approval = shared.db.getApprovalRecord(approvalId);

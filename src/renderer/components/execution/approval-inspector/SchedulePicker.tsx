@@ -25,7 +25,7 @@ export function SchedulePicker({
   onScheduledAtChange: (value: string) => void
   onClearError: () => void
 }) {
-  const minDatetime = useMemo(computeMinDatetime, [])
+  const minDatetime = useMemo(() => computeMinDatetime(), [])
 
   return (
     <div className="space-y-3">

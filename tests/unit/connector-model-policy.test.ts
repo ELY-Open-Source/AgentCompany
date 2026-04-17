@@ -8,72 +8,85 @@ function createDeps(overrides: {
 } = {}) {
   return {
     getConnector: () => ({
-      id: "claude_compatible" as const,
-      label: "Claude Compatible",
-      model: overrides.connectorModel ?? "model-alpha,model-beta,model-gamma",
+      id: "anthropic" as const,
+      label: "Anthropic",
+      model: overrides.connectorModel ?? null,
     }),
     getDisabledModels: () => overrides.disabledModels ?? [],
   };
 }
 
 describe("connector model policy", () => {
-  it("derives enabled compat models from connector config minus disabled entries", () => {
-    const policy = getConnectorModelPolicy(
-      createDeps({ disabledModels: [{ id: "model-beta", label: "model-beta" }] }),
-      "claude_compatible",
+  it("excludes disabled models from the enabled set", () => {
+    const policy = getConnectorModelPolicy(createDeps(), "anthropic");
+    const allIds = policy.enabledModels.map((model) => model.id);
+    if (allIds.length === 0) {
+      throw new Error("anthropic provider should expose at least one model from pi-ai.");
+    }
+
+    const firstModel = allIds[0];
+    const filteredPolicy = getConnectorModelPolicy(
+      createDeps({ disabledModels: [{ id: firstModel, label: firstModel }] }),
+      "anthropic",
     );
 
-    expect(policy.enabledModels.map((model) => model.id)).toEqual(["model-alpha", "model-gamma"]);
+    expect(filteredPolicy.enabledModels.some((model) => model.id === firstModel)).toBe(false);
   });
 
   it("accepts an explicit enabled model", () => {
-    const result = validateConnectorModelSelection(createDeps(), "claude_compatible", "model-alpha");
+    const policy = getConnectorModelPolicy(createDeps(), "anthropic");
+    const enabledId = policy.enabledModels[0]?.id;
+    if (!enabledId) {
+      throw new Error("anthropic provider should expose at least one model from pi-ai.");
+    }
+    const result = validateConnectorModelSelection(createDeps(), "anthropic", enabledId);
 
-    expect(result).toEqual({ ok: true, effectiveModel: "model-alpha" });
+    expect(result).toEqual({ ok: true, effectiveModel: enabledId });
   });
 
   it("rejects an explicit disabled model", () => {
+    const policy = getConnectorModelPolicy(createDeps(), "anthropic");
+    const enabledId = policy.enabledModels[0]?.id;
+    if (!enabledId) {
+      throw new Error("anthropic provider should expose at least one model from pi-ai.");
+    }
     const result = validateConnectorModelSelection(
-      createDeps({ disabledModels: [{ id: "model-beta", label: "model-beta" }] }),
-      "claude_compatible",
-      "model-beta",
+      createDeps({ disabledModels: [{ id: enabledId, label: enabledId }] }),
+      "anthropic",
+      enabledId,
     );
 
     expect(result.ok).toBe(false);
     if (result.ok) {
       throw new Error("Expected explicit disabled model to be rejected.");
     }
-    expect(result.error).toContain('does not allow model "model-beta"');
+    expect(result.error).toContain(`does not allow model "${enabledId}"`);
   });
 });
 
 describe("native connector defaults", () => {
-  it("uses the persisted connector model as the native default when configured", () => {
-    const codexModels = getConnectorDefinition("codex_local").module.models ?? [];
-    const configuredDefault = codexModels[1]?.id;
-
-    if (!configuredDefault) {
-      throw new Error("codex_local requires at least two models for this default policy test.");
-    }
+  it("falls back to definition defaultModel when connector model is empty", () => {
+    const definition = getConnectorDefinition("openai-codex");
+    const configuredDefault = definition.defaultModel;
 
     const policy = getConnectorModelPolicy({
       getConnector: () => ({
-        id: "codex_local" as const,
+        id: "openai-codex" as const,
         label: "Codex",
-        model: configuredDefault,
+        model: null,
       }),
       getDisabledModels: () => [],
-    }, "codex_local");
+    }, "openai-codex");
 
     expect(policy.defaultModel).toBe(configuredDefault);
     expect(validateConnectorModelSelection({
       getConnector: () => ({
-        id: "codex_local" as const,
+        id: "openai-codex" as const,
         label: "Codex",
-        model: configuredDefault,
+        model: null,
       }),
       getDisabledModels: () => [],
-    }, "codex_local", null)).toEqual({
+    }, "openai-codex", null)).toEqual({
       ok: true,
       effectiveModel: configuredDefault,
     });
