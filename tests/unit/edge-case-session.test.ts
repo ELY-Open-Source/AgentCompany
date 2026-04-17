@@ -202,7 +202,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       signal: null,
       model: "gemini-pro",
       sessionDisplayId: null,
-      costUsd: 0.05,
       unattributedCost: false,
     });
 
@@ -348,7 +347,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       signal: null,
       model: "gemini-pro",
       sessionDisplayId: null,
-      costUsd: 0.01,
       unattributedCost: false,
     });
 

@@ -149,7 +149,6 @@ describe("document run provenance", () => {
         status: "succeeded",
         summary: "Updated the market report",
         errorMessage: null,
-        costUsd: null,
       }, () => false);
 
       const task = harness.db.getTask(harness.taskId);

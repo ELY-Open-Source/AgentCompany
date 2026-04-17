@@ -212,7 +212,6 @@ describe("task_sessions CRUD", () => {
       signal: null,
       model: "claude-4-opus",
       sessionDisplayId: null,
-      costUsd: 0.01,
       unattributedCost: false,
     });
 
@@ -226,7 +225,6 @@ describe("task_sessions CRUD", () => {
       signal: null,
       model: "claude-4-opus",
       sessionDisplayId: null,
-      costUsd: 0.02,
       unattributedCost: false,
     });
 
@@ -571,7 +569,6 @@ describe("session management service", () => {
         signal: null,
         model: "gemini-pro",
         sessionDisplayId: null,
-        costUsd: 0.05,
         unattributedCost: false,
       });
 

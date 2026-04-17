@@ -65,10 +65,9 @@ export class WorkerRunner {
     post({ type: "run-status", runId: job.runId, status: "running", message: `Running agent ${job.agentName}.` });
 
     let resolvedModelId: string | null = job.model;
-    let finalUsage: { inputTokens: number | null; outputTokens: number | null; costUsd: number | null } = {
+    let finalUsage: { inputTokens: number | null; outputTokens: number | null } = {
       inputTokens: null,
       outputTokens: null,
-      costUsd: null,
     };
     let errorMessage: string | null = null;
 
@@ -177,7 +176,6 @@ export class WorkerRunner {
               finalUsage = {
                 inputTokens: typeof maybeAssistant.usage.input === "number" ? maybeAssistant.usage.input : finalUsage.inputTokens,
                 outputTokens: typeof maybeAssistant.usage.output === "number" ? maybeAssistant.usage.output : finalUsage.outputTokens,
-                costUsd: typeof maybeAssistant.usage.cost?.total === "number" ? maybeAssistant.usage.cost.total : finalUsage.costUsd,
               };
             }
           }
@@ -227,8 +225,12 @@ export class WorkerRunner {
       model: resolvedModelId,
       sessionParams: job.sessionParams,
       sessionDisplayId: null,
-      costUsd: finalUsage.costUsd,
-      unattributedCost: finalUsage.costUsd === null,
+      // Worker no longer owns cost attribution — CostWriter (main-side)
+      // writes per-message rows, finishRun sums them. This flag stays true
+      // only for run paths that never had a chance to emit usage (errors
+      // before the first message_end); per-message drift detection belongs
+      // elsewhere.
+      unattributedCost: finalUsage.inputTokens === null,
       inputTokens: finalUsage.inputTokens,
       outputTokens: finalUsage.outputTokens,
     });

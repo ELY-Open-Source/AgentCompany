@@ -43,7 +43,6 @@ export type ChildMessage =
       model: string | null;
       sessionParams: Record<string, unknown> | null;
       sessionDisplayId: string | null;
-      costUsd: number | null;
       unattributedCost: boolean;
       inputTokens: number | null;
       outputTokens: number | null;

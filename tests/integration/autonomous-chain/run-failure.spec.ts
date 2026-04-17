@@ -41,7 +41,6 @@ describe("Step 6: Run failure escalation (database layer)", () => {
       signal: null,
       model: "gpt-5-codex",
       sessionDisplayId: null,
-      costUsd: 0.5,
       unattributedCost: false,
     });
 

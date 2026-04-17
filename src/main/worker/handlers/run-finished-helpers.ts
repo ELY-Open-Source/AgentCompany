@@ -48,7 +48,6 @@ export function finalizeRun(
       signal: event.signal,
       model: event.model,
       sessionDisplayId: event.sessionDisplayId,
-      costUsd: event.costUsd,
       unattributedCost: event.unattributedCost,
       inputTokens: event.inputTokens,
       outputTokens: event.outputTokens,
@@ -186,10 +185,10 @@ export function runPostCompletionAutomation(
   const { destroyed, MAX_RETRY_ATTEMPTS, RETRY_COOLDOWN_MS, pendingRetryTimers } = context;
   const { run, task } = rfCtx;
 
-  // Policy-based incident check after run completion (Phase 5). Reuse the
-  // `task` already resolved in finalizeRun instead of double-fetching with
-  // its own catch-and-swallow; if task is null the project-scope is null.
-  if (budgetService && typeof event.costUsd === "number" && Number.isFinite(event.costUsd)) {
+  // Policy-based incident check after run completion. Always runs once the
+  // run is finalized — cost is read from the cost_entries SUM inside
+  // finishRun/checkAndCreateIncidents, not from the worker event.
+  if (budgetService && event.status === "succeeded") {
     budgetService.checkAndCreateIncidents(run.companyId, run.agentId, task?.projectId ?? null);
   }
 

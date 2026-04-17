@@ -302,7 +302,8 @@ export class AppDatabaseBase {
   readRunLog(runId: string) { return this.runs.readRunLog(runId); }
   readRunLogChunk(runId: string, offset = 0, limit = 65_536) { return this.runs.readRunLogChunk(runId, offset, limit); }
   markRunStatus(runId: string, status: RunStatus, message: string) { return this.runs.markRunStatus(runId, status, message); }
-  finishRun(input: { runId: string; status: RunStatus; summary: string | null; errorMessage: string | null; exitCode: number | null; signal: string | null; model: string | null; sessionDisplayId: string | null; costUsd: number | null; unattributedCost: boolean }) { return this.runs.finishRun(input); }
+  finishRun(input: { runId: string; status: RunStatus; summary: string | null; errorMessage: string | null; exitCode: number | null; signal: string | null; model: string | null; sessionDisplayId: string | null; unattributedCost: boolean }) { return this.runs.finishRun(input); }
+  recordCostEntry(input: { runId: string; companyId: string; agentId: string; taskId: string | null; connectorId: string; amountUsd: number | null; unattributed: boolean }) { return this.runs.recordCostEntry(input); }
   hasActiveRun(filter: { companyId: string; taskId?: string; agentId?: string }) { return this.runs.hasActiveRun(filter); }
   listQueuedRuns() { return this.runs.listQueuedRuns(); }
   getInterruptedRunsForRecovery() { return this.runs.getInterruptedRunsForRecovery(); }

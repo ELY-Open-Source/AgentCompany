@@ -159,6 +159,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
     db.checkoutTask(taskId2, run0.id);
     db.markRunStatus(run0.id, "running", "");
     // Complete Run-0 with $6 cost (exceeds $5 budget)
+    db.recordCostEntry({ runId: run0.id, companyId, agentId, taskId: taskId2, connectorId: "gemini-cli", amountUsd: 6.0, unattributed: false });
     db.finishRun({
       runId: run0.id,
       status: "succeeded",
@@ -168,12 +169,12 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       signal: null,
       model: "gemini-pro",
       sessionDisplayId: null,
-      costUsd: 6.0,
       unattributedCost: false,
     });
 
     // Now complete Run-1 (the in-flight run) -- it should succeed normally
     // Per D-04/D-05: in-flight runs are unaffected by budget exhaustion
+    db.recordCostEntry({ runId: run1.id, companyId, agentId, taskId, connectorId: "gemini-cli", amountUsd: 0.5, unattributed: false });
     db.finishRun({
       runId: run1.id,
       status: "succeeded",
@@ -183,7 +184,6 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       signal: null,
       model: "gemini-pro",
       sessionDisplayId: null,
-      costUsd: 0.50,
       unattributedCost: false,
     });
 
@@ -226,6 +226,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
     });
     db.checkoutTask(taskId, run.id);
     db.markRunStatus(run.id, "running", "");
+    db.recordCostEntry({ runId: run.id, companyId, agentId, taskId, connectorId: "gemini-cli", amountUsd: 6.0, unattributed: false });
     db.finishRun({
       runId: run.id,
       status: "succeeded",
@@ -235,7 +236,6 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       signal: null,
       model: "gemini-pro",
       sessionDisplayId: null,
-      costUsd: 6.0,
       unattributedCost: false,
     });
 
@@ -275,6 +275,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
     });
     db.checkoutTask(taskId, run.id);
     db.markRunStatus(run.id, "running", "");
+    db.recordCostEntry({ runId: run.id, companyId, agentId, taskId, connectorId: "gemini-cli", amountUsd: 6.0, unattributed: false });
     db.finishRun({
       runId: run.id,
       status: "succeeded",
@@ -284,7 +285,6 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       signal: null,
       model: "gemini-pro",
       sessionDisplayId: null,
-      costUsd: 6.0,
       unattributedCost: false,
     });
 
@@ -333,6 +333,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
     });
     db.checkoutTask(taskId, run.id);
     db.markRunStatus(run.id, "running", "");
+    db.recordCostEntry({ runId: run.id, companyId, agentId, taskId, connectorId: "gemini-cli", amountUsd: 1.5, unattributed: false });
     db.finishRun({
       runId: run.id,
       status: "succeeded",
@@ -342,7 +343,6 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       signal: null,
       model: "gemini-pro",
       sessionDisplayId: null,
-      costUsd: 1.5,
       unattributedCost: false,
     });
 
@@ -386,6 +386,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
     });
     db.checkoutTask(taskId, run.id);
     db.markRunStatus(run.id, "running", "");
+    db.recordCostEntry({ runId: run.id, companyId, agentId, taskId, connectorId: "gemini-cli", amountUsd: 4.0, unattributed: false });
     db.finishRun({
       runId: run.id,
       status: "succeeded",
@@ -395,7 +396,6 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       signal: null,
       model: "gemini-pro",
       sessionDisplayId: null,
-      costUsd: 4.0,
       unattributedCost: false,
     });
 
@@ -435,6 +435,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
     db.markRunStatus(run.id, "running", "");
 
     // Complete with cost that exceeds budget -- cost entry is still recorded
+    db.recordCostEntry({ runId: run.id, companyId, agentId, taskId, connectorId: "gemini-cli", amountUsd: 5.0, unattributed: false });
     db.finishRun({
       runId: run.id,
       status: "succeeded",
@@ -444,7 +445,6 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       signal: null,
       model: "gemini-pro",
       sessionDisplayId: null,
-      costUsd: 5.0,
       unattributedCost: false,
     });
 

@@ -18,18 +18,18 @@ interface ObserveInput {
 }
 
 /**
- * Writes a `cost_entries` row for an assistant `message_end` and updates the
- * cumulative `runs.cost_usd` for the active run.
+ * Writes a `cost_entries` row for each pi `message_end`. finishRun reads
+ * SUM(cost_entries.amount_usd) for the run-level aggregate, so this is
+ * the single source of truth for cost attribution.
  */
 export class CostWriter {
   constructor(private readonly deps: CostWriterDeps) {}
 
   observeAssistantMessage(input: ObserveInput): void {
     // Fail closed on cost calculation — budget policies read `cost_entries`
-    // to enforce spending gates; an "unattributed" row would silently let
-    // an agent run unbounded. If pricing cannot be resolved, refuse to
-    // persist the row and let the caller see the error. The failure is
-    // visible (throws) instead of invisible (null amount, unattributed=1).
+    // to enforce spending gates; silently emitting an unattributed row
+    // would let an agent run unbounded. If pricing cannot be resolved,
+    // throw so the caller logs and the missing cost is visible.
     const definition = getConnectorDefinition(input.connectorId);
     if (!definition.provider) {
       throw new Error(`[cost-writer] connector ${input.connectorId} has no provider mapping`);
@@ -45,25 +45,14 @@ export class CostWriter {
       );
     }
 
-    this.deps.db.queryAll(
-      "insert into cost_entries (id, company_id, run_id, task_id, agent_id, connector_id, amount_usd, unattributed, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      cryptoRandomId(),
-      input.companyId,
-      input.runId,
-      input.taskId,
-      input.agentId,
-      input.connectorId,
-      cost.total,
-      0,
-      new Date().toISOString(),
-    );
+    this.deps.db.recordCostEntry({
+      runId: input.runId,
+      companyId: input.companyId,
+      agentId: input.agentId,
+      taskId: input.taskId,
+      connectorId: input.connectorId,
+      amountUsd: cost.total,
+      unattributed: false,
+    });
   }
-}
-
-function cryptoRandomId(): string {
-  // Avoid pulling node:crypto at module top-level so this file can be
-  // imported from non-Node contexts during type checks.
-  return globalThis.crypto?.randomUUID
-    ? globalThis.crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

@@ -198,7 +198,6 @@ describe("CAS checkout", () => {
       signal: null,
       model: null,
       sessionDisplayId: null,
-      costUsd: 0,
       unattributedCost: false,
     });
 

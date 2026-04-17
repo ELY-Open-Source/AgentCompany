@@ -135,7 +135,6 @@ describe("AppDatabase", () => {
       signal: null,
       model: "gpt-5-codex",
       sessionDisplayId: "session-1",
-      costUsd: 12.5,
       unattributedCost: false,
     });
 

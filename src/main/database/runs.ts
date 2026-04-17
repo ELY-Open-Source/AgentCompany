@@ -158,7 +158,6 @@ export function buildRunMethods(
       signal: string | null;
       model: string | null;
       sessionDisplayId: string | null;
-      costUsd: number | null;
       unattributedCost: boolean;
     }) {
       const run = getDb().prepare("select task_id as taskId, agent_id as agentId, company_id as companyId, connector_id as connectorId from runs where id = ?").get(input.runId) as
@@ -166,13 +165,20 @@ export function buildRunMethods(
         | undefined;
       if (!run) return { budgetHardStopped: false };
       const ts = nowIso();
+
+      // Cost is owned by CostWriter — per-message rows in `cost_entries`.
+      // finishRun reads the aggregate instead of writing another row, so
+      // there is exactly one source of truth and `cost_entries.run_id`
+      // cannot double-count against the previous finishRun INSERT.
+      const costRow = getDb()
+        .prepare("select coalesce(sum(amount_usd), 0) as total from cost_entries where run_id = ? and unattributed = 0")
+        .get(input.runId) as { total: number } | undefined;
+      const runCostUsd = costRow?.total ?? 0;
+
       const agent = getDb().prepare(
         "select budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, status from agents where id = ?",
       ).get(run.agentId) as { budgetMonthlyUsd: number; spentMonthlyUsd: number; status: string } | undefined;
-      const nextSpend =
-        agent && typeof input.costUsd === "number" && Number.isFinite(input.costUsd)
-          ? agent.spentMonthlyUsd + input.costUsd
-          : agent?.spentMonthlyUsd ?? 0;
+      const nextSpend = (agent?.spentMonthlyUsd ?? 0) + runCostUsd;
       const budgetHardStopped = Boolean(
         agent &&
         agent.budgetMonthlyUsd > 0 &&
@@ -187,31 +193,21 @@ export function buildRunMethods(
           )
           .run(
             input.status, input.summary ?? "", input.errorMessage, input.exitCode,
-            input.signal, input.model, input.sessionDisplayId, input.costUsd,
+            input.signal, input.model, input.sessionDisplayId, runCostUsd,
             input.unattributedCost ? 1 : 0, ts, ts, input.runId,
           );
         getDb().prepare("update tasks set active_run_id = null, updated_at = ? where id = ?").run(ts, run.taskId);
         getDb()
           .prepare("UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?")
           .run(ts, run.taskId, input.runId);
-        if (typeof input.costUsd === "number" && Number.isFinite(input.costUsd)) {
+        if (runCostUsd > 0) {
           getDb()
             .prepare("update tasks set cost_usd = cost_usd + ?, updated_at = ? where id = ?")
-            .run(input.costUsd, ts, run.taskId);
+            .run(runCostUsd, ts, run.taskId);
           getDb()
             .prepare("update agents set spent_monthly_usd = spent_monthly_usd + ?, updated_at = ? where id = ?")
-            .run(input.costUsd, ts, run.agentId);
-          getDb()
-            .prepare(
-              "update agents set status = case when budget_monthly_usd > 0 and (spent_monthly_usd + ?) >= budget_monthly_usd then 'paused' else status end, updated_at = ? where id = ?",
-            )
-            .run(input.costUsd, ts, run.agentId);
+            .run(runCostUsd, ts, run.agentId);
         }
-        const taskProjectRow = getDb().prepare("SELECT project_id FROM tasks WHERE id = ?").get(run.taskId) as { project_id: string | null } | undefined;
-        const projectId = taskProjectRow?.project_id ?? null;
-        getDb()
-          .prepare("insert into cost_entries (id, company_id, run_id, task_id, agent_id, connector_id, amount_usd, unattributed, project_id, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-          .run(randomUUID(), run.companyId, input.runId, run.taskId, run.agentId, run.connectorId, input.costUsd, input.unattributedCost ? 1 : 0, projectId, ts);
         if (budgetHardStopped) {
           getDb()
             .prepare("update agents set status = 'paused', updated_at = ? where id = ?")
@@ -262,6 +258,39 @@ export function buildRunMethods(
         `select 1 as present from runs where ${whereClauses.join(" and ")} limit 1`,
       ).get(...params) as { present: number } | undefined;
       return Boolean(row?.present);
+    },
+
+    /**
+     * Single writer for `cost_entries`. CostWriter calls this per
+     * `message_end`; tests also call it to simulate per-turn cost.
+     * finishRun reads SUM(cost_entries) for the run-level aggregate,
+     * so this is the authoritative path for cost attribution.
+     */
+    recordCostEntry(input: {
+      runId: string;
+      companyId: string;
+      agentId: string;
+      taskId: string | null;
+      connectorId: string;
+      amountUsd: number | null;
+      unattributed: boolean;
+    }): string {
+      const id = randomUUID();
+      const ts = nowIso();
+      const projectRow = input.taskId
+        ? getDb().prepare("SELECT project_id FROM tasks WHERE id = ?").get(input.taskId) as { project_id: string | null } | undefined
+        : undefined;
+      const projectId = projectRow?.project_id ?? null;
+      getDb()
+        .prepare(
+          "insert into cost_entries (id, company_id, run_id, task_id, agent_id, connector_id, amount_usd, unattributed, project_id, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .run(
+          id, input.companyId, input.runId, input.taskId, input.agentId,
+          input.connectorId, input.amountUsd,
+          input.unattributed ? 1 : 0, projectId, ts,
+        );
+      return id;
     },
 
     listQueuedRuns() {

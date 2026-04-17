@@ -81,7 +81,6 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
       signal: null,
       model: null,
       sessionDisplayId: null,
-      costUsd: null,
       unattributedCost: true,
     });
 

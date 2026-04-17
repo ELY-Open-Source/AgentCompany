@@ -72,5 +72,4 @@ export interface RunFinishedEvent {
   status: RunStatus;
   summary: string | null;
   errorMessage: string | null;
-  costUsd: number | null;
 }

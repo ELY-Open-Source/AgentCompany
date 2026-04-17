@@ -270,7 +270,6 @@ export function processRunCompletion(
     taskId: run.taskId,
     agentId: run.agentId,
     runId: run.id,
-    costUsd: event.costUsd ?? undefined,
   };
   try {
     const agent = db.getAgent(run.agentId);
@@ -306,7 +305,10 @@ export function processRunCompletion(
     dispatchAutomation("run_failed", automationContext);
   }
 
-  if (event.costUsd && event.costUsd > 0) {
+  // Budget threshold check runs after every succeeded run; finishRun
+  // has already summed cost_entries and updated spentMonthlyUsd, so we
+  // just read the post-run spend and fire if it crosses 80%.
+  if (isSuccess) {
     try {
       const agent = db.getAgent(run.agentId);
       if (agent.budgetMonthlyUsd > 0) {

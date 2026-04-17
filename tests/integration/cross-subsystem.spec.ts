@@ -210,6 +210,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
 
     // 4. Execute run
     db.markRunStatus(runId, "running", "Starting");
+    db.recordCostEntry({ runId, companyId: s.companyId, agentId: s.agentId, taskId, connectorId: "gemini-cli", amountUsd: 0.05, unattributed: false });
     db.finishRun({
       runId,
       status: "succeeded",
@@ -219,7 +220,6 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       signal: null,
       model: "gemini-2.5-pro",
       sessionDisplayId: null,
-      costUsd: 0.05,
       unattributedCost: false,
     });
 
@@ -339,6 +339,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
 
     db.checkoutTask(taskId, runId);
     db.markRunStatus(runId, "running", "Starting");
+    db.recordCostEntry({ runId, companyId: s.companyId, agentId: s.agentId, taskId, connectorId: s.connectorId, amountUsd: 1.5, unattributed: false });
     db.finishRun({
       runId,
       status: "succeeded",
@@ -348,7 +349,6 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       signal: null,
       model: "gemini-2.5-pro",
       sessionDisplayId: null,
-      costUsd: 1.5, // $1.50 exceeds $1 budget
       unattributedCost: false,
     });
 
@@ -452,6 +452,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     });
     db.checkoutTask(taskId1, runId1);
     db.markRunStatus(runId1, "running", "Starting");
+    db.recordCostEntry({ runId: runId1, companyId: s.companyId, agentId: s.agentId, taskId: taskId1, connectorId: s.connectorId, amountUsd: 3.0, unattributed: false });
     db.finishRun({
       runId: runId1,
       status: "succeeded",
@@ -461,7 +462,6 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       signal: null,
       model: "gemini-2.5-pro",
       sessionDisplayId: null,
-      costUsd: 3.0,
       unattributedCost: false,
     });
 
@@ -494,6 +494,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     });
     db.checkoutTask(taskId2, runId2);
     db.markRunStatus(runId2, "running", "Starting");
+    db.recordCostEntry({ runId: runId2, companyId: s.companyId, agentId: s.agentId, taskId: taskId2, connectorId: s.connectorId, amountUsd: 3.0, unattributed: false });
     db.finishRun({
       runId: runId2,
       status: "succeeded",
@@ -503,7 +504,6 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       signal: null,
       model: "gemini-2.5-pro",
       sessionDisplayId: null,
-      costUsd: 3.0,
       unattributedCost: false,
     });
 

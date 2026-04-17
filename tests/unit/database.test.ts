@@ -279,6 +279,17 @@ describe("AppDatabase", () => {
       connectorId: "openai-codex",
     });
 
+    // Simulate a per-message cost entry (written by CostWriter in prod).
+    db.recordCostEntry({
+      runId: run.id,
+      companyId,
+      agentId,
+      taskId,
+      connectorId: "openai-codex",
+      amountUsd: 12,
+      unattributed: false,
+    });
+
     const outcome = db.finishRun({
       runId: run.id,
       status: "succeeded",
@@ -288,7 +299,6 @@ describe("AppDatabase", () => {
       signal: null,
       model: "gpt-5",
       sessionDisplayId: "session-budget",
-      costUsd: 12,
       unattributedCost: false,
     });
 
@@ -508,7 +518,6 @@ describe("AppDatabase", () => {
       signal: null,
       model: null,
       sessionDisplayId: null,
-      costUsd: 0,
       unattributedCost: true,
     });
 

@@ -88,7 +88,6 @@ function cancelRun(runId: string) {
       model: null,
       sessionParams: null,
       sessionDisplayId: null,
-      costUsd: null,
       unattributedCost: true,
       inputTokens: null,
       outputTokens: null,

@@ -135,7 +135,6 @@ describe("agent model switching", () => {
       signal: null,
       model: "gpt-5.4",
       sessionDisplayId: null,
-      costUsd: null,
       unattributedCost: true,
     });
 
