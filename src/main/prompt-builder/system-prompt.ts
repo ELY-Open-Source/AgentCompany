@@ -76,7 +76,8 @@ export function buildSystemPrompt(ctx: PromptContext): string {
   const now = new Date();
   const dateStr = now.toISOString().split("T")[0];
   const timeStr = now.toISOString().split("T")[1]?.slice(0, 5) ?? "00:00";
-  const dayOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][now.getDay()];
+  // Use UTC day-of-week to stay consistent with the UTC date/time stamp below.
+  const dayOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][now.getUTCDay()];
 
   sections.push(`# Current Date & Time
 Today is ${dayOfWeek}, ${dateStr} at ${timeStr} UTC.
