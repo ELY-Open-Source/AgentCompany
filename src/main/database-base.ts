@@ -213,6 +213,8 @@ export class AppDatabaseBase {
   listActiveAgentsForCompany(companyId: string) { return this.agents.listActiveAgentsForCompany(companyId); }
   listAgentsForApi(companyId: string) { return this.agents.listAgentsForApi(companyId); }
   listAgentsForStandup(companyId: string) { return this.agents.listAgentsForStandup(companyId); }
+  listDirectReportsForStandup(companyId: string, managerId: string) { return this.agents.listDirectReportsForStandup(companyId, managerId); }
+  listReportStatusesForStandup(companyId: string, managerId: string) { return this.agents.listReportStatusesForStandup(companyId, managerId); }
   listExistingAgentsForHireCheck(companyId: string) { return this.agents.listExistingAgentsForHireCheck(companyId); }
   hasAgentAssignedTasks(agentId: string, companyId: string) { return this.agents.hasAgentAssignedTasks(agentId, companyId); }
   updateAgentStatus(agentId: string, status: string) { return this.agents.updateAgentStatus(agentId, status); }
@@ -248,6 +250,8 @@ export class AppDatabaseBase {
   listAgentTasks(agentId: string, companyId: string, statuses: string[]) { return this.tasks.listAgentTasks(agentId, companyId, statuses); }
   listTasksByStatuses(companyId: string, statuses: string[]) { return this.tasks.listTasksByStatuses(companyId, statuses); }
   listTasksForStandup(companyId: string) { return this.tasks.listTasksForStandup(companyId); }
+  listAssigneeTasksForStandup(companyId: string, agentId: string) { return this.tasks.listAssigneeTasksForStandup(companyId, agentId); }
+  listTasksForAssignees(companyId: string, assigneeIds: string[]) { return this.tasks.listTasksForAssignees(companyId, assigneeIds); }
   findReusableHeartbeatTask(agentId: string, companyId: string) { return this.tasks.findReusableHeartbeatTask(agentId, companyId); }
   acquireHeartbeatTask(input: { agentId: string; companyId: string; runId: string; workspaceId: string | null; title: string; description: string; priority: string }) { return this.tasks.acquireHeartbeatTask(input); }
   cleanupDuplicateHeartbeatTasks(companyId: string) { return this.tasks.cleanupDuplicateHeartbeatTasks(companyId); }
@@ -303,6 +307,8 @@ export class AppDatabaseBase {
   listTasksForApproval(approvalId: string) { return this.approvalsMod.listTasksForApproval(approvalId); }
   linkManyTasksToApproval(approvalId: string, taskIds: string[], companyId: string, linkedByAgentId?: string | null) { this.approvalsMod.linkManyTasksToApproval(approvalId, taskIds, companyId, linkedByAgentId); }
   listApprovalsForStandup(companyId: string) { return this.approvalsMod.listApprovalsForStandup(companyId); }
+  listAgentPendingApprovals(companyId: string, agentId: string) { return this.approvalsMod.listAgentPendingApprovals(companyId, agentId); }
+  listAgentResolvedApprovals(companyId: string, agentId: string, limit?: number) { return this.approvalsMod.listAgentResolvedApprovals(companyId, agentId, limit); }
   listPendingHireApprovalPayloads(companyId: string) { return this.approvalsMod.listPendingHireApprovalPayloads(companyId); }
   listApprovalsForApi(companyId: string, filters: { requestedByAgentId?: string; relatedTaskId?: string; statuses?: string[] | null }) { return this.approvalsMod.listApprovalsForApi(companyId, filters); }
 

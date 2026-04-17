@@ -1,34 +1,5 @@
 import type { AgentApiServer } from "./server-core";
 
-type DirectReportRow = {
-  id: string; name: string; role: string; status: string;
-};
-
-type MyTaskRow = {
-  id: string; title: string; status: string; priority: string;
-};
-
-type ReportTaskRow = {
-  id: string; title: string; status: string; priority: string;
-  assigneeAgentId: string;
-};
-
-type ApprovalRow = {
-  id: string; type: string; state: string;
-  payloadSummary: string | null; decisionNote: string | null;
-};
-
-type TaskCommentRow = {
-  id: string; taskId: string; authorName: string;
-  body: string; createdAt: string;
-};
-
-type ReportStatusRow = {
-  id: string; name: string; role: string; status: string;
-  tasksInProgress: number; tasksInReview: number;
-  tasksBlocked: number; tasksDone: number;
-};
-
 export function registerAgentStandupRoute(server: AgentApiServer): void {
   const db = server.db;
   server.addRoute("GET", "/api/agents/me/standup", (_req, res, _params, token) => {
@@ -38,49 +9,17 @@ export function registerAgentStandupRoute(server: AgentApiServer): void {
       return;
     }
 
-    const directReports = db.queryAll<DirectReportRow>(
-      `select id, name, role, status from agents
-        where company_id = ? and reports_to = ?
-        order by created_at asc`,
-      token.companyId,
-      token.agentId,
-    );
+    const directReports = db.listDirectReportsForStandup(token.companyId, token.agentId);
 
-    const myTasks = db.queryAll<MyTaskRow>(
-      `select id, title, status, priority from tasks
-        where company_id = ? and assignee_agent_id = ?
-        order by created_at desc`,
-      token.companyId,
-      token.agentId,
-    );
+    const myTasks = db.listAssigneeTasksForStandup(token.companyId, token.agentId);
 
-    const reportTasks = directReports.length > 0
-      ? db.queryAll<ReportTaskRow>(
-          `select id, title, status, priority, assignee_agent_id as assigneeAgentId
-             from tasks
-            where company_id = ?
-              and assignee_agent_id in (${directReports.map(() => "?").join(",")})
-            order by created_at desc`,
-          token.companyId,
-          ...directReports.map((r) => r.id),
-        )
-      : [];
+    const reportTasks = db.listTasksForAssignees(
+      token.companyId,
+      directReports.map((r) => r.id),
+    );
 
     const reportStatusRows = directReports.length > 0
-      ? db.queryAll<ReportStatusRow>(
-          `select agents.id as id, agents.name as name, agents.role as role, agents.status as status,
-                  coalesce(sum(case when tasks.status = 'in_progress' then 1 else 0 end), 0) as tasksInProgress,
-                  coalesce(sum(case when tasks.status = 'in_review' then 1 else 0 end), 0) as tasksInReview,
-                  coalesce(sum(case when tasks.status = 'blocked' then 1 else 0 end), 0) as tasksBlocked,
-                  coalesce(sum(case when tasks.status = 'done' then 1 else 0 end), 0) as tasksDone
-             from agents
-             left join tasks on tasks.assignee_agent_id = agents.id and tasks.company_id = agents.company_id
-            where agents.company_id = ? and agents.reports_to = ?
-            group by agents.id, agents.name, agents.role, agents.status
-            order by agents.created_at asc`,
-          token.companyId,
-          token.agentId,
-        )
+      ? db.listReportStatusesForStandup(token.companyId, token.agentId)
       : [];
 
     const tasksAwaitingMyReview = reportTasks.filter((t) => t.status === "in_review");
@@ -94,33 +33,10 @@ export function registerAgentStandupRoute(server: AgentApiServer): void {
       ...reportTasks.map((t) => t.id),
     ]);
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const recentComments = allRelevantTaskIds.size > 0
-      ? db.queryAll<TaskCommentRow>(
-          `select id, task_id as taskId, author_name as authorName, body, created_at as createdAt
-             from task_comments
-            where task_id in (${[...allRelevantTaskIds].map(() => "?").join(",")})
-              and created_at > ?
-            order by created_at desc limit 20`,
-          ...[...allRelevantTaskIds], twoHoursAgo,
-        )
-      : [];
+    const recentComments = db.listRecentTaskComments([...allRelevantTaskIds], twoHoursAgo, 20);
 
-    const myPendingApprovals = db.queryAll<ApprovalRow>(
-      `select id, type, state, payload_summary as payloadSummary, decision_note as decisionNote
-         from approvals
-        where company_id = ? and requested_by_agent_id = ? and state = 'pending'
-        order by created_at desc`,
-      token.companyId,
-      token.agentId,
-    );
-    const myResolvedApprovals = db.queryAll<ApprovalRow>(
-      `select id, type, state, payload_summary as payloadSummary, decision_note as decisionNote
-         from approvals
-        where company_id = ? and requested_by_agent_id = ? and state != 'pending'
-        order by created_at desc limit 5`,
-      token.companyId,
-      token.agentId,
-    );
+    const myPendingApprovals = db.listAgentPendingApprovals(token.companyId, token.agentId);
+    const myResolvedApprovals = db.listAgentResolvedApprovals(token.companyId, token.agentId, 5);
 
     const reportNameMap = new Map(directReports.map((a) => [a.id, a.name]));
     const taskTitleMap = new Map<string, string>([

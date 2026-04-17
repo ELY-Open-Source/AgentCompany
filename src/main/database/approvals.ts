@@ -131,6 +131,50 @@ export function buildApprovalMethods(
     },
 
     /**
+     * Returns the requesting agent's pending approvals for standup
+     * aggregation (id, type, state, payloadSummary, decisionNote).
+     */
+    listAgentPendingApprovals(
+      companyId: string,
+      agentId: string,
+    ): Array<{
+      id: string;
+      type: string;
+      state: string;
+      payloadSummary: string | null;
+      decisionNote: string | null;
+    }> {
+      return readAll(
+        "select id, type, state, payload_summary as payloadSummary, decision_note as decisionNote from approvals where company_id = ? and requested_by_agent_id = ? and state = 'pending' order by created_at desc",
+        companyId,
+        agentId,
+      );
+    },
+
+    /**
+     * Returns up to `limit` of the requesting agent's resolved approvals
+     * for standup aggregation (state != 'pending').
+     */
+    listAgentResolvedApprovals(
+      companyId: string,
+      agentId: string,
+      limit = 5,
+    ): Array<{
+      id: string;
+      type: string;
+      state: string;
+      payloadSummary: string | null;
+      decisionNote: string | null;
+    }> {
+      return readAll(
+        "select id, type, state, payload_summary as payloadSummary, decision_note as decisionNote from approvals where company_id = ? and requested_by_agent_id = ? and state != 'pending' order by created_at desc limit ?",
+        companyId,
+        agentId,
+        limit,
+      );
+    },
+
+    /**
      * Returns the slim approval projection used by
      * GET /api/agents/me/standup. Ordered by created_at desc.
      */

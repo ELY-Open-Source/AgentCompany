@@ -140,6 +140,52 @@ export function buildAgentHierarchyMethods(
     },
 
     /**
+     * Returns the slim direct-reports projection used by
+     * GET /api/agents/me/standup — only (id, name, role, status).
+     */
+    listDirectReportsForStandup(
+      companyId: string,
+      managerId: string,
+    ): Array<{ id: string; name: string; role: string; status: string }> {
+      return readAll(
+        "select id, name, role, status from agents where company_id = ? and reports_to = ? order by created_at asc",
+        companyId,
+        managerId,
+      );
+    },
+
+    /**
+     * Returns per-report task-status counts for the standup aggregation.
+     * Joins agents with their tasks and aggregates statuses (in_progress,
+     * in_review, blocked, done).
+     */
+    listReportStatusesForStandup(companyId: string, managerId: string): Array<{
+      id: string;
+      name: string;
+      role: string;
+      status: string;
+      tasksInProgress: number;
+      tasksInReview: number;
+      tasksBlocked: number;
+      tasksDone: number;
+    }> {
+      return readAll(
+        `select agents.id as id, agents.name as name, agents.role as role, agents.status as status,
+                coalesce(sum(case when tasks.status = 'in_progress' then 1 else 0 end), 0) as tasksInProgress,
+                coalesce(sum(case when tasks.status = 'in_review' then 1 else 0 end), 0) as tasksInReview,
+                coalesce(sum(case when tasks.status = 'blocked' then 1 else 0 end), 0) as tasksBlocked,
+                coalesce(sum(case when tasks.status = 'done' then 1 else 0 end), 0) as tasksDone
+           from agents
+           left join tasks on tasks.assignee_agent_id = agents.id and tasks.company_id = agents.company_id
+          where agents.company_id = ? and agents.reports_to = ?
+          group by agents.id, agents.name, agents.role, agents.status
+          order by agents.created_at asc`,
+        companyId,
+        managerId,
+      );
+    },
+
+    /**
      * Returns the duplicate-detection projection used by
      * POST /api/companies/:id/agents to reject hires with a name that
      * already belongs to a non-terminated agent.

@@ -191,6 +191,46 @@ export function buildTaskCrudMethods(
     },
 
     /**
+     * Returns the slim task projection (id, title, status, priority) for a
+     * single assignee, ordered by created_at desc. Used by the alternate
+     * me/standup builder in routes-agents-standup.ts.
+     */
+    listAssigneeTasksForStandup(
+      companyId: string,
+      agentId: string,
+    ): Array<{ id: string; title: string; status: string; priority: string }> {
+      return readAll(
+        "select id, title, status, priority from tasks where company_id = ? and assignee_agent_id = ? order by created_at desc",
+        companyId,
+        agentId,
+      );
+    },
+
+    /**
+     * Returns the slim task projection for a set of assignees. Safe on
+     * an empty assignee list (returns []). Used by the alternate
+     * me/standup builder to fetch reports' tasks in one query.
+     */
+    listTasksForAssignees(
+      companyId: string,
+      assigneeIds: string[],
+    ): Array<{
+      id: string;
+      title: string;
+      status: string;
+      priority: string;
+      assigneeAgentId: string;
+    }> {
+      if (assigneeIds.length === 0) return [];
+      const placeholders = assigneeIds.map(() => "?").join(",");
+      return readAll(
+        `select id, title, status, priority, assignee_agent_id as assigneeAgentId from tasks where company_id = ? and assignee_agent_id in (${placeholders}) order by created_at desc`,
+        companyId,
+        ...assigneeIds,
+      );
+    },
+
+    /**
      * Returns the slim task projection used by the me/standup aggregation.
      * Ordered by created_at desc.
      */
