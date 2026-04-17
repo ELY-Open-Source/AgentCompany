@@ -2,16 +2,16 @@ import { motion } from "framer-motion"
 import { ArrowRight, CaretRight, Gear, Lightning, Pause, Play, Trash } from "@phosphor-icons/react"
 import type { AutomationRuleRecord } from "@shared/types"
 import { timeAgo } from "../../lib/formatters"
-import { ACCENT, LINE, triggerConfig, actionConfig, statusColors } from "./automation-config"
+import { triggerConfig, actionConfig, statusColors } from "./automation-config"
 
 export function RuleCard({ rule, onToggle, onDelete, onEdit }: { rule: AutomationRuleRecord; onToggle: () => void; onDelete: () => void; onEdit: () => void }) {
   const triggerInfo = triggerConfig[rule.trigger]; const actionInfo = actionConfig[rule.action]
   const TriggerIcon = triggerInfo?.icon ?? Lightning; const colors = statusColors[rule.status]
 
   return (
-    <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 20 }} className="group rounded-lg border bg-card transition duration-150 hover:shadow-md hover:-translate-y-px" style={{ borderColor: LINE }}>
+    <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 20 }} className="group rounded-lg border border-border bg-card transition duration-150 hover:shadow-md hover:-translate-y-px">
       <div className="flex items-center gap-3 px-4 py-3.5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `${ACCENT}12`, color: ACCENT }}><TriggerIcon size={20} weight="fill" /></div>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><TriggerIcon size={20} weight="fill" /></div>
         <button type="button" onClick={onEdit} className="min-w-0 flex-1 text-left">
           <div className="flex items-center gap-2">
             <span className="truncate text-[13px] font-bold text-foreground">{rule.name}</span>
