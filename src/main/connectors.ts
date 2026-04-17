@@ -1,5 +1,6 @@
-import type { ConnectorRecord } from "@shared/types";
-import { CONNECTORS } from "./connector-definitions";
+import type { CapabilityMatrix, ConnectorRecord } from "@shared/types";
+import { CONNECTORS, type ConnectorDefinition } from "./connector-definitions";
+import { buildApiKeyDoc, buildCloudDoc, buildOAuthDoc } from "./connector-definitions-docs";
 export { CONNECTORS } from "./connector-definitions";
 export type { ConnectorDefinition } from "./connector-definitions";
 export { findConnectorDefinition, listFeaturedOnboardingConnectors } from "./connector-definitions-lookup";
@@ -15,6 +16,27 @@ const RESERVED_ENV_BINDING_KEYS = new Set([
   "LD_PRELOAD",
   "PWD",
 ]);
+
+/**
+ * Pi-mono drives all provider dispatch through pi-ai, so the adapter-era
+ * capability matrix now collapses to a uniform baseline. These values are
+ * still written into the `connectors` table for legacy UI surfaces that read
+ * them, but the worker and resolver no longer branch on them.
+ */
+const PI_MONO_CAPABILITIES: CapabilityMatrix = {
+  sessionResume: true,
+  gracefulCancel: true,
+  modelDiscovery: true,
+  structuredTranscript: true,
+  costAttribution: true,
+};
+
+/**
+ * Legacy `ConnectorRecord.command` column. Pi-mono has no CLI command — the
+ * worker calls pi-ai directly — so this is an empty string that the UI
+ * treats as "managed by pi-mono".
+ */
+const PI_MONO_DEFAULT_COMMAND = "";
 
 export function getConnectorDefinition(id: string) {
   const definition = CONNECTORS.find((entry) => entry.id === id);
@@ -44,6 +66,30 @@ export function listInvalidEnvBindingKeys(text: string): string[] {
   });
 }
 
+function renderConfigurationDoc(definition: ConnectorDefinition): string {
+  switch (definition.auth.type) {
+    case "oauth":
+      return buildOAuthDoc(definition.label, definition.auth.oauthId);
+    case "api_key":
+      return buildApiKeyDoc(definition.label, definition.auth.envKey);
+    case "aws":
+      return buildCloudDoc(
+        definition.label,
+        "Credentials are discovered via the standard AWS chain (profile, IAM keys, Bedrock bearer token, ECS roles, or IRSA).",
+      );
+    case "azure":
+      return buildCloudDoc(
+        definition.label,
+        "Provide AZURE_OPENAI_API_KEY plus AZURE_OPENAI_BASE_URL or AZURE_OPENAI_RESOURCE_NAME.",
+      );
+    case "gcp_adc":
+      return buildCloudDoc(
+        definition.label,
+        "Uses Google Cloud Application Default Credentials. Run `gcloud auth application-default login` or set GOOGLE_APPLICATION_CREDENTIALS.",
+      );
+  }
+}
+
 export function buildDefaultConnectorRows(existing: Array<Partial<ConnectorRecord>> = []): ConnectorRecord[] {
   const byId = new Map(existing.map((record) => [record.id, record]));
   return CONNECTORS.map((definition) => {
@@ -53,16 +99,16 @@ export function buildDefaultConnectorRows(existing: Array<Partial<ConnectorRecor
       label: definition.label,
       description: definition.description,
       status: existingRecord?.status ?? "not_installed",
-      command: existingRecord?.command ?? definition.defaultCommand,
+      command: existingRecord?.command ?? PI_MONO_DEFAULT_COMMAND,
       version: existingRecord?.version ?? null,
       authState: existingRecord?.authState ?? "unknown",
       lastCheckedAt: existingRecord?.lastCheckedAt ?? null,
       lastError: existingRecord?.lastError ?? null,
       model: existingRecord?.model ?? definition.defaultModel,
       envBindingText: existingRecord?.envBindingText ?? "",
-      notes: existingRecord?.notes ?? definition.notes,
-      configurationDoc: definition.configurationDoc,
-      capabilityMatrix: definition.capabilityMatrix,
+      notes: existingRecord?.notes ?? definition.notes ?? "",
+      configurationDoc: renderConfigurationDoc(definition),
+      capabilityMatrix: PI_MONO_CAPABILITIES,
     };
   });
 }
