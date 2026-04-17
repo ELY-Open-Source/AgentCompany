@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter as pathDelimiter, join } from "node:path";
 import { app } from "electron";
@@ -21,13 +21,25 @@ function enrichWindowsPath(logger: HostEnvironmentDependencies["logger"]) {
   const appData = process.env.APPDATA ?? join(home, "AppData", "Roaming");
   const localAppData = process.env.LOCALAPPDATA ?? join(home, "AppData", "Local");
 
+  const pythonBase = join(localAppData, "Programs", "Python");
+  // Enumerate installed Python versions so new releases (Python313, ...)
+  // are picked up automatically without code changes.
+  const pythonScriptDirs: string[] = (() => {
+    try {
+      return readdirSync(pythonBase)
+        .filter((name) => /^Python\d+$/.test(name))
+        .map((name) => join(pythonBase, name, "Scripts"));
+    } catch {
+      return [];
+    }
+  })();
+
   const candidateDirs = [
     join(appData, "npm"),
     join(localAppData, "pnpm"),
     join(home, ".local", "bin"),
     join(home, ".cargo", "bin"),
-    join(localAppData, "Programs", "Python", "Python312", "Scripts"),
-    join(localAppData, "Programs", "Python", "Python311", "Scripts"),
+    ...pythonScriptDirs,
     join(home, "scoop", "shims"),
     join(home, ".bun", "bin"),
     join(home, ".deno", "bin"),
