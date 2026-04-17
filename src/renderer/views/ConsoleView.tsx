@@ -1,8 +1,10 @@
+import { useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FolderOpen, TerminalWindow, X } from "@phosphor-icons/react";
 import type { RunRecord } from "@shared/types";
 import { ActionButton, Select, StatusPill } from "../components/ui";
 import { formatMoney, formatTime } from "../lib/formatters";
+import { useAppStore } from "../state/store";
 
 interface ConsoleViewProps {
   consoleOpen: boolean;
@@ -27,6 +29,14 @@ export function ConsoleView({
   panelTransition,
   t,
 }: ConsoleViewProps) {
+  const logRevision = useAppStore((s) => s.logRevision);
+  const logBuffer = useMemo(
+    () => (selectedRun ? logBufferRef.current[selectedRun.id] ?? "" : ""),
+    // logRevision is intentionally part of deps: it bumps on every run-log
+    // push into the ref, forcing this memo (and this component) to re-evaluate
+    // the ref contents on re-render.
+    [selectedRun, logRevision, logBufferRef],
+  );
   return (
     <AnimatePresence>
       {consoleOpen ? (
@@ -96,7 +106,7 @@ export function ConsoleView({
             </div>
             <div className="h-[200px] overflow-auto px-5 py-3">
               <pre className="font-mono whitespace-pre-wrap break-all text-[12px] leading-relaxed text-muted-foreground">
-                {selectedRun ? logBufferRef.current[selectedRun.id] ?? t("common.waitingForLog") : t("common.noRunSelected")}
+                {selectedRun ? (logBuffer || t("common.waitingForLog")) : t("common.noRunSelected")}
               </pre>
             </div>
           </div>
