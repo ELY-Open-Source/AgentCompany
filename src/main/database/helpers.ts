@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { SQLInputValue } from "node:sqlite";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SqliteRow represents dynamic row shapes from node:sqlite; callers narrow via explicit column reads
 export type SqliteRow = Record<string, any>;
 export type ReadAll = <T>(sql: string, ...params: SQLInputValue[]) => T[];
 export type Transaction = <T>(operation: () => T) => T;
