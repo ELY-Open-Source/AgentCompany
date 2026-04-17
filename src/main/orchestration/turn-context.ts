@@ -165,6 +165,71 @@ function extractThinkingEffort(metadataJson: string | null): string | null {
   return null;
 }
 
+function filterUpcomingMeetings(
+  meetings: RunDispatchParams["snapshot"]["meetings"],
+  companyId: string,
+  agentId: string,
+) {
+  return meetings
+    .filter((meeting) => meeting.companyId === companyId && (meeting.status === "scheduled" || meeting.status === "in_progress"))
+    .filter((meeting) => {
+      try {
+        const ids: string[] = JSON.parse(meeting.participantAgentIds);
+        return ids.includes(agentId) || meeting.organizerAgentId === agentId;
+      } catch {
+        return false;
+      }
+    })
+    .slice(0, 5);
+}
+
+function filterRelevantKnowledge(
+  knowledge: RunDispatchParams["snapshot"]["knowledgeBase"],
+  companyId: string,
+) {
+  return knowledge
+    .filter((entry) => entry.companyId === companyId && (entry.importance === "critical" || entry.importance === "high"))
+    .slice(0, 20);
+}
+
+function filterRecentDocuments(
+  documents: RunDispatchParams["snapshot"]["documents"],
+  companyId: string,
+  agentId: string,
+) {
+  return documents
+    .filter((document) => document.companyId === companyId && (document.authorAgentId === agentId || document.reviewerAgentId === agentId || document.status === "in_review"))
+    .slice(0, 5);
+}
+
+function filterPendingApprovals(
+  approvals: RunDispatchParams["snapshot"]["approvals"],
+  companyId: string,
+  agentId: string,
+) {
+  return approvals.filter(
+    (approval) => approval.companyId === companyId &&
+      approval.requestedByAgentId === agentId &&
+      (approval.state === "pending" || approval.state === "revision_requested"),
+  );
+}
+
+function buildConnectorCatalog(
+  db: AppDatabase,
+  connectors: RunDispatchParams["snapshot"]["connectors"],
+) {
+  return connectors
+    .filter((c) => c.status === "ready")
+    .filter((c) => c.id.startsWith("claude_compat") || db.hasModelPoolSettings(c.id))
+    .map((c) => ({
+      id: c.id,
+      label: c.label,
+      status: c.status,
+      enabledModels: resolveEnabledConnectorModels(db, c),
+    }))
+    .filter((c) => c.enabledModels.length > 0);
+}
+
 /**
  * Assemble the full run payload from resolved entities and dependencies.
  * This is the core composition step that was previously inlined in dispatchRunToWorker.
@@ -201,11 +266,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     chainOfCommand: db.getChainOfCommand(agent.id),
     assignedTasks,
     allAgents: snapshot.agents.filter((entry) => entry.companyId === companyId),
-    pendingApprovals: snapshot.approvals.filter(
-      (approval) => approval.companyId === companyId &&
-        approval.requestedByAgentId === agent.id &&
-        (approval.state === "pending" || approval.state === "revision_requested"),
-    ),
+    pendingApprovals: filterPendingApprovals(snapshot.approvals, companyId, agent.id),
     tasksAwaitingReview: reviewTasks,
     wakeReason: trigger,
     allTasks: snapshot.tasks.filter((entry) => entry.companyId === companyId),
@@ -219,34 +280,11 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
       requireApproval: account.requireApproval,
     })),
     recentMessages: normalizeMessagesForPrompt(db.listAgentMessages(companyId, { agentId: agent.id, limit: 20 })),
-    upcomingMeetings: snapshot.meetings
-      .filter((meeting) => meeting.companyId === companyId && (meeting.status === "scheduled" || meeting.status === "in_progress"))
-      .filter((meeting) => {
-        try {
-          const ids: string[] = JSON.parse(meeting.participantAgentIds);
-          return ids.includes(agent.id) || meeting.organizerAgentId === agent.id;
-        } catch {
-          return false;
-        }
-      })
-      .slice(0, 5),
-    relevantKnowledge: snapshot.knowledgeBase
-      .filter((entry) => entry.companyId === companyId && (entry.importance === "critical" || entry.importance === "high"))
-      .slice(0, 20),
+    upcomingMeetings: filterUpcomingMeetings(snapshot.meetings, companyId, agent.id),
+    relevantKnowledge: filterRelevantKnowledge(snapshot.knowledgeBase, companyId),
     activeSprint: snapshot.sprints.find((sprint) => sprint.companyId === companyId && sprint.status === "active") ?? null,
-    recentDocuments: snapshot.documents
-      .filter((document) => document.companyId === companyId && (document.authorAgentId === agent.id || document.reviewerAgentId === agent.id || document.status === "in_review"))
-      .slice(0, 5),
-    allConnectors: snapshot.connectors
-      .filter((c) => c.status === "ready")
-      .filter((c) => c.id.startsWith("claude_compat") || db.hasModelPoolSettings(c.id))
-      .map((c) => ({
-        id: c.id,
-        label: c.label,
-        status: c.status,
-        enabledModels: resolveEnabledConnectorModels(db, c),
-      }))
-      .filter((c) => c.enabledModels.length > 0),
+    recentDocuments: filterRecentDocuments(snapshot.documents, companyId, agent.id),
+    allConnectors: buildConnectorCatalog(db, snapshot.connectors),
     sessionHandoff,
     skillNames,
     skillEntries: skills.map((s) => ({
