@@ -50,7 +50,7 @@ export const workerMessageSchema = z.union([
     type: z.literal("rpc-request"),
     rpcId: z.string(),
     runId: z.string().uuid(),
-    method: z.enum(["persistMessage", "prepareRun"]),
+    method: z.enum(["persistMessage", "prepareRun", "beforeToolCall"]),
     payload: z.unknown(),
   }),
 ]);

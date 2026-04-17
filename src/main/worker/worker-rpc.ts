@@ -20,15 +20,17 @@ export class WorkerRpcClient {
     runId: string,
     method: string,
     payload: unknown,
+    options?: { timeoutMs?: number },
   ): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> {
     const rpcId = randomUUID();
+    const effectiveTimeoutMs = options?.timeoutMs ?? this.timeoutMs;
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         const pending = this.pending.get(rpcId);
         if (!pending) return;
         this.pending.delete(rpcId);
-        pending.resolve({ ok: false, error: `RPC ${method} timed out after ${this.timeoutMs}ms` });
-      }, this.timeoutMs);
+        pending.resolve({ ok: false, error: `RPC ${method} timed out after ${effectiveTimeoutMs}ms` });
+      }, effectiveTimeoutMs);
       this.pending.set(rpcId, { resolve, timer });
       this.post({ type: "rpc-request", rpcId, runId, method, payload });
     });

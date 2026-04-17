@@ -51,6 +51,8 @@ export function createPiRuntimeServices(deps: PiRuntimeServicesDeps): PiRuntimeS
     credentialResolver,
     oauthLoginService,
     runtimeBridge,
-    release: () => {},
+    release: () => {
+      runtimeBridge.approvalHook.cancelAll("AgentCompany shutting down.");
+    },
   };
 }

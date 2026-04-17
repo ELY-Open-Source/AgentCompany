@@ -4,6 +4,7 @@ import type { DesktopEvent } from "@shared/types";
 import { ensureTaskThread } from "@main/thread-integration/thread-helpers";
 import { SqliteSessionStore } from "./sqlite-session-store";
 import { CostWriter } from "./cost-writer";
+import { HumanApprovalHook } from "./approval-hook";
 import type { CredentialResolver } from "@main/credentials";
 import { getConnectorDefinition } from "@main/connectors";
 import { projectInboxMessageToPi } from "./inbox-projection";
@@ -132,17 +133,23 @@ interface ActiveRunContext {
  * - Forwards `agent-event` from the worker to the renderer (push channel).
  * - Persists each `message_end` message via `SqliteSessionStore`.
  * - Calls `CostWriter` for assistant messages with usage.
- *
- * Tool-call gating runs fully in the model layer (AI CEO and AI Co-Founder
- * both autonomous); no `beforeToolCall` / `afterToolCall` IPC hop exists.
+ * - Hosts `HumanApprovalHook` for Co-Founder mode tool gating; the worker
+ *   only invokes the hook RPC when running in `ai_cofounder` mode, so
+ *   CEO-mode runs pay zero IPC overhead.
  */
 export class RuntimeBridge {
+  readonly approvalHook: HumanApprovalHook;
   private readonly costWriter: CostWriter;
   private readonly activeRuns = new Map<string, ActiveRunContext>();
   private readonly sessionStores = new Map<string, SqliteSessionStore>();
 
   constructor(private readonly deps: RuntimeBridgeDeps) {
     this.costWriter = new CostWriter({ db: deps.db });
+    this.approvalHook = new HumanApprovalHook({
+      db: deps.db,
+      emitEvent: deps.emitEvent,
+      logger: deps.logger,
+    });
   }
 
   private registerActiveRun(context: ActiveRunContext): void {
@@ -291,7 +298,7 @@ export class RuntimeBridge {
   /** Handles RPC requests issued by the worker (`rpc-request` envelope). */
   async handleRpc(request: {
     rpcId: string;
-    method: "persistMessage" | "prepareRun";
+    method: "persistMessage" | "prepareRun" | "beforeToolCall";
     runId: string;
     payload: unknown;
   }): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> {
@@ -300,6 +307,18 @@ export class RuntimeBridge {
         const payload = request.payload as { taskSessionId: string; message: AgentMessage };
         this.getOrCreateStore(payload.taskSessionId).appendMessage(payload.message);
         return { ok: true, result: undefined };
+      }
+      if (request.method === "beforeToolCall") {
+        const payload = request.payload as {
+          agentId: string;
+          companyId: string;
+          taskId: string | null;
+          toolCallId: string;
+          toolName: string;
+          args: unknown;
+        };
+        const verdict = await this.approvalHook.before(request.runId, payload);
+        return { ok: true, result: verdict };
       }
       if (request.method === "prepareRun") {
         const payload = request.payload as {

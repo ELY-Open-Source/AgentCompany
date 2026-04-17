@@ -79,6 +79,12 @@ export function wireApiServer(deps: WireApiServerDeps): AgentApiServer {
   const onApprovalResolved = (approvalId: string, companyId: string, decision: string) => {
     const automation = deps.serviceGraph.getAutomationService();
     if (!automation) throw new Error("Automation service is not initialized.");
+    // Release any worker waiting on this approval *before* the business
+    // follow-ups fire, so the pi Agent unblocks immediately once the human
+    // decides. Automation state changes and thread updates are allowed to
+    // take longer — they do not hold back the running agent.
+    const piRuntime = deps.serviceGraph.getPiRuntime();
+    if (piRuntime) piRuntime.runtimeBridge.approvalHook.resolveApproval(approvalId, decision);
     automation.handleApprovalResolved(approvalId, companyId, decision);
     deps.threadIntegration.onApprovalResolved(approvalId, companyId, decision);
   };
