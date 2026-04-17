@@ -68,6 +68,33 @@ export function buildDocumentMethods(
       return row?.latest_revision_id ?? null;
     },
 
+    /**
+     * Returns up to `limit` documents of the given types for a company that
+     * are either authored by `authorAgentId` or were created at/after the
+     * task's createdAt. Used by the deliverable-review gate when a task is
+     * advanced to "done".
+     */
+    listImportantDocsForReview(input: {
+      companyId: string;
+      types: readonly string[];
+      authorAgentId: string | null;
+      taskId: string;
+      limit?: number;
+    }): Array<{ id: string; type: string; title: string }> {
+      const limit = input.limit ?? 10;
+      const placeholders = input.types.map(() => "?").join(", ");
+      return readAll<{ id: string; type: string; title: string }>(
+        `select id, type, title from documents where company_id = ? and type in (${placeholders})
+           and (author_agent_id = ? or created_at >= (select created_at from tasks where id = ?))
+           order by created_at desc limit ?`,
+        input.companyId,
+        ...input.types,
+        input.authorAgentId ?? "",
+        input.taskId,
+        limit,
+      );
+    },
+
     listDocumentRevisions(documentId: string, companyId: string) {
       return readAll<{
         id: string; company_id: string; document_id: string; revision_number: number;

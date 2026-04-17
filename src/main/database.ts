@@ -82,6 +82,7 @@ export class AppDatabase extends AppDatabaseBase {
   // ─── Documents & Work Products ─────────────────────────────────────────────
 
   saveDocument(input: { id?: string | null; companyId: string; type: string; title: string; content?: string; authorAgentId?: string | null; reviewerAgentId?: string | null; projectId?: string | null; goalId?: string | null; parentDocId?: string | null; version?: number; status?: string; tagsJson?: string; sourceRunId?: string | null }) { return this.documentsMod.saveDocument(input); }
+  listImportantDocsForReview(input: { companyId: string; types: readonly string[]; authorAgentId: string | null; taskId: string; limit?: number }) { return this.documentsMod.listImportantDocsForReview(input); }
   updateDocumentStatus(id: string, companyId: string, status: string) { this.documentsMod.updateDocumentStatus(id, companyId, status); }
   deleteDocument(id: string, companyId: string) { this.documentsMod.deleteDocument(id, companyId); }
   createDocumentRevision(input: { documentId: string; companyId: string; body: string; changeSummary?: string | null; createdByAgentId?: string | null; createdByUserId?: string | null }) { return this.documentsMod.createDocumentRevision(input); }

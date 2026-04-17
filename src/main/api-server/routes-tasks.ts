@@ -6,17 +6,6 @@ import { inferTaskType } from "../connector-matching";
 import { validateTaskCreation } from "../task-quality-gates";
 import { requireParam, type AgentApiServer } from "./server-core";
 
-type TaskListRow = {
-  id: string; companyId: string; projectId: string | null; goalId: string | null;
-  parentId: string | null; title: string; description: string;
-  assigneeAgentId: string | null; workspaceId: string | null; status: string;
-  priority: string; activeRunId: string | null; sessionJson: string | null;
-  sessionDisplayId: string | null; costUsd: number | null;
-  requiresUserReview: number; startedAt: string | null;
-  completedAt: string | null; cancelledAt: string | null;
-  createdAt: string; updatedAt: string;
-};
-
 const taskUpdateSchema = z.object({
   status: z.enum(["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"]).optional(),
   comment: z.string().min(1).max(4000).optional(),
@@ -51,11 +40,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
       const tasks = db.listAgentTasks(assigneeAgentId, companyId, statuses);
       server.json(res, 200, tasks);
     } else {
-      const placeholders = statuses.map(() => "?").join(", ");
-      const tasks = db.queryAll<TaskListRow>(
-        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, requires_user_review as requiresUserReview, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks where company_id = ? and status in (${placeholders}) order by created_at desc`,
-        companyId, ...statuses,
-      ).map((t) => ({ ...t, requiresUserReview: Boolean(t.requiresUserReview), startedAt: t.startedAt ?? null, completedAt: t.completedAt ?? null, cancelledAt: t.cancelledAt ?? null }));
+      const tasks = db.listTasksByStatuses(companyId, statuses);
       server.json(res, 200, tasks);
     }
   });
@@ -139,14 +124,13 @@ export function registerTaskRoutes(server: AgentApiServer) {
       // Deliverable review gate: intercept agent trying to advance a flagged task to "done".
       // This MUST succeed — silently skipping review would let unreviewed work advance.
       if (update.status === "done" && task.requiresUserReview) {
-        const importantTypes = IMPORTANT_DOC_TYPES;
-        const placeholders = importantTypes.map(() => "?").join(", ");
-        const docs = db.queryAll<{ id: string; type: string; title: string }>(
-          `select id, type, title from documents where company_id = ? and type in (${placeholders})
-           and (author_agent_id = ? or created_at >= (select created_at from tasks where id = ?))
-           order by created_at desc limit 10`,
-          task.companyId, ...importantTypes, task.assigneeAgentId ?? "", task.id,
-        );
+        const docs = db.listImportantDocsForReview({
+          companyId: task.companyId,
+          types: IMPORTANT_DOC_TYPES,
+          authorAgentId: task.assigneeAgentId ?? null,
+          taskId: task.id,
+          limit: 10,
+        });
         const reviewerAgent = db.getAgent(token.agentId);
         const docTitles = docs.map((d) => d.title).join(", ");
         db.requestApproval({

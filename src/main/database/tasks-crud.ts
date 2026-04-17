@@ -10,6 +10,36 @@ import {
   taskPriorityOrderSql,
 } from "./helpers";
 
+/**
+ * Row shape returned by listTasksByStatuses — used by the
+ * GET /api/companies/:companyId/issues route. Mirrors the historical
+ * inline-SQL projection (no taskType column) so the HTTP response shape
+ * stays stable for agent CLI clients.
+ */
+export type TaskListByStatusesRow = {
+  id: string;
+  companyId: string;
+  projectId: string | null;
+  goalId: string | null;
+  parentId: string | null;
+  title: string;
+  description: string;
+  assigneeAgentId: string | null;
+  workspaceId: string | null;
+  status: string;
+  priority: string;
+  activeRunId: string | null;
+  sessionJson: string | null;
+  sessionDisplayId: string | null;
+  costUsd: number | null;
+  requiresUserReview: boolean;
+  startedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export function buildTaskCrudMethods(
   getDb: () => DatabaseSync,
   readAll: ReadAll,
@@ -158,6 +188,24 @@ export function buildTaskCrudMethods(
         agentId,
         ...statuses,
       );
+    },
+
+    listTasksByStatuses(
+      companyId: string,
+      statuses: string[],
+    ): TaskListByStatusesRow[] {
+      const placeholders = statuses.map(() => "?").join(", ");
+      return readAll<TaskListByStatusesRow & { requiresUserReview: number | boolean }>(
+        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, requires_user_review as requiresUserReview, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks where company_id = ? and status in (${placeholders}) order by created_at desc`,
+        companyId,
+        ...statuses,
+      ).map((t) => ({
+        ...t,
+        requiresUserReview: Boolean(t.requiresUserReview),
+        startedAt: t.startedAt ?? null,
+        completedAt: t.completedAt ?? null,
+        cancelledAt: t.cancelledAt ?? null,
+      })) as TaskListByStatusesRow[];
     },
 
     countActiveTasksForCompany(companyId: string): number {
