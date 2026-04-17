@@ -1,4 +1,3 @@
-import { motion } from "framer-motion";
 import {
   CheckCircle,
   XCircle,
@@ -8,7 +7,7 @@ import {
 } from "@phosphor-icons/react";
 import { ActionButton } from "../ui";
 import type { TerminalCommandKey } from "@shared/contracts";
-import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
+import { OnboardingStep } from "./OnboardingStep";
 import { useOnboarding } from "./OnboardingContext";
 
 interface NodeCheckStepProps {
@@ -50,22 +49,11 @@ export function NodeCheckStep({ onContinue, onBack }: NodeCheckStepProps) {
   const platformInfo = INSTALL_COMMANDS[platform] ?? INSTALL_COMMANDS.linux;
 
   return (
-    <motion.div
-      key="nodecheck"
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -18 }}
-      transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-      className="bg-card border border-border shadow-sm w-full rounded-lg p-7"
+    <OnboardingStep
+      step="nodecheck"
+      eyebrow={`${t("onboarding.stepLabel1")} — ${t("onboarding.nodeCheckStep")}`}
+      title={t("onboarding.nodeCheckTitle")}
     >
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {t("onboarding.stepLabel1")} {getStepNumber("nodecheck")} / {TOTAL_STEPS} — {t("onboarding.nodeCheckStep")}
-      </div>
-      <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
-        {t("onboarding.nodeCheckTitle")}
-      </div>
-      <div className="mb-6 h-px bg-[color:var(--border)]" />
-
       {/* Status */}
       <div className="mb-5 flex items-center gap-2.5 text-[13px]">
         {nodeChecking ? (
@@ -132,6 +120,6 @@ export function NodeCheckStep({ onContinue, onBack }: NodeCheckStepProps) {
           disabled={!nodeStatus?.installed}
         />
       </div>
-    </motion.div>
+    </OnboardingStep>
   );
 }

@@ -1,7 +1,6 @@
-import { motion } from "framer-motion";
 import { ActionButton } from "../ui";
 import { ModelToggleList, StatusBadge } from "../execution/ModelManagementShared";
-import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
+import { OnboardingStep } from "./OnboardingStep";
 import { useOnboarding } from "./OnboardingContext";
 
 interface ModelPoolStepProps {
@@ -31,25 +30,12 @@ export function ModelPoolStep({ onBack, onContinue }: ModelPoolStepProps) {
       : t("onboarding.modelPoolContinueHint");
 
   return (
-    <motion.div
-      key="modelpool"
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -18 }}
-      transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-      className="w-full rounded-lg border border-border bg-card p-7 shadow-sm"
+    <OnboardingStep
+      step="modelpool"
+      eyebrow={t("onboarding.stepLabelModelPool")}
+      title={t("onboarding.modelPoolStepTitle")}
+      subtitle={t("onboarding.modelPoolStepSubtitle")}
     >
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {t("onboarding.stepLabelModelPool")} {getStepNumber("modelpool")} / {TOTAL_STEPS}
-      </div>
-      <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
-        {t("onboarding.modelPoolStepTitle")}
-      </div>
-      <div className="mb-3 text-[13px] leading-relaxed text-muted-foreground">
-        {t("onboarding.modelPoolStepSubtitle")}
-      </div>
-      <div className="mb-6 h-px bg-[color:var(--border)]" />
-
       <div className="mb-4 rounded-lg border border-border bg-background/70 px-4 py-3 text-[12px] leading-relaxed text-muted-foreground">
         {t("onboarding.modelPoolStepDescription")}
       </div>
@@ -113,6 +99,6 @@ export function ModelPoolStep({ onBack, onContinue }: ModelPoolStepProps) {
           disabled={!canContinue}
         />
       </div>
-    </motion.div>
+    </OnboardingStep>
   );
 }

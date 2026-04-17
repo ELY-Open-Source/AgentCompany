@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { ArrowRight, FloppyDisk, SignIn } from "@phosphor-icons/react";
 import { ActionButton } from "../ui";
 import {
@@ -9,7 +8,7 @@ import {
   StatusBadge,
   INPUT_CLS,
 } from "./ProvidersStepShared";
-import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
+import { OnboardingStep } from "./OnboardingStep";
 import { useOnboarding } from "./OnboardingContext";
 
 /* ------------------------------------------------------------------ */
@@ -87,24 +86,12 @@ export function ProvidersStep({ onContinue, onBack }: ProvidersStepProps) {
   }
 
   return (
-    <motion.div
-      key="providers"
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -18 }}
-      transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-      className="w-full rounded-lg border border-border bg-card p-7 shadow-sm"
+    <OnboardingStep
+      step="providers"
+      eyebrow={t("onboarding.stepLabelProviders")}
+      title={t("onboarding.providersTitle")}
+      subtitle={t("onboarding.providersSubtitle")}
     >
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {t("onboarding.stepLabelProviders")} {getStepNumber("providers")} / {TOTAL_STEPS}
-      </div>
-      <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
-        {t("onboarding.providersTitle")}
-      </div>
-      <div className="mb-4 text-[13px] leading-relaxed text-muted-foreground">
-        {t("onboarding.providersSubtitle")}
-      </div>
-      <div className="mb-6 h-px bg-[color:var(--border)]" />
 
       <div className="space-y-3">
         {/* ---- Card 1: Claude Code (Official) ---- */}
@@ -281,6 +268,6 @@ export function ProvidersStep({ onContinue, onBack }: ProvidersStepProps) {
           />
         </div>
       </div>
-    </motion.div>
+    </OnboardingStep>
   );
 }

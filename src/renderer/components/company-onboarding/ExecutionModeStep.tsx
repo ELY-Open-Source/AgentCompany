@@ -1,6 +1,5 @@
-import { motion } from "framer-motion";
 import { ArrowRight, Brain, UserCircle, type Icon } from "@phosphor-icons/react";
-import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
+import { OnboardingStep } from "./OnboardingStep";
 import { useOnboarding } from "./OnboardingContext";
 
 interface ExecutionModeStepProps {
@@ -12,22 +11,11 @@ export function ExecutionModeStep({ onContinue, onBack }: ExecutionModeStepProps
   const { executionMode, setExecutionMode, t } = useOnboarding();
 
   return (
-    <motion.div
-      key="executionmode"
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -18 }}
-      transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-      className="bg-card border border-border shadow-sm w-full rounded-lg p-7"
+    <OnboardingStep
+      step="executionmode"
+      eyebrow={t("onboarding.stepLabelMode")}
+      title={t("onboarding.modeStepTitle")}
     >
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {t("onboarding.stepLabelMode")} {getStepNumber("executionmode")} / {TOTAL_STEPS}
-      </div>
-      <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
-        {t("onboarding.modeStepTitle")}
-      </div>
-      <div className="mb-6 h-px bg-[color:var(--border)]" />
-
       <div className="space-y-3">
         <ModeCard
           selected={executionMode === "ai_ceo"}
@@ -68,7 +56,7 @@ export function ExecutionModeStep({ onContinue, onBack }: ExecutionModeStepProps
           <ArrowRight size={14} />
         </button>
       </div>
-    </motion.div>
+    </OnboardingStep>
   );
 }
 

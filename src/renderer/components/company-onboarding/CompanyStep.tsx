@@ -1,8 +1,7 @@
-import { motion } from "framer-motion";
 import { Buildings, FolderOpen } from "@phosphor-icons/react";
 import type { ConnectorId } from "@shared/types";
 import { ActionButton, Input, TextArea, Select } from "../ui";
-import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
+import { OnboardingStep } from "./OnboardingStep";
 import { useOnboarding } from "./OnboardingContext";
 
 interface CompanyStepProps {
@@ -32,22 +31,11 @@ export function CompanyStep({ onContinue, onBack }: CompanyStepProps) {
   } = useOnboarding();
 
   return (
-    <motion.div
-      key="company"
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -18 }}
-      transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-      className="bg-card border border-border shadow-sm w-full rounded-lg p-7"
+    <OnboardingStep
+      step="company"
+      eyebrow={t("onboarding.stepLabelCompany")}
+      title={t("onboarding.step1Title")}
     >
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {t("onboarding.stepLabelCompany")} {getStepNumber("company")} / {TOTAL_STEPS}
-      </div>
-      <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
-        {t("onboarding.step1Title")}
-      </div>
-      <div className="mb-6 h-px bg-[color:var(--border)]" />
-
       <div className="space-y-4">
         <Input
           label={t("onboarding.companyName")}
@@ -139,6 +127,6 @@ export function CompanyStep({ onContinue, onBack }: CompanyStepProps) {
           disabled={!companyName.trim() || !selectedConnectorId}
         />
       </div>
-    </motion.div>
+    </OnboardingStep>
   );
 }
