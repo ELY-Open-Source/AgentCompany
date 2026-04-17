@@ -9,7 +9,7 @@ import {
 import type { InboxItem, InboxItemType, SectionId } from "@shared/types";
 import { timeAgo } from "../../lib/formatters";
 import { useT } from "../../i18n";
-import { typeConfig, severityColors } from "./inbox-helpers";
+import { typeConfig, severityBorderClass } from "./inbox-helpers";
 
 interface InboxProps {
   items: InboxItem[];
@@ -115,7 +115,7 @@ export function Inbox({ items, onNavigate }: InboxProps) {
                   initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: 20 }}
-                  className={`group flex items-center gap-3 rounded-lg border border-l-[3px] border-border bg-card px-4 py-3 transition duration-150 hover:border-border hover:shadow-md hover:-translate-y-px ${severityColors[item.severity] ?? ""}`}
+                  className={`group flex items-center gap-3 rounded-lg border border-l-[3px] border-border bg-card px-4 py-3 transition duration-150 hover:border-border hover:shadow-md hover:-translate-y-px ${severityBorderClass(item.severity)}`}
                 >
                   <div
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"

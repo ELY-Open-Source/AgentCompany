@@ -25,6 +25,11 @@ export const severityColors: Record<string, string> = {
   low: "border-l-[color:var(--border)]",
 };
 
+export function severityBorderClass(severity: string | null | undefined): string {
+  if (!severity) return "border-l-[color:var(--border)]";
+  return severityColors[severity] ?? "border-l-[color:var(--border)]";
+}
+
 export function CompactMetric({ label, value, tone = "default", subtitle }: {
   label: string;
   value: string | number;

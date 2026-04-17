@@ -102,37 +102,28 @@ export function OAuthPromptDialog() {
           </div>
 
           {isManualCode ? (
-            <div className="mb-5 space-y-3 text-[13px] leading-relaxed text-muted-foreground">
-              <ol className="space-y-2 pl-0">
-                <li className="flex gap-2">
-                  <span className="font-mono text-[11px] text-muted-foreground/70">1</span>
-                  <span>
-                    {pending.authUrl ? (
-                      <>
-                        Open{" "}
-                        <a
-                          href={pending.authUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-foreground underline decoration-dotted underline-offset-4 hover:text-accent-foreground"
-                        >
-                          the authorization page
-                        </a>{" "}
-                        and click <strong className="text-foreground">Authorize</strong>.
-                      </>
-                    ) : (
-                      <>Complete authorization in the browser window that opened.</>
-                    )}
-                  </span>
+            <div className="mb-5 text-[13px] leading-relaxed text-muted-foreground">
+              <ol className="list-decimal space-y-2 pl-5 marker:text-[11px] marker:font-mono marker:text-muted-foreground/70">
+                <li>
+                  {pending.authUrl ? (
+                    <>
+                      Open{" "}
+                      <a
+                        href={pending.authUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-foreground underline decoration-dotted underline-offset-4 hover:text-accent-foreground"
+                      >
+                        the authorization page
+                      </a>{" "}
+                      and click <strong className="text-foreground">Authorize</strong>.
+                    </>
+                  ) : (
+                    <>Complete authorization in the browser window that opened.</>
+                  )}
                 </li>
-                <li className="flex gap-2">
-                  <span className="font-mono text-[11px] text-muted-foreground/70">2</span>
-                  <span>Copy the authorization code shown on the confirmation page.</span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="font-mono text-[11px] text-muted-foreground/70">3</span>
-                  <span>Paste it below and press <strong className="text-foreground">Submit</strong>.</span>
-                </li>
+                <li>Copy the authorization code shown on the confirmation page.</li>
+                <li>Paste it below and press <strong className="text-foreground">Submit</strong>.</li>
               </ol>
             </div>
           ) : (
