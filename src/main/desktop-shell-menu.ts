@@ -67,8 +67,9 @@ export function createDesktopShellMenu(deps: DesktopShellMenuDependencies) {
               const result = await dialog.showOpenDialog({
                 properties: ["openDirectory"],
               });
-              if (result.canceled || result.filePaths.length === 0) return;
-              shell.openPath(result.filePaths[0] ?? "");
+              const targetPath = result.filePaths[0];
+              if (result.canceled || !targetPath) return;
+              shell.openPath(targetPath);
             },
           },
           { type: "separator" },
