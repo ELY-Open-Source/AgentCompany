@@ -80,9 +80,44 @@ export function buildConnectorMethods(
     },
 
     getConnector(id: ConnectorId): ConnectorRecord {
-      const record = readConnectors().find((entry) => entry.id === id);
-      if (!record) throw new Error(`Connector not found: ${id}`);
-      return record;
+      const row = getDb()
+        .prepare(
+          "select id, label, description, status, command, version, auth_state, last_checked_at, last_error, model, env_binding_text, notes from connectors where id = ?",
+        )
+        .get(id) as
+        | {
+            id: string;
+            label: string;
+            description: string;
+            status: ConnectorRecord["status"];
+            command: string;
+            version: string | null;
+            auth_state: ConnectorRecord["authState"];
+            last_checked_at: string | null;
+            last_error: string | null;
+            model: string | null;
+            env_binding_text: string;
+            notes: string;
+          }
+        | undefined;
+      if (!row) throw new Error(`Connector not found: ${id}`);
+      const definition = getConnectorDefinition(row.id as ConnectorId);
+      return {
+        id: row.id as ConnectorId,
+        label: row.label,
+        description: row.description,
+        status: row.status,
+        command: normalizeCommandValue(row.command),
+        version: row.version,
+        authState: row.auth_state,
+        lastCheckedAt: row.last_checked_at,
+        lastError: row.last_error,
+        model: row.model,
+        envBindingText: row.env_binding_text,
+        notes: row.notes,
+        configurationDoc: definition.configurationDoc,
+        capabilityMatrix: definition.capabilityMatrix,
+      };
     },
 
     seedConnectors() {
