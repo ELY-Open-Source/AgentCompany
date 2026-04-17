@@ -78,40 +78,23 @@ export function createServiceGraph({
   let workerService: ReturnType<typeof createWorkerService> | null = null;
   let updaterService: ReturnType<typeof createUpdaterService> | null = null;
   let appLifecycleService: ReturnType<typeof createAppLifecycleService> | null = null;
+  // Eagerly constructed inside init() and resolved via getOrCreate* getters.
   let skillService: ReturnType<typeof createSkillService> | null = null;
   let budgetEnforcementService: ReturnType<typeof createBudgetEnforcementService> | null = null;
   let sessionManagementService: ReturnType<typeof createSessionManagementService> | null = null;
 
   function getOrCreateSkillService() {
-    if (!skillService) {
-      skillService = createSkillService({
-        db,
-        profileDir: db.profileDir,
-        logger,
-      });
-    }
+    if (!skillService) throw new Error("Skill service is not initialized.");
     return skillService;
   }
 
   function getOrCreateBudgetEnforcementService() {
-    if (!budgetEnforcementService) {
-      budgetEnforcementService = createBudgetEnforcementService({
-        db,
-        logger,
-        notify,
-        publishDomainChanged,
-      });
-    }
+    if (!budgetEnforcementService) throw new Error("Budget enforcement service is not initialized.");
     return budgetEnforcementService;
   }
 
   function getOrCreateSessionManagementService() {
-    if (!sessionManagementService) {
-      sessionManagementService = createSessionManagementService({
-        db,
-        logger,
-      });
-    }
+    if (!sessionManagementService) throw new Error("Session management service is not initialized.");
     return sessionManagementService;
   }
 
@@ -159,6 +142,12 @@ export function createServiceGraph({
 
   function init() {
     nativeTheme.themeSource = db.listSnapshot().theme;
+    // Eagerly construct leaf services that other services depend on. Keeps
+    // the graph deterministic and lets getOrCreate* getters stay pure readers.
+    skillService = createSkillService({ db, profileDir: db.profileDir, logger });
+    budgetEnforcementService = createBudgetEnforcementService({ db, logger, notify, publishDomainChanged });
+    sessionManagementService = createSessionManagementService({ db, logger });
+
     desktopShellService = createDesktopShellService({
       preloadPath,
       rendererDist,
@@ -232,20 +221,14 @@ export function createServiceGraph({
         workerService?.getWorker()?.postMessage({ type: "enqueue-run", payload });
       },
       isQuitting: () => isQuittingRef.current,
-      listRuntimeSkillEntries: (() => {
-        let cachedSkillService: ReturnType<typeof createSkillService> | null = null;
-        return (companyId: string, agentId: string, connectorId: string) => {
-          try {
-            if (!cachedSkillService) {
-              cachedSkillService = createSkillService({ db, profileDir: db.profileDir, logger });
-            }
-            return cachedSkillService.listRuntimeSkillEntries(companyId, agentId, connectorId);
-          } catch (error) {
-            logger.warn(`[service-graph] listRuntimeSkillEntries failed for agent ${agentId}:`, error);
-            return [];
-          }
-        };
-      })(),
+      listRuntimeSkillEntries: (companyId: string, agentId: string, connectorId: string) => {
+        try {
+          return getOrCreateSkillService().listRuntimeSkillEntries(companyId, agentId, connectorId);
+        } catch (error) {
+          logger.warn(`[service-graph] listRuntimeSkillEntries failed for agent ${agentId}:`, error);
+          return [];
+        }
+      },
       budgetService: getOrCreateBudgetEnforcementService(),
       checkpointEngine,
       getSessionHandoff: (taskId: string) => {
