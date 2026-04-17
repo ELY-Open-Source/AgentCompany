@@ -37,8 +37,7 @@ export default function TitleBar() {
           aria-label={maximized ? "Restore" : "Maximize"}
           className="titlebar-button flex h-full w-[46px] items-center justify-center text-muted-foreground transition hover:bg-muted hover:text-foreground"
           onClick={() => {
-            void window.agentCompany.windowMaximize();
-            setTimeout(refreshMaximized, 50);
+            void window.agentCompany.windowMaximize().then(refreshMaximized);
           }}
         >
           {maximized ? (
