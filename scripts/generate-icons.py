@@ -13,7 +13,15 @@ import io
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
+
+# ── macOS-only build helper (uses iconutil and Homebrew cairo) ────────
+if sys.platform != "darwin":
+    sys.exit(
+        "generate-icons.py is a macOS-only build helper (requires iconutil + "
+        "Homebrew cairo). Icons are pre-generated and committed under assets/."
+    )
 
 # ── Ensure cairo library is discoverable on macOS (Homebrew) ──────────
 for _lib_dir in ("/opt/homebrew/opt/cairo/lib", "/usr/local/opt/cairo/lib"):
