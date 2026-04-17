@@ -1,251 +1,103 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle, SignIn } from "./ui/icons";
+import { useEffect, useState } from "react";
 import type { ConnectorRecord } from "@shared/types";
-import { unwrap } from "../lib/desktop";
-import { ActionButton, InlineNotice, Input, Select, StatusPill, TextArea } from "./ui";
-import { useT } from "../i18n";
+import { findConnectorCatalogEntry } from "@shared/connector-catalog";
+import type { CredentialSummary } from "@shared/contracts/schemas-credentials";
+import { InlineNotice, StatusPill } from "./ui";
 
-function getAuthActionCopy(connector: ConnectorRecord) {
-  switch (connector.id) {
-    case "codex_local":
-      return {
-        title: "Codex login required",
-        message: "Codex is installed, but the CLI needs an authenticated session before AgentCompany can dispatch runs.",
-        buttonLabel: "Open Terminal To Sign In",
-      };
-    case "claude_local":
-      return {
-        title: "Claude Code login required",
-        message: "Claude Code is installed, but the local CLI is not authenticated for this desktop runtime.",
-        buttonLabel: "Open Terminal To Sign In",
-      };
-    case "gemini_local":
-      return {
-        title: "Gemini authentication required",
-        message: "Gemini CLI is available, but the runtime still needs an authenticated session. AgentCompany will open Gemini in a terminal and you can complete its interactive auth flow there.",
-        buttonLabel: "Open Terminal",
-      };
-  }
-}
+const AUTH_KIND_LABEL: Record<string, string> = {
+  oauth: "OAuth",
+  api_key: "API key",
+  aws: "AWS",
+  azure: "Azure",
+  gcp_adc: "Google Vertex (ADC)",
+};
 
-export function ConnectorEditor({ connector, onSaved }: { connector: ConnectorRecord; onSaved: () => Promise<void> }) {
-  const t = useT();
-  const [model, setModel] = useState(connector.model ?? "");
-  const [envBindingText, setEnvBindingText] = useState(connector.envBindingText);
-  const [notes, setNotes] = useState(connector.notes);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [openingAuthTerminal, setOpeningAuthTerminal] = useState(false);
-  const [autoChecking, setAutoChecking] = useState(false);
-  const [modelOptions, setModelOptions] = useState<Array<{ id: string; label: string }>>([]);
-  const [loadingModelOptions, setLoadingModelOptions] = useState(false);
-  const [modelOptionsError, setModelOptionsError] = useState<string | null>(null);
-  const authPollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const authActionCopy = getAuthActionCopy(connector);
-  const needsLogin = connector.authState === "required" || connector.status === "auth_required";
-  const shouldLoadModelOptions = connector.capabilityMatrix.modelDiscovery;
+/**
+ * Legacy connector detail view. Real configuration happens in
+ * Settings → Providers. Here we only surface catalog metadata and the current
+ * credential status pulled from the pi-mono credential store.
+ */
+export function ConnectorEditor({
+  connector,
+}: {
+  connector: ConnectorRecord;
+  onSaved: () => Promise<void>;
+}) {
+  const [credential, setCredential] = useState<CredentialSummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const catalog = findConnectorCatalogEntry(connector.id);
 
   useEffect(() => {
-    setModel(connector.model ?? "");
-    setEnvBindingText(connector.envBindingText);
-    setNotes(connector.notes);
-    setSubmitError(null);
-  }, [connector]);
-
-  useEffect(() => () => {
-    if (authPollTimeoutRef.current) {
-      clearTimeout(authPollTimeoutRef.current);
-      authPollTimeoutRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
+    const desktop = window.agentCompany;
+    if (!desktop) return;
     let cancelled = false;
-    if (!shouldLoadModelOptions) {
-      setModelOptions([]);
-      setModelOptionsError(null);
-      setLoadingModelOptions(false);
-      return;
-    }
-    setLoadingModelOptions(true);
-    setModelOptionsError(null);
-    void window.agentCompany.listConnectorModels(connector.id).then((result) => {
+    const refresh = async () => {
+      const result = await desktop.listCredentials();
       if (cancelled) return;
       if (!result.ok) {
-        setModelOptions([]);
-        setModelOptionsError(result.error.message);
-        setLoadingModelOptions(false);
+        setError(result.error.message);
         return;
       }
-      setModelOptions(result.data);
-      setLoadingModelOptions(false);
+      setCredential(result.data.find((row) => row.connectorId === connector.id) ?? null);
+    };
+    void refresh();
+    const unsubscribe = desktop.subscribe((event) => {
+      if (event.type !== "credentials-changed") return;
+      void refresh();
     });
     return () => {
       cancelled = true;
+      unsubscribe();
     };
-  }, [connector.id, shouldLoadModelOptions]);
-
-  const modelSelectOptions = useMemo(() => {
-    const options = [{ value: "", label: "Use connector default" }];
-    const hasCurrentModel = modelOptions.some((option) => option.id === model);
-    if (model && !hasCurrentModel) {
-      options.push({ value: model, label: `${model} (saved)` });
-    }
-    options.push(...modelOptions.map((option) => ({ value: option.id, label: option.label || option.id })));
-    return options;
-  }, [model, modelOptions]);
-
-  const runHealthCheck = useCallback(async (quiet = false) => {
-    setAutoChecking(true);
-    try {
-      unwrap(await window.agentCompany.testConnector(connector.id));
-      await onSaved();
-      if (!quiet) {
-        setSubmitError(null);
-      }
-      return true;
-    } catch (error) {
-      if (!quiet) {
-        setSubmitError(error instanceof Error ? error.message : "Automatic connector health check failed.");
-      }
-      return false;
-    } finally {
-      setAutoChecking(false);
-    }
-  }, [connector.id, onSaved]);
-
-  const scheduleAuthPolling = useCallback((remainingAttempts: number) => {
-    if (authPollTimeoutRef.current) {
-      clearTimeout(authPollTimeoutRef.current);
-      authPollTimeoutRef.current = null;
-    }
-    if (remainingAttempts <= 0) {
-      return;
-    }
-    authPollTimeoutRef.current = setTimeout(() => {
-      void (async () => {
-        const ok = await runHealthCheck(true);
-        if (!ok) {
-          scheduleAuthPolling(remainingAttempts - 1);
-        }
-      })();
-    }, 5000);
-  }, [runHealthCheck]);
+  }, [connector.id]);
 
   return (
     <div className="grid gap-4">
-      {submitError ? <InlineNotice message={submitError} /> : null}
-      {needsLogin && authActionCopy ? (
-        <div className="rounded-lg border border-[color:var(--destructive)] bg-warning-muted px-4 py-4 text-[12px] text-warning">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em]">{authActionCopy.title}</div>
-          <div className="mt-1.5 leading-relaxed">{authActionCopy.message}</div>
-          <div className="mt-3">
-            <ActionButton
-              label={authActionCopy.buttonLabel}
-              icon={SignIn}
-              onClick={() => void (async () => {
-                setOpeningAuthTerminal(true);
-                setSubmitError(null);
-                try {
-                  unwrap(await window.agentCompany.openConnectorAuthTerminal(connector.id));
-                  scheduleAuthPolling(12);
-                } catch (error) {
-                  setSubmitError(error instanceof Error ? error.message : "Could not open a terminal for connector login.");
-                } finally {
-                  setOpeningAuthTerminal(false);
-                }
-              })()}
-              loading={openingAuthTerminal}
-            />
-          </div>
-        </div>
-      ) : null}
+      {error ? <InlineNotice message={error} /> : null}
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">{t("conn.status")}</div>
+          <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">Status</div>
           <div className="flex items-center gap-3">
             <StatusPill status={connector.status} />
-            <span className="text-[12px] text-muted-foreground">{connector.version ?? "version unknown"}</span>
+            <span className="text-[12px] text-muted-foreground">
+              {credential ? credential.status : "not configured"}
+            </span>
           </div>
         </div>
         <div>
-          <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">{t("conn.capabilityMatrix")}</div>
-          <div className="grid grid-cols-2 gap-2">
-            {Object.entries(connector.capabilityMatrix).map(([key, value]) => (
-              <div key={key} className={`rounded-lg border px-3 py-2 text-[12px] ${value ? "border-[color:var(--primary)] border-opacity-20 bg-accent text-primary" : "border-border bg-muted text-muted-foreground"}`}>
-                {key}
-              </div>
-            ))}
+          <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">Auth</div>
+          <div className="text-[13px] text-foreground">
+            {catalog ? AUTH_KIND_LABEL[catalog.auth.type] ?? catalog.auth.type : "Unknown"}
           </div>
         </div>
       </div>
       <div>
-        <Input label="Command" value={connector.command} onChange={() => undefined} readOnly />
-        <div className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
-          AgentCompany pins connector execution to the audited binary for this runtime. Command overrides are not accepted from the renderer.
-        </div>
+        <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">Provider id</div>
+        <div className="font-mono text-[12px] text-foreground">{catalog?.provider ?? connector.id}</div>
       </div>
-      {shouldLoadModelOptions ? (
-        <div className="grid gap-2">
-          <Select
-            label="Model"
-            value={model}
-            onChange={setModel}
-            options={modelSelectOptions}
-          />
-          {loadingModelOptions ? (
-            <div className="text-[12px] text-muted-foreground">Loading available models...</div>
-          ) : null}
-          {modelOptionsError ? (
-            <InlineNotice message={modelOptionsError} />
-          ) : null}
-        </div>
-      ) : (
-        <Input label="Model" value={model} onChange={setModel} placeholder="Connector default" />
-      )}
-      <TextArea label="Secret bindings" value={envBindingText} onChange={setEnvBindingText} rows={4} placeholder={"OPENAI_API_KEY=my-vault-key\nANTHROPIC_API_KEY=my-anthropic-key"} />
-      <TextArea label="Operational notes" value={notes} onChange={setNotes} rows={4} />
-      <div className="rounded-lg border border-border bg-muted px-4 py-3 text-[12px] text-muted-foreground">
-        Connector health checks run automatically on app launch, after save, and after terminal login is opened.
-        {autoChecking ? " Refreshing connector state..." : ""}
-      </div>
-      {connector.lastError ? (
-        <div className="rounded-lg border border-border bg-muted px-4 py-3 text-[12px] leading-relaxed text-muted-foreground">
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Latest health-check detail</div>
-          <div>{connector.lastError}</div>
+      {catalog?.description ? (
+        <div>
+          <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">Description</div>
+          <div className="text-[12px] leading-relaxed text-muted-foreground">{catalog.description}</div>
         </div>
       ) : null}
-      <div className="flex gap-3">
-        <ActionButton
-          label={t("conn.saveConnector")}
-          tone="accent"
-          onClick={() => void (async () => {
-            setSaving(true);
-            setSubmitError(null);
-            try {
-              unwrap(await window.agentCompany.saveConnector({
-                id: connector.id,
-                command: connector.command,
-                model: model || null,
-                envBindingText,
-                notes,
-              }));
-              await onSaved();
-              await runHealthCheck(true);
-            } catch (error) {
-              setSubmitError(error instanceof Error ? error.message : "Connector could not be saved.");
-            } finally {
-              setSaving(false);
-            }
-          })()}
-          icon={CheckCircle}
-          loading={saving}
-        />
+      {catalog?.notes ? (
+        <div>
+          <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">Notes</div>
+          <div className="text-[12px] leading-relaxed text-muted-foreground">{catalog.notes}</div>
+        </div>
+      ) : null}
+      <div className="rounded-lg border border-border bg-muted px-4 py-3 text-[12px] leading-relaxed text-muted-foreground">
+        Manage credentials in Settings → Providers. Status and OAuth flows are handled by the pi-mono credential store.
       </div>
-      <div className="rounded-lg border border-border bg-muted px-4 py-4 text-[12px] leading-relaxed text-muted-foreground">
-        <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Configuration doc</div>
-        <pre className="font-mono whitespace-pre-wrap">{connector.configurationDoc}</pre>
-      </div>
+      {credential?.lastError ? (
+        <div className="rounded-lg border border-border bg-muted px-4 py-3 text-[12px] leading-relaxed text-muted-foreground">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            Latest credential error
+          </div>
+          <div>{credential.lastError}</div>
+        </div>
+      ) : null}
     </div>
   );
 }

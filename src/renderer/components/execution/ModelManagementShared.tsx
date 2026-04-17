@@ -1,13 +1,5 @@
 import { CaretDown, CaretRight } from "../ui/icons";
 import type { ProfileSnapshot } from "@shared/types";
-import { COMPATIBLE_PROVIDERS } from "../company-onboarding/ProvidersStepShared";
-
-export { COMPATIBLE_PROVIDERS };
-
-export const COMPAT_SLOTS = [
-  "claude_compatible", "claude_compat_2", "claude_compat_3", "claude_compat_4", "claude_compat_5",
-  "claude_compat_6", "claude_compat_7", "claude_compat_8", "claude_compat_9", "claude_compat_10",
-] as const;
 
 /* ------------------------------------------------------------------ */
 /*  Shared                                                             */

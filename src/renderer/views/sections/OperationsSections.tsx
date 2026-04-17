@@ -4,11 +4,12 @@ import { Dashboard } from "../../components/dashboard";
 import { TwoPaneLayout } from "../../components/TwoPaneLayout";
 import {
   SettingsPane,
-  ModelManagement,
   WorkspaceCreator,
   WorkspaceInspector,
   WorkspaceList,
 } from "../../components/execution";
+import { ProvidersPanel } from "../../components/settings/providers";
+import { OAuthPromptDialog } from "../../components/settings/dialogs/OAuthPromptDialog";
 import { SocialAccountsPanel } from "../../components/social";
 import { AutomationPanel } from "../../components/automation";
 import { CommunicationHub } from "../../components/communication";
@@ -272,9 +273,10 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
           <Panel title={locale === "zh" ? "配置" : "Profile and release"}>
             <SettingsPane snapshot={snapshot} secrets={companySecrets} companyId={currentCompany.id} onSaved={refresh} />
           </Panel>
-          <Panel title={locale === "zh" ? "模型管理" : "Model Management"}>
-            <ModelManagement connectors={snapshot.connectors} locale={locale} onSaved={refresh} />
+          <Panel title={locale === "zh" ? "Providers" : "Providers"}>
+            <ProvidersPanel />
           </Panel>
+          <OAuthPromptDialog />
         </div>
       ) : null}
     </>

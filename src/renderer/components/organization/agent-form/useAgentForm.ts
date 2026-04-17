@@ -6,8 +6,24 @@ import type {
   DepartmentId,
 } from "@shared/types";
 import { isConnectorExecutionReady } from "@shared/connector-policy";
+import { findConnectorCatalogEntry } from "@shared/connector-catalog";
 import { safeJson } from "../../../lib/safe-json";
 import { getBudgetPolicyAmountDollars } from "../../../lib/budget-policy-input";
+
+/**
+ * Connectors whose models accept a thinking-effort hint. Derived from the
+ * pi-mono catalog provider id so renderer stays in sync with Agent A's data
+ * without hard-coding hyphen-vs-underscore id literals.
+ */
+function connectorSupportsThinkingEffort(connectorId: string): boolean {
+  const entry = findConnectorCatalogEntry(connectorId);
+  if (!entry) return false;
+  return (
+    entry.provider === "anthropic" ||
+    entry.provider === "openai" ||
+    entry.provider === "openai-codex"
+  );
+}
 
 export type AgentFormMode = "create" | "edit";
 
@@ -90,10 +106,7 @@ export function useAgentForm({
     typeof existingMeta.thinkingEffort === "string" ? existingMeta.thinkingEffort : "",
   );
 
-  const supportsEffort =
-    connectorId === "claude_local" ||
-    connectorId === "codex_local" ||
-    (mode === "edit" && typeof connectorId === "string" && connectorId.startsWith("claude_compat"));
+  const supportsEffort = connectorSupportsThinkingEffort(connectorId);
 
   const selectedConnectorRecord =
     (mode === "edit" ? connectors : executionReadyConnectors).find(
@@ -115,40 +128,22 @@ export function useAgentForm({
           setModel(result.data[0]?.id ?? "");
         }
       })();
-      if (connectorId !== "claude_local" && connectorId !== "codex_local") {
+      if (!connectorSupportsThinkingEffort(connectorId)) {
         setThinkingEffort("");
       }
       return;
     }
 
-    if (typeof connectorId === "string" && connectorId.startsWith("claude_compat")) {
-      const compat = connectors.find((c) => c.id === connectorId);
-      const raw = compat?.model ?? "";
-      const models = raw
-        .split(",")
-        .map((m) => m.trim())
-        .filter(Boolean)
-        .map((m) => ({ id: m, label: m }));
-      setAvailableModels(models);
-      if (persistedConnectorId && connectorId !== persistedConnectorId && models.length > 0) {
-        setModel(models[0].id);
-      }
-    } else {
-      void (async () => {
-        const result = await window.agentCompany.listConnectorModels(connectorId);
-        if (result.ok) {
-          setAvailableModels(result.data);
-          if (persistedConnectorId && connectorId !== persistedConnectorId) {
-            setModel(result.data[0]?.id ?? "");
-          }
+    void (async () => {
+      const result = await window.agentCompany.listConnectorModels(connectorId);
+      if (result.ok) {
+        setAvailableModels(result.data);
+        if (persistedConnectorId && connectorId !== persistedConnectorId) {
+          setModel(result.data[0]?.id ?? "");
         }
-      })();
-    }
-    if (
-      connectorId !== "claude_local" &&
-      !(typeof connectorId === "string" && connectorId.startsWith("claude_compat")) &&
-      connectorId !== "codex_local"
-    ) {
+      }
+    })();
+    if (!connectorSupportsThinkingEffort(connectorId)) {
       setThinkingEffort("");
     }
   }, [connectorId, mode, persistedConnectorId, connectors]);
