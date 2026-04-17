@@ -275,6 +275,7 @@ export const zh: Record<string, string> = {
   // ── 控制台面板 ──
   "console.title": "控制台",
   "console.noRuns": "暂无运行",
+  "console.close": "关闭控制台",
 
   // ── 实体标签（命令面板分类） ──
   "entity.sections": "版块",

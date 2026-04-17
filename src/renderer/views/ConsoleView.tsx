@@ -6,6 +6,11 @@ import { ActionButton, Select, StatusPill } from "../components/ui";
 import { formatMoney, formatTime } from "../lib/formatters";
 import { useAppStore } from "../state/store";
 
+// Run summaries that indicate the run is no longer active; these entries
+// should not appear in the console run selector.
+const SHUTDOWN_SUMMARY = "Application shut down.";
+const WORKER_CRASH_SUMMARY = "Worker process crashed.";
+
 interface ConsoleViewProps {
   consoleOpen: boolean;
   setConsoleOpen: (value: boolean) => void;
@@ -37,6 +42,14 @@ export function ConsoleView({
     // the ref contents on re-render.
     [selectedRun, logRevision, logBufferRef],
   );
+  const runSelectOptions = useMemo(() => {
+    const activeRuns = runs.filter(
+      (run) => run.summary !== SHUTDOWN_SUMMARY && run.summary !== WORKER_CRASH_SUMMARY,
+    );
+    return activeRuns.length > 0
+      ? activeRuns.map((run) => ({ value: run.id, label: run.summary || `Run ${run.id.slice(0, 8)}` }))
+      : [{ value: "", label: t("console.noRuns") }];
+  }, [runs, t]);
   return (
     <AnimatePresence>
       {consoleOpen ? (
@@ -57,18 +70,13 @@ export function ConsoleView({
                 compact
                 value={selectedRun?.id ?? ""}
                 onChange={setSelectedRunId}
-                options={(() => {
-                  const activeRuns = runs.filter((r) => r.summary !== "Application shut down." && r.summary !== "Worker process crashed.");
-                  return activeRuns.length > 0
-                    ? activeRuns.map((run) => ({ value: run.id, label: run.summary || `Run ${run.id.slice(0, 8)}` }))
-                    : [{ value: "", label: t("console.noRuns") }];
-                })()}
+                options={runSelectOptions}
               />
               <button
                 type="button"
                 className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg p-1 text-muted-foreground transition hover:text-foreground"
                 onClick={() => setConsoleOpen(false)}
-                aria-label="Close console"
+                aria-label={t("console.close")}
               >
                 <X size={14} />
               </button>

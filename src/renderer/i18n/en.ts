@@ -275,6 +275,7 @@ export const en: Record<string, string> = {
   // ── Console panel ──
   "console.title": "Console",
   "console.noRuns": "No runs",
+  "console.close": "Close console",
 
   // ── Entity labels (command palette sections) ──
   "entity.sections": "Sections",
