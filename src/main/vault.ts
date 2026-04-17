@@ -11,15 +11,32 @@ export class SecretVault {
   }
 
   getBackendLabel(): string {
+    const info = this.getBackendInfo();
+    switch (info.kind) {
+      case "safe_storage":
+        return info.backend ? `safe_storage:${info.backend}` : "safe_storage";
+      case "vault":
+        return info.backend ? `vault:${info.backend}` : "vault";
+      case "unavailable":
+        return "unavailable";
+    }
+  }
+
+  /** Structured view of the active backend. Prefer this over the string form
+   * (`getBackendLabel`) when the caller needs to branch on kind vs algorithm. */
+  getBackendInfo(): { kind: "safe_storage" | "vault" | "unavailable"; backend?: string } {
     if (this.canUseSafeStorage()) {
       const selectedBackend = typeof safeStorage?.getSelectedStorageBackend === "function"
         ? safeStorage.getSelectedStorageBackend()
         : "platform";
       if (selectedBackend && selectedBackend !== "basic_text") {
-        return `safe_storage:${selectedBackend}`;
+        return { kind: "safe_storage", backend: selectedBackend };
       }
     }
-    return this.allowInsecureVaultFallback() ? "vault:aes-256-gcm" : "unavailable";
+    if (this.allowInsecureVaultFallback()) {
+      return { kind: "vault", backend: "aes-256-gcm" };
+    }
+    return { kind: "unavailable" };
   }
 
   encrypt(value: string): { backend: "safe_storage" | "vault"; payload: Buffer } {
