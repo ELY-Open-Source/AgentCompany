@@ -14,17 +14,6 @@ export function useCompanyController() {
   const selectedRunId = useAppStore((s) => s.selectedRunId);
   const locale = useAppStore((s) => s.locale);
   const incrementLogRevision = useAppStore((s) => s.incrementLogRevision);
-  const {
-    setError,
-    setInitialOnboardingLocked,
-    setSection,
-    setShowOnboarding,
-    setSelectedRunId,
-    setSelectedAgentId,
-    setConfirmDeleteCompanyId,
-    setCompanySwitcherOpen,
-    setLocale,
-  } = useAppStore.getState();
 
   const currentCompany = useMemo<CompanyRecord | null>(() => {
     if (!snapshot) return null;
@@ -71,13 +60,12 @@ export function useCompanyController() {
       root.style.colorScheme = isDark ? "dark" : "light";
     };
     applyTheme();
-    if (snapshot.locale && snapshot.locale !== locale) setLocale(snapshot.locale);
+    if (snapshot.locale && snapshot.locale !== locale) useAppStore.getState().setLocale(snapshot.locale);
     if (snapshot.theme === "system") {
       const mq = window.matchMedia("(prefers-color-scheme: dark)");
       mq.addEventListener("change", applyTheme);
       return () => mq.removeEventListener("change", applyTheme);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- setLocale is a stable Zustand setter
   }, [snapshot, locale]);
 
   useEffect(() => {
@@ -87,9 +75,8 @@ export function useCompanyController() {
   // Keep selectedRunId in sync when run list changes
   useEffect(() => {
     if (selectedRunId && !companyData.runs.some((run) => run.id === selectedRunId)) {
-      setSelectedRunId(companyData.runs[0]?.id ?? null);
+      useAppStore.getState().setSelectedRunId(companyData.runs[0]?.id ?? null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- setSelectedRunId is a stable Zustand setter
   }, [companyData.runs, selectedRunId]);
 
   // Pre-load run log when active run changes
@@ -105,47 +92,46 @@ export function useCompanyController() {
         incrementLogRevision();
         return;
       }
-      setError(result.error.message);
+      useAppStore.getState().setError(result.error.message);
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- incrementLogRevision and setError are stable Zustand setters
-  }, [activeRunId, companyData.runs]);
+  }, [activeRunId, companyData.runs, incrementLogRevision]);
 
   const setCompany = useCallback(async (companyId: string) => {
-    if (companyId === NEW_ENTITY_ID) { setShowOnboarding(true); return; }
+    const store = useAppStore.getState();
+    if (companyId === NEW_ENTITY_ID) { store.setShowOnboarding(true); return; }
     try {
       unwrap(await window.agentCompany.setCurrentCompany(companyId));
       clearCompanyScopedUiState();
       await refresh();
-      setError(null);
-    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- setError and setShowOnboarding are stable Zustand setters
+      store.setError(null);
+    } catch (err) { store.setError(err instanceof Error ? err.message : String(err)); }
   }, [clearCompanyScopedUiState, refresh]);
 
   const deleteCompany = useCallback(async (companyId: string) => {
+    const store = useAppStore.getState();
     try {
       unwrap(await window.agentCompany.deleteCompany(companyId));
-      setConfirmDeleteCompanyId(null);
-      setCompanySwitcherOpen(false);
+      store.setConfirmDeleteCompanyId(null);
+      store.setCompanySwitcherOpen(false);
       await refresh();
-    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- Zustand setters are stable references
+    } catch (err) { store.setError(err instanceof Error ? err.message : String(err)); }
   }, [refresh]);
 
   const handleOnboardingDone = useCallback(async (summary: OnboardingBootstrapResult) => {
-    setShowOnboarding(false);
-    setInitialOnboardingLocked(false);
+    const store = useAppStore.getState();
+    store.setShowOnboarding(false);
+    store.setInitialOnboardingLocked(false);
     await refresh();
-    setError(null);
-    setSection("overview");
-    if (summary.runId) setSelectedRunId(summary.runId);
-    if (summary.leadAgentId) setSelectedAgentId(summary.leadAgentId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- Zustand setters are stable references
+    store.setError(null);
+    store.setSection("overview");
+    if (summary.runId) store.setSelectedRunId(summary.runId);
+    if (summary.leadAgentId) store.setSelectedAgentId(summary.leadAgentId);
   }, [refresh]);
 
   const openPathWithFeedback = useCallback(async (path: string) => {
-    try { unwrap(await window.agentCompany.openPath(path)); setError(null); }
-    catch (err) { setError(err instanceof Error ? err.message : String(err)); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- setError is a stable Zustand setter
+    const store = useAppStore.getState();
+    try { unwrap(await window.agentCompany.openPath(path)); store.setError(null); }
+    catch (err) { store.setError(err instanceof Error ? err.message : String(err)); }
   }, []);
 
   return {
