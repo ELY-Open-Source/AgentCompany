@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Minus, Square, X } from "@phosphor-icons/react";
+import { Copy, Minus, Square, X } from "@phosphor-icons/react";
 
 export default function TitleBar() {
   const [maximized, setMaximized] = useState(false);
@@ -41,11 +41,7 @@ export default function TitleBar() {
           }}
         >
           {maximized ? (
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2">
-              <rect x="2" y="0" width="8" height="8" rx="1" />
-              <rect x="0" y="2" width="8" height="8" rx="1" fill="var(--card)" />
-              <rect x="0" y="2" width="8" height="8" rx="1" />
-            </svg>
+            <Copy size={12} weight="bold" />
           ) : (
             <Square size={12} weight="bold" />
           )}
