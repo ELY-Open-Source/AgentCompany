@@ -1,6 +1,7 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import { CircleNotch, TerminalWindow } from "@phosphor-icons/react";
-import { LocaleContext, TranslationContext } from "./i18n";
+import { LocaleContext, TranslationContext, type TranslationFn } from "./i18n";
+import type { AppLocale } from "@shared/locale";
 import { CompanyOnboarding } from "./components/CompanyOnboarding";
 import TitleBar from "./components/TitleBar";
 import ToastContainer from "./components/Toast";
@@ -14,6 +15,31 @@ import { useCompanyController } from "./hooks/useCompanyController";
 import { useCommandPaletteHotkeys } from "./hooks/useCommandPaletteHotkeys";
 import { AppActionsContext, type AppActions } from "./hooks/useAppActions";
 import { unwrap } from "./lib/desktop";
+
+function Shell({
+  locale,
+  t,
+  showCustomTitleBar,
+  className,
+  children,
+}: {
+  locale: AppLocale;
+  t: TranslationFn;
+  showCustomTitleBar: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <LocaleContext.Provider value={locale}>
+      <TranslationContext.Provider value={t}>
+        <div className={`flex h-[100dvh] flex-col overflow-hidden${className ? " " + className : ""}`}>
+          {showCustomTitleBar && <TitleBar />}
+          {children}
+        </div>
+      </TranslationContext.Provider>
+    </LocaleContext.Provider>
+  );
+}
 
 export function App() {
   const ui = useUIController();
@@ -99,44 +125,34 @@ export function App() {
 
   if (!company.snapshot) {
     return (
-      <LocaleContext.Provider value={ui.locale}>
-        <TranslationContext.Provider value={ui.t}>
-          <div className="flex h-[100dvh] flex-col overflow-hidden">
-            {showCustomTitleBar && <TitleBar />}
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
-              <CircleNotch size={24} className="animate-spin text-primary" />
-              <span className="text-[13px] text-muted-foreground">{ui.t("app.loading")}</span>
-            </div>
-          </div>
-        </TranslationContext.Provider>
-      </LocaleContext.Provider>
+      <Shell locale={ui.locale} t={ui.t} showCustomTitleBar={showCustomTitleBar}>
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
+          <CircleNotch size={24} className="animate-spin text-primary" />
+          <span className="text-[13px] text-muted-foreground">{ui.t("app.loading")}</span>
+        </div>
+      </Shell>
     );
   }
 
   if (company.snapshot.companies.length === 0 || ui.showOnboarding || ui.initialOnboardingLocked) {
     return (
-      <LocaleContext.Provider value={ui.locale}>
-        <TranslationContext.Provider value={ui.t}>
-          <div className="flex h-[100dvh] flex-col overflow-hidden">
-            {showCustomTitleBar && <TitleBar />}
-            <div className="min-h-0 flex-1 overflow-auto">
-              <CompanyOnboarding
-                connectors={company.snapshot.connectors}
-                onDone={company.handleOnboardingDone}
-                canCancel={company.snapshot.companies.length > 0 && !ui.initialOnboardingLocked}
-                onCancel={() => {
-                  ui.setShowOnboarding(false);
-                  ui.setInitialOnboardingLocked(false);
-                  setError(null);
-                }}
-                currentLocale={ui.locale}
-                onLocaleChange={ui.handleLocaleChange}
-                isFirstLaunch={company.snapshot.companies.length === 0}
-              />
-            </div>
-          </div>
-        </TranslationContext.Provider>
-      </LocaleContext.Provider>
+      <Shell locale={ui.locale} t={ui.t} showCustomTitleBar={showCustomTitleBar}>
+        <div className="min-h-0 flex-1 overflow-auto">
+          <CompanyOnboarding
+            connectors={company.snapshot.connectors}
+            onDone={company.handleOnboardingDone}
+            canCancel={company.snapshot.companies.length > 0 && !ui.initialOnboardingLocked}
+            onCancel={() => {
+              ui.setShowOnboarding(false);
+              ui.setInitialOnboardingLocked(false);
+              setError(null);
+            }}
+            currentLocale={ui.locale}
+            onLocaleChange={ui.handleLocaleChange}
+            isFirstLaunch={company.snapshot.companies.length === 0}
+          />
+        </div>
+      </Shell>
     );
   }
 
