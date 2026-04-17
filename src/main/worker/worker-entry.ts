@@ -80,10 +80,13 @@ const activeByAgent = new Map<string, string>();
 const activeByWorkspace = new Map<string, string>();
 const queue: RunJob[] = [];
 const cancelledRuns = new Set<string>();
-// Agent runs are autonomous by design — they must execute commands without interactive approval.
-// The env-var gate is retained as an emergency kill switch but defaults to enabled.
+// S-01: Bypass is opt-in only. Packaged builds hard-refuse the dangerous CLI
+// flags unless the operator sets BOTH `AGENTCOMPANY_ALLOW_UNSAFE_CONNECTOR_BYPASS=true`
+// AND is running a dev/E2E build (AGENTCOMPANY_PACKAGED !== "true"). Main forks
+// the worker with AGENTCOMPANY_PACKAGED=<app.isPackaged>.
+const isPackaged = process.env.AGENTCOMPANY_PACKAGED === "true";
 const allowUnsafeConnectorBypass =
-  process.env.AGENTCOMPANY_ALLOW_UNSAFE_CONNECTOR_BYPASS !== "false";
+  !isPackaged && process.env.AGENTCOMPANY_ALLOW_UNSAFE_CONNECTOR_BYPASS === "true";
 
 function post(message: ChildMessage) {
   parentPort.postMessage(message);

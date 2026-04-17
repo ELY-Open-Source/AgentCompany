@@ -1,4 +1,4 @@
-import { utilityProcess } from "electron";
+import { app, utilityProcess } from "electron";
 import { workerMessageSchema, type WorkerServiceDependencies } from "./worker/worker-types";
 import { handleWorkerExit } from "./worker/worker-crash-recovery";
 import { handleWorkerMessage } from "./worker/worker-message-handler";
@@ -37,9 +37,15 @@ export function createWorkerService({
   }
 
   function createWorker() {
+    // S-01: Propagate packaged-build signal so the worker can hard-refuse
+    // connector bypass flags in production.
     worker = utilityProcess.fork(workerPath, [], {
       stdio: "pipe",
       serviceName: "AgentCompany Orchestrator",
+      env: {
+        ...process.env,
+        AGENTCOMPANY_PACKAGED: app.isPackaged ? "true" : "false",
+      },
     });
 
     worker.stdout?.on("data", (chunk) => {
