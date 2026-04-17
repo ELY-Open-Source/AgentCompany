@@ -175,18 +175,28 @@ export function createDesktopShellWindow(deps: DesktopShellWindowDependencies) {
           return { action: "deny" };
         }
         if (url.startsWith("https://") || url.startsWith("http://")) {
-          const choice = dialog.showMessageBoxSync({
-            type: "question",
-            buttons: ["Open Link", "Cancel"],
-            defaultId: 1,
-            cancelId: 1,
-            title: "Open External Link?",
-            message: "AgentCompany blocked an untrusted external link.",
-            detail: `${url}\n\nOnly trusted product and documentation domains open automatically. Review this destination before continuing.`,
-          });
-          if (choice === 0) {
-            void shell.openExternal(url);
-          }
+          // Dialog is dispatched asynchronously so the main-process event loop
+          // is not blocked while the user decides. setWindowOpenHandler must
+          // return synchronously, so the window is always denied here; if the
+          // user approves, shell.openExternal runs in the async continuation.
+          void (async () => {
+            const parentWindow = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+            const options: Electron.MessageBoxOptions = {
+              type: "question",
+              buttons: ["Open Link", "Cancel"],
+              defaultId: 1,
+              cancelId: 1,
+              title: "Open External Link?",
+              message: "AgentCompany blocked an untrusted external link.",
+              detail: `${url}\n\nOnly trusted product and documentation domains open automatically. Review this destination before continuing.`,
+            };
+            const result = parentWindow
+              ? await dialog.showMessageBox(parentWindow, options)
+              : await dialog.showMessageBox(options);
+            if (result.response === 0) {
+              void shell.openExternal(url);
+            }
+          })();
         }
         return { action: "deny" };
       });
