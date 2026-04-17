@@ -8,6 +8,13 @@ import type { AgentMessageRecord, DesktopEvent, MessageChannel, MentionResult, S
  */
 export const HUMAN_SENDER_ID = "__board__";
 
+/** Map message priority to notification urgency. Extracted so future priority
+ * classes (e.g. "critical") do not drift between message-dispatch and other
+ * notification call-sites. */
+export function priorityToUrgency(priority: string | null | undefined): "critical" | "informational" {
+  return priority === "urgent" ? "critical" : "informational";
+}
+
 export interface AgentMessageDispatchInput {
   companyId: string;
   /** Agent ID of the sender. Use HUMAN_SENDER_ID for human-originated messages. */
@@ -304,7 +311,7 @@ export function dispatchAgentMessage(
     deps.notify({
       title: truncateForNotification(`${senderName} · ${message.subject}`, 80),
       body: truncateForNotification(message.body, 140),
-      urgency: message.priority === "urgent" ? "critical" : "informational",
+      urgency: priorityToUrgency(message.priority),
       navigation: { section: "communication", entityId: message.id },
       batchKey: "agent_message",
     });
