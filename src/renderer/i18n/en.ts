@@ -257,6 +257,7 @@ export const en: Record<string, string> = {
   "common.close": "Close",
   "common.yes": "Yes",
   "common.no": "No",
+  "sidebar.deleteCompanyConfirm": "Delete {name}?",
   "common.confirm": "Confirm",
   "common.status": "Status",
   "common.started": "Started",

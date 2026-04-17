@@ -86,20 +86,20 @@ export function SidebarView({
                       <div key={company.id} className="group flex items-center">
                         {confirmDeleteCompanyId === company.id ? (
                           <div className="flex w-full items-center gap-2 px-3 py-2">
-                            <span className="flex-1 truncate text-[12px] text-destructive">Delete {company.name}?</span>
+                            <span className="flex-1 truncate text-[12px] text-destructive">{t("sidebar.deleteCompanyConfirm", `Delete ${company.name}?`).replace("{name}", company.name)}</span>
                             <button
                               type="button"
                               className="rounded px-2 py-0.5 text-[11px] font-semibold text-destructive transition hover:bg-destructive hover:text-primary-foreground"
                               onClick={() => void deleteCompany(company.id)}
                             >
-                              Yes
+                              {t("common.yes")}
                             </button>
                             <button
                               type="button"
                               className="rounded px-2 py-0.5 text-[11px] font-semibold text-muted-foreground transition hover:bg-muted"
                               onClick={() => setConfirmDeleteCompanyId(null)}
                             >
-                              No
+                              {t("common.no")}
                             </button>
                           </div>
                         ) : (

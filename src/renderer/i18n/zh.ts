@@ -257,6 +257,7 @@ export const zh: Record<string, string> = {
   "common.close": "关闭",
   "common.yes": "是",
   "common.no": "否",
+  "sidebar.deleteCompanyConfirm": "删除{name}？",
   "common.confirm": "确认",
   "common.status": "状态",
   "common.started": "开始时间",
