@@ -52,8 +52,8 @@ export type AgentStandupRow = {
 export function buildAgentHierarchyMethods(
   getDb: () => DatabaseSync,
   readAll: ReadAll,
-  transaction: Transaction,
-  deps: {
+  _transaction: Transaction,
+  _deps: {
     getAgent: (id: string) => AgentRecord;
   },
 ) {
@@ -63,7 +63,7 @@ export function buildAgentHierarchyMethods(
         `WITH RECURSIVE chain AS (
            SELECT id, company_id as companyId, name, role, title, department, status,
                   reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId,
-                  model, capabilities, budget_monthly_usd as budgetMonthlyUsd,
+                  model, capabilities, role_level as roleLevel, budget_monthly_usd as budgetMonthlyUsd,
                   spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson,
                   heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec,
                   last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt,
@@ -72,7 +72,7 @@ export function buildAgentHierarchyMethods(
            UNION ALL
            SELECT a.id, a.company_id, a.name, a.role, a.title, a.department, a.status,
                   a.reports_to, a.connector_id, a.workspace_id,
-                  a.model, a.capabilities, a.budget_monthly_usd,
+                  a.model, a.capabilities, a.role_level, a.budget_monthly_usd,
                   a.spent_monthly_usd, a.metadata_json,
                   a.heartbeat_enabled, a.heartbeat_interval_sec,
                   a.last_heartbeat_at, a.created_at, a.updated_at,
@@ -92,7 +92,7 @@ export function buildAgentHierarchyMethods(
 
     getDirectReports(agentId: string, companyId: string): AgentRecord[] {
       return readAll<AgentRecord>(
-        "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? and reports_to = ?",
+        "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, role_level as roleLevel, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? and reports_to = ?",
         companyId,
         agentId,
       ).map((record) => ({
@@ -122,7 +122,7 @@ export function buildAgentHierarchyMethods(
      */
     listAgentsForApi(companyId: string): AgentApiRow[] {
       return readAll<AgentApiRow & { heartbeatEnabled: number | boolean }>(
-        "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? order by created_at asc",
+        "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, role_level as roleLevel, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? order by created_at asc",
         companyId,
       ).map((a) => ({ ...a, heartbeatEnabled: Boolean(a.heartbeatEnabled) })) as AgentApiRow[];
     },
@@ -201,7 +201,7 @@ export function buildAgentHierarchyMethods(
 
     listHeartbeatEligibleAgents(companyId: string): AgentRecord[] {
       return readAll<AgentRecord>(
-        "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? and heartbeat_enabled = 1 and status not in ('terminated', 'paused', 'error', 'pending_approval')",
+        "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, role_level as roleLevel, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? and heartbeat_enabled = 1 and status not in ('terminated', 'paused', 'error', 'pending_approval')",
         companyId,
       ).map((record) => ({
         ...record,

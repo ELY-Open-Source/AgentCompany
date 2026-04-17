@@ -1,5 +1,5 @@
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
-import type { AgentRecord, ConnectorId } from "@shared/types";
+import type { AgentRecord, AgentRoleLevel, ConnectorId } from "@shared/types";
 import {
   type ReadAll,
   type Transaction,
@@ -7,7 +7,6 @@ import {
   normalizeOptionalId,
   nowIso,
 } from "./helpers";
-
 export function buildAgentCrudMethods(
   getDb: () => DatabaseSync,
   readAll: ReadAll,
@@ -46,6 +45,8 @@ export function buildAgentCrudMethods(
       metadataJson?: string;
       capabilities: string;
       budgetMonthlyUsd: number;
+      /** Optional explicit seniority; inferred from role/title when omitted. */
+      roleLevel?: AgentRoleLevel;
     }): string {
       const id = ensureId(input.id ?? null);
       const ts = nowIso();
@@ -64,7 +65,7 @@ export function buildAgentCrudMethods(
           .prepare(
             "SELECT name, role, title, department, capabilities, connector_id, model, budget_monthly_usd, metadata_json FROM agents WHERE id = ? AND company_id = ?",
           )
-          .get(id, input.companyId) as Record<string, any> | undefined;
+          .get(id, input.companyId) as Record<string, unknown> | undefined;
         getDb()
           .prepare(
             "update agents set name = ?, role = ?, title = ?, department = ?, status = ?, reports_to = ?, connector_id = ?, workspace_id = ?, model = ?, metadata_json = ?, capabilities = ?, budget_monthly_usd = ?, updated_at = ? where id = ? and company_id = ?",

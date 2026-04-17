@@ -2,7 +2,6 @@ import type { DatabaseSync } from "node:sqlite";
 import type {
   CompanyMetrics,
   AgentMetrics,
-  InboxItem,
   ProfileSnapshot,
   RunStatus,
   StandupReport,
@@ -16,8 +15,8 @@ import {
 export function buildCompanySettingsMethods(
   getDb: () => DatabaseSync,
   readAll: ReadAll,
-  transaction: Transaction,
-  deps: {
+  _transaction: Transaction,
+  _deps: {
     listSnapshot: (options: { companyId?: string | null }) => ProfileSnapshot;
   },
 ) {

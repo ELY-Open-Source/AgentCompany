@@ -1,4 +1,4 @@
-import type { WorkerServiceDependencies, workerMessageSchema } from "./worker-types";
+import type { workerMessageSchema } from "./worker-types";
 import { handleRunLog } from "./handlers/run-log-handler";
 import { handleRunStatus } from "./handlers/run-status-handler";
 import { handleRunFinished } from "./handlers/run-finished-handler";
