@@ -1,8 +1,9 @@
 import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
 import type { ConnectorRecord } from "@shared/types";
-import type { WorkspaceLockMode, OrchestrationDependencies } from "./types";
+import type { OrchestrationDependencies } from "./types";
 import { buildRunPayload, type RunDispatchParams } from "./turn-context";
 import { validateConnectorModelSelection } from "../connector-model-policy";
+import { resolveWorkspaceWithLockMode } from "./resolve-workspace";
 
 export function createRunDispatch(deps: OrchestrationDependencies) {
   const {
@@ -24,27 +25,7 @@ export function createRunDispatch(deps: OrchestrationDependencies) {
     agent: { workspaceId: string | null },
     companyId: string,
   ) {
-    const taskWorkspace = db.getWorkspace(task.workspaceId);
-    if (taskWorkspace) {
-      return { workspace: taskWorkspace, lockMode: "exclusive" as WorkspaceLockMode, source: "task" as const };
-    }
-
-    const agentWorkspace = db.getWorkspace(agent.workspaceId);
-    if (agentWorkspace) {
-      return { workspace: agentWorkspace, lockMode: "exclusive" as WorkspaceLockMode, source: "agent" as const };
-    }
-
-    const projectWorkspace = db.getProjectPrimaryWorkspace(task.projectId ?? null, companyId);
-    if (projectWorkspace) {
-      return { workspace: projectWorkspace, lockMode: "exclusive" as WorkspaceLockMode, source: "project" as const };
-    }
-
-    const fallbackWorkspace = db.getAnyCompanyWorkspace(companyId);
-    if (fallbackWorkspace) {
-      return { workspace: fallbackWorkspace, lockMode: "shared" as WorkspaceLockMode, source: "company_fallback" as const };
-    }
-
-    return { workspace: null, lockMode: "none" as WorkspaceLockMode, source: "none" as const };
+    return resolveWorkspaceWithLockMode(db, task, agent, companyId);
   }
 
   function getRunEligibilityFailure(

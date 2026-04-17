@@ -1,4 +1,5 @@
 import type { WorkerServiceDependencies } from "./worker-types";
+import { resolveWorkspaceWithLockMode } from "../orchestration/resolve-workspace";
 
 export function handleWorkerExit(
   code: number | null,
@@ -94,20 +95,7 @@ export function handleWorkerExit(
         const task = db.getTask(candidate.taskId);
         const agent = db.getAgent(candidate.agentId);
         const connector = db.getConnector(agent.connectorId);
-        const workspaceResolution = {
-          taskWorkspace: db.getWorkspace(task.workspaceId),
-          agentWorkspace: db.getWorkspace(agent.workspaceId),
-          projectWorkspace: db.getProjectPrimaryWorkspace(task.projectId ?? null, candidate.companyId),
-        };
-        const workspace = workspaceResolution.taskWorkspace
-          ?? workspaceResolution.agentWorkspace
-          ?? workspaceResolution.projectWorkspace
-          ?? db.getAnyCompanyWorkspace(candidate.companyId);
-        const workspaceMode = workspaceResolution.taskWorkspace || workspaceResolution.agentWorkspace || workspaceResolution.projectWorkspace
-          ? "exclusive"
-          : workspace
-            ? "shared"
-            : "none";
+        const { workspace, lockMode } = resolveWorkspaceWithLockMode(db, task, agent, candidate.companyId);
         const recoveryCompany = recoverySnapshot.companies.find((company) => company.id === candidate.companyId);
 
         dispatchRunToWorker({
@@ -117,7 +105,7 @@ export function handleWorkerExit(
           task,
           connector,
           workspace,
-          workspaceMode,
+          workspaceMode: lockMode,
           companyName: recoveryCompany?.name ?? "Company",
           companyDescription: recoveryCompany?.description ?? "",
           snapshot: recoverySnapshot,
