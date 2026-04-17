@@ -8,6 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import { ActionButton } from "../ui";
 import type { TerminalCommandKey } from "@shared/contracts";
+import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
 
 interface NodeCheckStepProps {
   nodeStatus: { installed: boolean; version: string | null } | null;
@@ -69,7 +70,7 @@ export function NodeCheckStep({
       className="bg-card border border-border shadow-sm w-full rounded-lg p-7"
     >
       <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {t("onboarding.stepLabel1")} 1 / 5 — {t("onboarding.nodeCheckStep")}
+        {t("onboarding.stepLabel1")} {getStepNumber("nodecheck")} / {TOTAL_STEPS} — {t("onboarding.nodeCheckStep")}
       </div>
       <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
         {t("onboarding.nodeCheckTitle")}

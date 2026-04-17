@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Cpu, Lightning } from "@phosphor-icons/react";
 import { ActionButton, Input, TextArea } from "../ui";
+import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
 
 interface MissionStepProps {
   goalTitle: string;
@@ -35,7 +36,7 @@ export function MissionStep({
       className="bg-card border border-border shadow-sm w-full rounded-lg p-7"
     >
       <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {t("onboarding.stepLabelMission")} 6 / 6
+        {t("onboarding.stepLabelMission")} {getStepNumber("mission")} / {TOTAL_STEPS}
       </div>
       <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
         {t("onboarding.step2Title")}

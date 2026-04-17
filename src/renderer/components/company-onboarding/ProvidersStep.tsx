@@ -11,6 +11,7 @@ import {
   StatusBadge,
   INPUT_CLS,
 } from "./ProvidersStepShared";
+import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
 
 /* ------------------------------------------------------------------ */
 /*  Props                                                              */
@@ -104,7 +105,7 @@ export function ProvidersStep({
       className="w-full rounded-lg border border-border bg-card p-7 shadow-sm"
     >
       <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {t("onboarding.stepLabelProviders")} 2 / 6
+        {t("onboarding.stepLabelProviders")} {getStepNumber("providers")} / {TOTAL_STEPS}
       </div>
       <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
         {t("onboarding.providersTitle")}

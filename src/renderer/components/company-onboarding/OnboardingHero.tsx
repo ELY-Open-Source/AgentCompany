@@ -31,7 +31,7 @@ const STEP_LABELS_CONFIG = [
   { key: "onboarding.stepLabelLaunch", icon: Rocket, step: "launch" as const },
 ] as const;
 
-const STEP_ORDER: OnboardingStep[] = [
+export const STEP_ORDER = [
   "nodecheck",
   "providers",
   "company",
@@ -39,7 +39,15 @@ const STEP_ORDER: OnboardingStep[] = [
   "executionmode",
   "mission",
   "launch",
-];
+] as const satisfies readonly OnboardingStep[];
+
+export type OnboardingStepName = (typeof STEP_ORDER)[number];
+
+export const TOTAL_STEPS = STEP_ORDER.length;
+
+export function getStepNumber(step: OnboardingStepName): number {
+  return STEP_ORDER.indexOf(step) + 1;
+}
 
 interface OnboardingHeroProps {
   step: OnboardingStep;
@@ -52,7 +60,7 @@ export function OnboardingHero({
   currentLocale: _currentLocale,
   t,
 }: OnboardingHeroProps) {
-  const stepIndex = STEP_ORDER.indexOf(step);
+  const stepIndex = (STEP_ORDER as readonly OnboardingStep[]).indexOf(step);
 
   const stepLabels = STEP_LABELS_CONFIG.map((cfg) => ({
     label: t(cfg.key),

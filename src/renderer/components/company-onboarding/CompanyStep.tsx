@@ -3,6 +3,7 @@ import { Buildings, FolderOpen } from "@phosphor-icons/react";
 import type { ConnectorId, ProfileSnapshot } from "@shared/types";
 import type { AppLocale } from "@shared/locale";
 import { ActionButton, Input, TextArea, Select } from "../ui";
+import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
 
 interface CompanyStepProps {
   companyName: string;
@@ -57,7 +58,7 @@ export function CompanyStep({
       className="bg-card border border-border shadow-sm w-full rounded-lg p-7"
     >
       <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {t("onboarding.stepLabelCompany")} 3 / 6
+        {t("onboarding.stepLabelCompany")} {getStepNumber("company")} / {TOTAL_STEPS}
       </div>
       <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
         {t("onboarding.step1Title")}

@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Brain, UserCircle, type Icon } from "@phosphor-icons/react";
 import type { ExecutionMode } from "@shared/types";
+import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
 
 interface ExecutionModeStepProps {
   executionMode: ExecutionMode;
@@ -27,7 +28,7 @@ export function ExecutionModeStep({
       className="bg-card border border-border shadow-sm w-full rounded-lg p-7"
     >
       <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {t("onboarding.stepLabelMode")} 5 / 6
+        {t("onboarding.stepLabelMode")} {getStepNumber("executionmode")} / {TOTAL_STEPS}
       </div>
       <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
         {t("onboarding.modeStepTitle")}

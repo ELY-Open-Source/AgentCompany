@@ -4,6 +4,7 @@ import type { ConnectorId, ProfileSnapshot } from "@shared/types";
 import type { AppLocale } from "@shared/locale";
 import { ActionButton } from "../ui";
 import { ModelToggleList, StatusBadge } from "../execution/ModelManagementShared";
+import { getStepNumber, TOTAL_STEPS } from "./OnboardingHero";
 
 interface ModelPoolStepProps {
   currentLocale: AppLocale;
@@ -52,7 +53,7 @@ export function ModelPoolStep({
       className="w-full rounded-lg border border-border bg-card p-7 shadow-sm"
     >
       <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {t("onboarding.stepLabelModelPool")} 4 / 6
+        {t("onboarding.stepLabelModelPool")} {getStepNumber("modelpool")} / {TOTAL_STEPS}
       </div>
       <div className="mb-1 text-[18px] font-semibold tracking-[-0.01em] text-foreground">
         {t("onboarding.modelPoolStepTitle")}
