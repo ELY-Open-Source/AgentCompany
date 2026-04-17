@@ -11,9 +11,25 @@ interface BuildBudgetPolicyInputArgs {
   notifyEnabled: boolean;
 }
 
+/**
+ * Convert a dollar-string ("12.34") to integer cents without relying on float
+ * multiplication (which can lose precision, e.g. 0.29 * 100 = 28.9999...).
+ * Accepts optional sign, digits, and up to two fractional digits.
+ */
+function dollarsToCents(input: string): number | null {
+  const trimmed = input.trim();
+  const match = /^-?(\d+)(?:\.(\d{1,2}))?$/.exec(trimmed);
+  if (!match) return null;
+  const whole = match[1];
+  const fraction = (match[2] ?? "").padEnd(2, "0");
+  const cents = Number.parseInt(whole + fraction, 10);
+  if (!Number.isFinite(cents)) return null;
+  return trimmed.startsWith("-") ? -cents : cents;
+}
+
 export function buildBudgetPolicyInput(args: BuildBudgetPolicyInputArgs) {
-  const amount = Math.round(Number.parseFloat(args.amountDollars) * 100);
-  if (!Number.isFinite(amount) || amount <= 0) {
+  const amount = dollarsToCents(args.amountDollars);
+  if (amount === null || amount <= 0) {
     return null;
   }
 
