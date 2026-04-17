@@ -37,6 +37,8 @@ interface OnboardingDependencies {
   publishDomainChanged: () => void;
   /** Scan workspace directories for skills and import them. Best-effort — may be undefined during early init. */
   scanAndAssignSkills?: (companyId: string, agentId: string) => Promise<void>;
+  /** Optional logger for non-fatal errors from best-effort operations (skill seeding, etc.). */
+  logger?: { warn: (...args: unknown[]) => void };
 }
 
 const DEFERRABLE_RUN_ERRORS = new Set([
@@ -75,6 +77,7 @@ export function createOnboardingService({
   queueTaskRun,
   publishDomainChanged,
   scanAndAssignSkills,
+  logger,
 }: OnboardingDependencies) {
   function updateAgentWorkspaceBinding(agentId: string, workspaceId: string | null) {
     if (!workspaceId) return;
@@ -260,7 +263,10 @@ export function createOnboardingService({
     seedDefaultAutomationRules(companyId);
 
     if (scanAndAssignSkills) {
-      void scanAndAssignSkills(companyId, ceoId).catch(() => {});
+      void scanAndAssignSkills(companyId, ceoId).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        logger?.warn(`[onboarding] skill scan failed for agent ${ceoId}: ${message}`);
+      });
     }
 
     const kickoff = createInitialExecutionLoop(companyId, workspaceId);
