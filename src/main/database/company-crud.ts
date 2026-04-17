@@ -172,56 +172,84 @@ export function buildCompanyCrudMethods(
 
     getInbox(companyId: string): InboxItem[] {
       const items: InboxItem[] = [];
-      const snapshot = deps.listSnapshot({ companyId });
-      const agents = snapshot.agents;
-      const agentMap = new Map(agents.map((a) => [a.id, a]));
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-      // Pending approvals
-      for (const approval of snapshot.approvals.filter(
-        (a) => a.companyId === companyId && a.state === "pending",
-      )) {
-        const requester = agentMap.get(approval.requestedByAgentId ?? "");
+      const agentRows = readAll<{ id: string; name: string }>(
+        "select id, name from agents where company_id = ?",
+        companyId,
+      );
+      const agentNameMap = new Map(agentRows.map((a) => [a.id, a.name]));
+
+      const pendingApprovals = readAll<{
+        id: string; type: string; payloadSummary: string;
+        requestedByAgentId: string | null; createdAt: string;
+      }>(
+        `select id, type, payload_summary as payloadSummary,
+                requested_by_agent_id as requestedByAgentId, created_at as createdAt
+           from approvals where company_id = ? and state = 'pending'
+          order by created_at desc`,
+        companyId,
+      );
+      for (const approval of pendingApprovals) {
+        const requesterName = approval.requestedByAgentId
+          ? agentNameMap.get(approval.requestedByAgentId) ?? null
+          : null;
         items.push({
           id: `approval-${approval.id}`,
           type: "pending_approval",
           title: approval.payloadSummary,
-          subtitle: `${approval.type.replaceAll("_", " ")} — requested by ${requester?.name ?? "Unknown"}`,
+          subtitle: `${approval.type.replaceAll("_", " ")} — requested by ${requesterName ?? "Unknown"}`,
           severity: approval.type === "dangerous_command" ? "critical" : "high",
           entityType: "approval",
           entityId: approval.id,
           agentId: approval.requestedByAgentId,
-          agentName: requester?.name ?? null,
+          agentName: requesterName,
           createdAt: approval.createdAt,
         });
       }
 
-      // Failed runs (last 24h)
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      for (const run of snapshot.runs.filter(
-        (r) =>
-          r.companyId === companyId &&
-          (r.status === "failed" || r.status === "timed_out") &&
-          r.createdAt > oneDayAgo,
-      )) {
-        const agent = agentMap.get(run.agentId);
+      const failedRuns = readAll<{
+        id: string; agentId: string; summary: string;
+        errorMessage: string | null; createdAt: string;
+      }>(
+        `select id, agent_id as agentId, summary, error_message as errorMessage,
+                created_at as createdAt
+           from runs
+          where company_id = ?
+            and status in ('failed', 'timed_out')
+            and created_at > ?
+          order by created_at desc`,
+        companyId,
+        oneDayAgo,
+      );
+      for (const run of failedRuns) {
+        const agentName = agentNameMap.get(run.agentId) ?? null;
         items.push({
           id: `run-${run.id}`,
           type: "failed_run",
           title: run.summary || "Run failed",
-          subtitle: `${agent?.name ?? "Unknown agent"} — ${run.errorMessage?.slice(0, 100) ?? "Unknown error"}`,
+          subtitle: `${agentName ?? "Unknown agent"} — ${run.errorMessage?.slice(0, 100) ?? "Unknown error"}`,
           severity: "high",
           entityType: "run",
           entityId: run.id,
           agentId: run.agentId,
-          agentName: agent?.name ?? null,
+          agentName,
           createdAt: run.createdAt,
         });
       }
 
-      // Budget warnings (agents at >80% budget)
-      for (const agent of agents.filter(
-        (a) => a.budgetMonthlyUsd > 0 && a.spentMonthlyUsd / a.budgetMonthlyUsd > 0.8,
-      )) {
+      const budgetAlertRows = readAll<{
+        id: string; name: string; budgetMonthlyUsd: number; spentMonthlyUsd: number; updatedAt: string;
+      }>(
+        `select id, name, budget_monthly_usd as budgetMonthlyUsd,
+                spent_monthly_usd as spentMonthlyUsd, updated_at as updatedAt
+           from agents
+          where company_id = ?
+            and budget_monthly_usd > 0
+            and (spent_monthly_usd * 1.0 / budget_monthly_usd) > 0.8`,
+        companyId,
+      );
+      for (const agent of budgetAlertRows) {
         const pct = Math.round((agent.spentMonthlyUsd / agent.budgetMonthlyUsd) * 100);
         items.push({
           id: `budget-${agent.id}`,
@@ -237,62 +265,80 @@ export function buildCompanyCrudMethods(
         });
       }
 
-      // Blocked tasks
-      for (const task of snapshot.tasks.filter(
-        (t) => t.companyId === companyId && t.status === "blocked",
-      )) {
-        const assignee = agentMap.get(task.assigneeAgentId ?? "");
-        items.push({
-          id: `blocked-${task.id}`,
-          type: "blocked_task",
-          title: task.title,
-          subtitle: `Assigned to ${assignee?.name ?? "Unassigned"} — blocked`,
-          severity: task.priority === "critical" ? "critical" : "medium",
-          entityType: "task",
-          entityId: task.id,
-          agentId: task.assigneeAgentId,
-          agentName: assignee?.name ?? null,
-          createdAt: task.updatedAt,
-        });
+      const taskAlertRows = readAll<{
+        id: string; title: string; status: string; priority: string;
+        assigneeAgentId: string | null; updatedAt: string;
+      }>(
+        `select id, title, status, priority,
+                assignee_agent_id as assigneeAgentId, updated_at as updatedAt
+           from tasks
+          where company_id = ? and status in ('blocked', 'in_review')
+          order by updated_at desc`,
+        companyId,
+      );
+      for (const task of taskAlertRows) {
+        const assigneeName = task.assigneeAgentId ? agentNameMap.get(task.assigneeAgentId) ?? null : null;
+        if (task.status === "blocked") {
+          items.push({
+            id: `blocked-${task.id}`,
+            type: "blocked_task",
+            title: task.title,
+            subtitle: `Assigned to ${assigneeName ?? "Unassigned"} — blocked`,
+            severity: task.priority === "critical" ? "critical" : "medium",
+            entityType: "task",
+            entityId: task.id,
+            agentId: task.assigneeAgentId,
+            agentName: assigneeName,
+            createdAt: task.updatedAt,
+          });
+        } else {
+          items.push({
+            id: `review-${task.id}`,
+            type: "review_needed",
+            title: task.title,
+            subtitle: `Submitted by ${assigneeName ?? "Unknown"} — awaiting review`,
+            severity: task.priority === "critical" ? "high" : "medium",
+            entityType: "task",
+            entityId: task.id,
+            agentId: task.assigneeAgentId,
+            agentName: assigneeName,
+            createdAt: task.updatedAt,
+          });
+        }
       }
 
-      // Tasks needing review
-      for (const task of snapshot.tasks.filter(
-        (t) => t.companyId === companyId && t.status === "in_review",
-      )) {
-        const assignee = agentMap.get(task.assigneeAgentId ?? "");
-        items.push({
-          id: `review-${task.id}`,
-          type: "review_needed",
-          title: task.title,
-          subtitle: `Submitted by ${assignee?.name ?? "Unknown"} — awaiting review`,
-          severity: task.priority === "critical" ? "high" : "medium",
-          entityType: "task",
-          entityId: task.id,
-          agentId: task.assigneeAgentId,
-          agentName: assignee?.name ?? null,
-          createdAt: task.updatedAt,
-        });
-      }
-
-      // Unread urgent agent messages (company-wide or incident channels that the Board should see)
-      for (const msg of snapshot.agentMessages.filter(
-        (m) =>
-          m.companyId === companyId &&
-          !m.readAt &&
-          (m.channel === "company" || m.channel === "incident" || m.priority === "urgent"),
-      )) {
-        const sender = agentMap.get(msg.fromAgentId);
+      const messageRows = readAll<{
+        id: string; fromAgentId: string; subject: string; channel: string;
+        priority: string; readAt: string | null; createdAt: string;
+      }>(
+        `select messages.id as id,
+                messages.from_agent_id as fromAgentId,
+                messages.subject as subject,
+                messages.channel as channel,
+                messages.priority as priority,
+                reads.read_at as readAt,
+                messages.created_at as createdAt
+           from agent_messages messages
+           left join agent_message_reads reads
+             on reads.message_id = messages.id and reads.agent_id = '__board__'
+          where messages.company_id = ?
+            and reads.read_at is null
+            and (messages.channel = 'company' or messages.channel = 'incident' or messages.priority = 'urgent')
+          order by messages.created_at desc`,
+        companyId,
+      );
+      for (const msg of messageRows) {
+        const senderName = agentNameMap.get(msg.fromAgentId) ?? null;
         items.push({
           id: `message-${msg.id}`,
           type: "agent_message",
           title: msg.subject,
-          subtitle: `${sender?.name ?? "Unknown"} — ${msg.channel === "incident" ? "INCIDENT" : msg.channel} ${msg.priority === "urgent" ? "(urgent)" : ""}`,
+          subtitle: `${senderName ?? "Unknown"} — ${msg.channel === "incident" ? "INCIDENT" : msg.channel} ${msg.priority === "urgent" ? "(urgent)" : ""}`,
           severity: msg.priority === "urgent" || msg.channel === "incident" ? "critical" : "medium",
           entityType: "message",
           entityId: msg.id,
           agentId: msg.fromAgentId,
-          agentName: sender?.name ?? null,
+          agentName: senderName,
           createdAt: msg.createdAt,
         });
       }
