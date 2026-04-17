@@ -8,7 +8,6 @@ interface CommandPaletteHotkeysOptions {
   setCommandPaletteSearch: (value: string) => void;
   setSelectedPaletteIndex: (index: number) => void;
   paletteActions: PaletteAction[];
-  selectedPaletteIndex: number;
   navigateTo: (section: PaletteAction["section"], entityId?: string) => void;
   commandPaletteSearch: string;
 }
@@ -19,7 +18,6 @@ export function useCommandPaletteHotkeys({
   setCommandPaletteSearch,
   setSelectedPaletteIndex,
   paletteActions,
-  selectedPaletteIndex,
   navigateTo,
   commandPaletteSearch,
 }: CommandPaletteHotkeysOptions) {
@@ -43,11 +41,12 @@ export function useCommandPaletteHotkeys({
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") { setCommandPaletteOpen(false); setCommandPaletteSearch(""); setSelectedPaletteIndex(0); return; }
       if (paletteActions.length === 0) return;
-      if (event.key === "ArrowDown") { event.preventDefault(); setSelectedPaletteIndex((useAppStore.getState().selectedPaletteIndex + 1) % paletteActions.length); return; }
-      if (event.key === "ArrowUp") { event.preventDefault(); setSelectedPaletteIndex((useAppStore.getState().selectedPaletteIndex - 1 + paletteActions.length) % paletteActions.length); return; }
+      const currentIndex = useAppStore.getState().selectedPaletteIndex;
+      if (event.key === "ArrowDown") { event.preventDefault(); setSelectedPaletteIndex((currentIndex + 1) % paletteActions.length); return; }
+      if (event.key === "ArrowUp") { event.preventDefault(); setSelectedPaletteIndex((currentIndex - 1 + paletteActions.length) % paletteActions.length); return; }
       if (event.key !== "Enter") return;
       event.preventDefault();
-      const selectedAction = paletteActions[Math.min(selectedPaletteIndex, paletteActions.length - 1)];
+      const selectedAction = paletteActions[Math.min(currentIndex, paletteActions.length - 1)];
       if (!selectedAction) return;
       navigateTo(selectedAction.section, selectedAction.entityId);
       setCommandPaletteOpen(false);
@@ -56,7 +55,7 @@ export function useCommandPaletteHotkeys({
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [commandPaletteOpen, navigateTo, paletteActions, selectedPaletteIndex, setCommandPaletteOpen, setCommandPaletteSearch, setSelectedPaletteIndex]);
+  }, [commandPaletteOpen, navigateTo, paletteActions, setCommandPaletteOpen, setCommandPaletteSearch, setSelectedPaletteIndex]);
 
   useEffect(() => {
     if (!commandPaletteOpen) return;

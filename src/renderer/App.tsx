@@ -110,7 +110,6 @@ export function App() {
     setCommandPaletteSearch: ui.setCommandPaletteSearch,
     setSelectedPaletteIndex: ui.setSelectedPaletteIndex,
     paletteActions,
-    selectedPaletteIndex: ui.selectedPaletteIndex,
     navigateTo,
     commandPaletteSearch: ui.commandPaletteSearch,
   });
