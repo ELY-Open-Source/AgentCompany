@@ -18,6 +18,17 @@ export interface TaskRubric {
   briefTemplate: string;
 }
 
+/**
+ * Default rubric used by task types that carry no type-specific quality
+ * expectations. Single source of truth so "general" and "code" cannot drift.
+ */
+const DEFAULT_RUBRIC: TaskRubric = {
+  requiredSections: [],
+  qualityKeywords: [],
+  minDescriptionLength: 50,
+  briefTemplate: "",
+};
+
 const RUBRICS: Record<TaskType, TaskRubric> = {
   research: {
     requiredSections: ["research question", "methodology", "sources", "expected findings"],
@@ -40,24 +51,14 @@ const RUBRICS: Record<TaskType, TaskRubric> = {
     briefTemplate:
       "A management task brief should cover: Objective, Stakeholders, Timeline, and Success Metrics.",
   },
-  general: {
-    requiredSections: [],
-    qualityKeywords: [],
-    minDescriptionLength: 50,
-    briefTemplate: "",
-  },
-  code: {
-    requiredSections: [],
-    qualityKeywords: [],
-    minDescriptionLength: 50,
-    briefTemplate: "",
-  },
+  general: DEFAULT_RUBRIC,
+  code: DEFAULT_RUBRIC,
 };
 
 /** Returns the rubric for the given task type, defaulting to "general" for unknown values. */
 function getTaskTypeRubric(taskType: string): TaskRubric {
   const key = taskType as TaskType;
-  return RUBRICS[key] ?? RUBRICS.general;
+  return RUBRICS[key] ?? DEFAULT_RUBRIC;
 }
 
 /**
