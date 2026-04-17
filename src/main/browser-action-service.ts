@@ -130,8 +130,8 @@ export function createBrowserActionService({
     return requireBrowserManager().launchLoginBrowser(socialAccountId, platform, loginUrl);
   }
 
-  function resetBrowserManager() {
-    browserManagerRef.current?.shutdown();
+  async function resetBrowserManager() {
+    await browserManagerRef.current?.shutdown();
     browserManagerRef.current = new BrowserManager(join(db.artifactsDir, "browser"));
   }
 

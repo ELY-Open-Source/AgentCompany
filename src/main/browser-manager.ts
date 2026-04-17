@@ -300,10 +300,22 @@ export class BrowserManager {
     }
   }
 
-  shutdown() {
+  async shutdown() {
+    // Wait for each pending window-close to finish so any callers that chain
+    // `await shutdown()` before recreating the manager don't observe torn
+    // state (half-closed login windows still holding a partition).
+    const closePromises: Promise<void>[] = [];
     for (const [, win] of this.loginWindows) {
-      if (!win.isDestroyed()) win.close();
+      if (!win.isDestroyed()) {
+        closePromises.push(
+          new Promise<void>((resolve) => {
+            win.once("closed", () => resolve());
+            win.close();
+          }),
+        );
+      }
     }
+    await Promise.all(closePromises);
     this.loginWindows.clear();
     this.activeActionWindows.clear();
     this.cancelledActionIds.clear();

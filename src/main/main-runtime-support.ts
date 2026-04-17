@@ -151,7 +151,7 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       getWorkerProcess: () => requireServiceGraph().getWorkerService()?.getWorker() ?? null,
       resetAfterRestore: () => {
         initializeAgentTokenSigningKey(requireDb().profileDir);
-        requireBrowserActionService().resetBrowserManager();
+        void requireBrowserActionService().resetBrowserManager();
       },
       getApiPort: () => state.apiServer?.port ?? 0,
       notify: (options) => requireIpcSupport().notify(options),
