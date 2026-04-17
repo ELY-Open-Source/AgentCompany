@@ -2,3 +2,5 @@ export { Badge, SectionButton, Panel, Field, Input, TextArea, Select, ActionButt
 export { StatusPill, InlineNotice, ConfirmDialog, EmptyState } from "./feedback";
 export { Modal, ListFrame, ListRow } from "./layout";
 export { useFocusTrap, useReducedMotion, ErrorBoundary } from "./hooks";
+export { AttentionRow } from "./AttentionRow";
+export type { AttentionRowProps, AttentionTone } from "./AttentionRow";

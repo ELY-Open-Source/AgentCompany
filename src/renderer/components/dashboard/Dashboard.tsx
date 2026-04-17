@@ -1,5 +1,4 @@
-import { useMemo, type ElementType, type ReactNode } from "react";
-import { motion } from "framer-motion";
+import { useMemo } from "react";
 import {
   ArrowRight,
   Briefcase,
@@ -28,46 +27,7 @@ import { ActivityFeed } from "./ActivityFeed";
 import { RecoveryBanner } from "./RecoveryBanner";
 import { BudgetAlertBanner } from "./BudgetAlertBanner";
 import { ChartSection } from "./ChartSection";
-
-const ATTENTION_STAGGER_MAX = 8;
-const ATTENTION_STAGGER_STEP = 0.04;
-
-function AttentionRow({
-  icon: Icon,
-  tone,
-  title,
-  subtitle,
-  onClick,
-  index,
-}: {
-  icon: ElementType;
-  tone: "warn" | "danger";
-  title: ReactNode;
-  subtitle: ReactNode;
-  onClick: () => void;
-  index: number;
-}) {
-  const iconClass = tone === "danger" ? "text-destructive" : "text-warning";
-  const bgClass = tone === "danger" ? "bg-destructive-muted" : "bg-warning-muted";
-  const delay = Math.min(index, ATTENTION_STAGGER_MAX) * ATTENTION_STAGGER_STEP;
-  return (
-    <motion.button
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22, delay, ease: [0.16, 1, 0.3, 1] }}
-      type="button"
-      onClick={onClick}
-      className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border border-[color:var(--destructive)] border-opacity-20 ${bgClass} px-4 py-3 text-left transition hover:border-opacity-40`}
-    >
-      <Icon size={18} className={`shrink-0 ${iconClass}`} />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-medium text-foreground">{title}</div>
-        <div className="mt-0.5 text-[11px] text-muted-foreground">{subtitle}</div>
-      </div>
-      <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
-    </motion.button>
-  );
-}
+import { AttentionRow } from "../ui";
 
 export interface DashboardProps {
   companyName?: string;

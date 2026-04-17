@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import {
   Bell,
-  ArrowRight,
   Robot,
   Tray,
 } from "@phosphor-icons/react";
@@ -10,6 +9,7 @@ import type { InboxItem, InboxItemType, SectionId } from "@shared/types";
 import { timeAgo } from "../../lib/formatters";
 import { useT } from "../../i18n";
 import { typeConfig, severityBorderClass } from "./inbox-helpers";
+import { AttentionRow } from "../ui";
 
 interface InboxProps {
   items: InboxItem[];
@@ -106,50 +106,47 @@ export function Inbox({ items, onNavigate }: InboxProps) {
       ) : (
         <div className="space-y-1.5">
           <AnimatePresence>
-            {filteredItems.map((item) => {
+            {filteredItems.map((item, i) => {
               const config = typeConfig[item.type];
               const Icon = config.icon;
+              const title = (
+                <span className="flex items-center gap-2">
+                  <span className="truncate">{item.title}</span>
+                  <span
+                    className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em]"
+                    style={{ backgroundColor: config.bg, color: config.color }}
+                  >
+                    {config.label}
+                  </span>
+                </span>
+              );
+              const subtitle = (
+                <span className="flex items-center gap-2">
+                  {item.agentName ? (
+                    <span className="flex items-center gap-1">
+                      <Robot size={10} />
+                      {item.agentName}
+                    </span>
+                  ) : null}
+                  <span className="truncate">{item.subtitle.slice(0, 80)}</span>
+                  <span className="shrink-0 tabular-nums">{timeAgo(item.createdAt)}</span>
+                </span>
+              );
               return (
-                <motion.div
+                <AttentionRow
                   key={item.id}
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  className={`group flex items-center gap-3 rounded-lg border border-l-[3px] border-border bg-card px-4 py-3 transition duration-150 hover:border-border hover:shadow-md hover:-translate-y-px ${severityBorderClass(item.severity)}`}
-                >
-                  <div
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                    style={{ backgroundColor: config.bg }}
-                  >
-                    <Icon size={18} weight="fill" style={{ color: config.color }} />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleItemClick(item)}
-                    className="min-w-0 flex-1 text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-[13px] font-medium text-foreground">{item.title}</span>
-                      <span
-                        className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em]"
-                        style={{ backgroundColor: config.bg, color: config.color }}
-                      >
-                        {config.label}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-                      {item.agentName ? (
-                        <span className="flex items-center gap-1">
-                          <Robot size={10} />
-                          {item.agentName}
-                        </span>
-                      ) : null}
-                      <span className="truncate">{item.subtitle.slice(0, 80)}</span>
-                      <span className="shrink-0 tabular-nums">{timeAgo(item.createdAt)}</span>
-                    </div>
-                  </button>
-                  <ArrowRight size={14} className="shrink-0 text-muted-foreground opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100" />
-                </motion.div>
+                  index={i}
+                  icon={Icon}
+                  iconColor={config.color}
+                  iconTileBg={config.bg}
+                  iconWeight="fill"
+                  rowBgClass="bg-card"
+                  borderAccentClass={`border-l-[3px] border-border hover:shadow-md hover:-translate-y-px ${severityBorderClass(item.severity)}`}
+                  title={title}
+                  subtitle={subtitle}
+                  onClick={() => handleItemClick(item)}
+                  showArrow={false}
+                />
               );
             })}
           </AnimatePresence>

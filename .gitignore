@@ -54,6 +54,7 @@ oldreference/
 !/docs/*.md
 !/CLAUDE.md
 !/.planning/**/*.md
+!/src/main/prompt-builder/**/*.md
 *.zip
 *.blockmap
 *.exe

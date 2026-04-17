@@ -106,6 +106,45 @@ function AttachmentPicker({ documents, attachments, onAdd, onRemove }: {
 
 // ─── @Mention Autocomplete ──────────────────────────────────────────────────
 
+/**
+ * Compute pixel coordinates of the caret inside a textarea relative to the
+ * textarea's own top-left corner. Uses a hidden mirror div that replicates
+ * the textarea's type/font metrics so the span we drop at the caret offset
+ * lays out in the same position the real caret does.
+ */
+function getTextareaCaretCoords(textarea: HTMLTextAreaElement, caretIndex: number): { top: number; left: number } {
+  const style = window.getComputedStyle(textarea)
+  const mirror = document.createElement("div")
+  const mirrorStyle = mirror.style
+
+  const copyProps = [
+    "boxSizing", "width", "height", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+    "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth",
+    "fontFamily", "fontSize", "fontWeight", "fontStyle", "fontVariant", "lineHeight",
+    "letterSpacing", "wordSpacing", "textTransform", "textIndent", "whiteSpace", "wordWrap",
+  ] as const
+  for (const prop of copyProps) {
+    mirrorStyle[prop as never] = style[prop as never]
+  }
+  mirrorStyle.position = "absolute"
+  mirrorStyle.visibility = "hidden"
+  mirrorStyle.overflow = "hidden"
+  mirrorStyle.whiteSpace = "pre-wrap"
+  mirrorStyle.wordWrap = "break-word"
+  mirrorStyle.top = "0"
+  mirrorStyle.left = "-9999px"
+
+  mirror.textContent = textarea.value.slice(0, caretIndex)
+  const marker = document.createElement("span")
+  marker.textContent = "\u200b"
+  mirror.appendChild(marker)
+  document.body.appendChild(mirror)
+
+  const coords = { top: marker.offsetTop - textarea.scrollTop, left: marker.offsetLeft - textarea.scrollLeft }
+  document.body.removeChild(mirror)
+  return coords
+}
+
 function MentionDropdown({ agents, query, onSelect, position }: {
   agents: AgentRecord[];
   query: string;
@@ -142,7 +181,7 @@ function MentionDropdown({ agents, query, onSelect, position }: {
   return (
     <div
       className="absolute z-50 w-64 rounded-xl border border-border bg-card shadow-xl"
-      style={{ bottom: position.top, left: position.left }}
+      style={{ top: position.top, left: position.left }}
     >
       {filtered.map((agent, i) => (
         <button
@@ -182,7 +221,7 @@ export function MessageComposer({ agents, companyId, channel, channelTargetId, d
   const [body, setBody] = useState(""); const [subject, setSubject] = useState("")
   const [sending, setSending] = useState(false); const [sendError, setSendError] = useState<string | null>(null)
   const [attachments, setAttachments] = useState<AttachmentItem[]>([])
-  const [mentionState, setMentionState] = useState<{ active: boolean; query: string; startIndex: number }>({ active: false, query: "", startIndex: -1 })
+  const [mentionState, setMentionState] = useState<{ active: boolean; query: string; startIndex: number; caretTop: number; caretLeft: number }>({ active: false, query: "", startIndex: -1, caretTop: 0, caretLeft: 0 })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const addToast = useAppStore((s) => s.addToast)
 
@@ -205,13 +244,13 @@ export function MessageComposer({ agents, companyId, channel, channelTargetId, d
   }, [])
 
   const handleMentionSelect = useCallback((agent: AgentRecord | null) => {
-    if (!agent) { setMentionState({ active: false, query: "", startIndex: -1 }); return }
+    if (!agent) { setMentionState((s) => ({ ...s, active: false, query: "", startIndex: -1 })); return }
     setBody((prev) => {
       const before = prev.slice(0, mentionState.startIndex)
       const after = prev.slice(mentionState.startIndex + mentionState.query.length + 1)
       return `${before}@${agent.name} ${after}`
     })
-    setMentionState({ active: false, query: "", startIndex: -1 })
+    setMentionState((s) => ({ ...s, active: false, query: "", startIndex: -1 }))
     textareaRef.current?.focus()
   }, [mentionState])
 
@@ -219,20 +258,25 @@ export function MessageComposer({ agents, companyId, channel, channelTargetId, d
     setBody(value)
 
     const cursorPos = e.target.selectionStart
-    const textBeforeCursor = value.slice(0, cursorPos)
-    const atIndex = textBeforeCursor.lastIndexOf("@")
-
-    if (atIndex >= 0) {
-      const charBefore = atIndex > 0 ? textBeforeCursor[atIndex - 1] : " "
-      if (charBefore === " " || charBefore === "\n" || atIndex === 0) {
-        const query = textBeforeCursor.slice(atIndex + 1)
-        if (!query.includes(" ") && !query.includes("\n") && query.length <= 30) {
-          setMentionState({ active: true, query, startIndex: atIndex })
-          return
-        }
-      }
+    const windowStart = Math.max(0, cursorPos - 50)
+    const windowText = value.slice(windowStart, cursorPos)
+    const match = windowText.match(/(?:^|\s)@(\w*)$/)
+    if (match) {
+      const query = match[1]
+      const atIndex = windowStart + match.index! + (match[0].startsWith("@") ? 0 : 1)
+      const coords = getTextareaCaretCoords(e.target, atIndex)
+      const style = window.getComputedStyle(e.target)
+      const lineHeightPx = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.3
+      setMentionState({
+        active: true,
+        query,
+        startIndex: atIndex,
+        caretTop: coords.top + lineHeightPx,
+        caretLeft: coords.left,
+      })
+      return
     }
-    setMentionState({ active: false, query: "", startIndex: -1 })
+    setMentionState((s) => ({ ...s, active: false, query: "", startIndex: -1 }))
   }, [])
 
   const handleSend = useCallback(async () => {
@@ -323,14 +367,17 @@ export function MessageComposer({ agents, companyId, channel, channelTargetId, d
         textareaAriaLabel="Message body"
       />
 
-      {mentionState.active && (
+      {mentionState.active && textareaRef.current ? (
         <MentionDropdown
           agents={agents}
           query={mentionState.query}
           onSelect={handleMentionSelect}
-          position={{ top: 60, left: 48 }}
+          position={{
+            top: textareaRef.current.offsetTop + mentionState.caretTop,
+            left: textareaRef.current.offsetLeft + mentionState.caretLeft,
+          }}
         />
-      )}
+      ) : null}
     </div>
   )
 }
