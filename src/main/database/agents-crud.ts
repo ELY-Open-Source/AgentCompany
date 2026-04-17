@@ -1,4 +1,4 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import type { AgentRecord, ConnectorId } from "@shared/types";
 import {
   type ReadAll,
@@ -251,13 +251,31 @@ export function buildAgentCrudMethods(
 
     findMentionedAgentIds(companyId: string, text: string): string[] {
       if (!text.includes("@")) return [];
+      const mentionTokens = new Set<string>();
+      const mentionRegex = /@([\p{L}\p{N} _-]{1,80})(?=[\s,!?.;:\])}>]|$)/gu;
+      for (const match of text.toLowerCase().matchAll(mentionRegex)) {
+        const token = match[1]?.trim();
+        if (token) mentionTokens.add(token);
+      }
+      if (mentionTokens.size === 0) return [];
+
+      const patterns = Array.from(mentionTokens).flatMap((token) => {
+        const words = token.split(/\s+/).filter(Boolean);
+        return words.length > 1 ? [token, words[0]!] : [token];
+      });
+      const placeholders = patterns.map(() => "lower(name) = ? or lower(role) = ? or lower(title) = ?").join(" or ");
+      const params: SQLInputValue[] = [companyId];
+      for (const p of patterns) {
+        params.push(p, p, p);
+      }
       const agents = readAll<{ id: string; name: string; role: string; title: string }>(
-        "SELECT id, name, role, title FROM agents WHERE company_id = ?",
-        companyId,
+        `SELECT id, name, role, title FROM agents WHERE company_id = ? AND (${placeholders})`,
+        ...params,
       );
+      if (agents.length === 0) return [];
+
       const lowerText = text.toLowerCase();
       const aliasMap = new Map<string, string[]>();
-
       const registerAlias = (alias: string, agentId: string) => {
         const normalized = alias.trim().toLowerCase();
         if (!normalized) return;
@@ -265,7 +283,6 @@ export function buildAgentCrudMethods(
         existing.push(agentId);
         aliasMap.set(normalized, existing);
       };
-
       for (const agent of agents) {
         registerAlias(agent.name, agent.id);
         registerAlias(agent.role, agent.id);
@@ -276,7 +293,6 @@ export function buildAgentCrudMethods(
       const uniqueAliases = [...aliasMap.entries()]
         .filter(([, ids]) => ids.length === 1)
         .sort((a, b) => b[0].length - a[0].length);
-
       for (const [alias, ids] of uniqueAliases) {
         const pattern = `@${alias}`;
         const idx = lowerText.indexOf(pattern);
