@@ -25,20 +25,41 @@ export type SectionId =
   | "sprints"
   | "settings";
 
+/**
+ * Pure pi-mono connector catalog ids. Five OAuth, eighteen API-key, three
+ * cloud — see `src/main/connector-definitions.ts`. The id is what the UI, the
+ * database `connectors` table, and the worker resolver all key on.
+ */
 export type ConnectorId =
-  | "codex_local"
-  | "claude_local"
-  | "claude_compatible"
-  | "claude_compat_2"
-  | "claude_compat_3"
-  | "claude_compat_4"
-  | "claude_compat_5"
-  | "claude_compat_6"
-  | "claude_compat_7"
-  | "claude_compat_8"
-  | "claude_compat_9"
-  | "claude_compat_10"
-  | "gemini_local";
+  // OAuth (5)
+  | "claude-pro"
+  | "openai-codex"
+  | "github-copilot"
+  | "gemini-cli"
+  | "antigravity"
+  // API key (18)
+  | "anthropic"
+  | "openai"
+  | "google"
+  | "mistral"
+  | "groq"
+  | "cerebras"
+  | "xai"
+  | "openrouter"
+  | "vercel-ai-gateway"
+  | "zai"
+  | "opencode"
+  | "opencode-go"
+  | "huggingface"
+  | "kimi-coding"
+  | "minimax"
+  | "minimax-cn"
+  | "fireworks"
+  | "fireworks-firepass"
+  // Cloud (3)
+  | "amazon-bedrock"
+  | "azure-openai"
+  | "google-vertex";
 
 export type ConnectorStatus =
   | "not_installed"
@@ -61,6 +82,27 @@ export type AgentStatus =
   | "error"
   | "pending_approval"
   | "terminated";
+
+/**
+ * Hierarchical role seniority. Used by prompt generation, skill auto-assign,
+ * and other "am I a manager?" decisions to avoid substring-matching English
+ * role strings like "chief" / "vp" / "manager". `role` remains a free-text
+ * field that users can edit in the UI.
+ */
+export type AgentRoleLevel = "ic" | "lead" | "manager" | "director" | "vp" | "c_suite";
+
+export const AGENT_ROLE_LEVELS: readonly AgentRoleLevel[] = [
+  "ic", "lead", "manager", "director", "vp", "c_suite",
+] as const;
+
+/** Levels that grant leadership-style prompts and cross-team visibility. */
+export const LEADERSHIP_LEVELS: readonly AgentRoleLevel[] = [
+  "lead", "manager", "director", "vp", "c_suite",
+] as const;
+
+export function isLeadershipLevel(level: AgentRoleLevel | null | undefined): boolean {
+  return level != null && level !== "ic";
+}
 export type GoalStatus = "planned" | "active" | "achieved" | "cancelled";
 export type ProjectStatus = "backlog" | "planned" | "in_progress" | "completed" | "cancelled";
 export type TaskStatus = "backlog" | "todo" | "in_progress" | "in_review" | "done" | "blocked" | "cancelled";
