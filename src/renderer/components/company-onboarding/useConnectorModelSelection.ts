@@ -128,12 +128,23 @@ export function useConnectorModelSelection(
       setSelectedModel("");
       return;
     }
-    setSelectedModel((currentModel) =>
-      currentModel && connectorModels.some((entry) => entry.enabled && entry.id === currentModel)
-        ? currentModel
-        : "",
-    );
-  }, [connectorModels, selectedConnectorId]);
+    const enabledModels = connectorModels.filter((entry) => entry.enabled);
+    if (enabledModels.length === 0) {
+      setSelectedModel("");
+      return;
+    }
+    setSelectedModel((currentModel) => {
+      if (currentModel && enabledModels.some((entry) => entry.id === currentModel)) {
+        return currentModel;
+      }
+      const connectorDefinition = executionReadyConnectors.find((c) => c.id === selectedConnectorId);
+      const preferred = connectorDefinition?.model;
+      if (preferred && enabledModels.some((entry) => entry.id === preferred)) {
+        return preferred;
+      }
+      return enabledModels[0]?.id ?? "";
+    });
+  }, [connectorModels, selectedConnectorId, executionReadyConnectors]);
 
   const modelOptions = useMemo(
     () => connectorModels

@@ -71,10 +71,11 @@ export function CompanyStep({ onContinue, onBack }: CompanyStepProps) {
               value={selectedModel}
               onChange={setSelectedModel}
               disabled={loadingModels || modelOptions.length === 0}
-              options={[
-                { value: "", label: loadingModels ? (currentLocale === "zh" ? "加载中..." : "Loading...") : (currentLocale === "zh" ? "默认" : "Default") },
-                ...modelOptions.map((m) => ({ value: m.id, label: m.label })),
-              ]}
+              options={
+                loadingModels
+                  ? [{ value: "", label: currentLocale === "zh" ? "加载中..." : "Loading..." }]
+                  : modelOptions.map((m) => ({ value: m.id, label: m.label }))
+              }
             />
           </div>
           <div className="mt-3 rounded-lg border border-border bg-background/60 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
