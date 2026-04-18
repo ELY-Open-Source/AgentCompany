@@ -1276,6 +1276,13 @@ export const zh: Record<string, string> = {
   "org.statusAria": "状态：{status}",
 
   // ── 设置面板 ──
+  "settings.tabs.general": "通用",
+  "settings.tabs.mode": "运营模式",
+  "settings.tabs.providers": "连接器",
+  "settings.tabs.shortcuts": "快捷键",
+  "settings.tabs.data": "数据",
+  "settings.tabs.secrets": "密钥",
+  "settings.tabsAria": "设置分类",
   "settings.updaterHint": "启动时自动检查应用更新",
   "settings.modeScope": "应用于当前公司：{company}",
   "settings.backupRestore": "备份与恢复",

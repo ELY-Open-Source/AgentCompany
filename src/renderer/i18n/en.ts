@@ -1276,6 +1276,13 @@ export const en: Record<string, string> = {
   "org.statusAria": "Status: {status}",
 
   // ── Settings pane ──
+  "settings.tabs.general": "General",
+  "settings.tabs.mode": "Execution mode",
+  "settings.tabs.providers": "Providers",
+  "settings.tabs.shortcuts": "Shortcuts",
+  "settings.tabs.data": "Data",
+  "settings.tabs.secrets": "Secrets",
+  "settings.tabsAria": "Settings categories",
   "settings.updaterHint": "Check for application updates at launch",
   "settings.modeScope": "Applies to current company: {company}",
   "settings.backupRestore": "Backup & restore",

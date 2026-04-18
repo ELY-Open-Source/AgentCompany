@@ -4,11 +4,10 @@ import { StandupView } from "../../components/inbox/StandupView";
 import { PerformanceView } from "../../components/inbox/PerformanceView";
 import { Dashboard } from "../../components/dashboard/Dashboard";
 import { TwoPaneLayout } from "../../components/TwoPaneLayout";
-import { SettingsPane } from "../../components/execution/SettingsPane";
+import { SettingsShell } from "../../components/execution/SettingsShell";
 import { WorkspaceCreator } from "../../components/execution/WorkspaceCreator";
 import { WorkspaceInspector } from "../../components/execution/WorkspaceInspector";
 import { WorkspaceList } from "../../components/execution/WorkspaceList";
-import { ProvidersPanel } from "../../components/settings/providers";
 import { OAuthPromptDialog } from "../../components/settings/dialogs/OAuthPromptDialog";
 import { SocialAccountsPanel } from "../../components/social/SocialPanel";
 import { AutomationPanel } from "../../components/automation/AutomationPanel";
@@ -49,7 +48,6 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
   } = useSectionContext();
   const { refresh, openPathWithFeedback, setError } = useAppActions();
 
-  const locale = useAppStore((s) => s.locale);
   const inboxItems = useAppStore((s) => s.inboxItems);
   const companyMetrics = useAppStore((s) => s.companyMetrics);
   const standupReport = useAppStore((s) => s.standupReport);
@@ -272,15 +270,15 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
       ) : null}
 
       {section === "settings" && currentCompany ? (
-        <div className="space-y-10">
-          <Panel title={locale === "zh" ? "配置" : "Profile and release"}>
-            <SettingsPane snapshot={snapshot} secrets={companySecrets} companyId={currentCompany.id} onSaved={refresh} />
-          </Panel>
-          <Panel title={locale === "zh" ? "Providers" : "Providers"}>
-            <ProvidersPanel />
-          </Panel>
+        <>
+          <SettingsShell
+            snapshot={snapshot}
+            secrets={companySecrets}
+            companyId={currentCompany.id}
+            onSaved={refresh}
+          />
           <OAuthPromptDialog />
-        </div>
+        </>
       ) : null}
     </>
   );
