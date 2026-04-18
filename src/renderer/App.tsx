@@ -1,5 +1,5 @@
 import { useCallback, useMemo, type ReactNode } from "react";
-import { CircleNotch, TerminalWindow } from "./components/ui/icons";
+import { CircleNotch } from "./components/ui/icons";
 import { LocaleContext, TranslationContext, type TranslationFn } from "./i18n";
 import type { AppLocale } from "@shared/locale";
 import { CompanyOnboarding } from "./components/company-onboarding/OnboardingWizard";
@@ -7,7 +7,6 @@ import TitleBar from "./components/TitleBar";
 import ToastContainer from "./components/Toast";
 import { SidebarView } from "./views/SidebarView";
 import { SectionContentView } from "./views/SectionContentView";
-import { ConsoleView } from "./views/ConsoleView";
 import { CommandPaletteView } from "./views/CommandPaletteView";
 import { useAppStore } from "./state/store";
 import { useUIController } from "./hooks/useUIController";
@@ -49,7 +48,6 @@ export function App() {
   const error = useAppStore((s) => s.error);
   const setError = useAppStore((s) => s.setError);
   const setSelectedRunId = useAppStore((s) => s.setSelectedRunId);
-  const setConsoleOpen = useAppStore((s) => s.setConsoleOpen);
   const navigateTo = useAppStore((s) => s.navigateTo);
 
   const showCustomTitleBar = window.agentCompany.platform !== "darwin";
@@ -60,7 +58,6 @@ export function App() {
     const result = await window.agentCompany.startTaskRun({ companyId: company.currentCompany.id, taskId });
     if (!result.ok) { setError(result.error.message); return; }
     setSelectedRunId(result.data);
-    setConsoleOpen(true);
     await company.refresh();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- Zustand setters and company.refresh are stable
   }, [company.currentCompany, company.refresh]);
@@ -189,18 +186,6 @@ export function App() {
             <h1 className="text-[28px] font-bold tracking-[-0.02em] text-foreground">
               {ui.navItems.find((item) => item.id === ui.section)?.label ?? ui.t(`nav.${ui.section}`)}
             </h1>
-            <div className="flex shrink-0 items-center gap-3 lg:gap-5">
-              <button
-                type="button"
-                aria-label={ui.consoleOpen ? ui.t("app.hideConsole") : ui.t("app.showConsole")}
-                title={ui.consoleOpen ? ui.t("app.hideConsole") : ui.t("app.showConsole")}
-                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 inline-flex items-center gap-2 py-1 text-[12px] font-semibold text-muted-foreground transition hover:text-foreground"
-                onClick={() => ui.setConsoleOpen(!ui.consoleOpen)}
-              >
-                <TerminalWindow size={16} />
-                <span className="hidden lg:inline">{ui.consoleOpen ? ui.t("app.hideConsole") : ui.t("app.showConsole")}</span>
-              </button>
-            </div>
           </div>
         </header>
 
@@ -208,18 +193,6 @@ export function App() {
           section={ui.section}
           error={error}
           pageTransition={ui.pageTransition}
-        />
-
-        <ConsoleView
-          consoleOpen={ui.consoleOpen}
-          setConsoleOpen={ui.setConsoleOpen}
-          selectedRun={company.selectedRun}
-          setSelectedRunId={setSelectedRunId}
-          runs={company.runs}
-          logBufferRef={company.logBufferRef}
-          openPathWithFeedback={company.openPathWithFeedback}
-          panelTransition={ui.panelTransition}
-          t={ui.t}
         />
       </main>
 

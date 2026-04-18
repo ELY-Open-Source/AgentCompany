@@ -27,7 +27,7 @@ export interface DesktopShellWindowDependencies {
   onRequestQuit: () => void;
   onCheckForUpdates: () => Promise<void>;
   onBackupProfile: () => Promise<void>;
-  onShortcut: (action: "toggle-command-palette" | "toggle-console" | "refresh") => void;
+  onShortcut: (action: "toggle-command-palette" | "refresh") => void;
   notify: (options: NotificationOptions) => void;
   getActiveRunCount: () => number;
 }

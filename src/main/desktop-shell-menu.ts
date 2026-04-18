@@ -18,7 +18,7 @@ export interface DesktopShellMenuDependencies {
   isDev: boolean;
   onCheckForUpdates: () => Promise<void>;
   onBackupProfile: () => Promise<void>;
-  onShortcut: (action: "toggle-command-palette" | "toggle-console" | "refresh") => void;
+  onShortcut: (action: "toggle-command-palette" | "refresh") => void;
   getMainWindow: () => BrowserWindow | null;
   ensureWindow: () => Promise<BrowserWindow | null>;
   requestQuitWithConfirmation: () => Promise<void>;
@@ -116,11 +116,6 @@ export function createDesktopShellMenu(deps: DesktopShellMenuDependencies) {
             label: "Command Palette",
             accelerator: "CmdOrCtrl+K",
             click: () => onShortcut("toggle-command-palette"),
-          },
-          {
-            label: "Toggle Console",
-            accelerator: "CmdOrCtrl+`",
-            click: () => onShortcut("toggle-console"),
           },
           {
             label: "Refresh Data",

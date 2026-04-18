@@ -90,7 +90,6 @@ export function ExecutionSections({ section }: ExecutionSectionsProps) {
   const taskViewMode = useAppStore((s) => s.taskViewMode);
   const setTaskViewMode = useAppStore((s) => s.setTaskViewMode);
   const setSection = useAppStore((s) => s.setSection);
-  const setConsoleOpen = useAppStore((s) => s.setConsoleOpen);
   const setSelectedCommunicationEntityId = useAppStore((s) => s.setSelectedCommunicationEntityId);
 
   const [costsTab, setCostsTab] = useState<"costs" | "policies" | "incidents">("costs");
@@ -113,10 +112,6 @@ export function ExecutionSections({ section }: ExecutionSectionsProps) {
             await openPathWithFeedback(path);
           }}
           onCancelRun={cancelRun}
-          onOpenConsole={(runId: string) => {
-            setSelectedRunId(runId);
-            setConsoleOpen(true);
-          }}
         />
       ) : null}
 

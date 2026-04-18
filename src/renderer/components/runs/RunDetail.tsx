@@ -1,7 +1,6 @@
 import {
   ArrowClockwise,
   FolderOpen,
-  Lightning,
   ListChecks,
   WarningCircle,
 } from "../ui/icons";
@@ -18,7 +17,6 @@ interface RunDetailProps {
   agentMap: Map<string, AgentRecord>;
   workspaceMap: Map<string, WorkspaceRecord>;
   logState: RunLogState;
-  onOpenConsole: (runId: string) => void;
   onCancelRun: (runId: string) => Promise<void> | void;
   onOpenLogPath: (path: string) => Promise<void> | void;
   onReloadLog: () => void;
@@ -40,7 +38,6 @@ export function RunDetail({
   taskMap,
   agentMap,
   logState,
-  onOpenConsole,
   onCancelRun,
   onOpenLogPath,
   onReloadLog,
@@ -54,23 +51,16 @@ export function RunDetail({
     <div className="space-y-6">
       <Panel
         title={task?.title ?? selectedRun.summary ?? t("runs.runDetail")}
-        action={(
-          <div className="flex items-center gap-2">
+        action={
+          isActiveStatus(selectedRun.status) ? (
             <ActionButton
-              label={t("runs.openConsole")}
-              icon={Lightning}
-              onClick={() => onOpenConsole(selectedRun.id)}
+              label={t("runs.cancelRun")}
+              tone="danger"
+              icon={WarningCircle}
+              onClick={() => void onCancelRun(selectedRun.id)}
             />
-            {isActiveStatus(selectedRun.status) ? (
-              <ActionButton
-                label={t("runs.cancelRun")}
-                tone="danger"
-                icon={WarningCircle}
-                onClick={() => void onCancelRun(selectedRun.id)}
-              />
-            ) : null}
-          </div>
-        )}
+          ) : undefined
+        }
       >
         <div className="divide-y divide-[color:var(--border)]">
           <DetailRow label="Status"><StatusPill status={selectedRun.status} /></DetailRow>

@@ -141,7 +141,6 @@ export function useDesktopEvents(
       }
       if (event.type === "shortcut") {
         if (event.action === "toggle-command-palette") store.getState().toggleCommandPalette();
-        if (event.action === "toggle-console") store.getState().toggleConsole();
         if (event.action === "refresh") void refreshRef.current();
         return;
       }

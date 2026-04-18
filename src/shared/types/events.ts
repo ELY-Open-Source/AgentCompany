@@ -15,7 +15,7 @@ export interface DomainChangedEvent {
 
 export interface ShortcutEvent {
   type: "shortcut";
-  action: "toggle-command-palette" | "toggle-console" | "refresh";
+  action: "toggle-command-palette" | "refresh";
 }
 
 export interface RunStatusEvent {

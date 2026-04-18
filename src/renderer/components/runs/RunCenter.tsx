@@ -15,7 +15,6 @@ interface RunCenterProps {
   onSelectRun: (runId: string) => void;
   onCancelRun: (runId: string) => Promise<void> | void;
   onOpenLogPath: (path: string) => Promise<void> | void;
-  onOpenConsole: (runId: string) => void;
 }
 
 export function RunCenter({
@@ -27,7 +26,6 @@ export function RunCenter({
   onSelectRun,
   onCancelRun,
   onOpenLogPath,
-  onOpenConsole,
 }: RunCenterProps) {
   const t = useT();
   const [statusFilter, setStatusFilter] = useState<"all" | RunRecord["status"]>("all");
@@ -109,7 +107,6 @@ export function RunCenter({
           agentMap={agentMap}
           workspaceMap={workspaceMap}
           logState={logState}
-          onOpenConsole={onOpenConsole}
           onCancelRun={onCancelRun}
           onOpenLogPath={onOpenLogPath}
           onReloadLog={reloadLogs}

@@ -41,8 +41,6 @@ export const en: Record<string, string> = {
   "app.commandPalette": "Command palette",
   "app.refresh": "Refresh",
   "app.console": "Console",
-  "app.hideConsole": "Hide console",
-  "app.showConsole": "Show console",
   "app.collapse": "Collapse",
   "app.expand": "Expand",
   "app.noResults": "No results for",
@@ -296,9 +294,6 @@ export const en: Record<string, string> = {
   "common.started": "Started",
   "common.finished": "Finished",
   "common.cost": "Cost",
-  "common.openLog": "Open log",
-  "common.noRunSelected": "No run selected",
-  "common.waitingForLog": "Waiting for log output...",
   "common.sections": "Sections",
   "common.agents": "Agents",
   "common.tasks": "Tasks",
@@ -307,9 +302,6 @@ export const en: Record<string, string> = {
   "common.projects": "Projects",
 
   // ── Console panel ──
-  "console.title": "Console",
-  "console.noRuns": "No runs",
-  "console.close": "Close console",
 
   // ── Entity labels (command palette sections) ──
   "entity.sections": "Sections",
@@ -795,7 +787,6 @@ export const en: Record<string, string> = {
   "runs.noRunsMatch": "No runs match this filter",
   "runs.noRunsMatchDetail": "Try another filter.",
   "runs.runDetail": "Run detail",
-  "runs.openConsole": "Open console",
   "runs.cancelRun": "Cancel run",
   "runs.noSummary": "No summary yet",
   "runs.unknownAgent": "Unknown agent",

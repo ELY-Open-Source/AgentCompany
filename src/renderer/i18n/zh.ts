@@ -41,8 +41,6 @@ export const zh: Record<string, string> = {
   "app.commandPalette": "命令面板",
   "app.refresh": "刷新",
   "app.console": "控制台",
-  "app.hideConsole": "隐藏控制台",
-  "app.showConsole": "显示控制台",
   "app.collapse": "收起",
   "app.expand": "展开",
   "app.noResults": "未找到匹配结果",
@@ -296,9 +294,6 @@ export const zh: Record<string, string> = {
   "common.started": "开始时间",
   "common.finished": "结束时间",
   "common.cost": "费用",
-  "common.openLog": "打开日志",
-  "common.noRunSelected": "未选择运行",
-  "common.waitingForLog": "等待日志输出...",
   "common.sections": "版块",
   "common.agents": "智能体",
   "common.tasks": "任务",
@@ -307,9 +302,6 @@ export const zh: Record<string, string> = {
   "common.projects": "项目",
 
   // ── 控制台面板 ──
-  "console.title": "控制台",
-  "console.noRuns": "暂无运行",
-  "console.close": "关闭控制台",
 
   // ── 实体标签（命令面板分类） ──
   "entity.sections": "版块",
@@ -795,7 +787,6 @@ export const zh: Record<string, string> = {
   "runs.noRunsMatch": "没有匹配此筛选条件的运行",
   "runs.noRunsMatchDetail": "换个筛选试试。",
   "runs.runDetail": "运行详情",
-  "runs.openConsole": "打开控制台",
   "runs.cancelRun": "取消运行",
   "runs.noSummary": "暂无摘要",
   "runs.unknownAgent": "未知智能体",

@@ -79,7 +79,6 @@ export function useUIController() {
 
   const {
     section,
-    consoleOpen,
     sidebarCollapsed,
     companySwitcherOpen,
     confirmDeleteCompanyId,
@@ -92,7 +91,6 @@ export function useUIController() {
   } = useAppStore(
     useShallow((s) => ({
       section: s.section,
-      consoleOpen: s.consoleOpen,
       sidebarCollapsed: s.sidebarCollapsed,
       companySwitcherOpen: s.companySwitcherOpen,
       confirmDeleteCompanyId: s.confirmDeleteCompanyId,
@@ -106,7 +104,6 @@ export function useUIController() {
   );
   const {
     setSection,
-    setConsoleOpen,
     setSidebarCollapsed,
     setCompanySwitcherOpen,
     setConfirmDeleteCompanyId,
@@ -189,8 +186,6 @@ export function useUIController() {
       navItems,
       section,
       setSection,
-      consoleOpen,
-      setConsoleOpen,
       sidebarCollapsed,
       setSidebarCollapsed,
       companySwitcherOpen,
@@ -225,8 +220,6 @@ export function useUIController() {
       navItems,
       section,
       setSection,
-      consoleOpen,
-      setConsoleOpen,
       sidebarCollapsed,
       setSidebarCollapsed,
       companySwitcherOpen,

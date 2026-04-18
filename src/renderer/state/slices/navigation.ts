@@ -7,7 +7,6 @@ export interface NavigationSlice {
   commandPaletteOpen: boolean;
   commandPaletteSearch: string;
   selectedPaletteIndex: number;
-  consoleOpen: boolean;
   sidebarCollapsed: boolean;
   companySwitcherOpen: boolean;
   setSection: (section: SectionId) => void;
@@ -15,8 +14,6 @@ export interface NavigationSlice {
   toggleCommandPalette: () => void;
   setCommandPaletteSearch: (search: string) => void;
   setSelectedPaletteIndex: (index: number) => void;
-  setConsoleOpen: (open: boolean) => void;
-  toggleConsole: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
   setCompanySwitcherOpen: (open: boolean) => void;
@@ -34,7 +31,6 @@ export const createNavigationSlice: StateCreator<
   commandPaletteOpen: false,
   commandPaletteSearch: "",
   selectedPaletteIndex: 0,
-  consoleOpen: false,
   sidebarCollapsed: false,
   companySwitcherOpen: false,
   setSection: (section) =>
@@ -66,14 +62,6 @@ export const createNavigationSlice: StateCreator<
     set((state) => {
       state.selectedPaletteIndex = index;
     }),
-  setConsoleOpen: (open) =>
-    set((state) => {
-      state.consoleOpen = open;
-    }),
-  toggleConsole: () =>
-    set((state) => {
-      state.consoleOpen = !state.consoleOpen;
-    }),
   setSidebarCollapsed: (collapsed) =>
     set((state) => {
       state.sidebarCollapsed = collapsed;
@@ -98,7 +86,6 @@ export const createNavigationSlice: StateCreator<
       else if (section === "approvals") state.selectedApprovalId = entityId;
       else if (section === "runs") {
         state.selectedRunId = entityId;
-        state.consoleOpen = true;
       } else if (section === "goals") state.selectedGoalId = entityId;
       else if (section === "projects") state.selectedProjectId = entityId;
       else if (section === "connectors") state.selectedConnectorId = entityId;
@@ -116,7 +103,6 @@ export const createNavigationSlice: StateCreator<
         if (matchingRun) {
           state.selectedRunId = matchingRun.id;
           state.selectedTaskId = matchingRun.taskId;
-          state.consoleOpen = true;
           return;
         }
         state.selectedTaskId = entityId;
