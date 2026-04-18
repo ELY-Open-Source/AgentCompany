@@ -1,9 +1,7 @@
 import {
   IPC_CHANNELS,
   agentMessageInputSchema,
-  autoAssignSchema,
   markMessageReadSchema,
-  messageQuerySchema,
   searchMessagesSchema,
 } from "@shared/contracts";
 import { fail, ok, type RegisterDomainHandlersDependencies } from "./ipc-domain-common";
@@ -13,7 +11,6 @@ export function registerAgentCoordinationHandlers({
   registerHandle,
   db,
   ensureCompanyExists,
-  findInvalidReference,
   publishDomainChanged,
   emitEvent,
   notify,
@@ -24,7 +21,6 @@ export function registerAgentCoordinationHandlers({
   | "registerHandle"
   | "db"
   | "ensureCompanyExists"
-  | "findInvalidReference"
   | "publishDomainChanged"
   | "emitEvent"
   | "notify"
@@ -54,26 +50,6 @@ export function registerAgentCoordinationHandlers({
       id: dispatchResult.data.id,
       mentionResults: dispatchResult.data.mentionResults,
     });
-  });
-
-  registerHandle(IPC_CHANNELS.listAgentMessages, async (_event, payload) => {
-    const parsed = messageQuerySchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    const invalidReference = findInvalidReference(parsed.companyId, [
-      { id: parsed.agentId, table: "agents", label: "message reader" },
-      { id: parsed.channel === "project" ? parsed.channelTargetId : null, table: "projects", label: "project channel" },
-    ]);
-    if (invalidReference) {
-      return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
-    }
-    return ok(db.listAgentMessages(parsed.companyId, {
-      agentId: parsed.agentId,
-      channel: parsed.channel,
-      channelTargetId: parsed.channelTargetId,
-      unreadOnly: parsed.unreadOnly,
-      limit: parsed.limit,
-    }));
   });
 
   registerHandle(IPC_CHANNELS.markMessageRead, async (_event, payload) => {
@@ -115,15 +91,4 @@ export function registerAgentCoordinationHandlers({
     }));
   });
 
-  registerHandle(IPC_CHANNELS.autoAssignTask, async (_event, payload) => {
-    const parsed = autoAssignSchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    const agentId = db.autoAssignTask(parsed.taskId, parsed.companyId);
-    if (!agentId) {
-      return fail("NO_AVAILABLE_AGENT", "No available agent could be found for this task.");
-    }
-    publishDomainChanged();
-    return ok(agentId);
-  });
 }

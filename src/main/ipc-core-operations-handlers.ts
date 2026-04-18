@@ -4,15 +4,9 @@ import {
   approvalInputSchema,
   cancelRunSchema,
   commentInputSchema,
-  heartbeatPolicySchema,
   heartbeatSettingsSchema,
-  listCommentsSchema,
-  listRunEventsSchema,
-  runtimeStateSchema,
   runLogChunkSchema,
   runLogSchema,
-  setHeartbeatPolicySchema,
-  setRuntimeStateSchema,
   startRunSchema,
   triggerHeartbeatSchema,
 } from "@shared/contracts";
@@ -209,16 +203,6 @@ export function registerCoreOperationHandlers({
     return ok(comment.id);
   });
 
-  registerHandle(IPC_CHANNELS.listComments, async (_event, payload) => {
-    const parsed = listCommentsSchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    if (!db.belongsToCompany("tasks", parsed.taskId, parsed.companyId)) {
-      return fail("TASK_NOT_FOUND", "Task not found in the current company.");
-    }
-    return ok(db.listComments(parsed.taskId));
-  });
-
   registerHandle(IPC_CHANNELS.setHeartbeat, async (_event, payload) => {
     const parsed = heartbeatSettingsSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
@@ -254,57 +238,4 @@ export function registerCoreOperationHandlers({
     return ok(runId);
   });
 
-  registerHandle(IPC_CHANNELS.listRunEvents, async (_event, payload) => {
-    const parsed = listRunEventsSchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    if (!db.belongsToCompany("runs", parsed.runId, parsed.companyId)) {
-      return fail("RUN_NOT_FOUND", "Run not found in the current company.");
-    }
-    return ok(db.listRunEvents(parsed.runId, parsed.companyId, { offset: parsed.offset, limit: parsed.limit }));
-  });
-
-  registerHandle(IPC_CHANNELS.getHeartbeatPolicy, async (_event, payload) => {
-    const parsed = heartbeatPolicySchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    if (!db.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
-      return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
-    }
-    return ok(db.getHeartbeatPolicy(parsed.agentId));
-  });
-
-  registerHandle(IPC_CHANNELS.setHeartbeatPolicy, async (_event, payload) => {
-    const parsed = setHeartbeatPolicySchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    if (!db.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
-      return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
-    }
-    const { companyId, agentId, ...policy } = parsed;
-    db.setHeartbeatPolicy(agentId, companyId, policy);
-    publishDomainChanged();
-    return ok(null);
-  });
-
-  registerHandle(IPC_CHANNELS.getRuntimeState, async (_event, payload) => {
-    const parsed = runtimeStateSchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    if (!db.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
-      return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
-    }
-    return ok(db.getRuntimeState(parsed.agentId));
-  });
-
-  registerHandle(IPC_CHANNELS.setRuntimeState, async (_event, payload) => {
-    const parsed = setRuntimeStateSchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    if (!db.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
-      return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
-    }
-    db.setRuntimeState(parsed.agentId, parsed.companyId, parsed.state);
-    return ok(null);
-  });
 }

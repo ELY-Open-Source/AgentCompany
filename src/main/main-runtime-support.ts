@@ -2,7 +2,7 @@ import log from "electron-log/main.js";
 import type { AgentApiServer } from "./api-server";
 import { initializeAgentTokenSigningKey } from "./agent-auth";
 import { bootstrapApplication } from "./bootstrap-application";
-import { openConnectorAuthTerminal as openConnectorAuthTerminalImpl, openGenericTerminal as openGenericTerminalImpl } from "./connector-auth-service";
+import { openGenericTerminal as openGenericTerminalImpl } from "./connector-auth-service";
 import { getConnectorModelPolicy } from "./connector-model-policy";
 import type { ConnectorId } from "@shared/types";
 import type { AppDatabase } from "./database";
@@ -145,10 +145,6 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       queueTaskRun: (taskId, trigger, actor) =>
         requireOrchestrationService().queueTaskRun(taskId, trigger, actor),
       checkConnector: async (id) => requireConnectorHealthService().checkConnector(id),
-      openConnectorAuthTerminal: async (id) => {
-        const connector = requireDb().getConnector(id);
-        return openConnectorAuthTerminalImpl(id, connector.command);
-      },
       openGenericTerminal: (input) => openGenericTerminalImpl(input),
       checkForUpdates: () => requireUpdaterService().checkForUpdates(),
       getWorkerProcess: () => requireServiceGraph().getWorkerService()?.getWorker() ?? null,
@@ -156,7 +152,6 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
         initializeAgentTokenSigningKey(requireDb().profileDir);
         void requireBrowserActionService().resetBrowserManager();
       },
-      getApiPort: () => state.apiServer?.port ?? 0,
       notify: (options) => requireIpcSupport().notify(options),
       listConnectorModels: async (connectorId) => {
         const policy = getConnectorModelPolicy(requireDb(), connectorId as ConnectorId);

@@ -26,12 +26,10 @@ export interface RegisterCoreHandlersDependencies {
   dispatchAutomation: (trigger: string, ctx: { companyId: string; [key: string]: unknown }) => void;
   queueTaskRun: (taskId: string, trigger: string, actor: string) => DesktopResult<string>;
   checkConnector: (id: ConnectorId) => Promise<void>;
-  openConnectorAuthTerminal: (id: ConnectorId) => Promise<boolean>;
   openGenericTerminal: (input: { commandKey: string }) => Promise<boolean>;
   checkForUpdates: (options?: { manual?: boolean }) => Promise<boolean>;
   getWorkerProcess: () => { postMessage: (message: unknown) => void } | null;
   resetAfterRestore: () => void;
-  getApiPort: () => number;
   listConnectorModels: (connectorId: string) => Promise<Array<{ id: string; label: string }>>;
   notify: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
   logger: {

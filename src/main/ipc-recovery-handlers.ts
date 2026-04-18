@@ -46,18 +46,6 @@ export function registerRecoveryHandlers({
     return ok(null);
   });
 
-  registerHandle(IPC_CHANNELS.recoveryDismiss, async (_event, payload) => {
-    const parsed = recoveryTaskSchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    if (!db.belongsToCompany("tasks", parsed.taskId, parsed.companyId)) {
-      return fail("TASK_NOT_FOUND", "Task not found in the current company.");
-    }
-    db.dismissInterruptedTask(parsed.taskId);
-    publishDomainChanged();
-    return ok(null);
-  });
-
   registerHandle(IPC_CHANNELS.recoveryFail, async (_event, payload) => {
     const parsed = recoveryTaskSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);

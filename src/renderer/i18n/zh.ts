@@ -39,10 +39,7 @@ export const zh: Record<string, string> = {
   "app.selectCompany": "选择公司",
   "app.newCompany": "新建公司",
   "app.commandPalette": "命令面板",
-  "app.refresh": "刷新",
-  "app.console": "控制台",
   "app.collapse": "收起",
-  "app.expand": "展开",
   "app.noResults": "未找到匹配结果",
   "app.clear": "清除",
   "app.search": "搜索版块、智能体、任务、目标、项目...",
@@ -357,9 +354,6 @@ export const zh: Record<string, string> = {
   // ── 成本页面 ──
   "costs.recentEntries": "近期费用",
   "costs.budgetPosture": "预算概况",
-
-  // ── 活动页面 ──
-  "activity.timeline": "活动时间线",
 
   // ── 工作区页面 ──
   "workspaces.registry": "工作区注册表",
@@ -815,7 +809,6 @@ export const zh: Record<string, string> = {
   "auto.newRuleTitle": "新建自动化规则",
   "auto.ruleName": "规则名称",
   "auto.ruleDescription": "描述",
-  "auto.trigger": "触发器",
   "auto.conditionsJson": "条件（JSON）",
   "auto.action": "动作",
   "auto.actionConfigJson": "动作配置（JSON）",

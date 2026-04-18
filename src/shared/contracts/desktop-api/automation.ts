@@ -4,7 +4,6 @@ import type { automationRuleInputSchema, toggleAutomationRuleSchema } from "../s
 import type { browserActionQuerySchema, cancelBrowserActionSchema, openTerminalCommandSchema, runWorkflowSchema, triggerBrowserLoginSchema, workflowInputSchema } from "../schemas-execution";
 import type { socialAccountInputSchema } from "../schemas-company";
 import type { deleteEntitySchema } from "../schemas-badges";
-import type { wakeupQuerySchema, WakeupRequestRecord } from "../schemas-wakeup";
 import type { DesktopResult } from "./common";
 
 export type AutomationApi = {
@@ -15,7 +14,6 @@ export type AutomationApi = {
   saveWorkflow: (input: z.infer<typeof workflowInputSchema>) => Promise<DesktopResult<string>>;
   deleteWorkflow: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
   runWorkflow: (input: z.infer<typeof runWorkflowSchema>) => Promise<DesktopResult<boolean>>;
-  listWakeupRequests: (input: z.infer<typeof wakeupQuerySchema>) => Promise<DesktopResult<WakeupRequestRecord[]>>;
   saveSocialAccount: (input: z.infer<typeof socialAccountInputSchema>) => Promise<DesktopResult<string>>;
   deleteSocialAccount: (input: z.infer<typeof deleteEntitySchema>) => Promise<DesktopResult<boolean>>;
   listBrowserActions: (input: z.infer<typeof browserActionQuerySchema>) => Promise<DesktopResult<BrowserActionRecord[]>>;

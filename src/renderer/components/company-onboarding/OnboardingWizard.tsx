@@ -83,7 +83,7 @@ export function CompanyOnboarding({
     }
   }, [step, nodeStatus, checkNode]);
 
-  const { handleTestConnector, handleSaveConnector, handleLoginConnector, handleInstallCommand } =
+  const { handleTestConnector, handleSaveConnector, handleInstallCommand } =
     useConnectorCallbacks(connectors);
 
   const {
@@ -208,7 +208,6 @@ export function CompanyOnboarding({
       hasAtLeastOneReady,
       onTestConnector: (id) => void handleTestConnector(id),
       onSaveConnector: (id, env, model, notes) => void handleSaveConnector(id, env, model, notes),
-      onLoginConnector: (id) => void handleLoginConnector(id),
       selectedConnectorId,
       setSelectedConnectorId,
       selectedModel,
@@ -228,7 +227,6 @@ export function CompanyOnboarding({
       hasAtLeastOneReady,
       handleTestConnector,
       handleSaveConnector,
-      handleLoginConnector,
       selectedConnectorId,
       setSelectedConnectorId,
       selectedModel,

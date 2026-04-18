@@ -7,7 +7,6 @@ import {
   entityGetterSchema,
   metricsQuerySchema,
   settingsSchema,
-  wakeupQuerySchema,
 } from "@shared/contracts";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
 
@@ -18,7 +17,6 @@ export function registerCoreReadHandlers({
   publishDomainChanged,
   checkForUpdates,
   resetAfterRestore,
-  getApiPort,
   listConnectorModels,
   logger,
 }: Pick<
@@ -29,7 +27,6 @@ export function registerCoreReadHandlers({
   | "publishDomainChanged"
   | "checkForUpdates"
   | "resetAfterRestore"
-  | "getApiPort"
   | "listConnectorModels"
   | "logger"
 >) {
@@ -105,8 +102,6 @@ export function registerCoreReadHandlers({
     return ok(db.getSidebarBadges(companyId));
   });
 
-  registerHandle(IPC_CHANNELS.getApiPort, () => ok(getApiPort()));
-
   registerHandle(IPC_CHANNELS.listConnectorModels, async (_event, connectorId) => {
     try {
       const parsed = connectorInputSchema.shape.id.parse(connectorId);
@@ -141,37 +136,11 @@ export function registerCoreReadHandlers({
     return ok(db.getCompanyMetrics(input.companyId, input.days));
   });
 
-  registerHandle(IPC_CHANNELS.getAgentMetrics, (_event, payload) => {
-    const input = metricsQuerySchema.parse(payload);
-    const err = ensureCompanyExists(input.companyId);
-    if (err) return err;
-    if (!input.agentId) {
-      return fail("MISSING_AGENT_ID", "agentId is required");
-    }
-    const metrics = db.getCompanyMetrics(input.companyId, input.days);
-    const agentMetric = metrics.agentMetrics.find((metric: { agentId: string }) => metric.agentId === input.agentId);
-    if (!agentMetric) {
-      return fail("AGENT_NOT_FOUND", "Agent metrics not found");
-    }
-    return ok(agentMetric);
-  });
-
   registerHandle(IPC_CHANNELS.getStandupReport, (_event, payload) => {
     const companyId = z.string().uuid().parse(payload);
     const err = ensureCompanyExists(companyId);
     if (err) return err;
     return ok(db.getStandupReport(companyId));
-  });
-
-  registerHandle(IPC_CHANNELS.listWakeupRequests, (_event, input) => {
-    const parsed = wakeupQuerySchema.parse(input);
-    const err = ensureCompanyExists(parsed.companyId);
-    if (err) return err;
-    return ok(db.listWakeupRequests(parsed.companyId, {
-      status: parsed.status,
-      agentId: parsed.agentId,
-      limit: parsed.limit,
-    }));
   });
 
   // --- Entity getters for granular IPC updates ---

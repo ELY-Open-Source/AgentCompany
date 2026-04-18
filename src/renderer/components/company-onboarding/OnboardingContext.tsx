@@ -59,7 +59,6 @@ export interface OnboardingConnectorsContextValue {
     model: string | null,
     notes?: string,
   ) => void;
-  onLoginConnector: (connectorId: string) => void;
 
   selectedConnectorId: ConnectorId | "";
   setSelectedConnectorId: (value: ConnectorId | "") => void;

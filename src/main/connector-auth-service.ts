@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import log from "electron-log/main.js";
-import type { ConnectorId } from "@shared/types";
 
 function quoteShell(value: string) {
   return `'${value.replace(/'/g, `'"'"'`)}'`;
@@ -86,25 +85,6 @@ function spawnTerminalWithScript(script: string, _title: string, _cwd: string): 
   }
 
   throw new Error("No supported terminal application was found.");
-}
-
-/* ------------------------------------------------------------------ */
-/*  Connector auth terminal — deprecated under pi-mono                 */
-/* ------------------------------------------------------------------ */
-
-/**
- * Pi-mono has no CLI auth flow. OAuth runs through `oauth-login-service`,
- * API keys are entered via the Settings form, and cloud providers (AWS,
- * Azure, GCP) use environment-driven credentials. The IPC handler still
- * calls this function for legacy UI compatibility, so we keep the signature
- * but treat it as a no-op that reports "not available".
- */
-export async function openConnectorAuthTerminal(
-  _connectorId: ConnectorId,
-  _command: string,
-  _cwd?: string,
-): Promise<boolean> {
-  return false;
 }
 
 /* ------------------------------------------------------------------ */

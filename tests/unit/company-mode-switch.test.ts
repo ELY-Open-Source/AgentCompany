@@ -128,7 +128,6 @@ describe("company mode switching", () => {
         threadIntegration.onApprovalResolved(resolvedApprovalId, resolvedCompanyId, decision);
       },
       checkConnector: vi.fn(),
-      openConnectorAuthTerminal: vi.fn(),
       openGenericTerminal: vi.fn(),
     });
 

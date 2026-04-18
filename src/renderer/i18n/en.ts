@@ -39,10 +39,7 @@ export const en: Record<string, string> = {
   "app.selectCompany": "Select company",
   "app.newCompany": "New company",
   "app.commandPalette": "Command palette",
-  "app.refresh": "Refresh",
-  "app.console": "Console",
   "app.collapse": "Collapse",
-  "app.expand": "Expand",
   "app.noResults": "No results for",
   "app.clear": "Clear",
   "app.search": "Search sections, agents, tasks, goals, projects...",
@@ -357,9 +354,6 @@ export const en: Record<string, string> = {
   // ── Costs page ──
   "costs.recentEntries": "Recent cost entries",
   "costs.budgetPosture": "Budget posture",
-
-  // ── Activity page ──
-  "activity.timeline": "Activity timeline",
 
   // ── Workspaces page ──
   "workspaces.registry": "Workspace registry",
@@ -815,7 +809,6 @@ export const en: Record<string, string> = {
   "auto.newRuleTitle": "New Automation Rule",
   "auto.ruleName": "Rule Name",
   "auto.ruleDescription": "Description",
-  "auto.trigger": "Trigger",
   "auto.conditionsJson": "Conditions (JSON)",
   "auto.action": "Action",
   "auto.actionConfigJson": "Action Configuration (JSON)",

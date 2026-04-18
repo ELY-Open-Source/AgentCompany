@@ -36,30 +36,6 @@ export function useConnectorCallbacks(connectors: ProfileSnapshot["connectors"])
     }
   }, [connectors]);
 
-  const handleLoginConnector = useCallback(async (connectorId: string) => {
-    try {
-      unwrap(await window.agentCompany.openConnectorAuthTerminal(connectorId as ConnectorId));
-    } catch (error) {
-      console.warn(
-        `[onboarding/useConnectorCallbacks] openConnectorAuthTerminal(${connectorId}) failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      return;
-    }
-    // Poll connector health after login terminal opens (same pattern as ConnectorEditor)
-    let attempts = 0;
-    const poll = setInterval(async () => {
-      attempts++;
-      if (attempts > 12) { clearInterval(poll); return; }
-      try {
-        unwrap(await window.agentCompany.testConnector(connectorId as ConnectorId));
-      } catch (error) {
-        console.warn(
-          `[onboarding/useConnectorCallbacks] post-login testConnector(${connectorId}) failed (attempt ${attempts}): ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    }, 5000);
-  }, []);
-
   const handleInstallCommand = useCallback(async (commandKey: z.infer<typeof openTerminalCommandSchema>["commandKey"]) => {
     try {
       unwrap(await window.agentCompany.openTerminalCommand({ commandKey }));
@@ -88,5 +64,5 @@ export function useConnectorCallbacks(connectors: ProfileSnapshot["connectors"])
     }, 5000);
   }, [connectors]);
 
-  return { handleTestConnector, handleSaveConnector, handleLoginConnector, handleInstallCommand };
+  return { handleTestConnector, handleSaveConnector, handleInstallCommand };
 }

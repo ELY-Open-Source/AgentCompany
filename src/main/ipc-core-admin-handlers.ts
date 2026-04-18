@@ -6,7 +6,6 @@ import {
   connectorInputSchema,
   deleteEntitySchema,
   openTerminalCommandSchema,
-  secretInputSchema,
 } from "@shared/contracts";
 import { validateConnectorConfigurationModel, validateConnectorModelSelection } from "./connector-model-policy";
 import { reconcileExecutionModeChange } from "./execution-mode-reconciler";
@@ -40,11 +39,10 @@ export function registerCoreAdminHandlers({
   publishDomainChanged,
   handleApprovalResolved,
   checkConnector,
-  openConnectorAuthTerminal,
   openGenericTerminal,
 }: Pick<
   RegisterCoreHandlersDependencies,
-  "registerHandle" | "db" | "ensureCompanyExists" | "publishDomainChanged" | "handleApprovalResolved" | "checkConnector" | "openConnectorAuthTerminal" | "openGenericTerminal"
+  "registerHandle" | "db" | "ensureCompanyExists" | "publishDomainChanged" | "handleApprovalResolved" | "checkConnector" | "openGenericTerminal"
 >) {
   registerHandle(IPC_CHANNELS.saveCompany, async (_event, payload) => {
     const parsed = companyInputSchema.parse(payload);
@@ -123,12 +121,6 @@ export function registerCoreAdminHandlers({
     return ok(true);
   });
 
-  registerHandle(IPC_CHANNELS.openConnectorAuthTerminal, async (_event, id) => {
-    const parsed = connectorInputSchema.shape.id.parse(id);
-    await openConnectorAuthTerminal(parsed);
-    return ok(true);
-  });
-
   registerHandle(IPC_CHANNELS.checkNodeInstalled, async () => {
     return ok(await probeShellNode());
   });
@@ -144,23 +136,6 @@ export function registerCoreAdminHandlers({
     db.setDisabledModels(parsed.connectorId, parsed.disabledModels);
     publishDomainChanged();
     return ok(true);
-  });
-
-  registerHandle(IPC_CHANNELS.saveSecret, async (_event, payload) => {
-    const parsed = secretInputSchema.parse(payload);
-    const companyError = ensureCompanyExists(parsed.companyId);
-    if (companyError) return companyError;
-    const id = db.saveSecret(parsed);
-    db.addActivity({
-      companyId: parsed.companyId,
-      actor: "board",
-      action: parsed.id ? "secret.updated" : "secret.created",
-      entityType: "secret",
-      entityId: id,
-      detail: parsed.name,
-    });
-    publishDomainChanged();
-    return ok(id);
   });
 
   registerHandle(IPC_CHANNELS.deleteSecret, async (_event, payload) => {
