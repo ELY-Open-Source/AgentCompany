@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import {
   IPC_CHANNELS,
   companyInputSchema,
@@ -10,6 +11,27 @@ import {
 import { validateConnectorConfigurationModel, validateConnectorModelSelection } from "./connector-model-policy";
 import { reconcileExecutionModeChange } from "./execution-mode-reconciler";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
+
+/**
+ * Probe the user's shell PATH for a `node` binary. The onboarding Node
+ * check uses this to decide whether agents will be able to run the
+ * "Node.js fetch()" snippets the API prompt-builder emits. Returns the
+ * shell `node --version` output on success; never surfaces the raw
+ * `process.version` (that is Electron's bundled Node, not what the
+ * agent's bash tool will actually invoke).
+ */
+function probeShellNode(timeoutMs = 3000): Promise<{ installed: boolean; version: string | null }> {
+  return new Promise((resolve) => {
+    execFile("node", ["--version"], { timeout: timeoutMs }, (error, stdout) => {
+      if (error) {
+        resolve({ installed: false, version: null });
+        return;
+      }
+      const version = stdout.trim();
+      resolve({ installed: version.length > 0, version: version.length > 0 ? version : null });
+    });
+  });
+}
 
 export function registerCoreAdminHandlers({
   registerHandle,
@@ -108,7 +130,7 @@ export function registerCoreAdminHandlers({
   });
 
   registerHandle(IPC_CHANNELS.checkNodeInstalled, async () => {
-    return ok({ installed: true, version: process.version });
+    return ok(await probeShellNode());
   });
 
   registerHandle(IPC_CHANNELS.openTerminalCommand, async (_event, payload) => {
