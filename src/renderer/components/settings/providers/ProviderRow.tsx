@@ -136,12 +136,17 @@ export function ProviderRow({ entry, credential }: Props) {
             <div className="truncate text-[13px] font-semibold text-foreground">
               {entry.label}
             </div>
-            <div className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/70">
+            <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground/80">
               {kindLabel(entry.auth.type, t)}
             </div>
           </div>
-          <div className={`truncate text-[11px] ${statusStyle.text}`}>
-            {hasCredential ? (credential.displayHint ?? statusLabelText) : statusLabelText}
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span className="truncate">
+              {hasCredential && credential.displayHint ? credential.displayHint : statusLabelText}
+            </span>
+            {hasCredential && status !== "active" ? (
+              <span className={`shrink-0 font-medium ${statusStyle.text}`}>· {statusLabelText}</span>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-shrink-0 items-center gap-1">

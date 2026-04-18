@@ -150,10 +150,10 @@ export function ProvidersPanel({ catalog }: ProvidersPanelProps = {}) {
           {grouped.map((group) => (
             <div key={group.id}>
               <div className="mb-2 flex items-baseline justify-between">
-                <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                   {group.label}
                 </h3>
-                <span className="text-[10px] text-muted-foreground/70">
+                <span className="text-[11px] text-muted-foreground/70 tabular-nums">
                   {group.items.length}
                 </span>
               </div>
