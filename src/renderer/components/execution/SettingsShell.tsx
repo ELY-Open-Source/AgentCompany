@@ -96,7 +96,6 @@ export function SettingsShell({ snapshot, secrets, companyId, onSaved }: Setting
       <div>
         {activeTab === "general" ? (
           <GeneralSection
-            snapshot={snapshot}
             theme={theme}
             setTheme={setTheme}
             selectedLocale={selectedLocale}

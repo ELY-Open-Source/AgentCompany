@@ -5,7 +5,6 @@ import { Eyebrow, Select } from "../../ui";
 import { useT } from "../../../i18n";
 
 interface GeneralSectionProps {
-  snapshot: ProfileSnapshot;
   theme: ProfileSnapshot["theme"];
   setTheme: (theme: ProfileSnapshot["theme"]) => void;
   selectedLocale: AppLocale;
@@ -22,7 +21,6 @@ interface GeneralSectionProps {
  * individually as soon as the user changes it.
  */
 export function GeneralSection({
-  snapshot,
   theme,
   setTheme,
   selectedLocale,
@@ -84,9 +82,6 @@ export function GeneralSection({
               className="h-4 w-4 accent-[color:var(--primary)]"
             />
           </label>
-          <div className="mt-2 font-mono truncate text-[11px] text-muted-foreground">
-            {t("exec.profilePath")}: {snapshot.profilePath}
-          </div>
         </div>
       </div>
     </div>

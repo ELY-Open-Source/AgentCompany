@@ -113,11 +113,21 @@ export function DataSection({ snapshot, onSaved }: DataSectionProps) {
       </div>
 
       <div>
-        <Eyebrow className="mb-3">{t("exec.secretBackend")}</Eyebrow>
-        <div className="rounded-lg border border-border bg-card px-3 py-2 text-[13px] text-muted-foreground">
-          {snapshot.backend.secretBackend}
+        <Eyebrow className="mb-3">{t("exec.profile")}</Eyebrow>
+        <div className="space-y-2">
+          <ReadOnlyRow label={t("exec.profilePath")} value={snapshot.profilePath} mono />
+          <ReadOnlyRow label={t("exec.secretBackend")} value={snapshot.backend.secretBackend} />
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReadOnlyRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2 text-[12px]">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={`truncate text-foreground ${mono ? "font-mono text-[11px]" : ""}`}>{value}</span>
     </div>
   );
 }
