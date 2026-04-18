@@ -12,6 +12,7 @@ import { motion } from "framer-motion"
 import type { AgentRecord, ConversationEventRecord, ThreadWaitStateRecord, ConversationThreadRecord, DocumentRecord } from "@shared/types"
 import WaitStateIndicator, { type WaitStateInfo } from "./WaitStateIndicator"
 import { MessageComposer } from "./MessageComposer"
+import { formatMessageTime } from "../../lib/formatters"
 import { useT, type TranslationFn } from "../../i18n"
 
 interface ThreadPanelProps {
@@ -28,7 +29,7 @@ function EventItem({ event, agents, t }: { event: ConversationEventRecord; agent
     ? t("thread.actor.you")
     : agents.find((a) => a.id === event.actorId)?.name ?? event.actorId
 
-  const time = new Date(event.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  const time = formatMessageTime(event.createdAt)
 
   const iconClass = event.eventType === "status_change"
     ? "text-primary"

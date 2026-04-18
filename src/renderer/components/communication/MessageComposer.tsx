@@ -119,7 +119,7 @@ export function MessageComposer({
         placeholder={t("composer.typeMessage")}
         sending={sending}
         error={sendError}
-        shortcutHint={`Press ${cmdOrCtrlLabel()}+Enter to send`}
+        shortcutHint={t("comm.sendShortcut").replace("{0}", cmdOrCtrlLabel())}
         sendLabel={t("composer.sendMessage")}
         sendDisabled={!body.trim() || (channel === "direct" && !directRecipientId)}
         leading={

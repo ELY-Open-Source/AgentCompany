@@ -5,7 +5,7 @@ import type { AgentRecord, MessageChannel } from "@shared/types"
 import { AgentAvatar } from "./MessageItem"
 import type { ChannelDescriptor, TaskDiscussionDescriptor } from "./ChannelHeader"
 import { useT } from "../../i18n"
-import { Eyebrow } from "../ui"
+import { Eyebrow, Select } from "../ui"
 
 type ChannelConfig = { labelKey: string; icon: React.ElementType }
 
@@ -68,10 +68,7 @@ function ChannelItem({
       {hasUrgent ? (
         <span className="h-2 w-2 shrink-0 rounded-full bg-destructive" />
       ) : unreadCount > 0 ? (
-        <span
-          className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full px-1 text-[9px] font-bold text-primary-foreground"
-          style={{ backgroundColor: "var(--primary)" }}
-        >
+        <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold tabular-nums text-primary-foreground">
           {unreadCount > 99 ? "99+" : unreadCount}
         </span>
       ) : null}
@@ -204,8 +201,7 @@ export function FilterBar({
             onChange={(e) => onChangeFilters({ ...filters, search: e.target.value })}
             onKeyDown={onSearchKeyDown}
             placeholder={t("comm.searchMessages")}
-            className="w-full rounded-lg border border-border bg-card py-1.5 pl-8 pr-3 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1"
-            style={{ focusRingColor: "var(--primary)" } as React.CSSProperties}
+            className="w-full rounded-lg border border-border bg-card py-1.5 pl-8 pr-3 text-[11px] text-foreground placeholder:text-muted-foreground focus:border-[color:var(--primary)] focus:outline-none focus:ring-1 focus:ring-[color:var(--primary)]"
           />
         </div>
         {scopeToggle}
@@ -214,14 +210,9 @@ export function FilterBar({
           onClick={() => setExpanded(!expanded)}
           className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition ${
             expanded || filters.channelType !== "all" || filters.priority !== "all" || filters.unreadOnly
-              ? "border-transparent text-primary-foreground"
+              ? "border-transparent bg-primary text-primary-foreground"
               : "border-border text-muted-foreground hover:border-border"
           }`}
-          style={
-            expanded || filters.channelType !== "all" || filters.priority !== "all" || filters.unreadOnly
-              ? { backgroundColor: "var(--primary)" }
-              : undefined
-          }
         >
           <Funnel size={12} />
           {t("comm.filters")}
@@ -236,35 +227,36 @@ export function FilterBar({
             exit={{ opacity: 0, height: 0 }}
             className="flex flex-wrap items-center gap-2 overflow-hidden"
           >
-            <select
+            <Select
+              compact
               value={filters.channelType}
-              onChange={(e) => onChangeFilters({ ...filters, channelType: e.target.value as MessageChannel | "all" })}
-              className="rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground"
-            >
-              <option value="all">{t("comm.allChannels")}</option>
-              <option value="direct">{t("comm.direct")}</option>
-              <option value="department">{t("comm.department")}</option>
-              <option value="company">{t("comm.company")}</option>
-              <option value="project">{t("nav.projects")}</option>
-              <option value="incident">{t("comm.incident")}</option>
-            </select>
-            <select
+              onChange={(v) => onChangeFilters({ ...filters, channelType: v as MessageChannel | "all" })}
+              options={[
+                { value: "all", label: t("comm.allChannels") },
+                { value: "direct", label: t("comm.direct") },
+                { value: "department", label: t("comm.department") },
+                { value: "company", label: t("comm.company") },
+                { value: "project", label: t("nav.projects") },
+                { value: "incident", label: t("comm.incident") },
+              ]}
+            />
+            <Select
+              compact
               value={filters.priority}
-              onChange={(e) => onChangeFilters({ ...filters, priority: e.target.value })}
-              className="rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-medium text-foreground"
-            >
-              <option value="all">{t("comm.allPriorities")}</option>
-              <option value="urgent">{t("comm.urgent")}</option>
-              <option value="normal">{t("comm.normal")}</option>
-              <option value="low">{t("comm.low")}</option>
-            </select>
+              onChange={(v) => onChangeFilters({ ...filters, priority: v })}
+              options={[
+                { value: "all", label: t("comm.allPriorities") },
+                { value: "urgent", label: t("comm.urgent") },
+                { value: "normal", label: t("comm.normal") },
+                { value: "low", label: t("comm.low") },
+              ]}
+            />
             <button
               type="button"
               onClick={() => onChangeFilters({ ...filters, unreadOnly: !filters.unreadOnly })}
               className={`rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition ${
-                filters.unreadOnly ? "text-primary-foreground" : "bg-muted text-muted-foreground"
+                filters.unreadOnly ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
               }`}
-              style={filters.unreadOnly ? { backgroundColor: "var(--primary)" } : undefined}
             >
               {t("comm.unreadOnly")}
             </button>
