@@ -1,6 +1,4 @@
 import {
-  CaretUpDown,
-  Check,
   Command,
   Gear,
   Plus,
@@ -76,7 +74,6 @@ export function SidebarView({
               onClick={() => setCompanySwitcherOpen(!companySwitcherOpen)}
             >
               <span className="min-w-0 flex-1 truncate">{currentCompany?.name ?? t("app.selectCompany")}</span>
-              <CaretUpDown size={14} className="shrink-0 text-muted-foreground" />
             </button>
             {companySwitcherOpen && (
               <>
@@ -107,12 +104,11 @@ export function SidebarView({
                           <>
                             <button
                               type="button"
-                              className={`flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 text-left text-[13px] transition hover:bg-muted ${
+                              className={`flex min-w-0 flex-1 items-center px-3 py-2 text-left text-[13px] transition hover:bg-muted ${
                                 company.id === currentCompany?.id ? "font-semibold text-foreground" : "text-muted-foreground"
                               }`}
                               onClick={() => { void setCompany(company.id); setCompanySwitcherOpen(false); }}
                             >
-                              <span className="w-4 shrink-0">{company.id === currentCompany?.id ? <Check size={14} weight="bold" className="text-primary" /> : null}</span>
                               <span className="min-w-0 flex-1 truncate">{company.name}</span>
                             </button>
                             <button
@@ -145,11 +141,10 @@ export function SidebarView({
           <button
             aria-label={`Open command palette (${isMac ? "⌘" : "Ctrl+"}K)`}
             title={`Command palette (${isMac ? "⌘" : "Ctrl+"}K)`}
-            className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex h-[30px] shrink-0 items-center justify-center gap-1 rounded-lg border border-border px-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground"
             onClick={() => setCommandPaletteOpen(true)}
           >
             <Command size={14} />
-            <kbd className="text-[10px] font-medium text-muted-foreground">{isMac ? "⌘K" : "^K"}</kbd>
           </button>
         </div>
       )}
