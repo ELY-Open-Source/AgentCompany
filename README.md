@@ -33,7 +33,7 @@ Local, SQLite-backed, no external services. Inspired by [Paperclip](https://gith
 
 ## 26 providers, no CLI
 
-The runtime links [pi-mono](https://github.com/mariozechner/pi) directly. No `claude` / `codex` / `gemini` binaries on your PATH.
+The runtime links [pi-mono](https://github.com/mariozechner/pi) directly.
 
 **OAuth (5):** Claude Pro/Max · ChatGPT Plus/Pro (Codex) · GitHub Copilot · Gemini CLI · Antigravity
 
