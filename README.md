@@ -5,10 +5,8 @@
 <h1 align="center">AgentCompany</h1>
 
 <p align="center">
-  <strong>Launch autonomous AI companies from your desktop.</strong><br/>
-  Set a goal. Watch AI agents self-organize, delegate, and deliver.<br/>
-  <strong>PLEASE USE A CODING PLAN, IT COMSUMES A LOT OF TOKENS</strong><br/>
-  I will add support for Ollama and Github Copilot in the near future.
+  <strong>Run an AI company from your desktop.</strong><br/>
+  Give it a mission. Watch agents hire, delegate, and deliver.
 </p>
 
 <p align="center">
@@ -19,7 +17,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ZacharyZhang-NY/AgentCompany/releases">Download</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="https://agentcompany.pages.dev">Website</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#features">Features</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#quick-start">Quick Start</a>
+  <a href="https://github.com/ZacharyZhang-NY/AgentCompany/releases">Download</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="https://agentcompany.pages.dev">Website</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#what-is-agentcompany">What it does</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="#quick-start">Quick Start</a>
 </p>
 
 ---
@@ -30,57 +28,79 @@
 
 ## What is AgentCompany?
 
-AgentCompany is a cross-platform desktop app that turns a single goal into a coordinated AI team. You provide a company name, description, and mission. A CEO agent self-organizes departments, delegates tasks, and produces deliverables — code, content, research, business plans, and more — while you observe and approve through a chat-based command hub. Inspired by **[Paperclip](https://github.com/paperclipai/paperclip)**
+You type a company name, a mission, and a first goal. AgentCompany boots a CEO agent who hires specialists, forms departments, and runs the business — writing code, drafting plans, producing research, shipping deliverables. You watch, approve, and steer through a desktop command center.
 
-### Supported AI Runtimes
+Local-first. No external services. Your data stays on your machine.
 
-| Runtime | Status |
-|---------|--------|
-| Claude Code | Ready |
-| Codex CLI | Ready |
-| Gemini CLI | Ready |
+Inspired by **[Paperclip](https://github.com/paperclipai/paperclip)**.
+
+---
+
+## What's in the box
+
+### 26 AI providers, one install
+
+No CLIs to install on your PATH. No `claude` / `codex` / `gemini` binaries. The agent runtime is linked directly via [pi-mono](https://github.com/mariozechner/pi).
+
+**5 OAuth subscriptions** — sign in with the accounts you already pay for:
+Claude Pro / Max · ChatGPT Plus / Pro (Codex) · GitHub Copilot · Google Gemini CLI · Google Antigravity
+
+**18 API-key providers:**
+Anthropic · OpenAI · Google Gemini · Mistral · Groq · Cerebras · xAI · OpenRouter · Vercel AI Gateway · ZAI · OpenCode · OpenCode Go · Hugging Face · Kimi For Coding · MiniMax · MiniMax CN · Fireworks · Fireworks Firepass
+
+**3 Cloud providers:**
+Azure OpenAI (Responses API) · AWS Bedrock · Google Vertex AI
+
+Credentials are stored encrypted at rest in a SecretVault-backed SQLite table. No plaintext, no `~/.pi/agent/auth.json`, no scattered env files.
+
+### Two execution modes, per company
+
+- **AI CEO** — fully autonomous. Hiring, task assignment, and deliverable publishing run without you.
+- **AI Co-Founder** — human-reviewed. Hiring and deliverables pause for your decision at `hire_agent` / `document_review` / `plan_review` / `strategy_review` approval gates.
+
+Switch any time in Settings → Execution mode.
 
 ---
 
 ## Features
 
-### Self-Organizing Teams
-Your AI CEO builds the org chart — recruiting specialists, creating departments, and establishing reporting lines from a single goal.
+### Self-organizing teams
+Your AI CEO draws the org chart — recruiting specialists, creating departments, and establishing reporting lines from a single goal.
 
 <p align="center">
   <img src="screenshots/Auto-OrgChart-Team.jpeg" width="700" alt="Auto-generated org chart with CEO and department heads" />
 </p>
 
-### Real-Time Agent Communication
-Agents coordinate through channel and direct-message threads. Watch decisions unfold in real time.
+### Real agent-to-agent messaging
+Agents coordinate through channel and direct threads — not scripted status updates. Inter-agent messages feed into each recipient's conversation transcript as first-class turns, so context travels with the work instead of being re-rendered from scratch every run.
 
 <p align="center">
   <img src="screenshots/AI-Internal-Realtime-Message.jpeg" width="700" alt="Real-time messaging between AI agents" />
 </p>
 
-### Autonomous Task Management
-Goals break down into tasks automatically. Agents pick up work, report progress, and escalate blockers without intervention.
+### Autonomous task management
+Goals break into tasks. Agents pick them up, report progress, and escalate blockers on their own.
 
 <p align="center">
   <img src="screenshots/Auto-Task.jpeg" width="700" alt="Autonomous task queue with goals and status tracking" />
 </p>
 
-### Human-in-the-Loop Approvals
-Critical decisions surface for your review. Approve, reject, or redirect — your company respects the chain of command.
+### Human-in-the-loop approvals
+Material decisions surface to the board: hiring, document delivery, plan and scope reviews, strategy reviews, budget overrides, production deploys. Approve, reject, or ask for a revision — the company respects the chain of command.
 
 <p align="center">
   <img src="screenshots/Approval-by-Human.jpeg" width="700" alt="Human approval workflow for agent decisions" />
 </p>
 
-### AI Document Generation
-Agents draft business plans, marketing strategies, and technical specs — stored in a shared document center.
+### AI document generation
+Agents draft business plans, marketing strategies, and technical specs — kept in a shared document center linked to the tasks that produced them.
 
 <p align="center">
   <img src="screenshots/Document-Center.jpeg" width="700" alt="Document center with AI-generated deliverables" />
 </p>
 
-### One-Click Company Creation
-Name it, describe the mission, connect a runtime, and launch. Agents start working in under a minute.
+### One-minute company creation
+Name it, write the mission, pick a provider, choose the mode, launch. Agents are at work before your coffee.
 
 <p align="center">
   <img src="screenshots/Onboarding.jpeg" width="700" alt="Company creation onboarding flow" />
@@ -92,19 +112,24 @@ Name it, describe the mission, connect a runtime, and launch. Agents start worki
 
 ### Download
 
-Grab the latest release for your platform:
-
 **[Download AgentCompany](https://github.com/ZacharyZhang-NY/AgentCompany/releases)**
 
-> Available for macOS (Apple Silicon & Intel), Windows, and Linux.
+macOS (Apple Silicon & Intel), Windows, Linux.
 
-### Build from Source
+### Build from source
 
 ```sh
 # Prerequisites: Node.js 22+, pnpm 10+
 pnpm install
 pnpm dev
 ```
+
+### First run
+
+1. **Launch.** Onboarding probes your shell PATH for `node` — agents invoke the local HTTP API through `node -e`, so a shell Node is required. Platform-specific install commands are shown if it's missing.
+2. **Configure a provider.** Settings → Providers. OAuth providers open your default browser; API-key providers take a key; Azure/Bedrock/Vertex take their respective endpoint + credential config.
+3. **Create a company.** Name, mission, first goal, execution mode, workspace path.
+4. **Go.** The CEO starts within seconds.
 
 ---
 
@@ -124,15 +149,15 @@ pnpm build:verify
 ```sh
 pnpm build         # Compile + package for current platform → /build/release
 pnpm build:dir     # Compile + unpackaged directory
-pnpm build:current # Build for current host platform (see note below for other OS)
-pnpm release:local # Signed/uploading release pipeline (see docs/release/local-r2.md)
+pnpm build:current # Build for current host platform
+pnpm release:local # Signed / upload release pipeline (see docs/release/local-r2.md)
 ```
 
 - **Targets:** macOS (`.dmg`), Windows (`.exe` / NSIS), Linux (`.AppImage`)
-- Packaging uses `electron-builder`
+- Packaging via `electron-builder`
 - Local builds use ad-hoc signing (`CSC_IDENTITY_AUTO_DISCOVERY=false`)
 - Defaults to `--publish never`; override with `AGENTCOMPANY_ELECTRON_PUBLISH`
-- Cloudflare R2 release hosting + auto-update pipeline: `docs/release/local-r2.md`
+- Cloudflare R2 release hosting + auto-update: `docs/release/local-r2.md`
 
 ---
 
@@ -140,22 +165,27 @@ pnpm release:local # Signed/uploading release pipeline (see docs/release/local-r
 
 ```
 src/
-  main/              # Electron main process — database, services, IPC, orchestration
-  preload/           # Context-isolated bridge — DesktopApi via contextBridge
-  renderer/          # React 19 UI — components, hooks, i18n
-  shared/            # Contracts, types, Zod schemas shared across processes
-packages/
-  adapter-utils/     # Shared adapter utilities
-  adapter-claude-local/
-  adapter-codex-local/
-  adapter-gemini-local/
+  main/                # Electron main process
+    agent-runtime/       # RuntimeBridge, SqliteSessionStore, CostWriter
+    credentials/         # CredentialStore, CredentialResolver, OAuthLoginService
+    api-server/          # Agent-facing HTTP API (tasks, messages, approvals, ...)
+    orchestration/       # Scheduler, run dispatch, turn context
+    prompt-builder/      # System prompt assembly + API docs injection
+    thread-integration/  # Thread runtime event routing
+    worker/              # utilityProcess worker — direct `new Agent(...)` via pi-mono
+    database/            # SQLite schema + migrations
+  preload/             # Context-isolated bridge — typed DesktopApi via contextBridge
+  renderer/            # React 19 UI — components, hooks, i18n, state
+  shared/              # Contracts, types, Zod schemas shared across processes
 ```
 
-### Key Design Decisions
+### Key design decisions
 
-- **Local-first:** SQLite database, secrets in OS keychain, no external services required
-- **Security:** `contextIsolation: true`, `nodeIntegration: false`, Zod-validated IPC, JWT agent tokens
-- **Agent coordination:** Agents delegate tasks, escalate blockers, and produce deliverables through the orchestration runtime
+- **Local-first.** SQLite on your machine. SecretVault-encrypted credentials. No external services required for core operation.
+- **Process isolation.** `contextIsolation: true`, `nodeIntegration: false`, Zod-validated IPC. Renderer never imports `@mariozechner/pi-*`; all agent traffic is proxied through main → utilityProcess worker.
+- **Runtime direct.** `@mariozechner/pi-agent-core` is a first-class dependency. The worker calls `new Agent({...})` directly — no adapter shim, no CLI shell-out.
+- **Session as transcript.** Each agent's conversation persists as `session_entries` rows of pi `AgentMessage[]`. Long sessions auto-compact via `shouldCompact` + `compact` from pi-coding-agent; state survives app restarts.
+- **Thread runtime.** `conversation_threads` + `conversation_events` + `thread_wait_states` sit above pi's `AgentMessage` stream so the inbox / approval / review UX is a first-class runtime concern, not UI-only veneer.
 
 ---
 
@@ -164,12 +194,13 @@ packages/
 | Layer | Technology |
 |-------|-----------|
 | Framework | Electron 39.8.0 |
-| Runtime | Node.js 22+ |
+| Runtime | Node.js 22+ (bundled in Electron; shell `node` required for agent HTTP callbacks) |
 | Language | TypeScript 5.9 (strict) |
-| UI | React 19, Tailwind CSS 4, Framer Motion |
+| UI | React 19, Tailwind CSS 4, Framer Motion, Zustand |
 | Build | electron-vite, Vite 7, electron-builder |
-| Database | SQLite (WAL mode, schema in `src/main/database/`) |
+| Database | SQLite via `node:sqlite` (WAL mode) |
 | Validation | Zod 4 |
+| Agent runtime | `@mariozechner/pi-ai`, `@mariozechner/pi-agent-core`, `@mariozechner/pi-coding-agent` |
 | Testing | Vitest, Playwright |
 
 ---
