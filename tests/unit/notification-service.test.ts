@@ -209,7 +209,7 @@ describe("notification-service", () => {
       (args: unknown[]) => (args[0] as { type?: string })?.type === "notification-click",
     );
     expect(emitCall).toBeDefined();
-    expect(emitCall![0].section).toBe("orgchart");
+    expect(emitCall![0].section).toBe("agents");
     expect(emitCall![0].entityId).toBeUndefined();
   });
 
