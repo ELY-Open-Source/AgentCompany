@@ -83,9 +83,9 @@ export function ConsoleView({
               </button>
             </div>
           </div>
-          <div className="grid border-t border-border xl:grid-cols-[240px_minmax(0,1fr)]">
-            <div className="border-b border-border px-5 py-3 xl:border-b-0 xl:border-r">
-              {selectedRun ? (
+          {selectedRun ? (
+            <div className="grid border-t border-border xl:grid-cols-[240px_minmax(0,1fr)]">
+              <div className="border-b border-border px-5 py-3 xl:border-b-0 xl:border-r">
                 <div className="space-y-2.5 text-[12px] text-muted-foreground">
                   <div className="flex items-center justify-between">
                     <span>{t("common.status")}</span>
@@ -93,15 +93,15 @@ export function ConsoleView({
                   </div>
                   <div className="flex items-center justify-between">
                     <span>{t("common.started")}</span>
-                    <span className="font-mono text-[11px]">{formatTime(selectedRun.startedAt)}</span>
+                    <span className="font-mono text-[11px] text-foreground">{formatTime(selectedRun.startedAt)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>{t("common.finished")}</span>
-                    <span className="font-mono text-[11px]">{formatTime(selectedRun.finishedAt)}</span>
+                    <span className="font-mono text-[11px] text-foreground">{formatTime(selectedRun.finishedAt)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>{t("common.cost")}</span>
-                    <span className="font-mono text-[11px]">{formatMoney(selectedRun.costUsd)}</span>
+                    <span className="font-mono text-[11px] text-foreground">{formatMoney(selectedRun.costUsd)}</span>
                   </div>
                   {selectedRun.logPath ? (
                     <div className="pt-1">
@@ -109,16 +109,18 @@ export function ConsoleView({
                     </div>
                   ) : null}
                 </div>
-              ) : (
-                <div className="py-4 text-center text-[12px] text-muted-foreground">{t("common.noRunSelected")}</div>
-              )}
+              </div>
+              <div className="h-[200px] overflow-auto px-5 py-3">
+                <pre className="font-mono whitespace-pre-wrap break-all text-[12px] leading-relaxed text-foreground/90">
+                  {logBuffer || t("common.waitingForLog")}
+                </pre>
+              </div>
             </div>
-            <div className="h-[200px] overflow-auto px-5 py-3">
-              <pre className="font-mono whitespace-pre-wrap break-all text-[12px] leading-relaxed text-muted-foreground">
-                {selectedRun ? (logBuffer || t("common.waitingForLog")) : t("common.noRunSelected")}
-              </pre>
+          ) : (
+            <div className="flex h-[200px] items-center justify-center border-t border-border">
+              <div className="text-center text-[12px] text-muted-foreground">{t("common.noRunSelected")}</div>
             </div>
-          </div>
+          )}
         </motion.section>
       ) : null}
     </AnimatePresence>
