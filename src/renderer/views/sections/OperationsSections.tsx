@@ -67,7 +67,6 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
     <>
       {section === "overview" ? (
         <Dashboard
-          companyName={currentCompany?.name}
           companyId={currentCompany?.id}
           agents={companyAgents}
           tasks={tasks}

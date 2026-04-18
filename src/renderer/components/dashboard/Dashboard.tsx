@@ -30,7 +30,6 @@ import { ChartSection } from "./ChartSection";
 import { AttentionRow, Eyebrow } from "../ui";
 
 export interface DashboardProps {
-  companyName?: string;
   companyId?: string;
   agents: AgentRecord[];
   tasks: TaskRecord[];
@@ -46,7 +45,7 @@ export interface DashboardProps {
 
 export function Dashboard(props: DashboardProps) {
   const t = useT();
-  const { companyName, companyId, agents, tasks, runs, approvals, activity, costs, messages = [], onNavigate } = props;
+  const { companyId, agents, tasks, runs, approvals, activity, costs, messages = [], onNavigate } = props;
 
   const agentMap = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents]);
   const taskMap = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
@@ -78,26 +77,6 @@ export function Dashboard(props: DashboardProps) {
 
   return (
     <div className="space-y-6">
-      {/* Company status line */}
-      {companyName ? (
-        <div>
-          <h2 className="text-[28px] font-bold tracking-[-0.02em] text-foreground">{companyName}</h2>
-          <div className="mt-2 flex items-center gap-3 text-[13px] tracking-[0.005em] text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-success" />
-              {activeAgents.length} {activeAgents.length === 1 ? t("dash.agentActive") : t("dash.agentsActive")}
-            </span>
-            <span className="h-3 w-px bg-[color:var(--border)]" />
-            <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              {activeTasks.length} {activeTasks.length === 1 ? t("dash.taskInProgress") : t("dash.tasksInProgress")}
-            </span>
-            <span className="h-3 w-px bg-[color:var(--border)]" />
-            <span>{tasks.filter((tk) => tk.status === "done").length} {t("dash.completedCount")}</span>
-          </div>
-        </div>
-      ) : null}
-
       {/* Conditional banners */}
       <RecoveryBanner />
       <BudgetAlertBanner agents={agents} onNavigate={onNavigate} companyId={companyId} />
@@ -219,9 +198,6 @@ export function Dashboard(props: DashboardProps) {
                   <Robot size={16} className="text-success" />
                   {run.status === "running" ? (
                     <span className="absolute -right-0.5 -top-0.5 h-2 w-2">
-                      {i < 2 ? (
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-40" style={{ willChange: "transform" }} />
-                      ) : null}
                       <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
                     </span>
                   ) : null}
