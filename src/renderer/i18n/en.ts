@@ -1276,6 +1276,11 @@ export const en: Record<string, string> = {
   "org.statusAria": "Status: {status}",
 
   // ── Settings pane ──
+  "settings.updaterHint": "Check for application updates at launch",
+  "settings.modeScope": "Applies to current company: {company}",
+  "settings.backupRestore": "Backup & restore",
+  "settings.restoreConfirm": "Restore will overwrite the current profile. Running work may be lost. Continue?",
+  "settings.restoreHint": "Restore is not reversible — it replaces the active profile on disk with the backup.",
   "settings.keyboardShortcuts": "Keyboard Shortcuts",
   "settings.shortcut.commandPalette": "Open command palette",
   "settings.shortcut.sendMessage": "Send message",

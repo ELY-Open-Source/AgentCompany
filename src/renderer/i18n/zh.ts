@@ -1276,6 +1276,11 @@ export const zh: Record<string, string> = {
   "org.statusAria": "状态：{status}",
 
   // ── 设置面板 ──
+  "settings.updaterHint": "启动时自动检查应用更新",
+  "settings.modeScope": "应用于当前公司：{company}",
+  "settings.backupRestore": "备份与恢复",
+  "settings.restoreConfirm": "恢复备份会覆盖当前配置，运行中的任务可能丢失。确定继续？",
+  "settings.restoreHint": "恢复操作不可撤销，会用备份覆盖磁盘上的活动配置。",
   "settings.keyboardShortcuts": "键盘快捷键",
   "settings.shortcut.commandPalette": "打开命令面板",
   "settings.shortcut.sendMessage": "发送消息",
