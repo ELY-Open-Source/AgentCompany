@@ -599,6 +599,7 @@ export const en: Record<string, string> = {
   "comm.adjustFilters": "Try another search or filter",
   "comm.messagesAppear": "No messages yet",
   "comm.openTask": "Open task",
+  "comm.showSidebar": "Show sidebar",
   "comm.selectChannelSend": "Pick a channel first.",
   "comm.replyInDiscussion": "Reply in task discussion...",
   "comm.typeMessage": "Type a message...",

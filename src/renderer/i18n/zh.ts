@@ -599,6 +599,7 @@ export const zh: Record<string, string> = {
   "comm.adjustFilters": "换个搜索或筛选试试",
   "comm.messagesAppear": "暂无消息",
   "comm.openTask": "打开任务",
+  "comm.showSidebar": "显示侧边栏",
   "comm.selectChannelSend": "先选一个频道。",
   "comm.replyInDiscussion": "在任务讨论中回复...",
   "comm.typeMessage": "输入消息...",

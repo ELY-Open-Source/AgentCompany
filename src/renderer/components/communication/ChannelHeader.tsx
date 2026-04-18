@@ -53,7 +53,7 @@ export function ChannelHeader({
           type="button"
           onClick={onShowSidebar}
           className="rounded-[4px] p-1 text-muted-foreground transition hover:text-foreground"
-          aria-label="Show sidebar"
+          aria-label={t("comm.showSidebar")}
         >
           <CaretDown size={12} className="rotate-90" />
         </button>
@@ -64,7 +64,7 @@ export function ChannelHeader({
           <div className="truncate text-[13px] font-semibold text-foreground">{activeChannel.label}</div>
           {activeChannel.kind === "task" && activeTask ? (
             <button type="button" onClick={() => onNavigateToTask(activeTask.id)} className="mt-0.5 text-[11px] font-medium text-primary transition hover:underline">
-              Open task
+              {t("comm.openTask")}
             </button>
           ) : null}
         </div>

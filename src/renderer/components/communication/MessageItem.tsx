@@ -100,7 +100,7 @@ export const MessageBubble = memo(function MessageBubble({
           ) : null}
           {agent?.department ? (
             <span
-              className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-muted-foreground"
+              className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground"
             >
               {agent.department.replace("_", " ")}
             </span>
@@ -110,7 +110,7 @@ export const MessageBubble = memo(function MessageBubble({
           </span>
           {message.priority !== "normal" ? (
             <span
-              className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] ${priorityMap[message.priority]?.className ?? ""}`}
+              className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em] ${priorityMap[message.priority]?.className ?? ""}`}
             >
               {message.priority === "urgent" ? <WarningCircle size={10} weight="fill" /> : null}
               {priorityMap[message.priority]?.label}
