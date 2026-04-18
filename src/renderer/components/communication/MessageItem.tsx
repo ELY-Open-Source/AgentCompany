@@ -4,7 +4,6 @@ import {
   ChatCircle,
   At,
   Circle,
-  CheckCircle,
   WarningCircle,
   ArrowBendUpLeft,
   UserCircle,
@@ -98,13 +97,6 @@ export const MessageBubble = memo(function MessageBubble({
           {agent?.title ? (
             <span className="truncate text-[11px] text-muted-foreground">{agent.title}</span>
           ) : null}
-          {agent?.department ? (
-            <span
-              className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground"
-            >
-              {agent.department.replace("_", " ")}
-            </span>
-          ) : null}
           <span className="whitespace-nowrap shrink-0 text-[11px] text-muted-foreground">
             {formatMessageTime(message.createdAt)}
           </span>
@@ -118,13 +110,7 @@ export const MessageBubble = memo(function MessageBubble({
           ) : null}
           {isUnread ? (
             <Circle size={8} weight="fill" className="shrink-0" style={{ color: "var(--primary)" }} aria-label={t("msg.unread")} />
-          ) : (
-            <CheckCircle
-              size={10}
-              weight="fill"
-              className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-60 group-focus-within:opacity-60"
-            />
-          )}
+          ) : null}
         </div>
 
         {message.subject ? (
