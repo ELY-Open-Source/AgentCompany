@@ -12,7 +12,6 @@ import type { AgentFormState } from "../useAgentForm";
 import { IdentitySection } from "./edit-sections/IdentitySection";
 import { RuntimeSection } from "./edit-sections/RuntimeSection";
 import { ConstraintsSection } from "./edit-sections/ConstraintsSection";
-import { SkillsSection } from "./edit-sections/SkillsSection";
 import { EditActionBar } from "./edit-sections/EditActionBar";
 import { SectionHeader } from "./edit-sections/SectionHeader";
 
@@ -182,7 +181,6 @@ export function EditFormBody({
           onWakeNow={() => void handleWakeNow()}
         />
       </SectionHeader>
-      <SkillsSection companyId={companyId} agentId={agent.id} />
       <EditActionBar
         agent={agent}
         pendingApproval={pendingApproval}
