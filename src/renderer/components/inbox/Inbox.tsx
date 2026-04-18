@@ -109,17 +109,7 @@ export function Inbox({ items, onNavigate }: InboxProps) {
             {filteredItems.map((item, i) => {
               const config = typeConfig[item.type];
               const Icon = config.icon;
-              const title = (
-                <span className="flex items-center gap-2">
-                  <span className="truncate">{item.title}</span>
-                  <span
-                    className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em]"
-                    style={{ backgroundColor: config.bg, color: config.color }}
-                  >
-                    {config.label}
-                  </span>
-                </span>
-              );
+              const title = <span className="truncate">{item.title}</span>;
               const subtitle = (
                 <span className="flex items-center gap-2">
                   {item.agentName ? (
