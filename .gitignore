@@ -76,3 +76,6 @@ yarn-debug.log*
 yarn-error.log*
 local-release/
 .omx/
+
+# Runtime state (written by app at runtime)
+state/
