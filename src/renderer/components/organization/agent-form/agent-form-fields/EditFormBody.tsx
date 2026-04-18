@@ -13,7 +13,8 @@ import { IdentitySection } from "./edit-sections/IdentitySection";
 import { RuntimeSection } from "./edit-sections/RuntimeSection";
 import { ConstraintsSection } from "./edit-sections/ConstraintsSection";
 import { EditActionBar } from "./edit-sections/EditActionBar";
-import { SectionHeader } from "./edit-sections/SectionHeader";
+
+type EditTab = "identity" | "runtime" | "constraints" | "behavior";
 
 interface EditFormBodyProps {
   agent: AgentRecord;
@@ -31,16 +32,17 @@ interface EditFormBodyProps {
 }
 
 /**
- * Orchestrator for the agent Edit modal. Owns the save / wake / delete
- * side effects, the save-error latch, and the dirty-state derivation;
- * renders through five section components so each concern (identity,
- * runtime, constraints, behavior, skills) lives in a ≤200 LOC file.
+ * Agent Edit modal body. Tabs replace the previous single-scroll stack
+ * so a 12-field edit surface no longer forces the modal to grow tall
+ * and scroll internally. Same IA pattern as the Settings page.
  *
- * "Dirty" is computed from the form state vs. the persisted agent record
- * plus the persisted budget policy. We intentionally compare trimmed
- * strings and numeric budget so that whitespace-only edits do not falsely
- * enable Save. Root-agent guards against Delete / terminate live here
- * and are threaded into the relevant sections.
+ * Tab state is local — the modal is transient. Default is "identity"
+ * because that is where users land for name/role/department edits,
+ * which are the most common touches after the runtime cluster.
+ *
+ * Dirty-state and save/wake/delete handlers stay in this orchestrator;
+ * each tab renders a pure-body section component that receives form
+ * state + computed flags via props.
  */
 export function EditFormBody({
   agent,
@@ -57,6 +59,7 @@ export function EditFormBody({
 }: EditFormBodyProps) {
   const t = useT();
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<EditTab>("identity");
 
   const pendingApproval = agent.status === "pending_approval";
   const isRootAgent = !agent.reportsTo;
@@ -82,6 +85,13 @@ export function EditFormBody({
       form.thinkingEffort !== persistedEffort
     );
   }, [form, agent, pendingApproval]);
+
+  const tabs: Array<{ id: EditTab; label: string }> = [
+    { id: "identity", label: t("agent.form.sectionIdentity") },
+    { id: "runtime", label: t("agent.form.sectionRuntime") },
+    { id: "constraints", label: t("agent.form.sectionConstraints") },
+    { id: "behavior", label: t("agent.form.sectionBehavior") },
+  ];
 
   async function persistAgentDraft() {
     const meta = { ...form.existingMeta };
@@ -159,28 +169,65 @@ export function EditFormBody({
   }
 
   return (
-    <div className="grid min-w-0 gap-6">
-      <IdentitySection form={form} agent={agent} agents={agents} pendingApproval={pendingApproval} />
-      <RuntimeSection
-        form={form}
-        agent={agent}
-        workspaces={workspaces}
-        connectorOptions={connectorOptions}
-        selectedConnectorIssue={selectedConnectorIssue}
-        pendingApproval={pendingApproval}
-        isRootAgent={isRootAgent}
-      />
-      <ConstraintsSection form={form} agent={agent} pendingApproval={pendingApproval} />
-      <SectionHeader title={t("agent.form.sectionBehavior")}>
-        <HeartbeatSection
-          agent={agent}
-          companyId={companyId}
-          pendingApproval={pendingApproval}
-          persistedConnectorIssue={selectedConnectorIssue ?? persistedConnectorIssue}
-          onSaved={onSaved}
-          onWakeNow={() => void handleWakeNow()}
-        />
-      </SectionHeader>
+    <div className="grid min-w-0 gap-5">
+      <nav
+        role="tablist"
+        aria-label={t("agent.form.tabsAria")}
+        className="flex flex-wrap gap-1 border-b border-border"
+      >
+        {tabs.map((tab) => {
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setActiveTab(tab.id)}
+              className={`relative px-4 py-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                active
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+              {active ? (
+                <span aria-hidden="true" className="absolute inset-x-2 bottom-[-1px] h-[2px] bg-primary" />
+              ) : null}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div>
+        {activeTab === "identity" ? (
+          <IdentitySection form={form} agent={agent} agents={agents} pendingApproval={pendingApproval} />
+        ) : null}
+        {activeTab === "runtime" ? (
+          <RuntimeSection
+            form={form}
+            workspaces={workspaces}
+            connectorOptions={connectorOptions}
+            selectedConnectorIssue={selectedConnectorIssue}
+            pendingApproval={pendingApproval}
+            isRootAgent={isRootAgent}
+          />
+        ) : null}
+        {activeTab === "constraints" ? (
+          <ConstraintsSection form={form} agent={agent} pendingApproval={pendingApproval} />
+        ) : null}
+        {activeTab === "behavior" ? (
+          <HeartbeatSection
+            agent={agent}
+            companyId={companyId}
+            pendingApproval={pendingApproval}
+            persistedConnectorIssue={selectedConnectorIssue ?? persistedConnectorIssue}
+            onSaved={onSaved}
+            onWakeNow={() => void handleWakeNow()}
+          />
+        ) : null}
+      </div>
+
       <EditActionBar
         agent={agent}
         pendingApproval={pendingApproval}

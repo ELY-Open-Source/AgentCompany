@@ -1390,6 +1390,7 @@ export const en: Record<string, string> = {
   "agent.form.sectionRuntime": "Runtime",
   "agent.form.sectionConstraints": "Budget & scope",
   "agent.form.sectionBehavior": "Behavior",
+  "agent.form.tabsAria": "Agent edit categories",
   "agent.form.statusIdle": "Idle",
   "agent.form.statusActive": "Active",
   "agent.form.statusRunning": "Running",

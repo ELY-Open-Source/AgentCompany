@@ -4,7 +4,6 @@ import { BudgetBar } from "../../../helpers";
 import { formatMoney } from "../../../../../lib/formatters";
 import { useT } from "../../../../../i18n";
 import type { AgentFormState } from "../../useAgentForm";
-import { SectionHeader } from "./SectionHeader";
 
 interface ConstraintsSectionProps {
   form: AgentFormState;
@@ -13,11 +12,10 @@ interface ConstraintsSectionProps {
 }
 
 /**
- * Budget + scope of work. Budget surfaces the live burn via BudgetBar so
- * the board can see whether a proposed change (typing a new budget in the
- * input) tracks reality. Capabilities gets a concrete placeholder so
- * agents ship with useful, specific scope statements instead of the
- * previous "What this agent does" circular prompt.
+ * Budget + scope of work. Live burn bar + spent/budget line appear
+ * together under the input so typing a new cap updates the visual
+ * context immediately. Capabilities gets a concrete placeholder so
+ * agents ship with specific scope statements.
  */
 export function ConstraintsSection({ form, agent, pendingApproval }: ConstraintsSectionProps) {
   const t = useT();
@@ -25,26 +23,28 @@ export function ConstraintsSection({ form, agent, pendingApproval }: Constraints
   const showBurn = budgetValue > 0 || agent.spentMonthlyUsd > 0;
 
   return (
-    <SectionHeader title={t("agent.form.sectionConstraints")}>
-      <Input
-        label={t("agent.budget")}
-        value={form.budget}
-        onChange={form.setBudget}
-        placeholder={t("agent.form.budgetPlaceholder")}
-        type="number"
-        readOnly={pendingApproval}
-        disabled={pendingApproval}
-      />
-      {showBurn ? (
-        <div className="grid gap-1.5">
-          <BudgetBar spent={agent.spentMonthlyUsd} budget={budgetValue} />
-          <p className="text-[11px] text-muted-foreground">
-            {t("agent.form.budgetBurn")
-              .replace("{spent}", formatMoney(agent.spentMonthlyUsd))
-              .replace("{budget}", formatMoney(budgetValue))}
-          </p>
-        </div>
-      ) : null}
+    <div className="grid gap-4">
+      <div className="grid gap-1.5">
+        <Input
+          label={t("agent.budget")}
+          value={form.budget}
+          onChange={form.setBudget}
+          placeholder={t("agent.form.budgetPlaceholder")}
+          type="number"
+          readOnly={pendingApproval}
+          disabled={pendingApproval}
+        />
+        {showBurn ? (
+          <>
+            <BudgetBar spent={agent.spentMonthlyUsd} budget={budgetValue} />
+            <p className="text-[11px] text-muted-foreground">
+              {t("agent.form.budgetBurn")
+                .replace("{spent}", formatMoney(agent.spentMonthlyUsd))
+                .replace("{budget}", formatMoney(budgetValue))}
+            </p>
+          </>
+        ) : null}
+      </div>
       <TextArea
         label={t("agent.capabilities")}
         value={form.capabilities}
@@ -53,6 +53,6 @@ export function ConstraintsSection({ form, agent, pendingApproval }: Constraints
         readOnly={pendingApproval}
         disabled={pendingApproval}
       />
-    </SectionHeader>
+    </div>
   );
 }

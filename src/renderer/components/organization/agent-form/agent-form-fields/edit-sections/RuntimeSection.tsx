@@ -2,11 +2,9 @@ import type { AgentRecord, ConnectorRecord, WorkspaceRecord } from "@shared/type
 import { Select } from "../../../../ui";
 import { useT } from "../../../../../i18n";
 import type { AgentFormState } from "../../useAgentForm";
-import { SectionHeader } from "./SectionHeader";
 
 interface RuntimeSectionProps {
   form: AgentFormState;
-  agent: AgentRecord;
   workspaces: WorkspaceRecord[];
   connectorOptions: Array<{ value: string; label: string }>;
   selectedConnectorIssue: string | null;
@@ -15,19 +13,15 @@ interface RuntimeSectionProps {
 }
 
 /**
- * How this agent runs: which connector, which model, thinking effort,
- * which workspace, and what the current runtime status is. Status +
- * connector + model cluster together because that is what the orchestrator
- * reads when dispatching a run.
- *
- * Thinking Effort is always shown (instead of disappearing when the model
- * does not support it) so users can see the option exists — it is
- * disabled with an inline note when the selected connector's provider
- * does not accept the hint.
+ * How this agent runs: status + which connector/model/effort it uses +
+ * which workspace. Status leads because it is the high-frequency control
+ * (pause / resume / mark error); the connector/model cluster follows
+ * because those change rarely. Thinking Effort stays always-visible
+ * with a disabled state when the current connector's models don't
+ * accept the hint — users can see the option exists.
  */
 export function RuntimeSection({
   form,
-  agent,
   workspaces,
   connectorOptions,
   selectedConnectorIssue,
@@ -35,9 +29,10 @@ export function RuntimeSection({
   isRootAgent,
 }: RuntimeSectionProps) {
   const t = useT();
+  const showInlineEffortHint = !form.supportsEffort && !pendingApproval;
 
   return (
-    <SectionHeader title={t("agent.form.sectionRuntime")}>
+    <div className="grid gap-4">
       <Select
         label={t("agent.status")}
         value={form.status}
@@ -64,51 +59,58 @@ export function RuntimeSection({
       {isRootAgent && !pendingApproval ? (
         <p className="text-[12px] text-muted-foreground">{t("agent.form.rootTerminateBlocked")}</p>
       ) : null}
-      <Select
-        label={t("agent.connector")}
-        value={form.connectorId}
-        onChange={(v) => form.setConnectorId(v as ConnectorRecord["id"])}
-        disabled={pendingApproval}
-        options={connectorOptions}
-      />
-      {selectedConnectorIssue ? (
-        <p className="text-[12px] text-warning">{selectedConnectorIssue}</p>
-      ) : null}
-      {form.availableModels.length > 0 ? (
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-1.5">
+          <Select
+            label={t("agent.connector")}
+            value={form.connectorId}
+            onChange={(v) => form.setConnectorId(v as ConnectorRecord["id"])}
+            disabled={pendingApproval}
+            options={connectorOptions}
+          />
+          {selectedConnectorIssue ? (
+            <p className="text-[12px] text-warning">{selectedConnectorIssue}</p>
+          ) : null}
+        </div>
+        {form.availableModels.length > 0 ? (
+          <Select
+            label={t("agent.model")}
+            value={form.model}
+            onChange={form.setModel}
+            disabled={pendingApproval}
+            options={form.availableModels.map((m) => ({ value: m.id, label: m.label }))}
+          />
+        ) : <div />}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-1.5">
+          <Select
+            label={t("agent.thinkingEffort")}
+            value={form.thinkingEffort}
+            onChange={form.setThinkingEffort}
+            disabled={pendingApproval || !form.supportsEffort}
+            options={[
+              { value: "", label: t("agent.form.effortDefault") },
+              { value: "low", label: t("agent.form.effortLow") },
+              { value: "medium", label: t("agent.form.effortMedium") },
+              { value: "high", label: t("agent.form.effortHigh") },
+            ]}
+          />
+          {showInlineEffortHint ? (
+            <p className="text-[11px] text-muted-foreground">{t("agent.form.effortNotSupported")}</p>
+          ) : null}
+        </div>
         <Select
-          label={t("agent.model")}
-          value={form.model}
-          onChange={form.setModel}
+          label={t("agent.workspace")}
+          value={form.workspaceId}
+          onChange={form.setWorkspaceId}
           disabled={pendingApproval}
-          options={form.availableModels.map((m) => ({ value: m.id, label: m.label }))}
+          options={[
+            { value: "", label: t("agent.noWorkspace") },
+            ...workspaces.map((w) => ({ value: w.id, label: w.name })),
+          ]}
         />
-      ) : null}
-      <Select
-        label={t("agent.thinkingEffort")}
-        value={form.thinkingEffort}
-        onChange={form.setThinkingEffort}
-        disabled={pendingApproval || !form.supportsEffort}
-        options={[
-          { value: "", label: t("agent.form.effortDefault") },
-          { value: "low", label: t("agent.form.effortLow") },
-          { value: "medium", label: t("agent.form.effortMedium") },
-          { value: "high", label: t("agent.form.effortHigh") },
-        ]}
-      />
-      {!form.supportsEffort && !pendingApproval ? (
-        <p className="text-[11px] text-muted-foreground">{t("agent.form.effortNotSupported")}</p>
-      ) : null}
-      <Select
-        label={t("agent.workspace")}
-        value={form.workspaceId}
-        onChange={form.setWorkspaceId}
-        disabled={pendingApproval}
-        options={[
-          { value: "", label: t("agent.noWorkspace") },
-          ...workspaces.map((w) => ({ value: w.id, label: w.name })),
-        ]}
-      />
-      <input type="hidden" data-agent-id={agent.id} />
-    </SectionHeader>
+      </div>
+    </div>
   );
 }

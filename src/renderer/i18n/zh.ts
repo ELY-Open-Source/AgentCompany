@@ -1390,6 +1390,7 @@ export const zh: Record<string, string> = {
   "agent.form.sectionRuntime": "运行时",
   "agent.form.sectionConstraints": "预算与范围",
   "agent.form.sectionBehavior": "行为",
+  "agent.form.tabsAria": "成员编辑分类",
   "agent.form.statusIdle": "空闲",
   "agent.form.statusActive": "活跃",
   "agent.form.statusRunning": "运行中",
