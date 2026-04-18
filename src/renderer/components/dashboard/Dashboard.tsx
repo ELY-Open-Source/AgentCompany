@@ -187,7 +187,7 @@ export function Dashboard(props: DashboardProps) {
         </div>
         {activeWork.length > 0 ? (
           <div className="rounded-lg border border-border bg-card divide-y divide-[color:var(--border)]">
-            {activeWork.map(({ run, agent, task }, i) => (
+            {activeWork.map(({ run, agent, task }) => (
               <button
                 key={run.id}
                 type="button"

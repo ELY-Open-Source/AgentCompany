@@ -117,7 +117,6 @@ export function OrganizationSections({ section }: OrganizationSectionsProps) {
         <HiringPipeline
           agents={companyAgents}
           approvals={(snapshot?.approvals ?? []).filter(a => a.companyId === currentCompany.id)}
-          onRefresh={refresh}
           onNavigateToAgent={(id) => { setSelectedAgentId(id); setSection("agents"); }}
         />
       ) : null}

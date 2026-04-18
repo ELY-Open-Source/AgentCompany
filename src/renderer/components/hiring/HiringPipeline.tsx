@@ -1,16 +1,13 @@
 import { useState } from "react";
 import {
   ArrowRight,
-  Check,
-  UserPlus,
   X,
 } from "../ui/icons";
 import type { AgentRecord, ApprovalRecord } from "@shared/types";
 import { useT } from "../../i18n";
 import { getAgentInitials } from "../../lib/formatters";
-import { unwrap } from "../../lib/desktop";
 import { safeJson } from "../../lib/safe-json";
-import { ActionButton, Card, EmptyState, Panel, StatusPill } from "../ui";
+import { ActionButton, EmptyState, Panel, StatusPill } from "../ui";
 import {
   type HiringStage,
   type HiringCandidate,
@@ -22,11 +19,10 @@ import {
 interface HiringPipelineProps {
   agents: AgentRecord[];
   approvals: ApprovalRecord[];
-  onRefresh: () => Promise<void>;
   onNavigateToAgent: (agentId: string) => void;
 }
 
-export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent }: HiringPipelineProps) {
+export function HiringPipeline({ agents, approvals, onNavigateToAgent }: HiringPipelineProps) {
   const t = useT();
   const [filterStage, setFilterStage] = useState<HiringStage | "all">("all");
 
@@ -77,7 +73,6 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
     return acc;
   }, {} as Record<HiringStage, number>);
 
-  const pendingCount = stageCounts.requisition + stageCounts.pending_approval;
   const activeHires = allCandidates.filter(c => c.stage !== "active" && c.stage !== "rejected").length;
 
   return (
@@ -117,74 +112,6 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
           )}
         </div>
       </Panel>
-
-      {pendingCount > 0 && (
-        <Panel title={t("hiring.pendingApproval")}>
-          <div className="divide-y divide-[color:var(--border)]">
-            {allCandidates
-              .filter(c => c.stage === "requisition" || c.stage === "pending_approval")
-              .map((candidate) => {
-                const a = candidate.approval;
-                const ag = candidate.agent;
-                return (
-                  <div key={a?.id ?? ag?.id} className="px-4 py-3 flex items-start gap-3">
-                    <div className="flex-shrink-0 mt-0.5 h-8 w-8 rounded-full bg-warning-muted flex items-center justify-center">
-                      <UserPlus size={16} className="text-warning" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm text-foreground">{ag?.name ?? t("hiring.pendingHires")}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${stageColor(candidate.stage)}`}>
-                          {stageLabelMap[candidate.stage]}
-                        </span>
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {ag ? `${ag.role} — ${ag.title}` : a?.payloadSummary}
-                      </div>
-                      {ag?.capabilities && (
-                        <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{ag.capabilities}</div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {a && a.state === "pending" && (
-                        <>
-                          <ActionButton
-                            label={t("hiring.approved")}
-                            icon={Check}
-                            tone="accent"
-                            onClick={async () => {
-                              unwrap(await window.agentCompany.decideApproval({
-                                companyId: a.companyId,
-                                approvalId: a.id,
-                                state: "approved",
-                                decisionNote: t("hiring.approvedNote"),
-                              }));
-                              await onRefresh();
-                            }}
-                          />
-                          <ActionButton
-                            label={t("status.rejected")}
-                            icon={X}
-                            tone="danger"
-                            onClick={async () => {
-                              unwrap(await window.agentCompany.decideApproval({
-                                companyId: a.companyId,
-                                approvalId: a.id,
-                                state: "rejected",
-                                decisionNote: t("hiring.rejectedNote"),
-                              }));
-                              await onRefresh();
-                            }}
-                          />
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </Panel>
-      )}
 
       <Panel
         title={filterStage === "all" ? t("hiring.allAgents") : `${stageLabelMap[filterStage]} (${filteredCandidates.length})`}
@@ -243,54 +170,6 @@ export function HiringPipeline({ agents, approvals, onRefresh, onNavigateToAgent
         )}
       </Panel>
 
-      <div className="grid grid-cols-4 gap-3">
-        <Card padding="sm">
-          <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{t("hiring.totalAgents")}</div>
-          <div className="text-2xl font-bold text-foreground mt-1">{agents.filter(a => a.status !== "terminated").length}</div>
-        </Card>
-        <Card padding="sm">
-          <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{t("hiring.pendingHires")}</div>
-          <div className="text-2xl font-bold text-warning mt-1">{agents.filter(a => a.status === "pending_approval").length}</div>
-        </Card>
-        <Card padding="sm">
-          <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{t("hiring.departments")}</div>
-          <div className="text-2xl font-bold text-foreground mt-1">
-            {new Set(agents.filter(a => a.department && a.status !== "terminated").map(a => a.department)).size}
-          </div>
-        </Card>
-        <Card padding="sm">
-          <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{t("hiring.monthlyPayroll")}</div>
-          <div className="text-2xl font-bold text-foreground mt-1">
-            ${agents.filter(a => a.status !== "terminated" && a.status !== "pending_approval").reduce((s, a) => s + a.budgetMonthlyUsd, 0).toLocaleString()}
-          </div>
-        </Card>
-      </div>
-
-      <Panel title={t("hiring.departmentHeadcount")}>
-        <div className="grid grid-cols-3 gap-2 p-4">
-          {(["executive", "engineering", "product", "design", "marketing", "sales", "hr", "finance", "legal", "customer_support", "operations", "research"] as const).map(dept => {
-            const deptAgents = agents.filter(a => a.department === dept && a.status !== "terminated");
-            const pending = deptAgents.filter(a => a.status === "pending_approval").length;
-            const active = deptAgents.filter(a => a.status !== "pending_approval").length;
-            if (active === 0 && pending === 0) return null;
-            return (
-              <div key={dept} className="bg-muted rounded-md px-3 py-2">
-                <div className="text-xs font-medium text-foreground capitalize">{dept.replace("_", " ")}</div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-sm font-bold text-foreground">{active}</span>
-                  <span className="text-[10px] text-muted-foreground">{t("hiring.active")}</span>
-                  {pending > 0 && (
-                    <>
-                      <span className="text-sm font-bold text-warning">+{pending}</span>
-                      <span className="text-[10px] text-warning">{t("hiring.pendingApproval")}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Panel>
     </div>
   );
 }
