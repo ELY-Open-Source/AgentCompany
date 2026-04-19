@@ -16,299 +16,423 @@ impl AppRoot {
             .state
             .selected_run_id
             .as_ref()
-            .and_then(|id| self.snapshot.runs.iter().find(|item| &item.id == id));
+            .and_then(|id| self.snapshot.runs.iter().find(|item| &item.id == id))
+            .or_else(|| filtered_runs.first().copied());
+
+        if self.snapshot.runs.is_empty() {
+            return runs_empty_state().into_any_element();
+        }
 
         div()
             .flex()
-            .gap_6()
+            .gap_8()
+            .child(render_run_queue_panel(
+                &self.snapshot,
+                filtered_runs.as_slice(),
+                self.state.selected_run_id.as_deref(),
+                self.state.run_filter,
+                self.run_search_input.clone(),
+                cx,
+            ))
+            .child(render_run_detail_column(self, selected, cx))
+            .into_any_element()
+    }
+}
+
+fn render_run_queue_panel(
+    snapshot: &domain::ProfileSnapshot,
+    runs: &[&domain::Run],
+    selected_run_id: Option<&str>,
+    run_filter: RunFilter,
+    run_search_input: Entity<TextInput>,
+    cx: &mut Context<AppRoot>,
+) -> impl IntoElement {
+    div().w(px(420.0)).gap_5().child(
+        div()
+            .rounded_lg()
+            .border_1()
+            .border_color(theme::panel_border())
+            .bg(theme::panel())
+            .p_5()
             .child(
                 div()
-                    .id("runs-list")
-                    .w(px(420.0))
-                    .p_5()
-                    .gap_4()
-                    .border_1()
-                    .rounded_lg()
-                    .border_color(theme::panel_border())
-                    .bg(theme::panel())
-                    .overflow_scroll()
+                    .flex()
+                    .justify_between()
+                    .items_center()
                     .child(
                         div()
-                            .flex()
-                            .justify_between()
-                            .items_center()
                             .child(
                                 div()
-                                    .child(
-                                        div()
-                                            .text_xl()
-                                            .text_color(theme::text_primary())
-                                            .child("Run queue"),
-                                    )
-                                    .child(
-                                        div()
-                                            .mt(px(6.0))
-                                            .text_sm()
-                                            .text_color(theme::text_muted())
-                                            .child(format!("{} visible runs", filtered_runs.len())),
-                                    ),
-                            )
-                            .child(run_filter_controls(self.state.run_filter, cx)),
-                    )
-                    .child(self.run_search_input.clone())
-                    .children(filtered_runs.iter().map(|item| {
-                        let active =
-                            self.state.selected_run_id.as_deref() == Some(item.id.as_str());
-                        let run_id = item.id.clone();
-                        let title = run_task_title(&self.snapshot, item);
-                        let subtitle = run_subtitle(&self.snapshot, item);
-                        let summary = if item.summary.trim().is_empty() {
-                            "No summary yet".to_string()
-                        } else {
-                            item.summary.clone()
-                        };
-                        div()
-                            .id(SharedString::from(format!("run-{}", item.id)))
-                            .p_4()
-                            .rounded_lg()
-                            .border_1()
-                            .border_color(if active {
-                                theme::selection_border()
-                            } else {
-                                theme::panel_border()
-                            })
-                            .bg(if active {
-                                theme::selection_fill()
-                            } else {
-                                theme::panel()
-                            })
-                            .cursor_pointer()
-                            .hover(|style| style.bg(theme::panel_hover()))
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.state.selected_run_id = Some(run_id.clone());
-                                cx.notify();
-                            }))
-                            .child(
-                                div()
-                                    .flex()
-                                    .justify_between()
-                                    .items_center()
-                                    .child(
-                                        div()
-                                            .flex_1()
-                                            .child(
-                                                div()
-                                                    .text_base()
-                                                    .text_color(theme::text_primary())
-                                                    .truncate()
-                                                    .child(title),
-                                            )
-                                            .child(
-                                                div()
-                                                    .mt(px(6.0))
-                                                    .text_sm()
-                                                    .text_color(theme::text_muted())
-                                                    .child(subtitle),
-                                            ),
-                                    )
-                                    .child(run_status_badge(item.status.as_str())),
+                                    .text_lg()
+                                    .text_color(theme::text_primary())
+                                    .child("Run queue"),
                             )
                             .child(
                                 div()
-                                    .mt(px(10.0))
+                                    .mt(px(4.0))
                                     .text_sm()
-                                    .text_color(theme::text_secondary())
-                                    .line_clamp(2)
-                                    .child(summary),
-                            )
-                            .when_some(item.updated_at.get(..10), |container, date| {
-                                container.child(
-                                    div()
-                                        .mt(px(10.0))
-                                        .text_xs()
-                                        .text_color(theme::text_subtle())
-                                        .child(date.to_string()),
-                                )
-                            })
-                    })),
+                                    .text_color(theme::text_muted())
+                                    .child(format!("{} visible runs", runs.len())),
+                            ),
+                    )
+                    .child(run_filter_controls(run_filter, cx)),
             )
-            .child(
-                div()
-                    .flex_1()
-                    .gap_5()
-                    .when_some(selected, |container, run| {
-                        container
-                            .child(
-                                div()
-                                    .p_5()
-                                    .rounded_lg()
-                                    .border_1()
-                                    .border_color(theme::panel_border())
-                                    .bg(theme::panel())
-                                    .child(
-                                        div()
-                                            .text_xl()
-                                            .text_color(theme::text_primary())
-                                            .child(run_task_title(&self.snapshot, run)),
-                                    )
-                                    .child(
-                                        div()
-                                            .mt(px(8.0))
-                                            .text_sm()
-                                            .text_color(theme::text_muted())
-                                            .child(run.status.clone()),
-                                    )
-                                    .child(
-                                        div()
-                                            .mt(px(16.0))
-                                            .flex()
-                                            .gap_3()
-                                            .child(info_tile(
-                                                "AGENT",
-                                                run_agent_name(&self.snapshot, run),
-                                            ))
-                                            .child(info_tile(
-                                                "MODEL",
-                                                run.model.clone().unwrap_or_else(|| "Pending".to_string()),
-                                            )),
-                                    )
-                                    .child(
-                                        div()
-                                            .mt(px(12.0))
-                                            .flex()
-                                            .gap_3()
-                                            .child(info_tile(
-                                                "WORKSPACE",
-                                                run_workspace_name(&self.snapshot, run),
-                                            ))
-                                            .child(info_tile(
-                                                "CONNECTOR",
-                                                run.connector_id.clone(),
-                                            )),
-                                    )
-                                    .child(
-                                        div()
-                                            .mt(px(18.0))
-                                            .p_4()
-                                            .rounded_lg()
-                                            .border_1()
-                                            .border_color(theme::panel_inset_border())
-                                            .bg(theme::panel_inset())
-                                            .child(if run.summary.trim().is_empty() {
-                                                "No run summary yet.".to_string()
-                                            } else {
-                                                run.summary.clone()
-                                            }),
-                                    )
-                                    .when_some(run.error_message.clone(), |content, error| {
-                                        if error.trim().is_empty() {
-                                            content
-                                        } else {
-                                            content.child(
-                                                div()
-                                                    .mt(px(16.0))
-                                                    .p_4()
-                                                    .rounded_lg()
-                                                    .border_1()
-                                                    .border_color(theme::danger())
-                                                    .bg(theme::danger_bg())
-                                                    .child(error),
-                                            )
-                                        }
-                                    }),
-                            )
-                            .child(
-                                div()
-                                    .p_5()
-                                    .rounded_lg()
-                                    .border_1()
-                                    .border_color(theme::panel_border())
-                                    .bg(theme::panel())
-                                    .child(
-                                        div()
-                                            .flex()
-                                            .justify_between()
-                                            .items_center()
-                                            .child(
-                                                div()
-                                                    .text_lg()
-                                                    .text_color(theme::text_primary())
-                                                    .child("Run timeline"),
-                                            )
-                                            .child(
-                                                div()
-                                                    .text_sm()
-                                                    .text_color(theme::text_muted())
-                                                    .child(short_date(run.updated_at.as_str()).to_string()),
-                                            ),
-                                    )
-                                    .child(run_timeline(&self.snapshot, run)),
-                            )
-                            .child(
-                                div()
-                                    .p_5()
-                                    .rounded_lg()
-                                    .border_1()
-                                    .border_color(theme::panel_border())
-                                    .bg(theme::panel())
-                                    .child(
-                                        div()
-                                            .text_lg()
-                                            .text_color(theme::text_primary())
-                                            .child("Runtime events"),
-                                    )
-                                    .child(run_events_panel(&self.snapshot, run.id.as_str())),
-                            )
-                            .child(
-                                div()
-                                    .p_5()
-                                    .rounded_lg()
-                                    .border_1()
-                                    .border_color(theme::panel_border())
-                                    .bg(theme::panel())
-                                    .child(
-                                        div()
-                                            .text_lg()
-                                            .text_color(theme::text_primary())
-                                            .child("Artifacts"),
-                                    )
-                                    .child(run_artifacts_panel(&self.snapshot, run.id.as_str())),
-                            )
-                            .child(run_live_controls_panel(self, cx))
-                    })
-                    .when(selected.is_none(), |container| {
-                        container.child(
+            .child(div().mt(px(16.0)).child(run_search_input))
+            .child(div().mt(px(16.0)).gap_2().children(runs.iter().map(|run| {
+                run_queue_row(snapshot, run, selected_run_id == Some(run.id.as_str()), cx)
+                    .into_any_element()
+            })))
+            .when(runs.is_empty(), |container| {
+                container.child(
+                    div()
+                        .mt(px(16.0))
+                        .rounded_lg()
+                        .border_1()
+                        .border_color(theme::panel_border())
+                        .bg(theme::panel_muted())
+                        .px_4()
+                        .py_6()
+                        .text_center()
+                        .child(
                             div()
-                                .min_h(px(320.0))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .rounded_lg()
-                                .border_1()
-                                .border_color(theme::panel_border())
-                                .bg(theme::panel())
-                                .child(
-                                    div()
-                                        .w(px(420.0))
-                                        .text_center()
-                                        .child(
-                                            div()
-                                                .text_xl()
-                                                .text_color(theme::text_primary())
-                                                .child("Run queue is clear"),
-                                        )
-                                        .child(
-                                            div()
-                                                .mt(px(10.0))
-                                                .text_base()
-                                                .text_color(theme::text_muted())
-                                                .child("Choose a run from the queue to inspect execution context, approvals, runtime events, and artifacts."),
-                                        ),
-                                ),
+                                .text_sm()
+                                .text_color(theme::text_muted())
+                                .child("No runs match this filter."),
+                        ),
+                )
+            }),
+    )
+}
+
+fn run_queue_row(
+    snapshot: &domain::ProfileSnapshot,
+    run: &domain::Run,
+    active: bool,
+    cx: &mut Context<AppRoot>,
+) -> impl IntoElement {
+    let run_id = run.id.clone();
+    let title = run_task_title(snapshot, run);
+    let subtitle = run_subtitle(snapshot, run);
+    let supporting_text = if let Some(error_message) = run.error_message.clone() {
+        if error_message.trim().is_empty() {
+            run.summary.clone()
+        } else {
+            error_message
+        }
+    } else if run.summary.trim().is_empty() {
+        "No summary yet".to_string()
+    } else {
+        run.summary.clone()
+    };
+
+    div()
+        .id(SharedString::from(format!("run-row-{}", run.id)))
+        .rounded_lg()
+        .border_1()
+        .border_color(if active {
+            theme::selection_border()
+        } else {
+            theme::panel_border()
+        })
+        .bg(if active {
+            theme::selection_fill()
+        } else {
+            theme::panel()
+        })
+        .cursor_pointer()
+        .hover(|style| style.bg(theme::panel_hover()))
+        .on_click(cx.listener(move |this, _, _, cx| {
+            this.state.selected_run_id = Some(run_id.clone());
+            cx.notify();
+        }))
+        .px_4()
+        .py_3()
+        .child(
+            div()
+                .flex()
+                .justify_between()
+                .items_center()
+                .gap_3()
+                .child(
+                    div()
+                        .flex_1()
+                        .child(
+                            div()
+                                .text_sm()
+                                .text_color(theme::text_primary())
+                                .truncate()
+                                .child(title),
                         )
-                    }),
-            )
-    }
+                        .child(
+                            div()
+                                .mt(px(4.0))
+                                .text_xs()
+                                .text_color(theme::text_muted())
+                                .truncate()
+                                .child(subtitle),
+                        ),
+                )
+                .child(run_status_badge(run.status.as_str())),
+        )
+        .child(
+            div()
+                .mt(px(8.0))
+                .flex()
+                .justify_between()
+                .gap_3()
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(theme::text_muted())
+                        .line_clamp(1)
+                        .child(supporting_text),
+                )
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(theme::text_muted())
+                        .child(short_date(run.updated_at.as_str()).to_string()),
+                ),
+        )
+}
+
+fn render_run_detail_column<'a>(
+    root: &'a AppRoot,
+    selected: Option<&'a domain::Run>,
+    cx: &'a mut Context<AppRoot>,
+) -> impl IntoElement + 'a {
+    div().flex_1().gap_6().when_some(selected, |container, run| {
+        container
+            .child(run_detail_panel(&root.snapshot, run))
+            .child(run_trace_panel(&root.snapshot, run))
+            .child(secondary_data_panel(
+                "Runtime events",
+                run_events_panel(&root.snapshot, run.id.as_str()).into_any_element(),
+            ))
+            .child(secondary_data_panel(
+                "Artifacts",
+                run_artifacts_panel(&root.snapshot, run.id.as_str()).into_any_element(),
+            ))
+            .child(run_live_controls_panel(root, cx))
+    })
+    .when(selected.is_none(), |container| {
+        container.child(
+            div()
+                .min_h(px(320.0))
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded_lg()
+                .border_1()
+                .border_color(theme::panel_border())
+                .bg(theme::panel())
+                .child(
+                    div()
+                        .w(px(420.0))
+                        .text_center()
+                        .child(
+                            div()
+                                .text_xl()
+                                .text_color(theme::text_primary())
+                                .child("Select a run"),
+                        )
+                        .child(
+                            div()
+                                .mt(px(10.0))
+                                .text_base()
+                                .text_color(theme::text_muted())
+                                .child("Choose a run from the queue to inspect details, trace, artifacts, and operator actions."),
+                        ),
+                ),
+        )
+    })
+}
+
+fn runs_empty_state() -> impl IntoElement {
+    div()
+        .min_h(px(320.0))
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_lg()
+        .border_1()
+        .border_color(theme::panel_border())
+        .bg(theme::panel())
+        .child(
+            div()
+                .w(px(420.0))
+                .text_center()
+                .child(
+                    div()
+                        .text_xl()
+                        .text_color(theme::text_primary())
+                        .child("No runs yet"),
+                )
+                .child(
+                    div()
+                        .mt(px(10.0))
+                        .text_base()
+                        .text_color(theme::text_muted())
+                        .child("Runs will appear here once your company starts executing work."),
+                ),
+        )
+}
+
+fn run_detail_panel(snapshot: &domain::ProfileSnapshot, run: &domain::Run) -> impl IntoElement {
+    div()
+        .rounded_lg()
+        .border_1()
+        .border_color(theme::panel_border())
+        .bg(theme::panel())
+        .p_5()
+        .child(
+            div()
+                .text_xl()
+                .text_color(theme::text_primary())
+                .child(run_task_title(snapshot, run)),
+        )
+        .child(
+            div()
+                .mt(px(8.0))
+                .text_sm()
+                .text_color(theme::text_muted())
+                .child(run_subtitle(snapshot, run)),
+        )
+        .child(
+            div()
+                .mt(px(20.0))
+                .child(detail_row(
+                    "Status",
+                    run_status_badge(run.status.as_str()).into_any_element(),
+                ))
+                .child(detail_row(
+                    "Agent",
+                    text_value(run_agent_name(snapshot, run)).into_any_element(),
+                ))
+                .child(detail_row(
+                    "Connector",
+                    text_value(run.connector_id.clone()).into_any_element(),
+                ))
+                .when_some(run.model.clone(), |container, model| {
+                    container.child(detail_row("Model", text_value(model).into_any_element()))
+                })
+                .child(detail_row(
+                    "Created",
+                    text_value(short_date(run.created_at.as_str()).to_string()).into_any_element(),
+                ))
+                .child(detail_row(
+                    "Started",
+                    text_value(
+                        run.started_at
+                            .as_deref()
+                            .map(short_date)
+                            .unwrap_or("Pending")
+                            .to_string(),
+                    )
+                    .into_any_element(),
+                ))
+                .when_some(run.finished_at.as_deref(), |container, finished_at| {
+                    container.child(detail_row(
+                        "Finished",
+                        text_value(short_date(finished_at).to_string()).into_any_element(),
+                    ))
+                })
+                .child(detail_row(
+                    "Cost",
+                    text_value(
+                        run.cost_usd
+                            .map(|value| format!("${value:.2}"))
+                            .unwrap_or_else(|| "$0.00".to_string()),
+                    )
+                    .into_any_element(),
+                )),
+        )
+        .child(
+            div()
+                .mt(px(16.0))
+                .rounded_lg()
+                .border_1()
+                .border_color(theme::panel_inset_border())
+                .bg(theme::panel_inset())
+                .p_4()
+                .text_sm()
+                .text_color(theme::text_secondary())
+                .child(if run.summary.trim().is_empty() {
+                    "No summary yet.".to_string()
+                } else {
+                    run.summary.clone()
+                }),
+        )
+        .when_some(run.error_message.clone(), |content, error| {
+            if error.trim().is_empty() {
+                content
+            } else {
+                content.child(
+                    div()
+                        .mt(px(16.0))
+                        .rounded_lg()
+                        .border_1()
+                        .border_color(theme::danger())
+                        .bg(theme::danger_bg())
+                        .px_4()
+                        .py_3()
+                        .text_sm()
+                        .text_color(theme::danger())
+                        .child(error),
+                )
+            }
+        })
+}
+
+fn run_trace_panel(snapshot: &domain::ProfileSnapshot, run: &domain::Run) -> impl IntoElement {
+    div()
+        .rounded_lg()
+        .border_1()
+        .border_color(theme::panel_border())
+        .bg(theme::panel())
+        .p_5()
+        .child(
+            div()
+                .text_lg()
+                .text_color(theme::text_primary())
+                .child("Execution trace"),
+        )
+        .child(run_timeline(snapshot, run))
+}
+
+fn secondary_data_panel(title: &'static str, body: gpui::AnyElement) -> impl IntoElement {
+    div()
+        .rounded_lg()
+        .border_1()
+        .border_color(theme::panel_border())
+        .bg(theme::panel())
+        .p_5()
+        .child(
+            div()
+                .text_lg()
+                .text_color(theme::text_primary())
+                .child(title),
+        )
+        .child(body)
+}
+
+fn detail_row(label: &'static str, value: gpui::AnyElement) -> impl IntoElement {
+    div()
+        .flex()
+        .justify_between()
+        .items_center()
+        .py_2()
+        .border_b_1()
+        .border_color(theme::panel_border())
+        .child(div().text_xs().text_color(theme::text_muted()).child(label))
+        .child(value)
+}
+
+fn text_value(value: String) -> impl IntoElement {
+    div()
+        .text_sm()
+        .text_color(theme::text_primary())
+        .child(value)
 }
 
 fn run_task_title(snapshot: &domain::ProfileSnapshot, run: &domain::Run) -> String {
@@ -389,22 +513,6 @@ fn run_status_badge(status: &str) -> impl IntoElement {
     } else {
         badge.into_any_element()
     }
-}
-
-fn info_tile(label: &'static str, value: String) -> impl IntoElement {
-    div()
-        .flex_1()
-        .p_4()
-        .rounded_lg()
-        .bg(theme::panel_muted())
-        .child(div().text_xs().text_color(theme::text_muted()).child(label))
-        .child(
-            div()
-                .mt(px(8.0))
-                .text_sm()
-                .text_color(theme::text_primary())
-                .child(value),
-        )
 }
 
 fn run_timeline(snapshot: &domain::ProfileSnapshot, run: &domain::Run) -> impl IntoElement {
@@ -546,11 +654,11 @@ fn run_live_controls_panel<'a>(
     cx: &'a mut Context<AppRoot>,
 ) -> impl IntoElement + 'a {
     div()
-        .p_5()
         .rounded_lg()
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
+        .p_5()
         .child(
             div()
                 .text_lg()
@@ -562,7 +670,7 @@ fn run_live_controls_panel<'a>(
                 .mt(px(8.0))
                 .text_sm()
                 .text_color(theme::text_muted())
-                .child("Runtime intervention stays here so the main run summary keeps the original operational hierarchy."),
+                .child("Secondary runtime controls live here so the main queue/detail hierarchy stays aligned with the source product."),
         )
         .child(
             div()
@@ -587,7 +695,7 @@ fn run_live_controls_panel<'a>(
                     );
                 })),
         )
-        .child(root.runtime_steer_input.clone())
+        .child(div().mt(px(16.0)).child(root.runtime_steer_input.clone()))
         .child(
             div()
                 .mt(px(10.0))
@@ -597,7 +705,7 @@ fn run_live_controls_panel<'a>(
                     this.send_runtime_steer(cx);
                 })),
         )
-        .child(root.runtime_follow_up_input.clone())
+        .child(div().mt(px(16.0)).child(root.runtime_follow_up_input.clone()))
         .child(
             div()
                 .mt(px(10.0))
@@ -707,7 +815,9 @@ fn run_matches_filter(
                     && approval.state == "pending"
             })
         }),
-        RunFilter::Finished => matches!(run.status.as_str(), "completed" | "failed" | "cancelled"),
+        RunFilter::Finished => {
+            matches!(run.status.as_str(), "completed" | "failed" | "cancelled")
+        }
     }
 }
 

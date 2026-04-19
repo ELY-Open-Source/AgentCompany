@@ -20,3 +20,5 @@ Started: 2026-04-19
 - Completed US-015 onboarding shell remediation. Native onboarding now restores the original high-level wizard grammar: dedicated welcome screen, left hero region, fixed right-side step panel, top tab strip, and source-aligned back/continue flow while keeping the real storage-backed bootstrap path intact.
 
 - Completed US-016 dashboard topology remediation. Native overview now follows the original dashboard grammar more closely: recovery and budget banners lead, metric cards are actionable, performance is followed by budget utilization, attention rows route into the correct sections, active work exposes an All runs affordance, and recent activity remains a dedicated trailing section.
+
+- Completed US-017 runs shell remediation. Native runs now follow the original RunQueue + RunDetail grammar more closely: the queue is a dedicated left panel with filtering/search/list rows, the right side is a primary run detail column, and runtime events/artifacts/operator actions are preserved as secondary panels instead of dominating the main operational shell.

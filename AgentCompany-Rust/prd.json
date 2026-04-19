@@ -236,8 +236,8 @@
         "cargo test --workspace passes"
       ],
       "priority": 17,
-      "passes": false,
-      "notes": "Reopened after strict source audit: current runs page keeps real runtime data but still uses custom card grammar."
+      "passes": true,
+      "notes": "Passed: native runs now restores the original operational shell more faithfully with a dedicated Run Queue panel on the left and a Run Detail column on the right. Runtime events, artifacts, and operator controls remain available but are demoted to secondary panels below the main detail hierarchy."
     }
   ]
 }
