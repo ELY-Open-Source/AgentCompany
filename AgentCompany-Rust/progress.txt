@@ -32,3 +32,5 @@ Started: 2026-04-19
 - Completed US-021 current-directory-only final re-audit. All current-directory UI remediation stories are now closed, ui-parity-audit.md records the final status and known limits, and the workspace passes cargo clippy and cargo test.
 
 - Completed US-022 shared skin pass. Current-directory theme tokens now align more closely with the screenshot-derived desktop skin: warmer window/sidebar fills, softer panel borders, gentler selected states, and more restrained accent surfaces.
+
+- Completed US-023 communication skin pass. Messages and inbox now use tighter pane spacing, softer desktop chrome, warmer sidebar treatment, calmer card radii, and denser row padding while preserving the existing native communication interactions.

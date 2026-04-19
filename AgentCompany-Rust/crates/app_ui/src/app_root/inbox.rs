@@ -55,7 +55,7 @@ impl AppRoot {
         div()
             .flex()
             .flex_col()
-            .gap_5()
+            .gap_4()
             .child(
                 div()
                     .child(
@@ -82,7 +82,7 @@ impl AppRoot {
             ))
             .child(
                 div()
-                    .rounded_lg()
+                    .rounded_md()
                     .border_1()
                     .border_color(theme::panel_border())
                     .bg(theme::panel())
@@ -177,8 +177,8 @@ impl InboxRow {
                 }
                 cx.notify();
             }))
-            .px_5()
-            .py_4()
+            .px_4()
+            .py_3()
             .border_b_1()
             .border_color(theme::panel_border())
             .child(

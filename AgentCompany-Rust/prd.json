@@ -315,8 +315,8 @@
         "cargo test --workspace passes"
       ],
       "priority": 23,
-      "passes": false,
-      "notes": "Opened after structural communication remediation."
+      "passes": true,
+      "notes": "Passed: messages and inbox chrome were tightened toward screenshot parity with calmer pane spacing, smaller radii, warmer sidebar treatment, lighter message avatar chrome, and denser list rows while keeping real interactions intact."
     },
     {
       "id": "US-024",

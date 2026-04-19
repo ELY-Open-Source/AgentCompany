@@ -37,7 +37,7 @@ impl AppRoot {
 
         div()
             .flex()
-            .gap_4()
+            .gap_3()
             .child(render_message_sidebar(
                 &channel_groups,
                 selected_channel.as_deref(),
@@ -48,7 +48,7 @@ impl AppRoot {
                 div()
                     .flex_1()
                     .border_1()
-                    .rounded_lg()
+                    .rounded_md()
                     .border_color(theme::panel_border())
                     .bg(theme::panel())
                     .child(render_message_header(
@@ -225,13 +225,13 @@ fn render_message_sidebar<'a>(
     cx: &'a mut Context<AppRoot>,
 ) -> impl IntoElement + 'a {
     div()
-        .w(px(280.0))
+        .w(px(292.0))
         .p_3()
         .gap_3()
         .border_1()
-        .rounded_lg()
+        .rounded_md()
         .border_color(theme::panel_border())
-        .bg(theme::panel())
+        .bg(theme::sidebar_bg())
         .children(groups.iter().map(|group| {
             div()
                 .gap_2()
@@ -256,7 +256,7 @@ fn render_message_sidebar<'a>(
                         } else {
                             theme::panel()
                         })
-                        .rounded_lg()
+                        .rounded_md()
                         .px_3()
                         .py_2()
                         .on_click(cx.listener(move |this, _, _, cx| {
@@ -274,7 +274,7 @@ fn render_message_sidebar<'a>(
                                     div()
                                         .w(px(28.0))
                                         .h(px(28.0))
-                                        .rounded_lg()
+                                        .rounded_md()
                                         .bg(theme::panel_muted()),
                                 )
                                 .child(
