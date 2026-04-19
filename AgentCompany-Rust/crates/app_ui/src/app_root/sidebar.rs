@@ -19,8 +19,8 @@ impl AppRoot {
             .gap_4()
             .flex()
             .flex_col()
-            .bg(rgb(0x161514))
-            .text_color(rgb(0xf5eee4))
+            .bg(theme::sidebar_bg())
+            .text_color(theme::sidebar_text())
             .child(div().text_lg().child("AgentCompany"))
             .children(self.snapshot.companies.iter().map(|company| {
                 let active =
@@ -32,14 +32,18 @@ impl AppRoot {
                     .py_2()
                     .rounded_md()
                     .cursor_pointer()
-                    .bg(if active { rgb(0x9e3d2d) } else { rgb(0x211d1a) })
-                    .hover(|style| style.bg(rgb(0x362c27)))
+                    .bg(if active {
+                        theme::primary_action()
+                    } else {
+                        theme::sidebar_surface()
+                    })
+                    .hover(|style| style.bg(theme::sidebar_surface_hover()))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.switch_company(company_id.clone(), cx)
                     }))
                     .child(company.name.clone())
             }))
-            .child(div().h(px(1.0)).bg(rgb(0x2f2924)))
+            .child(div().h(px(1.0)).bg(theme::sidebar_divider()))
             .children(sections.into_iter().map(|section| {
                 let active = self.state.section == section;
                 div()
@@ -51,9 +55,17 @@ impl AppRoot {
                     .py_2()
                     .rounded_md()
                     .cursor_pointer()
-                    .bg(if active { rgb(0xefe2d4) } else { rgb(0x161514) })
-                    .text_color(if active { rgb(0x171411) } else { rgb(0xf5eee4) })
-                    .hover(|style| style.bg(rgb(0x2c2825)))
+                    .bg(if active {
+                        theme::selection_fill()
+                    } else {
+                        theme::sidebar_bg()
+                    })
+                    .text_color(if active {
+                        theme::text_primary()
+                    } else {
+                        theme::sidebar_text()
+                    })
+                    .hover(|style| style.bg(theme::sidebar_hover()))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.state.section = section;
                         cx.notify();

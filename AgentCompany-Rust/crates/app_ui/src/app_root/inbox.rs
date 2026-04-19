@@ -12,8 +12,8 @@ impl AppRoot {
                     .gap_2()
                     .border_1()
                     .rounded_md()
-                    .border_color(rgb(0xd9cdbf))
-                    .bg(rgb(0xfffbf5))
+                    .border_color(theme::panel_border())
+                    .bg(theme::panel())
                     .child(div().text_lg().child("Unread messages"))
                     .children(
                         self.snapshot
@@ -25,7 +25,7 @@ impl AppRoot {
                                 div()
                                     .py_2()
                                     .border_b_1()
-                                    .border_color(rgb(0xeee3d7))
+                                    .border_color(theme::panel_inset_border())
                                     .child(format!("{} · {}", item.subject, item.body))
                             }),
                     ),
@@ -37,8 +37,8 @@ impl AppRoot {
                     .gap_2()
                     .border_1()
                     .rounded_md()
-                    .border_color(rgb(0xd9cdbf))
-                    .bg(rgb(0xfffbf5))
+                    .border_color(theme::panel_border())
+                    .bg(theme::panel())
                     .child(div().text_lg().child("Pending approvals"))
                     .children(
                         self.snapshot
@@ -47,9 +47,14 @@ impl AppRoot {
                             .filter(|item| item.state == "pending")
                             .take(8)
                             .map(|item| {
-                                div().py_2().border_b_1().border_color(rgb(0xeee3d7)).child(
-                                    format!("{} · {}", item.approval_type, item.payload_summary),
-                                )
+                                div()
+                                    .py_2()
+                                    .border_b_1()
+                                    .border_color(theme::panel_inset_border())
+                                    .child(format!(
+                                        "{} · {}",
+                                        item.approval_type, item.payload_summary
+                                    ))
                             }),
                     ),
             )

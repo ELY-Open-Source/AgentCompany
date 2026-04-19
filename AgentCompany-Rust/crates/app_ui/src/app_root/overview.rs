@@ -46,14 +46,14 @@ impl AppRoot {
                             .gap_2()
                             .border_1()
                             .rounded_md()
-                            .border_color(rgb(0xd9cdbf))
-                            .bg(rgb(0xfffbf5))
+                            .border_color(theme::panel_border())
+                            .bg(theme::panel())
                             .child(div().text_lg().child(company_name))
                             .children(self.snapshot.tasks.iter().take(6).map(|task| {
                                 div()
                                     .py_2()
                                     .border_b_1()
-                                    .border_color(rgb(0xeee3d7))
+                                    .border_color(theme::panel_inset_border())
                                     .child(format!("{} · {}", task.status, task.title))
                             })),
                     )
@@ -64,14 +64,14 @@ impl AppRoot {
                             .gap_2()
                             .border_1()
                             .rounded_md()
-                            .border_color(rgb(0xd9cdbf))
-                            .bg(rgb(0xfffbf5))
+                            .border_color(theme::panel_border())
+                            .bg(theme::panel())
                             .child(div().text_lg().child("Recent activity"))
                             .children(self.snapshot.activity.iter().take(6).map(|item| {
                                 div()
                                     .py_2()
                                     .border_b_1()
-                                    .border_color(rgb(0xeee3d7))
+                                    .border_color(theme::panel_inset_border())
                                     .child(format!("{} · {}", item.action, item.detail))
                             })),
                     ),

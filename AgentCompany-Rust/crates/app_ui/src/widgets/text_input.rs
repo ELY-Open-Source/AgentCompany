@@ -1,9 +1,9 @@
+use crate::theme;
 use gpui::{
     App, Bounds, Context, CursorStyle, Element, ElementId, ElementInputHandler, Entity,
     EntityInputHandler, FocusHandle, Focusable, GlobalElementId, KeyBinding, LayoutId, MouseButton,
     MouseDownEvent, PaintQuad, Pixels, Point, ShapedLine, SharedString, Style, TextRun,
-    UTF16Selection, Window, actions, div, fill, hsla, point, prelude::*, px, relative, rgb, size,
-    white,
+    UTF16Selection, Window, actions, div, fill, hsla, point, prelude::*, px, relative, size, white,
 };
 use std::ops::Range;
 use unicode_segmentation::UnicodeSegmentation;
@@ -371,7 +371,7 @@ impl Element for TextElement {
                 point(cursor_x, bounds.top()),
                 size(px(2.0), bounds.bottom() - bounds.top()),
             ),
-            rgb(0x9e3d2d),
+            theme::primary_action(),
         );
         PrepaintState { line, cursor }
     }
@@ -422,9 +422,9 @@ impl Render for TextInput {
             .on_action(cx.listener(Self::paste))
             .on_action(cx.listener(Self::show_character_palette))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
-            .bg(rgb(0xfffbf5))
+            .bg(theme::panel())
             .border_1()
-            .border_color(rgb(0xd9cdbf))
+            .border_color(theme::panel_border())
             .rounded_md()
             .px_3()
             .py_2()

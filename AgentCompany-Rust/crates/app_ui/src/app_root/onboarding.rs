@@ -7,13 +7,13 @@ impl AppRoot {
             .p_8()
             .flex()
             .gap_8()
-            .bg(rgb(0xf3efe8))
+            .bg(theme::canvas())
             .child(
                 div()
                     .flex_1()
                     .gap_4()
-                    .child(div().text_3xl().text_color(rgb(0x171411)).child("Start a native AgentCompany profile"))
-                    .child(div().text_sm().text_color(rgb(0x6f665d)).child("Create the first company, point it at a workspace, and keep the SQLite profile local."))
+                    .child(div().text_3xl().text_color(theme::text_primary()).child("Start a native AgentCompany profile"))
+                    .child(div().text_sm().text_color(theme::text_muted()).child("Create the first company, point it at a workspace, and keep the SQLite profile local."))
                     .child(self.company_name_input.clone())
                     .child(self.mission_input.clone())
                     .child(self.workspace_input.clone())
@@ -26,13 +26,13 @@ impl AppRoot {
                     .gap_3()
                     .border_1()
                     .rounded_md()
-                    .border_color(rgb(0xd9cdbf))
-                    .bg(rgb(0xfffbf5))
+                    .border_color(theme::panel_border())
+                    .bg(theme::panel())
                     .child(div().text_lg().child("What lands in SQLite"))
-                    .child(div().text_sm().text_color(rgb(0x6f665d)).child("Company"))
-                    .child(div().text_sm().text_color(rgb(0x6f665d)).child("Primary workspace"))
-                    .child(div().text_sm().text_color(rgb(0x6f665d)).child("Connector catalog"))
-                    .child(div().text_sm().text_color(rgb(0x6f665d)).child("Shared profile settings")),
+                    .child(div().text_sm().text_color(theme::text_muted()).child("Company"))
+                    .child(div().text_sm().text_color(theme::text_muted()).child("Primary workspace"))
+                    .child(div().text_sm().text_color(theme::text_muted()).child("Connector catalog"))
+                    .child(div().text_sm().text_color(theme::text_muted()).child("Shared profile settings")),
             )
     }
 }

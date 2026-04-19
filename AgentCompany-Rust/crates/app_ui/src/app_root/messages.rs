@@ -25,8 +25,8 @@ impl AppRoot {
                     .gap_2()
                     .border_1()
                     .rounded_md()
-                    .border_color(rgb(0xd9cdbf))
-                    .bg(rgb(0xfffbf5))
+                    .border_color(theme::panel_border())
+                    .bg(theme::panel())
                     .overflow_scroll()
                     .child(div().text_lg().child("Channels"))
                     .children(self.snapshot.agent_messages.iter().map(|item| {
@@ -39,8 +39,12 @@ impl AppRoot {
                             .py_2()
                             .rounded_md()
                             .cursor_pointer()
-                            .bg(if active { rgb(0xefe2d4) } else { rgb(0xfffbf5) })
-                            .hover(|style| style.bg(rgb(0xf4ede4)))
+                            .bg(if active {
+                                theme::selection_fill()
+                            } else {
+                                theme::panel()
+                            })
+                            .hover(|style| style.bg(theme::panel_hover()))
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.state.selected_message_id = Some(message_id.clone());
                                 cx.notify();
@@ -55,13 +59,13 @@ impl AppRoot {
                     .gap_3()
                     .border_1()
                     .rounded_md()
-                    .border_color(rgb(0xd9cdbf))
-                    .bg(rgb(0xfffbf5))
+                    .border_color(theme::panel_border())
+                    .bg(theme::panel())
                     .child(div().text_lg().child("Conversation"))
                     .child(
                         div()
                             .text_sm()
-                            .text_color(rgb(0x6f665d))
+                            .text_color(theme::text_muted())
                             .child(selected_subject),
                     )
                     .child(
@@ -69,9 +73,9 @@ impl AppRoot {
                             .min_h(px(220.0))
                             .p_3()
                             .border_1()
-                            .border_color(rgb(0xeee3d7))
+                            .border_color(theme::panel_inset_border())
                             .rounded_md()
-                            .bg(rgb(0xf7f0e7))
+                            .bg(theme::panel_inset())
                             .child(selected_body),
                     )
                     .child(self.message_input.clone())

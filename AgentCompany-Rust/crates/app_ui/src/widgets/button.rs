@@ -1,4 +1,5 @@
-use gpui::{Context, SharedString, Window, div, prelude::*, rgb};
+use crate::theme;
+use gpui::{Context, SharedString, Window, div, prelude::*};
 
 pub fn primary_button<V>(
     label: &'static str,
@@ -14,9 +15,9 @@ where
         .py_2()
         .rounded_md()
         .cursor_pointer()
-        .bg(rgb(0x9e3d2d))
-        .text_color(rgb(0xfff7f0))
-        .hover(|style| style.bg(rgb(0xb24f3e)))
+        .bg(theme::primary_action())
+        .text_color(theme::primary_action_text())
+        .hover(|style| style.bg(theme::primary_action_hover()))
         .on_click(
             cx.listener(move |this, _: &gpui::ClickEvent, _: &mut Window, cx| on_click(this, cx)),
         )
@@ -37,11 +38,11 @@ where
         .py_2()
         .rounded_md()
         .cursor_pointer()
-        .bg(rgb(0xfffbf5))
+        .bg(theme::panel())
         .border_1()
-        .border_color(rgb(0xd9cdbf))
-        .text_color(rgb(0x171411))
-        .hover(|style| style.bg(rgb(0xf4ede4)))
+        .border_color(theme::panel_border())
+        .text_color(theme::text_primary())
+        .hover(|style| style.bg(theme::panel_hover()))
         .on_click(
             cx.listener(move |this, _: &gpui::ClickEvent, _: &mut Window, cx| on_click(this, cx)),
         )

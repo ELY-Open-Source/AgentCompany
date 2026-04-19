@@ -1,4 +1,5 @@
 mod app_root;
+mod theme;
 mod widgets;
 
 use app_root::AppRoot;

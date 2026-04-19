@@ -16,10 +16,14 @@ impl AppRoot {
                     .gap_2()
                     .border_1()
                     .rounded_md()
-                    .border_color(rgb(0xd9cdbf))
-                    .bg(if active { rgb(0xf7f0e7) } else { rgb(0xfffbf5) })
+                    .border_color(theme::panel_border())
+                    .bg(if active {
+                        theme::panel_inset()
+                    } else {
+                        theme::panel()
+                    })
                     .cursor_pointer()
-                    .hover(|style| style.bg(rgb(0xf4ede4)))
+                    .hover(|style| style.bg(theme::panel_hover()))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.state.selected_workspace_id = Some(workspace_id.clone());
                         cx.notify();
@@ -28,18 +32,23 @@ impl AppRoot {
                     .child(
                         div()
                             .text_sm()
-                            .text_color(rgb(0x6f665d))
+                            .text_color(theme::text_muted())
                             .child(workspace.local_path.clone()),
                     )
-                    .child(div().text_sm().text_color(rgb(0x6f665d)).child(format!(
-                        "{} · {}",
-                        workspace.state,
-                        if workspace.is_primary {
-                            "primary"
-                        } else {
-                            "linked"
-                        }
-                    )))
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(theme::text_muted())
+                            .child(format!(
+                                "{} · {}",
+                                workspace.state,
+                                if workspace.is_primary {
+                                    "primary"
+                                } else {
+                                    "linked"
+                                }
+                            )),
+                    )
             }))
     }
 }

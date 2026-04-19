@@ -1,5 +1,5 @@
 use crate::{
-    SharedStore,
+    SharedStore, theme,
     widgets::{
         button::{primary_button, secondary_button},
         text_input::TextInput,
@@ -7,7 +7,7 @@ use crate::{
 };
 use app_models::AppState;
 use domain::{ApprovalState, ProfileSnapshot, SectionId};
-use gpui::{App, Context, Entity, SharedString, Window, div, prelude::*, px, rgb};
+use gpui::{App, Context, Entity, SharedString, Window, div, prelude::*, px};
 use storage::NewCompanyInput;
 
 mod approvals;
@@ -234,11 +234,21 @@ impl AppRoot {
             .gap_2()
             .border_1()
             .rounded_md()
-            .border_color(rgb(0xd9cdbf))
-            .bg(rgb(0xfffbf5))
-            .child(div().text_sm().text_color(rgb(0x6f665d)).child(label))
-            .child(div().text_3xl().text_color(rgb(0x171411)).child(value))
-            .child(div().text_sm().text_color(rgb(0x6f665d)).child(detail))
+            .border_color(theme::panel_border())
+            .bg(theme::panel())
+            .child(div().text_sm().text_color(theme::text_muted()).child(label))
+            .child(
+                div()
+                    .text_3xl()
+                    .text_color(theme::text_primary())
+                    .child(value),
+            )
+            .child(
+                div()
+                    .text_sm()
+                    .text_color(theme::text_muted())
+                    .child(detail),
+            )
     }
 }
 
@@ -257,7 +267,7 @@ impl Render for AppRoot {
         div()
             .size_full()
             .flex()
-            .bg(rgb(0xf3efe8))
+            .bg(theme::canvas())
             .child(self.render_sidebar(cx))
             .child(
                 div()
@@ -269,10 +279,15 @@ impl Render for AppRoot {
                             .px_6()
                             .py_4()
                             .border_b_1()
-                            .border_color(rgb(0xd9cdbf))
-                            .bg(rgb(0xf8f2e9))
-                            .child(div().text_xl().text_color(rgb(0x171411)).child(header))
-                            .child(div().text_sm().text_color(rgb(0x6f665d)).child(
+                            .border_color(theme::panel_border())
+                            .bg(theme::shell_header())
+                            .child(
+                                div()
+                                    .text_xl()
+                                    .text_color(theme::text_primary())
+                                    .child(header),
+                            )
+                            .child(div().text_sm().text_color(theme::text_muted()).child(
                                 self.state.status_line.clone().unwrap_or_else(|| {
                                     "Native Rust shell is reading the shared local profile."
                                         .to_string()
