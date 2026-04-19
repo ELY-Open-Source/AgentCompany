@@ -5,10 +5,10 @@ use crate::{
         text_input::TextInput,
     },
 };
-use app_models::AppState;
+use app_models::{AppState, OnboardingStep};
 use domain::{ApprovalState, ProfileSnapshot, SectionId};
 use gpui::{App, Context, Entity, SharedString, Window, div, prelude::*, px};
-use storage::NewCompanyInput;
+use storage::OnboardingBootstrapInput;
 
 mod approvals;
 mod documents;
@@ -30,6 +30,8 @@ pub struct AppRoot {
     company_name_input: Entity<TextInput>,
     mission_input: Entity<TextInput>,
     workspace_input: Entity<TextInput>,
+    onboarding_goal_input: Entity<TextInput>,
+    onboarding_goal_detail_input: Entity<TextInput>,
     message_input: Entity<TextInput>,
     document_title_input: Entity<TextInput>,
     document_body_input: Entity<TextInput>,
@@ -47,6 +49,8 @@ impl AppRoot {
             company_name_input: TextInput::new(cx, "Company name"),
             mission_input: TextInput::new(cx, "Mission or thesis direction"),
             workspace_input: TextInput::new(cx, "Primary workspace path"),
+            onboarding_goal_input: TextInput::new(cx, "Primary goal"),
+            onboarding_goal_detail_input: TextInput::new(cx, "Goal acceptance criteria"),
             message_input: TextInput::new(cx, "Board message"),
             document_title_input: TextInput::new(cx, "Document title"),
             document_body_input: TextInput::new(cx, "Document body"),
@@ -59,6 +63,15 @@ impl AppRoot {
     }
 
     fn sync_selection(&mut self) {
+        if self.state.onboarding_connector_id.is_none() {
+            self.state.onboarding_connector_id = self
+                .snapshot
+                .connectors
+                .iter()
+                .find(|connector| connector.id == "anthropic")
+                .or_else(|| self.snapshot.connectors.first())
+                .map(|connector| connector.id.clone());
+        }
         if self.state.selected_run_id.is_none() {
             self.state.selected_run_id = self.snapshot.runs.first().map(|item| item.id.clone());
         }
@@ -111,22 +124,42 @@ impl AppRoot {
     }
 
     fn create_company(&mut self, cx: &mut Context<Self>) {
-        let input = NewCompanyInput {
-            name: self.company_name_input.read(cx).value(),
-            description: self.mission_input.read(cx).value(),
+        let input = OnboardingBootstrapInput {
+            company_name: self.company_name_input.read(cx).value(),
+            company_description: self.mission_input.read(cx).value(),
             workspace_path: self.workspace_input.read(cx).value(),
-            execution_mode: "ai_ceo".to_string(),
+            execution_mode: self.state.onboarding_execution_mode.to_string(),
+            goal_title: self.onboarding_goal_input.read(cx).value(),
+            goal_description: self.onboarding_goal_detail_input.read(cx).value(),
+            connector_id: self
+                .state
+                .onboarding_connector_id
+                .clone()
+                .unwrap_or_else(|| "anthropic".to_string()),
+            connector_model: self
+                .snapshot
+                .connectors
+                .iter()
+                .find(|connector| {
+                    Some(connector.id.as_str()) == self.state.onboarding_connector_id.as_deref()
+                })
+                .and_then(|connector| connector.model.clone()),
         };
         let result = {
             let mut store = self.store.lock();
-            store.create_company(input)
+            store.bootstrap_onboarding(input)
         };
         match result {
             Ok(_) => {
                 self.company_name_input.update(cx, |input, _| input.clear());
                 self.mission_input.update(cx, |input, _| input.clear());
                 self.workspace_input.update(cx, |input, _| input.clear());
-                self.reload("Company created in the native profile.", cx);
+                self.onboarding_goal_input
+                    .update(cx, |input, _| input.clear());
+                self.onboarding_goal_detail_input
+                    .update(cx, |input, _| input.clear());
+                self.state.onboarding_step = OnboardingStep::Company;
+                self.reload("Company bootstrapped from native onboarding.", cx);
             }
             Err(error) => self.set_status(error.to_string(), cx),
         }

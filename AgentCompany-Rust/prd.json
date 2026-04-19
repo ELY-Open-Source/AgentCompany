@@ -128,6 +128,76 @@
       "priority": 9,
       "passes": true,
       "notes": "Completed with the final native verification matrix: profile_store_e2e.rs covers onboarding bootstrap, native_surface_e2e.rs covers run/approval/document visibility, native_settings_workspace_e2e.rs covers settings/workspaces, runtime_live_flow_e2e.rs covers live runtime approval/message/run flows, and native_inbox_attention_e2e.rs covers inbox attention derivation. cargo clippy/test both pass."
+    },
+    {
+      "id": "US-010",
+      "title": "Restore onboarding parity against original wizard flow",
+      "description": "As a first-time operator, I want the native onboarding surface to preserve the original multi-step wizard grammar so that setup feels identical to the Electron app.",
+      "acceptanceCriteria": [
+        "Onboarding restores the original staged wizard structure instead of the simplified dual-column placeholder shell",
+        "Native onboarding reflects original step semantics such as readiness, provider setup, mission, and launch summary",
+        "Typecheck passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "In progress: native onboarding now uses a real multi-stage company/mission/launch flow with screenshot-aligned left narrative + right summary grammar, real connector readiness from snapshot data, and a real bootstrap transaction that creates company/workspace/goal/CEO/project/task/run. Remaining gap: restore the full original wizard tab semantics (nodecheck/providers/modelpool/executionmode) more precisely."
+    },
+    {
+      "id": "US-011",
+      "title": "Restore dashboard and inbox information architecture parity",
+      "description": "As an operator, I want the dashboard and inbox to match the original attention hierarchy, banners, and filtering behavior so that operating cadence feels unchanged.",
+      "acceptanceCriteria": [
+        "Dashboard restores original metrics, attention rows, active work, and recent activity grammar instead of simplified placeholder sections",
+        "Inbox restores original filterable attention list behavior instead of static grouped blocks with hardcoded active filter state",
+        "Typecheck passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "Audit found missing dashboard banners/charts/attention structure and inbox filter interaction parity."
+    },
+    {
+      "id": "US-012",
+      "title": "Restore runs and approvals page grammar to original operational surfaces",
+      "description": "As an operator, I want runs and approvals to keep the original queue/detail and review grouping semantics so that native review flows feel identical to Electron.",
+      "acceptanceCriteria": [
+        "Runs restores original queue/detail grammar and removes non-source control slabs that distort layout hierarchy",
+        "Approvals restores board/user/manager review grouping and richer approval inspector semantics from the original source",
+        "Typecheck passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "Audit found the live runtime controls now dominate the run detail layout and approvals still flatten original review semantics."
+    },
+    {
+      "id": "US-013",
+      "title": "Restore document center parity including work product grammar",
+      "description": "As an operator, I want documents and work products to preserve the original center/editor grammar so that company operations remain familiar.",
+      "acceptanceCriteria": [
+        "Document Center restores the original document plus work-product information architecture rather than a simplified draft form and flat list",
+        "Document actions and metadata hierarchy align with original Electron semantics",
+        "Typecheck passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "Audit found current native documents surface lacks work-product grouping, modal/editor grammar, and action hierarchy from the original source."
+    },
+    {
+      "id": "US-014",
+      "title": "Run final UI parity re-audit after remediation",
+      "description": "As a maintainer, I want a final source-to-native parity audit after remediation so that we can truthfully claim the native UI matches the Electron product grammar.",
+      "acceptanceCriteria": [
+        "Key native surfaces are re-audited against original source components and screenshots",
+        "Remaining parity deviations are documented or eliminated",
+        "cargo clippy --workspace --all-targets --all-features -- -D warnings passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "Created after post-completion audit found significant remaining UI grammar gaps."
     }
   ]
 }

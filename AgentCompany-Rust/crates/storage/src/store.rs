@@ -27,6 +27,29 @@ pub struct NewCompanyInput {
     pub execution_mode: String,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct OnboardingBootstrapInput {
+    pub company_name: String,
+    pub company_description: String,
+    pub workspace_path: String,
+    pub execution_mode: String,
+    pub goal_title: String,
+    pub goal_description: String,
+    pub connector_id: String,
+    pub connector_model: Option<String>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct OnboardingBootstrapSummary {
+    pub company_id: String,
+    pub company_name: String,
+    pub workspace_id: Option<String>,
+    pub lead_agent_id: String,
+    pub project_id: String,
+    pub task_id: String,
+    pub run_id: String,
+}
+
 pub struct ProfileStore {
     profile_dir: PathBuf,
     db_path: PathBuf,
@@ -149,12 +172,178 @@ impl ProfileStore {
         Ok(company_id)
     }
 
+    pub fn bootstrap_onboarding(
+        &mut self,
+        input: OnboardingBootstrapInput,
+    ) -> Result<OnboardingBootstrapSummary> {
+        let company_name = input.company_name.trim();
+        if company_name.len() < 2 {
+            return Err(anyhow!("company name must be at least 2 characters"));
+        }
+        let connector_id = self.resolve_onboarding_connector(input.connector_id.trim())?;
+        let goal_title = input.goal_title.trim();
+        if goal_title.is_empty() {
+            return Err(anyhow!("goal title cannot be empty"));
+        }
+
+        let company_id = Uuid::new_v4().to_string();
+        let workspace_id = if input.workspace_path.trim().is_empty() {
+            None
+        } else {
+            Some(Uuid::new_v4().to_string())
+        };
+        let goal_id = Uuid::new_v4().to_string();
+        let lead_agent_id = Uuid::new_v4().to_string();
+        let project_id = Uuid::new_v4().to_string();
+        let task_id = Uuid::new_v4().to_string();
+        let run_id = Uuid::new_v4().to_string();
+        let ts = now_iso()?;
+        let execution_mode = normalized_execution_mode(&input.execution_mode);
+        let tx = self.conn.transaction()?;
+        tx.execute(
+            r#"
+            insert into companies (
+                id, name, description, status, auto_approve_hires,
+                review_deliverables, execution_mode, created_at, updated_at
+            ) values (?1, ?2, ?3, 'active', ?4, ?5, ?6, ?7, ?7)
+            "#,
+            params![
+                company_id,
+                company_name,
+                input.company_description.trim(),
+                if execution_mode == "ai_ceo" { 1 } else { 0 },
+                if execution_mode == "ai_cofounder" {
+                    1
+                } else {
+                    0
+                },
+                execution_mode,
+                ts,
+            ],
+        )?;
+        tx.execute(
+            "insert into settings (key, value) values ('current_company_id', ?1) on conflict(key) do update set value = excluded.value",
+            params![company_id],
+        )?;
+        if let Some(workspace_id) = workspace_id.as_ref() {
+            tx.execute(
+                r#"
+                insert into workspaces (
+                    id, company_id, name, local_path, repo_url, repo_ref,
+                    project_id, state, is_primary, created_at, updated_at
+                ) values (?1, ?2, 'Default Workspace', ?3, '', '', null, 'ready', 1, ?4, ?4)
+                "#,
+                params![workspace_id, company_id, input.workspace_path.trim(), ts],
+            )?;
+        }
+        tx.execute(
+            "insert into goals (id, company_id, title, description, parent_id, owner_agent_id, status, created_at, updated_at) values (?1, ?2, ?3, ?4, null, null, 'active', ?5, ?5)",
+            params![
+                goal_id,
+                company_id,
+                goal_title,
+                if input.goal_description.trim().is_empty() {
+                    format!("Achieve: {goal_title}")
+                } else {
+                    input.goal_description.trim().to_string()
+                },
+                ts,
+            ],
+        )?;
+        tx.execute(
+            "insert into agents (id, company_id, name, role, title, department, status, reports_to, connector_id, workspace_id, model, capabilities, budget_monthly_usd, spent_monthly_usd, created_at, updated_at) values (?1, ?2, 'CEO', 'CEO', 'Chief Executive Officer', null, 'idle', null, ?3, ?4, ?5, ?6, 250, 0, ?7, ?7)",
+            params![
+                lead_agent_id,
+                company_id,
+                connector_id,
+                workspace_id,
+                input.connector_model.as_deref().map(str::trim).filter(|value| !value.is_empty()),
+                "Executive leadership, strategic planning, team building, goal decomposition, delegation, and organizational management.",
+                ts,
+            ],
+        )?;
+        tx.execute(
+            "insert into projects (id, company_id, goal_id, name, description, lead_agent_id, status, target_date, created_at, updated_at) values (?1, ?2, ?3, ?4, ?5, ?6, 'in_progress', null, ?7, ?7)",
+            params![
+                project_id,
+                company_id,
+                goal_id,
+                format!("Execution plan: {goal_title}"),
+                format!("Turn the founding goal \"{goal_title}\" into the first real operating plan and delegation map."),
+                lead_agent_id,
+                ts,
+            ],
+        )?;
+        tx.execute(
+            "insert into tasks (id, company_id, project_id, goal_id, parent_id, title, description, assignee_agent_id, workspace_id, status, priority, active_run_id, cost_usd, task_type, requires_user_review, started_at, completed_at, cancelled_at, created_at, updated_at) values (?1, ?2, ?3, ?4, null, ?5, ?6, ?7, ?8, 'todo', 'high', ?9, 0, 'execution', 0, null, null, null, ?10, ?10)",
+            params![
+                task_id,
+                company_id,
+                project_id,
+                goal_id,
+                format!("Operationalize goal: {goal_title}"),
+                kickoff_task_description(company_name, input.company_description.trim(), goal_title),
+                lead_agent_id,
+                workspace_id,
+                run_id,
+                ts,
+            ],
+        )?;
+        tx.execute(
+            "insert into runs (id, company_id, task_id, agent_id, workspace_id, connector_id, status, summary, error_message, model, cost_usd, started_at, finished_at, created_at, updated_at) values (?1, ?2, ?3, ?4, ?5, ?6, 'queued', ?7, null, ?8, null, null, null, ?9, ?9)",
+            params![
+                run_id,
+                company_id,
+                task_id,
+                lead_agent_id,
+                workspace_id,
+                connector_id,
+                "Kickoff execution queued",
+                input.connector_model.as_deref().map(str::trim).filter(|value| !value.is_empty()),
+                ts,
+            ],
+        )?;
+        tx.execute(
+            "insert into activity (id, company_id, actor, action, entity_type, entity_id, detail, created_at) values (?1, ?2, ?3, 'company.bootstrapped', 'companies', ?4, ?5, ?6)",
+            params![
+                Uuid::new_v4().to_string(),
+                company_id,
+                BOARD_READER_ID,
+                company_id,
+                format!("Bootstrapped from onboarding with connector {connector_id}."),
+                ts,
+            ],
+        )?;
+        tx.commit()?;
+        Ok(OnboardingBootstrapSummary {
+            company_id,
+            company_name: company_name.to_string(),
+            workspace_id,
+            lead_agent_id,
+            project_id,
+            task_id,
+            run_id,
+        })
+    }
+
     pub fn set_current_company(&mut self, company_id: &str) -> Result<()> {
         self.conn.execute(
             "insert into settings (key, value) values ('current_company_id', ?1) on conflict(key) do update set value = excluded.value",
             params![company_id],
         )?;
         Ok(())
+    }
+
+    fn resolve_onboarding_connector(&self, connector_id: &str) -> Result<String> {
+        let resolved = resolve_onboarding_connector_fallback(connector_id);
+        self.conn
+            .query_row(
+                "select id from connectors where id = ?1",
+                params![resolved],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or_else(|| anyhow!("connector {resolved} was not found"))
     }
 
     pub fn update_theme(&mut self, theme: &str) -> Result<()> {
@@ -1040,11 +1229,34 @@ fn subject_for(body: &str) -> String {
     subject
 }
 
+fn kickoff_task_description(
+    company_name: &str,
+    company_description: &str,
+    goal_title: &str,
+) -> String {
+    let description = if company_description.trim().is_empty() {
+        "No company description yet."
+    } else {
+        company_description.trim()
+    };
+    [
+        format!("Read the founding goal \"{goal_title}\" and convert it into the first real operating plan."),
+        "Explore the workspace and identify the project structure, key files, frameworks, and execution constraints.".to_string(),
+        format!("Use the company context — name \"{company_name}\" and description \"{description}\" — when deciding the first departments, delegation plan, and operating cadence."),
+        "Create the first tasks, approval checkpoints, and coordination messages needed to start execution.".to_string(),
+    ]
+    .join("\n\n")
+}
+
 fn normalized_execution_mode(value: &str) -> &str {
     match value {
         "ai_cofounder" => "ai_cofounder",
         _ => "ai_ceo",
     }
+}
+
+fn resolve_onboarding_connector_fallback(value: &str) -> &str {
+    if value.is_empty() { "anthropic" } else { value }
 }
 
 fn default_locale() -> String {

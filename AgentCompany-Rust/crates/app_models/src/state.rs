@@ -1,5 +1,13 @@
 use domain::SectionId;
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum OnboardingStep {
+    #[default]
+    Company,
+    Mission,
+    Launch,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct AppState {
     pub section: SectionId,
@@ -8,6 +16,9 @@ pub struct AppState {
     pub selected_message_id: Option<String>,
     pub selected_document_id: Option<String>,
     pub selected_workspace_id: Option<String>,
+    pub onboarding_step: OnboardingStep,
+    pub onboarding_connector_id: Option<String>,
+    pub onboarding_execution_mode: &'static str,
     pub status_line: Option<String>,
 }
 

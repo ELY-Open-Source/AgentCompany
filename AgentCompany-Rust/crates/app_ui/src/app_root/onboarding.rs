@@ -1,167 +1,459 @@
 use super::*;
-use gpui::{Animation, AnimationExt, pulsating_between};
+use app_models::OnboardingStep;
+use gpui::{Animation, AnimationExt, Hsla, SharedString, pulsating_between, rgb};
 use std::time::Duration;
 
 impl AppRoot {
     pub(super) fn render_onboarding(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
+        let step = self.state.onboarding_step;
+        let readiness = onboarding_readiness(
+            &self.snapshot,
+            self.state.onboarding_connector_id.as_deref(),
+        );
+
+        div().size_full().bg(theme::window_bg()).child(
+            div()
+                .size_full()
+                .flex()
+                .child(self.render_onboarding_story(step, &readiness))
+                .child(div().w(px(12.0)).bg(theme::split_divider()))
+                .child(self.render_onboarding_panel(step, cx)),
+        )
+    }
+
+    fn render_onboarding_story(
+        &self,
+        step: OnboardingStep,
+        readiness: &[ConnectorReadiness<'_>],
+    ) -> impl IntoElement + '_ {
         div()
-            .size_full()
-            .bg(theme::window_bg())
+            .flex_1()
+            .flex()
+            .items_center()
+            .justify_center()
             .child(
                 div()
-                    .size_full()
-                    .flex()
+                    .w(px(620.0))
+                    .gap_8()
+                    .child(onboarding_eyebrow("AGENTCOMPANY DESKTOP"))
                     .child(
                         div()
-                            .flex_1()
-                            .p_8()
-                            .gap_8()
+                            .text_color(theme::text_primary())
+                            .child(
+                                div()
+                                    .text_size(px(68.0))
+                                    .line_height(px(68.0))
+                                    .child("Start a real local-first"),
+                            )
+                            .child(
+                                div()
+                                    .text_size(px(68.0))
+                                    .line_height(px(68.0))
+                                    .child("agent company."),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .max_w(px(560.0))
+                            .text_size(px(18.0))
+                            .line_height(px(30.0))
+                            .text_color(theme::text_muted())
+                            .child("Set up your company, connect a runtime, choose an execution mode, and launch the first native operating loop."),
+                    )
+                    .child(onboarding_stepper(step))
+                    .child(
+                        div()
+                            .mt(px(44.0))
+                            .gap_5()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(theme::text_muted())
+                                    .child("CONNECTOR READINESS"),
+                            )
+                            .children(readiness.iter().map(|item| readiness_row(item))),
+                    )
+                    .child(div().mt(px(56.0)).child(onboarding_eyebrow("BY ELYDORA"))),
+            )
+    }
+
+    fn render_onboarding_panel(
+        &self,
+        step: OnboardingStep,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + '_ {
+        div()
+            .w(px(620.0))
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(match step {
+                OnboardingStep::Company => self.render_company_setup_panel(cx).into_any_element(),
+                OnboardingStep::Mission => self.render_mission_setup_panel(cx).into_any_element(),
+                OnboardingStep::Launch => self.render_launch_summary_panel(cx).into_any_element(),
+            })
+    }
+
+    fn render_company_setup_panel(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
+        let connector_options = primary_connector_options(&self.snapshot);
+        let selected_connector_id = self
+            .state
+            .onboarding_connector_id
+            .as_deref()
+            .unwrap_or("anthropic");
+
+        onboarding_card()
+            .child(step_counter("COMPANY", 1, 3))
+            .child(card_title("Set up the company shell"))
+            .child(card_divider())
+            .child(
+                div()
+                    .gap_4()
+                    .child(self.company_name_input.clone())
+                    .child(self.mission_input.clone())
+                    .child(self.workspace_input.clone())
+                    .child(
+                        div()
+                            .mt(px(6.0))
+                            .text_xs()
+                            .line_height(px(20.0))
+                            .text_color(theme::text_muted())
+                            .child("The workspace path becomes the default execution boundary for the first operating loop."),
+                    )
+                    .child(
+                        div()
+                            .mt(px(12.0))
+                            .gap_3()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(theme::text_muted())
+                                    .child("CEO RUNTIME"),
+                            )
+                            .child(div().flex().flex_wrap().gap_2().children(
+                                connector_options.into_iter().map(|connector| {
+                                    let active = connector.id == selected_connector_id;
+                                    let connector_id = connector.id.clone();
+                                    selectable_chip(
+                                        connector.label.as_str(),
+                                        active,
+                                        cx,
+                                        move |this, cx| {
+                                            this.state.onboarding_connector_id = Some(connector_id.clone());
+                                            cx.notify();
+                                        },
+                                    )
+                                    .into_any_element()
+                                }),
+                            ))
+                            .child(
+                                div()
+                                    .rounded_lg()
+                                    .border_1()
+                                    .border_color(theme::panel_border())
+                                    .bg(theme::panel_inset())
+                                    .p_4()
+                                    .text_sm()
+                                    .line_height(px(22.0))
+                                    .text_color(theme::text_secondary())
+                                    .child(onboarding_connector_note(&self.snapshot, selected_connector_id)),
+                            ),
+                    ),
+            )
+            .child(
+                div()
+                    .mt(px(28.0))
+                    .flex()
+                    .justify_end()
+                    .child(primary_button("Continue to mission", cx, |this, cx| {
+                        this.state.onboarding_step = OnboardingStep::Mission;
+                        cx.notify();
+                    })),
+            )
+    }
+
+    fn render_mission_setup_panel(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
+        onboarding_card()
+            .child(step_counter("MISSION", 2, 3))
+            .child(card_title("Define the founding mission"))
+            .child(card_divider())
+            .child(
+                div()
+                    .gap_4()
+                    .child(self.onboarding_goal_input.clone())
+                    .child(self.onboarding_goal_detail_input.clone())
+                    .child(
+                        div()
+                            .mt(px(12.0))
+                            .gap_3()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(theme::text_muted())
+                                    .child("EXECUTION MODE"),
+                            )
                             .child(
                                 div()
                                     .flex()
                                     .gap_2()
-                                    .child(traffic_light(theme::danger()))
-                                    .child(traffic_light(rgb_hex(0xfebc2e)))
-                                    .child(traffic_light(rgb_hex(0x28c840))),
+                                    .child(selectable_chip(
+                                        "AI CEO",
+                                        self.state.onboarding_execution_mode == "ai_ceo",
+                                        cx,
+                                        |this, cx| {
+                                            this.state.onboarding_execution_mode = "ai_ceo";
+                                            cx.notify();
+                                        },
+                                    ))
+                                    .child(selectable_chip(
+                                        "AI Co-Founder",
+                                        self.state.onboarding_execution_mode == "ai_cofounder",
+                                        cx,
+                                        |this, cx| {
+                                            this.state.onboarding_execution_mode = "ai_cofounder";
+                                            cx.notify();
+                                        },
+                                    )),
                             )
-                            .child(div().h(px(80.0)))
-                            .child(eyebrow("AGENTCOMPANY DESKTOP"))
                             .child(
                                 div()
-                                    .text_3xl()
-                                    .text_color(theme::text_primary())
-                                    .child("Start a real local-first")
-                                    .child(div().child("agent company.")),
-                            )
-                            .child(
-                                div()
-                                    .text_lg()
-                                    .text_color(theme::text_muted())
-                                    .child("Set up your company, point it at a workspace, and launch")
-                                    .child(div().child("the first native Rust control center.")),
-                            )
-                            .child(onboarding_steps())
-                            .child(
-                                div()
-                                    .w(px(520.0))
-                                    .p_5()
-                                    .gap_4()
-                                    .border_1()
                                     .rounded_lg()
-                                    .border_color(theme::panel_border())
-                                    .bg(theme::panel())
-                                    .child(
-                                        div()
-                                            .text_xs()
-                                            .text_color(theme::text_muted())
-                                            .child("COMPANY SETUP"),
-                                    )
-                                    .child(self.company_name_input.clone())
-                                    .child(self.mission_input.clone())
-                                    .child(self.workspace_input.clone())
-                                    .child(
-                                        div()
-                                            .text_xs()
-                                            .text_color(theme::text_muted())
-                                            .child("The native shell writes directly into SQLite with no cloud fallback."),
-                                    ),
-                            )
-                            .child(readiness_panel())
-                            .child(div().flex_1())
-                            .child(eyebrow("BY ELYDORA")),
-                    )
-                    .child(
-                        div()
-                            .w(px(14.0))
-                            .bg(theme::split_divider()),
-                    )
-                    .child(
-                        div()
-                            .w(px(520.0))
-                            .p_8()
-                            .child(
-                                div()
-                                    .mt(px(220.0))
-                                    .p_8()
-                                    .gap_5()
                                     .border_1()
-                                    .rounded_lg()
                                     .border_color(theme::panel_border())
-                                    .bg(theme::panel())
-                                    .child(success_badge())
-                                    .child(
-                                        div()
-                                            .text_2xl()
-                                            .text_color(theme::text_primary())
-                                            .child("Native shell ready."),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_lg()
-                                            .text_color(theme::text_muted())
-                                            .child("Create the company record, register the workspace, and")
-                                            .child(div().child("open the GPUI control center.")),
-                                    )
-                                    .child(
-                                        div()
-                                            .flex()
-                                            .gap_3()
-                                            .child(launch_tile("CONNECTOR", "SQLite local profile"))
-                                            .child(launch_tile("LEAD AGENT", "CEO shell created")),
-                                    )
-                                    .child(
-                                        div()
-                                            .flex()
-                                            .gap_3()
-                                            .child(launch_tile("PRIMARY WORKSPACE", "Registered on create"))
-                                            .child(launch_tile("KICKOFF PROJECT", "Created from first task")),
-                                    )
-                                    .child(launch_tile("INITIAL RUN", "Queued once company state lands"))
-                                    .child(primary_button("Create company", cx, |this, cx| {
-                                        this.create_company(cx)
-                                    })),
+                                    .bg(theme::panel_inset())
+                                    .p_4()
+                                    .text_sm()
+                                    .line_height(px(22.0))
+                                    .text_color(theme::text_secondary())
+                                    .child(onboarding_execution_mode_note(
+                                        self.state.onboarding_execution_mode,
+                                    )),
                             ),
                     ),
+            )
+            .child(
+                div()
+                    .mt(px(28.0))
+                    .flex()
+                    .justify_between()
+                    .child(secondary_button("Back", cx, |this, cx| {
+                        this.state.onboarding_step = OnboardingStep::Company;
+                        cx.notify();
+                    }))
+                    .child(primary_button("Review launch", cx, |this, cx| {
+                        this.state.onboarding_step = OnboardingStep::Launch;
+                        cx.notify();
+                    })),
+            )
+    }
+
+    fn render_launch_summary_panel(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
+        let connector_id = self
+            .state
+            .onboarding_connector_id
+            .as_deref()
+            .unwrap_or("anthropic");
+        let connector_label = self
+            .snapshot
+            .connectors
+            .iter()
+            .find(|connector| connector.id == connector_id)
+            .map(|connector| connector.label.clone())
+            .unwrap_or_else(|| connector_id.to_string());
+        let company_name = self.company_name_input.read(cx).value();
+        let workspace_path = self.workspace_input.read(cx).value();
+        let workspace_value = if workspace_path.trim().is_empty() {
+            "No workspace selected".to_string()
+        } else {
+            "Registered".to_string()
+        };
+        let goal_title = self.onboarding_goal_input.read(cx).value();
+
+        onboarding_card()
+            .child(success_badge())
+            .child(
+                div()
+                    .mt(px(28.0))
+                    .text_size(px(32.0))
+                    .line_height(px(38.0))
+                    .text_color(theme::text_primary())
+                    .child(if company_name.trim().is_empty() {
+                        "Native control center is ready.".to_string()
+                    } else {
+                        format!("{} is ready to launch.", company_name.trim())
+                    }),
+            )
+            .child(
+                div()
+                    .mt(px(16.0))
+                    .text_size(px(16.0))
+                    .line_height(px(26.0))
+                    .text_color(theme::text_muted())
+                    .child("Company, workspace, goal, lead agent, kickoff project, task, and the initial queued run will be created in the local profile."),
+            )
+            .child(
+                div()
+                    .mt(px(28.0))
+                    .grid()
+                    .grid_cols(2)
+                    .gap_4()
+                    .child(summary_tile("CONNECTOR", connector_label))
+                    .child(summary_tile("LEAD AGENT", "CEO agent created".to_string()))
+                    .child(summary_tile("PRIMARY WORKSPACE", workspace_value))
+                    .child(summary_tile("KICKOFF PROJECT", "Created".to_string()))
+                    .child(summary_tile(
+                        "INITIAL RUN",
+                        if goal_title.trim().is_empty() {
+                            "Queued".to_string()
+                        } else {
+                            format!("Queued for {}", goal_title.trim())
+                        },
+                    )),
+            )
+            .child(
+                div()
+                    .mt(px(32.0))
+                    .flex()
+                    .justify_between()
+                    .child(secondary_button("Back", cx, |this, cx| {
+                        this.state.onboarding_step = OnboardingStep::Mission;
+                        cx.notify();
+                    }))
+                    .child(primary_button("Open Control Center", cx, |this, cx| {
+                        this.create_company(cx);
+                    })),
             )
     }
 }
 
-fn eyebrow(label: &'static str) -> impl IntoElement {
+struct ConnectorReadiness<'a> {
+    label: &'a str,
+    state: &'a str,
+    help: Option<&'a str>,
+    tone: ReadinessTone,
+}
+
+#[derive(Clone, Copy)]
+enum ReadinessTone {
+    Ready,
+    Warning,
+    Neutral,
+}
+
+fn onboarding_readiness<'a>(
+    snapshot: &'a domain::ProfileSnapshot,
+    selected_connector_id: Option<&'a str>,
+) -> Vec<ConnectorReadiness<'a>> {
+    let mut rows = Vec::new();
+    let priority = [
+        selected_connector_id.unwrap_or("anthropic"),
+        "openai-codex",
+        "gemini-cli",
+    ];
+    for connector_id in priority {
+        if let Some(connector) = snapshot
+            .connectors
+            .iter()
+            .find(|item| item.id == connector_id)
+        {
+            let tone = if connector.status == "ready" || connector.auth_state == "ready" {
+                ReadinessTone::Ready
+            } else if connector.last_error.is_some() || connector.auth_state == "auth_required" {
+                ReadinessTone::Warning
+            } else {
+                ReadinessTone::Neutral
+            };
+            let state = if connector.status == "ready" {
+                "ready"
+            } else if connector.auth_state == "ready" {
+                "authenticated"
+            } else if connector.auth_state == "auth_required" {
+                "auth required"
+            } else if connector.status.is_empty() {
+                "unknown"
+            } else {
+                connector.status.as_str()
+            };
+            let help = connector.last_error.as_deref().or_else(|| {
+                (!connector.notes.trim().is_empty()).then_some(connector.notes.as_str())
+            });
+            rows.push(ConnectorReadiness {
+                label: connector.label.as_str(),
+                state,
+                help,
+                tone,
+            });
+        }
+    }
+    rows
+}
+
+fn primary_connector_options(snapshot: &domain::ProfileSnapshot) -> Vec<&domain::Connector> {
+    let preferred = ["anthropic", "openai-codex", "claude-pro", "gemini-cli"];
+    let mut options = Vec::new();
+    for connector_id in preferred {
+        if let Some(connector) = snapshot
+            .connectors
+            .iter()
+            .find(|item| item.id == connector_id)
+        {
+            options.push(connector);
+        }
+    }
+    if options.is_empty() {
+        snapshot.connectors.iter().take(4).collect()
+    } else {
+        options
+    }
+}
+
+fn onboarding_eyebrow(label: &'static str) -> impl IntoElement {
     div()
         .flex()
         .gap_3()
         .items_center()
-        .child(div().w(px(48.0)).h(px(1.0)).bg(theme::text_subtle()))
-        .child(
-            div()
-                .text_xs()
-                .text_color(theme::text_subtle())
-                .child(label),
-        )
+        .child(div().w(px(44.0)).h(px(1.0)).bg(theme::text_subtle()))
+        .child(div().text_xs().text_color(theme::text_muted()).child(label))
 }
 
-fn onboarding_steps() -> impl IntoElement {
+fn onboarding_stepper(step: OnboardingStep) -> impl IntoElement {
     div()
+        .mt(px(12.0))
         .flex()
         .gap_3()
         .items_center()
-        .child(step_chip("Company", true))
-        .child(div().w(px(32.0)).h(px(1.0)).bg(theme::text_subtle()))
-        .child(step_chip("Mission", true))
-        .child(div().w(px(32.0)).h(px(1.0)).bg(theme::text_subtle()))
-        .child(step_chip("Launch", false))
+        .child(major_step_chip(
+            "Company",
+            matches!(step, OnboardingStep::Company),
+            true,
+        ))
+        .child(step_connector())
+        .child(major_step_chip(
+            "Mission",
+            matches!(step, OnboardingStep::Mission),
+            !matches!(step, OnboardingStep::Company),
+        ))
+        .child(step_connector())
+        .child(major_step_chip(
+            "Launch",
+            matches!(step, OnboardingStep::Launch),
+            false,
+        ))
 }
 
-fn step_chip(label: &'static str, complete: bool) -> impl IntoElement {
+fn major_step_chip(label: &'static str, current: bool, complete: bool) -> impl IntoElement {
+    let bg = if complete {
+        theme::accent_teal_soft()
+    } else if current {
+        theme::panel_muted()
+    } else {
+        rgb(0xf1f3f7).into()
+    };
     let chip = div()
         .px_4()
         .py_2()
         .rounded_full()
-        .bg(if complete {
-            theme::success_bg()
-        } else {
-            theme::panel_muted()
-        })
+        .bg(bg)
         .text_sm()
         .text_color(if complete {
             theme::accent_teal()
@@ -169,12 +461,12 @@ fn step_chip(label: &'static str, complete: bool) -> impl IntoElement {
             theme::text_secondary()
         })
         .child(label);
-    if complete {
+    if current {
         chip.with_animation(
-            ("step-chip", label.len()),
-            Animation::new(Duration::from_secs(3))
+            ("onboarding-major-step", label.len()),
+            Animation::new(Duration::from_secs(2))
                 .repeat()
-                .with_easing(pulsating_between(0.78, 1.0)),
+                .with_easing(pulsating_between(0.84, 1.0)),
             |element, delta| element.opacity(delta),
         )
         .into_any_element()
@@ -183,90 +475,194 @@ fn step_chip(label: &'static str, complete: bool) -> impl IntoElement {
     }
 }
 
-fn readiness_panel() -> impl IntoElement {
-    div()
-        .w(px(520.0))
-        .gap_3()
-        .child(
-            div()
-                .text_xs()
-                .text_color(theme::text_muted())
-                .child("CONNECTOR READINESS"),
-        )
-        .child(readiness_row("Claude Code", "ready", true))
-        .child(readiness_row("Codex", "ready", true))
-        .child(readiness_row("Gemini CLI", "auth required", false))
-        .child(
-            div()
-                .pl(px(28.0))
-                .text_xs()
-                .text_color(theme::text_subtle())
-                .child("Gemini CLI requires authentication before the runtime can use it."),
-        )
+fn step_connector() -> impl IntoElement {
+    div().w(px(42.0)).h(px(1.0)).bg(theme::panel_border())
 }
 
-fn readiness_row(label: &'static str, state: &'static str, ready: bool) -> impl IntoElement {
+fn readiness_row(row: &ConnectorReadiness<'_>) -> impl IntoElement {
     div()
-        .flex()
-        .gap_3()
-        .items_center()
-        .child(div().w(px(16.0)).h(px(16.0)).rounded_full().bg(if ready {
-            theme::accent_teal()
-        } else {
-            theme::accent_orange()
-        }))
+        .gap_2()
         .child(
             div()
-                .text_sm()
-                .text_color(theme::text_primary())
-                .child(label),
+                .flex()
+                .gap_3()
+                .items_center()
+                .child(readiness_dot(row.tone))
+                .child(
+                    div()
+                        .text_base()
+                        .text_color(theme::text_primary())
+                        .child(row.label.to_string()),
+                )
+                .child(
+                    div()
+                        .text_base()
+                        .text_color(theme::text_muted())
+                        .child(row.state.to_string()),
+                ),
         )
-        .child(div().text_sm().text_color(theme::text_muted()).child(state))
+        .when_some(row.help, |container, help| {
+            container.child(
+                div()
+                    .pl(px(28.0))
+                    .text_sm()
+                    .line_height(px(22.0))
+                    .text_color(theme::text_muted())
+                    .child(help.to_string()),
+            )
+        })
+}
+
+fn readiness_dot(tone: ReadinessTone) -> impl IntoElement {
+    let color: Hsla = match tone {
+        ReadinessTone::Ready => theme::accent_teal(),
+        ReadinessTone::Warning => theme::accent_orange(),
+        ReadinessTone::Neutral => theme::badge_dark(),
+    };
+    div().w(px(16.0)).h(px(16.0)).rounded_full().bg(color)
+}
+
+fn onboarding_card() -> gpui::Div {
+    div()
+        .w(px(650.0))
+        .p_10()
+        .rounded_lg()
+        .border_1()
+        .border_color(theme::panel_border())
+        .bg(theme::panel())
+}
+
+fn step_counter(label: &'static str, index: usize, total: usize) -> impl IntoElement {
+    div()
+        .text_xs()
+        .text_color(theme::text_muted())
+        .child(format!("{} {} / {}", label, index, total))
+}
+
+fn card_title(label: &'static str) -> impl IntoElement {
+    div()
+        .mt(px(8.0))
+        .text_size(px(24.0))
+        .line_height(px(30.0))
+        .text_color(theme::text_primary())
+        .child(label)
+}
+
+fn card_divider() -> impl IntoElement {
+    div()
+        .mt(px(12.0))
+        .mb(px(24.0))
+        .h(px(1.0))
+        .bg(theme::panel_border())
+}
+
+fn selectable_chip<V>(
+    label: &str,
+    active: bool,
+    cx: &mut Context<V>,
+    on_click: impl Fn(&mut V, &mut Context<V>) + 'static,
+) -> impl IntoElement
+where
+    V: 'static,
+{
+    div()
+        .id(SharedString::from(format!("onboarding-chip-{label}")))
+        .px_4()
+        .py_2()
+        .rounded_full()
+        .cursor_pointer()
+        .bg(if active {
+            theme::primary_action()
+        } else {
+            theme::panel_muted()
+        })
+        .text_color(if active {
+            theme::primary_action_text()
+        } else {
+            theme::text_secondary()
+        })
+        .hover(|style| {
+            style.bg(if active {
+                theme::primary_action_hover()
+            } else {
+                theme::panel_hover()
+            })
+        })
+        .on_click(
+            cx.listener(move |this, _: &gpui::ClickEvent, _: &mut Window, cx| on_click(this, cx)),
+        )
+        .child(label.to_string())
+}
+
+fn onboarding_connector_note(snapshot: &domain::ProfileSnapshot, connector_id: &str) -> String {
+    snapshot
+        .connectors
+        .iter()
+        .find(|connector| connector.id == connector_id)
+        .map(|connector| {
+            if !connector.notes.trim().is_empty() {
+                connector.notes.clone()
+            } else if !connector.description.trim().is_empty() {
+                connector.description.clone()
+            } else {
+                format!(
+                    "{} will be bound to the founding CEO agent.",
+                    connector.label
+                )
+            }
+        })
+        .unwrap_or_else(|| "The selected connector becomes the default CEO runtime.".to_string())
+}
+
+fn onboarding_execution_mode_note(mode: &str) -> &'static str {
+    match mode {
+        "ai_cofounder" => {
+            "AI Co-Founder keeps human review tighter on deliverables while preserving a shared planning loop."
+        }
+        _ => {
+            "AI CEO starts the company autonomously, boots the lead agent, creates the first project, and queues the kickoff run."
+        }
+    }
 }
 
 fn success_badge() -> impl IntoElement {
     div()
-        .w(px(72.0))
-        .h(px(72.0))
+        .w(px(60.0))
+        .h(px(60.0))
         .rounded_full()
         .bg(theme::success_bg())
         .child(
             div()
-                .m(px(20.0))
-                .w(px(32.0))
-                .h(px(32.0))
+                .m(px(16.0))
+                .w(px(28.0))
+                .h(px(28.0))
                 .rounded_full()
                 .bg(theme::accent_teal())
                 .with_animation(
-                    "success-badge-inner",
+                    "onboarding-success-badge",
                     Animation::new(Duration::from_secs(2))
                         .repeat()
-                        .with_easing(pulsating_between(0.72, 1.0)),
+                        .with_easing(pulsating_between(0.76, 1.0)),
                     |element, delta| element.opacity(delta),
                 ),
         )
 }
 
-fn launch_tile(label: &'static str, value: &'static str) -> impl IntoElement {
+fn summary_tile(label: &'static str, value: String) -> impl IntoElement {
     div()
-        .flex_1()
-        .p_4()
-        .gap_2()
+        .min_h(px(92.0))
+        .p_5()
         .rounded_lg()
-        .bg(theme::panel_muted())
+        .border_1()
+        .border_color(theme::panel_inset_border())
+        .bg(theme::panel_inset())
         .child(div().text_xs().text_color(theme::text_muted()).child(label))
         .child(
             div()
-                .text_sm()
+                .mt(px(10.0))
+                .text_base()
                 .text_color(theme::text_primary())
+                .line_height(px(22.0))
                 .child(value),
         )
-}
-
-fn rgb_hex(hex: u32) -> gpui::Hsla {
-    gpui::rgb(hex).into()
-}
-
-fn traffic_light(color: gpui::Hsla) -> impl IntoElement {
-    div().w(px(12.0)).h(px(12.0)).rounded_full().bg(color)
 }
