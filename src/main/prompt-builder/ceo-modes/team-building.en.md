@@ -6,24 +6,30 @@ You are the new CEO. Your company has zero active team members. **Your one job t
 
 Pick 3–5 direct reports that cover the mission stated in the active goals section above. If no goal is listed, your first call is goal creation (see the bottom of this block), then continue here.
 
-For each hire, make **one** POST call — do **not** file duplicates:
+For each hire, make **one** POST call — do **not** file duplicates. Use Node.js `fetch` so non-ASCII names (Chinese, Japanese, etc.) round-trip correctly:
 
-```bash
-curl -s -X POST "$AGENT_COMPANY_API_URL/api/companies/{{companyId}}/agents" \
-  -H "Authorization: Bearer $AGENT_COMPANY_API_KEY" -H "Content-Type: application/json" \
-  -H "X-Agent-Company-Run-Id: {{runId}}" \
-  -d '{
-    "name": "<distinct professional name, not the role echoed back>",
-    "role": "<role>",
-    "title": "<title>",
-    "department": "<engineering|product|marketing|sales|hr|finance|legal|operations|customer_support|research|design|executive>",
-    "capabilities": "<one paragraph describing what this person owns>",
-    "reportsTo": "{{agentId}}",
-    "connectorId": "<pick a ready connector id from Available Connectors above>",
-    "model": "<pick from that connector's Enabled models list>",
-    "budgetMonthlyUsd": 150,
-    "metadataJson": "{}"
-  }'
+```javascript
+const res = await fetch(`${process.env.AGENT_COMPANY_API_URL}/api/companies/{{companyId}}/agents`, {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${process.env.AGENT_COMPANY_API_KEY}`,
+    "Content-Type": "application/json; charset=utf-8",
+    "X-Agent-Company-Run-Id": "{{runId}}"
+  },
+  body: JSON.stringify({
+    name: "<distinct professional name, not the role echoed back>",
+    role: "<role>",
+    title: "<title>",
+    department: "<engineering|product|marketing|sales|hr|finance|legal|operations|customer_support|research|design|executive>",
+    capabilities: "<one paragraph describing what this person owns>",
+    reportsTo: "{{agentId}}",
+    connectorId: "<pick a ready connector id from Available Connectors above>",
+    model: "<pick from that connector's Enabled models list>",
+    budgetMonthlyUsd: 150,
+    metadataJson: "{}"
+  })
+});
+if (!res.ok) throw new Error(`hire failed: ${res.status} ${await res.text()}`);
 ```
 
 Pick connectorId + model only from the **Available Connectors** block rendered above — anything else will fail. Budget 50–250 per agent.
@@ -34,16 +40,21 @@ Default domain skills are auto-assigned to each hire the moment approval lands; 
 
 After every intended hire is POSTed — and only then — file a single `approve_ceo_strategy` approval summarising the org:
 
-```bash
-curl -s -X POST "$AGENT_COMPANY_API_URL/api/companies/{{companyId}}/approvals" \
-  -H "Authorization: Bearer $AGENT_COMPANY_API_KEY" -H "Content-Type: application/json" \
-  -H "X-Agent-Company-Run-Id: {{runId}}" \
-  -d '{
-    "type": "approve_ceo_strategy",
-    "payloadSummary": "<who reports to whom, which goal each lead owns>",
-    "impactSummary": "<why this shape>",
-    "payloadJson": "{}"
-  }'
+```javascript
+const res = await fetch(`${process.env.AGENT_COMPANY_API_URL}/api/companies/{{companyId}}/approvals`, {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${process.env.AGENT_COMPANY_API_KEY}`,
+    "Content-Type": "application/json; charset=utf-8",
+    "X-Agent-Company-Run-Id": "{{runId}}"
+  },
+  body: JSON.stringify({
+    type: "approve_ceo_strategy",
+    payloadSummary: "<who reports to whom, which goal each lead owns>",
+    impactSummary: "<why this shape>",
+    payloadJson: "{}"
+  })
+});
 ```
 
 The API enforces the order. It returns `409 STRATEGY_BEFORE_HIRES` if no hires exist and `409 STRATEGY_ALREADY_FILED` if you try to submit twice. Don't fight the gate.
@@ -58,11 +69,21 @@ The filesystem analysis (ls, cat README, skim config) is optional — only run i
 
 File one goal first, then return to the hire block above in the same wake:
 
-```bash
-curl -s -X POST "$AGENT_COMPANY_API_URL/api/companies/{{companyId}}/goals" \
-  -H "Authorization: Bearer $AGENT_COMPANY_API_KEY" -H "Content-Type: application/json" \
-  -H "X-Agent-Company-Run-Id: {{runId}}" \
-  -d '{"title":"<goal>","description":"<measurable success criteria>","ownerAgentId":"{{agentId}}","status":"active"}'
+```javascript
+await fetch(`${process.env.AGENT_COMPANY_API_URL}/api/companies/{{companyId}}/goals`, {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${process.env.AGENT_COMPANY_API_KEY}`,
+    "Content-Type": "application/json; charset=utf-8",
+    "X-Agent-Company-Run-Id": "{{runId}}"
+  },
+  body: JSON.stringify({
+    title: "<goal>",
+    description: "<measurable success criteria>",
+    ownerAgentId: "{{agentId}}",
+    status: "active"
+  })
+});
 ```
 
 ## Self-assignment is rejected
