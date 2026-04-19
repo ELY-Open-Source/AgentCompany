@@ -266,8 +266,13 @@ export function reconcileWorkspaceArtifacts(
   if (change.source === "none") {
     return [{ kind: "skipped", reason: change.skipReason ?? "no_changes" }];
   }
-  if (change.paths.length === 0) return [{ kind: "skipped", reason: "no_changes" }];
-  return projectChangedPaths(db, ctx, change.paths);
+  const outcomes = change.paths.length === 0
+    ? [{ kind: "skipped", reason: "no_changes" } satisfies ProjectionOutcome]
+    : projectChangedPaths(db, ctx, change.paths);
+  if (change.coverageTruncated) {
+    outcomes.push({ kind: "skipped", reason: "baseline_truncated" });
+  }
+  return outcomes;
 }
 
 function projectChangedPaths(
@@ -295,9 +300,22 @@ function projectChangedPaths(
 
 /**
  * Compare current workspace mtimes against the run-start baseline.
- * Returns every file whose mtime advanced (modified) or was not in
- * the baseline at all (created). Skipped-dir filtering mirrors the
- * baseline walker so the diff and the capture stay in sync.
+ * Skipped-dir filtering mirrors the baseline walker so the diff and
+ * the capture stay in sync.
+ *
+ * A file is reported as `changed` when either:
+ *
+ *   - its mtime advanced past the captured value, or
+ *   - it was not in the baseline AND the baseline saw the whole tree
+ *     (`baseline.truncated === false`).
+ *
+ * A truncated baseline deliberately stops classifying unsampled files
+ * as new: the walker gave up before reaching them, so we cannot
+ * distinguish a file that was always there from a file the run just
+ * wrote. Falsely registering every one of them as a deliverable is
+ * worse than missing a few that live past the sample cap. Callers
+ * emit a `baseline_truncated` outcome so operators can see the
+ * degraded signal without the bogus rows landing in `work_products`.
  */
 function diffAgainstBaseline(workspacePath: string, baseline: WorkspaceBaseline): string[] {
   const changed: string[] = [];
@@ -330,9 +348,11 @@ function diffAgainstBaseline(workspacePath: string, baseline: WorkspaceBaseline)
       const rel = relative(workspacePath, abs);
       if (rel.length === 0) continue;
       const previous = baseline.mtimeByRelPath.get(rel);
-      if (previous === undefined || mtimeMs > previous) {
-        changed.push(rel);
+      if (previous === undefined) {
+        if (!baseline.truncated) changed.push(rel);
+        continue;
       }
+      if (mtimeMs > previous) changed.push(rel);
     }
   }
   return changed;
@@ -363,6 +383,14 @@ interface ChangeSet {
   paths: string[];
   /** Reason the source chose to skip (only meaningful when source === "none"). */
   skipReason?: string;
+  /**
+   * True when the baseline walker stopped before sampling the whole
+   * tree. Callers surface it as a `baseline_truncated` skip outcome so
+   * the operator can see that unsampled files are deliberately outside
+   * the diff — registering them would falsely claim hundreds of
+   * unchanged files as new deliverables.
+   */
+  coverageTruncated?: boolean;
 }
 
 function collectChangedPaths(ctx: ArtifactProjectorRunContext): ChangeSet {
@@ -375,7 +403,11 @@ function collectChangedPaths(ctx: ArtifactProjectorRunContext): ChangeSet {
     }
   }
   if (ctx.workspaceBaseline) {
-    return { source: "baseline", paths: diffAgainstBaseline(ctx.workspacePath, ctx.workspaceBaseline) };
+    return {
+      source: "baseline",
+      paths: diffAgainstBaseline(ctx.workspacePath, ctx.workspaceBaseline),
+      coverageTruncated: ctx.workspaceBaseline.truncated,
+    };
   }
   return { source: "none", paths: [], skipReason: "no_baseline" };
 }
@@ -388,8 +420,13 @@ function projectBashArtifacts(
   if (change.source === "none") {
     return [{ kind: "skipped", reason: change.skipReason ?? "no_changes" }];
   }
-  if (change.paths.length === 0) return [{ kind: "skipped", reason: "no_changes" }];
-  return projectChangedPaths(db, ctx, change.paths);
+  const outcomes = change.paths.length === 0
+    ? [{ kind: "skipped", reason: "no_changes" } satisfies ProjectionOutcome]
+    : projectChangedPaths(db, ctx, change.paths);
+  if (change.coverageTruncated) {
+    outcomes.push({ kind: "skipped", reason: "baseline_truncated" });
+  }
+  return outcomes;
 }
 
 /**
