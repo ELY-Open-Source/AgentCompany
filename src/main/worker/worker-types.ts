@@ -4,7 +4,7 @@ import type { DesktopEvent, RunRecord } from "@shared/types";
 import type { NotificationOptions } from "../notification-service";
 import type { createBudgetEnforcementService } from "../budget-enforcement-service";
 import type { createSessionManagementService } from "../session-management-service";
-import type { RuntimeBridge } from "../agent-runtime";
+import type { RuntimeBridge, RuntimeMessageInjector } from "../agent-runtime";
 
 const runStatusSchema = z.enum(["queued", "running", "succeeded", "failed", "cancelled", "timed_out", "interrupted"]);
 
@@ -56,6 +56,17 @@ export const workerMessageSchema = z.union([
     ]),
     payload: z.unknown(),
   }),
+  z.object({
+    type: z.literal("run-agent-state"),
+    runId: z.string().uuid(),
+    state: z.enum(["agent_active", "closing"]),
+  }),
+  z.object({
+    type: z.literal("steer-ack"),
+    runId: z.string().uuid(),
+    correlationId: z.string(),
+    accepted: z.boolean(),
+  }),
 ]);
 
 export interface WorkerServiceDependencies {
@@ -92,4 +103,9 @@ export interface WorkerServiceDependencies {
   sessionService?: ReturnType<typeof createSessionManagementService>;
   /** Forwards `agent-event` from worker to renderer and routes RPC to main services. */
   getRuntimeBridge?: () => RuntimeBridge | null;
+  /**
+   * Resolves the shared runtime message injector so `steer-ack` child
+   * messages can commit inbox delivery or trigger a wake fallback.
+   */
+  getRuntimeMessageInjector?: () => RuntimeMessageInjector | null;
 }

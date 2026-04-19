@@ -129,11 +129,13 @@ parentPort.on("message", (event) => {
     return;
   }
   if (message.type === "steer-run") {
-    runner.steer(message.runId, message.message);
-    return;
-  }
-  if (message.type === "followup-run") {
-    runner.followUp(message.runId, message.message);
+    const accepted = runner.steer(message.runId, message.message);
+    post({
+      type: "steer-ack",
+      runId: message.runId,
+      correlationId: message.correlationId,
+      accepted,
+    });
     return;
   }
   if (message.type === "rpc-response") {

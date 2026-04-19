@@ -13,6 +13,7 @@ import {
   handleAfterToolCall,
   handleTransformContext,
   type ActiveRunContext,
+  type ActiveRunLifecycleState,
 } from "./hook-handlers";
 import type {
   AfterToolCallRpcPayload,
@@ -79,12 +80,32 @@ export class RuntimeBridge {
   /** Returns the active run context for a given agent, if any. Used by
    *  main-side services (inbox dispatcher) to decide whether a new inbox
    *  row should route to `agent.steer()` instead of waiting for the next
-   *  `prepareRun` cycle. */
-  findActiveRunForAgent(agentId: string): ActiveRunContext | null {
+   *  `prepareRun` cycle. When `requireSteerReady` is set, only runs whose
+   *  worker-side Agent is actually subscribed (`agent_active`) are
+   *  returned — this avoids steering into `preparing` or `closing` runs
+   *  where the steer would be silently dropped. */
+  findActiveRunForAgent(
+    agentId: string,
+    options?: { requireSteerReady?: boolean },
+  ): ActiveRunContext | null {
     for (const ctx of this.activeRuns.values()) {
-      if (ctx.agentId === agentId) return ctx;
+      if (ctx.agentId !== agentId) continue;
+      if (options?.requireSteerReady && ctx.state !== "agent_active") continue;
+      return ctx;
     }
     return null;
+  }
+
+  /**
+   * Transition an active run between lifecycle phases as the worker
+   * publishes `run-agent-state`. Unknown run ids are ignored: the worker
+   * may publish state for a run that main has already evicted when a
+   * `run-finished` races ahead of the trailing state message.
+   */
+  setRunAgentState(runId: string, state: ActiveRunLifecycleState): void {
+    const ctx = this.activeRuns.get(runId);
+    if (!ctx) return;
+    ctx.state = state;
   }
 
   private getOrCreateStore(taskSessionId: string): SqliteSessionStore {
@@ -268,6 +289,7 @@ export class RuntimeBridge {
       modelId: payload.modelId,
       taskSessionId: payload.taskSessionId,
       workspacePath: payload.workspacePath,
+      state: "preparing",
     });
     const definition = getConnectorDefinition(payload.connectorId);
     const resolved = await this.deps.credentialResolver.resolve(payload.connectorId);

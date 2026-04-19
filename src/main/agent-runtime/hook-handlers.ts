@@ -30,6 +30,24 @@ import {
 } from "./artifact-projector";
 import { compactMessagesIfNeeded } from "./context-compactor";
 
+/**
+ * Lifecycle phase of an active pi run as seen by main.
+ *
+ *  - `preparing`: `prepareRun` RPC has landed; main knows the run is real,
+ *    but the worker has not yet constructed the Agent instance. The
+ *    in-process `activeAgents` map is empty, so any `steer` attempt would
+ *    be silently dropped.
+ *  - `agent_active`: the worker has both constructed the Agent and
+ *    subscribed to its event stream. Steer-run messages are safe to
+ *    dispatch — `agent.steer()` will enqueue onto the live steering queue
+ *    and pi will drain it at the next turn boundary.
+ *  - `closing`: the Agent finished (or aborted) and the worker has
+ *    unsubscribed and removed the instance from `activeAgents`. The
+ *    `run-finished` child message may still be in flight; treat steer
+ *    messages as rejected so inbox delivery falls back to the next run.
+ */
+export type ActiveRunLifecycleState = "preparing" | "agent_active" | "closing";
+
 export interface ActiveRunContext {
   runId: string;
   agentId: string;
@@ -39,6 +57,7 @@ export interface ActiveRunContext {
   modelId: string;
   taskSessionId: string;
   workspacePath: string | null;
+  state: ActiveRunLifecycleState;
 }
 
 export interface HookHandlerDeps {

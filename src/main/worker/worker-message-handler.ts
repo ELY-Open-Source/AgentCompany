@@ -1,4 +1,4 @@
-import type { RuntimeBridge } from "../agent-runtime";
+import type { RuntimeBridge, RuntimeMessageInjector } from "../agent-runtime";
 import type { workerMessageSchema } from "./worker-types";
 import { handleRunLog } from "./handlers/run-log-handler";
 import { handleRunStatus } from "./handlers/run-status-handler";
@@ -8,7 +8,10 @@ import type { HandlerContext, HandlerDeps } from "./handlers/handler-context";
 export async function handleWorkerMessage(
   message: unknown,
   worker: ReturnType<typeof import("electron").utilityProcess.fork> | null,
-  deps: HandlerDeps & { getRuntimeBridge?: () => RuntimeBridge | null },
+  deps: HandlerDeps & {
+    getRuntimeBridge?: () => RuntimeBridge | null;
+    getRuntimeMessageInjector?: () => RuntimeMessageInjector | null;
+  },
   workerMessageSchemaRef: typeof workerMessageSchema,
   destroyed: boolean,
   MAX_RETRY_ATTEMPTS: number,
@@ -81,6 +84,14 @@ export async function handleWorkerMessage(
           `[worker] rpc-response postMessage failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
+      return;
+    }
+    case "run-agent-state": {
+      deps.getRuntimeBridge?.()?.setRunAgentState(event.runId, event.state);
+      return;
+    }
+    case "steer-ack": {
+      deps.getRuntimeMessageInjector?.()?.handleSteerAck(event.correlationId, event.accepted);
       return;
     }
   }

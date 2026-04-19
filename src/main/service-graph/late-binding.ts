@@ -26,6 +26,10 @@ export class LateBinding<T> {
     return this.value;
   }
 
+  isAssigned(): boolean {
+    return this.assigned;
+  }
+
   clear(): void {
     this.value = null;
     this.assigned = false;

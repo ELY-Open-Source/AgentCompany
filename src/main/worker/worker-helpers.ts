@@ -24,17 +24,24 @@ export interface RunJob {
 }
 
 /**
- * Parent → worker control-plane messages. `steer-run` and `followup-run`
- * are the inward half of pi's mid-run injection contract: the worker owns
- * the Agent instance, main owns the inbox DB, so main posts the enqueued
- * user message here and the worker calls `agent.steer()` / `agent.followUp()`.
+ * Parent → worker control-plane messages. `steer-run` is the inward half
+ * of pi's mid-run injection contract: the worker owns the Agent instance,
+ * main owns the inbox DB, so main posts the enqueued user message here and
+ * the worker calls `agent.steer()`.
+ *
+ * `correlationId` pairs each steer with a `steer-ack` child reply so main
+ * can hold the "inbox delivered" write until the worker has queued the
+ * message onto the live Agent. Without the ACK, a steer that lost the
+ * race against run teardown would be silently dropped after main already
+ * marked the row delivered.
  */
+export type RunAgentLifecycleState = "agent_active" | "closing";
+
 export type ParentMessage =
   | { type: "enqueue-run"; payload: RunJob }
   | { type: "cancel-run"; runId: string }
   | { type: "shutdown" }
-  | { type: "steer-run"; runId: string; message: AgentMessage }
-  | { type: "followup-run"; runId: string; message: AgentMessage }
+  | { type: "steer-run"; runId: string; correlationId: string; message: AgentMessage }
   | { type: "rpc-response"; rpcId: string; response: { ok: true; result: unknown } | { ok: false; error: string } };
 
 export type ChildMessage =
@@ -62,7 +69,9 @@ export type ChildMessage =
       emittedAt: string;
       event: { type: string } & Record<string, unknown>;
     }
-  | { type: "rpc-request"; rpcId: string; runId: string; method: string; payload: unknown };
+  | { type: "rpc-request"; rpcId: string; runId: string; method: string; payload: unknown }
+  | { type: "run-agent-state"; runId: string; state: RunAgentLifecycleState }
+  | { type: "steer-ack"; runId: string; correlationId: string; accepted: boolean };
 
 export function buildRedactor(env: Record<string, string>): (text: string) => string {
   const sensitivePatterns: string[] = [];

@@ -7,6 +7,7 @@ import type { createBudgetEnforcementService } from "../budget-enforcement-servi
 import type { createSessionManagementService } from "../session-management-service";
 import type { PiRuntimeServices } from "../service-graph-pi-runtime";
 import type { NotificationOptions } from "../notification-service";
+import type { RuntimeMessageInjector } from "../agent-runtime";
 import type { LateBinding } from "./late-binding";
 
 export interface WorkerServiceDeps {
@@ -29,6 +30,12 @@ export interface WorkerServiceDeps {
   budgetService: ReturnType<typeof createBudgetEnforcementService>;
   sessionService: ReturnType<typeof createSessionManagementService>;
   piRuntimeRef: { current: PiRuntimeServices | null };
+  /**
+   * Resolver for the late-constructed runtime message injector. The worker
+   * message handler needs it to route `steer-ack` child messages, but the
+   * injector is assembled after the worker service itself.
+   */
+  getRuntimeMessageInjector: () => RuntimeMessageInjector | null;
 }
 
 /**
@@ -52,6 +59,7 @@ export function buildWorkerService(deps: WorkerServiceDeps) {
     budgetService,
     sessionService,
     piRuntimeRef,
+    getRuntimeMessageInjector,
   } = deps;
 
   const wakeAgentIfPossible = (agentId: string | null | undefined, companyId: string, trigger: string) =>
@@ -83,5 +91,6 @@ export function buildWorkerService(deps: WorkerServiceDeps) {
     budgetService,
     sessionService,
     getRuntimeBridge: () => piRuntimeRef.current?.runtimeBridge ?? null,
+    getRuntimeMessageInjector,
   });
 }

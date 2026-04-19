@@ -28,8 +28,10 @@ interface RunnerDeps {
  *  - Builds an `Agent` via `createPiAgent` with the full Pi contract.
  *  - Streams every pi `AgentEvent` into the worker → main pipe.
  *  - Persists each `message_end` message through `persistMessage` RPC.
- *  - Exposes `steer` / `followUp` to the worker entry so mid-run
- *    injections from main land on the in-process Agent instance.
+ *  - Exposes `steer` to the worker entry so mid-run injections from
+ *    main land on the in-process Agent instance.
+ *  - Publishes `run-agent-state` transitions so main can tell whether
+ *    an active run is actually ready to accept steer messages.
  */
 export class WorkerRunner {
   private readonly abortControllers = new Map<string, AbortController>();
@@ -43,19 +45,19 @@ export class WorkerRunner {
     if (controller) controller.abort();
   }
 
-  /** Enqueue a steering message onto the active Agent for this run. */
+  /**
+   * Enqueue a steering message onto the active Agent for this run. Returns
+   * true iff the Agent instance exists in `activeAgents` and the message
+   * was appended to its steering queue. A false return means the run has
+   * either not finished construction (pre-`agent_active`) or has already
+   * torn down (post-`closing`); callers must treat the steer as rejected
+   * so main can hold the inbox `delivered_at` write and fall back to the
+   * inbox + wake path instead.
+   */
   steer(runId: string, message: AgentMessage): boolean {
     const agent = this.activeAgents.get(runId);
     if (!agent) return false;
     agent.steer(message);
-    return true;
-  }
-
-  /** Enqueue a follow-up message onto the active Agent for this run. */
-  followUp(runId: string, message: AgentMessage): boolean {
-    const agent = this.activeAgents.get(runId);
-    if (!agent) return false;
-    agent.followUp(message);
     return true;
   }
 
@@ -150,6 +152,7 @@ export class WorkerRunner {
           rpc,
         });
         this.activeAgents.set(job.runId, agent);
+        post({ type: "run-agent-state", runId: job.runId, state: "agent_active" });
 
         const unsubscribe = agent.subscribe(async (event) => {
           const timestamp = new Date().toISOString();
@@ -192,6 +195,7 @@ export class WorkerRunner {
           abortController.signal.addEventListener("abort", () => agent.abort(), { once: true });
           await runPromise;
         } finally {
+          post({ type: "run-agent-state", runId: job.runId, state: "closing" });
           unsubscribe();
           this.activeAgents.delete(job.runId);
         }

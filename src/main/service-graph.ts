@@ -171,6 +171,7 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
       budgetService: leaf.budgetEnforcementService,
       sessionService: leaf.sessionManagementService,
       piRuntimeRef,
+      getRuntimeMessageInjector: () => runtimeMessageInjector,
     });
 
     runtimeMessageInjector = new RuntimeMessageInjector({
@@ -180,6 +181,11 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
         const worker = workerService?.getWorker();
         if (!worker) throw new Error("Worker is not initialised — cannot deliver steer message.");
         worker.postMessage(message);
+      },
+      getWakeAgent: () => {
+        if (!orchestrationRef.isAssigned()) return null;
+        const orch = orchestrationRef.get();
+        return (agentId, companyId, trigger) => orch.wakeAgentIfPossible(agentId, companyId, trigger);
       },
       logger,
     });
