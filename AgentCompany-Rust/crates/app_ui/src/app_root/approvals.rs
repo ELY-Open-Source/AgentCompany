@@ -17,37 +17,10 @@ impl AppRoot {
         div()
             .flex()
             .flex_col()
-            .gap_8()
-            .child(section_title("Agent reviews in progress"))
-            .child(
-                div()
-                    .grid()
-                    .grid_cols(3)
-                    .gap_3()
-                    .when(!groups.board.is_empty(), |container| {
-                        container.child(review_group_card("Board review", groups.board.as_slice()))
-                    })
-                    .when(!groups.user.is_empty(), |container| {
-                        container.child(review_group_card("Human review", groups.user.as_slice()))
-                    })
-                    .when(!groups.manager.is_empty(), |container| {
-                        container.child(review_group_card(
-                            "Manager review",
-                            groups.manager.as_slice(),
-                        ))
-                    })
-                    .when(
-                        groups.board.is_empty()
-                            && groups.user.is_empty()
-                            && groups.manager.is_empty(),
-                        |container| {
-                            container.child(empty_group_card(
-                                "No agent reviews are currently waiting on a human.",
-                            ))
-                        },
-                    ),
-            )
-            .child(section_title("Pending approvals"))
+            .gap_6()
+            .child(section_label("AGENT REVIEWS IN PROGRESS"))
+            .child(render_review_groups_panel(&groups))
+            .child(section_label("PENDING APPROVALS"))
             .child(
                 div()
                     .grid()
@@ -105,14 +78,14 @@ impl AppRoot {
                         .border_color(theme::panel_border())
                         .child(
                             div()
-                                .text_base()
+                                .text_sm()
                                 .text_color(theme::text_primary())
                                 .child(approval.payload_summary.clone()),
                         )
                         .child(
                             div()
                                 .mt(px(4.0))
-                                .text_sm()
+                                .text_xs()
                                 .text_color(theme::text_muted())
                                 .child(format!(
                                     "{} · {}",
@@ -223,6 +196,14 @@ struct ReviewRow<'a> {
     task: &'a domain::Task,
     assignee: Option<&'a domain::Agent>,
     reviewer: Option<&'a domain::Agent>,
+    kind: ReviewKind,
+}
+
+#[derive(Clone, Copy)]
+enum ReviewKind {
+    Board,
+    User,
+    Manager,
 }
 
 fn review_groups(snapshot: &domain::ProfileSnapshot) -> ReviewGroups<'_> {
@@ -249,20 +230,37 @@ fn review_groups(snapshot: &domain::ProfileSnapshot) -> ReviewGroups<'_> {
         let reviewer = assignee
             .and_then(|assignee| assignee.reports_to.as_ref())
             .and_then(|manager_id| snapshot.agents.iter().find(|agent| &agent.id == manager_id));
-        let row = ReviewRow {
-            task,
-            assignee,
-            reviewer,
-        };
-        if pending_approval_task_ids
+
+        let row = if pending_approval_task_ids
             .iter()
             .any(|task_id| *task_id == task.id)
         {
-            board.push(row);
+            ReviewRow {
+                task,
+                assignee,
+                reviewer: None,
+                kind: ReviewKind::Board,
+            }
         } else if task.requires_user_review || reviewer.is_none() {
-            user.push(row);
+            ReviewRow {
+                task,
+                assignee,
+                reviewer: None,
+                kind: ReviewKind::User,
+            }
         } else {
-            manager.push(row);
+            ReviewRow {
+                task,
+                assignee,
+                reviewer,
+                kind: ReviewKind::Manager,
+            }
+        };
+
+        match row.kind {
+            ReviewKind::Board => board.push(row),
+            ReviewKind::User => user.push(row),
+            ReviewKind::Manager => manager.push(row),
         }
     }
 
@@ -273,39 +271,91 @@ fn review_groups(snapshot: &domain::ProfileSnapshot) -> ReviewGroups<'_> {
     }
 }
 
-fn review_group_card(title: &'static str, rows: &[ReviewRow<'_>]) -> impl IntoElement {
+fn render_review_groups_panel(groups: &ReviewGroups<'_>) -> impl IntoElement {
+    let has_rows =
+        !(groups.board.is_empty() && groups.user.is_empty() && groups.manager.is_empty());
     div()
         .rounded_lg()
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
+        .when(has_rows, |container| {
+            container
+                .when(!groups.board.is_empty(), |inner| {
+                    inner.child(review_group_section(
+                        "Board review",
+                        groups.board.as_slice(),
+                    ))
+                })
+                .when(!groups.user.is_empty(), |inner| {
+                    inner.child(review_group_section("Human review", groups.user.as_slice()))
+                })
+                .when(!groups.manager.is_empty(), |inner| {
+                    inner.child(review_group_section(
+                        "Manager review",
+                        groups.manager.as_slice(),
+                    ))
+                })
+        })
+        .when(!has_rows, |container| {
+            container.child(
+                div()
+                    .min_h(px(180.0))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_color(theme::text_muted())
+                    .child("No agent reviews are currently waiting on a human."),
+            )
+        })
+}
+
+fn review_group_section<'a>(
+    title: &'static str,
+    rows: &'a [ReviewRow<'a>],
+) -> impl IntoElement + 'a {
+    div()
         .child(
             div()
                 .px_4()
-                .pt_4()
-                .pb_2()
+                .pt_3()
+                .pb_1()
                 .text_xs()
                 .text_color(theme::text_muted())
                 .child(title),
         )
         .children(rows.iter().map(|row| {
             div()
+                .flex()
+                .items_start()
+                .gap_3()
                 .px_4()
                 .py_3()
                 .border_b_1()
                 .border_color(theme::panel_border())
                 .child(
                     div()
-                        .text_sm()
-                        .text_color(theme::text_primary())
-                        .child(row.task.title.clone()),
+                        .w(px(28.0))
+                        .h(px(28.0))
+                        .rounded_lg()
+                        .bg(theme::panel_muted()),
                 )
                 .child(
                     div()
-                        .mt(px(4.0))
-                        .text_xs()
-                        .text_color(theme::text_muted())
-                        .child(review_row_subtitle(row)),
+                        .flex_1()
+                        .child(
+                            div()
+                                .text_sm()
+                                .text_color(theme::text_primary())
+                                .child(row.task.title.clone()),
+                        )
+                        .child(
+                            div()
+                                .mt(px(4.0))
+                                .text_xs()
+                                .text_color(theme::text_muted())
+                                .child(review_row_subtitle(row)),
+                        ),
                 )
         }))
 }
@@ -315,31 +365,18 @@ fn review_row_subtitle(row: &ReviewRow<'_>) -> String {
         .assignee
         .map(|agent| agent.name.clone())
         .unwrap_or_else(|| "Unassigned".to_string());
-    match row.reviewer {
-        Some(reviewer) => format!("{} → reviewed by {}", assignee, reviewer.name),
-        None => format!("{} · awaiting human review", assignee),
+    match row.kind {
+        ReviewKind::Board => format!("{} · awaits board review", assignee),
+        ReviewKind::User => format!("{} · awaits human review", assignee),
+        ReviewKind::Manager => match row.reviewer {
+            Some(reviewer) => format!("{} → reviewed by {}", assignee, reviewer.name),
+            None => format!("{} · awaiting manager review", assignee),
+        },
     }
 }
 
-fn empty_group_card(message: &'static str) -> impl IntoElement {
-    div()
-        .rounded_lg()
-        .border_1()
-        .border_color(theme::panel_border())
-        .bg(theme::panel())
-        .min_h(px(180.0))
-        .flex()
-        .items_center()
-        .justify_center()
-        .text_color(theme::text_muted())
-        .child(message)
-}
-
-fn section_title(title: &'static str) -> impl IntoElement {
-    div()
-        .text_2xl()
-        .text_color(theme::text_primary())
-        .child(title)
+fn section_label(title: &'static str) -> impl IntoElement {
+    div().text_xs().text_color(theme::text_muted()).child(title)
 }
 
 fn pending_approvals(

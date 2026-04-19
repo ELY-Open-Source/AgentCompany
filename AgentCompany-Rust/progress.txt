@@ -22,3 +22,5 @@ Started: 2026-04-19
 - Completed US-016 dashboard topology remediation. Native overview now follows the original dashboard grammar more closely: recovery and budget banners lead, metric cards are actionable, performance is followed by budget utilization, attention rows route into the correct sections, active work exposes an All runs affordance, and recent activity remains a dedicated trailing section.
 
 - Completed US-017 runs shell remediation. Native runs now follow the original RunQueue + RunDetail grammar more closely: the queue is a dedicated left panel with filtering/search/list rows, the right side is a primary run detail column, and runtime events/artifacts/operator actions are preserved as secondary panels instead of dominating the main operational shell.
+
+- Completed US-018 approvals remediation. Native approvals now use a grouped review-list grammar closer to the original PendingReviewList surface instead of parallel summary cards, while the lower pending-approval inspector still preserves the real approve/reject chain.

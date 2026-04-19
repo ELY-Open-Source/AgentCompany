@@ -238,6 +238,59 @@
       "priority": 17,
       "passes": true,
       "notes": "Passed: native runs now restores the original operational shell more faithfully with a dedicated Run Queue panel on the left and a Run Detail column on the right. Runtime events, artifacts, and operator controls remain available but are demoted to secondary panels below the main detail hierarchy."
+    },
+    {
+      "id": "US-018",
+      "title": "Restore approvals shell and inspector grammar to original review surface",
+      "description": "As an operator, I want approvals and review grouping to mirror the original Electron review surface so that decision work feels identical.",
+      "acceptanceCriteria": [
+        "Approvals page restores source-aligned review grouping and pending approval inspector grammar",
+        "Typecheck passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": "Passed: approvals now restore a source-aligned grouped review list on the upper half instead of custom parallel cards, while the pending approval list/detail decision surface stays wired to real approval state transitions."
+    },
+    {
+      "id": "US-019",
+      "title": "Restore document center and editor grammar to original operational surface",
+      "description": "As an operator, I want the native document center to mirror the original Electron prose/work-product/editor hierarchy so that company documents feel unchanged.",
+      "acceptanceCriteria": [
+        "Document Center restores source-aligned list, work-product, and editor grammar",
+        "Typecheck passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": "Opened after strict current-directory-only source audit."
+    },
+    {
+      "id": "US-020",
+      "title": "Restore inbox and messages operational grammar to original communication surfaces",
+      "description": "As an operator, I want inbox and messages to mirror the original Electron communication hierarchy so that routing, filtering, and thread inspection feel identical.",
+      "acceptanceCriteria": [
+        "Inbox and messages restore source-aligned shell grammar and interaction sequence",
+        "Typecheck passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": "Opened after strict current-directory-only source audit."
+    },
+    {
+      "id": "US-021",
+      "title": "Run current-directory-only final UI parity re-audit",
+      "description": "As a maintainer, I want a final parity audit constrained to current-directory files so that we can honestly track what is still off-source without touching parent repos.",
+      "acceptanceCriteria": [
+        "Current-directory native surfaces are re-audited against original source files",
+        "Remaining deviations are documented in current-directory artifacts only",
+        "cargo clippy --workspace --all-targets --all-features -- -D warnings passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": "Opened after all current-directory surface stories close."
     }
   ]
 }
