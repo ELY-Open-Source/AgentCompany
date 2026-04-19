@@ -1,0 +1,11 @@
+[package]
+name = "support"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+dirs.workspace = true
+time.workspace = true
