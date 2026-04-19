@@ -41,6 +41,33 @@ export function registerApprovalRoutes(server: AgentApiServer) {
       return;
     }
 
+    // Team-building strategy approvals must follow their intended hires.
+    // Accepting an approve_ceo_strategy before any hire_agent requests
+    // exist was observed to re-enter the empty team-building loop (see
+    // comment in ceo-modes/team-building.en.md and §5.2 of 问题.md).
+    // Reject the request at the API boundary so the model cannot
+    // circumvent the ordering by resubmitting.
+    if (input.type === "approve_ceo_strategy") {
+      const companyHireApprovals = db.listCompanyApprovalsByType(companyId, "hire_agent");
+      if (companyHireApprovals.length === 0) {
+        server.json(res, 409, {
+          error: "approve_ceo_strategy requires at least one hire_agent approval to exist first. Submit the intended hires, then file the strategy.",
+          code: "STRATEGY_BEFORE_HIRES",
+        });
+        return;
+      }
+      const existingStrategy = db.listCompanyApprovalsByType(companyId, "approve_ceo_strategy")
+        .find((a) => a.state === "pending" || a.state === "approved");
+      if (existingStrategy) {
+        server.json(res, 409, {
+          error: "approve_ceo_strategy already exists for this company; do not submit another.",
+          code: "STRATEGY_ALREADY_FILED",
+          existingApprovalId: existingStrategy.id,
+        });
+        return;
+      }
+    }
+
     let id: string;
     try {
       id = db.requestApproval({

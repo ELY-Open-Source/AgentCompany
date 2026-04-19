@@ -350,6 +350,19 @@ export function buildApprovalMethods(
     },
 
     /**
+     * Returns every approval in the company whose `type` matches exactly.
+     * Used by the approvals POST route to enforce ordering invariants
+     * (e.g. "approve_ceo_strategy must trail hire_agent").
+     */
+    listCompanyApprovalsByType(companyId: string, type: string): Array<{ id: string; state: string }> {
+      return readAll<{ id: string; state: string }>(
+        `SELECT id, state FROM approvals WHERE company_id = ? AND type = ? ORDER BY created_at ASC`,
+        companyId,
+        type,
+      );
+    },
+
+    /**
      * Returns true when the given agent has a pending review-type approval
      * against one of their tasks. Used by checkpoint-engine to decide
      * whether heartbeat should pause in co-founder mode.

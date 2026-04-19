@@ -344,6 +344,7 @@ export class AppDatabaseBase {
   listApprovalsForApi(companyId: string, filters: { requestedByAgentId?: string; relatedTaskId?: string; statuses?: string[] | null }) { return this.approvalsMod.listApprovalsForApi(companyId, filters); }
   findPendingApprovalForTask(companyId: string, taskId: string) { return this.approvalsMod.findPendingApprovalForTask(companyId, taskId); }
   hasPendingReviewApprovalForAgent(companyId: string, agentId: string) { return this.approvalsMod.hasPendingReviewApprovalForAgent(companyId, agentId); }
+  listCompanyApprovalsByType(companyId: string, type: string) { return this.approvalsMod.listCompanyApprovalsByType(companyId, type); }
 
   // ─── Workspaces ────────────────────────────────────────────────────────────
 
