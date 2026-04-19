@@ -97,6 +97,26 @@ export interface DocumentRecord {
   updatedAt: string;
 }
 
+export interface WorkProductRecord {
+  id: string;
+  companyId: string;
+  projectId: string | null;
+  taskId: string | null;
+  type: string;
+  provider: string;
+  externalId: string | null;
+  title: string;
+  url: string | null;
+  status: string;
+  reviewState: string;
+  isPrimary: boolean;
+  summary: string | null;
+  metadataJson: string | null;
+  createdByRunId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface KnowledgeEntryRecord {
   id: string;
   companyId: string;

@@ -38,6 +38,7 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
     companyProjects,
     companyWorkspaces,
     companyDocuments,
+    companyWorkProducts,
     companyKnowledge,
     companyMeetings,
     companySprints,
@@ -215,6 +216,7 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
         <DocumentCenter
           companyId={currentCompany.id}
           documents={companyDocuments}
+          workProducts={companyWorkProducts}
           agents={companyAgents}
           projects={companyProjects}
           goals={companyGoals}

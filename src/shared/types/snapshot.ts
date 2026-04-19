@@ -22,6 +22,7 @@ import type {
   AutomationRuleRecord,
   AgentMessageRecord,
   WorkflowPipelineRecord,
+  WorkProductRecord,
 } from "./records-extended";
 
 export interface ProfileSnapshot {
@@ -51,6 +52,7 @@ export interface ProfileSnapshot {
   socialAccounts: SocialAccountRecord[];
   meetings: MeetingRecord[];
   documents: DocumentRecord[];
+  workProducts: WorkProductRecord[];
   knowledgeBase: KnowledgeEntryRecord[];
   sprints: SprintRecord[];
   automationRules: AutomationRuleRecord[];
@@ -86,6 +88,7 @@ export const COMPANY_SCOPED_KEYS = [
   "socialAccounts",
   "meetings",
   "documents",
+  "workProducts",
   "knowledgeBase",
   "sprints",
   "automationRules",

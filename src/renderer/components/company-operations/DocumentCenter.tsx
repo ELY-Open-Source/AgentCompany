@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { FileText, FloppyDisk, NotePencil, Trash } from "../ui/icons";
-import type { AgentRecord, DocumentRecord, GoalRecord, ProjectRecord } from "@shared/types";
+import type { AgentRecord, DocumentRecord, GoalRecord, ProjectRecord, WorkProductRecord } from "@shared/types";
 import { ActionButton, ConfirmDialog, InlineNotice, Input, ListFrame, ListRow, Modal, Select, StatusPill, TextArea } from "../ui";
 import { useT } from "../../i18n";
 import { documentTypeOptions, documentStatusOptions, splitTags, parseTags } from "./helpers";
@@ -65,38 +65,101 @@ function DocumentEditor({ companyId, agents, projects, goals, document, onSaved 
   );
 }
 
-export function DocumentCenter({ companyId, documents, agents, projects, goals, onRefresh }: {
-  companyId: string; documents: DocumentRecord[]; agents: AgentRecord[]; projects: ProjectRecord[];
-  goals: GoalRecord[]; onRefresh: () => Promise<void>;
-}) {
+function WorkProductRow({ product }: { product: WorkProductRecord }) {
+  const subtitle = [
+    product.type.replaceAll("_", " "),
+    product.provider,
+    product.externalId ?? product.url ?? null,
+    product.updatedAt.slice(0, 10),
+  ].filter((v): v is string => Boolean(v)).join(" · ");
+  const primaryAction = product.url
+    ? () => { void window.agentCompany.openPath(product.url!); }
+    : product.provider === "filesystem" && product.externalId
+      ? () => { void window.agentCompany.openPath(product.externalId!); }
+      : null;
+  const rowBody = (
+    <div className="min-w-0 flex-1 text-left">
+      <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+        <FileText size={15} className="text-muted-foreground" />
+        <span className="truncate">{product.title}</span>
+      </div>
+      <div className="mt-1 text-[11px] text-muted-foreground">{subtitle}</div>
+    </div>
+  );
+  return (
+    <ListRow>
+      <div className="flex items-start justify-between gap-3">
+        {primaryAction
+          ? <button type="button" className="min-w-0 flex-1 text-left" onClick={primaryAction}>{rowBody}</button>
+          : rowBody}
+        <div className="flex items-center gap-2">
+          <StatusPill status={product.status} />
+        </div>
+      </div>
+    </ListRow>
+  );
+}
+
+interface DocumentCenterProps {
+  companyId: string;
+  documents: DocumentRecord[];
+  workProducts: WorkProductRecord[];
+  agents: AgentRecord[];
+  projects: ProjectRecord[];
+  goals: GoalRecord[];
+  onRefresh: () => Promise<void>;
+}
+
+export function DocumentCenter({ companyId, documents, workProducts, agents, projects, goals, onRefresh }: DocumentCenterProps) {
   const t = useT();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const activeDocument = useMemo(() => documents.find((document) => document.id === editingId) ?? null, [documents, editingId]);
 
+  const totalCount = documents.length + workProducts.length;
+
   return (
     <div>
-      <SectionHeader title={t("ops.documentCenter")} count={documents.length} action={() => setEditingId(NEW_ENTITY_ID)} />
-      <ListFrame>
-        {documents.map((document) => (
-          <ListRow key={document.id}>
-            <div className="flex items-start justify-between gap-3">
-              <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setEditingId(document.id)}>
-                <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
-                  <FileText size={15} className="text-primary" />
-                  <span className="truncate">{document.title}</span>
+      <SectionHeader title={t("ops.documentCenter")} count={totalCount} action={() => setEditingId(NEW_ENTITY_ID)} />
+      {documents.length > 0 ? (
+        <div>
+          <div className="px-4 pt-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {t("ops.documentsProse")}
+          </div>
+          <ListFrame>
+            {documents.map((document) => (
+              <ListRow key={document.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setEditingId(document.id)}>
+                    <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+                      <FileText size={15} className="text-primary" />
+                      <span className="truncate">{document.title}</span>
+                    </div>
+                    <div className="mt-1 text-[11px] text-muted-foreground">{document.type.replaceAll("_", " ")} · v{document.version} · {document.updatedAt.slice(0, 10)}</div>
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <StatusPill status={document.status} />
+                    <button type="button" aria-label="Edit document" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={() => setEditingId(document.id)}><NotePencil size={14} /></button>
+                    <button type="button" aria-label="Delete document" className="rounded p-1 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(document.id)}><Trash size={14} /></button>
+                  </div>
                 </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">{document.type.replaceAll("_", " ")} · v{document.version} · {document.updatedAt.slice(0, 10)}</div>
-              </button>
-              <div className="flex items-center gap-2">
-                <StatusPill status={document.status} />
-                <button type="button" aria-label="Edit document" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={() => setEditingId(document.id)}><NotePencil size={14} /></button>
-                <button type="button" aria-label="Delete document" className="rounded p-1 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(document.id)}><Trash size={14} /></button>
-              </div>
-            </div>
-          </ListRow>
-        ))}
-      </ListFrame>
+              </ListRow>
+            ))}
+          </ListFrame>
+        </div>
+      ) : null}
+      {workProducts.length > 0 ? (
+        <div>
+          <div className="px-4 pt-4 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {t("ops.documentsWorkProducts")}
+          </div>
+          <ListFrame>
+            {workProducts.map((product) => (
+              <WorkProductRow key={product.id} product={product} />
+            ))}
+          </ListFrame>
+        </div>
+      ) : null}
       <Modal open={editingId !== null} title={activeDocument ? activeDocument.title : "New document"} onClose={() => setEditingId(null)} width="760px">
         <DocumentEditor companyId={companyId} agents={agents} projects={projects} goals={goals} document={editingId === NEW_ENTITY_ID ? null : activeDocument} onSaved={async () => { setEditingId(null); await onRefresh(); }} />
       </Modal>

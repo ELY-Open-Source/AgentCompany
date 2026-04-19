@@ -172,6 +172,7 @@ export function useCompanyController() {
     filteredActivity: companyData.filteredActivity,
     companySecrets: companyData.companySecrets,
     companyDocuments: companyData.companyDocuments,
+    companyWorkProducts: companyData.companyWorkProducts,
     companyKnowledge: companyData.companyKnowledge,
     companyMeetings: companyData.companyMeetings,
     companySprints: companyData.companySprints,

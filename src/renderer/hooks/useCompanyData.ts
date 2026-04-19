@@ -37,6 +37,7 @@ export function useCompanyData(
   const filteredActivity = useMemo(() => filterByCompany(snapshot?.activity, currentCompany), [snapshot, currentCompany]);
   const companySecrets = useMemo(() => filterByCompany(snapshot?.secrets, currentCompany), [snapshot, currentCompany]);
   const companyDocuments = useMemo(() => filterByCompany(snapshot?.documents, currentCompany), [snapshot, currentCompany]);
+  const companyWorkProducts = useMemo(() => filterByCompany(snapshot?.workProducts, currentCompany), [snapshot, currentCompany]);
   const companyKnowledge = useMemo(() => filterByCompany(snapshot?.knowledgeBase, currentCompany), [snapshot, currentCompany]);
   const companyMeetings = useMemo(() => filterByCompany(snapshot?.meetings, currentCompany), [snapshot, currentCompany]);
   const companySprints = useMemo(() => filterByCompany(snapshot?.sprints, currentCompany), [snapshot, currentCompany]);
@@ -109,6 +110,7 @@ export function useCompanyData(
     filteredActivity,
     companySecrets,
     companyDocuments,
+    companyWorkProducts,
     companyKnowledge,
     companyMeetings,
     companySprints,
@@ -134,6 +136,7 @@ export function useCompanyData(
     filteredActivity,
     companySecrets,
     companyDocuments,
+    companyWorkProducts,
     companyKnowledge,
     companyMeetings,
     companySprints,

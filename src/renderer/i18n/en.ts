@@ -871,6 +871,8 @@ export const en: Record<string, string> = {
 
   // ── Company Operations ──
   "ops.documentCenter": "Document Center",
+  "ops.documentsProse": "Prose documents",
+  "ops.documentsWorkProducts": "Files & deliverables",
   "ops.knowledgeBase": "Knowledge Base",
   "ops.meetings": "Meetings",
   "ops.sprintBoard": "Sprint Board",

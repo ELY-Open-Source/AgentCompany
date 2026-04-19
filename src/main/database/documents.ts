@@ -299,6 +299,34 @@ export function buildDocumentMethods(
       }));
     },
 
+    /**
+     * Company-scoped work-product listing, newest first. Used by the
+     * renderer snapshot so the DocumentCenter can surface filesystem
+     * artifacts (type = "file") the agents produce via bash/write/edit
+     * — these are the deliverables operators expect to see alongside
+     * prose documents, so the page stops looking empty when every
+     * artifact of the night lives in `work_products`.
+     */
+    listWorkProductsForCompany(companyId: string, limit = 500) {
+      return readAll<{
+        id: string; company_id: string; project_id: string | null; task_id: string | null;
+        type: string; provider: string; external_id: string | null; title: string;
+        url: string | null; status: string; review_state: string; is_primary: number;
+        summary: string | null; metadata_json: string | null; created_by_run_id: string | null;
+        created_at: string; updated_at: string;
+      }>(
+        "SELECT * FROM work_products WHERE company_id = ? ORDER BY updated_at DESC LIMIT ?",
+        companyId, limit,
+      ).map((r) => ({
+        id: r.id, companyId: r.company_id, projectId: r.project_id, taskId: r.task_id,
+        type: r.type, provider: r.provider, externalId: r.external_id, title: r.title,
+        url: r.url, status: r.status, reviewState: r.review_state,
+        isPrimary: Boolean(r.is_primary), summary: r.summary,
+        metadataJson: r.metadata_json, createdByRunId: r.created_by_run_id,
+        createdAt: r.created_at, updatedAt: r.updated_at,
+      }));
+    },
+
     deleteWorkProduct(id: string, companyId: string): number {
       const result = getDb()
         .prepare("DELETE FROM work_products WHERE id = ? AND company_id = ?")

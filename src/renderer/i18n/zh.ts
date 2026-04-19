@@ -871,6 +871,8 @@ export const zh: Record<string, string> = {
 
   // ── 公司运营 ──
   "ops.documentCenter": "文档中心",
+  "ops.documentsProse": "文稿",
+  "ops.documentsWorkProducts": "文件与交付物",
   "ops.knowledgeBase": "知识库",
   "ops.meetings": "会议",
   "ops.sprintBoard": "迭代看板",
