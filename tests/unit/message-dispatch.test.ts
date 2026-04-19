@@ -125,7 +125,7 @@ function createScaffold(db: AppDatabase) {
 }
 
 describe("message dispatch", () => {
-  it("wakes top-level active agents for company messages and active agents for incident messages", async () => {
+  it("wakes every active agent for company channel broadcasts (Slack-style all-hands)", async () => {
     const profileDir = await createTempDir("agentcompany-message-dispatch-");
     const db = new AppDatabase(profileDir);
     db.init();
@@ -141,12 +141,12 @@ describe("message dispatch", () => {
       fromAgentId: HUMAN_SENDER_ID,
       fromHumanUser: true,
       channel: "company",
-      body: "Board broadcast",
+      body: "All-hands broadcast",
     });
 
     expect(companyResult.ok).toBe(true);
     if (!companyResult.ok) throw new Error("Expected company message dispatch to succeed.");
-    expect(companyResult.data.wakeTargets).toEqual([ceoId]);
+    expect(new Set(companyResult.data.wakeTargets)).toEqual(new Set([ceoId, ctoId, cmoId]));
 
     const incidentResult = dispatchAgentMessage({
       db,

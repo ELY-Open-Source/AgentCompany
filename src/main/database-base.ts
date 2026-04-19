@@ -253,6 +253,7 @@ export class AppDatabaseBase {
   countActiveRunsForAgent(agentId: string, companyId: string) { return this.agents.countActiveRunsForAgent(agentId, companyId); }
   listDepartmentAgentIds(companyId: string, department: string) { return this.agents.listDepartmentAgentIds(companyId, department); }
   listTopLevelAgentIds(companyId: string) { return this.agents.listTopLevelAgentIds(companyId); }
+  listCompanyBroadcastAgentIds(companyId: string) { return this.agents.listCompanyBroadcastAgentIds(companyId); }
   listIncidentPingableAgentIds(companyId: string) { return this.agents.listIncidentPingableAgentIds(companyId); }
   findAgentName(agentId: string) { return this.agents.findAgentName(agentId); }
   listAgentNamesByIds(companyId: string, agentIds: readonly string[]) { return this.agents.listAgentNamesByIds(companyId, agentIds); }

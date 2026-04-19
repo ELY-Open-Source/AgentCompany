@@ -17,7 +17,8 @@ channelTargetId rules:
   - channel "incident": set channelTargetId to null
 Direct messages WAKE the recipient immediately. Use this when you need another agent to act.
 Department messages wake all members of that department.
-Company-wide messages wake the CEO. Incident messages are visible company-wide.
+Company-wide messages wake every active agent in the company — treat this channel like an all-hands broadcast, not a CEO inbox. For board-only announcements, DM the top-level agents directly or open an incident.
+Incident messages are visible company-wide and pull the broader pingable set (including paused-by-budget agents).
 Example — send urgent message to a peer:
   curl -s -X POST "$AGENT_COMPANY_API_URL/api/companies/{{companyId}}/messages" \
     -H "Authorization: Bearer $AGENT_COMPANY_API_KEY" \

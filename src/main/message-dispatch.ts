@@ -231,7 +231,11 @@ export function resolveMessageWakeTargets(
   }
 
   if (input.channel === "company") {
-    for (const agentId of db.listTopLevelAgentIds(input.companyId)) {
+    // Company channel is Slack-semantics: every active agent in the
+    // workspace is a listener. Board-only fan-outs use the dedicated
+    // `incident` channel; the previous top-level-only fan-out made the
+    // "company" label a misnomer that silently dropped ICs.
+    for (const agentId of db.listCompanyBroadcastAgentIds(input.companyId)) {
       if (agentId !== input.fromAgentId) wakeTargets.add(agentId);
     }
   }
