@@ -13,6 +13,7 @@ import { registerOAuthIpcHandlers } from "./ipc-oauth-handlers";
 import { fail } from "./ipc-core-common";
 import type { ThreadIntegrationService } from "./thread-integration";
 import type { createCheckpointEngine } from "./checkpoint-engine";
+import type { DocumentLifecycleProcessor } from "./document-lifecycle-processor";
 
 type BootstrapResult = Awaited<ReturnType<typeof bootstrapApplication>>;
 
@@ -23,6 +24,7 @@ interface MainRuntimeState {
   ipcSupport: BootstrapResult["ipcSupport"] | null;
   threadIntegration: ThreadIntegrationService | null;
   checkpointEngine: ReturnType<typeof createCheckpointEngine> | null;
+  lifecycleProcessor: DocumentLifecycleProcessor | null;
 }
 
 export function createMainRuntimeSupport(state: MainRuntimeState) {
@@ -107,6 +109,13 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       throw new Error("Checkpoint engine is not initialized.");
     }
     return state.checkpointEngine;
+  }
+
+  function requireLifecycleProcessor() {
+    if (!state.lifecycleProcessor) {
+      throw new Error("Document lifecycle processor is not initialized.");
+    }
+    return state.lifecycleProcessor;
   }
 
   function emitEvent(event: Parameters<BootstrapResult["ipcSupport"]["emitEvent"]>[0]) {
@@ -209,6 +218,7 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       },
       threadIntegration: requireThreadIntegration(),
       checkpointEngine: requireCheckpointEngine(),
+      lifecycleProcessor: requireLifecycleProcessor(),
     });
 
     const piRuntime = requireServiceGraph().getPiRuntime();

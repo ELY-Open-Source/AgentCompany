@@ -25,6 +25,7 @@ import { IMPORTANT_DOC_TYPE_SET } from "@shared/document-categories";
 import type { AppDatabase } from "./database";
 import type { ThreadIntegrationService } from "./thread-integration";
 import type { createCheckpointEngine } from "./checkpoint-engine";
+import type { DocumentLifecycleProcessor } from "./document-lifecycle-processor";
 
 export type CheckpointEngineLike = Pick<
   ReturnType<typeof createCheckpointEngine>,
@@ -35,8 +36,14 @@ export interface DocumentLifecycleDeps {
   db: AppDatabase;
   threadIntegration: ThreadIntegrationService;
   checkpointEngine: CheckpointEngineLike;
-  dispatchAutomation: (trigger: string, ctx: { companyId: string; [key: string]: unknown }) => void;
-  wakeAgentIfPossible: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
+  /**
+   * Drains the ledger rows this save enqueued. The processor reads from
+   * `document_lifecycle_events` (not from an in-memory closure) so a
+   * crash between commit and dispatch is self-healing — the next sweep
+   * picks up anything left as `pending`. Callers still see the immediate
+   * happy-path outcome because `drainForDocument` is synchronous.
+   */
+  lifecycleProcessor: Pick<DocumentLifecycleProcessor, "drainForDocument">;
   publishDomainChanged: () => void;
   logger: {
     warn: (...args: unknown[]) => void;
@@ -70,18 +77,10 @@ export interface DocumentLifecycleOutcome {
 
 export type SideEffectHook = "automation_dispatch" | "reviewer_wake";
 
-interface PendingSideEffect {
-  eventId: string;
-  hook: SideEffectHook;
-  run: () => void;
-}
-
 export function createDocumentWithLifecycle(
   deps: DocumentLifecycleDeps,
   input: DocumentLifecycleInput,
 ): DocumentLifecycleOutcome {
-  const pendingSideEffects: PendingSideEffect[] = [];
-
   const outcome = deps.db.withTransaction(() => {
     const isNew = !input.id;
     const id = deps.db.saveDocument(input);
@@ -109,9 +108,12 @@ export function createDocumentWithLifecycle(
         deliverableReviewApprovalId = maybeRaiseDeliverableReviewApproval(deps, input, id, taskId);
       }
 
-      // Side effects (cross-process / advisory) land in the ledger so
-      // a post-commit failure is observable instead of a silent gap.
-      const automationEventId = deps.db.documentLifecycleEvents.enqueue({
+      // Side effects (cross-process / advisory) land in the ledger as
+      // `pending` rows. The processor drains them post-commit — not a
+      // memoised closure — so a crash between this commit and the first
+      // handler attempt is self-healing: the periodic sweeper picks the
+      // row up on its next tick.
+      deps.db.documentLifecycleEvents.enqueue({
         companyId: input.companyId,
         documentId: id,
         hookType: "automation_dispatch",
@@ -121,31 +123,13 @@ export function createDocumentWithLifecycle(
           projectId: input.projectId,
         }),
       });
-      pendingSideEffects.push({
-        eventId: automationEventId,
-        hook: "automation_dispatch",
-        run: () => deps.dispatchAutomation("document_created", {
-          companyId: input.companyId,
-          agentId: input.authorAgentId ?? undefined,
-          projectId: input.projectId ?? undefined,
-        }),
-      });
 
       if (input.reviewerAgentId && input.reviewerAgentId !== input.authorAgentId) {
-        const wakeEventId = deps.db.documentLifecycleEvents.enqueue({
+        deps.db.documentLifecycleEvents.enqueue({
           companyId: input.companyId,
           documentId: id,
           hookType: "reviewer_wake",
           payloadJson: JSON.stringify({ reviewerAgentId: input.reviewerAgentId }),
-        });
-        const reviewerAgentId = input.reviewerAgentId;
-        const companyId = input.companyId;
-        pendingSideEffects.push({
-          eventId: wakeEventId,
-          hook: "reviewer_wake",
-          run: () => {
-            deps.wakeAgentIfPossible(reviewerAgentId, companyId, "assignment");
-          },
         });
       }
     }
@@ -153,40 +137,22 @@ export function createDocumentWithLifecycle(
     return { id, isNew, taskId, deliverableReviewApprovalId };
   });
 
-  for (const pending of pendingSideEffects) {
-    runSideEffect(deps, pending);
+  if (outcome.isNew) {
+    // Immediate synchronous drain so the happy path behaves identically
+    // to the pre-processor layout. A failure inside the processor is
+    // recorded on the ledger row — the ledger, not an in-memory list,
+    // is what the periodic sweeper retries against.
+    try {
+      deps.lifecycleProcessor.drainForDocument(outcome.id);
+    } catch (error) {
+      deps.logger.warn(
+        `[document-lifecycle] drainForDocument(${outcome.id}) threw: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   deps.publishDomainChanged();
   return outcome;
-}
-
-function runSideEffect(deps: DocumentLifecycleDeps, pending: PendingSideEffect): void {
-  try {
-    deps.db.documentLifecycleEvents.markRunning(pending.eventId);
-  } catch (error) {
-    deps.logger.warn(
-      `[document-lifecycle] markRunning failed for ${pending.eventId}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return;
-  }
-
-  try {
-    pending.run();
-    deps.db.documentLifecycleEvents.markSucceeded(pending.eventId);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    deps.logger.error(
-      `[document-lifecycle] hook ${pending.hook} failed for event ${pending.eventId}: ${message}`,
-    );
-    try {
-      deps.db.documentLifecycleEvents.markFailed(pending.eventId, message);
-    } catch (markError) {
-      deps.logger.warn(
-        `[document-lifecycle] markFailed failed for ${pending.eventId}: ${markError instanceof Error ? markError.message : String(markError)}`,
-      );
-    }
-  }
 }
 
 function deriveTaskIdFromRun(

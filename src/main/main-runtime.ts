@@ -6,6 +6,7 @@ import { AppDatabase } from "./database";
 import { createMainRuntimeSupport } from "./main-runtime-support";
 import type { ThreadIntegrationService } from "./thread-integration";
 import type { createCheckpointEngine } from "./checkpoint-engine";
+import type { DocumentLifecycleProcessor } from "./document-lifecycle-processor";
 
 interface CreateMainRuntimeDependencies {
   hasSingleInstanceLock: boolean;
@@ -39,6 +40,7 @@ export function createMainRuntime({
     ipcSupport: Awaited<ReturnType<typeof bootstrapApplication>>["ipcSupport"] | null;
     threadIntegration: ThreadIntegrationService | null;
     checkpointEngine: ReturnType<typeof createCheckpointEngine> | null;
+    lifecycleProcessor: DocumentLifecycleProcessor | null;
     isQuitting: boolean;
   } = {
     db: null,
@@ -47,6 +49,7 @@ export function createMainRuntime({
     ipcSupport: null,
     threadIntegration: null,
     checkpointEngine: null,
+    lifecycleProcessor: null,
     isQuitting: false,
   };
   const support = createMainRuntimeSupport(state);
@@ -83,13 +86,14 @@ export function createMainRuntime({
           state.isQuitting = value;
         },
       },
-      onRuntimeReady: ({ db, apiServer, serviceGraph, ipcSupport, threadIntegration, checkpointEngine }) => {
+      onRuntimeReady: ({ db, apiServer, serviceGraph, ipcSupport, threadIntegration, checkpointEngine, lifecycleProcessor }) => {
         state.db = db;
         state.apiServer = apiServer;
         state.serviceGraph = serviceGraph;
         state.ipcSupport = ipcSupport;
         state.threadIntegration = threadIntegration;
         state.checkpointEngine = checkpointEngine;
+        state.lifecycleProcessor = lifecycleProcessor;
         // Register IPC handlers immediately so the renderer can call loadSnapshot()
         // as soon as the window appears — before connector health checks finish.
         support.registerHandlers();

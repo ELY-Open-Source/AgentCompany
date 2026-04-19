@@ -91,6 +91,7 @@ async function createHarness() {
   });
   const token = createAgentToken(agentId, companyId, run.id);
   const silentLogger = { warn: () => {}, error: () => {} };
+  const noopLifecycleProcessor = { drainForDocument: () => {} };
   const server = createApiServer(db, () => {}, () => null, {
     createDocument: (input) =>
       createDocumentWithLifecycle(
@@ -100,8 +101,7 @@ async function createHarness() {
             onDocumentCreated: () => {},
           } as never,
           checkpointEngine: { onDocumentDrafted: () => null } as never,
-          dispatchAutomation: () => {},
-          wakeAgentIfPossible: () => null,
+          lifecycleProcessor: noopLifecycleProcessor,
           publishDomainChanged: () => {},
           logger: silentLogger,
         },

@@ -7,6 +7,7 @@ import type { AppDatabase } from "./database";
 import type { createSkillService } from "./skill-service";
 import type { createBudgetEnforcementService } from "./budget-enforcement-service";
 import type { CheckpointEngineLike } from "./document-lifecycle";
+import type { DocumentLifecycleProcessor } from "./document-lifecycle-processor";
 import type { ThreadIntegrationService } from "./thread-integration";
 
 interface BrowserActionControl {
@@ -60,6 +61,7 @@ export interface RegisterDomainHandlersDependencies {
    */
   threadIntegration: ThreadIntegrationService;
   checkpointEngine: CheckpointEngineLike;
+  lifecycleProcessor: Pick<DocumentLifecycleProcessor, "drainForDocument">;
 }
 
 export { ok, fail } from "./ipc-core-common";

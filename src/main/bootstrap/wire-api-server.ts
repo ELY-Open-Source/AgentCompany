@@ -12,6 +12,7 @@ import {
   type DocumentLifecycleInput,
   type DocumentLifecycleOutcome,
 } from "../document-lifecycle";
+import type { DocumentLifecycleProcessor } from "../document-lifecycle-processor";
 
 type ServiceGraph = ReturnType<typeof createServiceGraph>;
 type ThreadIntegration = ReturnType<typeof createThreadIntegration>;
@@ -40,6 +41,7 @@ export interface WireApiServerDeps {
   serviceGraph: ServiceGraph;
   threadIntegration: ThreadIntegration;
   checkpointEngine: CheckpointEngine;
+  lifecycleProcessor: DocumentLifecycleProcessor;
   emitEvent: (event: DesktopEvent) => void;
   notify: (options: NotificationOptions) => void;
   publishDomainChanged: () => void;
@@ -110,8 +112,7 @@ export function wireApiServer(deps: WireApiServerDeps): AgentApiServer {
           db: deps.db,
           threadIntegration: deps.threadIntegration,
           checkpointEngine: deps.checkpointEngine,
-          dispatchAutomation,
-          wakeAgentIfPossible,
+          lifecycleProcessor: deps.lifecycleProcessor,
           publishDomainChanged: deps.publishDomainChanged,
           logger: log,
         },

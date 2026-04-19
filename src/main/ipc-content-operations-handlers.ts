@@ -31,10 +31,10 @@ export function registerContentOperationsHandlers({
   ensureCompanyExists,
   findInvalidReference,
   publishDomainChanged,
-  wakeAgentIfPossible,
   dispatchAutomation,
   threadIntegration,
   checkpointEngine,
+  lifecycleProcessor,
   logger,
 }: Pick<
   RegisterDomainHandlersDependencies,
@@ -43,10 +43,10 @@ export function registerContentOperationsHandlers({
   | "ensureCompanyExists"
   | "findInvalidReference"
   | "publishDomainChanged"
-  | "wakeAgentIfPossible"
   | "dispatchAutomation"
   | "threadIntegration"
   | "checkpointEngine"
+  | "lifecycleProcessor"
   | "logger"
 >) {
   registerHandle(IPC_CHANNELS.saveMeeting, async (_event, payload) => {
@@ -106,8 +106,7 @@ export function registerContentOperationsHandlers({
         db,
         threadIntegration,
         checkpointEngine,
-        dispatchAutomation,
-        wakeAgentIfPossible,
+        lifecycleProcessor,
         publishDomainChanged,
         logger,
       },

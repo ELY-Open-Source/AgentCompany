@@ -7,6 +7,11 @@ import type { createServiceGraph } from "./service-graph";
 import type { createIpcSupport } from "./ipc-support";
 import type { createThreadIntegration } from "./thread-integration";
 import type { createCheckpointEngine } from "./checkpoint-engine";
+import {
+  DocumentLifecycleProcessor,
+  makeLifecycleProcessorOptions,
+} from "./document-lifecycle-processor";
+import { registerLifecycleHandlers } from "./document-lifecycle-handlers";
 import { prepareLogger } from "./bootstrap/prepare-logger";
 import { prepareDatabase } from "./bootstrap/prepare-database";
 import { prepareServices } from "./bootstrap/prepare-services";
@@ -39,6 +44,7 @@ interface BootstrapApplicationDependencies {
     ipcSupport: ReturnType<typeof createIpcSupport>;
     threadIntegration: ReturnType<typeof createThreadIntegration>;
     checkpointEngine: ReturnType<typeof createCheckpointEngine>;
+    lifecycleProcessor: DocumentLifecycleProcessor;
   }) => void;
 }
 
@@ -82,11 +88,24 @@ export async function bootstrapApplication(deps: BootstrapApplicationDependencie
     return orchestration.wakeAgentIfPossible(agentId, companyId, trigger);
   };
 
+  const lifecycleProcessor = new DocumentLifecycleProcessor(
+    makeLifecycleProcessorOptions({ db, logger: log }),
+  );
+  registerLifecycleHandlers(lifecycleProcessor, {
+    dispatchAutomation: (trigger, ctx) => {
+      const automation = serviceGraph.getAutomationService();
+      if (!automation) throw new Error("Automation service is not initialized.");
+      automation.dispatchAutomation(trigger, ctx);
+    },
+    wakeAgentIfPossible,
+  });
+
   const apiServer = wireApiServer({
     db,
     serviceGraph,
     threadIntegration,
     checkpointEngine,
+    lifecycleProcessor,
     emitEvent,
     notify,
     publishDomainChanged,
@@ -97,7 +116,18 @@ export async function bootstrapApplication(deps: BootstrapApplicationDependencie
 
   apiServerRef.current = apiServer;
   await apiServer.start();
-  deps.onRuntimeReady?.({ db, apiServer, serviceGraph, ipcSupport, threadIntegration, checkpointEngine });
+  deps.onRuntimeReady?.({
+    db,
+    apiServer,
+    serviceGraph,
+    ipcSupport,
+    threadIntegration,
+    checkpointEngine,
+    lifecycleProcessor,
+  });
+
+  lifecycleProcessor.start();
+  app.on("before-quit", () => lifecycleProcessor.stop());
 
   if (apiServer && serviceGraph.getBrowserActionService()) {
     apiServer.setBrowserActionHandler(async (actionId, companyId) => {
