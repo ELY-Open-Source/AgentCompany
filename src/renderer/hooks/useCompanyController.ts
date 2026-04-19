@@ -35,7 +35,6 @@ export function useCompanyController() {
   const clearCompanyScopedUiState = useCallback(() => {
     const store = useAppStore.getState();
     store.clearCompanyScopedSelections();
-    store.setInboxItems([]);
     store.setCompanyMetrics(null);
     store.setStandupReport(null);
     store.setSocialAccounts([]);

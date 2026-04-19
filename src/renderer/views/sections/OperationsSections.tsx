@@ -1,4 +1,6 @@
+import { useMemo } from "react";
 import type { SectionId } from "@shared/types";
+import { deriveInboxItems } from "@shared/inbox-items";
 import { Inbox } from "../../components/inbox/Inbox";
 import { StandupView } from "../../components/inbox/StandupView";
 import { PerformanceView } from "../../components/inbox/PerformanceView";
@@ -47,7 +49,10 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
   } = useSectionContext();
   const { refresh, openPathWithFeedback, setError } = useAppActions();
 
-  const inboxItems = useAppStore((s) => s.inboxItems);
+  const inboxItems = useMemo(
+    () => (snapshot ? deriveInboxItems(snapshot, currentCompany?.id ?? null) : []),
+    [snapshot, currentCompany?.id],
+  );
   const companyMetrics = useAppStore((s) => s.companyMetrics);
   const standupReport = useAppStore((s) => s.standupReport);
   const socialAccounts = useAppStore((s) => s.socialAccounts);

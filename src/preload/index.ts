@@ -43,7 +43,6 @@ const api: DesktopApi = {
   addComment: (input) => ipcRenderer.invoke(IPC_CHANNELS.addComment, input),
   setHeartbeat: (input) => ipcRenderer.invoke(IPC_CHANNELS.setHeartbeat, input),
   triggerHeartbeat: (input) => ipcRenderer.invoke(IPC_CHANNELS.triggerHeartbeat, input),
-  getInbox: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.getInbox, companyId),
   getCompanyMetrics: (input) => ipcRenderer.invoke(IPC_CHANNELS.getCompanyMetrics, input),
   getStandupReport: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.getStandupReport, companyId),
   bootstrapOnboarding: (input) => ipcRenderer.invoke(IPC_CHANNELS.bootstrapOnboarding, input),

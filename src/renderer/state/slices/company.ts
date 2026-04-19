@@ -4,17 +4,17 @@ import type {
   AgentRecord,
   ApprovalRecord,
   CompanyMetrics,
-  InboxItem,
   ProfileSnapshot,
   RunRecord,
   StandupReport,
   TaskRecord,
 } from "@shared/types";
 
-// Sidebar badge counts live in the renderer — derived from the
-// snapshot on every read via `deriveSidebarBadges` rather than cached
-// on this slice. One source of truth is the snapshot; adding a
-// separate `badges` field here is what let the counters drift.
+// Sidebar badge counts and inbox items both live in the renderer —
+// derived on every read from the snapshot (see `@shared/sidebar-badges`
+// and `@shared/inbox-items`). The snapshot is the only source of
+// truth; caching a separate `badges` or `inboxItems` field on this
+// slice is what let the counters drift against the rendered content.
 export interface CompanySlice {
   snapshot: ProfileSnapshot | null;
   /**
@@ -26,12 +26,10 @@ export interface CompanySlice {
   snapshotRevision: number;
   companyMetrics: CompanyMetrics | null;
   standupReport: StandupReport | null;
-  inboxItems: InboxItem[];
   error: string | null;
   setSnapshot: (snapshot: ProfileSnapshot | null) => void;
   setCompanyMetrics: (metrics: CompanyMetrics | null) => void;
   setStandupReport: (report: StandupReport | null) => void;
-  setInboxItems: (items: InboxItem[]) => void;
   setError: (error: string | null) => void;
   refreshSnapshot: () => Promise<void>;
   patchTask: (task: TaskRecord) => void;
@@ -54,7 +52,6 @@ export const createCompanySlice: StateCreator<
   snapshotRevision: 0,
   companyMetrics: null,
   standupReport: null,
-  inboxItems: [],
   error: null,
   setSnapshot: (snapshot) =>
     set((state) => {
@@ -68,10 +65,6 @@ export const createCompanySlice: StateCreator<
   setStandupReport: (report) =>
     set((state) => {
       state.standupReport = report;
-    }),
-  setInboxItems: (items) =>
-    set((state) => {
-      state.inboxItems = items;
     }),
   setError: (error) =>
     set((state) => {

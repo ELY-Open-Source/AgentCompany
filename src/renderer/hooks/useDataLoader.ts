@@ -24,8 +24,6 @@ export function useDataLoader(
       if (!currentSelectedConnectorId && next.connectors[0]) store.setSelectedConnectorId(next.connectors[0].id);
       if (!currentSelectedRunId && next.runs[0]) store.setSelectedRunId(next.runs[0].id);
       if (next.currentCompanyId) {
-        const inboxResult = await window.agentCompany.getInbox(next.currentCompanyId);
-        if (inboxResult.ok) store.setInboxItems(inboxResult.data);
         store.setSocialAccounts(next.socialAccounts?.filter((a) => a.companyId === next.currentCompanyId) ?? []);
         const browserActionResult = await window.agentCompany.listBrowserActions({ companyId: next.currentCompanyId, limit: 50 });
         if (browserActionResult.ok) {
@@ -49,12 +47,6 @@ export function useDataLoader(
     const companyId = currentCompanyId;
     let cancelled = false;
     const store = useAppStore.getState();
-
-    if (section === "inbox") {
-      void window.agentCompany.getInbox(companyId).then((result) => {
-        if (!cancelled && result.ok) store.setInboxItems(result.data);
-      });
-    }
 
     if (section === "performance") {
       void window.agentCompany.getCompanyMetrics({ companyId, days: 30 }).then((result) => {

@@ -115,13 +115,6 @@ export function registerCoreReadHandlers({
     }
   });
 
-  registerHandle(IPC_CHANNELS.getInbox, (_event, payload) => {
-    const companyId = z.string().uuid().parse(payload);
-    const err = ensureCompanyExists(companyId);
-    if (err) return err;
-    return ok(db.getInbox(companyId));
-  });
-
   registerHandle(IPC_CHANNELS.getCompanyMetrics, (_event, payload) => {
     const input = metricsQuerySchema.parse(payload);
     const err = ensureCompanyExists(input.companyId);

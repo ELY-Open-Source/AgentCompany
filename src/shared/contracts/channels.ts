@@ -35,7 +35,6 @@ export const IPC_CHANNELS = {
   setHeartbeat: "agent-company:set-heartbeat",
   triggerHeartbeat: "agent-company:trigger-heartbeat",
   rendererEvent: "agent-company:event",
-  getInbox: "agent-company:get-inbox",
   getCompanyMetrics: "agent-company:get-company-metrics",
   getStandupReport: "agent-company:get-standup-report",
   bootstrapOnboarding: "agent-company:bootstrap-onboarding",
