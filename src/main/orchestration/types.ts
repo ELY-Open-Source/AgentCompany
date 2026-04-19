@@ -40,7 +40,6 @@ export interface EnqueueRunPayload {
   model: string | null;
   thinkingEffort: string | null;
   env: Record<string, string>;
-  sessionParams: Record<string, unknown> | null;
   systemPrompt: string | null;
   trigger: string | null;
   /** Task session id used by SqliteSessionStore to load/append messages. */

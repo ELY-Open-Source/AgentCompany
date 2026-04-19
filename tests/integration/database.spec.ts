@@ -133,7 +133,6 @@ describe("AppDatabase", () => {
       exitCode: 0,
       signal: null,
       model: "gpt-5-codex",
-      sessionDisplayId: "session-1",
       unattributedCost: false,
     });
 

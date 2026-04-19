@@ -18,25 +18,6 @@ export function buildTaskSessionMethods(
 ) {
   return {
     /**
-     * Stamp pi-ai's transient per-turn state (session resume params,
-     * display id) onto the given agent session row. Called by the
-     * worker's run-finished handler with `event.taskSessionId`.
-     */
-    updateSessionParams(
-      sessionId: string,
-      sessionParams: Record<string, unknown> | null,
-      sessionDisplayId: string | null,
-    ): void {
-      const ts = nowIso();
-      const sessionParamsJson = sessionParams ? JSON.stringify(sessionParams) : null;
-      getDb()
-        .prepare(
-          "update task_sessions set session_params_json = ?, session_display_id = ?, updated_at = ? where id = ?",
-        )
-        .run(sessionParamsJson, sessionDisplayId, ts, sessionId);
-    },
-
-    /**
      * Fetch a session by its primary key. This is the single lookup
      * path — the rotation evaluator, the worker's finalizer, and the
      * turn-context builder all know which session id they want because
@@ -48,8 +29,7 @@ export function buildTaskSessionMethods(
         (getDb()
           .prepare(
             `SELECT id, company_id as companyId, agent_id as agentId,
-       adapter_type as adapterType, session_params_json as sessionParamsJson,
-       session_display_id as sessionDisplayId, last_run_id as lastRunId,
+       adapter_type as adapterType, last_run_id as lastRunId,
        last_error as lastError, run_count as runCount,
        total_input_tokens as totalInputTokens, total_output_tokens as totalOutputTokens,
        rotated_at as rotatedAt, rotation_reason as rotationReason,
@@ -111,9 +91,8 @@ export function buildTaskSessionMethods(
         getDb()
           .prepare(
             `INSERT INTO task_sessions (id, company_id, agent_id, adapter_type,
-              session_params_json, session_display_id, run_count, total_input_tokens,
-              total_output_tokens, created_at, updated_at)
-             VALUES (?, ?, ?, ?, NULL, NULL, 0, 0, 0, ?, ?)`,
+              run_count, total_input_tokens, total_output_tokens, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 0, 0, 0, ?, ?)`,
           )
           .run(sessionId, input.companyId, input.agentId, input.adapterType, ts, ts);
         getDb()
@@ -132,34 +111,22 @@ export function buildTaskSessionMethods(
 
     /**
      * Create a replacement session row after rotation. Inherits the
-     * agent / company / adapter type from the caller; session params
-     * and display id carry forward so the next pi-ai turn can resume.
+     * agent / company / adapter type from the caller. Counters start
+     * at zero — Pi Mono has no per-turn provider state to carry forward.
      */
     createNewSession(input: {
       companyId: string;
       agentId: string;
       adapterType: string;
-      sessionParamsJson: string | null;
-      sessionDisplayId: string | null;
     }): string {
       const sessionId = randomUUID();
       const ts = nowIso();
       getDb()
         .prepare(
-          `INSERT INTO task_sessions (id, company_id, agent_id, adapter_type,
-       session_params_json, session_display_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO task_sessions (id, company_id, agent_id, adapter_type, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
         )
-        .run(
-          sessionId,
-          input.companyId,
-          input.agentId,
-          input.adapterType,
-          input.sessionParamsJson,
-          input.sessionDisplayId,
-          ts,
-          ts,
-        );
+        .run(sessionId, input.companyId, input.agentId, input.adapterType, ts, ts);
       return sessionId;
     },
   };

@@ -141,7 +141,6 @@ function resolveEnabledConnectorModels(
 function resolveSession(
   db: AppDatabase,
   agent: RunDispatchParams["agent"],
-  task: RunDispatchParams["task"],
   companyId: string,
   connectorId: string,
   sessionHandoff: string | null,
@@ -172,23 +171,8 @@ function resolveSession(
     }
   }
 
-  // `sessionParams` / `sessionDisplayId` are transient per-run state pi-ai
-  // stamps onto the session row after a turn (e.g., Gemini's resume id).
-  // They live on the agent session; read directly by session id.
-  let sessionParams: Record<string, unknown> | null = null;
-  let sessionDisplayId: string | null = null;
-  const currentSession = db.getSessionById(currentSessionId);
-  if (currentSession?.sessionParamsJson) {
-    sessionParams = JSON.parse(currentSession.sessionParamsJson) as Record<string, unknown>;
-    sessionDisplayId = currentSession.sessionDisplayId;
-  }
-  // Suppress the unused-parameter warning while keeping the signature
-  // stable — task identity is reported through other fields on the
-  // payload, not through the session row anymore.
-  void task;
-
   return {
-    taskSession: { id: currentSessionId, sessionParams, sessionDisplayId },
+    taskSessionId: currentSessionId,
     sessionHandoff: finalHandoff,
   };
 }
@@ -292,7 +276,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
   const reviewTasks = db.listReviewTasksForManager(agent.id, companyId);
   const recentComments = assembleRecentComments(assignedTasks, reviewTasks, snapshot);
   const initialHandoff = resolveSessionHandoff(agent.id, deps);
-  const { taskSession, sessionHandoff } = resolveSession(db, agent, task, companyId, connector.id, initialHandoff, deps);
+  const { taskSessionId, sessionHandoff } = resolveSession(db, agent, companyId, connector.id, initialHandoff, deps);
   const skills = resolveSkills(companyId, agent.id, connector.id, agent.name, deps);
 
   const systemPrompt = apiUrl ? buildTaskPrompt({
@@ -363,10 +347,9 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     model: modelSelection.effectiveModel,
     thinkingEffort,
     env,
-    sessionParams: taskSession.sessionParams,
     systemPrompt,
     trigger,
-    taskSessionId: taskSession.id ?? runId,
+    taskSessionId: taskSessionId ?? runId,
     executionMode: db.getCompanyExecutionMode(companyId) as "ai_ceo" | "ai_cofounder",
   };
 }

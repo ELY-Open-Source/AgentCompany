@@ -192,7 +192,6 @@ export interface RunRecord {
   exitCode: number | null;
   signal: string | null;
   model: string | null;
-  sessionDisplayId: string | null;
   costUsd: number | null;
   unattributedCost: boolean;
   startedAt: string | null;
@@ -275,8 +274,6 @@ export interface TaskSessionRecord {
   companyId: string;
   agentId: string;
   adapterType: string;
-  sessionParamsJson: string | null;
-  sessionDisplayId: string | null;
   lastRunId: string | null;
   lastError: string | null;
   runCount: number;

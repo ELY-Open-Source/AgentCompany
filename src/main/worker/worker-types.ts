@@ -30,8 +30,6 @@ export const workerMessageSchema = z.union([
     exitCode: z.number().int().nullable(),
     signal: z.string().nullable(),
     model: z.string().nullable(),
-    sessionParams: z.record(z.string(), z.unknown()).nullable(),
-    sessionDisplayId: z.string().nullable(),
     unattributedCost: z.boolean(),
     inputTokens: z.number().nullable(),
     outputTokens: z.number().nullable(),

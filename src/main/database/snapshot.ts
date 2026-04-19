@@ -83,7 +83,7 @@ export function buildSnapshotMethods(
         ...companyArgs,
       ),
       runs: readAll<RunRecord>(
-        `select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId, connector_id as connectorId, status, summary, error_message as errorMessage, exit_code as exitCode, signal, model, session_display_id as sessionDisplayId, cost_usd as costUsd, unattributed_cost as unattributedCost, started_at as startedAt, finished_at as finishedAt, log_path as logPath, created_at as createdAt, updated_at as updatedAt from runs${companyWhere} order by created_at desc limit ${companyId ? 2000 : 2000}`,
+        `select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId, connector_id as connectorId, status, summary, error_message as errorMessage, exit_code as exitCode, signal, model, cost_usd as costUsd, unattributed_cost as unattributedCost, started_at as startedAt, finished_at as finishedAt, log_path as logPath, created_at as createdAt, updated_at as updatedAt from runs${companyWhere} order by created_at desc limit ${companyId ? 2000 : 2000}`,
         ...companyArgs,
       ).map((record) => ({ ...record, unattributedCost: Boolean(record.unattributedCost) })) as RunRecord[],
       costs: readAll<CostRecord>(

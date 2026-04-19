@@ -296,7 +296,6 @@ describe("AppDatabase", () => {
       exitCode: 0,
       signal: null,
       model: "gpt-5",
-      sessionDisplayId: "session-budget",
       unattributedCost: false,
     });
 
@@ -515,7 +514,6 @@ describe("AppDatabase", () => {
       exitCode: 0,
       signal: null,
       model: null,
-      sessionDisplayId: null,
       unattributedCost: true,
     });
 

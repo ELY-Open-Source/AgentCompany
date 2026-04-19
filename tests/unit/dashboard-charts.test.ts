@@ -27,7 +27,6 @@ function makeRun(overrides: Partial<RunRecord> = {}): RunRecord {
     exitCode: null,
     signal: null,
     model: null,
-    sessionDisplayId: null,
     costUsd: null,
     unattributedCost: false,
     startedAt: null,

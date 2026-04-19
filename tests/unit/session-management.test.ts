@@ -106,8 +106,6 @@ describe("task_sessions CRUD", () => {
       companyId,
       agentId,
       adapterType: "claude-pro",
-      sessionParamsJson: JSON.stringify({ sessionId: "abc123" }),
-      sessionDisplayId: "claude-abc123",
     });
 
     const session = db.getSessionById(sessionId);
@@ -116,8 +114,6 @@ describe("task_sessions CRUD", () => {
     expect(session!.companyId).toBe(companyId);
     expect(session!.agentId).toBe(agentId);
     expect(session!.adapterType).toBe("claude-pro");
-    expect(session!.sessionParamsJson).toBe(JSON.stringify({ sessionId: "abc123" }));
-    expect(session!.sessionDisplayId).toBe("claude-abc123");
     expect(session!.runCount).toBe(0);
     expect(session!.totalInputTokens).toBe(0);
     expect(session!.totalOutputTokens).toBe(0);
@@ -132,8 +128,6 @@ describe("task_sessions CRUD", () => {
       companyId,
       agentId,
       adapterType: "claude-pro",
-      sessionParamsJson: null,
-      sessionDisplayId: null,
     });
 
     db.incrementSessionUsage(sessionId, 1000, 500, "run-001");
@@ -159,8 +153,6 @@ describe("task_sessions CRUD", () => {
       companyId,
       agentId,
       adapterType: "claude-pro",
-      sessionParamsJson: null,
-      sessionDisplayId: null,
     });
 
     db.archiveSession(sessionId, "max_runs", "# Handoff\nSession reached 20 runs.");
@@ -178,8 +170,6 @@ describe("task_sessions CRUD", () => {
       companyId,
       agentId,
       adapterType: "gemini-cli",
-      sessionParamsJson: JSON.stringify({ key: "val" }),
-      sessionDisplayId: "gemini-session-1",
     });
 
     expect(typeof sessionId).toBe("string");
@@ -204,7 +194,6 @@ describe("task_sessions CRUD", () => {
       exitCode: 0,
       signal: null,
       model: "claude-4-opus",
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 
@@ -217,7 +206,6 @@ describe("task_sessions CRUD", () => {
       exitCode: 1,
       signal: null,
       model: "claude-4-opus",
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 
@@ -292,8 +280,6 @@ describe("session management service", () => {
         companyId: "co-1",
         agentId: "agent-1",
         adapterType: "gemini-cli",
-        sessionParamsJson: null,
-        sessionDisplayId: null,
         lastRunId: null,
         lastError: null,
         runCount: 5,
@@ -317,8 +303,6 @@ describe("session management service", () => {
         companyId: "co-1",
         agentId: "agent-1",
         adapterType: "gemini-cli",
-        sessionParamsJson: null,
-        sessionDisplayId: null,
         lastRunId: null,
         lastError: null,
         runCount: 20,
@@ -342,8 +326,6 @@ describe("session management service", () => {
         companyId: "co-1",
         agentId: "agent-1",
         adapterType: "gemini-cli",
-        sessionParamsJson: null,
-        sessionDisplayId: null,
         lastRunId: null,
         lastError: null,
         runCount: 3,
@@ -368,8 +350,6 @@ describe("session management service", () => {
         companyId: "co-1",
         agentId: "agent-1",
         adapterType: "gemini-cli",
-        sessionParamsJson: null,
-        sessionDisplayId: null,
         lastRunId: null,
         lastError: null,
         runCount: 1,
@@ -398,8 +378,6 @@ describe("session management service", () => {
         companyId: "co-1",
         agentId: "agent-1",
         adapterType: "claude-pro",
-        sessionParamsJson: null,
-        sessionDisplayId: null,
         lastRunId: null,
         lastError: null,
         runCount: 100, // Way over threshold
@@ -428,8 +406,6 @@ describe("session management service", () => {
         companyId: "co-1",
         agentId: "agent-1",
         adapterType: "gemini-cli",
-        sessionParamsJson: null,
-        sessionDisplayId: null,
         lastRunId: null,
         lastError: null,
         runCount: 5,
@@ -453,8 +429,6 @@ describe("session management service", () => {
         companyId: "co-1",
         agentId: "agent-1",
         adapterType: "gemini-cli",
-        sessionParamsJson: null,
-        sessionDisplayId: null,
         lastRunId: null,
         lastError: null,
         runCount: 10, // Below default 20
@@ -478,8 +452,6 @@ describe("session management service", () => {
         companyId: "co-1",
         agentId: "agent-1",
         adapterType: "gemini-cli",
-        sessionParamsJson: null,
-        sessionDisplayId: null,
         lastRunId: null,
         lastError: null,
         runCount: 19, // Just below default 20
@@ -512,8 +484,6 @@ describe("session management service", () => {
         companyId,
         agentId,
         adapterType: "claude-pro",
-        sessionParamsJson: null,
-        sessionDisplayId: null,
       });
       const svc = createSessionManagementService({ db, logger: mockLogger });
 
@@ -537,8 +507,6 @@ describe("session management service", () => {
         companyId,
         agentId,
         adapterType: "gemini-cli",
-        sessionParamsJson: null,
-        sessionDisplayId: null,
       });
 
       // Create a completed run for history
@@ -551,7 +519,6 @@ describe("session management service", () => {
         exitCode: 0,
         signal: null,
         model: "gemini-pro",
-        sessionDisplayId: null,
         unattributedCost: false,
       });
 
@@ -584,8 +551,6 @@ describe("session management service", () => {
         companyId,
         agentId,
         adapterType: "gemini-cli",
-        sessionParamsJson: JSON.stringify({ resumeId: "old-abc" }),
-        sessionDisplayId: "gemini-old",
       });
 
       // Add some usage
@@ -606,14 +571,12 @@ describe("session management service", () => {
       expect(archivedRows[0].rotationReason).toBe("threshold_exceeded");
       expect(archivedRows[0].handoffMarkdown).toContain("# Session Handoff");
 
-      // New session is a distinct row, with fresh counters and copied params
+      // New session is a distinct row with fresh counters.
       const newSession = db.getSessionById(newSessionId)!;
       expect(newSession.id).toBe(newSessionId);
       expect(newSession.runCount).toBe(0);
       expect(newSession.totalInputTokens).toBe(0);
       expect(newSession.totalOutputTokens).toBe(0);
-      expect(newSession.sessionParamsJson).toBe(JSON.stringify({ resumeId: "old-abc" }));
-      expect(newSession.sessionDisplayId).toBe("gemini-old");
     });
   });
 
@@ -630,8 +593,6 @@ describe("session management service", () => {
         companyId,
         agentId,
         adapterType: "gemini-cli",
-        sessionParamsJson: null,
-        sessionDisplayId: null,
       });
       db.incrementSessionUsage(session1Id, 100000, 50000, "run-1");
       const session1 = db.getSessionById(session1Id)!;
@@ -648,8 +609,6 @@ describe("session management service", () => {
         companyId,
         agentId,
         adapterType: "gemini-cli",
-        sessionParamsJson: null,
-        sessionDisplayId: null,
       });
       const svc = createSessionManagementService({ db, logger: mockLogger });
 
@@ -668,8 +627,6 @@ describe("session management service", () => {
         companyId,
         agentId,
         adapterType: "gemini-cli",
-        sessionParamsJson: null,
-        sessionDisplayId: null,
       });
 
       // Pre-populate some usage

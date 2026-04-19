@@ -176,7 +176,6 @@ export function createWorkerService({
             exitCode: null,
             signal: null,
             model: null,
-            sessionDisplayId: null,
             unattributedCost: true,
           });
           if (run.workspaceId) {

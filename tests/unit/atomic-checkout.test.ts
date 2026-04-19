@@ -196,7 +196,6 @@ describe("CAS checkout", () => {
       exitCode: 0,
       signal: null,
       model: null,
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 
@@ -337,7 +336,6 @@ describe("CAS checkout", () => {
       exitCode: null,
       signal: null,
       model: null,
-      sessionDisplayId: null,
       unattributedCost: true,
     });
 
@@ -382,7 +380,6 @@ describe("CAS checkout", () => {
       exitCode: null,
       signal: null,
       model: null,
-      sessionDisplayId: null,
       unattributedCost: true,
     });
 
@@ -417,7 +414,6 @@ describe("CAS checkout", () => {
       exitCode: 1,
       signal: null,
       model: null,
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 

@@ -339,11 +339,10 @@ export class AppDatabaseBase {
   saveTask(input: { id?: string | null; companyId: string; projectId?: string | null; goalId?: string | null; parentId?: string | null; title: string; description: string; assigneeAgentId?: string | null; workspaceId?: string | null; priority: string; status: string }) { return this.tasks.saveTask(input); }
   getTask(id: string) { return this.entityCrud.getTask(id); }
   deleteTask(id: string, companyId: string) { return this.tasks.deleteTask(id, companyId); }
-  updateSessionParams(sessionId: string, sessionParams: Record<string, unknown> | null, sessionDisplayId: string | null) { return this.tasks.updateSessionParams(sessionId, sessionParams, sessionDisplayId); }
   getSessionById(sessionId: string) { return this.tasks.getSessionById(sessionId); }
   incrementSessionUsage(sessionId: string, inputTokens: number, outputTokens: number, runId: string) { return this.tasks.incrementSessionUsage(sessionId, inputTokens, outputTokens, runId); }
   archiveSession(sessionId: string, reason: string, handoffMarkdown: string) { return this.tasks.archiveSession(sessionId, reason, handoffMarkdown); }
-  createNewSession(input: { companyId: string; agentId: string; adapterType: string; sessionParamsJson: string | null; sessionDisplayId: string | null }) { return this.tasks.createNewSession(input); }
+  createNewSession(input: { companyId: string; agentId: string; adapterType: string }) { return this.tasks.createNewSession(input); }
   ensureAgentSession(input: { agentId: string; companyId: string; adapterType: string }) { return this.tasks.ensureAgentSession(input); }
   setAgentSessionId(agentId: string, sessionId: string) { return this.tasks.setAgentSessionId(agentId, sessionId); }
   getRecentRunsForTask(taskId: string, limit: number) { return this.tasks.getRecentRunsForTask(taskId, limit); }
@@ -385,7 +384,7 @@ export class AppDatabaseBase {
   readRunLog(runId: string) { return this.runs.readRunLog(runId); }
   readRunLogChunk(runId: string, offset = 0, limit = 65_536) { return this.runs.readRunLogChunk(runId, offset, limit); }
   markRunStatus(runId: string, status: RunStatus, message: string) { return this.runs.markRunStatus(runId, status, message); }
-  finishRun(input: { runId: string; status: RunStatus; summary: string | null; errorMessage: string | null; exitCode: number | null; signal: string | null; model: string | null; sessionDisplayId: string | null; unattributedCost: boolean }) { return this.runs.finishRun(input); }
+  finishRun(input: { runId: string; status: RunStatus; summary: string | null; errorMessage: string | null; exitCode: number | null; signal: string | null; model: string | null; unattributedCost: boolean }) { return this.runs.finishRun(input); }
   recordCostEntry(input: { runId: string; companyId: string; agentId: string; taskId: string | null; connectorId: string; amountUsd: number | null; unattributed: boolean }) { return this.runs.recordCostEntry(input); }
   hasActiveRun(filter: { companyId: string; taskId?: string; agentId?: string }) { return this.runs.hasActiveRun(filter); }
   listQueuedRuns() { return this.runs.listQueuedRuns(); }

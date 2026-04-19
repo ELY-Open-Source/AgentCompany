@@ -217,7 +217,6 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       exitCode: 0,
       signal: null,
       model: "gemini-2.5-pro",
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 
@@ -226,8 +225,6 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       companyId: s.companyId,
       agentId: s.agentId,
       adapterType: "gemini-cli",
-      sessionParamsJson: null,
-      sessionDisplayId: null,
     });
     sessionService.accumulateTokenUsage(sessionId, 5000, 2000, runId);
 
@@ -344,7 +341,6 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       exitCode: 0,
       signal: null,
       model: "gemini-2.5-pro",
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 
@@ -383,8 +379,6 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       companyId: s.companyId,
       agentId: s.agentId,
       adapterType: "gemini-cli",
-      sessionParamsJson: null,
-      sessionDisplayId: null,
     });
 
     // Run 1: create run and accumulate tokens
@@ -456,7 +450,6 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       exitCode: 0,
       signal: null,
       model: "gemini-2.5-pro",
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 
@@ -498,7 +491,6 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       exitCode: 0,
       signal: null,
       model: "gemini-2.5-pro",
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 

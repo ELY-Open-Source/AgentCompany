@@ -444,8 +444,6 @@ describe("Process Recovery -- Context Preservation (D-02)", () => {
       companyId: s.companyId,
       agentId: s.agentId,
       adapterType: "gemini-cli",
-      sessionParamsJson: null,
-      sessionDisplayId: null,
     });
 
     // Add token usage to simulate real work

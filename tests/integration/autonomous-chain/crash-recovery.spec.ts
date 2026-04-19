@@ -80,7 +80,6 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
       exitCode: 1,
       signal: null,
       model: null,
-      sessionDisplayId: null,
       unattributedCost: true,
     });
 

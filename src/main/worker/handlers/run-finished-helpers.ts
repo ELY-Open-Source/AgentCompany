@@ -47,7 +47,6 @@ export function finalizeRun(
       exitCode: event.exitCode,
       signal: event.signal,
       model: event.model,
-      sessionDisplayId: event.sessionDisplayId,
       unattributedCost: event.unattributedCost,
       inputTokens: event.inputTokens,
       outputTokens: event.outputTokens,
@@ -64,21 +63,6 @@ export function finalizeRun(
       );
       task = null;
     }
-  }
-
-  // Stamp pi-ai's transient per-turn state (session resume params,
-  // display id) onto the agent's current session row. Sessions are
-  // agent-scoped, so the session id comes from agents.session_id —
-  // not from a task pointer (that indirection was dropped in v41).
-  try {
-    const agent = db.getAgent(run.agentId);
-    if (agent.sessionId) {
-      db.updateSessionParams(agent.sessionId, event.sessionParams, event.sessionDisplayId ?? null);
-    }
-  } catch (error) {
-    logger.warn(
-      `[finalizeRun] updateSessionParams failed for run ${event.runId}: ${error instanceof Error ? error.message : String(error)}`,
-    );
   }
 
   leaseRenewalMap.delete(event.runId);

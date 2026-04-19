@@ -118,8 +118,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       companyId,
       agentId,
       adapterType: "gemini-cli",
-      sessionParamsJson: null,
-      sessionDisplayId: null,
     });
 
     // Simulate runs until we reach the maxRuns threshold (20)
@@ -146,8 +144,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       companyId,
       agentId,
       adapterType: "gemini-cli",
-      sessionParamsJson: null,
-      sessionDisplayId: null,
     });
 
     // Accumulate tokens past the threshold in one big call
@@ -172,8 +168,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       companyId,
       agentId,
       adapterType: "gemini-cli",
-      sessionParamsJson: null,
-      sessionDisplayId: null,
     });
 
     // Accumulate enough to trigger rotation
@@ -197,7 +191,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       exitCode: 0,
       signal: null,
       model: "gemini-pro",
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 
@@ -229,8 +222,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       companyId,
       agentId,
       adapterType: "gemini-cli",
-      sessionParamsJson: JSON.stringify({ resumeKey: "abc" }),
-      sessionDisplayId: "gemini-session-1",
     });
 
     // Add usage to the old session
@@ -244,8 +235,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       companyId,
       agentId,
       adapterType: "gemini-cli",
-      sessionParamsJson: JSON.stringify({ resumeKey: "abc" }),
-      sessionDisplayId: "gemini-session-2",
     });
 
     // Get the new active session
@@ -268,8 +257,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       companyId,
       agentId,
       adapterType: "claude-pro",
-      sessionParamsJson: null,
-      sessionDisplayId: null,
     });
 
     // Accumulate way past all thresholds
@@ -292,8 +279,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       companyId,
       agentId,
       adapterType: "openai-codex",
-      sessionParamsJson: null,
-      sessionDisplayId: null,
     });
 
     // Accumulate way past all thresholds
@@ -317,8 +302,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       companyId,
       agentId,
       adapterType: "gemini-cli",
-      sessionParamsJson: null,
-      sessionDisplayId: null,
     });
     db.incrementSessionUsage(sessionId, 300000, 200000, "run-1");
 
@@ -338,7 +321,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       exitCode: 0,
       signal: null,
       model: "gemini-pro",
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 

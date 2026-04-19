@@ -136,28 +136,22 @@ export function createSessionManagementService({ db, logger }: SessionManagement
   }
 
   // Archive current session, generate handoff, create new agent-scoped
-  // session, update the agent pointer and any task active-session pointers
-  // still referencing the old session.
+  // session, update the agent pointer. Counters reset; Pi Mono carries no
+  // provider-side resume state across rotations.
   function rotateSession(session: TaskSessionRecord): string {
     const reason = "threshold_exceeded";
     const handoff = generateHandoff(session);
 
     logger.info(`[session] Rotating session ${session.id} for agent ${session.agentId}: ${reason}`);
 
-    // 1. Archive old session
     db.archiveSession(session.id, reason, handoff);
 
-    // 2. Create new session row with fresh counters, carry forward
-    //    session_params so pi-ai can resume.
     const newSessionId = db.createNewSession({
       companyId: session.companyId,
       agentId: session.agentId,
       adapterType: session.adapterType,
-      sessionParamsJson: session.sessionParamsJson,
-      sessionDisplayId: session.sessionDisplayId,
     });
 
-    // 3. Point the agent at the freshly-minted session.
     db.setAgentSessionId(session.agentId, newSessionId);
 
     logger.info(`[session] New session ${newSessionId} created for agent ${session.agentId}`);

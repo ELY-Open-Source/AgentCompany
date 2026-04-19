@@ -167,7 +167,6 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       exitCode: 0,
       signal: null,
       model: "gemini-pro",
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 
@@ -182,7 +181,6 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       exitCode: 0,
       signal: null,
       model: "gemini-pro",
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 
@@ -234,7 +232,6 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       exitCode: 0,
       signal: null,
       model: "gemini-pro",
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 
@@ -283,7 +280,6 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       exitCode: 0,
       signal: null,
       model: "gemini-pro",
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 
@@ -341,7 +337,6 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       exitCode: 0,
       signal: null,
       model: "gemini-pro",
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 
@@ -394,7 +389,6 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       exitCode: 0,
       signal: null,
       model: "gemini-pro",
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 
@@ -443,7 +437,6 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       exitCode: 0,
       signal: null,
       model: "gemini-pro",
-      sessionDisplayId: null,
       unattributedCost: false,
     });
 

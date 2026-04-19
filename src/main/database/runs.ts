@@ -24,7 +24,7 @@ export function buildRunMethods(
     getRun(id: string): RunRecord {
       const row = getDb()
         .prepare(
-          "select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId, connector_id as connectorId, status, summary, error_message as errorMessage, exit_code as exitCode, signal, model, session_display_id as sessionDisplayId, cost_usd as costUsd, unattributed_cost as unattributedCost, started_at as startedAt, finished_at as finishedAt, log_path as logPath, created_at as createdAt, updated_at as updatedAt from runs where id = ?",
+          "select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId, connector_id as connectorId, status, summary, error_message as errorMessage, exit_code as exitCode, signal, model, cost_usd as costUsd, unattributed_cost as unattributedCost, started_at as startedAt, finished_at as finishedAt, log_path as logPath, created_at as createdAt, updated_at as updatedAt from runs where id = ?",
         )
         .get(id) as RunRecord | undefined;
       if (!row) throw new Error(`Run not found: ${id}`);
@@ -93,7 +93,6 @@ export function buildRunMethods(
       exitCode: number | null;
       signal: string | null;
       model: string | null;
-      sessionDisplayId: string | null;
       unattributedCost: boolean;
     }) {
       const run = getDb().prepare("select task_id as taskId, agent_id as agentId, company_id as companyId, connector_id as connectorId, started_at as startedAt from runs where id = ?").get(input.runId) as
@@ -134,11 +133,11 @@ export function buildRunMethods(
       transaction(() => {
         getDb()
           .prepare(
-            "update runs set status = ?, summary = ?, error_message = ?, exit_code = ?, signal = ?, model = ?, session_display_id = ?, cost_usd = ?, unattributed_cost = ?, finished_at = ?, updated_at = ? where id = ?",
+            "update runs set status = ?, summary = ?, error_message = ?, exit_code = ?, signal = ?, model = ?, cost_usd = ?, unattributed_cost = ?, finished_at = ?, updated_at = ? where id = ?",
           )
           .run(
             input.status, input.summary ?? "", input.errorMessage, input.exitCode,
-            input.signal, input.model, input.sessionDisplayId, runCostUsd,
+            input.signal, input.model, runCostUsd,
             input.unattributedCost ? 1 : 0, ts, ts, input.runId,
           );
         if (run.taskId !== null) {
@@ -201,7 +200,7 @@ export function buildRunMethods(
       const ts = nowIso();
       getDb()
         .prepare(
-          "update runs set status = 'cancelled', summary = ?, error_message = null, exit_code = null, signal = null, model = null, session_display_id = null, cost_usd = null, unattributed_cost = 1, finished_at = ?, updated_at = ? where id = ?",
+          "update runs set status = 'cancelled', summary = ?, error_message = null, exit_code = null, signal = null, model = null, cost_usd = null, unattributed_cost = 1, finished_at = ?, updated_at = ? where id = ?",
         )
         .run(summary, ts, ts, runId);
       if (taskId !== null) {
@@ -242,7 +241,7 @@ export function buildRunMethods(
       return readAll<RunRecord>(
         `select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId,
                 connector_id as connectorId, status, summary, error_message as errorMessage, exit_code as exitCode,
-                signal, model, session_display_id as sessionDisplayId, cost_usd as costUsd,
+                signal, model, cost_usd as costUsd,
                 unattributed_cost as unattributedCost, started_at as startedAt, finished_at as finishedAt,
                 log_path as logPath, created_at as createdAt, updated_at as updatedAt
            from runs

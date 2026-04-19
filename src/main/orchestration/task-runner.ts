@@ -196,7 +196,6 @@ export function createTaskRunner(
               exitCode: null,
               signal: null,
               model: null,
-              sessionDisplayId: null,
               unattributedCost: true,
             });
             db.addActivity({

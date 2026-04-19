@@ -107,8 +107,6 @@ function cancelRun(runId: string) {
       exitCode: null,
       signal: null,
       model: null,
-      sessionParams: null,
-      sessionDisplayId: null,
       unattributedCost: true,
       inputTokens: null,
       outputTokens: null,

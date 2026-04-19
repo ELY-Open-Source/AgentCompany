@@ -194,8 +194,6 @@ export class WorkerRunner {
       exitCode: null,
       signal: null,
       model: resolvedModelId,
-      sessionParams: job.sessionParams,
-      sessionDisplayId: null,
       // Worker no longer owns cost attribution — CostWriter (main-side)
       // writes per-message rows, finishRun sums them. This flag stays true
       // only for run paths that never had a chance to emit usage (errors

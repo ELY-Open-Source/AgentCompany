@@ -16,7 +16,6 @@ export interface RunJob {
   model: string | null;
   thinkingEffort: string | null;
   env: Record<string, string>;
-  sessionParams: Record<string, unknown> | null;
   systemPrompt: string | null;
   trigger: string | null;
   taskSessionId: string;
@@ -41,8 +40,6 @@ export type ChildMessage =
       exitCode: number | null;
       signal: string | null;
       model: string | null;
-      sessionParams: Record<string, unknown> | null;
-      sessionDisplayId: string | null;
       unattributedCost: boolean;
       inputTokens: number | null;
       outputTokens: number | null;

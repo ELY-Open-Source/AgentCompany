@@ -91,7 +91,6 @@ export function createRunDispatch(deps: OrchestrationDependencies) {
         exitCode: null,
         signal: null,
         model: null,
-        sessionDisplayId: null,
         unattributedCost: true,
       });
       return;

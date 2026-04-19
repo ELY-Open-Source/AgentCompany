@@ -41,7 +41,6 @@ export function handleWorkerExit(
         exitCode: code,
         signal: null,
         model: null,
-        sessionDisplayId: null,
         unattributedCost: true,
       });
       if (run.workspaceId) {
@@ -128,7 +127,6 @@ export function handleWorkerExit(
           exitCode: null,
           signal: null,
           model: null,
-          sessionDisplayId: null,
           unattributedCost: true,
         });
         if (candidate.workspaceId) {
