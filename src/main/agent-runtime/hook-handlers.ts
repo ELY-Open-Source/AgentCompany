@@ -29,6 +29,7 @@ import {
   projectToolExecutionToWorkProduct,
   type ArtifactProjectorRunContext,
 } from "./artifact-projector";
+import { compactMessagesIfNeeded } from "./context-compactor";
 
 export interface ActiveRunContext {
   runId: string;
@@ -174,15 +175,16 @@ export function handleAfterToolCall(
 }
 
 /**
- * Context-transform hook. Placeholder pass-through; auto-compaction
- * wiring lives in session-management-service and plugs in here once
- * the compactor is available (tracked separately from the contract
- * wiring).
+ * Context-transform hook. Delegates to `compactMessagesIfNeeded`,
+ * which is a pure, provider-free deterministic compactor. Runs before
+ * every LLM call; short transcripts short-circuit on the token-budget
+ * check so the steady-state cost is negligible.
  */
 export function handleTransformContext(
   _deps: HookHandlerDeps,
   _ctx: ActiveRunContext,
-  _payload: TransformContextRpcPayload,
+  payload: TransformContextRpcPayload,
 ): TransformContextRpcResult {
-  return { changed: false, messages: null };
+  const outcome = compactMessagesIfNeeded(payload.messages);
+  return { changed: outcome.changed, messages: outcome.messages };
 }
