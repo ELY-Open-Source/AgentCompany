@@ -5,6 +5,38 @@ import type { OrchestrationDependencies } from "./types";
 import type { RunDispatchParams } from "./turn-context";
 import { pickModelForAgent } from "../model-dispatch";
 
+/**
+ * Every reason a heartbeat attempt can be rejected before a run is
+ * dispatched. The enum is closed so callers (scheduler, UI) can reason
+ * about persistence and operator display exhaustively.
+ */
+export type HeartbeatSkipReason =
+  | "quitting"
+  | "worker_not_ready"
+  | "company_inactive"
+  | "cross_company"
+  | "agent_not_runnable"
+  | "budget_blocked"
+  | "connector_not_ready"
+  | "connector_model_not_allowed"
+  | "max_concurrent_runs"
+  | "cooldown"
+  | "wake_on_demand_disabled"
+  | "pending_approval"
+  | "awaiting_user_review"
+  | "pending_deliverable_review"
+  | "checkout_race_lost"
+  | "no_actionable_tasks";
+
+export type HeartbeatStartResult =
+  | { status: "started"; runId: string }
+  | { status: "skipped"; reason: HeartbeatSkipReason };
+
+const SKIPPED = (reason: HeartbeatSkipReason): HeartbeatStartResult => ({
+  status: "skipped",
+  reason,
+});
+
 export function createHeartbeat(
   deps: OrchestrationDependencies,
   resolveWorkspace: (task: { workspaceId: string | null; projectId?: string | null } | null, agent: { workspaceId: string | null }, companyId: string) => { workspace: ReturnType<AppDatabase["getWorkspace"]>; lockMode: "exclusive" | "shared" | "none"; source: string },
@@ -27,20 +59,17 @@ export function createHeartbeat(
     }
   }
 
-  function startAgentHeartbeatRun(agentId: string, companyId: string, trigger: string): string | null {
-    if (isQuitting()) return null;
+  function startAgentHeartbeatRun(agentId: string, companyId: string, trigger: string): HeartbeatStartResult {
+    if (isQuitting()) return SKIPPED("quitting");
     const isMessageWake = trigger === "message";
     const isCommunicationWake = isMessageWake || trigger === "peer_request";
-    if (!hasWorkerReady()) return null;
+    if (!hasWorkerReady()) return SKIPPED("worker_not_ready");
     const companyStatus = db.getCompanyStatus(companyId);
-    if (companyStatus !== "active") {
-      logger.debug(`[heartbeat] Skipping ${agentId} because company ${companyId} is not active.`);
-      return null;
-    }
+    if (companyStatus !== "active") return SKIPPED("company_inactive");
     const agent = db.getAgent(agentId);
     if (agent.companyId !== companyId) {
       logger.warn(`[heartbeat] Refusing cross-company run for agent ${agentId}: ${agent.companyId} !== ${companyId}`);
-      return null;
+      return SKIPPED("cross_company");
     }
     const assignment = pickModelForAgent(agent, {
       getConnector: (id) => db.getConnector(id),
@@ -56,8 +85,19 @@ export function createHeartbeat(
     });
     const connector = db.getConnector(assignment.connectorId);
     const effectiveAgentForEligibility: AgentRecord = { ...agent, model: assignment.modelId };
-    if (getRunEligibilityFailure(effectiveAgentForEligibility, connector, null)) {
-      return null;
+    const eligibilityFailure = getRunEligibilityFailure(effectiveAgentForEligibility, connector, null);
+    if (eligibilityFailure) {
+      // getRunEligibilityFailure returns one of three string codes; map to
+      // the corresponding skip reason so the caller can surface it.
+      const mapped: HeartbeatSkipReason =
+        eligibilityFailure === "AGENT_NOT_RUNNABLE"
+          ? "agent_not_runnable"
+          : eligibilityFailure === "BUDGET_POLICY_BLOCKED"
+            ? "budget_blocked"
+            : eligibilityFailure === "CONNECTOR_NOT_READY"
+              ? "connector_not_ready"
+              : "connector_model_not_allowed";
+      return SKIPPED(mapped);
     }
     // Extended heartbeat policy checks (Paperclip parity).
     // Let getHeartbeatPolicy throw — a missing row signals data corruption
@@ -67,30 +107,20 @@ export function createHeartbeat(
 
     // maxConcurrentRuns check: count active runs for this agent
     const activeRunCount = db.countActiveRunsForAgent(agent.id, companyId);
-    if (activeRunCount >= heartbeatPolicy.maxConcurrentRuns) {
-      logger.debug(`[heartbeat] Skipping ${agent.name} — active runs (${activeRunCount}) >= maxConcurrentRuns (${heartbeatPolicy.maxConcurrentRuns}).`);
-      return null;
-    }
+    if (activeRunCount >= heartbeatPolicy.maxConcurrentRuns) return SKIPPED("max_concurrent_runs");
 
     // Cooldown check: ensure enough time has passed since last heartbeat
     if (!isMessageWake && agent.lastHeartbeatAt) {
       const elapsed = Date.now() - new Date(agent.lastHeartbeatAt).getTime();
       const cooldownMs = heartbeatPolicy.cooldownSec * 1000;
-      if (elapsed < cooldownMs) {
-        logger.debug(`[heartbeat] Skipping ${agent.name} — cooldown (${heartbeatPolicy.cooldownSec}s) not elapsed.`);
-        return null;
-      }
+      if (elapsed < cooldownMs) return SKIPPED("cooldown");
     }
 
     // wakeOnDemand gate: if disabled, only timer/bootstrap triggers allowed
     if (!heartbeatPolicy.wakeOnDemand && trigger !== "timer" && trigger !== "bootstrap") {
-      logger.debug(`[heartbeat] Skipping ${agent.name} — wakeOnDemand is disabled and trigger is "${trigger}".`);
-      return null;
+      return SKIPPED("wake_on_demand_disabled");
     }
-    if (db.isAgentPendingApproval(agentId)) {
-      logger.debug(`[heartbeat] Skipping ${agent.name} because agent is pending hire approval.`);
-      return null;
-    }
+    if (db.isAgentPendingApproval(agentId)) return SKIPPED("pending_approval");
 
     const companyMode = db.getCompanyExecutionMode(companyId);
     const approvalSettings = db.getCompanyApprovalSettings(companyId);
@@ -103,8 +133,7 @@ export function createHeartbeat(
       !isMessageWake &&
       (db.hasAgentPendingDeliverableReview(agentId, companyId) || db.hasAgentTaskAwaitingReview(agentId, companyId))
     ) {
-      logger.debug(`[heartbeat] Skipping ${agent.name} — awaiting user deliverable review.`);
-      return null;
+      return SKIPPED("awaiting_user_review");
     }
 
     // Block CEO heartbeat when company has any pending deliverable reviews
@@ -114,8 +143,7 @@ export function createHeartbeat(
       !agent.reportsTo &&
       db.hasPendingDeliverableReviews(companyId)
     ) {
-      logger.debug(`[heartbeat] Skipping CEO ${agent.name} — company has pending deliverable reviews.`);
-      return null;
+      return SKIPPED("pending_deliverable_review");
     }
 
     const assignedTasks = isCommunicationWake
@@ -139,17 +167,14 @@ export function createHeartbeat(
           entityId: candidateTask.id,
           detail: `Agent ${agent.name} lost checkout race on task "${candidateTask.title}"`,
         });
-        logger.info(`[heartbeat] Agent ${agent.name} lost checkout race on task ${candidateTask.title}`);
-        return null;
+        return SKIPPED("checkout_race_lost");
       }
       task = db.getTask(candidateTask.id);
     } else {
       const hasActiveAssignedRun = candidateTasks.some(
         (entry) => entry.activeRunId && hasActiveRun({ taskId: entry.id, companyId }),
       );
-      if (hasActiveAssignedRun) {
-        return null;
-      }
+      if (hasActiveAssignedRun) return SKIPPED("max_concurrent_runs");
 
       const isCeo = !agent.reportsTo;
       const isManager = db.getDirectReports(agent.id, companyId).length > 0;
@@ -158,8 +183,7 @@ export function createHeartbeat(
       const companyNeedsBootstrap = goalCount > 0 && taskCount < goalCount;
 
       if (isTimer && !isCeo && !isManager && !companyNeedsBootstrap) {
-        logger.debug(`[heartbeat] Skipping ${agent.name} — no actionable tasks and trigger is timer.`);
-        return null;
+        return SKIPPED("no_actionable_tasks");
       }
 
       // No task — this is a true heartbeat run. The run row carries
@@ -221,7 +245,7 @@ export function createHeartbeat(
       detail: `${trigger} heartbeat for ${agent.name}`,
     });
     emitEvent({ type: "run-updated", runId: run.id, action: "created" });
-    return run.id;
+    return { status: "started", runId: run.id };
   }
 
   function wakeAgentIfPossible(agentId: string | null | undefined, companyId: string, trigger: string, context?: Record<string, unknown>) {
@@ -249,13 +273,13 @@ export function createHeartbeat(
       return null;
     }
 
-    const runId = startAgentHeartbeatRun(agentId, companyId, trigger);
-    if (!runId) {
-      db.enqueueWakeupRequest(companyId, agentId, trigger, `Wake for agent (deferred): ${trigger}`, context);
+    const result = startAgentHeartbeatRun(agentId, companyId, trigger);
+    if (result.status === "skipped") {
+      db.enqueueWakeupRequest(companyId, agentId, trigger, `Wake for agent (deferred:${result.reason}): ${trigger}`, context);
       return null;
     }
-    db.completePendingWakeupRequests(agentId, companyId, runId);
-    return runId;
+    db.completePendingWakeupRequests(agentId, companyId, result.runId);
+    return result.runId;
   }
 
   return {
