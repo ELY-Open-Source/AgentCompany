@@ -35,11 +35,7 @@ For each role chosen in Step 2, `POST /api/companies/{companyId}/agents` with:
 - `budgetMonthlyUsd`: 50–250 per agent
 - `model`: pick per role complexity
 
-After each hire is approved (`hire_agent` auto-approves when company policy allows), assign skills:
-
-1. `GET /api/companies/{companyId}/skills` to review options.
-2. For every relevant skill: `POST /api/agents/{agentId}/skills` with `{"skillId": "<id>"}`.
-3. Match skills to role — engineering skills to engineers, writing/marketing skills to writers, etc.
+Default domain skills are assigned automatically the moment a hire is approved — do not loop over skills unless you want to override the defaults for a specific agent.
 
 **You must submit every intended hire before you consider Step 4.**
 
@@ -53,9 +49,9 @@ Once — and only once — all hire requests for this wake are live, `POST` one 
 
 Do not submit this approval more than once per team-building phase. If it exists already (pending or approved), you are finished here.
 
-## Self-assignment: do not do it
+## Self-assignment is rejected at the API
 
-Do **not** assign large goal-level tasks to yourself and move them to `in_review`. You have no manager; no one can review you. The system will demote any such task back to `todo` on the next boot, but the cycle wastes a heartbeat slot. Instead: create the task with an assignee from Step 3's hires, or leave it unassigned for the auto-assign rule to pick up.
+Attempts to move a task you own to `in_review` without a reviewer return `422 NO_REVIEWER_ON_TOP_LEVEL_TASK` — the error response carries the options. Assign the task to one of your hires from Step 3 instead, or mark it directly `done` when the work is genuinely complete.
 
 ## End state for this wake
 

@@ -278,6 +278,17 @@ export function registerTaskRoutes(server: AgentApiServer) {
         server.json(res, 404, { error: error.message });
         return;
       }
+      // Top-level assignee self-review guard: translate to a 422 so the
+      // agent sees an actionable business-logic rejection rather than a
+      // generic server failure.
+      if (error instanceof Error && error.message.includes("cannot enter in_review")) {
+        server.json(res, 422, {
+          error: error.message,
+          code: "NO_REVIEWER_ON_TOP_LEVEL_TASK",
+          hint: "Either reassign the task to a report, mark it done directly if the work is complete, or set requires_user_review=1 if the Board should review.",
+        });
+        return;
+      }
       server.json(res, 500, { error: error instanceof Error ? error.message : "Task update failed" });
     }
   });
