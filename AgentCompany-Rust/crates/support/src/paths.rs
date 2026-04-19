@@ -4,12 +4,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub const APP_NAME: &str = "AgentCompany-Rust";
-pub const PROFILE_DB_FILE_NAME: &str = "agentcompany-native.sqlite";
-pub const PROFILE_ENV: &str = "AGENTCOMPANY_PROFILE_DIR";
-pub const RUNTIME_COMMAND_ENV: &str = "AGENTCOMPANY_PI_COMMAND";
-pub const RUNTIME_ARGS_ENV: &str = "AGENTCOMPANY_PI_ARGS_JSON";
-pub const RUNTIME_WORKDIR_ENV: &str = "AGENTCOMPANY_PI_WORKDIR";
+pub const APP_NAME: &str = "AgentCompanyNative";
+pub const PROFILE_DB_FILE_NAME: &str = "agentcompany-native-v1.sqlite3";
+pub const PROFILE_ENV: &str = "AGENTCOMPANY_NATIVE_PROFILE_DIR";
+pub const RUNTIME_COMMAND_ENV: &str = "AGENTCOMPANY_NATIVE_PI_COMMAND";
+pub const RUNTIME_ARGS_ENV: &str = "AGENTCOMPANY_NATIVE_PI_ARGS_JSON";
+pub const RUNTIME_WORKDIR_ENV: &str = "AGENTCOMPANY_NATIVE_PI_WORKDIR";
 
 pub fn default_profile_dir() -> Result<PathBuf> {
     dirs::data_dir()
@@ -35,7 +35,10 @@ pub fn ensure_profile_dir(profile_dir: &Path) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{APP_NAME, PROFILE_DB_FILE_NAME, default_profile_dir, profile_db_path};
+    use super::{
+        APP_NAME, PROFILE_DB_FILE_NAME, PROFILE_ENV, RUNTIME_ARGS_ENV, RUNTIME_COMMAND_ENV,
+        RUNTIME_WORKDIR_ENV, default_profile_dir, profile_db_path,
+    };
 
     #[test]
     fn default_profile_dir_uses_native_app_namespace() {
@@ -44,11 +47,12 @@ mod tests {
 
         assert!(profile_path.contains(APP_NAME));
         assert!(!profile_path.contains("AgentCompany/profile"));
+        assert!(!profile_path.contains("AgentCompany-Rust/profile"));
     }
 
     #[test]
     fn profile_db_path_uses_native_database_file_name() {
-        let profile_dir = std::path::Path::new("/tmp/agentcompany-rust/profile");
+        let profile_dir = std::path::Path::new("/tmp/agentcompany-native/profile");
         let db_path = profile_db_path(profile_dir);
 
         assert_eq!(
@@ -59,5 +63,17 @@ mod tests {
             db_path.file_name().and_then(|value| value.to_str()),
             Some("profile.sqlite")
         );
+        assert_ne!(
+            db_path.file_name().and_then(|value| value.to_str()),
+            Some("agentcompany-native.sqlite")
+        );
+    }
+
+    #[test]
+    fn native_environment_variable_names_do_not_overlap_with_legacy_names() {
+        assert_eq!(PROFILE_ENV, "AGENTCOMPANY_NATIVE_PROFILE_DIR");
+        assert_eq!(RUNTIME_COMMAND_ENV, "AGENTCOMPANY_NATIVE_PI_COMMAND");
+        assert_eq!(RUNTIME_ARGS_ENV, "AGENTCOMPANY_NATIVE_PI_ARGS_JSON");
+        assert_eq!(RUNTIME_WORKDIR_ENV, "AGENTCOMPANY_NATIVE_PI_WORKDIR");
     }
 }
