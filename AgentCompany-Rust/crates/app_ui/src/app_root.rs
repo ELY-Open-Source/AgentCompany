@@ -406,7 +406,7 @@ impl Render for AppRoot {
                             .overflow_scroll()
                             .p_8()
                             .child(match self.state.section {
-                                SectionId::Overview => self.render_overview().into_any_element(),
+                                SectionId::Overview => self.render_overview(cx).into_any_element(),
                                 SectionId::Runs => self.render_runs(cx).into_any_element(),
                                 SectionId::Inbox => self.render_inbox().into_any_element(),
                                 SectionId::Messages => self.render_messages(cx).into_any_element(),

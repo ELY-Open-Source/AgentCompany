@@ -155,7 +155,7 @@
       ],
       "priority": 11,
       "passes": false,
-      "notes": "Audit found missing dashboard banners/charts/attention structure and inbox filter interaction parity."
+      "notes": "In progress: native dashboard now restores banner/attention/performance/active-work/activity grammar with real local data instead of the earlier simplified placeholder overview. Remaining gap is finer inbox parity and some dashboard micro-structure details versus the Electron source."
     },
     {
       "id": "US-012",
