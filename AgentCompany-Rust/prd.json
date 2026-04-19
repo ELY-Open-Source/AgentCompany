@@ -1,0 +1,133 @@
+{
+  "project": "AgentCompany-Rust",
+  "branchName": "ralph/agentcompany-rust-native-refactor",
+  "description": "Complete the Electron-to-native Rust+GPUI rewrite with UI/UX parity, runtime contract completion, and native verification.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Rebuild native shell, onboarding, dashboard, sidebar, and messages surfaces",
+      "description": "As an operator, I want the core shell surfaces to match the original product grammar so that the native app feels familiar and production-ready.",
+      "acceptanceCriteria": [
+        "Native shell, sidebar, onboarding, dashboard, and messages surfaces are implemented in GPUI",
+        "UI hierarchy follows the original Electron product surfaces",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Completed in commits 301934a and earlier parity work."
+    },
+    {
+      "id": "US-002",
+      "title": "Rebuild approvals and documents native surfaces",
+      "description": "As an operator, I want approvals and documents to match the original information architecture so that review and document workflows stay intuitive.",
+      "acceptanceCriteria": [
+        "Approvals surface matches the original sectioned layout",
+        "Documents surface matches the original document center grammar",
+        "Typecheck passes",
+        "Verify in native app"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Completed in commit 0f30772."
+    },
+    {
+      "id": "US-003",
+      "title": "Rebuild runs and inbox native surfaces",
+      "description": "As an operator, I want run inspection and attention queues to match the original app so that active work remains legible at a glance.",
+      "acceptanceCriteria": [
+        "Runs queue and detail layout are implemented in GPUI",
+        "Inbox attention groups are implemented in GPUI",
+        "Typecheck passes",
+        "Verify in native app"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Completed in commit 7fe5d6f."
+    },
+    {
+      "id": "US-004",
+      "title": "Rebuild settings and workspaces native surfaces",
+      "description": "As an operator, I want settings and workspace management to match the original desktop structure so that control-plane tasks remain consistent.",
+      "acceptanceCriteria": [
+        "Settings shell is represented as a sectioned native surface",
+        "Workspaces are represented as a native list surface",
+        "Typecheck passes",
+        "Verify in native app"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Completed in commit 5cb212c."
+    },
+    {
+      "id": "US-005",
+      "title": "Extend native persistence verification for aligned surfaces",
+      "description": "As a maintainer, I want native storage-backed verification so that rebuilt surfaces rest on stable persisted state.",
+      "acceptanceCriteria": [
+        "Storage-backed end-to-end test covers reviews, approvals, runs, and documents",
+        "cargo test --workspace passes",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Completed with native_surface_e2e.rs in commit 0f30772."
+    },
+    {
+      "id": "US-006",
+      "title": "Implement native settings mutations and workspace interactions",
+      "description": "As an operator, I want settings and workspace surfaces to perform real actions so that the native app controls production state end-to-end.",
+      "acceptanceCriteria": [
+        "Settings theme/locale/execution mode/provider/data actions are wired to real Rust-side state transitions or bridge actions",
+        "Workspace selection and primary workspace interactions are backed by real state changes",
+        "No fallback behavior is introduced",
+        "Typecheck passes",
+        "Verify in native app"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Completed with real settings/workspace mutations and snapshot-backed verification."
+    },
+    {
+      "id": "US-007",
+      "title": "Add native animation and interaction-state parity",
+      "description": "As an operator, I want the native app to preserve the original motion, hover, selection, and attention behavior so that the product feels identical in use.",
+      "acceptanceCriteria": [
+        "Core surfaces implement matching hover, selection, and emphasis states",
+        "Onboarding, inbox, messages, and dashboard include native motion/state treatment aligned with Electron references",
+        "No placeholder animation remains",
+        "Typecheck passes",
+        "Verify in native app"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "High-value remaining parity layer."
+    },
+    {
+      "id": "US-008",
+      "title": "Complete runtime contract integration into native app flows",
+      "description": "As an operator, I want Pi Mono run, steer, follow-up, approval, and artifact events to drive the native UI so that the app is a complete replacement for Electron.",
+      "acceptanceCriteria": [
+        "Run lifecycle events are surfaced in native UI from real runtime data",
+        "Approval gates participate in real runtime flows",
+        "Message and artifact updates reflect live runtime contract events",
+        "Typecheck passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Core completion story for full replacement."
+    },
+    {
+      "id": "US-009",
+      "title": "Add final native end-to-end verification matrix",
+      "description": "As a maintainer, I want a broader native verification matrix so that the rewritten app can be trusted as the production desktop path.",
+      "acceptanceCriteria": [
+        "Native tests cover onboarding bootstrap, run inspection, approval visibility, document visibility, settings/workspace state, and inbox attention derivation",
+        "cargo clippy --workspace --all-targets --all-features -- -D warnings passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Final confidence layer before calling the rewrite complete."
+    }
+  ]
+}

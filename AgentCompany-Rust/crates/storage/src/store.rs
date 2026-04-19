@@ -154,6 +154,85 @@ impl ProfileStore {
         Ok(())
     }
 
+    pub fn update_theme(&mut self, theme: &str) -> Result<()> {
+        let normalized = match theme {
+            "system" | "light" | "dark" => theme,
+            _ => return Err(anyhow!("unsupported theme value: {theme}")),
+        };
+        self.conn.execute(
+            "insert into settings (key, value) values ('theme', ?1) on conflict(key) do update set value = excluded.value",
+            params![normalized],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_locale(&mut self, locale: &str) -> Result<()> {
+        let normalized = match locale {
+            "en" | "zh" => locale,
+            _ => return Err(anyhow!("unsupported locale value: {locale}")),
+        };
+        self.conn.execute(
+            "insert into settings (key, value) values ('locale', ?1) on conflict(key) do update set value = excluded.value",
+            params![normalized],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_execution_mode(&mut self, company_id: &str, execution_mode: &str) -> Result<()> {
+        let normalized = normalized_execution_mode(execution_mode);
+        let ts = now_iso()?;
+        self.conn.execute(
+            "update companies set execution_mode = ?1, auto_approve_hires = ?2, review_deliverables = ?3, updated_at = ?4 where id = ?5",
+            params![
+                normalized,
+                if normalized == "ai_ceo" { 1 } else { 0 },
+                if normalized == "ai_cofounder" { 1 } else { 0 },
+                ts,
+                company_id
+            ],
+        )?;
+        self.add_activity(
+            company_id,
+            BOARD_READER_ID,
+            "updated_execution_mode",
+            "companies",
+            company_id,
+            normalized,
+        )?;
+        Ok(())
+    }
+
+    pub fn set_primary_workspace(&mut self, company_id: &str, workspace_id: &str) -> Result<()> {
+        let ts = now_iso()?;
+        let tx = self.conn.transaction()?;
+        let belongs = tx.query_row(
+            "select count(1) from workspaces where id = ?1 and company_id = ?2",
+            params![workspace_id, company_id],
+            |row| row.get::<_, i64>(0),
+        )?;
+        if belongs == 0 {
+            return Err(anyhow!("workspace {workspace_id} was not found"));
+        }
+        tx.execute(
+            "update workspaces set is_primary = 0, updated_at = ?1 where company_id = ?2",
+            params![ts, company_id],
+        )?;
+        tx.execute(
+            "update workspaces set is_primary = 1, updated_at = ?1 where id = ?2 and company_id = ?3",
+            params![ts, workspace_id, company_id],
+        )?;
+        tx.commit()?;
+        self.add_activity(
+            company_id,
+            BOARD_READER_ID,
+            "updated_primary_workspace",
+            "workspaces",
+            workspace_id,
+            "primary workspace changed",
+        )?;
+        Ok(())
+    }
+
     pub fn decide_approval(
         &mut self,
         company_id: &str,

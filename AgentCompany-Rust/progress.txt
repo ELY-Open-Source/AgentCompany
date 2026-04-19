@@ -1,0 +1,11 @@
+# Ralph Progress Log
+Started: 2026-04-19
+---
+- Established native GPUI shell parity direction by reading PRD.md, Electron source surfaces, and visual screenshots before editing.
+- Completed native shell, onboarding, overview, sidebar, and messages parity work.
+- Completed approvals, documents, runs, inbox, settings, and workspaces parity passes.
+- Added native storage-backed verification covering reviews, approvals, runs, and documents.
+- Remaining work is concentrated in interaction depth, animation/state parity, and full runtime contract completion.
+- Standing constraint: all code is written directly in the current context; no subagents or agent teams are used.
+- Completed real settings/workspace state mutations in native Rust path: theme, locale, execution mode, and primary workspace.
+- Added native_settings_workspace_e2e.rs to verify mutation persistence across reopen.

@@ -1,7 +1,7 @@
 use super::*;
 
 impl AppRoot {
-    pub(super) fn render_settings(&self) -> impl IntoElement + '_ {
+    pub(super) fn render_settings(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
         let current = self.snapshot.current_company();
         let execution_mode = current
             .map(|item| item.execution_mode.clone())
@@ -30,30 +30,97 @@ impl AppRoot {
                 div()
                     .flex_1()
                     .gap_6()
-                    .child(settings_section(
+                    .child(settings_panel(
                         "General",
                         vec![
-                            settings_row("Profile path", self.snapshot.profile_path.clone()),
-                            settings_row("Theme", self.snapshot.theme.clone()),
-                            settings_row("Locale", self.snapshot.locale.clone()),
+                            settings_action_row(
+                                "Theme",
+                                self.snapshot.theme.clone(),
+                                vec![
+                                    settings_action_button(
+                                        "System",
+                                        self.snapshot.theme == "system",
+                                        cx,
+                                        |this, cx| this.update_theme("system", cx),
+                                    )
+                                    .into_any_element(),
+                                    settings_action_button(
+                                        "Light",
+                                        self.snapshot.theme == "light",
+                                        cx,
+                                        |this, cx| this.update_theme("light", cx),
+                                    )
+                                    .into_any_element(),
+                                    settings_action_button(
+                                        "Dark",
+                                        self.snapshot.theme == "dark",
+                                        cx,
+                                        |this, cx| this.update_theme("dark", cx),
+                                    )
+                                    .into_any_element(),
+                                ],
+                            ),
+                            settings_action_row(
+                                "Locale",
+                                self.snapshot.locale.clone(),
+                                vec![
+                                    settings_action_button(
+                                        "EN",
+                                        self.snapshot.locale == "en",
+                                        cx,
+                                        |this, cx| this.update_locale("en", cx),
+                                    )
+                                    .into_any_element(),
+                                    settings_action_button(
+                                        "ZH",
+                                        self.snapshot.locale == "zh",
+                                        cx,
+                                        |this, cx| this.update_locale("zh", cx),
+                                    )
+                                    .into_any_element(),
+                                ],
+                            ),
+                            settings_readonly_row(
+                                "Profile path",
+                                self.snapshot.profile_path.clone(),
+                            ),
                         ],
                     ))
-                    .child(settings_section(
+                    .child(settings_panel(
                         "Execution mode",
-                        vec![settings_row("Company mode", execution_mode)],
+                        vec![settings_action_row(
+                            "Company mode",
+                            execution_mode.clone(),
+                            vec![
+                                settings_action_button(
+                                    "AI CEO",
+                                    execution_mode == "ai_ceo",
+                                    cx,
+                                    |this, cx| this.update_execution_mode("ai_ceo", cx),
+                                )
+                                .into_any_element(),
+                                settings_action_button(
+                                    "AI Co-Founder",
+                                    execution_mode == "ai_cofounder",
+                                    cx,
+                                    |this, cx| this.update_execution_mode("ai_cofounder", cx),
+                                )
+                                .into_any_element(),
+                            ],
+                        )],
                     ))
-                    .child(settings_section(
+                    .child(settings_panel(
                         "Providers",
-                        vec![settings_row(
+                        vec![settings_readonly_row(
                             "Configured connectors",
                             self.snapshot.connectors.len().to_string(),
                         )],
                     ))
-                    .child(settings_section(
+                    .child(settings_panel(
                         "Data",
                         vec![
-                            settings_row("Stored profile", "Local SQLite".to_string()),
-                            settings_row("Current company", current_company_name(current)),
+                            settings_readonly_row("Stored profile", "Local SQLite".to_string()),
+                            settings_readonly_row("Current company", current_company_name(current)),
                         ],
                     )),
             )
@@ -78,7 +145,7 @@ fn settings_nav_row(label: &'static str, active: bool) -> impl IntoElement {
         .child(label)
 }
 
-fn settings_section(label: &'static str, rows: Vec<gpui::Div>) -> impl IntoElement {
+fn settings_panel(label: &'static str, rows: Vec<gpui::AnyElement>) -> impl IntoElement {
     div()
         .p_5()
         .rounded_lg()
@@ -94,7 +161,7 @@ fn settings_section(label: &'static str, rows: Vec<gpui::Div>) -> impl IntoEleme
         .child(div().mt(px(16.0)).children(rows))
 }
 
-fn settings_row(label: &'static str, value: String) -> gpui::Div {
+fn settings_readonly_row(label: &'static str, value: String) -> gpui::AnyElement {
     div()
         .flex()
         .justify_between()
@@ -109,6 +176,65 @@ fn settings_row(label: &'static str, value: String) -> gpui::Div {
                 .text_color(theme::text_primary())
                 .child(value),
         )
+        .into_any_element()
+}
+
+fn settings_action_row(
+    label: &'static str,
+    value: String,
+    actions: Vec<gpui::AnyElement>,
+) -> gpui::AnyElement {
+    div()
+        .py_3()
+        .border_b_1()
+        .border_color(theme::panel_border())
+        .child(
+            div()
+                .flex()
+                .justify_between()
+                .items_center()
+                .child(div().text_sm().text_color(theme::text_muted()).child(label))
+                .child(
+                    div()
+                        .text_sm()
+                        .text_color(theme::text_primary())
+                        .child(value),
+                ),
+        )
+        .child(div().mt(px(10.0)).flex().gap_2().children(actions))
+        .into_any_element()
+}
+
+fn settings_action_button<V>(
+    label: &'static str,
+    active: bool,
+    cx: &mut Context<V>,
+    on_click: impl Fn(&mut V, &mut Context<V>) + 'static,
+) -> impl IntoElement
+where
+    V: 'static,
+{
+    div()
+        .id(SharedString::from(format!("settings-action-{label}")))
+        .px_3()
+        .py_2()
+        .rounded_lg()
+        .cursor_pointer()
+        .bg(if active {
+            theme::primary_action()
+        } else {
+            theme::panel_muted()
+        })
+        .text_color(if active {
+            theme::primary_action_text()
+        } else {
+            theme::text_secondary()
+        })
+        .hover(|style| style.bg(theme::panel_hover()))
+        .on_click(
+            cx.listener(move |this, _: &gpui::ClickEvent, _: &mut Window, cx| on_click(this, cx)),
+        )
+        .child(label)
 }
 
 fn current_company_name(company: Option<&domain::Company>) -> String {

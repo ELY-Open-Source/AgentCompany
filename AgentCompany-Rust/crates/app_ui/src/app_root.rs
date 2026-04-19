@@ -136,6 +136,62 @@ impl AppRoot {
         }
     }
 
+    fn update_theme(&mut self, theme: &'static str, cx: &mut Context<Self>) {
+        let result = {
+            let mut store = self.store.lock();
+            store.update_theme(theme)
+        };
+        match result {
+            Ok(_) => self.reload(format!("Theme updated to {theme}."), cx),
+            Err(error) => self.set_status(error.to_string(), cx),
+        }
+    }
+
+    fn update_locale(&mut self, locale: &'static str, cx: &mut Context<Self>) {
+        let result = {
+            let mut store = self.store.lock();
+            store.update_locale(locale)
+        };
+        match result {
+            Ok(_) => self.reload(format!("Locale updated to {locale}."), cx),
+            Err(error) => self.set_status(error.to_string(), cx),
+        }
+    }
+
+    fn update_execution_mode(&mut self, execution_mode: &'static str, cx: &mut Context<Self>) {
+        let Some(company_id) = self.current_company_id().map(str::to_string) else {
+            self.set_status("Create a company first.", cx);
+            return;
+        };
+        let result = {
+            let mut store = self.store.lock();
+            store.update_execution_mode(&company_id, execution_mode)
+        };
+        match result {
+            Ok(_) => self.reload(format!("Execution mode updated to {execution_mode}."), cx),
+            Err(error) => self.set_status(error.to_string(), cx),
+        }
+    }
+
+    fn set_primary_selected_workspace(&mut self, cx: &mut Context<Self>) {
+        let Some(company_id) = self.current_company_id().map(str::to_string) else {
+            self.set_status("Create a company first.", cx);
+            return;
+        };
+        let Some(workspace_id) = self.state.selected_workspace_id.clone() else {
+            self.set_status("Choose a workspace first.", cx);
+            return;
+        };
+        let result = {
+            let mut store = self.store.lock();
+            store.set_primary_workspace(&company_id, &workspace_id)
+        };
+        match result {
+            Ok(_) => self.reload("Primary workspace updated.", cx),
+            Err(error) => self.set_status(error.to_string(), cx),
+        }
+    }
+
     fn decide_selected_approval(
         &mut self,
         state: ApprovalState,
@@ -314,7 +370,9 @@ impl Render for AppRoot {
                                 SectionId::Workspaces => {
                                     self.render_workspaces(cx).into_any_element()
                                 }
-                                SectionId::Settings => self.render_settings().into_any_element(),
+                                SectionId::Settings => {
+                                    self.render_settings(cx).into_any_element()
+                                }
                             }),
                     ),
             )

@@ -2,6 +2,17 @@ use super::*;
 
 impl AppRoot {
     pub(super) fn render_workspaces(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
+        let selected = self
+            .state
+            .selected_workspace_id
+            .as_ref()
+            .and_then(|workspace_id| {
+                self.snapshot
+                    .workspaces
+                    .iter()
+                    .find(|workspace| &workspace.id == workspace_id)
+            });
+
         div()
             .flex()
             .flex_col()
@@ -26,7 +37,16 @@ impl AppRoot {
                                     .text_color(theme::text_muted())
                                     .child(format!("{} linked workspaces", self.snapshot.workspaces.len())),
                             ),
-                    ),
+                    )
+                    .when_some(selected, |container, workspace| {
+                        if workspace.is_primary {
+                            container
+                        } else {
+                            container.child(primary_button("Set primary", cx, |this, cx| {
+                                this.set_primary_selected_workspace(cx)
+                            }))
+                        }
+                    }),
             )
             .child(div().h(px(1.0)).bg(theme::panel_border()))
             .when(self.snapshot.workspaces.is_empty(), |container| {
@@ -62,64 +82,63 @@ impl AppRoot {
             })
             .when(!self.snapshot.workspaces.is_empty(), |container| {
                 container.child(
-                    div()
-                        .children(self.snapshot.workspaces.iter().map(|workspace| {
-                            let active = self.state.selected_workspace_id.as_deref()
-                                == Some(workspace.id.as_str());
-                            let workspace_id = workspace.id.clone();
-                            div()
-                                .id(SharedString::from(format!("workspace-{}", workspace.id)))
-                                .flex()
-                                .justify_between()
-                                .items_center()
-                                .px_6()
-                                .py_5()
-                                .border_b_1()
-                                .border_color(theme::panel_border())
-                                .cursor_pointer()
-                                .bg(if active {
-                                    theme::selection_fill()
-                                } else {
-                                    theme::window_bg()
-                                })
-                                .hover(|style| style.bg(theme::panel_hover()))
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.state.selected_workspace_id = Some(workspace_id.clone());
-                                    cx.notify();
-                                }))
-                                .child(
-                                    div()
-                                        .flex_1()
-                                        .child(
-                                            div()
-                                                .text_base()
-                                                .text_color(theme::text_primary())
-                                                .child(workspace.name.clone()),
-                                        )
-                                        .child(
-                                            div()
-                                                .mt(px(8.0))
-                                                .text_sm()
-                                                .text_color(theme::text_muted())
-                                                .child(workspace.local_path.clone()),
-                                        )
-                                        .child(
-                                            div()
-                                                .mt(px(8.0))
-                                                .text_xs()
-                                                .text_color(theme::text_subtle())
-                                                .child(format!(
-                                                    "{} · {}",
-                                                    workspace.state,
-                                                    workspace_kind(workspace.is_primary)
-                                                )),
-                                        ),
-                                )
-                                .child(workspace_state_badge(
-                                    workspace.state.as_str(),
-                                    workspace.is_primary,
-                                ))
-                        })),
+                    div().children(self.snapshot.workspaces.iter().map(|workspace| {
+                        let active =
+                            self.state.selected_workspace_id.as_deref() == Some(workspace.id.as_str());
+                        let workspace_id = workspace.id.clone();
+                        div()
+                            .id(SharedString::from(format!("workspace-{}", workspace.id)))
+                            .flex()
+                            .justify_between()
+                            .items_center()
+                            .px_6()
+                            .py_5()
+                            .border_b_1()
+                            .border_color(theme::panel_border())
+                            .cursor_pointer()
+                            .bg(if active {
+                                theme::selection_fill()
+                            } else {
+                                theme::window_bg()
+                            })
+                            .hover(|style| style.bg(theme::panel_hover()))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.state.selected_workspace_id = Some(workspace_id.clone());
+                                cx.notify();
+                            }))
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .child(
+                                        div()
+                                            .text_base()
+                                            .text_color(theme::text_primary())
+                                            .child(workspace.name.clone()),
+                                    )
+                                    .child(
+                                        div()
+                                            .mt(px(8.0))
+                                            .text_sm()
+                                            .text_color(theme::text_muted())
+                                            .child(workspace.local_path.clone()),
+                                    )
+                                    .child(
+                                        div()
+                                            .mt(px(8.0))
+                                            .text_xs()
+                                            .text_color(theme::text_subtle())
+                                            .child(format!(
+                                                "{} · {}",
+                                                workspace.state,
+                                                workspace_kind(workspace.is_primary)
+                                            )),
+                                    ),
+                            )
+                            .child(workspace_state_badge(
+                                workspace.state.as_str(),
+                                workspace.is_primary,
+                            ))
+                    })),
                 )
             })
     }
