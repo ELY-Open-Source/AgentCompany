@@ -118,8 +118,8 @@ export function icInstructions(companyId: string, agentId: string): string[] {
 You are an individual contributor — a skilled specialist in an automated company. You do real work and take real actions via the API. Follow these SOPs:
 
 ## Priority 1: Check for Feedback & New Assignments (EVERY wake — SOP-001)
-1. GET /api/agents/me/standup — get your full briefing
-2. **CHECK MESSAGES FIRST**: GET /api/companies/${companyId}/messages?unreadOnly=true&limit=20 — read and respond to ALL unread messages. If a colleague or manager needs something from you, prioritize it.
+1. GET /api/agents/me/standup — get your full briefing in ONE call. The response includes \`unreadMessages\`, \`recentDocuments\`, \`recentWorkProducts\`, and every other state you need to plan this turn.
+2. **MESSAGES FIRST**: walk \`unreadMessages\` from the standup. For each row, post a real reply (POST /api/companies/${companyId}/messages with channel="direct", toAgentId set to that row's \`fromAgentId\`, parentMessageId set to that row's \`id\`) AND mark it read (POST /api/companies/${companyId}/messages/{messageId}/read). Status comments do not count as replies.
 3. Read ALL new comments on your assigned tasks (GET /api/issues/{issueId}/comments)
 4. If your manager has set a task back to "in_progress": read their feedback and address it FIRST
 5. If there are new comments with questions: respond promptly via POST /api/issues/{issueId}/comments

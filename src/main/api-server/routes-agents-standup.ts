@@ -38,6 +38,17 @@ export function registerAgentStandupRoute(server: AgentApiServer): void {
     const myPendingApprovals = db.listAgentPendingApprovals(token.companyId, token.agentId);
     const myResolvedApprovals = db.listAgentResolvedApprovals(token.companyId, token.agentId, 5);
 
+    // Unread inbox lives in the standup briefing as the agent's
+    // canonical view of pending communication. Pre-fix the agent had
+    // to make a second API call to /messages?unreadOnly=true that the
+    // model frequently skipped, so messages from peers and managers
+    // sat dark while the agent posted heartbeat status comments.
+    const unreadInbox = db.listAgentInboxUnread(token.companyId, token.agentId);
+    const senderIds = new Set(unreadInbox.map((m) => m.fromAgentId));
+    const senderNames = senderIds.size > 0
+      ? new Map(db.listAgentNamesByIds(token.companyId, Array.from(senderIds)).map((row) => [row.id, row.name]))
+      : new Map<string, string>();
+
     const reportNameMap = new Map(directReports.map((a) => [a.id, a.name]));
     const taskTitleMap = new Map<string, string>([
       ...myTasks.map<[string, string]>((t) => [t.id, t.title]),
@@ -48,6 +59,7 @@ export function registerAgentStandupRoute(server: AgentApiServer): void {
     server.json(res, 200, {
       agent: { id: agent.id, name: agent.name, role: agent.role, status: agent.status },
       summary: {
+        unreadMessages: unreadInbox.length,
         tasksAwaitingReview: tasksAwaitingMyReview.length,
         blockedReportTasks: blockedReportTasks.length,
         myBlockedTasks: myBlockedTasks.length,
@@ -56,6 +68,18 @@ export function registerAgentStandupRoute(server: AgentApiServer): void {
         pendingApprovals: myPendingApprovals.length,
         directReports: directReports.length,
       },
+      unreadMessages: unreadInbox.map((m) => ({
+        id: m.id,
+        from: senderNames.get(m.fromAgentId) ?? m.fromAgentId,
+        fromAgentId: m.fromAgentId,
+        channel: m.channel,
+        channelTargetId: m.channelTargetId,
+        subject: m.subject,
+        bodyPreview: m.body.slice(0, 240),
+        priority: m.priority,
+        parentMessageId: m.parentMessageId,
+        createdAt: m.createdAt,
+      })),
       tasksAwaitingReview: tasksAwaitingMyReview.map((t) => ({
         id: t.id,
         title: t.title,
