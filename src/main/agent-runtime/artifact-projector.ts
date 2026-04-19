@@ -1,6 +1,6 @@
 import { isAbsolute, relative, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import type { AppDatabase } from "@main/database";
 
 /**
@@ -8,21 +8,29 @@ import type { AppDatabase } from "@main/database";
  *
  * Every successful destructive tool call (`write`, `edit`, `bash`) is
  * projected into the `work_products` table so the desktop UI can
- * surface what the agent actually produced without requiring the
- * agent to remember to POST /api/documents.
+ * surface what the agent actually produced without requiring the agent
+ * to remember to POST /api/documents.
  *
  * Projection is idempotent: the natural identity of an artifact is
- * `(companyId, provider="filesystem", externalId=<workspace-relative-path>)`.
+ * `(companyId, workspaceId, provider="filesystem", externalId=<workspace-relative-path>)`.
  * The first tool call inserts; subsequent calls to the same path go
- * through `updateWorkProduct` so repeated edits do not spam duplicates.
+ * through `updateWorkProduct`, which also refreshes
+ * `last_touched_by_run_id` so every run that modifies the file shows
+ * up in the deliverable signal and in the DocumentCenter preview.
  *
  * `write` / `edit` expose the touched path in their args — the
  * projection path is trivial. `bash` is opaque: the tool may run any
- * command, including commands that mutate the workspace
- * (git commit, npm build, file redirection). For bash we scan the
- * workspace for filesystem changes with `git status --porcelain`;
- * non-git workspaces fall through to an explicit skip since there
- * is no authoritative baseline to diff against.
+ * command (git commit, npm build, shell redirection). Diffing uses two
+ * sources of truth, chosen per workspace:
+ *
+ *  - git workspace → `git status --porcelain` reports modified and
+ *    untracked files relative to HEAD;
+ *  - non-git workspace → an mtime baseline captured at run start
+ *    reports every file whose mtime advanced during the run.
+ *
+ * Either way the projector only upserts paths that survive the
+ * registrability filter (`IGNORED_PATH_SEGMENTS` / extensions), so
+ * build output and caches never pollute the DocumentCenter.
  */
 
 /** Paths we never register — tool output that is never a deliverable. */
@@ -71,7 +79,94 @@ export type ArtifactProjectorRunContext = {
   taskId: string | null;
   workspaceId: string | null;
   workspacePath: string | null;
+  /**
+   * mtime snapshot captured at run start for workspaces that are NOT
+   * a git repo. Diff-against-baseline is how `projectBashArtifacts`
+   * and `reconcileWorkspaceArtifacts` find files the agent wrote
+   * without a `.git` to fall back on.
+   */
+  workspaceBaseline: WorkspaceBaseline | null;
 };
+
+export interface WorkspaceBaseline {
+  /** Relative path → mtimeMs at capture. */
+  mtimeByRelPath: Map<string, number>;
+  /** Unix ms at which the baseline was taken. */
+  capturedAt: number;
+  /** True when the walker stopped early because the cap was hit; the baseline is still usable for the paths that were captured. */
+  truncated: boolean;
+}
+
+const MAX_BASELINE_ENTRIES = 20_000;
+const BASELINE_SKIP_DIR_NAMES: ReadonlySet<string> = new Set([
+  ".git",
+  "node_modules",
+  ".next",
+  "dist",
+  "build",
+  "out",
+  ".cache",
+  ".pnpm-store",
+]);
+
+/**
+ * Walk `workspacePath` and record the mtime of every non-directory
+ * entry. Directories matching `BASELINE_SKIP_DIR_NAMES` are pruned at
+ * walk time — the same categories the registrability filter rejects —
+ * so the baseline stays bounded on real project trees. Stops early at
+ * `MAX_BASELINE_ENTRIES` and flags `truncated`; the partial baseline
+ * still lets the diff detect every file it saw, while the operator is
+ * told via the skip reason that an oversize workspace fell off the
+ * tail.
+ */
+export function captureWorkspaceBaseline(workspacePath: string): WorkspaceBaseline | null {
+  if (!workspacePath) return null;
+  try {
+    if (!statSync(workspacePath).isDirectory()) return null;
+  } catch {
+    return null;
+  }
+  const mtimeByRelPath = new Map<string, number>();
+  const stack: string[] = [workspacePath];
+  let truncated = false;
+  while (stack.length > 0) {
+    if (mtimeByRelPath.size >= MAX_BASELINE_ENTRIES) {
+      truncated = true;
+      break;
+    }
+    const dir = stack.pop();
+    if (!dir) break;
+    let entries: { name: string; isDirectory: () => boolean; isSymbolicLink: () => boolean }[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const abs = resolve(dir, entry.name);
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) {
+        if (BASELINE_SKIP_DIR_NAMES.has(entry.name)) continue;
+        stack.push(abs);
+        continue;
+      }
+      try {
+        const stat = statSync(abs);
+        if (!stat.isFile()) continue;
+        const rel = relative(workspacePath, abs);
+        if (rel.length === 0) continue;
+        mtimeByRelPath.set(rel, stat.mtimeMs);
+      } catch {
+        continue;
+      }
+      if (mtimeByRelPath.size >= MAX_BASELINE_ENTRIES) {
+        truncated = true;
+        break;
+      }
+    }
+  }
+  return { mtimeByRelPath, capturedAt: Date.now(), truncated };
+}
 
 type WriteArgs = { path: unknown; content?: unknown };
 type EditArgs = { path: unknown };
@@ -144,46 +239,96 @@ export function projectToolExecutionToWorkProduct(
 
 /**
  * End-of-run reconciliation sweep. The per-tool `afterToolCall` hook
- * registers artifacts eagerly, but individual projections can skip
- * (bash against a non-git workspace, a path on the ignore list, a
- * transient `git status` failure). Without a final sweep, those files
- * land on disk but never in `work_products` — the DocumentCenter then
- * looks empty even though the agent produced deliverables.
+ * registers artifacts eagerly, but individual projections can still
+ * skip (path on the ignore list, transient `git status` failure, or
+ * an mtime baseline that was truncated). The sweep is the backstop:
+ * every file the change-detector still knows about is upserted once
+ * more before the run's resources are released, so the DocumentCenter
+ * is never empty just because a single hook call lost a row.
  *
- * The sweep uses the same `git status` source of truth as
- * `projectBashArtifacts`; non-git workspaces are deliberately a no-op
- * because there is no authoritative diff against HEAD. It is
- * idempotent via `findWorkProductByExternalId`.
+ * Diffing uses the same dual-source strategy as `projectBashArtifacts`:
+ * `git status` when a `.git` is present, the captured mtime baseline
+ * otherwise. Idempotent through `findWorkProductByExternalId`, which
+ * keys on `(company, workspace, provider, externalId)`.
  */
 export function reconcileWorkspaceArtifacts(
   db: AppDatabase,
   ctx: ArtifactProjectorRunContext,
 ): ProjectionOutcome[] {
-  if (!ctx.workspacePath) return [{ kind: "skipped", reason: "no_workspace" }];
-  if (!isGitRepo(ctx.workspacePath)) return [{ kind: "skipped", reason: "not_a_git_repo" }];
-
-  let changed: string[];
-  try {
-    changed = listChangedRelPaths(ctx.workspacePath);
-  } catch {
-    return [{ kind: "skipped", reason: "git_status_failed" }];
+  const change = collectChangedPaths(ctx);
+  if (change.source === "none") {
+    return [{ kind: "skipped", reason: change.skipReason ?? "no_changes" }];
   }
-  if (changed.length === 0) return [{ kind: "skipped", reason: "no_changes" }];
+  if (change.paths.length === 0) return [{ kind: "skipped", reason: "no_changes" }];
+  return projectChangedPaths(db, ctx, change.paths);
+}
 
+function projectChangedPaths(
+  db: AppDatabase,
+  ctx: ArtifactProjectorRunContext,
+  changed: string[],
+): ProjectionOutcome[] {
+  const workspacePath = ctx.workspacePath;
+  if (!workspacePath) return [{ kind: "skipped", reason: "no_workspace" }];
   const outcomes: ProjectionOutcome[] = [];
   const budget = changed.slice(0, MAX_BASH_PROJECTED_FILES);
   for (const rel of budget) {
-    const absPath = resolve(ctx.workspacePath, rel);
-    if (!isRegistrablePath(absPath, ctx.workspacePath)) {
+    const absPath = resolve(workspacePath, rel);
+    if (!isRegistrablePath(absPath, workspacePath)) {
       outcomes.push({ kind: "skipped", reason: "path_ignored" });
       continue;
     }
-    outcomes.push(upsertFilesystemArtifact(db, ctx, ctx.workspacePath, absPath));
+    outcomes.push(upsertFilesystemArtifact(db, ctx, workspacePath, absPath));
   }
   if (changed.length > MAX_BASH_PROJECTED_FILES) {
     outcomes.push({ kind: "skipped", reason: "bash_scan_cap_exceeded" });
   }
   return outcomes;
+}
+
+/**
+ * Compare current workspace mtimes against the run-start baseline.
+ * Returns every file whose mtime advanced (modified) or was not in
+ * the baseline at all (created). Skipped-dir filtering mirrors the
+ * baseline walker so the diff and the capture stay in sync.
+ */
+function diffAgainstBaseline(workspacePath: string, baseline: WorkspaceBaseline): string[] {
+  const changed: string[] = [];
+  const stack: string[] = [workspacePath];
+  while (stack.length > 0) {
+    const dir = stack.pop();
+    if (!dir) break;
+    let entries: { name: string; isDirectory: () => boolean; isSymbolicLink: () => boolean }[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) continue;
+      const abs = resolve(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (BASELINE_SKIP_DIR_NAMES.has(entry.name)) continue;
+        stack.push(abs);
+        continue;
+      }
+      let mtimeMs: number;
+      try {
+        const stat = statSync(abs);
+        if (!stat.isFile()) continue;
+        mtimeMs = stat.mtimeMs;
+      } catch {
+        continue;
+      }
+      const rel = relative(workspacePath, abs);
+      if (rel.length === 0) continue;
+      const previous = baseline.mtimeByRelPath.get(rel);
+      if (previous === undefined || mtimeMs > previous) {
+        changed.push(rel);
+      }
+    }
+  }
+  return changed;
 }
 
 function projectSinglePathArtifact(
@@ -203,36 +348,41 @@ function projectSinglePathArtifact(
   return upsertFilesystemArtifact(db, ctx, ctx.workspacePath, absPath);
 }
 
+type ChangeSource = "git" | "baseline" | "none";
+
+interface ChangeSet {
+  source: ChangeSource;
+  /** Paths relative to the workspace root. */
+  paths: string[];
+  /** Reason the source chose to skip (only meaningful when source === "none"). */
+  skipReason?: string;
+}
+
+function collectChangedPaths(ctx: ArtifactProjectorRunContext): ChangeSet {
+  if (!ctx.workspacePath) return { source: "none", paths: [], skipReason: "no_workspace" };
+  if (isGitRepo(ctx.workspacePath)) {
+    try {
+      return { source: "git", paths: listChangedRelPaths(ctx.workspacePath) };
+    } catch {
+      return { source: "none", paths: [], skipReason: "git_status_failed" };
+    }
+  }
+  if (ctx.workspaceBaseline) {
+    return { source: "baseline", paths: diffAgainstBaseline(ctx.workspacePath, ctx.workspaceBaseline) };
+  }
+  return { source: "none", paths: [], skipReason: "no_baseline" };
+}
+
 function projectBashArtifacts(
   db: AppDatabase,
   ctx: ArtifactProjectorRunContext,
 ): ProjectionOutcome[] {
-  if (!ctx.workspacePath) return [{ kind: "skipped", reason: "no_workspace" }];
-  if (!isGitRepo(ctx.workspacePath)) {
-    return [{ kind: "skipped", reason: "not_a_git_repo" }];
+  const change = collectChangedPaths(ctx);
+  if (change.source === "none") {
+    return [{ kind: "skipped", reason: change.skipReason ?? "no_changes" }];
   }
-  let changed: string[];
-  try {
-    changed = listChangedRelPaths(ctx.workspacePath);
-  } catch {
-    return [{ kind: "skipped", reason: "git_status_failed" }];
-  }
-  if (changed.length === 0) return [{ kind: "skipped", reason: "no_changes" }];
-
-  const outcomes: ProjectionOutcome[] = [];
-  const budget = changed.slice(0, MAX_BASH_PROJECTED_FILES);
-  for (const rel of budget) {
-    const absPath = resolve(ctx.workspacePath, rel);
-    if (!isRegistrablePath(absPath, ctx.workspacePath)) {
-      outcomes.push({ kind: "skipped", reason: "path_ignored" });
-      continue;
-    }
-    outcomes.push(upsertFilesystemArtifact(db, ctx, ctx.workspacePath, absPath));
-  }
-  if (changed.length > MAX_BASH_PROJECTED_FILES) {
-    outcomes.push({ kind: "skipped", reason: "bash_scan_cap_exceeded" });
-  }
-  return outcomes;
+  if (change.paths.length === 0) return [{ kind: "skipped", reason: "no_changes" }];
+  return projectChangedPaths(db, ctx, change.paths);
 }
 
 function isGitRepo(workspacePath: string): boolean {

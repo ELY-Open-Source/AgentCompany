@@ -11,7 +11,7 @@ import type { CredentialResolver } from "@main/credentials";
 import { getConnectorDefinition } from "@main/connectors";
 import { projectInboxMessageToPi } from "./inbox-projection";
 import { projectAgentEventToLogChunk, extractTextBody } from "./agent-event-projection";
-import { reconcileWorkspaceArtifacts } from "./artifact-projector";
+import { captureWorkspaceBaseline, reconcileWorkspaceArtifacts } from "./artifact-projector";
 import {
   handleBeforeToolCall,
   handleAfterToolCall,
@@ -130,6 +130,7 @@ export class RuntimeBridge {
         taskId: ctx.taskId,
         workspaceId: ctx.workspaceId,
         workspacePath: ctx.workspacePath,
+        workspaceBaseline: ctx.workspaceBaseline,
       });
       const inserted = outcomes.filter((o) => o.kind === "inserted").length;
       if (inserted > 0) {
@@ -500,6 +501,13 @@ export class RuntimeBridge {
       workspaceId: string | null;
       workspacePath: string | null;
     };
+    // Capture an mtime baseline for non-git workspaces so `bash` and
+    // the end-of-run reconciliation can still diff changed files
+    // against a known-start reference. Git workspaces leave the
+    // baseline as null — `git status` is the source of truth there.
+    const baseline = payload.workspacePath
+      ? captureWorkspaceBaseline(payload.workspacePath)
+      : null;
     this.registerActiveRun({
       runId,
       agentId: payload.agentId,
@@ -510,6 +518,7 @@ export class RuntimeBridge {
       taskSessionId: payload.taskSessionId,
       workspaceId: payload.workspaceId,
       workspacePath: payload.workspacePath,
+      workspaceBaseline: baseline,
       state: "preparing",
     });
     const definition = getConnectorDefinition(payload.connectorId);
