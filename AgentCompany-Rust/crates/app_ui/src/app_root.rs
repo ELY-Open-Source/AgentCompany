@@ -5,7 +5,7 @@ use crate::{
         text_input::TextInput,
     },
 };
-use app_models::{AppState, OnboardingStep, RunFilter};
+use app_models::{AppState, OnboardingStep, RunFilter, SettingsTab};
 use domain::{ApprovalState, ProfileSnapshot, SectionId};
 use gpui::{App, Context, Entity, SharedString, Window, div, prelude::*, px};
 use storage::OnboardingBootstrapInput;
