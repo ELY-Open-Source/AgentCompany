@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { FileText, FloppyDisk, NotePencil, Trash } from "../ui/icons";
+import { FileText, FloppyDisk, NotePencil, Plus, Trash } from "../ui/icons";
 import type { AgentRecord, DocumentRecord, GoalRecord, ProjectRecord, WorkProductRecord } from "@shared/types";
-import { ActionButton, ConfirmDialog, InlineNotice, Input, ListFrame, ListRow, Modal, Select, StatusPill, TextArea } from "../ui";
+import { ActionButton, ConfirmDialog, EmptyState, InlineNotice, Input, ListFrame, ListRow, Modal, Select, StatusPill, TextArea } from "../ui";
 import { useT } from "../../i18n";
 import { documentTypeOptions, documentStatusOptions, splitTags, parseTags } from "./helpers";
 import { SectionHeader } from "./SectionHeader";
@@ -120,10 +120,18 @@ export function DocumentCenter({ companyId, documents, workProducts, agents, pro
   const activeDocument = useMemo(() => documents.find((document) => document.id === editingId) ?? null, [documents, editingId]);
 
   const totalCount = documents.length + workProducts.length;
+  const isEmpty = totalCount === 0;
 
   return (
     <div>
       <SectionHeader title={t("ops.documentCenter")} count={totalCount} action={() => setEditingId(NEW_ENTITY_ID)} />
+      {isEmpty ? (
+        <EmptyState
+          title={t("ops.documentsEmptyTitle")}
+          detail={t("ops.documentsEmptyDetail")}
+          action={<ActionButton label={t("ops.documentsEmptyAction")} icon={Plus} tone="accent" onClick={() => setEditingId(NEW_ENTITY_ID)} />}
+        />
+      ) : null}
       {documents.length > 0 ? (
         <div>
           <div className="px-4 pt-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">

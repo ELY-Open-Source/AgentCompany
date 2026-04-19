@@ -18,7 +18,8 @@ import { DocumentCenter } from "../../components/company-operations/DocumentCent
 import { KnowledgeBaseManager } from "../../components/company-operations/KnowledgeBaseManager";
 import { MeetingsManager } from "../../components/company-operations/MeetingsManager";
 import { SprintManager } from "../../components/company-operations/SprintManager";
-import { Panel } from "../../components/ui";
+import { EmptyState, Panel } from "../../components/ui";
+import { useT } from "../../i18n";
 import { unwrap } from "../../lib/desktop";
 import { useAppStore } from "../../state/store";
 import { useSectionContext } from "../../hooks/useSectionContext";
@@ -29,6 +30,7 @@ interface OperationsSectionsProps {
 }
 
 export function OperationsSections({ section }: OperationsSectionsProps) {
+  const t = useT();
   const {
     snapshot,
     currentCompany,
@@ -212,16 +214,23 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
         />
       ) : null}
 
-      {section === "documents" && currentCompany ? (
-        <DocumentCenter
-          companyId={currentCompany.id}
-          documents={companyDocuments}
-          workProducts={companyWorkProducts}
-          agents={companyAgents}
-          projects={companyProjects}
-          goals={companyGoals}
-          onRefresh={refresh}
-        />
+      {section === "documents" ? (
+        currentCompany ? (
+          <DocumentCenter
+            companyId={currentCompany.id}
+            documents={companyDocuments}
+            workProducts={companyWorkProducts}
+            agents={companyAgents}
+            projects={companyProjects}
+            goals={companyGoals}
+            onRefresh={refresh}
+          />
+        ) : (
+          <EmptyState
+            title={t("ops.documentsEmptyTitle")}
+            detail={t("ops.documentsSelectCompany")}
+          />
+        )
       ) : null}
 
       {section === "knowledge" && currentCompany ? (
