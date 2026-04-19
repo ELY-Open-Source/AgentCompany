@@ -17,6 +17,4 @@ export const IMPORTANT_DOC_TYPES = [
   "sop",
 ] as const;
 
-export type ImportantDocType = (typeof IMPORTANT_DOC_TYPES)[number];
-
 export const IMPORTANT_DOC_TYPE_SET: ReadonlySet<string> = new Set(IMPORTANT_DOC_TYPES);

@@ -97,7 +97,7 @@ export function buildOrchestrationService({
         if (!agent.sessionId) return { rotated: false, handoff: null, sessionId: null };
         const session = db.getSessionById(agent.sessionId);
         if (!session) return { rotated: false, handoff: null, sessionId: agent.sessionId };
-        const result = sessionService.evaluateRotation(session, connectorId);
+        const result = sessionService.evaluateRotation(session);
         if (result.shouldRotate) {
           const newSessionId = sessionService.rotateSession(session);
           const handoff = sessionService.getHandoffForAgent(agentId);

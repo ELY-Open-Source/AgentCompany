@@ -286,9 +286,3 @@ export function findConnectorCatalogEntry(id: string): ConnectorCatalogEntry | u
 export function listFeaturedOnboardingConnectors(): ConnectorCatalogEntry[] {
   return CONNECTOR_CATALOG.filter((entry) => entry.onboardingFeatured === true);
 }
-
-export function listConnectorsByAuthKind(
-  kind: ConnectorAuthKind,
-): ConnectorCatalogEntry[] {
-  return CONNECTOR_CATALOG.filter((entry) => entry.auth.type === kind);
-}

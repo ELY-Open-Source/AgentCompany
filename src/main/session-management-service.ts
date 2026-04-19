@@ -6,15 +6,12 @@ interface SessionManagementDependencies {
   logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
 }
 
-// D-01/D-02: Exported for testing and external override. Conservative defaults.
-export const DEFAULT_THRESHOLDS = {
+// Rotation thresholds. Any-of semantics — first trigger wins.
+const ROTATION_THRESHOLDS = {
   maxRuns: 20,
   maxTokens: 500_000,
   maxAgeHours: 72,
 };
-
-// D-01: Type for per-adapter or company-level threshold overrides
-export type RotationThresholds = Partial<typeof DEFAULT_THRESHOLDS>;
 
 // D-04: Handoff size cap to prevent prompt bloat.
 // 2000 characters ≈ 500 tokens — enough to resume context without crowding
@@ -31,32 +28,24 @@ export function createSessionManagementService({ db, logger }: SessionManagement
     db.incrementSessionUsage(sessionId, inputTokens, outputTokens, runId);
   }
 
-  // D-01: Any-of thresholds with optional overrides. D-04: Check nativeContextManagement.
-  // Per D-01: "Configurable per-adapter with company-level overrides" -- accepts optional
-  // thresholds parameter that merges with defaults. Callers can pass per-adapter or
-  // company-level overrides; omitted fields fall back to DEFAULT_THRESHOLDS.
+  // Any-of thresholds — first trigger wins. Pi-mono delegates context
+  // management to pi-agent-core compaction hooks; AgentCompany applies its
+  // own rotation thresholds on top of that.
   function evaluateRotation(
     session: TaskSessionRecord,
-    _connectorId: string,
-    thresholdsOverride?: RotationThresholds,
   ): { shouldRotate: boolean; reason: string | null } {
-    // Pi-mono delegates context management to pi-agent-core compaction hooks;
-    // AgentCompany always applies its own rotation thresholds.
-    const thresholds = { ...DEFAULT_THRESHOLDS, ...thresholdsOverride };
-
-    // D-01: Any-of thresholds - first trigger wins
-    if (session.runCount >= thresholds.maxRuns) {
+    if (session.runCount >= ROTATION_THRESHOLDS.maxRuns) {
       return { shouldRotate: true, reason: "max_runs" };
     }
 
     const totalTokens = session.totalInputTokens + session.totalOutputTokens;
-    if (totalTokens >= thresholds.maxTokens) {
+    if (totalTokens >= ROTATION_THRESHOLDS.maxTokens) {
       return { shouldRotate: true, reason: "max_tokens" };
     }
 
     const ageMs = Date.now() - new Date(session.createdAt).getTime();
     const ageHours = ageMs / (1000 * 60 * 60);
-    if (ageHours >= thresholds.maxAgeHours) {
+    if (ageHours >= ROTATION_THRESHOLDS.maxAgeHours) {
       return { shouldRotate: true, reason: "max_age_hours" };
     }
 

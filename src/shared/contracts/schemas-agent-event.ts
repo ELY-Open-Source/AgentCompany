@@ -17,5 +17,3 @@ export const agentEventPushSchema = z.object({
     type: z.string(),
   }).passthrough(),
 });
-
-export type AgentEventPush = z.infer<typeof agentEventPushSchema>;

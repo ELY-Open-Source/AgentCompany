@@ -148,5 +148,3 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
     },
   };
 }
-
-export type CheckpointEngineService = ReturnType<typeof createCheckpointEngine>;

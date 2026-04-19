@@ -39,8 +39,6 @@ export type PiOAuthProviderId =
   | "google-gemini-cli"
   | "google-antigravity";
 
-export type ConnectorAuthKind = "oauth" | "api_key" | "aws" | "azure" | "gcp_adc";
-
 export interface ConnectorAuthOAuth {
   type: "oauth";
   oauthId: PiOAuthProviderId;

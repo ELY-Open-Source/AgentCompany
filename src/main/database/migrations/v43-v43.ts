@@ -82,10 +82,10 @@ export function createMigrationsV43V43(deps: MigrationDeps): Migration[] {
           }
 
           if (runsHasDeadCol) {
-            // v16-v25 added `context_snapshot_json`; it is unreferenced by
-            // production code today but the column exists on real databases
-            // and carries no policy against preservation. Keep it so this
-            // migration's blast radius stays exactly one column.
+            // `context_snapshot_json` rides through this rebuild untouched
+            // so the single-concern invariant holds: v43 drops only
+            // `session_display_id`. v44 is the one that drops the snapshot
+            // column.
             db.exec(`
               CREATE TABLE runs_new (
                 id TEXT PRIMARY KEY,

@@ -5,7 +5,3 @@ export function isMac(): boolean {
 export function cmdOrCtrlLabel(): string {
   return isMac() ? "Cmd" : "Ctrl";
 }
-
-export function cmdOrCtrlSymbol(): string {
-  return isMac() ? "⌘" : "Ctrl+";
-}

@@ -14,7 +14,7 @@ vi.mock("electron", () => ({
 
 import { AppDatabase } from "../../src/main/database";
 import { getConnectorDefinition } from "../../src/main/connectors";
-import { createSessionManagementService, DEFAULT_THRESHOLDS } from "../../src/main/session-management-service";
+import { createSessionManagementService } from "../../src/main/session-management-service";
 import type { ConnectorId, TaskSessionRecord } from "@shared/types";
 
 // ---------------------------------------------------------------------------
@@ -291,7 +291,7 @@ describe("session management service", () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      const result = svc.evaluateRotation(session, "gemini-cli");
+      const result = svc.evaluateRotation(session);
       expect(result.shouldRotate).toBe(false);
       expect(result.reason).toBeNull();
     });
@@ -314,7 +314,7 @@ describe("session management service", () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      const result = svc.evaluateRotation(session, "gemini-cli");
+      const result = svc.evaluateRotation(session);
       expect(result.shouldRotate).toBe(true);
       expect(result.reason).toBe("max_runs");
     });
@@ -337,7 +337,7 @@ describe("session management service", () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      const result = svc.evaluateRotation(session, "gemini-cli");
+      const result = svc.evaluateRotation(session);
       expect(result.shouldRotate).toBe(true);
       expect(result.reason).toBe("max_tokens");
     });
@@ -361,7 +361,7 @@ describe("session management service", () => {
         createdAt: oldDate,
         updatedAt: oldDate,
       };
-      const result = svc.evaluateRotation(session, "gemini-cli");
+      const result = svc.evaluateRotation(session);
       expect(result.shouldRotate).toBe(true);
       expect(result.reason).toBe("max_age_hours");
     });
@@ -389,88 +389,9 @@ describe("session management service", () => {
         createdAt: new Date(Date.now() - 200 * 60 * 60 * 1000).toISOString(), // Way old
         updatedAt: new Date().toISOString(),
       };
-      const result = svc.evaluateRotation(session, "claude-pro");
+      const result = svc.evaluateRotation(session);
       expect(result.shouldRotate).toBe(true);
       expect(result.reason).not.toBeNull();
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // configurable thresholds (D-01)
-  // -------------------------------------------------------------------------
-  describe("configurable thresholds (D-01)", () => {
-    it("evaluateRotation with custom thresholds override { maxRuns: 5 } triggers at 5 runs", () => {
-      const svc = createSessionManagementService({ db, logger: mockLogger });
-      const session: TaskSessionRecord = {
-        id: "sess-1",
-        companyId: "co-1",
-        agentId: "agent-1",
-        adapterType: "gemini-cli",
-        lastRunId: null,
-        lastError: null,
-        runCount: 5,
-        totalInputTokens: 100,
-        totalOutputTokens: 100,
-        rotatedAt: null,
-        rotationReason: null,
-        handoffMarkdown: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      const result = svc.evaluateRotation(session, "gemini-cli", { maxRuns: 5 });
-      expect(result.shouldRotate).toBe(true);
-      expect(result.reason).toBe("max_runs");
-    });
-
-    it("partial override { maxTokens: 100000 } uses override for tokens but defaults for runs and age", () => {
-      const svc = createSessionManagementService({ db, logger: mockLogger });
-      const session: TaskSessionRecord = {
-        id: "sess-1",
-        companyId: "co-1",
-        agentId: "agent-1",
-        adapterType: "gemini-cli",
-        lastRunId: null,
-        lastError: null,
-        runCount: 10, // Below default 20
-        totalInputTokens: 60000,
-        totalOutputTokens: 40000, // Total 100000 = meets override threshold
-        rotatedAt: null,
-        rotationReason: null,
-        handoffMarkdown: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      const result = svc.evaluateRotation(session, "gemini-cli", { maxTokens: 100000 });
-      expect(result.shouldRotate).toBe(true);
-      expect(result.reason).toBe("max_tokens");
-    });
-
-    it("omitting override uses DEFAULT_THRESHOLDS", () => {
-      const svc = createSessionManagementService({ db, logger: mockLogger });
-      const session: TaskSessionRecord = {
-        id: "sess-1",
-        companyId: "co-1",
-        agentId: "agent-1",
-        adapterType: "gemini-cli",
-        lastRunId: null,
-        lastError: null,
-        runCount: 19, // Just below default 20
-        totalInputTokens: 200000,
-        totalOutputTokens: 200000, // Total 400000, below default 500000
-        rotatedAt: null,
-        rotationReason: null,
-        handoffMarkdown: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      const result = svc.evaluateRotation(session, "gemini-cli");
-      expect(result.shouldRotate).toBe(false);
-      expect(result.reason).toBeNull();
-
-      // Verify DEFAULT_THRESHOLDS values
-      expect(DEFAULT_THRESHOLDS.maxRuns).toBe(20);
-      expect(DEFAULT_THRESHOLDS.maxTokens).toBe(500_000);
-      expect(DEFAULT_THRESHOLDS.maxAgeHours).toBe(72);
     });
   });
 

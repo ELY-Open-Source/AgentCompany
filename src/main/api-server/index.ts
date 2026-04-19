@@ -1,6 +1,7 @@
 import { AgentApiServer, type ApiServerEventCallbacks } from "./server-core";
 import { registerAgentRoutes } from "./routes-agents";
 import { registerAgentControlRoutes } from "./routes-agent-control";
+import { registerAgentStandupRoute } from "./routes-agents-standup";
 import { registerTaskRoutes } from "./routes-tasks";
 import { registerWorkGraphRoutes } from "./routes-work-graph";
 import { registerMessageRoutes } from "./routes-messages";
@@ -28,6 +29,7 @@ export function createApiServer(
   const server = new AgentApiServer(db, onDomainChanged, onWakeAgent, callbacks, allowedOrigins);
   registerAgentRoutes(server);
   registerAgentControlRoutes(server);
+  registerAgentStandupRoute(server);
   registerTaskRoutes(server);
   registerWorkGraphRoutes(server);
   registerMessageRoutes(server);

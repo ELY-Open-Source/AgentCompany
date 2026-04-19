@@ -10,7 +10,8 @@ import {
   startRunSchema,
   triggerHeartbeatSchema,
 } from "@shared/contracts";
-import { resolveApprovalDecision, shouldAutoApproveApproval } from "./approval-policy";
+import { resolveApprovalDecision } from "./approval-policy";
+import { shouldAutoApprove } from "./execution-policy";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
 
 export function registerCoreOperationHandlers({
@@ -71,7 +72,7 @@ export function registerCoreOperationHandlers({
     // Notify thread integration about the new approval
     handleApprovalCreated(id, parsed.companyId, parsed.relatedTaskId ?? null, parsed.type, parsed.payloadSummary ?? "");
 
-    if (shouldAutoApproveApproval(db, parsed.companyId, parsed.type)) {
+    if (shouldAutoApprove(db, parsed.companyId, parsed.type)) {
       resolveApprovalDecision({
         db,
         handleApprovalResolved,

@@ -6,12 +6,6 @@ import type { ProjectedSkill } from "../skill-types";
 
 export type WorkspaceLockMode = "exclusive" | "shared" | "none";
 
-export interface WorkspaceResolution {
-  workspace: ReturnType<AppDatabase["getWorkspace"]>;
-  lockMode: WorkspaceLockMode;
-  source: "task" | "agent" | "project" | "company_fallback" | "none";
-}
-
 export interface AutomationDispatch {
   companyId: string;
   taskId?: string;

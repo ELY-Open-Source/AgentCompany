@@ -136,5 +136,3 @@ export function createRunHousekeeping({ db, logger, threadIntegration }: RunHous
     },
   };
 }
-
-export type RunHousekeepingService = ReturnType<typeof createRunHousekeeping>;

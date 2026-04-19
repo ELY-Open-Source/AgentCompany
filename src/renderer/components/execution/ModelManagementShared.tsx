@@ -1,4 +1,3 @@
-import { CaretDown, CaretRight } from "../ui/icons";
 import type { ProfileSnapshot } from "@shared/types";
 import { Input } from "../ui";
 import { useT } from "../../i18n";
@@ -16,11 +15,6 @@ export interface ModelEntry {
 }
 
 export type ConnectorStatus = ProfileSnapshot["connectors"][number]["status"];
-
-export function parseEnvValue(text: string, key: string): string {
-  const line = text.split(/\r?\n/).find((l) => l.startsWith(`${key}=`));
-  return line ? line.slice(key.length + 1) : "";
-}
 
 /* ------------------------------------------------------------------ */
 /*  StatusBadge                                                        */
@@ -65,45 +59,6 @@ export function StatusBadge({ status }: { status: ConnectorStatus }) {
       <span className="h-1.5 w-1.5 rounded-full bg-caution" />
       {status.replaceAll("_", " ")}
     </span>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  ProviderCard                                                       */
-/* ------------------------------------------------------------------ */
-
-export function ProviderCard({
-  title,
-  badge,
-  expanded,
-  onToggle,
-  children,
-}: {
-  title: string;
-  badge: React.ReactNode;
-  expanded: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full cursor-pointer items-center justify-between px-4 py-3 transition hover:bg-muted/50"
-      >
-        <div className="flex items-center gap-2.5">
-          {expanded ? (
-            <CaretDown size={14} className="text-muted-foreground" />
-          ) : (
-            <CaretRight size={14} className="text-muted-foreground" />
-          )}
-          <span className="text-[13px] font-semibold text-foreground">{title}</span>
-        </div>
-        {badge}
-      </button>
-      {expanded && <div className="space-y-3 px-4 pb-4">{children}</div>}
-    </div>
   );
 }
 

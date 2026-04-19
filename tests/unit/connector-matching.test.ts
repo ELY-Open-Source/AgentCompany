@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   inferTaskType,
   getConnectorStrengths,
-  ROLE_DEPARTMENT_HINTS as _ROLE_DEPARTMENT_HINTS,
 } from "../../src/main/connector-matching";
 
 describe("connector-matching", () => {

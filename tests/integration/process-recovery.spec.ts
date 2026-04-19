@@ -446,25 +446,20 @@ describe("Process Recovery -- Context Preservation (D-02)", () => {
       adapterType: "gemini-cli",
     });
 
-    // Add token usage to simulate real work
-    db.incrementSessionUsage(sessionId, 5000, 2000, runId);
+    // Drive the session past the maxRuns=20 threshold so rotation fires.
+    for (let i = 0; i < 20; i++) {
+      db.incrementSessionUsage(sessionId, 1000, 500, `${runId}-${i}`);
+    }
 
-    // Create session management service to test rotation
     const sessionService = createSessionManagementService({
       db,
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     });
 
-    // Get the session and evaluate rotation with maxRuns:1 override
-    // (so it triggers rotation since we did 1 run)
     const session = db.getSessionById(sessionId);
     expect(session).not.toBeNull();
 
-    const rotationResult = sessionService.evaluateRotation(
-      session!,
-      "gemini-cli",
-      { maxRuns: 1 },
-    );
+    const rotationResult = sessionService.evaluateRotation(session!);
     expect(rotationResult.shouldRotate).toBe(true);
     expect(rotationResult.reason).toBe("max_runs");
 

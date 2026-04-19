@@ -6,7 +6,8 @@ import {
   workspaceInputSchema,
 } from "@shared/contracts";
 import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
-import { resolveApprovalDecision, shouldAutoApproveApproval } from "./approval-policy";
+import { resolveApprovalDecision } from "./approval-policy";
+import { shouldAutoApprove } from "./execution-policy";
 import { getHireNameValidationError, getHireRoutingValidationError, resolveHireReportsTo } from "./agent-permissions";
 import { validateConnectorModelSelection } from "./connector-model-policy";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
@@ -246,7 +247,7 @@ export function registerCoreAgentGraphHandlers({
     });
 
     let autoApproved = false;
-    if (shouldAutoApproveApproval(db, parsed.companyId, "hire_agent")) {
+    if (shouldAutoApprove(db, parsed.companyId, "hire_agent")) {
       resolveApprovalDecision({
         db,
         handleApprovalResolved,

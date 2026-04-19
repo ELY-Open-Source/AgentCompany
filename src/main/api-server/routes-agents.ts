@@ -8,7 +8,8 @@ import {
   getHireRoutingValidationError,
   resolveHireReportsTo,
 } from "../agent-permissions";
-import { resolveApprovalDecision, shouldAutoApproveApproval } from "../approval-policy";
+import { resolveApprovalDecision } from "../approval-policy";
+import { shouldAutoApprove } from "../execution-policy";
 import { requireParam, type AgentApiServer } from "./server-core";
 
 export function registerAgentRoutes(server: AgentApiServer) {
@@ -365,7 +366,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
     });
 
     let autoApproved = false;
-    if (shouldAutoApproveApproval(db, companyId, "hire_agent")) {
+    if (shouldAutoApprove(db, companyId, "hire_agent")) {
       resolveApprovalDecision({
         db,
         handleApprovalResolved: callbacks.onApprovalResolved,

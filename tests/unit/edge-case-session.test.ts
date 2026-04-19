@@ -13,7 +13,7 @@ vi.mock("electron", () => ({
 }));
 
 import { AppDatabase } from "../../src/main/database";
-import { createSessionManagementService, DEFAULT_THRESHOLDS } from "../../src/main/session-management-service";
+import { createSessionManagementService } from "../../src/main/session-management-service";
 import type { ConnectorId } from "@shared/types";
 
 // ---------------------------------------------------------------------------
@@ -121,17 +121,17 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     });
 
     // Simulate runs until we reach the maxRuns threshold (20)
-    for (let i = 0; i < DEFAULT_THRESHOLDS.maxRuns; i++) {
+    for (let i = 0; i < 20; i++) {
       db.incrementSessionUsage(sessionId, 1000, 500, `run-${i}`);
     }
 
     // Get the updated session from DB
     const session = db.getSessionById(sessionId);
     expect(session).not.toBeNull();
-    expect(session!.runCount).toBe(DEFAULT_THRESHOLDS.maxRuns);
+    expect(session!.runCount).toBe(20);  // matches maxRuns threshold in session-management-service
 
     // Evaluate rotation -- should trigger
-    const result = sessionService.evaluateRotation(session!, "gemini-cli");
+    const result = sessionService.evaluateRotation(session!);
     expect(result.shouldRotate).toBe(true);
     expect(result.reason).toBe("max_runs");
   });
@@ -146,8 +146,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       adapterType: "gemini-cli",
     });
 
-    // Accumulate tokens past the threshold in one big call
-    // DEFAULT_THRESHOLDS.maxTokens = 500_000 (total input + output)
+    // Accumulate tokens past the 500_000 maxTokens threshold in one big call
     db.incrementSessionUsage(sessionId, 300000, 250000, "big-run");
 
     const session = db.getSessionById(sessionId);
@@ -155,7 +154,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     const totalTokens = session!.totalInputTokens + session!.totalOutputTokens;
     expect(totalTokens).toBe(550000);
 
-    const result = sessionService.evaluateRotation(session!, "gemini-cli");
+    const result = sessionService.evaluateRotation(session!);
     expect(result.shouldRotate).toBe(true);
     expect(result.reason).toBe("max_tokens");
   });
@@ -171,7 +170,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     });
 
     // Accumulate enough to trigger rotation
-    for (let i = 0; i < DEFAULT_THRESHOLDS.maxRuns; i++) {
+    for (let i = 0; i < 20; i++) {
       db.incrementSessionUsage(sessionId, 1000, 500, `run-${i}`);
     }
 
@@ -266,7 +265,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
 
     const session = db.getSessionById(sessionId)!;
     // Pi-mono delegates compaction to pi-agent-core; AgentCompany still applies rotation uniformly.
-    const result = sessionService.evaluateRotation(session, "claude-pro");
+    const result = sessionService.evaluateRotation(session);
     expect(result.shouldRotate).toBe(true);
     expect(result.reason).not.toBeNull();
   });
@@ -288,7 +287,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
 
     const session = db.getSessionById(sessionId)!;
     // Pi-mono delegates compaction to pi-agent-core; AgentCompany still applies rotation uniformly.
-    const result = sessionService.evaluateRotation(session, "openai-codex");
+    const result = sessionService.evaluateRotation(session);
     expect(result.shouldRotate).toBe(true);
     expect(result.reason).not.toBeNull();
   });

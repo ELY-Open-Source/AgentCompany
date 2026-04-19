@@ -1,13 +1,4 @@
 import type { AppDatabase } from "./database";
-import { shouldAutoApprove } from "./execution-policy";
-
-export function shouldAutoApproveApproval(
-  db: AppDatabase,
-  companyId: string,
-  approvalType: string,
-): boolean {
-  return shouldAutoApprove(db, companyId, approvalType);
-}
 
 export function resolveApprovalDecision({
   db,

@@ -116,7 +116,7 @@ export function accumulateAndRotateSession(
     event.outputTokens ?? 0,
     event.runId,
   );
-  const rotationResult = sessionService.evaluateRotation(session, run.connectorId);
+  const rotationResult = sessionService.evaluateRotation(session);
   if (rotationResult.shouldRotate) {
     // Re-read to get updated counts after accumulation.
     const updatedSession = db.getSessionById(agentRecord.sessionId);

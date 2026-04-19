@@ -1,7 +1,8 @@
 import { z } from "zod";
 import log from "electron-log/main.js";
 import { approvalInputSchema } from "@shared/contracts";
-import { resolveApprovalDecision, shouldAutoApproveApproval } from "../approval-policy";
+import { resolveApprovalDecision } from "../approval-policy";
+import { shouldAutoApprove } from "../execution-policy";
 import { requireParam, type AgentApiServer } from "./server-core";
 
 const approvalListQuerySchema = z.object({
@@ -69,7 +70,7 @@ export function registerApprovalRoutes(server: AgentApiServer) {
     // Notify thread integration about the new approval
     callbacks.onApprovalCreated(id, companyId, input.relatedTaskId ?? null, input.type, input.payloadSummary ?? "");
 
-    if (shouldAutoApproveApproval(db, companyId, input.type)) {
+    if (shouldAutoApprove(db, companyId, input.type)) {
       resolveApprovalDecision({
         db,
         handleApprovalResolved: callbacks.onApprovalResolved,

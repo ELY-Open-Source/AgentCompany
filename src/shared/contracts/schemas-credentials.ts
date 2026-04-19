@@ -81,7 +81,6 @@ export const credentialSummarySchema = z.object({
 });
 
 export type CredentialSummary = z.infer<typeof credentialSummarySchema>;
-export type CredentialPayload = z.infer<typeof credentialPayloadSchema>;
 export type SaveCredentialInput = z.infer<typeof saveCredentialInputSchema>;
 export type AwsCredential = z.infer<typeof awsCredentialSchema>;
 export type AzureCredential = z.infer<typeof azureCredentialSchema>;
