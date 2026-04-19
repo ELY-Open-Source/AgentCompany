@@ -3,6 +3,7 @@ import log from "electron-log/main.js";
 import { validateAgentToken, type TokenPayload } from "../agent-auth";
 import type { AppDatabase } from "../database";
 import type { AgentMessageRecord, DesktopEvent, SectionId } from "@shared/types";
+import type { DocumentLifecycleInput, DocumentLifecycleOutcome } from "../document-lifecycle";
 
 /**
  * Decode an HTTP request body to a UTF-8 string, handling the common Windows
@@ -61,7 +62,14 @@ export interface ApiServerEventCallbacks {
   onCommentPosted: (taskId: string, companyId: string, authorAgentId: string | null) => void;
   onApprovalCreated: (approvalId: string, companyId: string, taskId: string | null, approvalType: string, summary: string) => void;
   onApprovalResolved: (approvalId: string, companyId: string, decision: string) => void;
-  onDocumentCreated: (companyId: string, authorAgentId: string | null, projectId: string | null, documentId: string, documentTitle: string, documentType: string, taskId: string | null) => void;
+  /**
+   * Persist a document through the shared `document-lifecycle` pipeline.
+   * Collapses the two previous entry points (this HTTP route and the
+   * desktop IPC handler) onto a single fan-out so thread, checkpoint,
+   * automation, and deliverable-review side effects land consistently
+   * regardless of which surface authored the write.
+   */
+  createDocument: (input: DocumentLifecycleInput) => DocumentLifecycleOutcome;
   onAutoAssignTask: (taskId: string, companyId: string) => string | null;
   onHumanMessage: (companyId: string, toAgentId?: string | null, threadId?: string | null, waitStateId?: string | null) => void;
   /**
@@ -149,7 +157,8 @@ export class AgentApiServer {
       onCommentPosted: callbacks?.onCommentPosted ?? (() => {}),
       onApprovalCreated: callbacks?.onApprovalCreated ?? (() => {}),
       onApprovalResolved: callbacks?.onApprovalResolved ?? (() => {}),
-      onDocumentCreated: callbacks?.onDocumentCreated ?? (() => {}),
+      createDocument: callbacks?.createDocument
+        ?? (() => { throw new Error("createDocument callback is not wired."); }),
       onAutoAssignTask: callbacks?.onAutoAssignTask ?? (() => null),
       onHumanMessage: callbacks?.onHumanMessage ?? (() => {}),
       injectRuntimeMessage: callbacks?.injectRuntimeMessage ?? (() => false),

@@ -12,6 +12,7 @@ import { registerCredentialIpcHandlers } from "./ipc-credentials-handlers";
 import { registerOAuthIpcHandlers } from "./ipc-oauth-handlers";
 import { fail } from "./ipc-core-common";
 import type { ThreadIntegrationService } from "./thread-integration";
+import type { createCheckpointEngine } from "./checkpoint-engine";
 
 type BootstrapResult = Awaited<ReturnType<typeof bootstrapApplication>>;
 
@@ -21,6 +22,7 @@ interface MainRuntimeState {
   serviceGraph: BootstrapResult["serviceGraph"] | null;
   ipcSupport: BootstrapResult["ipcSupport"] | null;
   threadIntegration: ThreadIntegrationService | null;
+  checkpointEngine: ReturnType<typeof createCheckpointEngine> | null;
 }
 
 export function createMainRuntimeSupport(state: MainRuntimeState) {
@@ -91,6 +93,20 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       throw new Error("Updater service is not initialized.");
     }
     return service;
+  }
+
+  function requireThreadIntegration() {
+    if (!state.threadIntegration) {
+      throw new Error("Thread integration service is not initialized.");
+    }
+    return state.threadIntegration;
+  }
+
+  function requireCheckpointEngine() {
+    if (!state.checkpointEngine) {
+      throw new Error("Checkpoint engine is not initialized.");
+    }
+    return state.checkpointEngine;
   }
 
   function emitEvent(event: Parameters<BootstrapResult["ipcSupport"]["emitEvent"]>[0]) {
@@ -191,6 +207,8 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
         }
         publishDomainChanged();
       },
+      threadIntegration: requireThreadIntegration(),
+      checkpointEngine: requireCheckpointEngine(),
     });
 
     const piRuntime = requireServiceGraph().getPiRuntime();

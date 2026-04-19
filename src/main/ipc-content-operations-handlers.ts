@@ -7,6 +7,7 @@ import {
   sprintInputSchema,
 } from "@shared/contracts";
 import { fail, ok, type RegisterDomainHandlersDependencies } from "./ipc-domain-common";
+import { createDocumentWithLifecycle } from "./document-lifecycle";
 
 const COMPANY_SCOPED_REFERENCE_TABLES = new Set([
   "agents",
@@ -32,6 +33,8 @@ export function registerContentOperationsHandlers({
   publishDomainChanged,
   wakeAgentIfPossible,
   dispatchAutomation,
+  threadIntegration,
+  checkpointEngine,
   logger,
 }: Pick<
   RegisterDomainHandlersDependencies,
@@ -42,6 +45,8 @@ export function registerContentOperationsHandlers({
   | "publishDomainChanged"
   | "wakeAgentIfPossible"
   | "dispatchAutomation"
+  | "threadIntegration"
+  | "checkpointEngine"
   | "logger"
 >) {
   registerHandle(IPC_CHANNELS.saveMeeting, async (_event, payload) => {
@@ -96,20 +101,34 @@ export function registerContentOperationsHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
-    const isNew = !parsed.id;
-    const id = db.saveDocument(parsed);
-    if (isNew) {
-      dispatchAutomation("document_created", {
+    const outcome = createDocumentWithLifecycle(
+      {
+        db,
+        threadIntegration,
+        checkpointEngine,
+        dispatchAutomation,
+        wakeAgentIfPossible,
+        publishDomainChanged,
+        logger,
+      },
+      {
+        id: parsed.id ?? null,
         companyId: parsed.companyId,
-        agentId: parsed.authorAgentId ?? undefined,
-        projectId: parsed.projectId ?? undefined,
-      });
-      if (parsed.authorAgentId && parsed.reviewerAgentId) {
-        wakeAgentIfPossible(parsed.reviewerAgentId, parsed.companyId, "assignment");
-      }
-    }
-    publishDomainChanged();
-    return ok(id);
+        type: parsed.type,
+        title: parsed.title,
+        content: parsed.content ?? "",
+        authorAgentId: parsed.authorAgentId ?? null,
+        reviewerAgentId: parsed.reviewerAgentId ?? null,
+        projectId: parsed.projectId ?? null,
+        goalId: parsed.goalId ?? null,
+        parentDocId: parsed.parentDocId ?? null,
+        version: parsed.version ?? 1,
+        status: parsed.status ?? "draft",
+        tagsJson: parsed.tagsJson ?? "[]",
+        sourceRunId: null,
+      },
+    );
+    return ok(outcome.id);
   });
 
   registerHandle(IPC_CHANNELS.deleteDocument, async (_event, payload) => {

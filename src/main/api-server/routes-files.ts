@@ -1,6 +1,5 @@
 import log from "electron-log/main.js";
 import { z } from "zod";
-import { IMPORTANT_DOC_TYPE_SET } from "@shared/document-categories";
 import { requireParam, type AgentApiServer } from "./server-core";
 
 const createDocumentSchema = z.object({
@@ -60,7 +59,6 @@ export function registerFileRoutes(server: AgentApiServer) {
   const db = server.db;
   const callbacks = server.callbacks;
   const onDomainChanged = server.onDomainChanged;
-  const onWakeAgent = server.onWakeAgent;
 
   server.addRoute("POST", "/api/companies/:companyId/documents", (_req, res, params, token, body) => {
     if (params.companyId !== token.companyId) {
@@ -87,7 +85,13 @@ export function registerFileRoutes(server: AgentApiServer) {
     }
     const docType = data.type ?? "knowledge_article";
     const docTitle = data.title ?? "Untitled";
-    const id = db.saveDocument({
+    // Single source of truth for document-creation side effects lives in
+    // `document-lifecycle.ts`. Persistence, thread/checkpoint/automation
+    // fan-out, reviewer wake, and the deliverable-review gate all fire
+    // from inside the pipeline so this HTTP route and the desktop IPC
+    // handler stay byte-for-byte consistent.
+    const outcome = callbacks.createDocument({
+      id: null,
       companyId: token.companyId,
       type: docType,
       title: docTitle,
@@ -96,74 +100,13 @@ export function registerFileRoutes(server: AgentApiServer) {
       reviewerAgentId,
       projectId,
       goalId,
+      parentDocId: null,
+      version: 1,
       status: data.status ?? "draft",
       tagsJson: data.tagsJson ?? "[]",
       sourceRunId: token.runId ?? null,
     });
-    onDomainChanged();
-    // Derive taskId from the agent's current run so thread integration
-    // and checkpoint engine can bind the document to its originating task.
-    let taskId: string | null = null;
-    if (token.runId) {
-      try {
-        const run = db.getRun(token.runId);
-        if (run.companyId === token.companyId) {
-          taskId = run.taskId ?? null;
-        }
-      } catch (error) {
-        log.warn(
-          `[api/documents] getRun(${token.runId}) failed while deriving taskId: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    }
-    // Fire document creation automation rules
-    callbacks.onDocumentCreated(token.companyId, token.agentId, projectId, id, docTitle, docType, taskId);
-    // Wake document reviewer if specified
-    if (reviewerAgentId) {
-      onWakeAgent(reviewerAgentId, token.companyId, "assignment");
-    }
-
-    // Deliverable review gate: check at document creation time (most reliable).
-    // In ai_cofounder mode, checkpoint-engine handles document reviews via the
-    // onDocumentCreated callback, so skip the direct approval here to avoid duplicates.
-    if (IMPORTANT_DOC_TYPE_SET.has(docType)) {
-      try {
-        const companySettings = db.getCompanyApprovalSettings(token.companyId);
-        const company = companySettings ? { reviewDeliverables: companySettings.reviewDeliverables } : null;
-        const isCofounderMode = db.getCompanyExecutionMode(token.companyId) === "ai_cofounder";
-
-        if (company?.reviewDeliverables && !isCofounderMode) {
-          if (!db.hasPendingDeliverableReviews(token.companyId)) {
-            db.requestApproval({
-              companyId: token.companyId,
-              relatedTaskId: taskId,
-              requestedByAgentId: token.agentId,
-              type: "deliverable_review",
-              payloadSummary: `Review deliverable: ${docTitle}`.slice(0, 280),
-              impactSummary: `New ${docType.replaceAll("_", " ")} created. Awaiting your review before workflow continues.`.slice(0, 400),
-              payloadJson: JSON.stringify({ documentIds: [id], documents: [{ id, type: docType, title: docTitle }] }),
-            });
-            try {
-              const agent = db.getAgent(token.agentId);
-              if (agent.heartbeatEnabled) {
-                db.setHeartbeat(token.agentId, false, agent.heartbeatIntervalSec || 120);
-              }
-            } catch (error) {
-              log.warn(
-                `[api/documents] heartbeat pause for agent ${token.agentId} failed: ${error instanceof Error ? error.message : String(error)}`,
-              );
-            }
-            onDomainChanged();
-          }
-        }
-      } catch (error) {
-        log.warn(
-          `[api/documents] deliverable review gate failed for company ${token.companyId}, document ${id}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    }
-
-    server.json(res, 201, { id });
+    server.json(res, 201, { id: outcome.id });
   });
 
   server.addRoute("GET", "/api/companies/:companyId/documents", (_req, res, params, token) => {

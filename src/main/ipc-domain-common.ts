@@ -6,6 +6,8 @@ import type { DesktopEvent, SectionId } from "@shared/types";
 import type { AppDatabase } from "./database";
 import type { createSkillService } from "./skill-service";
 import type { createBudgetEnforcementService } from "./budget-enforcement-service";
+import type { CheckpointEngineLike } from "./document-lifecycle";
+import type { ThreadIntegrationService } from "./thread-integration";
 
 interface BrowserActionControl {
   clearSocialAccountData: (socialAccountId: string, screenshotPaths?: string[]) => Promise<void>;
@@ -51,6 +53,13 @@ export interface RegisterDomainHandlersDependencies {
   budgetService: ReturnType<typeof createBudgetEnforcementService> | null;
   /** Called when a human sends a message to resolve thread wait states. */
   onHumanMessage?: (companyId: string, toAgentId?: string | null, threadId?: string | null, waitStateId?: string | null) => void;
+  /**
+   * Shared document-creation lifecycle collaborators. Routed through the
+   * dependency bag so both the IPC save path and the HTTP save path call
+   * the same `createDocumentWithLifecycle` fan-out.
+   */
+  threadIntegration: ThreadIntegrationService;
+  checkpointEngine: CheckpointEngineLike;
 }
 
 export { ok, fail } from "./ipc-core-common";

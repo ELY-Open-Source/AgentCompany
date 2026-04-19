@@ -6,6 +6,7 @@ import { createAgentToken, initializeAgentTokenSigningKey } from "../../src/main
 import { createApiServer } from "../../src/main/api-server";
 import { AppDatabase } from "../../src/main/database";
 import { processRunCompletion } from "../../src/main/automation/automation-run-completion";
+import { createDocumentWithLifecycle } from "../../src/main/document-lifecycle";
 
 const tempDirs: string[] = [];
 
@@ -89,7 +90,24 @@ async function createHarness() {
     connectorId: "openai-codex",
   });
   const token = createAgentToken(agentId, companyId, run.id);
-  const server = createApiServer(db, () => {}, () => null);
+  const silentLogger = { warn: () => {}, error: () => {} };
+  const server = createApiServer(db, () => {}, () => null, {
+    createDocument: (input) =>
+      createDocumentWithLifecycle(
+        {
+          db,
+          threadIntegration: {
+            onDocumentCreated: () => {},
+          } as never,
+          checkpointEngine: { onDocumentDrafted: () => null } as never,
+          dispatchAutomation: () => {},
+          wakeAgentIfPossible: () => null,
+          publishDomainChanged: () => {},
+          logger: silentLogger,
+        },
+        input,
+      ),
+  });
   const port = await server.start();
 
   return {

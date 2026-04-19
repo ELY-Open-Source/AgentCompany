@@ -6,6 +6,7 @@ import { prepareHostEnvironment } from "./host-environment-service";
 import type { createServiceGraph } from "./service-graph";
 import type { createIpcSupport } from "./ipc-support";
 import type { createThreadIntegration } from "./thread-integration";
+import type { createCheckpointEngine } from "./checkpoint-engine";
 import { prepareLogger } from "./bootstrap/prepare-logger";
 import { prepareDatabase } from "./bootstrap/prepare-database";
 import { prepareServices } from "./bootstrap/prepare-services";
@@ -37,6 +38,7 @@ interface BootstrapApplicationDependencies {
     serviceGraph: ReturnType<typeof createServiceGraph>;
     ipcSupport: ReturnType<typeof createIpcSupport>;
     threadIntegration: ReturnType<typeof createThreadIntegration>;
+    checkpointEngine: ReturnType<typeof createCheckpointEngine>;
   }) => void;
 }
 
@@ -95,7 +97,7 @@ export async function bootstrapApplication(deps: BootstrapApplicationDependencie
 
   apiServerRef.current = apiServer;
   await apiServer.start();
-  deps.onRuntimeReady?.({ db, apiServer, serviceGraph, ipcSupport, threadIntegration });
+  deps.onRuntimeReady?.({ db, apiServer, serviceGraph, ipcSupport, threadIntegration, checkpointEngine });
 
   if (apiServer && serviceGraph.getBrowserActionService()) {
     apiServer.setBrowserActionHandler(async (actionId, companyId) => {

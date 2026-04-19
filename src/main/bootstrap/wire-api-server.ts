@@ -7,6 +7,11 @@ import type { createServiceGraph } from "../service-graph";
 import type { createThreadIntegration } from "../thread-integration";
 import type { createCheckpointEngine } from "../checkpoint-engine";
 import type { AutomationEventContext } from "../automation/types";
+import {
+  createDocumentWithLifecycle,
+  type DocumentLifecycleInput,
+  type DocumentLifecycleOutcome,
+} from "../document-lifecycle";
 
 type ServiceGraph = ReturnType<typeof createServiceGraph>;
 type ThreadIntegration = ReturnType<typeof createThreadIntegration>;
@@ -21,7 +26,7 @@ export interface CreateApiServerFn {
     onCommentPosted: (taskId: string, companyId: string, authorAgentId: string | null) => void;
     onApprovalCreated: (approvalId: string, companyId: string, taskId: string | null, approvalType: string, summary: string) => void;
     onApprovalResolved: (approvalId: string, companyId: string, decision: string) => void;
-    onDocumentCreated: (companyId: string, authorAgentId: string | null, projectId: string | null, documentId: string, documentTitle: string, documentType: string, taskId: string | null) => void;
+    createDocument: (input: DocumentLifecycleInput) => DocumentLifecycleOutcome;
     onAutoAssignTask: (taskId: string, companyId: string) => string | null;
     onHumanMessage: (companyId: string, toAgentId?: string | null, threadId?: string | null, waitStateId?: string | null) => void;
     injectRuntimeMessage: (recipientAgentId: string, companyId: string, message: AgentMessageRecord) => boolean;
@@ -99,11 +104,19 @@ export function wireApiServer(deps: WireApiServerDeps): AgentApiServer {
       deps.threadIntegration.onApprovalCreated(approvalId, companyId, taskId, approvalType, summary);
     },
     onApprovalResolved,
-    onDocumentCreated: (companyId, authorAgentId, projectId, documentId, documentTitle, documentType, taskId) => {
-      dispatchAutomation("document_created", { companyId, agentId: authorAgentId ?? undefined, projectId: projectId ?? undefined });
-      deps.threadIntegration.onDocumentCreated(companyId, authorAgentId, taskId, documentTitle);
-      deps.checkpointEngine.onDocumentDrafted(companyId, documentId, documentTitle, documentType, authorAgentId, taskId);
-    },
+    createDocument: (input) =>
+      createDocumentWithLifecycle(
+        {
+          db: deps.db,
+          threadIntegration: deps.threadIntegration,
+          checkpointEngine: deps.checkpointEngine,
+          dispatchAutomation,
+          wakeAgentIfPossible,
+          publishDomainChanged: deps.publishDomainChanged,
+          logger: log,
+        },
+        input,
+      ),
     onAutoAssignTask: (taskId, companyId) => deps.db.autoAssignTask(taskId, companyId),
     onHumanMessage: (companyId, toAgentId, threadId, waitStateId) => {
       deps.threadIntegration.onHumanMessage(companyId, toAgentId, threadId, waitStateId);
