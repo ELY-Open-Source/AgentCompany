@@ -26,3 +26,5 @@ Started: 2026-04-19
 - Completed US-018 approvals remediation. Native approvals now use a grouped review-list grammar closer to the original PendingReviewList surface instead of parallel summary cards, while the lower pending-approval inspector still preserves the real approve/reject chain.
 
 - Completed US-019 document-center remediation. Native documents now follow a source-like operational shell with section header, prose list, work-product list, and a dedicated editor/inspector column while keeping the current native draft-save path intact.
+
+- Completed US-020 inbox/messages remediation. Native inbox now uses a tighter source-like attention-list shell, and messages now remove off-source chrome while preserving the channel rail, live thread header, stream, composer, and inspector interactions.

@@ -324,7 +324,7 @@ fn render_message_sidebar<'a>(
                     "{} channels",
                     groups.iter().map(|group| group.rows.len()).sum::<usize>()
                 ))
-                .child("message graph"),
+                .child("live threads"),
         )
 }
 
@@ -355,7 +355,7 @@ fn render_message_header(
                         .mt(px(4.0))
                         .text_sm()
                         .text_color(theme::text_muted())
-                        .child(format!("{} visible items", visible_count)),
+                        .child(format!("{} visible messages", visible_count)),
                 ),
         )
         .child(
@@ -434,7 +434,7 @@ fn render_message_inspector(selected: Option<&domain::AgentMessage>) -> impl Int
             div()
                 .text_lg()
                 .text_color(theme::text_primary())
-                .child("Thread inspector"),
+                .child("Conversation details"),
         )
         .child(selected_message_card(selected))
         .when_some(secondary_message(selected), |container, message| {

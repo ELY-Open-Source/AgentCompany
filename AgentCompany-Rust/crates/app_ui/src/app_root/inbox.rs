@@ -55,27 +55,21 @@ impl AppRoot {
         div()
             .flex()
             .flex_col()
-            .gap_6()
+            .gap_5()
             .child(
                 div()
-                    .flex()
-                    .items_center()
-                    .justify_between()
                     .child(
                         div()
-                            .child(
-                                div()
-                                    .text_xl()
-                                    .text_color(theme::text_primary())
-                                    .child("Inbox"),
-                            )
-                            .child(
-                                div()
-                                    .mt(px(6.0))
-                                    .text_sm()
-                                    .text_color(theme::text_muted())
-                                    .child(format!("{} items need attention", total_attention)),
-                            ),
+                            .text_xl()
+                            .text_color(theme::text_primary())
+                            .child("Inbox"),
+                    )
+                    .child(
+                        div()
+                            .mt(px(6.0))
+                            .text_sm()
+                            .text_color(theme::text_muted())
+                            .child(format!("{} items need attention", total_attention)),
                     ),
             )
             .child(inbox_filters(
@@ -86,47 +80,41 @@ impl AppRoot {
                 unread_messages.len(),
                 cx,
             ))
-            .when(total_attention == 0, |container| {
-                container.child(
-                    div()
-                        .min_h(px(260.0))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded_lg()
-                        .border_1()
-                        .border_color(theme::panel_border())
-                        .bg(theme::panel())
-                        .child(
+            .child(
+                div()
+                    .rounded_lg()
+                    .border_1()
+                    .border_color(theme::panel_border())
+                    .bg(theme::panel())
+                    .when(total_attention == 0, |container| {
+                        container.child(
                             div()
-                                .w(px(420.0))
-                                .text_center()
+                                .min_h(px(260.0))
+                                .flex()
+                                .items_center()
+                                .justify_center()
                                 .child(
                                     div()
-                                        .text_xl()
-                                        .text_color(theme::text_primary())
-                                        .child("All clear"),
-                                )
-                                .child(
-                                    div()
-                                        .mt(px(10.0))
-                                        .text_base()
-                                        .text_color(theme::text_muted())
-                                        .child("No approvals, reviews, failed runs, or unread internal messages need board attention right now."),
+                                        .w(px(420.0))
+                                        .text_center()
+                                        .child(
+                                            div()
+                                                .text_xl()
+                                                .text_color(theme::text_primary())
+                                                .child("All clear"),
+                                        )
+                                        .child(
+                                            div()
+                                                .mt(px(10.0))
+                                                .text_base()
+                                                .text_color(theme::text_muted())
+                                                .child("No approvals, reviews, failed runs, or unread internal messages need board attention right now."),
+                                        ),
                                 ),
-                        ),
-                )
-            })
-            .when(!row_elements.is_empty(), |container| {
-                container.child(
-                    div()
-                        .rounded_lg()
-                        .border_1()
-                        .border_color(theme::panel_border())
-                        .bg(theme::panel())
-                        .children(row_elements),
-                )
-            })
+                        )
+                    })
+                    .when(!row_elements.is_empty(), |container| container.children(row_elements)),
+            )
     }
 }
 
@@ -204,7 +192,7 @@ impl InboxRow {
                             .flex_1()
                             .child(
                                 div()
-                                    .text_base()
+                                    .text_sm()
                                     .text_color(theme::text_primary())
                                     .child(title),
                             )

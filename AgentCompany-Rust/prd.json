@@ -275,8 +275,8 @@
         "cargo test --workspace passes"
       ],
       "priority": 20,
-      "passes": false,
-      "notes": "Opened after strict current-directory-only source audit."
+      "passes": true,
+      "notes": "Passed: inbox and messages now use a tighter source-like communication shell with a simplified attention list panel, source-aligned count copy, and messages surfaces that remove off-source chrome like the message graph footer while preserving real channel/message interactions."
     },
     {
       "id": "US-021",
