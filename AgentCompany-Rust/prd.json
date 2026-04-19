@@ -291,6 +291,45 @@
       "priority": 21,
       "passes": true,
       "notes": "Passed: current-directory-only final UI parity re-audit completed. All current-directory remediation stories are closed, ui-parity-audit.md was updated with the final status and known limits, and cargo clippy/test both pass."
+    },
+    {
+      "id": "US-022",
+      "title": "Tighten shared native surface tokens toward original desktop skin",
+      "description": "As an operator, I want shared cards, borders, fills, and density to match the original Electron desktop skin more closely so that every page feels visually identical, not just structurally similar.",
+      "acceptanceCriteria": [
+        "Theme tokens and shared surface density are refined toward screenshot-aligned desktop values",
+        "Current-directory UI pages keep passing typecheck and tests",
+        "cargo test --workspace passes"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": "Passed: shared native surface tokens were tightened toward screenshot-aligned desktop values, warming the pane fills, softening borders, and refining selection/accent colors without touching parent-directory source files."
+    },
+    {
+      "id": "US-023",
+      "title": "Tighten messages and inbox visual chrome toward screenshot parity",
+      "description": "As an operator, I want communication surfaces to match the original visual chrome more closely so that thread selection, badges, spacing, and inspector feel identical.",
+      "acceptanceCriteria": [
+        "Messages and inbox surface density and chrome are refined toward screenshot/source parity",
+        "Typecheck passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": "Opened after structural communication remediation."
+    },
+    {
+      "id": "US-024",
+      "title": "Run final fine-grained current-directory visual audit",
+      "description": "As a maintainer, I want a final fine-grained visual audit of current-directory UI surfaces so that remaining differences are explicitly documented after the skin pass.",
+      "acceptanceCriteria": [
+        "ui-parity-audit.md is updated with fine-grained visual audit findings",
+        "cargo clippy --workspace --all-targets --all-features -- -D warnings passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": "Opened after component-skin parity work."
     }
   ]
 }
