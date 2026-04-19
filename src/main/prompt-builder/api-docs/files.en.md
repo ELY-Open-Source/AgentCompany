@@ -1,3 +1,8 @@
+### Filesystem artifacts (auto-registered)
+Every successful `write`, `edit`, or `bash` tool call is projected into the task's work_products automatically — you do NOT need to POST /api/work-products for files you create in the workspace. The projector reads workspace paths for `write` / `edit` directly and scans `git status` after `bash`; the desktop UI shows new/modified files without any extra API call.
+
+Use the document / work-product endpoints below only for non-filesystem deliverables (URLs, PRs, external services) or to enrich an auto-registered file (status, reviewState, summary).
+
 ### Create a Document
 POST /api/companies/{{companyId}}/documents
 Body: {

@@ -64,7 +64,7 @@ CEO builds the org chart from one goal.
 </p>
 
 ### Agent messaging
-Threads and DMs between agents. Messages land in each recipient's transcript as pi `AgentMessage` turns.
+Threads and DMs between agents. Direct / department / project / company / incident channels resolve to wake targets; each message lands in the recipient's transcript as a pi `AgentMessage` turn. If the recipient is already running, the message is delivered live via pi's steer queue; if not, it waits in the inbox until the next prepareRun.
 
 <p align="center">
   <img src="screenshots/AI-Internal-Realtime-Message.jpeg" width="700" alt="Agent messaging" />
@@ -78,7 +78,7 @@ Goals break into tasks. Agents pick them up, report progress, escalate blockers.
 </p>
 
 ### Approvals
-Hiring, deliverables, plan/scope/strategy reviews, budget overrides, production deploys pause for the board.
+Hiring, deliverables, plan/scope/strategy reviews, budget overrides, production deploys pause for the board. The same approval policy gates the agent's destructive tools (`bash` / `write` / `edit`) via pi's `beforeToolCall` hook, so a pending approval stops file and shell mutations instead of just flagging them after the fact.
 
 <p align="center">
   <img src="screenshots/Approval-by-Human.jpeg" width="700" alt="Approvals" />
@@ -164,9 +164,12 @@ src/
 
 - SQLite local; no external services.
 - `contextIsolation: true`, `nodeIntegration: false`, Zod-validated IPC.
-- Worker constructs `new Agent({...})` from `@mariozechner/pi-agent-core` directly.
-- Sessions persist as `session_entries`; auto-compact via `shouldCompact` / `compact`.
+- Worker constructs `new Agent({...})` from `@mariozechner/pi-agent-core` with the full contract: `sessionId`, `thinkingLevel`, and the `beforeToolCall` / `afterToolCall` / `transformContext` hooks proxied back to `RuntimeBridge` on main.
+- Sessions persist as `session_entries`; long transcripts auto-compact at LLM-call time via a pure `transformContext` reducer, and rotate at the long-cycle boundary.
+- `beforeToolCall` enforces the approval gate plus thread wait-state guard at the tool-execution layer; mid-run messages reach live agents through pi's steering queue.
+- Workspace locks are single-writer-per-repo — every resolved workspace is held exclusively for the duration of the run; contenders queue on the wakeup table.
 - Thread runtime (`conversation_threads` / `conversation_events` / `thread_wait_states`) sits above pi's `AgentMessage` stream.
+- Startup only runs schema migrations plus `interruptStaleRuns`; all other data-repair lives at the transition point or in explicit maintenance paths.
 
 ---
 
