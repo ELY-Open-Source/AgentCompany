@@ -36,6 +36,13 @@ export function buildSnapshotMethods(
     const connectors = deps.readConnectors();
     const theme = (deps.getSetting("theme") as "system" | "light" | "dark" | null) ?? "system";
     const locale = (deps.getSetting("locale") as "en" | "zh" | null) ?? "en";
+    // AgentMessageRecord.readAt is a per-viewer field — its meaning is
+    // "has the current viewer acknowledged this message?". The renderer
+    // view has exactly one human viewer (the Board operator), so the
+    // renderer snapshot fills it from that reader's agent_message_reads
+    // rows. Agent-side queries (listAgentMessages) resolve it against
+    // the current agent's receipts. The raw agent_messages.read_at
+    // column is never read on any path and stays NULL by design.
     const boardReadReceiptMap = new Map(
       readAll<{ messageId: string; readAt: string }>(
         `select reads.message_id as messageId, reads.read_at as readAt
@@ -176,13 +183,18 @@ export function buildSnapshotMethods(
         createdAt: r.created_at, updatedAt: r.updated_at,
       })),
       agentMessages: readAll<SqliteRow>(
-        `select id, company_id, from_agent_id, to_agent_id, sender_kind, channel, channel_target_id, subject, body, priority, read_at, parent_message_id, attachments_json, created_at from agent_messages${companyWhere} order by created_at desc limit ${companyId ? 1000 : 1000}`,
+        // The raw `read_at` column is intentionally omitted from the
+        // SELECT list. It is never written — readAt semantics live in
+        // the agent_message_reads receipts table, resolved against the
+        // current viewer above.
+        `select id, company_id, from_agent_id, to_agent_id, sender_kind, channel, channel_target_id, subject, body, priority, parent_message_id, attachments_json, created_at from agent_messages${companyWhere} order by created_at desc limit 1000`,
         ...companyArgs,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, fromAgentId: r.from_agent_id,
         toAgentId: r.to_agent_id, senderKind: r.sender_kind ?? "agent",
         channel: r.channel, channelTargetId: r.channel_target_id,
-        subject: r.subject, body: r.body, priority: r.priority, readAt: boardReadReceiptMap.get(r.id) ?? null,
+        subject: r.subject, body: r.body, priority: r.priority,
+        readAt: boardReadReceiptMap.get(r.id) ?? null,
         parentMessageId: r.parent_message_id, attachmentsJson: r.attachments_json,
         createdAt: r.created_at,
       })),
