@@ -2,34 +2,28 @@ import type { AppDatabase } from "../database";
 import type { WorkspaceLockMode } from "./types";
 
 /**
- * Resolve the workspace and lock semantics for a given run context.
+ * Resolve the workspace and lock semantics for a run context.
  *
- * Lock policy (v0.4.168+):
+ * Lock policy: every resolved workspace is held exclusively for the
+ * duration of the run. Pi's `createCodingTools()` hands every agent
+ * the mutating `bash`, `write`, and `edit` tools, so there is no
+ * read-only category where concurrent runs are safe — two agents
+ * editing the same working tree step on each other's files and
+ * corrupt git state before the per-repo `index.lock` even gets
+ * touched.
  *
- *   task.workspaceId set  → exclusive
- *     The user (or an upstream caller) explicitly bound a task to a
- *     workspace, which is the opt-in signal for "this run needs the
- *     workspace to itself". Rare, and reserved for workflows like a
- *     sprint merge or release build where concurrent writes would
- *     corrupt state.
+ * Contention is handled at dispatch time: `run-dispatch.ts` tries
+ * `claimWorkspaceLock` synchronously. A lost race finishes the run
+ * as `cancelled` (not `failed` — the Dashboard's "Needs attention"
+ * card ignores cancellations), and the next heartbeat retries on
+ * its own cadence. The caller must keep that rollback path alive;
+ * without it contention would leave tasks pinned at `in_progress`
+ * forever.
  *
- *   agent.workspaceId set   → shared
- *   project.workspaceId set → shared
- *   company fallback        → shared
- *     Multiple agents sharing the *same* workspace is the normal case
- *     — it represents "this team works in this repo", not "this agent
- *     owns this repo". The previous exclusive default forced four
- *     co-located teammates to run one at a time, which deadlocked
- *     heartbeats (dispatch bailed → task stuck in_progress → retry
- *     lost the checkout race forever). Git itself serializes the
- *     dangerous operations (`git index.lock`); anything coarser here
- *     just blocks readers.
- *
- * Previously this logic lived both in run-dispatch.ts (normal dispatch
- * path) and worker-crash-recovery.ts (re-enqueue after crash); the
- * recovery copy silently dropped the exclusive/shared distinction.
- * Sharing the helper guarantees both paths agree on which runs hold
- * exclusive locks.
+ * When no workspace can be resolved (headless heartbeat runs that
+ * have no repo to touch) we return `none`; the worker uses
+ * `process.cwd()` as a read-only cwd and the dispatcher skips the
+ * lock claim.
  */
 export function resolveWorkspaceWithLockMode(
   db: AppDatabase,
@@ -50,17 +44,17 @@ export function resolveWorkspaceWithLockMode(
 
   const agentWorkspace = db.getWorkspace(agent.workspaceId);
   if (agentWorkspace) {
-    return { workspace: agentWorkspace, lockMode: "shared", source: "agent" };
+    return { workspace: agentWorkspace, lockMode: "exclusive", source: "agent" };
   }
 
   const projectWorkspace = db.getProjectPrimaryWorkspace(task?.projectId ?? null, companyId);
   if (projectWorkspace) {
-    return { workspace: projectWorkspace, lockMode: "shared", source: "project" };
+    return { workspace: projectWorkspace, lockMode: "exclusive", source: "project" };
   }
 
   const fallbackWorkspace = db.getAnyCompanyWorkspace(companyId);
   if (fallbackWorkspace) {
-    return { workspace: fallbackWorkspace, lockMode: "shared", source: "company_fallback" };
+    return { workspace: fallbackWorkspace, lockMode: "exclusive", source: "company_fallback" };
   }
 
   return { workspace: null, lockMode: "none", source: "none" };
