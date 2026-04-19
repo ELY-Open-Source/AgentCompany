@@ -34,11 +34,44 @@ export function needsDeliverableCheck(taskType: DeliverableTaskType | string): b
   return taskType === "research" || taskType === "content";
 }
 
-export interface DeliverableCheckInput {
-  taskType: DeliverableTaskType | string;
+export interface DeliverableSignals {
   hasKnowledgeEntry: boolean;
   hasDocument: boolean;
+  hasWorkProduct: boolean;
   hasSubstantialComment: boolean;
+}
+
+export interface DeliverableCheckInput extends DeliverableSignals {
+  taskType: DeliverableTaskType | string;
+}
+
+/**
+ * Valid artifact surfaces for each task type. A task advances to review
+ * only when at least one signal from the set is present. The `work_product`
+ * surface covers filesystem deliverables the agent writes via bash / write
+ * / edit; before this table included it, a research task that produced a
+ * markdown file instead of a knowledge entry would stay in `in_progress`
+ * forever even though the deliverable was sitting on disk.
+ */
+const VALID_DELIVERABLE_SIGNALS: Record<DeliverableTaskType, ReadonlySet<keyof DeliverableSignals>> = {
+  research: new Set(["hasKnowledgeEntry", "hasDocument", "hasWorkProduct", "hasSubstantialComment"]),
+  content: new Set(["hasDocument", "hasWorkProduct"]),
+  code: new Set(["hasWorkProduct", "hasDocument"]),
+  management: new Set(["hasKnowledgeEntry", "hasDocument", "hasWorkProduct", "hasSubstantialComment"]),
+  general: new Set(["hasKnowledgeEntry", "hasDocument", "hasWorkProduct", "hasSubstantialComment"]),
+};
+
+function validSignalsForTaskType(taskType: string): ReadonlySet<keyof DeliverableSignals> {
+  return VALID_DELIVERABLE_SIGNALS[taskType as DeliverableTaskType]
+    ?? VALID_DELIVERABLE_SIGNALS.general;
+}
+
+export function hasValidDeliverableFor(taskType: string, signals: DeliverableSignals): boolean {
+  const valid = validSignalsForTaskType(taskType);
+  for (const key of valid) {
+    if (signals[key]) return true;
+  }
+  return false;
 }
 
 /** Returns the next task status and comment after a successful run. */
@@ -52,8 +85,7 @@ export function determinePostRunStatus(input: DeliverableCheckInput): {
       comment: "Run completed successfully. Awaiting review.",
     };
   }
-  const delivered = input.hasKnowledgeEntry || input.hasDocument || input.hasSubstantialComment;
-  if (delivered) {
+  if (hasValidDeliverableFor(input.taskType, input)) {
     return {
       nextStatus: "in_review",
       comment: "Run completed with deliverable. Awaiting review.",
@@ -112,8 +144,15 @@ export function checkBudgetThreshold(
 
 // ─── Internal DB-backed deliverable check ───────────────────────────────────
 
-function checkRunProducedDeliverable(db: AppDatabase, runId: string, companyId: string, taskId: string): boolean {
-  return db.runProducedDeliverable(runId, companyId, taskId);
+function checkRunProducedDeliverable(
+  db: AppDatabase,
+  runId: string,
+  companyId: string,
+  taskId: string,
+  taskType: string,
+): boolean {
+  const signals = db.collectRunDeliverableSignals(runId, companyId, taskId);
+  return hasValidDeliverableFor(taskType, signals);
 }
 
 /** Returns important documents created during this run (matching IMPORTANT_DOCUMENT_TYPES). */
@@ -238,7 +277,7 @@ export function processRunCompletion(
     const taskType = task.taskType ?? "general";
 
     if (needsDeliverableCheck(taskType)) {
-      const hasDeliverable = checkRunProducedDeliverable(db, run.id, run.companyId, task.id);
+      const hasDeliverable = checkRunProducedDeliverable(db, run.id, run.companyId, task.id, taskType);
       if (!hasDeliverable) {
         // Don't auto-advance -- flag for manager review
         db.advanceTaskStatus(task.id, "in_progress",

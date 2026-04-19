@@ -173,45 +173,66 @@ export function buildKnowledgeMethods(
     },
 
     /**
-     * Returns true when the given run caused a durable deliverable — a
-     * knowledge entry, a document, or a substantial task comment (>100
-     * chars). Causal binding via source_run_id is preferred; time-window
-     * fallback handles legacy rows written before that column existed.
+     * Collects the set of deliverable signals produced by a single run.
+     * Each signal reflects a distinct artifact surface:
      *
-     * Encapsulates the five raw SELECTs that automation-run-completion
-     * previously issued via db.queryAll, so schema changes to knowledge_base
-     * / documents / task_comments surface here rather than silently.
+     *  - knowledge entry bound to the run (or written during its window)
+     *  - document bound to the run (or written during its window)
+     *  - filesystem `work_product` registered with `created_by_run_id = run`
+     *  - substantial task comment (>100 chars) posted during the run window
+     *
+     * The caller in `automation-run-completion` decides which signals are
+     * acceptable for a given task type, so schema changes to any of the
+     * source tables surface here rather than in an opaque boolean.
      */
-    runProducedDeliverable(runId: string, companyId: string, taskId: string): boolean {
+    collectRunDeliverableSignals(
+      runId: string,
+      companyId: string,
+      taskId: string,
+    ): {
+      hasKnowledgeEntry: boolean;
+      hasDocument: boolean;
+      hasWorkProduct: boolean;
+      hasSubstantialComment: boolean;
+    } {
       const causalKnowledge = readAll<{ id: string }>(
         "select id from knowledge_base where company_id = ? and source_run_id = ? limit 1",
         companyId, runId,
       );
-      if (causalKnowledge.length > 0) return true;
+      const legacyKnowledge = causalKnowledge.length === 0
+        ? readAll<{ id: string }>(
+            "select id from knowledge_base where company_id = ? and source_run_id is null and created_at >= (select started_at from runs where id = ?) limit 1",
+            companyId, runId,
+          )
+        : [];
 
       const causalDocs = readAll<{ id: string }>(
         "select id from documents where company_id = ? and source_run_id = ? limit 1",
         companyId, runId,
       );
-      if (causalDocs.length > 0) return true;
+      const legacyDocs = causalDocs.length === 0
+        ? readAll<{ id: string }>(
+            "select id from documents where company_id = ? and source_run_id is null and created_at >= (select started_at from runs where id = ?) limit 1",
+            companyId, runId,
+          )
+        : [];
 
-      const legacyKnowledge = readAll<{ id: string }>(
-        "select id from knowledge_base where company_id = ? and source_run_id is null and created_at >= (select started_at from runs where id = ?) limit 1",
+      const workProducts = readAll<{ id: string }>(
+        "select id from work_products where company_id = ? and created_by_run_id = ? limit 1",
         companyId, runId,
       );
-      if (legacyKnowledge.length > 0) return true;
-
-      const legacyDocs = readAll<{ id: string }>(
-        "select id from documents where company_id = ? and source_run_id is null and created_at >= (select started_at from runs where id = ?) limit 1",
-        companyId, runId,
-      );
-      if (legacyDocs.length > 0) return true;
 
       const recentComments = readAll<{ body: string }>(
         "select body from task_comments where task_id = ? and created_at >= (select started_at from runs where id = ?) and length(body) > 100",
         taskId, runId,
       );
-      return recentComments.length > 0;
+
+      return {
+        hasKnowledgeEntry: causalKnowledge.length > 0 || legacyKnowledge.length > 0,
+        hasDocument: causalDocs.length > 0 || legacyDocs.length > 0,
+        hasWorkProduct: workProducts.length > 0,
+        hasSubstantialComment: recentComments.length > 0,
+      };
     },
 
     /**

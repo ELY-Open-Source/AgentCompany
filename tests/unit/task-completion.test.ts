@@ -9,8 +9,11 @@ import {
  *
  * When a run completes successfully on a non-code task (research, content),
  * the system checks whether the agent produced a tangible deliverable
- * (knowledge entry, document, or substantial comment). If not, the task
- * stays in_progress and the manager is notified.
+ * (knowledge entry, document, filesystem work product, or substantial
+ * comment). The valid signal set is defined per task type: content tasks
+ * require a document or filesystem artifact, research tasks accept any of
+ * the four surfaces. If no valid signal is present the task stays
+ * in_progress and the manager is notified.
  */
 
 describe("non-code task deliverable enforcement", () => {
@@ -42,6 +45,7 @@ describe("non-code task deliverable enforcement", () => {
         taskType: "code",
         hasKnowledgeEntry: false,
         hasDocument: false,
+        hasWorkProduct: false,
         hasSubstantialComment: false,
       });
       expect(result.nextStatus).toBe("in_review");
@@ -53,6 +57,7 @@ describe("non-code task deliverable enforcement", () => {
         taskType: "general",
         hasKnowledgeEntry: false,
         hasDocument: false,
+        hasWorkProduct: false,
         hasSubstantialComment: false,
       });
       expect(result.nextStatus).toBe("in_review");
@@ -63,6 +68,7 @@ describe("non-code task deliverable enforcement", () => {
         taskType: "management",
         hasKnowledgeEntry: false,
         hasDocument: false,
+        hasWorkProduct: false,
         hasSubstantialComment: false,
       });
       expect(result.nextStatus).toBe("in_review");
@@ -73,6 +79,7 @@ describe("non-code task deliverable enforcement", () => {
         taskType: "research",
         hasKnowledgeEntry: false,
         hasDocument: false,
+        hasWorkProduct: false,
         hasSubstantialComment: false,
       });
       expect(result.nextStatus).toBe("in_progress");
@@ -85,6 +92,7 @@ describe("non-code task deliverable enforcement", () => {
         taskType: "research",
         hasKnowledgeEntry: true,
         hasDocument: false,
+        hasWorkProduct: false,
         hasSubstantialComment: false,
       });
       expect(result.nextStatus).toBe("in_review");
@@ -96,6 +104,18 @@ describe("non-code task deliverable enforcement", () => {
         taskType: "research",
         hasKnowledgeEntry: false,
         hasDocument: true,
+        hasWorkProduct: false,
+        hasSubstantialComment: false,
+      });
+      expect(result.nextStatus).toBe("in_review");
+    });
+
+    it("advances research task to in_review when work product exists", () => {
+      const result = determinePostRunStatus({
+        taskType: "research",
+        hasKnowledgeEntry: false,
+        hasDocument: false,
+        hasWorkProduct: true,
         hasSubstantialComment: false,
       });
       expect(result.nextStatus).toBe("in_review");
@@ -106,6 +126,7 @@ describe("non-code task deliverable enforcement", () => {
         taskType: "research",
         hasKnowledgeEntry: false,
         hasDocument: false,
+        hasWorkProduct: false,
         hasSubstantialComment: true,
       });
       expect(result.nextStatus).toBe("in_review");
@@ -116,6 +137,7 @@ describe("non-code task deliverable enforcement", () => {
         taskType: "content",
         hasKnowledgeEntry: false,
         hasDocument: false,
+        hasWorkProduct: false,
         hasSubstantialComment: false,
       });
       expect(result.nextStatus).toBe("in_progress");
@@ -127,19 +149,35 @@ describe("non-code task deliverable enforcement", () => {
         taskType: "content",
         hasKnowledgeEntry: false,
         hasDocument: true,
+        hasWorkProduct: false,
         hasSubstantialComment: false,
       });
       expect(result.nextStatus).toBe("in_review");
     });
 
-    it("advances content task when any deliverable exists", () => {
+    it("advances content task to in_review when work product exists", () => {
+      const result = determinePostRunStatus({
+        taskType: "content",
+        hasKnowledgeEntry: false,
+        hasDocument: false,
+        hasWorkProduct: true,
+        hasSubstantialComment: false,
+      });
+      expect(result.nextStatus).toBe("in_review");
+    });
+
+    it("keeps content task in_progress when only a knowledge entry exists", () => {
+      // content deliverables live in documents or on disk — a knowledge
+      // entry alone does not constitute a publishable content artifact,
+      // so the task stays in_progress for manager follow-up.
       const result = determinePostRunStatus({
         taskType: "content",
         hasKnowledgeEntry: true,
         hasDocument: false,
+        hasWorkProduct: false,
         hasSubstantialComment: false,
       });
-      expect(result.nextStatus).toBe("in_review");
+      expect(result.nextStatus).toBe("in_progress");
     });
   });
 });
