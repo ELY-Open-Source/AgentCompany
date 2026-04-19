@@ -28,3 +28,5 @@ Started: 2026-04-19
 - Completed US-019 document-center remediation. Native documents now follow a source-like operational shell with section header, prose list, work-product list, and a dedicated editor/inspector column while keeping the current native draft-save path intact.
 
 - Completed US-020 inbox/messages remediation. Native inbox now uses a tighter source-like attention-list shell, and messages now remove off-source chrome while preserving the channel rail, live thread header, stream, composer, and inspector interactions.
+
+- Completed US-021 current-directory-only final re-audit. All current-directory UI remediation stories are now closed, ui-parity-audit.md records the final status and known limits, and the workspace passes cargo clippy and cargo test.

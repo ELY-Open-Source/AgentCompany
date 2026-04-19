@@ -289,8 +289,8 @@
         "cargo test --workspace passes"
       ],
       "priority": 21,
-      "passes": false,
-      "notes": "Opened after all current-directory surface stories close."
+      "passes": true,
+      "notes": "Passed: current-directory-only final UI parity re-audit completed. All current-directory remediation stories are closed, ui-parity-audit.md was updated with the final status and known limits, and cargo clippy/test both pass."
     }
   ]
 }
