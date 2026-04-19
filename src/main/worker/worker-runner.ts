@@ -1,11 +1,10 @@
-import { Agent } from "@mariozechner/pi-agent-core";
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import { streamSimple } from "@mariozechner/pi-ai";
-import { createCodingTools } from "@mariozechner/pi-coding-agent";
+import type { Agent, AgentMessage } from "@mariozechner/pi-agent-core";
 import { resolveModel, resolveExtraStreamHeaders } from "../model-resolver";
 import type { RunStatus } from "@shared/types";
 import type { ChildMessage, RunJob } from "./worker-helpers";
 import { applyEnvOverrides, buildRedactor } from "./worker-helpers";
+import { createCodingTools } from "@mariozechner/pi-coding-agent";
+import { createPiAgent, resolveThinkingLevel } from "./pi-agent-factory";
 import type { WorkerRpcClient } from "./worker-rpc";
 
 interface PrepareRunResult {
@@ -21,15 +20,43 @@ interface RunnerDeps {
   isCancelled: (runId: string) => boolean;
 }
 
+/**
+ * Lifecycle owner for one-and-only-one active pi `Agent` per run.
+ *
+ * Responsibilities:
+ *  - Calls `prepareRun` on main to materialise session + credentials.
+ *  - Builds an `Agent` via `createPiAgent` with the full Pi contract.
+ *  - Streams every pi `AgentEvent` into the worker → main pipe.
+ *  - Persists each `message_end` message through `persistMessage` RPC.
+ *  - Exposes `steer` / `followUp` to the worker entry so mid-run
+ *    injections from main land on the in-process Agent instance.
+ */
 export class WorkerRunner {
   private readonly abortControllers = new Map<string, AbortController>();
   private readonly runPromises = new Map<string, Promise<void>>();
+  private readonly activeAgents = new Map<string, Agent>();
 
   constructor(private readonly deps: RunnerDeps) {}
 
   cancel(runId: string): void {
     const controller = this.abortControllers.get(runId);
     if (controller) controller.abort();
+  }
+
+  /** Enqueue a steering message onto the active Agent for this run. */
+  steer(runId: string, message: AgentMessage): boolean {
+    const agent = this.activeAgents.get(runId);
+    if (!agent) return false;
+    agent.steer(message);
+    return true;
+  }
+
+  /** Enqueue a follow-up message onto the active Agent for this run. */
+  followUp(runId: string, message: AgentMessage): boolean {
+    const agent = this.activeAgents.get(runId);
+    if (!agent) return false;
+    agent.followUp(message);
+    return true;
   }
 
   /**
@@ -110,20 +137,19 @@ export class WorkerRunner {
         const cwd = job.workspacePath ?? process.cwd();
         const tools = createCodingTools(cwd) as never;
 
-        const agent = new Agent({
-          initialState: {
-            systemPrompt: job.systemPrompt ?? "",
-            model,
-            tools,
-            messages: prepared.priorMessages,
-          },
-          streamFn: (m, messages, options) =>
-            streamSimple(m, messages, {
-              ...options,
-              apiKey: prepared.apiKey,
-              headers: { ...(options?.headers ?? {}), ...(extraHeaders ?? {}) },
-            }),
+        const agent = createPiAgent({
+          runId: job.runId,
+          taskSessionId: job.taskSessionId,
+          systemPrompt: job.systemPrompt ?? "",
+          model,
+          tools,
+          priorMessages: prepared.priorMessages,
+          thinkingLevel: resolveThinkingLevel(job.thinkingEffort),
+          apiKey: prepared.apiKey,
+          extraHeaders,
+          rpc,
         });
+        this.activeAgents.set(job.runId, agent);
 
         const unsubscribe = agent.subscribe(async (event) => {
           const timestamp = new Date().toISOString();
@@ -167,6 +193,7 @@ export class WorkerRunner {
           await runPromise;
         } finally {
           unsubscribe();
+          this.activeAgents.delete(job.runId);
         }
       } finally {
         restoreProviderEnv();

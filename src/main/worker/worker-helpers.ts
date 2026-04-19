@@ -1,3 +1,4 @@
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { RunStatus } from "@shared/types";
 
 export interface RunJob {
@@ -22,10 +23,18 @@ export interface RunJob {
   executionMode: "ai_ceo" | "ai_cofounder";
 }
 
+/**
+ * Parent → worker control-plane messages. `steer-run` and `followup-run`
+ * are the inward half of pi's mid-run injection contract: the worker owns
+ * the Agent instance, main owns the inbox DB, so main posts the enqueued
+ * user message here and the worker calls `agent.steer()` / `agent.followUp()`.
+ */
 export type ParentMessage =
   | { type: "enqueue-run"; payload: RunJob }
   | { type: "cancel-run"; runId: string }
   | { type: "shutdown" }
+  | { type: "steer-run"; runId: string; message: AgentMessage }
+  | { type: "followup-run"; runId: string; message: AgentMessage }
   | { type: "rpc-response"; rpcId: string; response: { ok: true; result: unknown } | { ok: false; error: string } };
 
 export type ChildMessage =

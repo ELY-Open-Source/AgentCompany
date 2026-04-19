@@ -128,6 +128,14 @@ parentPort.on("message", (event) => {
     cancelRun(message.runId);
     return;
   }
+  if (message.type === "steer-run") {
+    runner.steer(message.runId, message.message);
+    return;
+  }
+  if (message.type === "followup-run") {
+    runner.followUp(message.runId, message.message);
+    return;
+  }
   if (message.type === "rpc-response") {
     rpc.resolve(message.rpcId, message.response);
     return;

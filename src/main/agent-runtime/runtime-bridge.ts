@@ -7,8 +7,18 @@ import { CostWriter } from "./cost-writer";
 import type { CredentialResolver } from "@main/credentials";
 import { getConnectorDefinition } from "@main/connectors";
 import { projectInboxMessageToPi } from "./inbox-projection";
-import { projectToolExecutionToWorkProduct } from "./artifact-projector";
 import { projectAgentEventToLogChunk, extractTextBody } from "./agent-event-projection";
+import {
+  handleBeforeToolCall,
+  handleAfterToolCall,
+  handleTransformContext,
+  type ActiveRunContext,
+} from "./hook-handlers";
+import type {
+  AfterToolCallRpcPayload,
+  BeforeToolCallRpcPayload,
+  TransformContextRpcPayload,
+} from "./hook-rpc";
 
 export interface RuntimeBridgeDeps {
   db: AppDatabase;
@@ -21,21 +31,12 @@ export interface RuntimeBridgeDeps {
   credentialResolver: CredentialResolver;
 }
 
-interface ActiveRunContext {
-  runId: string;
-  agentId: string;
-  companyId: string;
-  taskId: string | null;
-  connectorId: string;
-  modelId: string;
-  taskSessionId: string;
-  /**
-   * Workspace root handed to pi's coding tools as cwd. Needed by the
-   * artifact projector to resolve tool-reported paths (which may be
-   * relative) and to reject writes that escape the workspace.
-   */
-  workspacePath: string | null;
-}
+type RpcMethod =
+  | "persistMessage"
+  | "prepareRun"
+  | "beforeToolCall"
+  | "afterToolCall"
+  | "transformContext";
 
 /**
  * Single owner of pi runtime side-effects in main.
@@ -43,11 +44,12 @@ interface ActiveRunContext {
  * - Forwards `agent-event` from the worker to the renderer (push channel).
  * - Persists each `message_end` message via `SqliteSessionStore`.
  * - Calls `CostWriter` for assistant messages with usage.
+ * - Proxies pi's tool-execution hooks (`beforeToolCall` / `afterToolCall`
+ *   / `transformContext`) into policy handlers: approval-gate checks,
+ *   filesystem artifact projection, and context compaction.
  *
- * Co-Founder mode's human-review gates live at the API endpoint layer
- * (hire_agent / document_review approvals created by `routes-*.ts`), not
- * at the pi tool-call layer; the worker constructs `Agent` without a
- * `beforeToolCall` hook in either mode.
+ * Policy itself lives in `hook-handlers.ts`; this class is a pure IPC
+ * router plus an `ActiveRunContext` cache.
  */
 export class RuntimeBridge {
   private readonly costWriter: CostWriter;
@@ -72,6 +74,17 @@ export class RuntimeBridge {
     const ctx = this.activeRuns.get(runId);
     this.activeRuns.delete(runId);
     if (ctx) this.sessionStores.delete(ctx.taskSessionId);
+  }
+
+  /** Returns the active run context for a given agent, if any. Used by
+   *  main-side services (inbox dispatcher) to decide whether a new inbox
+   *  row should route to `agent.steer()` instead of waiting for the next
+   *  `prepareRun` cycle. */
+  findActiveRunForAgent(agentId: string): ActiveRunContext | null {
+    for (const ctx of this.activeRuns.values()) {
+      if (ctx.agentId === agentId) return ctx;
+    }
+    return null;
   }
 
   private getOrCreateStore(taskSessionId: string): SqliteSessionStore {
@@ -128,10 +141,6 @@ export class RuntimeBridge {
       });
     }
 
-    if (envelope.event.type === "tool_execution_end") {
-      this.projectToolArtifact(envelope);
-    }
-
     if (envelope.event.type === "message_end") {
       const ctx = this.activeRuns.get(envelope.runId);
       const messageRaw = envelope.event.message as
@@ -149,60 +158,12 @@ export class RuntimeBridge {
             usage: messageRaw.usage as never,
           });
         } catch (error) {
-          // Cost writer fails closed (RUNTIME-105) — surface the failure
-          // loudly so operators can see a pricing catalog break, but let
-          // the run continue so the agent's work is not lost. The missing
-          // row means budget enforcement under-counts this message; a
-          // repeated failure in the same run is still visible in logs.
           this.deps.logger.error(
             `[runtime-bridge] cost recording failed for run ${ctx.runId}: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
       }
       this.recordThreadEvent(envelope, messageRaw);
-    }
-  }
-
-  /**
-   * Project a pi `tool_execution_end` event into the `work_products`
-   * table when the tool was `write` or `edit` and succeeded. This
-   * replaces the earlier behaviour where the agent had to remember to
-   * `POST /api/documents` after writing a file; agents forgot routinely,
-   * so the desktop UI showed an empty artifact list while the workspace
-   * filesystem filled up. The projector is idempotent and silent — all
-   * skip reasons are traced to the warn channel so operators can audit
-   * why a given write did not register.
-   */
-  private projectToolArtifact(envelope: {
-    runId: string;
-    event: { type: string } & Record<string, unknown>;
-  }): void {
-    const ctx = this.activeRuns.get(envelope.runId);
-    if (!ctx) return;
-    const e = envelope.event;
-    const toolName = typeof e.toolName === "string" ? e.toolName : null;
-    if (!toolName) return;
-    try {
-      projectToolExecutionToWorkProduct(
-        this.deps.db,
-        {
-          runId: ctx.runId,
-          agentId: ctx.agentId,
-          companyId: ctx.companyId,
-          taskId: ctx.taskId,
-          workspacePath: ctx.workspacePath,
-        },
-        {
-          toolName,
-          args: e.args,
-          result: e.result,
-          isError: e.isError === true,
-        },
-      );
-    } catch (error) {
-      this.deps.logger.warn(
-        `[runtime-bridge] artifact projection failed for run ${envelope.runId} tool ${toolName}: ${error instanceof Error ? error.message : String(error)}`,
-      );
     }
   }
 
@@ -227,14 +188,22 @@ export class RuntimeBridge {
     try {
       const thread = ensureTaskThread(this.deps.db, envelope.taskId, envelope.companyId, task.title);
       const body = extractTextBody(message.content);
-      const actorType: "agent" | "user" | "system" = message.role === "user"
+      const isUserMessage = message.role === "user";
+      const actorType: "agent" | "user" | "system" = isUserMessage
         ? "user"
         : message.role === "assistant"
           ? "agent"
           : "system";
+      // User-role messages inside the transcript come from either a human
+      // (inbox projection → Board/User) or a peer agent (via steer). The
+      // envelope's agentId is the *recipient*, never the author; recording
+      // it there creates fake "CEO replied to CEO" rows. For user-authored
+      // rows we record the virtual user actor id; peer-authored user rows
+      // are labeled "system" since pi has already erased the sender.
+      const actorId = isUserMessage ? "user" : envelope.agentId;
       this.deps.db.addThreadEvent({
         threadId: thread.id,
-        actorId: envelope.agentId,
+        actorId,
         actorType,
         eventType: message.role === "toolResult" ? "system_note" : "message",
         body: body.length > 4000 ? `${body.slice(0, 3997)}...` : body,
@@ -252,75 +221,122 @@ export class RuntimeBridge {
   /** Handles RPC requests issued by the worker (`rpc-request` envelope). */
   async handleRpc(request: {
     rpcId: string;
-    method: "persistMessage" | "prepareRun";
+    method: RpcMethod;
     runId: string;
     payload: unknown;
   }): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> {
     try {
-      if (request.method === "persistMessage") {
-        const payload = request.payload as { taskSessionId: string; message: AgentMessage };
-        this.getOrCreateStore(payload.taskSessionId).appendMessage(payload.message);
-        return { ok: true, result: undefined };
-      }
-      if (request.method === "prepareRun") {
-        const payload = request.payload as {
-          connectorId: string;
-          taskSessionId: string;
-          agentId: string;
-          companyId: string;
-          taskId: string | null;
-          modelId: string;
-          workspacePath: string | null;
-        };
-        this.registerActiveRun({
-          runId: request.runId,
-          agentId: payload.agentId,
-          companyId: payload.companyId,
-          taskId: payload.taskId,
-          connectorId: payload.connectorId,
-          modelId: payload.modelId,
-          taskSessionId: payload.taskSessionId,
-          workspacePath: payload.workspacePath,
-        });
-        const definition = getConnectorDefinition(payload.connectorId);
-        const resolved = await this.deps.credentialResolver.resolve(payload.connectorId);
-
-        // Project any pending inbox messages into the session transcript
-        // *before* loading priorMessages — the recipient must observe them
-        // as plain user turns in its context, and the transcript row is
-        // the single source of memory (recentMessages prompt block is
-        // gone). Append fails closed: if persistence throws, the inbox
-        // row stays unread and we surface the error so the worker aborts.
-        const store = this.getOrCreateStore(payload.taskSessionId);
-        const inboxRecords = this.deps.db.listAgentInboxUnread(payload.companyId, payload.agentId);
-        for (const record of inboxRecords) {
-          const projected = projectInboxMessageToPi(record, {
-            getAgentName: (id) => this.resolveAgentName(id),
-          });
-          store.appendMessage(projected);
+      switch (request.method) {
+        case "persistMessage": {
+          const payload = request.payload as { taskSessionId: string; message: AgentMessage };
+          this.getOrCreateStore(payload.taskSessionId).appendMessage(payload.message);
+          return { ok: true, result: undefined };
         }
-        if (inboxRecords.length > 0) {
-          this.deps.db.markAgentInboxDelivered(
-            payload.agentId,
-            inboxRecords.map((r) => r.id),
-          );
-        }
-
-        const priorMessages = store.loadMessages();
-        return {
-          ok: true,
-          result: {
-            provider: definition.provider,
-            apiKey: resolved.apiKey,
-            extraEnv: resolved.extraEnv ?? {},
-            priorMessages,
-          },
-        };
+        case "prepareRun":
+          return await this.handlePrepareRunRpc(request.runId, request.payload);
+        case "beforeToolCall":
+          return this.handleBeforeToolCallRpc(request.runId, request.payload as BeforeToolCallRpcPayload);
+        case "afterToolCall":
+          return this.handleAfterToolCallRpc(request.runId, request.payload as AfterToolCallRpcPayload);
+        case "transformContext":
+          return this.handleTransformContextRpc(request.runId, request.payload as TransformContextRpcPayload);
       }
-      return { ok: false, error: `Unknown RPC method: ${(request as { method: string }).method}` };
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
-}
 
+  private async handlePrepareRunRpc(
+    runId: string,
+    payloadRaw: unknown,
+  ): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> {
+    const payload = payloadRaw as {
+      connectorId: string;
+      taskSessionId: string;
+      agentId: string;
+      companyId: string;
+      taskId: string | null;
+      modelId: string;
+      workspacePath: string | null;
+    };
+    this.registerActiveRun({
+      runId,
+      agentId: payload.agentId,
+      companyId: payload.companyId,
+      taskId: payload.taskId,
+      connectorId: payload.connectorId,
+      modelId: payload.modelId,
+      taskSessionId: payload.taskSessionId,
+      workspacePath: payload.workspacePath,
+    });
+    const definition = getConnectorDefinition(payload.connectorId);
+    const resolved = await this.deps.credentialResolver.resolve(payload.connectorId);
+
+    // Project any pending inbox messages into the session transcript
+    // before loading priorMessages — the recipient must observe them
+    // as plain user turns in its context. Append fails closed: if
+    // persistence throws, the inbox row stays unread and we surface
+    // the error so the worker aborts.
+    const store = this.getOrCreateStore(payload.taskSessionId);
+    const inboxRecords = this.deps.db.listAgentInboxUnread(payload.companyId, payload.agentId);
+    for (const record of inboxRecords) {
+      const projected = projectInboxMessageToPi(record, {
+        getAgentName: (id) => this.resolveAgentName(id),
+      });
+      store.appendMessage(projected);
+    }
+    if (inboxRecords.length > 0) {
+      this.deps.db.markAgentInboxDelivered(
+        payload.agentId,
+        inboxRecords.map((r) => r.id),
+      );
+    }
+
+    const priorMessages = store.loadMessages();
+    return {
+      ok: true,
+      result: {
+        provider: definition.provider,
+        apiKey: resolved.apiKey,
+        extraEnv: resolved.extraEnv ?? {},
+        priorMessages,
+      },
+    };
+  }
+
+  private handleBeforeToolCallRpc(
+    runId: string,
+    payload: BeforeToolCallRpcPayload,
+  ): { ok: true; result: unknown } | { ok: false; error: string } {
+    const ctx = this.activeRuns.get(runId);
+    if (!ctx) {
+      return { ok: false, error: `beforeToolCall: no active run ${runId}` };
+    }
+    const result = handleBeforeToolCall(this.deps, ctx, payload);
+    return { ok: true, result };
+  }
+
+  private handleAfterToolCallRpc(
+    runId: string,
+    payload: AfterToolCallRpcPayload,
+  ): { ok: true; result: unknown } | { ok: false; error: string } {
+    const ctx = this.activeRuns.get(runId);
+    if (!ctx) {
+      return { ok: false, error: `afterToolCall: no active run ${runId}` };
+    }
+    const result = handleAfterToolCall(this.deps, ctx, payload);
+    return { ok: true, result };
+  }
+
+  private handleTransformContextRpc(
+    runId: string,
+    payload: TransformContextRpcPayload,
+  ): { ok: true; result: unknown } | { ok: false; error: string } {
+    const ctx = this.activeRuns.get(runId);
+    if (!ctx) {
+      return { ok: false, error: `transformContext: no active run ${runId}` };
+    }
+    const result = handleTransformContext(this.deps, ctx, payload);
+    return { ok: true, result };
+  }
+}
