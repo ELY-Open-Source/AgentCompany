@@ -158,6 +158,13 @@ function checkOperationalApprovalBlock(
  * Post-execution projection. Today only filesystem artifacts flow
  * through this hook; as further projections (browser actions, social
  * posts) migrate off the event-observer path they plug in here.
+ *
+ * Projection is treated as a primary persistence action: failures are
+ * logged at ERROR so they stay visible in the desktop log tail, and the
+ * `run-finished` reconciliation sweep (`RuntimeBridge`) revisits the
+ * workspace to register anything the hook missed. Silent swallow was
+ * the failure mode that left `work_products` empty while the workspace
+ * accumulated files the UI never surfaced.
  */
 export function handleAfterToolCall(
   deps: HookHandlerDeps,
@@ -172,7 +179,7 @@ export function handleAfterToolCall(
     workspacePath: ctx.workspacePath,
   };
   try {
-    projectToolExecutionToWorkProduct(
+    const outcomes = projectToolExecutionToWorkProduct(
       deps.db,
       runCtx,
       {
@@ -182,9 +189,15 @@ export function handleAfterToolCall(
         isError: payload.isError,
       },
     );
+    const registered = outcomes.filter((o) => o.kind === "inserted" || o.kind === "updated").length;
+    if (registered > 0) {
+      deps.logger.info(
+        `[hook-handlers] projection registered ${registered} artifact(s) for run ${ctx.runId} via ${payload.toolName}`,
+      );
+    }
   } catch (error) {
-    deps.logger.warn(
-      `[hook-handlers] artifact projection failed for run ${ctx.runId} tool ${payload.toolName}: ${error instanceof Error ? error.message : String(error)}`,
+    deps.logger.error(
+      `[hook-handlers] artifact projection threw for run ${ctx.runId} tool ${payload.toolName}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
   return NO_OP_AFTER;

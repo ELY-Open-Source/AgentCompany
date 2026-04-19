@@ -141,6 +141,50 @@ export function projectToolExecutionToWorkProduct(
   return [{ kind: "skipped", reason: "unsupported_tool" }];
 }
 
+/**
+ * End-of-run reconciliation sweep. The per-tool `afterToolCall` hook
+ * registers artifacts eagerly, but individual projections can skip
+ * (bash against a non-git workspace, a path on the ignore list, a
+ * transient `git status` failure). Without a final sweep, those files
+ * land on disk but never in `work_products` — the DocumentCenter then
+ * looks empty even though the agent produced deliverables.
+ *
+ * The sweep uses the same `git status` source of truth as
+ * `projectBashArtifacts`; non-git workspaces are deliberately a no-op
+ * because there is no authoritative diff against HEAD. It is
+ * idempotent via `findWorkProductByExternalId`.
+ */
+export function reconcileWorkspaceArtifacts(
+  db: AppDatabase,
+  ctx: ArtifactProjectorRunContext,
+): ProjectionOutcome[] {
+  if (!ctx.workspacePath) return [{ kind: "skipped", reason: "no_workspace" }];
+  if (!isGitRepo(ctx.workspacePath)) return [{ kind: "skipped", reason: "not_a_git_repo" }];
+
+  let changed: string[];
+  try {
+    changed = listChangedRelPaths(ctx.workspacePath);
+  } catch {
+    return [{ kind: "skipped", reason: "git_status_failed" }];
+  }
+  if (changed.length === 0) return [{ kind: "skipped", reason: "no_changes" }];
+
+  const outcomes: ProjectionOutcome[] = [];
+  const budget = changed.slice(0, MAX_BASH_PROJECTED_FILES);
+  for (const rel of budget) {
+    const absPath = resolve(ctx.workspacePath, rel);
+    if (!isRegistrablePath(absPath, ctx.workspacePath)) {
+      outcomes.push({ kind: "skipped", reason: "path_ignored" });
+      continue;
+    }
+    outcomes.push(upsertFilesystemArtifact(db, ctx, ctx.workspacePath, absPath));
+  }
+  if (changed.length > MAX_BASH_PROJECTED_FILES) {
+    outcomes.push({ kind: "skipped", reason: "bash_scan_cap_exceeded" });
+  }
+  return outcomes;
+}
+
 function projectSinglePathArtifact(
   db: AppDatabase,
   ctx: ArtifactProjectorRunContext,

@@ -11,6 +11,7 @@ import type { CredentialResolver } from "@main/credentials";
 import { getConnectorDefinition } from "@main/connectors";
 import { projectInboxMessageToPi } from "./inbox-projection";
 import { projectAgentEventToLogChunk, extractTextBody } from "./agent-event-projection";
+import { reconcileWorkspaceArtifacts } from "./artifact-projector";
 import {
   handleBeforeToolCall,
   handleAfterToolCall,
@@ -90,12 +91,42 @@ export class RuntimeBridge {
    * and the inbound-correlation log. Callers must invoke after a
    * `run-finished` worker message so the maps stay bounded by concurrent-
    * run count rather than process lifetime.
+   *
+   * Before eviction, sweeps the workspace to register any filesystem
+   * artifacts the per-tool `afterToolCall` hook missed. This is the
+   * backstop that keeps the DocumentCenter consistent with the disk even
+   * when individual projections skipped (bash against a non-git repo,
+   * path-ignore false positives, transient `git status` failures).
    */
   releaseRunResources(runId: string): void {
     const ctx = this.activeRuns.get(runId);
+    if (ctx) this.reconcileArtifactsForRun(ctx);
     this.activeRuns.delete(runId);
     this.inboundCorrelations.delete(runId);
     if (ctx) this.sessionStores.delete(ctx.taskSessionId);
+  }
+
+  private reconcileArtifactsForRun(ctx: ActiveRunContext): void {
+    if (!ctx.workspacePath) return;
+    try {
+      const outcomes = reconcileWorkspaceArtifacts(this.deps.db, {
+        runId: ctx.runId,
+        agentId: ctx.agentId,
+        companyId: ctx.companyId,
+        taskId: ctx.taskId,
+        workspacePath: ctx.workspacePath,
+      });
+      const inserted = outcomes.filter((o) => o.kind === "inserted").length;
+      if (inserted > 0) {
+        this.deps.logger.info(
+          `[runtime-bridge] reconciliation registered ${inserted} new artifact(s) for run ${ctx.runId}`,
+        );
+      }
+    } catch (error) {
+      this.deps.logger.error(
+        `[runtime-bridge] artifact reconciliation failed for run ${ctx.runId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /**
