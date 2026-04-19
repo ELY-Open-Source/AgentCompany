@@ -28,5 +28,23 @@ export function buildInboxProjectionMethods(getDb: () => DatabaseSync) {
       ).run(messageId, sessionId, nowIso());
       return Number(result.changes ?? 0) > 0;
     },
+
+    /**
+     * Purge ledger rows for sessions no agent currently references as
+     * its active `session_id`. A rotated session is never read again —
+     * its ledger entries only exist to prevent replays against that
+     * specific shadow, which no future run will touch. The safety
+     * margin (rows younger than the cutoff are preserved) covers
+     * rotations that happen mid-sweep so a race cannot strip the
+     * ledger under an active run.
+     */
+    purgeOrphanProjections(cutoffIso: string): number {
+      const result = getDb().prepare(
+        `DELETE FROM agent_message_projections
+          WHERE projected_at < ?
+            AND session_id NOT IN (SELECT session_id FROM agents WHERE session_id IS NOT NULL)`,
+      ).run(cutoffIso);
+      return Number(result.changes ?? 0);
+    },
   };
 }

@@ -88,6 +88,22 @@ export function createHousekeepingScheduler(
         } catch (error) {
           logger.error(`[housekeeping] Wakeup purge failed: ${error instanceof Error ? error.message : String(error)}`);
         }
+
+        try {
+          // agent_message_projections accumulates one row per (inbox
+          // message, session) forever. Once a session has rotated away
+          // — no agent references it as its current session_id — its
+          // projection rows only consume disk. Keep a 24h safety margin
+          // so an active rotation window cannot strip the ledger out
+          // from under a live run.
+          const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+          const purgedProjections = db.inboxProjections.purgeOrphanProjections(cutoff);
+          if (purgedProjections > 0) {
+            logger.info(`[housekeeping] Purged ${purgedProjections} orphan inbox projection ledger row(s)`);
+          }
+        } catch (error) {
+          logger.error(`[housekeeping] Inbox projection purge failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
       } catch (error) {
         logger.error(`[housekeeping] Scheduler error: ${error instanceof Error ? error.message : String(error)}`);
       }
