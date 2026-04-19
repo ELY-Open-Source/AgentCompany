@@ -101,11 +101,30 @@ export function CommunicationHub({ messages, comments, tasks, agents, projects, 
   useEffect(() => {
     if (!selectedEntityId) return
     const matchMsg = effectiveMessages.find((m) => m.id === selectedEntityId)
-    if (matchMsg) { const ch = messageChannels.find((ch) => getChannelMessages(effectiveMessages, ch).some((m) => m.id === selectedEntityId)); if (ch) { setSelectedChannelKey(ch.key); onEntityConsumed?.() }; return }
+    if (matchMsg) {
+      const ch = messageChannels.find((ch) => getChannelMessages(effectiveMessages, ch).some((m) => m.id === selectedEntityId))
+      if (ch) setSelectedChannelKey(ch.key)
+      onEntityConsumed?.()
+      return
+    }
     const matchCom = comments.find((c) => c.id === selectedEntityId)
-    if (matchCom) { setSelectedChannelKey(`task-${matchCom.taskId}`); onEntityConsumed?.(); return }
+    if (matchCom) {
+      setSelectedChannelKey(`task-${matchCom.taskId}`)
+      onEntityConsumed?.()
+      return
+    }
     const matchTask = taskDiscussionChannels.find((d) => d.taskId === selectedEntityId)
-    if (matchTask) { setSelectedChannelKey(matchTask.key); onEntityConsumed?.() }
+    if (matchTask) {
+      setSelectedChannelKey(matchTask.key)
+      onEntityConsumed?.()
+      return
+    }
+    // Entity id is stale or points outside this view (e.g. the message
+    // was deleted between navigation and render). Consume it anyway so
+    // the parent store clears the pointer — leaving it set would make
+    // the effect refire on every snapshot and block the user from
+    // navigating manually inside the communication hub.
+    onEntityConsumed?.()
   }, [selectedEntityId, effectiveMessages, comments, messageChannels, onEntityConsumed, taskDiscussionChannels])
 
   const activeChannel = useMemo(() => channels.find((c) => c.key === selectedChannelKey) ?? null, [channels, selectedChannelKey])
@@ -201,7 +220,13 @@ export function CommunicationHub({ messages, comments, tasks, agents, projects, 
 
   useEffect(() => {
     if (!activeChannel || activeChannel.kind !== "message") return
-    if (isSearchActive) return // Don't mark as read during search
+    // Search no longer blocks read marking — the original guard existed
+    // to keep unread badges stable while the user was scanning the
+    // results list, but the search panel renders inside the message
+    // list pane (isSearchActive swaps the rendered list) so messages
+    // shown through search are the same messages the user is actually
+    // viewing. Blocking reads here left unreads stuck until the user
+    // cleared search and re-opened the channel.
     const ids = filteredMessages.filter((m) => !m.readAt && !pendingReadIdsRef.current.has(m.id)).map((m) => m.id)
     if (ids.length === 0) return
     let cancelled = false
@@ -214,7 +239,7 @@ export function CommunicationHub({ messages, comments, tasks, agents, projects, 
       if (!cancelled && failed.length > 0) setOptimisticReadIds((c) => { const n = new Set(c); for (const id of failed) n.delete(id); return n })
     })()
     return () => { cancelled = true }
-  }, [activeChannel, companyId, filteredMessages, isSearchActive])
+  }, [activeChannel, companyId, filteredMessages])
 
   const unreadByChannel = useMemo(() => {
     const counts = new Map<string, { unread: number; hasUrgent: boolean }>()
