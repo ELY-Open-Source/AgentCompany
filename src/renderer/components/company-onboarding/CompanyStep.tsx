@@ -72,12 +72,14 @@ export function CompanyStep({
           rows={3}
         />
 
-        {/* CEO Provider + Model */}
+        {/* CEO Provider + Model — stacked so long names (`Fireworks AI`,
+            `Kimi K2.5 Turbo Preview 0911`) are readable without the
+            two-column ellipsis truncation that the 540-px panel forced. */}
         <div>
           <div className="mb-2 text-[12px] font-medium text-muted-foreground">
             {currentLocale === "zh" ? "CEO 运行时" : "CEO Runtime"}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-3">
             <Select
               label={currentLocale === "zh" ? "提供商" : "Provider"}
               value={selectedConnectorId}
@@ -114,14 +116,16 @@ export function CompanyStep({
               {t("onboarding.workspaceFolderOptional")}
             </span>
           </label>
-          <div className="flex gap-3">
-            <Input
-              id="onboarding-workspace-path"
-              ariaLabel={t("onboarding.workspaceFolder")}
-              value={workspacePath}
-              onChange={setWorkspacePath}
-              placeholder={t("onboarding.workspaceFolderPlaceholder")}
-            />
+          <div className="flex items-stretch gap-3">
+            <div className="min-w-0 flex-1">
+              <Input
+                id="onboarding-workspace-path"
+                ariaLabel={t("onboarding.workspaceFolder")}
+                value={workspacePath}
+                onChange={setWorkspacePath}
+                placeholder={t("onboarding.workspaceFolderPlaceholder")}
+              />
+            </div>
             <ActionButton
               label={currentLocale === "zh" ? "选择" : "Choose"}
               onClick={() => void handlePick()}

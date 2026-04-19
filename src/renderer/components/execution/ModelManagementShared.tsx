@@ -30,7 +30,7 @@ export function StatusBadge({ status }: { status: ConnectorStatus }) {
   const t = useT();
   if (status === "ready") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-success-muted px-2 py-0.5 text-[11px] font-medium text-success">
+      <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-success-muted px-2 py-0.5 text-[11px] font-medium text-success">
         <span className="h-1.5 w-1.5 rounded-full bg-success" />
         {t("models.ready")}
       </span>
@@ -38,7 +38,7 @@ export function StatusBadge({ status }: { status: ConnectorStatus }) {
   }
   if (status === "not_installed") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+      <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
         <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
         {t("models.notInstalled")}
       </span>
@@ -46,7 +46,7 @@ export function StatusBadge({ status }: { status: ConnectorStatus }) {
   }
   if (status === "auth_required") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-muted px-2 py-0.5 text-[11px] font-medium text-warning">
+      <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-warning-muted px-2 py-0.5 text-[11px] font-medium text-warning">
         <span className="h-1.5 w-1.5 rounded-full bg-warning" />
         {t("models.authRequired")}
       </span>
@@ -54,14 +54,14 @@ export function StatusBadge({ status }: { status: ConnectorStatus }) {
   }
   if (status === "detected" || (status as string) === "checking") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+      <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
         <span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-muted-foreground border-t-primary" />
         {t("models.checking")}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-caution-muted px-2 py-0.5 text-[11px] font-medium text-caution">
+    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-caution-muted px-2 py-0.5 text-[11px] font-medium text-caution">
       <span className="h-1.5 w-1.5 rounded-full bg-caution" />
       {status.replaceAll("_", " ")}
     </span>
@@ -153,12 +153,8 @@ export function ModelToggleList({
       </div>
     );
   }
-  const enabledCount = models.filter((m) => m.enabled).length;
   return (
     <div>
-      <div className="mb-1.5 text-[12px] font-medium text-muted-foreground">
-        {t("models.label")} ({t("models.enabledCount").replace("{enabled}", String(enabledCount)).replace("{total}", String(models.length))})
-      </div>
       <div className="space-y-1">
         {models.map((m) => (
           <div

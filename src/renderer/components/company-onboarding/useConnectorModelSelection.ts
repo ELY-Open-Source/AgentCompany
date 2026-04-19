@@ -54,6 +54,7 @@ interface UseConnectorModelSelectionResult {
   totalEnabledModels: number;
   selectedConnectorEnabledModels: number;
   toggleConnectorModel: (connectorId: ConnectorId, modelId: string) => Promise<void>;
+  setAllConnectorModels: (connectorId: ConnectorId, enabled: boolean) => Promise<void>;
 }
 
 export function useConnectorModelSelection(
@@ -265,6 +266,42 @@ export function useConnectorModelSelection(
     }
   }, [connectorModelsById, currentLocale, setError, t]);
 
+  /**
+   * Bulk-flip every model of one connector on or off. Uses the same
+   * single-call `setConnectorDisabledModels` IPC as the individual
+   * toggle so the UI and the DB agree after one round-trip.
+   *
+   * Disabling-all is allowed even if it zeroes the global enabled
+   * count — the continue gate at the wizard level catches that and
+   * blocks the next step, matching the single-toggle behavior.
+   */
+  const setAllConnectorModels = useCallback(
+    async (connectorId: ConnectorId, enabled: boolean) => {
+      const connectorModels = connectorModelsById[connectorId];
+      if (!connectorModels || connectorModels.length === 0) return;
+
+      const updatedModels = connectorModels.map((model) => ({ ...model, enabled }));
+      const previousModels = connectorModelsById;
+      setConnectorModelsById({ ...connectorModelsById, [connectorId]: updatedModels });
+      setError(null);
+
+      try {
+        unwrap(
+          await window.agentCompany.setConnectorDisabledModels({
+            connectorId,
+            disabledModels: enabled
+              ? []
+              : updatedModels.map((model) => ({ id: model.id, label: model.label })),
+          }),
+        );
+      } catch (error) {
+        setConnectorModelsById(previousModels);
+        setError(error instanceof Error ? error.message : t("onboarding.unableToBootstrap"));
+      }
+    },
+    [connectorModelsById, setError, t],
+  );
+
   return {
     executionReadyConnectors,
     hasAtLeastOneReady,
@@ -280,5 +317,6 @@ export function useConnectorModelSelection(
     totalEnabledModels,
     selectedConnectorEnabledModels,
     toggleConnectorModel,
+    setAllConnectorModels,
   };
 }

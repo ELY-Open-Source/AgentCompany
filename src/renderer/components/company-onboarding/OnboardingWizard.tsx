@@ -8,9 +8,9 @@ import type {
 import type { AppLocale } from "@shared/locale";
 import { useT } from "../../i18n";
 import { unwrap } from "../../lib/desktop";
-import type { OnboardingStep } from "./OnboardingHero";
+import type { OnboardingStep, OnboardingStepName } from "./OnboardingHero";
 import { WelcomeStep } from "./WelcomeStep";
-import { OnboardingStepPanel } from "./OnboardingStepPanel";
+import { OnboardingStepPanel, type OnboardingTabCompletion } from "./OnboardingStepPanel";
 import { useConnectorCallbacks } from "./useConnectorCallbacks";
 import { useConnectorModelSelection } from "./useConnectorModelSelection";
 import {
@@ -100,6 +100,7 @@ export function CompanyOnboarding({
     selectedConnectorEnabledModels,
     totalEnabledModels,
     toggleConnectorModel,
+    setAllConnectorModels,
   } = useConnectorModelSelection(connectors, currentLocale, t, setError);
 
   const pickDirectory = useCallback(async (): Promise<string | null> => {
@@ -221,6 +222,8 @@ export function CompanyOnboarding({
       selectedConnectorEnabledModels,
       onToggleConnectorModel: (connectorId, modelId) =>
         void toggleConnectorModel(connectorId, modelId),
+      onSetAllConnectorModels: (connectorId, enabled) =>
+        void setAllConnectorModels(connectorId, enabled),
     }),
     [
       connectors,
@@ -239,11 +242,42 @@ export function CompanyOnboarding({
       totalEnabledModels,
       selectedConnectorEnabledModels,
       toggleConnectorModel,
+      setAllConnectorModels,
     ],
   );
 
   const isWelcome = step === "welcome";
   const heroStep: OnboardingStep = step as OnboardingStep;
+
+  // Completion flags drive the tab ticks. Each rule mirrors the
+  // validation that the in-step "Continue" button enforces, so a user
+  // who navigates tabs freely cannot land on "mission" with a green
+  // "company" tick unless company data is actually valid. `launch`
+  // does not get a tab (it has no independent field; it just consumes
+  // the others).
+  const navigateToStep = useCallback((target: OnboardingStepName) => {
+    setError(null);
+    setStep(target);
+  }, []);
+
+  const tabCompletion: OnboardingTabCompletion = useMemo(
+    () => ({
+      nodecheck: Boolean(nodeStatus?.installed),
+      providers: hasAtLeastOneReady,
+      company: companyValues.companyName.trim().length > 0 && selectedConnectorId !== "",
+      modelpool: totalEnabledModels > 0,
+      executionmode: true, // has a default ("ai_ceo")
+      mission: missionValues.goalTitle.trim().length > 0,
+    }),
+    [
+      nodeStatus?.installed,
+      hasAtLeastOneReady,
+      companyValues.companyName,
+      selectedConnectorId,
+      totalEnabledModels,
+      missionValues.goalTitle,
+    ],
+  );
 
   return (
     <div
@@ -269,6 +303,8 @@ export function CompanyOnboarding({
               onCancel={onCancel}
               isFirstLaunch={isFirstLaunch}
               onBack={setStep}
+              onNavigateToStep={navigateToStep}
+              tabCompletion={tabCompletion}
               onContinueFromNodeCheck={() => {
                 setError(null);
                 setStep("providers");

@@ -39,7 +39,7 @@ export function ActionButton({
       type={type}
       aria-label={iconOnly ? (ariaLabel ?? label) : ariaLabel}
       title={iconOnly ? label : undefined}
-      className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 inline-flex items-center rounded-lg border text-[12px] font-bold transition-all duration-150 active:scale-[0.97] active:translate-y-px ${sizing} ${toneClass} ${isDisabled ? "pointer-events-none opacity-60" : ""} ${loading ? "scale-[0.98]" : ""}`}
+      className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 inline-flex shrink-0 items-center whitespace-nowrap rounded-lg border text-[12px] font-bold transition-all duration-150 active:scale-[0.97] active:translate-y-px ${sizing} ${toneClass} ${isDisabled ? "pointer-events-none opacity-60" : ""} ${loading ? "scale-[0.98]" : ""}`}
       onClick={onClick}
       disabled={isDisabled}
       aria-busy={loading}
@@ -49,7 +49,7 @@ export function ActionButton({
       ) : Icon ? (
         <Icon size={16} />
       ) : null}
-      {iconOnly ? null : <span>{label}</span>}
+      {iconOnly ? null : <span className="whitespace-nowrap">{label}</span>}
     </button>
   );
 }

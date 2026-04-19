@@ -33,7 +33,7 @@ export function StatusPill({ status }: { status: string }) {
   const displayLabel = checking ? "checking" : status.replaceAll("_", " ");
 
   return (
-    <span className={`inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] ${toneClass}`}>
+    <span className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.12em] ${toneClass}`}>
       {checking ? (
         <span className="h-2 w-2 animate-pulse rounded-full bg-[color:var(--muted-foreground)]" aria-hidden="true" />
       ) : (

@@ -13,6 +13,7 @@ import { getAgentInitials, formatMessageTime } from "../../lib/formatters"
 import { safeJson } from "../../lib/safe-json"
 import { DEPARTMENT_COLORS } from "@shared/constants"
 import { useT, type TranslationFn } from "../../i18n"
+import { MarkdownBody } from "../ui/MarkdownBody"
 
 const HUMAN_SENDER_ID = "__board__";
 
@@ -119,8 +120,8 @@ export const MessageBubble = memo(function MessageBubble({
           </div>
         ) : null}
 
-        <div className="mt-1 break-words whitespace-pre-wrap text-[13px] leading-relaxed text-muted-foreground">
-          {message.body}
+        <div className="mt-1 break-words text-[13px] leading-relaxed text-muted-foreground">
+          <MarkdownBody body={message.body} />
         </div>
 
         {message.attachmentsJson && message.attachmentsJson !== "[]" ? (
@@ -179,8 +180,8 @@ export function TaskCommentBubble({
           {agent?.title ? <span className="truncate text-[11px] text-muted-foreground">{agent.title}</span> : null}
           <span className="whitespace-nowrap shrink-0 text-[11px] text-muted-foreground">{formatMessageTime(comment.createdAt)}</span>
         </div>
-        <div className="mt-1 break-words whitespace-pre-wrap text-[13px] leading-relaxed text-muted-foreground">
-          {comment.body}
+        <div className="mt-1 break-words text-[13px] leading-relaxed text-muted-foreground">
+          <MarkdownBody body={comment.body} />
         </div>
       </div>
     </motion.div>

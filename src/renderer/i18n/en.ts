@@ -117,6 +117,7 @@ export const en: Record<string, string> = {
   "onboarding.selectLanguage": "Select language",
   "onboarding.welcomeSubtitle": "Build your AI company here.",
   "onboarding.getStarted": "Get Started",
+  "onboarding.stepsAria": "Setup sections",
   "onboarding.stepLabelNodeCheck": "Requirements",
   "onboarding.stepLabelProviders": "Providers",
   "onboarding.stepLabelCompany": "Company",
@@ -1307,6 +1308,8 @@ export const en: Record<string, string> = {
   "models.disableToggle": "Disable {name}",
   "models.ceoRuntime": "CEO runtime",
   "models.poolSummary": "{enabled} / {total} models enabled",
+  "models.enableAll": "Enable all",
+  "models.disableAll": "Disable all",
 
   // ── Title bar ──
   "titlebar.minimize": "Minimize",

@@ -76,6 +76,7 @@ export interface OnboardingConnectorsContextValue {
   totalEnabledModels: number;
   selectedConnectorEnabledModels: number;
   onToggleConnectorModel: (connectorId: ConnectorId, modelId: string) => void;
+  onSetAllConnectorModels: (connectorId: ConnectorId, enabled: boolean) => void;
 }
 
 const OnboardingConnectorsContext = createContext<OnboardingConnectorsContextValue | null>(null);

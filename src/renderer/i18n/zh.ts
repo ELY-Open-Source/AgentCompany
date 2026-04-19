@@ -117,6 +117,7 @@ export const zh: Record<string, string> = {
   "onboarding.selectLanguage": "选择语言",
   "onboarding.welcomeSubtitle": "从这里开始搭你的 AI 公司。",
   "onboarding.getStarted": "开始设置",
+  "onboarding.stepsAria": "配置步骤",
   "onboarding.stepLabelNodeCheck": "环境检查",
   "onboarding.stepLabelProviders": "AI 提供商",
   "onboarding.stepLabelCompany": "公司",
@@ -1307,6 +1308,8 @@ export const zh: Record<string, string> = {
   "models.disableToggle": "禁用 {name}",
   "models.ceoRuntime": "CEO 当前运行时",
   "models.poolSummary": "已启用 {enabled} / {total} 个模型",
+  "models.enableAll": "全部启用",
+  "models.disableAll": "全部禁用",
 
   // ── 窗口标题栏 ──
   "titlebar.minimize": "最小化",

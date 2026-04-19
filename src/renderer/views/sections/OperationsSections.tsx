@@ -8,7 +8,6 @@ import { SettingsShell } from "../../components/execution/SettingsShell";
 import { WorkspaceCreator } from "../../components/execution/WorkspaceCreator";
 import { WorkspaceInspector } from "../../components/execution/WorkspaceInspector";
 import { WorkspaceList } from "../../components/execution/WorkspaceList";
-import { OAuthPromptDialog } from "../../components/settings/dialogs/OAuthPromptDialog";
 import { SocialAccountsPanel } from "../../components/social/SocialPanel";
 import { AutomationPanel } from "../../components/automation/AutomationPanel";
 import { CommunicationHub } from "../../components/communication/CommunicationHub";
@@ -269,15 +268,12 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
       ) : null}
 
       {section === "settings" && currentCompany ? (
-        <>
-          <SettingsShell
-            snapshot={snapshot}
-            secrets={companySecrets}
-            companyId={currentCompany.id}
-            onSaved={refresh}
-          />
-          <OAuthPromptDialog />
-        </>
+        <SettingsShell
+          snapshot={snapshot}
+          secrets={companySecrets}
+          companyId={currentCompany.id}
+          onSaved={refresh}
+        />
       ) : null}
     </>
   );

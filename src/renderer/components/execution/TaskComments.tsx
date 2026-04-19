@@ -5,6 +5,7 @@ import { useT } from "../../i18n"
 import { formatTime } from "../../lib/formatters"
 import { unwrap } from "../../lib/desktop"
 import { ActionButton, InlineNotice } from "../ui"
+import { MarkdownBody } from "../ui/MarkdownBody"
 import { describeActionError } from "./execution-utils"
 
 export function TaskComments({ taskId, companyId, agents, comments, onRefresh }: {
@@ -44,7 +45,9 @@ export function TaskComments({ taskId, companyId, agents, comments, onRefresh }:
                   {agent && <span className="text-[10px] text-muted-foreground">{agent.role}</span>}
                   <span className="text-[10px] text-muted-foreground">{formatTime(comment.createdAt)}</span>
                 </div>
-                <div className="mt-1 whitespace-pre-wrap text-[13px] text-foreground">{comment.body}</div>
+                <div className="mt-1 text-[13px] text-foreground">
+                  <MarkdownBody body={comment.body} />
+                </div>
               </div>
             )
           })}

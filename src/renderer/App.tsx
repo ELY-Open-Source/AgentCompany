@@ -3,6 +3,7 @@ import { CircleNotch } from "./components/ui/icons";
 import { LocaleContext, TranslationContext, type TranslationFn } from "./i18n";
 import type { AppLocale } from "@shared/locale";
 import { CompanyOnboarding } from "./components/company-onboarding/OnboardingWizard";
+import { OAuthPromptDialog } from "./components/settings/dialogs/OAuthPromptDialog";
 import TitleBar from "./components/TitleBar";
 import ToastContainer from "./components/Toast";
 import { SidebarView } from "./views/SidebarView";
@@ -147,6 +148,9 @@ export function App() {
             isFirstLaunch={company.snapshot.companies.length === 0}
           />
         </div>
+        {/* Mount here so onboarding OAuth flows that need a prompt (e.g. */}
+        {/* GitHub Copilot's enterprise-domain step) can surface a modal. */}
+        <OAuthPromptDialog />
       </Shell>
     );
   }
@@ -220,6 +224,9 @@ export function App() {
       />
 
       <ToastContainer />
+      {/* App-root mount so any section that kicks off an OAuth login — */}
+      {/* not just Settings — sees prompt/manual-code events. */}
+      <OAuthPromptDialog />
     </div>
     </div>
     </SectionContext.Provider>
