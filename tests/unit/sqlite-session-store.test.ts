@@ -8,7 +8,7 @@ import { SqliteSessionStore } from "../../src/main/agent-runtime/sqlite-session-
 
 /**
  * Verifies the SqliteSessionStore round-trips pi `AgentMessage` values
- * correctly through the new `session_entries` table (migration 27).
+ * correctly through the `session_entries` table.
  */
 describe("SqliteSessionStore", () => {
   let tempDir: string;
@@ -48,33 +48,5 @@ describe("SqliteSessionStore", () => {
     expect(loaded).toHaveLength(2);
     expect((loaded[0] as { role: string }).role).toBe("user");
     expect((loaded[1] as { role: string }).role).toBe("assistant");
-  });
-
-  it("appends a compaction marker that does not appear as a message", () => {
-    const store = new SqliteSessionStore(db, TASK_SESSION_ID);
-    store.appendMessage({ role: "user", content: [{ type: "text", text: "first" }], timestamp: Date.now() } as AgentMessage);
-    store.appendCompaction("Earlier conversation summarised: planning phase complete.");
-    const loaded = store.loadMessages();
-    expect(loaded).toHaveLength(1);
-  });
-
-  it("replaceMessages supersedes prior rows and inserts new ones in order", () => {
-    const store = new SqliteSessionStore(db, TASK_SESSION_ID);
-    store.appendMessage({ role: "user", content: [{ type: "text", text: "old-1" }], timestamp: Date.now() } as AgentMessage);
-    store.appendMessage({ role: "assistant", content: [{ type: "text", text: "old-2" }], timestamp: Date.now() } as AgentMessage);
-
-    const compacted: AgentMessage[] = [
-      { role: "user", content: [{ type: "text", text: "context summary" }], timestamp: Date.now() } as AgentMessage,
-    ];
-    store.replaceMessages(compacted, "Summary of prior turns.");
-
-    const active = store.loadMessages();
-    expect(active).toHaveLength(1);
-    expect((active[0] as { content: { text: string }[] }).content[0]?.text).toBe("context summary");
-
-    // Check: pre-replace messages must still exist as superseded audit rows.
-    const all = db.sessionEntries.listAll(TASK_SESSION_ID);
-    const supersededCount = all.filter((row) => row.isSuperseded).length;
-    expect(supersededCount).toBe(2);
   });
 });

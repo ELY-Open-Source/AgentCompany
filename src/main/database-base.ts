@@ -252,7 +252,6 @@ export class AppDatabaseBase {
   setHeartbeatPolicy(agentId: string, companyId: string, policy: { enabled?: boolean; intervalSec?: number; cooldownSec?: number; maxConcurrentRuns?: number; wakeOnDemand?: boolean }) { return this.agents.setHeartbeatPolicy(agentId, companyId, policy); }
   countActiveRunsForAgent(agentId: string, companyId: string) { return this.agents.countActiveRunsForAgent(agentId, companyId); }
   listDepartmentAgentIds(companyId: string, department: string) { return this.agents.listDepartmentAgentIds(companyId, department); }
-  listTopLevelAgentIds(companyId: string) { return this.agents.listTopLevelAgentIds(companyId); }
   listCompanyBroadcastAgentIds(companyId: string) { return this.agents.listCompanyBroadcastAgentIds(companyId); }
   listIncidentPingableAgentIds(companyId: string) { return this.agents.listIncidentPingableAgentIds(companyId); }
   findAgentName(agentId: string) { return this.agents.findAgentName(agentId); }

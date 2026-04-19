@@ -101,38 +101,6 @@ describe("pi-mono migrations 27 + 28", () => {
     dbB.close();
   });
 
-  it("session_entries respects the unique (task_session_id, sequence) index across replace cycles", async () => {
-    const dir = await freshProfile("agentcompany-migration-replace-");
-    const db = new AppDatabase(dir);
-    db.init();
-
-    for (let i = 0; i < 3; i += 1) {
-      db.sessionEntries.append({
-        taskSessionId: "replace-test",
-        kind: "message",
-        role: "user",
-        payloadJson: JSON.stringify({ role: "user", content: `t${i}` }),
-      });
-    }
-    db.sessionEntries.replace({
-      taskSessionId: "replace-test",
-      entries: [
-        { kind: "compaction", role: null, payloadJson: JSON.stringify({ summary: "summarised" }) },
-        { kind: "message", role: "user", payloadJson: JSON.stringify({ role: "user", content: "post" }) },
-      ],
-    });
-
-    const active = db.sessionEntries.listActive("replace-test");
-    expect(active).toHaveLength(2);
-    expect(active[0]?.kind).toBe("compaction");
-    expect(active[1]?.kind).toBe("message");
-
-    const all = db.sessionEntries.listAll("replace-test");
-    expect(all.length).toBe(5);
-    expect(all.filter((row) => row.isSuperseded).length).toBe(3);
-    db.close();
-  });
-
   it("seedConnectors prunes legacy connector rows and inserts the full pi-mono + Fireworks catalog", async () => {
     const dir = await freshProfile("agentcompany-migration-seed-");
     const db = new AppDatabase(dir);

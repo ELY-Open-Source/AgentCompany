@@ -285,18 +285,6 @@ export function buildAgentHierarchyMethods(
     },
 
     /**
-     * Returns ids of non-terminated agents that have no manager (top of the
-     * reporting tree). Used for board-only fan-outs where only top-level
-     * leadership should be notified.
-     */
-    listTopLevelAgentIds(companyId: string): string[] {
-      return readAll<{ id: string }>(
-        "select id from agents where company_id = ? and reports_to is null and status != 'terminated'",
-        companyId,
-      ).map((row) => row.id);
-    },
-
-    /**
      * Returns ids of every agent that is eligible to receive a routine
      * company-wide broadcast. Paused, pending-approval, and terminated
      * agents are excluded — they should not be woken by normal chatter;
