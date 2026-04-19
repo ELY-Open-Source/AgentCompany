@@ -221,8 +221,14 @@ export function buildKnowledgeMethods(
       // refreshes `last_touched_by_run_id`. Querying by either side keeps
       // the deliverable signal correct for a run that edited a pre-existing
       // work product as well as a run that created a new one.
+      //
+      // `status <> 'archived'` excludes retirement tombstones: a run
+      // whose only filesystem action was deleting the file stamps
+      // `last_touched_by_run_id` onto the archived row, and without
+      // this filter the deliverable gate would count the removal as a
+      // produced artifact and let the task advance to review.
       const workProducts = readAll<{ id: string }>(
-        "select id from work_products where company_id = ? and (last_touched_by_run_id = ? or created_by_run_id = ?) limit 1",
+        "select id from work_products where company_id = ? and status <> 'archived' and (last_touched_by_run_id = ? or created_by_run_id = ?) limit 1",
         companyId, runId, runId,
       );
 
