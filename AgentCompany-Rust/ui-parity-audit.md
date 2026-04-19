@@ -1,63 +1,66 @@
 # Native UI Parity Audit
 
-Status: current-directory remediation pass completed
+Status: fine-grained current-directory visual pass completed
 Scope: only files inside the current Rust workspace directory were modified during this remediation phase.
-Rule: preserve business logic and runtime/data wiring while restoring original Electron page grammar as closely as possible from current-directory UI code only.
+Rule: preserve business logic and runtime/data wiring while restoring original Electron page grammar and desktop skin as closely as possible from current-directory UI code only.
 
-## Completed current-directory parity remediations
+## Structural parity status
 
 ### Settings
 Status: remediated
-- Native settings now use top-row tabs with active underline.
-- A single active content panel renders below the tab strip.
-- The off-source left sidebar shell was removed.
+- Top-row tabs with active underline restored.
+- Single active content panel below restored.
+- Off-source left sidebar shell removed.
 
 ### Onboarding
 Status: remediated
-- Native onboarding now has a dedicated welcome screen.
-- Post-welcome flow uses left hero + fixed right step panel topology.
-- Step tabs and back/continue flow were restored to source-like wizard grammar.
+- Dedicated welcome screen restored.
+- Left hero + fixed right step panel topology restored.
+- Step tabs and back/continue flow restored to source-like wizard grammar.
 
 ### Dashboard / Overview
 Status: remediated
-- Section order now matches the source flow more closely:
-  1. Recovery banner
-  2. Budget banner
-  3. Metrics
-  4. Performance
-  5. Budget utilization
-  6. Needs attention
-  7. Active work
-  8. Recent activity
-- Metric cards and attention rows route into their target sections.
-- Active work exposes an All runs affordance.
+- Recovery banner, budget banner, metrics, performance, budget utilization, needs attention, active work, and recent activity now follow source-like section ordering.
+- Metric cards and attention rows route into real target sections.
 
 ### Runs
 Status: remediated
-- Native runs now follow a dedicated Run Queue + Run Detail shell.
-- Runtime events, artifacts, and operator actions remain available but are secondary panels below the primary detail hierarchy.
-- Queue filtering/search/list selection remain real native interactions.
+- Dedicated Run Queue on the left and Run Detail on the right restored.
+- Runtime events, artifacts, and operator controls remain available as secondary panels below the primary detail hierarchy.
 
 ### Approvals
 Status: remediated
-- Top review area now uses grouped review-list grammar closer to PendingReviewList instead of custom parallel cards.
-- Pending approval list/detail remain wired to real approve/reject state transitions.
+- Upper review area now uses grouped review-list grammar closer to PendingReviewList.
+- Lower pending approval list/detail inspector remains wired to real decision actions.
 
 ### Documents
 Status: remediated
-- Document Center now uses a source-like shell with section header, prose list, work-product list, and dedicated editor/inspector column.
-- Existing native save-draft path remains intact.
+- Source-like shell restored: section header, prose list, work-product list, dedicated editor/inspector column.
 
 ### Inbox / Messages
 Status: remediated
 - Inbox now uses a tighter source-like attention-list shell.
-- Messages now remove off-source chrome and keep a direct communication shell: channel rail, thread header, stream, composer, inspector.
+- Messages retain channel rail, thread header, stream, composer, and inspector while removing off-source chrome.
+
+## Fine-grained visual skin status
+
+### Shared surface tokens
+Status: remediated
+- Window/sidebar backgrounds shifted warmer to align better with screenshots.
+- Panel borders softened toward warmer desktop-gray values.
+- Selection fills and accent tints were reduced to calmer desktop tones.
+
+### Communication chrome
+Status: remediated
+- Messages panes use tighter spacing and calmer radii.
+- Sidebar now reads more like a desktop rail than a generic white card.
+- Message avatar chrome, inspector chrome, and inbox row density were tightened toward screenshot rhythm.
 
 ## Remaining known limits
 
 These are current-directory-only limits, not parent-repo edits:
-- Native GPUI widgets are not a literal copy of the Electron React component library, so some visual micro-details still differ at the component-skin level.
-- Some source components depend on Electron/Tailwind-specific primitives not reproduced one-to-one in GPUI, so parity is structural and interactional first.
+- GPUI primitives are still not a literal copy of the Electron React/Tailwind component library, so parity is strongest at layout, interaction order, and tone rather than byte-for-byte component rendering.
+- Some screenshot-level micro-details such as exact iconography, font rasterization, and component internals remain bounded by the native GPUI implementation.
 - Parent-directory source repos and tests were intentionally not modified in this phase.
 
 ## Verification

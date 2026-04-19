@@ -34,3 +34,5 @@ Started: 2026-04-19
 - Completed US-022 shared skin pass. Current-directory theme tokens now align more closely with the screenshot-derived desktop skin: warmer window/sidebar fills, softer panel borders, gentler selected states, and more restrained accent surfaces.
 
 - Completed US-023 communication skin pass. Messages and inbox now use tighter pane spacing, softer desktop chrome, warmer sidebar treatment, calmer card radii, and denser row padding while preserving the existing native communication interactions.
+
+- Completed US-024 final fine-grained current-directory visual audit. The audit document now records both structural parity closure and the follow-up skin pass, and the workspace still passes cargo clippy and cargo test.
