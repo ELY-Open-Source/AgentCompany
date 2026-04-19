@@ -142,20 +142,29 @@ export function buildSystemPrompt(ctx: PromptContext): string {
     sections.push(m.departmentMembersSection(deptLabel, memberLines));
   }
 
-  if (isCEO || ctx.directReports.length > 0) {
-    const deptMap = new Map<string, typeof ctx.allAgents>();
-    for (const a of ctx.allAgents.filter((a) => a.status !== "terminated")) {
-      const dept = a.department ?? "unassigned";
-      if (!deptMap.has(dept)) deptMap.set(dept, []);
-      deptMap.get(dept)!.push(a);
-    }
-    if (deptMap.size > 1) {
-      const deptLines = Array.from(deptMap.entries()).map(([dept, members]) => {
-        const label = DEPARTMENT_LABELS[dept as DepartmentId] ?? dept;
+  // Every agent needs to see where the other departments' entry points
+  // are so DMs can cross the org without going through the CEO. Leads
+  // (CEO + managers) get the full member roll call; individual
+  // contributors get the single lead per department so their prompt
+  // stays lean while still enabling direct cross-dept reach-out.
+  const deptMap = new Map<string, typeof ctx.allAgents>();
+  for (const a of ctx.allAgents.filter((a) => a.status !== "terminated")) {
+    const dept = a.department ?? "unassigned";
+    if (!deptMap.has(dept)) deptMap.set(dept, []);
+    deptMap.get(dept)!.push(a);
+  }
+  if (deptMap.size > 1) {
+    const showAllMembers = isCEO || isManager;
+    const deptLines = Array.from(deptMap.entries()).map(([dept, members]) => {
+      const label = DEPARTMENT_LABELS[dept as DepartmentId] ?? dept;
+      if (showAllMembers) {
         return m.companyDeptMapLine(label, members.length, members.map((x) => x.name).join(", "));
-      }).join("\n");
-      sections.push(m.companyDepartmentMapSection(deptLines));
-    }
+      }
+      const leads = members.filter((x) => !x.reportsTo || ctx.directReports.every((r) => r.id !== x.id));
+      const leadNames = (leads.length > 0 ? leads : members).slice(0, 3).map((x) => x.name).join(", ");
+      return m.companyDeptMapLine(label, members.length, leadNames);
+    }).join("\n");
+    sections.push(m.companyDepartmentMapSection(deptLines));
   }
 
   const activeGoals = ctx.goals.filter((g) => g.status === "active" || g.status === "planned");

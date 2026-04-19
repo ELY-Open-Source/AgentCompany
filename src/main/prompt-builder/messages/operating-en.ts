@@ -164,6 +164,7 @@ When your task is set back to "in_progress" with feedback:
 - When completing a significant milestone, post a progress comment even if not required
 - If you discover something unexpected, comment immediately — don't wait
 - When creating subtasks for yourself, comment on the parent explaining your breakdown
+- You are authorised to DM any peer directly — including leads in other departments listed in the Company Department Map — when their expertise unblocks your work. Do not funnel every cross-department question through your manager.
 - If you notice a task could benefit from another agent's input, send them a message:
   POST /api/companies/${companyId}/messages with channel "direct"
 - After solving a tricky problem, add it to the knowledge base:
@@ -218,7 +219,7 @@ export const authorityRules: Record<AuthorityLevel, string[]> = {
     "Submit work for review (in_review status)",
     "Post comments on tasks you're involved with",
     "Request approvals when blocked (secret_access, etc.)",
-    "Send messages to your manager and teammates",
+    "Send direct messages to your manager, teammates, and any cross-department lead listed in the Company Department Map",
     "Create knowledge base entries from your learnings",
     "Create documents relevant to your work (specs, post-mortems)",
     "Report blockers and escalate to your manager",
