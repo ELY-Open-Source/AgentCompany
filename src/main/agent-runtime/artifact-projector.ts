@@ -1,22 +1,28 @@
 import { isAbsolute, relative, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { existsSync, statSync } from "node:fs";
 import type { AppDatabase } from "@main/database";
 
 /**
- * Auto-registration of filesystem artifacts produced by pi's write / edit
- * tools. Every successful tool call that mutates a workspace file is
- * projected into a `work_products` row so the desktop UI sees what the
- * agent actually produced — the old behavior required the agent to call
- * `POST /api/documents` manually, which was routinely forgotten and left
- * dozens of files on disk invisible to users.
+ * Filesystem artifact protocol for pi tool invocations.
  *
- * Registration is idempotent: the natural identity of an artifact is
- * `(companyId, provider, externalId)` where externalId is the workspace-
- * relative path. Re-writing a file updates the existing row instead of
- * creating duplicates.
+ * Every successful destructive tool call (`write`, `edit`, `bash`) is
+ * projected into the `work_products` table so the desktop UI can
+ * surface what the agent actually produced without requiring the
+ * agent to remember to POST /api/documents.
  *
- * This module is pure data-structure plumbing — it holds no state and
- * does no I/O beyond the single SQLite upsert. The RuntimeBridge owns
- * the call site.
+ * Projection is idempotent: the natural identity of an artifact is
+ * `(companyId, provider="filesystem", externalId=<workspace-relative-path>)`.
+ * The first tool call inserts; subsequent calls to the same path go
+ * through `updateWorkProduct` so repeated edits do not spam duplicates.
+ *
+ * `write` / `edit` expose the touched path in their args — the
+ * projection path is trivial. `bash` is opaque: the tool may run any
+ * command, including commands that mutate the workspace
+ * (git commit, npm build, file redirection). For bash we scan the
+ * workspace for filesystem changes with `git status --porcelain`;
+ * non-git workspaces fall through to an explicit skip since there
+ * is no authoritative baseline to diff against.
  */
 
 /** Paths we never register — tool output that is never a deliverable. */
@@ -46,6 +52,10 @@ const IGNORED_EXTENSIONS: ReadonlySet<string> = new Set([
   ".min.js",
   ".min.css",
 ]);
+
+/** Bash scan budget: cap file count + byte count per invocation so a
+ *  runaway rebuild cannot flood the artifact table. */
+const MAX_BASH_PROJECTED_FILES = 50;
 
 export type ArtifactProjectorToolEvent = {
   toolName: string;
@@ -92,7 +102,6 @@ function isRegistrablePath(absPath: string, workspacePath: string): boolean {
   if (dot > 0) {
     const ext = basename.slice(dot).toLowerCase();
     if (IGNORED_EXTENSIONS.has(ext)) return false;
-    // Catch compound extensions like ".min.js" by checking the last two dots.
     const prevDot = basename.lastIndexOf(".", dot - 1);
     if (prevDot > 0) {
       const compound = basename.slice(prevDot).toLowerCase();
@@ -108,31 +117,125 @@ export type ProjectionOutcome =
   | { kind: "updated"; workProductId: string; relativePath: string };
 
 /**
- * Upsert a work_products row for a successful write/edit tool call.
- * Returns an outcome describing whether the artifact was inserted,
- * updated, or skipped (with reason). Returns "skipped" for every
- * non-applicable case so the caller can log a single stream of events.
+ * Upsert work_products rows for a successful destructive tool call.
+ * For `write` / `edit` the path comes directly from the tool args.
+ * For `bash` we scan the workspace via `git status --porcelain`.
+ *
+ * Always returns an array — `write`/`edit` touch one path so the array
+ * holds a single outcome; `bash` can surface many.
  */
 export function projectToolExecutionToWorkProduct(
   db: AppDatabase,
   ctx: ArtifactProjectorRunContext,
   event: ArtifactProjectorToolEvent,
-): ProjectionOutcome {
-  if (event.isError) return { kind: "skipped", reason: "tool_error" };
-  if (event.toolName !== "write" && event.toolName !== "edit") {
-    return { kind: "skipped", reason: "unsupported_tool" };
-  }
-  if (!ctx.workspacePath) return { kind: "skipped", reason: "no_workspace" };
+): ProjectionOutcome[] {
+  if (event.isError) return [{ kind: "skipped", reason: "tool_error" }];
+  if (!ctx.workspacePath) return [{ kind: "skipped", reason: "no_workspace" }];
 
-  const rawPath = extractToolPath(event.toolName, event.args);
+  if (event.toolName === "write" || event.toolName === "edit") {
+    return [projectSinglePathArtifact(db, ctx, event.toolName, event.args)];
+  }
+  if (event.toolName === "bash") {
+    return projectBashArtifacts(db, ctx);
+  }
+  return [{ kind: "skipped", reason: "unsupported_tool" }];
+}
+
+function projectSinglePathArtifact(
+  db: AppDatabase,
+  ctx: ArtifactProjectorRunContext,
+  toolName: string,
+  args: unknown,
+): ProjectionOutcome {
+  if (!ctx.workspacePath) return { kind: "skipped", reason: "no_workspace" };
+  const rawPath = extractToolPath(toolName, args);
   if (!rawPath) return { kind: "skipped", reason: "missing_path" };
 
   const absPath = isAbsolute(rawPath) ? rawPath : resolve(ctx.workspacePath, rawPath);
   if (!isRegistrablePath(absPath, ctx.workspacePath)) {
     return { kind: "skipped", reason: "path_ignored" };
   }
+  return upsertFilesystemArtifact(db, ctx, ctx.workspacePath, absPath);
+}
 
-  const relativePath = relative(ctx.workspacePath, absPath);
+function projectBashArtifacts(
+  db: AppDatabase,
+  ctx: ArtifactProjectorRunContext,
+): ProjectionOutcome[] {
+  if (!ctx.workspacePath) return [{ kind: "skipped", reason: "no_workspace" }];
+  if (!isGitRepo(ctx.workspacePath)) {
+    return [{ kind: "skipped", reason: "not_a_git_repo" }];
+  }
+  let changed: string[];
+  try {
+    changed = listChangedRelPaths(ctx.workspacePath);
+  } catch {
+    return [{ kind: "skipped", reason: "git_status_failed" }];
+  }
+  if (changed.length === 0) return [{ kind: "skipped", reason: "no_changes" }];
+
+  const outcomes: ProjectionOutcome[] = [];
+  const budget = changed.slice(0, MAX_BASH_PROJECTED_FILES);
+  for (const rel of budget) {
+    const absPath = resolve(ctx.workspacePath, rel);
+    if (!isRegistrablePath(absPath, ctx.workspacePath)) {
+      outcomes.push({ kind: "skipped", reason: "path_ignored" });
+      continue;
+    }
+    outcomes.push(upsertFilesystemArtifact(db, ctx, ctx.workspacePath, absPath));
+  }
+  if (changed.length > MAX_BASH_PROJECTED_FILES) {
+    outcomes.push({ kind: "skipped", reason: "bash_scan_cap_exceeded" });
+  }
+  return outcomes;
+}
+
+function isGitRepo(workspacePath: string): boolean {
+  try {
+    return existsSync(resolve(workspacePath, ".git")) && statSync(resolve(workspacePath, ".git")).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Enumerate tracked-modified + untracked files via `git status --porcelain=v1 -z`.
+ *
+ * Output format per entry: `XY path`. NUL terminates each entry. For
+ * renames the new path is in the entry with the `R` status code and
+ * the old path follows as its own NUL-terminated entry — we advance
+ * past that old-path entry without emitting it.
+ */
+function listChangedRelPaths(workspacePath: string): string[] {
+  const raw = execFileSync("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all"], {
+    cwd: workspacePath,
+    timeout: 5_000,
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024,
+  });
+  if (!raw) return [];
+  const entries = raw.split("\0").filter(Boolean);
+  const paths: string[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    if (entry.length < 3) continue;
+    const statusCode = entry.slice(0, 2);
+    const rest = entry.slice(3);
+    if (statusCode === "!!") continue;
+    paths.push(rest);
+    const isRename = statusCode[0] === "R" || statusCode[1] === "R";
+    if (isRename) i += 1;
+  }
+  return paths;
+}
+
+function upsertFilesystemArtifact(
+  db: AppDatabase,
+  ctx: ArtifactProjectorRunContext,
+  workspacePath: string,
+  absPath: string,
+): ProjectionOutcome {
+  const relativePath = relative(workspacePath, absPath);
   const lastSlash = relativePath.lastIndexOf("/");
   const title = lastSlash >= 0 ? relativePath.slice(lastSlash + 1) : relativePath;
 
@@ -142,7 +245,6 @@ export function projectToolExecutionToWorkProduct(
     db.updateWorkProduct(existing.id, ctx.companyId, { title });
     return { kind: "updated", workProductId: existing.id, relativePath };
   }
-
   const workProductId = db.createWorkProduct({
     companyId: ctx.companyId,
     taskId: ctx.taskId,

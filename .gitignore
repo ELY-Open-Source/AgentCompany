@@ -50,6 +50,9 @@ Thumbs.db
 # Local reference material
 oldreference/
 
+# Future rewrite — not part of the TypeScript app tree.
+AgentCompany-Rust/
+
 # Markdown docs
 *.md
 !/README.md
