@@ -28,7 +28,7 @@ export const WAKE_REASONS: Record<WakeReason, WakeReasonEntry> = {
       "Call GET /api/agents/me/standup to get your full briefing",
       "Review all your assigned tasks and their statuses",
       "Take action on the most important item: reviews > unblocking > new work",
-      "If nothing needs attention, post a brief status update on your current task",
+      "If nothing actionable is in your briefing, return control without posting a status comment — activity noise is worse than silence.",
     ],
   },
   manual: {

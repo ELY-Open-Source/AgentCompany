@@ -264,10 +264,13 @@ export function buildMessageMethods(
      * visibility rules as listAgentMessages (direct/company/incident always,
      * department when agent belongs, project when assigned/lead).
      *
-     * "Unread" means:
-     *  - Direct messages to this agent: `agent_messages.read_at IS NULL`.
-     *  - Channel messages: no matching row in `agent_message_reads` for
-     *    (message_id, agent_id).
+     * "Unread" is defined uniformly across every channel: no row in
+     * `agent_message_reads` for (message_id, agent_id). The legacy
+     * `agent_messages.read_at` column is never written anywhere in the
+     * codebase and must not be used as a read signal — it only appears in
+     * SELECT lists for wire-shape compatibility and is overwritten from the
+     * read-receipts table by every caller that surfaces `readAt` to agents
+     * or the renderer.
      *
      * Messages where `from_agent_id = agentId` are excluded (agents don't
      * inject their own sent messages back into their transcript).
@@ -331,12 +334,7 @@ export function buildMessageMethods(
         ).map((row) => row.messageId),
       );
 
-      return rows.filter((message) => {
-        if (message.channel === "direct" && message.toAgentId === agentId) {
-          return !message.readAt;
-        }
-        return !readIds.has(message.id);
-      });
+      return rows.filter((message) => !readIds.has(message.id));
     },
 
   };
