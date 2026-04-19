@@ -4,6 +4,7 @@ import type { AgentRecord, ConnectorRecord } from "@shared/types";
 import type { DesktopResult } from "@shared/contracts";
 import type { OrchestrationDependencies } from "./types";
 import type { RunDispatchParams } from "./turn-context";
+import { pickModelForAgent } from "../model-dispatch";
 
 export function createTaskRunner(
   deps: OrchestrationDependencies,
@@ -46,8 +47,21 @@ export function createTaskRunner(
     if (agent.companyId !== task.companyId) {
       return fail("AGENT_COMPANY_MISMATCH", "The assigned agent does not belong to the task company.");
     }
-    const connector = db.getConnector(agent.connectorId);
-    const eligibilityFailure = getRunEligibilityFailure(agent, connector, task.projectId ?? null);
+    const assignment = pickModelForAgent(agent, {
+      getConnector: (id) => db.getConnector(id),
+      getDisabledModels: (id) => db.getDisabledModels(id),
+      getCeoAssignment: (cid) => {
+        const ceo = db.getCeoForCompany(cid);
+        if (!ceo) return null;
+        const full = db.getAgent(ceo.id);
+        return { connectorId: full.connectorId, modelId: full.model ?? null };
+      },
+      listModelCapabilities: () => db.modelCapabilities.listModelCapabilities(),
+      readConnectors: () => db.connectorsCrud.readConnectors(),
+    });
+    const connector = db.getConnector(assignment.connectorId);
+    const effectiveAgentForEligibility: AgentRecord = { ...agent, model: assignment.modelId };
+    const eligibilityFailure = getRunEligibilityFailure(effectiveAgentForEligibility, connector, task.projectId ?? null);
     if (eligibilityFailure === "AGENT_NOT_RUNNABLE") {
       return fail("AGENT_NOT_RUNNABLE", "The assigned agent is paused, pending approval, or terminated.");
     }
@@ -109,6 +123,7 @@ export function createTaskRunner(
       companyDescription: companyBasic?.description ?? "",
       snapshot: db.listSnapshot(),
       trigger,
+      resolvedModel: assignment.modelId,
     });
     db.addActivity({
       companyId: task.companyId,

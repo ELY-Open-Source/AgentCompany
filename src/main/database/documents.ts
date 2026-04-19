@@ -185,7 +185,7 @@ export function buildDocumentMethods(
     // ── Work Products ──
 
     createWorkProduct(input: {
-      companyId: string; taskId: string; projectId?: string | null;
+      companyId: string; taskId: string | null; projectId?: string | null;
       type: string; provider: string; externalId?: string | null;
       title: string; url?: string | null; status?: string; reviewState?: string;
       isPrimary?: boolean; summary?: string | null; metadataJson?: string | null;
@@ -193,7 +193,7 @@ export function buildDocumentMethods(
     }): string {
       const id = randomUUID();
       const ts = nowIso();
-      if (input.isPrimary) {
+      if (input.isPrimary && input.taskId) {
         getDb().prepare(
           "UPDATE work_products SET is_primary = 0, updated_at = ? WHERE company_id = ? AND task_id = ? AND type = ?",
         ).run(ts, input.companyId, input.taskId, input.type);
@@ -202,7 +202,7 @@ export function buildDocumentMethods(
         `INSERT INTO work_products (id, company_id, project_id, task_id, type, provider, external_id, title, url, status, review_state, is_primary, summary, metadata_json, created_by_run_id, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
-        id, input.companyId, input.projectId ?? null, input.taskId,
+        id, input.companyId, input.projectId ?? null, input.taskId ?? null,
         input.type, input.provider, input.externalId ?? null,
         input.title, input.url ?? null, input.status ?? "active",
         input.reviewState ?? "none", input.isPrimary ? 1 : 0,
@@ -210,6 +210,29 @@ export function buildDocumentMethods(
         input.createdByRunId ?? null, ts, ts,
       );
       return id;
+    },
+
+    /**
+     * Look up a work product by its natural identity — the tuple
+     * (companyId, provider, externalId) uniquely names a registered
+     * artifact. Returns null when not found. Used by the artifact
+     * projector to make tool-output registration idempotent: the first
+     * write inserts, subsequent writes (same path, same provider) go
+     * through `updateWorkProduct` instead of spamming duplicates.
+     */
+    findWorkProductByExternalId(
+      companyId: string,
+      provider: string,
+      externalId: string,
+    ): { id: string; taskId: string | null } | null {
+      const row = getDb()
+        .prepare(
+          "SELECT id, task_id as taskId FROM work_products WHERE company_id = ? AND provider = ? AND external_id = ? LIMIT 1",
+        )
+        .get(companyId, provider, externalId) as
+        | { id: string; taskId: string | null }
+        | undefined;
+      return row ?? null;
     },
 
     updateWorkProduct(

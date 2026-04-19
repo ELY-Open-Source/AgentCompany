@@ -3,6 +3,7 @@ import type { AppDatabase } from "../database";
 import type { AgentRecord, ConnectorRecord } from "@shared/types";
 import type { OrchestrationDependencies } from "./types";
 import type { RunDispatchParams } from "./turn-context";
+import { pickModelForAgent } from "../model-dispatch";
 
 export function createHeartbeat(
   deps: OrchestrationDependencies,
@@ -41,8 +42,21 @@ export function createHeartbeat(
       logger.warn(`[heartbeat] Refusing cross-company run for agent ${agentId}: ${agent.companyId} !== ${companyId}`);
       return null;
     }
-    const connector = db.getConnector(agent.connectorId);
-    if (getRunEligibilityFailure(agent, connector, null)) {
+    const assignment = pickModelForAgent(agent, {
+      getConnector: (id) => db.getConnector(id),
+      getDisabledModels: (id) => db.getDisabledModels(id),
+      getCeoAssignment: (cid) => {
+        const ceo = db.getCeoForCompany(cid);
+        if (!ceo) return null;
+        const full = db.getAgent(ceo.id);
+        return { connectorId: full.connectorId, modelId: full.model ?? null };
+      },
+      listModelCapabilities: () => db.modelCapabilities.listModelCapabilities(),
+      readConnectors: () => db.connectorsCrud.readConnectors(),
+    });
+    const connector = db.getConnector(assignment.connectorId);
+    const effectiveAgentForEligibility: AgentRecord = { ...agent, model: assignment.modelId };
+    if (getRunEligibilityFailure(effectiveAgentForEligibility, connector, null)) {
       return null;
     }
     // Extended heartbeat policy checks (Paperclip parity).
@@ -182,6 +196,7 @@ export function createHeartbeat(
       companyDescription: companyBasic?.description ?? "",
       snapshot: db.listSnapshot(),
       trigger,
+      resolvedModel: assignment.modelId,
     });
 
     db.markHeartbeatAt(agentId);

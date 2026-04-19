@@ -24,8 +24,13 @@ describe("Step 2: CEO phased prompts", () => {
 
     const prompt = buildSystemPrompt(ctx);
     expect(prompt).toContain("Team Building Phase");
-    expect(prompt).toContain("Design the Organization Structure");
-    expect(prompt).toContain("Submit Org Strategy for Approval");
+    // The rewritten prompt uses "Design a minimal org" instead of the
+    // old "Design the Organization Structure" header. Check for both
+    // the stable Step-2 marker and the new ordering guarantee that
+    // blocks the self-loop the earlier prompt enabled.
+    expect(prompt).toContain("Design a minimal org");
+    expect(prompt).toContain("HIRES FIRST. STRATEGY APPROVAL LAST.");
+    expect(prompt).toContain("Submit org strategy");
     expect(prompt).not.toContain("Awaiting Org Approval");
     expect(prompt).not.toContain("Goal Decomposition");
   });

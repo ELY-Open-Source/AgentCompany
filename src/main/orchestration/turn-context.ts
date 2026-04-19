@@ -29,6 +29,14 @@ export interface RunDispatchParams {
   companyDescription: string;
   snapshot: ReturnType<AppDatabase["listSnapshot"]>;
   trigger: string;
+  /**
+   * Model id resolved by `pickModelForAgent` at dispatch time. When the
+   * agent runs under `modelStrategy = "auto"` this differs from
+   * `agent.model` (the column now becomes a legacy fallback). Optional so
+   * explicit-strategy callers and legacy tests keep working; when absent
+   * we read `agent.model` verbatim.
+   */
+  resolvedModel?: string | null;
 }
 
 export interface TurnContextDeps {
@@ -37,10 +45,11 @@ export interface TurnContextDeps {
   getApiPort: () => number;
   createRunToken: (agentId: string, companyId: string, runId: string) => string;
   listRuntimeSkillEntries: (companyId: string, agentId: string, connectorId: string) => ProjectedSkill[];
-  getSessionHandoff?: (taskId: string) => string | null;
-  evaluatePreRunSessionRotation?: (taskId: string, connectorId: string) => {
+  getSessionHandoff?: (agentId: string) => string | null;
+  evaluatePreRunSessionRotation?: (agentId: string, connectorId: string) => {
     rotated: boolean;
     handoff: string | null;
+    sessionId: string | null;
   };
 }
 
@@ -94,14 +103,14 @@ function assembleRecentComments(
 }
 
 function resolveSessionHandoff(
-  taskId: string,
+  agentId: string,
   deps: Pick<TurnContextDeps, "getSessionHandoff" | "logger">,
 ): string | null {
   if (!deps.getSessionHandoff) return null;
   try {
-    return deps.getSessionHandoff(taskId);
+    return deps.getSessionHandoff(agentId);
   } catch (err) {
-    deps.logger.warn(`[run] Failed to load session handoff for task ${taskId}: ${err instanceof Error ? err.message : String(err)}`);
+    deps.logger.warn(`[run] Failed to load session handoff for agent ${agentId}: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
 }
@@ -138,7 +147,8 @@ function resolveSession(
   deps: Pick<TurnContextDeps, "evaluatePreRunSessionRotation" | "logger">,
 ) {
   // Per-agent session: one ongoing transcript per agent; switching tasks
-  // becomes a "now work on X" user turn rather than a fresh session.
+  // (or running taskless heartbeats) becomes a "now work on X" user turn
+  // on the ongoing transcript rather than starting a fresh session.
   const agentSessionId = db.ensureAgentSession({
     agentId: agent.id,
     companyId,
@@ -148,35 +158,15 @@ function resolveSession(
   // that read per-task active_session_id keep working.
   db.updateTasksActiveSessionForAgent(agent.id, agentSessionId);
 
-  // Heartbeat runs have no task; reuse the agent-scoped session with no
-  // task-specific active session lookup.
-  if (!task) {
-    return {
-      taskSession: { id: agentSessionId, sessionParams: null, sessionDisplayId: null },
-      sessionHandoff,
-    };
-  }
-
-  const activeSession = db.getActiveTaskSession(task.id);
-  let taskSession: {
-    id: string | null;
-    sessionParams: Record<string, unknown> | null;
-    sessionDisplayId: string | null;
-  } = activeSession
-    ? {
-        id: activeSession.id,
-        sessionParams: activeSession.sessionParamsJson
-          ? (JSON.parse(activeSession.sessionParamsJson) as Record<string, unknown>)
-          : null,
-        sessionDisplayId: activeSession.sessionDisplayId,
-      }
-    : { id: agentSessionId, sessionParams: null, sessionDisplayId: null };
-
+  // Evaluate rotation against the agent-scoped session unconditionally.
+  // Heartbeat runs (no task) must rotate too, or their transcript grows
+  // forever — the exact failure mode that burned through 7M token windows.
+  let currentSessionId = agentSessionId;
   let finalHandoff = sessionHandoff;
-  if (deps.evaluatePreRunSessionRotation && activeSession) {
-    const rotationResult = deps.evaluatePreRunSessionRotation(task.id, connectorId);
+  if (deps.evaluatePreRunSessionRotation) {
+    const rotationResult = deps.evaluatePreRunSessionRotation(agent.id, connectorId);
     if (rotationResult.rotated) {
-      taskSession = { id: null, sessionParams: null, sessionDisplayId: null };
+      currentSessionId = rotationResult.sessionId ?? agentSessionId;
       if (!finalHandoff && rotationResult.handoff) {
         finalHandoff = rotationResult.handoff;
       }
@@ -184,7 +174,24 @@ function resolveSession(
     }
   }
 
-  return { taskSession, sessionHandoff: finalHandoff };
+  // `sessionParams` / `sessionDisplayId` are transient per-run state pi-ai
+  // stamps onto the task row after a turn (e.g., Gemini's resume id). They
+  // are only meaningful when a task's cached pointer still matches the
+  // current (unrotated) session; after rotation the new session has none.
+  let sessionParams: Record<string, unknown> | null = null;
+  let sessionDisplayId: string | null = null;
+  if (task) {
+    const active = db.getActiveTaskSession(task.id);
+    if (active && active.id === currentSessionId && active.sessionParamsJson) {
+      sessionParams = JSON.parse(active.sessionParamsJson) as Record<string, unknown>;
+      sessionDisplayId = active.sessionDisplayId;
+    }
+  }
+
+  return {
+    taskSession: { id: currentSessionId, sessionParams, sessionDisplayId },
+    sessionHandoff: finalHandoff,
+  };
 }
 
 function extractThinkingEffort(
@@ -284,7 +291,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
   const assignedTasks = db.listAgentTasks(agent.id, companyId, ["todo", "in_progress", "blocked"]);
   const reviewTasks = db.listReviewTasksForManager(agent.id, companyId);
   const recentComments = assembleRecentComments(assignedTasks, reviewTasks, snapshot);
-  const initialHandoff = task ? resolveSessionHandoff(task.id, deps) : null;
+  const initialHandoff = resolveSessionHandoff(agent.id, deps);
   const { taskSession, sessionHandoff } = resolveSession(db, agent, task, companyId, connector.id, initialHandoff, deps);
   const skills = resolveSkills(companyId, agent.id, connector.id, agent.name, deps);
 
@@ -335,7 +342,8 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
   }) : null;
 
   const thinkingEffort = extractThinkingEffort(agent.metadataJson, deps.logger, agent.id);
-  const modelSelection = validateConnectorModelSelection(db, connector.id, agent.model);
+  const modelForRun = params.resolvedModel !== undefined ? params.resolvedModel : agent.model;
+  const modelSelection = validateConnectorModelSelection(db, connector.id, modelForRun);
   if (!modelSelection.ok) {
     throw new Error(modelSelection.error);
   }

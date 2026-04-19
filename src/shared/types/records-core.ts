@@ -7,6 +7,7 @@ import type {
   DepartmentId,
   AgentStatus,
   AgentRoleLevel,
+  AgentModelStrategy,
   GoalStatus,
   ProjectStatus,
   TaskStatus,
@@ -88,6 +89,13 @@ export interface AgentRecord {
   connectorId: ConnectorId;
   workspaceId: string | null;
   model: string | null;
+  /**
+   * Model routing strategy (v39+). See AgentModelStrategy in enums.ts.
+   * Optional on the read model because the DB column has a schema-level
+   * default of 'explicit' for existing rows and legacy AgentRecord literals
+   * in tests predate this field.
+   */
+  modelStrategy?: AgentModelStrategy | null;
   capabilities: string;
   budgetMonthlyUsd: number;
   spentMonthlyUsd: number;
@@ -364,5 +372,25 @@ export interface MentionResult {
 export interface SendMessageResult {
   id: string;
   mentionResults: MentionResult[];
+}
+
+/**
+ * Row in `model_capabilities`. Scores are 1..5 integer ratings per domain,
+ * tier is the hard lower bound the dispatcher clears before considering
+ * `costPerMtokOut` to pick the cheapest qualifying model.
+ *
+ * Composite primary key `(provider, modelId)` — the same modelId can
+ * legitimately ship under multiple providers (e.g. an Anthropic-compatible
+ * endpoint that serves Claude via a Fireworks proxy).
+ */
+export interface ModelCapability {
+  provider: string;
+  modelId: string;
+  reasoning: number;
+  coding: number;
+  writing: number;
+  tier: "trivial" | "standard" | "hard";
+  costPerMtokOut: number;
+  updatedAt: string;
 }
 

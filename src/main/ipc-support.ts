@@ -81,10 +81,34 @@ export function createIpcSupport({
     });
   }
 
+  // Transport-layer failures when the renderer is mid-reload or already
+  // disposed throw "Render frame was disposed before WebFrameMain could
+  // be accessed" out of Electron's IPC core. Those exceptions are a
+  // lifecycle signal, never a logic bug — but if they bubble, they
+  // abort every downstream event in the same tick (RuntimeBridge fans
+  // two emits per agent-event, the second one never runs when the first
+  // throws). Treat emitEvent as a fire-and-forget sink: renderer
+  // disappearances are silent, real serialisation errors are warned
+  // once per event type.
+  const renderFrameDisposedMessage = "Render frame was disposed";
+  const emitWarnedChannels = new Set<string>();
+
   function emitEvent(event: DesktopEvent) {
     const mainWindow = getMainWindow();
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    try {
       mainWindow.webContents.send("agent-company:event", event);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes(renderFrameDisposedMessage)) {
+        // Renderer is reloading or gone — expected; skip.
+        return;
+      }
+      const key = event.type ?? "<untyped>";
+      if (!emitWarnedChannels.has(key)) {
+        emitWarnedChannels.add(key);
+        logger.error(`[ipc] emitEvent(${key}) failed: ${message}`);
+      }
     }
   }
 

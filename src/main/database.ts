@@ -94,9 +94,10 @@ export class AppDatabase extends AppDatabaseBase {
   createDocumentRevision(input: { documentId: string; companyId: string; body: string; changeSummary?: string | null; createdByAgentId?: string | null; createdByUserId?: string | null }) { return this.documentsMod.createDocumentRevision(input); }
   getDocumentLatestRevisionId(documentId: string) { return this.documentsMod.getDocumentLatestRevisionId(documentId); }
   listDocumentRevisions(documentId: string, companyId: string) { return this.documentsMod.listDocumentRevisions(documentId, companyId); }
-  createWorkProduct(input: { companyId: string; taskId: string; projectId?: string | null; type: string; provider: string; externalId?: string | null; title: string; url?: string | null; status?: string; reviewState?: string; isPrimary?: boolean; summary?: string | null; metadataJson?: string | null; createdByRunId?: string | null }) { return this.documentsMod.createWorkProduct(input); }
+  createWorkProduct(input: { companyId: string; taskId: string | null; projectId?: string | null; type: string; provider: string; externalId?: string | null; title: string; url?: string | null; status?: string; reviewState?: string; isPrimary?: boolean; summary?: string | null; metadataJson?: string | null; createdByRunId?: string | null }) { return this.documentsMod.createWorkProduct(input); }
   updateWorkProduct(id: string, companyId: string, patch: Parameters<ReturnType<typeof import("./database/documents").buildDocumentMethods>["updateWorkProduct"]>[2]) { return this.documentsMod.updateWorkProduct(id, companyId, patch); }
   listWorkProductsForTask(taskId: string, companyId: string) { return this.documentsMod.listWorkProductsForTask(taskId, companyId); }
+  findWorkProductByExternalId(companyId: string, provider: string, externalId: string) { return this.documentsMod.findWorkProductByExternalId(companyId, provider, externalId); }
   deleteWorkProduct(id: string, companyId: string) { return this.documentsMod.deleteWorkProduct(id, companyId); }
   linkDocumentToTask(taskId: string, documentId: string, companyId: string, key: string) { return this.documentsMod.linkDocumentToTask(taskId, documentId, companyId, key); }
   unlinkDocumentFromTask(taskId: string, key: string, companyId: string) { this.documentsMod.unlinkDocumentFromTask(taskId, key, companyId); }

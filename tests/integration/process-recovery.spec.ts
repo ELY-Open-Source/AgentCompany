@@ -472,8 +472,8 @@ describe("Process Recovery -- Context Preservation (D-02)", () => {
     expect(rotationResult.shouldRotate).toBe(true);
     expect(rotationResult.reason).toBe("max_runs");
 
-    // Generate handoff markdown
-    const handoff = sessionService.generateHandoff(taskId, session!);
+    // Generate handoff markdown (agent-scoped, single-argument signature).
+    const handoff = sessionService.generateHandoff(session!);
     expect(handoff).toContain("# Session Handoff");
     expect(handoff).toContain("Session stats:");
   });

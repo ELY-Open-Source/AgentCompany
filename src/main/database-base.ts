@@ -24,6 +24,8 @@ import { buildWakeupMethods } from "./database/wakeup";
 import { buildBackupMethods } from "./database/backup";
 import { buildSessionEntryMethods } from "./database/session-entries";
 import { buildCredentialMethods } from "./database/credentials";
+import { buildModelCapabilityMethods } from "./database/model-capabilities-crud";
+import { MODEL_CAPABILITY_SEED } from "./model-capability-seed";
 import { initializeDatabase } from "./database/schema";
 import { SecretVault } from "./vault";
 import type { AgentStatus, ConnectorId, ProfileSnapshot, RunStatus } from "@shared/types";
@@ -68,6 +70,7 @@ export class AppDatabaseBase {
   public readonly backupMod: ReturnType<typeof buildBackupMethods>;
   public readonly sessionEntries: ReturnType<typeof buildSessionEntryMethods>;
   public readonly credentialsTable: ReturnType<typeof buildCredentialMethods>;
+  public readonly modelCapabilities: ReturnType<typeof buildModelCapabilityMethods>;
 
   constructor(rootDir: string, options: { isPackaged?: boolean } = {}) {
     this.profileDir = rootDir;
@@ -141,6 +144,7 @@ export class AppDatabaseBase {
     this.wakeup = buildWakeupMethods(getDb, ra, tx);
     this.sessionEntries = buildSessionEntryMethods(getDb, ra, tx);
     this.credentialsTable = buildCredentialMethods(getDb, ra, tx);
+    this.modelCapabilities = buildModelCapabilityMethods(getDb, ra, tx);
     this.backupMod = buildBackupMethods({
       getDb, setDb: (db) => { this.db = db; },
       openConnection: () => this.openConnection(),
@@ -159,9 +163,92 @@ export class AppDatabaseBase {
     const tx = <T>(op: () => T) => this.transaction(op);
     initializeDatabase(this.db, ra, tx);
     this.connectorsCrud.seedConnectors();
+    this.modelCapabilities.seedModelCapabilities(MODEL_CAPABILITY_SEED);
     this._lastInterruptedCount = this.interruptStaleRuns();
+    this._lastOrphanResetCount = this.reconcileOrphanedTasks();
+    this._lastUnreviewableResetCount = this.reconcileUnreviewableTasks();
     this.settings.purgeExpiredRunLogs();
     this.wakeup.purgeExpiredWakeupRequests();
+  }
+
+  /**
+   * Reset tasks stuck at `in_progress` with no live run.
+   *
+   * Invariant: `task.status = 'in_progress'` ⇒ there exists a run `r`
+   * where `r.status IN ('queued', 'running')` referenced by this task
+   * (via checkout_run_id or active_run_id).
+   *
+   * Whenever the invariant breaks — because a dispatch failed, a worker
+   * crashed, or a pre-fix finishRun cleared the run refs but not the
+   * status — the task becomes un-reclaimable: `checkoutTask`'s guard
+   * requires `status IN ('todo','backlog')`, and heartbeat loops forever
+   * logging "lost checkout race". One query at boot drains every such
+   * orphan, regardless of which of the two reference columns happens to
+   * be null. The runtime `finishRun` path enforces the same invariant
+   * going forward, so this should stabilise at zero rows changed.
+   */
+  protected reconcileOrphanedTasks(): number {
+    const result = this.db
+      .prepare(
+        `UPDATE tasks
+         SET status = 'todo',
+             checkout_run_id = NULL,
+             execution_locked_at = NULL,
+             active_run_id = NULL,
+             updated_at = ?
+         WHERE status = 'in_progress'
+           AND NOT EXISTS (
+             SELECT 1 FROM runs r
+             WHERE (r.id = tasks.checkout_run_id OR r.id = tasks.active_run_id)
+               AND r.status IN ('queued', 'running')
+           )`,
+      )
+      .run(new Date().toISOString());
+    const changes = Number(result.changes);
+    if (changes > 0) {
+       
+      console.info(`[init] Reconciled ${changes} orphaned in_progress task(s) → todo.`);
+    }
+    return changes;
+  }
+
+  /**
+   * Reset tasks stuck at `in_review` with no reachable reviewer.
+   *
+   * A task enters `in_review` when an assignee submits work for approval.
+   * The reviewer is the assignee's manager (walk up via `reports_to`),
+   * or the human operator when the task is flagged
+   * `requires_user_review = 1`. When the assignee is a top-level agent
+   * (CEO/board, `reports_to IS NULL`) and the task does not require
+   * user review, *no one* can review it — the task becomes a dead
+   * letter, and the CEO heartbeat falls into a loop re-proposing its
+   * `approve_ceo_strategy` without ever recovering.
+   *
+   * This observed pattern cost us a full debugging session: CEO
+   * self-assigned a large task, moved it to `in_review`, then spent
+   * every heartbeat cycle re-emitting the same approval. Demoting the
+   * task to `todo` breaks the loop — the CEO sees un-reviewable work
+   * and correctly falls through to the hire path instead.
+   */
+  protected reconcileUnreviewableTasks(): number {
+    const result = this.db
+      .prepare(
+        `UPDATE tasks
+         SET status = 'todo', updated_at = ?
+         WHERE status = 'in_review'
+           AND requires_user_review = 0
+           AND assignee_agent_id IS NOT NULL
+           AND assignee_agent_id IN (
+             SELECT id FROM agents WHERE reports_to IS NULL
+           )`,
+      )
+      .run(new Date().toISOString());
+    const changes = Number(result.changes);
+    if (changes > 0) {
+       
+      console.info(`[init] Reconciled ${changes} un-reviewable in_review task(s) → todo.`);
+    }
+    return changes;
   }
 
   close() { this.db.close(); }
@@ -196,7 +283,6 @@ export class AppDatabaseBase {
   getCompanyExecutionMode(companyId: string) { return this.company.getCompanyExecutionMode(companyId); }
   getCompanyApprovalSettings(companyId: string) { return this.company.getCompanyApprovalSettings(companyId); }
   listActiveCompanyIds() { return this.company.listActiveCompanyIds(); }
-  getSidebarBadges(companyId: string) { return this.company.getSidebarBadges(companyId); }
   getInbox(companyId: string) { return this.company.getInbox(companyId); }
   getCompanyMetrics(companyId: string, days: number = 30) { return this.company.getCompanyMetrics(companyId, days); }
   getStandupReport(companyId: string) { return this.company.getStandupReport(companyId); }
@@ -211,7 +297,7 @@ export class AppDatabaseBase {
 
   // ─── Agents ────────────────────────────────────────────────────────────────
 
-  saveAgent(input: { id?: string | null; companyId: string; name: string; role: string; title: string; department?: string | null; status: AgentStatus; reportsTo?: string | null; connectorId: ConnectorId; workspaceId?: string | null; model?: string | null; metadataJson?: string; capabilities: string; budgetMonthlyUsd: number }) { return this.agents.saveAgent(input); }
+  saveAgent(input: { id?: string | null; companyId: string; name: string; role: string; title: string; department?: string | null; status: AgentStatus; reportsTo?: string | null; connectorId: ConnectorId; workspaceId?: string | null; model?: string | null; metadataJson?: string; capabilities: string; budgetMonthlyUsd: number; roleLevel?: import("@shared/types").AgentRoleLevel; modelStrategy?: import("@shared/types").AgentModelStrategy }) { return this.agents.saveAgent(input); }
   deleteAgent(id: string, companyId: string) { return this.agents.deleteAgent(id, companyId); }
   getAgent(id: string) { return this.entityCrud.getAgent(id); }
   findAgent(id: string) { return this.entityCrud.findAgent(id); }
@@ -257,6 +343,7 @@ export class AppDatabaseBase {
   updateTaskSession(taskId: string, sessionJson: Record<string, unknown> | null, sessionDisplayId: string | null) { return this.tasks.updateTaskSession(taskId, sessionJson, sessionDisplayId); }
   getTaskSession(taskId: string) { return this.tasks.getTaskSession(taskId); }
   getActiveTaskSession(taskId: string) { return this.tasks.getActiveTaskSession(taskId); }
+  getSessionById(sessionId: string) { return this.tasks.getSessionById(sessionId); }
   incrementSessionUsage(sessionId: string, inputTokens: number, outputTokens: number, runId: string) { return this.tasks.incrementSessionUsage(sessionId, inputTokens, outputTokens, runId); }
   archiveSession(sessionId: string, reason: string, handoffMarkdown: string) { return this.tasks.archiveSession(sessionId, reason, handoffMarkdown); }
   createNewSession(input: { taskId: string; companyId: string; agentId: string; adapterType: string; sessionParamsJson: string | null; sessionDisplayId: string | null }) { return this.tasks.createNewSession(input); }
@@ -353,7 +440,11 @@ export class AppDatabaseBase {
 
   // ─── Internal infrastructure ───────────────────────────────────────────────
   protected _lastInterruptedCount = 0;
+  protected _lastOrphanResetCount = 0;
+  protected _lastUnreviewableResetCount = 0;
   get lastInterruptedCount(): number { return this._lastInterruptedCount; }
+  get lastOrphanResetCount(): number { return this._lastOrphanResetCount; }
+  get lastUnreviewableResetCount(): number { return this._lastUnreviewableResetCount; }
 
   interruptStaleRuns(): number {
     const ts = nowIso();

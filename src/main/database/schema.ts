@@ -3,6 +3,8 @@ import { createMigrationsV1V15 } from "./migrations/v1-v15";
 import { createMigrationsV16V25 } from "./migrations/v16-v25";
 import { createMigrationsV26V34 } from "./migrations/v26-v34";
 import { createMigrationsV35V37 } from "./migrations/v35-v37";
+import { createMigrationsV38V39 } from "./migrations/v38-v39";
+import { createMigrationsV40V40 } from "./migrations/v40-v40";
 import {
   columnExists,
   nowIso,
@@ -172,6 +174,8 @@ export function runMigrations(
     ...createMigrationsV16V25(deps),
     ...createMigrationsV26V34(deps),
     ...createMigrationsV35V37(deps),
+    ...createMigrationsV38V39(deps),
+    ...createMigrationsV40V40(deps),
   ];
 
   for (const migration of migrations) {

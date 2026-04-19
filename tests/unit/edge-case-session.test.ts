@@ -206,11 +206,12 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     });
 
     const session = db.getActiveTaskSession(taskId)!;
-    const handoff = sessionService.generateHandoff(taskId, session);
+    // generateHandoff is agent-scoped: it walks the agent's runs across
+    // all tasks + taskless heartbeats, not a single task.
+    const handoff = sessionService.generateHandoff(session);
 
     // Verify handoff markdown content
     expect(handoff).toContain("# Session Handoff");
-    expect(handoff).toContain("Implement session rotation feature"); // task title
     expect(handoff).toContain("## Recent Run History");
 
     // Archive the old session with handoff

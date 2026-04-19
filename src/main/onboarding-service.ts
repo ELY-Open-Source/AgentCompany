@@ -257,6 +257,10 @@ export function createOnboardingService({
         : "Executive leadership, strategic planning, team building, goal decomposition, delegation, and organizational management. Responsible for hiring the leadership team, setting strategy, and coordinating all company operations.",
       budgetMonthlyUsd: 250,
       status: "idle",
+      // CEO is pinned to the user's pick at onboarding. Never let the
+      // dispatcher re-route it.
+      modelStrategy: "explicit",
+      roleLevel: "c_suite",
     });
     db.setHeartbeat(ceoId, true, 120);
     db.setCurrentCompany(companyId);

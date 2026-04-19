@@ -71,9 +71,15 @@ export interface OrchestrationDependencies {
   budgetService: ReturnType<typeof createBudgetEnforcementService>;
   /** Checkpoint engine for unified co-founder mode pause decisions. */
   checkpointEngine?: { shouldPauseHeartbeat: (companyId: string, agentId: string) => boolean };
-  getSessionHandoff?: (taskId: string) => string | null;
-  evaluatePreRunSessionRotation?: (taskId: string, connectorId: string) => {
+  getSessionHandoff?: (agentId: string) => string | null;
+  evaluatePreRunSessionRotation?: (agentId: string, connectorId: string) => {
     rotated: boolean;
     handoff: string | null;
+    /**
+     * The session id the next run should use. Equals the freshly-minted
+     * session id after a rotation, or the unchanged agent session id when
+     * no rotation fired. Null if the agent has no session yet (first run).
+     */
+    sessionId: string | null;
   };
 }

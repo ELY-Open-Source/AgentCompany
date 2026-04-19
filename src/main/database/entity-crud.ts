@@ -63,7 +63,7 @@ export function buildEntityCrudMethods(
     getAgent(id: string): AgentRecord {
       const row = getDb()
         .prepare(
-          "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, role_level as roleLevel, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, session_id as sessionId, created_at as createdAt, updated_at as updatedAt from agents where id = ?",
+          "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, role_level as roleLevel, model_strategy as modelStrategy, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, session_id as sessionId, created_at as createdAt, updated_at as updatedAt from agents where id = ?",
         )
         .get(id) as AgentRecord | undefined;
       if (!row) throw new Error(`Agent not found: ${id}`);
@@ -74,7 +74,7 @@ export function buildEntityCrudMethods(
     findAgent(id: string): AgentRecord | null {
       const row = getDb()
         .prepare(
-          "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, role_level as roleLevel, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, session_id as sessionId, created_at as createdAt, updated_at as updatedAt from agents where id = ?",
+          "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, role_level as roleLevel, model_strategy as modelStrategy, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, session_id as sessionId, created_at as createdAt, updated_at as updatedAt from agents where id = ?",
         )
         .get(id) as AgentRecord | undefined;
       if (!row) return null;
@@ -251,6 +251,7 @@ export function buildEntityCrudMethods(
         reportsTo: string | null; connectorId: ConnectorId;
         workspaceId: string | null; model: string | null;
         metadataJson: string; capabilities: string; budgetMonthlyUsd: number;
+        modelStrategy?: "explicit" | "auto";
       }) => string;
       requestApproval: (input: {
         companyId: string; requestedByAgentId: string | null;
@@ -267,6 +268,11 @@ export function buildEntityCrudMethods(
           connectorId: input.connectorId, workspaceId: input.workspaceId ?? null,
           model: input.model ?? null, metadataJson: input.metadataJson ?? "{}",
           capabilities: input.capabilities, budgetMonthlyUsd: input.budgetMonthlyUsd,
+          // Agents hired by the CEO (or any other agent) default to `auto`:
+          // the dispatcher will pick the cheapest enabled model that
+          // clears their inferred task profile. User-driven form saves
+          // flip this to 'explicit' at the IPC handler.
+          modelStrategy: "auto",
         });
         const approvalId = selfDeps.requestApproval({
           companyId: input.companyId,

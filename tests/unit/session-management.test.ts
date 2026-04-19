@@ -577,12 +577,16 @@ describe("session management service", () => {
 
       const session = db.getActiveTaskSession(taskId)!;
       const svc = createSessionManagementService({ db, logger: mockLogger });
-      const handoff = svc.generateHandoff(taskId, session);
+      // Handoff is now agent-scoped: it walks the agent's recent runs
+      // (across tasks + heartbeats) rather than a single task. The task
+      // title is no longer in the handoff header because the session
+      // does not belong to any one task anymore.
+      const handoff = svc.generateHandoff(session);
 
       expect(handoff).toContain("# Session Handoff");
-      expect(handoff).toContain("Implement session rotation"); // task title
       expect(handoff).toContain("## Recent Run History");
       expect(handoff).toContain("succeeded");
+      expect(handoff).toContain("Implemented initial logic"); // run summary
       expect(handoff).toContain("15000 total tokens"); // 10000 + 5000
     });
   });

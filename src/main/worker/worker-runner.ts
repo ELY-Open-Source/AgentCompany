@@ -91,6 +91,7 @@ export class WorkerRunner {
         companyId: job.companyId,
         taskId: job.taskId,
         modelId: job.model,
+        workspacePath: job.workspacePath ?? null,
       });
       if (!prepareResponse.ok) {
         throw new Error(prepareResponse.error);

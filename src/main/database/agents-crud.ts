@@ -1,6 +1,6 @@
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import log from "electron-log/main.js";
-import type { AgentRecord, AgentRoleLevel, ConnectorId } from "@shared/types";
+import type { AgentModelStrategy, AgentRecord, AgentRoleLevel, ConnectorId } from "@shared/types";
 import {
   type ReadAll,
   type Transaction,
@@ -48,6 +48,13 @@ export function buildAgentCrudMethods(
       budgetMonthlyUsd: number;
       /** Optional explicit seniority; inferred from role/title when omitted. */
       roleLevel?: AgentRoleLevel;
+      /**
+       * Model routing strategy (v39+). `explicit` pins the agent to
+       * `connectorId + model`; `auto` lets the dispatcher pick at run
+       * time. Omitting this leaves the existing column untouched on
+       * update, and uses the DB default ('explicit') on insert.
+       */
+      modelStrategy?: AgentModelStrategy;
     }): string {
       const id = ensureId(input.id ?? null);
       const ts = nowIso();
@@ -64,12 +71,17 @@ export function buildAgentCrudMethods(
         // Snapshot before-config for revision tracking
         const beforeAgent = getDb()
           .prepare(
-            "SELECT name, role, title, department, capabilities, connector_id, model, budget_monthly_usd, metadata_json FROM agents WHERE id = ? AND company_id = ?",
+            "SELECT name, role, title, department, capabilities, connector_id, model, model_strategy, role_level, budget_monthly_usd, metadata_json FROM agents WHERE id = ? AND company_id = ?",
           )
           .get(id, input.companyId) as Record<string, unknown> | undefined;
+        // Preserve existing modelStrategy and roleLevel when the caller omits
+        // them, so non-related updates (e.g. updateAgentWorkspaceBinding) do
+        // not accidentally flip routing or seniority.
+        const effectiveStrategy = input.modelStrategy ?? (beforeAgent?.model_strategy as string | undefined) ?? "explicit";
+        const effectiveRoleLevel = input.roleLevel ?? (beforeAgent?.role_level as string | undefined) ?? "ic";
         getDb()
           .prepare(
-            "update agents set name = ?, role = ?, title = ?, department = ?, status = ?, reports_to = ?, connector_id = ?, workspace_id = ?, model = ?, metadata_json = ?, capabilities = ?, budget_monthly_usd = ?, updated_at = ? where id = ? and company_id = ?",
+            "update agents set name = ?, role = ?, title = ?, department = ?, status = ?, reports_to = ?, connector_id = ?, workspace_id = ?, model = ?, model_strategy = ?, role_level = ?, metadata_json = ?, capabilities = ?, budget_monthly_usd = ?, updated_at = ? where id = ? and company_id = ?",
           )
           .run(
             input.name,
@@ -81,6 +93,8 @@ export function buildAgentCrudMethods(
             input.connectorId,
             normalizeOptionalId(input.workspaceId),
             normalizeOptionalId(input.model),
+            effectiveStrategy,
+            effectiveRoleLevel,
             metadataJson,
             input.capabilities,
             input.budgetMonthlyUsd,
@@ -132,9 +146,11 @@ export function buildAgentCrudMethods(
           }
         }
       } else {
+        const insertStrategy = input.modelStrategy ?? "explicit";
+        const insertRoleLevel = input.roleLevel ?? "ic";
         getDb()
           .prepare(
-            "insert into agents (id, company_id, name, role, title, department, status, reports_to, connector_id, workspace_id, model, capabilities, budget_monthly_usd, spent_monthly_usd, metadata_json, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)",
+            "insert into agents (id, company_id, name, role, title, department, status, reports_to, connector_id, workspace_id, model, model_strategy, role_level, capabilities, budget_monthly_usd, spent_monthly_usd, metadata_json, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)",
           )
           .run(
             id,
@@ -148,6 +164,8 @@ export function buildAgentCrudMethods(
             input.connectorId,
             normalizeOptionalId(input.workspaceId),
             normalizeOptionalId(input.model),
+            insertStrategy,
+            insertRoleLevel,
             input.capabilities,
             input.budgetMonthlyUsd,
             metadataJson,

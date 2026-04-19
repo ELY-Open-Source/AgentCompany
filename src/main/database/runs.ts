@@ -96,10 +96,19 @@ export function buildRunMethods(
       sessionDisplayId: string | null;
       unattributedCost: boolean;
     }) {
-      const run = getDb().prepare("select task_id as taskId, agent_id as agentId, company_id as companyId, connector_id as connectorId from runs where id = ?").get(input.runId) as
-        | { taskId: string | null; agentId: string; companyId: string; connectorId: ConnectorId }
+      const run = getDb().prepare("select task_id as taskId, agent_id as agentId, company_id as companyId, connector_id as connectorId, started_at as startedAt from runs where id = ?").get(input.runId) as
+        | { taskId: string | null; agentId: string; companyId: string; connectorId: ConnectorId; startedAt: string | null }
         | undefined;
       if (!run) return { budgetHardStopped: false };
+      // A run that never transitioned to 'running' (startedAt === null) and
+      // is now terminal with status 'failed' / 'cancelled' must roll the
+      // task back to 'todo'. Otherwise the task is stuck in 'in_progress'
+      // with no owner — checkoutTask refuses (WHERE status IN todo/backlog),
+      // and the scheduler loops forever logging "lost checkout race". The
+      // common trigger is workspace-lock contention: `dispatchRunToWorker`
+      // bails before work starts and calls finishRun('failed').
+      const runNeverStarted =
+        run.startedAt === null && (input.status === "failed" || input.status === "cancelled");
       const ts = nowIso();
 
       // Cost is owned by CostWriter — per-message rows in `cost_entries`.
@@ -137,6 +146,33 @@ export function buildRunMethods(
           getDb()
             .prepare("UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?")
             .run(ts, run.taskId, input.runId);
+          if (runNeverStarted) {
+            // Roll the task back to `todo` when no *other* live run claims
+            // it. Invariant: `task.status = 'in_progress'` ⇒ a queued or
+            // running run owns it. We drop the previous
+            // `checkout_run_id IS NULL AND active_run_id IS NULL` guard
+            // because the conditional UPDATE two lines up can miss (race:
+            // checkout_run_id already swapped to a newer run id), which
+            // would leave the task silently stuck at in_progress. The
+            // NOT EXISTS clause is the canonical "no live owner" check.
+            getDb()
+              .prepare(
+                `UPDATE tasks
+                 SET status = 'todo',
+                     checkout_run_id = NULL,
+                     execution_locked_at = NULL,
+                     updated_at = ?
+                 WHERE id = ?
+                   AND status = 'in_progress'
+                   AND NOT EXISTS (
+                     SELECT 1 FROM runs r
+                     WHERE r.task_id = tasks.id
+                       AND r.id != ?
+                       AND r.status IN ('queued', 'running')
+                   )`,
+              )
+              .run(ts, run.taskId, input.runId);
+          }
         }
         if (runCostUsd > 0) {
           if (run.taskId !== null) {

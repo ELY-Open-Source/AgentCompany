@@ -122,6 +122,29 @@ export function buildTaskSessionMethods(
       );
     },
 
+    /**
+     * Fetch a session by its primary key. Sessions are agent-scoped
+     * (post-v34 migration): a heartbeat run has no task to dereference,
+     * so the session lookup must take the session id directly. Use with
+     * `agents.session_id` as the entry point.
+     */
+    getSessionById(sessionId: string): TaskSessionRecord | null {
+      return (
+        (getDb()
+          .prepare(
+            `SELECT id, company_id as companyId, task_id as taskId, agent_id as agentId,
+       adapter_type as adapterType, session_params_json as sessionParamsJson,
+       session_display_id as sessionDisplayId, last_run_id as lastRunId,
+       last_error as lastError, run_count as runCount,
+       total_input_tokens as totalInputTokens, total_output_tokens as totalOutputTokens,
+       rotated_at as rotatedAt, rotation_reason as rotationReason,
+       handoff_markdown as handoffMarkdown, created_at as createdAt, updated_at as updatedAt
+       FROM task_sessions WHERE id = ?`,
+          )
+          .get(sessionId) as TaskSessionRecord | undefined) ?? null
+      );
+    },
+
     incrementSessionUsage(
       sessionId: string,
       inputTokens: number,

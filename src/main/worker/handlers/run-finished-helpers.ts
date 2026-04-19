@@ -96,28 +96,41 @@ export function accumulateAndRotateSession(
   rfCtx: RunFinishedContext,
 ): void {
   const { db, logger, sessionService } = deps;
-  const { run, task } = rfCtx;
+  const { run } = rfCtx;
 
-  // SESS-01/SESS-02/SESS-03/SESS-05: Token accumulation and rotation evaluation
-  if (!task || !sessionService) return;
-  const activeSession = db.getActiveTaskSession(task.id);
-  if (!activeSession) return;
+  if (!sessionService) return;
 
-  // D-08/D-05: Accumulate token usage for ALL adapters (including exempt ones)
+  // Sessions are agent-scoped (post-v34 migration). The previous gate on
+  // `!task` silently dropped token accumulation and rotation for every
+  // heartbeat run — the exact failure mode that lets a taskless transcript
+  // grow past the model's context window. Resolve the session through the
+  // agent, never through the task.
+  let agentRecord: ReturnType<HandlerDeps["db"]["getAgent"]>;
+  try {
+    agentRecord = db.getAgent(run.agentId);
+  } catch (error) {
+    logger.warn(
+      `[session] accumulateAndRotateSession: getAgent(${run.agentId}) failed; skipping: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return;
+  }
+  if (!agentRecord.sessionId) return;
+  const session = db.getSessionById(agentRecord.sessionId);
+  if (!session) return;
+
   sessionService.accumulateTokenUsage(
-    activeSession.id,
+    session.id,
     event.inputTokens ?? 0,
     event.outputTokens ?? 0,
     event.runId,
   );
-  // D-03: Evaluate rotation after accumulation (after each run completes)
-  const rotationResult = sessionService.evaluateRotation(activeSession, run.connectorId);
+  const rotationResult = sessionService.evaluateRotation(session, run.connectorId);
   if (rotationResult.shouldRotate) {
-    // Re-read to get updated counts after accumulation
-    const updatedSession = db.getActiveTaskSession(task.id);
+    // Re-read to get updated counts after accumulation.
+    const updatedSession = db.getSessionById(agentRecord.sessionId);
     if (updatedSession) {
       sessionService.rotateSession(updatedSession);
-      logger.info(`[session] Rotated session for task ${task.id}: ${rotationResult.reason}`);
+      logger.info(`[session] Rotated session for agent ${run.agentId}: ${rotationResult.reason}`);
     }
   }
 }

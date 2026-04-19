@@ -79,6 +79,36 @@ export const LEADERSHIP_LEVELS: readonly AgentRoleLevel[] = [
 export function isLeadershipLevel(level: AgentRoleLevel | null | undefined): boolean {
   return level != null && level !== "ic";
 }
+
+/**
+ * Three-dimensional capability axes used by the model dispatcher. We compress
+ * the marketing five ("architecture / coding / writing / math / research")
+ * into three because the first, fourth and fifth collapse into a single
+ * reasoning axis empirically — a model that can design an RFC, do the math,
+ * and read a paper is the same model. Writing and coding stay separate
+ * because the rankings between top providers diverge there.
+ */
+export type TaskDomain = "reasoning" | "coding" | "writing";
+
+/**
+ * Difficulty tier. Agents whose work is routine tagging, formatting, or
+ * summarization are `trivial` and should burn the cheapest model that
+ * clears the domain threshold. `hard` is for architecture/audit/research —
+ * send the strongest model the user has enabled.
+ */
+export type TaskTier = "trivial" | "standard" | "hard";
+
+/**
+ * Run-time model routing for an agent.
+ *   - `explicit`: use the agent.connectorId + agent.model pair the user
+ *                 saved. This was the pre-v39 behavior; existing rows stay
+ *                 here on migration so nothing silently re-routes.
+ *   - `auto`:     ignore agent.connectorId/model; the dispatcher picks the
+ *                 cheapest enabled model that clears the agent's inferred
+ *                 task profile. Default for newly created agents.
+ */
+export type AgentModelStrategy = "explicit" | "auto";
+
 export type GoalStatus = "planned" | "active" | "achieved" | "cancelled";
 export type ProjectStatus = "backlog" | "planned" | "in_progress" | "completed" | "cancelled";
 export type TaskStatus = "backlog" | "todo" | "in_progress" | "in_review" | "done" | "blocked" | "cancelled";

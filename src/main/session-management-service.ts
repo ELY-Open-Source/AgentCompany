@@ -63,41 +63,48 @@ export function createSessionManagementService({ db, logger }: SessionManagement
     return { shouldRotate: false, reason: null };
   }
 
-  // D-06: Build handoff markdown from structured data, no AI call
-  function generateHandoff(taskId: string, session: TaskSessionRecord): string {
-    let task: { title: string; description: string } | null = null;
-    try {
-      task = db.getTask(taskId);
-    } catch (err) {
-      logger.warn(`[session-management] getTask failed for ${taskId} during handoff generation:`, err instanceof Error ? err.message : String(err));
-      task = null;
-    }
+  // D-06: Build handoff markdown from structured data, no AI call.
+  //
+  // Sessions are agent-scoped (post-v34 migration). The handoff walks the
+  // agent's recent runs across ALL tasks and taskless heartbeats — heartbeat
+  // runs legitimately have no task but still need a handoff when their
+  // transcript rotates under token pressure.
+  function generateHandoff(session: TaskSessionRecord): string {
+    const recentRuns = db.queryAll<{
+      id: string; status: string; summary: string | null; errorMessage: string | null;
+      finishedAt: string | null; taskId: string | null; taskTitle: string | null;
+    }>(
+      `SELECT r.id, r.status, r.summary, r.error_message as errorMessage,
+              r.finished_at as finishedAt, r.task_id as taskId,
+              t.title as taskTitle
+         FROM runs r LEFT JOIN tasks t ON t.id = r.task_id
+        WHERE r.agent_id = ? AND r.company_id = ? AND r.finished_at IS NOT NULL
+        ORDER BY r.finished_at DESC LIMIT ?`,
+      session.agentId,
+      session.companyId,
+      MAX_HANDOFF_RUNS,
+    );
+    const errorRuns = recentRuns.filter((r) => r.errorMessage);
 
-    const recentRuns = db.getRecentRunsForTask(taskId, MAX_HANDOFF_RUNS);
-    const errorRuns = recentRuns.filter(r => r.errorMessage);
-    const activityEntries = db.getRecentActivityForTask(taskId, 10);
-    const decisionEntries = activityEntries.filter(a =>
-      a.action.includes("decision") || a.action.includes("approval") || a.action.includes("resolved")
+    const decisionEntries = db.queryAll<{ action: string; detail: string; createdAt: string }>(
+      `SELECT action, detail, created_at as createdAt FROM activity
+         WHERE company_id = ? AND actor = ?
+           AND (action LIKE '%decision%' OR action LIKE '%approval%' OR action LIKE '%resolved%')
+         ORDER BY created_at DESC LIMIT 5`,
+      session.companyId,
+      session.agentId,
     );
 
     const sections: string[] = [];
-
     sections.push("# Session Handoff");
     sections.push("");
-
-    if (task) {
-      sections.push("## Task");
-      sections.push(`**${task.title}**`);
-      const descSnippet = task.description.length > 200 ? task.description.slice(0, 200) + "..." : task.description;
-      sections.push(descSnippet);
-      sections.push("");
-    }
 
     if (recentRuns.length > 0) {
       sections.push("## Recent Run History");
       for (const run of recentRuns) {
         const summaryText = run.summary ? run.summary.slice(0, 100) : "(no summary)";
-        sections.push(`- [${run.status}] ${summaryText} (${run.finishedAt ?? "in progress"})`);
+        const scope = run.taskTitle ? ` on "${run.taskTitle}"` : " (heartbeat)";
+        sections.push(`- [${run.status}]${scope} ${summaryText} (${run.finishedAt ?? "in progress"})`);
       }
       sections.push("");
     }
@@ -112,7 +119,7 @@ export function createSessionManagementService({ db, logger }: SessionManagement
 
     if (decisionEntries.length > 0) {
       sections.push("## Key Decisions");
-      for (const entry of decisionEntries.slice(0, 5)) {
+      for (const entry of decisionEntries) {
         sections.push(`- ${entry.detail.slice(0, 120)} (${entry.createdAt})`);
       }
       sections.push("");
@@ -133,7 +140,7 @@ export function createSessionManagementService({ db, logger }: SessionManagement
   // still referencing the old session.
   function rotateSession(session: TaskSessionRecord): string {
     const reason = "threshold_exceeded";
-    const handoff = generateHandoff(session.taskId, session);
+    const handoff = generateHandoff(session);
 
     logger.info(`[session] Rotating session ${session.id} for agent ${session.agentId}: ${reason}`);
 
@@ -161,16 +168,33 @@ export function createSessionManagementService({ db, logger }: SessionManagement
     return newSessionId;
   }
 
-  // D-07: Read handoff from most recently rotated session for a task
-  function getHandoffContext(taskId: string): string | null {
-    // Find the most recent archived session for this task (the one just before current)
+  // D-07: Read handoff from the agent's most recently rotated session.
+  //
+  // Sessions are agent-scoped (post-v34 migration), so the handoff query
+  // must key on agent_id, not task_id. task_sessions.task_id is now an
+  // empty-string column kept only for schema-level backwards compatibility;
+  // filtering on it returns zero rows for all rotated agent sessions.
+  function getHandoffForAgent(agentId: string): string | null {
     const row = db.queryAll<{ handoffMarkdown: string | null }>(
       `SELECT handoff_markdown as handoffMarkdown FROM task_sessions
-       WHERE task_id = ? AND rotated_at IS NOT NULL
+       WHERE agent_id = ? AND rotated_at IS NOT NULL
        ORDER BY rotated_at DESC LIMIT 1`,
-      taskId
+      agentId,
     );
     return row[0]?.handoffMarkdown ?? null;
+  }
+
+  // Task-scoped compatibility shim for callers that still hold a task id
+  // (UI panels reading a specific task's handoff history). Resolves the
+  // assignee and delegates to the agent-scoped lookup.
+  function getHandoffContext(taskId: string): string | null {
+    const taskRow = db.queryAll<{ assigneeAgentId: string | null }>(
+      "SELECT assignee_agent_id as assigneeAgentId FROM tasks WHERE id = ?",
+      taskId,
+    );
+    const agentId = taskRow[0]?.assigneeAgentId;
+    if (!agentId) return null;
+    return getHandoffForAgent(agentId);
   }
 
   // D-09: Snapshot token totals for delta tracking
@@ -205,6 +229,7 @@ export function createSessionManagementService({ db, logger }: SessionManagement
     generateHandoff,
     rotateSession,
     getHandoffContext,
+    getHandoffForAgent,
     snapshotUsage,
     getUsageDelta,
   };

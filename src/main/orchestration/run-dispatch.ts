@@ -71,6 +71,13 @@ export function createRunDispatch(deps: OrchestrationDependencies) {
     // Previously the worker claimed the lock only after it emitted `running`,
     // so two runs could race between enqueue and startup and both read the
     // same workspace mid-write. Main is the authoritative coordinator.
+    //
+    // On contention we mark the run `cancelled`, not `failed`. The Dashboard
+    // "Needs attention" card only surfaces failed/timed_out/interrupted runs
+    // (see src/renderer/components/dashboard/Dashboard.tsx), so the user is
+    // not alarmed by a transient backoff. The task row is rolled back to
+    // `todo` via the `finishRun` never-started branch, so heartbeat picks
+    // it up on the next cycle with no manual intervention.
     if (
       params.workspaceMode === "exclusive" &&
       params.workspace &&
@@ -78,9 +85,9 @@ export function createRunDispatch(deps: OrchestrationDependencies) {
     ) {
       db.finishRun({
         runId: params.runId,
-        status: "failed",
+        status: "cancelled",
         summary: null,
-        errorMessage: `Workspace ${params.workspace.id} is locked by another run.`,
+        errorMessage: `Workspace ${params.workspace.id} is in use by another run; will retry on the next heartbeat.`,
         exitCode: null,
         signal: null,
         model: null,

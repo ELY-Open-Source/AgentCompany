@@ -4,10 +4,32 @@ import type { WorkspaceLockMode } from "./types";
 /**
  * Resolve the workspace and lock semantics for a given run context.
  *
- * Previously this logic lived both in run-dispatch.ts (normal dispatch path)
- * and worker-crash-recovery.ts (re-enqueue after crash); the recovery
- * copy silently dropped the exclusive/shared distinction. Sharing the
- * helper guarantees both paths agree on which runs hold exclusive locks.
+ * Lock policy (v0.4.168+):
+ *
+ *   task.workspaceId set  → exclusive
+ *     The user (or an upstream caller) explicitly bound a task to a
+ *     workspace, which is the opt-in signal for "this run needs the
+ *     workspace to itself". Rare, and reserved for workflows like a
+ *     sprint merge or release build where concurrent writes would
+ *     corrupt state.
+ *
+ *   agent.workspaceId set   → shared
+ *   project.workspaceId set → shared
+ *   company fallback        → shared
+ *     Multiple agents sharing the *same* workspace is the normal case
+ *     — it represents "this team works in this repo", not "this agent
+ *     owns this repo". The previous exclusive default forced four
+ *     co-located teammates to run one at a time, which deadlocked
+ *     heartbeats (dispatch bailed → task stuck in_progress → retry
+ *     lost the checkout race forever). Git itself serializes the
+ *     dangerous operations (`git index.lock`); anything coarser here
+ *     just blocks readers.
+ *
+ * Previously this logic lived both in run-dispatch.ts (normal dispatch
+ * path) and worker-crash-recovery.ts (re-enqueue after crash); the
+ * recovery copy silently dropped the exclusive/shared distinction.
+ * Sharing the helper guarantees both paths agree on which runs hold
+ * exclusive locks.
  */
 export function resolveWorkspaceWithLockMode(
   db: AppDatabase,
@@ -28,12 +50,12 @@ export function resolveWorkspaceWithLockMode(
 
   const agentWorkspace = db.getWorkspace(agent.workspaceId);
   if (agentWorkspace) {
-    return { workspace: agentWorkspace, lockMode: "exclusive", source: "agent" };
+    return { workspace: agentWorkspace, lockMode: "shared", source: "agent" };
   }
 
   const projectWorkspace = db.getProjectPrimaryWorkspace(task?.projectId ?? null, companyId);
   if (projectWorkspace) {
-    return { workspace: projectWorkspace, lockMode: "exclusive", source: "project" };
+    return { workspace: projectWorkspace, lockMode: "shared", source: "project" };
   }
 
   const fallbackWorkspace = db.getAnyCompanyWorkspace(companyId);

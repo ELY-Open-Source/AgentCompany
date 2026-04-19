@@ -115,6 +115,10 @@ export function registerCoreAgentGraphHandlers({
         metadataJson: parsed.metadataJson,
         capabilities: parsed.capabilities,
         budgetMonthlyUsd: parsed.budgetMonthlyUsd,
+        // User edited this agent through the form and picked a specific
+        // (connector, model). Respect their intent: pin the strategy to
+        // `explicit` so the dispatcher never overrides their choice.
+        modelStrategy: "explicit",
       });
     } catch (error) {
       return fail("INVALID_AGENT_HIERARCHY", error instanceof Error ? error.message : "Agent could not be saved.");
