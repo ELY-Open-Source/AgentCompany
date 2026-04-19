@@ -53,6 +53,56 @@ impl AppRoot {
             .iter()
             .filter_map(|run| run.cost_usd)
             .sum::<f64>();
+        let approval_rows = pending_approvals
+            .iter()
+            .take(5)
+            .map(|approval| {
+                attention_row(
+                    approval.payload_summary.clone(),
+                    format!("{} · pending", approval.approval_type.replace('_', " ")),
+                    theme::accent_orange_soft(),
+                    theme::accent_orange(),
+                    SectionId::Approvals,
+                    Some(approval.id.as_str()),
+                    cx,
+                )
+                .into_any_element()
+            })
+            .collect::<Vec<_>>();
+        let failed_rows = failed_runs
+            .iter()
+            .take(3)
+            .map(|run| {
+                attention_row(
+                    overview_run_title(&self.snapshot, run),
+                    run.error_message
+                        .clone()
+                        .unwrap_or_else(|| run.status.clone()),
+                    theme::danger_bg(),
+                    theme::danger(),
+                    SectionId::Runs,
+                    Some(run.id.as_str()),
+                    cx,
+                )
+                .into_any_element()
+            })
+            .collect::<Vec<_>>();
+        let unread_rows = unread_messages
+            .iter()
+            .take(3)
+            .map(|message| {
+                attention_row(
+                    message.subject.clone(),
+                    message.body.clone(),
+                    theme::accent_teal_soft(),
+                    theme::accent_teal(),
+                    SectionId::Messages,
+                    Some(message.id.as_str()),
+                    cx,
+                )
+                .into_any_element()
+            })
+            .collect::<Vec<_>>();
 
         div()
             .flex()
@@ -62,7 +112,7 @@ impl AppRoot {
                 container.child(recovery_banner(interrupted_runs.as_slice()))
             })
             .when(!budget_alerts.is_empty(), |container| {
-                container.child(budget_alert_banner(budget_alerts.as_slice()))
+                container.child(budget_alert_banner(budget_alerts.as_slice(), cx))
             })
             .child(
                 div()
@@ -82,6 +132,8 @@ impl AppRoot {
                         ),
                         theme::accent_blue_soft(),
                         theme::accent_blue(),
+                        SectionId::Inbox,
+                        cx,
                     ))
                     .child(metric_card(
                         "APPROVALS",
@@ -93,6 +145,8 @@ impl AppRoot {
                         },
                         theme::accent_orange_soft(),
                         theme::accent_orange(),
+                        SectionId::Approvals,
+                        cx,
                     ))
                     .child(metric_card(
                         "AGENTS",
@@ -107,56 +161,20 @@ impl AppRoot {
                         ),
                         theme::accent_teal_soft(),
                         theme::accent_teal(),
+                        SectionId::Messages,
+                        cx,
                     ))
                     .child(metric_card(
                         "TOTAL SPEND",
                         format!("${total_spend:.2}"),
-                        "Local profile budget trace".to_string(),
+                        "Open settings and costs".to_string(),
                         theme::panel_muted(),
                         theme::text_primary(),
+                        SectionId::Settings,
+                        cx,
                     )),
             )
-            .when(
-                !(pending_approvals.is_empty()
-                    && failed_runs.is_empty()
-                    && unread_messages.is_empty()),
-                |container| {
-                    container.child(section_label("NEEDS ATTENTION")).child(
-                        div()
-                            .gap_2()
-                            .children(pending_approvals.iter().take(5).map(|approval| {
-                                attention_row(
-                                    approval.payload_summary.clone(),
-                                    format!(
-                                        "{} · pending",
-                                        approval.approval_type.replace('_', " ")
-                                    ),
-                                    theme::accent_orange_soft(),
-                                    theme::accent_orange(),
-                                )
-                            }))
-                            .children(failed_runs.iter().take(3).map(|run| {
-                                attention_row(
-                                    overview_run_title(&self.snapshot, run),
-                                    run.error_message
-                                        .clone()
-                                        .unwrap_or_else(|| run.status.clone()),
-                                    theme::danger_bg(),
-                                    theme::danger(),
-                                )
-                            }))
-                            .children(unread_messages.iter().take(3).map(|message| {
-                                attention_row(
-                                    message.subject.clone(),
-                                    message.body.clone(),
-                                    theme::accent_teal_soft(),
-                                    theme::accent_teal(),
-                                )
-                            })),
-                    )
-                },
-            )
-            .child(section_label("PERFORMANCE"))
+            .child(eyebrow_label("PERFORMANCE"))
             .child(
                 div()
                     .grid()
@@ -167,9 +185,25 @@ impl AppRoot {
                     .child(cost_trend_card(&self.snapshot))
                     .child(agent_workload_card(&self.snapshot)),
             )
-            .child(section_label("ACTIVE WORK"))
+            .child(eyebrow_label("BUDGET UTILIZATION"))
+            .child(budget_utilization_card(&self.snapshot))
+            .when(
+                !(pending_approvals.is_empty()
+                    && failed_runs.is_empty()
+                    && unread_messages.is_empty()),
+                |container| {
+                    container.child(needs_attention_label()).child(
+                        div()
+                            .gap_2()
+                            .children(approval_rows)
+                            .children(failed_rows)
+                            .children(unread_rows),
+                    )
+                },
+            )
+            .child(active_work_header(cx))
             .child(active_work_card(&self.snapshot, active_work.as_slice(), cx))
-            .child(section_label("RECENT ACTIVITY"))
+            .child(eyebrow_label("RECENT ACTIVITY"))
             .child(activity_feed_card(&self.snapshot))
     }
 }
@@ -208,15 +242,22 @@ fn recovery_banner(runs: &[&domain::Run]) -> impl IntoElement {
         }))
 }
 
-fn budget_alert_banner(agents: &[&domain::Agent]) -> impl IntoElement {
+fn budget_alert_banner(agents: &[&domain::Agent], cx: &mut Context<AppRoot>) -> impl IntoElement {
     div().gap_2().children(agents.iter().map(|agent| {
         div()
+            .id(SharedString::from(format!("budget-alert-{}", agent.id)))
             .rounded_lg()
             .border_1()
             .border_color(theme::danger())
             .bg(theme::accent_orange_soft())
             .px_4()
             .py_3()
+            .cursor_pointer()
+            .hover(|style| style.bg(theme::panel_hover()))
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.state.section = SectionId::Settings;
+                cx.notify();
+            }))
             .child(
                 div()
                     .text_sm()
@@ -235,13 +276,22 @@ fn metric_card(
     subtitle: String,
     icon_bg: gpui::Hsla,
     tone: gpui::Hsla,
+    target_section: SectionId,
+    cx: &mut Context<AppRoot>,
 ) -> impl IntoElement {
     div()
+        .id(SharedString::from(format!("overview-metric-{label}")))
         .rounded_lg()
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
         .p_4()
+        .cursor_pointer()
+        .hover(|style| style.bg(theme::panel_hover()))
+        .on_click(cx.listener(move |this, _, _, cx| {
+            this.state.section = target_section;
+            cx.notify();
+        }))
         .child(
             div()
                 .flex()
@@ -264,8 +314,28 @@ fn metric_card(
         )
 }
 
-fn section_label(label: &'static str) -> impl IntoElement {
+fn eyebrow_label(label: &'static str) -> impl IntoElement {
     div().text_xs().text_color(theme::text_muted()).child(label)
+}
+
+fn needs_attention_label() -> impl IntoElement {
+    div()
+        .flex()
+        .items_center()
+        .gap_2()
+        .child(
+            div()
+                .w(px(6.0))
+                .h(px(6.0))
+                .rounded_full()
+                .bg(theme::accent_orange()),
+        )
+        .child(
+            div()
+                .text_xs()
+                .text_color(theme::accent_orange())
+                .child("NEEDS ATTENTION"),
+        )
 }
 
 fn attention_row(
@@ -273,14 +343,31 @@ fn attention_row(
     subtitle: String,
     tile_bg: gpui::Hsla,
     accent: gpui::Hsla,
+    target_section: SectionId,
+    target_id: Option<&str>,
+    cx: &mut Context<AppRoot>,
 ) -> impl IntoElement {
+    let selected_id = target_id.map(str::to_string);
     div()
+        .id(SharedString::from(format!("overview-attention-{title}")))
         .rounded_lg()
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
         .px_4()
         .py_3()
+        .cursor_pointer()
+        .hover(|style| style.bg(theme::panel_hover()))
+        .on_click(cx.listener(move |this, _, _, cx| {
+            this.state.section = target_section;
+            match target_section {
+                SectionId::Runs => this.state.selected_run_id = selected_id.clone(),
+                SectionId::Approvals => this.state.selected_approval_id = selected_id.clone(),
+                SectionId::Messages => this.state.selected_message_id = selected_id.clone(),
+                _ => {}
+            }
+            cx.notify();
+        }))
         .child(
             div()
                 .flex()
@@ -496,6 +583,82 @@ fn mini_chart_card(
                         ),
                 )
         }))
+}
+
+fn budget_utilization_card(snapshot: &domain::ProfileSnapshot) -> impl IntoElement {
+    div()
+        .rounded_lg()
+        .border_1()
+        .border_color(theme::panel_border())
+        .bg(theme::panel())
+        .p_5()
+        .children(
+            snapshot
+                .agents
+                .iter()
+                .filter(|agent| agent.budget_monthly_usd > 0.0)
+                .map(|agent| {
+                    let ratio =
+                        (agent.spent_monthly_usd / agent.budget_monthly_usd).clamp(0.0, 1.0) as f32;
+                    div()
+                        .mt(px(12.0))
+                        .child(
+                            div()
+                                .flex()
+                                .justify_between()
+                                .items_center()
+                                .child(
+                                    div()
+                                        .text_sm()
+                                        .text_color(theme::text_primary())
+                                        .child(agent.name.clone()),
+                                )
+                                .child(div().text_xs().text_color(theme::text_muted()).child(
+                                    format!(
+                                        "${:.2} / ${:.2}",
+                                        agent.spent_monthly_usd, agent.budget_monthly_usd
+                                    ),
+                                )),
+                        )
+                        .child(
+                            div()
+                                .mt(px(6.0))
+                                .h(px(8.0))
+                                .rounded_full()
+                                .bg(theme::panel_muted())
+                                .child(div().w(gpui::relative(ratio)).h_full().rounded_full().bg(
+                                    if ratio >= 1.0 {
+                                        theme::danger()
+                                    } else if ratio >= 0.8 {
+                                        theme::accent_orange()
+                                    } else {
+                                        theme::accent_teal()
+                                    },
+                                )),
+                        )
+                }),
+        )
+}
+
+fn active_work_header(cx: &mut Context<AppRoot>) -> impl IntoElement {
+    div()
+        .flex()
+        .justify_between()
+        .items_center()
+        .child(eyebrow_label("ACTIVE WORK"))
+        .child(
+            div()
+                .id("overview-all-runs")
+                .cursor_pointer()
+                .text_xs()
+                .text_color(theme::accent_blue())
+                .hover(|style| style.text_color(theme::text_primary()))
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.state.section = SectionId::Runs;
+                    cx.notify();
+                }))
+                .child("All runs"),
+        )
 }
 
 fn active_work_card<'a>(

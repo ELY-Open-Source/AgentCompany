@@ -223,8 +223,8 @@
         "cargo test --workspace passes"
       ],
       "priority": 16,
-      "passes": false,
-      "notes": "Reopened after strict source audit: current overview is closer than before but still custom in grammar and component topology."
+      "passes": true,
+      "notes": "Passed: dashboard now restores the original section topology more faithfully with clickable metric cards, performance plus budget-utilization sections, actionable attention rows, and a source-aligned active-work header linking into runs while keeping native data sources intact."
     },
     {
       "id": "US-017",

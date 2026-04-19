@@ -18,3 +18,5 @@ Started: 2026-04-19
 - Reopened strict source-parity remediation and corrected the Settings shell topology. Native settings no longer use the off-source left sidebar; they now render as a top tab strip with a single active content panel, matching the original Electron SettingsShell grammar while preserving real theme/locale/execution-mode mutations.
 
 - Completed US-015 onboarding shell remediation. Native onboarding now restores the original high-level wizard grammar: dedicated welcome screen, left hero region, fixed right-side step panel, top tab strip, and source-aligned back/continue flow while keeping the real storage-backed bootstrap path intact.
+
+- Completed US-016 dashboard topology remediation. Native overview now follows the original dashboard grammar more closely: recovery and budget banners lead, metric cards are actionable, performance is followed by budget utilization, attention rows route into the correct sections, active work exposes an All runs affordance, and recent activity remains a dedicated trailing section.
