@@ -23,6 +23,7 @@ import { buildKnowledgeMethods } from "./database/knowledge";
 import { buildWakeupMethods } from "./database/wakeup";
 import { buildBackupMethods } from "./database/backup";
 import { buildSessionEntryMethods } from "./database/session-entries";
+import { buildInboxProjectionMethods } from "./database/inbox-projections";
 import { buildCredentialMethods } from "./database/credentials";
 import { buildModelCapabilityMethods } from "./database/model-capabilities-crud";
 import { MODEL_CAPABILITY_SEED } from "./model-capability-seed";
@@ -69,6 +70,7 @@ export class AppDatabaseBase {
   public readonly wakeup: ReturnType<typeof buildWakeupMethods>;
   public readonly backupMod: ReturnType<typeof buildBackupMethods>;
   public readonly sessionEntries: ReturnType<typeof buildSessionEntryMethods>;
+  public readonly inboxProjections: ReturnType<typeof buildInboxProjectionMethods>;
   public readonly credentialsTable: ReturnType<typeof buildCredentialMethods>;
   public readonly modelCapabilities: ReturnType<typeof buildModelCapabilityMethods>;
 
@@ -143,6 +145,7 @@ export class AppDatabaseBase {
     this.knowledgeMod = buildKnowledgeMethods(getDb, ra);
     this.wakeup = buildWakeupMethods(getDb, ra, tx);
     this.sessionEntries = buildSessionEntryMethods(getDb, ra, tx);
+    this.inboxProjections = buildInboxProjectionMethods(getDb);
     this.credentialsTable = buildCredentialMethods(getDb, ra, tx);
     this.modelCapabilities = buildModelCapabilityMethods(getDb, ra, tx);
     this.backupMod = buildBackupMethods({
@@ -441,6 +444,18 @@ export class AppDatabaseBase {
       this.db.exec("ROLLBACK");
       throw error;
     }
+  }
+
+  /**
+   * Run `operation` inside a `BEGIN IMMEDIATE` transaction. Public
+   * surface for callers outside the database module that need to bind
+   * multiple writes into one atomic unit — the inbox projection closure
+   * is the canonical example, where the append to the session shadow,
+   * the thread event, and the delivered-mark all have to commit
+   * together or roll back together.
+   */
+  withTransaction<T>(operation: () => T): T {
+    return this.transaction(operation);
   }
 
   // ─── Methods used by subclass constructor callbacks ────────────────────────

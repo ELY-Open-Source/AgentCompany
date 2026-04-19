@@ -481,35 +481,49 @@ export class RuntimeBridge {
 
     // Project any pending inbox messages into the session transcript
     // before loading priorMessages — the recipient must observe them
-    // as plain user turns in its context. Append fails closed: if
-    // persistence throws, the inbox row stays unread and we surface
-    // the error so the worker aborts.
+    // as plain user turns in its context.
+    //
+    // The projection closure is now atomic: the ledger claim, the
+    // session-shadow append, the thread-event write, and the
+    // delivered-mark all commit inside one `BEGIN IMMEDIATE`
+    // transaction. Pre-v46 layout let those four writes drift apart,
+    // so a crash before the delivered-mark replayed the same inbox
+    // row on the next run and double-populated the transcript. The
+    // `agent_message_projections` ledger is the idempotent gate —
+    // `claimProjection` returns false when the `(message_id,
+    // session_id)` pair is already recorded, so a replay skips the
+    // whole closure.
     const store = this.getOrCreateStore(payload.taskSessionId);
     const inboxRecords = this.deps.db.listAgentInboxUnread(payload.companyId, payload.agentId);
-    for (const record of inboxRecords) {
-      const projected = projectInboxMessageToPi(record, {
-        getAgentName: (id) => this.resolveAgentName(id),
-      });
-      store.appendMessage(projected);
-      this.registerInboundInjection(runId, record);
-      // priorMessages do not fire `message_end`, so write the thread
-      // event directly. Steer-injected messages (mid-run) go through
-      // `recordThreadEvent` via the pi event loop instead.
-      this.recordInboundMessageAsThreadEvent(
-        {
-          runId,
-          agentId: payload.agentId,
-          companyId: payload.companyId,
-          taskId: payload.taskId,
-        },
-        record,
-      );
-    }
+    const acceptedRecords: AgentMessageRecord[] = [];
     if (inboxRecords.length > 0) {
-      this.deps.db.markAgentInboxDelivered(
-        payload.agentId,
-        inboxRecords.map((r) => r.id),
-      );
+      this.deps.db.withTransaction(() => {
+        for (const record of inboxRecords) {
+          const claimed = this.deps.db.inboxProjections.claimProjection(record.id, payload.taskSessionId);
+          if (!claimed) continue;
+          const projected = projectInboxMessageToPi(record, {
+            getAgentName: (id) => this.resolveAgentName(id),
+          });
+          store.appendMessage(projected);
+          this.recordInboundMessageAsThreadEvent(
+            {
+              runId,
+              agentId: payload.agentId,
+              companyId: payload.companyId,
+              taskId: payload.taskId,
+            },
+            record,
+          );
+          acceptedRecords.push(record);
+        }
+        this.deps.db.markAgentInboxDelivered(
+          payload.agentId,
+          inboxRecords.map((r) => r.id),
+        );
+      });
+    }
+    for (const record of acceptedRecords) {
+      this.registerInboundInjection(runId, record);
     }
 
     const priorMessages = store.loadMessages();
