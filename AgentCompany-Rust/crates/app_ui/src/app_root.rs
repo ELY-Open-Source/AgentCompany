@@ -220,37 +220,6 @@ impl AppRoot {
             Err(error) => self.set_status(error.to_string(), cx),
         }
     }
-
-    fn metric_card(
-        &self,
-        label: impl Into<String>,
-        value: String,
-        detail: impl Into<String>,
-    ) -> impl IntoElement + '_ {
-        let label = label.into();
-        let detail = detail.into();
-        div()
-            .flex_1()
-            .p_4()
-            .gap_2()
-            .border_1()
-            .rounded_md()
-            .border_color(theme::panel_border())
-            .bg(theme::panel())
-            .child(div().text_sm().text_color(theme::text_muted()).child(label))
-            .child(
-                div()
-                    .text_3xl()
-                    .text_color(theme::text_primary())
-                    .child(value),
-            )
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(theme::text_muted())
-                    .child(detail),
-            )
-    }
 }
 
 impl Render for AppRoot {
