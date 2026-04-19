@@ -154,6 +154,21 @@ export function executeAutomationAction(
           channelTargetId = null;
         }
       }
+      // `dispatchAgentMessage` rejects department / project messages
+      // that arrive without a channel target. The default rule
+      // "Notify department on task completion" is agent-agnostic
+      // (the operator may not have a department per agent), so a
+      // single-person company or any agent without a department
+      // routinely lands here. Treat the missing target as "no
+      // recipients available" and skip — the previous behaviour
+      // logged a noisy WARN that looked like a real failure.
+      const channelNeedsTarget = channel === "department" || channel === "project";
+      if (channelNeedsTarget && !channelTargetId) {
+        logger.info(
+          `[automation] Skipping rule "${rule.name}" — no ${channel} channel target available for sender ${fromAgentId}`,
+        );
+        break;
+      }
       const dispatchResult = dispatchAgentMessage(
         { db, emitEvent, publishDomainChanged, wakeAgentIfPossible },
         {
