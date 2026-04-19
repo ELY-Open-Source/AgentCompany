@@ -1,3 +1,4 @@
+use pi_bridge::RuntimeEvent;
 use storage::{NewCompanyInput, ProfileStore};
 use tempfile::tempdir;
 
@@ -44,6 +45,32 @@ fn runtime_contract_entities_round_trip_through_snapshot() {
         )
         .expect("register artifact");
 
+    store
+        .ingest_runtime_event(RuntimeEvent::Message {
+            run_id: run_id.clone(),
+            role: "assistant".to_string(),
+            body: "Draft ready".to_string(),
+        })
+        .expect("ingest message event");
+    store
+        .ingest_runtime_event(RuntimeEvent::Artifact {
+            run_id: run_id.clone(),
+            provider: "filesystem".to_string(),
+            external_id: "/tmp/orbit-runtime/output.txt".to_string(),
+            title: "output.txt".to_string(),
+            metadata_json: serde_json::json!({"path": "/tmp/orbit-runtime/output.txt"}),
+        })
+        .expect("ingest artifact event");
+    store
+        .ingest_runtime_event(RuntimeEvent::RunFinished {
+            run_id: run_id.clone(),
+            status: "completed".to_string(),
+            summary: "Run complete".to_string(),
+            session_id: Some("session-1".to_string()),
+            cost_usd: Some(1.25),
+        })
+        .expect("ingest run finished event");
+
     let snapshot = store.snapshot().expect("snapshot");
     assert!(snapshot.run_events.iter().any(|event| {
         event.id == event_id
@@ -57,6 +84,24 @@ fn runtime_contract_entities_round_trip_through_snapshot() {
             && artifact.provider == "filesystem"
             && artifact.title == "README update"
     }));
+    assert!(snapshot.run_events.iter().any(|event| {
+        event.run_id == run_id && event.event_kind == "message" && event.detail == "Draft ready"
+    }));
+    assert!(
+        snapshot
+            .artifacts
+            .iter()
+            .any(|artifact| { artifact.run_id == run_id && artifact.title == "output.txt" })
+    );
+    let run = snapshot
+        .runs
+        .iter()
+        .find(|run| run.id == run_id)
+        .expect("run present");
+    assert_eq!(run.status, "completed");
+    assert_eq!(run.summary, "Run complete");
+    assert_eq!(run.cost_usd, Some(1.25));
+    assert!(run.finished_at.is_some());
 
     let reopened = ProfileStore::open(sandbox.path()).expect("reopen store");
     let reopened_snapshot = reopened.snapshot().expect("reopened snapshot");
@@ -71,5 +116,11 @@ fn runtime_contract_entities_round_trip_through_snapshot() {
             .artifacts
             .iter()
             .any(|artifact| artifact.id == artifact_id)
+    );
+    assert!(
+        reopened_snapshot
+            .runs
+            .iter()
+            .any(|run| run.id == run_id && run.status == "completed")
     );
 }

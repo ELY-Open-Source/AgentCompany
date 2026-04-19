@@ -4,6 +4,7 @@ use domain::{
     Activity, Agent, AgentMessage, Approval, ApprovalState, ArtifactRecord, Company, Connector,
     Document, Goal, ProfileSnapshot, Project, Run, RunEventRecord, Task, Workspace,
 };
+use pi_bridge::RuntimeEvent;
 use rusqlite::{Connection, OptionalExtension, params};
 use std::{
     env,
@@ -268,6 +269,84 @@ impl ProfileStore {
             params![artifact_id, company_id, run_id, provider.trim(), external_id.trim(), title.trim(), metadata_json.trim(), ts],
         )?;
         Ok(artifact_id)
+    }
+
+    pub fn ingest_runtime_event(&mut self, event: RuntimeEvent) -> Result<()> {
+        match event {
+            RuntimeEvent::HandshakeAck { .. } => Ok(()),
+            RuntimeEvent::Message { run_id, role, body } => {
+                let company_id = self.company_id_for_run(&run_id)?;
+                let title = format!("message:{role}");
+                self.append_run_event(&company_id, &run_id, "message", &title, &body)?;
+                Ok(())
+            }
+            RuntimeEvent::ToolCall {
+                run_id,
+                tool_call_id,
+                tool_name,
+                input_json,
+            } => {
+                let company_id = self.company_id_for_run(&run_id)?;
+                let detail = serde_json::to_string(&input_json)
+                    .context("failed to encode tool call payload")?;
+                let title = format!("{tool_name}:{tool_call_id}");
+                self.append_run_event(&company_id, &run_id, "tool_call", &title, &detail)?;
+                Ok(())
+            }
+            RuntimeEvent::ToolResult {
+                run_id,
+                tool_call_id,
+                output_json,
+            } => {
+                let company_id = self.company_id_for_run(&run_id)?;
+                let detail = serde_json::to_string(&output_json)
+                    .context("failed to encode tool result payload")?;
+                let title = format!("tool_result:{tool_call_id}");
+                self.append_run_event(&company_id, &run_id, "tool_result", &title, &detail)?;
+                Ok(())
+            }
+            RuntimeEvent::Artifact {
+                run_id,
+                provider,
+                external_id,
+                title,
+                metadata_json,
+            } => {
+                let company_id = self.company_id_for_run(&run_id)?;
+                self.register_artifact(
+                    &company_id,
+                    &run_id,
+                    &provider,
+                    &external_id,
+                    &title,
+                    &metadata_json.to_string(),
+                )?;
+                self.append_run_event(&company_id, &run_id, "artifact", &title, &external_id)?;
+                Ok(())
+            }
+            RuntimeEvent::RunFinished {
+                run_id,
+                status,
+                summary,
+                session_id: _,
+                cost_usd,
+            } => {
+                let company_id = self.company_id_for_run(&run_id)?;
+                let ts = now_iso()?;
+                self.conn.execute(
+                    "update runs set status = ?1, summary = ?2, cost_usd = ?3, finished_at = ?4, updated_at = ?4 where id = ?5",
+                    params![status, summary, cost_usd, ts, run_id],
+                )?;
+                self.append_run_event(
+                    &company_id,
+                    &run_id,
+                    "run_finished",
+                    "run_finished",
+                    &summary,
+                )?;
+                Ok(())
+            }
+        }
     }
 
     pub fn decide_approval(
@@ -827,6 +906,17 @@ impl ProfileStore {
             ),
             None => Ok(Vec::new()),
         }
+    }
+
+    fn company_id_for_run(&self, run_id: &str) -> Result<String> {
+        self.conn
+            .query_row(
+                "select company_id from runs where id = ?1",
+                params![run_id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or_else(|| anyhow!("run {run_id} was not found"))
     }
 }
 

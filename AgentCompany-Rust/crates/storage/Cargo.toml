@@ -8,6 +8,7 @@ version.workspace = true
 [dependencies]
 anyhow.workspace = true
 domain.workspace = true
+pi_bridge.workspace = true
 rusqlite.workspace = true
 serde_json.workspace = true
 support.workspace = true

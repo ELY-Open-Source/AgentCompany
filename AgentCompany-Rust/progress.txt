@@ -12,3 +12,4 @@ Started: 2026-04-19
 - Completed first native motion/state parity layer using GPUI animation wrappers for onboarding, inbox, and runs.
 - Added runtime contract persistence entities for run events and artifacts, exposed them in ProfileSnapshot, and rendered them in the native runs inspector.
 - Added runtime_contract_snapshot_e2e.rs to verify runtime event and artifact persistence across reopen.
+- Runtime contract integration advanced: RuntimeEvent ingestion now persists message/tool/artifact/run-finished events into storage and exposes them in the runs inspector.

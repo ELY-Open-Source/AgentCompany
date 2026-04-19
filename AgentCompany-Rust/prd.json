@@ -114,7 +114,7 @@
       ],
       "priority": 8,
       "passes": false,
-      "notes": "Core completion story for full replacement."
+      "notes": "In progress: runtime events and artifacts now persist into SQLite, surface in ProfileSnapshot, render in Runs UI, and pass storage-backed e2e verification."
     },
     {
       "id": "US-009",
