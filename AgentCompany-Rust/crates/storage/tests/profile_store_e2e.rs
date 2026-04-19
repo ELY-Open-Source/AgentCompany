@@ -42,10 +42,10 @@ fn profile_store_bootstraps_and_round_trips_core_flows() {
             "Ship the native shell.",
         )
         .expect("decide approval");
-    store
+    let message_id = store
         .send_board_message(&company_id, "Board update: thesis plan is in review.")
         .expect("send message");
-    store
+    let document_id = store
         .create_document(
             &company_id,
             "Weekly status",
@@ -56,6 +56,26 @@ fn profile_store_bootstraps_and_round_trips_core_flows() {
     let after = store.snapshot().expect("snapshot after writes");
     assert_eq!(after.pending_approvals(), 0);
     assert_eq!(after.agent_messages.len(), 1);
+    assert_eq!(after.unread_messages(), 1);
     assert_eq!(after.documents.len(), 1);
+    assert_eq!(after.documents[0].id, document_id);
     assert!(!after.activity.is_empty());
+
+    store
+        .mark_message_read(&company_id, &message_id)
+        .expect("mark message read");
+
+    let after_read = store.snapshot().expect("snapshot after read update");
+    assert_eq!(after_read.unread_messages(), 0);
+
+    let reopened = ProfileStore::open(sandbox.path()).expect("reopen store");
+    let reopened_snapshot = reopened.snapshot().expect("snapshot after reopen");
+    assert_eq!(
+        reopened_snapshot.current_company_id.as_deref(),
+        Some(company_id.as_str())
+    );
+    assert_eq!(reopened_snapshot.pending_approvals(), 0);
+    assert_eq!(reopened_snapshot.unread_messages(), 0);
+    assert_eq!(reopened_snapshot.documents.len(), 1);
+    assert_eq!(reopened_snapshot.documents[0].id, document_id);
 }
