@@ -38,13 +38,12 @@ describe("ipc-core-agent-graph-handlers model enforcement", () => {
       version: "test",
       lastError: null,
     });
-    db.setDisabledModels("openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
-
     const companyId = db.saveCompany({
       name: "Handler Test Co",
       description: "Tests saveAgent model validation",
       status: "active",
     });
+    db.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
     const workspaceId = db.saveWorkspace({
       companyId,
       name: "Primary",

@@ -77,22 +77,56 @@ export function buildSettingsMethods(
       return Number.isFinite(parsed) && parsed >= 1 ? parsed : 90;
     },
 
-    getDisabledModels(connectorId: string): Array<{ id: string; label: string }> {
-      const raw = getSetting(`disabled_models:${connectorId}`);
-      if (!raw) return [];
+    /**
+     * Per-(company, connector) disabled model list.
+     *
+     * Pre-v42 the key-value `settings` table stored one global entry
+     * per connector (`disabled_models:${connectorId}`). That let the
+     * setting leak across companies — deleting a company did not
+     * clear the pool config, and new companies inherited the old
+     * selections. v42 moved the data to `connector_model_pool_settings`
+     * with `company_id` in the primary key and `ON DELETE CASCADE`
+     * from companies, so company removal wipes pool config by
+     * construction.
+     */
+    getDisabledModels(companyId: string, connectorId: string): Array<{ id: string; label: string }> {
+      const row = getDb()
+        .prepare(
+          "SELECT disabled_models_json AS json FROM connector_model_pool_settings WHERE company_id = ? AND connector_id = ?",
+        )
+        .get(companyId, connectorId) as { json: string } | undefined;
+      if (!row) return [];
       try {
-        return JSON.parse(raw);
+        return JSON.parse(row.json);
       } catch {
-        return raw.split(",").filter(Boolean).map((id) => ({ id, label: id }));
+        return [];
       }
     },
 
-    setDisabledModels(connectorId: string, models: Array<{ id: string; label: string }>) {
-      setSetting(`disabled_models:${connectorId}`, JSON.stringify(models));
+    setDisabledModels(
+      companyId: string,
+      connectorId: string,
+      models: Array<{ id: string; label: string }>,
+    ) {
+      const ts = new Date().toISOString();
+      getDb()
+        .prepare(
+          `INSERT INTO connector_model_pool_settings (company_id, connector_id, disabled_models_json, updated_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(company_id, connector_id) DO UPDATE SET
+             disabled_models_json = excluded.disabled_models_json,
+             updated_at = excluded.updated_at`,
+        )
+        .run(companyId, connectorId, JSON.stringify(models), ts);
     },
 
-    hasModelPoolSettings(connectorId: string): boolean {
-      return getSetting(`disabled_models:${connectorId}`) !== null;
+    hasModelPoolSettings(companyId: string, connectorId: string): boolean {
+      const row = getDb()
+        .prepare(
+          "SELECT 1 AS found FROM connector_model_pool_settings WHERE company_id = ? AND connector_id = ? LIMIT 1",
+        )
+        .get(companyId, connectorId) as { found: number } | undefined;
+      return !!row;
     },
 
     getLastBudgetResetMonth(companyId: string): string | null {

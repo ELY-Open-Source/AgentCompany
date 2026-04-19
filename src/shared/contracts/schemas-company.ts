@@ -60,8 +60,14 @@ export const connectorInputSchema = z.object({
 });
 
 export const connectorDisabledModelsSchema = z.object({
+  companyId: z.string().uuid(),
   connectorId: connectorInputSchema.shape.id,
   disabledModels: z.array(z.object({ id: z.string(), label: z.string() })),
+});
+
+export const connectorModelPoolQuerySchema = z.object({
+  companyId: z.string().uuid(),
+  connectorId: connectorInputSchema.shape.id,
 });
 
 export const workspaceInputSchema = z.object({
@@ -93,6 +99,17 @@ export const bootstrapOnboardingSchema = z.object({
   goalDescription: z.string().default(""),
   connectorId: connectorInputSchema.shape.id.optional(),
   connectorModel: z.string().default(""),
+  // Per-connector disabled-model selections gathered during onboarding.
+  // Persisted against the new company's id once it is created, so they
+  // are scoped correctly from the first moment the company exists.
+  connectorPoolSelections: z
+    .array(
+      z.object({
+        connectorId: connectorInputSchema.shape.id,
+        disabledModels: z.array(z.object({ id: z.string(), label: z.string() })),
+      }),
+    )
+    .default([]),
 });
 
 export const socialAccountInputSchema = z.object({

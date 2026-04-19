@@ -94,7 +94,7 @@ export function registerCoreAgentGraphHandlers({
     if (connectorIssue) {
       return fail("CONNECTOR_NOT_READY", connectorIssue);
     }
-    const modelSelection = validateConnectorModelSelection(db, parsed.connectorId, parsed.model ?? null);
+    const modelSelection = validateConnectorModelSelection(db, parsed.companyId, parsed.connectorId, parsed.model ?? null);
     if (!modelSelection.ok) {
       return fail("CONNECTOR_MODEL_NOT_ALLOWED", modelSelection.error);
     }
@@ -180,7 +180,7 @@ export function registerCoreAgentGraphHandlers({
     if (routingError) {
       return fail("INVALID_HIRE_ROUTING", routingError);
     }
-    const modelSelection = validateConnectorModelSelection(db, parsed.connectorId, parsed.model ?? null);
+    const modelSelection = validateConnectorModelSelection(db, parsed.companyId, parsed.connectorId, parsed.model ?? null);
     if (!modelSelection.ok) {
       return fail("CONNECTOR_MODEL_NOT_ALLOWED", modelSelection.error);
     }

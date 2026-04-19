@@ -12,13 +12,13 @@ function createDeps(overrides: {
       label: "Anthropic",
       model: overrides.connectorModel ?? null,
     }),
-    getDisabledModels: () => overrides.disabledModels ?? [],
+    getDisabledModels: (_c: string, _k: string) => overrides.disabledModels ?? [],
   };
 }
 
 describe("connector model policy", () => {
   it("excludes disabled models from the enabled set", () => {
-    const policy = getConnectorModelPolicy(createDeps(), "anthropic");
+    const policy = getConnectorModelPolicy(createDeps(), "test-co", "anthropic");
     const allIds = policy.enabledModels.map((model) => model.id);
     if (allIds.length === 0) {
       throw new Error("anthropic provider should expose at least one model from pi-ai.");
@@ -26,33 +26,31 @@ describe("connector model policy", () => {
 
     const firstModel = allIds[0];
     const filteredPolicy = getConnectorModelPolicy(
-      createDeps({ disabledModels: [{ id: firstModel, label: firstModel }] }),
-      "anthropic",
+      createDeps({ disabledModels: [{ id: firstModel, label: firstModel }] }), "test-co", "anthropic",
     );
 
     expect(filteredPolicy.enabledModels.some((model) => model.id === firstModel)).toBe(false);
   });
 
   it("accepts an explicit enabled model", () => {
-    const policy = getConnectorModelPolicy(createDeps(), "anthropic");
+    const policy = getConnectorModelPolicy(createDeps(), "test-co", "anthropic");
     const enabledId = policy.enabledModels[0]?.id;
     if (!enabledId) {
       throw new Error("anthropic provider should expose at least one model from pi-ai.");
     }
-    const result = validateConnectorModelSelection(createDeps(), "anthropic", enabledId);
+    const result = validateConnectorModelSelection(createDeps(), "test-co", "anthropic", enabledId);
 
     expect(result).toEqual({ ok: true, effectiveModel: enabledId });
   });
 
   it("rejects an explicit disabled model", () => {
-    const policy = getConnectorModelPolicy(createDeps(), "anthropic");
+    const policy = getConnectorModelPolicy(createDeps(), "test-co", "anthropic");
     const enabledId = policy.enabledModels[0]?.id;
     if (!enabledId) {
       throw new Error("anthropic provider should expose at least one model from pi-ai.");
     }
     const result = validateConnectorModelSelection(
-      createDeps({ disabledModels: [{ id: enabledId, label: enabledId }] }),
-      "anthropic",
+      createDeps({ disabledModels: [{ id: enabledId, label: enabledId }] }), "test-co", "anthropic",
       enabledId,
     );
 
@@ -75,8 +73,8 @@ describe("native connector defaults", () => {
         label: "Codex",
         model: null,
       }),
-      getDisabledModels: () => [],
-    }, "openai-codex");
+      getDisabledModels: (_c: string, _k: string) => [],
+    }, "test-co", "openai-codex");
 
     expect(policy.defaultModel).toBe(configuredDefault);
     expect(validateConnectorModelSelection({
@@ -85,8 +83,8 @@ describe("native connector defaults", () => {
         label: "Codex",
         model: null,
       }),
-      getDisabledModels: () => [],
-    }, "openai-codex", null)).toEqual({
+      getDisabledModels: (_c: string, _k: string) => [],
+    }, "test-co", "openai-codex", null)).toEqual({
       ok: true,
       effectiveModel: configuredDefault,
     });

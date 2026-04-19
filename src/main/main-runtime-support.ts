@@ -3,7 +3,6 @@ import type { AgentApiServer } from "./api-server";
 import { initializeAgentTokenSigningKey } from "./agent-auth";
 import { bootstrapApplication } from "./bootstrap-application";
 import { openGenericTerminal as openGenericTerminalImpl } from "./connector-auth-service";
-import { getConnectorModelPolicy } from "./connector-model-policy";
 import type { ConnectorId } from "@shared/types";
 import type { AppDatabase } from "./database";
 import { seedDefaultAutomationRules as seedDefaultAutomationRulesImpl } from "./default-automation-rules";
@@ -154,8 +153,15 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       },
       notify: (options) => requireIpcSupport().notify(options),
       listConnectorModels: async (connectorId) => {
-        const policy = getConnectorModelPolicy(requireDb(), connectorId as ConnectorId);
-        return policy.enabledModels;
+        // This IPC returns the raw provider catalog (pi-ai + curated
+        // Fireworks additions). Pool / disabled-model filtering is a
+        // company-scoped concern and happens in the renderer once the
+        // user has selected a company; the onboarding path uses this
+        // catalog directly because no company exists yet.
+        const { getConnectorDefinition } = await import("./connectors");
+        const { resolveModels } = await import("./model-resolver");
+        const definition = getConnectorDefinition(connectorId as ConnectorId);
+        return resolveModels(definition.provider).map((m) => ({ id: m.id, label: m.name }));
       },
       logger: log,
     });

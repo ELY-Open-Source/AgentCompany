@@ -101,6 +101,7 @@ export function CompanyOnboarding({
     totalEnabledModels,
     toggleConnectorModel,
     setAllConnectorModels,
+    poolSelections,
   } = useConnectorModelSelection(connectors, currentLocale, t, setError);
 
   const pickDirectory = useCallback(async (): Promise<string | null> => {
@@ -156,6 +157,7 @@ export function CompanyOnboarding({
             goalDescription: values.goalDescription.trim(),
             connectorId: selectedConnector?.id as ConnectorId | undefined,
             connectorModel: selectedModel.trim(),
+            connectorPoolSelections: poolSelections,
           }),
         );
         setLaunchSummary(result);
@@ -168,7 +170,7 @@ export function CompanyOnboarding({
         setLoading(false);
       }
     },
-    [companyValues, executionMode, loading, selectedConnector?.id, selectedModel, t],
+    [companyValues, executionMode, loading, poolSelections, selectedConnector?.id, selectedModel, t],
   );
 
   const finishLaunch = useCallback(async () => {

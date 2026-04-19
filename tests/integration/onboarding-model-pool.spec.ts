@@ -105,8 +105,6 @@ describe("onboarding model pool integration", () => {
       version: "test",
       lastError: null,
     });
-    db.setDisabledModels("openai-codex", [{ id: disabledModel, label: disabledModel }]);
-
     const summary = createBootstrapHarness(db).bootstrapOnboarding({
       companyName: "Model Governance Co",
       companyDescription: "Tests onboarding model governance",
@@ -118,6 +116,9 @@ describe("onboarding model pool integration", () => {
       goalDescription: "Ensure onboarding connector models flow into runtime decisions.",
       connectorId: "openai-codex",
       connectorModel: enabledModel,
+      connectorPoolSelections: [
+        { connectorId: "openai-codex", disabledModels: [{ id: disabledModel, label: disabledModel }] },
+      ],
     });
 
     if (!summary.leadAgentId) {
@@ -127,7 +128,7 @@ describe("onboarding model pool integration", () => {
     const agent = db.getAgent(summary.leadAgentId);
     expect(agent.connectorId).toBe("openai-codex");
     expect(agent.model).toBe(enabledModel);
-    expect(db.getDisabledModels("openai-codex")).toEqual([{ id: disabledModel, label: disabledModel }]);
+    expect(db.getDisabledModels(summary.companyId, "openai-codex")).toEqual([{ id: disabledModel, label: disabledModel }]);
     expect(db.getCurrentCompanyId()).toBe(summary.companyId);
 
     const payload = buildKickoffPayload(db, summary);
@@ -167,8 +168,6 @@ describe("onboarding model pool integration", () => {
       version: "test",
       lastError: null,
     });
-    db.setDisabledModels("anthropic", [{ id: disabledModel, label: disabledModel }]);
-
     const summary = createBootstrapHarness(db).bootstrapOnboarding({
       companyName: "Anthropic Governance Co",
       companyDescription: "Tests anthropic model governance",
@@ -180,6 +179,9 @@ describe("onboarding model pool integration", () => {
       goalDescription: "Ensure anthropic model pools survive onboarding and runtime prompt assembly.",
       connectorId: "anthropic",
       connectorModel: enabledModel,
+      connectorPoolSelections: [
+        { connectorId: "anthropic", disabledModels: [{ id: disabledModel, label: disabledModel }] },
+      ],
     });
 
     const payload = buildKickoffPayload(db, summary);
@@ -259,8 +261,6 @@ describe("onboarding model pool integration", () => {
       version: "test",
       lastError: null,
     });
-    db.setDisabledModels("openai-codex", [{ id: defaultModel, label: defaultModel }]);
-
     const summary = createBootstrapHarness(db).bootstrapOnboarding({
       companyName: "Default Reroute Co",
       companyDescription: "Tests runtime reroute when the connector default is disabled",
@@ -272,6 +272,9 @@ describe("onboarding model pool integration", () => {
       goalDescription: "Ensure runtime picks the first enabled model when connector default is disabled.",
       connectorId: "openai-codex",
       connectorModel: "",
+      connectorPoolSelections: [
+        { connectorId: "openai-codex", disabledModels: [{ id: defaultModel, label: defaultModel }] },
+      ],
     });
 
     const payload = buildKickoffPayload(db, summary);
@@ -300,8 +303,6 @@ describe("onboarding model pool integration", () => {
       version: "test",
       lastError: null,
     });
-    db.setDisabledModels("openai-codex", [{ id: disabledModel, label: disabledModel }]);
-
     expect(() => createBootstrapHarness(db).bootstrapOnboarding({
       companyName: "Rejected Model Co",
       companyDescription: "Tests invalid onboarding model rejection",
@@ -313,6 +314,9 @@ describe("onboarding model pool integration", () => {
       goalDescription: "Invalid explicit models should fail before the CEO is created.",
       connectorId: "openai-codex",
       connectorModel: disabledModel,
+      connectorPoolSelections: [
+        { connectorId: "openai-codex", disabledModels: [{ id: disabledModel, label: disabledModel }] },
+      ],
     })).toThrow(`${codexDefinition.label} does not allow model "${disabledModel}".`);
 
     db.close();

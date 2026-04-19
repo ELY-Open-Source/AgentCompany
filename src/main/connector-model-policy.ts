@@ -4,7 +4,7 @@ import { resolveModels } from "./model-resolver";
 
 interface ConnectorModelPolicyDeps {
   getConnector: (id: ConnectorId) => { id: ConnectorId; label?: string | null; model: string | null };
-  getDisabledModels: (connectorId: string) => Array<{ id: string; label: string }>;
+  getDisabledModels: (companyId: string, connectorId: string) => Array<{ id: string; label: string }>;
 }
 
 export interface ConnectorModelPolicyResult {
@@ -39,11 +39,12 @@ function listProviderModels(provider: string): Array<{ id: string; label: string
 
 export function getConnectorModelPolicy(
   deps: ConnectorModelPolicyDeps,
+  companyId: string,
   connectorId: ConnectorId,
 ): ConnectorModelPolicyResult {
   const connector = deps.getConnector(connectorId);
   const definition = getConnectorDefinition(connectorId);
-  const disabledModels = new Set(deps.getDisabledModels(connectorId).map((model) => model.id));
+  const disabledModels = new Set(deps.getDisabledModels(companyId, connectorId).map((model) => model.id));
 
   const catalog = listProviderModels(definition.provider);
   const enabledModels = uniqueModels(catalog).filter((model) => !disabledModels.has(model.id));
@@ -58,10 +59,11 @@ export function getConnectorModelPolicy(
 
 export function validateConnectorModelSelection(
   deps: ConnectorModelPolicyDeps,
+  companyId: string,
   connectorId: ConnectorId,
   model: string | null | undefined,
 ): { ok: true; effectiveModel: string | null } | { ok: false; error: string } {
-  const policy = getConnectorModelPolicy(deps, connectorId);
+  const policy = getConnectorModelPolicy(deps, companyId, connectorId);
   const selectedModel = model?.trim() || null;
 
   if (policy.enabledModels.length === 0) {

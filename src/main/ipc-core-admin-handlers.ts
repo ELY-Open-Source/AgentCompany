@@ -7,7 +7,7 @@ import {
   deleteEntitySchema,
   openTerminalCommandSchema,
 } from "@shared/contracts";
-import { validateConnectorConfigurationModel, validateConnectorModelSelection } from "./connector-model-policy";
+import { validateConnectorConfigurationModel } from "./connector-model-policy";
 import { reconcileExecutionModeChange } from "./execution-mode-reconciler";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
 
@@ -94,10 +94,9 @@ export function registerCoreAdminHandlers({
     if (!connectorConfigValidation.ok) {
       return fail("CONNECTOR_MODEL_NOT_ALLOWED", connectorConfigValidation.error);
     }
-    const modelSelection = validateConnectorModelSelection(db, parsed.id, parsed.model ?? null);
-    if (!modelSelection.ok) {
-      return fail("CONNECTOR_MODEL_NOT_ALLOWED", modelSelection.error);
-    }
+    // The per-company disabled-models pool is not consulted here —
+    // connector config is a global hint, and pool enforcement
+    // happens at run dispatch time where the company is known.
     db.saveConnector({
       ...parsed,
       command: existingConnector.command,
@@ -133,7 +132,7 @@ export function registerCoreAdminHandlers({
 
   registerHandle(IPC_CHANNELS.setConnectorDisabledModels, async (_event, payload) => {
     const parsed = connectorDisabledModelsSchema.parse(payload);
-    db.setDisabledModels(parsed.connectorId, parsed.disabledModels);
+    db.setDisabledModels(parsed.companyId, parsed.connectorId, parsed.disabledModels);
     publishDomainChanged();
     return ok(true);
   });

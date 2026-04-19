@@ -48,7 +48,7 @@ export interface AgentAssignment {
 
 export interface PickModelDeps {
   getConnector: (id: ConnectorId) => ConnectorRecord;
-  getDisabledModels: (connectorId: string) => Array<{ id: string; label: string }>;
+  getDisabledModels: (companyId: string, connectorId: string) => Array<{ id: string; label: string }>;
   /**
    * Thin projection of the CEO for fallback. Returns `null` when the
    * company has no CEO yet (pre-bootstrap). The picker only needs enough
@@ -85,7 +85,7 @@ const TIER_RANK: Record<TaskTier, number> = {
  * model list. Returns a flat list of (provider, connectorId, modelId) triples
  * — the concrete universe the picker chooses from.
  */
-export function listEnabledModels(deps: PickModelDeps): EnabledModel[] {
+export function listEnabledModels(companyId: string, deps: PickModelDeps): EnabledModel[] {
   const result: EnabledModel[] = [];
   for (const connector of deps.readConnectors()) {
     if (getConnectorExecutionReadinessIssue(connector)) continue;
@@ -96,7 +96,7 @@ export function listEnabledModels(deps: PickModelDeps): EnabledModel[] {
       log.warn(`[model-dispatch] Skipping unknown connector ${connector.id}:`, err instanceof Error ? err.message : String(err));
       continue;
     }
-    const policy = getConnectorModelPolicy(deps, connector.id as ConnectorId);
+    const policy = getConnectorModelPolicy(deps, companyId, connector.id as ConnectorId);
     for (const model of policy.enabledModels) {
       result.push({
         provider: definition.provider,
@@ -167,7 +167,7 @@ export function pickModelForAgent(
     return { connectorId: agent.connectorId, modelId: agent.model ?? null };
   }
 
-  const enabled = listEnabledModels(deps);
+  const enabled = listEnabledModels(agent.companyId, deps);
 
   // Single-model install: there's nothing to pick from. Use it.
   if (enabled.length === 1) {

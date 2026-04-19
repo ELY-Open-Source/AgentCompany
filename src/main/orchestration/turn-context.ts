@@ -132,9 +132,10 @@ function resolveSkills(
 
 function resolveEnabledConnectorModels(
   db: AppDatabase,
+  companyId: string,
   connector: { id: string; model: string | null },
 ): string[] {
-  return getConnectorModelPolicy(db, connector.id as ConnectorId).enabledModels.map((model) => model.id);
+  return getConnectorModelPolicy(db, companyId, connector.id as ConnectorId).enabledModels.map((model) => model.id);
 }
 
 function resolveSession(
@@ -261,16 +262,17 @@ function filterPendingApprovals(
 
 function buildConnectorCatalog(
   db: AppDatabase,
+  companyId: string,
   connectors: RunDispatchParams["snapshot"]["connectors"],
 ) {
   return connectors
     .filter((c) => c.status === "ready")
-    .filter((c) => db.hasModelPoolSettings(c.id))
+    .filter((c) => db.hasModelPoolSettings(companyId, c.id))
     .map((c) => ({
       id: c.id,
       label: c.label,
       status: c.status,
-      enabledModels: resolveEnabledConnectorModels(db, c),
+      enabledModels: resolveEnabledConnectorModels(db, companyId, c),
     }))
     .filter((c) => c.enabledModels.length > 0);
 }
@@ -325,7 +327,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     relevantKnowledge: filterRelevantKnowledge(snapshot.knowledgeBase, companyId),
     activeSprint: snapshot.sprints.find((sprint) => sprint.companyId === companyId && sprint.status === "active") ?? null,
     recentDocuments: filterRecentDocuments(snapshot.documents, companyId, agent.id),
-    allConnectors: buildConnectorCatalog(db, snapshot.connectors),
+    allConnectors: buildConnectorCatalog(db, companyId, snapshot.connectors),
     sessionHandoff,
     skills,
     companySkillCatalog: db.listCompanySkills(companyId).map((skill) => ({
@@ -341,7 +343,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
 
   const thinkingEffort = extractThinkingEffort(agent.metadataJson, deps.logger, agent.id);
   const modelForRun = params.resolvedModel !== undefined ? params.resolvedModel : agent.model;
-  const modelSelection = validateConnectorModelSelection(db, connector.id, modelForRun);
+  const modelSelection = validateConnectorModelSelection(db, companyId, connector.id, modelForRun);
   if (!modelSelection.ok) {
     throw new Error(modelSelection.error);
   }

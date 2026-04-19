@@ -6,7 +6,6 @@ import {
 import { isConnectorExecutionReady } from "@shared/connector-policy";
 import type { AppLocale } from "@shared/locale";
 import type { ConnectorId, ProfileSnapshot } from "@shared/types";
-import { unwrap } from "../../lib/desktop";
 import type { TranslationFn } from "../../i18n";
 
 /**
@@ -36,6 +35,15 @@ function connectorCatalogsEqual(
   return true;
 }
 
+/**
+ * Per-connector disabled-model list, shaped to feed straight into
+ * `bootstrapOnboarding`'s input. Empty array means "every model enabled."
+ */
+export interface ConnectorPoolSelection {
+  connectorId: ConnectorId;
+  disabledModels: Array<{ id: string; label: string }>;
+}
+
 interface UseConnectorModelSelectionResult {
   executionReadyConnectors: ProfileSnapshot["connectors"];
   hasAtLeastOneReady: boolean;
@@ -53,8 +61,13 @@ interface UseConnectorModelSelectionResult {
   loadingModels: boolean;
   totalEnabledModels: number;
   selectedConnectorEnabledModels: number;
-  toggleConnectorModel: (connectorId: ConnectorId, modelId: string) => Promise<void>;
-  setAllConnectorModels: (connectorId: ConnectorId, enabled: boolean) => Promise<void>;
+  toggleConnectorModel: (connectorId: ConnectorId, modelId: string) => void;
+  setAllConnectorModels: (connectorId: ConnectorId, enabled: boolean) => void;
+  /**
+   * Snapshot of the user's per-connector disabled selections, ready
+   * to be committed with the company creation in `bootstrapOnboarding`.
+   */
+  poolSelections: ConnectorPoolSelection[];
 }
 
 export function useConnectorModelSelection(
@@ -91,6 +104,12 @@ export function useConnectorModelSelection(
     executionReadyConnectors[0] ??
     null;
 
+  // Onboarding is a pre-commit phase — the company does not exist in
+  // the DB yet, so there is no persisted disabled-models list to read.
+  // Initial state is "every model enabled"; user toggles mutate local
+  // state only, and `bootstrapOnboarding` persists the final selection
+  // when the company is created. This removes the global-leak bug
+  // where a deleted company's disabled list inherited into the next.
   const loadConnectorModels = useCallback(async (connector: ProfileSnapshot["connectors"][number]) => {
     if (connector.id.startsWith("claude_compat")) {
       const configuredModels = (connector.model ?? "")
@@ -98,18 +117,12 @@ export function useConnectorModelSelection(
         .map((model) => model.trim())
         .filter(Boolean)
         .map((model) => ({ id: model, label: model }));
-      const disabledResult = await window.agentCompany.getConnectorDisabledModels(connector.id);
-      const disabledModels = disabledResult.ok ? disabledResult.data : [];
-      return mergeConnectorModelEntries(configuredModels, disabledModels);
+      return mergeConnectorModelEntries(configuredModels, []);
     }
 
-    const [enabledResult, disabledResult] = await Promise.all([
-      window.agentCompany.listConnectorModels(connector.id),
-      window.agentCompany.getConnectorDisabledModels(connector.id),
-    ]);
+    const enabledResult = await window.agentCompany.listConnectorModels(connector.id);
     const enabledModels = enabledResult.ok ? enabledResult.data : [];
-    const disabledModels = disabledResult.ok ? disabledResult.data : [];
-    return mergeConnectorModelEntries(enabledModels, disabledModels);
+    return mergeConnectorModelEntries(enabledModels, []);
   }, []);
 
   useEffect(() => {
@@ -215,24 +228,17 @@ export function useConnectorModelSelection(
     [connectorModels],
   );
 
-  const toggleConnectorModel = useCallback(async (connectorId: ConnectorId, modelId: string) => {
+  const toggleConnectorModel = useCallback((connectorId: ConnectorId, modelId: string) => {
     const connectorModels = connectorModelsById[connectorId];
-    if (!connectorModels) {
-      return;
-    }
+    if (!connectorModels) return;
 
     const currentEntry = connectorModels.find((model) => model.id === modelId);
-    if (!currentEntry) {
-      return;
-    }
+    if (!currentEntry) return;
 
     const updatedModels = connectorModels.map((model) =>
       model.id === modelId ? { ...model, enabled: !model.enabled } : model,
     );
-    const updatedModelMap = {
-      ...connectorModelsById,
-      [connectorId]: updatedModels,
-    };
+    const updatedModelMap = { ...connectorModelsById, [connectorId]: updatedModels };
     const nextEnabledCount = Object.values(updatedModelMap).reduce(
       (count, models) => count + models.filter((model) => model.enabled).length,
       0,
@@ -247,59 +253,40 @@ export function useConnectorModelSelection(
       return;
     }
 
-    const previousModels = connectorModelsById;
     setConnectorModelsById(updatedModelMap);
     setError(null);
-
-    try {
-      unwrap(
-        await window.agentCompany.setConnectorDisabledModels({
-          connectorId,
-          disabledModels: updatedModels
-            .filter((model) => !model.enabled)
-            .map((model) => ({ id: model.id, label: model.label })),
-        }),
-      );
-    } catch (error) {
-      setConnectorModelsById(previousModels);
-      setError(error instanceof Error ? error.message : t("onboarding.unableToBootstrap"));
-    }
+    // Unused dependency: t is left in the closure list below for
+    // consistency with the error-copy callbacks; avoids a hook
+    // re-identity when the translator ref swaps locales.
+    void t;
   }, [connectorModelsById, currentLocale, setError, t]);
 
   /**
-   * Bulk-flip every model of one connector on or off. Uses the same
-   * single-call `setConnectorDisabledModels` IPC as the individual
-   * toggle so the UI and the DB agree after one round-trip.
-   *
+   * Bulk-flip every model of one connector on or off. Pure local state
+   * during onboarding; persistence happens at `bootstrapOnboarding`.
    * Disabling-all is allowed even if it zeroes the global enabled
-   * count — the continue gate at the wizard level catches that and
-   * blocks the next step, matching the single-toggle behavior.
+   * count — the continue gate at the wizard level catches that.
    */
   const setAllConnectorModels = useCallback(
-    async (connectorId: ConnectorId, enabled: boolean) => {
+    (connectorId: ConnectorId, enabled: boolean) => {
       const connectorModels = connectorModelsById[connectorId];
       if (!connectorModels || connectorModels.length === 0) return;
-
       const updatedModels = connectorModels.map((model) => ({ ...model, enabled }));
-      const previousModels = connectorModelsById;
       setConnectorModelsById({ ...connectorModelsById, [connectorId]: updatedModels });
       setError(null);
-
-      try {
-        unwrap(
-          await window.agentCompany.setConnectorDisabledModels({
-            connectorId,
-            disabledModels: enabled
-              ? []
-              : updatedModels.map((model) => ({ id: model.id, label: model.label })),
-          }),
-        );
-      } catch (error) {
-        setConnectorModelsById(previousModels);
-        setError(error instanceof Error ? error.message : t("onboarding.unableToBootstrap"));
-      }
     },
-    [connectorModelsById, setError, t],
+    [connectorModelsById, setError],
+  );
+
+  const poolSelections = useMemo<ConnectorPoolSelection[]>(
+    () =>
+      Object.entries(connectorModelsById).map(([connectorId, models]) => ({
+        connectorId: connectorId as ConnectorId,
+        disabledModels: models
+          .filter((model) => !model.enabled)
+          .map((model) => ({ id: model.id, label: model.label })),
+      })),
+    [connectorModelsById],
   );
 
   return {
@@ -318,5 +305,6 @@ export function useConnectorModelSelection(
     selectedConnectorEnabledModels,
     toggleConnectorModel,
     setAllConnectorModels,
+    poolSelections,
   };
 }

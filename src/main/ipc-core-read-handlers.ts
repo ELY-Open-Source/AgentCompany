@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   IPC_CHANNELS,
   connectorInputSchema,
+  connectorModelPoolQuerySchema,
   entityGetterSchema,
   metricsQuerySchema,
   settingsSchema,
@@ -105,12 +106,12 @@ export function registerCoreReadHandlers({
     }
   });
 
-  registerHandle(IPC_CHANNELS.getConnectorDisabledModels, (_event, connectorId) => {
+  registerHandle(IPC_CHANNELS.getConnectorDisabledModels, (_event, payload) => {
     try {
-      const parsed = connectorInputSchema.shape.id.parse(connectorId);
-      return ok(db.getDisabledModels(parsed));
+      const parsed = connectorModelPoolQuerySchema.parse(payload);
+      return ok(db.getDisabledModels(parsed.companyId, parsed.connectorId));
     } catch (err) {
-      logger.warn(`[ipc] getConnectorDisabledModels failed for connector ${String(connectorId)}:`, err instanceof Error ? err.message : String(err));
+      logger.warn(`[ipc] getConnectorDisabledModels failed:`, err instanceof Error ? err.message : String(err));
       return ok([]);
     }
   });

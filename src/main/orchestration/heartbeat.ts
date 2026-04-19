@@ -44,7 +44,7 @@ export function createHeartbeat(
     }
     const assignment = pickModelForAgent(agent, {
       getConnector: (id) => db.getConnector(id),
-      getDisabledModels: (id) => db.getDisabledModels(id),
+      getDisabledModels: (id) => db.getDisabledModels(agent.companyId, id),
       getCeoAssignment: (cid) => {
         const ceo = db.getCeoForCompany(cid);
         if (!ceo) return null;

@@ -24,6 +24,10 @@ interface BootstrapInput {
   goalDescription: string;
   connectorId?: ConnectorId;
   connectorModel?: string;
+  connectorPoolSelections?: Array<{
+    connectorId: ConnectorId;
+    disabledModels: Array<{ id: string; label: string }>;
+  }>;
 }
 
 interface OnboardingDependencies {
@@ -215,10 +219,6 @@ export function createOnboardingService({
   function bootstrapOnboarding(input: BootstrapInput): OnboardingBootstrapSummary {
     const connectors = db.listSnapshot({ companyId: null }).connectors;
     const selectedConnectorId = resolveOnboardingConnector(connectors, input.connectorId);
-    const modelSelection = validateConnectorModelSelection(db, selectedConnectorId, input.connectorModel ?? null);
-    if (!modelSelection.ok) {
-      throw new Error(modelSelection.error);
-    }
 
     const companyId = db.saveCompany({
       name: input.companyName.trim(),
@@ -228,6 +228,23 @@ export function createOnboardingService({
       reviewDeliverables: input.reviewDeliverables,
       executionMode: input.executionMode ?? "ai_ceo",
     });
+
+    // Persist the user's per-connector disabled-model selections
+    // against the freshly-created company id. Onboarding is entirely
+    // pre-commit; the pool settings arrive in the input payload and
+    // land in the DB only once a company exists to scope them.
+    for (const pool of input.connectorPoolSelections ?? []) {
+      db.setDisabledModels(companyId, pool.connectorId, pool.disabledModels);
+    }
+
+    // Validate the CEO model selection against the now-persisted pool
+    // scoped to this new company. Must run AFTER the pool is stored,
+    // otherwise the validator sees an empty pool and accepts anything.
+    const modelSelection = validateConnectorModelSelection(db, companyId, selectedConnectorId, input.connectorModel ?? null);
+    if (!modelSelection.ok) {
+      throw new Error(modelSelection.error);
+    }
+
     const workspaceId = createDefaultWorkspace(companyId, input.workspacePath);
 
     const goalTitle = input.goalTitle.trim();

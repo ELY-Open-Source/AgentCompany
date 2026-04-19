@@ -47,7 +47,7 @@ export function createRunDispatch(deps: OrchestrationDependencies) {
       logger.info(`[run] Agent ${agent.name} connector ${connector.id} blocked: ${issue}`);
       return "CONNECTOR_NOT_READY";
     }
-    const modelSelection = validateConnectorModelSelection(db, connector.id, agent.model ?? null);
+    const modelSelection = validateConnectorModelSelection(db, agent.companyId, connector.id, agent.model ?? null);
     if (!modelSelection.ok) {
       logger.info(`[run] Agent ${agent.name} connector model blocked: ${modelSelection.error}`);
       return "CONNECTOR_MODEL_NOT_ALLOWED";

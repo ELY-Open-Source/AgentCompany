@@ -113,7 +113,7 @@ describe("connector model enforcement", () => {
       status: "todo",
     });
 
-    db.setDisabledModels("openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
+    db.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
 
     const { taskRunner } = createOrchestrationHarness(db);
     const result = taskRunner.queueTaskRun(taskId, "manual", "board");
@@ -187,7 +187,7 @@ describe("connector model enforcement", () => {
     const checkoutSuccess = db.checkoutTask(taskId, run.id);
     expect(checkoutSuccess).toBe(true);
 
-    db.setDisabledModels("openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
+    db.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
 
     const { taskRunner } = createOrchestrationHarness(db);
     taskRunner.resumeQueuedRuns();
