@@ -16,10 +16,12 @@ import { AppDatabase } from "../../src/main/database";
 import { resolveWorkspaceWithLockMode } from "../../src/main/orchestration/resolve-workspace";
 
 /**
- * Regression tests for the workspace lock policy introduced in v0.4.168+:
- * only `task.workspaceId` grants exclusive access. Agent-, project-, and
- * company-scoped resolutions are all `shared` so teammates can run in
- * parallel instead of queuing on a single workspace lock.
+ * Regression tests for the current workspace lock policy: every
+ * resolved workspace is held exclusively for the duration of the run.
+ * Pi's coding tools always include bash/write/edit, so there is no
+ * read-only category where concurrent runs are safe; teammates
+ * sharing one repo queue through the wakeup table instead of racing
+ * the filesystem.
  *
  * See `resolve-workspace.ts` for the full rationale.
  */
@@ -75,7 +77,7 @@ describe("resolveWorkspaceWithLockMode", () => {
     expect(result.workspace?.id).toBe(workspaceId);
   });
 
-  it("agent-bound workspace → shared (normal case: teammates share a repo)", () => {
+  it("agent-bound workspace → exclusive (single writer per repo)", () => {
     const { companyId, workspaceId } = seedCompany(db);
     const result = resolveWorkspaceWithLockMode(
       db,
@@ -84,10 +86,10 @@ describe("resolveWorkspaceWithLockMode", () => {
       companyId,
     );
     expect(result.source).toBe("agent");
-    expect(result.lockMode).toBe("shared");
+    expect(result.lockMode).toBe("exclusive");
   });
 
-  it("project-bound workspace → shared (team collaboration space)", () => {
+  it("project-bound workspace → exclusive (single writer per repo)", () => {
     const { companyId } = seedCompany(db);
     const projectId = db.saveProject({
       companyId,
@@ -95,9 +97,6 @@ describe("resolveWorkspaceWithLockMode", () => {
       description: "",
       status: "active",
     });
-    // Create a second workspace bound to the project so the resolver's
-    // project-primary branch actually fires (the default seeded workspace
-    // has no project_id set).
     db.saveWorkspace({
       companyId,
       name: "Project repo",
@@ -115,10 +114,10 @@ describe("resolveWorkspaceWithLockMode", () => {
       companyId,
     );
     expect(result.source).toBe("project");
-    expect(result.lockMode).toBe("shared");
+    expect(result.lockMode).toBe("exclusive");
   });
 
-  it("company-fallback → shared (unchanged legacy behavior)", () => {
+  it("company-fallback → exclusive (single writer per repo)", () => {
     const { companyId } = seedCompany(db);
     const result = resolveWorkspaceWithLockMode(
       db,
@@ -127,7 +126,7 @@ describe("resolveWorkspaceWithLockMode", () => {
       companyId,
     );
     expect(result.source).toBe("company_fallback");
-    expect(result.lockMode).toBe("shared");
+    expect(result.lockMode).toBe("exclusive");
   });
 
   it("task workspace wins over agent workspace even when both are set", () => {

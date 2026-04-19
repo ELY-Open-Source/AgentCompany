@@ -177,6 +177,15 @@ function advanceToInReview(
   statusMessage: string,
 ): void {
   const { db, logger, publishDomainChanged } = deps;
+  // The tasks-status guard refuses an `in_review` transition for a
+  // top-level assignee (reports_to IS NULL) unless the task is
+  // flagged for user review. Auto-completed runs owned by the CEO
+  // routinely trip that path — pre-flag them so the transition
+  // succeeds and the human becomes the reviewer.
+  const agent = db.getAgent(run.agentId);
+  if (agent.reportsTo === null) {
+    db.setTaskRequiresUserReview(taskId, true);
+  }
   db.advanceTaskStatus(taskId, "in_review", statusMessage);
   callbacks.handleTaskStatusChange(taskId, run.companyId, "in_progress", "in_review");
   const company = db.listSnapshot().companies.find((c) => c.id === run.companyId);
@@ -184,7 +193,6 @@ function advanceToInReview(
     const importantDocs = findImportantDocsForRun(db, run.id, run.companyId);
     if (importantDocs.length > 0) {
       db.setTaskRequiresUserReview(taskId, true);
-      const agent = db.getAgent(run.agentId);
       if (agent.heartbeatEnabled) {
         db.setHeartbeat(agent.id, false, agent.heartbeatIntervalSec || 120);
         logger.info(`[deliverable-review] Paused heartbeat for ${agent.name} — deliverable flagged for review.`);

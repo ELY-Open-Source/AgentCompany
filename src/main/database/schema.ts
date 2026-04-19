@@ -74,10 +74,19 @@ export function migrateSecretsTable(db: DatabaseSync, readAll: ReadAll) {
     db.prepare("create unique index if not exists secrets_company_name_idx on secrets(company_id, name)").run();
     return;
   }
-  const fallbackCompanyId =
-    ((db.prepare("select value from settings where key = 'current_company_id'").get() as { value: string } | undefined)?.value) ??
-    ((db.prepare("select id from companies order by created_at asc limit 1").get() as { id: string } | undefined)?.id) ??
-    "00000000-0000-0000-0000-000000000000";
+  // Legacy profiles predate the per-company secrets table. Rebind each
+  // row to the current company; if neither `current_company_id` nor any
+  // company row exists we refuse rather than attach secrets to a
+  // synthetic zero UUID that references nothing — that would leak
+  // ciphertext with no deletion path and no UI visibility.
+  const currentCompany = db.prepare("select value from settings where key = 'current_company_id'").get() as { value: string } | undefined;
+  const firstCompany = db.prepare("select id from companies order by created_at asc limit 1").get() as { id: string } | undefined;
+  const fallbackCompanyId = currentCompany?.value ?? firstCompany?.id;
+  if (!fallbackCompanyId) {
+    throw new Error(
+      "Cannot migrate legacy secrets table: no current_company_id is set and no company rows exist. Create a company before upgrading, or drop the legacy secrets table if the rows are stale.",
+    );
+  }
   db.exec(`
     alter table secrets rename to secrets_legacy;
     create table secrets (id text primary key, company_id text not null, name text not null, description text not null, backend text not null, ciphertext blob not null, updated_at text not null, created_at text not null, unique(company_id, name));

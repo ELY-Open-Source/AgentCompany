@@ -37,6 +37,37 @@ export function buildTaskStatusMethods(
     "cancelled",
   ]);
 
+  /**
+   * Guard against the "in_review dead letter": a task whose assignee is
+   * a top-level agent (reports_to IS NULL, the DB invariant CEO marker)
+   * and that does not require user review has no reachable reviewer —
+   * no manager to walk up to, and no human gate. Without this guard the
+   * CEO heartbeat loops forever re-proposing the same approval.
+   *
+   * The right root fix is to reject the transition at source: a caller
+   * that moves such a task into `in_review` must first set
+   * requires_user_review=1 (escalate to human) or route differently
+   * (advance to done, hire a reviewer, bounce to todo). Previous
+   * versions silently resurrected these tasks at every DB init; this
+   * replaces the startup side-effect with a clear runtime error.
+   */
+  function guardInReviewHasReviewer(taskId: string): void {
+    const row = readAll<{ requiresUserReview: number; reportsTo: string | null }>(
+      `select t.requires_user_review as requiresUserReview,
+              a.reports_to as reportsTo
+         from tasks t
+         left join agents a on a.id = t.assignee_agent_id
+        where t.id = ?`,
+      taskId,
+    )[0];
+    if (!row) return;
+    if (row.requiresUserReview === 1) return;
+    if (row.reportsTo !== null) return;
+    throw new Error(
+      `Task ${taskId} has a top-level assignee and no reviewer: cannot enter in_review without requires_user_review=1.`,
+    );
+  }
+
   return {
     advanceTaskStatus(
       taskId: string,
@@ -52,6 +83,7 @@ export function buildTaskStatusMethods(
       if (!task) throw new Error(`Task not found: ${taskId}`);
       const previousStatus = task.status;
       if (previousStatus === newStatus) return { previousStatus };
+      if (newStatus === "in_review") guardInReviewHasReviewer(taskId);
       const ts = nowIso();
 
       // Status side-effect timestamps (Paperclip pattern)
