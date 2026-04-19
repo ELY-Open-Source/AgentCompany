@@ -49,6 +49,23 @@ export function registerAgentStandupRoute(server: AgentApiServer): void {
       ? new Map(db.listAgentNamesByIds(token.companyId, Array.from(senderIds)).map((row) => [row.id, row.name]))
       : new Map<string, string>();
 
+    // Recent outputs the AGENT itself produced — closes the
+    // trust-but-verify loop. Without this view the model could
+    // narrate "I wrote the spec doc" in its assistant text without
+    // ever calling the persistence API, and we'd never catch it.
+    // Filter scope: documents the agent authored, work_products on
+    // any task the agent has worked on (assigned tasks). Taskless
+    // run outputs are intentionally out of scope here — the smaller
+    // surface keeps the briefing readable.
+    const RECENT_OUTPUT_LIMIT = 20;
+    const myTaskIds = new Set(myTasks.map((t) => t.id));
+    const recentDocuments = db.listDocuments(token.companyId)
+      .filter((doc) => doc.authorAgentId === token.agentId)
+      .slice(0, RECENT_OUTPUT_LIMIT);
+    const recentWorkProducts = db.listWorkProductsForCompany(token.companyId)
+      .filter((wp) => wp.taskId !== null && myTaskIds.has(wp.taskId))
+      .slice(0, RECENT_OUTPUT_LIMIT);
+
     const reportNameMap = new Map(directReports.map((a) => [a.id, a.name]));
     const taskTitleMap = new Map<string, string>([
       ...myTasks.map<[string, string]>((t) => [t.id, t.title]),
@@ -79,6 +96,26 @@ export function registerAgentStandupRoute(server: AgentApiServer): void {
         priority: m.priority,
         parentMessageId: m.parentMessageId,
         createdAt: m.createdAt,
+      })),
+      recentDocuments: recentDocuments.map((d) => ({
+        id: d.id,
+        type: d.type,
+        title: d.title,
+        status: d.status,
+        version: d.version,
+        updatedAt: d.updatedAt,
+      })),
+      recentWorkProducts: recentWorkProducts.map((wp) => ({
+        id: wp.id,
+        type: wp.type,
+        provider: wp.provider,
+        title: wp.title,
+        externalId: wp.externalId,
+        url: wp.url,
+        status: wp.status,
+        taskId: wp.taskId,
+        taskTitle: wp.taskId ? (taskTitleMap.get(wp.taskId) ?? "") : "",
+        updatedAt: wp.updatedAt,
       })),
       tasksAwaitingReview: tasksAwaitingMyReview.map((t) => ({
         id: t.id,

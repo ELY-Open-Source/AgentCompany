@@ -96,6 +96,7 @@ export class AppDatabase extends AppDatabaseBase {
   createWorkProduct(input: { companyId: string; taskId: string | null; projectId?: string | null; workspaceId?: string | null; type: string; provider: string; externalId?: string | null; title: string; url?: string | null; status?: string; reviewState?: string; isPrimary?: boolean; summary?: string | null; metadataJson?: string | null; createdByRunId?: string | null }) { return this.documentsMod.createWorkProduct(input); }
   updateWorkProduct(id: string, companyId: string, patch: Parameters<ReturnType<typeof import("./database/documents").buildDocumentMethods>["updateWorkProduct"]>[2]) { return this.documentsMod.updateWorkProduct(id, companyId, patch); }
   listWorkProductsForTask(taskId: string, companyId: string) { return this.documentsMod.listWorkProductsForTask(taskId, companyId); }
+  listWorkProductsForCompany(companyId: string, limit?: number) { return this.documentsMod.listWorkProductsForCompany(companyId, limit); }
   findWorkProductByExternalId(companyId: string, provider: string, externalId: string, workspaceId: string | null) { return this.documentsMod.findWorkProductByExternalId(companyId, provider, externalId, workspaceId); }
   resolveWorkProductTarget(workProductId: string, companyId: string) { return this.documentsMod.resolveWorkProductTarget(workProductId, companyId); }
   deleteWorkProduct(id: string, companyId: string) { return this.documentsMod.deleteWorkProduct(id, companyId); }
