@@ -109,6 +109,7 @@ const api: DesktopApi = {
   getThread: (input) => ipcRenderer.invoke(IPC_CHANNELS.getThread, input),
   listThreadEvents: (input) => ipcRenderer.invoke(IPC_CHANNELS.listThreadEvents, input),
   listThreadWaitStates: (input) => ipcRenderer.invoke(IPC_CHANNELS.listThreadWaitStates, input),
+  listThreadParticipants: (input) => ipcRenderer.invoke(IPC_CHANNELS.listThreadParticipants, input),
   subscribe: (callback: (event: DesktopEvent) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: DesktopEvent) => callback(payload);
     ipcRenderer.on(IPC_CHANNELS.rendererEvent, listener);

@@ -1,6 +1,7 @@
 import {
   IPC_CHANNELS,
   listThreadEventsSchema,
+  listThreadParticipantsSchema,
   listThreadWaitStatesSchema,
   threadGetterSchema,
 } from "@shared/contracts";
@@ -34,5 +35,15 @@ export function registerThreadHandlers({ registerHandle, db, ensureCompanyExists
     if (companyError) return companyError;
     const waitStates = db.listThreadWaitStates(input.companyId, { resolvedOnly: input.resolvedOnly });
     return ok(waitStates);
+  });
+
+  registerHandle(IPC_CHANNELS.listThreadParticipants, async (_event, payload) => {
+    const input = listThreadParticipantsSchema.parse(payload);
+    const companyError = ensureCompanyExists(input.companyId);
+    if (companyError) return companyError;
+    const thread = db.getThread(input.threadId, input.companyId);
+    if (!thread) return fail("THREAD_NOT_FOUND", "Thread not found");
+    const participants = db.listParticipants(input.threadId);
+    return ok(participants);
   });
 }

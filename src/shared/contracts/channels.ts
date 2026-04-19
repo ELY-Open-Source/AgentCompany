@@ -92,6 +92,7 @@ export const IPC_CHANNELS = {
   getThread: "agent-company:get-thread",
   listThreadEvents: "agent-company:list-thread-events",
   listThreadWaitStates: "agent-company:list-thread-wait-states",
+  listThreadParticipants: "agent-company:list-thread-participants",
   windowMinimize: "window:minimize",
   windowMaximize: "window:maximize",
   windowClose: "window:close",

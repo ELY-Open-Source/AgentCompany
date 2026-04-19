@@ -16,3 +16,8 @@ export const listThreadWaitStatesSchema = z.object({
   companyId: z.string().uuid(),
   resolvedOnly: z.boolean().default(false),
 });
+
+export const listThreadParticipantsSchema = z.object({
+  companyId: z.string().uuid(),
+  threadId: z.string().uuid(),
+});

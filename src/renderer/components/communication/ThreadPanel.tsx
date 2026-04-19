@@ -9,7 +9,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { X, ChatCircleDots, ArrowBendUpLeft } from "../ui/icons"
 import { motion } from "framer-motion"
-import type { AgentRecord, ConversationEventRecord, ThreadWaitStateRecord, ConversationThreadRecord, DocumentRecord } from "@shared/types"
+import type { AgentRecord, ConversationEventRecord, ConversationParticipantRecord, ThreadWaitStateRecord, ConversationThreadRecord, DocumentRecord } from "@shared/types"
 import WaitStateIndicator, { type WaitStateInfo } from "./WaitStateIndicator"
 import { MessageComposer } from "./MessageComposer"
 import { formatMessageTime } from "../../lib/formatters"
@@ -62,6 +62,7 @@ export default function ThreadPanel({ threadId, companyId, agents, documents, on
   const [thread, setThread] = useState<ConversationThreadRecord | null>(null)
   const [events, setEvents] = useState<ConversationEventRecord[]>([])
   const [waitStates, setWaitStates] = useState<ThreadWaitStateRecord[]>([])
+  const [participants, setParticipants] = useState<ConversationParticipantRecord[]>([])
   const [replyWaitStateId, setReplyWaitStateId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -76,6 +77,9 @@ export default function ThreadPanel({ threadId, companyId, agents, documents, on
     if (wsResult.ok) {
       setWaitStates(wsResult.data.filter((ws) => ws.threadId === threadId && !ws.resolvedAt))
     }
+
+    const participantsResult = await window.agentCompany.listThreadParticipants({ threadId, companyId })
+    if (participantsResult.ok) setParticipants(participantsResult.data)
   }, [threadId, companyId])
 
   useEffect(() => { void loadThread() }, [loadThread])
@@ -96,6 +100,9 @@ export default function ThreadPanel({ threadId, companyId, agents, documents, on
   }, [loadThread])
 
   const activeReplyWaitState = waitStates.find((waitState) => waitState.waitingFor !== "user_approval") ?? null
+  const agentParticipantIds = participants
+    .filter((p) => p.participantType === "agent")
+    .map((p) => p.participantId)
 
   return (
     <motion.div
@@ -157,6 +164,7 @@ export default function ThreadPanel({ threadId, companyId, agents, documents, on
           companyId={companyId}
           channel="direct"
           channelTargetId={null}
+          directParticipantIds={agentParticipantIds}
           replyTo={null}
           onSent={handleSent}
           onCancelReply={() => setReplyWaitStateId(null)}
