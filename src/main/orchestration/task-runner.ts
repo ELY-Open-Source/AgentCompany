@@ -47,18 +47,16 @@ export function createTaskRunner(
     if (agent.companyId !== task.companyId) {
       return fail("AGENT_COMPANY_MISMATCH", "The assigned agent does not belong to the task company.");
     }
-    const assignment = pickModelForAgent(agent, {
+    const pick = pickModelForAgent(agent, {
       getConnector: (id) => db.getConnector(id),
       getDisabledModels: (id) => db.getDisabledModels(agent.companyId, id),
-      getCeoAssignment: (cid) => {
-        const ceo = db.getCeoForCompany(cid);
-        if (!ceo) return null;
-        const full = db.getAgent(ceo.id);
-        return { connectorId: full.connectorId, modelId: full.model ?? null };
-      },
       listModelCapabilities: () => db.modelCapabilities.listModelCapabilities(),
       readConnectors: () => db.connectorsCrud.readConnectors(),
     });
+    if (!pick.ok) {
+      return fail("MODEL_PICK_FAILED", pick.message);
+    }
+    const assignment = pick.assignment;
     const connector = db.getConnector(assignment.connectorId);
     const effectiveAgentForEligibility: AgentRecord = { ...agent, model: assignment.modelId };
     const eligibilityFailure = getRunEligibilityFailure(effectiveAgentForEligibility, connector, task.projectId ?? null);

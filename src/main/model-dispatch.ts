@@ -14,25 +14,27 @@ import { inferTaskProfile } from "./agent-role-helpers";
 /**
  * Resolves which (provider, modelId) to use for an agent at run dispatch.
  *
- * The rule is spelled out in the design discussion:
+ * Rules:
  *
- *   1. `explicit` strategy (or a CEO role):
- *      use agent.connectorId + agent.model verbatim. CEO is always pinned
- *      to whatever the user chose on the Agent form.
+ *   1. `explicit` strategy, or a CEO role (`reportsTo IS NULL` /
+ *      `roleLevel === 'c_suite'`): use the agent's own connectorId +
+ *      model verbatim.
  *
- *   2. Only one enabled (provider, modelId) pair exists anywhere:
- *      use it. Whether it's the CEO's pick or a lone API-key connector,
- *      single-model installs should not exercise the dispatcher at all.
+ *   2. The enabled (connector, model) universe has exactly one pair:
+ *      use it. Single-model installs bypass scoring entirely.
  *
- *   3. `auto` strategy with multiple candidates:
- *      infer the agent's task profile (domain ∈ reasoning|coding|writing,
- *      required tier ∈ trivial|standard|hard), filter enabled candidates
- *      to those whose capability row clears both the domain score and the
- *      tier floor, and pick the cheapest among them.
+ *   3. `auto` strategy with multiple candidates: infer the agent's
+ *      task profile (domain ∈ reasoning|coding|writing, required tier
+ *      ∈ trivial|standard|hard), keep candidates that clear the domain
+ *      score floor and the tier rank floor, and pick the cheapest.
  *
- *   4. No candidate clears the bar in `auto`:
- *      fall back to the CEO's (connectorId, model). Runs must not fail
- *      because the capability matrix is under-seeded — No regressions.
+ *   4. `auto` strategy with no qualifying candidate: fail. Silently
+ *      routing to the CEO's pair hid three distinct problems — a
+ *      missing capability row, a mis-inferred profile, a misconfigured
+ *      model pool — and made cost attribution meaningless. The caller
+ *      converts the `ModelPickError` into a visible eligibility
+ *      failure so operators see the real issue instead of "the agent
+ *      ran on an unexpected model for a week".
  */
 
 export interface EnabledModel {
@@ -46,17 +48,19 @@ export interface AgentAssignment {
   modelId: string | null;
 }
 
+/**
+ * Tagged union returned by `pickModelForAgent`. Callers must branch on
+ * `ok` — success yields a dispatch-ready assignment; failure yields a
+ * reason code that `getRunEligibilityFailure`'s surrounding handler
+ * turns into a user-visible eligibility error.
+ */
+export type ModelPickResult =
+  | { ok: true; assignment: AgentAssignment }
+  | { ok: false; reason: "NO_QUALIFYING_CANDIDATE"; message: string };
+
 export interface PickModelDeps {
   getConnector: (id: ConnectorId) => ConnectorRecord;
   getDisabledModels: (companyId: string, connectorId: string) => Array<{ id: string; label: string }>;
-  /**
-   * Thin projection of the CEO for fallback. Returns `null` when the
-   * company has no CEO yet (pre-bootstrap). The picker only needs enough
-   * to route a run, so we don't demand the full AgentRecord — keeping the
-   * surface narrow lets callers use the existing `db.getCeoForCompany`
-   * together with a single `getAgent` lookup for the fallback pair.
-   */
-  getCeoAssignment: (companyId: string) => { connectorId: ConnectorId; modelId: string | null } | null;
   listModelCapabilities: () => ModelCapability[];
   readConnectors: () => ConnectorRecord[];
 }
@@ -147,14 +151,15 @@ export function pickFromCandidates(
 }
 
 /**
- * The one-call entry point that run dispatch uses. Returns the pair to
- * burn into the run record; callers pass it straight into `createRun` and
- * the worker payload.
+ * The one-call entry point that run dispatch uses. Returns either a
+ * dispatch-ready assignment or a structured failure so callers can
+ * translate the miss into an eligibility error — no more silent CEO
+ * fallback.
  */
 export function pickModelForAgent(
   agent: AgentRecord,
   deps: PickModelDeps,
-): AgentAssignment {
+): ModelPickResult {
   const strategy = agent.modelStrategy ?? "explicit";
 
   // CEO is pinned to the user's choice. The canonical CEO marker is
@@ -164,7 +169,10 @@ export function pickModelForAgent(
   // seniority enum. We also accept the enum for completeness.
   const isCeo = agent.reportsTo === null || agent.roleLevel === "c_suite";
   if (strategy === "explicit" || isCeo) {
-    return { connectorId: agent.connectorId, modelId: agent.model ?? null };
+    return {
+      ok: true,
+      assignment: { connectorId: agent.connectorId, modelId: agent.model ?? null },
+    };
   }
 
   const enabled = listEnabledModels(agent.companyId, deps);
@@ -172,7 +180,7 @@ export function pickModelForAgent(
   // Single-model install: there's nothing to pick from. Use it.
   if (enabled.length === 1) {
     const only = enabled[0]!;
-    return { connectorId: only.connectorId, modelId: only.modelId };
+    return { ok: true, assignment: { connectorId: only.connectorId, modelId: only.modelId } };
   }
 
   // Empty universe → fall back to whatever is on the agent row. This can
@@ -180,23 +188,27 @@ export function pickModelForAgent(
   // higher up in run dispatch will still block the run, but we return
   // something sensible so the caller's contract stays total.
   if (enabled.length === 0) {
-    return { connectorId: agent.connectorId, modelId: agent.model ?? null };
+    return {
+      ok: true,
+      assignment: { connectorId: agent.connectorId, modelId: agent.model ?? null },
+    };
   }
 
   const profile = inferTaskProfile(agent.role, agent.title, agent.roleLevel);
   const winner = pickFromCandidates(profile, enabled, deps.listModelCapabilities());
 
   if (!winner) {
-    // Fall back to the CEO's explicit pair. If there is no CEO (fresh
-    // company, board-only), fall back to agent's own row so we never
-    // throw. The upstream readiness check owns whether to let the run
-    // actually start.
-    const ceo = deps.getCeoAssignment(agent.companyId);
-    if (ceo) return ceo;
-    return { connectorId: agent.connectorId, modelId: agent.model ?? null };
+    return {
+      ok: false,
+      reason: "NO_QUALIFYING_CANDIDATE",
+      message: `No enabled model clears the ${profile.requiredTier} ${profile.domain} bar for agent ${agent.name}. Enable a qualifying model, adjust the capability catalog, or switch this agent to modelStrategy=explicit.`,
+    };
   }
 
-  return { connectorId: winner.connectorId, modelId: winner.modelId };
+  return {
+    ok: true,
+    assignment: { connectorId: winner.connectorId, modelId: winner.modelId },
+  };
 }
 
 /**

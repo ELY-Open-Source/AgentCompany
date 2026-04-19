@@ -19,6 +19,7 @@ export type HeartbeatSkipReason =
   | "budget_blocked"
   | "connector_not_ready"
   | "connector_model_not_allowed"
+  | "model_pick_failed"
   | "max_concurrent_runs"
   | "cooldown"
   | "wake_on_demand_disabled"
@@ -71,18 +72,25 @@ export function createHeartbeat(
       logger.warn(`[heartbeat] Refusing cross-company run for agent ${agentId}: ${agent.companyId} !== ${companyId}`);
       return SKIPPED("cross_company");
     }
-    const assignment = pickModelForAgent(agent, {
+    const pick = pickModelForAgent(agent, {
       getConnector: (id) => db.getConnector(id),
       getDisabledModels: (id) => db.getDisabledModels(agent.companyId, id),
-      getCeoAssignment: (cid) => {
-        const ceo = db.getCeoForCompany(cid);
-        if (!ceo) return null;
-        const full = db.getAgent(ceo.id);
-        return { connectorId: full.connectorId, modelId: full.model ?? null };
-      },
       listModelCapabilities: () => db.modelCapabilities.listModelCapabilities(),
       readConnectors: () => db.connectorsCrud.readConnectors(),
     });
+    if (!pick.ok) {
+      logger.warn(`[heartbeat] Model pick failed for agent ${agent.name}: ${pick.message}`);
+      db.addActivity({
+        companyId,
+        actor: "system",
+        action: "heartbeat.model_pick_failed",
+        entityType: "agent",
+        entityId: agent.id,
+        detail: pick.message,
+      });
+      return SKIPPED("model_pick_failed");
+    }
+    const assignment = pick.assignment;
     const connector = db.getConnector(assignment.connectorId);
     const effectiveAgentForEligibility: AgentRecord = { ...agent, model: assignment.modelId };
     const eligibilityFailure = getRunEligibilityFailure(effectiveAgentForEligibility, connector, null);

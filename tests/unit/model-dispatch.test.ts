@@ -78,7 +78,6 @@ function makeConnector(id: string): ConnectorRecord {
 function makeDeps(options: {
   enabledModels: Array<{ connectorId: string; provider: string; modelId: string }>;
   capabilities: ModelCapability[];
-  ceoAssignment?: { connectorId: string; modelId: string | null } | null;
 }): PickModelDeps {
   const connectorsById = new Map<string, ConnectorRecord>();
   for (const entry of options.enabledModels) {
@@ -93,13 +92,6 @@ function makeDeps(options: {
       return c;
     },
     getDisabledModels: () => [],
-    getCeoAssignment: () =>
-      options.ceoAssignment
-        ? {
-            connectorId: options.ceoAssignment.connectorId as ConnectorId,
-            modelId: options.ceoAssignment.modelId,
-          }
-        : null,
     listModelCapabilities: () => options.capabilities,
     readConnectors: () => Array.from(connectorsById.values()),
   };
@@ -155,8 +147,11 @@ describe("pickModelForAgent", () => {
       ],
       capabilities: [claudeOpus],
     });
-    const assignment = pickModelForAgent(agent, deps);
-    expect(assignment).toEqual({ connectorId: "anthropic-api", modelId: "claude-opus-4-7" });
+    const pick = pickModelForAgent(agent, deps);
+    expect(pick.ok).toBe(true);
+    if (pick.ok) {
+      expect(pick.assignment).toEqual({ connectorId: "anthropic-api", modelId: "claude-opus-4-7" });
+    }
   });
 
   it("CEO role always takes the user-picked pair regardless of modelStrategy", () => {
@@ -164,6 +159,7 @@ describe("pickModelForAgent", () => {
       modelStrategy: "auto",
       roleLevel: "c_suite",
       role: "CEO",
+      reportsTo: "some-parent",
       connectorId: "anthropic-api" as ConnectorId,
       model: "claude-opus-4-7",
     });
@@ -174,15 +170,12 @@ describe("pickModelForAgent", () => {
       ],
       capabilities: [claudeOpus, llama],
     });
-    const assignment = pickModelForAgent(agent, deps);
-    expect(assignment.modelId).toBe("claude-opus-4-7");
+    const pick = pickModelForAgent(agent, deps);
+    expect(pick.ok).toBe(true);
+    if (pick.ok) expect(pick.assignment.modelId).toBe("claude-opus-4-7");
   });
 
   it("CEO is identified by reportsTo === null even when roleLevel stays at the schema default 'ic'", () => {
-    // Regression test for the v39 migration gap: CEO agents created before
-    // the explicit role_level hookup have roleLevel = 'ic' in the DB. The
-    // dispatcher must still recognise them via the DB invariant used by
-    // getCeoForCompany: reports_to IS NULL.
     const agent = makeAgent({
       modelStrategy: "auto",
       roleLevel: "ic",
@@ -198,8 +191,38 @@ describe("pickModelForAgent", () => {
       ],
       capabilities: [claudeOpus, llama],
     });
-    const assignment = pickModelForAgent(agent, deps);
-    expect(assignment.modelId).toBe("claude-opus-4-7");
+    const pick = pickModelForAgent(agent, deps);
+    expect(pick.ok).toBe(true);
+    if (pick.ok) expect(pick.assignment.modelId).toBe("claude-opus-4-7");
+  });
+
+  it("auto strategy with no qualifying candidate fails explicitly (no silent CEO fallback)", () => {
+    const agent = makeAgent({
+      modelStrategy: "auto",
+      roleLevel: "ic",
+      reportsTo: "manager-1",
+      role: "Senior Architect",
+      title: "Principal Architect",
+      connectorId: "fireworks" as ConnectorId,
+      model: "llama-70b",
+    });
+    // Two enabled models, both scoring too low for a hard reasoning agent.
+    const deps = makeDeps({
+      enabledModels: [
+        { connectorId: "fireworks", provider: "fireworks", modelId: "llama-70b" },
+        { connectorId: "fireworks-b", provider: "fireworks", modelId: "llama-7b" },
+      ],
+      capabilities: [
+        llama,
+        { provider: "fireworks", modelId: "llama-7b", reasoning: 2, coding: 2, writing: 2, tier: "trivial", costPerMtokOut: 0.5, updatedAt: "" },
+      ],
+    });
+    const pick = pickModelForAgent(agent, deps);
+    expect(pick.ok).toBe(false);
+    if (!pick.ok) {
+      expect(pick.reason).toBe("NO_QUALIFYING_CANDIDATE");
+      expect(pick.message).toContain(agent.name);
+    }
   });
 });
 
