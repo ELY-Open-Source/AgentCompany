@@ -114,6 +114,7 @@ export class RuntimeBridge {
         agentId: ctx.agentId,
         companyId: ctx.companyId,
         taskId: ctx.taskId,
+        workspaceId: ctx.workspaceId,
         workspacePath: ctx.workspacePath,
       });
       const inserted = outcomes.filter((o) => o.kind === "inserted").length;
@@ -460,6 +461,7 @@ export class RuntimeBridge {
       companyId: string;
       taskId: string | null;
       modelId: string;
+      workspaceId: string | null;
       workspacePath: string | null;
     };
     this.registerActiveRun({
@@ -470,6 +472,7 @@ export class RuntimeBridge {
       connectorId: payload.connectorId,
       modelId: payload.modelId,
       taskSessionId: payload.taskSessionId,
+      workspaceId: payload.workspaceId,
       workspacePath: payload.workspacePath,
       state: "preparing",
     });

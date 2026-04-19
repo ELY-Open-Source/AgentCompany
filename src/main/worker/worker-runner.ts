@@ -120,6 +120,7 @@ export class WorkerRunner {
         companyId: job.companyId,
         taskId: job.taskId,
         modelId: job.model,
+        workspaceId: job.workspaceId ?? null,
         workspacePath: job.workspacePath ?? null,
       });
       if (!prepareResponse.ok) {

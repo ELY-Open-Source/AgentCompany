@@ -231,6 +231,7 @@ export function registerFileRoutes(server: AgentApiServer) {
         companyId: task.companyId,
         taskId: task.id,
         projectId: data.projectId ?? task.projectId,
+        workspaceId: task.workspaceId ?? null,
         type: data.type,
         provider: data.provider,
         externalId: data.externalId ?? null,

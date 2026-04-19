@@ -8,19 +8,26 @@ import { buildConfigRevisionMethods } from "./config-revisions";
 function resolveWorkspaceRoot(
   getDb: () => DatabaseSync,
   companyId: string,
+  workspaceId: string | null,
   taskId: string | null,
-  createdByRunId: string | null,
+  runId: string | null,
 ): string | null {
+  if (workspaceId) {
+    const row = getDb().prepare(
+      "SELECT local_path AS localPath FROM workspaces WHERE id = ? AND company_id = ?",
+    ).get(workspaceId, companyId) as { localPath: string } | undefined;
+    if (row?.localPath) return row.localPath;
+  }
   if (taskId) {
     const row = getDb().prepare(
       "SELECT w.local_path AS localPath FROM tasks t JOIN workspaces w ON w.id = t.workspace_id WHERE t.id = ? AND t.company_id = ?",
     ).get(taskId, companyId) as { localPath: string } | undefined;
     if (row?.localPath) return row.localPath;
   }
-  if (createdByRunId) {
+  if (runId) {
     const row = getDb().prepare(
       "SELECT w.local_path AS localPath FROM runs r JOIN workspaces w ON w.id = r.workspace_id WHERE r.id = ? AND r.company_id = ?",
-    ).get(createdByRunId, companyId) as { localPath: string } | undefined;
+    ).get(runId, companyId) as { localPath: string } | undefined;
     if (row?.localPath) return row.localPath;
   }
   return null;
@@ -222,6 +229,7 @@ export function buildDocumentMethods(
 
     createWorkProduct(input: {
       companyId: string; taskId: string | null; projectId?: string | null;
+      workspaceId?: string | null;
       type: string; provider: string; externalId?: string | null;
       title: string; url?: string | null; status?: string; reviewState?: string;
       isPrimary?: boolean; summary?: string | null; metadataJson?: string | null;
@@ -235,35 +243,47 @@ export function buildDocumentMethods(
         ).run(ts, input.companyId, input.taskId, input.type);
       }
       getDb().prepare(
-        `INSERT INTO work_products (id, company_id, project_id, task_id, type, provider, external_id, title, url, status, review_state, is_primary, summary, metadata_json, created_by_run_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO work_products (id, company_id, project_id, task_id, workspace_id, type, provider, external_id, title, url, status, review_state, is_primary, summary, metadata_json, created_by_run_id, last_touched_by_run_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id, input.companyId, input.projectId ?? null, input.taskId ?? null,
+        input.workspaceId ?? null,
         input.type, input.provider, input.externalId ?? null,
         input.title, input.url ?? null, input.status ?? "active",
         input.reviewState ?? "none", input.isPrimary ? 1 : 0,
         input.summary ?? null, input.metadataJson ?? null,
-        input.createdByRunId ?? null, ts, ts,
+        input.createdByRunId ?? null, input.createdByRunId ?? null, ts, ts,
       );
       return id;
     },
 
     /**
-     * Look up a work product by its natural identity — the tuple
-     * (companyId, provider, externalId) uniquely names a registered
-     * artifact. Returns null when not found. Used by the artifact
-     * projector to make tool-output registration idempotent: the first
-     * write inserts, subsequent writes (same path, same provider) go
-     * through `updateWorkProduct` instead of spamming duplicates.
+     * Look up a work product by its natural identity. The v45 schema
+     * pinned identity to `(companyId, workspaceId, provider, externalId)`
+     * so two workspaces with the same relative path no longer collide.
+     * When `workspaceId` is null we fall back to the legacy
+     * `(companyId, provider, externalId)` scope so historical rows that
+     * pre-date the workspace backfill can still be found and updated.
      */
     findWorkProductByExternalId(
       companyId: string,
       provider: string,
       externalId: string,
+      workspaceId: string | null,
     ): { id: string; taskId: string | null } | null {
+      if (workspaceId) {
+        const row = getDb()
+          .prepare(
+            "SELECT id, task_id as taskId FROM work_products WHERE company_id = ? AND workspace_id = ? AND provider = ? AND external_id = ? LIMIT 1",
+          )
+          .get(companyId, workspaceId, provider, externalId) as
+          | { id: string; taskId: string | null }
+          | undefined;
+        return row ?? null;
+      }
       const row = getDb()
         .prepare(
-          "SELECT id, task_id as taskId FROM work_products WHERE company_id = ? AND provider = ? AND external_id = ? LIMIT 1",
+          "SELECT id, task_id as taskId FROM work_products WHERE company_id = ? AND workspace_id IS NULL AND provider = ? AND external_id = ? LIMIT 1",
         )
         .get(companyId, provider, externalId) as
         | { id: string; taskId: string | null }
@@ -278,6 +298,7 @@ export function buildDocumentMethods(
         type?: string;
         provider?: string;
         externalId?: string | null;
+        workspaceId?: string | null;
         title?: string;
         url?: string | null;
         status?: string;
@@ -285,6 +306,7 @@ export function buildDocumentMethods(
         isPrimary?: boolean;
         summary?: string | null;
         metadataJson?: string | null;
+        lastTouchedByRunId?: string | null;
       },
     ): number {
       const ts = nowIso();
@@ -294,6 +316,7 @@ export function buildDocumentMethods(
         ["type", "type", (v) => (v as string) ?? null],
         ["provider", "provider", (v) => (v as string) ?? null],
         ["externalId", "external_id", (v) => (v as string | null) ?? null],
+        ["workspaceId", "workspace_id", (v) => (v as string | null) ?? null],
         ["title", "title", (v) => (v as string) ?? null],
         ["url", "url", (v) => (v as string | null) ?? null],
         ["status", "status", (v) => (v as string) ?? null],
@@ -301,6 +324,7 @@ export function buildDocumentMethods(
         ["isPrimary", "is_primary", (v) => (v ? 1 : 0)],
         ["summary", "summary", (v) => (v as string | null) ?? null],
         ["metadataJson", "metadata_json", (v) => (v as string | null) ?? null],
+        ["lastTouchedByRunId", "last_touched_by_run_id", (v) => (v as string | null) ?? null],
       ];
       for (const [key, col, coerce] of map) {
         if (key in patch) {
@@ -329,9 +353,9 @@ export function buildDocumentMethods(
      */
     resolveWorkProductTarget(workProductId: string, companyId: string): { kind: "url" | "path"; value: string } | null {
       const row = getDb().prepare(
-        "SELECT provider, external_id, url, task_id, created_by_run_id FROM work_products WHERE id = ? AND company_id = ?",
+        "SELECT provider, external_id, url, task_id, created_by_run_id, last_touched_by_run_id, workspace_id FROM work_products WHERE id = ? AND company_id = ?",
       ).get(workProductId, companyId) as
-        | { provider: string; external_id: string | null; url: string | null; task_id: string | null; created_by_run_id: string | null }
+        | { provider: string; external_id: string | null; url: string | null; task_id: string | null; created_by_run_id: string | null; last_touched_by_run_id: string | null; workspace_id: string | null }
         | undefined;
       if (!row) return null;
 
@@ -340,7 +364,13 @@ export function buildDocumentMethods(
       }
       if (row.provider !== "filesystem" || !row.external_id) return null;
 
-      const workspaceRoot = resolveWorkspaceRoot(getDb, companyId, row.task_id, row.created_by_run_id);
+      const workspaceRoot = resolveWorkspaceRoot(
+        getDb,
+        companyId,
+        row.workspace_id,
+        row.task_id,
+        row.last_touched_by_run_id ?? row.created_by_run_id,
+      );
       if (!workspaceRoot) return null;
 
       const absolute = joinWorkspaceRelative(workspaceRoot, row.external_id);
@@ -351,19 +381,23 @@ export function buildDocumentMethods(
     listWorkProductsForTask(taskId: string, companyId: string) {
       return readAll<{
         id: string; company_id: string; project_id: string | null; task_id: string;
+        workspace_id: string | null;
         type: string; provider: string; external_id: string | null; title: string;
         url: string | null; status: string; review_state: string; is_primary: number;
-        summary: string | null; metadata_json: string | null; created_by_run_id: string | null;
+        summary: string | null; metadata_json: string | null;
+        created_by_run_id: string | null; last_touched_by_run_id: string | null;
         created_at: string; updated_at: string;
       }>(
         "SELECT * FROM work_products WHERE task_id = ? AND company_id = ? ORDER BY is_primary DESC, updated_at DESC",
         taskId, companyId,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, projectId: r.project_id, taskId: r.task_id,
+        workspaceId: r.workspace_id,
         type: r.type, provider: r.provider, externalId: r.external_id, title: r.title,
         url: r.url, status: r.status, reviewState: r.review_state,
         isPrimary: Boolean(r.is_primary), summary: r.summary,
         metadataJson: r.metadata_json, createdByRunId: r.created_by_run_id,
+        lastTouchedByRunId: r.last_touched_by_run_id,
         createdAt: r.created_at, updatedAt: r.updated_at,
       }));
     },
@@ -379,19 +413,23 @@ export function buildDocumentMethods(
     listWorkProductsForCompany(companyId: string, limit = 500) {
       return readAll<{
         id: string; company_id: string; project_id: string | null; task_id: string | null;
+        workspace_id: string | null;
         type: string; provider: string; external_id: string | null; title: string;
         url: string | null; status: string; review_state: string; is_primary: number;
-        summary: string | null; metadata_json: string | null; created_by_run_id: string | null;
+        summary: string | null; metadata_json: string | null;
+        created_by_run_id: string | null; last_touched_by_run_id: string | null;
         created_at: string; updated_at: string;
       }>(
         "SELECT * FROM work_products WHERE company_id = ? ORDER BY updated_at DESC LIMIT ?",
         companyId, limit,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, projectId: r.project_id, taskId: r.task_id,
+        workspaceId: r.workspace_id,
         type: r.type, provider: r.provider, externalId: r.external_id, title: r.title,
         url: r.url, status: r.status, reviewState: r.review_state,
         isPrimary: Boolean(r.is_primary), summary: r.summary,
         metadataJson: r.metadata_json, createdByRunId: r.created_by_run_id,
+        lastTouchedByRunId: r.last_touched_by_run_id,
         createdAt: r.created_at, updatedAt: r.updated_at,
       }));
     },

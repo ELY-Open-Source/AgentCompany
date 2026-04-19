@@ -217,9 +217,13 @@ export function buildKnowledgeMethods(
           )
         : [];
 
+      // Pre-v45 provenance was frozen at creation; post-v45 every upsert
+      // refreshes `last_touched_by_run_id`. Querying by either side keeps
+      // the deliverable signal correct for a run that edited a pre-existing
+      // work product as well as a run that created a new one.
       const workProducts = readAll<{ id: string }>(
-        "select id from work_products where company_id = ? and created_by_run_id = ? limit 1",
-        companyId, runId,
+        "select id from work_products where company_id = ? and (last_touched_by_run_id = ? or created_by_run_id = ?) limit 1",
+        companyId, runId, runId,
       );
 
       const recentComments = readAll<{ body: string }>(

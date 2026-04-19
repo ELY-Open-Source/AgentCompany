@@ -130,14 +130,16 @@ export function buildSnapshotMethods(
         tagsJson: r.tags_json, latestRevisionId: r.latest_revision_id ?? null, createdAt: r.created_at, updatedAt: r.updated_at,
       })),
       workProducts: readAll<SqliteRow>(
-        `select id, company_id, project_id, task_id, type, provider, external_id, title, url, status, review_state, is_primary, summary, metadata_json, created_by_run_id, created_at, updated_at from work_products${companyWhere} order by updated_at desc limit 500`,
+        `select id, company_id, project_id, task_id, workspace_id, type, provider, external_id, title, url, status, review_state, is_primary, summary, metadata_json, created_by_run_id, last_touched_by_run_id, created_at, updated_at from work_products${companyWhere} order by updated_at desc limit 500`,
         ...companyArgs,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, projectId: r.project_id, taskId: r.task_id,
+        workspaceId: r.workspace_id ?? null,
         type: r.type, provider: r.provider, externalId: r.external_id, title: r.title,
         url: r.url, status: r.status, reviewState: r.review_state,
         isPrimary: Boolean(r.is_primary), summary: r.summary,
         metadataJson: r.metadata_json, createdByRunId: r.created_by_run_id,
+        lastTouchedByRunId: r.last_touched_by_run_id ?? null,
         createdAt: r.created_at, updatedAt: r.updated_at,
       })),
       knowledgeBase: readAll<SqliteRow>(

@@ -102,6 +102,7 @@ export interface WorkProductRecord {
   companyId: string;
   projectId: string | null;
   taskId: string | null;
+  workspaceId: string | null;
   type: string;
   provider: string;
   externalId: string | null;
@@ -113,6 +114,7 @@ export interface WorkProductRecord {
   summary: string | null;
   metadataJson: string | null;
   createdByRunId: string | null;
+  lastTouchedByRunId: string | null;
   createdAt: string;
   updatedAt: string;
 }

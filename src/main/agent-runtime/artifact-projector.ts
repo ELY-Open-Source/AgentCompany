@@ -69,6 +69,7 @@ export type ArtifactProjectorRunContext = {
   agentId: string;
   companyId: string;
   taskId: string | null;
+  workspaceId: string | null;
   workspacePath: string | null;
 };
 
@@ -284,14 +285,24 @@ function upsertFilesystemArtifact(
   const title = lastSlash >= 0 ? relativePath.slice(lastSlash + 1) : relativePath;
 
   const provider = "filesystem";
-  const existing = db.findWorkProductByExternalId(ctx.companyId, provider, relativePath);
+  // Identity is scoped to (company, workspace, provider, externalId) so two
+  // workspaces with the same relative path do not collapse onto one row.
+  // Every touch refreshes `last_touched_by_run_id` so the deliverable
+  // signal, the DocumentCenter preview, and the run-provenance readers
+  // all see the latest run that wrote the file.
+  const existing = db.findWorkProductByExternalId(ctx.companyId, provider, relativePath, ctx.workspaceId);
   if (existing) {
-    db.updateWorkProduct(existing.id, ctx.companyId, { title });
+    db.updateWorkProduct(existing.id, ctx.companyId, {
+      title,
+      lastTouchedByRunId: ctx.runId,
+      workspaceId: ctx.workspaceId,
+    });
     return { kind: "updated", workProductId: existing.id, relativePath };
   }
   const workProductId = db.createWorkProduct({
     companyId: ctx.companyId,
     taskId: ctx.taskId,
+    workspaceId: ctx.workspaceId,
     type: "file",
     provider,
     externalId: relativePath,

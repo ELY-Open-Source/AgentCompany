@@ -56,6 +56,7 @@ export interface ActiveRunContext {
   connectorId: string;
   modelId: string;
   taskSessionId: string;
+  workspaceId: string | null;
   workspacePath: string | null;
   state: ActiveRunLifecycleState;
 }
@@ -176,6 +177,7 @@ export function handleAfterToolCall(
     agentId: ctx.agentId,
     companyId: ctx.companyId,
     taskId: ctx.taskId,
+    workspaceId: ctx.workspaceId,
     workspacePath: ctx.workspacePath,
   };
   try {
