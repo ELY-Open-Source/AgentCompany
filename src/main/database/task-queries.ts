@@ -83,24 +83,6 @@ export function buildTaskQueryMethods(
     },
 
     /**
-     * Returns the slim task projection used by the me/standup aggregation.
-     * Ordered by created_at desc.
-     */
-    listTasksForStandup(companyId: string): Array<{
-      id: string;
-      companyId: string;
-      title: string;
-      assigneeAgentId: string | null;
-      status: string;
-      priority: string;
-    }> {
-      return readAll(
-        "select id, company_id as companyId, title, assignee_agent_id as assigneeAgentId, status, priority from tasks where company_id = ? order by created_at desc",
-        companyId,
-      );
-    },
-
-    /**
      * Returns tasks filtered by status.
      */
     listTasksByStatuses(

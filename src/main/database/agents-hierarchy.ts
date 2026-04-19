@@ -35,18 +35,6 @@ export type AgentApiRow = {
   updatedAt: string;
 };
 
-/**
- * Slim agent projection used by the me/standup aggregation.
- */
-export type AgentStandupRow = {
-  id: string;
-  companyId: string;
-  name: string;
-  role: string;
-  status: string;
-  reportsTo: string | null;
-  department: string | null;
-};
 
 export function buildAgentHierarchyMethods(
   getDb: () => DatabaseSync,
@@ -124,18 +112,6 @@ export function buildAgentHierarchyMethods(
         "select id, company_id as companyId, name, role, title, department, status, reports_to as reportsTo, connector_id as connectorId, workspace_id as workspaceId, model, capabilities, role_level as roleLevel, model_strategy as modelStrategy, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd, metadata_json as metadataJson, heartbeat_enabled as heartbeatEnabled, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt, created_at as createdAt, updated_at as updatedAt from agents where company_id = ? order by created_at asc",
         companyId,
       ).map((a) => ({ ...a, heartbeatEnabled: Boolean(a.heartbeatEnabled) })) as AgentApiRow[];
-    },
-
-    /**
-     * Returns the slim standup projection used by
-     * GET /api/agents/me/standup — only the fields that feed the
-     * aggregation (id, name, role, status, reportsTo, department).
-     */
-    listAgentsForStandup(companyId: string): AgentStandupRow[] {
-      return readAll<AgentStandupRow>(
-        "select id, company_id as companyId, name, role, status, reports_to as reportsTo, department from agents where company_id = ? order by created_at asc",
-        companyId,
-      );
     },
 
     /**

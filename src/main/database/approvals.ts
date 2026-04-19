@@ -180,25 +180,6 @@ export function buildApprovalMethods(
     },
 
     /**
-     * Returns the slim approval projection used by
-     * GET /api/agents/me/standup. Ordered by created_at desc.
-     */
-    listApprovalsForStandup(companyId: string): Array<{
-      id: string;
-      companyId: string;
-      type: string;
-      requestedByAgentId: string | null;
-      state: string;
-      payloadSummary: string | null;
-      decisionNote: string | null;
-    }> {
-      return readAll(
-        "select id, company_id as companyId, type, requested_by_agent_id as requestedByAgentId, state, payload_summary as payloadSummary, decision_note as decisionNote from approvals where company_id = ? order by created_at desc",
-        companyId,
-      );
-    },
-
-    /**
      * Returns pending `hire_agent` approval payloads for a company, used
      * during hire-request creation to detect duplicate names across
      * concurrent requests.

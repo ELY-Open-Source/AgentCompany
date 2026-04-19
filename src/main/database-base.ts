@@ -233,7 +233,6 @@ export class AppDatabaseBase {
   getCeoForCompany(companyId: string) { return this.agents.getCeoForCompany(companyId); }
   listActiveAgentsForCompany(companyId: string) { return this.agents.listActiveAgentsForCompany(companyId); }
   listAgentsForApi(companyId: string) { return this.agents.listAgentsForApi(companyId); }
-  listAgentsForStandup(companyId: string) { return this.agents.listAgentsForStandup(companyId); }
   listDirectReportsForStandup(companyId: string, managerId: string) { return this.agents.listDirectReportsForStandup(companyId, managerId); }
   listReportStatusesForStandup(companyId: string, managerId: string) { return this.agents.listReportStatusesForStandup(companyId, managerId); }
   listExistingAgentsForHireCheck(companyId: string) { return this.agents.listExistingAgentsForHireCheck(companyId); }
@@ -276,7 +275,6 @@ export class AppDatabaseBase {
   renewTaskLease(taskId: string, runId: string) { return this.tasks.renewTaskLease(taskId, runId); }
   listAgentTasks(agentId: string, companyId: string, statuses: string[]) { return this.tasks.listAgentTasks(agentId, companyId, statuses); }
   listTasksByStatuses(companyId: string, statuses: string[]) { return this.tasks.listTasksByStatuses(companyId, statuses); }
-  listTasksForStandup(companyId: string) { return this.tasks.listTasksForStandup(companyId); }
   listAssigneeTasksForStandup(companyId: string, agentId: string) { return this.tasks.listAssigneeTasksForStandup(companyId, agentId); }
   listTasksForAssignees(companyId: string, assigneeIds: string[]) { return this.tasks.listTasksForAssignees(companyId, assigneeIds); }
   listReviewTasksForManager(managerId: string, companyId: string) { return this.tasks.listReviewTasksForManager(managerId, companyId); }
@@ -334,7 +332,6 @@ export class AppDatabaseBase {
   listApprovalsForTask(taskId: string) { return this.approvalsMod.listApprovalsForTask(taskId); }
   listTasksForApproval(approvalId: string) { return this.approvalsMod.listTasksForApproval(approvalId); }
   linkManyTasksToApproval(approvalId: string, taskIds: string[], companyId: string, linkedByAgentId?: string | null) { this.approvalsMod.linkManyTasksToApproval(approvalId, taskIds, companyId, linkedByAgentId); }
-  listApprovalsForStandup(companyId: string) { return this.approvalsMod.listApprovalsForStandup(companyId); }
   listAgentPendingApprovals(companyId: string, agentId: string) { return this.approvalsMod.listAgentPendingApprovals(companyId, agentId); }
   listAgentResolvedApprovals(companyId: string, agentId: string, limit?: number) { return this.approvalsMod.listAgentResolvedApprovals(companyId, agentId, limit); }
   listPendingHireApprovalPayloads(companyId: string) { return this.approvalsMod.listPendingHireApprovalPayloads(companyId); }
