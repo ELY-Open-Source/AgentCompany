@@ -146,23 +146,20 @@ interface DocumentsSectionCtx {
 export function buildDocumentsSection(ctx: DocumentsSectionCtx): string | null {
   if (ctx.recentDocuments.length === 0) return null;
 
-  const docLines = ctx.recentDocuments.slice(0, 5).map((d) => {
+  // Intentionally emit metadata only. Inlining document content (even
+  // truncated to 2000 chars × 5 documents) invalidates the Anthropic
+  // prompt cache on every wake where any listed document is edited —
+  // the exact opposite of what buildTaskPrompt's cache-aware layout
+  // promises. Agents fetch the body with
+  //   GET /api/companies/{companyId}/documents/{id}
+  // when they actually need it.
+  const docLines = ctx.recentDocuments.slice(0, 10).map((d) => {
     const author = d.authorAgentId ? (ctx.allAgents.find(a => a.id === d.authorAgentId)?.name ?? "Unknown") : "System";
-    const header = `- [${d.type}] ${d.title} — by ${author}, status: ${d.status}, updated: ${d.updatedAt}`;
-    if (d.content && d.content.length > 0) {
-      const contentLimit = 2000;
-      const excerpt = d.content.length > contentLimit
-        ? d.content.slice(0, contentLimit) + "..."
-        : d.content;
-      return `${header}\n  Content:\n  ${excerpt.split("\n").join("\n  ")}`;
-    }
-    return header;
+    return `- [${d.id}] ${d.type}: "${d.title}" — by ${author}, status: ${d.status}, v${d.version}, updated ${d.updatedAt}`;
   });
 
-  return `# Recent Documents
-${docLines.join("\n\n")}
-
-Reference these documents when relevant to your current work. Create new documents for important work artifacts.
+  return `# Recent Documents (metadata only — fetch content via GET /api/companies/{companyId}/documents/{id})
+${docLines.join("\n")}
 `;
 }
 

@@ -118,6 +118,24 @@ export function registerFileRoutes(server: AgentApiServer) {
     server.json(res, 200, docs);
   });
 
+  server.addRoute("GET", "/api/companies/:companyId/documents/:documentId", (_req, res, params, token) => {
+    if (params.companyId !== token.companyId) {
+      server.json(res, 403, { error: "Company mismatch" });
+      return;
+    }
+    const documentId = params.documentId;
+    if (!documentId) {
+      server.json(res, 400, { error: "Missing documentId" });
+      return;
+    }
+    const doc = db.getDocumentForUpdate(documentId, token.companyId);
+    if (!doc) {
+      server.json(res, 404, { error: "Document not found in this company" });
+      return;
+    }
+    server.json(res, 200, doc);
+  });
+
   server.addRoute("PATCH", "/api/companies/:companyId/documents/:documentId", (_req, res, params, token, body) => {
     if (params.companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });

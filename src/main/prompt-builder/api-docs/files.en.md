@@ -18,6 +18,12 @@ Body: {
 ### List Company Documents
 GET /api/companies/{{companyId}}/documents
 
+### Fetch a Single Document (by id)
+GET /api/companies/{{companyId}}/documents/{documentId}
+Returns the full document record including `content`. The system prompt
+only lists document metadata to keep the cacheable prefix stable — call
+this endpoint when you need the actual text.
+
 ### Update Document (with conflict detection)
 PATCH /api/companies/{{companyId}}/documents/{documentId}
 Body: {
