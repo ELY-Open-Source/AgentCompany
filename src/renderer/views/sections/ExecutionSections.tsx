@@ -242,7 +242,7 @@ export function ExecutionSections({ section }: ExecutionSectionsProps) {
       {section === "approvals" ? (
         <>
           <Panel title="Agent reviews in progress">
-            <PendingReviewList tasks={tasks} agents={companyAgents} />
+            <PendingReviewList tasks={tasks} agents={companyAgents} approvals={pendingApprovals} />
           </Panel>
           <Panel title="Pending approvals">
             <ApprovalList approvals={pendingApprovals} selectedApprovalId={selectedApproval?.id ?? null} onSelect={setSelectedApprovalId} />
