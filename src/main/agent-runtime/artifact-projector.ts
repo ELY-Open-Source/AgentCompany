@@ -1,6 +1,6 @@
 import { isAbsolute, relative, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import type { AppDatabase } from "@main/database";
 
 /**
@@ -392,9 +392,28 @@ function projectBashArtifacts(
   return projectChangedPaths(db, ctx, change.paths);
 }
 
+/**
+ * Ask git whether `workspacePath` sits inside a working tree. This
+ * covers the three forms the `.git` entry takes in real setups:
+ *
+ *   - a directory (a plain clone),
+ *   - a file with `gitdir: …` (a linked worktree), or
+ *   - a file with `gitdir: …/modules/…` (a submodule).
+ *
+ * The previous `existsSync + isDirectory` probe only recognised the
+ * first form, so linked worktrees and submodules silently degraded
+ * onto the baseline path — and lost `git status` as the authoritative
+ * diff source. `rev-parse --is-inside-work-tree` exits 0 whenever git
+ * itself would accept the directory, which is the semantics we want.
+ */
 function isGitRepo(workspacePath: string): boolean {
   try {
-    return existsSync(resolve(workspacePath, ".git")) && statSync(resolve(workspacePath, ".git")).isDirectory();
+    execFileSync("git", ["rev-parse", "--is-inside-work-tree"], {
+      cwd: workspacePath,
+      timeout: 2_000,
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    return true;
   } catch {
     return false;
   }
