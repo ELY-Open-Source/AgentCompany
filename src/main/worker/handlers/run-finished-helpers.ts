@@ -116,14 +116,16 @@ export function accumulateAndRotateSession(
     event.outputTokens ?? 0,
     event.runId,
   );
-  const rotationResult = sessionService.evaluateRotation(session);
+  // Re-read after accumulation: evaluateRotation must see the counts
+  // that include this run, otherwise a run that just crossed the
+  // threshold waits a full additional cycle to rotate — the exact
+  // failure mode that let transcripts balloon past the context window.
+  const updatedSession = db.getSessionById(agentRecord.sessionId);
+  if (!updatedSession) return;
+  const rotationResult = sessionService.evaluateRotation(updatedSession);
   if (rotationResult.shouldRotate) {
-    // Re-read to get updated counts after accumulation.
-    const updatedSession = db.getSessionById(agentRecord.sessionId);
-    if (updatedSession) {
-      sessionService.rotateSession(updatedSession);
-      logger.info(`[session] Rotated session for agent ${run.agentId}: ${rotationResult.reason}`);
-    }
+    sessionService.rotateSession(updatedSession);
+    logger.info(`[session] Rotated session for agent ${run.agentId}: ${rotationResult.reason}`);
   }
 }
 
