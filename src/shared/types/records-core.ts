@@ -154,8 +154,6 @@ export interface TaskRecord {
   status: TaskStatus;
   priority: "critical" | "high" | "medium" | "low";
   activeRunId: string | null;
-  sessionJson: string | null;
-  sessionDisplayId: string | null;
   costUsd: number;
   taskType: string | null;
   requiresUserReview: boolean;
@@ -276,7 +274,6 @@ export interface BudgetStatusSummary {
 export interface TaskSessionRecord {
   id: string;
   companyId: string;
-  taskId: string;
   agentId: string;
   adapterType: string;
   sessionParamsJson: string | null;

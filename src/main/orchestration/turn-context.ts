@@ -154,9 +154,6 @@ function resolveSession(
     companyId,
     adapterType: connectorId,
   });
-  // Mirror the agent's active session onto the task pointer so UI paths
-  // that read per-task active_session_id keep working.
-  db.updateTasksActiveSessionForAgent(agent.id, agentSessionId);
 
   // Evaluate rotation against the agent-scoped session unconditionally.
   // Heartbeat runs (no task) must rotate too, or their transcript grows
@@ -175,18 +172,19 @@ function resolveSession(
   }
 
   // `sessionParams` / `sessionDisplayId` are transient per-run state pi-ai
-  // stamps onto the task row after a turn (e.g., Gemini's resume id). They
-  // are only meaningful when a task's cached pointer still matches the
-  // current (unrotated) session; after rotation the new session has none.
+  // stamps onto the session row after a turn (e.g., Gemini's resume id).
+  // They live on the agent session; read directly by session id.
   let sessionParams: Record<string, unknown> | null = null;
   let sessionDisplayId: string | null = null;
-  if (task) {
-    const active = db.getActiveTaskSession(task.id);
-    if (active && active.id === currentSessionId && active.sessionParamsJson) {
-      sessionParams = JSON.parse(active.sessionParamsJson) as Record<string, unknown>;
-      sessionDisplayId = active.sessionDisplayId;
-    }
+  const currentSession = db.getSessionById(currentSessionId);
+  if (currentSession?.sessionParamsJson) {
+    sessionParams = JSON.parse(currentSession.sessionParamsJson) as Record<string, unknown>;
+    sessionDisplayId = currentSession.sessionDisplayId;
   }
+  // Suppress the unused-parameter warning while keeping the signature
+  // stable — task identity is reported through other fields on the
+  // payload, not through the session row anymore.
+  void task;
 
   return {
     taskSession: { id: currentSessionId, sessionParams, sessionDisplayId },

@@ -5,6 +5,7 @@ import { createMigrationsV26V34 } from "./migrations/v26-v34";
 import { createMigrationsV35V37 } from "./migrations/v35-v37";
 import { createMigrationsV38V39 } from "./migrations/v38-v39";
 import { createMigrationsV40V40 } from "./migrations/v40-v40";
+import { createMigrationsV41V41 } from "./migrations/v41-v41";
 import {
   columnExists,
   nowIso,
@@ -176,6 +177,7 @@ export function runMigrations(
     ...createMigrationsV35V37(deps),
     ...createMigrationsV38V39(deps),
     ...createMigrationsV40V40(deps),
+    ...createMigrationsV41V41(deps),
   ];
 
   for (const migration of migrations) {

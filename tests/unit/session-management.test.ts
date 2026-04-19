@@ -95,16 +95,14 @@ describe("task_sessions CRUD", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it("getActiveTaskSession returns null when active_session_id is null", () => {
-    const { taskId } = scaffold(db);
-    const session = db.getActiveTaskSession(taskId);
+  it("getSessionById returns null for an unknown id", () => {
+    const session = db.getSessionById("nonexistent");
     expect(session).toBeNull();
   });
 
-  it("getActiveTaskSession returns TaskSessionRecord when valid session exists", () => {
-    const { taskId, companyId, agentId } = scaffold(db);
+  it("getSessionById returns TaskSessionRecord when valid session exists", () => {
+    const { companyId, agentId } = scaffold(db);
     const sessionId = db.createNewSession({
-      taskId,
       companyId,
       agentId,
       adapterType: "claude-pro",
@@ -112,10 +110,9 @@ describe("task_sessions CRUD", () => {
       sessionDisplayId: "claude-abc123",
     });
 
-    const session = db.getActiveTaskSession(taskId);
+    const session = db.getSessionById(sessionId);
     expect(session).not.toBeNull();
     expect(session!.id).toBe(sessionId);
-    expect(session!.taskId).toBe(taskId);
     expect(session!.companyId).toBe(companyId);
     expect(session!.agentId).toBe(agentId);
     expect(session!.adapterType).toBe("claude-pro");
@@ -130,9 +127,8 @@ describe("task_sessions CRUD", () => {
   });
 
   it("incrementSessionUsage atomically updates counters", () => {
-    const { taskId, companyId, agentId } = scaffold(db);
+    const { companyId, agentId } = scaffold(db);
     const sessionId = db.createNewSession({
-      taskId,
       companyId,
       agentId,
       adapterType: "claude-pro",
@@ -142,7 +138,7 @@ describe("task_sessions CRUD", () => {
 
     db.incrementSessionUsage(sessionId, 1000, 500, "run-001");
 
-    const session = db.getActiveTaskSession(taskId);
+    const session = db.getSessionById(sessionId);
     expect(session!.runCount).toBe(1);
     expect(session!.totalInputTokens).toBe(1000);
     expect(session!.totalOutputTokens).toBe(500);
@@ -150,7 +146,7 @@ describe("task_sessions CRUD", () => {
 
     // Second increment accumulates
     db.incrementSessionUsage(sessionId, 2000, 800, "run-002");
-    const session2 = db.getActiveTaskSession(taskId);
+    const session2 = db.getSessionById(sessionId);
     expect(session2!.runCount).toBe(2);
     expect(session2!.totalInputTokens).toBe(3000);
     expect(session2!.totalOutputTokens).toBe(1300);
@@ -158,9 +154,8 @@ describe("task_sessions CRUD", () => {
   });
 
   it("archiveSession sets rotated_at, rotation_reason, handoff_markdown", () => {
-    const { taskId, companyId, agentId } = scaffold(db);
+    const { companyId, agentId } = scaffold(db);
     const sessionId = db.createNewSession({
-      taskId,
       companyId,
       agentId,
       adapterType: "claude-pro",
@@ -170,17 +165,16 @@ describe("task_sessions CRUD", () => {
 
     db.archiveSession(sessionId, "max_runs", "# Handoff\nSession reached 20 runs.");
 
-    const session = db.getActiveTaskSession(taskId);
+    const session = db.getSessionById(sessionId);
     expect(session!.rotatedAt).toBeTruthy();
     expect(session!.rotationReason).toBe("max_runs");
     expect(session!.handoffMarkdown).toBe("# Handoff\nSession reached 20 runs.");
   });
 
-  it("createNewSession creates session and updates tasks.active_session_id", () => {
-    const { taskId, companyId, agentId } = scaffold(db);
+  it("createNewSession returns an id; adapter type persists", () => {
+    const { companyId, agentId } = scaffold(db);
 
     const sessionId = db.createNewSession({
-      taskId,
       companyId,
       agentId,
       adapterType: "gemini-cli",
@@ -191,8 +185,7 @@ describe("task_sessions CRUD", () => {
     expect(typeof sessionId).toBe("string");
     expect(sessionId.length).toBeGreaterThan(0);
 
-    // active_session_id should point to new session
-    const session = db.getActiveTaskSession(taskId);
+    const session = db.getSessionById(sessionId);
     expect(session).not.toBeNull();
     expect(session!.id).toBe(sessionId);
     expect(session!.adapterType).toBe("gemini-cli");
@@ -297,7 +290,6 @@ describe("session management service", () => {
       const session: TaskSessionRecord = {
         id: "sess-1",
         companyId: "co-1",
-        taskId: "task-1",
         agentId: "agent-1",
         adapterType: "gemini-cli",
         sessionParamsJson: null,
@@ -323,7 +315,6 @@ describe("session management service", () => {
       const session: TaskSessionRecord = {
         id: "sess-1",
         companyId: "co-1",
-        taskId: "task-1",
         agentId: "agent-1",
         adapterType: "gemini-cli",
         sessionParamsJson: null,
@@ -349,7 +340,6 @@ describe("session management service", () => {
       const session: TaskSessionRecord = {
         id: "sess-1",
         companyId: "co-1",
-        taskId: "task-1",
         agentId: "agent-1",
         adapterType: "gemini-cli",
         sessionParamsJson: null,
@@ -376,7 +366,6 @@ describe("session management service", () => {
       const session: TaskSessionRecord = {
         id: "sess-1",
         companyId: "co-1",
-        taskId: "task-1",
         agentId: "agent-1",
         adapterType: "gemini-cli",
         sessionParamsJson: null,
@@ -407,7 +396,6 @@ describe("session management service", () => {
       const session: TaskSessionRecord = {
         id: "sess-1",
         companyId: "co-1",
-        taskId: "task-1",
         agentId: "agent-1",
         adapterType: "claude-pro",
         sessionParamsJson: null,
@@ -438,7 +426,6 @@ describe("session management service", () => {
       const session: TaskSessionRecord = {
         id: "sess-1",
         companyId: "co-1",
-        taskId: "task-1",
         agentId: "agent-1",
         adapterType: "gemini-cli",
         sessionParamsJson: null,
@@ -464,7 +451,6 @@ describe("session management service", () => {
       const session: TaskSessionRecord = {
         id: "sess-1",
         companyId: "co-1",
-        taskId: "task-1",
         agentId: "agent-1",
         adapterType: "gemini-cli",
         sessionParamsJson: null,
@@ -490,7 +476,6 @@ describe("session management service", () => {
       const session: TaskSessionRecord = {
         id: "sess-1",
         companyId: "co-1",
-        taskId: "task-1",
         agentId: "agent-1",
         adapterType: "gemini-cli",
         sessionParamsJson: null,
@@ -524,7 +509,6 @@ describe("session management service", () => {
     it("accumulateTokenUsage calls db.incrementSessionUsage with correct args", () => {
       const { taskId, companyId, agentId } = scaffold(db);
       const sessionId = db.createNewSession({
-        taskId,
         companyId,
         agentId,
         adapterType: "claude-pro",
@@ -535,7 +519,7 @@ describe("session management service", () => {
 
       svc.accumulateTokenUsage(sessionId, 5000, 2000, "run-abc");
 
-      const session = db.getActiveTaskSession(taskId);
+      const session = db.getSessionById(sessionId);
       expect(session!.runCount).toBe(1);
       expect(session!.totalInputTokens).toBe(5000);
       expect(session!.totalOutputTokens).toBe(2000);
@@ -550,7 +534,6 @@ describe("session management service", () => {
     it("generateHandoff produces markdown with task title and run history", () => {
       const { taskId, companyId, agentId, workspaceId } = scaffold(db);
       const sessionId = db.createNewSession({
-        taskId,
         companyId,
         agentId,
         adapterType: "gemini-cli",
@@ -575,7 +558,7 @@ describe("session management service", () => {
       // Increment session usage to have stats
       db.incrementSessionUsage(sessionId, 10000, 5000, run.id);
 
-      const session = db.getActiveTaskSession(taskId)!;
+      const session = db.getSessionById(sessionId)!;
       const svc = createSessionManagementService({ db, logger: mockLogger });
       // Handoff is now agent-scoped: it walks the agent's recent runs
       // (across tasks + heartbeats) rather than a single task. The task
@@ -598,7 +581,6 @@ describe("session management service", () => {
     it("rotateSession archives old session, creates new, copies session_params", () => {
       const { taskId, companyId, agentId } = scaffold(db);
       const oldSessionId = db.createNewSession({
-        taskId,
         companyId,
         agentId,
         adapterType: "gemini-cli",
@@ -609,7 +591,7 @@ describe("session management service", () => {
       // Add some usage
       db.incrementSessionUsage(oldSessionId, 300000, 200000, "run-10");
 
-      const oldSession = db.getActiveTaskSession(taskId)!;
+      const oldSession = db.getSessionById(oldSessionId)!;
       const svc = createSessionManagementService({ db, logger: mockLogger });
       const newSessionId = svc.rotateSession(oldSession);
 
@@ -624,8 +606,8 @@ describe("session management service", () => {
       expect(archivedRows[0].rotationReason).toBe("threshold_exceeded");
       expect(archivedRows[0].handoffMarkdown).toContain("# Session Handoff");
 
-      // New session should be active, with fresh counters and copied params
-      const newSession = db.getActiveTaskSession(taskId)!;
+      // New session is a distinct row, with fresh counters and copied params
+      const newSession = db.getSessionById(newSessionId)!;
       expect(newSession.id).toBe(newSessionId);
       expect(newSession.runCount).toBe(0);
       expect(newSession.totalInputTokens).toBe(0);
@@ -645,7 +627,6 @@ describe("session management service", () => {
 
       // Create and rotate a session
       const session1Id = db.createNewSession({
-        taskId,
         companyId,
         agentId,
         adapterType: "gemini-cli",
@@ -653,7 +634,7 @@ describe("session management service", () => {
         sessionDisplayId: null,
       });
       db.incrementSessionUsage(session1Id, 100000, 50000, "run-1");
-      const session1 = db.getActiveTaskSession(taskId)!;
+      const session1 = db.getSessionById(session1Id)!;
       svc.rotateSession(session1);
 
       const handoff = svc.getHandoffContext(taskId);
@@ -664,7 +645,6 @@ describe("session management service", () => {
     it("getHandoffContext returns null when no rotated sessions exist", () => {
       const { taskId, companyId, agentId } = scaffold(db);
       db.createNewSession({
-        taskId,
         companyId,
         agentId,
         adapterType: "gemini-cli",
@@ -685,7 +665,6 @@ describe("session management service", () => {
     it("getUsageDelta returns token difference between snapshot and current totals", () => {
       const { taskId, companyId, agentId } = scaffold(db);
       const sessionId = db.createNewSession({
-        taskId,
         companyId,
         agentId,
         adapterType: "gemini-cli",
@@ -696,7 +675,7 @@ describe("session management service", () => {
       // Pre-populate some usage
       db.incrementSessionUsage(sessionId, 1000, 500, "run-1");
 
-      const session = db.getActiveTaskSession(taskId)!;
+      const session = db.getSessionById(sessionId)!;
       const svc = createSessionManagementService({ db, logger: mockLogger });
 
       // Snapshot current state

@@ -75,7 +75,7 @@ export function buildSnapshotMethods(
         ...companyArgs,
       ),
       tasks: readAll<TaskRecord>(
-        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, task_type as taskType, requires_user_review as requiresUserReview, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks${companyWhere} order by created_at desc limit 2000`,
+        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, cost_usd as costUsd, task_type as taskType, requires_user_review as requiresUserReview, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks${companyWhere} order by created_at desc limit 2000`,
         ...companyArgs,
       ).map((record) => ({ ...record, requiresUserReview: toBoolean(record.requiresUserReview), startedAt: record.startedAt ?? null, completedAt: record.completedAt ?? null, cancelledAt: record.cancelledAt ?? null })) as TaskRecord[],
       approvals: readAll<ApprovalRecord>(

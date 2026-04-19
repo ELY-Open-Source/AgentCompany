@@ -107,7 +107,6 @@ export function buildTaskStatusMethods(
               t.parent_id as parentId, t.title, t.description,
               t.assignee_agent_id as assigneeAgentId, t.workspace_id as workspaceId,
               t.status, t.priority, t.active_run_id as activeRunId,
-              t.session_json as sessionJson, t.session_display_id as sessionDisplayId,
               t.cost_usd as costUsd,
               t.created_at as createdAt, t.updated_at as updatedAt
        from tasks t

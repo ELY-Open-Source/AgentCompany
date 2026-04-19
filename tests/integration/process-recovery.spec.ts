@@ -442,7 +442,6 @@ describe("Process Recovery -- Context Preservation (D-02)", () => {
 
     // Create a task session (simulating what happens during normal execution)
     const sessionId = db.createNewSession({
-      taskId,
       companyId: s.companyId,
       agentId: s.agentId,
       adapterType: "gemini-cli",
@@ -461,7 +460,7 @@ describe("Process Recovery -- Context Preservation (D-02)", () => {
 
     // Get the session and evaluate rotation with maxRuns:1 override
     // (so it triggers rotation since we did 1 run)
-    const session = db.getActiveTaskSession(taskId);
+    const session = db.getSessionById(sessionId);
     expect(session).not.toBeNull();
 
     const rotationResult = sessionService.evaluateRotation(

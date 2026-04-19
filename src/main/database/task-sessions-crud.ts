@@ -4,16 +4,12 @@ import type { TaskSessionRecord } from "@shared/types";
 import { type ReadAll, type Transaction, nowIso } from "./helpers";
 
 /**
- * Task-session lifecycle helpers extracted from tasks-crud.ts.
- *
- * Covers the agent-scoped session lifecycle:
- *   - updateTaskSession / getTaskSession / getActiveTaskSession
- *   - incrementSessionUsage / archiveSession
- *   - ensureAgentSession / setAgentSessionId / updateTasksActiveSessionForAgent
- *   - createNewSession
- *
- * Every method is spread into the final `buildTaskMethods` result, so
- * call-sites on AppDatabase remain unchanged.
+ * Agent-scoped session lifecycle. Sessions belong to agents, not
+ * tasks — `agents.session_id` is the canonical pointer, and
+ * `task_sessions` rows are looked up by their own primary key only.
+ * The pre-migration `tasks.active_session_id` / `task_sessions.task_id`
+ * columns were dropped by v41; any read that still needs a session
+ * given a task id resolves it through the task's assignee agent.
  */
 export function buildTaskSessionMethods(
   getDb: () => DatabaseSync,
@@ -21,118 +17,37 @@ export function buildTaskSessionMethods(
   transaction: Transaction,
 ) {
   return {
-    updateTaskSession(
-      taskId: string,
-      sessionJson: Record<string, unknown> | null,
+    /**
+     * Stamp pi-ai's transient per-turn state (session resume params,
+     * display id) onto the given agent session row. Called by the
+     * worker's run-finished handler with `event.taskSessionId`.
+     */
+    updateSessionParams(
+      sessionId: string,
+      sessionParams: Record<string, unknown> | null,
       sessionDisplayId: string | null,
     ): void {
       const ts = nowIso();
-      const sessionParamsJson = sessionJson ? JSON.stringify(sessionJson) : null;
-      const taskRow = getDb()
-        .prepare(
-          "select company_id as companyId, assignee_agent_id as assigneeAgentId, active_session_id as activeSessionId from tasks where id = ?",
-        )
-        .get(taskId) as
-        | { companyId: string; assigneeAgentId: string | null; activeSessionId: string | null }
-        | undefined;
-      if (!taskRow) throw new Error(`Task not found: ${taskId}`);
-      if (taskRow.activeSessionId) {
-        getDb()
-          .prepare(
-            "update task_sessions set session_params_json = ?, session_display_id = ?, updated_at = ? where id = ?",
-          )
-          .run(sessionParamsJson, sessionDisplayId, ts, taskRow.activeSessionId);
-        return;
-      }
-      if (sessionParamsJson === null && sessionDisplayId === null) return;
-      const agentId = taskRow.assigneeAgentId ?? "unassigned";
-      const agent = taskRow.assigneeAgentId
-        ? (getDb()
-            .prepare("select connector_id as connectorId from agents where id = ?")
-            .get(taskRow.assigneeAgentId) as { connectorId: string } | undefined)
-        : undefined;
-      const adapterType = agent?.connectorId ?? "unknown";
-      const sessionId = randomUUID();
+      const sessionParamsJson = sessionParams ? JSON.stringify(sessionParams) : null;
       getDb()
         .prepare(
-          `insert into task_sessions (id, company_id, task_id, agent_id, adapter_type, session_params_json, session_display_id, created_at, updated_at)
-           values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          "update task_sessions set session_params_json = ?, session_display_id = ?, updated_at = ? where id = ?",
         )
-        .run(
-          sessionId,
-          taskRow.companyId,
-          taskId,
-          agentId,
-          adapterType,
-          sessionParamsJson,
-          sessionDisplayId,
-          ts,
-          ts,
-        );
-      getDb()
-        .prepare("update tasks set active_session_id = ?, updated_at = ? where id = ?")
-        .run(sessionId, ts, taskId);
-    },
-
-    getTaskSession(taskId: string): {
-      sessionParams: Record<string, unknown> | null;
-      sessionDisplayId: string | null;
-    } {
-      const taskRow = getDb()
-        .prepare("select active_session_id as activeSessionId from tasks where id = ?")
-        .get(taskId) as { activeSessionId: string | null } | undefined;
-      if (!taskRow?.activeSessionId) {
-        return { sessionParams: null, sessionDisplayId: null };
-      }
-      const row = getDb()
-        .prepare(
-          "select session_params_json as sessionParamsJson, session_display_id as sessionDisplayId from task_sessions where id = ?",
-        )
-        .get(taskRow.activeSessionId) as
-        | { sessionParamsJson: string | null; sessionDisplayId: string | null }
-        | undefined;
-      let sessionParams: Record<string, unknown> | null = null;
-      if (row?.sessionParamsJson) {
-        sessionParams = JSON.parse(row.sessionParamsJson) as Record<string, unknown>;
-      }
-      return {
-        sessionParams,
-        sessionDisplayId: row?.sessionDisplayId ?? null,
-      };
-    },
-
-    getActiveTaskSession(taskId: string): TaskSessionRecord | null {
-      const task = getDb()
-        .prepare("SELECT active_session_id FROM tasks WHERE id = ?")
-        .get(taskId) as { active_session_id: string | null } | undefined;
-      if (!task?.active_session_id) return null;
-      return (
-        (getDb()
-          .prepare(
-            `SELECT id, company_id as companyId, task_id as taskId, agent_id as agentId,
-       adapter_type as adapterType, session_params_json as sessionParamsJson,
-       session_display_id as sessionDisplayId, last_run_id as lastRunId,
-       last_error as lastError, run_count as runCount,
-       total_input_tokens as totalInputTokens, total_output_tokens as totalOutputTokens,
-       rotated_at as rotatedAt, rotation_reason as rotationReason,
-       handoff_markdown as handoffMarkdown, created_at as createdAt, updated_at as updatedAt
-       FROM task_sessions WHERE id = ?`,
-          )
-          .get(task.active_session_id) as TaskSessionRecord | undefined) ?? null
-      );
+        .run(sessionParamsJson, sessionDisplayId, ts, sessionId);
     },
 
     /**
-     * Fetch a session by its primary key. Sessions are agent-scoped
-     * (post-v34 migration): a heartbeat run has no task to dereference,
-     * so the session lookup must take the session id directly. Use with
-     * `agents.session_id` as the entry point.
+     * Fetch a session by its primary key. This is the single lookup
+     * path — the rotation evaluator, the worker's finalizer, and the
+     * turn-context builder all know which session id they want because
+     * they either receive it from the agent record or from the worker
+     * event envelope.
      */
     getSessionById(sessionId: string): TaskSessionRecord | null {
       return (
         (getDb()
           .prepare(
-            `SELECT id, company_id as companyId, task_id as taskId, agent_id as agentId,
+            `SELECT id, company_id as companyId, agent_id as agentId,
        adapter_type as adapterType, session_params_json as sessionParamsJson,
        session_display_id as sessionDisplayId, last_run_id as lastRunId,
        last_error as lastError, run_count as runCount,
@@ -175,17 +90,10 @@ export function buildTaskSessionMethods(
     },
 
     /**
-     * Returns the agent's active session id, creating one lazily on first
-     * call. Session is scoped to the agent (not to any particular task);
-     * switching tasks emits a user turn on the ongoing transcript rather
-     * than spawning a new session.
-     *
-     * Existing agents with pre-migration per-task sessions start fresh
-     * after this upgrade: their first run creates a new agent-scoped
-     * session. The old task_sessions + session_entries rows remain in the
-     * DB as historical records but are not loaded for new runs. This is a
-     * one-time transcript reset, accepted over a risky merge on a live
-     * production DB.
+     * Return the agent's active session id, creating one lazily on
+     * first call. One session per agent — switching tasks emits a
+     * "now work on X" user turn on the ongoing transcript rather than
+     * spawning a new session.
      */
     ensureAgentSession(input: {
       agentId: string;
@@ -200,15 +108,12 @@ export function buildTaskSessionMethods(
       const sessionId = randomUUID();
       const ts = nowIso();
       transaction(() => {
-        // task_id is left as empty string — the session is agent-scoped;
-        // the column persists for backwards-compatible schema but no
-        // longer keys the session to a particular task.
         getDb()
           .prepare(
-            `INSERT INTO task_sessions (id, company_id, task_id, agent_id, adapter_type,
+            `INSERT INTO task_sessions (id, company_id, agent_id, adapter_type,
               session_params_json, session_display_id, run_count, total_input_tokens,
               total_output_tokens, created_at, updated_at)
-             VALUES (?, ?, '', ?, ?, NULL, NULL, 0, 0, 0, ?, ?)`,
+             VALUES (?, ?, ?, ?, NULL, NULL, 0, 0, 0, ?, ?)`,
           )
           .run(sessionId, input.companyId, input.agentId, input.adapterType, ts, ts);
         getDb()
@@ -226,21 +131,11 @@ export function buildTaskSessionMethods(
     },
 
     /**
-     * Point every task currently assigned to an agent at the agent's new
-     * active session. Called after session rotation so UI paths reading
-     * per-task active_session_id still see the agent's current session.
+     * Create a replacement session row after rotation. Inherits the
+     * agent / company / adapter type from the caller; session params
+     * and display id carry forward so the next pi-ai turn can resume.
      */
-    updateTasksActiveSessionForAgent(agentId: string, sessionId: string): void {
-      const ts = nowIso();
-      getDb()
-        .prepare(
-          "UPDATE tasks SET active_session_id = ?, updated_at = ? WHERE assignee_agent_id = ?",
-        )
-        .run(sessionId, ts, agentId);
-    },
-
     createNewSession(input: {
-      taskId: string;
       companyId: string;
       agentId: string;
       adapterType: string;
@@ -251,14 +146,13 @@ export function buildTaskSessionMethods(
       const ts = nowIso();
       getDb()
         .prepare(
-          `INSERT INTO task_sessions (id, company_id, task_id, agent_id, adapter_type,
+          `INSERT INTO task_sessions (id, company_id, agent_id, adapter_type,
        session_params_json, session_display_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           sessionId,
           input.companyId,
-          input.taskId,
           input.agentId,
           input.adapterType,
           input.sessionParamsJson,
@@ -266,9 +160,6 @@ export function buildTaskSessionMethods(
           ts,
           ts,
         );
-      getDb()
-        .prepare("UPDATE tasks SET active_session_id = ?, updated_at = ? WHERE id = ?")
-        .run(sessionId, ts, input.taskId);
       return sessionId;
     },
   };

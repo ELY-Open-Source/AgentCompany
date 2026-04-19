@@ -148,10 +148,8 @@ export function createSessionManagementService({ db, logger }: SessionManagement
     db.archiveSession(session.id, reason, handoff);
 
     // 2. Create new session row with fresh counters, carry forward
-    //    session_params. task_id is empty because the session is scoped
-    //    to the agent, not to any particular task.
+    //    session_params so pi-ai can resume.
     const newSessionId = db.createNewSession({
-      taskId: "",
       companyId: session.companyId,
       agentId: session.agentId,
       adapterType: session.adapterType,
@@ -159,10 +157,8 @@ export function createSessionManagementService({ db, logger }: SessionManagement
       sessionDisplayId: session.sessionDisplayId,
     });
 
-    // 3. Point the agent and any tasks still holding the old session id
-    //    at the freshly-minted session.
+    // 3. Point the agent at the freshly-minted session.
     db.setAgentSessionId(session.agentId, newSessionId);
-    db.updateTasksActiveSessionForAgent(session.agentId, newSessionId);
 
     logger.info(`[session] New session ${newSessionId} created for agent ${session.agentId}`);
     return newSessionId;

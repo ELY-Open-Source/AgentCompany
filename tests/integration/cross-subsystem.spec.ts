@@ -224,7 +224,6 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
 
     // 5. Session management: create session and track usage
     const sessionId = db.createNewSession({
-      taskId,
       companyId: s.companyId,
       agentId: s.agentId,
       adapterType: "gemini-cli",
@@ -240,7 +239,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     const task = db.getTask(taskId);
     expect(task.costUsd).toBeGreaterThan(0);
 
-    const session = db.getActiveTaskSession(taskId);
+    const session = db.getSessionById(sessionId);
     expect(session).not.toBeNull();
     expect(session!.totalInputTokens).toBe(5000);
     expect(session!.totalOutputTokens).toBe(2000);
@@ -382,7 +381,6 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
 
     // Create session
     const sessionId = db.createNewSession({
-      taskId,
       companyId: s.companyId,
       agentId: s.agentId,
       adapterType: "gemini-cli",
@@ -411,7 +409,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     sessionService.accumulateTokenUsage(sessionId, 3000, 1000, runId2);
 
     // Verify accumulated session state
-    const session = db.getActiveTaskSession(taskId);
+    const session = db.getSessionById(sessionId);
     expect(session).not.toBeNull();
     expect(session!.runCount).toBe(2);
     expect(session!.totalInputTokens).toBe(8000);

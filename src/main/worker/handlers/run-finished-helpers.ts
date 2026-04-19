@@ -66,11 +66,19 @@ export function finalizeRun(
     }
   }
 
-  if (task) {
-    // Pi-mono sessions are persisted through SqliteSessionStore via RuntimeBridge;
-    // worker-reported sessionParams is an opaque JSON snapshot of whatever the
-    // orchestrator wants to stamp onto the task_sessions row.
-    db.updateTaskSession(task.id, event.sessionParams, event.sessionDisplayId ?? null);
+  // Stamp pi-ai's transient per-turn state (session resume params,
+  // display id) onto the agent's current session row. Sessions are
+  // agent-scoped, so the session id comes from agents.session_id —
+  // not from a task pointer (that indirection was dropped in v41).
+  try {
+    const agent = db.getAgent(run.agentId);
+    if (agent.sessionId) {
+      db.updateSessionParams(agent.sessionId, event.sessionParams, event.sessionDisplayId ?? null);
+    }
+  } catch (error) {
+    logger.warn(
+      `[finalizeRun] updateSessionParams failed for run ${event.runId}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   leaseRenewalMap.delete(event.runId);

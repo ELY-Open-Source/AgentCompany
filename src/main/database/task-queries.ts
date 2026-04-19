@@ -25,7 +25,7 @@ export function buildTaskQueryMethods(
     ): TaskRecord[] {
       const placeholders = statuses.map(() => "?").join(",");
       return readAll<TaskRecord>(
-        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, task_type as taskType, created_at as createdAt, updated_at as updatedAt
+        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, cost_usd as costUsd, task_type as taskType, created_at as createdAt, updated_at as updatedAt
          from tasks
         where company_id = ? and assignee_agent_id = ? and status in (${placeholders})
         order by
@@ -109,7 +109,7 @@ export function buildTaskQueryMethods(
     ): TaskListByStatusesRow[] {
       const placeholders = statuses.map(() => "?").join(", ");
       return readAll<TaskListByStatusesRow & { requiresUserReview: number | boolean }>(
-        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, session_json as sessionJson, session_display_id as sessionDisplayId, cost_usd as costUsd, requires_user_review as requiresUserReview, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks where company_id = ? and status in (${placeholders}) order by created_at desc`,
+        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, cost_usd as costUsd, requires_user_review as requiresUserReview, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks where company_id = ? and status in (${placeholders}) order by created_at desc`,
         companyId,
         ...statuses,
       ).map((t) => ({

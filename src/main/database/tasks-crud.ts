@@ -26,8 +26,6 @@ export type TaskListByStatusesRow = {
   status: string;
   priority: string;
   activeRunId: string | null;
-  sessionJson: string | null;
-  sessionDisplayId: string | null;
   costUsd: number | null;
   requiresUserReview: boolean;
   startedAt: string | null;

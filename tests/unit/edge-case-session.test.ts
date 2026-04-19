@@ -116,7 +116,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
 
     // Create a session
     const sessionId = db.createNewSession({
-      taskId,
       companyId,
       agentId,
       adapterType: "gemini-cli",
@@ -130,7 +129,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     }
 
     // Get the updated session from DB
-    const session = db.getActiveTaskSession(taskId);
+    const session = db.getSessionById(sessionId);
     expect(session).not.toBeNull();
     expect(session!.runCount).toBe(DEFAULT_THRESHOLDS.maxRuns);
 
@@ -145,7 +144,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
     const sessionId = db.createNewSession({
-      taskId,
       companyId,
       agentId,
       adapterType: "gemini-cli",
@@ -157,7 +155,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     // DEFAULT_THRESHOLDS.maxTokens = 500_000 (total input + output)
     db.incrementSessionUsage(sessionId, 300000, 250000, "big-run");
 
-    const session = db.getActiveTaskSession(taskId);
+    const session = db.getSessionById(sessionId);
     expect(session).not.toBeNull();
     const totalTokens = session!.totalInputTokens + session!.totalOutputTokens;
     expect(totalTokens).toBe(550000);
@@ -172,7 +170,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
     const sessionId = db.createNewSession({
-      taskId,
       companyId,
       agentId,
       adapterType: "gemini-cli",
@@ -205,7 +202,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       unattributedCost: false,
     });
 
-    const session = db.getActiveTaskSession(taskId)!;
+    const session = db.getSessionById(sessionId)!;
     // generateHandoff is agent-scoped: it walks the agent's runs across
     // all tasks + taskless heartbeats, not a single task.
     const handoff = sessionService.generateHandoff(session);
@@ -230,7 +227,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
 
     // Create initial session
     const oldSessionId = db.createNewSession({
-      taskId,
       companyId,
       agentId,
       adapterType: "gemini-cli",
@@ -246,7 +242,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
 
     // Create new session
     const newSessionId = db.createNewSession({
-      taskId,
       companyId,
       agentId,
       adapterType: "gemini-cli",
@@ -255,7 +250,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     });
 
     // Get the new active session
-    const newSession = db.getActiveTaskSession(taskId);
+    const newSession = db.getSessionById(newSessionId);
     expect(newSession).not.toBeNull();
     expect(newSession!.id).toBe(newSessionId);
     expect(newSession!.id).not.toBe(oldSessionId);
@@ -271,7 +266,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
     const sessionId = db.createNewSession({
-      taskId,
       companyId,
       agentId,
       adapterType: "claude-pro",
@@ -284,7 +278,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       db.incrementSessionUsage(sessionId, 30000, 20000, `run-${i}`);
     }
 
-    const session = db.getActiveTaskSession(taskId)!;
+    const session = db.getSessionById(sessionId)!;
     // Pi-mono delegates compaction to pi-agent-core; AgentCompany still applies rotation uniformly.
     const result = sessionService.evaluateRotation(session, "claude-pro");
     expect(result.shouldRotate).toBe(true);
@@ -296,7 +290,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
     const sessionId = db.createNewSession({
-      taskId,
       companyId,
       agentId,
       adapterType: "openai-codex",
@@ -309,7 +302,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       db.incrementSessionUsage(sessionId, 30000, 20000, `run-${i}`);
     }
 
-    const session = db.getActiveTaskSession(taskId)!;
+    const session = db.getSessionById(sessionId)!;
     // Pi-mono delegates compaction to pi-agent-core; AgentCompany still applies rotation uniformly.
     const result = sessionService.evaluateRotation(session, "openai-codex");
     expect(result.shouldRotate).toBe(true);
@@ -322,7 +315,6 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
 
     // Create session and add usage
     const sessionId = db.createNewSession({
-      taskId,
       companyId,
       agentId,
       adapterType: "gemini-cli",
@@ -352,7 +344,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     });
 
     // Rotate the session (archives old, creates new)
-    const oldSession = db.getActiveTaskSession(taskId)!;
+    const oldSession = db.getSessionById(sessionId)!;
     sessionService.rotateSession(oldSession);
 
     // After rotation, the handoff should be retrievable for the next run
