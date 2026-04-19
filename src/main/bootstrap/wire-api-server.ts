@@ -1,7 +1,7 @@
 import log from "electron-log/main.js";
 import type { AgentApiServer } from "../api-server";
 import type { AppDatabase } from "../database";
-import type { DesktopEvent, SectionId } from "@shared/types";
+import type { AgentMessageRecord, DesktopEvent, SectionId } from "@shared/types";
 import type { NotificationOptions } from "../notification-service";
 import type { createServiceGraph } from "../service-graph";
 import type { createThreadIntegration } from "../thread-integration";
@@ -24,6 +24,7 @@ export interface CreateApiServerFn {
     onDocumentCreated: (companyId: string, authorAgentId: string | null, projectId: string | null, documentId: string, documentTitle: string, documentType: string, taskId: string | null) => void;
     onAutoAssignTask: (taskId: string, companyId: string) => string | null;
     onHumanMessage: (companyId: string, toAgentId?: string | null, threadId?: string | null, waitStateId?: string | null) => void;
+    injectRuntimeMessage: (recipientAgentId: string, companyId: string, message: AgentMessageRecord) => boolean;
     emitEvent: (event: DesktopEvent) => void;
     notify: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
   }, allowedOrigins: string[]): AgentApiServer;
@@ -107,6 +108,18 @@ export function wireApiServer(deps: WireApiServerDeps): AgentApiServer {
     onHumanMessage: (companyId, toAgentId, threadId, waitStateId) => {
       deps.threadIntegration.onHumanMessage(companyId, toAgentId, threadId, waitStateId);
       deps.publishDomainChanged();
+    },
+    injectRuntimeMessage: (recipientAgentId, companyId, message) => {
+      const injector = deps.serviceGraph.getRuntimeMessageInjector();
+      if (!injector) return false;
+      try {
+        return injector.tryInject(recipientAgentId, companyId, message);
+      } catch (error) {
+        log.warn(
+          `[wire-api-server] runtime message injection failed for agent ${recipientAgentId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        return false;
+      }
     },
     emitEvent: deps.emitEvent,
     notify: deps.notify,

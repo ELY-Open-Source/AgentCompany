@@ -64,6 +64,14 @@ export interface DispatchAgentMessageDependencies {
   db: AppDatabase;
   publishDomainChanged?: () => void;
   wakeAgentIfPossible?: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
+  /**
+   * Attempts to route a persisted message into the recipient's live pi
+   * run via `agent.steer()`. Returns true when delivery happened, false
+   * when the recipient has no active run. When true, dispatch skips
+   * `wakeAgentIfPossible` for that recipient because the message is
+   * already in-flight inside the agent loop.
+   */
+  injectRuntimeMessage?: (recipientAgentId: string, companyId: string, message: AgentMessageRecord) => boolean;
   emitEvent?: (event: DesktopEvent) => void;
   notify?: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
   /** Called when a human user sends a message. Resolves thread wait states scoped by waitStateId, threadId, or recipient. */
@@ -303,6 +311,18 @@ export function dispatchAgentMessage(
     const agentNameMap = new Map(agentNameRows.map((a) => [a.id, a.name]));
     for (const wakeTarget of wakeTargets) {
       const agentName = agentNameMap.get(wakeTarget) ?? wakeTarget;
+      // Prefer live-loop injection: if the recipient is currently running
+      // a pi turn, the message lands in its steering queue and is
+      // observed within one turn. When no active run exists, fall back to
+      // the inbox + wake pipeline so a sleeping agent is woken with the
+      // message queued for its next `prepareRun` cycle.
+      const injected = message && deps.injectRuntimeMessage
+        ? deps.injectRuntimeMessage(wakeTarget, normalized.companyId, message)
+        : false;
+      if (injected) {
+        mentionResults.push({ agentId: wakeTarget, agentName, outcome: "woken" });
+        continue;
+      }
       const runId = deps.wakeAgentIfPossible(wakeTarget, normalized.companyId, wakeTrigger);
       const hasQueuedWake = !runId && deps.db.listWakeupRequests(normalized.companyId, {
         agentId: wakeTarget,

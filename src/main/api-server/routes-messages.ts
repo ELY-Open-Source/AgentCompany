@@ -109,6 +109,7 @@ export function registerMessageRoutes(server: AgentApiServer) {
           if (!agentId) return null;
           return onWakeAgent(agentId, cid, trigger);
         },
+        injectRuntimeMessage: server.callbacks.injectRuntimeMessage,
         onHumanMessage: server.callbacks.onHumanMessage,
       },
       parsed.data,

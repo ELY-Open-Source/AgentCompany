@@ -6,6 +6,7 @@ import { BrowserManager } from "./browser-manager";
 import type { DesktopResult } from "@shared/contracts";
 import { createConnectorHealthService } from "./connector-health-service";
 import { createPiRuntimeServices, type PiRuntimeServices } from "./service-graph-pi-runtime";
+import { RuntimeMessageInjector } from "./agent-runtime";
 import type { DesktopEvent } from "@shared/types";
 import type { NotificationOptions } from "./notification-service";
 import type { createAutomationService } from "./automation-service";
@@ -98,6 +99,7 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
   let updaterService: ReturnType<typeof createUpdaterService> | null = null;
   let appLifecycleService: ReturnType<typeof createLifecycle> | null = null;
   let leaf: ReturnType<typeof createLeafServices> | null = null;
+  let runtimeMessageInjector: RuntimeMessageInjector | null = null;
   const piRuntimeRef: { current: PiRuntimeServices | null } = { current: null };
 
   // Late-bound slots resolve circular construction: worker needs orchestration
@@ -171,6 +173,17 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
       piRuntimeRef,
     });
 
+    runtimeMessageInjector = new RuntimeMessageInjector({
+      db,
+      runtimeBridge: piRuntimeRef.current.runtimeBridge,
+      postToWorker: (message) => {
+        const worker = workerService?.getWorker();
+        if (!worker) throw new Error("Worker is not initialised — cannot deliver steer message.");
+        worker.postMessage(message);
+      },
+      logger,
+    });
+
     orchestrationService = buildOrchestrationService({
       db,
       logger,
@@ -233,6 +246,7 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
         orchestrationService = null;
         updaterService = null;
         appLifecycleService = null;
+        runtimeMessageInjector = null;
         leaf = null;
       },
       lateBindings: [
@@ -259,5 +273,6 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
     getOrCreateBudgetEnforcementService: () => requireLeaf().budgetEnforcementService,
     getOrCreateSessionManagementService: () => requireLeaf().sessionManagementService,
     getPiRuntime: () => piRuntimeRef.current,
+    getRuntimeMessageInjector: () => runtimeMessageInjector,
   };
 }

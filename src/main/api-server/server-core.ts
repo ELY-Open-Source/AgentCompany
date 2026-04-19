@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import log from "electron-log/main.js";
 import { validateAgentToken, type TokenPayload } from "../agent-auth";
 import type { AppDatabase } from "../database";
-import type { DesktopEvent, SectionId } from "@shared/types";
+import type { AgentMessageRecord, DesktopEvent, SectionId } from "@shared/types";
 
 /**
  * Decode an HTTP request body to a UTF-8 string, handling the common Windows
@@ -64,6 +64,13 @@ export interface ApiServerEventCallbacks {
   onDocumentCreated: (companyId: string, authorAgentId: string | null, projectId: string | null, documentId: string, documentTitle: string, documentType: string, taskId: string | null) => void;
   onAutoAssignTask: (taskId: string, companyId: string) => string | null;
   onHumanMessage: (companyId: string, toAgentId?: string | null, threadId?: string | null, waitStateId?: string | null) => void;
+  /**
+   * Tries to hand a freshly persisted message to the recipient's live
+   * pi run via the runtime steer channel. Returns true when the worker
+   * accepted the steer; dispatch should then skip the regular wake
+   * pipeline for this recipient.
+   */
+  injectRuntimeMessage: (recipientAgentId: string, companyId: string, message: AgentMessageRecord) => boolean;
   emitEvent: (event: DesktopEvent) => void;
   notify: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
 }
@@ -145,6 +152,7 @@ export class AgentApiServer {
       onDocumentCreated: callbacks?.onDocumentCreated ?? (() => {}),
       onAutoAssignTask: callbacks?.onAutoAssignTask ?? (() => null),
       onHumanMessage: callbacks?.onHumanMessage ?? (() => {}),
+      injectRuntimeMessage: callbacks?.injectRuntimeMessage ?? (() => false),
       emitEvent: callbacks?.emitEvent ?? (() => {}),
       notify: callbacks?.notify ?? (() => {}),
     };
