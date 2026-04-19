@@ -27,8 +27,8 @@ export const WAKE_REASONS: Record<WakeReason, WakeReasonEntry> = {
     title: "Regular heartbeat check-in. This is your periodic wake.",
     steps: () => [
       "Call GET /api/agents/me/standup to get your full briefing",
-      "Review all your assigned tasks and their statuses",
-      "Take action on the most important item: reviews > unblocking > new work",
+      "Walk `unreadMessages` first — every unanswered peer DM blocks somebody else's next move. Reply and mark read before you pick up task work.",
+      "Then take action on the most important item remaining: reviews > unblocking reports > next step on assigned work",
       "If nothing actionable is in your briefing, return control without posting a status comment — activity noise is worse than silence.",
     ],
   },

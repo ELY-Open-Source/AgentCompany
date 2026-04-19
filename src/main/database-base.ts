@@ -285,6 +285,7 @@ export class AppDatabaseBase {
   listTasksForAssignees(companyId: string, assigneeIds: string[]) { return this.tasks.listTasksForAssignees(companyId, assigneeIds); }
   listReviewTasksForManager(managerId: string, companyId: string) { return this.tasks.listReviewTasksForManager(managerId, companyId); }
   countActiveTasksForCompany(companyId: string) { return this.tasks.countActiveTasksForCompany(companyId); }
+  countAdvancingTasksForCompany(companyId: string) { return this.tasks.countAdvancingTasksForCompany(companyId); }
   listChildTasks(parentId: string, companyId: string) { return this.tasks.listChildTasks(parentId, companyId); }
   advanceTaskStatus(taskId: string, newStatus: string, comment?: string) { return this.tasks.advanceTaskStatus(taskId, newStatus, comment); }
   setTaskRequiresUserReview(taskId: string, value: boolean) { return this.tasks.setTaskRequiresUserReview(taskId, value); }

@@ -95,15 +95,23 @@ export function createHeartbeatScheduler(
             }
 
             const goalCount = db.countActiveGoalsForCompany(company.id);
-            const taskCount = db.countActiveTasksForCompany(company.id);
-            if (goalCount > 0 && taskCount === 0) {
+            // Bootstrap when the company has active goals but no work is
+            // actually advancing. The previous gate ("taskCount === 0")
+            // missed the case where every task is in_review or blocked —
+            // the company looks busy to the counter but produces zero
+            // progress, and the CEO would not be woken until the next
+            // regular timer interval. countAdvancingTasksForCompany
+            // counts only todo + in_progress so bootstrapping still
+            // fires once the team stalls.
+            const advancingCount = db.countAdvancingTasksForCompany(company.id);
+            if (goalCount > 0 && advancingCount === 0) {
               const ceo = db.getCeoForCompany(company.id);
               const ceoLastWake = ceo?.lastHeartbeatAt ? new Date(ceo.lastHeartbeatAt).getTime() : 0;
               const ceoLastAttempt = ceo ? attemptedAtByAgent.get(ceo.id) ?? 0 : 0;
               const ceoLastTouch = Math.max(ceoLastWake, ceoLastAttempt);
               const bootstrapCooldown = 120_000;
               if (ceo && !hasActiveRun({ agentId: ceo.id, companyId: company.id }) && (now - ceoLastTouch > bootstrapCooldown)) {
-                logger.info(`[heartbeat] Company ${company.name} has ${goalCount} goals but no tasks — bootstrapping CEO ${ceo.name}`);
+                logger.info(`[heartbeat] Company ${company.name} has ${goalCount} goal(s) and no advancing tasks — bootstrapping CEO ${ceo.name}`);
                 tryWake(ceo.id, company.id, ceo.name, "bootstrap");
               }
             }

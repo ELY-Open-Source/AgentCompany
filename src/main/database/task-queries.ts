@@ -112,6 +112,24 @@ export function buildTaskQueryMethods(
       return row.cnt;
     },
 
+    /**
+     * Count tasks that are actively producing progress this cycle —
+     * todo (waiting to be checked out) and in_progress (currently being
+     * worked). Excludes in_review (waiting on a human or manager) and
+     * blocked (waiting on a resolution). Used by the bootstrap
+     * scheduler to decide whether the CEO needs to be pinged: a company
+     * where every task is stuck in review or blocked is functionally
+     * idle even though countActiveTasksForCompany reports > 0.
+     */
+    countAdvancingTasksForCompany(companyId: string): number {
+      const row = getDb()
+        .prepare(
+          "select count(*) as cnt from tasks where company_id = ? and status in ('todo','in_progress')",
+        )
+        .get(companyId) as { cnt: number };
+      return row.cnt;
+    },
+
     listChildTasks(
       parentId: string,
       companyId: string,
