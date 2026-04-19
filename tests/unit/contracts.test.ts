@@ -11,7 +11,6 @@ describe("shared contracts", () => {
   it("fills connector defaults for optional fields", () => {
     const parsed = connectorInputSchema.parse({
       id: "openai-codex",
-      command: "codex",
     });
 
     expect(parsed.model).toBeUndefined();

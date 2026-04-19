@@ -27,7 +27,6 @@ function scaffold(db: AppDatabase) {
   });
   db.saveConnector({
     id: "gemini-cli",
-    command: "gemini",
     model: "gemini-pro",
     envBindingText: "",
     notes: "Test connector",

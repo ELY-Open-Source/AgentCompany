@@ -132,7 +132,7 @@ export function ExecutionSections({ section }: ExecutionSectionsProps) {
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
                       <div className="text-[14px] font-medium text-foreground">{connector.label}</div>
-                      <div className="mt-1 truncate text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{connector.command}</div>
+                      <div className="mt-1 truncate text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{connector.id}</div>
                     </div>
                     <StatusPill status={connector.status} />
                   </div>

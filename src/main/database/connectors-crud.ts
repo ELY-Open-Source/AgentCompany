@@ -3,7 +3,6 @@ import log from "electron-log/main.js";
 import type { ConnectorId, ConnectorRecord } from "@shared/types";
 import type { ReadAll } from "./helpers";
 import { nowIso } from "./helpers";
-import { normalizeCommandValue } from "../connector-helpers";
 import {
   CONNECTORS,
   getConnectorDefinition,
@@ -20,11 +19,11 @@ export function buildConnectorMethods(
   function readConnectors(): ConnectorRecord[] {
     const rows = readAll<{
       id: string; label: string; description: string; status: ConnectorRecord["status"];
-      command: string; version: string | null; auth_state: ConnectorRecord["authState"];
+      version: string | null; auth_state: ConnectorRecord["authState"];
       last_checked_at: string | null; last_error: string | null; model: string | null;
       env_binding_text: string; notes: string;
     }>(
-      "select id, label, description, status, command, version, auth_state, last_checked_at, last_error, model, env_binding_text, notes from connectors order by label asc",
+      "select id, label, description, status, version, auth_state, last_checked_at, last_error, model, env_binding_text, notes from connectors order by label asc",
     );
     const result: ConnectorRecord[] = [];
     for (const row of rows) {
@@ -40,7 +39,6 @@ export function buildConnectorMethods(
         label: row.label,
         description: row.description,
         status: row.status,
-        command: normalizeCommandValue(row.command),
         version: row.version,
         authState: row.auth_state,
         lastCheckedAt: row.last_checked_at,
@@ -60,17 +58,15 @@ export function buildConnectorMethods(
 
     saveConnector(input: {
       id: ConnectorId;
-      command: string;
       model: string | null;
       envBindingText: string;
       notes: string;
     }) {
-      const normalizedCommand = normalizeCommandValue(input.command);
       getDb()
         .prepare(
-          "update connectors set command = ?, model = ?, env_binding_text = ?, notes = ?, updated_at = ? where id = ?",
+          "update connectors set model = ?, env_binding_text = ?, notes = ?, updated_at = ? where id = ?",
         )
-        .run(normalizedCommand, input.model, input.envBindingText, input.notes, nowIso(), input.id);
+        .run(input.model, input.envBindingText, input.notes, nowIso(), input.id);
     },
 
     updateConnectorHealth(input: {
@@ -90,7 +86,7 @@ export function buildConnectorMethods(
     findConnector(id: ConnectorId): ConnectorRecord | null {
       const row = getDb()
         .prepare(
-          "select id, label, description, status, command, version, auth_state, last_checked_at, last_error, model, env_binding_text, notes from connectors where id = ?",
+          "select id, label, description, status, version, auth_state, last_checked_at, last_error, model, env_binding_text, notes from connectors where id = ?",
         )
         .get(id) as
         | {
@@ -98,7 +94,6 @@ export function buildConnectorMethods(
             label: string;
             description: string;
             status: ConnectorRecord["status"];
-            command: string;
             version: string | null;
             auth_state: ConnectorRecord["authState"];
             last_checked_at: string | null;
@@ -121,7 +116,6 @@ export function buildConnectorMethods(
         label: row.label,
         description: row.description,
         status: row.status,
-        command: normalizeCommandValue(row.command),
         version: row.version,
         authState: row.auth_state,
         lastCheckedAt: row.last_checked_at,
@@ -146,18 +140,21 @@ export function buildConnectorMethods(
       getDb().prepare(`delete from connectors where id not in (${validIds})`).run();
 
       const currentRows = readAll<Partial<ConnectorRecord>>(
-        "select id, label, description, status, command, version, auth_state as authState, last_checked_at as lastCheckedAt, last_error as lastError, model, env_binding_text as envBindingText, notes from connectors",
+        "select id, label, description, status, version, auth_state as authState, last_checked_at as lastCheckedAt, last_error as lastError, model, env_binding_text as envBindingText, notes from connectors",
       );
 
       const merged = buildDefaultConnectorRows(currentRows);
+      // `command` column stays in the schema as NOT NULL for legacy reasons;
+      // pi-mono has no CLI so we always write an empty string. Column is
+      // never read by runtime code.
       const statement = getDb().prepare(
-        "insert or replace into connectors (id, label, description, status, command, version, auth_state, last_checked_at, last_error, model, env_binding_text, notes, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "insert or replace into connectors (id, label, description, status, command, version, auth_state, last_checked_at, last_error, model, env_binding_text, notes, updated_at) values (?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?)",
       );
       const updatedAt = nowIso();
       for (const row of merged) {
         statement.run(
           row.id, row.label, row.description, row.status,
-          row.command, row.version, row.authState, row.lastCheckedAt,
+          row.version, row.authState, row.lastCheckedAt,
           row.lastError, row.model, row.envBindingText, row.notes, updatedAt,
         );
       }

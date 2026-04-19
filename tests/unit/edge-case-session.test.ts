@@ -30,7 +30,6 @@ function scaffold(db: AppDatabase, connectorId: ConnectorId = "gemini-cli") {
   // Always save gemini-cli (needed for most tests)
   db.saveConnector({
     id: "gemini-cli",
-    command: "gemini",
     model: "gemini-pro",
     envBindingText: "",
     notes: "Test connector - no native context management",

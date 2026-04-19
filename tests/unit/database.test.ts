@@ -96,7 +96,6 @@ describe("AppDatabase", () => {
     });
     db.saveConnector({
       id: "openai-codex",
-      command: "codex",
       model: "gpt-5",
       envBindingText: "OPENAI_API_KEY=vault-openai",
       notes: "Primary coding connector",
@@ -197,7 +196,6 @@ describe("AppDatabase", () => {
     });
     db.saveConnector({
       id: "openai-codex",
-      command: "codex",
       model: "gpt-5",
       envBindingText: "",
       notes: "Test connector",

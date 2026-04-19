@@ -360,7 +360,6 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     workspaceId: workspaceMode === "exclusive" ? (workspace?.id ?? null) : null,
     workspacePath: workspace?.localPath ?? null,
     workspaceMode,
-    command: connector.command,
     model: modelSelection.effectiveModel,
     thinkingEffort,
     env,

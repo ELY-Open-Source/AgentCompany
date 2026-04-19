@@ -86,10 +86,6 @@ export function registerCoreAdminHandlers({
 
   registerHandle(IPC_CHANNELS.saveConnector, async (_event, payload) => {
     const parsed = connectorInputSchema.parse(payload);
-    const existingConnector = db.getConnector(parsed.id);
-    if (parsed.command !== existingConnector.command) {
-      return fail("CONNECTOR_COMMAND_LOCKED", `Connector command is managed by AgentCompany and must remain "${existingConnector.command}".`);
-    }
     const connectorConfigValidation = validateConnectorConfigurationModel(parsed.id, parsed.model ?? null);
     if (!connectorConfigValidation.ok) {
       return fail("CONNECTOR_MODEL_NOT_ALLOWED", connectorConfigValidation.error);
@@ -99,7 +95,6 @@ export function registerCoreAdminHandlers({
     // happens at run dispatch time where the company is known.
     db.saveConnector({
       ...parsed,
-      command: existingConnector.command,
       model: parsed.model ?? null,
     });
     db.addActivity({
@@ -108,7 +103,7 @@ export function registerCoreAdminHandlers({
       action: "connector.updated",
       entityType: "connector",
       entityId: parsed.id,
-      detail: existingConnector.command,
+      detail: parsed.id,
     });
     publishDomainChanged();
     return ok(true);

@@ -29,7 +29,6 @@ function createTestCompany(db: AppDatabase): string {
 function createTestConnector(db: AppDatabase): void {
   db.saveConnector({
     id: "openai-codex",
-    command: "codex",
     model: "gpt-5",
     envBindingText: "",
     notes: "Test connector",

@@ -18,11 +18,10 @@ describe("parseEnvBindingText", () => {
 });
 
 describe("buildDefaultConnectorRows", () => {
-  it("preserves previously saved connector commands", () => {
+  it("preserves previously saved connector overrides", () => {
     const rows = buildDefaultConnectorRows([
       {
         id: "openai-codex",
-        command: "/usr/local/bin/codex",
         status: "ready",
         notes: "custom note",
       },
@@ -33,7 +32,6 @@ describe("buildDefaultConnectorRows", () => {
     }
 
     expect(codex.id).toBe("openai-codex");
-    expect(codex.command).toBe("/usr/local/bin/codex");
     expect(codex.status).toBe("ready");
     expect(codex.notes).toBe("custom note");
     expect(codex.capabilityMatrix.structuredTranscript).toBe(true);

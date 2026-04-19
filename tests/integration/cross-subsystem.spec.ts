@@ -59,7 +59,6 @@ function scaffold(db: AppDatabase, budgetAmountCents = 500): ScaffoldResult {
 
   db.saveConnector({
     id: connectorId,
-    command: "gemini",
     model: "gemini-2.5-pro",
     envBindingText: "",
     notes: "Non-exempt connector for session rotation tests",

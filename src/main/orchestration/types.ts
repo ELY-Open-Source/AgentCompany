@@ -37,7 +37,6 @@ export interface EnqueueRunPayload {
   workspaceId: string | null;
   workspacePath: string | null;
   workspaceMode: WorkspaceLockMode;
-  command: string;
   model: string | null;
   thinkingEffort: string | null;
   env: Record<string, string>;

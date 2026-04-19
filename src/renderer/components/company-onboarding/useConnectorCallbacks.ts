@@ -22,7 +22,6 @@ export function useConnectorCallbacks(connectors: ProfileSnapshot["connectors"])
     try {
       unwrap(await window.agentCompany.saveConnector({
         id: connectorId as ConnectorId,
-        command: connector.command,
         model,
         envBindingText,
         notes: notes ?? connector.notes,

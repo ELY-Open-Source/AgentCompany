@@ -43,7 +43,6 @@ export interface ConnectorRecord {
   label: string;
   description: string;
   status: ConnectorStatus;
-  command: string;
   version: string | null;
   authState: "unknown" | "ok" | "required" | "error";
   lastCheckedAt: string | null;

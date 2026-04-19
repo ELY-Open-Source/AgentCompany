@@ -289,7 +289,7 @@ export class AppDatabaseBase {
 
   // ─── Connectors ────────────────────────────────────────────────────────────
 
-  saveConnector(input: { id: ConnectorId; command: string; model: string | null; envBindingText: string; notes: string }) { this.connectorsCrud.saveConnector(input); }
+  saveConnector(input: { id: ConnectorId; model: string | null; envBindingText: string; notes: string }) { this.connectorsCrud.saveConnector(input); }
   updateConnectorHealth(input: { id: ConnectorId; status: string; authState: string; version: string | null; lastError: string | null }) { this.connectorsCrud.updateConnectorHealth(input); }
   getConnector(id: ConnectorId) { return this.connectorsCrud.getConnector(id); }
   findConnector(id: ConnectorId) { return this.connectorsCrud.findConnector(id); }

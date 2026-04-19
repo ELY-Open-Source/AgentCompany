@@ -3,7 +3,8 @@ import type { RunStatus } from "@shared/types";
 export interface RunJob {
   runId: string;
   companyId: string;
-  taskId: string;
+  /** Null for heartbeat runs with no assigned task. Must stay aligned with EnqueueRunPayload. */
+  taskId: string | null;
   taskTitle: string;
   taskDescription: string;
   agentId: string;
@@ -12,7 +13,6 @@ export interface RunJob {
   workspaceId: string | null;
   workspacePath: string | null;
   workspaceMode: "exclusive" | "shared" | "none";
-  command: string;
   model: string | null;
   thinkingEffort: string | null;
   env: Record<string, string>;

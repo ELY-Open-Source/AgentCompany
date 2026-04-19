@@ -38,7 +38,6 @@ function createTestCompany(db: AppDatabase): string {
 function createTestConnector(db: AppDatabase): void {
   db.saveConnector({
     id: "gemini-cli",
-    command: "gemini",
     model: "gemini-pro",
     envBindingText: "",
     notes: "Test connector for concurrent checkout",

@@ -52,7 +52,6 @@ function makeConnector(id: string): ConnectorRecord {
     label: id,
     description: "",
     status: "ready",
-    command: "",
     version: null,
     authState: "ok",
     lastCheckedAt: null,

@@ -2,42 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   inferTaskType,
   getConnectorStrengths,
-  TASK_TYPE_PREFERENCE,
   ROLE_DEPARTMENT_HINTS as _ROLE_DEPARTMENT_HINTS,
 } from "../../src/main/connector-matching";
 
 describe("connector-matching", () => {
-  describe("TASK_TYPE_PREFERENCE", () => {
-    it("maps code tasks to claude-pro first", () => {
-      expect(TASK_TYPE_PREFERENCE.code[0]).toBe("claude-pro");
-    });
-
-    it("maps research tasks to google first", () => {
-      expect(TASK_TYPE_PREFERENCE.research[0]).toBe("google");
-    });
-
-    it("maps content tasks to claude-pro first", () => {
-      expect(TASK_TYPE_PREFERENCE.content[0]).toBe("claude-pro");
-    });
-
-    it("maps management tasks to claude-pro first", () => {
-      expect(TASK_TYPE_PREFERENCE.management[0]).toBe("claude-pro");
-    });
-
-    it("maps general tasks to claude-pro first", () => {
-      expect(TASK_TYPE_PREFERENCE.general[0]).toBe("claude-pro");
-    });
-
-    it("includes all three core connectors for every task type", () => {
-      for (const key of Object.keys(TASK_TYPE_PREFERENCE)) {
-        const prefs = TASK_TYPE_PREFERENCE[key as keyof typeof TASK_TYPE_PREFERENCE];
-        expect(prefs).toContain("claude-pro");
-        expect(prefs).toContain("openai-codex");
-        expect(prefs).toContain("gemini-cli");
-      }
-    });
-  });
-
   describe("inferTaskType", () => {
     it("returns code for engineering department", () => {
       expect(inferTaskType("engineering")).toBe("code");

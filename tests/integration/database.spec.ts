@@ -104,7 +104,6 @@ describe("AppDatabase", () => {
 
     db.saveConnector({
       id: "openai-codex",
-      command: "codex",
       model: null,
       envBindingText: "OPENAI_API_KEY=vault-openai",
       notes: "Connector note",

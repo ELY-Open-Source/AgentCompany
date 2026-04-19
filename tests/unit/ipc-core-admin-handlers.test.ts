@@ -55,19 +55,8 @@ describe("ipc-core-admin-handlers connector saves", () => {
       throw new Error("saveConnector handler was not registered.");
     }
 
-    // Pi-mono connectors default to an empty command; the schema requires a
-    // non-empty one, so seed it before hitting the IPC handler.
-    db.saveConnector({
-      id: "anthropic",
-      command: "pi-mono",
-      model: null,
-      envBindingText: "",
-      notes: "",
-    });
-
     const result = await saveConnector(null as unknown as IpcMainInvokeEvent, {
       id: "anthropic",
-      command: "pi-mono",
       model: anthropicModel,
       envBindingText: "ANTHROPIC_BASE_URL=https://example.com/anthropic",
       notes: "Pi-mono connector",

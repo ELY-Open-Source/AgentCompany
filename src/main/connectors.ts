@@ -31,13 +31,6 @@ const PI_MONO_CAPABILITIES: CapabilityMatrix = {
   costAttribution: true,
 };
 
-/**
- * Legacy `ConnectorRecord.command` column. Pi-mono has no CLI command — the
- * worker calls pi-ai directly — so this is an empty string that the UI
- * treats as "managed by pi-mono".
- */
-const PI_MONO_DEFAULT_COMMAND = "";
-
 export function getConnectorDefinition(id: string) {
   const definition = CONNECTORS.find((entry) => entry.id === id);
   if (!definition) {
@@ -105,7 +98,6 @@ export function buildDefaultConnectorRows(existing: Array<Partial<ConnectorRecor
       label: definition.label,
       description: definition.description,
       status: existingRecord?.status ?? "not_installed",
-      command: existingRecord?.command ?? PI_MONO_DEFAULT_COMMAND,
       version: existingRecord?.version ?? null,
       authState: existingRecord?.authState ?? "unknown",
       lastCheckedAt: existingRecord?.lastCheckedAt ?? null,

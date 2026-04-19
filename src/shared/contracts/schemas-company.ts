@@ -53,7 +53,6 @@ export type ConnectorId = z.infer<typeof connectorIdEnum>;
 
 export const connectorInputSchema = z.object({
   id: connectorIdEnum,
-  command: z.string().min(1),
   model: z.string().nullable().optional(),
   envBindingText: z.string().default(""),
   notes: z.string().default(""),

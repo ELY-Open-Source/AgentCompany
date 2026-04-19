@@ -32,7 +32,6 @@ function seedCompany(db: AppDatabase) {
   });
   db.saveConnector({
     id: "openai-codex",
-    command: "codex",
     model: "gpt-5",
     envBindingText: "",
     notes: "fixture",
