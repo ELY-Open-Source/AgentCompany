@@ -214,6 +214,46 @@ export function buildThreadMethods(getDb: () => DatabaseSync, readAll: ReadAll) 
       }));
     },
 
+    /**
+     * Returns true when the agent owns an unresolved wait state on any
+     * thread type — task, approval, or freeform. Ownership is the union
+     * of three predicates so approval-only threads and ad-hoc threads
+     * are no longer invisible to the heartbeat scheduler and the
+     * `beforeToolCall` gate:
+     *
+     *   1. Task thread whose task is assigned to the agent.
+     *   2. Approval thread whose approval was requested by the agent.
+     *   3. Any thread on which the agent is a recorded participant.
+     *
+     * Each branch uses an EXISTS subquery so the query short-circuits
+     * as soon as one wait state matches.
+     */
+    hasUnresolvedWaitStateForAgent(companyId: string, agentId: string): boolean {
+      const rows = readAll<{ id: string }>(
+        `SELECT tws.id FROM thread_wait_states tws
+         JOIN conversation_threads ct ON ct.id = tws.thread_id
+         WHERE tws.company_id = ?
+           AND tws.resolved_at IS NULL
+           AND (
+             (ct.related_entity_type = 'task' AND EXISTS (
+               SELECT 1 FROM tasks t
+               WHERE t.id = ct.related_entity_id AND t.assignee_agent_id = ?
+             ))
+             OR (ct.related_entity_type = 'approval' AND EXISTS (
+               SELECT 1 FROM approvals a
+               WHERE a.id = ct.related_entity_id AND a.requested_by_agent_id = ?
+             ))
+             OR EXISTS (
+               SELECT 1 FROM conversation_participants cp
+               WHERE cp.thread_id = tws.thread_id AND cp.participant_id = ?
+             )
+           )
+         LIMIT 1`,
+        companyId, agentId, agentId, agentId,
+      );
+      return rows.length > 0;
+    },
+
     // ── Participants ──────────────────────────────────────────────────────
 
     addParticipant(input: {

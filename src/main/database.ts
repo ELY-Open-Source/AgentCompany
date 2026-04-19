@@ -165,6 +165,7 @@ export class AppDatabase extends AppDatabaseBase {
   setThreadWaitState(input: Parameters<ReturnType<typeof buildThreadMethods>["setThreadWaitState"]>[0]) { return this.threads.setThreadWaitState(input); }
   resolveThreadWaitState(waitStateId: string, companyId: string) { return this.threads.resolveThreadWaitState(waitStateId, companyId); }
   listThreadWaitStates(companyId: string, options?: Parameters<ReturnType<typeof buildThreadMethods>["listThreadWaitStates"]>[1]) { return this.threads.listThreadWaitStates(companyId, options); }
+  hasUnresolvedWaitStateForAgent(companyId: string, agentId: string) { return this.threads.hasUnresolvedWaitStateForAgent(companyId, agentId); }
   addParticipant(input: Parameters<ReturnType<typeof buildThreadMethods>["addParticipant"]>[0]) { return this.threads.addParticipant(input); }
   listParticipants(threadId: string) { return this.threads.listParticipants(threadId); }
   removeParticipant(threadId: string, participantId: string) { return this.threads.removeParticipant(threadId, participantId); }

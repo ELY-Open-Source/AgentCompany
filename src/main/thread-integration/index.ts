@@ -330,22 +330,14 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
     },
 
     /**
-     * Checks whether a specific agent has unresolved thread wait states.
-     * Joins through conversation_threads → tasks to filter by assignee.
-     * Used by heartbeat scheduler to pause only the affected agent, not all agents.
+     * Checks whether a specific agent has unresolved thread wait states
+     * across task, approval, and freeform threads. The query lives on
+     * `db.hasUnresolvedWaitStateForAgent` so the heartbeat scheduler and
+     * the pi `beforeToolCall` hook share one source of truth.
      */
     hasUnresolvedWaitStatesForAgent(companyId: string, agentId: string): boolean {
       try {
-        const rows = db.queryAll<{ id: string }>(
-          `SELECT tws.id FROM thread_wait_states tws
-           JOIN conversation_threads ct ON tws.thread_id = ct.id
-           JOIN tasks t ON ct.related_entity_id = t.id AND ct.related_entity_type = 'task'
-           WHERE tws.company_id = ? AND tws.resolved_at IS NULL
-           AND t.assignee_agent_id = ?
-           LIMIT 1`,
-          companyId, agentId,
-        );
-        return rows.length > 0;
+        return db.hasUnresolvedWaitStateForAgent(companyId, agentId);
       } catch (err) {
         logger.warn(`[thread-integration] hasUnresolvedWaitStatesForAgent query failed (company=${companyId} agent=${agentId}):`, err instanceof Error ? err.message : String(err));
         return false;
