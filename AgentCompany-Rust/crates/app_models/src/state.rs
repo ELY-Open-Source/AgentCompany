@@ -3,6 +3,7 @@ use domain::SectionId;
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum OnboardingStep {
     #[default]
+    Welcome,
     NodeCheck,
     Providers,
     Company,

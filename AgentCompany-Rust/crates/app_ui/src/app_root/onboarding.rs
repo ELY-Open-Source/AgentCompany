@@ -6,98 +6,159 @@ use std::time::Duration;
 impl AppRoot {
     pub(super) fn render_onboarding(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
         let step = self.state.onboarding_step;
-        let readiness = onboarding_readiness(
-            &self.snapshot,
-            self.state.onboarding_connector_id.as_deref(),
-        );
 
-        div().size_full().bg(theme::window_bg()).child(
-            div()
-                .size_full()
-                .flex()
-                .child(self.render_onboarding_story(step, &readiness))
-                .child(div().w(px(12.0)).bg(theme::split_divider()))
-                .child(self.render_onboarding_panel(step, cx)),
-        )
+        if step == OnboardingStep::Welcome {
+            return self.render_onboarding_welcome(cx).into_any_element();
+        }
+
+        div()
+            .size_full()
+            .bg(theme::window_bg())
+            .child(
+                div()
+                    .size_full()
+                    .flex()
+                    .child(self.render_onboarding_hero(step))
+                    .child(self.render_onboarding_shell(step, cx)),
+            )
+            .into_any_element()
     }
 
-    fn render_onboarding_story(
-        &self,
-        step: OnboardingStep,
-        readiness: &[ConnectorReadiness<'_>],
-    ) -> impl IntoElement + '_ {
+    fn render_onboarding_welcome(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
+        div()
+            .size_full()
+            .bg(theme::window_bg())
+            .flex()
+            .items_center()
+            .justify_center()
+            .relative()
+            .child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .right_0()
+                    .h(px(160.0))
+                    .bg(theme::window_bg()),
+            )
+            .child(
+                div()
+                    .w(px(680.0))
+                    .px_8()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .text_center()
+                    .child(
+                        div()
+                            .text_size(px(64.0))
+                            .line_height(px(68.0))
+                            .text_color(theme::text_primary())
+                            .child("AgentCompany"),
+                    )
+                    .child(
+                        div()
+                            .mt(px(16.0))
+                            .max_w(px(480.0))
+                            .text_size(px(16.0))
+                            .line_height(px(28.0))
+                            .text_color(theme::text_muted())
+                            .child("Set up your company, connect a runtime, choose an execution mode, and launch the first native operating loop."),
+                    )
+                    .child(div().mt(px(40.0)).child(primary_button("Get Started", cx, |this, cx| {
+                        this.state.onboarding_step = OnboardingStep::NodeCheck;
+                        cx.notify();
+                    })))
+                    .child(
+                        div()
+                            .mt(px(24.0))
+                            .flex()
+                            .gap_3()
+                            .items_center()
+                            .child(div().text_sm().text_color(theme::text_muted()).child("Language"))
+                            .child(selectable_chip("EN", self.snapshot.locale == "en", cx, |this, cx| {
+                                this.update_locale("en", cx);
+                            }))
+                            .child(selectable_chip("ZH", self.snapshot.locale == "zh", cx, |this, cx| {
+                                this.update_locale("zh", cx);
+                            })),
+                    ),
+            )
+    }
+
+    fn render_onboarding_hero(&self, step: OnboardingStep) -> impl IntoElement + '_ {
         div()
             .flex_1()
             .flex()
             .items_center()
             .justify_center()
+            .px_8()
+            .py_12()
             .child(
                 div()
-                    .w(px(620.0))
-                    .gap_8()
+                    .w(px(460.0))
                     .child(onboarding_eyebrow("AGENTCOMPANY DESKTOP"))
                     .child(
                         div()
+                            .mt(px(24.0))
+                            .text_size(px(44.0))
+                            .line_height(px(46.0))
                             .text_color(theme::text_primary())
-                            .child(
-                                div()
-                                    .text_size(px(68.0))
-                                    .line_height(px(68.0))
-                                    .child("Start a real local-first"),
-                            )
-                            .child(
-                                div()
-                                    .text_size(px(68.0))
-                                    .line_height(px(68.0))
-                                    .child("agent company."),
-                            ),
+                            .child("Start a real local-first\nagent company."),
                     )
                     .child(
                         div()
-                            .max_w(px(560.0))
-                            .text_size(px(18.0))
-                            .line_height(px(30.0))
+                            .mt(px(16.0))
+                            .max_w(px(400.0))
+                            .text_sm()
+                            .line_height(px(24.0))
                             .text_color(theme::text_muted())
                             .child("Set up your company, connect a runtime, choose an execution mode, and launch the first native operating loop."),
                     )
-                    .child(onboarding_stepper(step))
-                    .child(
-                        div()
-                            .mt(px(44.0))
-                            .gap_5()
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(theme::text_muted())
-                                    .child("CONNECTOR READINESS"),
-                            )
-                            .children(readiness.iter().map(|item| readiness_row(item))),
-                    )
-                    .child(div().mt(px(56.0)).child(onboarding_eyebrow("BY ELYDORA"))),
+                    .child(div().mt(px(40.0)).child(onboarding_hero_stepper(step))),
             )
     }
 
-    fn render_onboarding_panel(
+    fn render_onboarding_shell(
         &self,
         step: OnboardingStep,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + '_ {
         div()
-            .w(px(620.0))
-            .flex()
-            .items_center()
-            .justify_center()
-            .child(match step {
-                OnboardingStep::NodeCheck => self.render_nodecheck_panel(cx).into_any_element(),
-                OnboardingStep::Providers => self.render_providers_panel(cx).into_any_element(),
-                OnboardingStep::Company => self.render_company_setup_panel(cx).into_any_element(),
-                OnboardingStep::ModelPool => self.render_model_pool_panel(cx).into_any_element(),
-                OnboardingStep::ExecutionMode => {
-                    self.render_execution_mode_panel(cx).into_any_element()
-                }
-                OnboardingStep::Mission => self.render_mission_setup_panel(cx).into_any_element(),
-                OnboardingStep::Launch => self.render_launch_summary_panel(cx).into_any_element(),
-            })
+            .w(px(540.0))
+            .border_l_1()
+            .border_color(theme::panel_border())
+            .bg(theme::window_bg())
+            .child(
+                div()
+                    .px_10()
+                    .py_10()
+                    .child(onboarding_tab_strip(step, cx))
+                    .child(div().mt(px(24.0)).flex().items_center().child(match step {
+                        OnboardingStep::Welcome => div().into_any_element(),
+                        OnboardingStep::NodeCheck => {
+                            self.render_nodecheck_panel(cx).into_any_element()
+                        }
+                        OnboardingStep::Providers => {
+                            self.render_providers_panel(cx).into_any_element()
+                        }
+                        OnboardingStep::Company => {
+                            self.render_company_setup_panel(cx).into_any_element()
+                        }
+                        OnboardingStep::ModelPool => {
+                            self.render_model_pool_panel(cx).into_any_element()
+                        }
+                        OnboardingStep::ExecutionMode => {
+                            self.render_execution_mode_panel(cx).into_any_element()
+                        }
+                        OnboardingStep::Mission => {
+                            self.render_mission_setup_panel(cx).into_any_element()
+                        }
+                        OnboardingStep::Launch => {
+                            self.render_launch_summary_panel(cx).into_any_element()
+                        }
+                    })),
+            )
     }
 
     fn render_nodecheck_panel(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
@@ -149,7 +210,11 @@ impl AppRoot {
                 div()
                     .mt(px(28.0))
                     .flex()
-                    .justify_end()
+                    .justify_between()
+                    .child(secondary_button("Back", cx, |this, cx| {
+                        this.state.onboarding_step = OnboardingStep::Welcome;
+                        cx.notify();
+                    }))
                     .child(primary_button("Continue to providers", cx, |this, cx| {
                         this.state.onboarding_step = OnboardingStep::Providers;
                         cx.notify();
@@ -616,20 +681,79 @@ fn onboarding_eyebrow(label: &'static str) -> impl IntoElement {
         .child(div().text_xs().text_color(theme::text_muted()).child(label))
 }
 
-fn onboarding_stepper(step: OnboardingStep) -> impl IntoElement {
+fn onboarding_tab_strip(step: OnboardingStep, cx: &mut Context<AppRoot>) -> impl IntoElement {
     let steps = [
-        ("Node check", OnboardingStep::NodeCheck),
+        ("Node Check", OnboardingStep::NodeCheck),
         ("Providers", OnboardingStep::Providers),
         ("Company", OnboardingStep::Company),
-        ("Model pool", OnboardingStep::ModelPool),
-        ("Execution mode", OnboardingStep::ExecutionMode),
+        ("Model Pool", OnboardingStep::ModelPool),
+        ("Mode", OnboardingStep::ExecutionMode),
+        ("Mission", OnboardingStep::Mission),
+    ];
+
+    div()
+        .flex()
+        .gap_1()
+        .border_b_1()
+        .border_color(theme::panel_border())
+        .children(steps.into_iter().map(|(label, target_step)| {
+            let active = step == target_step;
+            let completed = onboarding_step_index(step) > onboarding_step_index(target_step);
+            onboarding_tab_button(label, target_step, active, completed, cx).into_any_element()
+        }))
+}
+
+fn onboarding_tab_button(
+    label: &'static str,
+    target_step: OnboardingStep,
+    active: bool,
+    completed: bool,
+    cx: &mut Context<AppRoot>,
+) -> impl IntoElement {
+    div()
+        .id(SharedString::from(format!("onboarding-tab-{label}")))
+        .relative()
+        .px_3()
+        .py_2()
+        .cursor_pointer()
+        .text_xs()
+        .text_color(if active {
+            theme::text_primary()
+        } else if completed {
+            theme::accent_teal()
+        } else {
+            theme::text_muted()
+        })
+        .hover(|style| style.text_color(theme::text_primary()))
+        .on_click(cx.listener(move |this, _, _, cx| {
+            this.state.onboarding_step = target_step;
+            cx.notify();
+        }))
+        .child(label)
+        .when(active, |element| {
+            element.child(
+                div()
+                    .absolute()
+                    .left(px(8.0))
+                    .right(px(8.0))
+                    .bottom(px(-1.0))
+                    .h(px(2.0))
+                    .bg(theme::primary_action()),
+            )
+        })
+}
+
+fn onboarding_hero_stepper(step: OnboardingStep) -> impl IntoElement {
+    let steps = [
+        ("Node Check", OnboardingStep::NodeCheck),
+        ("Providers", OnboardingStep::Providers),
+        ("Company", OnboardingStep::Company),
+        ("Model Pool", OnboardingStep::ModelPool),
+        ("Mode", OnboardingStep::ExecutionMode),
         ("Mission", OnboardingStep::Mission),
         ("Launch", OnboardingStep::Launch),
     ];
-    let active_index = steps
-        .iter()
-        .position(|(_, current)| *current == step)
-        .unwrap_or_default();
+    let active_index = onboarding_step_index(step);
 
     let mut children = Vec::new();
     for (index, (label, current_step)) in steps.into_iter().enumerate() {
@@ -647,6 +771,19 @@ fn onboarding_stepper(step: OnboardingStep) -> impl IntoElement {
         .gap_3()
         .items_center()
         .children(children)
+}
+
+fn onboarding_step_index(step: OnboardingStep) -> usize {
+    match step {
+        OnboardingStep::Welcome => 0,
+        OnboardingStep::NodeCheck => 0,
+        OnboardingStep::Providers => 1,
+        OnboardingStep::Company => 2,
+        OnboardingStep::ModelPool => 3,
+        OnboardingStep::ExecutionMode => 4,
+        OnboardingStep::Mission => 5,
+        OnboardingStep::Launch => 6,
+    }
 }
 
 fn major_step_chip(label: &'static str, current: bool, complete: bool) -> impl IntoElement {
@@ -753,8 +890,8 @@ fn readiness_dot(tone: ReadinessTone) -> impl IntoElement {
 
 fn onboarding_card() -> gpui::Div {
     div()
-        .w(px(650.0))
-        .p_10()
+        .w_full()
+        .p_8()
         .rounded_lg()
         .border_1()
         .border_color(theme::panel_border())

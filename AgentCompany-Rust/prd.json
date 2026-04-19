@@ -198,6 +198,46 @@
       "priority": 14,
       "passes": true,
       "notes": "Passed: final source-to-native parity re-audit completed. Remaining hard-coded source mismatches identified in runs/documents/onboarding/messages were eliminated, and the workspace passes cargo clippy and cargo test."
+    },
+    {
+      "id": "US-015",
+      "title": "Restore onboarding shell topology to original wizard grammar",
+      "description": "As a first-time operator, I want the native onboarding shell to mirror the original Electron wizard structure so that setup feels identical page-to-page.",
+      "acceptanceCriteria": [
+        "Native onboarding uses original wizard-like shell semantics instead of the custom story/panel split",
+        "Step progress and CTA placement align with the original topography",
+        "Typecheck passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": "Passed: native onboarding now restores the original shell grammar with a dedicated welcome screen, left hero plus fixed right panel topology, top step tabs, and source-aligned back/continue flow while preserving the real Rust bootstrap logic."
+    },
+    {
+      "id": "US-016",
+      "title": "Restore dashboard topology to original banner-chart-attention grammar",
+      "description": "As an operator, I want the native dashboard structure to mirror the original Electron dashboard so that information hierarchy is unchanged.",
+      "acceptanceCriteria": [
+        "Dashboard restores original banner, metrics, chart, attention, active work, and recent activity section topology",
+        "Typecheck passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": "Reopened after strict source audit: current overview is closer than before but still custom in grammar and component topology."
+    },
+    {
+      "id": "US-017",
+      "title": "Restore runs detail and queue shell to original operational grammar",
+      "description": "As an operator, I want the native runs page to preserve the original RunQueue and RunDetail shell structure so that run inspection feels identical.",
+      "acceptanceCriteria": [
+        "Runs page restores original queue/detail shell semantics and hierarchy",
+        "Typecheck passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": "Reopened after strict source audit: current runs page keeps real runtime data but still uses custom card grammar."
     }
   ]
 }

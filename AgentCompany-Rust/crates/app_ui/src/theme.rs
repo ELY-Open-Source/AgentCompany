@@ -32,10 +32,6 @@ pub fn panel_muted() -> Hsla {
     rgb(0xf1f4f8).into()
 }
 
-pub fn split_divider() -> Hsla {
-    rgb(0xdbe2ea).into()
-}
-
 pub fn text_primary() -> Hsla {
     rgb(0x171c25).into()
 }
