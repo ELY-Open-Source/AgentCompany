@@ -126,8 +126,8 @@
         "cargo test --workspace passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": "Final confidence layer before calling the rewrite complete."
+      "passes": true,
+      "notes": "Completed with the final native verification matrix: profile_store_e2e.rs covers onboarding bootstrap, native_surface_e2e.rs covers run/approval/document visibility, native_settings_workspace_e2e.rs covers settings/workspaces, runtime_live_flow_e2e.rs covers live runtime approval/message/run flows, and native_inbox_attention_e2e.rs covers inbox attention derivation. cargo clippy/test both pass."
     }
   ]
 }
