@@ -60,6 +60,19 @@ interface InboundCorrelationEntry {
   fromAgentId: string;
   senderKind: AgentMessageRecord["senderKind"];
   messageId: string;
+  /**
+   * Stable pi-message timestamp that the projected user turn carries.
+   * Reverse-indexed so `message_end` (which only surfaces the pi
+   * message shape) can resolve back to `messageId` without relying on
+   * wall-clock millisecond precision.
+   */
+  piTimestamp: number;
+}
+
+interface InboundCorrelationRegistry {
+  byMessageId: Map<string, InboundCorrelationEntry>;
+  byPiTimestamp: Map<number, string>;
+  lastAllocatedTimestamp: number;
 }
 
 export class RuntimeBridge {
@@ -67,15 +80,16 @@ export class RuntimeBridge {
   private readonly activeRuns = new Map<string, ActiveRunContext>();
   private readonly sessionStores = new Map<string, SqliteSessionStore>();
   /**
-   * Per-run mapping from pi-message timestamp to the inbound message that
-   * sourced it. The transcript only carries a rendered `[Message from X]`
-   * header, which is insufficient to recover the original author when the
-   * thread-event writer fires on `message_end`. Writers (inbox projection
-   * during prepareRun, steer injection during the run) register the entry
-   * before pi surfaces the message so the author-id survives the
-   * round-trip.
+   * Per-run inbound-message registry. Primary identity is
+   * `record.id` (the `agent_messages.id`). A monotonically allocated
+   * `piTimestamp` lives on every projected user turn so
+   * `message_end` — which only surfaces the pi-message shape — can
+   * invert the mapping back to the real author. The wall-clock
+   * `createdAt` is not enough: two messages that land in the same
+   * millisecond would collide on a timestamp-keyed map and one peer's
+   * identity would be silently lost in thread-event projection.
    */
-  private readonly inboundCorrelations = new Map<string, Map<number, InboundCorrelationEntry>>();
+  private readonly inboundCorrelations = new Map<string, InboundCorrelationRegistry>();
 
   constructor(private readonly deps: RuntimeBridgeDeps) {
     this.costWriter = new CostWriter({ db: deps.db });
@@ -131,25 +145,45 @@ export class RuntimeBridge {
   }
 
   /**
-   * Register an inbound message that is about to enter (or has already
-   * entered) the recipient's transcript as a user-role turn. Called from
-   * the prepareRun inbox projection and from `RuntimeMessageInjector` on
-   * steer-ack success so the `recordThreadEvent` hook can recover the
-   * original author instead of labelling peer messages as the recipient.
+   * Build the pi projection for an inbound message and register the
+   * correlation under `record.id`. Returns the projected user turn so
+   * callers (the prepareRun inbox loop, the runtime message injector)
+   * append / steer the same object that the bridge has indexed.
+   *
+   * A monotonically increasing `piTimestamp` is stamped onto the
+   * returned message so two inbound rows that share the same
+   * wall-clock millisecond still resolve to distinct correlation
+   * entries when `message_end` fires.
    */
-  registerInboundInjection(runId: string, record: AgentMessageRecord): void {
-    const timestamp = Date.parse(record.createdAt);
-    if (!Number.isFinite(timestamp)) return;
-    let runMap = this.inboundCorrelations.get(runId);
-    if (!runMap) {
-      runMap = new Map();
-      this.inboundCorrelations.set(runId, runMap);
-    }
-    runMap.set(timestamp, {
+  projectInboundMessage(runId: string, record: AgentMessageRecord): AgentMessage {
+    const registry = this.getOrCreateInboundRegistry(runId);
+    const base = Date.parse(record.createdAt);
+    const baseline = Number.isFinite(base) ? base : Date.now();
+    const allocated = Math.max(baseline, registry.lastAllocatedTimestamp + 1);
+    registry.lastAllocatedTimestamp = allocated;
+    const entry: InboundCorrelationEntry = {
       fromAgentId: record.fromAgentId,
       senderKind: record.senderKind,
       messageId: record.id,
-    });
+      piTimestamp: allocated,
+    };
+    registry.byMessageId.set(record.id, entry);
+    registry.byPiTimestamp.set(allocated, record.id);
+    return projectInboxMessageToPi(record, {
+      getAgentName: (id) => this.resolveAgentName(id),
+    }, { timestampOverride: allocated });
+  }
+
+  private getOrCreateInboundRegistry(runId: string): InboundCorrelationRegistry {
+    const existing = this.inboundCorrelations.get(runId);
+    if (existing) return existing;
+    const registry: InboundCorrelationRegistry = {
+      byMessageId: new Map(),
+      byPiTimestamp: new Map(),
+      lastAllocatedTimestamp: 0,
+    };
+    this.inboundCorrelations.set(runId, registry);
+    return registry;
   }
 
   /** Returns the active run context for a given agent, if any. Used by
@@ -373,9 +407,11 @@ export class RuntimeBridge {
     timestamp: number | undefined,
   ): InboundCorrelationEntry | null {
     if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) return null;
-    const runMap = this.inboundCorrelations.get(runId);
-    if (!runMap) return null;
-    return runMap.get(timestamp) ?? null;
+    const registry = this.inboundCorrelations.get(runId);
+    if (!registry) return null;
+    const messageId = registry.byPiTimestamp.get(timestamp);
+    if (!messageId) return null;
+    return registry.byMessageId.get(messageId) ?? null;
   }
 
   /**
@@ -495,15 +531,16 @@ export class RuntimeBridge {
     // whole closure.
     const store = this.getOrCreateStore(payload.taskSessionId);
     const inboxRecords = this.deps.db.listAgentInboxUnread(payload.companyId, payload.agentId);
-    const acceptedRecords: AgentMessageRecord[] = [];
     if (inboxRecords.length > 0) {
       this.deps.db.withTransaction(() => {
         for (const record of inboxRecords) {
           const claimed = this.deps.db.inboxProjections.claimProjection(record.id, payload.taskSessionId);
           if (!claimed) continue;
-          const projected = projectInboxMessageToPi(record, {
-            getAgentName: (id) => this.resolveAgentName(id),
-          });
+          // `projectInboundMessage` allocates a monotonic pi-timestamp
+          // and indexes the correlation under `record.id`. Two rows
+          // that share the same wall-clock millisecond still resolve
+          // to distinct authors at `message_end`.
+          const projected = this.projectInboundMessage(runId, record);
           store.appendMessage(projected);
           this.recordInboundMessageAsThreadEvent(
             {
@@ -514,16 +551,12 @@ export class RuntimeBridge {
             },
             record,
           );
-          acceptedRecords.push(record);
         }
         this.deps.db.markAgentInboxDelivered(
           payload.agentId,
           inboxRecords.map((r) => r.id),
         );
       });
-    }
-    for (const record of acceptedRecords) {
-      this.registerInboundInjection(runId, record);
     }
 
     const priorMessages = store.loadMessages();

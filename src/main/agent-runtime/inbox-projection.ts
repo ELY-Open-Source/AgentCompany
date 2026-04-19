@@ -66,12 +66,20 @@ function resolveSenderLabel(
 /**
  * Projects a stored `AgentMessageRecord` into a pi `AgentMessage`
  * (role: "user") suitable for appending to the recipient's session
- * transcript. `timestamp` carries the message's `createdAt` in
- * ms-since-epoch so transcript ordering aligns with wall-clock time.
+ * transcript.
+ *
+ * `timestampOverride`, when supplied, replaces the wall-clock timestamp
+ * derived from `record.createdAt`. Callers use this to allocate a
+ * monotonically unique value per run — two inbound messages landing in
+ * the same millisecond would otherwise share the same key, and the
+ * `RuntimeBridge` correlation index would lose one author's identity
+ * on the `message_end` callback. The actual value still lives in pi's
+ * `timestamp` number so ordering semantics remain identical.
  */
 export function projectInboxMessageToPi(
   record: AgentMessageRecord,
   directory: AgentDirectory,
+  options?: { timestampOverride?: number },
 ): AgentMessage {
   const senderLabel = resolveSenderLabel(record, directory);
   const channelLabel = formatChannelLabel(record);
@@ -87,10 +95,14 @@ export function projectInboxMessageToPi(
   if (body.length > 0) parts.push(body);
   const text = parts.join("\n\n");
 
-  const timestamp = Date.parse(record.createdAt);
+  let timestamp = options?.timestampOverride;
+  if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) {
+    const parsed = Date.parse(record.createdAt);
+    timestamp = Number.isFinite(parsed) ? parsed : Date.now();
+  }
   return {
     role: "user",
     content: [{ type: "text", text }],
-    timestamp: Number.isFinite(timestamp) ? timestamp : Date.now(),
+    timestamp,
   } as AgentMessage;
 }

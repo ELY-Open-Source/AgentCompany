@@ -27,7 +27,6 @@ import { randomUUID } from "node:crypto";
 import type { AppDatabase } from "@main/database";
 import type { AgentMessageRecord } from "@shared/types";
 import type { ParentMessage } from "@main/worker/worker-helpers";
-import { projectInboxMessageToPi } from "./inbox-projection";
 import type { RuntimeBridge } from "./runtime-bridge";
 
 export interface RuntimeMessageInjectorDeps {
@@ -90,9 +89,13 @@ export class RuntimeMessageInjector {
       return false;
     }
 
-    const projected = projectInboxMessageToPi(message, {
-      getAgentName: (id) => this.resolveAgentName(id),
-    });
+    // Delegate projection + correlation registration to the bridge so
+    // the worker steers the exact same pi-message object that the
+    // bridge has indexed under `record.id`. `projectInboundMessage`
+    // allocates a monotonic `piTimestamp` which is what `message_end`
+    // surfaces back on the wire — two inbound rows that share the
+    // same wall-clock millisecond are no longer indistinguishable.
+    const projected = this.deps.runtimeBridge.projectInboundMessage(ctx.runId, message);
     const correlationId = randomUUID();
 
     try {
@@ -147,13 +150,6 @@ export class RuntimeMessageInjector {
 
     if (accepted) {
       try {
-        this.deps.runtimeBridge.registerInboundInjection(entry.runId, entry.message);
-      } catch (error) {
-        this.deps.logger.warn(
-          `[injector] registerInboundInjection failed for ${entry.message.id}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-      try {
         this.deps.db.markAgentInboxDelivered(entry.recipientAgentId, [entry.message.id]);
       } catch (error) {
         this.deps.logger.warn(
@@ -178,13 +174,4 @@ export class RuntimeMessageInjector {
     }
   }
 
-  private resolveAgentName(agentId: string): string {
-    try {
-      const name = this.deps.db.findAgentName(agentId);
-      if (name && name.length > 0) return name;
-    } catch {
-      // fall through
-    }
-    return agentId;
-  }
 }
