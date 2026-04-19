@@ -67,9 +67,13 @@ export function isDestructiveTool(toolName: string): boolean {
 }
 
 /**
- * Approval gate. A pending approval for this agent's current task
- * blocks every destructive tool — the agent must wait for the board
- * (or user) to resolve the approval before mutating anything.
+ * Approval + wait-state gate for destructive tools. Runs at every
+ * `beforeToolCall` callback, so approvals or wait states created
+ * mid-run take effect on the next tool call without any cross-process
+ * cache to invalidate.
+ *
+ * Read-only tools (read / grep / glob / list) are always allowed —
+ * gating them would only slow observation while adding no safety.
  */
 export function handleBeforeToolCall(
   deps: HookHandlerDeps,
@@ -80,15 +84,57 @@ export function handleBeforeToolCall(
     return { block: false, reason: null };
   }
 
-  const blocking = deps.db.getBlockingApproval(ctx.companyId, ctx.agentId, ctx.taskId);
-  if (blocking) {
-    return {
-      block: true,
-      reason: `Approval ${blocking.id} (${blocking.state}) is outstanding: ${blocking.payloadSummary}. Wait for the board to decide before retrying ${payload.toolName}.`,
-    };
-  }
+  const approvalBlock = checkApprovalBlock(deps, ctx, payload.toolName);
+  if (approvalBlock) return approvalBlock;
+
+  const waitStateBlock = checkWaitStateBlock(deps, ctx, payload.toolName);
+  if (waitStateBlock) return waitStateBlock;
 
   return { block: false, reason: null };
+}
+
+function checkApprovalBlock(
+  deps: HookHandlerDeps,
+  ctx: ActiveRunContext,
+  toolName: string,
+): BeforeToolCallRpcResult | null {
+  try {
+    const blocking = deps.db.getBlockingApproval(ctx.companyId, ctx.agentId, ctx.taskId);
+    if (!blocking) return null;
+    return {
+      block: true,
+      reason: `Approval ${blocking.id} (${blocking.type}, state=${blocking.state}) is outstanding: ${blocking.payloadSummary}. Wait for the decision before retrying ${toolName}.`,
+    };
+  } catch (error) {
+    // Fail closed: an unreadable approval table is a safety incident,
+    // not a reason to run destructive code.
+    deps.logger.error(
+      `[hook-handlers] approval lookup failed for agent ${ctx.agentId}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return {
+      block: true,
+      reason: `Approval lookup failed — ${toolName} is held until the approval subsystem recovers.`,
+    };
+  }
+}
+
+function checkWaitStateBlock(
+  deps: HookHandlerDeps,
+  ctx: ActiveRunContext,
+  toolName: string,
+): BeforeToolCallRpcResult | null {
+  try {
+    if (!deps.db.hasUnresolvedWaitStateForAgent(ctx.companyId, ctx.agentId)) return null;
+    return {
+      block: true,
+      reason: `Thread wait state is open for this agent — ${toolName} is paused until the user replies or the review resolves.`,
+    };
+  } catch (error) {
+    deps.logger.warn(
+      `[hook-handlers] wait-state lookup failed for agent ${ctx.agentId}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
 }
 
 /**
