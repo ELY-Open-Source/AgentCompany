@@ -50,6 +50,33 @@ export function resolveInitialUserTurn(
     }
   }
 
+  // The generic timer turn hard-coded "deliverable reviews first,
+  // unblocking reports second, next step on assigned work third" —
+  // a ranking that presumes a manager or IC with tasks. For a new CEO
+  // in team_building mode, none of those clauses apply, so the model
+  // read "nothing to do" and returned without acting on the actual
+  // Operating Instructions that explicitly told it to file hires.
+  // Shortcut: when a CEO has zero active direct reports, replace the
+  // generic timer cue with a team-building cue that matches the CEO
+  // mode prompt.
+  if (trigger === "timer" || trigger === "bootstrap") {
+    try {
+      const agent = deps.db.getAgent(agentId);
+      if (!agent.reportsTo) {
+        const activeReports = deps.db
+          .getDirectReports(agentId, companyId)
+          .filter((r) => r.status !== "pending_approval" && r.status !== "terminated");
+        if (activeReports.length === 0) {
+          return "You are the CEO and have zero active direct reports. Follow your Team Building Phase operating instructions: file 3–5 hire_agent POSTs this wake, then file one approve_ceo_strategy, then return. Do not write plan documents or analyse the filesystem beyond a 20-second read.";
+        }
+      }
+    } catch {
+      // Fall through to the generic turn — a lookup failure here must
+      // not crash the run; the system prompt still carries the full
+      // operating directives.
+    }
+  }
+
   return buildGenericWakeTurn(trigger);
 }
 
@@ -78,7 +105,7 @@ function buildCommunicationTurn(
 function buildGenericWakeTurn(trigger: string | null): string {
   switch (trigger) {
     case "timer":
-      return "Heartbeat check. Review your briefing, then take the highest-priority action: deliverable reviews first, unblocking reports second, next step on assigned work third.";
+      return "Heartbeat check. Read your briefing and execute the top-priority action described in your Operating Instructions for the mode you are currently in. If your briefing lists unread messages, reply to them before starting task work.";
     case "assignment":
       return "A new task has been assigned to you. Find it in your briefing, check it out via POST /api/issues/{issueId}/checkout, then begin work.";
     case "comment":
