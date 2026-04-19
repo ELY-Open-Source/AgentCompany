@@ -1,9 +1,10 @@
 use super::*;
-use gpui::{Animation, AnimationExt, pulsating_between};
+use app_models::InboxFilter;
+use gpui::{Animation, AnimationExt, SharedString, pulsating_between};
 use std::time::Duration;
 
 impl AppRoot {
-    pub(super) fn render_inbox(&self) -> impl IntoElement + '_ {
+    pub(super) fn render_inbox(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
         let pending_approvals = self
             .snapshot
             .approvals
@@ -38,6 +39,19 @@ impl AppRoot {
             + review_tasks.len()
             + failed_runs.len();
 
+        let rows = inbox_rows(
+            &self.snapshot,
+            self.state.inbox_filter,
+            pending_approvals.as_slice(),
+            review_tasks.as_slice(),
+            failed_runs.as_slice(),
+            unread_messages.as_slice(),
+        );
+        let mut row_elements = Vec::with_capacity(rows.len());
+        for (index, row) in rows.into_iter().enumerate() {
+            row_elements.push(row.render(index, cx).into_any_element());
+        }
+
         div()
             .flex()
             .flex_col()
@@ -65,10 +79,12 @@ impl AppRoot {
                     ),
             )
             .child(inbox_filters(
+                self.state.inbox_filter,
                 pending_approvals.len(),
                 review_tasks.len(),
                 failed_runs.len(),
                 unread_messages.len(),
+                cx,
             ))
             .when(total_attention == 0, |container| {
                 container.child(
@@ -101,62 +117,162 @@ impl AppRoot {
                         ),
                 )
             })
-            .when(total_attention > 0, |container| {
-                container
-                    .when(!pending_approvals.is_empty(), |content| {
-                        content.child(inbox_group(
-                            "Pending approvals",
-                            pending_approvals.into_iter().map(|item| {
-                                inbox_row(
-                                    item.payload_summary.clone(),
-                                    format!("{} · pending", item.approval_type.replace('_', " ")),
-                                    theme::accent_orange_soft(),
-                                    theme::accent_orange(),
-                                )
-                            }),
-                        ))
-                    })
-                    .when(!review_tasks.is_empty(), |content| {
-                        content.child(inbox_group(
-                            "Reviews in progress",
-                            review_tasks.into_iter().map(|item| {
-                                inbox_row(
-                                    item.title.clone(),
-                                    format!("{} · awaiting review", item.status),
-                                    theme::accent_blue_soft(),
-                                    theme::accent_blue(),
-                                )
-                            }),
-                        ))
-                    })
-                    .when(!failed_runs.is_empty(), |content| {
-                        content.child(inbox_group(
-                            "Failed runs",
-                            failed_runs.into_iter().map(|item| {
-                                inbox_row(
-                                    inbox_run_title(&self.snapshot, item),
-                                    item.error_message.clone().unwrap_or_else(|| item.status.clone()),
-                                    theme::danger_bg(),
-                                    theme::danger(),
-                                )
-                            }),
-                        ))
-                    })
-                    .when(!unread_messages.is_empty(), |content| {
-                        content.child(inbox_group(
-                            "Unread messages",
-                            unread_messages.into_iter().map(|item| {
-                                inbox_row(
-                                    item.subject.clone(),
-                                    item.body.clone(),
-                                    theme::accent_teal_soft(),
-                                    theme::accent_teal(),
-                                )
-                            }),
-                        ))
-                    })
+            .when(!row_elements.is_empty(), |container| {
+                container.child(
+                    div()
+                        .rounded_lg()
+                        .border_1()
+                        .border_color(theme::panel_border())
+                        .bg(theme::panel())
+                        .children(row_elements),
+                )
             })
     }
+}
+
+#[derive(Clone)]
+struct InboxRow {
+    title: String,
+    subtitle: String,
+    accent: gpui::Hsla,
+    tile_bg: gpui::Hsla,
+    action: InboxAction,
+}
+
+#[derive(Clone)]
+enum InboxAction {
+    Approval(String),
+    ReviewTask(String),
+    FailedRun(String),
+    Message(String),
+}
+
+impl InboxRow {
+    fn render(self, index: usize, cx: &mut Context<AppRoot>) -> impl IntoElement {
+        let action = self.action.clone();
+        let title = self.title.clone();
+        let subtitle = self.subtitle.clone();
+        let accent = self.accent;
+        let tile_bg = self.tile_bg;
+        div()
+            .id(SharedString::from(format!("inbox-row-{index}")))
+            .cursor_pointer()
+            .hover(|style| style.bg(theme::panel_hover()))
+            .on_click(cx.listener(move |this, _, _, cx| {
+                match &action {
+                    InboxAction::Approval(approval_id) => {
+                        this.state.section = SectionId::Approvals;
+                        this.state.selected_approval_id = Some(approval_id.clone());
+                    }
+                    InboxAction::ReviewTask(task_id) => {
+                        if let Some(run_id) = this
+                            .snapshot
+                            .tasks
+                            .iter()
+                            .find(|task| task.id == *task_id)
+                            .and_then(|task| task.active_run_id.clone())
+                        {
+                            this.state.section = SectionId::Runs;
+                            this.state.selected_run_id = Some(run_id);
+                        } else {
+                            this.state.section = SectionId::Approvals;
+                        }
+                    }
+                    InboxAction::FailedRun(run_id) => {
+                        this.state.section = SectionId::Runs;
+                        this.state.selected_run_id = Some(run_id.clone());
+                    }
+                    InboxAction::Message(message_id) => {
+                        this.state.section = SectionId::Messages;
+                        this.state.selected_message_id = Some(message_id.clone());
+                    }
+                }
+                cx.notify();
+            }))
+            .px_5()
+            .py_4()
+            .border_b_1()
+            .border_color(theme::panel_border())
+            .child(
+                div()
+                    .flex()
+                    .gap_3()
+                    .items_center()
+                    .child(div().w(px(36.0)).h(px(36.0)).rounded_lg().bg(tile_bg))
+                    .child(
+                        div()
+                            .flex_1()
+                            .child(
+                                div()
+                                    .text_base()
+                                    .text_color(theme::text_primary())
+                                    .child(title),
+                            )
+                            .child(
+                                div()
+                                    .mt(px(4.0))
+                                    .text_sm()
+                                    .text_color(theme::text_muted())
+                                    .line_clamp(2)
+                                    .child(subtitle),
+                            ),
+                    )
+                    .child(active_filter_dot(accent, index)),
+            )
+    }
+}
+
+fn inbox_rows(
+    snapshot: &domain::ProfileSnapshot,
+    filter: InboxFilter,
+    pending_approvals: &[&domain::Approval],
+    review_tasks: &[&domain::Task],
+    failed_runs: &[&domain::Run],
+    unread_messages: &[&domain::AgentMessage],
+) -> Vec<InboxRow> {
+    let mut rows = Vec::new();
+    if matches!(filter, InboxFilter::All | InboxFilter::Approvals) {
+        rows.extend(pending_approvals.iter().map(|approval| InboxRow {
+            title: approval.payload_summary.clone(),
+            subtitle: format!("{} · pending", approval.approval_type.replace('_', " ")),
+            accent: theme::accent_orange(),
+            tile_bg: theme::accent_orange_soft(),
+            action: InboxAction::Approval(approval.id.clone()),
+        }));
+    }
+    if matches!(filter, InboxFilter::All | InboxFilter::Reviews) {
+        rows.extend(review_tasks.iter().map(|task| InboxRow {
+            title: task.title.clone(),
+            subtitle: format!("{} · awaiting review", task.status),
+            accent: theme::accent_blue(),
+            tile_bg: theme::accent_blue_soft(),
+            action: InboxAction::ReviewTask(task.id.clone()),
+        }));
+    }
+    if matches!(filter, InboxFilter::All | InboxFilter::Failed) {
+        rows.extend(failed_runs.iter().map(|run| {
+            InboxRow {
+                title: inbox_run_title(snapshot, run),
+                subtitle: run
+                    .error_message
+                    .clone()
+                    .unwrap_or_else(|| run.status.clone()),
+                accent: theme::danger(),
+                tile_bg: theme::danger_bg(),
+                action: InboxAction::FailedRun(run.id.clone()),
+            }
+        }));
+    }
+    if matches!(filter, InboxFilter::All | InboxFilter::Messages) {
+        rows.extend(unread_messages.iter().map(|message| InboxRow {
+            title: message.subject.clone(),
+            subtitle: message.body.clone(),
+            accent: theme::accent_teal(),
+            tile_bg: theme::accent_teal_soft(),
+            action: InboxAction::Message(message.id.clone()),
+        }));
+    }
+    rows
 }
 
 fn inbox_run_title(snapshot: &domain::ProfileSnapshot, run: &domain::Run) -> String {
@@ -174,10 +290,12 @@ fn inbox_run_title(snapshot: &domain::ProfileSnapshot, run: &domain::Run) -> Str
 }
 
 fn inbox_filters(
+    active: InboxFilter,
     approvals: usize,
     reviews: usize,
     failed_runs: usize,
     messages: usize,
+    cx: &mut Context<AppRoot>,
 ) -> impl IntoElement {
     div()
         .flex()
@@ -185,19 +303,53 @@ fn inbox_filters(
         .child(filter_chip(
             "All",
             approvals + reviews + failed_runs + messages,
-            true,
+            active == InboxFilter::All,
+            InboxFilter::All,
+            cx,
         ))
-        .child(filter_chip("Approvals", approvals, false))
-        .child(filter_chip("Reviews", reviews, false))
-        .child(filter_chip("Failed", failed_runs, false))
-        .child(filter_chip("Messages", messages, false))
+        .child(filter_chip(
+            "Approvals",
+            approvals,
+            active == InboxFilter::Approvals,
+            InboxFilter::Approvals,
+            cx,
+        ))
+        .child(filter_chip(
+            "Reviews",
+            reviews,
+            active == InboxFilter::Reviews,
+            InboxFilter::Reviews,
+            cx,
+        ))
+        .child(filter_chip(
+            "Failed",
+            failed_runs,
+            active == InboxFilter::Failed,
+            InboxFilter::Failed,
+            cx,
+        ))
+        .child(filter_chip(
+            "Messages",
+            messages,
+            active == InboxFilter::Messages,
+            InboxFilter::Messages,
+            cx,
+        ))
 }
 
-fn filter_chip(label: &'static str, count: usize, active: bool) -> impl IntoElement {
+fn filter_chip(
+    label: &'static str,
+    count: usize,
+    active: bool,
+    next: InboxFilter,
+    cx: &mut Context<AppRoot>,
+) -> impl IntoElement {
     let chip = div()
+        .id(SharedString::from(format!("inbox-filter-{label}")))
         .px_4()
         .py_2()
         .rounded_full()
+        .cursor_pointer()
         .bg(if active {
             theme::primary_action()
         } else {
@@ -209,6 +361,17 @@ fn filter_chip(label: &'static str, count: usize, active: bool) -> impl IntoElem
         } else {
             theme::text_secondary()
         })
+        .hover(|style| {
+            style.bg(if active {
+                theme::primary_action_hover()
+            } else {
+                theme::panel_hover()
+            })
+        })
+        .on_click(cx.listener(move |this, _, _, cx| {
+            this.state.inbox_filter = next;
+            cx.notify();
+        }))
         .child(format!("{} {}", label, count));
     if active {
         chip.with_animation(
@@ -224,55 +387,17 @@ fn filter_chip(label: &'static str, count: usize, active: bool) -> impl IntoElem
     }
 }
 
-fn inbox_group(label: &'static str, rows: impl Iterator<Item = gpui::Div>) -> impl IntoElement {
+fn active_filter_dot(accent: gpui::Hsla, index: usize) -> impl IntoElement {
     div()
-        .gap_3()
-        .child(div().text_xs().text_color(theme::text_muted()).child(label))
-        .child(
-            div()
-                .border_1()
-                .rounded_lg()
-                .border_color(theme::panel_border())
-                .bg(theme::panel())
-                .children(rows),
-        )
-}
-
-fn inbox_row(
-    title: String,
-    subtitle: String,
-    tile_bg: gpui::Hsla,
-    accent: gpui::Hsla,
-) -> gpui::Div {
-    div()
-        .px_5()
-        .py_4()
-        .border_b_1()
-        .border_color(theme::panel_border())
-        .child(
-            div()
-                .flex()
-                .gap_3()
-                .items_start()
-                .child(div().w(px(14.0)).h(px(14.0)).rounded_full().bg(accent))
-                .child(
-                    div()
-                        .flex_1()
-                        .child(
-                            div()
-                                .text_base()
-                                .text_color(theme::text_primary())
-                                .child(title),
-                        )
-                        .child(
-                            div()
-                                .mt(px(6.0))
-                                .text_sm()
-                                .text_color(theme::text_muted())
-                                .line_clamp(2)
-                                .child(subtitle),
-                        ),
-                )
-                .child(div().w(px(20.0)).h(px(20.0)).rounded_full().bg(tile_bg)),
+        .w(px(10.0))
+        .h(px(10.0))
+        .rounded_full()
+        .bg(accent)
+        .with_animation(
+            ("inbox-row-dot", index),
+            Animation::new(Duration::from_secs(2))
+                .repeat()
+                .with_easing(pulsating_between(0.8, 1.0)),
+            |element, delta| element.opacity(delta),
         )
 }

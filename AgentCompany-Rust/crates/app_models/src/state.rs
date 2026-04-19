@@ -8,6 +8,16 @@ pub enum OnboardingStep {
     Launch,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum InboxFilter {
+    #[default]
+    All,
+    Approvals,
+    Reviews,
+    Failed,
+    Messages,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct AppState {
     pub section: SectionId,
@@ -19,6 +29,7 @@ pub struct AppState {
     pub onboarding_step: OnboardingStep,
     pub onboarding_connector_id: Option<String>,
     pub onboarding_execution_mode: &'static str,
+    pub inbox_filter: InboxFilter,
     pub status_line: Option<String>,
 }
 

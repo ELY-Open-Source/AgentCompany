@@ -408,7 +408,7 @@ impl Render for AppRoot {
                             .child(match self.state.section {
                                 SectionId::Overview => self.render_overview(cx).into_any_element(),
                                 SectionId::Runs => self.render_runs(cx).into_any_element(),
-                                SectionId::Inbox => self.render_inbox().into_any_element(),
+                                SectionId::Inbox => self.render_inbox(cx).into_any_element(),
                                 SectionId::Messages => self.render_messages(cx).into_any_element(),
                                 SectionId::Approvals => {
                                     self.render_approvals(cx).into_any_element()

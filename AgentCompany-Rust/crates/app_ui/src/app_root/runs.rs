@@ -152,43 +152,6 @@ impl AppRoot {
                                     )
                                     .child(
                                         div()
-                                            .mt(px(18.0))
-                                            .gap_3()
-                                            .child(
-                                                div()
-                                                    .flex()
-                                                    .gap_3()
-                                                    .child(primary_button("Launch native runtime", cx, |this, cx| {
-                                                        this.launch_selected_run(cx);
-                                                    }))
-                                                    .child(secondary_button("Approve selected gate", cx, |this, cx| {
-                                                        this.decide_selected_approval(domain::ApprovalState::Approved, "Approved from native runtime controls.", cx);
-                                                    }))
-                                                    .child(secondary_button("Reject selected gate", cx, |this, cx| {
-                                                        this.decide_selected_approval(domain::ApprovalState::Rejected, "Rejected from native runtime controls.", cx);
-                                                    })),
-                                            )
-                                            .child(self.runtime_steer_input.clone())
-                                            .child(
-                                                div()
-                                                    .flex()
-                                                    .justify_end()
-                                                    .child(primary_button("Send steer", cx, |this, cx| {
-                                                        this.send_runtime_steer(cx);
-                                                    })),
-                                            )
-                                            .child(self.runtime_follow_up_input.clone())
-                                            .child(
-                                                div()
-                                                    .flex()
-                                                    .justify_end()
-                                                    .child(secondary_button("Queue follow-up", cx, |this, cx| {
-                                                        this.send_runtime_follow_up(cx);
-                                                    })),
-                                            ),
-                                    )
-                                    .child(
-                                        div()
                                             .mt(px(16.0))
                                             .flex()
                                             .gap_3()
@@ -303,6 +266,7 @@ impl AppRoot {
                                     )
                                     .child(run_artifacts_panel(&self.snapshot, run.id.as_str())),
                             )
+                            .child(run_live_controls_panel(self, cx))
                     })
                     .when(selected.is_none(), |container| {
                         container.child(
@@ -567,6 +531,74 @@ fn run_artifacts_panel(snapshot: &domain::ProfileSnapshot, run_id: &str) -> impl
             }))
             .into_any_element()
     }
+}
+
+fn run_live_controls_panel<'a>(
+    root: &'a AppRoot,
+    cx: &'a mut Context<AppRoot>,
+) -> impl IntoElement + 'a {
+    div()
+        .p_5()
+        .rounded_lg()
+        .border_1()
+        .border_color(theme::panel_border())
+        .bg(theme::panel())
+        .child(
+            div()
+                .text_lg()
+                .text_color(theme::text_primary())
+                .child("Live runtime controls"),
+        )
+        .child(
+            div()
+                .mt(px(8.0))
+                .text_sm()
+                .text_color(theme::text_muted())
+                .child("Runtime intervention stays here so the main run summary keeps the original operational hierarchy."),
+        )
+        .child(
+            div()
+                .mt(px(16.0))
+                .flex()
+                .gap_3()
+                .child(primary_button("Launch native runtime", cx, |this, cx| {
+                    this.launch_selected_run(cx);
+                }))
+                .child(secondary_button("Approve selected gate", cx, |this, cx| {
+                    this.decide_selected_approval(
+                        domain::ApprovalState::Approved,
+                        "Approved from native runtime controls.",
+                        cx,
+                    );
+                }))
+                .child(secondary_button("Reject selected gate", cx, |this, cx| {
+                    this.decide_selected_approval(
+                        domain::ApprovalState::Rejected,
+                        "Rejected from native runtime controls.",
+                        cx,
+                    );
+                })),
+        )
+        .child(root.runtime_steer_input.clone())
+        .child(
+            div()
+                .mt(px(10.0))
+                .flex()
+                .justify_end()
+                .child(primary_button("Send steer", cx, |this, cx| {
+                    this.send_runtime_steer(cx);
+                })),
+        )
+        .child(root.runtime_follow_up_input.clone())
+        .child(
+            div()
+                .mt(px(10.0))
+                .flex()
+                .justify_end()
+                .child(secondary_button("Queue follow-up", cx, |this, cx| {
+                    this.send_runtime_follow_up(cx);
+                })),
+        )
 }
 
 fn timeline_row(label: &'static str, value: String) -> impl IntoElement {

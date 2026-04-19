@@ -155,7 +155,7 @@
       ],
       "priority": 11,
       "passes": false,
-      "notes": "In progress: native dashboard now restores banner/attention/performance/active-work/activity grammar with real local data instead of the earlier simplified placeholder overview. Remaining gap is finer inbox parity and some dashboard micro-structure details versus the Electron source."
+      "notes": "In progress: dashboard now restores banners, attention rows, performance cards, active work, and activity feed. Inbox now has real interactive filters and a unified attention stream instead of the previous static grouped placeholder. Remaining gap is finer visual parity and final audit."
     },
     {
       "id": "US-012",
@@ -169,7 +169,7 @@
       ],
       "priority": 12,
       "passes": false,
-      "notes": "Audit found the live runtime controls now dominate the run detail layout and approvals still flatten original review semantics."
+      "notes": "In progress: approvals now restore board/user/manager review grouping semantics and runs demote native runtime controls out of the main header hierarchy into a secondary live-controls section. Remaining gap is finer run queue/detail grammar parity."
     },
     {
       "id": "US-013",
