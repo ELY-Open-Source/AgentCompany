@@ -10,3 +10,5 @@ Started: 2026-04-19
 - Completed real settings/workspace state mutations in native Rust path: theme, locale, execution mode, and primary workspace.
 - Added native_settings_workspace_e2e.rs to verify mutation persistence across reopen.
 - Completed first native motion/state parity layer using GPUI animation wrappers for onboarding, inbox, and runs.
+- Added runtime contract persistence entities for run events and artifacts, exposed them in ProfileSnapshot, and rendered them in the native runs inspector.
+- Added runtime_contract_snapshot_e2e.rs to verify runtime event and artifact persistence across reopen.

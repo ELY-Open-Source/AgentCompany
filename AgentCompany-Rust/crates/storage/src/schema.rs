@@ -183,6 +183,31 @@ pub fn initialize(conn: &Connection) -> Result<()> {
             foreign key(company_id) references companies(id) on delete cascade
         );
 
+        create table if not exists run_events (
+            id text primary key,
+            company_id text not null,
+            run_id text not null,
+            event_kind text not null,
+            title text not null,
+            detail text not null default '',
+            created_at text not null,
+            foreign key(company_id) references companies(id) on delete cascade,
+            foreign key(run_id) references runs(id) on delete cascade
+        );
+
+        create table if not exists artifacts (
+            id text primary key,
+            company_id text not null,
+            run_id text not null,
+            provider text not null,
+            external_id text not null,
+            title text not null,
+            metadata_json text not null default '{}',
+            created_at text not null,
+            foreign key(company_id) references companies(id) on delete cascade,
+            foreign key(run_id) references runs(id) on delete cascade
+        );
+
         create table if not exists agent_messages (
             id text primary key,
             company_id text not null,

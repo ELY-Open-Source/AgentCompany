@@ -1,6 +1,6 @@
 use crate::{
-    Activity, Agent, AgentMessage, Approval, Company, Connector, Document, Goal, Project, Run,
-    Task, Workspace,
+    Activity, Agent, AgentMessage, Approval, ArtifactRecord, Company, Connector, Document, Goal,
+    Project, Run, RunEventRecord, Task, Workspace,
 };
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +19,8 @@ pub struct ProfileSnapshot {
     pub tasks: Vec<Task>,
     pub approvals: Vec<Approval>,
     pub runs: Vec<Run>,
+    pub run_events: Vec<RunEventRecord>,
+    pub artifacts: Vec<ArtifactRecord>,
     pub activity: Vec<Activity>,
     pub agent_messages: Vec<AgentMessage>,
     pub documents: Vec<Document>,

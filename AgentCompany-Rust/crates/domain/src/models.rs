@@ -201,6 +201,29 @@ pub struct Document {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct RunEventRecord {
+    pub id: String,
+    pub company_id: String,
+    pub run_id: String,
+    pub event_kind: String,
+    pub title: String,
+    pub detail: String,
+    pub created_at: String,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ArtifactRecord {
+    pub id: String,
+    pub company_id: String,
+    pub run_id: String,
+    pub provider: String,
+    pub external_id: String,
+    pub title: String,
+    pub metadata_json: String,
+    pub created_at: String,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ThreadWaitState {
     pub id: String,
     pub thread_id: String,

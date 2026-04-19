@@ -236,6 +236,36 @@ impl AppRoot {
                                     )
                                     .child(run_timeline(&self.snapshot, run)),
                             )
+                            .child(
+                                div()
+                                    .p_5()
+                                    .rounded_lg()
+                                    .border_1()
+                                    .border_color(theme::panel_border())
+                                    .bg(theme::panel())
+                                    .child(
+                                        div()
+                                            .text_lg()
+                                            .text_color(theme::text_primary())
+                                            .child("Runtime events"),
+                                    )
+                                    .child(run_events_panel(&self.snapshot, run.id.as_str())),
+                            )
+                            .child(
+                                div()
+                                    .p_5()
+                                    .rounded_lg()
+                                    .border_1()
+                                    .border_color(theme::panel_border())
+                                    .bg(theme::panel())
+                                    .child(
+                                        div()
+                                            .text_lg()
+                                            .text_color(theme::text_primary())
+                                            .child("Artifacts"),
+                                    )
+                                    .child(run_artifacts_panel(&self.snapshot, run.id.as_str())),
+                            )
                     })
                     .when(selected.is_none(), |container| {
                         container.child(
@@ -396,6 +426,110 @@ fn run_timeline(snapshot: &domain::ProfileSnapshot, run: &domain::Run) -> impl I
             "Updated",
             short_date(run.updated_at.as_str()).to_string(),
         ))
+}
+
+fn run_events_panel(snapshot: &domain::ProfileSnapshot, run_id: &str) -> impl IntoElement {
+    let events = snapshot
+        .run_events
+        .iter()
+        .filter(|event| event.run_id == run_id)
+        .take(8)
+        .collect::<Vec<_>>();
+    if events.is_empty() {
+        div()
+            .mt(px(16.0))
+            .text_sm()
+            .text_color(theme::text_muted())
+            .child("No runtime events recorded yet.")
+            .into_any_element()
+    } else {
+        div()
+            .mt(px(16.0))
+            .gap_3()
+            .children(events.into_iter().map(|event| {
+                div()
+                    .py_3()
+                    .border_b_1()
+                    .border_color(theme::panel_border())
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(theme::text_primary())
+                            .child(event.title.clone()),
+                    )
+                    .child(
+                        div()
+                            .mt(px(6.0))
+                            .text_xs()
+                            .text_color(theme::text_muted())
+                            .child(format!(
+                                "{} · {}",
+                                event.event_kind,
+                                short_date(event.created_at.as_str())
+                            )),
+                    )
+                    .child(
+                        div()
+                            .mt(px(6.0))
+                            .text_sm()
+                            .text_color(theme::text_secondary())
+                            .child(event.detail.clone()),
+                    )
+            }))
+            .into_any_element()
+    }
+}
+
+fn run_artifacts_panel(snapshot: &domain::ProfileSnapshot, run_id: &str) -> impl IntoElement {
+    let artifacts = snapshot
+        .artifacts
+        .iter()
+        .filter(|artifact| artifact.run_id == run_id)
+        .take(8)
+        .collect::<Vec<_>>();
+    if artifacts.is_empty() {
+        div()
+            .mt(px(16.0))
+            .text_sm()
+            .text_color(theme::text_muted())
+            .child("No artifacts recorded yet.")
+            .into_any_element()
+    } else {
+        div()
+            .mt(px(16.0))
+            .gap_3()
+            .children(artifacts.into_iter().map(|artifact| {
+                div()
+                    .py_3()
+                    .border_b_1()
+                    .border_color(theme::panel_border())
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(theme::text_primary())
+                            .child(artifact.title.clone()),
+                    )
+                    .child(
+                        div()
+                            .mt(px(6.0))
+                            .text_xs()
+                            .text_color(theme::text_muted())
+                            .child(format!(
+                                "{} · {}",
+                                artifact.provider,
+                                short_date(artifact.created_at.as_str())
+                            )),
+                    )
+                    .child(
+                        div()
+                            .mt(px(6.0))
+                            .text_sm()
+                            .text_color(theme::text_secondary())
+                            .child(artifact.external_id.clone()),
+                    )
+            }))
+            .into_any_element()
+    }
 }
 
 fn timeline_row(label: &'static str, value: String) -> impl IntoElement {

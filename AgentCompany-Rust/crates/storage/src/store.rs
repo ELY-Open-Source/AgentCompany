@@ -1,8 +1,8 @@
 use crate::schema;
 use anyhow::{Context, Result, anyhow};
 use domain::{
-    Activity, Agent, AgentMessage, Approval, ApprovalState, Company, Connector, Document, Goal,
-    ProfileSnapshot, Project, Run, Task, Workspace,
+    Activity, Agent, AgentMessage, Approval, ApprovalState, ArtifactRecord, Company, Connector,
+    Document, Goal, ProfileSnapshot, Project, Run, RunEventRecord, Task, Workspace,
 };
 use rusqlite::{Connection, OptionalExtension, params};
 use std::{
@@ -86,6 +86,8 @@ impl ProfileStore {
             tasks: self.query_tasks(current_ref)?,
             approvals: self.query_approvals(current_ref)?,
             runs: self.query_runs(current_ref)?,
+            run_events: self.query_run_events(current_ref)?,
+            artifacts: self.query_artifacts(current_ref)?,
             activity: self.query_activity(current_ref)?,
             agent_messages: self.query_messages(current_ref)?,
             documents: self.query_documents(current_ref)?,
@@ -231,6 +233,41 @@ impl ProfileStore {
             "primary workspace changed",
         )?;
         Ok(())
+    }
+
+    pub fn append_run_event(
+        &mut self,
+        company_id: &str,
+        run_id: &str,
+        event_kind: &str,
+        title: &str,
+        detail: &str,
+    ) -> Result<String> {
+        let event_id = Uuid::new_v4().to_string();
+        let ts = now_iso()?;
+        self.conn.execute(
+            "insert into run_events (id, company_id, run_id, event_kind, title, detail, created_at) values (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![event_id, company_id, run_id, event_kind, title.trim(), detail.trim(), ts],
+        )?;
+        Ok(event_id)
+    }
+
+    pub fn register_artifact(
+        &mut self,
+        company_id: &str,
+        run_id: &str,
+        provider: &str,
+        external_id: &str,
+        title: &str,
+        metadata_json: &str,
+    ) -> Result<String> {
+        let artifact_id = Uuid::new_v4().to_string();
+        let ts = now_iso()?;
+        self.conn.execute(
+            "insert into artifacts (id, company_id, run_id, provider, external_id, title, metadata_json, created_at) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![artifact_id, company_id, run_id, provider.trim(), external_id.trim(), title.trim(), metadata_json.trim(), ts],
+        )?;
+        Ok(artifact_id)
     }
 
     pub fn decide_approval(
@@ -635,6 +672,51 @@ impl ProfileStore {
                         finished_at: row.get(12)?,
                         created_at: row.get(13)?,
                         updated_at: row.get(14)?,
+                    })
+                },
+            ),
+            None => Ok(Vec::new()),
+        }
+    }
+
+    fn query_run_events(&self, company_id: Option<&str>) -> Result<Vec<RunEventRecord>> {
+        match company_id {
+            Some(company_id) => query_many(
+                &self.conn,
+                "select id, company_id, run_id, event_kind, title, detail, created_at from run_events where company_id = ?1 order by created_at desc limit 200",
+                [company_id],
+                |row| {
+                    Ok(RunEventRecord {
+                        id: row.get(0)?,
+                        company_id: row.get(1)?,
+                        run_id: row.get(2)?,
+                        event_kind: row.get(3)?,
+                        title: row.get(4)?,
+                        detail: row.get(5)?,
+                        created_at: row.get(6)?,
+                    })
+                },
+            ),
+            None => Ok(Vec::new()),
+        }
+    }
+
+    fn query_artifacts(&self, company_id: Option<&str>) -> Result<Vec<ArtifactRecord>> {
+        match company_id {
+            Some(company_id) => query_many(
+                &self.conn,
+                "select id, company_id, run_id, provider, external_id, title, metadata_json, created_at from artifacts where company_id = ?1 order by created_at desc limit 200",
+                [company_id],
+                |row| {
+                    Ok(ArtifactRecord {
+                        id: row.get(0)?,
+                        company_id: row.get(1)?,
+                        run_id: row.get(2)?,
+                        provider: row.get(3)?,
+                        external_id: row.get(4)?,
+                        title: row.get(5)?,
+                        metadata_json: row.get(6)?,
+                        created_at: row.get(7)?,
                     })
                 },
             ),
