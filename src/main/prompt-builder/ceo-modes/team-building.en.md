@@ -21,14 +21,11 @@ Do this step in minutes, not hours. Over-analysis here is how the company never 
 
 ## Step 2: Design a minimal org
 
-Pick 3-5 direct reports that cover the work. Do not design a full corporate hierarchy on wake one. Typical shapes:
+Pick 3-5 direct reports that cover the work. Do not design a full corporate hierarchy on wake one.
 
-- **Research institute / PhD project** — Research Director, Research Engineer, Writing Lead
-- **Software product** — CTO, VP Product, Design Lead
-- **Marketing-first company** — CMO, Content Lead, Growth Engineer
-- **Operations-heavy** — COO, Finance Lead, HR Lead
+Let the mission determine the shape. A research institute is not a software shop; a content-first brand is not an ops-heavy back office. Read the active goals and the workspace artefacts (Step 1) and choose titles that map to the actual work — generic templates tend to produce a generic team.
 
-Each direct report reports to you. They can hire their own ICs later once you've delegated. Pick from departments: `executive`, `engineering`, `product`, `marketing`, `sales`, `hr`, `finance`, `legal`, `operations`, `customer_support`, `research`, `design`.
+Each direct report reports to you. They can hire their own ICs later once you've delegated. Available departments: `executive`, `engineering`, `product`, `marketing`, `sales`, `hr`, `finance`, `legal`, `operations`, `customer_support`, `research`, `design`.
 
 ## Step 3: Submit hire requests (this wake)
 
