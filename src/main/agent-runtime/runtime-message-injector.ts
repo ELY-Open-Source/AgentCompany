@@ -51,7 +51,8 @@ export interface RuntimeMessageInjectorDeps {
 interface PendingSteer {
   recipientAgentId: string;
   companyId: string;
-  messageId: string;
+  runId: string;
+  message: AgentMessageRecord;
   timer: ReturnType<typeof setTimeout>;
 }
 
@@ -116,7 +117,8 @@ export class RuntimeMessageInjector {
     this.pending.set(correlationId, {
       recipientAgentId,
       companyId,
-      messageId: message.id,
+      runId: ctx.runId,
+      message,
       timer,
     });
     return true;
@@ -145,17 +147,24 @@ export class RuntimeMessageInjector {
 
     if (accepted) {
       try {
-        this.deps.db.markAgentInboxDelivered(entry.recipientAgentId, [entry.messageId]);
+        this.deps.runtimeBridge.registerInboundInjection(entry.runId, entry.message);
       } catch (error) {
         this.deps.logger.warn(
-          `[injector] markAgentInboxDelivered failed for ${entry.messageId}: ${error instanceof Error ? error.message : String(error)}`,
+          `[injector] registerInboundInjection failed for ${entry.message.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      try {
+        this.deps.db.markAgentInboxDelivered(entry.recipientAgentId, [entry.message.id]);
+      } catch (error) {
+        this.deps.logger.warn(
+          `[injector] markAgentInboxDelivered failed for ${entry.message.id}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
       return;
     }
 
     this.deps.logger.warn(
-      `[injector] steer rejected (${source}) for message ${entry.messageId} to agent ${entry.recipientAgentId}; falling back to wake + inbox projection`,
+      `[injector] steer rejected (${source}) for message ${entry.message.id} to agent ${entry.recipientAgentId}; falling back to wake + inbox projection`,
     );
 
     const wake = this.deps.getWakeAgent();

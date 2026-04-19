@@ -35,6 +35,42 @@ export function ensureTaskThread(db: AppDatabase, taskId: string, companyId: str
   });
 }
 
+export function findAgentCommunicationThread(db: AppDatabase, agentId: string, companyId: string) {
+  const existing = db.listThreads({
+    companyId,
+    type: "general" as ThreadType,
+    relatedEntityType: "agent",
+    relatedEntityId: agentId,
+    limit: 1,
+  });
+  return existing[0] ?? null;
+}
+
+/**
+ * Returns (or creates) the single "general" thread that accumulates an
+ * agent's taskless communication activity. Task runs already write into
+ * a task-scoped thread; taskless communication runs would otherwise drop
+ * their conversation events on the floor, leaving the thread view blank
+ * even while the agent actively replies to peers.
+ */
+export function ensureAgentCommunicationThread(
+  db: AppDatabase,
+  agentId: string,
+  companyId: string,
+  agentLabel: string,
+) {
+  const existing = findAgentCommunicationThread(db, agentId, companyId);
+  if (existing) return existing;
+
+  return db.createThread({
+    companyId,
+    title: `${agentLabel} · communication`,
+    type: "general" as ThreadType,
+    relatedEntityType: "agent",
+    relatedEntityId: agentId,
+  });
+}
+
 export function findApprovalThread(db: AppDatabase, approvalId: string, companyId: string) {
   const existing = db.listThreads({
     companyId,
