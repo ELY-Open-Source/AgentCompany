@@ -207,6 +207,51 @@ function createDeliverableReviewApproval(
   return approvalId;
 }
 
+/**
+ * Decide the terminal status a successful run should leave the task in.
+ *
+ * `in_review` only makes sense when there is a reachable reviewer:
+ *   - a non-top-level assignee always has a manager who reviews;
+ *   - in `ai_cofounder` mode the human is the implicit reviewer;
+ *   - in `ai_ceo` mode the operator opted out of human review, but
+ *     they can re-opt-in per company via `reviewDeliverables`.
+ *
+ * Top-level agents in `ai_ceo` mode without `reviewDeliverables` have
+ * no reviewer — neither a manager to walk up to nor a human gate.
+ * Routing them through `in_review` strands the task forever (the
+ * heartbeat candidate filter only picks `todo / in_progress / blocked`
+ * so the CEO never sees its own stuck rows) and the codebase's old
+ * workaround was to force-flag `requires_user_review` so the
+ * `guardInReviewHasReviewer` would let the transition through. That
+ * was paper over the symptom; the right answer is to skip review
+ * entirely and advance straight to `done`.
+ */
+function decideTerminalStatus(
+  db: RunCompletionDeps["db"],
+  agent: ReturnType<RunCompletionDeps["db"]["getAgent"]>,
+  companyId: string,
+): "in_review" | "done" {
+  if (agent.reportsTo !== null) return "in_review";
+  const mode = db.getCompanyExecutionMode(companyId);
+  if (mode !== "ai_ceo") return "in_review";
+  const settings = db.getCompanyApprovalSettings(companyId);
+  return settings?.reviewDeliverables ? "in_review" : "done";
+}
+
+/** Auto-resolves the task as a successful autonomous completion. */
+function advanceToDone(
+  deps: RunCompletionDeps,
+  callbacks: RunCompletionCallbacks,
+  run: RunRecord,
+  taskId: string,
+  statusMessage: string,
+): void {
+  const { db, publishDomainChanged } = deps;
+  db.advanceTaskStatus(taskId, "done", statusMessage);
+  callbacks.handleTaskStatusChange(taskId, run.companyId, "in_progress", "done");
+  publishDomainChanged();
+}
+
 /** Advances a task to in_review and optionally flags deliverables for user review. */
 function advanceToInReview(
   deps: RunCompletionDeps,
@@ -218,9 +263,11 @@ function advanceToInReview(
   const { db, logger, publishDomainChanged } = deps;
   // The tasks-status guard refuses an `in_review` transition for a
   // top-level assignee (reports_to IS NULL) unless the task is
-  // flagged for user review. Auto-completed runs owned by the CEO
-  // routinely trip that path — pre-flag them so the transition
-  // succeeds and the human becomes the reviewer.
+  // flagged for user review. The caller (`processRunCompletion`) only
+  // routes top-level runs through this helper when human review is
+  // expected (`ai_cofounder` mode or `reviewDeliverables = true`), so
+  // pre-flagging here is the right semantics — the human IS the
+  // reviewer in those configurations.
   const agent = db.getAgent(run.agentId);
   if (agent.reportsTo === null) {
     db.setTaskRequiresUserReview(taskId, true);
@@ -243,6 +290,29 @@ function advanceToInReview(
     }
   }
   publishDomainChanged();
+}
+
+/**
+ * Pick the right terminal-status helper for this run. `processRunCompletion`
+ * uses it after every successful "produced something or didn't need to"
+ * branch; `decideTerminalStatus` is the single source of truth that says
+ * `done` (no reviewer needed) vs `in_review` (reviewer expected).
+ */
+function advanceSuccessfulRun(
+  deps: RunCompletionDeps,
+  callbacks: RunCompletionCallbacks,
+  run: RunRecord,
+  taskId: string,
+  statusMessage: string,
+): "in_review" | "done" {
+  const agent = deps.db.getAgent(run.agentId);
+  const target = decideTerminalStatus(deps.db, agent, run.companyId);
+  if (target === "done") {
+    advanceToDone(deps, callbacks, run, taskId, statusMessage);
+  } else {
+    advanceToInReview(deps, callbacks, run, taskId, statusMessage);
+  }
+  return target;
 }
 
 export function processRunCompletion(
@@ -298,13 +368,25 @@ export function processRunCompletion(
         publishDomainChanged();
         // Skip the normal in_review advance
       } else {
-        advanceToInReview(deps, callbacks, run, task.id, "Run completed with deliverable. Awaiting review.");
-        effectiveStatus = "in_review";
+        effectiveStatus = advanceSuccessfulRun(
+          deps,
+          callbacks,
+          run,
+          task.id,
+          "Run completed with deliverable.",
+        );
       }
     } else {
-      // Code/management/general tasks advance normally
-      advanceToInReview(deps, callbacks, run, task.id, "Run completed successfully. Awaiting review.");
-      effectiveStatus = "in_review";
+      // Code/management/general tasks: route through the same selector
+      // so ai_ceo top-level completions land in `done` instead of
+      // stalling in the `in_review` dead-letter.
+      effectiveStatus = advanceSuccessfulRun(
+        deps,
+        callbacks,
+        run,
+        task.id,
+        "Run completed successfully.",
+      );
     }
   }
 

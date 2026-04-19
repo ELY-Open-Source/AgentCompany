@@ -169,8 +169,11 @@ describe("document run provenance", () => {
         errorMessage: null,
       }, () => false);
 
+      // ai_ceo + top-level CEO without `reviewDeliverables` advances
+      // straight to `done` — there is no reviewer in that configuration
+      // so the prior `in_review` state was a dead letter.
       const task = harness.db.getTask(harness.taskId);
-      expect(task.status).toBe("in_review");
+      expect(task.status).toBe("done");
     } finally {
       harness.server.stop();
       harness.db.close();
