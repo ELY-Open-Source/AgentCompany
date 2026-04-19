@@ -400,6 +400,12 @@ function isGitRepo(workspacePath: string): boolean {
  * renames the new path is in the entry with the `R` status code and
  * the old path follows as its own NUL-terminated entry — we advance
  * past that old-path entry without emitting it.
+ *
+ * Deleted paths are excluded at the source. A worktree `D` status (the
+ * file is gone on disk) or a staged `D` with an unchanged worktree
+ * both represent a removal, not a produced artifact; registering them
+ * would plant ghost rows in `work_products` and send the DocumentCenter
+ * "open" link to an empty path.
  */
 function listChangedRelPaths(workspacePath: string): string[] {
   const raw = execFileSync("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all"], {
@@ -414,14 +420,29 @@ function listChangedRelPaths(workspacePath: string): string[] {
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];
     if (entry.length < 3) continue;
-    const statusCode = entry.slice(0, 2);
+    const indexStatus = entry[0];
+    const worktreeStatus = entry[1];
     const rest = entry.slice(3);
-    if (statusCode === "!!") continue;
+    if (indexStatus === "!" && worktreeStatus === "!") continue;
+    const isRename = indexStatus === "R" || worktreeStatus === "R";
+    if (representsDeletion(indexStatus, worktreeStatus)) {
+      if (isRename) i += 1;
+      continue;
+    }
     paths.push(rest);
-    const isRename = statusCode[0] === "R" || statusCode[1] === "R";
     if (isRename) i += 1;
   }
   return paths;
+}
+
+function representsDeletion(indexStatus: string, worktreeStatus: string): boolean {
+  // Worktree missing (`Y = D`) always means the file is not on disk.
+  if (worktreeStatus === "D") return true;
+  // Staged deletion whose worktree matches (`XD` + Y space) means the
+  // file was removed from the tree and the worktree is in sync; nothing
+  // to register either.
+  if (indexStatus === "D" && worktreeStatus === " ") return true;
+  return false;
 }
 
 function upsertFilesystemArtifact(
@@ -431,6 +452,23 @@ function upsertFilesystemArtifact(
   absPath: string,
 ): ProjectionOutcome {
   const relativePath = relative(workspacePath, absPath);
+
+  // Defense-in-depth against the change-detectors (git status + the
+  // baseline diff) reporting a path whose file is no longer a regular
+  // file on disk: a staged deletion that was undone mid-run, a symlink
+  // that replaced a file, a path that the agent touched and then
+  // rm'd. Registering it would plant a ghost row in `work_products`
+  // whose DocumentCenter "open" link leads nowhere.
+  let stat: ReturnType<typeof statSync>;
+  try {
+    stat = statSync(absPath);
+  } catch {
+    return { kind: "skipped", reason: "path_missing" };
+  }
+  if (!stat.isFile()) {
+    return { kind: "skipped", reason: "not_a_regular_file" };
+  }
+
   const lastSlash = relativePath.lastIndexOf("/");
   const title = lastSlash >= 0 ? relativePath.slice(lastSlash + 1) : relativePath;
 
