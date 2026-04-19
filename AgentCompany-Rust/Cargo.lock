@@ -5044,6 +5044,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "domain",
+ "pi_bridge",
  "rusqlite",
  "serde_json",
  "support",
