@@ -11,7 +11,7 @@ import type { CredentialResolver } from "@main/credentials";
 import { getConnectorDefinition } from "@main/connectors";
 import { projectInboxMessageToPi } from "./inbox-projection";
 import { projectAgentEventToLogChunk, extractTextBody } from "./agent-event-projection";
-import { captureWorkspaceBaseline, reconcileWorkspaceArtifacts } from "./artifact-projector";
+import { captureBaselineIfRequired, reconcileWorkspaceArtifacts } from "./artifact-projector";
 import {
   handleBeforeToolCall,
   handleAfterToolCall,
@@ -501,13 +501,13 @@ export class RuntimeBridge {
       workspaceId: string | null;
       workspacePath: string | null;
     };
-    // Capture an mtime baseline for non-git workspaces so `bash` and
-    // the end-of-run reconciliation can still diff changed files
-    // against a known-start reference. Git workspaces leave the
-    // baseline as null — `git status` is the source of truth there.
-    const baseline = payload.workspacePath
-      ? captureWorkspaceBaseline(payload.workspacePath)
-      : null;
+    // Capture an mtime baseline only for non-git workspaces so `bash`
+    // and the end-of-run reconciliation can still diff changed files
+    // against a known-start reference. Git workspaces skip the walk —
+    // `git status` is the source of truth there, and paying for an
+    // O(tree) scan on every run just to throw the result away is a
+    // hot-path tax the scheduler should not be paying.
+    const baseline = captureBaselineIfRequired(payload.workspacePath);
     this.registerActiveRun({
       runId,
       agentId: payload.agentId,

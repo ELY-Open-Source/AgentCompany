@@ -110,17 +110,24 @@ const BASELINE_SKIP_DIR_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Walk `workspacePath` and record the mtime of every non-directory
- * entry. Directories matching `BASELINE_SKIP_DIR_NAMES` are pruned at
- * walk time — the same categories the registrability filter rejects —
- * so the baseline stays bounded on real project trees. Stops early at
+ * Capture a run-start mtime baseline only for workspaces that need
+ * one. Git workspaces return null here because `git status` already
+ * provides the authoritative diff — paying for an O(tree) walk on
+ * every run just to throw the result away is a hot-path tax the
+ * scheduler should not be paying.
+ *
+ * For non-git workspaces, walk the workspace and record the mtime of
+ * every non-directory entry. Directories matching
+ * `BASELINE_SKIP_DIR_NAMES` are pruned at walk time — the same
+ * categories the registrability filter rejects — so the baseline
+ * stays bounded on real project trees. The walker stops early at
  * `MAX_BASELINE_ENTRIES` and flags `truncated`; the partial baseline
- * still lets the diff detect every file it saw, while the operator is
- * told via the skip reason that an oversize workspace fell off the
- * tail.
+ * still covers every path that was captured while the operator sees
+ * the cap signal.
  */
-export function captureWorkspaceBaseline(workspacePath: string): WorkspaceBaseline | null {
+export function captureBaselineIfRequired(workspacePath: string | null): WorkspaceBaseline | null {
   if (!workspacePath) return null;
+  if (isGitRepo(workspacePath)) return null;
   try {
     if (!statSync(workspacePath).isDirectory()) return null;
   } catch {
