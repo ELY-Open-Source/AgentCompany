@@ -183,7 +183,7 @@
       ],
       "priority": 13,
       "passes": false,
-      "notes": "Audit found current native documents surface lacks work-product grouping, modal/editor grammar, and action hierarchy from the original source."
+      "notes": "In progress: native Document Center now restores a two-section grammar with documents prose plus work products (sourced from persisted artifacts), instead of the earlier flat list plus quick draft shell. Remaining gap is finer editor/message parity and final source-to-native audit."
     },
     {
       "id": "US-014",

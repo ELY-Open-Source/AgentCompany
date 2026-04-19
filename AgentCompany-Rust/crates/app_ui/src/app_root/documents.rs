@@ -7,6 +7,8 @@ impl AppRoot {
             .selected_document_id
             .as_ref()
             .and_then(|id| self.snapshot.documents.iter().find(|item| &item.id == id));
+        let work_products = self.snapshot.artifacts.iter().take(12).collect::<Vec<_>>();
+        let total_count = self.snapshot.documents.len() + work_products.len();
 
         div()
             .flex()
@@ -16,7 +18,7 @@ impl AppRoot {
                 div()
                     .flex()
                     .justify_between()
-                    .items_start()
+                    .items_center()
                     .child(
                         div()
                             .child(
@@ -30,102 +32,188 @@ impl AppRoot {
                                     .mt(px(6.0))
                                     .text_sm()
                                     .text_color(theme::text_muted())
-                                    .child(format!("{} items", self.snapshot.documents.len())),
+                                    .child(format!("{} items", total_count)),
                             ),
                     )
                     .child(primary_button("Save draft", cx, |this, cx| {
                         this.create_document(cx)
                     })),
             )
-            .child(div().h(px(1.0)).bg(theme::panel_border()))
+            .child(document_section_label("DOCUMENTS PROSE"))
+            .child(self.render_document_prose_list(cx, selected))
+            .when(!work_products.is_empty(), |container| {
+                container
+                    .child(document_section_label("WORK PRODUCTS"))
+                    .child(render_work_products(work_products.as_slice()))
+            })
+            .child(self.render_document_editor(selected))
+    }
+
+    fn render_document_prose_list(
+        &self,
+        cx: &mut Context<Self>,
+        selected: Option<&domain::Document>,
+    ) -> impl IntoElement + '_ {
+        div()
+            .rounded_lg()
+            .border_1()
+            .border_color(theme::panel_border())
+            .bg(theme::panel())
             .when(self.snapshot.documents.is_empty(), |container| {
                 container.child(
                     div()
-                        .py_8()
-                        .text_base()
+                        .min_h(px(180.0))
+                        .flex()
+                        .items_center()
+                        .justify_center()
                         .text_color(theme::text_muted())
                         .child("No documents have been created yet."),
                 )
             })
             .when(!self.snapshot.documents.is_empty(), |container| {
-                container.child(div().id("documents-list").children(
-                    self.snapshot.documents.iter().map(|item| {
-                        let active =
-                            self.state.selected_document_id.as_deref() == Some(item.id.as_str());
-                        let document_id = item.id.clone();
-                        div()
-                            .id(SharedString::from(format!("document-{}", item.id)))
-                            .flex()
-                            .justify_between()
-                            .items_center()
-                            .px_6()
-                            .py_5()
-                            .border_b_1()
-                            .border_color(theme::panel_border())
-                            .cursor_pointer()
-                            .bg(if active {
-                                theme::selection_fill()
-                            } else {
-                                theme::window_bg()
-                            })
-                            .hover(|style| style.bg(theme::panel_hover()))
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.state.selected_document_id = Some(document_id.clone());
-                                cx.notify();
-                            }))
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .child(
-                                        div()
-                                            .text_base()
-                                            .text_color(theme::text_primary())
-                                            .truncate()
-                                            .child(item.title.clone()),
-                                    )
-                                    .child(
-                                        div()
-                                            .mt(px(8.0))
-                                            .text_sm()
-                                            .text_color(theme::text_muted())
-                                            .child(format!(
-                                                "{} · v{} · {}",
-                                                item.document_type.replace('_', " "),
-                                                item.version,
-                                                short_date(item.updated_at.as_str())
-                                            )),
-                                    ),
-                            )
-                            .child(document_status(item.status.as_str()))
-                    }),
-                ))
-            })
-            .child(div().h(px(1.0)).bg(theme::panel_border()))
-            .child(
-                div()
-                    .gap_4()
-                    .child(
-                        div().text_lg().text_color(theme::text_primary()).child(
-                            selected
-                                .map(|item| item.title.clone())
-                                .unwrap_or_else(|| "Quick draft".to_string()),
-                        ),
-                    )
-                    .child(self.document_title_input.clone())
-                    .child(self.document_body_input.clone())
-                    .when_some(selected, |container, item| {
-                        container.child(
+                container.children(self.snapshot.documents.iter().map(|document| {
+                    let active =
+                        selected.map(|item| item.id.as_str()) == Some(document.id.as_str());
+                    let document_id = document.id.clone();
+                    div()
+                        .id(SharedString::from(format!("document-{}", document.id)))
+                        .cursor_pointer()
+                        .hover(|style| style.bg(theme::panel_hover()))
+                        .bg(if active {
+                            theme::selection_fill()
+                        } else {
+                            theme::panel()
+                        })
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.state.selected_document_id = Some(document_id.clone());
+                            cx.notify();
+                        }))
+                        .px_5()
+                        .py_4()
+                        .border_b_1()
+                        .border_color(theme::panel_border())
+                        .child(
                             div()
-                                .p_4()
-                                .rounded_lg()
-                                .border_1()
-                                .border_color(theme::panel_inset_border())
-                                .bg(theme::panel_inset())
-                                .child(item.content.clone()),
+                                .flex()
+                                .justify_between()
+                                .items_center()
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .child(
+                                            div()
+                                                .text_base()
+                                                .text_color(theme::text_primary())
+                                                .child(document.title.clone()),
+                                        )
+                                        .child(
+                                            div()
+                                                .mt(px(4.0))
+                                                .text_sm()
+                                                .text_color(theme::text_muted())
+                                                .child(format!(
+                                                    "{} · v{} · {}",
+                                                    document.document_type.replace('_', " "),
+                                                    document.version,
+                                                    short_date(document.updated_at.as_str())
+                                                )),
+                                        ),
+                                )
+                                .child(document_status(document.status.as_str())),
                         )
-                    }),
-            )
+                }))
+            })
     }
+
+    fn render_document_editor(&self, selected: Option<&domain::Document>) -> impl IntoElement + '_ {
+        div()
+            .rounded_lg()
+            .border_1()
+            .border_color(theme::panel_border())
+            .bg(theme::panel())
+            .p_5()
+            .child(
+                div().text_lg().text_color(theme::text_primary()).child(
+                    selected
+                        .map(|item| item.title.clone())
+                        .unwrap_or_else(|| "New document".to_string()),
+                ),
+            )
+            .child(self.document_title_input.clone())
+            .child(self.document_body_input.clone())
+            .when_some(selected, |container, document| {
+                container.child(
+                    div()
+                        .mt(px(12.0))
+                        .rounded_lg()
+                        .border_1()
+                        .border_color(theme::panel_inset_border())
+                        .bg(theme::panel_inset())
+                        .p_4()
+                        .text_sm()
+                        .line_height(px(22.0))
+                        .text_color(theme::text_secondary())
+                        .child(document.content.clone()),
+                )
+            })
+    }
+}
+
+fn document_section_label(label: &'static str) -> impl IntoElement {
+    div().text_xs().text_color(theme::text_muted()).child(label)
+}
+
+fn render_work_products<'a>(products: &'a [&'a domain::ArtifactRecord]) -> impl IntoElement + 'a {
+    div()
+        .rounded_lg()
+        .border_1()
+        .border_color(theme::panel_border())
+        .bg(theme::panel())
+        .children(products.iter().map(|artifact| {
+            div()
+                .px_5()
+                .py_4()
+                .border_b_1()
+                .border_color(theme::panel_border())
+                .child(
+                    div()
+                        .flex()
+                        .justify_between()
+                        .items_center()
+                        .child(
+                            div()
+                                .flex_1()
+                                .child(
+                                    div()
+                                        .text_base()
+                                        .text_color(theme::text_primary())
+                                        .child(artifact.title.clone()),
+                                )
+                                .child(
+                                    div()
+                                        .mt(px(4.0))
+                                        .text_sm()
+                                        .text_color(theme::text_muted())
+                                        .child(format!(
+                                            "{} · {} · {}",
+                                            artifact.provider,
+                                            artifact.external_id,
+                                            short_date(artifact.created_at.as_str())
+                                        )),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .px_3()
+                                .py_2()
+                                .rounded_full()
+                                .bg(theme::accent_blue_soft())
+                                .text_xs()
+                                .text_color(theme::accent_blue())
+                                .child("ARTIFACT"),
+                        ),
+                )
+        }))
 }
 
 fn document_status(status: &str) -> impl IntoElement {
