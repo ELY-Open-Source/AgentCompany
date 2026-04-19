@@ -75,6 +75,21 @@ interface InboundCorrelationRegistry {
   lastAllocatedTimestamp: number;
 }
 
+/**
+ * Upper bound on inbound-correlation entries retained per active run.
+ *
+ * Every inbound peer message injected during a single pi run allocates
+ * one entry in both the messageId and piTimestamp maps of the registry.
+ * A long-lived CEO session that accumulates thousands of mid-run DMs
+ * would otherwise grow the maps without bound until the session
+ * compaction fires (which does not clean these structures). Keeping the
+ * `MAX_INBOUND_CORRELATIONS_PER_RUN` most recent entries is sufficient:
+ * `message_end` resolves author identity immediately after each turn,
+ * so the in-memory window only needs to cover pending-to-drain inbound
+ * messages, not the full run history.
+ */
+const MAX_INBOUND_CORRELATIONS_PER_RUN = 512;
+
 export class RuntimeBridge {
   private readonly costWriter: CostWriter;
   private readonly activeRuns = new Map<string, ActiveRunContext>();
@@ -171,9 +186,26 @@ export class RuntimeBridge {
     };
     registry.byMessageId.set(record.id, entry);
     registry.byPiTimestamp.set(allocated, record.id);
+    this.evictOldestCorrelationsIfNeeded(registry);
     return projectInboxMessageToPi(record, {
       getAgentName: (id) => this.resolveAgentName(id),
     }, { timestampOverride: allocated });
+  }
+
+  /**
+   * Bound the per-run correlation maps. JavaScript `Map` preserves
+   * insertion order, so dropping the head of each map retires the
+   * oldest entries. Eviction operates symmetrically on both maps so
+   * the reverse lookups remain consistent.
+   */
+  private evictOldestCorrelationsIfNeeded(registry: InboundCorrelationRegistry): void {
+    while (registry.byMessageId.size > MAX_INBOUND_CORRELATIONS_PER_RUN) {
+      const oldestMessageId = registry.byMessageId.keys().next().value;
+      if (!oldestMessageId) break;
+      const entry = registry.byMessageId.get(oldestMessageId);
+      registry.byMessageId.delete(oldestMessageId);
+      if (entry) registry.byPiTimestamp.delete(entry.piTimestamp);
+    }
   }
 
   private getOrCreateInboundRegistry(runId: string): InboundCorrelationRegistry {
