@@ -14,39 +14,25 @@ impl AppRoot {
             .flex()
             .flex_col()
             .gap_6()
+            .child(render_document_header(total_count, cx))
             .child(
                 div()
-                    .flex()
-                    .justify_between()
-                    .items_center()
+                    .grid()
+                    .grid_cols(2)
+                    .gap_4()
                     .child(
                         div()
-                            .child(
-                                div()
-                                    .text_2xl()
-                                    .text_color(theme::text_primary())
-                                    .child("Document Center"),
-                            )
-                            .child(
-                                div()
-                                    .mt(px(6.0))
-                                    .text_sm()
-                                    .text_color(theme::text_muted())
-                                    .child(format!("{} items", total_count)),
-                            ),
+                            .gap_4()
+                            .child(document_section_label("DOCUMENTS PROSE"))
+                            .child(self.render_document_prose_list(cx, selected))
+                            .when(!work_products.is_empty(), |container| {
+                                container
+                                    .child(document_section_label("WORK PRODUCTS"))
+                                    .child(render_work_products(work_products.as_slice()))
+                            }),
                     )
-                    .child(primary_button("Save draft", cx, |this, cx| {
-                        this.create_document(cx)
-                    })),
+                    .child(self.render_document_editor_surface(selected)),
             )
-            .child(document_section_label("DOCUMENTS PROSE"))
-            .child(self.render_document_prose_list(cx, selected))
-            .when(!work_products.is_empty(), |container| {
-                container
-                    .child(document_section_label("WORK PRODUCTS"))
-                    .child(render_work_products(work_products.as_slice()))
-            })
-            .child(self.render_document_editor(selected))
     }
 
     fn render_document_prose_list(
@@ -97,19 +83,20 @@ impl AppRoot {
                                 .flex()
                                 .justify_between()
                                 .items_center()
+                                .gap_3()
                                 .child(
                                     div()
                                         .flex_1()
                                         .child(
                                             div()
-                                                .text_base()
+                                                .text_sm()
                                                 .text_color(theme::text_primary())
                                                 .child(document.title.clone()),
                                         )
                                         .child(
                                             div()
                                                 .mt(px(4.0))
-                                                .text_sm()
+                                                .text_xs()
                                                 .text_color(theme::text_muted())
                                                 .child(format!(
                                                     "{} · v{} · {}",
@@ -125,7 +112,10 @@ impl AppRoot {
             })
     }
 
-    fn render_document_editor(&self, selected: Option<&domain::Document>) -> impl IntoElement + '_ {
+    fn render_document_editor_surface(
+        &self,
+        selected: Option<&domain::Document>,
+    ) -> impl IntoElement + '_ {
         div()
             .rounded_lg()
             .border_1()
@@ -139,24 +129,78 @@ impl AppRoot {
                         .unwrap_or_else(|| "New document".to_string()),
                 ),
             )
-            .child(self.document_title_input.clone())
-            .child(self.document_body_input.clone())
             .when_some(selected, |container, document| {
-                container.child(
-                    div()
-                        .mt(px(12.0))
-                        .rounded_lg()
-                        .border_1()
-                        .border_color(theme::panel_inset_border())
-                        .bg(theme::panel_inset())
-                        .p_4()
-                        .text_sm()
-                        .line_height(px(22.0))
-                        .text_color(theme::text_secondary())
-                        .child(document.content.clone()),
-                )
+                container
+                    .child(
+                        div()
+                            .mt(px(8.0))
+                            .text_sm()
+                            .text_color(theme::text_muted())
+                            .child(format!(
+                                "{} · v{} · {}",
+                                document.document_type.replace('_', " "),
+                                document.version,
+                                document.status
+                            )),
+                    )
+                    .child(
+                        div()
+                            .mt(px(16.0))
+                            .rounded_lg()
+                            .border_1()
+                            .border_color(theme::panel_inset_border())
+                            .bg(theme::panel_inset())
+                            .p_4()
+                            .text_sm()
+                            .line_height(px(22.0))
+                            .text_color(theme::text_secondary())
+                            .child(document.content.clone()),
+                    )
             })
+            .child(
+                div()
+                    .mt(px(20.0))
+                    .text_xs()
+                    .text_color(theme::text_muted())
+                    .child("DRAFT EDITOR"),
+            )
+            .child(div().mt(px(10.0)).child(self.document_title_input.clone()))
+            .child(div().mt(px(12.0)).child(self.document_body_input.clone()))
+            .child(
+                div().mt(px(14.0)).flex().justify_end().child(
+                    div()
+                        .text_xs()
+                        .text_color(theme::text_muted())
+                        .child("Use the draft editor to create the next document revision."),
+                ),
+            )
     }
+}
+
+fn render_document_header(total_count: usize, cx: &mut Context<AppRoot>) -> impl IntoElement {
+    div()
+        .flex()
+        .justify_between()
+        .items_center()
+        .child(
+            div()
+                .child(
+                    div()
+                        .text_2xl()
+                        .text_color(theme::text_primary())
+                        .child("Document Center"),
+                )
+                .child(
+                    div()
+                        .mt(px(6.0))
+                        .text_sm()
+                        .text_color(theme::text_muted())
+                        .child(format!("{} items", total_count)),
+                ),
+        )
+        .child(primary_button("Save draft", cx, |this, cx| {
+            this.create_document(cx)
+        }))
 }
 
 fn document_section_label(label: &'static str) -> impl IntoElement {
@@ -180,19 +224,20 @@ fn render_work_products<'a>(products: &'a [&'a domain::ArtifactRecord]) -> impl 
                         .flex()
                         .justify_between()
                         .items_center()
+                        .gap_3()
                         .child(
                             div()
                                 .flex_1()
                                 .child(
                                     div()
-                                        .text_base()
+                                        .text_sm()
                                         .text_color(theme::text_primary())
                                         .child(artifact.title.clone()),
                                 )
                                 .child(
                                     div()
                                         .mt(px(4.0))
-                                        .text_sm()
+                                        .text_xs()
                                         .text_color(theme::text_muted())
                                         .child(format!(
                                             "{} · {} · {}",
