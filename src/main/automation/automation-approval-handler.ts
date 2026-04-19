@@ -3,6 +3,7 @@ import type { AppDatabase } from "../database";
 import type { NotificationOptions } from "../notification-service";
 import { extractApprovalDocumentIds } from "@shared/approval-documents";
 import { notifyHireApproved } from "../hire-hook";
+import { autoAssignSkillsForHire } from "../skills/auto-assign-on-hire";
 import type { AutomationEventContext } from "./types";
 import { normalizeWorkflowSteps } from "./automation-workflow";
 
@@ -97,6 +98,29 @@ export function handleApprovalResolved(
     const agent = db.getAgent(approval.relatedAgentId);
 
     if (agent.status === "idle") {
+      // Deterministic default skill kit. The CEO's operating prompt
+      // used to carry this responsibility ("ensure every direct report
+      // has skills"), turning O(reports) API calls into a per-wake
+      // tax. At hire approval time we know the agent's department and
+      // the company's seeded catalogue — assign the default bundle so
+      // the new hire's first run already has the right SKILL.md
+      // manifest.
+      const { assignedSkillIds } = autoAssignSkillsForHire(db, {
+        agentId: agent.id,
+        companyId,
+        department: agent.department,
+      });
+      if (assignedSkillIds.length > 0) {
+        db.addActivity({
+          companyId,
+          actor: "system",
+          action: "agent.skills_defaulted",
+          entityType: "agent",
+          entityId: agent.id,
+          detail: `${assignedSkillIds.length} default skill(s) assigned on hire.`,
+        });
+      }
+
       db.addActivity({
         companyId,
         actor: "system",
