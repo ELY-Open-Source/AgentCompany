@@ -25,13 +25,14 @@ describe("Step 2: CEO phased prompts", () => {
     const prompt = buildSystemPrompt(ctx);
     expect(prompt).toContain("Team Building Phase");
     // The rewritten prompt uses "Design a minimal org" instead of the
-    // old "Design the Organization Structure" header. Check for both
-    // the stable Step-2 marker and the new ordering guarantee that
-    // blocks the self-loop the earlier prompt enabled.
+    // old "Design the Organization Structure" header. The hires-first
+    // rule is now server-enforced at /approvals with 409 codes, so the
+    // prompt describes the contract instead of begging the model.
     expect(prompt).toContain("Design a minimal org");
-    expect(prompt).toContain("HIRES FIRST. STRATEGY APPROVAL LAST.");
+    expect(prompt).toContain("hires first, strategy approval last");
+    expect(prompt).toContain("STRATEGY_BEFORE_HIRES");
     expect(prompt).toContain("Submit org strategy");
-    expect(prompt).not.toContain("Awaiting Org Approval");
+    expect(prompt).not.toContain("Awaiting Org Strategy Approval");
     expect(prompt).not.toContain("Goal Decomposition");
   });
 
@@ -79,7 +80,7 @@ describe("Step 2: CEO phased prompts", () => {
     });
 
     const prompt = buildSystemPrompt(ctx);
-    expect(prompt).toContain("Awaiting Org Approval");
+    expect(prompt).toContain("Awaiting Org Strategy Approval");
     expect(prompt).not.toContain("Team Building Phase");
     expect(prompt).not.toContain("Goal Decomposition");
   });

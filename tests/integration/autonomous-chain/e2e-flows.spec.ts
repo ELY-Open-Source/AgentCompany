@@ -61,7 +61,7 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
       } as ApprovalRecord],
     });
     const phase1Prompt = buildSystemPrompt(phase1Ctx);
-    expect(phase1Prompt).toContain("Awaiting Org Approval");
+    expect(phase1Prompt).toContain("Awaiting Org Strategy Approval");
 
     // 4. Board approves hires
     const hireApprovalCTO = shared.db.requestApproval({
@@ -278,7 +278,7 @@ describe("Review Fix: Org gate consistency (revision_requested)", () => {
     });
 
     const prompt = buildSystemPrompt(ctx);
-    expect(prompt).toContain("Awaiting Org Approval");
+    expect(prompt).toContain("Awaiting Org Strategy Approval");
     expect(prompt).toContain("revision_requested");
   });
 });
