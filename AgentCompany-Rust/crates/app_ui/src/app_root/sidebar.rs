@@ -1,4 +1,5 @@
 use super::*;
+use gpui::Window;
 
 impl AppRoot {
     pub(super) fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
@@ -7,7 +8,10 @@ impl AppRoot {
             (SectionId::Runs, Some(self.snapshot.active_runs())),
             (SectionId::Inbox, Some(self.snapshot.active_tasks())),
             (SectionId::Messages, Some(self.snapshot.unread_messages())),
-            (SectionId::Approvals, Some(self.snapshot.pending_approvals())),
+            (
+                SectionId::Approvals,
+                Some(self.snapshot.pending_approvals()),
+            ),
             (SectionId::Documents, None),
             (SectionId::Workspaces, None),
         ];
@@ -57,15 +61,12 @@ impl AppRoot {
                             .border_color(theme::panel_border())
                             .bg(theme::panel())
                             .child(
-                                div()
-                                    .text_sm()
-                                    .text_color(theme::text_primary())
-                                    .child(
-                                        self.snapshot
-                                            .current_company()
-                                            .map(|company| company.name.clone())
-                                            .unwrap_or_else(|| "AgentCompany".to_string()),
-                                    ),
+                                div().text_sm().text_color(theme::text_primary()).child(
+                                    self.snapshot
+                                        .current_company()
+                                        .map(|company| company.name.clone())
+                                        .unwrap_or_else(|| "AgentCompany".to_string()),
+                                ),
                             )
                             .child(
                                 div()
@@ -91,7 +92,8 @@ impl AppRoot {
                     ),
             )
             .children(self.snapshot.companies.iter().map(|company| {
-                let active = self.snapshot.current_company_id.as_deref() == Some(company.id.as_str());
+                let active =
+                    self.snapshot.current_company_id.as_deref() == Some(company.id.as_str());
                 let company_id = company.id.clone();
                 div()
                     .id(SharedString::from(format!("company-{}", company.id)))
@@ -189,10 +191,15 @@ impl AppRoot {
             }))
             .child(div().flex_1())
             .child(div().h(px(1.0)).bg(theme::sidebar_divider()))
-            .child(sidebar_footer_row("Settings", self.state.section == SectionId::Settings, cx, |this, cx| {
-                this.state.section = SectionId::Settings;
-                cx.notify();
-            }))
+            .child(sidebar_footer_row(
+                "Settings",
+                self.state.section == SectionId::Settings,
+                cx,
+                |this, cx| {
+                    this.state.section = SectionId::Settings;
+                    cx.notify();
+                },
+            ))
             .child(
                 div()
                     .px_4()
@@ -223,6 +230,7 @@ where
     V: 'static,
 {
     div()
+        .id(SharedString::from(format!("sidebar-footer-{label}")))
         .px_4()
         .py_3()
         .rounded_lg()
@@ -238,7 +246,9 @@ where
             theme::sidebar_text()
         })
         .hover(|style| style.bg(theme::sidebar_hover()))
-        .on_click(cx.listener(move |this, _, _, cx| on_click(this, cx)))
+        .on_click(
+            cx.listener(move |this, _: &gpui::ClickEvent, _: &mut Window, cx| on_click(this, cx)),
+        )
         .child(label)
 }
 

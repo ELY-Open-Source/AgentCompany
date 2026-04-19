@@ -4,10 +4,6 @@ pub fn window_bg() -> Hsla {
     rgb(0xf7f8fb).into()
 }
 
-pub fn canvas() -> Hsla {
-    rgb(0xf7f8fb).into()
-}
-
 pub fn shell_header() -> Hsla {
     rgb(0xffffff).into()
 }
@@ -108,15 +104,7 @@ pub fn sidebar_bg() -> Hsla {
     rgb(0xffffff).into()
 }
 
-pub fn sidebar_surface() -> Hsla {
-    rgb(0xffffff).into()
-}
-
 pub fn sidebar_hover() -> Hsla {
-    rgb(0xf4f6fa).into()
-}
-
-pub fn sidebar_surface_hover() -> Hsla {
     rgb(0xf4f6fa).into()
 }
 

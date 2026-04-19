@@ -130,7 +130,12 @@ fn eyebrow(label: &'static str) -> impl IntoElement {
         .gap_3()
         .items_center()
         .child(div().w(px(48.0)).h(px(1.0)).bg(theme::text_subtle()))
-        .child(div().text_xs().text_color(theme::text_subtle()).child(label))
+        .child(
+            div()
+                .text_xs()
+                .text_color(theme::text_subtle())
+                .child(label),
+        )
 }
 
 fn onboarding_steps() -> impl IntoElement {
@@ -168,7 +173,12 @@ fn readiness_panel() -> impl IntoElement {
     div()
         .w(px(520.0))
         .gap_3()
-        .child(div().text_xs().text_color(theme::text_muted()).child("CONNECTOR READINESS"))
+        .child(
+            div()
+                .text_xs()
+                .text_color(theme::text_muted())
+                .child("CONNECTOR READINESS"),
+        )
         .child(readiness_row("Claude Code", "ready", true))
         .child(readiness_row("Codex", "ready", true))
         .child(readiness_row("Gemini CLI", "auth required", false))
@@ -186,18 +196,17 @@ fn readiness_row(label: &'static str, state: &'static str, ready: bool) -> impl 
         .flex()
         .gap_3()
         .items_center()
+        .child(div().w(px(16.0)).h(px(16.0)).rounded_full().bg(if ready {
+            theme::accent_teal()
+        } else {
+            theme::accent_orange()
+        }))
         .child(
             div()
-                .w(px(16.0))
-                .h(px(16.0))
-                .rounded_full()
-                .bg(if ready {
-                    theme::accent_teal()
-                } else {
-                    theme::accent_orange()
-                }),
+                .text_sm()
+                .text_color(theme::text_primary())
+                .child(label),
         )
-        .child(div().text_sm().text_color(theme::text_primary()).child(label))
         .child(div().text_sm().text_color(theme::text_muted()).child(state))
 }
 
@@ -225,7 +234,12 @@ fn launch_tile(label: &'static str, value: &'static str) -> impl IntoElement {
         .rounded_lg()
         .bg(theme::panel_muted())
         .child(div().text_xs().text_color(theme::text_muted()).child(label))
-        .child(div().text_sm().text_color(theme::text_primary()).child(value))
+        .child(
+            div()
+                .text_sm()
+                .text_color(theme::text_primary())
+                .child(value),
+        )
 }
 
 fn rgb_hex(hex: u32) -> gpui::Hsla {

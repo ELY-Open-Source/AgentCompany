@@ -43,9 +43,15 @@ impl AppRoot {
                             .child(format!("{} agents active", self.snapshot.agents.len()))
                             .child(div().child("•"))
                             .child(metadata_dot(theme::badge_dark()))
-                            .child(format!("{} tasks in progress", self.snapshot.active_tasks()))
+                            .child(format!(
+                                "{} tasks in progress",
+                                self.snapshot.active_tasks()
+                            ))
                             .child(div().child("•"))
-                            .child(format!("{} completed", completed_task_count(&self.snapshot))),
+                            .child(format!(
+                                "{} completed",
+                                completed_task_count(&self.snapshot)
+                            )),
                     ),
             )
             .child(
@@ -149,7 +155,11 @@ impl AppRoot {
                                 div()
                                     .text_base()
                                     .text_color(theme::text_primary())
-                                    .child(format!("{} {}", item.actor, item.action.replace('_', " "))),
+                                    .child(format!(
+                                        "{} {}",
+                                        item.actor,
+                                        item.action.replace('_', " ")
+                                    )),
                             )
                             .child(
                                 div()
@@ -192,12 +202,7 @@ fn section_header(label: &'static str, action: Option<&'static str>) -> impl Int
         .flex()
         .items_center()
         .justify_between()
-        .child(
-            div()
-                .text_xs()
-                .text_color(theme::text_muted())
-                .child(label),
-        )
+        .child(div().text_xs().text_color(theme::text_muted()).child(label))
         .when_some(action, |container, action_label| {
             container.child(
                 div()
@@ -223,14 +228,13 @@ fn metric_panel(
         .rounded_lg()
         .border_color(theme::panel_border())
         .bg(theme::panel())
-        .child(
-            div()
-                .w(px(56.0))
-                .h(px(56.0))
-                .rounded_lg()
-                .bg(tile_bg),
-        )
+        .child(div().w(px(56.0)).h(px(56.0)).rounded_lg().bg(tile_bg))
         .child(div().text_xs().text_color(theme::text_muted()).child(label))
         .child(div().text_3xl().text_color(value_color).child(value))
-        .child(div().text_sm().text_color(theme::text_muted()).child(detail))
+        .child(
+            div()
+                .text_sm()
+                .text_color(theme::text_muted())
+                .child(detail),
+        )
 }

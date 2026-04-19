@@ -14,6 +14,7 @@ mod approvals;
 mod documents;
 mod inbox;
 mod messages;
+mod messages_parts;
 mod onboarding;
 mod overview;
 mod runs;
@@ -267,7 +268,7 @@ impl Render for AppRoot {
         div()
             .size_full()
             .flex()
-            .bg(theme::canvas())
+            .bg(theme::window_bg())
             .child(self.render_sidebar(cx))
             .child(
                 div()
@@ -276,30 +277,60 @@ impl Render for AppRoot {
                     .flex_col()
                     .child(
                         div()
-                            .px_6()
-                            .py_4()
+                            .px_8()
+                            .py_5()
                             .border_b_1()
                             .border_color(theme::panel_border())
                             .bg(theme::shell_header())
                             .child(
                                 div()
-                                    .text_xl()
-                                    .text_color(theme::text_primary())
-                                    .child(header),
-                            )
-                            .child(div().text_sm().text_color(theme::text_muted()).child(
-                                self.state.status_line.clone().unwrap_or_else(|| {
-                                    "Native Rust shell is reading the shared local profile."
-                                        .to_string()
-                                }),
-                            )),
+                                    .flex()
+                                    .items_center()
+                                    .justify_between()
+                                    .child(
+                                        div()
+                                            .child(
+                                                div()
+                                                    .text_3xl()
+                                                    .text_color(theme::text_primary())
+                                                    .child(self.state.section.label()),
+                                            )
+                                            .child(
+                                                div()
+                                                    .text_sm()
+                                                    .text_color(theme::text_muted())
+                                                    .child(header),
+                                            )
+                                            .child(
+                                                div()
+                                                    .text_sm()
+                                                    .text_color(theme::text_subtle())
+                                                    .child(self.state.status_line.clone().unwrap_or_else(|| {
+                                                        "Native Rust shell is reading the shared local profile."
+                                                            .to_string()
+                                                    })),
+                                            ),
+                                    )
+                                    .child(
+                                        div()
+                                            .px_4()
+                                            .py_3()
+                                            .rounded_lg()
+                                            .border_1()
+                                            .border_color(theme::panel_border())
+                                            .bg(theme::panel())
+                                            .text_sm()
+                                            .text_color(theme::text_secondary())
+                                            .child("Show console"),
+                                    ),
+                            ),
                     )
                     .child(
                         div()
                             .id("main-scroll")
                             .flex_1()
                             .overflow_scroll()
-                            .p_6()
+                            .p_8()
                             .child(match self.state.section {
                                 SectionId::Overview => self.render_overview().into_any_element(),
                                 SectionId::Runs => self.render_runs(cx).into_any_element(),
