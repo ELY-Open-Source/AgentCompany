@@ -35,8 +35,12 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
   return {
     /**
      * Called when a task transitions to in_progress for the first time.
-     * In co-founder mode, creates a plan_review checkpoint for non-code tasks
-     * so the user can review the task plan before execution begins.
+     * In co-founder mode, creates a plan_review checkpoint for top-level
+     * non-code tasks so the user can review the plan before execution
+     * begins. Subtasks inherit their parent's review — creating a
+     * checkpoint for every subtask made the whole team stall on a
+     * waterfall of approvals that the operator had no chance to process
+     * in real time.
      */
     onTaskStarted(taskId: string, companyId: string, agentId: string | null): string | null {
       try {
@@ -48,6 +52,12 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
 
         // Only create plan checkpoints for non-code task types
         if (!taskType || !CHECKPOINT_TASK_TYPES.has(taskType)) return null;
+
+        // Subtasks inherit the parent's plan review; creating a fresh
+        // checkpoint per subtask produces an unbounded approval fan-out
+        // that blocks the assignee's heartbeat (shouldPauseHeartbeat)
+        // the moment delegation starts.
+        if (task.parentId) return null;
 
         const approvalId = db.requestApproval({
           companyId,
