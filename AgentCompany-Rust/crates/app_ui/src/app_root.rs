@@ -5,7 +5,7 @@ use crate::{
         text_input::TextInput,
     },
 };
-use app_models::{AppState, OnboardingStep};
+use app_models::{AppState, OnboardingStep, RunFilter};
 use domain::{ApprovalState, ProfileSnapshot, SectionId};
 use gpui::{App, Context, Entity, SharedString, Window, div, prelude::*, px};
 use storage::OnboardingBootstrapInput;
@@ -33,6 +33,8 @@ pub struct AppRoot {
     onboarding_goal_input: Entity<TextInput>,
     onboarding_goal_detail_input: Entity<TextInput>,
     message_input: Entity<TextInput>,
+    run_search_input: Entity<TextInput>,
+    message_search_input: Entity<TextInput>,
     document_title_input: Entity<TextInput>,
     document_body_input: Entity<TextInput>,
     runtime_steer_input: Entity<TextInput>,
@@ -52,6 +54,8 @@ impl AppRoot {
             onboarding_goal_input: TextInput::new(cx, "Primary goal"),
             onboarding_goal_detail_input: TextInput::new(cx, "Goal acceptance criteria"),
             message_input: TextInput::new(cx, "Board message"),
+            run_search_input: TextInput::new(cx, "Search run queue"),
+            message_search_input: TextInput::new(cx, "Search messages"),
             document_title_input: TextInput::new(cx, "Document title"),
             document_body_input: TextInput::new(cx, "Document body"),
             runtime_steer_input: TextInput::new(cx, "Steer the active run"),
@@ -158,7 +162,12 @@ impl AppRoot {
                     .update(cx, |input, _| input.clear());
                 self.onboarding_goal_detail_input
                     .update(cx, |input, _| input.clear());
-                self.state.onboarding_step = OnboardingStep::Company;
+                self.state.onboarding_step = OnboardingStep::NodeCheck;
+                self.state.run_filter = RunFilter::All;
+                self.state.message_unread_only = false;
+                self.run_search_input.update(cx, |input, _| input.clear());
+                self.message_search_input
+                    .update(cx, |input, _| input.clear());
                 self.reload("Company bootstrapped from native onboarding.", cx);
             }
             Err(error) => self.set_status(error.to_string(), cx),

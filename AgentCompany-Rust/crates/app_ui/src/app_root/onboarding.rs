@@ -88,13 +88,76 @@ impl AppRoot {
             .items_center()
             .justify_center()
             .child(match step {
+                OnboardingStep::NodeCheck => self.render_nodecheck_panel(cx).into_any_element(),
+                OnboardingStep::Providers => self.render_providers_panel(cx).into_any_element(),
                 OnboardingStep::Company => self.render_company_setup_panel(cx).into_any_element(),
+                OnboardingStep::ModelPool => self.render_model_pool_panel(cx).into_any_element(),
+                OnboardingStep::ExecutionMode => {
+                    self.render_execution_mode_panel(cx).into_any_element()
+                }
                 OnboardingStep::Mission => self.render_mission_setup_panel(cx).into_any_element(),
                 OnboardingStep::Launch => self.render_launch_summary_panel(cx).into_any_element(),
             })
     }
 
-    fn render_company_setup_panel(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
+    fn render_nodecheck_panel(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
+        let ready_connectors = self
+            .snapshot
+            .connectors
+            .iter()
+            .filter(|connector| connector.status == "ready" || connector.auth_state == "ready")
+            .count();
+        onboarding_card()
+            .child(step_counter("NODECHECK", 1, 7))
+            .child(card_title("Verify the local runtime boundary"))
+            .child(card_divider())
+            .child(
+                div()
+                    .gap_4()
+                    .child(onboarding_metric_row(
+                        "Connector inventory",
+                        format!("{} configured", self.snapshot.connectors.len()),
+                    ))
+                    .child(onboarding_metric_row(
+                        "Ready runtimes",
+                        format!("{} ready", ready_connectors),
+                    ))
+                    .child(onboarding_metric_row(
+                        "Workspace binding",
+                        if self.workspace_input.read(cx).value().trim().is_empty() {
+                            "Set in company step".to_string()
+                        } else {
+                            "Path captured".to_string()
+                        },
+                    ))
+                    .child(
+                        div()
+                            .rounded_lg()
+                            .border_1()
+                            .border_color(theme::panel_border())
+                            .bg(theme::panel_inset())
+                            .p_4()
+                            .text_sm()
+                            .line_height(px(22.0))
+                            .text_color(theme::text_secondary())
+                            .child(
+                                "The native desktop path boots a real local-first company profile. This step keeps the original wizard contract honest before provider and mission setup.",
+                            ),
+                    ),
+            )
+            .child(
+                div()
+                    .mt(px(28.0))
+                    .flex()
+                    .justify_end()
+                    .child(primary_button("Continue to providers", cx, |this, cx| {
+                        this.state.onboarding_step = OnboardingStep::Providers;
+                        cx.notify();
+                    })),
+            )
+    }
+
+    fn render_providers_panel(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
         let connector_options = primary_connector_options(&self.snapshot);
         let selected_connector_id = self
             .state
@@ -103,7 +166,81 @@ impl AppRoot {
             .unwrap_or("anthropic");
 
         onboarding_card()
-            .child(step_counter("COMPANY", 1, 3))
+            .child(step_counter("PROVIDERS", 2, 7))
+            .child(card_title("Choose the founding runtime"))
+            .child(card_divider())
+            .child(
+                div()
+                    .gap_4()
+                    .child(div().flex().flex_wrap().gap_2().children(
+                        connector_options.into_iter().map(|connector| {
+                            let active = connector.id == selected_connector_id;
+                            let connector_id = connector.id.clone();
+                            selectable_chip(
+                                connector.label.as_str(),
+                                active,
+                                cx,
+                                move |this, cx| {
+                                    this.state.onboarding_connector_id = Some(connector_id.clone());
+                                    cx.notify();
+                                },
+                            )
+                            .into_any_element()
+                        }),
+                    ))
+                    .child(
+                        div()
+                            .rounded_lg()
+                            .border_1()
+                            .border_color(theme::panel_border())
+                            .bg(theme::panel_inset())
+                            .p_4()
+                            .text_sm()
+                            .line_height(px(22.0))
+                            .text_color(theme::text_secondary())
+                            .child(onboarding_connector_note(
+                                &self.snapshot,
+                                selected_connector_id,
+                            )),
+                    )
+                    .child(
+                        div()
+                            .gap_3()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(theme::text_muted())
+                                    .child("READINESS"),
+                            )
+                            .children(
+                                onboarding_readiness(
+                                    &self.snapshot,
+                                    self.state.onboarding_connector_id.as_deref(),
+                                )
+                                .iter()
+                                .map(readiness_row),
+                            ),
+                    ),
+            )
+            .child(
+                div()
+                    .mt(px(28.0))
+                    .flex()
+                    .justify_between()
+                    .child(secondary_button("Back", cx, |this, cx| {
+                        this.state.onboarding_step = OnboardingStep::NodeCheck;
+                        cx.notify();
+                    }))
+                    .child(primary_button("Continue to company", cx, |this, cx| {
+                        this.state.onboarding_step = OnboardingStep::Company;
+                        cx.notify();
+                    })),
+            )
+    }
+
+    fn render_company_setup_panel(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
+        onboarding_card()
+            .child(step_counter("COMPANY", 3, 7))
             .child(card_title("Set up the company shell"))
             .child(card_divider())
             .child(
@@ -119,116 +256,77 @@ impl AppRoot {
                             .line_height(px(20.0))
                             .text_color(theme::text_muted())
                             .child("The workspace path becomes the default execution boundary for the first operating loop."),
-                    )
-                    .child(
-                        div()
-                            .mt(px(12.0))
-                            .gap_3()
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(theme::text_muted())
-                                    .child("CEO RUNTIME"),
-                            )
-                            .child(div().flex().flex_wrap().gap_2().children(
-                                connector_options.into_iter().map(|connector| {
-                                    let active = connector.id == selected_connector_id;
-                                    let connector_id = connector.id.clone();
-                                    selectable_chip(
-                                        connector.label.as_str(),
-                                        active,
-                                        cx,
-                                        move |this, cx| {
-                                            this.state.onboarding_connector_id = Some(connector_id.clone());
-                                            cx.notify();
-                                        },
-                                    )
-                                    .into_any_element()
-                                }),
-                            ))
-                            .child(
-                                div()
-                                    .rounded_lg()
-                                    .border_1()
-                                    .border_color(theme::panel_border())
-                                    .bg(theme::panel_inset())
-                                    .p_4()
-                                    .text_sm()
-                                    .line_height(px(22.0))
-                                    .text_color(theme::text_secondary())
-                                    .child(onboarding_connector_note(&self.snapshot, selected_connector_id)),
-                            ),
                     ),
             )
             .child(
                 div()
                     .mt(px(28.0))
                     .flex()
-                    .justify_end()
-                    .child(primary_button("Continue to mission", cx, |this, cx| {
-                        this.state.onboarding_step = OnboardingStep::Mission;
+                    .justify_between()
+                    .child(secondary_button("Back", cx, |this, cx| {
+                        this.state.onboarding_step = OnboardingStep::Providers;
+                        cx.notify();
+                    }))
+                    .child(primary_button("Continue to model pool", cx, |this, cx| {
+                        this.state.onboarding_step = OnboardingStep::ModelPool;
                         cx.notify();
                     })),
             )
     }
 
-    fn render_mission_setup_panel(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
+    fn render_model_pool_panel(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
+        let connector = self
+            .state
+            .onboarding_connector_id
+            .as_deref()
+            .and_then(|connector_id| {
+                self.snapshot
+                    .connectors
+                    .iter()
+                    .find(|connector| connector.id == connector_id)
+            });
         onboarding_card()
-            .child(step_counter("MISSION", 2, 3))
-            .child(card_title("Define the founding mission"))
+            .child(step_counter("MODELPOOL", 4, 7))
+            .child(card_title("Review the active model pool"))
             .child(card_divider())
             .child(
                 div()
                     .gap_4()
-                    .child(self.onboarding_goal_input.clone())
-                    .child(self.onboarding_goal_detail_input.clone())
+                    .child(onboarding_metric_row(
+                        "Selected runtime",
+                        connector
+                            .map(|item| item.label.clone())
+                            .unwrap_or_else(|| "No connector selected".to_string()),
+                    ))
+                    .child(onboarding_metric_row(
+                        "Default model",
+                        connector
+                            .and_then(|item| item.model.clone())
+                            .unwrap_or_else(|| "Use connector default".to_string()),
+                    ))
+                    .child(onboarding_metric_row(
+                        "Status",
+                        connector
+                            .map(|item| {
+                                if item.status.is_empty() {
+                                    "Unknown".to_string()
+                                } else {
+                                    item.status.clone()
+                                }
+                            })
+                            .unwrap_or_else(|| "Pending".to_string()),
+                    ))
                     .child(
                         div()
-                            .mt(px(12.0))
-                            .gap_3()
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(theme::text_muted())
-                                    .child("EXECUTION MODE"),
-                            )
-                            .child(
-                                div()
-                                    .flex()
-                                    .gap_2()
-                                    .child(selectable_chip(
-                                        "AI CEO",
-                                        self.state.onboarding_execution_mode == "ai_ceo",
-                                        cx,
-                                        |this, cx| {
-                                            this.state.onboarding_execution_mode = "ai_ceo";
-                                            cx.notify();
-                                        },
-                                    ))
-                                    .child(selectable_chip(
-                                        "AI Co-Founder",
-                                        self.state.onboarding_execution_mode == "ai_cofounder",
-                                        cx,
-                                        |this, cx| {
-                                            this.state.onboarding_execution_mode = "ai_cofounder";
-                                            cx.notify();
-                                        },
-                                    )),
-                            )
-                            .child(
-                                div()
-                                    .rounded_lg()
-                                    .border_1()
-                                    .border_color(theme::panel_border())
-                                    .bg(theme::panel_inset())
-                                    .p_4()
-                                    .text_sm()
-                                    .line_height(px(22.0))
-                                    .text_color(theme::text_secondary())
-                                    .child(onboarding_execution_mode_note(
-                                        self.state.onboarding_execution_mode,
-                                    )),
-                            ),
+                            .rounded_lg()
+                            .border_1()
+                            .border_color(theme::panel_border())
+                            .bg(theme::panel_inset())
+                            .p_4()
+                            .text_sm()
+                            .line_height(px(22.0))
+                            .text_color(theme::text_secondary())
+                            .child("The original flow paused here to confirm the provider/model surface before execution mode. Native onboarding now preserves that pause with live connector data instead of a collapsed shortcut."),
                     ),
             )
             .child(
@@ -238,6 +336,107 @@ impl AppRoot {
                     .justify_between()
                     .child(secondary_button("Back", cx, |this, cx| {
                         this.state.onboarding_step = OnboardingStep::Company;
+                        cx.notify();
+                    }))
+                    .child(primary_button("Continue to execution mode", cx, |this, cx| {
+                        this.state.onboarding_step = OnboardingStep::ExecutionMode;
+                        cx.notify();
+                    })),
+            )
+    }
+
+    fn render_execution_mode_panel(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
+        onboarding_card()
+            .child(step_counter("EXECUTIONMODE", 5, 7))
+            .child(card_title("Choose how the company executes"))
+            .child(card_divider())
+            .child(
+                div()
+                    .gap_4()
+                    .child(
+                        div()
+                            .flex()
+                            .gap_2()
+                            .child(selectable_chip(
+                                "AI CEO",
+                                self.state.onboarding_execution_mode == "ai_ceo",
+                                cx,
+                                |this, cx| {
+                                    this.state.onboarding_execution_mode = "ai_ceo";
+                                    cx.notify();
+                                },
+                            ))
+                            .child(selectable_chip(
+                                "AI Co-Founder",
+                                self.state.onboarding_execution_mode == "ai_cofounder",
+                                cx,
+                                |this, cx| {
+                                    this.state.onboarding_execution_mode = "ai_cofounder";
+                                    cx.notify();
+                                },
+                            )),
+                    )
+                    .child(
+                        div()
+                            .rounded_lg()
+                            .border_1()
+                            .border_color(theme::panel_border())
+                            .bg(theme::panel_inset())
+                            .p_4()
+                            .text_sm()
+                            .line_height(px(22.0))
+                            .text_color(theme::text_secondary())
+                            .child(onboarding_execution_mode_note(
+                                self.state.onboarding_execution_mode,
+                            )),
+                    ),
+            )
+            .child(
+                div()
+                    .mt(px(28.0))
+                    .flex()
+                    .justify_between()
+                    .child(secondary_button("Back", cx, |this, cx| {
+                        this.state.onboarding_step = OnboardingStep::ModelPool;
+                        cx.notify();
+                    }))
+                    .child(primary_button("Continue to mission", cx, |this, cx| {
+                        this.state.onboarding_step = OnboardingStep::Mission;
+                        cx.notify();
+                    })),
+            )
+    }
+
+    fn render_mission_setup_panel(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
+        onboarding_card()
+            .child(step_counter("MISSION", 6, 7))
+            .child(card_title("Define the founding mission"))
+            .child(card_divider())
+            .child(
+                div()
+                    .gap_4()
+                    .child(self.onboarding_goal_input.clone())
+                    .child(self.onboarding_goal_detail_input.clone())
+                    .child(
+                        div()
+                            .rounded_lg()
+                            .border_1()
+                            .border_color(theme::panel_border())
+                            .bg(theme::panel_inset())
+                            .p_4()
+                            .text_sm()
+                            .line_height(px(22.0))
+                            .text_color(theme::text_secondary())
+                            .child("This mission becomes the first goal, kickoff project brief, and the queued launch run summary inside the local profile."),
+                    ),
+            )
+            .child(
+                div()
+                    .mt(px(28.0))
+                    .flex()
+                    .justify_between()
+                    .child(secondary_button("Back", cx, |this, cx| {
+                        this.state.onboarding_step = OnboardingStep::ExecutionMode;
                         cx.notify();
                     }))
                     .child(primary_button("Review launch", cx, |this, cx| {
@@ -271,14 +470,15 @@ impl AppRoot {
 
         onboarding_card()
             .child(success_badge())
+            .child(step_counter("LAUNCH", 7, 7))
             .child(
                 div()
-                    .mt(px(28.0))
+                    .mt(px(20.0))
                     .text_size(px(32.0))
                     .line_height(px(38.0))
                     .text_color(theme::text_primary())
                     .child(if company_name.trim().is_empty() {
-                        "Native control center is ready.".to_string()
+                        "Company profile is ready to launch.".to_string()
                     } else {
                         format!("{} is ready to launch.", company_name.trim())
                     }),
@@ -417,28 +617,36 @@ fn onboarding_eyebrow(label: &'static str) -> impl IntoElement {
 }
 
 fn onboarding_stepper(step: OnboardingStep) -> impl IntoElement {
+    let steps = [
+        ("Node check", OnboardingStep::NodeCheck),
+        ("Providers", OnboardingStep::Providers),
+        ("Company", OnboardingStep::Company),
+        ("Model pool", OnboardingStep::ModelPool),
+        ("Execution mode", OnboardingStep::ExecutionMode),
+        ("Mission", OnboardingStep::Mission),
+        ("Launch", OnboardingStep::Launch),
+    ];
+    let active_index = steps
+        .iter()
+        .position(|(_, current)| *current == step)
+        .unwrap_or_default();
+
+    let mut children = Vec::new();
+    for (index, (label, current_step)) in steps.into_iter().enumerate() {
+        if index > 0 {
+            children.push(step_connector(index <= active_index).into_any_element());
+        }
+        children.push(
+            major_step_chip(label, step == current_step, index < active_index).into_any_element(),
+        );
+    }
+
     div()
         .mt(px(12.0))
         .flex()
         .gap_3()
         .items_center()
-        .child(major_step_chip(
-            "Company",
-            matches!(step, OnboardingStep::Company),
-            true,
-        ))
-        .child(step_connector())
-        .child(major_step_chip(
-            "Mission",
-            matches!(step, OnboardingStep::Mission),
-            !matches!(step, OnboardingStep::Company),
-        ))
-        .child(step_connector())
-        .child(major_step_chip(
-            "Launch",
-            matches!(step, OnboardingStep::Launch),
-            false,
-        ))
+        .children(children)
 }
 
 fn major_step_chip(label: &'static str, current: bool, complete: bool) -> impl IntoElement {
@@ -475,8 +683,29 @@ fn major_step_chip(label: &'static str, current: bool, complete: bool) -> impl I
     }
 }
 
-fn step_connector() -> impl IntoElement {
-    div().w(px(42.0)).h(px(1.0)).bg(theme::panel_border())
+fn step_connector(active: bool) -> impl IntoElement {
+    div().w(px(42.0)).h(px(1.0)).bg(if active {
+        theme::accent_teal_soft()
+    } else {
+        theme::panel_border()
+    })
+}
+
+fn onboarding_metric_row(label: &'static str, value: String) -> impl IntoElement {
+    div()
+        .rounded_lg()
+        .border_1()
+        .border_color(theme::panel_border())
+        .bg(theme::panel_inset())
+        .p_4()
+        .child(div().text_xs().text_color(theme::text_muted()).child(label))
+        .child(
+            div()
+                .mt(px(8.0))
+                .text_sm()
+                .text_color(theme::text_primary())
+                .child(value),
+        )
 }
 
 fn readiness_row(row: &ConnectorReadiness<'_>) -> impl IntoElement {

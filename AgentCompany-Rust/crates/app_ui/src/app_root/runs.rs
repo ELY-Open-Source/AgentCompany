@@ -4,6 +4,14 @@ use std::time::Duration;
 
 impl AppRoot {
     pub(super) fn render_runs(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
+        let search_query = self.run_search_input.read(cx).value().to_lowercase();
+        let filtered_runs = self
+            .snapshot
+            .runs
+            .iter()
+            .filter(|item| run_matches_filter(&self.snapshot, item, self.state.run_filter))
+            .filter(|item| run_matches_query(&self.snapshot, item, search_query.as_str()))
+            .collect::<Vec<_>>();
         let selected = self
             .state
             .selected_run_id
@@ -42,13 +50,13 @@ impl AppRoot {
                                             .mt(px(6.0))
                                             .text_sm()
                                             .text_color(theme::text_muted())
-                                            .child(format!("{} runs", self.snapshot.runs.len())),
+                                            .child(format!("{} visible runs", filtered_runs.len())),
                                     ),
                             )
-                            .child(run_filter_shell()),
+                            .child(run_filter_controls(self.state.run_filter, cx)),
                     )
-                    .child(run_search_shell("Search runs"))
-                    .children(self.snapshot.runs.iter().map(|item| {
+                    .child(self.run_search_input.clone())
+                    .children(filtered_runs.iter().map(|item| {
                         let active =
                             self.state.selected_run_id.as_deref() == Some(item.id.as_str());
                         let run_id = item.id.clone();
@@ -287,14 +295,14 @@ impl AppRoot {
                                             div()
                                                 .text_xl()
                                                 .text_color(theme::text_primary())
-                                                .child("No run selected"),
+                                                .child("Run queue is clear"),
                                         )
                                         .child(
                                             div()
                                                 .mt(px(10.0))
                                                 .text_base()
                                                 .text_color(theme::text_muted())
-                                                .child("Choose a run from the queue to inspect its status and execution context."),
+                                                .child("Choose a run from the queue to inspect execution context, approvals, runtime events, and artifacts."),
                                         ),
                                 ),
                         )
@@ -547,7 +555,7 @@ fn run_live_controls_panel<'a>(
             div()
                 .text_lg()
                 .text_color(theme::text_primary())
-                .child("Live runtime controls"),
+                .child("Operator actions"),
         )
         .child(
             div()
@@ -618,30 +626,100 @@ fn timeline_row(label: &'static str, value: String) -> impl IntoElement {
         )
 }
 
-fn run_filter_shell() -> impl IntoElement {
+fn run_filter_controls(cx_filter: RunFilter, cx: &mut Context<AppRoot>) -> impl IntoElement {
     div()
-        .px_4()
-        .py_3()
-        .rounded_lg()
-        .border_1()
-        .border_color(theme::panel_border())
-        .bg(theme::panel())
-        .text_sm()
-        .text_color(theme::text_secondary())
-        .child("All")
+        .flex()
+        .gap_2()
+        .child(run_filter_chip(
+            "All",
+            cx_filter == RunFilter::All,
+            RunFilter::All,
+            cx,
+        ))
+        .child(run_filter_chip(
+            "Running",
+            cx_filter == RunFilter::Running,
+            RunFilter::Running,
+            cx,
+        ))
+        .child(run_filter_chip(
+            "Needs review",
+            cx_filter == RunFilter::NeedsReview,
+            RunFilter::NeedsReview,
+            cx,
+        ))
+        .child(run_filter_chip(
+            "Finished",
+            cx_filter == RunFilter::Finished,
+            RunFilter::Finished,
+            cx,
+        ))
 }
 
-fn run_search_shell(label: &'static str) -> impl IntoElement {
+fn run_filter_chip(
+    label: &'static str,
+    active: bool,
+    next: RunFilter,
+    cx: &mut Context<AppRoot>,
+) -> impl IntoElement {
     div()
-        .px_4()
-        .py_3()
-        .rounded_lg()
-        .border_1()
-        .border_color(theme::panel_border())
-        .bg(theme::panel())
-        .text_sm()
-        .text_color(theme::text_subtle())
+        .id(SharedString::from(format!("run-filter-{label}")))
+        .px_3()
+        .py_2()
+        .rounded_full()
+        .cursor_pointer()
+        .bg(if active {
+            theme::primary_action()
+        } else {
+            theme::panel_muted()
+        })
+        .text_xs()
+        .text_color(if active {
+            theme::primary_action_text()
+        } else {
+            theme::text_secondary()
+        })
+        .hover(|style| {
+            style.bg(if active {
+                theme::primary_action_hover()
+            } else {
+                theme::panel_hover()
+            })
+        })
+        .on_click(cx.listener(move |this, _, _, cx| {
+            this.state.run_filter = next;
+            cx.notify();
+        }))
         .child(label)
+}
+
+fn run_matches_filter(
+    snapshot: &domain::ProfileSnapshot,
+    run: &domain::Run,
+    filter: RunFilter,
+) -> bool {
+    match filter {
+        RunFilter::All => true,
+        RunFilter::Running => matches!(run.status.as_str(), "queued" | "running"),
+        RunFilter::NeedsReview => run.task_id.as_ref().is_some_and(|task_id| {
+            snapshot.approvals.iter().any(|approval| {
+                approval.related_task_id.as_deref() == Some(task_id.as_str())
+                    && approval.state == "pending"
+            })
+        }),
+        RunFilter::Finished => matches!(run.status.as_str(), "completed" | "failed" | "cancelled"),
+    }
+}
+
+fn run_matches_query(snapshot: &domain::ProfileSnapshot, run: &domain::Run, query: &str) -> bool {
+    if query.trim().is_empty() {
+        return true;
+    }
+    let query = query.trim();
+    let title = run_task_title(snapshot, run).to_lowercase();
+    let subtitle = run_subtitle(snapshot, run).to_lowercase();
+    let summary = run.summary.to_lowercase();
+    title.contains(query) || subtitle.contains(query) || summary.contains(query)
 }
 
 fn short_id(value: &str) -> &str {

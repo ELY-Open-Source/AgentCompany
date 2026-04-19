@@ -3,7 +3,11 @@ use domain::SectionId;
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum OnboardingStep {
     #[default]
+    NodeCheck,
+    Providers,
     Company,
+    ModelPool,
+    ExecutionMode,
     Mission,
     Launch,
 }
@@ -18,6 +22,15 @@ pub enum InboxFilter {
     Messages,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum RunFilter {
+    #[default]
+    All,
+    Running,
+    NeedsReview,
+    Finished,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct AppState {
     pub section: SectionId,
@@ -30,6 +43,8 @@ pub struct AppState {
     pub onboarding_connector_id: Option<String>,
     pub onboarding_execution_mode: &'static str,
     pub inbox_filter: InboxFilter,
+    pub run_filter: RunFilter,
+    pub message_unread_only: bool,
     pub status_line: Option<String>,
 }
 

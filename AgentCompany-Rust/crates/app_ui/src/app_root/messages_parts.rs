@@ -7,7 +7,7 @@ pub(super) fn message_section_label(label: &'static str) -> impl IntoElement {
 pub(super) fn selected_message_card(message: Option<&domain::AgentMessage>) -> impl IntoElement {
     let subject = message
         .map(|item| item.subject.clone())
-        .unwrap_or_else(|| "No message selected".to_string());
+        .unwrap_or_else(|| "Select a message thread".to_string());
     let body = message.map(|item| item.body.clone()).unwrap_or_else(|| {
         "Choose a company channel, direct thread, or task discussion from the left rail."
             .to_string()
@@ -150,33 +150,6 @@ pub(super) fn secondary_message(
 
 fn trim_sender(sender: &str) -> &str {
     sender.get(..2).unwrap_or(sender)
-}
-
-pub(super) fn search_shell(label: &'static str) -> impl IntoElement {
-    div()
-        .w(px(240.0))
-        .px_4()
-        .py_3()
-        .rounded_lg()
-        .border_1()
-        .border_color(theme::panel_border())
-        .bg(theme::panel())
-        .text_sm()
-        .text_color(theme::text_subtle())
-        .child(label)
-}
-
-pub(super) fn filter_shell() -> impl IntoElement {
-    div()
-        .px_4()
-        .py_3()
-        .rounded_lg()
-        .border_1()
-        .border_color(theme::panel_border())
-        .bg(theme::panel())
-        .text_sm()
-        .text_color(theme::text_secondary())
-        .child("Filters")
 }
 
 pub(super) fn composer_chip(label: &str) -> impl IntoElement {

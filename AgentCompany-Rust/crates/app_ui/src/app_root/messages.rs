@@ -1,7 +1,7 @@
 use super::{
     messages_parts::{
-        compact_message_card, composer_chip, composer_subject, filter_shell, message_section_label,
-        search_shell, secondary_message, selected_message_card, selected_recipient,
+        compact_message_card, composer_chip, composer_subject, message_section_label,
+        secondary_message, selected_message_card, selected_recipient,
     },
     *,
 };
@@ -23,10 +23,17 @@ impl AppRoot {
                 .first()
                 .and_then(|group| group.rows.first().map(|row| row.key.clone()))
         });
+        let message_query = self.message_search_input.read(cx).value().to_lowercase();
         let visible_messages = selected_channel
             .as_ref()
             .map(|channel_key| messages_for_channel(&self.snapshot, channel_key))
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|message| {
+                message_matches_query(message, message_query.as_str())
+                    && (!self.state.message_unread_only || message.read_at.is_none())
+            })
+            .collect::<Vec<_>>();
 
         div()
             .flex()
@@ -45,8 +52,10 @@ impl AppRoot {
                     .border_color(theme::panel_border())
                     .bg(theme::panel())
                     .child(render_message_header(
+                        self,
                         selected_channel.as_deref(),
                         visible_messages.len(),
+                        cx,
                     ))
                     .child(
                         div()
@@ -319,7 +328,12 @@ fn render_message_sidebar<'a>(
         )
 }
 
-fn render_message_header(active_channel: Option<&str>, visible_count: usize) -> impl IntoElement {
+fn render_message_header(
+    root: &AppRoot,
+    active_channel: Option<&str>,
+    visible_count: usize,
+    cx: &mut Context<AppRoot>,
+) -> impl IntoElement {
     div()
         .flex()
         .justify_between()
@@ -348,8 +362,9 @@ fn render_message_header(active_channel: Option<&str>, visible_count: usize) -> 
             div()
                 .flex()
                 .gap_3()
-                .child(search_shell("Search messages"))
-                .child(filter_shell()),
+                .items_center()
+                .child(root.message_search_input.clone())
+                .child(message_filter_toggle(root.state.message_unread_only, cx)),
         )
 }
 
@@ -425,6 +440,52 @@ fn render_message_inspector(selected: Option<&domain::AgentMessage>) -> impl Int
         .when_some(secondary_message(selected), |container, message| {
             container.child(compact_message_card(message))
         })
+}
+
+fn message_filter_toggle(unread_only: bool, cx: &mut Context<AppRoot>) -> impl IntoElement {
+    div()
+        .id("message-filter-toggle")
+        .px_3()
+        .py_2()
+        .rounded_full()
+        .cursor_pointer()
+        .bg(if unread_only {
+            theme::primary_action()
+        } else {
+            theme::panel_muted()
+        })
+        .text_xs()
+        .text_color(if unread_only {
+            theme::primary_action_text()
+        } else {
+            theme::text_secondary()
+        })
+        .hover(|style| {
+            style.bg(if unread_only {
+                theme::primary_action_hover()
+            } else {
+                theme::panel_hover()
+            })
+        })
+        .on_click(cx.listener(move |this, _, _, cx| {
+            this.state.message_unread_only = !this.state.message_unread_only;
+            cx.notify();
+        }))
+        .child(if unread_only {
+            "Unread only"
+        } else {
+            "All messages"
+        })
+}
+
+fn message_matches_query(message: &domain::AgentMessage, query: &str) -> bool {
+    if query.trim().is_empty() {
+        return true;
+    }
+    let query = query.trim();
+    message.subject.to_lowercase().contains(query)
+        || message.body.to_lowercase().contains(query)
+        || message.channel.to_lowercase().contains(query)
 }
 
 fn message_channel_key(message: &domain::AgentMessage) -> String {

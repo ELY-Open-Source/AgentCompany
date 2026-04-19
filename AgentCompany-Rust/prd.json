@@ -140,8 +140,8 @@
         "cargo test --workspace passes"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": "In progress: native onboarding now uses a real multi-stage company/mission/launch flow with screenshot-aligned left narrative + right summary grammar, real connector readiness from snapshot data, and a real bootstrap transaction that creates company/workspace/goal/CEO/project/task/run. Remaining gap: restore the full original wizard tab semantics (nodecheck/providers/modelpool/executionmode) more precisely."
+      "passes": true,
+      "notes": "Passed: native onboarding now restores the original staged wizard grammar much more faithfully with explicit nodecheck/providers/company/modelpool/executionmode/mission/launch steps, while keeping the real Rust bootstrap transaction intact."
     },
     {
       "id": "US-011",
@@ -154,8 +154,8 @@
         "cargo test --workspace passes"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": "In progress: dashboard now restores banners, attention rows, performance cards, active work, and activity feed. Inbox now has real interactive filters and a unified attention stream instead of the previous static grouped placeholder. Remaining gap is finer visual parity and final audit."
+      "passes": true,
+      "notes": "Passed: dashboard and inbox parity remediation is closed for this cycle; dashboard grammar was already restored earlier, and the remaining communication/search shell mismatches have been eliminated with real native filtering/search state."
     },
     {
       "id": "US-012",
@@ -168,8 +168,8 @@
         "cargo test --workspace passes"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": "In progress: approvals now restore board/user/manager review grouping semantics and runs demote native runtime controls out of the main header hierarchy into a secondary live-controls section. Remaining gap is finer run queue/detail grammar parity."
+      "passes": true,
+      "notes": "Passed: runs now use real native queue filtering/search state, the empty-state copy is aligned, and the non-source runtime slab has been reduced to a lower-weight operator actions panel without distorting the main operational hierarchy."
     },
     {
       "id": "US-013",
@@ -182,8 +182,8 @@
         "cargo test --workspace passes"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": "In progress: native Document Center now separates documents prose and work products using persisted artifacts. Messages now restores a more source-like communication shell with grouped channels, unread badges, a channel header, a message stream, a composer area, and a side inspector. Remaining work is the final source-to-native parity audit and any last micro-gaps it surfaces."
+      "passes": true,
+      "notes": "Passed: document-center empty/editor grammar is aligned for this remediation cycle, and communication shell parity is closed with real message search/unread filtering and source-aligned empty states."
     },
     {
       "id": "US-014",
@@ -196,8 +196,8 @@
         "cargo test --workspace passes"
       ],
       "priority": 14,
-      "passes": false,
-      "notes": "Audit not yet finalized. The post-completion remediation cycle has now rebuilt onboarding, dashboard, inbox, approvals, runs, documents, and messages toward source grammar. Next step is a final explicit audit pass to decide which remaining deviations are still material."
+      "passes": true,
+      "notes": "Passed: final source-to-native parity re-audit completed. Remaining hard-coded source mismatches identified in runs/documents/onboarding/messages were eliminated, and the workspace passes cargo clippy and cargo test."
     }
   ]
 }

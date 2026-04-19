@@ -67,7 +67,7 @@ impl AppRoot {
                         .items_center()
                         .justify_center()
                         .text_color(theme::text_muted())
-                        .child("No documents have been created yet."),
+                        .child("No documents yet. Create the first company document to start the knowledge base."),
                 )
             })
             .when(!self.snapshot.documents.is_empty(), |container| {
