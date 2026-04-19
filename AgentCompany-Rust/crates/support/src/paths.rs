@@ -6,6 +6,9 @@ use std::{
 
 pub const APP_NAME: &str = "AgentCompany";
 pub const PROFILE_ENV: &str = "AGENTCOMPANY_PROFILE_DIR";
+pub const RUNTIME_COMMAND_ENV: &str = "AGENTCOMPANY_PI_COMMAND";
+pub const RUNTIME_ARGS_ENV: &str = "AGENTCOMPANY_PI_ARGS_JSON";
+pub const RUNTIME_WORKDIR_ENV: &str = "AGENTCOMPANY_PI_WORKDIR";
 
 pub fn default_profile_dir() -> Result<PathBuf> {
     dirs::data_dir()

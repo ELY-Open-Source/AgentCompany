@@ -152,6 +152,43 @@ impl AppRoot {
                                     )
                                     .child(
                                         div()
+                                            .mt(px(18.0))
+                                            .gap_3()
+                                            .child(
+                                                div()
+                                                    .flex()
+                                                    .gap_3()
+                                                    .child(primary_button("Launch native runtime", cx, |this, cx| {
+                                                        this.launch_selected_run(cx);
+                                                    }))
+                                                    .child(secondary_button("Approve selected gate", cx, |this, cx| {
+                                                        this.decide_selected_approval(domain::ApprovalState::Approved, "Approved from native runtime controls.", cx);
+                                                    }))
+                                                    .child(secondary_button("Reject selected gate", cx, |this, cx| {
+                                                        this.decide_selected_approval(domain::ApprovalState::Rejected, "Rejected from native runtime controls.", cx);
+                                                    })),
+                                            )
+                                            .child(self.runtime_steer_input.clone())
+                                            .child(
+                                                div()
+                                                    .flex()
+                                                    .justify_end()
+                                                    .child(primary_button("Send steer", cx, |this, cx| {
+                                                        this.send_runtime_steer(cx);
+                                                    })),
+                                            )
+                                            .child(self.runtime_follow_up_input.clone())
+                                            .child(
+                                                div()
+                                                    .flex()
+                                                    .justify_end()
+                                                    .child(secondary_button("Queue follow-up", cx, |this, cx| {
+                                                        this.send_runtime_follow_up(cx);
+                                                    })),
+                                            ),
+                                    )
+                                    .child(
+                                        div()
                                             .mt(px(16.0))
                                             .flex()
                                             .gap_3()

@@ -271,13 +271,77 @@ impl ProfileStore {
         Ok(artifact_id)
     }
 
+    pub fn mark_run_started(&mut self, run_id: &str) -> Result<()> {
+        let (company_id, task_id) = self.run_context(run_id)?;
+        let ts = now_iso()?;
+        self.conn.execute(
+            "update runs set status = 'running', started_at = coalesce(started_at, ?1), finished_at = null, error_message = null, updated_at = ?1 where id = ?2",
+            params![ts, run_id],
+        )?;
+        if let Some(task_id) = task_id {
+            self.conn.execute(
+                "update tasks set active_run_id = ?1, status = case when status = 'todo' then 'running' else status end, started_at = coalesce(started_at, ?2), updated_at = ?2 where id = ?3",
+                params![run_id, ts, task_id],
+            )?;
+        }
+        self.add_activity(
+            &company_id,
+            BOARD_READER_ID,
+            "started_run",
+            "runs",
+            run_id,
+            "native runtime launch",
+        )?;
+        Ok(())
+    }
+
+    pub fn create_runtime_tool_approval(
+        &mut self,
+        run_id: &str,
+        tool_call_id: &str,
+        tool_name: &str,
+        input_json: &serde_json::Value,
+    ) -> Result<String> {
+        let (company_id, task_id) = self.run_context(run_id)?;
+        let agent_id = self.agent_id_for_run(run_id)?;
+        let approval_id = Uuid::new_v4().to_string();
+        let ts = now_iso()?;
+        let payload_json = serde_json::json!({
+            "run_id": run_id,
+            "tool_call_id": tool_call_id,
+            "tool_name": tool_name,
+            "input_json": input_json,
+        })
+        .to_string();
+        let impact_summary = serde_json::to_string(input_json)
+            .context("failed to encode runtime approval payload")?;
+        self.conn.execute(
+            "insert into approvals (id, company_id, related_task_id, requested_by_agent_id, related_agent_id, type, payload_summary, impact_summary, payload_json, decision_note, state, created_at, updated_at) values (?1, ?2, ?3, ?4, ?4, 'runtime_tool_call', ?5, ?6, ?7, '', 'pending', ?8, ?8)",
+            params![approval_id, company_id, task_id, agent_id, tool_name.trim(), impact_summary, payload_json, ts],
+        )?;
+        self.add_activity(
+            &company_id,
+            agent_id.as_str(),
+            "requested_runtime_tool_approval",
+            "approvals",
+            &approval_id,
+            tool_name,
+        )?;
+        Ok(approval_id)
+    }
+
     pub fn ingest_runtime_event(&mut self, event: RuntimeEvent) -> Result<()> {
         match event {
             RuntimeEvent::HandshakeAck { .. } => Ok(()),
             RuntimeEvent::Message { run_id, role, body } => {
                 let company_id = self.company_id_for_run(&run_id)?;
+                let from_agent_id = self.agent_id_for_run(&run_id)?;
                 let title = format!("message:{role}");
                 self.append_run_event(&company_id, &run_id, "message", &title, &body)?;
+                self.conn.execute(
+                    "insert into agent_messages (id, company_id, from_agent_id, to_agent_id, sender_kind, channel, channel_target_id, subject, body, priority, read_at, parent_message_id, attachments_json, created_at) values (?1, ?2, ?3, null, 'agent', 'run', ?4, ?5, ?6, 'normal', null, null, '[]', ?7)",
+                    params![Uuid::new_v4().to_string(), company_id, from_agent_id, run_id, title, body, now_iso()?],
+                )?;
                 Ok(())
             }
             RuntimeEvent::ToolCall {
@@ -291,6 +355,7 @@ impl ProfileStore {
                     .context("failed to encode tool call payload")?;
                 let title = format!("{tool_name}:{tool_call_id}");
                 self.append_run_event(&company_id, &run_id, "tool_call", &title, &detail)?;
+                self.create_runtime_tool_approval(&run_id, &tool_call_id, &tool_name, &input_json)?;
                 Ok(())
             }
             RuntimeEvent::ToolResult {
@@ -331,12 +396,18 @@ impl ProfileStore {
                 session_id: _,
                 cost_usd,
             } => {
-                let company_id = self.company_id_for_run(&run_id)?;
+                let (company_id, task_id) = self.run_context(&run_id)?;
                 let ts = now_iso()?;
                 self.conn.execute(
                     "update runs set status = ?1, summary = ?2, cost_usd = ?3, finished_at = ?4, updated_at = ?4 where id = ?5",
                     params![status, summary, cost_usd, ts, run_id],
                 )?;
+                if let Some(task_id) = task_id {
+                    self.conn.execute(
+                        "update tasks set active_run_id = null, updated_at = ?1 where id = ?2",
+                        params![ts, task_id],
+                    )?;
+                }
                 self.append_run_event(
                     &company_id,
                     &run_id,
@@ -914,6 +985,28 @@ impl ProfileStore {
                 "select company_id from runs where id = ?1",
                 params![run_id],
                 |row| row.get(0),
+            )
+            .optional()?
+            .ok_or_else(|| anyhow!("run {run_id} was not found"))
+    }
+
+    fn agent_id_for_run(&self, run_id: &str) -> Result<String> {
+        self.conn
+            .query_row(
+                "select agent_id from runs where id = ?1",
+                params![run_id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or_else(|| anyhow!("run {run_id} was not found"))
+    }
+
+    fn run_context(&self, run_id: &str) -> Result<(String, Option<String>)> {
+        self.conn
+            .query_row(
+                "select company_id, task_id from runs where id = ?1",
+                params![run_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()?
             .ok_or_else(|| anyhow!("run {run_id} was not found"))

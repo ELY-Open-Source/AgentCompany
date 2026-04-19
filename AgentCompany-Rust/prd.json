@@ -113,8 +113,8 @@
         "cargo test --workspace passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": "In progress: runtime events and artifacts now persist into SQLite, surface in ProfileSnapshot, render in Runs UI, and pass storage-backed e2e verification."
+      "passes": true,
+      "notes": "Completed with live native runtime session wiring: selected runs now launch Pi Mono via env-configured sidecar, tool-call approvals round-trip through native approvals, runtime messages project into agent_messages, and artifacts/events continue to persist into Runs UI. Verified by cargo clippy/test and runtime_live_flow_e2e.rs."
     },
     {
       "id": "US-009",

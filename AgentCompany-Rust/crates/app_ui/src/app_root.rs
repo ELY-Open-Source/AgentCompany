@@ -18,6 +18,7 @@ mod messages_parts;
 mod onboarding;
 mod overview;
 mod runs;
+mod runtime;
 mod settings;
 mod sidebar;
 mod workspaces;
@@ -32,6 +33,9 @@ pub struct AppRoot {
     message_input: Entity<TextInput>,
     document_title_input: Entity<TextInput>,
     document_body_input: Entity<TextInput>,
+    runtime_steer_input: Entity<TextInput>,
+    runtime_follow_up_input: Entity<TextInput>,
+    runtime_session: Option<runtime::LiveRuntimeSession>,
 }
 
 impl AppRoot {
@@ -46,6 +50,9 @@ impl AppRoot {
             message_input: TextInput::new(cx, "Board message"),
             document_title_input: TextInput::new(cx, "Document title"),
             document_body_input: TextInput::new(cx, "Document body"),
+            runtime_steer_input: TextInput::new(cx, "Steer the active run"),
+            runtime_follow_up_input: TextInput::new(cx, "Queue a follow-up after the current run"),
+            runtime_session: None,
         };
         root.sync_selection();
         root
@@ -206,12 +213,21 @@ impl AppRoot {
             self.set_status("Choose an approval first.", cx);
             return;
         };
+        let selected_approval = self
+            .snapshot
+            .approvals
+            .iter()
+            .find(|approval| approval.id == approval_id)
+            .cloned();
         let result = {
             let mut store = self.store.lock();
             store.decide_approval(&company_id, &approval_id, state, note)
         };
         match result {
-            Ok(_) => self.reload(format!("Approval moved to {}.", state.as_str()), cx),
+            Ok(_) => {
+                self.maybe_dispatch_runtime_approval(selected_approval.as_ref(), state, cx);
+                self.reload(format!("Approval moved to {}.", state.as_str()), cx);
+            }
             Err(error) => self.set_status(error.to_string(), cx),
         }
     }

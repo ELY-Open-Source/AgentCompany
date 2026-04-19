@@ -88,11 +88,16 @@ dependencies = [
 name = "app_ui"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "app_models",
  "domain",
  "gpui",
  "parking_lot",
+ "pi_bridge",
+ "runtime",
+ "serde_json",
  "storage",
+ "support",
  "unicode-segmentation",
 ]
 
