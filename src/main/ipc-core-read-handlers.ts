@@ -51,6 +51,35 @@ export function registerCoreReadHandlers({
     return error ? fail("OPEN_PATH_FAILED", error) : ok(true);
   });
 
+  /**
+   * openWorkProduct resolves a work_product row to a concrete absolute
+   * path (or URL) before handing off to the OS shell. The DocumentCenter
+   * can no longer forward `externalId` straight into `openPath`: that
+   * column stores a workspace-relative path so artifacts survive a
+   * workspace-root move, but `shell.openPath` wants an absolute managed
+   * path. The DB resolver joins the work_product back to its originating
+   * task → workspace (or run → workspace for taskless runs) so the path
+   * we hand to the shell is always inside the currently-mounted managed
+   * tree and passes `canOpenPath` validation.
+   */
+  registerHandle(IPC_CHANNELS.openWorkProduct, async (_event, payload) => {
+    const parsed = entityGetterSchema.safeParse(payload);
+    if (!parsed.success) return fail("INVALID_PAYLOAD", "openWorkProduct requires { companyId, id }.");
+    const companyError = ensureCompanyExists(parsed.data.companyId);
+    if (companyError) return companyError;
+    const target = db.resolveWorkProductTarget(parsed.data.id, parsed.data.companyId);
+    if (!target) return fail("WORK_PRODUCT_NOT_FOUND", "Work product not found or its workspace is unresolved.");
+    if (target.kind === "url") {
+      const error = await shell.openExternal(target.value).then(() => "").catch((err: unknown) => err instanceof Error ? err.message : String(err));
+      return error ? fail("OPEN_PATH_FAILED", error) : ok(true);
+    }
+    if (!db.canOpenPath(target.value)) {
+      return fail("OPEN_PATH_FORBIDDEN", "The requested path is outside the managed desktop workspace.");
+    }
+    const error = await shell.openPath(target.value);
+    return error ? fail("OPEN_PATH_FAILED", error) : ok(true);
+  });
+
   registerHandle(IPC_CHANNELS.backupProfile, async () => {
     const result = await dialog.showOpenDialog({
       properties: ["openDirectory", "createDirectory"],

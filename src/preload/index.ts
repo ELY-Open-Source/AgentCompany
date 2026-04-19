@@ -9,6 +9,7 @@ const api: DesktopApi = {
   loadSnapshot: () => ipcRenderer.invoke(IPC_CHANNELS.loadSnapshot),
   pickDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.pickDirectory),
   openPath: (targetPath) => ipcRenderer.invoke(IPC_CHANNELS.openPath, targetPath),
+  openWorkProduct: (input) => ipcRenderer.invoke(IPC_CHANNELS.openWorkProduct, input),
   saveCompany: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveCompany, input),
   setCurrentCompany: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.setCurrentCompany, companyId),
   saveConnector: (input) => ipcRenderer.invoke(IPC_CHANNELS.saveConnector, input),

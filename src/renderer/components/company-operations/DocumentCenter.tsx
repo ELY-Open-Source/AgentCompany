@@ -65,18 +65,21 @@ function DocumentEditor({ companyId, agents, projects, goals, document, onSaved 
   );
 }
 
-function WorkProductRow({ product }: { product: WorkProductRecord }) {
+function WorkProductRow({ product, companyId }: { product: WorkProductRecord; companyId: string }) {
   const subtitle = [
     product.type.replaceAll("_", " "),
     product.provider,
     product.externalId ?? product.url ?? null,
     product.updatedAt.slice(0, 10),
   ].filter((v): v is string => Boolean(v)).join(" · ");
-  const primaryAction = product.url
-    ? () => { void window.agentCompany.openPath(product.url!); }
-    : product.provider === "filesystem" && product.externalId
-      ? () => { void window.agentCompany.openPath(product.externalId!); }
-      : null;
+  // externalId is workspace-relative; route through openWorkProduct so
+  // the main process can join it against the work product's workspace
+  // root before handing off to the OS shell. Direct `openPath(externalId)`
+  // used to flash a failure when the renderer tried to treat the relative
+  // path as absolute.
+  const primaryAction = product.url || (product.provider === "filesystem" && product.externalId)
+    ? () => { void window.agentCompany.openWorkProduct({ companyId, id: product.id }); }
+    : null;
   const rowBody = (
     <div className="min-w-0 flex-1 text-left">
       <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
@@ -155,7 +158,7 @@ export function DocumentCenter({ companyId, documents, workProducts, agents, pro
           </div>
           <ListFrame>
             {workProducts.map((product) => (
-              <WorkProductRow key={product.id} product={product} />
+              <WorkProductRow key={product.id} product={product} companyId={companyId} />
             ))}
           </ListFrame>
         </div>

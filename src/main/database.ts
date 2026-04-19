@@ -98,6 +98,7 @@ export class AppDatabase extends AppDatabaseBase {
   updateWorkProduct(id: string, companyId: string, patch: Parameters<ReturnType<typeof import("./database/documents").buildDocumentMethods>["updateWorkProduct"]>[2]) { return this.documentsMod.updateWorkProduct(id, companyId, patch); }
   listWorkProductsForTask(taskId: string, companyId: string) { return this.documentsMod.listWorkProductsForTask(taskId, companyId); }
   findWorkProductByExternalId(companyId: string, provider: string, externalId: string) { return this.documentsMod.findWorkProductByExternalId(companyId, provider, externalId); }
+  resolveWorkProductTarget(workProductId: string, companyId: string) { return this.documentsMod.resolveWorkProductTarget(workProductId, companyId); }
   deleteWorkProduct(id: string, companyId: string) { return this.documentsMod.deleteWorkProduct(id, companyId); }
   linkDocumentToTask(taskId: string, documentId: string, companyId: string, key: string) { return this.documentsMod.linkDocumentToTask(taskId, documentId, companyId, key); }
   unlinkDocumentFromTask(taskId: string, key: string, companyId: string) { this.documentsMod.unlinkDocumentFromTask(taskId, key, companyId); }

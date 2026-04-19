@@ -1,13 +1,14 @@
 import type { z } from "zod";
 import type { CompanyMetrics, OnboardingBootstrapResult, ProfileSnapshot, StandupReport } from "../../types";
 import type { bootstrapOnboardingSchema, companyInputSchema, connectorDisabledModelsSchema, connectorInputSchema, settingsSchema } from "../schemas-company";
-import type { metricsQuerySchema } from "../schemas-badges";
+import type { entityGetterSchema, metricsQuerySchema } from "../schemas-badges";
 import type { DesktopResult } from "./common";
 
 export type CompaniesApi = {
   loadSnapshot: () => Promise<DesktopResult<ProfileSnapshot>>;
   pickDirectory: () => Promise<DesktopResult<string | null>>;
   openPath: (targetPath: string) => Promise<DesktopResult<boolean>>;
+  openWorkProduct: (input: z.infer<typeof entityGetterSchema>) => Promise<DesktopResult<boolean>>;
   saveCompany: (input: z.infer<typeof companyInputSchema>) => Promise<DesktopResult<string>>;
   setCurrentCompany: (companyId: string) => Promise<DesktopResult<boolean>>;
   saveConnector: (input: z.infer<typeof connectorInputSchema>) => Promise<DesktopResult<boolean>>;

@@ -1,8 +1,44 @@
 import { randomUUID } from "node:crypto";
+import { isAbsolute, resolve as resolvePath, relative as relativePath } from "node:path";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import type { ReadAll, Transaction } from "./helpers";
 import { ensureId, nowIso } from "./helpers";
 import { buildConfigRevisionMethods } from "./config-revisions";
+
+function resolveWorkspaceRoot(
+  getDb: () => DatabaseSync,
+  companyId: string,
+  taskId: string | null,
+  createdByRunId: string | null,
+): string | null {
+  if (taskId) {
+    const row = getDb().prepare(
+      "SELECT w.local_path AS localPath FROM tasks t JOIN workspaces w ON w.id = t.workspace_id WHERE t.id = ? AND t.company_id = ?",
+    ).get(taskId, companyId) as { localPath: string } | undefined;
+    if (row?.localPath) return row.localPath;
+  }
+  if (createdByRunId) {
+    const row = getDb().prepare(
+      "SELECT w.local_path AS localPath FROM runs r JOIN workspaces w ON w.id = r.workspace_id WHERE r.id = ? AND r.company_id = ?",
+    ).get(createdByRunId, companyId) as { localPath: string } | undefined;
+    if (row?.localPath) return row.localPath;
+  }
+  return null;
+}
+
+/**
+ * Joins a workspace root with a relative path, refusing paths that escape
+ * the workspace (parent-dir traversal or absolute substitution). Returns
+ * null when the relative fragment would land outside `root`; the caller
+ * treats that as "cannot resolve" and does not open anything.
+ */
+function joinWorkspaceRelative(root: string, rel: string): string | null {
+  if (isAbsolute(rel)) return null;
+  const joined = resolvePath(root, rel);
+  const within = relativePath(root, joined);
+  if (within.startsWith("..") || isAbsolute(within)) return null;
+  return joined;
+}
 
 /**
  * Document row shape returned by listDocuments — used by
@@ -277,6 +313,39 @@ export function buildDocumentMethods(
         .prepare(`UPDATE work_products SET ${sets.join(", ")} WHERE id = ? AND company_id = ?`)
         .run(...values);
       return Number(result.changes ?? 0);
+    },
+
+    /**
+     * Resolves the absolute filesystem (or URL) target for a work product.
+     *
+     * Filesystem artifacts are stored as `external_id = <workspace-relative
+     * path>` to stay portable across workspace-root moves; `shell.openPath`
+     * needs an absolute managed path, so the renderer can't just forward
+     * the external id. This method joins the work-product row back to its
+     * originating task → workspace, or — for taskless runs — through the
+     * creating run, so the caller gets either a URL (non-filesystem
+     * artifact) or a concrete absolute path that downstream
+     * `canOpenPath` validates.
+     */
+    resolveWorkProductTarget(workProductId: string, companyId: string): { kind: "url" | "path"; value: string } | null {
+      const row = getDb().prepare(
+        "SELECT provider, external_id, url, task_id, created_by_run_id FROM work_products WHERE id = ? AND company_id = ?",
+      ).get(workProductId, companyId) as
+        | { provider: string; external_id: string | null; url: string | null; task_id: string | null; created_by_run_id: string | null }
+        | undefined;
+      if (!row) return null;
+
+      if (row.url && row.url.length > 0) {
+        return { kind: "url", value: row.url };
+      }
+      if (row.provider !== "filesystem" || !row.external_id) return null;
+
+      const workspaceRoot = resolveWorkspaceRoot(getDb, companyId, row.task_id, row.created_by_run_id);
+      if (!workspaceRoot) return null;
+
+      const absolute = joinWorkspaceRelative(workspaceRoot, row.external_id);
+      if (!absolute) return null;
+      return { kind: "path", value: absolute };
     },
 
     listWorkProductsForTask(taskId: string, companyId: string) {

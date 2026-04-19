@@ -2,6 +2,7 @@ export const IPC_CHANNELS = {
   loadSnapshot: "agent-company:load-snapshot",
   pickDirectory: "agent-company:pick-directory",
   openPath: "agent-company:open-path",
+  openWorkProduct: "agent-company:open-work-product",
   saveCompany: "agent-company:save-company",
   setCurrentCompany: "agent-company:set-current-company",
   saveConnector: "agent-company:save-connector",
