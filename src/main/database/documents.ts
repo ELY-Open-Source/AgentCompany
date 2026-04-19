@@ -451,6 +451,65 @@ export function buildDocumentMethods(
       return Number(result.changes ?? 0);
     },
 
+    /**
+     * Archive every `work_products` row whose natural identity matches
+     * one of `paths` under the given `(companyId, workspaceId,
+     * provider)` scope. The change detectors walk the whole workspace
+     * delta, so every detected deletion has to be retired — previously
+     * the projector capped the retire list at a hardcoded budget and
+     * the tail stayed visible in the DocumentCenter.
+     *
+     * Runs as a single `UPDATE … WHERE external_id IN (…)` per chunk
+     * so bulk deletions cost one SQL round-trip per 500 paths instead
+     * of one per path. `RETURNING` carries the archived row ids back
+     * to the projector so it can emit `retired` outcomes without a
+     * follow-up SELECT.
+     */
+    archiveWorkProductsByExternalPaths(input: {
+      companyId: string;
+      workspaceId: string | null;
+      provider: string;
+      paths: string[];
+      lastTouchedByRunId: string | null;
+    }): Array<{ id: string; externalId: string }> {
+      if (input.paths.length === 0) return [];
+      const ts = nowIso();
+      const CHUNK = 500;
+      const workspaceClause = input.workspaceId
+        ? "AND workspace_id = ?"
+        : "AND workspace_id IS NULL";
+      const results: Array<{ id: string; externalId: string }> = [];
+      for (let i = 0; i < input.paths.length; i += CHUNK) {
+        const chunk = input.paths.slice(i, i + CHUNK);
+        const placeholders = chunk.map(() => "?").join(", ");
+        const params: SQLInputValue[] = [
+          input.lastTouchedByRunId ?? null,
+          ts,
+          input.companyId,
+          input.provider,
+        ];
+        if (input.workspaceId) params.push(input.workspaceId);
+        params.push(...chunk);
+        const rows = readAll<{ id: string; external_id: string }>(
+          `UPDATE work_products
+              SET status = 'archived',
+                  last_touched_by_run_id = ?,
+                  updated_at = ?
+            WHERE company_id = ?
+              AND provider = ?
+              ${workspaceClause}
+              AND external_id IN (${placeholders})
+              AND status <> 'archived'
+          RETURNING id, external_id`,
+          ...params,
+        );
+        for (const row of rows) {
+          results.push({ id: row.id, externalId: row.external_id });
+        }
+      }
+      return results;
+    },
+
     // ── Task-Document Links ──
 
     linkDocumentToTask(taskId: string, documentId: string, companyId: string, key: string): string {

@@ -312,6 +312,10 @@ function projectChangedPaths(
  * path. `last_touched_by_run_id` carries the retiring run so the
  * provenance timeline records the deletion alongside the earlier
  * edits.
+ *
+ * Every detected deletion is processed — retirement is a bulk
+ * `UPDATE … IN (…)` chunked by the DB layer, so a large `rm -r`
+ * retires the full tail instead of leaving the overflow visible.
  */
 function retireDeletedArtifacts(
   db: AppDatabase,
@@ -319,24 +323,18 @@ function retireDeletedArtifacts(
   deleted: string[],
 ): ProjectionOutcome[] {
   if (deleted.length === 0) return [];
-  const outcomes: ProjectionOutcome[] = [];
-  const budget = deleted.slice(0, MAX_BASH_PROJECTED_FILES);
-  for (const rel of budget) {
-    const existing = db.findWorkProductByExternalId(
-      ctx.companyId,
-      "filesystem",
-      rel,
-      ctx.workspaceId,
-    );
-    if (!existing) continue;
-    db.updateWorkProduct(existing.id, ctx.companyId, {
-      status: "archived",
-      lastTouchedByRunId: ctx.runId,
-      workspaceId: ctx.workspaceId,
-    });
-    outcomes.push({ kind: "retired", workProductId: existing.id, relativePath: rel });
-  }
-  return outcomes;
+  const archived = db.archiveWorkProductsByExternalPaths({
+    companyId: ctx.companyId,
+    workspaceId: ctx.workspaceId,
+    provider: "filesystem",
+    paths: deleted,
+    lastTouchedByRunId: ctx.runId,
+  });
+  return archived.map(({ id, externalId }) => ({
+    kind: "retired",
+    workProductId: id,
+    relativePath: externalId,
+  }));
 }
 
 /**

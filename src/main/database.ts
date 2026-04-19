@@ -100,6 +100,9 @@ export class AppDatabase extends AppDatabaseBase {
   findWorkProductByExternalId(companyId: string, provider: string, externalId: string, workspaceId: string | null) { return this.documentsMod.findWorkProductByExternalId(companyId, provider, externalId, workspaceId); }
   resolveWorkProductTarget(workProductId: string, companyId: string) { return this.documentsMod.resolveWorkProductTarget(workProductId, companyId); }
   deleteWorkProduct(id: string, companyId: string) { return this.documentsMod.deleteWorkProduct(id, companyId); }
+  archiveWorkProductsByExternalPaths(input: Parameters<ReturnType<typeof import("./database/documents").buildDocumentMethods>["archiveWorkProductsByExternalPaths"]>[0]) {
+    return this.documentsMod.archiveWorkProductsByExternalPaths(input);
+  }
   linkDocumentToTask(taskId: string, documentId: string, companyId: string, key: string) { return this.documentsMod.linkDocumentToTask(taskId, documentId, companyId, key); }
   unlinkDocumentFromTask(taskId: string, key: string, companyId: string) { this.documentsMod.unlinkDocumentFromTask(taskId, key, companyId); }
   listDocumentsForTask(taskId: string, companyId: string) { return this.documentsMod.listDocumentsForTask(taskId, companyId); }
