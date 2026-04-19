@@ -339,28 +339,5 @@ export function buildMessageMethods(
       });
     },
 
-    /**
-     * Transactionally mark a batch of messages as delivered to `agentId`.
-     * - Direct messages: sets agent_messages.read_at = now() if currently null.
-     * - All messages (direct + channel): insert into agent_message_reads with
-     *   ON CONFLICT DO NOTHING so reprocessing is idempotent.
-     */
-    markAgentInboxDelivered(agentId: string, messageIds: string[]): void {
-      if (messageIds.length === 0) return;
-      const ts = nowIso();
-      deps.transaction(() => {
-        const db = getDb();
-        const directUpdate = db.prepare(
-          "update agent_messages set read_at = ? where id = ? and to_agent_id = ? and read_at is null",
-        );
-        const receiptInsert = db.prepare(
-          "insert into agent_message_reads (message_id, agent_id, read_at) values (?, ?, ?) on conflict(message_id, agent_id) do nothing",
-        );
-        for (const id of messageIds) {
-          directUpdate.run(ts, id, agentId);
-          receiptInsert.run(id, agentId, ts);
-        }
-      });
-    },
   };
 }

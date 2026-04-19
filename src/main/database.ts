@@ -20,7 +20,6 @@ export class AppDatabase extends AppDatabaseBase {
   searchMessages(companyId: string, query: string, opts?: { channel?: string; channelTargetId?: string | null; limit?: number }) { return this.messages.searchMessages(companyId, query, opts); }
   markMessageReadForReader(messageId: string, companyId: string, readerAgentId?: string | null) { return this.messages.markMessageReadForReader(messageId, companyId, readerAgentId); }
   listAgentInboxUnread(companyId: string, agentId: string) { return this.messages.listAgentInboxUnread(companyId, agentId); }
-  markAgentInboxDelivered(agentId: string, messageIds: string[]) { return this.messages.markAgentInboxDelivered(agentId, messageIds); }
 
   // ─── Social & Browser Actions ──────────────────────────────────────────────
 

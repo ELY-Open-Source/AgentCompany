@@ -128,11 +128,16 @@ export class RuntimeMessageInjector {
   }
 
   /**
-   * Routed from `worker-message-handler` on every `steer-ack`. Commits
-   * the inbox `delivered_at` write when the worker confirms the steer
-   * reached the live Agent; otherwise keeps the row unread and asks
-   * orchestration to wake the recipient so the next `prepareRun` picks
-   * the message up through the regular inbox projection.
+   * Routed from `worker-message-handler` on every `steer-ack`. Confirms
+   * the message reached the live Agent (the bridge already registered
+   * the inbound correlation when it built the projection). On rejection
+   * the recipient is woken so the next `prepareRun` picks the message
+   * up through the regular inbox projection.
+   *
+   * `read_at` is intentionally NOT touched here: "the worker queued
+   * this message onto the agent" is not "the agent replied". The
+   * agent flips `read_at` itself by POSTing /messages/{id}/read once
+   * it has actually processed the row.
    */
   handleSteerAck(correlationId: string, accepted: boolean): void {
     this.resolvePending(correlationId, accepted, "worker_ack");
@@ -148,16 +153,7 @@ export class RuntimeMessageInjector {
     clearTimeout(entry.timer);
     this.pending.delete(correlationId);
 
-    if (accepted) {
-      try {
-        this.deps.db.markAgentInboxDelivered(entry.recipientAgentId, [entry.message.id]);
-      } catch (error) {
-        this.deps.logger.warn(
-          `[injector] markAgentInboxDelivered failed for ${entry.message.id}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-      return;
-    }
+    if (accepted) return;
 
     this.deps.logger.warn(
       `[injector] steer rejected (${source}) for message ${entry.message.id} to agent ${entry.recipientAgentId}; falling back to wake + inbox projection`,

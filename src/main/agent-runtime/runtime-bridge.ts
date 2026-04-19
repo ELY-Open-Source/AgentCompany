@@ -529,16 +529,17 @@ export class RuntimeBridge {
     // before loading priorMessages — the recipient must observe them
     // as plain user turns in its context.
     //
-    // The projection closure is now atomic: the ledger claim, the
-    // session-shadow append, the thread-event write, and the
-    // delivered-mark all commit inside one `BEGIN IMMEDIATE`
-    // transaction. Pre-v46 layout let those four writes drift apart,
-    // so a crash before the delivered-mark replayed the same inbox
-    // row on the next run and double-populated the transcript. The
-    // `agent_message_projections` ledger is the idempotent gate —
-    // `claimProjection` returns false when the `(message_id,
-    // session_id)` pair is already recorded, so a replay skips the
-    // whole closure.
+    // Replay safety lives entirely on the `agent_message_projections`
+    // ledger. We deliberately do NOT touch `agent_messages.read_at`
+    // here even though that column exists: "we put the message into
+    // the agent's transcript" and "the agent has acknowledged the
+    // message" are two different facts, and welding them onto one
+    // column made every projected message immediately invisible to
+    // the agent's `?unreadOnly=true` API call. The agent then read
+    // its IC prompt ("respond to ALL unread messages"), called the
+    // API, got an empty list, and posted a status comment instead of
+    // replying. The explicit POST /messages/{id}/read is now the
+    // sole signal that flips `read_at`.
     const store = this.getOrCreateStore(payload.taskSessionId);
     const inboxRecords = this.deps.db.listAgentInboxUnread(payload.companyId, payload.agentId);
     if (inboxRecords.length > 0) {
@@ -562,10 +563,6 @@ export class RuntimeBridge {
             record,
           );
         }
-        this.deps.db.markAgentInboxDelivered(
-          payload.agentId,
-          inboxRecords.map((r) => r.id),
-        );
       });
     }
 
