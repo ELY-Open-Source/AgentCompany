@@ -133,9 +133,10 @@ export class RuntimeBridge {
         workspaceBaseline: ctx.workspaceBaseline,
       });
       const inserted = outcomes.filter((o) => o.kind === "inserted").length;
-      if (inserted > 0) {
+      const retired = outcomes.filter((o) => o.kind === "retired").length;
+      if (inserted > 0 || retired > 0) {
         this.deps.logger.info(
-          `[runtime-bridge] reconciliation registered ${inserted} new artifact(s) for run ${ctx.runId}`,
+          `[runtime-bridge] reconciliation for run ${ctx.runId}: ${inserted} registered, ${retired} retired`,
         );
       }
     } catch (error) {

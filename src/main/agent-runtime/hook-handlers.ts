@@ -194,9 +194,10 @@ export function handleAfterToolCall(
       },
     );
     const registered = outcomes.filter((o) => o.kind === "inserted" || o.kind === "updated").length;
-    if (registered > 0) {
+    const retired = outcomes.filter((o) => o.kind === "retired").length;
+    if (registered > 0 || retired > 0) {
       deps.logger.info(
-        `[hook-handlers] projection registered ${registered} artifact(s) for run ${ctx.runId} via ${payload.toolName}`,
+        `[hook-handlers] projection for run ${ctx.runId} via ${payload.toolName}: ${registered} registered, ${retired} retired`,
       );
     }
   } catch (error) {

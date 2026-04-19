@@ -217,7 +217,8 @@ function isRegistrablePath(absPath: string, workspacePath: string): boolean {
 export type ProjectionOutcome =
   | { kind: "skipped"; reason: string }
   | { kind: "inserted"; workProductId: string; relativePath: string }
-  | { kind: "updated"; workProductId: string; relativePath: string };
+  | { kind: "updated"; workProductId: string; relativePath: string }
+  | { kind: "retired"; workProductId: string; relativePath: string };
 
 /**
  * Upsert work_products rows for a successful destructive tool call.
@@ -266,9 +267,13 @@ export function reconcileWorkspaceArtifacts(
   if (change.source === "none") {
     return [{ kind: "skipped", reason: change.skipReason ?? "no_changes" }];
   }
-  const outcomes = change.paths.length === 0
-    ? [{ kind: "skipped", reason: "no_changes" } satisfies ProjectionOutcome]
-    : projectChangedPaths(db, ctx, change.paths);
+  const outcomes: ProjectionOutcome[] = [];
+  if (change.changed.length === 0 && change.deleted.length === 0) {
+    outcomes.push({ kind: "skipped", reason: "no_changes" });
+  } else {
+    outcomes.push(...projectChangedPaths(db, ctx, change.changed));
+    outcomes.push(...retireDeletedArtifacts(db, ctx, change.deleted));
+  }
   if (change.coverageTruncated) {
     outcomes.push({ kind: "skipped", reason: "baseline_truncated" });
   }
@@ -299,6 +304,42 @@ function projectChangedPaths(
 }
 
 /**
+ * Archive `work_products` rows whose filesystem sources the change
+ * detector reported as removed during this run. The row stays in the
+ * table as a tombstone (operators can audit who produced what) but
+ * drops to `status = "archived"` so the DocumentCenter stops
+ * surfacing it and `openWorkProduct` no longer leads to an empty
+ * path. `last_touched_by_run_id` carries the retiring run so the
+ * provenance timeline records the deletion alongside the earlier
+ * edits.
+ */
+function retireDeletedArtifacts(
+  db: AppDatabase,
+  ctx: ArtifactProjectorRunContext,
+  deleted: string[],
+): ProjectionOutcome[] {
+  if (deleted.length === 0) return [];
+  const outcomes: ProjectionOutcome[] = [];
+  const budget = deleted.slice(0, MAX_BASH_PROJECTED_FILES);
+  for (const rel of budget) {
+    const existing = db.findWorkProductByExternalId(
+      ctx.companyId,
+      "filesystem",
+      rel,
+      ctx.workspaceId,
+    );
+    if (!existing) continue;
+    db.updateWorkProduct(existing.id, ctx.companyId, {
+      status: "archived",
+      lastTouchedByRunId: ctx.runId,
+      workspaceId: ctx.workspaceId,
+    });
+    outcomes.push({ kind: "retired", workProductId: existing.id, relativePath: rel });
+  }
+  return outcomes;
+}
+
+/**
  * Compare current workspace mtimes against the run-start baseline.
  * Skipped-dir filtering mirrors the baseline walker so the diff and
  * the capture stay in sync.
@@ -309,16 +350,22 @@ function projectChangedPaths(
  *   - it was not in the baseline AND the baseline saw the whole tree
  *     (`baseline.truncated === false`).
  *
+ * A file is reported as `deleted` when it was in the baseline at
+ * capture time and is no longer a regular file on disk — the
+ * retirement path archives the matching `work_products` row so the
+ * DocumentCenter stops showing a removed file.
+ *
  * A truncated baseline deliberately stops classifying unsampled files
  * as new: the walker gave up before reaching them, so we cannot
  * distinguish a file that was always there from a file the run just
  * wrote. Falsely registering every one of them as a deliverable is
  * worse than missing a few that live past the sample cap. Callers
- * emit a `baseline_truncated` outcome so operators can see the
- * degraded signal without the bogus rows landing in `work_products`.
+ * emit a `baseline_truncated` outcome so operators see the degraded
+ * signal.
  */
-function diffAgainstBaseline(workspacePath: string, baseline: WorkspaceBaseline): string[] {
+function diffAgainstBaseline(workspacePath: string, baseline: WorkspaceBaseline): GitChangeSet {
   const changed: string[] = [];
+  const seenRels = new Set<string>();
   const stack: string[] = [workspacePath];
   while (stack.length > 0) {
     const dir = stack.pop();
@@ -347,6 +394,7 @@ function diffAgainstBaseline(workspacePath: string, baseline: WorkspaceBaseline)
       }
       const rel = relative(workspacePath, abs);
       if (rel.length === 0) continue;
+      seenRels.add(rel);
       const previous = baseline.mtimeByRelPath.get(rel);
       if (previous === undefined) {
         if (!baseline.truncated) changed.push(rel);
@@ -355,7 +403,11 @@ function diffAgainstBaseline(workspacePath: string, baseline: WorkspaceBaseline)
       if (mtimeMs > previous) changed.push(rel);
     }
   }
-  return changed;
+  const deleted: string[] = [];
+  for (const rel of baseline.mtimeByRelPath.keys()) {
+    if (!seenRels.has(rel)) deleted.push(rel);
+  }
+  return { changed, deleted };
 }
 
 function projectSinglePathArtifact(
@@ -379,8 +431,10 @@ type ChangeSource = "git" | "baseline" | "none";
 
 interface ChangeSet {
   source: ChangeSource;
-  /** Paths relative to the workspace root. */
-  paths: string[];
+  /** Paths, relative to the workspace root, that currently exist on disk with a new or advanced mtime. */
+  changed: string[];
+  /** Paths, relative to the workspace root, that the detector reports as removed during the run. */
+  deleted: string[];
   /** Reason the source chose to skip (only meaningful when source === "none"). */
   skipReason?: string;
   /**
@@ -394,22 +448,27 @@ interface ChangeSet {
 }
 
 function collectChangedPaths(ctx: ArtifactProjectorRunContext): ChangeSet {
-  if (!ctx.workspacePath) return { source: "none", paths: [], skipReason: "no_workspace" };
+  if (!ctx.workspacePath) {
+    return { source: "none", changed: [], deleted: [], skipReason: "no_workspace" };
+  }
   if (isGitRepo(ctx.workspacePath)) {
     try {
-      return { source: "git", paths: listChangedRelPaths(ctx.workspacePath) };
+      const gitSet = listChangedRelPaths(ctx.workspacePath);
+      return { source: "git", changed: gitSet.changed, deleted: gitSet.deleted };
     } catch {
-      return { source: "none", paths: [], skipReason: "git_status_failed" };
+      return { source: "none", changed: [], deleted: [], skipReason: "git_status_failed" };
     }
   }
   if (ctx.workspaceBaseline) {
+    const diff = diffAgainstBaseline(ctx.workspacePath, ctx.workspaceBaseline);
     return {
       source: "baseline",
-      paths: diffAgainstBaseline(ctx.workspacePath, ctx.workspaceBaseline),
+      changed: diff.changed,
+      deleted: diff.deleted,
       coverageTruncated: ctx.workspaceBaseline.truncated,
     };
   }
-  return { source: "none", paths: [], skipReason: "no_baseline" };
+  return { source: "none", changed: [], deleted: [], skipReason: "no_baseline" };
 }
 
 function projectBashArtifacts(
@@ -420,9 +479,13 @@ function projectBashArtifacts(
   if (change.source === "none") {
     return [{ kind: "skipped", reason: change.skipReason ?? "no_changes" }];
   }
-  const outcomes = change.paths.length === 0
-    ? [{ kind: "skipped", reason: "no_changes" } satisfies ProjectionOutcome]
-    : projectChangedPaths(db, ctx, change.paths);
+  const outcomes: ProjectionOutcome[] = [];
+  if (change.changed.length === 0 && change.deleted.length === 0) {
+    outcomes.push({ kind: "skipped", reason: "no_changes" });
+  } else {
+    outcomes.push(...projectChangedPaths(db, ctx, change.changed));
+    outcomes.push(...retireDeletedArtifacts(db, ctx, change.deleted));
+  }
   if (change.coverageTruncated) {
     outcomes.push({ kind: "skipped", reason: "baseline_truncated" });
   }
@@ -456,30 +519,34 @@ function isGitRepo(workspacePath: string): boolean {
   }
 }
 
+interface GitChangeSet {
+  changed: string[];
+  deleted: string[];
+}
+
 /**
- * Enumerate tracked-modified + untracked files via `git status --porcelain=v1 -z`.
+ * Enumerate porcelain status entries and split them into "currently on
+ * disk" (`changed`) and "removed during the run" (`deleted`). The
+ * retirement path consumes `deleted` to archive the matching
+ * `work_products` row so the DocumentCenter stops showing a file that
+ * no longer exists.
  *
- * Output format per entry: `XY path`. NUL terminates each entry. For
- * renames the new path is in the entry with the `R` status code and
- * the old path follows as its own NUL-terminated entry — we advance
- * past that old-path entry without emitting it.
- *
- * Deleted paths are excluded at the source. A worktree `D` status (the
- * file is gone on disk) or a staged `D` with an unchanged worktree
- * both represent a removal, not a produced artifact; registering them
- * would plant ghost rows in `work_products` and send the DocumentCenter
- * "open" link to an empty path.
+ * Porcelain v1 format per entry: `XY path`, NUL-terminated. For
+ * renames the new path is the entry and the old path follows as its
+ * own NUL-terminated trailer — we advance past the trailer without
+ * emitting it.
  */
-function listChangedRelPaths(workspacePath: string): string[] {
+function listChangedRelPaths(workspacePath: string): GitChangeSet {
   const raw = execFileSync("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all"], {
     cwd: workspacePath,
     timeout: 5_000,
     encoding: "utf8",
     maxBuffer: 1024 * 1024,
   });
-  if (!raw) return [];
+  if (!raw) return { changed: [], deleted: [] };
   const entries = raw.split("\0").filter(Boolean);
-  const paths: string[] = [];
+  const changed: string[] = [];
+  const deleted: string[] = [];
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];
     if (entry.length < 3) continue;
@@ -489,21 +556,23 @@ function listChangedRelPaths(workspacePath: string): string[] {
     if (indexStatus === "!" && worktreeStatus === "!") continue;
     const isRename = indexStatus === "R" || worktreeStatus === "R";
     if (representsDeletion(indexStatus, worktreeStatus)) {
+      deleted.push(rest);
       if (isRename) i += 1;
       continue;
     }
-    paths.push(rest);
+    changed.push(rest);
     if (isRename) i += 1;
   }
-  return paths;
+  return { changed, deleted };
 }
 
 function representsDeletion(indexStatus: string, worktreeStatus: string): boolean {
   // Worktree missing (`Y = D`) always means the file is not on disk.
   if (worktreeStatus === "D") return true;
   // Staged deletion whose worktree matches (`XD` + Y space) means the
-  // file was removed from the tree and the worktree is in sync; nothing
-  // to register either.
+  // file was removed from the tree and the worktree is in sync; the
+  // retirement path needs to hear about it so the corresponding
+  // `work_products` row can be archived.
   if (indexStatus === "D" && worktreeStatus === " ") return true;
   return false;
 }
@@ -543,8 +612,13 @@ function upsertFilesystemArtifact(
   // all see the latest run that wrote the file.
   const existing = db.findWorkProductByExternalId(ctx.companyId, provider, relativePath, ctx.workspaceId);
   if (existing) {
+    // `status: "active"` flips a previously-archived row (earlier run
+    // retired the path, this run recreated it) back into the visible
+    // DocumentCenter set. `lastTouchedByRunId` keeps the provenance
+    // timeline pointed at the run that just wrote the bytes.
     db.updateWorkProduct(existing.id, ctx.companyId, {
       title,
+      status: "active",
       lastTouchedByRunId: ctx.runId,
       workspaceId: ctx.workspaceId,
     });
