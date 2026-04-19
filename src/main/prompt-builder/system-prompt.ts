@@ -198,8 +198,9 @@ export function buildSystemPrompt(ctx: PromptContext): string {
   const approvalsSection = buildPendingApprovalsSection(ctx.pendingApprovals);
   if (approvalsSection) sections.push(approvalsSection);
 
-  sections.push(buildSOPSection());
-  sections.push(buildAPISection(ctx));
+  const audience = isCEO ? "executive" : isManager ? "manager" : "individual_contributor";
+  sections.push(buildSOPSection(audience));
+  sections.push(buildAPISection(ctx, audience));
 
   if (ctx.recentComments.length > 0) {
     const lines = ctx.recentComments.slice(0, 10)

@@ -14,15 +14,67 @@ import sop013En from "./sops/sop-013-incident.en.md?raw";
 import sop014En from "./sops/sop-014-hiring-pipeline.en.md?raw";
 import sop015En from "./sops/sop-015-knowledge.en.md?raw";
 
-const SOPS_IN_ORDER: string[] = [
-  sop001En, sop002En, sop003En, sop004En, sop005En,
-  sop006En, sop007En, sop008En, sop009En, sop010En,
-  sop011En, sop012En, sop013En, sop014En, sop015En,
-];
+/**
+ * Role-scoped SOP bundles.
+ *
+ * The system prompt previously concatenated all 15 SOPs for every agent
+ * regardless of role. Individual contributors were receiving the hiring
+ * pipeline, cadence, and budget SOPs they had no authority to act on;
+ * every wake paid the token bill. The prompt-cache prefix also grew
+ * with each SOP added over the life of the product.
+ *
+ * Each role receives the procedures it can execute under its decision
+ * authority (see `operating-en.ts#authorityRules`). SOPs that every
+ * agent must know regardless of seat — standup, communication,
+ * incident response, knowledge contribution — appear in every bundle.
+ */
+
+const SOP_BY_ROLE = {
+  executive: [
+    sop001En, // standup
+    sop003En, // delegation
+    sop004En, // code-review (CEO still reviews top-level deliverables)
+    sop005En, // hiring
+    sop006En, // escalation
+    sop007En, // communication
+    sop008En, // cross-department
+    sop009En, // documents
+    sop010En, // budget
+    sop012En, // cadence
+    sop013En, // incident
+    sop014En, // hiring-pipeline
+    sop015En, // knowledge
+  ],
+  manager: [
+    sop001En, // standup
+    sop002En, // task-lifecycle
+    sop003En, // delegation
+    sop004En, // code-review
+    sop006En, // escalation
+    sop007En, // communication
+    sop008En, // cross-department
+    sop009En, // documents
+    sop011En, // quality
+    sop013En, // incident
+    sop015En, // knowledge
+  ],
+  individual_contributor: [
+    sop001En, // standup
+    sop002En, // task-lifecycle
+    sop004En, // code-review
+    sop006En, // escalation
+    sop007En, // communication
+    sop009En, // documents
+    sop011En, // quality
+    sop015En, // knowledge
+  ],
+} as const;
+
+export type SopAudience = keyof typeof SOP_BY_ROLE;
 
 const SOP_HEADING = "# Standard Operating Procedures";
 
-export function buildSOPSection(): string {
-  const body = SOPS_IN_ORDER.map((text) => text.trimEnd()).join("\n\n");
+export function buildSOPSection(audience: SopAudience): string {
+  const body = SOP_BY_ROLE[audience].map((text) => text.trimEnd()).join("\n\n");
   return `${SOP_HEADING}\n\n${body}\n`;
 }

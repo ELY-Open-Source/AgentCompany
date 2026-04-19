@@ -13,10 +13,52 @@ import meetingsEn from "./api-docs/meetings.en.md?raw";
 import agentsEn from "./api-docs/agents.en.md?raw";
 import sprintsEn from "./api-docs/sprints.en.md?raw";
 
-const API_DOC_SECTIONS: string[] = [
-  headerEn, agentControlEn, tasksEn, goalsProjectsEn, approvalsEn,
-  messagesEn, filesEn, knowledgeEn, meetingsEn, agentsEn, sprintsEn,
-];
+/**
+ * Role-scoped API documentation bundles.
+ *
+ * Every agent used to receive the full endpoint catalogue. Individual
+ * contributors paid the token cost for hiring / budget / org-design
+ * endpoints they had no authority to call; cache churn followed any
+ * api-docs edit. Scope each bundle to the operations the role can
+ * actually perform under its decision authority.
+ */
+export type ApiAudience = "executive" | "manager" | "individual_contributor";
+
+const SECTIONS_BY_ROLE: Record<ApiAudience, string[]> = {
+  executive: [
+    headerEn,
+    agentControlEn,
+    tasksEn,
+    goalsProjectsEn,
+    approvalsEn,
+    messagesEn,
+    filesEn,
+    knowledgeEn,
+    meetingsEn,
+    agentsEn,
+    sprintsEn,
+  ],
+  manager: [
+    headerEn,
+    agentControlEn,
+    tasksEn,
+    goalsProjectsEn,
+    approvalsEn,
+    messagesEn,
+    filesEn,
+    knowledgeEn,
+    meetingsEn,
+    sprintsEn,
+  ],
+  individual_contributor: [
+    headerEn,
+    tasksEn,
+    messagesEn,
+    filesEn,
+    knowledgeEn,
+    meetingsEn,
+  ],
+};
 
 function render(template: string, ctx: PromptContext): string {
   const connectorIds = ctx.allConnectors && ctx.allConnectors.length > 0
@@ -30,7 +72,9 @@ function render(template: string, ctx: PromptContext): string {
     .replace(/\{\{connectorIds\}\}/g, connectorIds);
 }
 
-export function buildAPISection(ctx: PromptContext): string {
-  const body = API_DOC_SECTIONS.map((s) => render(s, ctx).trimEnd()).join("\n\n");
+export function buildAPISection(ctx: PromptContext, audience: ApiAudience): string {
+  const body = SECTIONS_BY_ROLE[audience]
+    .map((s) => render(s, ctx).trimEnd())
+    .join("\n\n");
   return `${body}\n${buildSocialSection(ctx)}`;
 }
