@@ -31,6 +31,17 @@ pub enum RunFilter {
     Finished,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum SettingsTab {
+    #[default]
+    General,
+    Mode,
+    Providers,
+    Shortcuts,
+    Data,
+    Secrets,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct AppState {
     pub section: SectionId,
@@ -44,6 +55,7 @@ pub struct AppState {
     pub onboarding_execution_mode: &'static str,
     pub inbox_filter: InboxFilter,
     pub run_filter: RunFilter,
+    pub settings_tab: SettingsTab,
     pub message_unread_only: bool,
     pub status_line: Option<String>,
 }
