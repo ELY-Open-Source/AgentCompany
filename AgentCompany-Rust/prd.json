@@ -183,7 +183,7 @@
       ],
       "priority": 13,
       "passes": false,
-      "notes": "In progress: native Document Center now restores a two-section grammar with documents prose plus work products (sourced from persisted artifacts), instead of the earlier flat list plus quick draft shell. Remaining gap is finer editor/message parity and final source-to-native audit."
+      "notes": "In progress: native Document Center now separates documents prose and work products using persisted artifacts. Messages now restores a more source-like communication shell with grouped channels, unread badges, a channel header, a message stream, a composer area, and a side inspector. Remaining work is the final source-to-native parity audit and any last micro-gaps it surfaces."
     },
     {
       "id": "US-014",
@@ -197,7 +197,7 @@
       ],
       "priority": 14,
       "passes": false,
-      "notes": "Created after post-completion audit found significant remaining UI grammar gaps."
+      "notes": "Audit not yet finalized. The post-completion remediation cycle has now rebuilt onboarding, dashboard, inbox, approvals, runs, documents, and messages toward source grammar. Next step is a final explicit audit pass to decide which remaining deviations are still material."
     }
   ]
 }
