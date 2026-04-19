@@ -6,8 +6,6 @@ export interface RunJob {
   companyId: string;
   /** Null for heartbeat runs with no assigned task. Must stay aligned with EnqueueRunPayload. */
   taskId: string | null;
-  taskTitle: string;
-  taskDescription: string;
   agentId: string;
   agentName: string;
   connectorId: string;
@@ -21,6 +19,8 @@ export interface RunJob {
   trigger: string | null;
   taskSessionId: string;
   executionMode: "ai_ceo" | "ai_cofounder";
+  /** Seed user turn that kicks off the pi agent loop. Never empty. */
+  initialUserTurn: string;
 }
 
 /**

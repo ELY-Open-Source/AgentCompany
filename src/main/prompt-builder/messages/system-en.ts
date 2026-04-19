@@ -284,8 +284,6 @@ export function immediateTaskSection(title: string, description: string, priorit
   return `\n---\n\nYour immediate task:\n\nTitle: ${title}\nDescription: ${description || "No additional description."}\nPriority: ${priority}\n\nPlease execute this task according to your operating instructions.`;
 }
 
-export const heartbeatFallbackSection = `\n---\n\nYou have been woken for a heartbeat check. Review your assigned tasks and active goals, then take appropriate action. If there's nothing to do, respond with a brief status summary.`;
-
 export const dayNames: Record<number, string> = {
   0: "Sunday", 1: "Monday", 2: "Tuesday", 3: "Wednesday",
   4: "Thursday", 5: "Friday", 6: "Saturday",

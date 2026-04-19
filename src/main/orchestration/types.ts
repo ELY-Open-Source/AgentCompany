@@ -23,8 +23,6 @@ export interface EnqueueRunPayload {
   companyId: string;
   /** Null for heartbeat runs (agent wake-ups with no assigned task). */
   taskId: string | null;
-  taskTitle: string;
-  taskDescription: string;
   agentId: string;
   agentName: string;
   connectorId: string;
@@ -40,6 +38,14 @@ export interface EnqueueRunPayload {
   taskSessionId: string;
   /** Execution mode from the owning company. */
   executionMode: "ai_ceo" | "ai_cofounder";
+  /**
+   * The literal user-role turn the worker seeds onto the pi Agent to
+   * kick off the loop. Resolved at dispatch time — for task runs this is
+   * the task title/description; for communication wakes it binds to the
+   * actual inbox rows (message_id, sender, subject) so the agent lands
+   * on a concrete action cue instead of a context-free `Continue.`.
+   */
+  initialUserTurn: string;
 }
 
 export interface OrchestrationDependencies {

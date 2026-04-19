@@ -13,6 +13,7 @@ import type { ConnectorId, ExecutionMode } from "@shared/types";
 import type { WorkspaceLockMode, EnqueueRunPayload } from "./types";
 import { normalizeCommentsForPrompt } from "../message-normalize";
 import { getConnectorModelPolicy, validateConnectorModelSelection } from "../connector-model-policy";
+import { resolveInitialUserTurn } from "./initial-user-turn";
 
 export interface RunDispatchParams {
   runId: string;
@@ -332,12 +333,15 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     throw new Error(modelSelection.error);
   }
 
+  const initialUserTurn = resolveInitialUserTurn(
+    { trigger, task, companyId, agentId: agent.id },
+    { db },
+  );
+
   return {
     runId,
     companyId,
     taskId: task?.id ?? null,
-    taskTitle: task?.title ?? "",
-    taskDescription: task?.description ?? "",
     agentId: agent.id,
     agentName: agent.name,
     connectorId: connector.id,
@@ -351,5 +355,6 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     trigger,
     taskSessionId: taskSessionId ?? runId,
     executionMode: db.getCompanyExecutionMode(companyId) as "ai_ceo" | "ai_cofounder",
+    initialUserTurn,
   };
 }

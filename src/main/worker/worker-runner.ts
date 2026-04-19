@@ -182,10 +182,10 @@ export class WorkerRunner {
         });
 
         try {
-          const userMessage = job.taskTitle
-            ? `${job.taskTitle}\n\n${job.taskDescription ?? ""}`.trim()
-            : (job.taskDescription ?? "");
-          const promptContent = userMessage.length > 0 ? userMessage : "Continue.";
+          const promptContent = job.initialUserTurn.trim();
+          if (promptContent.length === 0) {
+            throw new Error(`Run ${job.runId} has an empty initial user turn.`);
+          }
           const promptMessage: AgentMessage = {
             role: "user",
             content: [{ type: "text", text: promptContent }],

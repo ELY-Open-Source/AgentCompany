@@ -69,10 +69,14 @@ export function buildTaskPrompt(ctx: PromptContext): string {
 
   parts.push(`\n${m.timeAwarenessSection}`);
 
+  // Taskless runs used to emit a "respond with a brief status summary"
+  // nudge here. That text fought the wake-reason block above and caused
+  // communication wakes to degrade into self-narration. The wake-reason
+  // section already tells the agent what to do; the initial user turn
+  // (assembled at dispatch) supplies the concrete action cue — no fallback
+  // text is needed for the system prompt anymore.
   if (ctx.task) {
     parts.push(m.immediateTaskSection(ctx.task.title, ctx.task.description, ctx.task.priority));
-  } else {
-    parts.push(m.heartbeatFallbackSection);
   }
 
   return parts.join("");
