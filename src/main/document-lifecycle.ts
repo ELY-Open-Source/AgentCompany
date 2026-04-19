@@ -1,20 +1,23 @@
 /**
  * Unified document-creation lifecycle.
  *
- * Previous layout had two divergent entry points: the HTTP API
- * (`routes-files.ts`) fired thread, checkpoint, automation, reviewer-wake,
- * and deliverable-review side effects, while the desktop IPC save path
- * (`ipc-content-operations-handlers.ts`) only fired automation and the
- * reviewer wake. A document created from the API and one created from the
- * desktop reviewer ended up in inconsistent thread-event and checkpoint
- * states, so the UI showed different lifecycle progress depending on
- * which surface produced the row.
+ * Two invariants:
  *
- * This module is the single owner of "what happens when a new document
- * lands in the DB". Both entry points call `createDocumentWithLifecycle`
- * and rely on its deterministic fan-out. Update-only edits (when `id` is
- * present) skip the creation-time side effects but still publish the
- * domain-change event via `publishDomainChanged`.
+ *   1. DB-writing hooks (thread events, checkpoint approval,
+ *      deliverable-review approval) commit atomically with the
+ *      document row. A failure in any of them rolls back the save so
+ *      the operator never sees a live document with a missing thread
+ *      or a skipped approval.
+ *
+ *   2. Cross-process side effects (automation dispatch, reviewer wake)
+ *      are durable via the `document_lifecycle_events` ledger. Every
+ *      hook attempt lands a row and the processor stamps its outcome;
+ *      a crash between "document saved" and "reviewer woken" is
+ *      observable as a `failed` ledger row instead of a silent gap.
+ *
+ * The HTTP API route and the desktop IPC handler both call
+ * `createDocumentWithLifecycle`, so both surfaces end up in the same
+ * state after a save — no more divergence between the two entry points.
  */
 
 import log from "electron-log/main.js";
@@ -55,99 +58,132 @@ export interface DocumentLifecycleInput {
   version: number;
   status: string;
   tagsJson: string;
-  /** Run that produced the save call, or null for operator-authored saves. */
   sourceRunId: string | null;
 }
 
 export interface DocumentLifecycleOutcome {
   id: string;
   isNew: boolean;
-  /** Task derived from the originating run, if any — used for thread/approval binding. */
   taskId: string | null;
-  /** Approval raised by the deliverable-review gate, when applicable. */
   deliverableReviewApprovalId: string | null;
 }
 
-/**
- * Save a document and dispatch every downstream side effect associated
- * with its creation. Side effects are fired inside individual `try`s
- * because this is the authoritative fanout — an early throw should not
- * prevent later hooks from running (e.g. an automation failure must not
- * suppress the thread event).
- */
+export type SideEffectHook = "automation_dispatch" | "reviewer_wake";
+
+interface PendingSideEffect {
+  eventId: string;
+  hook: SideEffectHook;
+  run: () => void;
+}
+
 export function createDocumentWithLifecycle(
   deps: DocumentLifecycleDeps,
   input: DocumentLifecycleInput,
 ): DocumentLifecycleOutcome {
-  const isNew = !input.id;
-  const id = deps.db.saveDocument(input);
-  const taskId = deriveTaskIdFromRun(deps.db, input.sourceRunId, input.companyId, deps.logger);
+  const pendingSideEffects: PendingSideEffect[] = [];
 
-  if (isNew) {
-    fireCreationHooks(deps, input, id, taskId);
-  }
+  const outcome = deps.db.withTransaction(() => {
+    const isNew = !input.id;
+    const id = deps.db.saveDocument(input);
+    const taskId = deriveTaskIdFromRun(deps.db, input.sourceRunId, input.companyId, deps.logger);
 
-  let deliverableReviewApprovalId: string | null = null;
-  if (isNew && IMPORTANT_DOC_TYPE_SET.has(input.type)) {
-    deliverableReviewApprovalId = maybeRaiseDeliverableReviewApproval(deps, input, id, taskId);
+    let deliverableReviewApprovalId: string | null = null;
+    if (isNew) {
+      // DB-writing hooks run inside the transaction. Any throw rolls
+      // back `saveDocument` along with the thread event / approvals.
+      deps.threadIntegration.onDocumentCreated(
+        input.companyId,
+        input.authorAgentId,
+        taskId,
+        input.title,
+      );
+      deps.checkpointEngine.onDocumentDrafted(
+        input.companyId,
+        id,
+        input.title,
+        input.type,
+        input.authorAgentId,
+        taskId,
+      );
+      if (IMPORTANT_DOC_TYPE_SET.has(input.type)) {
+        deliverableReviewApprovalId = maybeRaiseDeliverableReviewApproval(deps, input, id, taskId);
+      }
+
+      // Side effects (cross-process / advisory) land in the ledger so
+      // a post-commit failure is observable instead of a silent gap.
+      const automationEventId = deps.db.documentLifecycleEvents.enqueue({
+        companyId: input.companyId,
+        documentId: id,
+        hookType: "automation_dispatch",
+        payloadJson: JSON.stringify({
+          trigger: "document_created",
+          agentId: input.authorAgentId,
+          projectId: input.projectId,
+        }),
+      });
+      pendingSideEffects.push({
+        eventId: automationEventId,
+        hook: "automation_dispatch",
+        run: () => deps.dispatchAutomation("document_created", {
+          companyId: input.companyId,
+          agentId: input.authorAgentId ?? undefined,
+          projectId: input.projectId ?? undefined,
+        }),
+      });
+
+      if (input.reviewerAgentId && input.reviewerAgentId !== input.authorAgentId) {
+        const wakeEventId = deps.db.documentLifecycleEvents.enqueue({
+          companyId: input.companyId,
+          documentId: id,
+          hookType: "reviewer_wake",
+          payloadJson: JSON.stringify({ reviewerAgentId: input.reviewerAgentId }),
+        });
+        const reviewerAgentId = input.reviewerAgentId;
+        const companyId = input.companyId;
+        pendingSideEffects.push({
+          eventId: wakeEventId,
+          hook: "reviewer_wake",
+          run: () => {
+            deps.wakeAgentIfPossible(reviewerAgentId, companyId, "assignment");
+          },
+        });
+      }
+    }
+
+    return { id, isNew, taskId, deliverableReviewApprovalId };
+  });
+
+  for (const pending of pendingSideEffects) {
+    runSideEffect(deps, pending);
   }
 
   deps.publishDomainChanged();
-  return { id, isNew, taskId, deliverableReviewApprovalId };
+  return outcome;
 }
 
-function fireCreationHooks(
-  deps: DocumentLifecycleDeps,
-  input: DocumentLifecycleInput,
-  documentId: string,
-  taskId: string | null,
-): void {
+function runSideEffect(deps: DocumentLifecycleDeps, pending: PendingSideEffect): void {
   try {
-    deps.dispatchAutomation("document_created", {
-      companyId: input.companyId,
-      agentId: input.authorAgentId ?? undefined,
-      projectId: input.projectId ?? undefined,
-    });
+    deps.db.documentLifecycleEvents.markRunning(pending.eventId);
   } catch (error) {
     deps.logger.warn(
-      `[document-lifecycle] dispatchAutomation failed for document ${documentId}: ${error instanceof Error ? error.message : String(error)}`,
+      `[document-lifecycle] markRunning failed for ${pending.eventId}: ${error instanceof Error ? error.message : String(error)}`,
     );
+    return;
   }
 
   try {
-    deps.threadIntegration.onDocumentCreated(
-      input.companyId,
-      input.authorAgentId,
-      taskId,
-      input.title,
-    );
+    pending.run();
+    deps.db.documentLifecycleEvents.markSucceeded(pending.eventId);
   } catch (error) {
-    deps.logger.warn(
-      `[document-lifecycle] threadIntegration.onDocumentCreated failed for ${documentId}: ${error instanceof Error ? error.message : String(error)}`,
+    const message = error instanceof Error ? error.message : String(error);
+    deps.logger.error(
+      `[document-lifecycle] hook ${pending.hook} failed for event ${pending.eventId}: ${message}`,
     );
-  }
-
-  try {
-    deps.checkpointEngine.onDocumentDrafted(
-      input.companyId,
-      documentId,
-      input.title,
-      input.type,
-      input.authorAgentId,
-      taskId,
-    );
-  } catch (error) {
-    deps.logger.warn(
-      `[document-lifecycle] checkpointEngine.onDocumentDrafted failed for ${documentId}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-
-  if (input.reviewerAgentId && input.reviewerAgentId !== input.authorAgentId) {
     try {
-      deps.wakeAgentIfPossible(input.reviewerAgentId, input.companyId, "assignment");
-    } catch (error) {
+      deps.db.documentLifecycleEvents.markFailed(pending.eventId, message);
+    } catch (markError) {
       deps.logger.warn(
-        `[document-lifecycle] reviewer wake failed for ${documentId}: ${error instanceof Error ? error.message : String(error)}`,
+        `[document-lifecycle] markFailed failed for ${pending.eventId}: ${markError instanceof Error ? markError.message : String(markError)}`,
       );
     }
   }
@@ -172,60 +208,44 @@ function deriveTaskIdFromRun(
   }
 }
 
-/**
- * Raises a `deliverable_review` approval when the company has opted in,
- * the document type is important, execution mode is `ai_ceo` (cofounder
- * mode handles reviews via the checkpoint engine), and no pending
- * deliverable review already exists. Mirrors the gate that used to live
- * inline in `routes-files.ts`; consolidating it here ensures operator-
- * created documents get the same reviewer treatment.
- */
 function maybeRaiseDeliverableReviewApproval(
   deps: DocumentLifecycleDeps,
   input: DocumentLifecycleInput,
   documentId: string,
   taskId: string | null,
 ): string | null {
-  try {
-    const companySettings = deps.db.getCompanyApprovalSettings(input.companyId);
-    if (!companySettings?.reviewDeliverables) return null;
-    if (deps.db.getCompanyExecutionMode(input.companyId) === "ai_cofounder") return null;
-    if (deps.db.hasPendingDeliverableReviews(input.companyId)) return null;
+  const companySettings = deps.db.getCompanyApprovalSettings(input.companyId);
+  if (!companySettings?.reviewDeliverables) return null;
+  if (deps.db.getCompanyExecutionMode(input.companyId) === "ai_cofounder") return null;
+  if (deps.db.hasPendingDeliverableReviews(input.companyId)) return null;
 
-    const approvalId = deps.db.requestApproval({
-      companyId: input.companyId,
-      relatedTaskId: taskId,
-      requestedByAgentId: input.authorAgentId ?? "",
-      type: "deliverable_review",
-      payloadSummary: `Review deliverable: ${input.title}`.slice(0, 280),
-      impactSummary: `New ${input.type.replaceAll("_", " ")} created. Awaiting your review before workflow continues.`.slice(0, 400),
-      payloadJson: JSON.stringify({
-        documentIds: [documentId],
-        documents: [{ id: documentId, type: input.type, title: input.title }],
-      }),
-    });
+  const approvalId = deps.db.requestApproval({
+    companyId: input.companyId,
+    relatedTaskId: taskId,
+    requestedByAgentId: input.authorAgentId ?? "",
+    type: "deliverable_review",
+    payloadSummary: `Review deliverable: ${input.title}`.slice(0, 280),
+    impactSummary: `New ${input.type.replaceAll("_", " ")} created. Awaiting your review before workflow continues.`.slice(0, 400),
+    payloadJson: JSON.stringify({
+      documentIds: [documentId],
+      documents: [{ id: documentId, type: input.type, title: input.title }],
+    }),
+  });
 
-    if (input.authorAgentId) {
-      try {
-        const agent = deps.db.getAgent(input.authorAgentId);
-        if (agent.heartbeatEnabled) {
-          deps.db.setHeartbeat(input.authorAgentId, false, agent.heartbeatIntervalSec || 120);
-        }
-      } catch (error) {
-        deps.logger.warn(
-          `[document-lifecycle] heartbeat pause failed for agent ${input.authorAgentId}: ${error instanceof Error ? error.message : String(error)}`,
-        );
+  if (input.authorAgentId) {
+    try {
+      const agent = deps.db.getAgent(input.authorAgentId);
+      if (agent.heartbeatEnabled) {
+        deps.db.setHeartbeat(input.authorAgentId, false, agent.heartbeatIntervalSec || 120);
       }
+    } catch (error) {
+      deps.logger.warn(
+        `[document-lifecycle] heartbeat pause failed for agent ${input.authorAgentId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
-
-    return approvalId;
-  } catch (error) {
-    deps.logger.warn(
-      `[document-lifecycle] deliverable-review gate failed for document ${documentId}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return null;
   }
+
+  return approvalId;
 }
 
-/** Re-export for backwards-compatible logging in callers that do not have electron-log wired. */
 export const defaultLogger: DocumentLifecycleDeps["logger"] = log;
