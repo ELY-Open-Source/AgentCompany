@@ -9,3 +9,4 @@ Started: 2026-04-19
 - Standing constraint: all code is written directly in the current context; no subagents or agent teams are used.
 - Completed real settings/workspace state mutations in native Rust path: theme, locale, execution mode, and primary workspace.
 - Added native_settings_workspace_e2e.rs to verify mutation persistence across reopen.
+- Completed first native motion/state parity layer using GPUI animation wrappers for onboarding, inbox, and runs.

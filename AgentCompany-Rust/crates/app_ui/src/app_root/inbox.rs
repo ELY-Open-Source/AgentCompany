@@ -1,4 +1,6 @@
 use super::*;
+use gpui::{Animation, AnimationExt, pulsating_between};
+use std::time::Duration;
 
 impl AppRoot {
     pub(super) fn render_inbox(&self) -> impl IntoElement + '_ {
@@ -192,7 +194,7 @@ fn inbox_filters(
 }
 
 fn filter_chip(label: &'static str, count: usize, active: bool) -> impl IntoElement {
-    div()
+    let chip = div()
         .px_4()
         .py_2()
         .rounded_full()
@@ -207,7 +209,19 @@ fn filter_chip(label: &'static str, count: usize, active: bool) -> impl IntoElem
         } else {
             theme::text_secondary()
         })
-        .child(format!("{} {}", label, count))
+        .child(format!("{} {}", label, count));
+    if active {
+        chip.with_animation(
+            ("inbox-filter", label.len()),
+            Animation::new(Duration::from_secs(2))
+                .repeat()
+                .with_easing(pulsating_between(0.82, 1.0)),
+            |element, delta| element.opacity(delta),
+        )
+        .into_any_element()
+    } else {
+        chip.into_any_element()
+    }
 }
 
 fn inbox_group(label: &'static str, rows: impl Iterator<Item = gpui::Div>) -> impl IntoElement {

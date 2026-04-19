@@ -1,4 +1,6 @@
 use super::*;
+use gpui::{Animation, AnimationExt, pulsating_between};
+use std::time::Duration;
 
 impl AppRoot {
     pub(super) fn render_onboarding(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
@@ -151,7 +153,7 @@ fn onboarding_steps() -> impl IntoElement {
 }
 
 fn step_chip(label: &'static str, complete: bool) -> impl IntoElement {
-    div()
+    let chip = div()
         .px_4()
         .py_2()
         .rounded_full()
@@ -166,7 +168,19 @@ fn step_chip(label: &'static str, complete: bool) -> impl IntoElement {
         } else {
             theme::text_secondary()
         })
-        .child(label)
+        .child(label);
+    if complete {
+        chip.with_animation(
+            ("step-chip", label.len()),
+            Animation::new(Duration::from_secs(3))
+                .repeat()
+                .with_easing(pulsating_between(0.78, 1.0)),
+            |element, delta| element.opacity(delta),
+        )
+        .into_any_element()
+    } else {
+        chip.into_any_element()
+    }
 }
 
 fn readiness_panel() -> impl IntoElement {
@@ -222,7 +236,14 @@ fn success_badge() -> impl IntoElement {
                 .w(px(32.0))
                 .h(px(32.0))
                 .rounded_full()
-                .bg(theme::accent_teal()),
+                .bg(theme::accent_teal())
+                .with_animation(
+                    "success-badge-inner",
+                    Animation::new(Duration::from_secs(2))
+                        .repeat()
+                        .with_easing(pulsating_between(0.72, 1.0)),
+                    |element, delta| element.opacity(delta),
+                ),
         )
 }
 

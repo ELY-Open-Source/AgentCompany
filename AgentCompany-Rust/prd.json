@@ -98,8 +98,8 @@
         "Verify in native app"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": "High-value remaining parity layer."
+      "passes": true,
+      "notes": "Completed with GPUI-native animation wrappers on onboarding success states, active inbox filters, and running run status emphasis."
     },
     {
       "id": "US-008",

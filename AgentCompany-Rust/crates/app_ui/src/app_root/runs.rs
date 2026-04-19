@@ -1,4 +1,6 @@
 use super::*;
+use gpui::{Animation, AnimationExt, pulsating_between};
+use std::time::Duration;
 
 impl AppRoot {
     pub(super) fn render_runs(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
@@ -319,7 +321,7 @@ fn run_workspace_name(snapshot: &domain::ProfileSnapshot, run: &domain::Run) -> 
 }
 
 fn run_status_badge(status: &str) -> impl IntoElement {
-    div()
+    let badge = div()
         .px_3()
         .py_2()
         .rounded_full()
@@ -334,7 +336,20 @@ fn run_status_badge(status: &str) -> impl IntoElement {
             "failed" | "timed_out" | "cancelled" | "interrupted" => theme::danger(),
             _ => theme::text_secondary(),
         })
-        .child(status.to_uppercase())
+        .child(status.to_uppercase());
+    if status == "running" {
+        badge
+            .with_animation(
+                ("run-badge", 1usize),
+                Animation::new(Duration::from_secs(2))
+                    .repeat()
+                    .with_easing(pulsating_between(0.8, 1.0)),
+                |element, delta| element.opacity(delta),
+            )
+            .into_any_element()
+    } else {
+        badge.into_any_element()
+    }
 }
 
 fn info_tile(label: &'static str, value: String) -> impl IntoElement {
