@@ -95,13 +95,6 @@ export function registerCoreReadHandlers({
     return ok(await checkForUpdates({ manual: true }));
   });
 
-  registerHandle(IPC_CHANNELS.getSidebarBadges, async (_event, companyId) => {
-    if (typeof companyId !== "string" || !companyId) {
-      return fail("INVALID_COMPANY_ID", "A valid company id is required.");
-    }
-    return ok(db.getSidebarBadges(companyId));
-  });
-
   registerHandle(IPC_CHANNELS.listConnectorModels, async (_event, connectorId) => {
     try {
       const parsed = connectorInputSchema.shape.id.parse(connectorId);

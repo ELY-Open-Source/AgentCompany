@@ -2,13 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useAppStore } from "@renderer/state/store";
 import type { ProfileSnapshot, TaskRecord, RunRecord, AgentRecord, ApprovalRecord } from "@shared/types";
 
-// Mock window.agentCompany for refreshSnapshot and refreshBadges tests
+// Mock window.agentCompany for refreshSnapshot tests. Sidebar badges
+// no longer traverse IPC — they are derived from the snapshot in
+// `@shared/sidebar-badges`, so there is nothing store-level to mock
+// for them.
 const mockLoadSnapshot = vi.fn();
-const mockGetSidebarBadges = vi.fn();
 vi.stubGlobal("window", {
   agentCompany: {
     loadSnapshot: mockLoadSnapshot,
-    getSidebarBadges: mockGetSidebarBadges,
   },
 });
 
@@ -486,20 +487,6 @@ describe("CompanySlice patch methods", () => {
     const approvals = useAppStore.getState().snapshot!.approvals;
     expect(approvals).toHaveLength(1);
     expect(approvals[0]!.id).toBe("ap-2");
-  });
-
-  // -- refreshBadges --
-  it("refreshBadges calls window.agentCompany.getSidebarBadges and updates badges", async () => {
-    const mockBadges = { tasks: 5, approvals: 2, runs: 0, messages: 3 };
-    mockGetSidebarBadges.mockResolvedValue({ ok: true, data: mockBadges });
-
-    // Seed snapshot with currentCompanyId -- refreshBadges reads from snapshot
-    useAppStore.getState().setSnapshot(makeSnapshot());
-
-    await useAppStore.getState().refreshBadges();
-
-    expect(mockGetSidebarBadges).toHaveBeenCalledWith("company-1");
-    expect(useAppStore.getState().badges).toEqual(mockBadges);
   });
 
   // -- null-snapshot safety --

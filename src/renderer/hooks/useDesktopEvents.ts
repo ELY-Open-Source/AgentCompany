@@ -106,10 +106,10 @@ export function useDesktopEvents(
 
       if (needsFullRefresh) {
         void refreshRef.current();
-      } else {
-        // Refresh sidebar badges after granular patches (per pitfall 3)
-        void store.getState().refreshBadges();
       }
+      // Granular patches already update the snapshot arrays, and
+      // sidebar badges derive from the snapshot live — no separate
+      // badge refresh is needed.
     }
 
     // 500ms window for full-refresh events (e.g. new-message,

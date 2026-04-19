@@ -30,7 +30,6 @@ export const IPC_CHANNELS = {
   deleteWorkspace: "agent-company:delete-workspace",
   deleteApproval: "agent-company:delete-approval",
   deleteSecret: "agent-company:delete-secret",
-  getSidebarBadges: "agent-company:get-sidebar-badges",
   listConnectorModels: "agent-company:list-connector-models",
   addComment: "agent-company:add-comment",
   setHeartbeat: "agent-company:set-heartbeat",

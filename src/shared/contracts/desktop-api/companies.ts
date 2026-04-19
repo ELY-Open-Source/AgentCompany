@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import type { CompanyMetrics, OnboardingBootstrapResult, ProfileSnapshot, StandupReport, InboxItem } from "../../types";
 import type { bootstrapOnboardingSchema, companyInputSchema, connectorDisabledModelsSchema, connectorInputSchema, settingsSchema } from "../schemas-company";
-import type { metricsQuerySchema, SidebarBadges } from "../schemas-badges";
+import type { metricsQuerySchema } from "../schemas-badges";
 import type { DesktopResult } from "./common";
 
 export type CompaniesApi = {
@@ -15,7 +15,6 @@ export type CompaniesApi = {
   updateSettings: (input: z.infer<typeof settingsSchema>) => Promise<DesktopResult<boolean>>;
   checkForUpdates: () => Promise<DesktopResult<boolean>>;
   deleteCompany: (companyId: string) => Promise<DesktopResult<boolean>>;
-  getSidebarBadges: (companyId: string) => Promise<DesktopResult<SidebarBadges>>;
   listConnectorModels: (connectorId: string) => Promise<DesktopResult<Array<{ id: string; label: string }>>>;
   getConnectorDisabledModels: (connectorId: string) => Promise<DesktopResult<Array<{ id: string; label: string }>>>;
   setConnectorDisabledModels: (input: z.infer<typeof connectorDisabledModelsSchema>) => Promise<DesktopResult<boolean>>;

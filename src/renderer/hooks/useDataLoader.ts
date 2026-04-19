@@ -24,8 +24,6 @@ export function useDataLoader(
       if (!currentSelectedConnectorId && next.connectors[0]) store.setSelectedConnectorId(next.connectors[0].id);
       if (!currentSelectedRunId && next.runs[0]) store.setSelectedRunId(next.runs[0].id);
       if (next.currentCompanyId) {
-        const badgeResult = await window.agentCompany.getSidebarBadges(next.currentCompanyId);
-        if (badgeResult.ok) store.setBadges(badgeResult.data);
         const inboxResult = await window.agentCompany.getInbox(next.currentCompanyId);
         if (inboxResult.ok) store.setInboxItems(inboxResult.data);
         store.setSocialAccounts(next.socialAccounts?.filter((a) => a.companyId === next.currentCompanyId) ?? []);

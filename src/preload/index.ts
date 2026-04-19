@@ -37,7 +37,6 @@ const api: DesktopApi = {
   deleteWorkspace: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteWorkspace, input),
   deleteApproval: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteApproval, input),
   deleteSecret: (input) => ipcRenderer.invoke(IPC_CHANNELS.deleteSecret, input),
-  getSidebarBadges: (companyId) => ipcRenderer.invoke(IPC_CHANNELS.getSidebarBadges, companyId),
   listConnectorModels: (connectorId) => ipcRenderer.invoke(IPC_CHANNELS.listConnectorModels, connectorId),
   getConnectorDisabledModels: (connectorId) => ipcRenderer.invoke(IPC_CHANNELS.getConnectorDisabledModels, connectorId),
   setConnectorDisabledModels: (input) => ipcRenderer.invoke(IPC_CHANNELS.setConnectorDisabledModels, input),

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { CompanyRecord, ProfileSnapshot, SectionId } from "@shared/types";
+import { deriveSidebarBadges } from "@shared/sidebar-badges";
 import { useAppStore } from "../state/store";
 
 function filterByCompany<T extends { companyId: string }>(
@@ -76,18 +77,24 @@ export function useCompanyData(
     [companyWorkspaces, selectedWorkspaceId],
   );
 
-  const navBadgesSource = useAppStore((s) => s.badges);
-  const navBadges = useMemo<Partial<Record<SectionId, { count: number; tone: "default" | "warn" | "danger" }>>>(() => navBadgesSource ? {
-    runs:
-      navBadgesSource.failedRuns > 0
-        ? { count: navBadgesSource.failedRuns, tone: "danger" }
-        : navBadgesSource.activeRuns > 0
-          ? { count: navBadgesSource.activeRuns, tone: "default" }
-          : undefined,
-    tasks: navBadgesSource.todoTasks > 0 ? { count: navBadgesSource.todoTasks, tone: "default" } : undefined,
-    approvals: navBadgesSource.pendingApprovals > 0 ? { count: navBadgesSource.pendingApprovals, tone: "warn" } : undefined,
-    communication: navBadgesSource.unreadMessages > 0 ? { count: navBadgesSource.unreadMessages, tone: "warn" } : undefined,
-  } : {}, [navBadgesSource]);
+  // Derive sidebar badge counts from the snapshot. Single source of truth —
+  // no separate `store.badges` cache to drift when messages get marked read
+  // or approvals get accepted between server-side aggregations.
+  const navBadges = useMemo<Partial<Record<SectionId, { count: number; tone: "default" | "warn" | "danger" }>>>(() => {
+    if (!snapshot) return {};
+    const badges = deriveSidebarBadges(snapshot, currentCompany?.id ?? null);
+    return {
+      runs:
+        badges.failedRuns > 0
+          ? { count: badges.failedRuns, tone: "danger" }
+          : badges.activeRuns > 0
+            ? { count: badges.activeRuns, tone: "default" }
+            : undefined,
+      tasks: badges.todoTasks > 0 ? { count: badges.todoTasks, tone: "default" } : undefined,
+      approvals: badges.pendingApprovals > 0 ? { count: badges.pendingApprovals, tone: "warn" } : undefined,
+      communication: badges.unreadMessages > 0 ? { count: badges.unreadMessages, tone: "warn" } : undefined,
+    };
+  }, [snapshot]);
 
   return useMemo(() => ({
     tasks,

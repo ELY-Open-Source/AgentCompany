@@ -1,13 +1,21 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ProfileSnapshot } from "@shared/types";
-import {
-  BOARD_READER_ID,
-  type ReadAll,
-  type Transaction,
-} from "./helpers";
+import type { ReadAll, Transaction } from "./helpers";
 
+/**
+ * Company-scoped read endpoints that do not belong to a single domain
+ * CRUD module.
+ *
+ * Sidebar badges used to live here as a server-side aggregation
+ * (`getSidebarBadges`) — it has been deleted. The desktop app is
+ * local-first and the renderer already holds every row the badges
+ * would count via `ProfileSnapshot`, so the aggregation became a
+ * second source of truth that drifted from the inbox query whenever
+ * messages were read between snapshot refreshes. Derivation now lives
+ * in `src/shared/sidebar-badges.ts::deriveSidebarBadges`.
+ */
 export function buildCompanySettingsMethods(
-  getDb: () => DatabaseSync,
+  _getDb: () => DatabaseSync,
   readAll: ReadAll,
   _transaction: Transaction,
   _deps: {
@@ -51,72 +59,6 @@ export function buildCompanySettingsMethods(
           companyId,
         ),
       };
-    },
-
-    getSidebarBadges(companyId: string): {
-      pendingApprovals: number;
-      activeRuns: number;
-      failedRuns: number;
-      todoTasks: number;
-      budgetWarnings: number;
-      unreadMessages: number;
-    } {
-      const pendingApprovals =
-        (
-          getDb()
-            .prepare(
-              "select count(*) as c from approvals where company_id = ? and state = 'pending'",
-            )
-            .get(companyId) as { c: number }
-        )?.c ?? 0;
-      const activeRuns =
-        (
-          getDb()
-            .prepare(
-              "select count(*) as c from runs where company_id = ? and status in ('queued', 'running')",
-            )
-            .get(companyId) as { c: number }
-        )?.c ?? 0;
-      const failedRuns =
-        (
-          getDb()
-            .prepare(
-              "select count(*) as c from runs where company_id = ? and status in ('failed', 'timed_out', 'interrupted')",
-            )
-            .get(companyId) as { c: number }
-        )?.c ?? 0;
-      const todoTasks =
-        (
-          getDb()
-            .prepare(
-              "select count(*) as c from tasks where company_id = ? and status in ('todo', 'in_progress', 'in_review')",
-            )
-            .get(companyId) as { c: number }
-        )?.c ?? 0;
-      const budgetWarnings =
-        (
-          getDb()
-            .prepare(
-              "select count(*) as c from agents where company_id = ? and budget_monthly_usd > 0 and (spent_monthly_usd * 1.0 / budget_monthly_usd) >= 0.8",
-            )
-            .get(companyId) as { c: number }
-        )?.c ?? 0;
-      const unreadMessages =
-        (
-          getDb()
-            .prepare(
-              `select count(*) as c
-           from agent_messages messages
-           left join agent_message_reads reads
-             on reads.message_id = messages.id
-            and reads.agent_id = ?
-          where messages.company_id = ?
-            and reads.read_at is null
-            and (messages.channel = 'company' or messages.channel = 'incident' or messages.priority = 'urgent')`,
-            )
-            .get(BOARD_READER_ID, companyId) as { c: number }
-        )?.c ?? 0;
-      return { pendingApprovals, activeRuns, failedRuns, todoTasks, budgetWarnings, unreadMessages };
     },
   };
 }

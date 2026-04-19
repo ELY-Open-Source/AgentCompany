@@ -40,7 +40,6 @@ export function useCompanyController() {
     store.setStandupReport(null);
     store.setSocialAccounts([]);
     store.setBrowserActions([]);
-    store.setBadges(null);
     store.setSkills([]);
     store.setSelectedSkillId(null);
     store.setSelectedSkillFilePath("SKILL.md");

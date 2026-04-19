@@ -41,10 +41,22 @@ export function MessageList({
   const parentRef = useRef<HTMLDivElement>(null)
 
   const threadedMessages = useMemo(() => {
-    const topLevel = filteredMessages.filter((m) => !m.parentMessageId)
+    // A message is rendered at the top level when it either has no
+    // parent, or its parent is outside the current filtered view
+    // (another channel, beyond the 1000-row snapshot cap, or simply
+    // not loaded yet). Without this second condition, a DM channel
+    // whose earliest message has scrolled off the snapshot would
+    // display as completely empty even though replies for it are
+    // present — the exact "clicked the channel, got a blank pane"
+    // symptom.
+    const idSet = new Set(filteredMessages.map((m) => m.id))
+    const topLevel: AgentMessageRecord[] = []
     const replyMap = new Map<string, AgentMessageRecord[]>()
     for (const m of filteredMessages) {
-      if (m.parentMessageId) {
+      const parentInView = m.parentMessageId ? idSet.has(m.parentMessageId) : false
+      if (!m.parentMessageId || !parentInView) {
+        topLevel.push(m)
+      } else {
         const existing = replyMap.get(m.parentMessageId) ?? []
         existing.push(m)
         replyMap.set(m.parentMessageId, existing)
