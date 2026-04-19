@@ -5,6 +5,7 @@ export type WakeReason =
   | "goal_activated"
   | "approval_resolved"
   | "subtask_completed"
+  | "task_review_requested"
   | "comment"
   | "report_blocked"
   | "report_failed"
@@ -69,12 +70,23 @@ export const WAKE_REASONS: Record<WakeReason, WakeReasonEntry> = {
   subtask_completed: {
     title: "A subtask you delegated has been completed or moved to review.",
     steps: () => [
-      'Check tasks with status "in_review" from your reports',
+      'Check tasks with status "in_review" whose parent task you own',
       "Read ALL comments on the completed subtask (GET /api/issues/{issueId}/comments)",
       "Review the work quality against the acceptance criteria you set",
       'If acceptable: PATCH /api/issues/{issueId} with status "done" and an approving comment',
       'If changes needed: PATCH /api/issues/{issueId} with status "in_progress" and specific feedback',
       "Check if the parent task can now progress",
+    ],
+  },
+  task_review_requested: {
+    title: "A direct report submitted a top-level task for your review.",
+    steps: () => [
+      'Find the task: GET /api/agents/me/standup — look for tasksAwaitingReview',
+      "Read ALL comments on the task (GET /api/issues/{issueId}/comments) and any linked documents",
+      "Validate the work against the original acceptance criteria — not just whether it looks complete",
+      'If acceptable: PATCH /api/issues/{issueId} with status "done" and a concrete approval comment',
+      'If changes needed: PATCH /api/issues/{issueId} with status "in_progress" and specific, actionable feedback',
+      "Do not let a top-level review sit — your whole team is downstream",
     ],
   },
   comment: {

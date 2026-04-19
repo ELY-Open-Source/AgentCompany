@@ -229,9 +229,13 @@ export function registerTaskRoutes(server: AgentApiServer) {
             );
           }
         } else {
+          // Top-level task submission goes to the assignee's manager.
+          // This is not a subtask — use a distinct wake reason so the
+          // reviewer prompt does not misframe the work as "a subtask
+          // you delegated".
           const chain = db.getChainOfCommand(token.agentId);
           if (chain.length > 0) {
-            onWakeAgent(chain[0].id, task.companyId, "subtask_completed");
+            onWakeAgent(chain[0].id, task.companyId, "task_review_requested");
           }
         }
       }

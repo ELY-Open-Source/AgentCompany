@@ -87,6 +87,8 @@ function buildGenericWakeTurn(trigger: string | null): string {
       return "An approval you requested has been decided. Act on the outcome surfaced in your briefing.";
     case "subtask_completed":
       return "A subtask you delegated is ready for review. Evaluate the work against its acceptance criteria and either accept it or request changes.";
+    case "task_review_requested":
+      return "A direct report submitted a top-level task for your review. Validate against the original acceptance criteria before deciding.";
     case "goal_activated":
       return "A goal you own has been activated. Decompose it into projects and tasks, then delegate the first batch of work.";
     case "report_blocked":

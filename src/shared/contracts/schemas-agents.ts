@@ -49,5 +49,5 @@ export const heartbeatSettingsSchema = z.object({
 export const triggerHeartbeatSchema = z.object({
   agentId: z.string().uuid(),
   companyId: z.string().uuid(),
-  trigger: z.enum(["manual", "timer", "assignment", "goal_activated", "approval_resolved", "subtask_completed", "comment", "report_blocked", "report_failed", "recovery", "message", "peer_request", "task_continuation"]).default("manual"),
+  trigger: z.enum(["manual", "timer", "assignment", "goal_activated", "approval_resolved", "subtask_completed", "task_review_requested", "comment", "report_blocked", "report_failed", "recovery", "message", "peer_request", "task_continuation"]).default("manual"),
 });
