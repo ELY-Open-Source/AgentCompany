@@ -353,11 +353,17 @@ export function buildDocumentMethods(
      */
     resolveWorkProductTarget(workProductId: string, companyId: string): { kind: "url" | "path"; value: string } | null {
       const row = getDb().prepare(
-        "SELECT provider, external_id, url, task_id, created_by_run_id, last_touched_by_run_id, workspace_id FROM work_products WHERE id = ? AND company_id = ?",
+        "SELECT provider, external_id, url, status, task_id, created_by_run_id, last_touched_by_run_id, workspace_id FROM work_products WHERE id = ? AND company_id = ?",
       ).get(workProductId, companyId) as
-        | { provider: string; external_id: string | null; url: string | null; task_id: string | null; created_by_run_id: string | null; last_touched_by_run_id: string | null; workspace_id: string | null }
+        | { provider: string; external_id: string | null; url: string | null; status: string; task_id: string | null; created_by_run_id: string | null; last_touched_by_run_id: string | null; workspace_id: string | null }
         | undefined;
       if (!row) return null;
+      // Archived rows are retirement tombstones — the file no longer
+      // exists (or was explicitly retired) and the row is kept for
+      // audit only. Refuse to resolve a target so `openWorkProduct`
+      // can fail cleanly instead of pointing the shell at a path that
+      // leads nowhere.
+      if (row.status === "archived") return null;
 
       if (row.url && row.url.length > 0) {
         return { kind: "url", value: row.url };
@@ -378,6 +384,10 @@ export function buildDocumentMethods(
       return { kind: "path", value: absolute };
     },
 
+    // Task-scoped visible listing. Archived rows stay in the table as
+    // retirement tombstones; the task API and the thread view only
+    // surface currently-active deliverables so a deleted file stops
+    // appearing in the task's artifact strip.
     listWorkProductsForTask(taskId: string, companyId: string) {
       return readAll<{
         id: string; company_id: string; project_id: string | null; task_id: string;
@@ -388,7 +398,7 @@ export function buildDocumentMethods(
         created_by_run_id: string | null; last_touched_by_run_id: string | null;
         created_at: string; updated_at: string;
       }>(
-        "SELECT * FROM work_products WHERE task_id = ? AND company_id = ? ORDER BY is_primary DESC, updated_at DESC",
+        "SELECT * FROM work_products WHERE task_id = ? AND company_id = ? AND status <> 'archived' ORDER BY is_primary DESC, updated_at DESC",
         taskId, companyId,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, projectId: r.project_id, taskId: r.task_id,
@@ -405,10 +415,10 @@ export function buildDocumentMethods(
     /**
      * Company-scoped work-product listing, newest first. Used by the
      * renderer snapshot so the DocumentCenter can surface filesystem
-     * artifacts (type = "file") the agents produce via bash/write/edit
-     * — these are the deliverables operators expect to see alongside
-     * prose documents, so the page stops looking empty when every
-     * artifact of the night lives in `work_products`.
+     * artifacts (type = "file") the agents produce via bash/write/edit.
+     * Archived rows are excluded so retired files stop showing in the
+     * operator UI; callers that need the full audit trail go through
+     * `listArchivedWorkProductsForCompany`.
      */
     listWorkProductsForCompany(companyId: string, limit = 500) {
       return readAll<{
@@ -420,7 +430,7 @@ export function buildDocumentMethods(
         created_by_run_id: string | null; last_touched_by_run_id: string | null;
         created_at: string; updated_at: string;
       }>(
-        "SELECT * FROM work_products WHERE company_id = ? ORDER BY updated_at DESC LIMIT ?",
+        "SELECT * FROM work_products WHERE company_id = ? AND status <> 'archived' ORDER BY updated_at DESC LIMIT ?",
         companyId, limit,
       ).map((r) => ({
         id: r.id, companyId: r.company_id, projectId: r.project_id, taskId: r.task_id,
