@@ -4,18 +4,17 @@
  * `afterToolCall`, or `transformContext`.
  *
  * Each handler is deliberately isolated to one concern:
- *  - `beforeToolCall`: approval-gate policy (blocks destructive tools
- *    while an approval or wait state is outstanding)
+ *  - `beforeToolCall`: operational-approval gate (blocks destructive
+ *    tools only while an approval that gates EXECUTION is pending)
  *  - `afterToolCall`: filesystem artifact projection (bash/write/edit
  *    outputs become `work_products`)
- *  - `transformContext`: auto-compaction hook (pruning in future; today
- *    passes through)
+ *  - `transformContext`: per-LLM-call auto-compaction via a pure
+ *    reducer
  *
- * Keeping them in this module pulls policy out of `RuntimeBridge`
- * (which stays a pure IPC router) and keeps the per-file budget under
- * the project's 500-line cap even as policy grows.
+ * Policy lives here; `RuntimeBridge` stays a pure IPC router.
  */
 
+import type { ApprovalType } from "@shared/types";
 import type { AppDatabase } from "@main/database";
 import type {
   AfterToolCallRpcPayload,
@@ -68,13 +67,34 @@ export function isDestructiveTool(toolName: string): boolean {
 }
 
 /**
- * Approval + wait-state gate for destructive tools. Runs at every
- * `beforeToolCall` callback, so approvals or wait states created
- * mid-run take effect on the next tool call without any cross-process
- * cache to invalidate.
+ * Approval types that gate EXECUTION (not decision). These stop the
+ * destructive toolchain until the board releases the hold.
  *
- * Read-only tools (read / grep / glob / list) are always allowed —
- * gating them would only slow observation while adding no safety.
+ * Decision-type approvals (deliverable_review, plan_review, hire_agent,
+ * …) are deliberately excluded: they mean "a human owes an answer
+ * about completed or proposed work". The agent is still free to reply
+ * to messages, coordinate with peers, or work on unrelated tasks
+ * while the decision is pending — blocking their tools there turns
+ * the board-review pattern into a company-wide freeze.
+ */
+const OPERATIONAL_APPROVAL_TYPES: ReadonlySet<ApprovalType> = new Set<ApprovalType>([
+  "dangerous_command",
+  "secret_access",
+  "production_deploy",
+  "social_post",
+  "budget_override",
+]);
+
+/**
+ * Approval gate for destructive tools. Runs at every
+ * `beforeToolCall`, so approvals created mid-run take effect on the
+ * next tool call with no cross-process cache to invalidate.
+ *
+ * Heartbeat-level wait-state pausing is the responsibility of the
+ * scheduler (`checkpoint-engine.shouldPauseHeartbeat`); mirroring it
+ * here would freeze every outbound message and every coordination
+ * reply while an unrelated thread was still waiting on the user —
+ * the exact failure mode that made Co-Founder agents silent.
  */
 export function handleBeforeToolCall(
   deps: HookHandlerDeps,
@@ -84,24 +104,20 @@ export function handleBeforeToolCall(
   if (!isDestructiveTool(payload.toolName)) {
     return { block: false, reason: null };
   }
-
-  const approvalBlock = checkApprovalBlock(deps, ctx, payload.toolName);
-  if (approvalBlock) return approvalBlock;
-
-  const waitStateBlock = checkWaitStateBlock(deps, ctx, payload.toolName);
-  if (waitStateBlock) return waitStateBlock;
-
-  return { block: false, reason: null };
+  return checkOperationalApprovalBlock(deps, ctx, payload.toolName);
 }
 
-function checkApprovalBlock(
+function checkOperationalApprovalBlock(
   deps: HookHandlerDeps,
   ctx: ActiveRunContext,
   toolName: string,
-): BeforeToolCallRpcResult | null {
+): BeforeToolCallRpcResult {
   try {
     const blocking = deps.db.getBlockingApproval(ctx.companyId, ctx.agentId, ctx.taskId);
-    if (!blocking) return null;
+    if (!blocking) return { block: false, reason: null };
+    if (!OPERATIONAL_APPROVAL_TYPES.has(blocking.type as ApprovalType)) {
+      return { block: false, reason: null };
+    }
     return {
       block: true,
       reason: `Approval ${blocking.id} (${blocking.type}, state=${blocking.state}) is outstanding: ${blocking.payloadSummary}. Wait for the decision before retrying ${toolName}.`,
@@ -116,25 +132,6 @@ function checkApprovalBlock(
       block: true,
       reason: `Approval lookup failed — ${toolName} is held until the approval subsystem recovers.`,
     };
-  }
-}
-
-function checkWaitStateBlock(
-  deps: HookHandlerDeps,
-  ctx: ActiveRunContext,
-  toolName: string,
-): BeforeToolCallRpcResult | null {
-  try {
-    if (!deps.db.hasUnresolvedWaitStateForAgent(ctx.companyId, ctx.agentId)) return null;
-    return {
-      block: true,
-      reason: `Thread wait state is open for this agent — ${toolName} is paused until the user replies or the review resolves.`,
-    };
-  } catch (error) {
-    deps.logger.warn(
-      `[hook-handlers] wait-state lookup failed for agent ${ctx.agentId}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return null;
   }
 }
 
