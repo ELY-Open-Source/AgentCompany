@@ -159,13 +159,30 @@ export function buildTaskStatusMethods(
 
     checkoutTask(taskId: string, runId: string): boolean {
       const ts = nowIso();
+      // Primary path is `status IN ('todo','backlog')`. The extra
+      // `in_progress AND active_run_id IS NULL` branch recovers from a
+      // specific orphan: finishRun has cleared active_run_id and
+      // checkout_run_id for the previous run but the status transition
+      // to done/in_review never fired (e.g. the run succeeded without a
+      // deliverable and automation parked it at in_progress, or a
+      // crashed run left the row behind). Without the reclaim, heartbeat
+      // picks the task (activeRunId=null passes the candidate filter)
+      // and then loops on `checkout_race_lost` forever because status
+      // never flips back to todo on its own.
+      //
+      // The `active_run_id IS NULL` guard preserves the original CAS
+      // contract for the busy case: a task whose active_run_id still
+      // points at a live run is refused here, exactly as before.
       const result = getDb()
         .prepare(
           `UPDATE tasks
            SET checkout_run_id = ?, execution_locked_at = ?, status = 'in_progress', updated_at = ?
          WHERE id = ?
            AND checkout_run_id IS NULL
-           AND status IN ('todo', 'backlog')`,
+           AND (
+             status IN ('todo', 'backlog')
+             OR (status = 'in_progress' AND active_run_id IS NULL)
+           )`,
         )
         .run(runId, ts, ts, taskId);
       return result.changes > 0;

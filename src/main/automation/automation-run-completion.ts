@@ -349,10 +349,26 @@ export function processRunCompletion(
     if (needsDeliverableCheck(taskType)) {
       const hasDeliverable = checkRunProducedDeliverable(db, run.id, run.companyId, task.id, taskType);
       if (!hasDeliverable) {
-        // Don't auto-advance -- flag for manager review
-        db.advanceTaskStatus(task.id, "in_progress",
-          `${taskType} task run completed but no deliverable artifact was detected. Flagging for manager review.`);
-        handleTaskStatusChange(task.id, run.companyId, "in_progress", "in_progress");
+        // Don't auto-advance to in_review: the run succeeded but did not
+        // produce the required deliverable, so it's not ready for
+        // manager sign-off.
+        //
+        // Park the task as `blocked` rather than leaving it at
+        // `in_progress`. finishRun has already cleared the run's
+        // checkout_run_id and active_run_id, so a task still tagged
+        // `in_progress` has no lock, no run, and no path back to
+        // `todo` — heartbeat picks it up, checkoutTask rejects it
+        // (status ∉ todo/backlog), and the assignee is stuck in a
+        // permanent `checkout_race_lost` loop. Blocking instead puts
+        // the task in the manager's blocker queue with the diagnostic
+        // comment attached; the manager patches it back to `todo` (or
+        // `cancelled`) after deciding how to proceed.
+        db.advanceTaskStatus(
+          task.id,
+          "blocked",
+          `${taskType} task run completed but no deliverable artifact was detected. Flagging for manager review.`,
+        );
+        handleTaskStatusChange(task.id, run.companyId, "in_progress", "blocked");
         // Wake manager for review
         try {
           const agent = db.getAgent(run.agentId);
@@ -366,6 +382,7 @@ export function processRunCompletion(
           );
         }
         publishDomainChanged();
+        effectiveStatus = "blocked";
         // Skip the normal in_review advance
       } else {
         effectiveStatus = advanceSuccessfulRun(
