@@ -1,3 +1,6 @@
+// TODO: decompose — M-followup. File is 637 lines and mixes fs-walk
+// baseline capture, git-diff projection, and work-product reconciliation.
+// Split into baseline / diff / projector modules in a future milestone.
 import { isAbsolute, relative, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";

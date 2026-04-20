@@ -1,3 +1,7 @@
+// TODO: decompose — M-followup. File is 648 lines; split into
+// sqlite-session-store wiring, cost/metrics routing, and hook-dispatch
+// assembly. Tracked as a future milestone; no structural change in this
+// pass.
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { AppDatabase } from "@main/database";
 import type { AgentMessageRecord, DesktopEvent } from "@shared/types";

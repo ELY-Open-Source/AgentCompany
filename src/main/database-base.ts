@@ -52,9 +52,10 @@ export class AppDatabaseBase {
   readonly vault: SecretVault;
   protected db: DatabaseSync;
 
-  // Domain modules. New code should prefer `db.tasks.saveTask(...)` over the
-  // legacy pass-through methods on AppDatabase. Pass-through remains for
-  // back-compat until all call sites migrate.
+  // Domain modules. The canonical surface — call these directly from
+  // every consumer (`db.tasks.saveTask(...)`, not `db.saveTask(...)`).
+  // The ESLint rule in eslint.config.mjs blocks new top-level methods
+  // on AppDatabase so the old pass-through layer cannot grow back.
   public readonly threads: ReturnType<typeof buildThreadMethods>;
   public readonly company: ReturnType<typeof buildCompanyMethods>;
   public readonly agents: ReturnType<typeof buildAgentMethods>;
