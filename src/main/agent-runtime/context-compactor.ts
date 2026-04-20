@@ -28,8 +28,17 @@ const COMPACTION_TRIGGER_TOKENS = 120_000;
  * losing mid-stream state (tool-call pairs, user intent).
  */
 const RECENT_MESSAGE_TAIL = 20;
-/** Rough tokens-per-char estimator; good enough for gating. */
-const CHARS_PER_TOKEN = 4;
+/**
+ * Conservative tokens-per-char estimator. The former 4 chars/token value
+ * under-counts CJK traffic by roughly 2x — Chinese BPE tokenizers land
+ * closer to 1.5-2 tokens per character, so a 120k-token gate would
+ * silently trip only after the real context already blew past the
+ * window. 2 chars/token is a deliberate over-estimate for latin text in
+ * exchange for not under-triggering on Chinese agent runs. The proper
+ * fix is a real tokenizer — pi-ai 0.67.68 does not export one yet, so
+ * see docs/proposals/C3-real-tokenizer-followup.md for the upgrade path.
+ */
+const CHARS_PER_TOKEN = 2;
 /** Per-assistant-message summary cap to keep the compacted turn readable. */
 const MAX_SUMMARY_CHARS_PER_MESSAGE = 160;
 
