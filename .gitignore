@@ -55,6 +55,7 @@ oldreference/
 !/README.md
 !/docs/*.md
 !/docs/proposals/*.md
+!/docs/architecture/*.md
 !/CLAUDE.md
 !/AGENTS.md
 !/.planning/**/*.md
