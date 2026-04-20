@@ -422,6 +422,7 @@ export class AppDatabaseBase {
       interruptedCount = Number(result.changes);
       if (interruptedCount > 0) {
         this.db.prepare(
+          // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: crash-recovery sweep; trigger mirrors status→phase, step 3/5 already drops shadow leases below
           `update tasks set status = 'blocked', updated_at = ? where id in (select task_id from runs where status = 'interrupted' and finished_at = ?) and status in ('in_progress', 'todo')`,
         ).run(ts, ts);
       }

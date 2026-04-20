@@ -161,6 +161,7 @@ export function buildRunMethods(
             // NOT EXISTS clause is the canonical "no live owner" check.
             getDb()
               .prepare(
+                // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: finishRun's "runNeverStarted" rollback; trigger mirrors status→phase, shadow lease already dropped above
                 `UPDATE tasks
                  SET status = 'todo',
                      checkout_run_id = NULL,

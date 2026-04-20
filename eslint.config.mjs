@@ -76,5 +76,42 @@ export default tseslint.config(
         ...globals.vitest,
       },
     },
+  },
+  {
+    // B2 Phase 1 step 5/5 — block new raw status-writes on tasks.
+    //
+    // During dual-write every `UPDATE tasks SET status = ...` must go
+    // through `advanceTaskPhase` (or the four grandfathered sites in
+    // database-base.ts / database/tasks-*.ts / database/runs.ts that
+    // already dual-write and carry `eslint-disable-next-line
+    // no-restricted-syntax` with a comment explaining the exemption).
+    // The no-restricted-syntax rule below intercepts string literals
+    // and template literals whose text starts with the offending SQL
+    // prefix. New code that needs to mutate `tasks.status` must either
+    // route through `advanceTaskPhase` (preferred) or add an
+    // `eslint-disable-next-line` with a rationale comment.
+    //
+    // Migrations are deliberately excluded — schema changes operate on
+    // the legacy column by design.
+    files: ["src/main/**/*.ts"],
+    ignores: ["src/main/database/migrations/**/*.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          // Plain string literals and normal template heads.
+          selector:
+            "Literal[value=/\\b[Uu][Pp][Dd][Aa][Tt][Ee]\\s+tasks\\s+[Ss][Ee][Tt]\\s+status\\b/]",
+          message:
+            "B2 Phase 1: write task.status through advanceTaskPhase (or tag with `// eslint-disable-next-line no-restricted-syntax` + dual-write rationale for grandfathered sites).",
+        },
+        {
+          selector:
+            "TemplateElement[value.raw=/\\b[Uu][Pp][Dd][Aa][Tt][Ee]\\s+tasks\\s+[Ss][Ee][Tt]\\s+status\\b/]",
+          message:
+            "B2 Phase 1: write task.status through advanceTaskPhase (or tag with `// eslint-disable-next-line no-restricted-syntax` + dual-write rationale for grandfathered sites).",
+        },
+      ],
+    },
   }
 );

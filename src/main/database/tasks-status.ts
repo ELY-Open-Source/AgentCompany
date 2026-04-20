@@ -377,6 +377,7 @@ export function buildTaskStatusMethods(
     ): void {
       const ts = nowIso();
       getDb()
+        // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: crash-recovery retry bounces task back to todo; trigger mirrors status→phase, no lease held at this point
         .prepare("update tasks set status = 'todo', updated_at = ? where id = ?")
         .run(ts, taskId);
       getDb()
@@ -402,6 +403,7 @@ export function buildTaskStatusMethods(
     markInterruptedTaskFailed(taskId: string): void {
       const ts = nowIso();
       getDb()
+        // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: crash-recovery terminal transition; trigger mirrors status→phase, lease was already cleared by interruptStaleRuns
         .prepare("update tasks set status = 'cancelled', updated_at = ? where id = ?")
         .run(ts, taskId);
     },
