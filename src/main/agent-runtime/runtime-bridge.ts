@@ -68,13 +68,16 @@ export interface RuntimeBridgeDeps {
   credentialResolver: CredentialResolver;
 }
 
-type RpcMethod =
-  | "persistMessage"
-  | "prepareRun"
-  | "beforeToolCall"
-  | "afterToolCall"
-  | "transformContext"
-  | "invokeInternalTool";
+// Derived from the zod schema in `worker/entry/types.ts` so there is
+// exactly one source of truth for the RPC method name list. The C4→C5
+// hotfix (9d9f003) showed what happens when this union and the zod
+// enum drift — worker emits a new method, handler accepts it, and the
+// runtime gate silently rejects the envelope. `z.infer` plus a
+// compile-time `satisfies` check below makes that category of drift
+// a TypeScript error rather than a production ZodError.
+import type { WorkerRpcMethod } from "@main/worker/entry/types";
+
+type RpcMethod = WorkerRpcMethod;
 
 /**
  * Single owner of pi runtime side-effects in main.
@@ -564,6 +567,15 @@ export class RuntimeBridge {
           return this.handleTransformContextRpc(request.runId, request.payload as TransformContextRpcPayload);
         case "invokeInternalTool":
           return this.handleInvokeInternalToolRpc(request.runId, request.payload as InvokeInternalToolRpcPayload);
+        default: {
+          // Exhaustiveness guard. If `WorkerRpcMethod` widens in
+          // `worker/entry/types.ts` without a corresponding case here,
+          // the assignment to `never` is a TypeScript error — which is
+          // exactly what we want so the C4→C5 drift category cannot
+          // silently recur at runtime.
+          const _exhaustive: never = request.method;
+          return { ok: false, error: `unknown RPC method: ${String(_exhaustive)}` };
+        }
       }
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };

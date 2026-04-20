@@ -8,6 +8,28 @@ import type { RuntimeBridge, RuntimeMessageInjector } from "../../agent-runtime"
 
 const runStatusSchema = z.enum(["queued", "running", "succeeded", "failed", "cancelled", "timed_out", "interrupted"]);
 
+/**
+ * Single source of truth for worker → main RPC method names.
+ *
+ * This constant is consumed by both the zod validation schema in this
+ * file (the runtime gate at `handleWorkerMessage`) and the `RpcMethod`
+ * TypeScript union exported from `agent-runtime/runtime-bridge.ts` via
+ * `z.infer`. Adding a new internal RPC requires touching exactly one
+ * place — this literal list — which eliminates the C4→C5 hotfix class
+ * of bug where the two definitions silently drifted and the zod gate
+ * rejected a newly-minted method the handler had already registered.
+ */
+export const workerRpcMethodSchema = z.enum([
+  "persistMessage",
+  "prepareRun",
+  "beforeToolCall",
+  "afterToolCall",
+  "transformContext",
+  "invokeInternalTool",
+]);
+
+export type WorkerRpcMethod = z.infer<typeof workerRpcMethodSchema>;
+
 export const workerMessageSchema = z.union([
   z.object({
     type: z.literal("run-log"),
@@ -47,14 +69,7 @@ export const workerMessageSchema = z.union([
     type: z.literal("rpc-request"),
     rpcId: z.string(),
     runId: z.string().uuid(),
-    method: z.enum([
-      "persistMessage",
-      "prepareRun",
-      "beforeToolCall",
-      "afterToolCall",
-      "transformContext",
-      "invokeInternalTool",
-    ]),
+    method: workerRpcMethodSchema,
     payload: z.unknown(),
   }),
   z.object({
