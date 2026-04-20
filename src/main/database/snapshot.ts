@@ -41,8 +41,9 @@ export function buildSnapshotMethods(
     // view has exactly one human viewer (the Board operator), so the
     // renderer snapshot fills it from that reader's agent_message_reads
     // rows. Agent-side queries (listAgentMessages) resolve it against
-    // the current agent's receipts. The raw agent_messages.read_at
-    // column is never read on any path and stays NULL by design.
+    // the current agent's receipts. The old `agent_messages.read_at`
+    // column was dropped in migration v49 — the join table is the
+    // sole source of truth.
     const boardReadReceiptMap = new Map(
       readAll<{ messageId: string; readAt: string }>(
         `select reads.message_id as messageId, reads.read_at as readAt
@@ -183,10 +184,9 @@ export function buildSnapshotMethods(
         createdAt: r.created_at, updatedAt: r.updated_at,
       })),
       agentMessages: readAll<SqliteRow>(
-        // The raw `read_at` column is intentionally omitted from the
-        // SELECT list. It is never written — readAt semantics live in
-        // the agent_message_reads receipts table, resolved against the
-        // current viewer above.
+        // readAt semantics live in the agent_message_reads receipts
+        // table, resolved against the current viewer above. The old
+        // `agent_messages.read_at` column was dropped in v49.
         `select id, company_id, from_agent_id, to_agent_id, sender_kind, channel, channel_target_id, subject, body, priority, parent_message_id, attachments_json, created_at from agent_messages${companyWhere} order by created_at desc limit 1000`,
         ...companyArgs,
       ).map((r) => ({

@@ -134,10 +134,10 @@ export class RuntimeMessageInjector {
    * the recipient is woken so the next `prepareRun` picks the message
    * up through the regular inbox projection.
    *
-   * `read_at` is intentionally NOT touched here: "the worker queued
-   * this message onto the agent" is not "the agent replied". The
-   * agent flips `read_at` itself by POSTing /messages/{id}/read once
-   * it has actually processed the row.
+   * The read receipt is intentionally NOT written here: "the worker
+   * queued this message onto the agent" is not "the agent replied".
+   * The agent inserts into `agent_message_reads` itself by POSTing
+   * /messages/{id}/read once it has actually processed the row.
    */
   handleSteerAck(correlationId: string, accepted: boolean): void {
     this.resolvePending(correlationId, accepted, "worker_ack");

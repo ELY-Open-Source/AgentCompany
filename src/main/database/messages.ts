@@ -107,10 +107,15 @@ export function buildMessageMethods(
     getAgentMessage(messageId: string, companyId: string): AgentMessageRecord | null {
       const row = getDb()
         .prepare(
-          "select id, company_id as companyId, from_agent_id as fromAgentId, to_agent_id as toAgentId, sender_kind as senderKind, channel, channel_target_id as channelTargetId, subject, body, priority, read_at as readAt, parent_message_id as parentMessageId, attachments_json as attachmentsJson, created_at as createdAt from agent_messages where id = ? and company_id = ?",
+          "select id, company_id as companyId, from_agent_id as fromAgentId, to_agent_id as toAgentId, sender_kind as senderKind, channel, channel_target_id as channelTargetId, subject, body, priority, parent_message_id as parentMessageId, attachments_json as attachmentsJson, created_at as createdAt from agent_messages where id = ? and company_id = ?",
         )
-        .get(messageId, companyId) as AgentMessageRecord | undefined;
-      return row ?? null;
+        .get(messageId, companyId) as Omit<AgentMessageRecord, "readAt"> | undefined;
+      if (!row) return null;
+      // `readAt` is a per-viewer computed field resolved from
+      // agent_message_reads at the callers that need it (inbox
+      // projection, renderer snapshot). This single-row lookup has no
+      // viewer context, so the field is surfaced as `null`.
+      return { ...row, readAt: null };
     },
 
     listAgentMessages(
@@ -125,8 +130,12 @@ export function buildMessageMethods(
       },
     ): AgentMessageRecord[] {
       const limit = opts?.limit ?? 200;
+      // `readAt` is resolved from `agent_message_reads` further down,
+      // per viewer (BOARD_READER_ID for the operator-wide path, the
+      // specific agent id for the per-agent path). The column lives
+      // outside the row itself since v49.
       const selectCols =
-        "select id, company_id as companyId, from_agent_id as fromAgentId, to_agent_id as toAgentId, sender_kind as senderKind, channel, channel_target_id as channelTargetId, subject, body, priority, read_at as readAt, parent_message_id as parentMessageId, attachments_json as attachmentsJson, created_at as createdAt from agent_messages";
+        "select id, company_id as companyId, from_agent_id as fromAgentId, to_agent_id as toAgentId, sender_kind as senderKind, channel, channel_target_id as channelTargetId, subject, body, priority, parent_message_id as parentMessageId, attachments_json as attachmentsJson, created_at as createdAt from agent_messages";
       let sql = `${selectCols} where company_id = ?`;
       const params: SQLInputValue[] = [companyId];
       if (opts?.messageId) {
@@ -148,7 +157,7 @@ export function buildMessageMethods(
           sql += " limit ?";
           params.push(limit);
         }
-        const rows = readAll<AgentMessageRecord>(sql, ...params).reverse();
+        const rows = readAll<Omit<AgentMessageRecord, "readAt">>(sql, ...params).reverse();
         const boardReadReceiptMap = new Map(
           readAll<{ messageId: string; readAt: string }>(
             `select reads.message_id as messageId, reads.read_at as readAt
@@ -219,7 +228,7 @@ export function buildMessageMethods(
         sql += " limit ?";
         params.push(limit);
       }
-      const rows = readAll<AgentMessageRecord>(sql, ...params).reverse();
+      const rows = readAll<Omit<AgentMessageRecord, "readAt">>(sql, ...params).reverse();
 
       const readReceiptMap = new Map(
         readAll<{ messageId: string; readAt: string }>(
@@ -260,7 +269,7 @@ export function buildMessageMethods(
       const pattern = `%${escaped}%`;
       let sql = `SELECT id, company_id AS companyId, from_agent_id AS fromAgentId,
       to_agent_id AS toAgentId, sender_kind AS senderKind, channel, channel_target_id AS channelTargetId,
-      subject, body, priority, read_at AS readAt, parent_message_id AS parentMessageId,
+      subject, body, priority, parent_message_id AS parentMessageId,
       attachments_json AS attachmentsJson, created_at AS createdAt
       FROM agent_messages WHERE company_id = ? AND (subject LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\')`;
       const params: SQLInputValue[] = [companyId, pattern, pattern];
@@ -274,7 +283,11 @@ export function buildMessageMethods(
       }
       sql += " ORDER BY created_at DESC LIMIT ?";
       params.push(opts?.limit ?? 50);
-      return readAll<AgentMessageRecord>(sql, ...params);
+      // Operator-facing search has no viewer context — `readAt` is
+      // surfaced as `null`. Callers that need per-viewer read state
+      // pull it from `agent_message_reads` separately (inbox projection,
+      // snapshot).
+      return readAll<Omit<AgentMessageRecord, "readAt">>(sql, ...params).map((row) => ({ ...row, readAt: null }));
     },
 
     markMessageReadForReader(
@@ -301,12 +314,11 @@ export function buildMessageMethods(
      * department when agent belongs, project when assigned/lead).
      *
      * "Unread" is defined uniformly across every channel: no row in
-     * `agent_message_reads` for (message_id, agent_id). The legacy
-     * `agent_messages.read_at` column is never written anywhere in the
-     * codebase and must not be used as a read signal — it only appears in
-     * SELECT lists for wire-shape compatibility and is overwritten from the
-     * read-receipts table by every caller that surfaces `readAt` to agents
-     * or the renderer.
+     * `agent_message_reads` for (message_id, agent_id). The row's
+     * `readAt` field is always `null` here because callers want the
+     * unread set — per-viewer read state lives exclusively in the
+     * `agent_message_reads` join table since v49 dropped the redundant
+     * `agent_messages.read_at` column.
      *
      * Messages where `from_agent_id = agentId` are excluded (agents don't
      * inject their own sent messages back into their transcript).
@@ -362,9 +374,9 @@ export function buildMessageMethods(
       }
 
       const selectCols =
-        "select id, company_id as companyId, from_agent_id as fromAgentId, to_agent_id as toAgentId, sender_kind as senderKind, channel, channel_target_id as channelTargetId, subject, body, priority, read_at as readAt, parent_message_id as parentMessageId, attachments_json as attachmentsJson, created_at as createdAt from agent_messages";
+        "select id, company_id as companyId, from_agent_id as fromAgentId, to_agent_id as toAgentId, sender_kind as senderKind, channel, channel_target_id as channelTargetId, subject, body, priority, parent_message_id as parentMessageId, attachments_json as attachmentsJson, created_at as createdAt from agent_messages";
       const sql = `${selectCols} where company_id = ? and from_agent_id != ? and (${visibilityClauses.join(" or ")}) order by created_at asc`;
-      const rows = readAll<AgentMessageRecord>(sql, companyId, agentId, ...visibilityParams);
+      const rows = readAll<Omit<AgentMessageRecord, "readAt">>(sql, companyId, agentId, ...visibilityParams).map((row) => ({ ...row, readAt: null }));
 
       const readIds = new Set(
         readAll<{ messageId: string }>(

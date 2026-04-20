@@ -562,16 +562,16 @@ export class RuntimeBridge {
     // as plain user turns in its context.
     //
     // Replay safety lives entirely on the `agent_message_projections`
-    // ledger. We deliberately do NOT touch `agent_messages.read_at`
-    // here even though that column exists: "we put the message into
-    // the agent's transcript" and "the agent has acknowledged the
-    // message" are two different facts, and welding them onto one
-    // column made every projected message immediately invisible to
-    // the agent's `?unreadOnly=true` API call. The agent then read
-    // its IC prompt ("respond to ALL unread messages"), called the
-    // API, got an empty list, and posted a status comment instead of
-    // replying. The explicit POST /messages/{id}/read is now the
-    // sole signal that flips `read_at`.
+    // ledger. "We put the message into the agent's transcript" and
+    // "the agent has acknowledged the message" are two different
+    // facts, tracked in two different tables: projections are append-
+    // only on dispatch, while reads are inserted into
+    // `agent_message_reads` only when the agent POSTs
+    // /messages/{id}/read. Conflating the two (as an earlier build
+    // that wrote to `agent_messages.read_at` at projection time did)
+    // made every projected message immediately invisible to
+    // `?unreadOnly=true`, so agents posted status comments instead of
+    // replies. The explicit read endpoint is the sole signal.
     const store = this.getOrCreateStore(payload.taskSessionId);
     const inboxRecords = this.deps.db.listAgentInboxUnread(payload.companyId, payload.agentId);
     if (inboxRecords.length > 0) {
