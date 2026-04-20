@@ -19,6 +19,8 @@
 import type { AppDatabase } from "../database";
 import type { AgentMessageRecord } from "@shared/types";
 import { HUMAN_SENDER_ID } from "../messaging/dispatch";
+import { logAppError } from "../errors/index.js";
+import log from "electron-log/main.js";
 
 export interface InitialUserTurnDeps {
   db: AppDatabase;
@@ -50,39 +52,72 @@ export function resolveInitialUserTurn(
     }
   }
 
-  // The generic timer turn hard-coded "deliverable reviews first,
-  // unblocking reports second, next step on assigned work third" —
-  // a ranking that presumes a manager or IC with tasks. For a new CEO
-  // in team_building mode, none of those clauses apply, so the model
-  // read "nothing to do" and returned without acting on the actual
-  // Operating Instructions that explicitly told it to file hires.
-  // Shortcut: when a CEO has zero active direct reports, replace the
-  // generic timer cue with a team-building cue that matches the CEO
-  // mode prompt.
+  // CEO / team-building semantic cue (C4 part 4/5).
+  //
+  // The pre-C4 version of this block hard-coded the tool name (`bash`),
+  // the runtime (`node -e ...`), the API paths (`/api/companies/:id/
+  // agents` + `/api/companies/:id/approvals`), the call count (3-5),
+  // and the imperative tone ("Start the first POST NOW. Do not write
+  // a plan document."). Every one of those was an implementation
+  // detail leaking into the LLM turn — when pi-agent-core swapped
+  // `bash`, when the HTTP path moved, or when the number policy shifted,
+  // the prompt silently drifted from reality and the CEO stopped filing
+  // hires.
+  //
+  // The new cue is deliberately short. The Team Building Phase
+  // operating instructions (see `ceo-modes/team-building.en.md`) own
+  // the SOP; this turn just points at it and tells the CEO to execute
+  // via the `hire_agent` and `file_approval` tools that C4 part 3/5
+  // registered on its agent. No tool names, no HTTP endpoints — the
+  // tool surface is the contract.
   if (trigger === "timer" || trigger === "bootstrap" || trigger === "app_restart_resume") {
-    try {
-      const agent = deps.db.entityCrud.getAgent(agentId);
-      if (!agent.reportsTo) {
-        const activeReports = deps.db.agents
-          .getDirectReports(agentId, companyId)
-          .filter((r) => r.status !== "pending_approval" && r.status !== "terminated");
-        if (activeReports.length === 0) {
-          return [
-            "You are the CEO of this company. Your team is empty (zero active direct reports).",
-            "This wake has ONE job: call the `bash` tool to execute `node -e '...'` fetch POSTs that file 3–5 hire_agent requests against /api/companies/{companyId}/agents, then one approve_ceo_strategy POST against /api/companies/{companyId}/approvals.",
-            "The exact body shape and connectorId rules are in your Team Building Phase operating instructions above. Use a connectorId and model from the Available Connectors section (only ready connectors).",
-            "Start the first POST NOW. Do not write a plan document. Do not describe what you will do — execute the tool call.",
-          ].join("\n\n");
-        }
-      }
-    } catch {
-      // Fall through to the generic turn — a lookup failure here must
-      // not crash the run; the system prompt still carries the full
-      // operating directives.
-    }
+    const cue = tryResolveCeoTeamBuildingCue({ agentId, companyId, db: deps.db });
+    if (cue !== null) return cue;
   }
 
   return buildGenericWakeTurn(trigger);
+}
+
+/**
+ * Returns the team-building cue when (and only when) the agent is a
+ * CEO (`reportsTo == null`) with zero active direct reports. Any other
+ * shape returns null and the caller falls through to
+ * `buildGenericWakeTurn`. A DB lookup failure is classified and
+ * logged — the caller never sees the raw error because the pi agent
+ * loop must not crash on a prompt-assembly hiccup, but the classified
+ * log line keeps the fail mode visible rather than swallowed.
+ */
+function tryResolveCeoTeamBuildingCue(params: {
+  agentId: string;
+  companyId: string;
+  db: AppDatabase;
+}): string | null {
+  const { agentId, companyId, db } = params;
+  try {
+    const agent = db.entityCrud.getAgent(agentId);
+    if (agent.reportsTo) return null;
+    const activeReports = db.agents
+      .getDirectReports(agentId, companyId)
+      .filter((r) => r.status !== "pending_approval" && r.status !== "terminated");
+    if (activeReports.length > 0) return null;
+    return [
+      "This wake: your team is empty.",
+      "File 3-5 hire_agent requests and 1 approve_ceo_strategy via your assigned tools. Execute now, do not write a plan document.",
+    ].join("\n\n");
+  } catch (error) {
+    logAppError(
+      log,
+      error,
+      {
+        kind: "recoverable",
+        code: "initial_user_turn.ceo_lookup.failed",
+        message: `CEO team-building cue lookup failed for agent ${agentId}; falling back to the generic timer turn.`,
+        context: { agentId, companyId },
+      },
+      "warn",
+    );
+    return null;
+  }
 }
 
 function buildCommunicationTurn(
