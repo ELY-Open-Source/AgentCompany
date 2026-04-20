@@ -1,61 +1,192 @@
 import type { AppDatabase } from "../database";
+import type { AgentRecord, TaskRecord, WorkspaceRecord } from "@shared/types";
 import type { WorkspaceLockMode } from "./types";
 
 /**
- * Resolve the workspace and lock semantics for a run context.
+ * Per-task workspace lock inference (v52+).
  *
- * Lock policy: every resolved workspace is held exclusively for the
- * duration of the run. Pi's `createCodingTools()` hands every agent
- * the mutating `bash`, `write`, and `edit` tools, so there is no
- * read-only category where concurrent runs are safe — two agents
- * editing the same working tree step on each other's files and
- * corrupt git state before the per-repo `index.lock` even gets
- * touched.
+ * The core invariant is: `lockMode='exclusive'` is an *opt-in*,
+ * `lockMode='none'` is the default. Previously every resolved
+ * workspace was held exclusively, which folded four runnable
+ * agents onto a single company workspace lock and serialised the
+ * entire C-suite. The fix is not to pick a different fallback — it
+ * is to stop inferring filesystem use from the shape of the graph
+ * and ask the task row itself.
  *
- * Contention is handled at dispatch time: `run-dispatch.ts` tries
- * `claimWorkspaceLock` synchronously. A lost race finishes the run
- * as `cancelled` (not `failed` — the Dashboard's "Needs attention"
- * card ignores cancellations), and the next heartbeat retries on
- * its own cadence. The caller must keep that rollback path alive;
- * without it contention would leave tasks pinned at `in_progress`
- * forever.
+ * `inferLockMode` returns the pair of decisions the dispatcher
+ * needs (mode + which workspace, if any). `resolveWorkspaceWithLockMode`
+ * is the thin outward-facing wrapper that loads the actual
+ * `WorkspaceRecord` for callers that need the path / companyId.
  *
- * When no workspace can be resolved (headless heartbeat runs that
- * have no repo to touch) we return `none`; the worker uses
- * `process.cwd()` as a read-only cwd and the dispatcher skips the
- * lock claim.
+ * Silent fallbacks removed in this rewrite:
+ *
+ *   • `company_fallback` — previously the fourth fallback step
+ *     returned *any* workspace row in the company as the lock target.
+ *     That was silent corruption's favourite mechanism: four agents
+ *     with no workspace binding would all land on the same row and
+ *     fight for one mutex. A task that needs a filesystem and has no
+ *     legitimate binding now throws `ConfigurationError` at resolve
+ *     time so the caller decides (skip heartbeat, surface error,
+ *     whatever) instead of the resolver guessing.
+ *
+ *   • No `lockMode='exclusive'` ever returns a null workspace. The
+ *     dispatcher assumed this invariant (it claims a lock on
+ *     `workspace.id` when mode is exclusive). The types now enforce
+ *     it: exclusive always comes with a resolved workspace, none
+ *     always comes with `workspace=null`.
+ *
+ * Coding-role inference (rule 2) is a safety net for the one-
+ * migration transition window where legacy rows may not yet have a
+ * meaningful `requires_filesystem` column value set by the creator.
+ * Once `saveTask` is taught to set the column explicitly at insert
+ * time (follow-up commit), rule 2 becomes a no-op.
+ */
+
+export type WorkspaceResolutionSource =
+  | "task"
+  | "agent"
+  | "project"
+  | "none";
+
+export interface WorkspaceResolution {
+  workspace: WorkspaceRecord | null;
+  lockMode: WorkspaceLockMode;
+  source: WorkspaceResolutionSource;
+}
+
+export class WorkspaceConfigurationError extends Error {
+  readonly code = "WORKSPACE_UNRESOLVED";
+  constructor(message: string) {
+    super(message);
+    this.name = "WorkspaceConfigurationError";
+  }
+}
+
+const CODING_ROLE_PATTERN = /cto|engineer|developer|devops|sre/i;
+
+/**
+ * Accept the widened shapes call sites actually pass. `projectId`
+ * lives as `string | null | undefined` in several historical call
+ * sites (legacy inline types), and `role`/`department` are optional
+ * because taskless heartbeats supply only the runtime-needed subset.
+ */
+type TaskInput = {
+  workspaceId: TaskRecord["workspaceId"];
+  projectId?: TaskRecord["projectId"] | undefined;
+  requiresFilesystem?: boolean;
+};
+
+type AgentInput = Pick<AgentRecord, "workspaceId"> & {
+  role?: string | null;
+  department?: AgentRecord["department"];
+};
+
+/**
+ * Decide whether this (task, agent) pair should hold the workspace
+ * exclusive for the duration of the run. Returns the mode and the
+ * workspace-id the lock should sit on; callers load the row
+ * afterwards.
+ *
+ * Decision table:
+ *
+ *   1. `task.workspaceId` set → exclusive on that workspace
+ *      (explicit opt-in by the task author, e.g. PR branch tasks).
+ *
+ *   2. Task signals filesystem need (`requiresFilesystem === true`
+ *      OR agent role matches coding pattern OR department =
+ *      engineering) → exclusive on agent.workspaceId / project
+ *      primary. Throws if neither exists.
+ *
+ *   3. Otherwise → none / null. Pure cognitive work — strategy,
+ *      planning, document drafting, financial analysis, PM decisions
+ *      — runs with no workspace and no lock.
+ */
+function inferLockMode(
+  db: AppDatabase,
+  task: TaskInput | null,
+  agent: AgentInput,
+  companyId: string,
+): { lockMode: WorkspaceLockMode; workspaceId: string | null; source: WorkspaceResolutionSource } {
+  // Rule 1: task-level explicit workspace binding is the strongest
+  // signal available — the task row literally names the workspace.
+  if (task?.workspaceId) {
+    return { lockMode: "exclusive", workspaceId: task.workspaceId, source: "task" };
+  }
+
+  const taskSignalsFilesystem = task?.requiresFilesystem === true;
+  const agentSignalsFilesystem =
+    (typeof agent.role === "string" && CODING_ROLE_PATTERN.test(agent.role)) ||
+    agent.department === "engineering";
+
+  const needsFilesystem = taskSignalsFilesystem || agentSignalsFilesystem;
+  if (!needsFilesystem) {
+    return { lockMode: "none", workspaceId: null, source: "none" };
+  }
+
+  // Rule 2: filesystem-touching task → agent workspace first, then
+  // project primary. We do not fall back to `any company workspace`
+  // any more — that path was the cause of the single-lock pile-up.
+  if (agent.workspaceId) {
+    return { lockMode: "exclusive", workspaceId: agent.workspaceId, source: "agent" };
+  }
+
+  const projectWorkspace = db.workspacesMod.getProjectPrimaryWorkspace(
+    task?.projectId ?? null,
+    companyId,
+  );
+  if (projectWorkspace) {
+    return {
+      lockMode: "exclusive",
+      workspaceId: projectWorkspace.id,
+      source: "project",
+    };
+  }
+
+  throw new WorkspaceConfigurationError(
+    `Task requires a filesystem-backed run but no workspace is bound to the task, agent, or project (companyId=${companyId}).`,
+  );
+}
+
+/**
+ * Resolve the workspace + lock mode for a run context.
+ *
+ * Contract:
+ *   • lockMode 'exclusive' ⇒ workspace is a live WorkspaceRecord.
+ *   • lockMode 'none'      ⇒ workspace is null.
+ *
+ * Violations throw `WorkspaceConfigurationError` at resolve time so
+ * the caller chooses how to recover (skip heartbeat, cancel run,
+ * surface to operator). There is no silent mode degradation.
  */
 export function resolveWorkspaceWithLockMode(
   db: AppDatabase,
-  task: { workspaceId: string | null; projectId?: string | null } | null,
-  agent: { workspaceId: string | null },
+  task: TaskInput | null,
+  agent: AgentInput,
   companyId: string,
-): {
-  workspace: ReturnType<AppDatabase["workspacesMod"]["getWorkspace"]>;
-  lockMode: WorkspaceLockMode;
-  source: "task" | "agent" | "project" | "company_fallback" | "none";
-} {
-  if (task) {
-    const taskWorkspace = db.workspacesMod.getWorkspace(task.workspaceId);
-    if (taskWorkspace) {
-      return { workspace: taskWorkspace, lockMode: "exclusive", source: "task" };
-    }
+): WorkspaceResolution {
+  const decision = inferLockMode(db, task, agent, companyId);
+
+  if (decision.lockMode === "none") {
+    return { workspace: null, lockMode: "none", source: "none" };
   }
 
-  const agentWorkspace = db.workspacesMod.getWorkspace(agent.workspaceId);
-  if (agentWorkspace) {
-    return { workspace: agentWorkspace, lockMode: "exclusive", source: "agent" };
+  if (!decision.workspaceId) {
+    throw new WorkspaceConfigurationError(
+      `inferLockMode returned exclusive with no workspaceId (companyId=${companyId}) — lock mode/workspace invariant broken.`,
+    );
   }
 
-  const projectWorkspace = db.workspacesMod.getProjectPrimaryWorkspace(task?.projectId ?? null, companyId);
-  if (projectWorkspace) {
-    return { workspace: projectWorkspace, lockMode: "exclusive", source: "project" };
+  const workspace = db.workspacesMod.getWorkspace(decision.workspaceId);
+  if (!workspace) {
+    throw new WorkspaceConfigurationError(
+      `Resolved workspace ${decision.workspaceId} does not exist (companyId=${companyId}, source=${decision.source}).`,
+    );
+  }
+  if (workspace.companyId !== companyId) {
+    throw new WorkspaceConfigurationError(
+      `Resolved workspace ${workspace.id} belongs to company ${workspace.companyId}, not ${companyId}.`,
+    );
   }
 
-  const fallbackWorkspace = db.workspacesMod.getAnyCompanyWorkspace(companyId);
-  if (fallbackWorkspace) {
-    return { workspace: fallbackWorkspace, lockMode: "exclusive", source: "company_fallback" };
-  }
-
-  return { workspace: null, lockMode: "none", source: "none" };
+  return { workspace, lockMode: "exclusive", source: decision.source };
 }

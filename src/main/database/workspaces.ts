@@ -68,15 +68,6 @@ export function buildWorkspaceMethods(
       return rows.map((r) => r.localPath).filter(Boolean);
     },
 
-    getAnyCompanyWorkspace(companyId: string): WorkspaceRecord | null {
-      const row = getDb()
-        .prepare(
-          "select id, company_id as companyId, name, local_path as localPath, repo_url as repoUrl, repo_ref as repoRef, project_id as projectId, state, is_primary as isPrimary, created_at as createdAt, updated_at as updatedAt from workspaces where company_id = ? order by is_primary desc, created_at asc limit 1",
-        )
-        .get(companyId) as WorkspaceRecord | undefined;
-      return row ? { ...row, isPrimary: toBoolean(row.isPrimary) } : null;
-    },
-
     deleteWorkspace(id: string, companyId: string) {
       transaction(() => {
         getDb().prepare("update agents set workspace_id = null where workspace_id = ? and company_id = ?").run(id, companyId);

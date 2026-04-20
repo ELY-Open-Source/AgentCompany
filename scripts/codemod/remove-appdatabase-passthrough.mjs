@@ -322,7 +322,6 @@ const METHOD_TO_MODULE = {
   getWorkspace: "workspacesMod",
   getProjectPrimaryWorkspace: "workspacesMod",
   listWorkspaceLocalPaths: "workspacesMod",
-  getAnyCompanyWorkspace: "workspacesMod",
   deleteWorkspace: "workspacesMod",
   acquireWorkspaceLock: "workspacesMod",
   claimWorkspaceLock: "workspacesMod",
