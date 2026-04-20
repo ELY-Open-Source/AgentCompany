@@ -66,6 +66,13 @@ export function buildCompanyCrudMethods(
         } catch (err) {
           if (!(err instanceof Error) || !err.message.includes("no such table")) throw err;
         }
+        try {
+          getDb()
+            .prepare("delete from agent_message_mentions where company_id = ?")
+            .run(companyId);
+        } catch (err) {
+          if (!(err instanceof Error) || !err.message.includes("no such table")) throw err;
+        }
         // New table cleanup (budget_incidents before budget_policies due to FK)
         getDb().prepare("delete from budget_incidents where company_id = ?").run(companyId);
         getDb().prepare("delete from budget_policies where company_id = ?").run(companyId);

@@ -166,6 +166,71 @@ describe("message dispatch", () => {
     db.close();
   });
 
+  it("routes a DM addressed to one agent into the @mentioned agent's inbox (group-chat @mention visibility)", async () => {
+    const profileDir = await createTempDir("agentcompany-message-mention-");
+    const db = new AppDatabase(profileDir);
+    db.init();
+
+    const { companyId, ceoId, ctoId } = createScaffold(db);
+    const wakeAgentIfPossible = vi.fn().mockReturnValue(null);
+
+    const result = dispatchAgentMessage({
+      db,
+      wakeAgentIfPossible,
+    }, {
+      companyId,
+      fromAgentId: HUMAN_SENDER_ID,
+      fromHumanUser: true,
+      channel: "direct",
+      toAgentId: ctoId,
+      subject: "status",
+      body: "Hi @CEO, please share a progress update, @CTO is on infra.",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("Expected dispatch to succeed.");
+    expect(new Set(result.data.wakeTargets)).toEqual(new Set([ceoId, ctoId]));
+
+    const ceoInbox = db.listAgentInboxUnread(companyId, ceoId);
+    expect(ceoInbox.map((entry) => entry.id)).toContain(result.data.id);
+    const ctoInbox = db.listAgentInboxUnread(companyId, ctoId);
+    expect(ctoInbox.map((entry) => entry.id)).toContain(result.data.id);
+
+    db.close();
+  });
+
+  it("keeps __board__ out of wake targets even when the recipient is the human reader", async () => {
+    const profileDir = await createTempDir("agentcompany-message-board-wake-");
+    const db = new AppDatabase(profileDir);
+    db.init();
+
+    const { companyId, ceoId } = createScaffold(db);
+    const wakeAgentIfPossible = vi.fn().mockReturnValue(null);
+
+    const result = dispatchAgentMessage({
+      db,
+      wakeAgentIfPossible,
+    }, {
+      companyId,
+      fromAgentId: ceoId,
+      channel: "direct",
+      toAgentId: HUMAN_SENDER_ID,
+      subject: "report",
+      body: "Update ready for review.",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("Expected dispatch to succeed.");
+    expect(result.data.wakeTargets).not.toContain(HUMAN_SENDER_ID);
+    expect(wakeAgentIfPossible).not.toHaveBeenCalledWith(
+      HUMAN_SENDER_ID,
+      expect.anything(),
+      expect.anything(),
+    );
+
+    db.close();
+  });
+
   it("resolves only user_reply wait states for company-wide human messages, but scoped replies resolve thread wait states", async () => {
     const profileDir = await createTempDir("agentcompany-message-wait-");
     const db = new AppDatabase(profileDir);

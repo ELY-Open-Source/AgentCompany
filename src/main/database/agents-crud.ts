@@ -295,12 +295,18 @@ export function buildAgentCrudMethods(
       if (agents.length === 0) return [];
 
       const lowerText = text.toLowerCase();
-      const aliasMap = new Map<string, string[]>();
+      // Per-alias agent set. Storing a `Set` (not an array) means the
+      // same agent contributing the same string via multiple fields
+      // (e.g. name === role === "CEO") collapses to one entry. Before
+      // this fix the duplicate push made the alias look non-unique, the
+      // unique-alias filter dropped it, and every @mention in a scaffold
+      // where role mirrored name silently missed.
+      const aliasMap = new Map<string, Set<string>>();
       const registerAlias = (alias: string, agentId: string) => {
         const normalized = alias.trim().toLowerCase();
         if (!normalized) return;
-        const existing = aliasMap.get(normalized) ?? [];
-        existing.push(agentId);
+        const existing = aliasMap.get(normalized) ?? new Set<string>();
+        existing.add(agentId);
         aliasMap.set(normalized, existing);
       };
       for (const agent of agents) {
@@ -310,8 +316,12 @@ export function buildAgentCrudMethods(
       }
 
       const matched = new Set<string>();
+      // Only aliases that unambiguously resolve to a single agent are
+      // treated as mentions. Two agents sharing a role ("CEO" appearing
+      // twice in the company) make `@ceo` ambiguous and we refuse to
+      // pick one silently.
       const uniqueAliases = [...aliasMap.entries()]
-        .filter(([, ids]) => ids.length === 1)
+        .filter(([, ids]) => ids.size === 1)
         .sort((a, b) => b[0].length - a[0].length);
       for (const [alias, ids] of uniqueAliases) {
         const pattern = `@${alias}`;
@@ -319,7 +329,8 @@ export function buildAgentCrudMethods(
         if (idx === -1) continue;
         const afterIdx = idx + pattern.length;
         if (afterIdx >= lowerText.length || /[\s,!?.;:\])}>]/.test(lowerText[afterIdx]!)) {
-          matched.add(ids[0]!);
+          const [onlyId] = ids;
+          if (onlyId) matched.add(onlyId);
         }
       }
       return [...matched];

@@ -18,6 +18,26 @@ export function buildMessageMethods(
     transaction: Transaction;
   },
 ) {
+  /** Write the @mention fan-out rows for a freshly-persisted message.
+   *  Idempotent: the primary key is (message_id, agent_id), so a retry
+   *  driven by a steer/wake race never duplicates rows. Skipping the
+   *  sender keeps self-mentions out of the join so an agent talking
+   *  about itself ("cc @me …") cannot inflate its own inbox. */
+  function insertMessageMentions(
+    messageId: string,
+    companyId: string,
+    fromAgentId: string,
+    mentionedAgentIds: Iterable<string>,
+    createdAt: string,
+  ): void {
+    const stmt = getDb().prepare(
+      "insert or ignore into agent_message_mentions (message_id, agent_id, company_id, created_at) values (?, ?, ?, ?)",
+    );
+    for (const agentId of mentionedAgentIds) {
+      if (!agentId || agentId === fromAgentId || agentId === BOARD_READER_ID) continue;
+      stmt.run(messageId, agentId, companyId, createdAt);
+    }
+  }
   return {
     sendAgentMessage(input: {
       companyId: string;
@@ -31,6 +51,11 @@ export function buildMessageMethods(
       parentMessageId?: string | null;
       attachmentsJson?: string;
       senderKind?: "agent" | "human" | "system";
+      /** Agent IDs parsed out of the body's @mentions. Persisted into
+       *  `agent_message_mentions` alongside the row so the inbox queries
+       *  can surface the message to mentioned agents without re-parsing
+       *  every body at read time. Empty / absent = no mention fan-out. */
+      mentionedAgentIds?: readonly string[];
     }): string {
       const channel = input.channel ?? "direct";
       if (channel === "direct" && !input.toAgentId) {
@@ -39,25 +64,35 @@ export function buildMessageMethods(
       const senderKind = input.senderKind
         ?? (input.fromAgentId === BOARD_READER_ID ? "human" : "agent");
       const id = randomUUID();
-      getDb()
-        .prepare(
-          "insert into agent_messages (id, company_id, from_agent_id, to_agent_id, sender_kind, channel, channel_target_id, subject, body, priority, parent_message_id, attachments_json, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .run(
-          id,
-          input.companyId,
-          input.fromAgentId,
-          input.toAgentId ?? null,
-          senderKind,
-          channel,
-          input.channelTargetId ?? null,
-          input.subject,
-          input.body,
-          input.priority ?? "normal",
-          input.parentMessageId ?? null,
-          input.attachmentsJson ?? "[]",
-          nowIso(),
-        );
+      const createdAt = nowIso();
+      // Single transaction: the row and its mention fan-out must land
+      // atomically, otherwise a crash between the two writes leaves a
+      // message visible to its recipient but silently invisible to the
+      // mentioned agents — which is exactly the old bug we're fixing.
+      deps.transaction(() => {
+        getDb()
+          .prepare(
+            "insert into agent_messages (id, company_id, from_agent_id, to_agent_id, sender_kind, channel, channel_target_id, subject, body, priority, parent_message_id, attachments_json, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          )
+          .run(
+            id,
+            input.companyId,
+            input.fromAgentId,
+            input.toAgentId ?? null,
+            senderKind,
+            channel,
+            input.channelTargetId ?? null,
+            input.subject,
+            input.body,
+            input.priority ?? "normal",
+            input.parentMessageId ?? null,
+            input.attachmentsJson ?? "[]",
+            createdAt,
+          );
+        if (input.mentionedAgentIds && input.mentionedAgentIds.length > 0) {
+          insertMessageMentions(id, input.companyId, input.fromAgentId, input.mentionedAgentIds, createdAt);
+        }
+      });
       deps.addActivity({
         companyId: input.companyId,
         actor: input.fromAgentId,
@@ -165,8 +200,9 @@ export function buildMessageMethods(
         "from_agent_id = ?",
         "(channel = 'direct' and to_agent_id = ?)",
         "channel in ('company','incident')",
+        "id in (select message_id from agent_message_mentions where agent_id = ? and company_id = ?)",
       ];
-      const visibilityParams: SQLInputValue[] = [opts.agentId, opts.agentId];
+      const visibilityParams: SQLInputValue[] = [opts.agentId, opts.agentId, opts.agentId, companyId];
       if (department) {
         visibilityClauses.push("(channel = 'department' and channel_target_id = ?)");
         visibilityParams.push(department);
@@ -306,8 +342,15 @@ export function buildMessageMethods(
       const visibilityClauses: string[] = [
         "(channel = 'direct' and to_agent_id = ?)",
         "channel in ('company','incident')",
+        // @mention fan-out: a DM addressed to someone else still lands
+        // in my inbox when I'm mentioned in the body, because the
+        // dispatcher persisted (message_id, agent_id) into
+        // `agent_message_mentions` at write time. Without this clause a
+        // "@CEO please update" inside a human ↔ engineer chat woke CEO
+        // with an empty inbox and produced silence instead of a reply.
+        "id in (select message_id from agent_message_mentions where agent_id = ? and company_id = ?)",
       ];
-      const visibilityParams: SQLInputValue[] = [agentId];
+      const visibilityParams: SQLInputValue[] = [agentId, agentId, companyId];
       if (department) {
         visibilityClauses.push("(channel = 'department' and channel_target_id = ?)");
         visibilityParams.push(department);

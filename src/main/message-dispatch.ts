@@ -214,9 +214,27 @@ function resolveProjectWakeTargets(
   return db.listActiveAgentIdsFromIds(input.companyId, ids);
 }
 
+/** Resolve the agents mentioned in a message body, stripped of the
+ *  sender and the human-reader sentinel so downstream consumers never
+ *  have to redo those filters. Shared between wake-target resolution
+ *  and the mention persistence path so both see the same set. */
+export function resolveMentionedAgentIds(
+  db: AppDatabase,
+  input: Pick<NormalizedAgentMessageInput, "companyId" | "fromAgentId" | "body">,
+): string[] {
+  const mentioned = db.findMentionedAgentIds(input.companyId, input.body);
+  const filtered: string[] = [];
+  for (const agentId of mentioned) {
+    if (!agentId || agentId === input.fromAgentId || agentId === HUMAN_SENDER_ID) continue;
+    filtered.push(agentId);
+  }
+  return filtered;
+}
+
 export function resolveMessageWakeTargets(
   db: AppDatabase,
   input: NormalizedAgentMessageInput,
+  mentionedAgentIds?: readonly string[],
 ): string[] {
   const wakeTargets = new Set<string>();
 
@@ -252,12 +270,9 @@ export function resolveMessageWakeTargets(
     }
   }
 
-  // Parse @mentions in message body and wake mentioned agents
-  const mentionedIds = db.findMentionedAgentIds(input.companyId, input.body);
-  for (const mentionedId of mentionedIds) {
-    if (mentionedId !== input.fromAgentId) {
-      wakeTargets.add(mentionedId);
-    }
+  const mentioned = mentionedAgentIds ?? resolveMentionedAgentIds(db, input);
+  for (const mentionedId of mentioned) {
+    wakeTargets.add(mentionedId);
   }
 
   // The human participant (`__board__`) is a reader, not a wake-able
@@ -282,9 +297,15 @@ export function dispatchAgentMessage(
   }
 
   const senderKind = normalized.fromHumanUser ? "human" as const : "agent" as const;
+  // Compute @mentions once per dispatch and hand them to both the DB
+  // writer (so `agent_message_mentions` is populated atomically with
+  // the row) and the wake resolver (so the wake fan-out uses the same
+  // set). Two lookups would waste a regex pass and allow the set to
+  // drift under mid-dispatch edits.
+  const mentionedAgentIds = resolveMentionedAgentIds(deps.db, normalized);
   const persistedMessage = normalized.channel === "direct"
-    ? { ...normalized, senderKind }
-    : { ...normalized, toAgentId: null, senderKind };
+    ? { ...normalized, senderKind, mentionedAgentIds }
+    : { ...normalized, toAgentId: null, senderKind, mentionedAgentIds };
   const id = deps.db.sendAgentMessage(persistedMessage);
   const message = deps.db.getAgentMessage(id, normalized.companyId);
   if (message && deps.emitEvent) {
@@ -314,7 +335,7 @@ export function dispatchAgentMessage(
     deps.onHumanMessage?.(normalized.companyId, normalized.toAgentId, normalized.threadId, normalized.waitStateId);
   }
 
-  const wakeTargets = resolveMessageWakeTargets(deps.db, normalized);
+  const wakeTargets = resolveMessageWakeTargets(deps.db, normalized, mentionedAgentIds);
   const mentionResults: MentionResult[] = [];
 
   if (deps.wakeAgentIfPossible) {

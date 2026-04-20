@@ -14,7 +14,7 @@ export class AppDatabase extends AppDatabaseBase {
 
   // ─── Messages ──────────────────────────────────────────────────────────────
 
-  sendAgentMessage(input: { companyId: string; fromAgentId: string; toAgentId?: string | null; channel?: string; channelTargetId?: string | null; subject: string; body: string; priority?: string; parentMessageId?: string | null; attachmentsJson?: string; senderKind?: "agent" | "human" | "system" }) { return this.messages.sendAgentMessage(input); }
+  sendAgentMessage(input: { companyId: string; fromAgentId: string; toAgentId?: string | null; channel?: string; channelTargetId?: string | null; subject: string; body: string; priority?: string; parentMessageId?: string | null; attachmentsJson?: string; senderKind?: "agent" | "human" | "system"; mentionedAgentIds?: readonly string[] }) { return this.messages.sendAgentMessage(input); }
   getAgentMessage(messageId: string, companyId: string) { return this.messages.getAgentMessage(messageId, companyId); }
   listAgentMessages(companyId: string, opts?: { agentId?: string; messageId?: string; channel?: string; channelTargetId?: string | null; unreadOnly?: boolean; limit?: number }) { return this.messages.listAgentMessages(companyId, opts); }
   searchMessages(companyId: string, query: string, opts?: { channel?: string; channelTargetId?: string | null; limit?: number }) { return this.messages.searchMessages(companyId, query, opts); }

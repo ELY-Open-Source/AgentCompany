@@ -12,6 +12,7 @@ import { createMigrationsV44V44 } from "./migrations/v44-v44";
 import { createMigrationsV45V45 } from "./migrations/v45-v45";
 import { createMigrationsV46V46 } from "./migrations/v46-v46";
 import { createMigrationsV47V47 } from "./migrations/v47-v47";
+import { createMigrationsV48V48 } from "./migrations/v48-v48";
 import {
   columnExists,
   nowIso,
@@ -199,6 +200,7 @@ export function runMigrations(
     ...createMigrationsV45V45(deps),
     ...createMigrationsV46V46(deps),
     ...createMigrationsV47V47(deps),
+    ...createMigrationsV48V48(deps),
   ];
 
   for (const migration of migrations) {
