@@ -59,7 +59,7 @@ export function resolveInitialUserTurn(
   // Shortcut: when a CEO has zero active direct reports, replace the
   // generic timer cue with a team-building cue that matches the CEO
   // mode prompt.
-  if (trigger === "timer" || trigger === "bootstrap") {
+  if (trigger === "timer" || trigger === "bootstrap" || trigger === "app_restart_resume") {
     try {
       const agent = deps.db.getAgent(agentId);
       if (!agent.reportsTo) {
@@ -67,7 +67,12 @@ export function resolveInitialUserTurn(
           .getDirectReports(agentId, companyId)
           .filter((r) => r.status !== "pending_approval" && r.status !== "terminated");
         if (activeReports.length === 0) {
-          return "You are the CEO and have zero active direct reports. Follow your Team Building Phase operating instructions: file 3–5 hire_agent POSTs this wake, then file one approve_ceo_strategy, then return. Do not write plan documents or analyse the filesystem beyond a 20-second read.";
+          return [
+            "You are the CEO of this company. Your team is empty (zero active direct reports).",
+            "This wake has ONE job: call the `bash` tool to execute `node -e '...'` fetch POSTs that file 3–5 hire_agent requests against /api/companies/{companyId}/agents, then one approve_ceo_strategy POST against /api/companies/{companyId}/approvals.",
+            "The exact body shape and connectorId rules are in your Team Building Phase operating instructions above. Use a connectorId and model from the Available Connectors section (only ready connectors).",
+            "Start the first POST NOW. Do not write a plan document. Do not describe what you will do — execute the tool call.",
+          ].join("\n\n");
         }
       }
     } catch {

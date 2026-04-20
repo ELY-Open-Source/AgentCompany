@@ -110,6 +110,13 @@ export function buildTaskStatusMethods(
       if (newStatus !== "in_progress") {
         timestampSets.push("checkout_run_id = NULL");
       }
+      // Returning a task to todo / backlog drops any active-run claim
+      // as well — heartbeat picks candidate tasks by !activeRunId, so
+      // leaving a stale pointer here (e.g. after startup recovery of a
+      // crashed run) silently hides the task from every future wake.
+      if (newStatus === "todo" || newStatus === "backlog") {
+        timestampSets.push("active_run_id = NULL");
+      }
 
       getDb()
         .prepare(`UPDATE tasks SET ${timestampSets.join(", ")} WHERE id = ?`)
