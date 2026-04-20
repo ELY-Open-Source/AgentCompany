@@ -6,11 +6,19 @@
  * re-derives this. Rule set, in order:
  *
  *  - An agent that `canRequestHire` (CEO, HR, dept lead with reports,
- *    anyone with org-management authority) receives `hire_agent`.
- *  - A CEO (reportsTo null) additionally receives `file_approval` so
- *    the `approve_ceo_strategy` flow works without the HTTP shim. Peer
+ *    anyone with org-management authority) receives `hire_agent`. A
+ *    manager hiring an IC is a legitimate flow.
+ *  - An agent that `canFileCeoStrategy` (genuine CEO: CEO-equivalent
+ *    role + `reportsTo === null`) receives `file_approval` so the
+ *    `approve_ceo_strategy` flow works without the HTTP shim. Peer
  *    agents use the HTTP path until the file_approval surface is
  *    generalised.
+ *
+ * The two predicates are intentionally orthogonal — a VP with hiring
+ * authority should not inherit CEO-strategy approval scope, and a CEO
+ * with a virtual superior inserted above them should not silently
+ * lose strategy scope either (guarded by `canFileCeoStrategy`'s role
+ * check, not just `reportsTo`).
  *
  * No hedging, no sentinel values: if the DB lookup throws the caller
  * is already in a broken state and should not silently fall through
@@ -19,7 +27,7 @@
 
 import type { AppDatabase } from "@main/database";
 import type { AgentRecord } from "@shared/types";
-import { canRequestHire } from "@main/agent-permissions";
+import { canFileCeoStrategy, canRequestHire } from "@main/agent-permissions";
 
 export type InternalToolName = "hire_agent" | "file_approval";
 
@@ -31,11 +39,7 @@ export function resolveInternalToolsForAgent(
   if (canRequestHire(db, agent.companyId, agent.id)) {
     tools.push("hire_agent");
   }
-  // `file_approval` is currently scoped to the CEO (no manager) because
-  // the canonical use case (`approve_ceo_strategy`) is CEO-only and
-  // the broader approval surface ships via the HTTP route for now.
-  // Widen the predicate when non-CEO agents need tool-call approvals.
-  if (agent.reportsTo === null) {
+  if (canFileCeoStrategy(db, agent.companyId, agent.id)) {
     tools.push("file_approval");
   }
   return tools;

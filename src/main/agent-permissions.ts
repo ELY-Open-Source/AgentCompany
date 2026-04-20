@@ -102,6 +102,32 @@ export function canRequestHire(db: AppDatabase, companyId: string, agentId: stri
   return hasManagementAuthority(agent);
 }
 
+const CEO_ROLE_PATTERN = /^(chief executive officer|ceo)$/i;
+const CEO_TITLE_PATTERN = /^ceo$/i;
+
+/**
+ * True only when the agent is a top-level CEO — CEO-equivalent role/title
+ * AND no internal manager (`reportsTo === null`, i.e. reports to the Board).
+ *
+ * Intentionally orthogonal to {@link canRequestHire}: hiring authority spans
+ * managers, directors, VPs, HR, etc., but the `approve_ceo_strategy` flow is
+ * the CEO's alone. Using `reportsTo === null` by itself is too loose (a VP
+ * with no manager would slip through) and using a keyword list by itself is
+ * too loose (a "VP" matches the management keywords). Requiring both pins
+ * the predicate to a genuine CEO even when someone inserts a virtual
+ * superior above an executive.
+ */
+export function canFileCeoStrategy(db: AppDatabase, companyId: string, agentId: string): boolean {
+  const agent = safeGetAgent(db, agentId);
+  if (!agent || agent.companyId !== companyId) {
+    return false;
+  }
+  if (agent.reportsTo !== null) {
+    return false;
+  }
+  return CEO_ROLE_PATTERN.test(agent.role.trim()) || CEO_TITLE_PATTERN.test(agent.title.trim());
+}
+
 function getDepartmentLeadCandidateId(
   db: AppDatabase,
   companyId: string,
