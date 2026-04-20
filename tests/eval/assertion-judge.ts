@@ -112,7 +112,9 @@ function evaluateOne(
     case "message_contains_substring": {
       for (const turn of turns) {
         if (turn.role !== assertion.role) continue;
-        const content = (turn as AssistantTurn | { content: unknown[] }).content;
+        // UserTurn and AssistantTurn both expose .content; the `role` guard
+        // above restricts us to those variants, so no cast is needed.
+        const content = turn.content;
         if (!Array.isArray(content)) continue;
         for (const block of content) {
           if (

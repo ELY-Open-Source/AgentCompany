@@ -215,4 +215,4 @@ Linus 最后一句：**"先让数据结构对，其它 6 步会一起变简单"�
 - No production mocks / fallbacks / silent catches — 仅 dev `tests/eval/` 例外。
 - No runtime logging / telemetry beyond existing electron-log usage.
 - No dual-write migrations without backup path。
-- `tests/eval/` 必须在 `electron-builder.yml` 的 files 过滤中排除，保证不进生产 bundle。
+- `electron-builder.yml` 采用 whitelist `files:` 模式（`out/**` + `package.json` + 指定 assets），`tests/eval/` 本就不在白名单内，无需新增排除规则。

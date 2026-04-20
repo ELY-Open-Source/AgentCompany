@@ -90,13 +90,9 @@ export function createReplayStreamFn(fixture: FixtureFile): StreamFn {
         `replay-client: fixture "${fixture.meta.fixtureId}" exhausted after ${assistantTurns.length} assistant turns; agent requested turn ${cursor + 1}`,
       );
     }
-    const turn = assistantTurns[cursor];
+    // Cursor is bounds-checked above, so the element is guaranteed to exist.
+    const turn = assistantTurns[cursor]!;
     cursor += 1;
-    if (!turn) {
-      throw new Error(
-        `replay-client: internal cursor error at position ${cursor - 1}`,
-      );
-    }
     const message = buildAssistantMessage(
       turn,
       model.id,
