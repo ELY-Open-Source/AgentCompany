@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { AppDatabase } from "../../src/main/database";
-import { buildTaskPrompt } from "../../src/main/prompt-builder";
+import { buildTaskPrompt } from "../../src/main/prompt-builder/index";
 
 const tempDirs: string[] = [];
 

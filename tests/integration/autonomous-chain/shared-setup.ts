@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach } from "vitest";
 import { AppDatabase } from "../../../src/main/database";
-import { buildSystemPrompt } from "../../../src/main/prompt-builder";
+import { buildSystemPrompt } from "../../../src/main/prompt-builder/index";
 import type { AgentRecord, ApprovalRecord, TaskRecord } from "../../../src/shared/types";
 
 export interface SharedContext {

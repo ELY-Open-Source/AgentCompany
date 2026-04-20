@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { buildSystemPrompt } from "../../../src/main/prompt-builder";
+import { buildSystemPrompt } from "../../../src/main/prompt-builder/index";
 import { installSharedSetup } from "./shared-setup";
 
 const shared = installSharedSetup();

@@ -5,6 +5,8 @@ import { buildSystemPrompt } from "./system-prompt";
 import { renderWakeReason } from "./wake-reasons";
 import { getSystemMessages } from "./messages";
 
+export { buildSystemPrompt } from "./system-prompt";
+
 export interface PromptContext {
   agent: AgentRecord;
   apiUrl: string;

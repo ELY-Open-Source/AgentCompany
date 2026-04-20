@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { buildSystemPrompt, buildTaskPrompt } from "../../../src/main/prompt-builder";
+import { buildSystemPrompt, buildTaskPrompt } from "../../../src/main/prompt-builder/index";
 import type { ApprovalRecord } from "../../../src/shared/types";
 import { installSharedSetup } from "./shared-setup";
 

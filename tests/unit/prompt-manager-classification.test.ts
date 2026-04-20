@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSystemPrompt } from "../../src/main/prompt-builder";
+import { buildSystemPrompt } from "../../src/main/prompt-builder/index";
 import type { PromptContext } from "../../src/main/prompt-builder/index";
 
 function buildCtx(overrides: Partial<PromptContext> = {}): PromptContext {

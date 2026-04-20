@@ -6,7 +6,7 @@
  * prompt) is an isolated helper, making the pipeline testable and extensible.
  */
 
-import { buildTaskPrompt } from "../prompt-builder";
+import { buildTaskPrompt } from "../prompt-builder/index";
 import type { AppDatabase } from "../database";
 import type { ProjectedSkill } from "../skill-types";
 import type { ConnectorId, ExecutionMode } from "@shared/types";
