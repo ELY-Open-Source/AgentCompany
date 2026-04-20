@@ -1,7 +1,8 @@
-// TODO: decompose — M-followup. File is 648 lines; split into
-// sqlite-session-store wiring, cost/metrics routing, and hook-dispatch
-// assembly. Tracked as a future milestone; no structural change in this
-// pass.
+// TODO(M-followup by 2026-05-20): decompose — current file exceeds 500 LOC
+// ceiling (648 LOC). Split into sqlite-session-store wiring, cost/metrics
+// routing, and hook-dispatch assembly. If 2026-05-20 passes without
+// decomposition, a follow-up session MUST revisit and either decompose or
+// justify the ceiling exception.
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { AppDatabase } from "@main/database";
 import type { AgentMessageRecord, DesktopEvent } from "@shared/types";

@@ -1,6 +1,8 @@
-// TODO: decompose — M-followup. File is 637 lines and mixes fs-walk
-// baseline capture, git-diff projection, and work-product reconciliation.
-// Split into baseline / diff / projector modules in a future milestone.
+// TODO(M-followup by 2026-05-20): decompose — current file exceeds 500 LOC
+// ceiling (637 LOC) and mixes fs-walk baseline capture, git-diff projection,
+// and work-product reconciliation. Split into baseline / diff / projector
+// modules. If 2026-05-20 passes without decomposition, a follow-up session
+// MUST revisit and either decompose or justify the ceiling exception.
 import { isAbsolute, relative, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
