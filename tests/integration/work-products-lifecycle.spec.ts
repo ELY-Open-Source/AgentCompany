@@ -66,7 +66,7 @@ async function createHarness(): Promise<Harness> {
     repoRef: "",
     isPrimary: true,
   });
-  const agentId = db.saveAgent({
+  const agentId = db.agents.saveAgent({
     companyId,
     name: "Artifact Engineer",
     role: "Engineer",
@@ -79,7 +79,7 @@ async function createHarness(): Promise<Harness> {
     capabilities: "Writes files",
     budgetMonthlyUsd: 100,
   });
-  const taskId = db.saveTask({
+  const taskId = db.tasks.saveTask({
     companyId,
     title: "Produce artifact",
     description: "",

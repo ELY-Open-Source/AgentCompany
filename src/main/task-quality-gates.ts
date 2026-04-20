@@ -25,7 +25,9 @@ interface CapabilityMatchResult {
 }
 
 interface CapabilityMatchDb {
-  getAgent(id: string): { name: string; capabilities: string };
+  entityCrud: {
+    getAgent(id: string): { name: string; capabilities: string };
+  };
   listAgentSkillAssignments(id: string): string[];
   getCompanySkill(companyId: string, skillId: string): { name: string; description: string | null; slug: string } | null;
 }
@@ -128,7 +130,7 @@ export function checkCapabilityMatch(
     return { matched: true, warning: "Task description has no distinctive keywords for capability matching." };
   }
 
-  const agent = db.getAgent(agentId);
+  const agent = db.entityCrud.getAgent(agentId);
   const capWords = tokenize(agent.capabilities);
   const capabilityOverlap = taskWords.filter((w) => capWords.includes(w)).length;
 
@@ -197,7 +199,7 @@ export function sweepStaleReviews(
   const isCofounderMode = deps.getCompanyExecutionMode(companyId) === "ai_cofounder";
 
   let escalatedCount = 0;
-  const reviewTasks = deps.db.listReviewTasksForSweep(companyId);
+  const reviewTasks = deps.db.tasks.listReviewTasksForSweep(companyId);
 
   for (const task of reviewTasks) {
     const reviewAge = now - new Date(task.updatedAt).getTime();
@@ -205,11 +207,11 @@ export function sweepStaleReviews(
     if (!task.assigneeAgentId) continue;
 
     // The reviewer is the assignee's direct manager
-    const reviewer = deps.db.getManagerForAgent(task.assigneeAgentId);
+    const reviewer = deps.db.agents.getManagerForAgent(task.assigneeAgentId);
     if (!reviewer) continue; // No manager = CEO-assigned task, skip escalation
 
     // D-09: Escalate to the reviewer's manager (manager's manager)
-    const chain = deps.db.getChainOfCommand(reviewer.id);
+    const chain = deps.db.agents.getChainOfCommand(reviewer.id);
     const escalationTarget = chain.length > 0 ? chain[0] : null;
 
     const pendingApproval = deps.db.findPendingApprovalForTask(companyId, task.id);
@@ -281,7 +283,7 @@ export function sweepStaleReviews(
 
     // D-10: Advance task status from in_review to done
     try {
-      deps.db.advanceTaskStatus(task.id, "done", "Auto-advanced: review timeout exceeded 30 minutes.");
+      deps.db.tasks.advanceTaskStatus(task.id, "done", "Auto-advanced: review timeout exceeded 30 minutes.");
       deps.handleTaskStatusChange(task.id, companyId, "in_review", "done");
     } catch (err) {
       log.warn(`[task-quality-gates] advanceTaskStatus failed for task ${task.id}:`, err instanceof Error ? err.message : String(err));

@@ -55,9 +55,9 @@ export function createHeartbeat(
   } = deps;
 
   function ensureAgentHeartbeatEnabled(agentId: string) {
-    const agent = db.getAgent(agentId);
+    const agent = db.entityCrud.getAgent(agentId);
     if (!agent.heartbeatEnabled) {
-      db.setHeartbeat(agentId, true, agent.heartbeatIntervalSec || 120);
+      db.agents.setHeartbeat(agentId, true, agent.heartbeatIntervalSec || 120);
     }
   }
 
@@ -68,7 +68,7 @@ export function createHeartbeat(
     if (!hasWorkerReady()) return SKIPPED("worker_not_ready");
     const companyStatus = db.getCompanyStatus(companyId);
     if (companyStatus !== "active") return SKIPPED("company_inactive");
-    const agent = db.getAgent(agentId);
+    const agent = db.entityCrud.getAgent(agentId);
     if (agent.companyId !== companyId) {
       logger.warn(`[heartbeat] Refusing cross-company run for agent ${agentId}: ${agent.companyId} !== ${companyId}`);
       return SKIPPED("cross_company");
@@ -112,10 +112,10 @@ export function createHeartbeat(
     // Let getHeartbeatPolicy throw — a missing row signals data corruption
     // and silently falling back hides the gate that decides whether the
     // agent runs at all.
-    const heartbeatPolicy = db.getHeartbeatPolicy(agent.id);
+    const heartbeatPolicy = db.agents.getHeartbeatPolicy(agent.id);
 
     // maxConcurrentRuns check: count active runs for this agent
-    const activeRunCount = db.countActiveRunsForAgent(agent.id, companyId);
+    const activeRunCount = db.agents.countActiveRunsForAgent(agent.id, companyId);
     if (activeRunCount >= heartbeatPolicy.maxConcurrentRuns) return SKIPPED("max_concurrent_runs");
 
     // Cooldown check: ensure enough time has passed since last heartbeat
@@ -129,7 +129,7 @@ export function createHeartbeat(
     if (!heartbeatPolicy.wakeOnDemand && trigger !== "timer" && trigger !== "bootstrap") {
       return SKIPPED("wake_on_demand_disabled");
     }
-    if (db.isAgentPendingApproval(agentId)) return SKIPPED("pending_approval");
+    if (db.agents.isAgentPendingApproval(agentId)) return SKIPPED("pending_approval");
 
     const companyMode = db.getCompanyExecutionMode(companyId);
     const approvalSettings = db.getCompanyApprovalSettings(companyId);
@@ -140,7 +140,7 @@ export function createHeartbeat(
     if (
       shouldEnforceHumanReview &&
       !isMessageWake &&
-      (db.hasAgentPendingDeliverableReview(agentId, companyId) || db.hasAgentTaskAwaitingReview(agentId, companyId))
+      (db.tasks.hasAgentPendingDeliverableReview(agentId, companyId) || db.tasks.hasAgentTaskAwaitingReview(agentId, companyId))
     ) {
       return SKIPPED("awaiting_user_review");
     }
@@ -150,23 +150,23 @@ export function createHeartbeat(
       shouldEnforceHumanReview &&
       !isMessageWake &&
       !agent.reportsTo &&
-      db.hasPendingDeliverableReviews(companyId)
+      db.tasks.hasPendingDeliverableReviews(companyId)
     ) {
       return SKIPPED("pending_deliverable_review");
     }
 
     const assignedTasks = isCommunicationWake
       ? []
-      : db.listAgentTasks(agentId, companyId, ["todo", "in_progress", "blocked"]);
+      : db.tasks.listAgentTasks(agentId, companyId, ["todo", "in_progress", "blocked"]);
     const isTimer = trigger === "timer";
     const candidateTasks = assignedTasks;
 
     const candidateTask = candidateTasks.find((entry) => !entry.activeRunId) ?? null;
     const runId = randomUUID();
-    let task: ReturnType<AppDatabase["getTask"]> | null = null;
+    let task: ReturnType<AppDatabase["entityCrud"]["getTask"]> | null = null;
 
     if (candidateTask) {
-      const checkoutSuccess = db.checkoutTask(candidateTask.id, runId);
+      const checkoutSuccess = db.tasks.checkoutTask(candidateTask.id, runId);
       if (!checkoutSuccess) {
         db.addActivity({
           companyId,
@@ -178,7 +178,7 @@ export function createHeartbeat(
         });
         return SKIPPED("checkout_race_lost");
       }
-      task = db.getTask(candidateTask.id);
+      task = db.entityCrud.getTask(candidateTask.id);
     } else {
       const hasActiveAssignedRun = candidateTasks.some(
         (entry) => entry.activeRunId && hasActiveRun({ taskId: entry.id, companyId }),
@@ -186,9 +186,9 @@ export function createHeartbeat(
       if (hasActiveAssignedRun) return SKIPPED("max_concurrent_runs");
 
       const isCeo = !agent.reportsTo;
-      const isManager = db.getDirectReports(agent.id, companyId).length > 0;
+      const isManager = db.agents.getDirectReports(agent.id, companyId).length > 0;
       const goalCount = db.countActiveGoalsForCompany(companyId);
-      const taskCount = db.countActiveTasksForCompany(companyId);
+      const taskCount = db.tasks.countActiveTasksForCompany(companyId);
       const companyNeedsBootstrap = goalCount > 0 && taskCount < goalCount;
 
       if (isTimer && !isCeo && !isManager && !companyNeedsBootstrap) {
@@ -232,7 +232,7 @@ export function createHeartbeat(
       resolvedModel: assignment.modelId,
     });
 
-    db.markHeartbeatAt(agentId);
+    db.agents.markHeartbeatAt(agentId);
 
     // Actor audit: record what triggered this run
     try {
@@ -266,7 +266,7 @@ export function createHeartbeat(
     // raw) from spamming the log with "Agent not found: __board__".
     if (agentId === HUMAN_SENDER_ID) return null;
     try {
-      const agent = db.getAgent(agentId);
+      const agent = db.entityCrud.getAgent(agentId);
       if (agent.companyId !== companyId) {
         logger.warn(`[wake] Refusing cross-company wake for agent ${agentId}: ${agent.companyId} !== ${companyId}`);
         return null;

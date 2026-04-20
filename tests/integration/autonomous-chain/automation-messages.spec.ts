@@ -89,13 +89,13 @@ describe("Agent Messages", () => {
   let agentBId: string;
 
   beforeEach(() => {
-    agentAId = shared.db.saveAgent({
+    agentAId = shared.db.agents.saveAgent({
       companyId: shared.companyId, name: "Alice", role: "Engineer", title: "Senior Engineer",
       department: "engineering", connectorId: "claude-pro", status: "active",
       capabilities: "Backend development, API design, code review",
       budgetMonthlyUsd: 100,
     });
-    agentBId = shared.db.saveAgent({
+    agentBId = shared.db.agents.saveAgent({
       companyId: shared.companyId, name: "Bob", role: "Designer", title: "UX Designer",
       department: "design", connectorId: "claude-pro", status: "active",
       capabilities: "UI design, wireframing, user research",
@@ -178,7 +178,7 @@ describe("Agent Messages", () => {
       leadAgentId: engineeringLeadId,
       status: "active",
     });
-    shared.db.saveTask({
+    shared.db.tasks.saveTask({
       companyId: shared.companyId,
       title: "Project task",
       description: "Do work",
@@ -240,13 +240,13 @@ describe("Auto Task Assignment", () => {
   let frontendId: string;
 
   beforeEach(() => {
-    backendId = shared.db.saveAgent({
+    backendId = shared.db.agents.saveAgent({
       companyId: shared.companyId, name: "Backend Dev", role: "Backend Engineer", title: "Senior Backend",
       department: "engineering", connectorId: "openai-codex", status: "active",
       capabilities: "API development, database design, Node.js, PostgreSQL, backend testing",
       budgetMonthlyUsd: 200,
     });
-    frontendId = shared.db.saveAgent({
+    frontendId = shared.db.agents.saveAgent({
       companyId: shared.companyId, name: "Frontend Dev", role: "Frontend Engineer", title: "Senior Frontend",
       department: "engineering", connectorId: "openai-codex", status: "active",
       capabilities: "React, TypeScript, CSS, Tailwind, responsive design, frontend testing, UI components",
@@ -255,61 +255,61 @@ describe("Auto Task Assignment", () => {
   });
 
   it("assigns to the best-matching agent by capability keywords", () => {
-    const taskId = shared.db.saveTask({
+    const taskId = shared.db.tasks.saveTask({
       companyId: shared.companyId, title: "Build React component for user dashboard",
       description: "Create a responsive React component with Tailwind CSS styling",
       priority: "medium", status: "todo",
     });
 
-    const assignedId = shared.db.autoAssignTask(taskId, shared.companyId);
+    const assignedId = shared.db.tasks.autoAssignTask(taskId, shared.companyId);
     expect(assignedId).toBe(frontendId); // "React", "responsive", "Tailwind" match frontend
   });
 
   it("assigns backend task to backend agent", () => {
-    const taskId = shared.db.saveTask({
+    const taskId = shared.db.tasks.saveTask({
       companyId: shared.companyId, title: "Design database schema for orders",
       description: "PostgreSQL database design with API endpoints for order management",
       priority: "high", status: "todo",
     });
 
-    const assignedId = shared.db.autoAssignTask(taskId, shared.companyId);
+    const assignedId = shared.db.tasks.autoAssignTask(taskId, shared.companyId);
     expect(assignedId).toBe(backendId); // "database", "PostgreSQL", "API" match backend
   });
 
   it("returns existing assignee if task already assigned", () => {
-    const taskId = shared.db.saveTask({
+    const taskId = shared.db.tasks.saveTask({
       companyId: shared.companyId, title: "Already assigned task",
       description: "This task has an assignee",
       assigneeAgentId: frontendId,
       priority: "medium", status: "todo",
     });
 
-    const result = shared.db.autoAssignTask(taskId, shared.companyId);
+    const result = shared.db.tasks.autoAssignTask(taskId, shared.companyId);
     expect(result).toBe(frontendId);
   });
 
   it("returns null if all agents have exhausted their budget", () => {
     // Set positive budgets that are fully spent
-    shared.db.saveAgent({ id: backendId, companyId: shared.companyId, name: "Backend Dev", role: "Backend", title: "Backend", connectorId: "openai-codex", status: "active", capabilities: "backend", budgetMonthlyUsd: 100 });
-    shared.db.saveAgent({ id: frontendId, companyId: shared.companyId, name: "Frontend Dev", role: "Frontend", title: "Frontend", connectorId: "openai-codex", status: "active", capabilities: "frontend", budgetMonthlyUsd: 100 });
+    shared.db.agents.saveAgent({ id: backendId, companyId: shared.companyId, name: "Backend Dev", role: "Backend", title: "Backend", connectorId: "openai-codex", status: "active", capabilities: "backend", budgetMonthlyUsd: 100 });
+    shared.db.agents.saveAgent({ id: frontendId, companyId: shared.companyId, name: "Frontend Dev", role: "Frontend", title: "Frontend", connectorId: "openai-codex", status: "active", capabilities: "frontend", budgetMonthlyUsd: 100 });
     // Exhaust budgets by recording spending via direct SQL (since finishRun would need a real run)
     (shared.db as unknown as { db: { prepare: (sql: string) => { run: (...args: unknown[]) => void } } }).db.prepare("update agents set spent_monthly_usd = 100 where id = ?").run(backendId);
     (shared.db as unknown as { db: { prepare: (sql: string) => { run: (...args: unknown[]) => void } } }).db.prepare("update agents set spent_monthly_usd = 100 where id = ?").run(frontendId);
 
-    const taskId = shared.db.saveTask({ companyId: shared.companyId, title: "No budget task", description: "Test", priority: "low", status: "todo" });
-    const result = shared.db.autoAssignTask(taskId, shared.companyId);
+    const taskId = shared.db.tasks.saveTask({ companyId: shared.companyId, title: "No budget task", description: "Test", priority: "low", status: "todo" });
+    const result = shared.db.tasks.autoAssignTask(taskId, shared.companyId);
     expect(result).toBeNull();
   });
 
   it("penalizes agents with many active tasks", () => {
     // Give backend agent 5 active tasks
     for (let i = 0; i < 5; i++) {
-      shared.db.saveTask({ companyId: shared.companyId, title: `Backend task ${i}`, description: "", assigneeAgentId: backendId, priority: "medium", status: "in_progress" });
+      shared.db.tasks.saveTask({ companyId: shared.companyId, title: `Backend task ${i}`, description: "", assigneeAgentId: backendId, priority: "medium", status: "in_progress" });
     }
 
     // Generic task with no strong keyword match — should go to less busy frontend agent
-    const taskId = shared.db.saveTask({ companyId: shared.companyId, title: "Implement feature", description: "Build the feature", priority: "medium", status: "todo" });
-    const assignedId = shared.db.autoAssignTask(taskId, shared.companyId);
+    const taskId = shared.db.tasks.saveTask({ companyId: shared.companyId, title: "Implement feature", description: "Build the feature", priority: "medium", status: "todo" });
+    const assignedId = shared.db.tasks.autoAssignTask(taskId, shared.companyId);
     expect(assignedId).toBe(frontendId); // Frontend has 0 active tasks vs backend's 5
   });
 });

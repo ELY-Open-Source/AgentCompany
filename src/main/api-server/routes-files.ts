@@ -228,7 +228,7 @@ export function registerFileRoutes(server: AgentApiServer) {
 
   server.addRoute("GET", "/api/issues/:issueId/work-products", (_req, res, params, token) => {
     try {
-      const task = db.getTask(requireParam(params, "issueId"));
+      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) { server.json(res, 404, { error: "Task not found" }); return; }
       const products = db.listWorkProductsForTask(task.id, task.companyId);
       server.json(res, 200, products);
@@ -240,7 +240,7 @@ export function registerFileRoutes(server: AgentApiServer) {
 
   server.addRoute("POST", "/api/issues/:issueId/work-products", (_req, res, params, token, body) => {
     try {
-      const task = db.getTask(requireParam(params, "issueId"));
+      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) { server.json(res, 404, { error: "Task not found" }); return; }
       const parsed = createWorkProductSchema.safeParse(body);
       if (!parsed.success) { server.json(res, 400, { error: "Invalid input", details: parsed.error.flatten() }); return; }
@@ -294,7 +294,7 @@ export function registerFileRoutes(server: AgentApiServer) {
 
   server.addRoute("GET", "/api/issues/:issueId/documents", (_req, res, params, token) => {
     try {
-      const task = db.getTask(requireParam(params, "issueId"));
+      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) { server.json(res, 404, { error: "Task not found" }); return; }
       const links = db.listDocumentsForTask(task.id, task.companyId);
       server.json(res, 200, links);
@@ -306,7 +306,7 @@ export function registerFileRoutes(server: AgentApiServer) {
 
   server.addRoute("PUT", "/api/issues/:issueId/documents/:key", (_req, res, params, token, body) => {
     try {
-      const task = db.getTask(requireParam(params, "issueId"));
+      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) { server.json(res, 404, { error: "Task not found" }); return; }
       const key = String(params.key ?? "").trim().toLowerCase();
       if (!key || !/^[a-z0-9][a-z0-9_-]*$/.test(key) || key.length > 64) {
@@ -329,7 +329,7 @@ export function registerFileRoutes(server: AgentApiServer) {
 
   server.addRoute("DELETE", "/api/issues/:issueId/documents/:key", (_req, res, params, token) => {
     try {
-      const task = db.getTask(requireParam(params, "issueId"));
+      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) { server.json(res, 404, { error: "Task not found" }); return; }
       const key = String(params.key ?? "").trim().toLowerCase();
       db.unlinkDocumentFromTask(task.id, key, task.companyId);

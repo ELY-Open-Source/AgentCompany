@@ -37,13 +37,13 @@ export function createTaskRunner(
       logger.warn(`[run] Worker not ready — cannot queue run for task ${taskId} (trigger: ${trigger})`);
       return fail("WORKER_UNAVAILABLE", "Orchestration worker is not ready.");
     }
-    const task = db.getTask(taskId);
+    const task = db.entityCrud.getTask(taskId);
     const companyStatus = db.getCompanyStatus(task.companyId);
     if (companyStatus !== "active") {
       return fail("COMPANY_NOT_ACTIVE", "Runs can only start while the company is active.");
     }
     if (!task.assigneeAgentId) return fail("TASK_UNASSIGNED", "Assign an agent before starting a run.");
-    const agent = db.getAgent(task.assigneeAgentId);
+    const agent = db.entityCrud.getAgent(task.assigneeAgentId);
     if (agent.companyId !== task.companyId) {
       return fail("AGENT_COMPANY_MISMATCH", "The assigned agent does not belong to the task company.");
     }
@@ -75,7 +75,7 @@ export function createTaskRunner(
     if (hasActiveRun({ agentId: agent.id, companyId: task.companyId })) {
       return fail("AGENT_ALREADY_RUNNING", "The assigned agent already has an active run.");
     }
-    if (db.isAgentPendingApproval(agent.id)) {
+    if (db.agents.isAgentPendingApproval(agent.id)) {
       return fail("AGENT_PENDING_APPROVAL", "This agent is pending hire approval and cannot run tasks.");
     }
     const blockingApproval = db.getBlockingApproval(task.companyId, agent.id, task.id);
@@ -88,7 +88,7 @@ export function createTaskRunner(
 
     // CAS checkout — atomic claim (EXEC-01, EXEC-02)
     const runId = randomUUID();
-    const checkoutSuccess = db.checkoutTask(task.id, runId);
+    const checkoutSuccess = db.tasks.checkoutTask(task.id, runId);
     if (!checkoutSuccess) {
       return fail("CHECKOUT_RACE_LOST", "Another run claimed this task. Refresh and try again.");
     }
@@ -180,8 +180,8 @@ export function createTaskRunner(
       }
 
       try {
-        const task = run.taskId ? db.getTask(run.taskId) : null;
-        const agent = db.getAgent(run.agentId);
+        const task = run.taskId ? db.entityCrud.getTask(run.taskId) : null;
+        const agent = db.entityCrud.getAgent(run.agentId);
         const connector = db.getConnector(run.connectorId);
         const eligibilityFailure = getRunEligibilityFailure(agent, connector, task?.projectId ?? null);
         if (eligibilityFailure) {

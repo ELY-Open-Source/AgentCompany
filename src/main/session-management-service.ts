@@ -25,7 +25,7 @@ export function createSessionManagementService({ db, logger }: SessionManagement
 
   // D-08: Accumulate token usage on task_sessions row (called for ALL adapters per D-05)
   function accumulateTokenUsage(sessionId: string, inputTokens: number, outputTokens: number, runId: string): void {
-    db.incrementSessionUsage(sessionId, inputTokens, outputTokens, runId);
+    db.tasks.incrementSessionUsage(sessionId, inputTokens, outputTokens, runId);
   }
 
   // Any-of thresholds — first trigger wins. Pi-mono delegates context
@@ -133,15 +133,15 @@ export function createSessionManagementService({ db, logger }: SessionManagement
 
     logger.info(`[session] Rotating session ${session.id} for agent ${session.agentId}: ${reason}`);
 
-    db.archiveSession(session.id, reason, handoff);
+    db.tasks.archiveSession(session.id, reason, handoff);
 
-    const newSessionId = db.createNewSession({
+    const newSessionId = db.tasks.createNewSession({
       companyId: session.companyId,
       agentId: session.agentId,
       adapterType: session.adapterType,
     });
 
-    db.setAgentSessionId(session.agentId, newSessionId);
+    db.tasks.setAgentSessionId(session.agentId, newSessionId);
 
     logger.info(`[session] New session ${newSessionId} created for agent ${session.agentId}`);
     return newSessionId;

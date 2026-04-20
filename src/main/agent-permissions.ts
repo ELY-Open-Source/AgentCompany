@@ -6,7 +6,7 @@ function safeGetAgent(db: AppDatabase, agentId: string | null | undefined) {
     return null;
   }
   try {
-    return db.getAgent(agentId);
+    return db.entityCrud.getAgent(agentId);
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("Agent not found:")) {
       return null;
@@ -46,14 +46,14 @@ export function hasManagementAuthority(agent: { role: string; title: string; dep
 }
 
 function hasOrganizationPermission(db: AppDatabase, agentId: string) {
-  return db.hasAgentPermission(agentId, "organization_manage");
+  return db.agents.hasAgentPermission(agentId, "organization_manage");
 }
 
 function managesAgent(db: AppDatabase, managerId: string, targetAgentId: string): boolean {
   if (managerId === targetAgentId) {
     return true;
   }
-  return db.getChainOfCommand(targetAgentId).some((agent) => agent.id === managerId);
+  return db.agents.getChainOfCommand(targetAgentId).some((agent) => agent.id === managerId);
 }
 
 export function canControlAgent(db: AppDatabase, companyId: string, actorAgentId: string, targetAgentId: string): boolean {
@@ -96,7 +96,7 @@ export function canRequestHire(db: AppDatabase, companyId: string, agentId: stri
   if (canManageOrganization(db, companyId, agentId)) {
     return true;
   }
-  if (db.getDirectReports(agentId, companyId).length > 0) {
+  if (db.agents.getDirectReports(agentId, companyId).length > 0) {
     return true;
   }
   return hasManagementAuthority(agent);
@@ -128,9 +128,9 @@ function getDepartmentLeadCandidateId(
     .filter((candidate) => candidate.id !== excludeAgentId)
     .map((candidate) => ({
       id: candidate.id,
-      hasReports: db.getDirectReports(candidate.id, companyId).length > 0,
+      hasReports: db.agents.getDirectReports(candidate.id, companyId).length > 0,
       leadershipScore: hasManagementAuthority(candidate) ? 1 : 0,
-      chainDepth: db.getChainOfCommand(candidate.id).length,
+      chainDepth: db.agents.getChainOfCommand(candidate.id).length,
       createdAt: candidate.createdAt,
     }))
     .filter((candidate) => candidate.hasReports || candidate.leadershipScore > 0)
@@ -161,7 +161,7 @@ export function resolveHireReportsTo(
   }
 
   if (!department) {
-    return requester?.id ?? db.getCeoForCompany(companyId)?.id ?? null;
+    return requester?.id ?? db.agents.getCeoForCompany(companyId)?.id ?? null;
   }
 
   if (requester && (requester.department === department || !requester.reportsTo)) {
@@ -177,7 +177,7 @@ export function resolveHireReportsTo(
     return requester.id;
   }
 
-  return db.getCeoForCompany(companyId)?.id ?? null;
+  return db.agents.getCeoForCompany(companyId)?.id ?? null;
 }
 
 function normalizeComparableText(value: string): string {

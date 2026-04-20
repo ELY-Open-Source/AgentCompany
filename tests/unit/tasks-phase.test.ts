@@ -55,7 +55,7 @@ function createTestWorkspace(db: AppDatabase, companyId: string): string {
 }
 
 function createTestAgent(db: AppDatabase, companyId: string, workspaceId: string, name = "Agent"): string {
-  return db.saveAgent({
+  return db.agents.saveAgent({
     companyId,
     name,
     role: "IC",
@@ -76,7 +76,7 @@ function createTestTask(
   agentId: string,
   workspaceId: string,
 ): string {
-  return db.saveTask({
+  return db.tasks.saveTask({
     companyId,
     title: "Phase helper task",
     description: "dual-write seed",

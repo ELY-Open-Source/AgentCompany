@@ -77,8 +77,8 @@ export class AppDatabase extends AppDatabaseBase {
   countActiveGoalsForCompany(companyId: string) { return this.entityCrud.countActiveGoalsForCompany(companyId); }
   createHireRequest(input: { companyId: string; requestedByAgentId?: string | null; name: string; role: string; title: string; department?: string | null; reportsTo?: string | null; connectorId: ConnectorId; workspaceId?: string | null; model?: string | null; metadataJson?: string; capabilities: string; budgetMonthlyUsd: number; payloadSummary: string; impactSummary: string; payloadJson?: string | null }) {
     return this.entityCrud.createHireRequest(input, {
-      saveAgent: (agentInput) => this.saveAgent(agentInput),
-      requestApproval: (approvalInput) => this.requestApproval(approvalInput),
+      saveAgent: (agentInput) => this.agents.saveAgent(agentInput),
+      requestApproval: (approvalInput) => this.approvalsMod.requestApproval(approvalInput),
     });
   }
 
@@ -110,9 +110,9 @@ export class AppDatabase extends AppDatabaseBase {
   getConfigRevision(revisionId: string, companyId: string) { return this.documentsMod.getConfigRevision(revisionId, companyId); }
   rollbackConfigRevision(agentId: string, revisionId: string, companyId: string) {
     return this.documentsMod.rollbackConfigRevision(agentId, revisionId, companyId, {
-      getConfigRevision: (rid, cid) => this.getConfigRevision(rid, cid),
-      getAgent: (id) => this.getAgent(id),
-      recordConfigRevision: (input) => this.recordConfigRevision(input),
+      getConfigRevision: (rid, cid) => this.documentsMod.getConfigRevision(rid, cid),
+      getAgent: (id) => this.entityCrud.getAgent(id),
+      recordConfigRevision: (input) => this.documentsMod.recordConfigRevision(input),
     });
   }
 

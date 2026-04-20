@@ -50,7 +50,7 @@ function createScaffold(db: AppDatabase) {
     repoRef: "",
     isPrimary: true,
   });
-  const ceoId = db.saveAgent({
+  const ceoId = db.agents.saveAgent({
     companyId,
     name: "CEO",
     role: "CEO",
@@ -63,7 +63,7 @@ function createScaffold(db: AppDatabase) {
     capabilities: "Lead the company",
     budgetMonthlyUsd: 250,
   });
-  const engineerId = db.saveAgent({
+  const engineerId = db.agents.saveAgent({
     companyId,
     name: "Engineer",
     role: "Engineer",
@@ -76,7 +76,7 @@ function createScaffold(db: AppDatabase) {
     capabilities: "Ship features",
     budgetMonthlyUsd: 180,
   });
-  const taskId = db.saveTask({
+  const taskId = db.tasks.saveTask({
     companyId,
     title: "Ship the feature",
     description: "Implement the approved deliverable and wait for co-founder review.",
@@ -133,7 +133,7 @@ describe("thread wait + heartbeat integration", () => {
     expect(waitStates[0]?.waitingFor).toBe("user_reply");
     expect(checkpointEngine.shouldPauseHeartbeat(companyId, engineerId)).toBe(true);
 
-    const otherAgentId = db.saveAgent({
+    const otherAgentId = db.agents.saveAgent({
       companyId,
       name: "Marketer",
       role: "CMO",
@@ -141,7 +141,7 @@ describe("thread wait + heartbeat integration", () => {
       status: "idle",
       reportsTo: null,
       connectorId: "openai-codex",
-      workspaceId: db.getTask(taskId).workspaceId ?? null,
+      workspaceId: db.entityCrud.getTask(taskId).workspaceId ?? null,
       model: null,
       capabilities: "Drive marketing work",
       budgetMonthlyUsd: 180,

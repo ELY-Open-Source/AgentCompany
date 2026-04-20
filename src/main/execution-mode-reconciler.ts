@@ -32,7 +32,7 @@ function collectImpactedAgentIdsFromWaitStates(db: AppDatabase, companyId: strin
     const thread = db.getThread(waitState.threadId, companyId);
     if (!thread || thread.relatedEntityType !== "task" || !thread.relatedEntityId) continue;
     try {
-      const task = db.getTask(thread.relatedEntityId);
+      const task = db.entityCrud.getTask(thread.relatedEntityId);
       if (task.assigneeAgentId) {
         agentIds.add(task.assigneeAgentId);
       }
@@ -69,7 +69,7 @@ function collectImpactedAgentIdsFromReviewState(db: AppDatabase, companyId: stri
     }
     if (!approval.relatedTaskId) continue;
     try {
-      const task = db.getTask(approval.relatedTaskId);
+      const task = db.entityCrud.getTask(approval.relatedTaskId);
       if (task.assigneeAgentId) {
         agentIds.add(task.assigneeAgentId);
       }
@@ -84,11 +84,11 @@ function collectImpactedAgentIdsFromReviewState(db: AppDatabase, companyId: stri
 function resumeAgents(db: AppDatabase, companyId: string, agentIds: Iterable<string>): void {
   for (const agentId of agentIds) {
     try {
-      const agent = db.getAgent(agentId);
+      const agent = db.entityCrud.getAgent(agentId);
       if (agent.companyId !== companyId) continue;
       if (["terminated", "pending_approval"].includes(agent.status)) continue;
       if (!agent.heartbeatEnabled) {
-        db.setHeartbeat(agent.id, true, agent.heartbeatIntervalSec || 120);
+        db.agents.setHeartbeat(agent.id, true, agent.heartbeatIntervalSec || 120);
       }
     } catch (err) {
       log.warn(`[execution-mode-reconciler] resumeAgents failed for ${agentId}:`, err instanceof Error ? err.message : String(err));
@@ -156,7 +156,7 @@ export function reconcileExecutionModeChange({
       companyId,
     );
     for (const task of tasks) {
-      db.setTaskRequiresUserReview(task.id, false);
+      db.tasks.setTaskRequiresUserReview(task.id, false);
     }
   }
 

@@ -36,7 +36,7 @@ export function registerRecoveryHandlers({
     if (!db.belongsToCompany("tasks", parsed.taskId, parsed.companyId)) {
       return fail("TASK_NOT_FOUND", "Task not found in the current company.");
     }
-    db.retryInterruptedTask(parsed.taskId, parsed.agentId, parsed.companyId);
+    db.tasks.retryInterruptedTask(parsed.taskId, parsed.agentId, parsed.companyId);
     try {
       wakeAgentIfPossible(parsed.agentId, parsed.companyId, "retry_interrupted");
     } catch (err) {
@@ -53,7 +53,7 @@ export function registerRecoveryHandlers({
     if (!db.belongsToCompany("tasks", parsed.taskId, parsed.companyId)) {
       return fail("TASK_NOT_FOUND", "Task not found in the current company.");
     }
-    db.markInterruptedTaskFailed(parsed.taskId);
+    db.tasks.markInterruptedTaskFailed(parsed.taskId);
     publishDomainChanged();
     return ok(null);
   });

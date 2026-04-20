@@ -93,9 +93,9 @@ export function buildOrchestrationService({
     },
     evaluatePreRunSessionRotation: (agentId, connectorId) => {
       try {
-        const agent = db.getAgent(agentId);
+        const agent = db.entityCrud.getAgent(agentId);
         if (!agent.sessionId) return { rotated: false, handoff: null, sessionId: null };
-        const session = db.getSessionById(agent.sessionId);
+        const session = db.tasks.getSessionById(agent.sessionId);
         if (!session) return { rotated: false, handoff: null, sessionId: agent.sessionId };
         const result = sessionService.evaluateRotation(session);
         if (result.shouldRotate) {

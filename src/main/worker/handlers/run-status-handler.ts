@@ -32,7 +32,7 @@ export function handleRunStatus(
     try {
       const run = db.getRun(event.runId);
       if (run.taskId) {
-        db.renewTaskLease(run.taskId, run.id);
+        db.tasks.renewTaskLease(run.taskId, run.id);
       }
       onRunStarted?.(run.id, run.taskId, run.agentId, run.companyId);
     } catch (err) {

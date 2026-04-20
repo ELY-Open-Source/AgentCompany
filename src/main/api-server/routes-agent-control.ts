@@ -12,7 +12,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
     const targetAgentId = requireParam(params, "agentId");
     const targetAgent = (() => {
       try {
-        return db.getAgent(targetAgentId);
+        return db.entityCrud.getAgent(targetAgentId);
       } catch (err) {
         log.warn(`[api/agent-control] getAgent failed for ${targetAgentId}:`, err instanceof Error ? err.message : String(err));
         return null;
@@ -52,7 +52,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
     const targetAgentId = requireParam(params, "agentId");
     let targetAgent;
     try {
-      targetAgent = db.getAgent(targetAgentId);
+      targetAgent = db.entityCrud.getAgent(targetAgentId);
     } catch (err) {
       log.warn(`[api/agent-control] getAgent failed for heartbeat ${targetAgentId}:`, err instanceof Error ? err.message : String(err));
       targetAgent = null;
@@ -86,7 +86,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
     const agentId = requireParam(params, "agentId");
     let agent;
     try {
-      agent = db.getAgent(agentId);
+      agent = db.entityCrud.getAgent(agentId);
     } catch (error) {
       log.warn(`[api/agent-skills:GET] getAgent(${agentId}) failed: ${error instanceof Error ? error.message : String(error)}`);
       agent = null;
@@ -118,7 +118,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
     }
     let agent;
     try {
-      agent = db.getAgent(agentId);
+      agent = db.entityCrud.getAgent(agentId);
     } catch (error) {
       log.warn(`[api/agent-skills:POST] getAgent(${agentId}) failed: ${error instanceof Error ? error.message : String(error)}`);
       agent = null;
@@ -142,7 +142,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
     const skillId = requireParam(params, "skillId");
     let agent;
     try {
-      agent = db.getAgent(agentId);
+      agent = db.entityCrud.getAgent(agentId);
     } catch (error) {
       log.warn(`[api/agent-skills:DELETE] getAgent(${agentId}) failed: ${error instanceof Error ? error.message : String(error)}`);
       agent = null;

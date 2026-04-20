@@ -29,7 +29,7 @@ describe("Step 4: Hire approval + decideApproval", () => {
       decisionNote: "Approved by board",
     });
 
-    const updatedAgent = shared.db.getAgent(hireId);
+    const updatedAgent = shared.db.entityCrud.getAgent(hireId);
     expect(updatedAgent.status).toBe("idle");
   });
 
@@ -52,7 +52,7 @@ describe("Step 4: Hire approval + decideApproval", () => {
       decisionNote: "Not needed",
     });
 
-    const updatedAgent = shared.db.getAgent(hireId);
+    const updatedAgent = shared.db.entityCrud.getAgent(hireId);
     expect(updatedAgent.status).toBe("terminated");
   });
 

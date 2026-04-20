@@ -17,9 +17,9 @@ export function registerAgentRoutes(server: AgentApiServer) {
   const callbacks = server.callbacks;
   const onDomainChanged = server.onDomainChanged;
   server.addRoute("GET", "/api/agents/me", (_req, res, _params, token) => {
-    const agent = db.getAgent(token.agentId);
-    const chainOfCommand = db.getChainOfCommand(token.agentId);
-    const directReports = db.getDirectReports(token.agentId, token.companyId);
+    const agent = db.entityCrud.getAgent(token.agentId);
+    const chainOfCommand = db.agents.getChainOfCommand(token.agentId);
+    const directReports = db.agents.getDirectReports(token.agentId, token.companyId);
     server.json(res, 200, { agent, chainOfCommand, directReports });
   });
 
@@ -40,7 +40,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
 
   server.addRoute("GET", "/api/agents/:agentId/metrics", (_req, res, params, token) => {
     const agentId = requireParam(params, "agentId");
-    const agent = db.getAgent(agentId);
+    const agent = db.entityCrud.getAgent(agentId);
     if (!agent || agent.companyId !== token.companyId) {
       server.json(res, 404, { error: "Agent not found" });
       return;
@@ -57,7 +57,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
   server.addRoute("GET", "/api/agents/:agentId", (_req, res, params, token) => {
     let agent;
     try {
-      agent = db.getAgent(requireParam(params, "agentId"));
+      agent = db.entityCrud.getAgent(requireParam(params, "agentId"));
     } catch (err) {
       log.warn(`[api/agents] getAgent failed:`, err instanceof Error ? err.message : String(err));
       server.json(res, 404, { error: "Agent not found" });
@@ -67,12 +67,12 @@ export function registerAgentRoutes(server: AgentApiServer) {
       server.json(res, 404, { error: "Agent not found" });
       return;
     }
-    const directReports = db.getDirectReports(agent.id, token.companyId);
+    const directReports = db.agents.getDirectReports(agent.id, token.companyId);
     const reportsTo = agent.reportsTo;
     const manager = reportsTo
       ? (() => {
           try {
-            return db.getAgent(reportsTo);
+            return db.entityCrud.getAgent(reportsTo);
           } catch (error) {
             log.warn(`[api/agents] manager lookup failed for ${reportsTo}: ${error instanceof Error ? error.message : String(error)}`);
             return null;
@@ -91,7 +91,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const agents = db.listAgentsForApi(params.companyId);
+    const agents = db.agents.listAgentsForApi(params.companyId);
     server.json(res, 200, agents);
   });
 
@@ -157,7 +157,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
       resolvedReportsTo &&
       resolvedReportsTo !== token.agentId &&
       !canManageOrganization(db, companyId, token.agentId) &&
-      !db.getChainOfCommand(resolvedReportsTo).some((agent) => agent.id === token.agentId)
+      !db.agents.getChainOfCommand(resolvedReportsTo).some((agent) => agent.id === token.agentId)
     ) {
       server.json(res, 403, { error: "Requested hire must report to you or a manager in your reporting chain." });
       return;
@@ -181,7 +181,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
     }
 
     // Prevent duplicate agents: reject if a non-terminated agent with the same name already exists
-    const existingAgents = db.listExistingAgentsForHireCheck(companyId);
+    const existingAgents = db.agents.listExistingAgentsForHireCheck(companyId);
     const duplicateByName = existingAgents.find(
       (a) => a.name.toLowerCase() === input.name.toLowerCase(),
     );
@@ -208,7 +208,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
     const managerLabel = resolvedReportsTo
       ? (() => {
         try {
-          return db.getAgent(resolvedReportsTo).name;
+          return db.entityCrud.getAgent(resolvedReportsTo).name;
         } catch (err) {
           log.warn(`[api/agents] getAgent failed for manager ${resolvedReportsTo}:`, err instanceof Error ? err.message : String(err));
           return resolvedReportsTo;

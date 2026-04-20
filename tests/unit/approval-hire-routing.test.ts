@@ -44,7 +44,7 @@ describe("hire approval routing", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const ceoId = db.saveAgent({
+    const ceoId = db.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -57,7 +57,7 @@ describe("hire approval routing", () => {
       capabilities: "Lead the company",
       budgetMonthlyUsd: 250,
     });
-    const ctoId = db.saveAgent({
+    const ctoId = db.agents.saveAgent({
       companyId,
       name: "CTO",
       role: "CTO",
@@ -116,7 +116,7 @@ describe("hire approval routing", () => {
       trackTimer: vi.fn(),
     }, approvalId, companyId, "approved");
 
-    expect(db.getAgent(hireId).status).toBe("idle");
+    expect(db.entityCrud.getAgent(hireId).status).toBe("idle");
     expect(dispatchAutomation).toHaveBeenCalledWith("approval_resolved", expect.objectContaining({ companyId, agentId: ctoId }));
     expect(dispatchAutomation).toHaveBeenCalledWith("hire_approved", expect.objectContaining({ companyId, agentId: hireId }));
     expect(wakeAgentIfPossible).toHaveBeenCalledWith(hireId, companyId, "assignment");

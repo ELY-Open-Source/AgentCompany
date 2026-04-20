@@ -52,7 +52,7 @@ describe("ipc-core-agent-graph-handlers model enforcement", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.saveAgent({
+    const agentId = db.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",

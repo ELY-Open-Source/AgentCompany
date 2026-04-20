@@ -133,7 +133,7 @@ export function registerMeetingRoutes(server: AgentApiServer) {
             );
             continue;
           }
-          db.saveTask({
+          db.tasks.saveTask({
             companyId: token.companyId,
             title: item.title,
             description: item.description ?? `Action item from meeting: ${data.title ?? existing.title}`,

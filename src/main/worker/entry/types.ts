@@ -85,8 +85,8 @@ export interface WorkerServiceDependencies {
   dispatchRunToWorker: (params: {
     runId: string;
     companyId: string;
-    agent: ReturnType<AppDatabase["getAgent"]>;
-    task: ReturnType<AppDatabase["getTask"]> | null;
+    agent: ReturnType<AppDatabase["entityCrud"]["getAgent"]>;
+    task: ReturnType<AppDatabase["entityCrud"]["getTask"]> | null;
     connector: ReturnType<AppDatabase["getConnector"]>;
     workspace: ReturnType<AppDatabase["getWorkspace"]>;
     workspaceMode: "exclusive" | "shared" | "none";

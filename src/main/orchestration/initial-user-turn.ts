@@ -30,7 +30,7 @@ const SUBJECT_PREVIEW_LEN = 80;
 export function resolveInitialUserTurn(
   params: {
     trigger: string | null;
-    task: ReturnType<AppDatabase["getTask"]> | null;
+    task: ReturnType<AppDatabase["entityCrud"]["getTask"]> | null;
     companyId: string;
     agentId: string;
   },
@@ -61,9 +61,9 @@ export function resolveInitialUserTurn(
   // mode prompt.
   if (trigger === "timer" || trigger === "bootstrap" || trigger === "app_restart_resume") {
     try {
-      const agent = deps.db.getAgent(agentId);
+      const agent = deps.db.entityCrud.getAgent(agentId);
       if (!agent.reportsTo) {
-        const activeReports = deps.db
+        const activeReports = deps.db.agents
           .getDirectReports(agentId, companyId)
           .filter((r) => r.status !== "pending_approval" && r.status !== "terminated");
         if (activeReports.length === 0) {
@@ -145,7 +145,7 @@ function buildGenericWakeTurn(trigger: string | null): string {
 
 function resolveAgentLabel(db: AppDatabase, agentId: string): string {
   try {
-    const name = db.findAgentName(agentId);
+    const name = db.agents.findAgentName(agentId);
     if (name && name.length > 0) return name;
   } catch {
     // fall through

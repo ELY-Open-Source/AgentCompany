@@ -20,12 +20,12 @@ export function registerMessageRoutes(server: AgentApiServer) {
       return;
     }
     try {
-      const task = db.getTask(requireParam(params, "issueId"));
+      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) {
         server.json(res, 404, { error: "Task not found" });
         return;
       }
-      const agent = db.getAgent(token.agentId);
+      const agent = db.entityCrud.getAgent(token.agentId);
       const comment = db.addComment({
         companyId: task.companyId,
         taskId: task.id,
@@ -44,14 +44,14 @@ export function registerMessageRoutes(server: AgentApiServer) {
         wokenForComment.add(task.assigneeAgentId);
       }
 
-      const chain = db.getChainOfCommand(token.agentId);
+      const chain = db.agents.getChainOfCommand(token.agentId);
       if (chain.length > 0 && chain[0].id !== token.agentId && !wokenForComment.has(chain[0].id)) {
         onWakeAgent(chain[0].id, task.companyId, "comment");
         wokenForComment.add(chain[0].id);
       }
 
       // @mention detection: wake any mentioned agents not already woken
-      const mentionedIds = db.findMentionedAgentIds(task.companyId, input.body);
+      const mentionedIds = db.agents.findMentionedAgentIds(task.companyId, input.body);
       for (const mentionedId of mentionedIds) {
         if (mentionedId !== token.agentId && !wokenForComment.has(mentionedId)) {
           onWakeAgent(mentionedId, task.companyId, "comment_mentioned");
@@ -68,7 +68,7 @@ export function registerMessageRoutes(server: AgentApiServer) {
 
   server.addRoute("GET", "/api/issues/:issueId/comments", (_req, res, params, token) => {
     try {
-      const task = db.getTask(requireParam(params, "issueId"));
+      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) {
         server.json(res, 404, { error: "Task not found" });
         return;

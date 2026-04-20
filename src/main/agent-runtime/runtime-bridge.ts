@@ -266,7 +266,7 @@ export class RuntimeBridge {
    */
   private resolveAgentName(agentId: string): string {
     try {
-      const name = this.deps.db.findAgentName(agentId);
+      const name = this.deps.db.agents.findAgentName(agentId);
       if (name && name.length > 0) return name;
     } catch (error) {
       this.deps.logger.warn(
@@ -384,7 +384,7 @@ export class RuntimeBridge {
   ) {
     if (envelope.taskId) {
       try {
-        const task = this.deps.db.getTask(envelope.taskId);
+        const task = this.deps.db.entityCrud.getTask(envelope.taskId);
         return ensureTaskThread(this.deps.db, envelope.taskId, envelope.companyId, task.title);
       } catch (error) {
         this.deps.logger.warn(

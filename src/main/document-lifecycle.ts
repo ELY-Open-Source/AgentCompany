@@ -190,7 +190,7 @@ function maybeRaiseDeliverableReviewApproval(
   const companySettings = deps.db.getCompanyApprovalSettings(input.companyId);
   if (!companySettings?.reviewDeliverables) return null;
   if (deps.db.getCompanyExecutionMode(input.companyId) === "ai_cofounder") return null;
-  if (deps.db.hasPendingDeliverableReviews(input.companyId)) return null;
+  if (deps.db.tasks.hasPendingDeliverableReviews(input.companyId)) return null;
 
   const approvalId = deps.db.requestApproval({
     companyId: input.companyId,
@@ -207,9 +207,9 @@ function maybeRaiseDeliverableReviewApproval(
 
   if (input.authorAgentId) {
     try {
-      const agent = deps.db.getAgent(input.authorAgentId);
+      const agent = deps.db.entityCrud.getAgent(input.authorAgentId);
       if (agent.heartbeatEnabled) {
-        deps.db.setHeartbeat(input.authorAgentId, false, agent.heartbeatIntervalSec || 120);
+        deps.db.agents.setHeartbeat(input.authorAgentId, false, agent.heartbeatIntervalSec || 120);
       }
     } catch (error) {
       deps.logger.warn(

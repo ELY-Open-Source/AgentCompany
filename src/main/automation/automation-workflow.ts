@@ -59,7 +59,7 @@ export function resolveWorkflowStepActor(
   companyId: string,
 ): AgentRecord | null {
   if (step.assigneeAgentId) {
-    const agent = db.getAgent(step.assigneeAgentId);
+    const agent = db.entityCrud.getAgent(step.assigneeAgentId);
     if (agent.companyId !== companyId) {
       throw new Error(`Workflow step assignee ${step.assigneeAgentId} does not belong to company ${companyId}.`);
     }
@@ -67,9 +67,9 @@ export function resolveWorkflowStepActor(
   }
 
   if (step.assigneeDepartment) {
-    const idleAgents = db.getIdleAgentsForDepartment(companyId, step.assigneeDepartment);
+    const idleAgents = db.agents.getIdleAgentsForDepartment(companyId, step.assigneeDepartment);
     if (idleAgents.length > 0) {
-      return db.getAgent(idleAgents[0]!.id);
+      return db.entityCrud.getAgent(idleAgents[0]!.id);
     }
   }
 

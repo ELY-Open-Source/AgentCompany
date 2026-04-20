@@ -20,7 +20,7 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
      */
     onTaskCreated(taskId: string, companyId: string): void {
       try {
-        const task = db.getTask(taskId);
+        const task = db.entityCrud.getTask(taskId);
         if (task.companyId !== companyId) return;
 
         const thread = ensureTaskThread(db, taskId, companyId, task.title);
@@ -53,7 +53,7 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
      */
     onTaskStatusChanged(taskId: string, companyId: string, previousStatus: string, newStatus: string): void {
       try {
-        const task = db.getTask(taskId);
+        const task = db.entityCrud.getTask(taskId);
         if (task.companyId !== companyId) return;
 
         const thread = ensureTaskThread(db, taskId, companyId, task.title);
@@ -105,7 +105,7 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
     onApprovalCreated(approvalId: string, companyId: string, taskId: string | null, approvalType: string, summary: string): void {
       try {
         const approval = db.getApprovalRecord(approvalId);
-        const task = taskId ? db.getTask(taskId) : null;
+        const task = taskId ? db.entityCrud.getTask(taskId) : null;
         const thread = task
           ? ensureTaskThread(db, task.id, companyId, task.title)
           : ensureApprovalThread(db, approvalId, companyId, summary || approval.payloadSummary);
@@ -181,7 +181,7 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
       try {
         if (!taskId) return;
 
-        db.getTask(taskId); // validates task exists and belongs to company
+        db.entityCrud.getTask(taskId); // validates task exists and belongs to company
         const thread = findTaskThread(db, taskId, companyId);
         if (!thread) return;
 
@@ -249,7 +249,7 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
         if (status === "succeeded") {
           const mode = db.getCompanyExecutionMode(companyId) as ExecutionMode;
           if (mode === "ai_cofounder") {
-            const task = db.getTask(taskId);
+            const task = db.entityCrud.getTask(taskId);
             const completionReason = `@Board review needed: Agent completed work on "${task.title}" — awaiting your review.`;
             db.setThreadWaitState({
               threadId: thread.id,
@@ -304,7 +304,7 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
             const thread = db.getThread(ws.threadId, companyId);
             if (!thread || thread.relatedEntityType !== "task" || !thread.relatedEntityId) continue;
             try {
-              const task = db.getTask(thread.relatedEntityId);
+              const task = db.entityCrud.getTask(thread.relatedEntityId);
               if (task.assigneeAgentId !== toAgentId) continue;
             } catch (err) {
               logger.warn(`[thread-integration] getTask failed for thread ${ws.threadId}:`, err instanceof Error ? err.message : String(err));

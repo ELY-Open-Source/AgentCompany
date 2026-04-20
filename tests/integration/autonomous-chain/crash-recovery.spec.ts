@@ -13,7 +13,7 @@ const { createAgent } = shared;
 describe("Step 7: Worker crash recovery (database layer)", () => {
   it("interruptStaleRuns clears running and queued runs on init", async () => {
     const agentId = createAgent({ name: "Agent" });
-    const taskId = shared.db.saveTask({
+    const taskId = shared.db.tasks.saveTask({
       companyId: shared.companyId,
       title: "In-progress task",
       description: "Running when crash happened",
@@ -51,7 +51,7 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
 
   it("finishRun can mark interrupted runs from crash recovery", () => {
     const agentId = createAgent({ name: "Agent" });
-    const taskId = shared.db.saveTask({
+    const taskId = shared.db.tasks.saveTask({
       companyId: shared.companyId,
       title: "Crash recovery task",
       description: "Test",

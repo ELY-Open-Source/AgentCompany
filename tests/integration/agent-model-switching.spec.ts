@@ -91,7 +91,7 @@ describe("agent model switching", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.saveAgent({
+    const agentId = db.agents.saveAgent({
       companyId,
       name: "Engineer",
       role: "Engineer",
@@ -107,7 +107,7 @@ describe("agent model switching", () => {
 
     const { enqueueWorkerRun, taskRunner } = createHarness(db);
 
-    const firstTaskId = db.saveTask({
+    const firstTaskId = db.tasks.saveTask({
       companyId,
       title: "Initial model task",
       description: "Use the first model for this run.",
@@ -137,7 +137,7 @@ describe("agent model switching", () => {
       unattributedCost: true,
     });
 
-    db.saveAgent({
+    db.agents.saveAgent({
       id: agentId,
       companyId,
       name: "Engineer",
@@ -152,7 +152,7 @@ describe("agent model switching", () => {
       budgetMonthlyUsd: 200,
     });
 
-    const secondTaskId = db.saveTask({
+    const secondTaskId = db.tasks.saveTask({
       companyId,
       title: "Updated model task",
       description: "Use the new model for this run.",

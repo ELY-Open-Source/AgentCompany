@@ -38,17 +38,17 @@ export function registerTaskRoutes(server: AgentApiServer) {
     const statuses = statusFilter ? statusFilter.split(",") : ["todo", "in_progress", "blocked"];
 
     if (assigneeAgentId) {
-      const tasks = db.listAgentTasks(assigneeAgentId, companyId, statuses);
+      const tasks = db.tasks.listAgentTasks(assigneeAgentId, companyId, statuses);
       server.json(res, 200, tasks);
     } else {
-      const tasks = db.listTasksByStatuses(companyId, statuses);
+      const tasks = db.tasks.listTasksByStatuses(companyId, statuses);
       server.json(res, 200, tasks);
     }
   });
 
   server.addRoute("GET", "/api/issues/:issueId", (_req, res, params, token) => {
     try {
-      const task = db.getTask(requireParam(params, "issueId"));
+      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) {
         server.json(res, 404, { error: "Task not found" });
         return;
@@ -73,7 +73,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
     }
     let task;
     try {
-      task = db.getTask(requireParam(params, "issueId"));
+      task = db.entityCrud.getTask(requireParam(params, "issueId"));
     } catch (err) {
       log.warn(`[api/tasks] getTask failed for checkout:`, err instanceof Error ? err.message : String(err));
       server.json(res, 404, { error: "Task not found" });
@@ -88,7 +88,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
       return;
     }
     const previousStatus = task.status;
-    const success = db.checkoutTask(task.id, token.runId);
+    const success = db.tasks.checkoutTask(task.id, token.runId);
     if (!success) {
       server.json(res, 409, { error: "Task cannot be checked out — already assigned or not in valid status" });
       return;
@@ -108,7 +108,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
     const update = parsedUpdate.data;
 
     try {
-      const task = db.getTask(requireParam(params, "issueId"));
+      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) {
         server.json(res, 404, { error: "Task not found" });
         return;
@@ -134,7 +134,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
           taskId: task.id,
           limit: 10,
         });
-        const reviewerAgent = db.getAgent(token.agentId);
+        const reviewerAgent = db.entityCrud.getAgent(token.agentId);
         const docTitles = docs.map((d) => d.title).join(", ");
         db.requestApproval({
           companyId: task.companyId,
@@ -145,11 +145,11 @@ export function registerTaskRoutes(server: AgentApiServer) {
           impactSummary: `${reviewerAgent.name} reviewed and approved. Awaiting your final review.`.slice(0, 400),
           payloadJson: JSON.stringify({ documentIds: docs.map((d) => d.id), documents: docs }),
         });
-        db.setTaskRequiresUserReview(task.id, false);
+        db.tasks.setTaskRequiresUserReview(task.id, false);
         if (task.assigneeAgentId) {
-          const prodAgent = db.getAgent(task.assigneeAgentId);
+          const prodAgent = db.entityCrud.getAgent(task.assigneeAgentId);
           if (prodAgent.heartbeatEnabled) {
-            db.setHeartbeat(task.assigneeAgentId, false, prodAgent.heartbeatIntervalSec || 120);
+            db.agents.setHeartbeat(task.assigneeAgentId, false, prodAgent.heartbeatIntervalSec || 120);
           }
         }
         db.addComment({ companyId: task.companyId, taskId: task.id, authorAgentId: null, authorName: "System", body: "Deliverable submitted for board review." });
@@ -169,7 +169,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
       // advanceTaskStatus checks previousStatus !== newStatus internally,
       // so it must run before saveTask writes the new status.
       if (update.status && update.status !== task.status) {
-        db.advanceTaskStatus(task.id, update.status);
+        db.tasks.advanceTaskStatus(task.id, update.status);
       }
 
       const input: Record<string, unknown> = {
@@ -185,10 +185,10 @@ export function registerTaskRoutes(server: AgentApiServer) {
         assigneeAgentId: newAssignee,
         workspaceId: task.workspaceId,
       };
-      db.saveTask(input as Parameters<typeof db.saveTask>[0]);
+      db.tasks.saveTask(input as Parameters<typeof db.tasks.saveTask>[0]);
 
       if (update.comment) {
-        const agent = db.getAgent(token.agentId);
+        const agent = db.entityCrud.getAgent(token.agentId);
         db.addComment({
           companyId: task.companyId,
           taskId: task.id,
@@ -219,7 +219,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
       if (update.status && ["done", "in_review"].includes(update.status)) {
         if (task.parentId) {
           try {
-            const parentTask = db.getTask(task.parentId);
+            const parentTask = db.entityCrud.getTask(task.parentId);
             if (parentTask.assigneeAgentId && parentTask.assigneeAgentId !== token.agentId) {
               onWakeAgent(parentTask.assigneeAgentId, task.companyId, "subtask_completed");
             }
@@ -233,7 +233,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
           // This is not a subtask — use a distinct wake reason so the
           // reviewer prompt does not misframe the work as "a subtask
           // you delegated".
-          const chain = db.getChainOfCommand(token.agentId);
+          const chain = db.agents.getChainOfCommand(token.agentId);
           if (chain.length > 0) {
             onWakeAgent(chain[0].id, task.companyId, "task_review_requested");
           }
@@ -241,7 +241,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
       }
 
       if (update.status === "blocked") {
-        const chain = db.getChainOfCommand(token.agentId);
+        const chain = db.agents.getChainOfCommand(token.agentId);
         if (chain.length > 0) {
           onWakeAgent(chain[0].id, task.companyId, "report_blocked");
         }
@@ -261,7 +261,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
           onWakeAgent(task.assigneeAgentId, task.companyId, "comment");
           wokenForComment.add(task.assigneeAgentId);
         }
-        const chain = db.getChainOfCommand(token.agentId);
+        const chain = db.agents.getChainOfCommand(token.agentId);
         if (chain.length > 0 && chain[0].id !== token.agentId && !wokenForComment.has(chain[0].id)) {
           onWakeAgent(chain[0].id, task.companyId, "comment");
         }
@@ -333,7 +333,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
 
     let id: string;
     try {
-      id = db.saveTask({
+      id = db.tasks.saveTask({
         companyId,
         title: input.title,
         description: input.description ?? "",
@@ -352,9 +352,9 @@ export function registerTaskRoutes(server: AgentApiServer) {
 
     // Auto-infer task_type from assignee's department
     if (input.assigneeAgentId) {
-      const assignee = db.getAgent(input.assigneeAgentId);
+      const assignee = db.entityCrud.getAgent(input.assigneeAgentId);
       const inferredType = inferTaskType(assignee.department);
-      db.setTaskType(id, inferredType);
+      db.tasks.setTaskType(id, inferredType);
     }
 
     db.addActivity({

@@ -41,7 +41,7 @@ function createScaffold(db: AppDatabase) {
     repoRef: "",
     isPrimary: true,
   });
-  const ceoId = db.saveAgent({
+  const ceoId = db.agents.saveAgent({
     companyId,
     name: "CEO",
     role: "CEO",
@@ -54,7 +54,7 @@ function createScaffold(db: AppDatabase) {
     capabilities: "Lead the company",
     budgetMonthlyUsd: 250,
   });
-  const ctoId = db.saveAgent({
+  const ctoId = db.agents.saveAgent({
     companyId,
     name: "CTO",
     role: "CTO",
@@ -68,7 +68,7 @@ function createScaffold(db: AppDatabase) {
     budgetMonthlyUsd: 200,
     department: "engineering",
   });
-  const cmoId = db.saveAgent({
+  const cmoId = db.agents.saveAgent({
     companyId,
     name: "CMO",
     role: "CMO",
@@ -82,7 +82,7 @@ function createScaffold(db: AppDatabase) {
     budgetMonthlyUsd: 200,
     department: "marketing",
   });
-  const pendingId = db.saveAgent({
+  const pendingId = db.agents.saveAgent({
     companyId,
     name: "Pending Recruit",
     role: "IC",
@@ -96,7 +96,7 @@ function createScaffold(db: AppDatabase) {
     budgetMonthlyUsd: 100,
     department: "engineering",
   });
-  const terminatedId = db.saveAgent({
+  const terminatedId = db.agents.saveAgent({
     companyId,
     name: "Former COO",
     role: "COO",
@@ -111,7 +111,7 @@ function createScaffold(db: AppDatabase) {
     department: "operations",
   });
 
-  const taskId = db.saveTask({
+  const taskId = db.tasks.saveTask({
     companyId,
     title: "Review architecture plan",
     description: "Need board feedback in the thread.",

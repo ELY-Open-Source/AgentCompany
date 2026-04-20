@@ -39,7 +39,7 @@ function scaffold(db: AppDatabase) {
     repoRef: "",
     isPrimary: true,
   });
-  const agentId = db.saveAgent({
+  const agentId = db.agents.saveAgent({
     companyId,
     name: "Worker Agent",
     role: "developer",
@@ -68,7 +68,7 @@ function scaffold(db: AppDatabase) {
     status: "in_progress",
     targetDate: null,
   });
-  const taskId = db.saveTask({
+  const taskId = db.tasks.saveTask({
     companyId,
     projectId,
     goalId,
@@ -135,11 +135,11 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       workspaceId,
       connectorId: "gemini-cli",
     });
-    db.checkoutTask(taskId, run1.id);
+    db.tasks.checkoutTask(taskId, run1.id);
     db.markRunStatus(run1.id, "running", "");
 
     // Create a second task and run that exhausts budget WHILE Run-1 is in-flight
-    const taskId2 = db.saveTask({
+    const taskId2 = db.tasks.saveTask({
       companyId,
       title: "Other Task",
       description: "Another task that uses up budget",
@@ -155,7 +155,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       workspaceId,
       connectorId: "gemini-cli",
     });
-    db.checkoutTask(taskId2, run0.id);
+    db.tasks.checkoutTask(taskId2, run0.id);
     db.markRunStatus(run0.id, "running", "");
     // Complete Run-0 with $6 cost (exceeds $5 budget)
     db.recordCostEntry({ runId: run0.id, companyId, agentId, taskId: taskId2, connectorId: "gemini-cli", amountUsd: 6.0, unattributed: false });
@@ -221,7 +221,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       workspaceId,
       connectorId: "gemini-cli",
     });
-    db.checkoutTask(taskId, run.id);
+    db.tasks.checkoutTask(taskId, run.id);
     db.markRunStatus(run.id, "running", "");
     db.recordCostEntry({ runId: run.id, companyId, agentId, taskId, connectorId: "gemini-cli", amountUsd: 6.0, unattributed: false });
     db.finishRun({
@@ -269,7 +269,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       workspaceId,
       connectorId: "gemini-cli",
     });
-    db.checkoutTask(taskId, run.id);
+    db.tasks.checkoutTask(taskId, run.id);
     db.markRunStatus(run.id, "running", "");
     db.recordCostEntry({ runId: run.id, companyId, agentId, taskId, connectorId: "gemini-cli", amountUsd: 6.0, unattributed: false });
     db.finishRun({
@@ -326,7 +326,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       workspaceId,
       connectorId: "gemini-cli",
     });
-    db.checkoutTask(taskId, run.id);
+    db.tasks.checkoutTask(taskId, run.id);
     db.markRunStatus(run.id, "running", "");
     db.recordCostEntry({ runId: run.id, companyId, agentId, taskId, connectorId: "gemini-cli", amountUsd: 1.5, unattributed: false });
     db.finishRun({
@@ -378,7 +378,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       workspaceId,
       connectorId: "gemini-cli",
     });
-    db.checkoutTask(taskId, run.id);
+    db.tasks.checkoutTask(taskId, run.id);
     db.markRunStatus(run.id, "running", "");
     db.recordCostEntry({ runId: run.id, companyId, agentId, taskId, connectorId: "gemini-cli", amountUsd: 4.0, unattributed: false });
     db.finishRun({
@@ -424,7 +424,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
       workspaceId,
       connectorId: "gemini-cli",
     });
-    db.checkoutTask(taskId, run.id);
+    db.tasks.checkoutTask(taskId, run.id);
     db.markRunStatus(run.id, "running", "");
 
     // Complete with cost that exceeds budget -- cost entry is still recorded

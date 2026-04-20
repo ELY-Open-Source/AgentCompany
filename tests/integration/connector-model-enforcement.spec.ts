@@ -90,7 +90,7 @@ describe("connector model enforcement", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.saveAgent({
+    const agentId = db.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -103,7 +103,7 @@ describe("connector model enforcement", () => {
       capabilities: "Lead the company",
       budgetMonthlyUsd: 250,
     });
-    const taskId = db.saveTask({
+    const taskId = db.tasks.saveTask({
       companyId,
       title: "Run with invalid model",
       description: "This task should be blocked because the agent model is disabled.",
@@ -154,7 +154,7 @@ describe("connector model enforcement", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.saveAgent({
+    const agentId = db.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -167,7 +167,7 @@ describe("connector model enforcement", () => {
       capabilities: "Lead the company",
       budgetMonthlyUsd: 250,
     });
-    const taskId = db.saveTask({
+    const taskId = db.tasks.saveTask({
       companyId,
       title: "Recover queued run",
       description: "This queued run should fail on recovery because the model is disabled.",
@@ -184,7 +184,7 @@ describe("connector model enforcement", () => {
       workspaceId,
       connectorId: "openai-codex",
     });
-    const checkoutSuccess = db.checkoutTask(taskId, run.id);
+    const checkoutSuccess = db.tasks.checkoutTask(taskId, run.id);
     expect(checkoutSuccess).toBe(true);
 
     db.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);

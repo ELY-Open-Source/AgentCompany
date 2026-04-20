@@ -85,9 +85,9 @@ export function createOnboardingService({
 }: OnboardingDependencies) {
   function updateAgentWorkspaceBinding(agentId: string, workspaceId: string | null) {
     if (!workspaceId) return;
-    const agent = db.getAgent(agentId);
+    const agent = db.entityCrud.getAgent(agentId);
     if (agent.workspaceId === workspaceId) return;
-    db.saveAgent({
+    db.agents.saveAgent({
       id: agent.id,
       companyId: agent.companyId,
       name: agent.name,
@@ -187,7 +187,7 @@ export function createOnboardingService({
           `Review the current company state, create the first real tasks, delegate initial work, and report progress through tasks, approvals, and messages.`,
         ].join("\n\n");
 
-    const taskId = db.saveTask({
+    const taskId = db.tasks.saveTask({
       companyId,
       projectId,
       goalId: activeGoal?.id ?? null,
@@ -260,7 +260,7 @@ export function createOnboardingService({
     }
 
     const ceoLocale = getLocale();
-    const ceoId = db.saveAgent({
+    const ceoId = db.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -279,7 +279,7 @@ export function createOnboardingService({
       modelStrategy: "explicit",
       roleLevel: "c_suite",
     });
-    db.setHeartbeat(ceoId, true, 120);
+    db.agents.setHeartbeat(ceoId, true, 120);
     db.setCurrentCompany(companyId);
     seedDefaultAutomationRules(companyId);
 

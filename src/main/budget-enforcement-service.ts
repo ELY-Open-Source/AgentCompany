@@ -31,7 +31,7 @@ function getScopeLabel(
 ): string {
   if (policy.scopeType === "agent") {
     try {
-      const agent = db.getAgent(policy.scopeId);
+      const agent = db.entityCrud.getAgent(policy.scopeId);
       return `Agent "${agent.name}"`;
     } catch (err) {
       logger.warn(`[budget] getAgent failed for scope ${policy.scopeId}:`, err instanceof Error ? err.message : String(err));

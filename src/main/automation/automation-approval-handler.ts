@@ -30,7 +30,7 @@ function recordReviewFeedbackKnowledge(
   if (!approval.relatedTaskId) return;
   if (decision === "approved") return;
 
-  const task = db.getTask(approval.relatedTaskId);
+  const task = db.entityCrud.getTask(approval.relatedTaskId);
   const feedback = approval.decisionNote?.trim() || "Board requested revisions before approval.";
   const topic = `Review feedback: ${task.title}`;
   const content = [
@@ -95,7 +95,7 @@ export function handleApprovalResolved(
   });
 
   if (approval.type === "hire_agent" && decision === "approved" && approval.relatedAgentId) {
-    const agent = db.getAgent(approval.relatedAgentId);
+    const agent = db.entityCrud.getAgent(approval.relatedAgentId);
 
     if (agent.status === "idle") {
       // Deterministic default skill kit. The CEO's operating prompt
@@ -136,7 +136,7 @@ export function handleApprovalResolved(
       });
       wakeAgentIfPossible(agent.id, companyId, "assignment");
 
-      const ceo = db.getCeoForCompany(companyId);
+      const ceo = db.agents.getCeoForCompany(companyId);
       if (ceo && ceo.id !== agent.id) {
         wakeAgentIfPossible(ceo.id, companyId, "assignment");
       }
@@ -174,27 +174,27 @@ export function handleApprovalResolved(
     }
 
     if (approval.relatedTaskId) {
-      const task = db.getTask(approval.relatedTaskId);
+      const task = db.entityCrud.getTask(approval.relatedTaskId);
       if (task.assigneeAgentId) {
-        const agent = db.getAgent(task.assigneeAgentId);
+        const agent = db.entityCrud.getAgent(task.assigneeAgentId);
         if (!agent.heartbeatEnabled) {
-          db.setHeartbeat(task.assigneeAgentId, true, agent.heartbeatIntervalSec || 120);
+          db.agents.setHeartbeat(task.assigneeAgentId, true, agent.heartbeatIntervalSec || 120);
           logger.info(`[deliverable-review] Resumed heartbeat for ${agent.name} after user ${decision}.`);
         }
       }
       if (decision === "approved") {
-        db.advanceTaskStatus(task.id, "done", "Board approved deliverable.");
+        db.tasks.advanceTaskStatus(task.id, "done", "Board approved deliverable.");
         handleTaskStatusChange(task.id, companyId, task.status, "done");
         db.addActivity({ companyId, actor: "board", action: "deliverable.approved", entityType: "task", entityId: task.id, detail: approval.decisionNote || "Deliverable approved by board." });
       } else if (decision === "rejected") {
         recordReviewFeedbackKnowledge(db, approval, decision);
-        db.advanceTaskStatus(task.id, "in_progress", `Board rejected deliverable: ${approval.decisionNote || "No reason given."}`);
+        db.tasks.advanceTaskStatus(task.id, "in_progress", `Board rejected deliverable: ${approval.decisionNote || "No reason given."}`);
         handleTaskStatusChange(task.id, companyId, task.status, "in_progress");
         if (task.assigneeAgentId) {
           wakeAgentIfPossible(task.assigneeAgentId, companyId, "revision_needed");
         }
       } else if (decision === "revision_requested") {
-        db.advanceTaskStatus(task.id, "in_progress", `Board requested revisions: ${approval.decisionNote || "No reason given."}`);
+        db.tasks.advanceTaskStatus(task.id, "in_progress", `Board requested revisions: ${approval.decisionNote || "No reason given."}`);
         handleTaskStatusChange(task.id, companyId, task.status, "in_progress");
         recordReviewFeedbackKnowledge(db, approval, decision);
         if (task.assigneeAgentId) {
@@ -202,9 +202,9 @@ export function handleApprovalResolved(
         }
       }
     } else if (approval.requestedByAgentId) {
-      const agent = db.getAgent(approval.requestedByAgentId);
+      const agent = db.entityCrud.getAgent(approval.requestedByAgentId);
       if (!agent.heartbeatEnabled) {
-        db.setHeartbeat(approval.requestedByAgentId, true, agent.heartbeatIntervalSec || 120);
+        db.agents.setHeartbeat(approval.requestedByAgentId, true, agent.heartbeatIntervalSec || 120);
         logger.info(`[deliverable-review] Resumed heartbeat for ${agent.name} after user ${decision}.`);
       }
       if (decision !== "approved") {

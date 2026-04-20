@@ -79,7 +79,7 @@ function scaffold(db: AppDatabase, budgetAmountCents = 500): ScaffoldResult {
     isPrimary: true,
   });
 
-  const agentId = db.saveAgent({
+  const agentId = db.agents.saveAgent({
     companyId,
     name: "PipelineAgent",
     role: "IC",
@@ -175,7 +175,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     expect(validation.errors).toHaveLength(0);
 
     // Create the task in the DB
-    const taskId = db.saveTask({
+    const taskId = db.tasks.saveTask({
       companyId: s.companyId,
       title: "Build login page",
       description:
@@ -194,7 +194,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       workspaceId: s.workspaceId,
       connectorId: s.connectorId,
     });
-    const checkoutResult = db.checkoutTask(taskId, runId);
+    const checkoutResult = db.tasks.checkoutTask(taskId, runId);
     expect(checkoutResult).toBe(true);
 
     // 3. Budget gate: verify run is allowed
@@ -221,7 +221,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     });
 
     // 5. Session management: create session and track usage
-    const sessionId = db.createNewSession({
+    const sessionId = db.tasks.createNewSession({
       companyId: s.companyId,
       agentId: s.agentId,
       adapterType: "gemini-cli",
@@ -232,10 +232,10 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     const run = db.getRun(runId);
     expect(run.status).toBe("succeeded");
 
-    const task = db.getTask(taskId);
+    const task = db.entityCrud.getTask(taskId);
     expect(task.costUsd).toBeGreaterThan(0);
 
-    const session = db.getSessionById(sessionId);
+    const session = db.tasks.getSessionById(sessionId);
     expect(session).not.toBeNull();
     expect(session!.totalInputTokens).toBe(5000);
     expect(session!.totalOutputTokens).toBe(2000);
@@ -254,7 +254,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
   it("CAS prevents double checkout within pipeline", () => {
     const s = scaffold(db);
 
-    const taskId = db.saveTask({
+    const taskId = db.tasks.saveTask({
       companyId: s.companyId,
       title: "Concurrent Task",
       description:
@@ -273,10 +273,10 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       workspaceId: s.workspaceId,
       connectorId: s.connectorId,
     });
-    expect(db.checkoutTask(taskId, runId1)).toBe(true);
+    expect(db.tasks.checkoutTask(taskId, runId1)).toBe(true);
 
     // Second agent creates a run but cannot check out
-    const agent2Id = db.saveAgent({
+    const agent2Id = db.agents.saveAgent({
       companyId: s.companyId,
       name: "Agent2",
       role: "IC",
@@ -296,7 +296,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       workspaceId: s.workspaceId,
       connectorId: s.connectorId,
     });
-    expect(db.checkoutTask(taskId, runId2)).toBe(false);
+    expect(db.tasks.checkoutTask(taskId, runId2)).toBe(false);
   });
 
   it("budget gate blocks run when policy exhausted", () => {
@@ -311,7 +311,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     });
 
     // Create and complete a run that exceeds the budget
-    const taskId = db.saveTask({
+    const taskId = db.tasks.saveTask({
       companyId: s.companyId,
       title: "Expensive Task",
       description:
@@ -330,7 +330,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       connectorId: s.connectorId,
     });
 
-    db.checkoutTask(taskId, runId);
+    db.tasks.checkoutTask(taskId, runId);
     db.markRunStatus(runId, "running", "Starting");
     db.recordCostEntry({ runId, companyId: s.companyId, agentId: s.agentId, taskId, connectorId: s.connectorId, amountUsd: 1.5, unattributed: false });
     db.finishRun({
@@ -363,7 +363,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       logger: mockLogger,
     });
 
-    const taskId = db.saveTask({
+    const taskId = db.tasks.saveTask({
       companyId: s.companyId,
       title: "Multi-Run Task",
       description:
@@ -375,7 +375,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     });
 
     // Create session
-    const sessionId = db.createNewSession({
+    const sessionId = db.tasks.createNewSession({
       companyId: s.companyId,
       agentId: s.agentId,
       adapterType: "gemini-cli",
@@ -402,7 +402,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     sessionService.accumulateTokenUsage(sessionId, 3000, 1000, runId2);
 
     // Verify accumulated session state
-    const session = db.getSessionById(sessionId);
+    const session = db.tasks.getSessionById(sessionId);
     expect(session).not.toBeNull();
     expect(session!.runCount).toBe(2);
     expect(session!.totalInputTokens).toBe(8000);
@@ -421,7 +421,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     });
 
     // --- First run: costs $3, budget allows ---
-    const taskId1 = db.saveTask({
+    const taskId1 = db.tasks.saveTask({
       companyId: s.companyId,
       title: "First Pipeline Task",
       description:
@@ -439,7 +439,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       workspaceId: s.workspaceId,
       connectorId: s.connectorId,
     });
-    db.checkoutTask(taskId1, runId1);
+    db.tasks.checkoutTask(taskId1, runId1);
     db.markRunStatus(runId1, "running", "Starting");
     db.recordCostEntry({ runId: runId1, companyId: s.companyId, agentId: s.agentId, taskId: taskId1, connectorId: s.connectorId, amountUsd: 3.0, unattributed: false });
     db.finishRun({
@@ -462,7 +462,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     expect(afterFirst.allowed).toBe(true);
 
     // --- Second run: costs $3, now total = $6 > $5 budget ---
-    const taskId2 = db.saveTask({
+    const taskId2 = db.tasks.saveTask({
       companyId: s.companyId,
       title: "Second Pipeline Task",
       description:
@@ -480,7 +480,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       workspaceId: s.workspaceId,
       connectorId: s.connectorId,
     });
-    db.checkoutTask(taskId2, runId2);
+    db.tasks.checkoutTask(taskId2, runId2);
     db.markRunStatus(runId2, "running", "Starting");
     db.recordCostEntry({ runId: runId2, companyId: s.companyId, agentId: s.agentId, taskId: taskId2, connectorId: s.connectorId, amountUsd: 3.0, unattributed: false });
     db.finishRun({

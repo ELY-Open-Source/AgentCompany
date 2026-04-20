@@ -190,10 +190,10 @@ function createDeliverableReviewApproval(
     impactSummary: reviewerNote ?? "Agent completed work with important deliverables. Awaiting your final review.",
     payloadJson: JSON.stringify({ documentIds: docs.map((d) => d.id), documents: docs }),
   });
-  db.setTaskRequiresUserReview(taskId, false);
-  const agent = db.getAgent(agentId);
+  db.tasks.setTaskRequiresUserReview(taskId, false);
+  const agent = db.entityCrud.getAgent(agentId);
   if (agent.heartbeatEnabled) {
-    db.setHeartbeat(agentId, false, agent.heartbeatIntervalSec || 120);
+    db.agents.setHeartbeat(agentId, false, agent.heartbeatIntervalSec || 120);
     logger.info(`[deliverable-review] Paused heartbeat for ${agent.name} — awaiting user review.`);
   }
   notify({
@@ -228,7 +228,7 @@ function createDeliverableReviewApproval(
  */
 function decideTerminalStatus(
   db: RunCompletionDeps["db"],
-  agent: ReturnType<RunCompletionDeps["db"]["getAgent"]>,
+  agent: ReturnType<RunCompletionDeps["db"]["entityCrud"]["getAgent"]>,
   companyId: string,
 ): "in_review" | "done" {
   if (agent.reportsTo !== null) return "in_review";
@@ -247,7 +247,7 @@ function advanceToDone(
   statusMessage: string,
 ): void {
   const { db, publishDomainChanged } = deps;
-  db.advanceTaskStatus(taskId, "done", statusMessage);
+  db.tasks.advanceTaskStatus(taskId, "done", statusMessage);
   callbacks.handleTaskStatusChange(taskId, run.companyId, "in_progress", "done");
   publishDomainChanged();
 }
@@ -268,22 +268,22 @@ function advanceToInReview(
   // expected (`ai_cofounder` mode or `reviewDeliverables = true`), so
   // pre-flagging here is the right semantics — the human IS the
   // reviewer in those configurations.
-  const agent = db.getAgent(run.agentId);
+  const agent = db.entityCrud.getAgent(run.agentId);
   if (agent.reportsTo === null) {
-    db.setTaskRequiresUserReview(taskId, true);
+    db.tasks.setTaskRequiresUserReview(taskId, true);
   }
-  db.advanceTaskStatus(taskId, "in_review", statusMessage);
+  db.tasks.advanceTaskStatus(taskId, "in_review", statusMessage);
   callbacks.handleTaskStatusChange(taskId, run.companyId, "in_progress", "in_review");
   const company = db.listSnapshot().companies.find((c) => c.id === run.companyId);
   if (company?.reviewDeliverables) {
     const importantDocs = findImportantDocsForRun(db, run.id, run.companyId);
     if (importantDocs.length > 0) {
-      db.setTaskRequiresUserReview(taskId, true);
+      db.tasks.setTaskRequiresUserReview(taskId, true);
       if (agent.heartbeatEnabled) {
-        db.setHeartbeat(agent.id, false, agent.heartbeatIntervalSec || 120);
+        db.agents.setHeartbeat(agent.id, false, agent.heartbeatIntervalSec || 120);
         logger.info(`[deliverable-review] Paused heartbeat for ${agent.name} — deliverable flagged for review.`);
       }
-      const chain = db.getChainOfCommand(agent.id);
+      const chain = db.agents.getChainOfCommand(agent.id);
       if (chain.length === 0) {
         createDeliverableReviewApproval(deps, run.companyId, taskId, run.agentId, importantDocs);
       }
@@ -305,7 +305,7 @@ function advanceSuccessfulRun(
   taskId: string,
   statusMessage: string,
 ): "in_review" | "done" {
-  const agent = deps.db.getAgent(run.agentId);
+  const agent = deps.db.entityCrud.getAgent(run.agentId);
   const target = decideTerminalStatus(deps.db, agent, run.companyId);
   if (target === "done") {
     advanceToDone(deps, callbacks, run, taskId, statusMessage);
@@ -327,9 +327,9 @@ export function processRunCompletion(
   const { dispatchAutomation, handleTaskStatusChange } = callbacks;
 
   if (!run.taskId) return;
-  let task: ReturnType<typeof db.getTask> | null = null;
+  let task: ReturnType<typeof db.entityCrud.getTask> | null = null;
   try {
-    task = db.getTask(run.taskId);
+    task = db.entityCrud.getTask(run.taskId);
   } catch (error) {
     deps.logger.warn(`[automation] processRunCompletion: task ${run.taskId} not found for run ${run.id}:`, error);
     return;
@@ -363,7 +363,7 @@ export function processRunCompletion(
         // the task in the manager's blocker queue with the diagnostic
         // comment attached; the manager patches it back to `todo` (or
         // `cancelled`) after deciding how to proceed.
-        db.advanceTaskStatus(
+        db.tasks.advanceTaskStatus(
           task.id,
           "blocked",
           `${taskType} task run completed but no deliverable artifact was detected. Flagging for manager review.`,
@@ -371,8 +371,8 @@ export function processRunCompletion(
         handleTaskStatusChange(task.id, run.companyId, "in_progress", "blocked");
         // Wake manager for review
         try {
-          const agent = db.getAgent(run.agentId);
-          const chain = db.getChainOfCommand(agent.id);
+          const agent = db.entityCrud.getAgent(run.agentId);
+          const chain = db.agents.getChainOfCommand(agent.id);
           if (chain.length > 0) {
             wakeAgentIfPossible(chain[0].id, run.companyId, "review_needed");
           }
@@ -414,7 +414,7 @@ export function processRunCompletion(
     runId: run.id,
   };
   try {
-    const agent = db.getAgent(run.agentId);
+    const agent = db.entityCrud.getAgent(run.agentId);
     automationContext.department = agent.department ?? undefined;
   } catch (err) {
     deps.logger.warn(`[automation] getAgent failed for ${run.agentId} during run completion; dropping department from context:`, err instanceof Error ? err.message : String(err));
@@ -424,14 +424,14 @@ export function processRunCompletion(
     dispatchAutomation("run_completed", automationContext);
     if (task.parentId) {
       try {
-        const siblings = db.listChildTasks(task.parentId, run.companyId);
+        const siblings = db.tasks.listChildTasks(task.parentId, run.companyId);
         const allSiblingsDoneOrReview = siblings.every((entry) => entry.status === "done" || entry.status === "in_review");
         if (allSiblingsDoneOrReview) {
-          const parent = db.getTask(task.parentId);
+          const parent = db.entityCrud.getTask(task.parentId);
           if (parent.assigneeAgentId) {
             wakeAgentIfPossible(parent.assigneeAgentId, run.companyId, "subtask_completed");
           } else {
-            const assignedId = db.autoAssignTask(parent.id, run.companyId);
+            const assignedId = db.tasks.autoAssignTask(parent.id, run.companyId);
             if (assignedId) {
               wakeAgentIfPossible(assignedId, run.companyId, "subtask_completed");
             }
@@ -452,7 +452,7 @@ export function processRunCompletion(
   // just read the post-run spend and fire if it crosses 80%.
   if (isSuccess) {
     try {
-      const agent = db.getAgent(run.agentId);
+      const agent = db.entityCrud.getAgent(run.agentId);
       if (agent.budgetMonthlyUsd > 0) {
         const utilization = agent.spentMonthlyUsd / agent.budgetMonthlyUsd;
         if (utilization >= 0.8) {

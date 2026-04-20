@@ -36,7 +36,7 @@ export async function notifyHireApproved(
   try {
     let agent;
     try {
-      agent = db.getAgent(input.agentId);
+      agent = db.entityCrud.getAgent(input.agentId);
     } catch (err) {
       const classified = classifyUnknownError(err, {
         kind: "recoverable",

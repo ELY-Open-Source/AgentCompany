@@ -41,9 +41,9 @@ export function handleTaskStatusChange(
   const { db, wakeAgentIfPossible } = deps;
   const { dispatchAutomation } = callbacks;
 
-  let task: ReturnType<typeof db.getTask> | null = null;
+  let task: ReturnType<typeof db.entityCrud.getTask> | null = null;
   try {
-    task = db.getTask(taskId);
+    task = db.entityCrud.getTask(taskId);
   } catch (error) {
     deps.logger.warn(`[automation] handleTaskStatusChange: task ${taskId} not found:`, error);
     return;
@@ -68,7 +68,7 @@ export function handleTaskStatusChange(
   };
   try {
     if (task.assigneeAgentId) {
-      const agent = db.getAgent(task.assigneeAgentId);
+      const agent = db.entityCrud.getAgent(task.assigneeAgentId);
       context.department = agent.department ?? undefined;
     }
   } catch (error) {
@@ -80,7 +80,7 @@ export function handleTaskStatusChange(
   if (newStatus === "blocked") {
     dispatchAutomation("task_blocked", context);
     if (task.assigneeAgentId) {
-      const manager = db.getManagerForAgent(task.assigneeAgentId);
+      const manager = db.agents.getManagerForAgent(task.assigneeAgentId);
       if (manager) {
         wakeAgentIfPossible(manager.id, companyId, "report_blocked");
       }
@@ -89,14 +89,14 @@ export function handleTaskStatusChange(
 
   if (newStatus === "done" && task.parentId) {
     try {
-      const siblings = db.listChildTasks(task.parentId, companyId);
+      const siblings = db.tasks.listChildTasks(task.parentId, companyId);
       const allDone = siblings.every((entry) => entry.id === taskId ? true : entry.status === "done");
       if (allDone) {
-        const parent = db.getTask(task.parentId);
+        const parent = db.entityCrud.getTask(task.parentId);
         if (parent.assigneeAgentId) {
           wakeAgentIfPossible(parent.assigneeAgentId, companyId, "subtask_completed");
         } else {
-          const assignedId = db.autoAssignTask(parent.id, companyId);
+          const assignedId = db.tasks.autoAssignTask(parent.id, companyId);
           if (assignedId) {
             wakeAgentIfPossible(assignedId, companyId, "subtask_completed");
           }
@@ -118,9 +118,9 @@ export function handleTaskCreated(
   const { db, wakeAgentIfPossible } = deps;
   const { dispatchAutomation } = callbacks;
 
-  let task: ReturnType<typeof db.getTask> | null = null;
+  let task: ReturnType<typeof db.entityCrud.getTask> | null = null;
   try {
-    task = db.getTask(taskId);
+    task = db.entityCrud.getTask(taskId);
   } catch (error) {
     deps.logger.warn(`[automation] handleTaskCreated: task ${taskId} not found:`, error);
     return;
@@ -134,7 +134,7 @@ export function handleTaskCreated(
   });
 
   if (!task.assigneeAgentId) {
-    const assignedId = db.autoAssignTask(taskId, companyId);
+    const assignedId = db.tasks.autoAssignTask(taskId, companyId);
     if (assignedId) {
       wakeAgentIfPossible(assignedId, companyId, "assignment");
     }

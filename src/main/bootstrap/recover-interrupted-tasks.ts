@@ -49,10 +49,10 @@ export function recoverShutdownInterruptedTasks(deps: RecoverInterruptedTasksDep
     for (const run of shutdownRuns) {
       try {
         if (run.taskId) {
-          const task = deps.db.getTask(run.taskId);
+          const task = deps.db.entityCrud.getTask(run.taskId);
           if (task.status === "in_progress" || task.status === "blocked") {
-            deps.db.advanceTaskStatus(run.taskId, "todo", "Auto-resumed after app restart.");
-            deps.db.releaseTaskLock(run.taskId, run.id);
+            deps.db.tasks.advanceTaskStatus(run.taskId, "todo", "Auto-resumed after app restart.");
+            deps.db.tasks.releaseTaskLock(run.taskId, run.id);
           }
         }
         if (!resumedAgents.has(run.agentId)) {

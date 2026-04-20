@@ -33,7 +33,7 @@ async function createHarness() {
     repoRef: "",
     isPrimary: true,
   });
-  const agentId = db.saveAgent({
+  const agentId = db.agents.saveAgent({
     companyId,
     name: "Helios",
     role: "CEO",
@@ -46,7 +46,7 @@ async function createHarness() {
     capabilities: "Operate the company",
     budgetMonthlyUsd: 100,
   });
-  const taskId = db.saveTask({
+  const taskId = db.tasks.saveTask({
     companyId,
     title: "Ship the API",
     description: "Capture structured run events.",

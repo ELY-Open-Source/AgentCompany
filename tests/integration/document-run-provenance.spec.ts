@@ -47,7 +47,7 @@ async function createHarness() {
     repoRef: "",
     isPrimary: true,
   });
-  const agentId = db.saveAgent({
+  const agentId = db.agents.saveAgent({
     companyId,
     name: "Research Lead",
     role: "Researcher",
@@ -60,7 +60,7 @@ async function createHarness() {
     capabilities: "Research and synthesis",
     budgetMonthlyUsd: 180,
   });
-  const taskId = db.saveTask({
+  const taskId = db.tasks.saveTask({
     companyId,
     title: "Refresh the market report",
     description: "Update the report with new findings and submit it for review.",
@@ -69,7 +69,7 @@ async function createHarness() {
     priority: "high",
     status: "in_progress",
   });
-  db.setTaskType(taskId, "research");
+  db.tasks.setTaskType(taskId, "research");
 
   const existingDocumentId = db.saveDocument({
     companyId,
@@ -172,7 +172,7 @@ describe("document run provenance", () => {
       // ai_ceo + top-level CEO without `reviewDeliverables` advances
       // straight to `done` — there is no reviewer in that configuration
       // so the prior `in_review` state was a dead letter.
-      const task = harness.db.getTask(harness.taskId);
+      const task = harness.db.entityCrud.getTask(harness.taskId);
       expect(task.status).toBe("done");
     } finally {
       harness.server.stop();

@@ -43,7 +43,7 @@ describe("hire routing guards", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const ceoId = db.saveAgent({
+    const ceoId = db.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -57,7 +57,7 @@ describe("hire routing guards", () => {
       budgetMonthlyUsd: 250,
       department: "executive",
     });
-    const hrId = db.saveAgent({
+    const hrId = db.agents.saveAgent({
       companyId,
       name: "HR Lead",
       role: "HR Lead",
@@ -71,7 +71,7 @@ describe("hire routing guards", () => {
       budgetMonthlyUsd: 180,
       department: "hr",
     });
-    const ctoId = db.saveAgent({
+    const ctoId = db.agents.saveAgent({
       companyId,
       name: "CTO",
       role: "CTO",

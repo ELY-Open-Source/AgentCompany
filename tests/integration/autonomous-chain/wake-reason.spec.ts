@@ -14,7 +14,7 @@ describe("Step 8: Wake reason injection", () => {
   it("includes wake reason section for non-timer triggers", () => {
     const agentId = createAgent({ name: "CTO", role: "CTO" });
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
-    const ceo = shared.db.getAgent(ceoId);
+    const ceo = shared.db.entityCrud.getAgent(ceoId);
 
     const ctx = buildCtx({
       agentId,
@@ -92,7 +92,7 @@ describe("Step 8: Wake reason injection", () => {
 
   it("includes wake reason before task description", () => {
     const agentId = createAgent({ name: "Agent" });
-    const taskId = shared.db.saveTask({
+    const taskId = shared.db.tasks.saveTask({
       companyId: shared.companyId,
       title: "Do the thing",
       description: "Test task",
@@ -101,7 +101,7 @@ describe("Step 8: Wake reason injection", () => {
       priority: "medium",
       status: "todo",
     });
-    const task = shared.db.getTask(taskId);
+    const task = shared.db.entityCrud.getTask(taskId);
 
     const ctx = buildCtx({
       agentId,

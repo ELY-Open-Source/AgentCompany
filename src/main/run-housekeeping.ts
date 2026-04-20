@@ -54,7 +54,7 @@ function shouldProduceKnowledge(
     );
   }
   try {
-    const agent = db.getAgent(agentId);
+    const agent = db.entityCrud.getAgent(agentId);
     return Boolean(agent.department && KNOWLEDGE_PRODUCING_DEPARTMENTS.has(agent.department));
   } catch (error) {
     logger.warn(
@@ -97,7 +97,7 @@ export function createRunHousekeeping({ db, logger, threadIntegration }: RunHous
         try {
           let topic = `Run ${runId.slice(0, 8)}`;
           try {
-            const task = db.getTask(taskId);
+            const task = db.entityCrud.getTask(taskId);
             topic = task.title;
           } catch (error) {
             logger.warn(

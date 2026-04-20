@@ -52,7 +52,7 @@ describe("AppDatabase", () => {
       isPrimary: true,
     });
 
-    const agentId = db.saveAgent({
+    const agentId = db.agents.saveAgent({
       companyId,
       name: "Helios",
       role: "CEO",
@@ -83,7 +83,7 @@ describe("AppDatabase", () => {
       status: "in_progress",
     });
 
-    const taskId = db.saveTask({
+    const taskId = db.tasks.saveTask({
       companyId,
       projectId,
       goalId,
@@ -194,7 +194,7 @@ describe("AppDatabase", () => {
       isPrimary: true,
     });
 
-    const alphaAgentId = db.saveAgent({
+    const alphaAgentId = db.agents.saveAgent({
       companyId: alphaCompanyId,
       name: "Alpha CEO",
       role: "CEO",
@@ -208,7 +208,7 @@ describe("AppDatabase", () => {
       budgetMonthlyUsd: 100,
     });
 
-    db.saveAgent({
+    db.agents.saveAgent({
       companyId: betaCompanyId,
       name: "Beta CEO",
       role: "CEO",
@@ -222,7 +222,7 @@ describe("AppDatabase", () => {
       budgetMonthlyUsd: 100,
     });
 
-    db.saveTask({
+    db.tasks.saveTask({
       companyId: alphaCompanyId,
       title: "Alpha task",
       description: "Alpha work",
@@ -232,7 +232,7 @@ describe("AppDatabase", () => {
       status: "todo",
     });
 
-    db.saveTask({
+    db.tasks.saveTask({
       companyId: betaCompanyId,
       title: "Beta task",
       description: "Beta work",

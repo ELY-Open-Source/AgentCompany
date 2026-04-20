@@ -30,7 +30,7 @@ export interface SharedHandle {
   set db(value: AppDatabase);
   get companyId(): string;
   get workspaceId(): string;
-  createAgent(overrides?: Partial<Parameters<AppDatabase["saveAgent"]>[0]>): string;
+  createAgent(overrides?: Partial<Parameters<AppDatabase["agents"]["saveAgent"]>[0]>): string;
   buildCtx(overrides?: Record<string, unknown>): Parameters<typeof buildSystemPrompt>[0];
   tempDirs: string[];
 }
@@ -80,8 +80,8 @@ export function installSharedSetup(): SharedHandle {
     return state.db;
   }
 
-  function createAgent(overrides: Partial<Parameters<AppDatabase["saveAgent"]>[0]> = {}): string {
-    return currentDb().saveAgent({
+  function createAgent(overrides: Partial<Parameters<AppDatabase["agents"]["saveAgent"]>[0]> = {}): string {
+    return currentDb().agents.saveAgent({
       companyId: state.companyId,
       name: "TestAgent",
       role: "CEO",
@@ -98,7 +98,7 @@ export function installSharedSetup(): SharedHandle {
   }
 
   function buildCtx(overrides: Record<string, unknown> = {}): Parameters<typeof buildSystemPrompt>[0] {
-    const agent = currentDb().getAgent(overrides.agentId as string ?? createAgent());
+    const agent = currentDb().entityCrud.getAgent(overrides.agentId as string ?? createAgent());
     return {
       agent,
       apiUrl: "http://127.0.0.1:3000",

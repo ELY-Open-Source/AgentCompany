@@ -23,8 +23,8 @@ export function createHeartbeatScheduler(
 
   function persistSkip(agentId: string, companyId: string, reason: string) {
     try {
-      const existing = db.getRuntimeState(agentId) as Record<string, unknown>;
-      db.setRuntimeState(agentId, companyId, {
+      const existing = db.agents.getRuntimeState(agentId) as Record<string, unknown>;
+      db.agents.setRuntimeState(agentId, companyId, {
         ...existing,
         heartbeatSkip: { reason, at: new Date().toISOString() },
       });
@@ -37,11 +37,11 @@ export function createHeartbeatScheduler(
 
   function clearSkip(agentId: string, companyId: string) {
     try {
-      const existing = db.getRuntimeState(agentId) as Record<string, unknown>;
+      const existing = db.agents.getRuntimeState(agentId) as Record<string, unknown>;
       if (!("heartbeatSkip" in existing)) return;
       const next = { ...existing };
       delete next.heartbeatSkip;
-      db.setRuntimeState(agentId, companyId, next);
+      db.agents.setRuntimeState(agentId, companyId, next);
     } catch (error) {
       logger.warn(
         `[heartbeat] Failed to clear skip reason for agent ${agentId}: ${error instanceof Error ? error.message : String(error)}`,
@@ -72,7 +72,7 @@ export function createHeartbeatScheduler(
 
         for (const company of activeCompanies) {
           try {
-            const eligibleAgents = db.listHeartbeatEligibleAgents(company.id);
+            const eligibleAgents = db.agents.listHeartbeatEligibleAgents(company.id);
 
             for (const agent of eligibleAgents) {
               if (hasActiveRun({ agentId: agent.id, companyId: company.id })) continue;
@@ -103,9 +103,9 @@ export function createHeartbeatScheduler(
             // regular timer interval. countAdvancingTasksForCompany
             // counts only todo + in_progress so bootstrapping still
             // fires once the team stalls.
-            const advancingCount = db.countAdvancingTasksForCompany(company.id);
+            const advancingCount = db.tasks.countAdvancingTasksForCompany(company.id);
             if (goalCount > 0 && advancingCount === 0) {
-              const ceo = db.getCeoForCompany(company.id);
+              const ceo = db.agents.getCeoForCompany(company.id);
               const ceoLastWake = ceo?.lastHeartbeatAt ? new Date(ceo.lastHeartbeatAt).getTime() : 0;
               const ceoLastAttempt = ceo ? attemptedAtByAgent.get(ceo.id) ?? 0 : 0;
               const ceoLastTouch = Math.max(ceoLastWake, ceoLastAttempt);

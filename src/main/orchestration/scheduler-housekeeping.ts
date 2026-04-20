@@ -34,7 +34,7 @@ export function createHousekeepingScheduler(
             const currentMonth = new Date().toISOString().slice(0, 7);
             const lastResetMonth = db.getLastBudgetResetMonth(company.id) ?? "";
             if (currentMonth !== lastResetMonth) {
-              db.resetMonthlyBudgets(company.id);
+              db.agents.resetMonthlyBudgets(company.id);
               db.setLastBudgetResetMonth(company.id, currentMonth);
               logger.info(`[housekeeping] Reset monthly budgets for company ${company.name} (${currentMonth})`);
             }

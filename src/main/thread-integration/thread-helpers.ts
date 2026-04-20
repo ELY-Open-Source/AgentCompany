@@ -104,7 +104,7 @@ function resolveApprovalAnnouncementChannel(
 ): { channel: "department" | "project" | "company"; channelTargetId: string | null } | null {
   if (requestedByAgentId) {
     try {
-      const requester = db.getAgent(requestedByAgentId);
+      const requester = db.entityCrud.getAgent(requestedByAgentId);
       if (requester.companyId === companyId && requester.department) {
         return { channel: "department", channelTargetId: requester.department };
       }
@@ -115,7 +115,7 @@ function resolveApprovalAnnouncementChannel(
 
   if (taskId) {
     try {
-      const task = db.getTask(taskId);
+      const task = db.entityCrud.getTask(taskId);
       if (task.companyId === companyId && task.projectId) {
         return { channel: "project", channelTargetId: task.projectId };
       }

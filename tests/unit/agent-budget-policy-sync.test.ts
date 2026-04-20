@@ -42,7 +42,7 @@ describe("agent budget policy synchronization", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.saveAgent({
+    const agentId = db.agents.saveAgent({
       companyId,
       name: "Engineer",
       role: "Engineer",
@@ -70,7 +70,7 @@ describe("agent budget policy synchronization", () => {
       isActive: true,
     });
 
-    db.saveAgent({
+    db.agents.saveAgent({
       id: agentId,
       companyId,
       name: "Engineer",

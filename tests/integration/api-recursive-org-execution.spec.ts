@@ -45,7 +45,7 @@ async function createHarness() {
     repoRef: "",
     isPrimary: true,
   });
-  const ceoId = db.saveAgent({
+  const ceoId = db.agents.saveAgent({
     companyId,
     name: "CEO",
     role: "CEO",
@@ -58,7 +58,7 @@ async function createHarness() {
     capabilities: "Lead the company",
     budgetMonthlyUsd: 250,
   });
-  const ctoId = db.saveAgent({
+  const ctoId = db.agents.saveAgent({
     companyId,
     name: "CTO",
     role: "CTO",
@@ -72,7 +72,7 @@ async function createHarness() {
     budgetMonthlyUsd: 220,
     department: "engineering",
   });
-  const taskId = db.saveTask({
+  const taskId = db.tasks.saveTask({
     companyId,
     title: "Build the org",
     description: "CTO should hire the first IC under engineering.",
@@ -126,7 +126,7 @@ describe("recursive org execution", () => {
       const body = await response.json() as { agentId: string; approvalId: string; autoApproved: boolean };
       expect(body.autoApproved).toBe(false);
 
-      const pendingHire = harness.db.getAgent(body.agentId);
+      const pendingHire = harness.db.entityCrud.getAgent(body.agentId);
       expect(pendingHire.status).toBe("pending_approval");
       expect(pendingHire.reportsTo).toBe(harness.ctoId);
 
@@ -141,11 +141,11 @@ describe("recursive org execution", () => {
         decisionNote: "Approved by board",
       });
 
-      const approvedHire = harness.db.getAgent(body.agentId);
+      const approvedHire = harness.db.entityCrud.getAgent(body.agentId);
       expect(approvedHire.status).toBe("idle");
-      expect(harness.db.getDirectReports(harness.ctoId, harness.companyId).map((agent) => agent.id)).toContain(body.agentId);
-      expect(harness.db.getDirectReports(harness.ceoId, harness.companyId).map((agent) => agent.id)).not.toContain(body.agentId);
-      expect(harness.db.getChainOfCommand(body.agentId).map((agent) => agent.id)).toEqual([harness.ctoId, harness.ceoId]);
+      expect(harness.db.agents.getDirectReports(harness.ctoId, harness.companyId).map((agent) => agent.id)).toContain(body.agentId);
+      expect(harness.db.agents.getDirectReports(harness.ceoId, harness.companyId).map((agent) => agent.id)).not.toContain(body.agentId);
+      expect(harness.db.agents.getChainOfCommand(body.agentId).map((agent) => agent.id)).toEqual([harness.ctoId, harness.ceoId]);
 
       const agentResponse = await fetch(`${harness.baseUrl}/api/agents/${body.agentId}`, {
         headers: harness.headers,
@@ -169,7 +169,7 @@ describe("recursive org execution", () => {
   it("routes cross-department hires to the relevant department lead when reportsTo is omitted", async () => {
     const harness = await createHarness();
     try {
-      const hrId = harness.db.saveAgent({
+      const hrId = harness.db.agents.saveAgent({
         companyId: harness.companyId,
         name: "HR Director",
         role: "HR Director",
@@ -183,7 +183,7 @@ describe("recursive org execution", () => {
         budgetMonthlyUsd: 180,
         department: "hr",
       });
-      const hrTaskId = harness.db.saveTask({
+      const hrTaskId = harness.db.tasks.saveTask({
         companyId: harness.companyId,
         title: "Fill engineering gap",
         description: "Request a backend engineer for the engineering team.",
@@ -223,7 +223,7 @@ describe("recursive org execution", () => {
 
       expect(response.status).toBe(201);
       const body = await response.json() as { agentId: string };
-      const pendingHire = harness.db.getAgent(body.agentId);
+      const pendingHire = harness.db.entityCrud.getAgent(body.agentId);
       expect(pendingHire.department).toBe("engineering");
       expect(pendingHire.reportsTo).toBe(harness.ctoId);
     } finally {
@@ -263,7 +263,7 @@ describe("recursive org execution", () => {
   it("manager cannot route a hire outside their reporting branch", async () => {
     const harness = await createHarness();
     try {
-      const cmoId = harness.db.saveAgent({
+      const cmoId = harness.db.agents.saveAgent({
         companyId: harness.companyId,
         name: "CMO",
         role: "CMO",

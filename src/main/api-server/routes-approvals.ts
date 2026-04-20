@@ -183,7 +183,7 @@ export function registerApprovalRoutes(server: AgentApiServer) {
       body: commentBody,
     });
     // Wake mentioned agents in comment
-    const mentionedIds = db.findMentionedAgentIds(approval.companyId, commentBody);
+    const mentionedIds = db.agents.findMentionedAgentIds(approval.companyId, commentBody);
     for (const mentionedId of mentionedIds) {
       if (mentionedId !== token.agentId) {
         onWakeAgent(mentionedId, approval.companyId, "approval_comment_mentioned");

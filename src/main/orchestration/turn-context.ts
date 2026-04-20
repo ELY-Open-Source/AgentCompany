@@ -18,11 +18,11 @@ import { resolveInitialUserTurn } from "./initial-user-turn";
 export interface RunDispatchParams {
   runId: string;
   companyId: string;
-  agent: ReturnType<AppDatabase["getAgent"]>;
+  agent: ReturnType<AppDatabase["entityCrud"]["getAgent"]>;
   // `task` is null for heartbeat runs (agent wake-ups with no assigned task).
   // Downstream code (prompt builder, worker payload, session pointer)
   // branches on this — when null, skip task-scoped state.
-  task: ReturnType<AppDatabase["getTask"]> | null;
+  task: ReturnType<AppDatabase["entityCrud"]["getTask"]> | null;
   connector: ReturnType<AppDatabase["getConnector"]>;
   workspace: ReturnType<AppDatabase["getWorkspace"]>;
   workspaceMode: WorkspaceLockMode;
@@ -81,8 +81,8 @@ function assembleApiEnv(
 }
 
 function assembleRecentComments(
-  assignedTasks: ReturnType<AppDatabase["listAgentTasks"]>,
-  reviewTasks: ReturnType<AppDatabase["listAgentTasks"]>,
+  assignedTasks: ReturnType<AppDatabase["tasks"]["listAgentTasks"]>,
+  reviewTasks: ReturnType<AppDatabase["tasks"]["listAgentTasks"]>,
   snapshot: RunDispatchParams["snapshot"],
 ) {
   const relevantTaskIds = new Set([
@@ -150,7 +150,7 @@ function resolveSession(
   // Per-agent session: one ongoing transcript per agent; switching tasks
   // (or running taskless heartbeats) becomes a "now work on X" user turn
   // on the ongoing transcript rather than starting a fresh session.
-  const agentSessionId = db.ensureAgentSession({
+  const agentSessionId = db.tasks.ensureAgentSession({
     agentId: agent.id,
     companyId,
     adapterType: connectorId,
@@ -273,8 +273,8 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
   const { env, apiUrl, apiKey } = assembleApiEnv(db, connector, companyId, agent.id, runId, trigger, deps);
   env.AGENT_COMPANY_TASK_ID = task?.id ?? "";
 
-  const assignedTasks = db.listAgentTasks(agent.id, companyId, ["todo", "in_progress", "blocked"]);
-  const reviewTasks = db.listReviewTasksForManager(agent.id, companyId);
+  const assignedTasks = db.tasks.listAgentTasks(agent.id, companyId, ["todo", "in_progress", "blocked"]);
+  const reviewTasks = db.tasks.listReviewTasksForManager(agent.id, companyId);
   const recentComments = assembleRecentComments(assignedTasks, reviewTasks, snapshot);
   const initialHandoff = resolveSessionHandoff(agent.id, deps);
   const { taskSessionId, sessionHandoff } = resolveSession(db, agent, companyId, connector.id, initialHandoff, deps);
@@ -291,8 +291,8 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     executionMode: db.getCompanyExecutionMode(companyId) as ExecutionMode,
     goals: snapshot.goals.filter((goal) => goal.companyId === companyId),
     projects: snapshot.projects.filter((project) => project.companyId === companyId),
-    directReports: db.getDirectReports(agent.id, companyId),
-    chainOfCommand: db.getChainOfCommand(agent.id),
+    directReports: db.agents.getDirectReports(agent.id, companyId),
+    chainOfCommand: db.agents.getChainOfCommand(agent.id),
     assignedTasks,
     allAgents: snapshot.agents.filter((entry) => entry.companyId === companyId),
     pendingApprovals: filterPendingApprovals(snapshot.approvals, companyId, agent.id),

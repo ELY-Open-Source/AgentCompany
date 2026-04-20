@@ -56,7 +56,7 @@ function createTestWorkspace(db: AppDatabase, companyId: string): string {
 }
 
 function createTestAgent(db: AppDatabase, companyId: string, workspaceId: string, name = "Agent"): string {
-  return db.saveAgent({
+  return db.agents.saveAgent({
     companyId,
     name,
     role: "IC",
@@ -72,7 +72,7 @@ function createTestAgent(db: AppDatabase, companyId: string, workspaceId: string
 }
 
 function createTestTask(db: AppDatabase, companyId: string, workspaceId: string): string {
-  return db.saveTask({
+  return db.tasks.saveTask({
     companyId,
     title: "Concurrent Test Task",
     description: "A task for testing concurrent checkout edge cases",
@@ -126,15 +126,15 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     });
 
     // Agent-A claims first
-    const resultA = db.checkoutTask(taskId, runIdA);
+    const resultA = db.tasks.checkoutTask(taskId, runIdA);
     expect(resultA).toBe(true);
 
     // Agent-B tries to claim the same task
-    const resultB = db.checkoutTask(taskId, runIdB);
+    const resultB = db.tasks.checkoutTask(taskId, runIdB);
     expect(resultB).toBe(false);
 
     // Task status must be in_progress (set by first successful checkout)
-    const task = db.getTask(taskId);
+    const task = db.entityCrud.getTask(taskId);
     expect(task.status).toBe("in_progress");
   });
 
@@ -162,9 +162,9 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     });
 
     // Agent-A wins first task
-    expect(db.checkoutTask(taskId1, runIdA)).toBe(true);
+    expect(db.tasks.checkoutTask(taskId1, runIdA)).toBe(true);
     // Agent-B loses
-    expect(db.checkoutTask(taskId1, runIdB1)).toBe(false);
+    expect(db.tasks.checkoutTask(taskId1, runIdB1)).toBe(false);
 
     // Agent-B can still checkout a DIFFERENT task
     const taskId2 = createTestTask(db, companyId, workspaceId);
@@ -175,11 +175,11 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       workspaceId,
       connectorId: "gemini-cli",
     });
-    const resultB2 = db.checkoutTask(taskId2, runIdB2);
+    const resultB2 = db.tasks.checkoutTask(taskId2, runIdB2);
     expect(resultB2).toBe(true);
 
     // Verify second task is now in_progress
-    const task2 = db.getTask(taskId2);
+    const task2 = db.entityCrud.getTask(taskId2);
     expect(task2.status).toBe("in_progress");
   });
 
@@ -199,7 +199,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       workspaceId,
       connectorId: "gemini-cli",
     });
-    expect(db.checkoutTask(taskId, runIdA)).toBe(true);
+    expect(db.tasks.checkoutTask(taskId, runIdA)).toBe(true);
 
     // Task is now in_progress. A new run from Agent-B tries to checkout
     const { id: runIdB } = db.createRun({
@@ -209,11 +209,11 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       workspaceId,
       connectorId: "gemini-cli",
     });
-    const result = db.checkoutTask(taskId, runIdB);
+    const result = db.tasks.checkoutTask(taskId, runIdB);
     expect(result).toBe(false);
 
     // Confirm status is still in_progress
-    expect(db.getTask(taskId).status).toBe("in_progress");
+    expect(db.entityCrud.getTask(taskId).status).toBe("in_progress");
   });
 
   it("after lock release, CAS guard still checks task status", () => {
@@ -232,10 +232,10 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       workspaceId,
       connectorId: "gemini-cli",
     });
-    expect(db.checkoutTask(taskId, runIdA)).toBe(true);
+    expect(db.tasks.checkoutTask(taskId, runIdA)).toBe(true);
 
     // Release the lock (sets checkout_run_id = NULL)
-    db.releaseTaskLock(taskId, runIdA);
+    db.tasks.releaseTaskLock(taskId, runIdA);
 
     // Verify lock fields are cleared
     const row = (db as unknown as RawDb).db
@@ -253,7 +253,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       workspaceId,
       connectorId: "gemini-cli",
     });
-    const result = db.checkoutTask(taskId, runIdB);
+    const result = db.tasks.checkoutTask(taskId, runIdB);
     expect(result).toBe(false);
   });
 
@@ -271,7 +271,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       workspaceId,
       connectorId: "gemini-cli",
     });
-    expect(db.checkoutTask(taskId, runIdA)).toBe(true);
+    expect(db.tasks.checkoutTask(taskId, runIdA)).toBe(true);
 
     // Backdate execution_locked_at to well past the stale timeout
     (db as unknown as RawDb).db
@@ -307,7 +307,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       workspaceId,
       connectorId: "gemini-cli",
     });
-    expect(db.checkoutTask(taskId, runIdA)).toBe(true);
+    expect(db.tasks.checkoutTask(taskId, runIdA)).toBe(true);
 
     // Backdate to make stale
     (db as unknown as RawDb).db
@@ -319,7 +319,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     expect(recovered.length).toBe(1);
 
     // Verify task is back to "todo"
-    expect(db.getTask(taskId).status).toBe("todo");
+    expect(db.entityCrud.getTask(taskId).status).toBe("todo");
 
     // Agent-B can now checkout the recovered task
     const { id: runIdB } = db.createRun({
@@ -329,9 +329,9 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
       workspaceId,
       connectorId: "gemini-cli",
     });
-    const result = db.checkoutTask(taskId, runIdB);
+    const result = db.tasks.checkoutTask(taskId, runIdB);
     expect(result).toBe(true);
-    expect(db.getTask(taskId).status).toBe("in_progress");
+    expect(db.entityCrud.getTask(taskId).status).toBe("in_progress");
   });
 
   it("STALE_LOCK_TIMEOUT_MS matches expected 15 minute value", () => {

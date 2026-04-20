@@ -44,7 +44,7 @@ describe("deliverable review feedback writeback", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.saveAgent({
+    const agentId = db.agents.saveAgent({
       companyId,
       name: "Research Lead",
       role: "Researcher",
@@ -58,7 +58,7 @@ describe("deliverable review feedback writeback", () => {
       budgetMonthlyUsd: 180,
       department: "research",
     });
-    const taskId = db.saveTask({
+    const taskId = db.tasks.saveTask({
       companyId,
       title: "Draft market report",
       description: "Produce a market report with concrete evidence and business insight.",
@@ -116,7 +116,7 @@ describe("deliverable review feedback writeback", () => {
     expect(knowledgeEntries[0]?.content).toContain("revision_requested");
     expect(knowledgeEntries[0]?.content).toContain("stronger competitor evidence");
     expect(wakeAgentIfPossible).toHaveBeenCalledWith(agentId, companyId, "revision_needed");
-    expect(db.getTask(taskId).status).toBe("in_progress");
+    expect(db.entityCrud.getTask(taskId).status).toBe("in_progress");
     const document = db.listSnapshot().documents.find((entry) => entry.id === documentId);
     expect(document?.status).toBe("draft");
 

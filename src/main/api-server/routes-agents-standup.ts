@@ -3,23 +3,23 @@ import type { AgentApiServer } from "./server-core";
 export function registerAgentStandupRoute(server: AgentApiServer): void {
   const db = server.db;
   server.addRoute("GET", "/api/agents/me/standup", (_req, res, _params, token) => {
-    const agent = db.getAgent(token.agentId);
+    const agent = db.entityCrud.getAgent(token.agentId);
     if (!agent || agent.companyId !== token.companyId) {
       server.json(res, 404, { error: "Agent not found" });
       return;
     }
 
-    const directReports = db.listDirectReportsForStandup(token.companyId, token.agentId);
+    const directReports = db.agents.listDirectReportsForStandup(token.companyId, token.agentId);
 
-    const myTasks = db.listAssigneeTasksForStandup(token.companyId, token.agentId);
+    const myTasks = db.tasks.listAssigneeTasksForStandup(token.companyId, token.agentId);
 
-    const reportTasks = db.listTasksForAssignees(
+    const reportTasks = db.tasks.listTasksForAssignees(
       token.companyId,
       directReports.map((r) => r.id),
     );
 
     const reportStatusRows = directReports.length > 0
-      ? db.listReportStatusesForStandup(token.companyId, token.agentId)
+      ? db.agents.listReportStatusesForStandup(token.companyId, token.agentId)
       : [];
 
     const tasksAwaitingMyReview = reportTasks.filter((t) => t.status === "in_review");
@@ -46,7 +46,7 @@ export function registerAgentStandupRoute(server: AgentApiServer): void {
     const unreadInbox = db.listAgentInboxUnread(token.companyId, token.agentId);
     const senderIds = new Set(unreadInbox.map((m) => m.fromAgentId));
     const senderNames = senderIds.size > 0
-      ? new Map(db.listAgentNamesByIds(token.companyId, Array.from(senderIds)).map((row) => [row.id, row.name]))
+      ? new Map(db.agents.listAgentNamesByIds(token.companyId, Array.from(senderIds)).map((row) => [row.id, row.name]))
       : new Map<string, string>();
 
     // Recent outputs the AGENT itself produced — closes the

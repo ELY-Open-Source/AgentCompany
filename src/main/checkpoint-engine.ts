@@ -48,8 +48,8 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
         const mode = getCompanyExecutionMode(db, companyId);
         if (mode !== "ai_cofounder") return null;
 
-        const task = db.getTask(taskId);
-        const taskType = db.getTaskType(taskId);
+        const task = db.entityCrud.getTask(taskId);
+        const taskType = db.tasks.getTaskType(taskId);
 
         // Only create plan checkpoints for non-code task types
         if (!taskType || !CHECKPOINT_TASK_TYPES.has(taskType)) return null;

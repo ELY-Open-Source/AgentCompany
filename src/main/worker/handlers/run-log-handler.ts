@@ -38,7 +38,7 @@ export async function handleRunLog(
     try {
       const run = db.getRun(event.runId);
       if (run.taskId) {
-        db.renewTaskLease(run.taskId, run.id);
+        db.tasks.renewTaskLease(run.taskId, run.id);
       }
       leaseRenewalMap.set(event.runId, now);
     } catch (err) {

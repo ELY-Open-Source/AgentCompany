@@ -56,7 +56,7 @@ describe("company mode switching", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const ceoId = db.saveAgent({
+    const ceoId = db.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -69,7 +69,7 @@ describe("company mode switching", () => {
       capabilities: "Lead the company",
       budgetMonthlyUsd: 250,
     });
-    const engineerId = db.saveAgent({
+    const engineerId = db.agents.saveAgent({
       companyId,
       name: "Engineer",
       role: "Engineer",
@@ -83,7 +83,7 @@ describe("company mode switching", () => {
       budgetMonthlyUsd: 180,
       department: "engineering",
     });
-    const taskId = db.saveTask({
+    const taskId = db.tasks.saveTask({
       companyId,
       title: "Ship feature",
       description: "Waits for cofounder review.",
@@ -100,7 +100,7 @@ describe("company mode switching", () => {
 
     threadIntegration.onTaskCreated(taskId, companyId);
     threadIntegration.onRunFinished("run-1", taskId, engineerId, companyId, "succeeded", null);
-    db.setTaskRequiresUserReview(taskId, true);
+    db.tasks.setTaskRequiresUserReview(taskId, true);
     const approvalId = db.requestApproval({
       companyId,
       relatedTaskId: taskId,
@@ -113,7 +113,7 @@ describe("company mode switching", () => {
     threadIntegration.onApprovalCreated(approvalId, companyId, taskId, "deliverable_review", "Review deliverable");
 
     expect(db.listThreadWaitStates(companyId).length).toBeGreaterThan(0);
-    expect(db.getTask(taskId).requiresUserReview).toBe(true);
+    expect(db.entityCrud.getTask(taskId).requiresUserReview).toBe(true);
     expect(db.getApprovalRecord(approvalId).state).toBe("pending");
 
     const handlers = new Map<string, IpcHandler>();
@@ -149,7 +149,7 @@ describe("company mode switching", () => {
     expect(result.ok).toBe(true);
     expect(db.getCompanyExecutionMode(companyId)).toBe("ai_ceo");
     expect(db.listThreadWaitStates(companyId)).toHaveLength(0);
-    expect(db.getTask(taskId).requiresUserReview).toBe(false);
+    expect(db.entityCrud.getTask(taskId).requiresUserReview).toBe(false);
     expect(db.getApprovalRecord(approvalId).state).toBe("approved");
 
     db.close();

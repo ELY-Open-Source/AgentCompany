@@ -52,8 +52,8 @@ function buildKickoffPayload(db: AppDatabase, summary: { companyId: string; lead
     throw new Error("Missing lead agent or task in onboarding summary.");
   }
 
-  const agent = db.getAgent(summary.leadAgentId);
-  const task = db.getTask(summary.taskId);
+  const agent = db.entityCrud.getAgent(summary.leadAgentId);
+  const task = db.entityCrud.getTask(summary.taskId);
   const connector = db.getConnector(agent.connectorId);
   const workspace = summary.workspaceId ? db.getWorkspace(summary.workspaceId) : null;
   const company = db.listSnapshot().companies.find((entry) => entry.id === summary.companyId);
@@ -125,7 +125,7 @@ describe("onboarding model pool integration", () => {
       throw new Error("Expected lead agent id from onboarding bootstrap.");
     }
 
-    const agent = db.getAgent(summary.leadAgentId);
+    const agent = db.entityCrud.getAgent(summary.leadAgentId);
     expect(agent.connectorId).toBe("openai-codex");
     expect(agent.model).toBe(enabledModel);
     expect(db.getDisabledModels(summary.companyId, "openai-codex")).toEqual([{ id: disabledModel, label: disabledModel }]);
@@ -230,7 +230,7 @@ describe("onboarding model pool integration", () => {
       throw new Error("Expected lead agent id from onboarding bootstrap.");
     }
 
-    const agent = db.getAgent(summary.leadAgentId);
+    const agent = db.entityCrud.getAgent(summary.leadAgentId);
     expect(agent.model).toBeNull();
 
     const payload = buildKickoffPayload(db, summary);

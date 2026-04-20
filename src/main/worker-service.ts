@@ -197,7 +197,7 @@ export function createWorkerService({
             db.releaseWorkspaceLock(run.workspaceId, run.id);
           }
           if (run.taskId) {
-            db.releaseTaskLock(run.taskId, run.id);
+            db.tasks.releaseTaskLock(run.taskId, run.id);
           }
         }
       }

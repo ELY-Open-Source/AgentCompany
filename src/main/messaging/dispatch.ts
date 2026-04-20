@@ -204,14 +204,14 @@ function resolveProjectWakeTargets(
   const project = db.getProjectForUpdate(input.channelTargetId, input.companyId);
   const participantIds = new Set<string>();
   if (project?.leadAgentId) participantIds.add(project.leadAgentId);
-  for (const assigneeId of db.listProjectTaskAssigneeIds(input.channelTargetId, input.companyId)) {
+  for (const assigneeId of db.tasks.listProjectTaskAssigneeIds(input.channelTargetId, input.companyId)) {
     participantIds.add(assigneeId);
   }
 
   if (participantIds.size === 0) return [];
   const ids = Array.from(participantIds).filter((id) => id !== input.fromAgentId);
   if (ids.length === 0) return [];
-  return db.listActiveAgentIdsFromIds(input.companyId, ids);
+  return db.agents.listActiveAgentIdsFromIds(input.companyId, ids);
 }
 
 /** Resolve the agents mentioned in a message body, stripped of the
@@ -222,7 +222,7 @@ export function resolveMentionedAgentIds(
   db: AppDatabase,
   input: Pick<NormalizedAgentMessageInput, "companyId" | "fromAgentId" | "body">,
 ): string[] {
-  const mentioned = db.findMentionedAgentIds(input.companyId, input.body);
+  const mentioned = db.agents.findMentionedAgentIds(input.companyId, input.body);
   const filtered: string[] = [];
   for (const agentId of mentioned) {
     if (!agentId || agentId === input.fromAgentId || agentId === HUMAN_SENDER_ID) continue;
@@ -255,7 +255,7 @@ export function resolveMessageWakeTargets(
   }
 
   if (input.channel === "department" && input.channelTargetId) {
-    for (const agentId of db.listDepartmentAgentIds(input.companyId, input.channelTargetId)) {
+    for (const agentId of db.agents.listDepartmentAgentIds(input.companyId, input.channelTargetId)) {
       if (agentId !== input.fromAgentId) wakeTargets.add(agentId);
     }
   }
@@ -265,7 +265,7 @@ export function resolveMessageWakeTargets(
     // workspace is a listener. Board-only fan-outs use the dedicated
     // `incident` channel; the previous top-level-only fan-out made the
     // "company" label a misnomer that silently dropped ICs.
-    for (const agentId of db.listCompanyBroadcastAgentIds(input.companyId)) {
+    for (const agentId of db.agents.listCompanyBroadcastAgentIds(input.companyId)) {
       if (agentId !== input.fromAgentId) wakeTargets.add(agentId);
     }
   }
@@ -277,7 +277,7 @@ export function resolveMessageWakeTargets(
   }
 
   if (input.channel === "incident") {
-    for (const agentId of db.listIncidentPingableAgentIds(input.companyId)) {
+    for (const agentId of db.agents.listIncidentPingableAgentIds(input.companyId)) {
       if (agentId !== input.fromAgentId) wakeTargets.add(agentId);
     }
   }
@@ -288,7 +288,7 @@ export function resolveMessageWakeTargets(
 
   // The human participant (`__board__`) is a reader, not a wake-able
   // agent: it has no runtime, no heartbeat, no DB row. Leaving it in the
-  // set makes `wakeAgentIfPossible` call `db.getAgent("__board__")`,
+  // set makes `wakeAgentIfPossible` call `db.entityCrud.getAgent("__board__")`,
   // which throws "Agent not found" and spams the log. Filter once, at
   // the point of resolution, so every downstream consumer is clean.
   wakeTargets.delete(HUMAN_SENDER_ID);
@@ -330,7 +330,7 @@ export function dispatchAgentMessage(
     !normalized.fromHumanUser &&
     (message.channel !== "direct" || message.toAgentId === HUMAN_SENDER_ID)
   ) {
-    const senderName = deps.db.findAgentName(message.fromAgentId) ?? "Agent";
+    const senderName = deps.db.agents.findAgentName(message.fromAgentId) ?? "Agent";
     deps.notify({
       title: truncateForNotification(`${senderName} · ${message.subject}`, 80),
       body: truncateForNotification(message.body, 140),
@@ -350,7 +350,7 @@ export function dispatchAgentMessage(
   const mentionResults: MentionResult[] = [];
 
   if (deps.wakeAgentIfPossible) {
-    const agentNameRows = deps.db.listAgentNamesByIds(normalized.companyId, wakeTargets);
+    const agentNameRows = deps.db.agents.listAgentNamesByIds(normalized.companyId, wakeTargets);
     const agentNameMap = new Map(agentNameRows.map((a) => [a.id, a.name]));
     for (const wakeTarget of wakeTargets) {
       const agentName = agentNameMap.get(wakeTarget) ?? wakeTarget;

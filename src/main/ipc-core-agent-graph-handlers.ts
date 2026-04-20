@@ -64,7 +64,7 @@ export function registerCoreAgentGraphHandlers({
         "Create new agents through the hiring workflow so approval, onboarding, and org state stay synchronized.",
       );
     }
-    const existingAgent = parsed.id ? db.findAgent(parsed.id) : null;
+    const existingAgent = parsed.id ? db.entityCrud.findAgent(parsed.id) : null;
     if (!existingAgent || existingAgent.companyId !== parsed.companyId) {
       return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
     }
@@ -101,7 +101,7 @@ export function registerCoreAgentGraphHandlers({
     }
     let id: string;
     try {
-      id = db.saveAgent({
+      id = db.agents.saveAgent({
         id: parsed.id ?? null,
         companyId: parsed.companyId,
         name: parsed.name,
@@ -188,7 +188,7 @@ export function registerCoreAgentGraphHandlers({
     const managerLabel = resolvedReportsTo
       ? (() => {
         try {
-          return db.getAgent(resolvedReportsTo).name;
+          return db.entityCrud.getAgent(resolvedReportsTo).name;
         } catch (err) {
           logger.warn(`[ipc/agent-graph] getAgent failed for manager ${resolvedReportsTo}:`, err instanceof Error ? err.message : String(err));
           return resolvedReportsTo;
@@ -271,14 +271,14 @@ export function registerCoreAgentGraphHandlers({
     if (!db.belongsToCompany("agents", parsed.id, parsed.companyId)) {
       return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
     }
-    const agent = db.getAgent(parsed.id);
+    const agent = db.entityCrud.getAgent(parsed.id);
     if (agent.status === "pending_approval") {
       return fail(
         "AGENT_APPROVAL_REQUIRED",
         "Pending hires cannot be deleted from the agent editor. Reject the hire request from Hiring or Approvals instead.",
       );
     }
-    db.deleteAgent(parsed.id, parsed.companyId);
+    db.agents.deleteAgent(parsed.id, parsed.companyId);
     db.addActivity({
       companyId: parsed.companyId,
       actor: "board",

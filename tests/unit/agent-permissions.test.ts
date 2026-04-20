@@ -44,7 +44,7 @@ describe("canManageOrganization", () => {
       isPrimary: true,
     });
 
-    const ceoId = db.saveAgent({
+    const ceoId = db.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -57,7 +57,7 @@ describe("canManageOrganization", () => {
       capabilities: "Lead the company",
       budgetMonthlyUsd: 250,
     });
-    const ctoId = db.saveAgent({
+    const ctoId = db.agents.saveAgent({
       companyId,
       name: "CTO",
       role: "CTO",
@@ -71,7 +71,7 @@ describe("canManageOrganization", () => {
       budgetMonthlyUsd: 220,
       department: "engineering",
     });
-    const engineerId = db.saveAgent({
+    const engineerId = db.agents.saveAgent({
       companyId,
       name: "Engineer",
       role: "Engineer",
@@ -113,7 +113,7 @@ describe("canManageOrganization", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const ceoId = db.saveAgent({
+    const ceoId = db.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -126,7 +126,7 @@ describe("canManageOrganization", () => {
       capabilities: "Lead the company",
       budgetMonthlyUsd: 250,
     });
-    const agentId = db.saveAgent({
+    const agentId = db.agents.saveAgent({
       companyId,
       name: "Operations Lead",
       role: "Specialist",
@@ -142,7 +142,7 @@ describe("canManageOrganization", () => {
     });
 
     expect(canManageOrganization(db, companyId, agentId)).toBe(false);
-    db.setAgentPermission(agentId, companyId, "organization_manage", true);
+    db.agents.setAgentPermission(agentId, companyId, "organization_manage", true);
     expect(canManageOrganization(db, companyId, agentId)).toBe(true);
     expect(canRequestHire(db, companyId, agentId)).toBe(true);
 
@@ -167,7 +167,7 @@ describe("canManageOrganization", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const ceoId = db.saveAgent({
+    const ceoId = db.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -180,7 +180,7 @@ describe("canManageOrganization", () => {
       capabilities: "Lead the company",
       budgetMonthlyUsd: 250,
     });
-    const ctoId = db.saveAgent({
+    const ctoId = db.agents.saveAgent({
       companyId,
       name: "CTO",
       role: "CTO",
@@ -194,7 +194,7 @@ describe("canManageOrganization", () => {
       budgetMonthlyUsd: 220,
       department: "engineering",
     });
-    const cmoId = db.saveAgent({
+    const cmoId = db.agents.saveAgent({
       companyId,
       name: "CMO",
       role: "CMO",
@@ -208,7 +208,7 @@ describe("canManageOrganization", () => {
       budgetMonthlyUsd: 220,
       department: "marketing",
     });
-    const ctoReportId = db.saveAgent({
+    const ctoReportId = db.agents.saveAgent({
       companyId,
       name: "Engineer",
       role: "Engineer",
@@ -223,7 +223,7 @@ describe("canManageOrganization", () => {
       department: "engineering",
     });
 
-    const cmoTaskId = db.saveTask({
+    const cmoTaskId = db.tasks.saveTask({
       companyId,
       title: "Launch campaign",
       description: "Owned by the marketing branch",
@@ -242,7 +242,7 @@ describe("canManageOrganization", () => {
     expect(canManageProject(db, companyId, ctoId, cmoId)).toBe(false);
     expect(canManageGoal(db, companyId, ceoId, cmoId)).toBe(true);
     expect(canManageProject(db, companyId, ceoId, cmoId)).toBe(true);
-    expect(db.getTask(cmoTaskId).assigneeAgentId).toBe(cmoId);
+    expect(db.entityCrud.getTask(cmoTaskId).assigneeAgentId).toBe(cmoId);
 
     db.close();
   });

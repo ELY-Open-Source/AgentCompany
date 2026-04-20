@@ -113,7 +113,7 @@ export function registerCoreTaskGraphHandlers({
       const taskId = parsed.id;
       if (!taskId) return fail("INVALID_TASK_STATE", "Task ID required for updates.");
       try {
-        const existingTask = db.getTask(taskId);
+        const existingTask = db.entityCrud.getTask(taskId);
         previousStatus = existingTask.status;
         previousAssigneeAgentId = existingTask.assigneeAgentId;
       } catch (err) {
@@ -124,7 +124,7 @@ export function registerCoreTaskGraphHandlers({
     }
     let id: string;
     try {
-      id = db.saveTask(parsed);
+      id = db.tasks.saveTask(parsed);
     } catch (error) {
       return fail("INVALID_TASK_STATE", error instanceof Error ? error.message : "Task could not be saved.");
     }
@@ -145,7 +145,7 @@ export function registerCoreTaskGraphHandlers({
       // User (board) manually advancing a flagged task to done: clear the review flag
       if (parsed.status === "done") {
         try {
-          db.setTaskRequiresUserReview(id, false);
+          db.tasks.setTaskRequiresUserReview(id, false);
         } catch (error) {
           logger.warn(
             `[ipc-task] setTaskRequiresUserReview(false) failed for task ${id}: ${error instanceof Error ? error.message : String(error)}`,
@@ -175,7 +175,7 @@ export function registerCoreTaskGraphHandlers({
   });
 
   const deleteHandlers = [
-    { channel: IPC_CHANNELS.deleteTask, table: "tasks", entity: "task", deleteFn: (id: string, companyId: string) => db.deleteTask(id, companyId) },
+    { channel: IPC_CHANNELS.deleteTask, table: "tasks", entity: "task", deleteFn: (id: string, companyId: string) => db.tasks.deleteTask(id, companyId) },
     { channel: IPC_CHANNELS.deleteGoal, table: "goals", entity: "goal", deleteFn: (id: string, companyId: string) => db.deleteGoal(id, companyId) },
     { channel: IPC_CHANNELS.deleteProject, table: "projects", entity: "project", deleteFn: (id: string, companyId: string) => db.deleteProject(id, companyId) },
     { channel: IPC_CHANNELS.deleteWorkspace, table: "workspaces", entity: "workspace", deleteFn: (id: string, companyId: string) => db.deleteWorkspace(id, companyId) },

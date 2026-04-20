@@ -7,7 +7,7 @@ import type { HandlerContext, HandlerDeps, WorkerMessageEvent } from "./handler-
 
 type RunFinishedEvent = Extract<WorkerMessageEvent, { type: "run-finished" }>;
 type RunRecord = ReturnType<HandlerDeps["db"]["getRun"]>;
-type TaskRecord = ReturnType<HandlerDeps["db"]["getTask"]>;
+type TaskRecord = ReturnType<HandlerDeps["db"]["entityCrud"]["getTask"]>;
 
 export interface RunFinishedContext {
   run: RunRecord;
@@ -56,7 +56,7 @@ export function finalizeRun(
   let task: TaskRecord | null = null;
   if (run.taskId) {
     try {
-      task = db.getTask(run.taskId);
+      task = db.entityCrud.getTask(run.taskId);
     } catch (error) {
       logger.warn(
         `[finalizeRun] getTask(${run.taskId}) failed; task may have been deleted: ${error instanceof Error ? error.message : String(error)}`,
@@ -97,9 +97,9 @@ export function accumulateAndRotateSession(
   // heartbeat run — the exact failure mode that lets a taskless transcript
   // grow past the model's context window. Resolve the session through the
   // agent, never through the task.
-  let agentRecord: ReturnType<HandlerDeps["db"]["getAgent"]>;
+  let agentRecord: ReturnType<HandlerDeps["db"]["entityCrud"]["getAgent"]>;
   try {
-    agentRecord = db.getAgent(run.agentId);
+    agentRecord = db.entityCrud.getAgent(run.agentId);
   } catch (error) {
     logger.warn(
       `[session] accumulateAndRotateSession: getAgent(${run.agentId}) failed; skipping: ${error instanceof Error ? error.message : String(error)}`,
@@ -107,7 +107,7 @@ export function accumulateAndRotateSession(
     return;
   }
   if (!agentRecord.sessionId) return;
-  const session = db.getSessionById(agentRecord.sessionId);
+  const session = db.tasks.getSessionById(agentRecord.sessionId);
   if (!session) return;
 
   sessionService.accumulateTokenUsage(
@@ -120,7 +120,7 @@ export function accumulateAndRotateSession(
   // that include this run, otherwise a run that just crossed the
   // threshold waits a full additional cycle to rotate — the exact
   // failure mode that let transcripts balloon past the context window.
-  const updatedSession = db.getSessionById(agentRecord.sessionId);
+  const updatedSession = db.tasks.getSessionById(agentRecord.sessionId);
   if (!updatedSession) return;
   const rotationResult = sessionService.evaluateRotation(updatedSession);
   if (rotationResult.shouldRotate) {
@@ -154,9 +154,9 @@ export function emitAndNotifyCompletion(
     });
   }
 
-  let updatedAgent: ReturnType<HandlerDeps["db"]["getAgent"]> | null = null;
+  let updatedAgent: ReturnType<HandlerDeps["db"]["entityCrud"]["getAgent"]> | null = null;
   try {
-    updatedAgent = db.getAgent(run.agentId);
+    updatedAgent = db.entityCrud.getAgent(run.agentId);
   } catch (error) {
     logger.warn(
       `[emitAndNotifyCompletion] getAgent(${run.agentId}) failed; skipping budget-paused notification: ${error instanceof Error ? error.message : String(error)}`,
@@ -294,7 +294,7 @@ export function triggerSelfWake(
   if (hadDeferredWakes || isQuitting() || destroyed) return;
 
   try {
-    const actionableTasks = db.listAgentTasks(run.agentId, run.companyId, ["todo", "in_progress"]);
+    const actionableTasks = db.tasks.listAgentTasks(run.agentId, run.companyId, ["todo", "in_progress"]);
     const hasWorkToContinue = actionableTasks.length > 0 || hasUnfinishedTeamBuilding(db, run.agentId, run.companyId);
     if (!hasWorkToContinue) return;
 
@@ -305,7 +305,7 @@ export function triggerSelfWake(
       );
       // Escalate to manager since agent is stuck
       try {
-        const chain = db.getChainOfCommand(run.agentId);
+        const chain = db.agents.getChainOfCommand(run.agentId);
         if (chain.length > 0) {
           wakeAgentIfPossible(chain[0].id, run.companyId, "report_stuck");
         }
@@ -342,9 +342,9 @@ function hasUnfinishedTeamBuilding(
   companyId: string,
 ): boolean {
   try {
-    const agent = db.getAgent(agentId);
+    const agent = db.entityCrud.getAgent(agentId);
     if (agent.reportsTo !== null) return false;
-    const activeReports = db
+    const activeReports = db.agents
       .getDirectReports(agentId, companyId)
       .filter((r) => r.status !== "pending_approval" && r.status !== "terminated");
     if (activeReports.length > 0) return false;

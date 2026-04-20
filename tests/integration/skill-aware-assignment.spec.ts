@@ -46,7 +46,7 @@ describe("skill-aware capability registry", () => {
       isPrimary: true,
     });
 
-    db.saveAgent({
+    db.agents.saveAgent({
       companyId,
       name: "Generic Engineer",
       role: "Engineer",
@@ -59,7 +59,7 @@ describe("skill-aware capability registry", () => {
       capabilities: "General software delivery",
       budgetMonthlyUsd: 200,
     });
-    const styledEngineerId = db.saveAgent({
+    const styledEngineerId = db.agents.saveAgent({
       companyId,
       name: "Frontend Specialist",
       role: "Engineer",
@@ -94,7 +94,7 @@ describe("skill-aware capability registry", () => {
     });
     db.assignSkillToAgent(styledEngineerId, skillId);
 
-    const taskId = db.saveTask({
+    const taskId = db.tasks.saveTask({
       companyId,
       title: "Build React dashboard widget",
       description: "Create an accessible React component with hooks and Tailwind styling.",
@@ -103,7 +103,7 @@ describe("skill-aware capability registry", () => {
       status: "todo",
     });
 
-    const assignedId = db.autoAssignTask(taskId, companyId);
+    const assignedId = db.tasks.autoAssignTask(taskId, companyId);
     expect(assignedId).toBe(styledEngineerId);
 
     db.close();
@@ -135,7 +135,7 @@ describe("skill-aware capability registry", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.saveAgent({
+    const agentId = db.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -171,7 +171,7 @@ describe("skill-aware capability registry", () => {
 
     const snapshot = db.listSnapshot();
     const prompt = buildTaskPrompt({
-      agent: db.getAgent(agentId),
+      agent: db.entityCrud.getAgent(agentId),
       apiUrl: "http://127.0.0.1:3210",
       apiKey: "token",
       runId: "run-1",

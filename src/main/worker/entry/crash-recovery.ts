@@ -48,12 +48,12 @@ export function handleWorkerExit(
       }
       // EXEC-02: Release execution lock on crash recovery
       if (run.taskId) {
-        db.releaseTaskLock(run.taskId, run.id);
+        db.tasks.releaseTaskLock(run.taskId, run.id);
       }
       affectedAgentIds.add(run.agentId);
       affectedCompanyIds.set(run.agentId, run.companyId);
 
-      const chain = db.getChainOfCommand(run.agentId);
+      const chain = db.agents.getChainOfCommand(run.agentId);
       if (chain.length > 0) {
         wakeAgentIfPossible(chain[0].id, run.companyId, "report_failed");
       }
@@ -98,8 +98,8 @@ export function handleWorkerExit(
         if (candidate.workspaceId) {
           db.releaseWorkspaceLock(candidate.workspaceId, candidate.id);
         }
-        const task = candidate.taskId ? db.getTask(candidate.taskId) : null;
-        const agent = db.getAgent(candidate.agentId);
+        const task = candidate.taskId ? db.entityCrud.getTask(candidate.taskId) : null;
+        const agent = db.entityCrud.getAgent(candidate.agentId);
         const connector = db.getConnector(agent.connectorId);
         const { workspace, lockMode } = resolveWorkspaceWithLockMode(db, task, agent, candidate.companyId);
         const recoveryCompany = recoverySnapshot.companies.find((company) => company.id === candidate.companyId);

@@ -166,7 +166,7 @@ export function registerCoreReadHandlers({
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
     try {
-      const task = db.getTask(parsed.id);
+      const task = db.entityCrud.getTask(parsed.id);
       if (task.companyId !== parsed.companyId) return fail("TASK_NOT_FOUND", "Task not found in current company.");
       return ok(task);
     } catch (err) {
@@ -180,7 +180,7 @@ export function registerCoreReadHandlers({
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
     try {
-      const agent = db.getAgent(parsed.id);
+      const agent = db.entityCrud.getAgent(parsed.id);
       if (agent.companyId !== parsed.companyId) return fail("AGENT_NOT_FOUND", "Agent not found in current company.");
       return ok(agent);
     } catch (err) {

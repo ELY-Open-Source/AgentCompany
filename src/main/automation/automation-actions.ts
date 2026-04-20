@@ -76,7 +76,7 @@ export function executeAutomationAction(
   switch (action) {
     case "assign_task": {
       if (ctx.taskId) {
-        const assignedId = db.autoAssignTask(ctx.taskId, ctx.companyId);
+        const assignedId = db.tasks.autoAssignTask(ctx.taskId, ctx.companyId);
         if (assignedId) {
           wakeAgentIfPossible(assignedId, ctx.companyId, "assignment");
         }
@@ -90,7 +90,7 @@ export function executeAutomationAction(
           });
         if (unassigned.length > 0) {
           const task = unassigned[0]!;
-          db.saveTask({
+          db.tasks.saveTask({
             id: task.id,
             companyId: task.companyId,
             projectId: task.projectId,
@@ -120,7 +120,7 @@ export function executeAutomationAction(
         logger.warn(`[automation] Skipping create_task — validation failed: ${taskValidation.errors.join("; ")}`);
         break;
       }
-      const taskId = db.saveTask({
+      const taskId = db.tasks.saveTask({
         companyId: ctx.companyId,
         projectId: ctx.projectId ?? cfg.projectId ?? null,
         title,
@@ -147,7 +147,7 @@ export function executeAutomationAction(
       let channelTargetId: string | null = cfg.channelTargetId ?? cfg.department ?? ctx.department ?? null;
       if (channel === "department" && !channelTargetId && fromAgentId) {
         try {
-          const sender = db.getAgent(fromAgentId);
+          const sender = db.entityCrud.getAgent(fromAgentId);
           channelTargetId = sender.department ?? null;
         } catch (err) {
           logger.warn(`[automation] getAgent failed for sender ${fromAgentId}; dropping department target:`, err instanceof Error ? err.message : String(err));
@@ -195,7 +195,7 @@ export function executeAutomationAction(
       if (!targetAgentId && ctx.agentId) {
         const triggerType = rule.trigger ?? "";
         if (triggerType === "run_completed" || triggerType === "run_failed") {
-          const manager = db.getManagerForAgent(ctx.agentId);
+          const manager = db.agents.getManagerForAgent(ctx.agentId);
           targetAgentId = manager?.id ?? ctx.agentId;
         } else {
           targetAgentId = ctx.agentId;
@@ -221,8 +221,8 @@ export function executeAutomationAction(
     case "update_task_status": {
       if (!ctx.taskId) break;
       const newStatus = (config.status as string) ?? "todo";
-      const previousTask = db.getTask(ctx.taskId);
-      db.advanceTaskStatus(ctx.taskId, newStatus, "Status changed by automation rule");
+      const previousTask = db.entityCrud.getTask(ctx.taskId);
+      db.tasks.advanceTaskStatus(ctx.taskId, newStatus, "Status changed by automation rule");
       publishDomainChanged();
       if (previousTask.status !== newStatus && rule.trigger !== "task_status_changed") {
         handleTaskStatusChange(ctx.taskId, ctx.companyId, previousTask.status, newStatus);
@@ -234,17 +234,17 @@ export function executeAutomationAction(
       if (!targetAgentId) break;
       let agentName = "an agent";
       try {
-        agentName = db.getAgent(targetAgentId).name;
+        agentName = db.entityCrud.getAgent(targetAgentId).name;
       } catch (err) {
         logger.warn(`[automation] getAgent failed for escalation target ${targetAgentId}; using generic label:`, err instanceof Error ? err.message : String(err));
       }
       let taskTitle = ctx.taskId ?? "unknown";
       try {
-        if (ctx.taskId) taskTitle = db.getTask(ctx.taskId).title;
+        if (ctx.taskId) taskTitle = db.entityCrud.getTask(ctx.taskId).title;
       } catch (err) {
         logger.warn(`[automation] getTask failed for escalation task ${ctx.taskId}; using id as title:`, err instanceof Error ? err.message : String(err));
       }
-      const manager = db.getManagerForAgent(targetAgentId);
+      const manager = db.agents.getManagerForAgent(targetAgentId);
       const escalationBody = (config.body as string) ?? `Task "${taskTitle}" needs your attention. ${agentName} has flagged this as requiring manager intervention.`;
       const wakeTrigger = deriveEscalationWakeTrigger(ctx.newStatus ?? null, rule.trigger ?? null);
       if (manager) {
@@ -277,7 +277,7 @@ export function executeAutomationAction(
     case "cross_department_notify": {
       const targetDepartment = rule.targetDepartment ?? (config.department as string);
       if (!targetDepartment) break;
-      const departmentAgents = db.getIdleAgentsForDepartment(ctx.companyId, targetDepartment);
+      const departmentAgents = db.agents.getIdleAgentsForDepartment(ctx.companyId, targetDepartment);
       const senderAgentId = ctx.agentId ?? departmentAgents[0]?.id;
       if (senderAgentId) {
         const dispatchResult = dispatchAgentMessage(
@@ -352,7 +352,7 @@ export function executeAutomationAction(
     }
     case "reassign_task": {
       if (!ctx.taskId) break;
-      const newAssignee = db.autoAssignTask(ctx.taskId, ctx.companyId);
+      const newAssignee = db.tasks.autoAssignTask(ctx.taskId, ctx.companyId);
       if (newAssignee) {
         wakeAgentIfPossible(newAssignee, ctx.companyId, "assignment");
       }
@@ -361,7 +361,7 @@ export function executeAutomationAction(
     case "run_task": {
       const targetTaskId = (config.taskId as string) ?? ctx.taskId;
       if (!targetTaskId) break;
-      const task = db.getTask(targetTaskId);
+      const task = db.entityCrud.getTask(targetTaskId);
       if (!task.assigneeAgentId) break;
       wakeAgentIfPossible(task.assigneeAgentId, ctx.companyId, "assignment");
       break;

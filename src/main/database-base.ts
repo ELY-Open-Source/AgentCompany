@@ -123,7 +123,7 @@ export class AppDatabaseBase {
       addComment: (input) => this.addComment(input),
     });
     this.agents = buildAgentMethods(getDb, ra, tx, {
-      getAgent: (id) => this.getAgent(id),
+      getAgent: (id) => this.entityCrud.getAgent(id),
       wouldCreateAgentCycle: (agentId, reportsTo) => this.wouldCreateAgentCycle(agentId, reportsTo),
       recordConfigRevision: (input) => this.recordConfigRevision(input),
       cancelRunForDeletion: (runId, taskId, workspaceId, summary) => this.runs.cancelRunForDeletion(runId, taskId, workspaceId, summary),
@@ -134,14 +134,14 @@ export class AppDatabaseBase {
       addActivity: (input) => this.addActivity(input),
     });
     this.messages = buildMessageMethods(getDb, ra, {
-      getAgent: (id) => this.getAgent(id),
+      getAgent: (id) => this.entityCrud.getAgent(id),
       addActivity: (input) => this.addActivity(input),
       transaction: tx,
     });
     this.runs = buildRunMethods(getDb, ra, tx, { logsDir: this.logsDir });
     this.workspacesMod = buildWorkspaceMethods(getDb, ra, tx);
     this.approvalsMod = buildApprovalMethods(getDb, ra, tx, {
-      getAgent: (id) => this.getAgent(id),
+      getAgent: (id) => this.entityCrud.getAgent(id),
     });
     this.social = buildSocialMethods(getDb, ra, tx);
     this.skills = buildSkillMethods(getDb, ra);
@@ -269,86 +269,6 @@ export class AppDatabaseBase {
   updateConnectorHealth(input: { id: ConnectorId; status: string; authState: string; version: string | null; lastError: string | null }) { this.connectorsCrud.updateConnectorHealth(input); }
   getConnector(id: ConnectorId) { return this.connectorsCrud.getConnector(id); }
   findConnector(id: ConnectorId) { return this.connectorsCrud.findConnector(id); }
-
-  // ─── Agents ────────────────────────────────────────────────────────────────
-
-  saveAgent(input: { id?: string | null; companyId: string; name: string; role: string; title: string; department?: string | null; status: AgentStatus; reportsTo?: string | null; connectorId: ConnectorId; workspaceId?: string | null; model?: string | null; metadataJson?: string; capabilities: string; budgetMonthlyUsd: number; roleLevel?: import("@shared/types").AgentRoleLevel; modelStrategy?: import("@shared/types").AgentModelStrategy }) { return this.agents.saveAgent(input); }
-  deleteAgent(id: string, companyId: string) { return this.agents.deleteAgent(id, companyId); }
-  getAgent(id: string) { return this.entityCrud.getAgent(id); }
-  findAgent(id: string) { return this.entityCrud.findAgent(id); }
-  setHeartbeat(agentId: string, enabled: boolean, intervalSec: number) { return this.agents.setHeartbeat(agentId, enabled, intervalSec); }
-  markHeartbeatAt(agentId: string) { return this.agents.markHeartbeatAt(agentId); }
-  resetMonthlyBudgets(companyId: string) { return this.agents.resetMonthlyBudgets(companyId); }
-  listHeartbeatEligibleAgents(companyId: string) { return this.agents.listHeartbeatEligibleAgents(companyId); }
-  getChainOfCommand(agentId: string) { return this.agents.getChainOfCommand(agentId); }
-  getDirectReports(agentId: string, companyId: string) { return this.agents.getDirectReports(agentId, companyId); }
-  getCeoForCompany(companyId: string) { return this.agents.getCeoForCompany(companyId); }
-  listActiveAgentsForCompany(companyId: string) { return this.agents.listActiveAgentsForCompany(companyId); }
-  listAgentsForApi(companyId: string) { return this.agents.listAgentsForApi(companyId); }
-  listDirectReportsForStandup(companyId: string, managerId: string) { return this.agents.listDirectReportsForStandup(companyId, managerId); }
-  listReportStatusesForStandup(companyId: string, managerId: string) { return this.agents.listReportStatusesForStandup(companyId, managerId); }
-  listExistingAgentsForHireCheck(companyId: string) { return this.agents.listExistingAgentsForHireCheck(companyId); }
-  hasAgentAssignedTasks(agentId: string, companyId: string) { return this.agents.hasAgentAssignedTasks(agentId, companyId); }
-  updateAgentStatus(agentId: string, status: string) { return this.agents.updateAgentStatus(agentId, status); }
-  isAgentPendingApproval(agentId: string) { return this.agents.isAgentPendingApproval(agentId); }
-  findMentionedAgentIds(companyId: string, text: string) { return this.agents.findMentionedAgentIds(companyId, text); }
-  getIdleAgentsForDepartment(companyId: string, department: string) { return this.agents.getIdleAgentsForDepartment(companyId, department); }
-  getManagerForAgent(agentId: string) { return this.agents.getManagerForAgent(agentId); }
-  getAgentPermissions(agentId: string) { return this.agents.getAgentPermissions(agentId); }
-  setAgentPermission(agentId: string, companyId: string, permissionKey: string, enabled: boolean) { return this.agents.setAgentPermission(agentId, companyId, permissionKey, enabled); }
-  hasAgentPermission(agentId: string, permissionKey: string) { return this.agents.hasAgentPermission(agentId, permissionKey); }
-  getRuntimeState(agentId: string) { return this.agents.getRuntimeState(agentId); }
-  setRuntimeState(agentId: string, companyId: string, state: Record<string, unknown>) { return this.agents.setRuntimeState(agentId, companyId, state); }
-  getHeartbeatPolicy(agentId: string) { return this.agents.getHeartbeatPolicy(agentId); }
-  setHeartbeatPolicy(agentId: string, companyId: string, policy: { enabled?: boolean; intervalSec?: number; cooldownSec?: number; maxConcurrentRuns?: number; wakeOnDemand?: boolean }) { return this.agents.setHeartbeatPolicy(agentId, companyId, policy); }
-  countActiveRunsForAgent(agentId: string, companyId: string) { return this.agents.countActiveRunsForAgent(agentId, companyId); }
-  listDepartmentAgentIds(companyId: string, department: string) { return this.agents.listDepartmentAgentIds(companyId, department); }
-  listCompanyBroadcastAgentIds(companyId: string) { return this.agents.listCompanyBroadcastAgentIds(companyId); }
-  listIncidentPingableAgentIds(companyId: string) { return this.agents.listIncidentPingableAgentIds(companyId); }
-  findAgentName(agentId: string) { return this.agents.findAgentName(agentId); }
-  listAgentNamesByIds(companyId: string, agentIds: readonly string[]) { return this.agents.listAgentNamesByIds(companyId, agentIds); }
-  listActiveAgentIdsFromIds(companyId: string, agentIds: readonly string[]) { return this.agents.listActiveAgentIdsFromIds(companyId, agentIds); }
-
-  // ─── Tasks ─────────────────────────────────────────────────────────────────
-
-  saveTask(input: { id?: string | null; companyId: string; projectId?: string | null; goalId?: string | null; parentId?: string | null; title: string; description: string; assigneeAgentId?: string | null; workspaceId?: string | null; priority: string; status: string }) { return this.tasks.saveTask(input); }
-  getTask(id: string) { return this.entityCrud.getTask(id); }
-  deleteTask(id: string, companyId: string) { return this.tasks.deleteTask(id, companyId); }
-  getSessionById(sessionId: string) { return this.tasks.getSessionById(sessionId); }
-  incrementSessionUsage(sessionId: string, inputTokens: number, outputTokens: number, runId: string) { return this.tasks.incrementSessionUsage(sessionId, inputTokens, outputTokens, runId); }
-  archiveSession(sessionId: string, reason: string, handoffMarkdown: string) { return this.tasks.archiveSession(sessionId, reason, handoffMarkdown); }
-  createNewSession(input: { companyId: string; agentId: string; adapterType: string }) { return this.tasks.createNewSession(input); }
-  ensureAgentSession(input: { agentId: string; companyId: string; adapterType: string }) { return this.tasks.ensureAgentSession(input); }
-  setAgentSessionId(agentId: string, sessionId: string) { return this.tasks.setAgentSessionId(agentId, sessionId); }
-  getRecentRunsForTask(taskId: string, limit: number) { return this.tasks.getRecentRunsForTask(taskId, limit); }
-  getRecentActivityForTask(taskId: string, limit: number) { return this.tasks.getRecentActivityForTask(taskId, limit); }
-  checkoutTask(taskId: string, runId: string) { return this.tasks.checkoutTask(taskId, runId); }
-  releaseTaskLock(taskId: string, runId: string) { return this.tasks.releaseTaskLock(taskId, runId); }
-  renewTaskLease(taskId: string, runId: string) { return this.tasks.renewTaskLease(taskId, runId); }
-  listAgentTasks(agentId: string, companyId: string, statuses: string[]) { return this.tasks.listAgentTasks(agentId, companyId, statuses); }
-  listTasksByStatuses(companyId: string, statuses: string[]) { return this.tasks.listTasksByStatuses(companyId, statuses); }
-  listAssigneeTasksForStandup(companyId: string, agentId: string) { return this.tasks.listAssigneeTasksForStandup(companyId, agentId); }
-  listTasksForAssignees(companyId: string, assigneeIds: string[]) { return this.tasks.listTasksForAssignees(companyId, assigneeIds); }
-  listReviewTasksForManager(managerId: string, companyId: string) { return this.tasks.listReviewTasksForManager(managerId, companyId); }
-  countActiveTasksForCompany(companyId: string) { return this.tasks.countActiveTasksForCompany(companyId); }
-  countAdvancingTasksForCompany(companyId: string) { return this.tasks.countAdvancingTasksForCompany(companyId); }
-  listChildTasks(parentId: string, companyId: string) { return this.tasks.listChildTasks(parentId, companyId); }
-  advanceTaskStatus(taskId: string, newStatus: string, comment?: string) { return this.tasks.advanceTaskStatus(taskId, newStatus, comment); }
-  setTaskRequiresUserReview(taskId: string, value: boolean) { return this.tasks.setTaskRequiresUserReview(taskId, value); }
-  hasPendingDeliverableReviews(companyId: string) { return this.tasks.hasPendingDeliverableReviews(companyId); }
-  hasAgentPendingDeliverableReview(agentId: string, companyId: string) { return this.tasks.hasAgentPendingDeliverableReview(agentId, companyId); }
-  hasAgentTaskAwaitingReview(agentId: string, companyId: string) { return this.tasks.hasAgentTaskAwaitingReview(agentId, companyId); }
-  autoAssignTask(taskId: string, companyId: string) { return this.tasks.autoAssignTask(taskId, companyId); }
-  getTaskRetryCount(taskId: string) { return this.tasks.getTaskRetryCount(taskId); }
-  incrementTaskRetryCount(taskId: string) { return this.tasks.incrementTaskRetryCount(taskId); }
-  resetTaskRetryCount(taskId: string) { return this.tasks.resetTaskRetryCount(taskId); }
-  retryInterruptedTask(taskId: string, _agentId: string, _companyId: string) { return this.tasks.retryInterruptedTask(taskId, _agentId, _companyId); }
-  dismissInterruptedTask(taskId: string) { return this.tasks.dismissInterruptedTask(taskId); }
-  markInterruptedTaskFailed(taskId: string) { return this.tasks.markInterruptedTaskFailed(taskId); }
-  setTaskType(taskId: string, taskType: string) { return this.tasks.setTaskType(taskId, taskType); }
-  listProjectTaskAssigneeIds(projectId: string, companyId: string) { return this.tasks.listProjectTaskAssigneeIds(projectId, companyId); }
-  listReviewTasksForSweep(companyId: string) { return this.tasks.listReviewTasksForSweep(companyId); }
-  getTaskType(taskId: string) { return this.tasks.getTaskType(taskId); }
 
   // ─── Runs ──────────────────────────────────────────────────────────────────
 

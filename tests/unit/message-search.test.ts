@@ -32,7 +32,7 @@ describe("AppDatabase.searchMessages", () => {
       status: "active",
     });
 
-    agentA = db.saveAgent({
+    agentA = db.agents.saveAgent({
       companyId,
       name: "Agent Alpha",
       role: "Engineer",
@@ -46,7 +46,7 @@ describe("AppDatabase.searchMessages", () => {
       budgetMonthlyUsd: 100,
     });
 
-    agentB = db.saveAgent({
+    agentB = db.agents.saveAgent({
       companyId,
       name: "Agent Beta",
       role: "Designer",

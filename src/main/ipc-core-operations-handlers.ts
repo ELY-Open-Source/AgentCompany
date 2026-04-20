@@ -189,7 +189,7 @@ export function registerCoreOperationHandlers({
     emitEvent({ type: "agent-message", taskId: parsed.taskId, comment });
     emitEvent({ type: "task-updated", taskId: parsed.taskId, action: "updated" });
     try {
-      const task = db.getTask(parsed.taskId);
+      const task = db.entityCrud.getTask(parsed.taskId);
       if (task.assigneeAgentId) {
         wakeAgentIfPossible(task.assigneeAgentId, task.companyId, "comment");
       }
@@ -211,7 +211,7 @@ export function registerCoreOperationHandlers({
     if (!db.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
       return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
     }
-    db.setHeartbeat(parsed.agentId, parsed.enabled, parsed.intervalSec);
+    db.agents.setHeartbeat(parsed.agentId, parsed.enabled, parsed.intervalSec);
     db.addActivity({
       companyId: parsed.companyId,
       actor: "board",

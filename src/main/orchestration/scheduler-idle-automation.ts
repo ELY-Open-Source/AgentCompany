@@ -17,9 +17,9 @@ export function createIdleAutomationScheduler(deps: OrchestrationDependencies) {
 
         for (const company of activeCompanies) {
           try {
-            const companyAgents = db.listActiveAgentsForCompany(company.id);
+            const companyAgents = db.agents.listActiveAgentsForCompany(company.id);
             for (const agent of companyAgents) {
-              if (!db.hasAgentAssignedTasks(agent.id, company.id)) {
+              if (!db.agents.hasAgentAssignedTasks(agent.id, company.id)) {
                 const lastActive = agent.lastHeartbeatAt ? new Date(agent.lastHeartbeatAt).getTime() : 0;
                 const idleThreshold = 20 * 60 * 1000;
                 if (now - lastActive > idleThreshold) {

@@ -47,7 +47,7 @@ describe("AppDatabase", () => {
       repoRef: "main",
       isPrimary: true,
     });
-    const agentId = db.saveAgent({
+    const agentId = db.agents.saveAgent({
       companyId,
       name: "Chief Operator",
       role: "CEO",
@@ -76,7 +76,7 @@ describe("AppDatabase", () => {
       status: "in_progress",
       targetDate: null,
     });
-    const taskId = db.saveTask({
+    const taskId = db.tasks.saveTask({
       companyId,
       projectId,
       goalId,
@@ -181,7 +181,7 @@ describe("AppDatabase", () => {
       repoRef: "main",
       isPrimary: true,
     });
-    const leadId = db.saveAgent({
+    const leadId = db.agents.saveAgent({
       companyId,
       name: "Lead",
       role: "CEO",
@@ -200,7 +200,7 @@ describe("AppDatabase", () => {
       envBindingText: "",
       notes: "Test connector",
     });
-    const taskId = db.saveTask({
+    const taskId = db.tasks.saveTask({
       companyId,
       title: "Claim me",
       description: "First agent wins the checkout.",
@@ -225,10 +225,10 @@ describe("AppDatabase", () => {
       connectorId: "openai-codex",
     });
 
-    expect(db.checkoutTask(taskId, runId1)).toBe(true);
-    expect(db.checkoutTask(taskId, runId2)).toBe(false);
+    expect(db.tasks.checkoutTask(taskId, runId1)).toBe(true);
+    expect(db.tasks.checkoutTask(taskId, runId2)).toBe(false);
 
-    const task = db.getTask(taskId);
+    const task = db.entityCrud.getTask(taskId);
     expect(task.status).toBe("in_progress");
   });
 
@@ -246,7 +246,7 @@ describe("AppDatabase", () => {
       repoRef: "main",
       isPrimary: true,
     });
-    const agentId = db.saveAgent({
+    const agentId = db.agents.saveAgent({
       companyId,
       name: "Budget Owner",
       role: "CTO",
@@ -259,7 +259,7 @@ describe("AppDatabase", () => {
       capabilities: "Ships work",
       budgetMonthlyUsd: 10,
     });
-    const taskId = db.saveTask({
+    const taskId = db.tasks.saveTask({
       companyId,
       title: "Spend budget",
       description: "One run should exhaust the allowance.",
@@ -300,8 +300,8 @@ describe("AppDatabase", () => {
     });
 
     expect(outcome.budgetHardStopped).toBe(true);
-    expect(db.getAgent(agentId).status).toBe("paused");
-    expect(db.getAgent(agentId).spentMonthlyUsd).toBe(12);
+    expect(db.entityCrud.getAgent(agentId).status).toBe("paused");
+    expect(db.entityCrud.getAgent(agentId).spentMonthlyUsd).toBe(12);
   });
 
   it("activates pending hires when the corresponding approval is granted", () => {
@@ -310,7 +310,7 @@ describe("AppDatabase", () => {
       description: "Approval-driven hiring",
       status: "active",
     });
-    const managerId = db.saveAgent({
+    const managerId = db.agents.saveAgent({
       companyId,
       name: "Manager",
       role: "CEO",
@@ -323,7 +323,7 @@ describe("AppDatabase", () => {
       capabilities: "Manages",
       budgetMonthlyUsd: 100,
     });
-    const pendingHireId = db.saveAgent({
+    const pendingHireId = db.agents.saveAgent({
       companyId,
       name: "Pending Hire",
       role: "IC",
@@ -353,7 +353,7 @@ describe("AppDatabase", () => {
       decisionNote: "Approved",
     });
 
-    expect(db.getAgent(pendingHireId).status).toBe("idle");
+    expect(db.entityCrud.getAgent(pendingHireId).status).toBe("idle");
   });
 
   it("detects pending-approval agents via isAgentPendingApproval", () => {
@@ -362,7 +362,7 @@ describe("AppDatabase", () => {
       description: "Approval gate validation",
       status: "active",
     });
-    const activeAgentId = db.saveAgent({
+    const activeAgentId = db.agents.saveAgent({
       companyId,
       name: "Active Agent",
       role: "CTO",
@@ -375,7 +375,7 @@ describe("AppDatabase", () => {
       capabilities: "Ships",
       budgetMonthlyUsd: 100,
     });
-    const pendingAgentId = db.saveAgent({
+    const pendingAgentId = db.agents.saveAgent({
       companyId,
       name: "Pending Agent",
       role: "IC",
@@ -389,8 +389,8 @@ describe("AppDatabase", () => {
       budgetMonthlyUsd: 50,
     });
 
-    expect(db.isAgentPendingApproval(activeAgentId)).toBe(false);
-    expect(db.isAgentPendingApproval(pendingAgentId)).toBe(true);
+    expect(db.agents.isAgentPendingApproval(activeAgentId)).toBe(false);
+    expect(db.agents.isAgentPendingApproval(pendingAgentId)).toBe(true);
   });
 
   it("runs forward-only migrations and creates schema_migrations table", () => {
@@ -479,7 +479,7 @@ describe("AppDatabase", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.saveAgent({
+    const agentId = db.agents.saveAgent({
       companyId,
       name: "Purge Agent",
       role: "IC",
@@ -492,7 +492,7 @@ describe("AppDatabase", () => {
       capabilities: "test",
       budgetMonthlyUsd: 100,
     });
-    const taskId = db.saveTask({
+    const taskId = db.tasks.saveTask({
       companyId,
       title: "Purge task",
       description: "test",
@@ -542,7 +542,7 @@ describe("AppDatabase", () => {
       description: "test",
       status: "active",
     });
-    const managerId = db.saveAgent({
+    const managerId = db.agents.saveAgent({
       companyId,
       name: "Manager",
       role: "CEO",
@@ -555,7 +555,7 @@ describe("AppDatabase", () => {
       capabilities: "manage",
       budgetMonthlyUsd: 100,
     });
-    const hireId = db.saveAgent({
+    const hireId = db.agents.saveAgent({
       companyId,
       name: "New Hire",
       role: "IC",
