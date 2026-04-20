@@ -3,7 +3,15 @@ import log from "electron-log/main.js";
 import { approvalInputSchema } from "@shared/contracts";
 import { resolveApprovalDecision } from "../approval-policy";
 import { shouldAutoApprove } from "../execution-policy";
+import { incrementDeprecationCall } from "./deprecation-counter";
 import { requireParam, type AgentApiServer } from "./server-core";
+
+// C4-followup #3: RFC 8594 deprecation headers for the legacy
+// approve_ceo_strategy HTTP path. Only this approval type is
+// deprecated — other types still use this route as first-class.
+const LEGACY_APPROVE_CEO_STRATEGY_LABEL =
+  "POST /api/companies/:companyId/approvals type=approve_ceo_strategy";
+const LEGACY_APPROVE_CEO_STRATEGY_SUNSET = new Date("2026-05-20T00:00:00Z").toUTCString();
 
 const approvalListQuerySchema = z.object({
   requestedByAgentId: z.string().uuid().optional(),
@@ -43,6 +51,10 @@ export function registerApprovalRoutes(server: AgentApiServer) {
     }
     const input = parsed.data;
     if (input.type === "approve_ceo_strategy") {
+      res.setHeader("Deprecation", "true");
+      res.setHeader("Sunset", LEGACY_APPROVE_CEO_STRATEGY_SUNSET);
+      res.setHeader("Link", '</docs/proposals/C4-followup.md>; rel="deprecation"');
+      incrementDeprecationCall(LEGACY_APPROVE_CEO_STRATEGY_LABEL);
       log.warn(
         `[deprecated][C4] POST /api/companies/${companyId}/approvals type=approve_ceo_strategy — prefer the file_approval internal tool (caller agent=${token.agentId}).`,
       );

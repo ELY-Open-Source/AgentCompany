@@ -10,7 +10,14 @@ import {
 } from "../agent-permissions";
 import { resolveApprovalDecision } from "../approval-policy";
 import { shouldAutoApprove } from "../execution-policy";
+import { incrementDeprecationCall } from "./deprecation-counter";
 import { requireParam, type AgentApiServer } from "./server-core";
+
+// C4-followup #3: RFC 8594 deprecation headers for the legacy HTTP hire
+// route. Sunset is the 30-day removal gate — if the counter stays zero
+// through this date, delete the handler.
+const LEGACY_HIRE_ROUTE_LABEL = "POST /api/companies/:companyId/agents";
+const LEGACY_HIRE_SUNSET = new Date("2026-05-20T00:00:00Z").toUTCString();
 
 export function registerAgentRoutes(server: AgentApiServer) {
   const db = server.db;
@@ -106,6 +113,12 @@ export function registerAgentRoutes(server: AgentApiServer) {
    * so residual callers are easy to audit.
    */
   server.addRoute("POST", "/api/companies/:companyId/agents", (_req, res, params, token, body) => {
+    // RFC 8594 deprecation signaling — emit on every response from this
+    // handler regardless of downstream validation outcome.
+    res.setHeader("Deprecation", "true");
+    res.setHeader("Sunset", LEGACY_HIRE_SUNSET);
+    res.setHeader("Link", '</docs/proposals/C4-followup.md>; rel="deprecation"');
+    incrementDeprecationCall(LEGACY_HIRE_ROUTE_LABEL);
     const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
       server.json(res, 403, { error: "Company mismatch" });
