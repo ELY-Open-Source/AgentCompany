@@ -19,7 +19,7 @@ export function handleWorkerExit(
 
   logger.warn(`[worker] Worker exited with code ${code}, recovering...`);
 
-  const snapshot = db.listSnapshot();
+  const snapshot = db.snap.listSnapshot();
   const affectedAgentIds = new Set<string>();
   const affectedCompanyIds = new Map<string, string>();
   const requeueCandidates: Array<{
@@ -44,7 +44,7 @@ export function handleWorkerExit(
         unattributedCost: true,
       });
       if (run.workspaceId) {
-        db.releaseWorkspaceLock(run.workspaceId, run.id);
+        db.workspacesMod.releaseWorkspaceLock(run.workspaceId, run.id);
       }
       // EXEC-02: Release execution lock on crash recovery
       if (run.taskId) {
@@ -72,11 +72,11 @@ export function handleWorkerExit(
   for (const agentId of affectedAgentIds) {
     // EXEC-05: Promote deferred wakes after crash recovery
     const cid = affectedCompanyIds.get(agentId) ?? "";
-    const promoted = db.promoteWakeupRequests(agentId, cid);
+    const promoted = db.wakeup.promoteWakeupRequests(agentId, cid);
     if (promoted > 0) {
       logger.info(`[worker] Promoted ${promoted} deferred wake(s) for agent ${agentId} after crash recovery`);
     }
-    const pendingWakeTrigger = db.getPreferredWakeTrigger(agentId, cid);
+    const pendingWakeTrigger = db.wakeup.getPreferredWakeTrigger(agentId, cid);
     if (pendingWakeTrigger) {
       wakeAgentIfPossible(agentId, cid, pendingWakeTrigger);
     }
@@ -89,18 +89,18 @@ export function handleWorkerExit(
   const worker = getWorker();
   if (requeueCandidates.length > 0 && worker) {
     logger.info(`[worker] Re-enqueuing ${requeueCandidates.length} queued run(s) after worker restart.`);
-    const recoverySnapshot = db.listSnapshot();
+    const recoverySnapshot = db.snap.listSnapshot();
     for (const candidate of requeueCandidates) {
       try {
         // The crashed run may still own a workspace lock acquired during the
         // original dispatch; release it before re-dispatch so the replay
         // does not self-collide with "Workspace is locked by another run".
         if (candidate.workspaceId) {
-          db.releaseWorkspaceLock(candidate.workspaceId, candidate.id);
+          db.workspacesMod.releaseWorkspaceLock(candidate.workspaceId, candidate.id);
         }
         const task = candidate.taskId ? db.entityCrud.getTask(candidate.taskId) : null;
         const agent = db.entityCrud.getAgent(candidate.agentId);
-        const connector = db.getConnector(agent.connectorId);
+        const connector = db.connectorsCrud.getConnector(agent.connectorId);
         const { workspace, lockMode } = resolveWorkspaceWithLockMode(db, task, agent, candidate.companyId);
         const recoveryCompany = recoverySnapshot.companies.find((company) => company.id === candidate.companyId);
 
@@ -130,7 +130,7 @@ export function handleWorkerExit(
           unattributedCost: true,
         });
         if (candidate.workspaceId) {
-          db.releaseWorkspaceLock(candidate.workspaceId, candidate.id);
+          db.workspacesMod.releaseWorkspaceLock(candidate.workspaceId, candidate.id);
         }
       }
     }

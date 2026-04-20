@@ -57,7 +57,7 @@ const mockLogger = {
 function scaffold(db: AppDatabase, budgetAmountCents = 500): ScaffoldResult {
   const connectorId: ConnectorId = "gemini-cli";
 
-  db.saveConnector({
+  db.connectorsCrud.saveConnector({
     id: connectorId,
     model: "gemini-2.5-pro",
     envBindingText: "",
@@ -70,7 +70,7 @@ function scaffold(db: AppDatabase, budgetAmountCents = 500): ScaffoldResult {
     status: "active",
   });
 
-  const workspaceId = db.saveWorkspace({
+  const workspaceId = db.workspacesMod.saveWorkspace({
     companyId,
     name: "Primary Workspace",
     localPath: "/tmp/pipeline-test",
@@ -93,7 +93,7 @@ function scaffold(db: AppDatabase, budgetAmountCents = 500): ScaffoldResult {
     budgetMonthlyUsd: 100,
   });
 
-  const goalId = db.saveGoal({
+  const goalId = db.entityCrud.saveGoal({
     companyId,
     title: "Implement Authentication",
     description: "Build full authentication system",
@@ -101,7 +101,7 @@ function scaffold(db: AppDatabase, budgetAmountCents = 500): ScaffoldResult {
     status: "active",
   });
 
-  const projectId = db.saveProject({
+  const projectId = db.entityCrud.saveProject({
     companyId,
     goalId,
     name: "Auth Project",
@@ -112,7 +112,7 @@ function scaffold(db: AppDatabase, budgetAmountCents = 500): ScaffoldResult {
   });
 
   // Budget policy: company-level with hardStop
-  const policyId = db.saveBudgetPolicy({
+  const policyId = db.budget.saveBudgetPolicy({
     companyId,
     scopeType: "company",
     scopeId: companyId,

@@ -134,7 +134,7 @@ export function validateAgentMessageInput(
   input: NormalizedAgentMessageInput,
 ): MessageValidationError | null {
   // Human sender (BOARD_READER_ID) is always a valid sender — skip agent ownership check.
-  if (!input.fromHumanUser && !db.belongsToCompany("agents", input.fromAgentId, input.companyId)) {
+  if (!input.fromHumanUser && !db.settings.belongsToCompany("agents", input.fromAgentId, input.companyId)) {
     return {
       code: "INVALID_COMPANY_REFERENCE",
       message: "The message sender does not belong to the current company.",
@@ -154,7 +154,7 @@ export function validateAgentMessageInput(
     };
   }
 
-  if (input.toAgentId && input.toAgentId !== HUMAN_SENDER_ID && !db.belongsToCompany("agents", input.toAgentId, input.companyId)) {
+  if (input.toAgentId && input.toAgentId !== HUMAN_SENDER_ID && !db.settings.belongsToCompany("agents", input.toAgentId, input.companyId)) {
     return {
       code: "INVALID_COMPANY_REFERENCE",
       message: "The message recipient does not belong to the current company.",
@@ -168,7 +168,7 @@ export function validateAgentMessageInput(
         message: "Project messages require a project channel target.",
       };
     }
-    if (!db.belongsToCompany("projects", input.channelTargetId, input.companyId)) {
+    if (!db.settings.belongsToCompany("projects", input.channelTargetId, input.companyId)) {
       return {
         code: "INVALID_COMPANY_REFERENCE",
         message: "The selected project channel does not belong to the current company.",
@@ -201,7 +201,7 @@ function resolveProjectWakeTargets(
   input: NormalizedAgentMessageInput,
 ): string[] {
   if (!input.channelTargetId) return [];
-  const project = db.getProjectForUpdate(input.channelTargetId, input.companyId);
+  const project = db.entityCrud.getProjectForUpdate(input.channelTargetId, input.companyId);
   const participantIds = new Set<string>();
   if (project?.leadAgentId) participantIds.add(project.leadAgentId);
   for (const assigneeId of db.tasks.listProjectTaskAssigneeIds(input.channelTargetId, input.companyId)) {
@@ -367,7 +367,7 @@ export function dispatchAgentMessage(
         continue;
       }
       const runId = deps.wakeAgentIfPossible(wakeTarget, normalized.companyId, wakeTrigger);
-      const hasQueuedWake = !runId && deps.db.listWakeupRequests(normalized.companyId, {
+      const hasQueuedWake = !runId && deps.db.wakeup.listWakeupRequests(normalized.companyId, {
         agentId: wakeTarget,
         limit: 10,
       }).some((request) => request.status === "queued" || request.status === "deferred");

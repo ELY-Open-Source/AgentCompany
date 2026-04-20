@@ -63,7 +63,7 @@ describe("ipc-core-admin-handlers connector saves", () => {
     }) as { ok: boolean; error?: { code: string; message: string } };
 
     expect(result.ok).toBe(true);
-    expect(db.getConnector("anthropic").model).toBe(anthropicModel);
+    expect(db.connectorsCrud.getConnector("anthropic").model).toBe(anthropicModel);
 
     db.close();
   });

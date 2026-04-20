@@ -28,7 +28,7 @@ describe("knowledge provenance", () => {
       status: "active",
     });
 
-    const knowledgeId = db.saveKnowledgeEntry({
+    const knowledgeId = db.knowledgeMod.saveKnowledgeEntry({
       companyId,
       category: "lesson_learned",
       topic: "Original lesson",
@@ -37,7 +37,7 @@ describe("knowledge provenance", () => {
       sourceRunId: null,
     });
 
-    db.saveKnowledgeEntry({
+    db.knowledgeMod.saveKnowledgeEntry({
       id: knowledgeId,
       companyId,
       category: "lesson_learned",

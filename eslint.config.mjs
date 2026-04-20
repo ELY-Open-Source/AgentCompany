@@ -78,6 +78,33 @@ export default tseslint.config(
     },
   },
   {
+    // C1 part 3/3 — block new top-level methods on AppDatabase.
+    //
+    // The whole point of the C1 codemod was to force callers through
+    // the sub-module surface (`db.tasks.saveTask(...)`) rather than a
+    // flat pass-through (`db.saveTask(...)`). Any new method added to
+    // `AppDatabase` reintroduces exactly the broken-window pattern we
+    // just killed. Allowed methods are limited to
+    // `createHireRequest`, `rollbackConfigRevision`, and `queryAll`
+    // (the documented multi-module composites + raw-SQL escape hatch).
+    // Adding a new method here must either use a different name
+    // (then the rule fires and you must justify it with a
+    // disable-next-line and a rationale) or go on an existing or new
+    // domain module.
+    files: ["src/main/database.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ClassBody > MethodDefinition[key.name!=/^(createHireRequest|rollbackConfigRevision|queryAll)$/]",
+          message:
+            "C1: do not add new methods to AppDatabase. Put the implementation on the owning `database/<module>.ts` and invoke via `db.<module>.<method>(...)`. Only `createHireRequest`, `rollbackConfigRevision`, and `queryAll` are grandfathered; adding another requires a proposal and an explicit eslint-disable.",
+        },
+      ],
+    },
+  },
+  {
     // B2 Phase 1 step 5/5 — block new raw status-writes on tasks.
     //
     // During dual-write every `UPDATE tasks SET status = ...` must go

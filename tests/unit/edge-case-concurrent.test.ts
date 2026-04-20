@@ -36,7 +36,7 @@ function createTestCompany(db: AppDatabase): string {
 }
 
 function createTestConnector(db: AppDatabase): void {
-  db.saveConnector({
+  db.connectorsCrud.saveConnector({
     id: "gemini-cli",
     model: "gemini-pro",
     envBindingText: "",
@@ -45,7 +45,7 @@ function createTestConnector(db: AppDatabase): void {
 }
 
 function createTestWorkspace(db: AppDatabase, companyId: string): string {
-  return db.saveWorkspace({
+  return db.workspacesMod.saveWorkspace({
     companyId,
     name: "Test Workspace",
     localPath: "/tmp/concurrent-test",

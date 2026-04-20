@@ -121,9 +121,9 @@ export function prepareServices(deps: PrepareServicesDeps): ServiceGraphHandles 
     logger: deps.logger,
     getMainWindow: () => serviceGraph?.getDesktopShellService()?.getMainWindow() ?? null,
     getDb: () => ({
-      hasCompany: (companyId: string) => deps.db.hasCompany(companyId),
+      hasCompany: (companyId: string) => deps.db.settings.hasCompany(companyId),
       belongsToCompany: (table: string, id: string, companyId: string) =>
-        deps.db.belongsToCompany(table as Parameters<typeof deps.db.belongsToCompany>[0], id, companyId),
+        deps.db.settings.belongsToCompany(table as Parameters<typeof deps.db.settings.belongsToCompany>[0], id, companyId),
     }),
     notificationService,
   });

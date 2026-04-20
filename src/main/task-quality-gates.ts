@@ -28,8 +28,10 @@ interface CapabilityMatchDb {
   entityCrud: {
     getAgent(id: string): { name: string; capabilities: string };
   };
-  listAgentSkillAssignments(id: string): string[];
-  getCompanySkill(companyId: string, skillId: string): { name: string; description: string | null; slug: string } | null;
+  skills: {
+    listAgentSkillAssignments(id: string): string[];
+    getCompanySkill(companyId: string, skillId: string): { name: string; description: string | null; slug: string } | null;
+  };
 }
 
 
@@ -135,9 +137,9 @@ export function checkCapabilityMatch(
   const capabilityOverlap = taskWords.filter((w) => capWords.includes(w)).length;
 
   let skillOverlap = 0;
-  const skillIds = db.listAgentSkillAssignments(agentId);
+  const skillIds = db.skills.listAgentSkillAssignments(agentId);
   for (const skillId of skillIds) {
-    const skill = db.getCompanySkill(companyId, skillId);
+    const skill = db.skills.getCompanySkill(companyId, skillId);
     if (skill) {
       const skillWords = tokenize(`${skill.name} ${skill.description ?? ""} ${skill.slug}`);
       skillOverlap += taskWords.filter((w) => skillWords.includes(w)).length;

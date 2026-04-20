@@ -39,7 +39,7 @@ export function emitCrashRecoveryNotification(deps: RecoverInterruptedTasksDeps)
  */
 export function recoverShutdownInterruptedTasks(deps: RecoverInterruptedTasksDeps): void {
   try {
-    const snapshot = deps.db.listSnapshot();
+    const snapshot = deps.db.snap.listSnapshot();
     const shutdownRuns = snapshot.runs.filter(
       (r) => r.status === "interrupted" &&
         (r.summary === "Application shut down." || r.summary === "Worker process crashed."),

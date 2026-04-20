@@ -72,16 +72,16 @@ export function autoAssignSkillsForHire(
     return { assignedSkillIds: [] };
   }
 
-  const alreadyAssigned = new Set(db.listAgentSkillAssignments(input.agentId));
+  const alreadyAssigned = new Set(db.skills.listAgentSkillAssignments(input.agentId));
   const wanted = new Set(categories);
-  const catalogue = db.listCompanySkills(input.companyId);
+  const catalogue = db.skills.listCompanySkills(input.companyId);
 
   const assigned: string[] = [];
   for (const skill of catalogue) {
     if (alreadyAssigned.has(skill.id)) continue;
     const category = readBuiltinCategory(skill.metadata);
     if (!category || !wanted.has(category)) continue;
-    db.assignSkillToAgent(input.agentId, skill.id);
+    db.skills.assignSkillToAgent(input.agentId, skill.id);
     assigned.push(skill.id);
   }
 

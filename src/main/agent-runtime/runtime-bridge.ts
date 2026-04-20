@@ -358,7 +358,7 @@ export class RuntimeBridge {
     try {
       const body = extractTextBody(message.content);
       const actor = this.resolveThreadEventActor(envelope, message);
-      this.deps.db.addThreadEvent({
+      this.deps.db.threads.addThreadEvent({
         threadId: thread.id,
         actorId: actor.actorId,
         actorType: actor.actorType,
@@ -470,7 +470,7 @@ export class RuntimeBridge {
           : record.senderKind === "system"
             ? "system"
             : "agent";
-      this.deps.db.addThreadEvent({
+      this.deps.db.threads.addThreadEvent({
         threadId: thread.id,
         actorId: record.fromAgentId,
         actorType,

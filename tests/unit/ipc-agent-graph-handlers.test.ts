@@ -31,7 +31,7 @@ describe("ipc-core-agent-graph-handlers model enforcement", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.updateConnectorHealth({
+    db.connectorsCrud.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -43,8 +43,8 @@ describe("ipc-core-agent-graph-handlers model enforcement", () => {
       description: "Tests saveAgent model validation",
       status: "active",
     });
-    db.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
-    const workspaceId = db.saveWorkspace({
+    db.settings.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
+    const workspaceId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -72,7 +72,7 @@ describe("ipc-core-agent-graph-handlers model enforcement", () => {
         handlers.set(channel, handler);
       },
       db,
-      ensureCompanyExists: (id) => (db.hasCompany(id) ? null : { ok: false, error: { code: "COMPANY_NOT_FOUND", message: "missing" } }),
+      ensureCompanyExists: (id) => (db.settings.hasCompany(id) ? null : { ok: false, error: { code: "COMPANY_NOT_FOUND", message: "missing" } }),
       findInvalidReference: () => null,
       publishDomainChanged: vi.fn(),
       handleApprovalResolved: vi.fn(),

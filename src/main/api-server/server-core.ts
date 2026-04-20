@@ -349,7 +349,7 @@ export class AgentApiServer {
     companyId: string,
     refs: Array<{ id: string | null | undefined; table: "agents" | "goals" | "projects" | "tasks" | "workspaces" | "approvals"; label: string }>,
   ) {
-    const invalid = refs.find((ref) => ref.id && !this._db.belongsToCompany(ref.table, ref.id, companyId));
+    const invalid = refs.find((ref) => ref.id && !this._db.settings.belongsToCompany(ref.table, ref.id, companyId));
     if (!invalid) return false;
     this.json(res, 422, { error: `${invalid.label} does not belong to the current company` });
     return true;

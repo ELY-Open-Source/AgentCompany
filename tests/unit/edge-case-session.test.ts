@@ -28,14 +28,14 @@ function scaffold(db: AppDatabase, connectorId: ConnectorId = "gemini-cli") {
   });
 
   // Always save gemini-cli (needed for most tests)
-  db.saveConnector({
+  db.connectorsCrud.saveConnector({
     id: "gemini-cli",
     model: "gemini-pro",
     envBindingText: "",
     notes: "Test connector - no native context management",
   });
 
-  const workspaceId = db.saveWorkspace({
+  const workspaceId = db.workspacesMod.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: "/tmp/session-edge-test",
@@ -56,14 +56,14 @@ function scaffold(db: AppDatabase, connectorId: ConnectorId = "gemini-cli") {
     capabilities: "Executes tasks",
     budgetMonthlyUsd: 100,
   });
-  const goalId = db.saveGoal({
+  const goalId = db.entityCrud.saveGoal({
     companyId,
     title: "Ship feature",
     description: "Build session rotation edge case test",
     ownerAgentId: agentId,
     status: "active",
   });
-  const projectId = db.saveProject({
+  const projectId = db.entityCrud.saveProject({
     companyId,
     goalId,
     name: "Session Project",

@@ -26,7 +26,7 @@ function scaffold(db: AppDatabase) {
     description: "Testing session management",
     status: "active",
   });
-  const workspaceId = db.saveWorkspace({
+  const workspaceId = db.workspacesMod.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: "/tmp/session-test",
@@ -47,14 +47,14 @@ function scaffold(db: AppDatabase) {
     capabilities: "Writes code",
     budgetMonthlyUsd: 100,
   });
-  const goalId = db.saveGoal({
+  const goalId = db.entityCrud.saveGoal({
     companyId,
     title: "Ship feature",
     description: "Build session management",
     ownerAgentId: agentId,
     status: "active",
   });
-  const projectId = db.saveProject({
+  const projectId = db.entityCrud.saveProject({
     companyId,
     goalId,
     name: "Session Project",

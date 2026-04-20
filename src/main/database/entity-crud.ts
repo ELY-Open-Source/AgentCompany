@@ -43,8 +43,12 @@ export function buildEntityCrudMethods(
   transaction: Transaction,
   _deps: {
     addActivity: (input: { companyId: string; actor: string; action: string; entityType: string; entityId: string; detail: string }) => void;
+    vault: { encrypt: (v: string) => { backend: string; payload: Uint8Array }; decrypt: (backend: "safe_storage" | "vault", ciphertext: Buffer) => string };
+    listInvalidEnvBindingKeys: (t: string) => string[];
+    parseEnvBindingText: (t: string) => Record<string, string>;
   },
 ) {
+  const { vault, listInvalidEnvBindingKeys, parseEnvBindingText } = _deps;
   return {
     getTask(id: string): TaskRecord {
       const row = getDb()
@@ -169,7 +173,7 @@ export function buildEntityCrudMethods(
       return id;
     },
 
-    saveSecret(input: { id?: string | null; companyId: string; name: string; description: string; value: string }, vault: { encrypt: (v: string) => { backend: string; payload: Uint8Array } }) {
+    saveSecret(input: { id?: string | null; companyId: string; name: string; description: string; value: string }) {
       const id = ensureId(input.id ?? null);
       const encrypted = vault.encrypt(input.value);
       const ts = nowIso();
@@ -191,7 +195,7 @@ export function buildEntityCrudMethods(
       return id;
     },
 
-    resolveSecretEnv(bindingText: string, companyId: string, vault: { decrypt: (backend: "safe_storage" | "vault", ciphertext: Buffer) => string }, listInvalidEnvBindingKeys: (t: string) => string[], parseEnvBindingText: (t: string) => Record<string, string>): Record<string, string> {
+    resolveSecretEnv(bindingText: string, companyId: string): Record<string, string> {
       const invalidKeys = new Set(listInvalidEnvBindingKeys(bindingText));
       const bindings = parseEnvBindingText(bindingText);
       const result: Record<string, string> = {};

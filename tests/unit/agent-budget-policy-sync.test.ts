@@ -27,14 +27,14 @@ describe("agent budget policy synchronization", () => {
       description: "Budget sync regression coverage",
       status: "active",
     });
-    db.updateConnectorHealth({
+    db.connectorsCrud.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
       lastError: null,
     });
-    const workspaceId = db.saveWorkspace({
+    const workspaceId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -57,7 +57,7 @@ describe("agent budget policy synchronization", () => {
       department: "engineering",
     });
 
-    const firstPolicyId = db.saveBudgetPolicy({
+    const firstPolicyId = db.budget.saveBudgetPolicy({
       companyId,
       scopeType: "agent",
       scopeId: agentId,
@@ -86,7 +86,7 @@ describe("agent budget policy synchronization", () => {
       department: "engineering",
     });
 
-    const secondPolicyId = db.saveBudgetPolicy({
+    const secondPolicyId = db.budget.saveBudgetPolicy({
       companyId,
       scopeType: "agent",
       scopeId: agentId,
@@ -99,13 +99,13 @@ describe("agent budget policy synchronization", () => {
       isActive: true,
     });
 
-    const agentPolicies = db.listBudgetPolicies(companyId).filter(
+    const agentPolicies = db.budget.listBudgetPolicies(companyId).filter(
       (policy) => policy.scopeType === "agent" && policy.scopeId === agentId,
     );
     expect(secondPolicyId).toBe(firstPolicyId);
     expect(agentPolicies).toHaveLength(1);
     expect(agentPolicies[0]?.amount).toBe(25_000);
-    expect(db.getActivePoliciesForRun(companyId, agentId, null).map((policy) => policy.amount)).toEqual([25_000]);
+    expect(db.budget.getActivePoliciesForRun(companyId, agentId, null).map((policy) => policy.amount)).toEqual([25_000]);
 
     db.close();
   });

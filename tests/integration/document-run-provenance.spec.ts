@@ -26,7 +26,7 @@ async function createHarness() {
   const db = new AppDatabase(profileDir);
   db.init();
 
-  db.updateConnectorHealth({
+  db.connectorsCrud.updateConnectorHealth({
     id: "openai-codex",
     status: "ready",
     authState: "authenticated",
@@ -39,7 +39,7 @@ async function createHarness() {
     description: "Tests document revision provenance through run completion",
     status: "active",
   });
-  const workspaceId = db.saveWorkspace({
+  const workspaceId = db.workspacesMod.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: profileDir,
@@ -71,7 +71,7 @@ async function createHarness() {
   });
   db.tasks.setTaskType(taskId, "research");
 
-  const existingDocumentId = db.saveDocument({
+  const existingDocumentId = db.documentsMod.saveDocument({
     companyId,
     type: "knowledge_article",
     title: "Market report",
@@ -149,7 +149,7 @@ describe("document run provenance", () => {
       )[0];
       expect(updatedDocument?.sourceRunId).toBe(harness.run.id);
 
-      const persistedRun = harness.db.listSnapshot().runs.find((entry) => entry.id === harness.run.id);
+      const persistedRun = harness.db.snap.listSnapshot().runs.find((entry) => entry.id === harness.run.id);
       if (!persistedRun) {
         throw new Error("Expected persisted run record for provenance test.");
       }
@@ -307,7 +307,7 @@ describe("document run provenance", () => {
       );
 
       expect(createResponse.status).toBe(201);
-      const approvals = harness.db.listSnapshot().approvals.filter((approval) => approval.type === "deliverable_review");
+      const approvals = harness.db.snap.listSnapshot().approvals.filter((approval) => approval.type === "deliverable_review");
       expect(approvals).toHaveLength(1);
       expect(approvals[0]?.relatedTaskId).toBe(harness.taskId);
     } finally {

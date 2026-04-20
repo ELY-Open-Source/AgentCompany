@@ -105,7 +105,7 @@ export function createRunHousekeeping({ db, logger, threadIntegration }: RunHous
             );
           }
 
-          db.saveKnowledgeEntry({
+          db.knowledgeMod.saveKnowledgeEntry({
             companyId,
             category: "lesson_learned",
             topic,
@@ -121,7 +121,7 @@ export function createRunHousekeeping({ db, logger, threadIntegration }: RunHous
       // 3. On failure, record an activity log entry
       if (status === "failed") {
         try {
-          db.addActivity({
+          db.activityMod.addActivity({
             companyId,
             actor: agentId,
             action: "run.failed",

@@ -26,7 +26,7 @@ export function registerMessageRoutes(server: AgentApiServer) {
         return;
       }
       const agent = db.entityCrud.getAgent(token.agentId);
-      const comment = db.addComment({
+      const comment = db.activityMod.addComment({
         companyId: task.companyId,
         taskId: task.id,
         authorAgentId: token.agentId,
@@ -78,7 +78,7 @@ export function registerMessageRoutes(server: AgentApiServer) {
       server.json(res, 404, { error: "Task not found" });
       return;
     }
-    const comments = db.listComments(requireParam(params, "issueId"));
+    const comments = db.activityMod.listComments(requireParam(params, "issueId"));
     server.json(res, 200, comments);
   });
 

@@ -23,8 +23,7 @@ function createMockIncidentDb() {
     return { start, end };
   }
 
-  return {
-    incidents,
+  const budget = {
     getCalendarMonthWindow,
 
     upsertBudgetIncident(
@@ -132,6 +131,7 @@ function createMockIncidentDb() {
       return true;
     },
   };
+  return { incidents, budget };
 }
 
 function makePolicy(overrides: Partial<BudgetPolicyRecord> = {}): BudgetPolicyRecord {
@@ -166,7 +166,7 @@ describe("upsertBudgetIncident", () => {
 
   it("creates new incident when none exists for policy+window+threshold_type", () => {
     const policy = makePolicy();
-    const id = db.upsertBudgetIncident(policy, "warn_threshold", 8500);
+    const id = db.budget.upsertBudgetIncident(policy, "warn_threshold", 8500);
     expect(id).toBeTruthy();
     expect(db.incidents).toHaveLength(1);
     expect(db.incidents[0]!.thresholdType).toBe("warn_threshold");
@@ -176,8 +176,8 @@ describe("upsertBudgetIncident", () => {
 
   it("updates amount_observed when open incident already exists (D-08 dedup)", () => {
     const policy = makePolicy();
-    const id1 = db.upsertBudgetIncident(policy, "warn_threshold", 8500);
-    const id2 = db.upsertBudgetIncident(policy, "warn_threshold", 9200);
+    const id1 = db.budget.upsertBudgetIncident(policy, "warn_threshold", 8500);
+    const id2 = db.budget.upsertBudgetIncident(policy, "warn_threshold", 9200);
     expect(id1).toBe(id2); // Same incident, not a new one
     expect(db.incidents).toHaveLength(1); // Still just one
     expect(db.incidents[0]!.amountObserved).toBe(9200); // Updated
@@ -185,8 +185,8 @@ describe("upsertBudgetIncident", () => {
 
   it("creates separate incidents for different threshold types", () => {
     const policy = makePolicy();
-    db.upsertBudgetIncident(policy, "warn_threshold", 8500);
-    db.upsertBudgetIncident(policy, "hard_stop", 10500);
+    db.budget.upsertBudgetIncident(policy, "warn_threshold", 8500);
+    db.budget.upsertBudgetIncident(policy, "hard_stop", 10500);
     expect(db.incidents).toHaveLength(2);
     expect(db.incidents[0]!.thresholdType).toBe("warn_threshold");
     expect(db.incidents[1]!.thresholdType).toBe("hard_stop");
@@ -202,10 +202,10 @@ describe("resolveIncidentsForPolicy", () => {
 
   it("sets status to provided resolution reason for all open incidents", () => {
     const policy = makePolicy();
-    db.upsertBudgetIncident(policy, "warn_threshold", 8500);
-    db.upsertBudgetIncident(policy, "hard_stop", 10500);
+    db.budget.upsertBudgetIncident(policy, "warn_threshold", 8500);
+    db.budget.upsertBudgetIncident(policy, "hard_stop", 10500);
 
-    const count = db.resolveIncidentsForPolicy("pol-1", "auto_resolved_limit_increase");
+    const count = db.budget.resolveIncidentsForPolicy("pol-1", "auto_resolved_limit_increase");
     expect(count).toBe(2);
     expect(db.incidents[0]!.status).toBe("auto_resolved_limit_increase");
     expect(db.incidents[1]!.status).toBe("auto_resolved_limit_increase");
@@ -214,10 +214,10 @@ describe("resolveIncidentsForPolicy", () => {
 
   it("does not affect already-resolved incidents", () => {
     const policy = makePolicy();
-    db.upsertBudgetIncident(policy, "warn_threshold", 8500);
-    db.resolveIncidentsForPolicy("pol-1", "resolved");
+    db.budget.upsertBudgetIncident(policy, "warn_threshold", 8500);
+    db.budget.resolveIncidentsForPolicy("pol-1", "resolved");
     // Now try to resolve again
-    const count = db.resolveIncidentsForPolicy("pol-1", "auto_resolved_limit_increase");
+    const count = db.budget.resolveIncidentsForPolicy("pol-1", "auto_resolved_limit_increase");
     expect(count).toBe(0);
     expect(db.incidents[0]!.status).toBe("resolved"); // Unchanged
   });
@@ -252,7 +252,7 @@ describe("autoCloseExpiredIncidents", () => {
       updatedAt: "2025-01-15T00:00:00.000Z",
     });
 
-    const count = db.autoCloseExpiredIncidents("c1");
+    const count = db.budget.autoCloseExpiredIncidents("c1");
     expect(count).toBe(1);
     expect(db.incidents[0]!.status).toBe("auto_closed");
     expect(db.incidents[0]!.resolvedAt).toBeTruthy();
@@ -260,10 +260,10 @@ describe("autoCloseExpiredIncidents", () => {
 
   it("does not close incidents whose window_end is in the future", () => {
     const policy = makePolicy();
-    db.upsertBudgetIncident(policy, "warn_threshold", 8500);
+    db.budget.upsertBudgetIncident(policy, "warn_threshold", 8500);
     // The auto-created incident has window_end in the future (end of current month)
 
-    const count = db.autoCloseExpiredIncidents("c1");
+    const count = db.budget.autoCloseExpiredIncidents("c1");
     expect(count).toBe(0);
     expect(db.incidents[0]!.status).toBe("open");
   });
@@ -278,22 +278,22 @@ describe("listBudgetIncidents", () => {
 
   it("returns all incidents for a company when status is 'all'", () => {
     const policy = makePolicy();
-    db.upsertBudgetIncident(policy, "warn_threshold", 8500);
-    db.upsertBudgetIncident(policy, "hard_stop", 10500);
-    db.resolveIncidentsForPolicy("pol-1", "resolved");
+    db.budget.upsertBudgetIncident(policy, "warn_threshold", 8500);
+    db.budget.upsertBudgetIncident(policy, "hard_stop", 10500);
+    db.budget.resolveIncidentsForPolicy("pol-1", "resolved");
 
-    const all = db.listBudgetIncidents("c1", "all");
+    const all = db.budget.listBudgetIncidents("c1", "all");
     expect(all).toHaveLength(2);
   });
 
   it("filters by status when specified", () => {
     const policy = makePolicy();
-    db.upsertBudgetIncident(policy, "warn_threshold", 8500);
-    db.upsertBudgetIncident(policy, "hard_stop", 10500);
+    db.budget.upsertBudgetIncident(policy, "warn_threshold", 8500);
+    db.budget.upsertBudgetIncident(policy, "hard_stop", 10500);
     // Resolve only warn
-    db.resolveWarnIncidentsForPolicy("pol-1", "resolved");
+    db.budget.resolveWarnIncidentsForPolicy("pol-1", "resolved");
 
-    const open = db.listBudgetIncidents("c1", "open");
+    const open = db.budget.listBudgetIncidents("c1", "open");
     expect(open).toHaveLength(1);
     expect(open[0]!.thresholdType).toBe("hard_stop");
   });
@@ -308,7 +308,7 @@ describe("checkAutoResolve (D-06)", () => {
 
   it("auto-resolves incidents when policy limit increases above observed amount", () => {
     const policy = makePolicy({ amount: 10000 });
-    db.upsertBudgetIncident(policy, "hard_stop", 10500);
+    db.budget.upsertBudgetIncident(policy, "hard_stop", 10500);
     expect(db.incidents[0]!.status).toBe("open");
 
     // Simulate limit increase: now checking if spent < new limit
@@ -316,7 +316,7 @@ describe("checkAutoResolve (D-06)", () => {
     const spent = 10500;
     const newAmount = 20000;
     if (spent < newAmount) {
-      db.resolveIncidentsForPolicy("pol-1", "auto_resolved_limit_increase");
+      db.budget.resolveIncidentsForPolicy("pol-1", "auto_resolved_limit_increase");
     }
 
     expect(db.incidents[0]!.status).toBe("auto_resolved_limit_increase");
@@ -324,14 +324,14 @@ describe("checkAutoResolve (D-06)", () => {
 
   it("auto-resolves only warn incidents when below warn threshold but above hard stop", () => {
     const policy = makePolicy({ amount: 10000, warnPercent: 80 });
-    db.upsertBudgetIncident(policy, "warn_threshold", 8500);
-    db.upsertBudgetIncident(policy, "hard_stop", 10500);
+    db.budget.upsertBudgetIncident(policy, "warn_threshold", 8500);
+    db.budget.upsertBudgetIncident(policy, "hard_stop", 10500);
 
     // Spent is now 7500 (below warn threshold of 8000 = 10000*80/100)
     const spent = 7500;
     const _warnAmount = Math.floor((policy.amount * policy.warnPercent) / 100);
     if (spent < policy.amount) {
-      db.resolveIncidentsForPolicy("pol-1", "auto_resolved_limit_increase");
+      db.budget.resolveIncidentsForPolicy("pol-1", "auto_resolved_limit_increase");
     }
     // Both resolved since spent < policy.amount
     expect(db.incidents.every((i) => i.status === "auto_resolved_limit_increase")).toBe(true);

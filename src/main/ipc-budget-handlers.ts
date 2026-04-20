@@ -32,7 +32,7 @@ export function registerBudgetHandlers({
     const parsed = budgetPolicyInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    const id = db.saveBudgetPolicy(parsed);
+    const id = db.budget.saveBudgetPolicy(parsed);
     // D-06: Auto-resolve incidents if limit was increased above current spend
     if (budgetService) {
       try {
@@ -50,7 +50,7 @@ export function registerBudgetHandlers({
     const parsed = deleteBudgetPolicySchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    db.deleteBudgetPolicy(parsed.companyId, parsed.policyId);
+    db.budget.deleteBudgetPolicy(parsed.companyId, parsed.policyId);
     publishDomainChanged();
     return ok(true);
   });
@@ -60,7 +60,7 @@ export function registerBudgetHandlers({
     const parsed = listBudgetPoliciesSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    return ok(db.listBudgetPolicies(parsed.companyId));
+    return ok(db.budget.listBudgetPolicies(parsed.companyId));
   });
 
   // ---- List budget incidents ----
@@ -68,7 +68,7 @@ export function registerBudgetHandlers({
     const parsed = listBudgetIncidentsSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    return ok(db.listBudgetIncidents(parsed.companyId, parsed.status));
+    return ok(db.budget.listBudgetIncidents(parsed.companyId, parsed.status));
   });
 
   // ---- Resolve a budget incident manually ----
@@ -76,7 +76,7 @@ export function registerBudgetHandlers({
     const parsed = resolveBudgetIncidentSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    db.resolveBudgetIncident(parsed.incidentId, parsed.companyId);
+    db.budget.resolveBudgetIncident(parsed.incidentId, parsed.companyId);
     publishDomainChanged();
     return ok(true);
   });

@@ -43,7 +43,7 @@ export function createBrowserActionService({
   }
 
   async function dispatchBrowserAction(actionId: string, companyId: string) {
-    const action = db.getBrowserAction(actionId, companyId);
+    const action = db.social.getBrowserAction(actionId, companyId);
     if (!action) {
       throw new Error(`Browser action not found: ${actionId}`);
     }
@@ -56,7 +56,7 @@ export function createBrowserActionService({
         throw new Error(`Browser action approval ${action.approvalId} does not belong to company ${companyId}.`);
       }
       if (approval.state !== "approved") {
-        db.updateBrowserAction(actionId, {
+        db.social.updateBrowserAction(actionId, {
           status: "approval_required",
           resultSummary: "Browser action is still waiting for approval.",
           errorMessage: "Approval must be granted before execution.",
@@ -66,9 +66,9 @@ export function createBrowserActionService({
       }
     }
 
-    const account = db.getSocialAccount(action.socialAccountId, companyId);
+    const account = db.social.getSocialAccount(action.socialAccountId, companyId);
     if (!account) {
-      db.updateBrowserAction(actionId, {
+      db.social.updateBrowserAction(actionId, {
         status: "failed",
         errorMessage: "Social account no longer exists.",
         finishedAt: new Date().toISOString(),
@@ -88,7 +88,7 @@ export function createBrowserActionService({
         context: { actionId },
       });
       log.warn(`[${classified.code}]`, classified.message, classified.context);
-      db.updateBrowserAction(actionId, {
+      db.social.updateBrowserAction(actionId, {
         status: "failed",
         errorMessage: "Browser action payload is not valid JSON.",
         finishedAt: new Date().toISOString(),
@@ -97,7 +97,7 @@ export function createBrowserActionService({
       return;
     }
 
-    db.updateBrowserAction(actionId, {
+    db.social.updateBrowserAction(actionId, {
       status: "running",
       startedAt: new Date().toISOString(),
       errorMessage: null,
@@ -113,7 +113,7 @@ export function createBrowserActionService({
         payload,
       });
 
-      db.updateBrowserAction(actionId, {
+      db.social.updateBrowserAction(actionId, {
         status: result.cancelled ? "cancelled" : result.success ? "succeeded" : "failed",
         resultSummary: result.summary,
         screenshotPath: result.screenshotPath,
@@ -121,7 +121,7 @@ export function createBrowserActionService({
         finishedAt: new Date().toISOString(),
       });
     } catch (error) {
-      db.updateBrowserAction(actionId, {
+      db.social.updateBrowserAction(actionId, {
         status: "failed",
         errorMessage: error instanceof Error ? error.message : String(error),
         finishedAt: new Date().toISOString(),

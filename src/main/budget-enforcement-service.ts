@@ -68,7 +68,7 @@ export function createBudgetEnforcementService({
     agentId: string,
     projectId: string | null,
   ): BudgetGateResult {
-    const policies = db.getActivePoliciesForRun(companyId, agentId, projectId);
+    const policies = db.budget.getActivePoliciesForRun(companyId, agentId, projectId);
     if (policies.length === 0) {
       return { allowed: true, blockedBy: [] };
     }
@@ -76,7 +76,7 @@ export function createBudgetEnforcementService({
     const blockedBy: BudgetGateResult["blockedBy"] = [];
     for (const policy of policies) {
       if (!policy.hardStopEnabled) continue;
-      const spent = db.getSpentInWindow(policy);
+      const spent = db.budget.getSpentInWindow(policy);
       if (spent >= policy.amount) {
         blockedBy.push({
           policyId: policy.id,
@@ -103,19 +103,19 @@ export function createBudgetEnforcementService({
     agentId: string,
     projectId: string | null,
   ): void {
-    const policies = db.getActivePoliciesForRun(companyId, agentId, projectId);
+    const policies = db.budget.getActivePoliciesForRun(companyId, agentId, projectId);
 
     for (const policy of policies) {
       // amount <= 0 disables the policy (and would otherwise divide by zero below).
       if (policy.amount <= 0) continue;
 
-      const spent = db.getSpentInWindow(policy);
+      const spent = db.budget.getSpentInWindow(policy);
       const utilization = spent / policy.amount;
       const warnThreshold = policy.warnPercent / 100;
       const scopeLabel = getScopeLabel(db, policy, logger);
 
       if (utilization >= warnThreshold) {
-        db.upsertBudgetIncident(policy, "warn_threshold", spent);
+        db.budget.upsertBudgetIncident(policy, "warn_threshold", spent);
         if (policy.notifyEnabled) {
           notify({
             title: "Budget Warning",
@@ -128,7 +128,7 @@ export function createBudgetEnforcementService({
       }
 
       if (utilization >= 1.0 && policy.hardStopEnabled) {
-        db.upsertBudgetIncident(policy, "hard_stop", spent);
+        db.budget.upsertBudgetIncident(policy, "hard_stop", spent);
         if (policy.notifyEnabled) {
           notify({
             title: "Budget Exhausted",
@@ -151,22 +151,22 @@ export function createBudgetEnforcementService({
    * Per D-06: fires auto_resolved_limit_increase status.
    */
   function checkAutoResolve(companyId: string, policyId: string): void {
-    const policy = db.getBudgetPolicy(policyId);
+    const policy = db.budget.getBudgetPolicy(policyId);
     if (!policy) return;
 
-    const spent = db.getSpentInWindow(policy);
+    const spent = db.budget.getSpentInWindow(policy);
     let resolved = false;
 
     // If spend is below hard-stop threshold, resolve all open incidents
     if (spent < policy.amount) {
-      const count = db.resolveIncidentsForPolicy(policyId, "auto_resolved_limit_increase");
+      const count = db.budget.resolveIncidentsForPolicy(policyId, "auto_resolved_limit_increase");
       if (count > 0) resolved = true;
     }
 
     // If spend is below warn threshold, resolve warn incidents specifically
     const warnAmount = Math.floor((policy.amount * policy.warnPercent) / 100);
     if (spent < warnAmount) {
-      const count = db.resolveWarnIncidentsForPolicy(policyId, "auto_resolved_limit_increase");
+      const count = db.budget.resolveWarnIncidentsForPolicy(policyId, "auto_resolved_limit_increase");
       if (count > 0) resolved = true;
     }
 
@@ -181,7 +181,7 @@ export function createBudgetEnforcementService({
    * Per D-06: window rollover cleanup.
    */
   function autoCloseExpiredIncidents(companyId: string): number {
-    const count = db.autoCloseExpiredIncidents(companyId);
+    const count = db.budget.autoCloseExpiredIncidents(companyId);
     if (count > 0) {
       logger.info(`Budget auto-close: ${count} expired incident(s) for company ${companyId}`);
       publishDomainChanged();
@@ -193,12 +193,12 @@ export function createBudgetEnforcementService({
    * Returns a summary of all budget policies and their current spend status.
    */
   function getBudgetStatus(companyId: string): BudgetStatusSummary {
-    const policies = db.listBudgetPolicies(companyId);
-    const openIncidents = db.listBudgetIncidents(companyId, "open");
+    const policies = db.budget.listBudgetPolicies(companyId);
+    const openIncidents = db.budget.listBudgetIncidents(companyId, "open");
 
     return {
       policies: policies.map((policy) => {
-        const spent = db.getSpentInWindow(policy);
+        const spent = db.budget.getSpentInWindow(policy);
         const hasOpenIncident = openIncidents.some((i) => i.policyId === policy.id);
         return {
           policyId: policy.id,

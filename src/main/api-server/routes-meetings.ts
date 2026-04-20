@@ -33,7 +33,7 @@ export function registerMeetingRoutes(server: AgentApiServer) {
     try {
       const parsedParticipants = JSON.parse(input.participantAgentIds) as string[];
       for (const agentId of parsedParticipants) {
-        if (typeof agentId !== "string" || !db.belongsToCompany("agents", agentId, token.companyId)) {
+        if (typeof agentId !== "string" || !db.settings.belongsToCompany("agents", agentId, token.companyId)) {
           server.json(res, 400, { error: "Meeting participants must belong to the current company" });
           return;
         }
@@ -43,7 +43,7 @@ export function registerMeetingRoutes(server: AgentApiServer) {
       server.json(res, 400, { error: "participantAgentIds must be a JSON array of agent ids" });
       return;
     }
-    const id = db.saveMeeting({
+    const id = db.knowledgeMod.saveMeeting({
       companyId: token.companyId,
       type: input.type,
       title: input.title,
@@ -63,13 +63,13 @@ export function registerMeetingRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const meetings = db.listMeetings(token.companyId);
+    const meetings = db.knowledgeMod.listMeetings(token.companyId);
     server.json(res, 200, meetings);
   });
 
   server.addRoute("PATCH", "/api/meetings/:meetingId", (_req, res, params, token, body) => {
     const meetingId = requireParam(params, "meetingId");
-    const existing = db.getMeeting(meetingId, token.companyId);
+    const existing = db.knowledgeMod.getMeeting(meetingId, token.companyId);
     if (!existing) {
       server.json(res, 404, { error: "Meeting not found" });
       return;
@@ -102,13 +102,13 @@ export function registerMeetingRoutes(server: AgentApiServer) {
         return;
       }
       for (const item of actionItems) {
-        if (item.assigneeAgentId && !db.belongsToCompany("agents", item.assigneeAgentId, token.companyId)) {
+        if (item.assigneeAgentId && !db.settings.belongsToCompany("agents", item.assigneeAgentId, token.companyId)) {
           server.json(res, 400, { error: "Meeting action item assignees must belong to the current company" });
           return;
         }
       }
     }
-    db.saveMeeting({
+    db.knowledgeMod.saveMeeting({
       id: meetingId,
       companyId: token.companyId,
       type: data.type ?? "department_sync",

@@ -25,13 +25,13 @@ function scaffold(db: AppDatabase) {
     description: "Budget exhaustion mid-run edge case tests (D-05.2)",
     status: "active",
   });
-  db.saveConnector({
+  db.connectorsCrud.saveConnector({
     id: "gemini-cli",
     model: "gemini-pro",
     envBindingText: "",
     notes: "Test connector",
   });
-  const workspaceId = db.saveWorkspace({
+  const workspaceId = db.workspacesMod.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: "/tmp/budget-edge-test",
@@ -52,14 +52,14 @@ function scaffold(db: AppDatabase) {
     capabilities: "Executes tasks",
     budgetMonthlyUsd: 100,
   });
-  const goalId = db.saveGoal({
+  const goalId = db.entityCrud.saveGoal({
     companyId,
     title: "Ship feature",
     description: "Build budget edge case test",
     ownerAgentId: agentId,
     status: "active",
   });
-  const projectId = db.saveProject({
+  const projectId = db.entityCrud.saveProject({
     companyId,
     goalId,
     name: "Budget Project",
@@ -119,7 +119,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
     });
 
     // Create company budget policy: 500 cents ($5), hard stop enabled
-    db.saveBudgetPolicy({
+    db.budget.saveBudgetPolicy({
       companyId,
       scopeType: "company",
       scopeId: companyId,
@@ -205,7 +205,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
     });
 
     // Create company budget policy: 500 cents ($5)
-    db.saveBudgetPolicy({
+    db.budget.saveBudgetPolicy({
       companyId,
       scopeType: "company",
       scopeId: companyId,
@@ -253,7 +253,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
     });
 
     // Create company budget policy with known ID
-    const policyId = db.saveBudgetPolicy({
+    const policyId = db.budget.saveBudgetPolicy({
       companyId,
       scopeType: "company",
       scopeId: companyId,
@@ -301,7 +301,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
     });
 
     // Company-level: plenty of room (10000 cents = $100)
-    db.saveBudgetPolicy({
+    db.budget.saveBudgetPolicy({
       companyId,
       scopeType: "company",
       scopeId: companyId,
@@ -310,7 +310,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
     });
 
     // Agent-level: tight budget (100 cents = $1)
-    db.saveBudgetPolicy({
+    db.budget.saveBudgetPolicy({
       companyId,
       scopeType: "agent",
       scopeId: agentId,
@@ -358,7 +358,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
     });
 
     // Create policy with 300 cents ($3) budget
-    db.saveBudgetPolicy({
+    db.budget.saveBudgetPolicy({
       companyId,
       scopeType: "company",
       scopeId: companyId,
@@ -408,7 +408,7 @@ describe("Edge Case: Budget Exhaustion Mid-Run (D-05.2)", () => {
     });
 
     // Create tight budget
-    db.saveBudgetPolicy({
+    db.budget.saveBudgetPolicy({
       companyId,
       scopeType: "company",
       scopeId: companyId,

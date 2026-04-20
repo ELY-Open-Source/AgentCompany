@@ -23,7 +23,7 @@ describe("deliverable review feedback writeback", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.updateConnectorHealth({
+    db.connectorsCrud.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -36,7 +36,7 @@ describe("deliverable review feedback writeback", () => {
       description: "Tests review feedback knowledge writeback",
       status: "active",
     });
-    const workspaceId = db.saveWorkspace({
+    const workspaceId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -67,7 +67,7 @@ describe("deliverable review feedback writeback", () => {
       priority: "high",
       status: "in_review",
     });
-    const documentId = db.saveDocument({
+    const documentId = db.documentsMod.saveDocument({
       companyId,
       type: "knowledge_article",
       title: "Market report",
@@ -107,7 +107,7 @@ describe("deliverable review feedback writeback", () => {
       trackTimer: vi.fn(),
     }, approvalId, companyId, "revision_requested");
 
-    const knowledgeEntries = db.listSnapshot().knowledgeBase.filter((entry) => entry.companyId === companyId);
+    const knowledgeEntries = db.snap.listSnapshot().knowledgeBase.filter((entry) => entry.companyId === companyId);
     expect(knowledgeEntries).toHaveLength(1);
     expect(knowledgeEntries[0]?.category).toBe("lesson_learned");
     expect(knowledgeEntries[0]?.importance).toBe("high");
@@ -117,7 +117,7 @@ describe("deliverable review feedback writeback", () => {
     expect(knowledgeEntries[0]?.content).toContain("stronger competitor evidence");
     expect(wakeAgentIfPossible).toHaveBeenCalledWith(agentId, companyId, "revision_needed");
     expect(db.entityCrud.getTask(taskId).status).toBe("in_progress");
-    const document = db.listSnapshot().documents.find((entry) => entry.id === documentId);
+    const document = db.snap.listSnapshot().documents.find((entry) => entry.id === documentId);
     expect(document?.status).toBe("draft");
 
     db.close();

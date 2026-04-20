@@ -23,12 +23,12 @@ export interface RunDispatchParams {
   // Downstream code (prompt builder, worker payload, session pointer)
   // branches on this — when null, skip task-scoped state.
   task: ReturnType<AppDatabase["entityCrud"]["getTask"]> | null;
-  connector: ReturnType<AppDatabase["getConnector"]>;
-  workspace: ReturnType<AppDatabase["getWorkspace"]>;
+  connector: ReturnType<AppDatabase["connectorsCrud"]["getConnector"]>;
+  workspace: ReturnType<AppDatabase["workspacesMod"]["getWorkspace"]>;
   workspaceMode: WorkspaceLockMode;
   companyName: string;
   companyDescription: string;
-  snapshot: ReturnType<AppDatabase["listSnapshot"]>;
+  snapshot: ReturnType<AppDatabase["snap"]["listSnapshot"]>;
   trigger: string;
   /**
    * Model id resolved by `pickModelForAgent` at dispatch time. When the
@@ -63,7 +63,7 @@ function assembleApiEnv(
   trigger: string,
   deps: Pick<TurnContextDeps, "getApiPort" | "createRunToken">,
 ) {
-  const env = db.resolveSecretEnv(connector.envBindingText, companyId);
+  const env = db.entityCrud.resolveSecretEnv(connector.envBindingText, companyId);
   const apiPort = deps.getApiPort();
   const apiUrl = apiPort ? `http://127.0.0.1:${apiPort}` : "";
   const apiKey = apiUrl ? deps.createRunToken(agentId, companyId, runId) : "";
@@ -136,7 +136,14 @@ function resolveEnabledConnectorModels(
   companyId: string,
   connector: { id: string; model: string | null },
 ): string[] {
-  return getConnectorModelPolicy(db, companyId, connector.id as ConnectorId).enabledModels.map((model) => model.id);
+  return getConnectorModelPolicy(
+    {
+      getConnector: (id) => db.connectorsCrud.getConnector(id),
+      getDisabledModels: (cid, connId) => db.settings.getDisabledModels(cid, connId),
+    },
+    companyId,
+    connector.id as ConnectorId,
+  ).enabledModels.map((model) => model.id);
 }
 
 function resolveSession(
@@ -252,7 +259,7 @@ function buildConnectorCatalog(
 ) {
   return connectors
     .filter((c) => c.status === "ready")
-    .filter((c) => db.hasModelPoolSettings(companyId, c.id))
+    .filter((c) => db.settings.hasModelPoolSettings(companyId, c.id))
     .map((c) => ({
       id: c.id,
       label: c.label,
@@ -301,7 +308,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     allTasks: snapshot.tasks.filter((entry) => entry.companyId === companyId),
     recentComments: normalizeCommentsForPrompt(recentComments),
     companyDescription,
-    socialAccounts: db.listSocialAccounts(companyId).map((account) => ({
+    socialAccounts: db.social.listSocialAccounts(companyId).map((account) => ({
       id: account.id,
       platform: account.platform,
       accountName: account.accountName,
@@ -315,7 +322,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     allConnectors: buildConnectorCatalog(db, companyId, snapshot.connectors),
     sessionHandoff,
     skills,
-    companySkillCatalog: db.listCompanySkills(companyId).map((skill) => ({
+    companySkillCatalog: db.skills.listCompanySkills(companyId).map((skill) => ({
       name: skill.name,
       slug: skill.slug,
       description: skill.description,
@@ -328,7 +335,15 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
 
   const thinkingEffort = extractThinkingEffort(agent.metadataJson, deps.logger, agent.id);
   const modelForRun = params.resolvedModel !== undefined ? params.resolvedModel : agent.model;
-  const modelSelection = validateConnectorModelSelection(db, companyId, connector.id, modelForRun);
+  const modelSelection = validateConnectorModelSelection(
+    {
+      getConnector: (id) => db.connectorsCrud.getConnector(id),
+      getDisabledModels: (cid, connId) => db.settings.getDisabledModels(cid, connId),
+    },
+    companyId,
+    connector.id,
+    modelForRun,
+  );
   if (!modelSelection.ok) {
     throw new Error(modelSelection.error);
   }

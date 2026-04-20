@@ -32,13 +32,13 @@ function seedCompany(db: AppDatabase) {
     description: "Regression fixture",
     status: "active",
   });
-  db.saveConnector({
+  db.connectorsCrud.saveConnector({
     id: "openai-codex",
     model: "gpt-5",
     envBindingText: "",
     notes: "fixture",
   });
-  const workspaceId = db.saveWorkspace({
+  const workspaceId = db.workspacesMod.saveWorkspace({
     companyId,
     name: "Default",
     localPath: "/tmp/fixture",
@@ -91,13 +91,13 @@ describe("resolveWorkspaceWithLockMode", () => {
 
   it("project-bound workspace → exclusive (single writer per repo)", () => {
     const { companyId } = seedCompany(db);
-    const projectId = db.saveProject({
+    const projectId = db.entityCrud.saveProject({
       companyId,
       name: "Platform",
       description: "",
       status: "active",
     });
-    db.saveWorkspace({
+    db.workspacesMod.saveWorkspace({
       companyId,
       name: "Project repo",
       localPath: "/tmp/project-ws",
@@ -131,7 +131,7 @@ describe("resolveWorkspaceWithLockMode", () => {
 
   it("task workspace wins over agent workspace even when both are set", () => {
     const { companyId, workspaceId: agentWsId } = seedCompany(db);
-    const taskWsId = db.saveWorkspace({
+    const taskWsId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Task-only",
       localPath: "/tmp/task-ws",

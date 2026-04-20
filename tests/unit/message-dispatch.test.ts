@@ -19,7 +19,7 @@ afterEach(async () => {
 });
 
 function createScaffold(db: AppDatabase) {
-  db.updateConnectorHealth({
+  db.connectorsCrud.updateConnectorHealth({
     id: "openai-codex",
     status: "ready",
     authState: "authenticated",
@@ -33,7 +33,7 @@ function createScaffold(db: AppDatabase) {
     status: "active",
     executionMode: "ai_cofounder",
   });
-  const workspaceId = db.saveWorkspace({
+  const workspaceId = db.workspacesMod.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: "/tmp/message-dispatch",
@@ -282,7 +282,7 @@ describe("message dispatch", () => {
     });
 
     threadIntegration.onTaskCreated(taskId, companyId);
-    const thread = db.listThreads({
+    const thread = db.threads.listThreads({
       companyId,
       type: "task",
       relatedEntityType: "task",
@@ -294,21 +294,21 @@ describe("message dispatch", () => {
       throw new Error("Expected task thread to exist.");
     }
 
-    const replyWait = db.setThreadWaitState({
+    const replyWait = db.threads.setThreadWaitState({
       threadId: thread.id,
       companyId,
       waitingFor: "user_reply",
       relatedApprovalId: null,
       reason: "Reply needed",
     });
-    const reviewWait = db.setThreadWaitState({
+    const reviewWait = db.threads.setThreadWaitState({
       threadId: thread.id,
       companyId,
       waitingFor: "user_review",
       relatedApprovalId: null,
       reason: "Review needed",
     });
-    const approvalWait = db.setThreadWaitState({
+    const approvalWait = db.threads.setThreadWaitState({
       threadId: thread.id,
       companyId,
       waitingFor: "user_approval",
@@ -328,7 +328,7 @@ describe("message dispatch", () => {
       body: "Board-wide update",
     });
 
-    let unresolved = db.listThreadWaitStates(companyId);
+    let unresolved = db.threads.listThreadWaitStates(companyId);
     expect(unresolved.some((entry) => entry.id === replyWait.id)).toBe(false);
     expect(unresolved.some((entry) => entry.id === reviewWait.id)).toBe(true);
 
@@ -346,7 +346,7 @@ describe("message dispatch", () => {
       body: "Specific reply for the thread",
     });
 
-    unresolved = db.listThreadWaitStates(companyId);
+    unresolved = db.threads.listThreadWaitStates(companyId);
     expect(unresolved.some((entry) => entry.id === reviewWait.id)).toBe(false);
     expect(unresolved.some((entry) => entry.id === approvalWait.id)).toBe(true);
 

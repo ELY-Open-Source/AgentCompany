@@ -32,10 +32,10 @@ export function createHousekeepingScheduler(
         for (const company of activeCompanies) {
           try {
             const currentMonth = new Date().toISOString().slice(0, 7);
-            const lastResetMonth = db.getLastBudgetResetMonth(company.id) ?? "";
+            const lastResetMonth = db.settings.getLastBudgetResetMonth(company.id) ?? "";
             if (currentMonth !== lastResetMonth) {
               db.agents.resetMonthlyBudgets(company.id);
-              db.setLastBudgetResetMonth(company.id, currentMonth);
+              db.settings.setLastBudgetResetMonth(company.id, currentMonth);
               logger.info(`[housekeeping] Reset monthly budgets for company ${company.name} (${currentMonth})`);
             }
 
@@ -81,7 +81,7 @@ export function createHousekeepingScheduler(
         }
 
         try {
-          const staleWakeups = db.purgeExpiredWakeupRequests();
+          const staleWakeups = db.wakeup.purgeExpiredWakeupRequests();
           if (staleWakeups > 0) {
             logger.info(`[housekeeping] Purged ${staleWakeups} expired wakeup request(s)`);
           }

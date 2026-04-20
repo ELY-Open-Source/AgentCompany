@@ -95,9 +95,9 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
       server.json(res, 404, { error: "Agent not found in your company" });
       return;
     }
-    const skillIds = db.listAgentSkillAssignments(agentId);
+    const skillIds = db.skills.listAgentSkillAssignments(agentId);
     const skills = skillIds
-      .map((sid) => db.getCompanySkill(token.companyId, sid))
+      .map((sid) => db.skills.getCompanySkill(token.companyId, sid))
       .filter((s): s is NonNullable<typeof s> => s != null);
     server.json(res, 200, skills.map((s) => ({
       id: s.id,
@@ -127,12 +127,12 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
       server.json(res, 404, { error: "Agent not found in your company" });
       return;
     }
-    const skill = db.getCompanySkill(token.companyId, parsed.data.skillId);
+    const skill = db.skills.getCompanySkill(token.companyId, parsed.data.skillId);
     if (!skill) {
       server.json(res, 404, { error: "Skill not found in your company" });
       return;
     }
-    db.assignSkillToAgent(agentId, parsed.data.skillId);
+    db.skills.assignSkillToAgent(agentId, parsed.data.skillId);
     onDomainChanged();
     server.json(res, 200, { ok: true, message: `Skill "${skill.name}" assigned to agent ${agent.name}` });
   });
@@ -151,7 +151,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
       server.json(res, 404, { error: "Agent not found in your company" });
       return;
     }
-    db.removeSkillFromAgent(agentId, skillId);
+    db.skills.removeSkillFromAgent(agentId, skillId);
     onDomainChanged();
     server.json(res, 200, { ok: true, message: `Skill removed from agent ${agent.name}` });
   });

@@ -81,7 +81,7 @@ export function executeAutomationAction(
           wakeAgentIfPossible(assignedId, ctx.companyId, "assignment");
         }
       } else if (ctx.agentId) {
-        const snapshot = db.listSnapshot();
+        const snapshot = db.snap.listSnapshot();
         const unassigned = snapshot.tasks
           .filter((task) => task.companyId === ctx.companyId && !task.assigneeAgentId && ["backlog", "todo"].includes(task.status))
           .sort((a, b) => {
@@ -310,7 +310,7 @@ export function executeAutomationAction(
       // Default to +60min only when the rule specifies no time at all.
       const offsetMinutes = cfg.scheduleOffsetMinutes ?? 60;
       const scheduledAt = cfg.scheduledAt ?? new Date(Date.now() + offsetMinutes * 60_000).toISOString();
-      db.saveMeeting({
+      db.knowledgeMod.saveMeeting({
         companyId: ctx.companyId,
         type: meetingType,
         title,
@@ -324,7 +324,7 @@ export function executeAutomationAction(
     case "create_document": {
       const documentType = (config.documentType as string) ?? "status_report";
       const title = (config.title as string) ?? "Auto-generated document";
-      db.saveDocument({
+      db.documentsMod.saveDocument({
         companyId: ctx.companyId,
         type: documentType,
         title,
@@ -335,7 +335,7 @@ export function executeAutomationAction(
       break;
     }
     case "auto_approve": {
-      const snapshot = db.listSnapshot();
+      const snapshot = db.snap.listSnapshot();
       const pendingApprovals = snapshot.approvals.filter(
         (approval) => approval.companyId === ctx.companyId && approval.state === "pending",
       );

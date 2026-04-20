@@ -26,7 +26,7 @@ export function resolveApprovalDecision({
     state,
     decisionNote: note,
   });
-  db.addActivity({
+  db.activityMod.addActivity({
     companyId,
     actor,
     action: `approval.${state}`,

@@ -1,7 +1,7 @@
 import type { AppDatabase } from "./database";
 import { getConnectorExecutionReadinessIssue, isConnectorExecutionReady } from "@shared/connector-policy";
 import type { ConnectorId, ConnectorRecord } from "@shared/types";
-import { validateConnectorModelSelection } from "./connector-model-policy";
+import { validateConnectorModelSelection, connectorPolicyDepsFromDb } from "./connector-model-policy";
 
 interface OnboardingBootstrapSummary {
   companyId: string;
@@ -113,7 +113,7 @@ export function createOnboardingService({
     const trimmedPath = workspacePath.trim();
     if (!trimmedPath) return null;
     const wsLocale = getLocale();
-    return db.saveWorkspace({
+    return db.workspacesMod.saveWorkspace({
       companyId,
       name: wsLocale === "zh" ? "默认工作区" : "Default Workspace",
       localPath: trimmedPath,
@@ -158,7 +158,7 @@ export function createOnboardingService({
       ? `Turn the founding goal "${activeGoal.title}" into an execution plan, delegation map, and the first wave of real work.`
       : "Establish the first operating plan, assign work, and start the company execution loop.";
 
-    const projectId = db.saveProject({
+    const projectId = db.entityCrud.saveProject({
       companyId,
       goalId: activeGoal?.id ?? null,
       name: kickoffProjectName,
@@ -217,7 +217,7 @@ export function createOnboardingService({
   }
 
   function bootstrapOnboarding(input: BootstrapInput): OnboardingBootstrapSummary {
-    const connectors = db.listSnapshot({ companyId: null }).connectors;
+    const connectors = db.snap.listSnapshot({ companyId: null }).connectors;
     const selectedConnectorId = resolveOnboardingConnector(connectors, input.connectorId);
 
     const companyId = db.company.saveCompany({
@@ -234,13 +234,13 @@ export function createOnboardingService({
     // pre-commit; the pool settings arrive in the input payload and
     // land in the DB only once a company exists to scope them.
     for (const pool of input.connectorPoolSelections ?? []) {
-      db.setDisabledModels(companyId, pool.connectorId, pool.disabledModels);
+      db.settings.setDisabledModels(companyId, pool.connectorId, pool.disabledModels);
     }
 
     // Validate the CEO model selection against the now-persisted pool
     // scoped to this new company. Must run AFTER the pool is stored,
     // otherwise the validator sees an empty pool and accepts anything.
-    const modelSelection = validateConnectorModelSelection(db, companyId, selectedConnectorId, input.connectorModel ?? null);
+    const modelSelection = validateConnectorModelSelection(connectorPolicyDepsFromDb(db), companyId, selectedConnectorId, input.connectorModel ?? null);
     if (!modelSelection.ok) {
       throw new Error(modelSelection.error);
     }
@@ -249,7 +249,7 @@ export function createOnboardingService({
 
     const goalTitle = input.goalTitle.trim();
     if (goalTitle) {
-      db.saveGoal({
+      db.entityCrud.saveGoal({
         companyId,
         title: goalTitle,
         description: input.goalDescription.trim() || `Achieve: ${goalTitle}`,
@@ -280,7 +280,7 @@ export function createOnboardingService({
       roleLevel: "c_suite",
     });
     db.agents.setHeartbeat(ceoId, true, 120);
-    db.setCurrentCompany(companyId);
+    db.settings.setCurrentCompany(companyId);
     seedDefaultAutomationRules(companyId);
 
     if (scanAndAssignSkills) {
@@ -292,7 +292,7 @@ export function createOnboardingService({
 
     const kickoff = createInitialExecutionLoop(companyId, workspaceId);
 
-    db.addActivity({
+    db.activityMod.addActivity({
       companyId,
       actor: "board",
       action: "company.bootstrapped",

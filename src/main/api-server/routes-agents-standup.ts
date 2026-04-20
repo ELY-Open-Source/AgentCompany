@@ -33,7 +33,7 @@ export function registerAgentStandupRoute(server: AgentApiServer): void {
       ...reportTasks.map((t) => t.id),
     ]);
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const recentComments = db.listRecentTaskComments([...allRelevantTaskIds], twoHoursAgo, 20);
+    const recentComments = db.activityMod.listRecentTaskComments([...allRelevantTaskIds], twoHoursAgo, 20);
 
     const myPendingApprovals = db.approvalsMod.listAgentPendingApprovals(token.companyId, token.agentId);
     const myResolvedApprovals = db.approvalsMod.listAgentResolvedApprovals(token.companyId, token.agentId, 5);
@@ -59,10 +59,10 @@ export function registerAgentStandupRoute(server: AgentApiServer): void {
     // surface keeps the briefing readable.
     const RECENT_OUTPUT_LIMIT = 20;
     const myTaskIds = new Set(myTasks.map((t) => t.id));
-    const recentDocuments = db.listDocuments(token.companyId)
+    const recentDocuments = db.documentsMod.listDocuments(token.companyId)
       .filter((doc) => doc.authorAgentId === token.agentId)
       .slice(0, RECENT_OUTPUT_LIMIT);
-    const recentWorkProducts = db.listWorkProductsForCompany(token.companyId)
+    const recentWorkProducts = db.documentsMod.listWorkProductsForCompany(token.companyId)
       .filter((wp) => wp.taskId !== null && myTaskIds.has(wp.taskId))
       .slice(0, RECENT_OUTPUT_LIMIT);
 
@@ -71,7 +71,7 @@ export function registerAgentStandupRoute(server: AgentApiServer): void {
       ...myTasks.map<[string, string]>((t) => [t.id, t.title]),
       ...reportTasks.map<[string, string]>((t) => [t.id, t.title]),
     ]);
-    const socialAccounts = db.listSocialAccounts(token.companyId);
+    const socialAccounts = db.social.listSocialAccounts(token.companyId);
 
     server.json(res, 200, {
       agent: { id: agent.id, name: agent.name, role: agent.role, status: agent.status },

@@ -43,7 +43,7 @@ describe("AppDatabase", () => {
       status: "active",
     });
 
-    const workspaceId = db.saveWorkspace({
+    const workspaceId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -66,7 +66,7 @@ describe("AppDatabase", () => {
       budgetMonthlyUsd: 200,
     });
 
-    const goalId = db.saveGoal({
+    const goalId = db.entityCrud.saveGoal({
       companyId,
       title: "Ship the desktop app",
       description: "Reach packaged desktop parity.",
@@ -74,7 +74,7 @@ describe("AppDatabase", () => {
       status: "active",
     });
 
-    const projectId = db.saveProject({
+    const projectId = db.entityCrud.saveProject({
       companyId,
       goalId,
       name: "Desktop rebuild",
@@ -95,21 +95,21 @@ describe("AppDatabase", () => {
       status: "todo",
     });
 
-    db.saveSecret({
+    db.entityCrud.saveSecret({
       companyId,
       name: "vault-openai",
       description: "Test key",
       value: "sk-test-123",
     });
 
-    db.saveConnector({
+    db.connectorsCrud.saveConnector({
       id: "openai-codex",
       model: null,
       envBindingText: "OPENAI_API_KEY=vault-openai",
       notes: "Connector note",
     });
 
-    expect(db.resolveSecretEnv("OPENAI_API_KEY=vault-openai", companyId)).toEqual({
+    expect(db.entityCrud.resolveSecretEnv("OPENAI_API_KEY=vault-openai", companyId)).toEqual({
       OPENAI_API_KEY: "sk-test-123",
     });
 
@@ -136,22 +136,22 @@ describe("AppDatabase", () => {
       unattributedCost: false,
     });
 
-    const snapshotBeforeBackup = db.listSnapshot();
+    const snapshotBeforeBackup = db.snap.listSnapshot();
     expect(snapshotBeforeBackup.companies).toHaveLength(1);
     expect(snapshotBeforeBackup.runs[0]?.status).toBe("succeeded");
     expect(snapshotBeforeBackup.tasks[0]?.activeRunId).toBeNull();
 
-    await db.exportBackup(backupDir);
+    await db.backupMod.exportBackup(backupDir);
 
     db.company.saveCompany({
       name: "Temporary company",
       description: "Should disappear after restore",
       status: "active",
     });
-    expect(db.listSnapshot().companies).toHaveLength(2);
+    expect(db.snap.listSnapshot().companies).toHaveLength(2);
 
-    await db.restoreFromBackup(backupDir);
-    const restoredSnapshot = db.listSnapshot();
+    await db.backupMod.restoreFromBackup(backupDir);
+    const restoredSnapshot = db.snap.listSnapshot();
     expect(restoredSnapshot.companies).toHaveLength(1);
     expect(restoredSnapshot.companies[0]?.name).toBe("Orbit Foundry");
     expect(restoredSnapshot.runs[0]?.summary).toBe("Completed successfully");
@@ -176,7 +176,7 @@ describe("AppDatabase", () => {
       status: "active",
     });
 
-    const alphaWorkspaceId = db.saveWorkspace({
+    const alphaWorkspaceId = db.workspacesMod.saveWorkspace({
       companyId: alphaCompanyId,
       name: "Alpha Workspace",
       localPath: profileDir,
@@ -185,7 +185,7 @@ describe("AppDatabase", () => {
       isPrimary: true,
     });
 
-    const betaWorkspaceId = db.saveWorkspace({
+    const betaWorkspaceId = db.workspacesMod.saveWorkspace({
       companyId: betaCompanyId,
       name: "Beta Workspace",
       localPath: profileDir,
@@ -242,9 +242,9 @@ describe("AppDatabase", () => {
       status: "todo",
     });
 
-    db.setCurrentCompany(alphaCompanyId);
+    db.settings.setCurrentCompany(alphaCompanyId);
 
-    const rendererSnapshot = db.listRendererSnapshot();
+    const rendererSnapshot = db.snap.listRendererSnapshot();
     expect(rendererSnapshot.currentCompanyId).toBe(alphaCompanyId);
     expect(rendererSnapshot.companies).toHaveLength(2);
     expect(rendererSnapshot.connectors.length).toBeGreaterThan(0);

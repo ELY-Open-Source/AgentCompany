@@ -127,7 +127,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
       // Deliverable review gate: intercept agent trying to advance a flagged task to "done".
       // This MUST succeed — silently skipping review would let unreviewed work advance.
       if (update.status === "done" && task.requiresUserReview) {
-        const docs = db.listImportantDocsForReview({
+        const docs = db.documentsMod.listImportantDocsForReview({
           companyId: task.companyId,
           types: IMPORTANT_DOC_TYPES,
           authorAgentId: task.assigneeAgentId ?? null,
@@ -152,7 +152,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
             db.agents.setHeartbeat(task.assigneeAgentId, false, prodAgent.heartbeatIntervalSec || 120);
           }
         }
-        db.addComment({ companyId: task.companyId, taskId: task.id, authorAgentId: null, authorName: "System", body: "Deliverable submitted for board review." });
+        db.activityMod.addComment({ companyId: task.companyId, taskId: task.id, authorAgentId: null, authorName: "System", body: "Deliverable submitted for board review." });
         update.status = "in_review";
       }
 
@@ -189,7 +189,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
 
       if (update.comment) {
         const agent = db.entityCrud.getAgent(token.agentId);
-        db.addComment({
+        db.activityMod.addComment({
           companyId: task.companyId,
           taskId: task.id,
           authorAgentId: token.agentId,
@@ -198,7 +198,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
         });
       }
 
-      db.addActivity({
+      db.activityMod.addActivity({
         companyId: task.companyId,
         actor: token.agentId,
         action: `task.${update.status ? "status_changed" : "updated"}`,
@@ -357,7 +357,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
       db.tasks.setTaskType(id, inferredType);
     }
 
-    db.addActivity({
+    db.activityMod.addActivity({
       companyId,
       actor: token.agentId,
       action: "task.created",

@@ -77,7 +77,7 @@ export async function notifyHireApproved(
     };
 
     log.info(`[hire-hook] Hire approved for agent ${agent.name} (${input.agentId}) on connector ${connectorDef.id}`);
-    db.addActivity({
+    db.activityMod.addActivity({
       companyId: input.companyId,
       actor: "system",
       action: "hire_hook.success",
@@ -95,7 +95,7 @@ export async function notifyHireApproved(
     const message = error instanceof Error ? error.message : String(error);
     log.error(`[${classified.code}] ${classified.message}: ${message}`);
     try {
-      db.addActivity({
+      db.activityMod.addActivity({
         companyId: input.companyId,
         actor: "system",
         action: "hire_hook.exception",

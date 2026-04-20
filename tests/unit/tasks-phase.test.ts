@@ -35,7 +35,7 @@ function createTestCompany(db: AppDatabase): string {
 }
 
 function createTestConnector(db: AppDatabase): void {
-  db.saveConnector({
+  db.connectorsCrud.saveConnector({
     id: "openai-codex",
     model: "gpt-5",
     envBindingText: "",
@@ -44,7 +44,7 @@ function createTestConnector(db: AppDatabase): void {
 }
 
 function createTestWorkspace(db: AppDatabase, companyId: string): string {
-  return db.saveWorkspace({
+  return db.workspacesMod.saveWorkspace({
     companyId,
     name: "Phase Workspace",
     localPath: "/tmp/phase-workspace",

@@ -73,7 +73,7 @@ export function resolveWorkflowStepActor(
     }
   }
 
-  const snapshot = db.listSnapshot();
+  const snapshot = db.snap.listSnapshot();
   return snapshot.agents.find((agent) => agent.companyId === companyId && !agent.reportsTo && agent.status !== "terminated") ?? null;
 }
 
@@ -112,7 +112,7 @@ export async function runWorkflowPipeline(
 ): Promise<void> {
   const { db, publishDomainChanged } = deps;
 
-  const workflow = db.getWorkflowRecord(workflowId, companyId);
+  const workflow = db.automationMod.getWorkflowRecord(workflowId, companyId);
   if (!workflow) {
     throw new Error("Workflow not found.");
   }
@@ -132,7 +132,7 @@ export async function runWorkflowPipeline(
     return step;
   });
 
-  db.updateWorkflowExecution({
+  db.automationMod.updateWorkflowExecution({
     id: workflowId,
     companyId,
     status: "active",
@@ -146,7 +146,7 @@ export async function runWorkflowPipeline(
   for (let index = resumeFrom; index < steps.length; index += 1) {
     const step = steps[index]!;
     step.status = "running";
-    db.updateWorkflowExecution({
+    db.automationMod.updateWorkflowExecution({
       id: workflowId,
       companyId,
       status: "active",
@@ -170,7 +170,7 @@ export async function runWorkflowPipeline(
         payloadJson: JSON.stringify({ workflowId, stepId: step.id, stepName: step.name }),
       });
       step.status = "pending";
-      db.updateWorkflowExecution({
+      db.automationMod.updateWorkflowExecution({
         id: workflowId,
         companyId,
         status: "paused",
@@ -178,7 +178,7 @@ export async function runWorkflowPipeline(
         stepsJson: JSON.stringify(steps),
         lastRunAt: new Date().toISOString(),
       });
-      db.addActivity({
+      db.activityMod.addActivity({
         companyId,
         actor: actor?.id ?? "system",
         action: "workflow.paused_for_approval",
@@ -203,7 +203,7 @@ export async function runWorkflowPipeline(
         ctx,
       );
       step.status = "completed";
-      db.addActivity({
+      db.activityMod.addActivity({
         companyId,
         actor: actor?.id ?? "system",
         action: "workflow.step_completed",
@@ -213,7 +213,7 @@ export async function runWorkflowPipeline(
       });
       const isLastStep = index === steps.length - 1;
       const completionStatus = isLastStep ? "completed" : "active";
-      db.updateWorkflowExecution({
+      db.automationMod.updateWorkflowExecution({
         id: workflowId,
         companyId,
         status: completionStatus,
@@ -224,7 +224,7 @@ export async function runWorkflowPipeline(
       publishDomainChanged();
     } catch (error) {
       step.status = "failed";
-      db.updateWorkflowExecution({
+      db.automationMod.updateWorkflowExecution({
         id: workflowId,
         companyId,
         status: "failed",
@@ -232,7 +232,7 @@ export async function runWorkflowPipeline(
         stepsJson: JSON.stringify(steps),
         lastRunAt: new Date().toISOString(),
       });
-      db.addActivity({
+      db.activityMod.addActivity({
         companyId,
         actor: actor?.id ?? "system",
         action: "workflow.step_failed",

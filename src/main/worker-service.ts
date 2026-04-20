@@ -180,7 +180,7 @@ export function createWorkerService({
 
     // Mark all running/queued runs as interrupted so DB state is clean on restart
     try {
-      const snapshot = db.listSnapshot();
+      const snapshot = db.snap.listSnapshot();
       for (const run of snapshot.runs) {
         if (run.status === "running" || run.status === "queued") {
           db.runs.finishRun({
@@ -194,7 +194,7 @@ export function createWorkerService({
             unattributedCost: true,
           });
           if (run.workspaceId) {
-            db.releaseWorkspaceLock(run.workspaceId, run.id);
+            db.workspacesMod.releaseWorkspaceLock(run.workspaceId, run.id);
           }
           if (run.taskId) {
             db.tasks.releaseTaskLock(run.taskId, run.id);

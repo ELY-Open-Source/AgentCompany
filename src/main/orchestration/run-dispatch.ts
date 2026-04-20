@@ -47,7 +47,15 @@ export function createRunDispatch(deps: OrchestrationDependencies) {
       logger.info(`[run] Agent ${agent.name} connector ${connector.id} blocked: ${issue}`);
       return "CONNECTOR_NOT_READY";
     }
-    const modelSelection = validateConnectorModelSelection(db, agent.companyId, connector.id, agent.model ?? null);
+    const modelSelection = validateConnectorModelSelection(
+      {
+        getConnector: (id) => db.connectorsCrud.getConnector(id),
+        getDisabledModels: (cid, connId) => db.settings.getDisabledModels(cid, connId),
+      },
+      agent.companyId,
+      connector.id,
+      agent.model ?? null,
+    );
     if (!modelSelection.ok) {
       logger.info(`[run] Agent ${agent.name} connector model blocked: ${modelSelection.error}`);
       return "CONNECTOR_MODEL_NOT_ALLOWED";
@@ -81,7 +89,7 @@ export function createRunDispatch(deps: OrchestrationDependencies) {
     if (
       params.workspaceMode === "exclusive" &&
       params.workspace &&
-      !db.claimWorkspaceLock(params.workspace.id, params.runId)
+      !db.workspacesMod.claimWorkspaceLock(params.workspace.id, params.runId)
     ) {
       db.runs.finishRun({
         runId: params.runId,

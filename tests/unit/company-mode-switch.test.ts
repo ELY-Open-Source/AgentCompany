@@ -32,7 +32,7 @@ describe("company mode switching", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.updateConnectorHealth({
+    db.connectorsCrud.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -48,7 +48,7 @@ describe("company mode switching", () => {
       autoApproveHires: false,
       reviewDeliverables: true,
     });
-    const workspaceId = db.saveWorkspace({
+    const workspaceId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -112,7 +112,7 @@ describe("company mode switching", () => {
     });
     threadIntegration.onApprovalCreated(approvalId, companyId, taskId, "deliverable_review", "Review deliverable");
 
-    expect(db.listThreadWaitStates(companyId).length).toBeGreaterThan(0);
+    expect(db.threads.listThreadWaitStates(companyId).length).toBeGreaterThan(0);
     expect(db.entityCrud.getTask(taskId).requiresUserReview).toBe(true);
     expect(db.approvalsMod.getApprovalRecord(approvalId).state).toBe("pending");
 
@@ -122,7 +122,7 @@ describe("company mode switching", () => {
         handlers.set(channel, handler);
       },
       db,
-      ensureCompanyExists: (id) => (db.hasCompany(id) ? null : { ok: false, error: { code: "COMPANY_NOT_FOUND", message: "missing" } }),
+      ensureCompanyExists: (id) => (db.settings.hasCompany(id) ? null : { ok: false, error: { code: "COMPANY_NOT_FOUND", message: "missing" } }),
       publishDomainChanged: vi.fn(),
       handleApprovalResolved: (resolvedApprovalId, resolvedCompanyId, decision) => {
         threadIntegration.onApprovalResolved(resolvedApprovalId, resolvedCompanyId, decision);
@@ -148,7 +148,7 @@ describe("company mode switching", () => {
 
     expect(result.ok).toBe(true);
     expect(db.company.getCompanyExecutionMode(companyId)).toBe("ai_ceo");
-    expect(db.listThreadWaitStates(companyId)).toHaveLength(0);
+    expect(db.threads.listThreadWaitStates(companyId)).toHaveLength(0);
     expect(db.entityCrud.getTask(taskId).requiresUserReview).toBe(false);
     expect(db.approvalsMod.getApprovalRecord(approvalId).state).toBe("approved");
 

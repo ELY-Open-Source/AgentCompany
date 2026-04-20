@@ -24,7 +24,7 @@ async function createHarness() {
   const db = new AppDatabase(profileDir);
   db.init();
 
-  db.updateConnectorHealth({
+  db.connectorsCrud.updateConnectorHealth({
     id: "openai-codex",
     status: "ready",
     authState: "authenticated",
@@ -37,7 +37,7 @@ async function createHarness() {
     description: "Tests manager-driven recursive hires",
     status: "active",
   });
-  const workspaceId = db.saveWorkspace({
+  const workspaceId = db.workspacesMod.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: profileDir,

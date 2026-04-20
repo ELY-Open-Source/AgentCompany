@@ -69,7 +69,7 @@ export async function importFromLocal(
     const skillId = randomUUID();
     await materializeSkillFiles(skillFilesDir(companyId, rawSlug), markdown, inventory);
 
-    const { isUpdate } = db.upsertCompanySkill({
+    const { isUpdate } = db.skills.upsertCompanySkill({
       id: skillId,
       companyId,
       key,
@@ -121,7 +121,7 @@ export async function importFromLocal(
     const skillId = randomUUID();
     await materializeSkillFiles(skillFilesDir(companyId, rawSlug), markdown, inventory);
 
-    const { isUpdate } = db.upsertCompanySkill({
+    const { isUpdate } = db.skills.upsertCompanySkill({
       id: skillId,
       companyId,
       key,

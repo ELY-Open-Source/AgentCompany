@@ -29,7 +29,7 @@ export function registerAutomationOperationsHandlers({
     const parsed = automationRuleInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    const id = db.saveAutomationRule(parsed);
+    const id = db.automationMod.saveAutomationRule(parsed);
     publishDomainChanged();
     return ok(id);
   });
@@ -38,10 +38,10 @@ export function registerAutomationOperationsHandlers({
     const parsed = deleteEntitySchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.belongsToCompany("automation_rules", parsed.id, parsed.companyId)) {
+    if (!db.settings.belongsToCompany("automation_rules", parsed.id, parsed.companyId)) {
       return fail("ENTITY_NOT_FOUND", "Automation rule not found in the current company.");
     }
-    db.deleteAutomationRule(parsed.id, parsed.companyId);
+    db.automationMod.deleteAutomationRule(parsed.id, parsed.companyId);
     publishDomainChanged();
     return ok(true);
   });
@@ -50,10 +50,10 @@ export function registerAutomationOperationsHandlers({
     const parsed = toggleAutomationRuleSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.belongsToCompany("automation_rules", parsed.id, parsed.companyId)) {
+    if (!db.settings.belongsToCompany("automation_rules", parsed.id, parsed.companyId)) {
       return fail("ENTITY_NOT_FOUND", "Automation rule not found in the current company.");
     }
-    db.toggleAutomationRule(parsed.id, parsed.companyId, parsed.status);
+    db.automationMod.toggleAutomationRule(parsed.id, parsed.companyId, parsed.status);
     publishDomainChanged();
     return ok(true);
   });
@@ -62,14 +62,14 @@ export function registerAutomationOperationsHandlers({
     const parsed = companyIdSchema.parse(companyId);
     const companyError = ensureCompanyExists(parsed);
     if (companyError) return companyError;
-    return ok(db.getAutomationLog(parsed));
+    return ok(db.automationMod.getAutomationLog(parsed));
   });
 
   registerHandle(IPC_CHANNELS.saveWorkflow, async (_event, payload) => {
     const parsed = workflowInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    const id = db.saveWorkflow(parsed);
+    const id = db.automationMod.saveWorkflow(parsed);
     publishDomainChanged();
     return ok(id);
   });
@@ -78,10 +78,10 @@ export function registerAutomationOperationsHandlers({
     const parsed = deleteEntitySchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.belongsToCompany("workflow_pipelines", parsed.id, parsed.companyId)) {
+    if (!db.settings.belongsToCompany("workflow_pipelines", parsed.id, parsed.companyId)) {
       return fail("ENTITY_NOT_FOUND", "Workflow not found in the current company.");
     }
-    db.deleteWorkflow(parsed.id, parsed.companyId);
+    db.automationMod.deleteWorkflow(parsed.id, parsed.companyId);
     publishDomainChanged();
     return ok(true);
   });
@@ -90,7 +90,7 @@ export function registerAutomationOperationsHandlers({
     const parsed = runWorkflowSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.belongsToCompany("workflow_pipelines", parsed.id, parsed.companyId)) {
+    if (!db.settings.belongsToCompany("workflow_pipelines", parsed.id, parsed.companyId)) {
       return fail("ENTITY_NOT_FOUND", "Workflow not found in the current company.");
     }
     await runWorkflowPipeline(parsed.id, parsed.companyId);

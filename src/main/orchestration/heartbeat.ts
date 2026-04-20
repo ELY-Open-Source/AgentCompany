@@ -41,7 +41,7 @@ const SKIPPED = (reason: HeartbeatSkipReason): HeartbeatStartResult => ({
 
 export function createHeartbeat(
   deps: OrchestrationDependencies,
-  resolveWorkspace: (task: { workspaceId: string | null; projectId?: string | null } | null, agent: { workspaceId: string | null }, companyId: string) => { workspace: ReturnType<AppDatabase["getWorkspace"]>; lockMode: "exclusive" | "shared" | "none"; source: string },
+  resolveWorkspace: (task: { workspaceId: string | null; projectId?: string | null } | null, agent: { workspaceId: string | null }, companyId: string) => { workspace: ReturnType<AppDatabase["workspacesMod"]["getWorkspace"]>; lockMode: "exclusive" | "shared" | "none"; source: string },
   getRunEligibilityFailure: (agent: AgentRecord, connector: ConnectorRecord, projectId?: string | null) => string | null,
   dispatchRunToWorker: (params: RunDispatchParams) => void,
   hasActiveRun: (filter: { taskId?: string; agentId?: string; companyId: string }) => boolean,
@@ -74,14 +74,14 @@ export function createHeartbeat(
       return SKIPPED("cross_company");
     }
     const pick = pickModelForAgent(agent, {
-      getConnector: (id) => db.getConnector(id),
-      getDisabledModels: (id) => db.getDisabledModels(agent.companyId, id),
+      getConnector: (id) => db.connectorsCrud.getConnector(id),
+      getDisabledModels: (id) => db.settings.getDisabledModels(agent.companyId, id),
       listModelCapabilities: () => db.modelCapabilities.listModelCapabilities(),
       readConnectors: () => db.connectorsCrud.readConnectors(),
     });
     if (!pick.ok) {
       logger.warn(`[heartbeat] Model pick failed for agent ${agent.name}: ${pick.message}`);
-      db.addActivity({
+      db.activityMod.addActivity({
         companyId,
         actor: "system",
         action: "heartbeat.model_pick_failed",
@@ -92,7 +92,7 @@ export function createHeartbeat(
       return SKIPPED("model_pick_failed");
     }
     const assignment = pick.assignment;
-    const connector = db.getConnector(assignment.connectorId);
+    const connector = db.connectorsCrud.getConnector(assignment.connectorId);
     const effectiveAgentForEligibility: AgentRecord = { ...agent, model: assignment.modelId };
     const eligibilityFailure = getRunEligibilityFailure(effectiveAgentForEligibility, connector, null);
     if (eligibilityFailure) {
@@ -168,7 +168,7 @@ export function createHeartbeat(
     if (candidateTask) {
       const checkoutSuccess = db.tasks.checkoutTask(candidateTask.id, runId);
       if (!checkoutSuccess) {
-        db.addActivity({
+        db.activityMod.addActivity({
           companyId,
           actor: "system",
           action: "execution.checkout_rejected",
@@ -187,7 +187,7 @@ export function createHeartbeat(
 
       const isCeo = !agent.reportsTo;
       const isManager = db.agents.getDirectReports(agent.id, companyId).length > 0;
-      const goalCount = db.countActiveGoalsForCompany(companyId);
+      const goalCount = db.entityCrud.countActiveGoalsForCompany(companyId);
       const taskCount = db.tasks.countActiveTasksForCompany(companyId);
       const companyNeedsBootstrap = goalCount > 0 && taskCount < goalCount;
 
@@ -227,7 +227,7 @@ export function createHeartbeat(
       workspaceMode: workspaceResolution.lockMode,
       companyName: companyBasic?.name ?? "Unknown",
       companyDescription: companyBasic?.description ?? "",
-      snapshot: db.listSnapshot(),
+      snapshot: db.snap.listSnapshot(),
       trigger,
       resolvedModel: assignment.modelId,
     });
@@ -245,7 +245,7 @@ export function createHeartbeat(
       );
     }
 
-    db.addActivity({
+    db.activityMod.addActivity({
       companyId,
       actor: "system",
       action: "heartbeat.triggered",
@@ -284,16 +284,16 @@ export function createHeartbeat(
 
     const agentBusy = hasActiveRun({ agentId, companyId });
     if (agentBusy) {
-      db.enqueueWakeupRequest(companyId, agentId, trigger, `Wake for agent: ${trigger}`, context);
+      db.wakeup.enqueueWakeupRequest(companyId, agentId, trigger, `Wake for agent: ${trigger}`, context);
       return null;
     }
 
     const result = startAgentHeartbeatRun(agentId, companyId, trigger);
     if (result.status === "skipped") {
-      db.enqueueWakeupRequest(companyId, agentId, trigger, `Wake for agent (deferred:${result.reason}): ${trigger}`, context);
+      db.wakeup.enqueueWakeupRequest(companyId, agentId, trigger, `Wake for agent (deferred:${result.reason}): ${trigger}`, context);
       return null;
     }
-    db.completePendingWakeupRequests(agentId, companyId, result.runId);
+    db.wakeup.completePendingWakeupRequests(agentId, companyId, result.runId);
     return result.runId;
   }
 

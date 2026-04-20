@@ -60,7 +60,7 @@ export function installSharedSetup(): SharedHandle {
       status: "active",
     });
 
-    state.workspaceId = state.db.saveWorkspace({
+    state.workspaceId = state.db.workspacesMod.saveWorkspace({
       companyId: state.companyId,
       name: "Primary",
       localPath: profileDir,

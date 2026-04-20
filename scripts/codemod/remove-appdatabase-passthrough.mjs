@@ -88,7 +88,9 @@ const METHOD_TO_MODULE = {
   deleteProject: "entityCrud",
   deleteSecret: "entityCrud",
   countActiveGoalsForCompany: "entityCrud",
-  createHireRequest: "entityCrud",
+  // createHireRequest is a multi-module composite that lives on
+  // AppDatabase itself (spans agents + approvalsMod). Do not rewrite.
+  // rollbackConfigRevision is the same (spans documents + entityCrud).
   // documentsMod
   saveDocument: "documentsMod",
   listImportantDocsForReview: "documentsMod",

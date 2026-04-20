@@ -27,7 +27,7 @@ export function createConnectorHealthService({
   credentialStore,
 }: ConnectorHealthDependencies) {
   function randomFallbackCompanyId() {
-    const snapshot = db.listSnapshot();
+    const snapshot = db.snap.listSnapshot();
     return snapshot.companies[0]?.id ?? "00000000-0000-0000-0000-000000000000";
   }
 
@@ -103,12 +103,12 @@ export function createConnectorHealthService({
   }
 
   async function checkConnector(id: ConnectorId) {
-    const companyId = db.getCurrentCompanyId() ?? randomFallbackCompanyId();
+    const companyId = db.settings.getCurrentCompanyId() ?? randomFallbackCompanyId();
 
-    db.updateConnectorHealth({
+    db.connectorsCrud.updateConnectorHealth({
       id,
       status: "detected",
-      authState: db.getConnector(id).authState,
+      authState: db.connectorsCrud.getConnector(id).authState,
       version: null,
       lastError: null,
     });
@@ -116,14 +116,14 @@ export function createConnectorHealthService({
 
     try {
       const result = evaluateCredential(id);
-      db.updateConnectorHealth({
+      db.connectorsCrud.updateConnectorHealth({
         id,
         status: result.status,
         authState: result.authState,
         version: null,
         lastError: result.lastError,
       });
-      db.addActivity({
+      db.activityMod.addActivity({
         companyId,
         actor: "system",
         action: "connector.tested",
@@ -135,7 +135,7 @@ export function createConnectorHealthService({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`[connector] Health check failed for ${id}: ${errorMessage}`);
-      db.updateConnectorHealth({
+      db.connectorsCrud.updateConnectorHealth({
         id,
         status: "error",
         authState: "unknown",

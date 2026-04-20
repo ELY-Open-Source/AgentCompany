@@ -111,7 +111,7 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
     expect(ctoChain[0].id).toBe(ceoId);
 
     // 8. Create task tree
-    const projectId = shared.db.saveProject({
+    const projectId = shared.db.entityCrud.saveProject({
       companyId: shared.companyId,
       name: "Launch MVP",
       description: "Build and launch MVP",
@@ -150,8 +150,8 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
     expect(subtask.parentId).toBe(parentTaskId);
 
     // 9. Wakeup request test: enqueue wake while IC is busy
-    shared.db.enqueueWakeupRequest(shared.companyId, icId, "comment", "comment");
-    const queuedWakes = shared.db.listWakeupRequests(shared.companyId, { agentId: icId, status: "queued" });
+    shared.db.wakeup.enqueueWakeupRequest(shared.companyId, icId, "comment", "comment");
+    const queuedWakes = shared.db.wakeup.listWakeupRequests(shared.companyId, { agentId: icId, status: "queued" });
     expect(queuedWakes).toHaveLength(1);
     expect(queuedWakes[0].source).toBe("comment");
 
@@ -175,12 +175,12 @@ describe("E2E: Wakeup request lifecycle with run lifecycle", () => {
 
     // Simulate: agent is running, wakes come in. All triggers are coalesced
     // into a single wakeup request with JSON array of trigger details.
-    shared.db.enqueueWakeupRequest(shared.companyId, agentId, "subtask_completed", "subtask_completed");
-    shared.db.enqueueWakeupRequest(shared.companyId, agentId, "comment", "comment");
-    shared.db.enqueueWakeupRequest(shared.companyId, agentId, "report_blocked", "report_blocked");
+    shared.db.wakeup.enqueueWakeupRequest(shared.companyId, agentId, "subtask_completed", "subtask_completed");
+    shared.db.wakeup.enqueueWakeupRequest(shared.companyId, agentId, "comment", "comment");
+    shared.db.wakeup.enqueueWakeupRequest(shared.companyId, agentId, "report_blocked", "report_blocked");
 
     // Verify coalesced into single row with all triggers
-    const wakes = shared.db.listWakeupRequests(shared.companyId, { agentId, status: "queued" });
+    const wakes = shared.db.wakeup.listWakeupRequests(shared.companyId, { agentId, status: "queued" });
     expect(wakes).toHaveLength(1);
     expect(wakes[0].coalescedCount).toBe(2);
 
@@ -191,7 +191,7 @@ describe("E2E: Wakeup request lifecycle with run lifecycle", () => {
     expect(triggers[2].trigger).toBe("report_blocked");
 
     // Wakes remain queued until consumed by the run lifecycle
-    expect(shared.db.listWakeupRequests(shared.companyId, { agentId, status: "queued" })).toHaveLength(1);
+    expect(shared.db.wakeup.listWakeupRequests(shared.companyId, { agentId, status: "queued" })).toHaveLength(1);
   });
 });
 

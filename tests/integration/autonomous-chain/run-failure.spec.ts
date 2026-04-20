@@ -45,7 +45,7 @@ describe("Step 6: Run failure escalation (database layer)", () => {
 
     expect(outcome.budgetHardStopped).toBe(false);
 
-    const snapshot = shared.db.listSnapshot();
+    const snapshot = shared.db.snap.listSnapshot();
     const finishedRun = snapshot.runs.find((r) => r.id === run.id);
     expect(finishedRun?.status).toBe("failed");
     expect(finishedRun?.errorMessage).toBe("Process crashed");

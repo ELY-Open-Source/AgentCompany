@@ -70,7 +70,7 @@ describe("agent model switching", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.updateConnectorHealth({
+    db.connectorsCrud.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -83,7 +83,7 @@ describe("agent model switching", () => {
       description: "Tests post-hire model switching",
       status: "active",
     });
-    const workspaceId = db.saveWorkspace({
+    const workspaceId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,

@@ -15,9 +15,9 @@ export interface RecoverScheduledPostsDeps {
 export function recoverScheduledPosts(deps: RecoverScheduledPostsDeps): Set<ReturnType<typeof setTimeout>> {
   const timers = new Set<ReturnType<typeof setTimeout>>();
   try {
-    const snapshot = deps.db.listSnapshot();
+    const snapshot = deps.db.snap.listSnapshot();
     for (const company of snapshot.companies) {
-      const queuedActions = deps.db.listBrowserActions(company.id, { status: "queued" });
+      const queuedActions = deps.db.social.listBrowserActions(company.id, { status: "queued" });
       for (const action of queuedActions) {
         if (!action.payloadJson) continue;
         try {

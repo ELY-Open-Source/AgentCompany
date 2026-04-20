@@ -43,8 +43,8 @@ export function registerCoreTaskGraphHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
-    const id = db.saveGoal(parsed);
-    db.addActivity({
+    const id = db.entityCrud.saveGoal(parsed);
+    db.activityMod.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: parsed.id ? "goal.updated" : "goal.created",
@@ -70,8 +70,8 @@ export function registerCoreTaskGraphHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
-    const id = db.saveProject(parsed);
-    db.addActivity({
+    const id = db.entityCrud.saveProject(parsed);
+    db.activityMod.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: parsed.id ? "project.updated" : "project.created",
@@ -128,7 +128,7 @@ export function registerCoreTaskGraphHandlers({
     } catch (error) {
       return fail("INVALID_TASK_STATE", error instanceof Error ? error.message : "Task could not be saved.");
     }
-    db.addActivity({
+    db.activityMod.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: isNew ? "task.created" : "task.updated",
@@ -176,9 +176,9 @@ export function registerCoreTaskGraphHandlers({
 
   const deleteHandlers = [
     { channel: IPC_CHANNELS.deleteTask, table: "tasks", entity: "task", deleteFn: (id: string, companyId: string) => db.tasks.deleteTask(id, companyId) },
-    { channel: IPC_CHANNELS.deleteGoal, table: "goals", entity: "goal", deleteFn: (id: string, companyId: string) => db.deleteGoal(id, companyId) },
-    { channel: IPC_CHANNELS.deleteProject, table: "projects", entity: "project", deleteFn: (id: string, companyId: string) => db.deleteProject(id, companyId) },
-    { channel: IPC_CHANNELS.deleteWorkspace, table: "workspaces", entity: "workspace", deleteFn: (id: string, companyId: string) => db.deleteWorkspace(id, companyId) },
+    { channel: IPC_CHANNELS.deleteGoal, table: "goals", entity: "goal", deleteFn: (id: string, companyId: string) => db.entityCrud.deleteGoal(id, companyId) },
+    { channel: IPC_CHANNELS.deleteProject, table: "projects", entity: "project", deleteFn: (id: string, companyId: string) => db.entityCrud.deleteProject(id, companyId) },
+    { channel: IPC_CHANNELS.deleteWorkspace, table: "workspaces", entity: "workspace", deleteFn: (id: string, companyId: string) => db.workspacesMod.deleteWorkspace(id, companyId) },
   ] as const;
 
   for (const { channel, table, entity, deleteFn } of deleteHandlers) {
@@ -186,11 +186,11 @@ export function registerCoreTaskGraphHandlers({
       const parsed = deleteEntitySchema.parse(payload);
       const companyError = ensureCompanyExists(parsed.companyId);
       if (companyError) return companyError;
-      if (!db.belongsToCompany(table, parsed.id, parsed.companyId)) {
+      if (!db.settings.belongsToCompany(table, parsed.id, parsed.companyId)) {
         return fail(`${entity.toUpperCase()}_NOT_FOUND`, `${entity.charAt(0).toUpperCase() + entity.slice(1)} not found in the current company.`);
       }
       deleteFn(parsed.id, parsed.companyId);
-      db.addActivity({
+      db.activityMod.addActivity({
         companyId: parsed.companyId,
         actor: "board",
         action: `${entity}.deleted`,

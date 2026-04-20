@@ -12,7 +12,7 @@ export interface ThreadIntegrationDeps {
 }
 
 export function findTaskThread(db: AppDatabase, taskId: string, companyId: string) {
-  const existing = db.listThreads({
+  const existing = db.threads.listThreads({
     companyId,
     type: "task" as ThreadType,
     relatedEntityType: "task",
@@ -26,7 +26,7 @@ export function ensureTaskThread(db: AppDatabase, taskId: string, companyId: str
   const existing = findTaskThread(db, taskId, companyId);
   if (existing) return existing;
 
-  return db.createThread({
+  return db.threads.createThread({
     companyId,
     title,
     type: "task" as ThreadType,
@@ -36,7 +36,7 @@ export function ensureTaskThread(db: AppDatabase, taskId: string, companyId: str
 }
 
 export function findAgentCommunicationThread(db: AppDatabase, agentId: string, companyId: string) {
-  const existing = db.listThreads({
+  const existing = db.threads.listThreads({
     companyId,
     type: "general" as ThreadType,
     relatedEntityType: "agent",
@@ -62,7 +62,7 @@ export function ensureAgentCommunicationThread(
   const existing = findAgentCommunicationThread(db, agentId, companyId);
   if (existing) return existing;
 
-  return db.createThread({
+  return db.threads.createThread({
     companyId,
     title: `${agentLabel} · communication`,
     type: "general" as ThreadType,
@@ -72,7 +72,7 @@ export function ensureAgentCommunicationThread(
 }
 
 export function findApprovalThread(db: AppDatabase, approvalId: string, companyId: string) {
-  const existing = db.listThreads({
+  const existing = db.threads.listThreads({
     companyId,
     type: "approval" as ThreadType,
     relatedEntityType: "approval",
@@ -86,7 +86,7 @@ export function ensureApprovalThread(db: AppDatabase, approvalId: string, compan
   const existing = findApprovalThread(db, approvalId, companyId);
   if (existing) return existing;
 
-  return db.createThread({
+  return db.threads.createThread({
     companyId,
     title,
     type: "approval" as ThreadType,
@@ -176,7 +176,7 @@ export function notifyThreadSubscribers(
   notify?: (options: { title: string; body: string }) => void,
 ): void {
   if (!notify) return;
-  const subscriptions = db.listSubscriptions(threadId);
+  const subscriptions = db.threads.listSubscriptions(threadId);
   for (const sub of subscriptions) {
     if (sub.subscriberType !== "user") continue;
     if (sub.notifyOn === "none") continue;

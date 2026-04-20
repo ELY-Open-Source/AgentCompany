@@ -151,7 +151,7 @@ function checkRunProducedDeliverable(
   taskId: string,
   taskType: string,
 ): boolean {
-  const signals = db.collectRunDeliverableSignals(runId, companyId, taskId);
+  const signals = db.knowledgeMod.collectRunDeliverableSignals(runId, companyId, taskId);
   return hasValidDeliverableFor(taskType, signals);
 }
 
@@ -274,7 +274,7 @@ function advanceToInReview(
   }
   db.tasks.advanceTaskStatus(taskId, "in_review", statusMessage);
   callbacks.handleTaskStatusChange(taskId, run.companyId, "in_progress", "in_review");
-  const company = db.listSnapshot().companies.find((c) => c.id === run.companyId);
+  const company = db.snap.listSnapshot().companies.find((c) => c.id === run.companyId);
   if (company?.reviewDeliverables) {
     const importantDocs = findImportantDocsForRun(db, run.id, run.companyId);
     if (importantDocs.length > 0) {
@@ -462,7 +462,7 @@ export function processRunCompletion(
           });
         }
       }
-      const budgetLocale = db.listSnapshot().locale;
+      const budgetLocale = db.snap.listSnapshot().locale;
       checkBudgetThreshold(
         agent,
         notify,

@@ -45,7 +45,7 @@ async function createHarness(): Promise<Harness> {
   const db = new AppDatabase(profileDir);
   db.init();
 
-  db.updateConnectorHealth({
+  db.connectorsCrud.updateConnectorHealth({
     id: "openai-codex",
     status: "ready",
     authState: "authenticated",
@@ -58,7 +58,7 @@ async function createHarness(): Promise<Harness> {
     description: "Tests archived visibility, bulk retirement, deliverable signal",
     status: "active",
   });
-  const workspaceId = db.saveWorkspace({
+  const workspaceId = db.workspacesMod.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: workspacePath,
@@ -107,7 +107,7 @@ async function createHarness(): Promise<Harness> {
 }
 
 function registerArtifact(harness: Harness, relativePath: string): string {
-  return harness.db.createWorkProduct({
+  return harness.db.documentsMod.createWorkProduct({
     companyId: harness.companyId,
     taskId: harness.taskId,
     workspaceId: harness.workspaceId,
@@ -126,12 +126,12 @@ describe("work_products archived visibility", () => {
     try {
       const activeId = registerArtifact(harness, "docs/active.md");
       const archivedId = registerArtifact(harness, "docs/retired.md");
-      harness.db.updateWorkProduct(archivedId, harness.companyId, {
+      harness.db.documentsMod.updateWorkProduct(archivedId, harness.companyId, {
         status: "archived",
         lastTouchedByRunId: harness.runId,
       });
 
-      const snapshot = harness.db.listSnapshot();
+      const snapshot = harness.db.snap.listSnapshot();
       const visibleIds = snapshot.workProducts.map((wp) => wp.id);
       expect(visibleIds).toContain(activeId);
       expect(visibleIds).not.toContain(archivedId);
@@ -145,12 +145,12 @@ describe("work_products archived visibility", () => {
     try {
       const activeId = registerArtifact(harness, "src/feature.ts");
       const archivedId = registerArtifact(harness, "src/removed.ts");
-      harness.db.updateWorkProduct(archivedId, harness.companyId, {
+      harness.db.documentsMod.updateWorkProduct(archivedId, harness.companyId, {
         status: "archived",
         lastTouchedByRunId: harness.runId,
       });
 
-      const rows = harness.db.listWorkProductsForTask(harness.taskId, harness.companyId);
+      const rows = harness.db.documentsMod.listWorkProductsForTask(harness.taskId, harness.companyId);
       const ids = rows.map((r) => r.id);
       expect(ids).toContain(activeId);
       expect(ids).not.toContain(archivedId);
@@ -164,16 +164,16 @@ describe("work_products archived visibility", () => {
     try {
       const id = registerArtifact(harness, "notes/ghost.md");
       expect(
-        harness.db.resolveWorkProductTarget(id, harness.companyId),
+        harness.db.documentsMod.resolveWorkProductTarget(id, harness.companyId),
       ).not.toBeNull();
 
-      harness.db.updateWorkProduct(id, harness.companyId, {
+      harness.db.documentsMod.updateWorkProduct(id, harness.companyId, {
         status: "archived",
         lastTouchedByRunId: harness.runId,
       });
 
       expect(
-        harness.db.resolveWorkProductTarget(id, harness.companyId),
+        harness.db.documentsMod.resolveWorkProductTarget(id, harness.companyId),
       ).toBeNull();
     } finally {
       harness.db.close();
@@ -193,7 +193,7 @@ describe("work_products bulk retirement", () => {
         ids.push(registerArtifact(harness, rel));
       }
 
-      const archived = harness.db.archiveWorkProductsByExternalPaths({
+      const archived = harness.db.documentsMod.archiveWorkProductsByExternalPaths({
         companyId: harness.companyId,
         workspaceId: harness.workspaceId,
         provider: "filesystem",
@@ -206,7 +206,7 @@ describe("work_products bulk retirement", () => {
       for (const id of ids) {
         expect(archivedIdSet.has(id)).toBe(true);
       }
-      const visible = harness.db.listSnapshot().workProducts;
+      const visible = harness.db.snap.listSnapshot().workProducts;
       expect(visible.length).toBe(0);
     } finally {
       harness.db.close();
@@ -217,7 +217,7 @@ describe("work_products bulk retirement", () => {
     const harness = await createHarness();
     try {
       const id = registerArtifact(harness, "tmp/scratch.log");
-      harness.db.archiveWorkProductsByExternalPaths({
+      harness.db.documentsMod.archiveWorkProductsByExternalPaths({
         companyId: harness.companyId,
         workspaceId: harness.workspaceId,
         provider: "filesystem",
@@ -225,7 +225,7 @@ describe("work_products bulk retirement", () => {
         lastTouchedByRunId: harness.runId,
       });
 
-      const second = harness.db.archiveWorkProductsByExternalPaths({
+      const second = harness.db.documentsMod.archiveWorkProductsByExternalPaths({
         companyId: harness.companyId,
         workspaceId: harness.workspaceId,
         provider: "filesystem",
@@ -235,7 +235,7 @@ describe("work_products bulk retirement", () => {
 
       expect(second).toHaveLength(0);
       expect(
-        harness.db.resolveWorkProductTarget(id, harness.companyId),
+        harness.db.documentsMod.resolveWorkProductTarget(id, harness.companyId),
       ).toBeNull();
     } finally {
       harness.db.close();
@@ -252,7 +252,7 @@ describe("work_products bulk retirement", () => {
 
       const workProductId = registerArtifact(harness, relPath);
       expect(
-        harness.db.resolveWorkProductTarget(workProductId, harness.companyId),
+        harness.db.documentsMod.resolveWorkProductTarget(workProductId, harness.companyId),
       ).not.toBeNull();
 
       const baseline = {
@@ -277,7 +277,7 @@ describe("work_products bulk retirement", () => {
       expect(retired.map((o) => (o as { relativePath: string }).relativePath)).toContain(relPath);
 
       expect(
-        harness.db.resolveWorkProductTarget(workProductId, harness.companyId),
+        harness.db.documentsMod.resolveWorkProductTarget(workProductId, harness.companyId),
       ).toBeNull();
     } finally {
       harness.db.close();
@@ -290,19 +290,19 @@ describe("work_products deliverable signal", () => {
     const harness = await createHarness();
     try {
       const id = registerArtifact(harness, "deliverables/final.md");
-      const beforeArchive = harness.db.collectRunDeliverableSignals(
+      const beforeArchive = harness.db.knowledgeMod.collectRunDeliverableSignals(
         harness.runId,
         harness.companyId,
         harness.taskId,
       );
       expect(beforeArchive.hasWorkProduct).toBe(true);
 
-      harness.db.updateWorkProduct(id, harness.companyId, {
+      harness.db.documentsMod.updateWorkProduct(id, harness.companyId, {
         status: "archived",
         lastTouchedByRunId: harness.runId,
       });
 
-      const afterArchive = harness.db.collectRunDeliverableSignals(
+      const afterArchive = harness.db.knowledgeMod.collectRunDeliverableSignals(
         harness.runId,
         harness.companyId,
         harness.taskId,

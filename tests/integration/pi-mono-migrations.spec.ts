@@ -106,7 +106,7 @@ describe("pi-mono migrations 27 + 28", () => {
     const db = new AppDatabase(dir);
     db.init();
 
-    const rows = db.listSnapshot().connectors.map((entry) => entry.id);
+    const rows = db.snap.listSnapshot().connectors.map((entry) => entry.id);
     expect(rows.length).toBe(26);
     expect(rows).toContain("claude-pro");
     expect(rows).toContain("amazon-bedrock");

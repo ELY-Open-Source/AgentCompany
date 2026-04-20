@@ -35,7 +35,7 @@ describe("canManageOrganization", () => {
       description: "Tests recursive org authority",
       status: "active",
     });
-    const workspaceId = db.saveWorkspace({
+    const workspaceId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -105,7 +105,7 @@ describe("canManageOrganization", () => {
       description: "Tests permission-based org authority",
       status: "active",
     });
-    const workspaceId = db.saveWorkspace({
+    const workspaceId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -159,7 +159,7 @@ describe("canManageOrganization", () => {
       description: "Tests that branch growth does not unlock org-wide admin powers",
       status: "active",
     });
-    const workspaceId = db.saveWorkspace({
+    const workspaceId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,

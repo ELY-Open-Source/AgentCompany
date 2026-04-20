@@ -94,7 +94,7 @@ export function createHeartbeatScheduler(
               tryWake(agent.id, company.id, agent.name, "timer");
             }
 
-            const goalCount = db.countActiveGoalsForCompany(company.id);
+            const goalCount = db.entityCrud.countActiveGoalsForCompany(company.id);
             // Bootstrap when the company has active goals but no work is
             // actually advancing. The previous gate ("taskCount === 0")
             // missed the case where every task is in_review or blocked —

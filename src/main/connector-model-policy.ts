@@ -7,6 +7,22 @@ interface ConnectorModelPolicyDeps {
   getDisabledModels: (companyId: string, connectorId: string) => Array<{ id: string; label: string }>;
 }
 
+/**
+ * Adapter over AppDatabase that returns the structural shape consumed by
+ * `getConnectorModelPolicy` / `validateConnectorModelSelection`. Callers
+ * pass an `AppDatabase`-ish object; the helper unwraps the two typed
+ * domain modules so we do not repeat the closure literal at every site.
+ */
+export function connectorPolicyDepsFromDb(db: {
+  connectorsCrud: { getConnector: (id: ConnectorId) => { id: ConnectorId; label?: string | null; model: string | null } };
+  settings: { getDisabledModels: (companyId: string, connectorId: string) => Array<{ id: string; label: string }> };
+}): ConnectorModelPolicyDeps {
+  return {
+    getConnector: (id) => db.connectorsCrud.getConnector(id),
+    getDisabledModels: (cid, connId) => db.settings.getDisabledModels(cid, connId),
+  };
+}
+
 export interface ConnectorModelPolicyResult {
   connectorId: ConnectorId;
   connectorLabel: string;

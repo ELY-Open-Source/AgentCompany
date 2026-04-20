@@ -25,7 +25,7 @@ async function createHarness() {
   db.init();
 
   const companyId = db.company.saveCompany({ name: "Orbit Foundry", description: "API test", status: "active" });
-  const workspaceId = db.saveWorkspace({
+  const workspaceId = db.workspacesMod.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: profileDir,

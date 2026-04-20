@@ -8,7 +8,7 @@ import { pickModelForAgent } from "../model-dispatch";
 
 export function createTaskRunner(
   deps: OrchestrationDependencies,
-  resolveWorkspace: (task: { workspaceId: string | null; projectId?: string | null } | null, agent: { workspaceId: string | null }, companyId: string) => { workspace: ReturnType<AppDatabase["getWorkspace"]>; lockMode: "exclusive" | "shared" | "none"; source: string },
+  resolveWorkspace: (task: { workspaceId: string | null; projectId?: string | null } | null, agent: { workspaceId: string | null }, companyId: string) => { workspace: ReturnType<AppDatabase["workspacesMod"]["getWorkspace"]>; lockMode: "exclusive" | "shared" | "none"; source: string },
   getRunEligibilityFailure: (agent: AgentRecord, connector: ConnectorRecord, projectId?: string | null) => string | null,
   dispatchRunToWorker: (params: RunDispatchParams) => void,
   hasActiveRun: (filter: { taskId?: string; agentId?: string; companyId: string }) => boolean,
@@ -48,8 +48,8 @@ export function createTaskRunner(
       return fail("AGENT_COMPANY_MISMATCH", "The assigned agent does not belong to the task company.");
     }
     const pick = pickModelForAgent(agent, {
-      getConnector: (id) => db.getConnector(id),
-      getDisabledModels: (id) => db.getDisabledModels(agent.companyId, id),
+      getConnector: (id) => db.connectorsCrud.getConnector(id),
+      getDisabledModels: (id) => db.settings.getDisabledModels(agent.companyId, id),
       listModelCapabilities: () => db.modelCapabilities.listModelCapabilities(),
       readConnectors: () => db.connectorsCrud.readConnectors(),
     });
@@ -57,7 +57,7 @@ export function createTaskRunner(
       return fail("MODEL_PICK_FAILED", pick.message);
     }
     const assignment = pick.assignment;
-    const connector = db.getConnector(assignment.connectorId);
+    const connector = db.connectorsCrud.getConnector(assignment.connectorId);
     const effectiveAgentForEligibility: AgentRecord = { ...agent, model: assignment.modelId };
     const eligibilityFailure = getRunEligibilityFailure(effectiveAgentForEligibility, connector, task.projectId ?? null);
     if (eligibilityFailure === "AGENT_NOT_RUNNABLE") {
@@ -119,11 +119,11 @@ export function createTaskRunner(
       workspaceMode: workspaceResolution.lockMode,
       companyName: companyBasic?.name ?? "Unknown",
       companyDescription: companyBasic?.description ?? "",
-      snapshot: db.listSnapshot(),
+      snapshot: db.snap.listSnapshot(),
       trigger,
       resolvedModel: assignment.modelId,
     });
-    db.addActivity({
+    db.activityMod.addActivity({
       companyId: task.companyId,
       actor,
       action: "run.queued",
@@ -140,7 +140,7 @@ export function createTaskRunner(
     try {
       const recovered = db.recoverStaleLocks();
       for (const task of recovered) {
-        db.addActivity({
+        db.activityMod.addActivity({
           companyId: task.companyId,
           actor: "system",
           action: "execution.lock_recovered",
@@ -160,7 +160,7 @@ export function createTaskRunner(
     if (isQuitting() || !hasWorkerReady()) {
       return;
     }
-    const snapshot = db.listSnapshot();
+    const snapshot = db.snap.listSnapshot();
     const companiesById = new Map(snapshot.companies.map((company) => [company.id, company]));
 
     for (const run of db.runs.listQueuedRuns()) {
@@ -182,7 +182,7 @@ export function createTaskRunner(
       try {
         const task = run.taskId ? db.entityCrud.getTask(run.taskId) : null;
         const agent = db.entityCrud.getAgent(run.agentId);
-        const connector = db.getConnector(run.connectorId);
+        const connector = db.connectorsCrud.getConnector(run.connectorId);
         const eligibilityFailure = getRunEligibilityFailure(agent, connector, task?.projectId ?? null);
         if (eligibilityFailure) {
           if (eligibilityFailure === "CONNECTOR_MODEL_NOT_ALLOWED") {
@@ -196,7 +196,7 @@ export function createTaskRunner(
               model: null,
               unattributedCost: true,
             });
-            db.addActivity({
+            db.activityMod.addActivity({
               companyId: run.companyId,
               actor: "system",
               action: "run.recovery_blocked",

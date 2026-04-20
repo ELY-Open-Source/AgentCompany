@@ -69,7 +69,7 @@ describe("connector model enforcement", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.updateConnectorHealth({
+    db.connectorsCrud.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -82,7 +82,7 @@ describe("connector model enforcement", () => {
       description: "Blocks runs when agent models are disabled",
       status: "active",
     });
-    const workspaceId = db.saveWorkspace({
+    const workspaceId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -113,7 +113,7 @@ describe("connector model enforcement", () => {
       status: "todo",
     });
 
-    db.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
+    db.settings.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
 
     const { taskRunner } = createOrchestrationHarness(db);
     const result = taskRunner.queueTaskRun(taskId, "manual", "board");
@@ -123,7 +123,7 @@ describe("connector model enforcement", () => {
       throw new Error("Expected queueTaskRun to reject the disabled model.");
     }
     expect(result.error.code).toBe("CONNECTOR_MODEL_NOT_ALLOWED");
-    expect(db.listSnapshot().runs).toHaveLength(0);
+    expect(db.snap.listSnapshot().runs).toHaveLength(0);
 
     db.close();
   });
@@ -133,7 +133,7 @@ describe("connector model enforcement", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.updateConnectorHealth({
+    db.connectorsCrud.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -146,7 +146,7 @@ describe("connector model enforcement", () => {
       description: "Rejects invalid queued runs during recovery",
       status: "active",
     });
-    const workspaceId = db.saveWorkspace({
+    const workspaceId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -187,12 +187,12 @@ describe("connector model enforcement", () => {
     const checkoutSuccess = db.tasks.checkoutTask(taskId, run.id);
     expect(checkoutSuccess).toBe(true);
 
-    db.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
+    db.settings.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
 
     const { taskRunner } = createOrchestrationHarness(db);
     taskRunner.resumeQueuedRuns();
 
-    const recoveredRun = db.listSnapshot().runs.find((entry) => entry.id === run.id);
+    const recoveredRun = db.snap.listSnapshot().runs.find((entry) => entry.id === run.id);
     expect(recoveredRun?.status).toBe("failed");
     expect(recoveredRun?.errorMessage).toContain("Connector model is disabled or invalid");
 

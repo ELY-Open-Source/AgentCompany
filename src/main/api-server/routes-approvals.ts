@@ -85,7 +85,7 @@ export function registerApprovalRoutes(server: AgentApiServer) {
       return;
     }
 
-    db.addActivity({
+    db.activityMod.addActivity({
       companyId,
       actor: token.agentId,
       action: "approval.created",
@@ -228,7 +228,7 @@ export function registerApprovalRoutes(server: AgentApiServer) {
     const taskIds = Array.isArray(data.taskIds) ? data.taskIds.filter((id): id is string => typeof id === "string") : [];
     if (taskIds.length === 0) { server.json(res, 400, { error: "taskIds array is required" }); return; }
     for (const taskId of taskIds) {
-      if (!db.belongsToCompany("tasks", taskId, token.companyId)) {
+      if (!db.settings.belongsToCompany("tasks", taskId, token.companyId)) {
         server.json(res, 400, { error: `Task ${taskId} does not belong to this company` }); return;
       }
     }

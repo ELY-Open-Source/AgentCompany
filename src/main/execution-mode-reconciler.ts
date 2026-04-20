@@ -27,9 +27,9 @@ const REVIEW_WAIT_STATE_TYPES = new Set(["user_reply", "user_review", "user_appr
 
 function collectImpactedAgentIdsFromWaitStates(db: AppDatabase, companyId: string): Set<string> {
   const agentIds = new Set<string>();
-  const waitStates = db.listThreadWaitStates(companyId);
+  const waitStates = db.threads.listThreadWaitStates(companyId);
   for (const waitState of waitStates) {
-    const thread = db.getThread(waitState.threadId, companyId);
+    const thread = db.threads.getThread(waitState.threadId, companyId);
     if (!thread || thread.relatedEntityType !== "task" || !thread.relatedEntityId) continue;
     try {
       const task = db.entityCrud.getTask(thread.relatedEntityId);
@@ -143,10 +143,10 @@ export function reconcileExecutionModeChange({
       });
     }
 
-    const waitStates = db.listThreadWaitStates(companyId);
+    const waitStates = db.threads.listThreadWaitStates(companyId);
     for (const waitState of waitStates) {
       if (!REVIEW_WAIT_STATE_TYPES.has(waitState.waitingFor)) continue;
-      db.resolveThreadWaitState(waitState.id, companyId);
+      db.threads.resolveThreadWaitState(waitState.id, companyId);
     }
   }
 

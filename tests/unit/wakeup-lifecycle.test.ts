@@ -27,7 +27,7 @@ function createTestCompany(db: AppDatabase): string {
 }
 
 function createTestConnector(db: AppDatabase): void {
-  db.saveConnector({
+  db.connectorsCrud.saveConnector({
     id: "openai-codex",
     model: "gpt-5",
     envBindingText: "",
@@ -36,7 +36,7 @@ function createTestConnector(db: AppDatabase): void {
 }
 
 function createTestWorkspace(db: AppDatabase, companyId: string): string {
-  return db.saveWorkspace({
+  return db.workspacesMod.saveWorkspace({
     companyId,
     name: "Wakeup Workspace",
     localPath: "/tmp/wakeup-workspace",
@@ -87,9 +87,9 @@ describe("wakeup lifecycle", () => {
     const workspaceId = createTestWorkspace(db, companyId);
     const agentId = createTestAgent(db, companyId, workspaceId);
 
-    db.enqueueWakeupRequest(companyId, agentId, "task.created", "New task assigned");
+    db.wakeup.enqueueWakeupRequest(companyId, agentId, "task.created", "New task assigned");
 
-    const wakes = db.listWakeupRequests(companyId);
+    const wakes = db.wakeup.listWakeupRequests(companyId);
     expect(wakes.length).toBe(1);
     expect(wakes[0].agentId).toBe(agentId);
     expect(wakes[0].status).toBe("queued");
@@ -107,10 +107,10 @@ describe("wakeup lifecycle", () => {
     const workspaceId = createTestWorkspace(db, companyId);
     const agentId = createTestAgent(db, companyId, workspaceId);
 
-    db.enqueueWakeupRequest(companyId, agentId, "task.created", "First task");
-    db.enqueueWakeupRequest(companyId, agentId, "task.status_changed", "Second trigger");
+    db.wakeup.enqueueWakeupRequest(companyId, agentId, "task.created", "First task");
+    db.wakeup.enqueueWakeupRequest(companyId, agentId, "task.status_changed", "Second trigger");
 
-    const wakes = db.listWakeupRequests(companyId);
+    const wakes = db.wakeup.listWakeupRequests(companyId);
     // D-07: Per-agent scope -- only one wakeup row should exist
     expect(wakes.length).toBe(1);
     expect(wakes[0].coalescedCount).toBe(1);
@@ -128,15 +128,15 @@ describe("wakeup lifecycle", () => {
     const agent1Id = createTestAgent(db, companyId, workspaceId, "Agent1");
     const agent2Id = createTestAgent(db, companyId, workspaceId, "Agent2");
 
-    db.enqueueWakeupRequest(companyId, agent1Id, "task.created", "Agent1 task");
-    db.enqueueWakeupRequest(companyId, agent2Id, "task.created", "Agent2 task");
+    db.wakeup.enqueueWakeupRequest(companyId, agent1Id, "task.created", "Agent1 task");
+    db.wakeup.enqueueWakeupRequest(companyId, agent2Id, "task.created", "Agent2 task");
 
     // List all for company
-    const allWakes = db.listWakeupRequests(companyId);
+    const allWakes = db.wakeup.listWakeupRequests(companyId);
     expect(allWakes.length).toBe(2);
 
     // Filter by agentId
-    const agent1Wakes = db.listWakeupRequests(companyId, { agentId: agent1Id });
+    const agent1Wakes = db.wakeup.listWakeupRequests(companyId, { agentId: agent1Id });
     expect(agent1Wakes.length).toBe(1);
     expect(agent1Wakes[0].agentId).toBe(agent1Id);
   });

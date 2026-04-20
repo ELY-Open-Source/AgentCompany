@@ -31,7 +31,7 @@ export function registerCoreReadHandlers({
   | "listConnectorModels"
   | "logger"
 >) {
-  registerHandle(IPC_CHANNELS.loadSnapshot, () => ok(db.listRendererSnapshot()));
+  registerHandle(IPC_CHANNELS.loadSnapshot, () => ok(db.snap.listRendererSnapshot()));
 
   registerHandle(IPC_CHANNELS.pickDirectory, async () => {
     const result = await dialog.showOpenDialog({
@@ -44,7 +44,7 @@ export function registerCoreReadHandlers({
     if (typeof targetPath !== "string" || targetPath.length === 0) {
       return fail("INVALID_PATH", "A valid path is required.");
     }
-    if (!db.canOpenPath(targetPath)) {
+    if (!db.settings.canOpenPath(targetPath)) {
       return fail("OPEN_PATH_FORBIDDEN", "The requested path is outside the managed desktop workspace.");
     }
     const error = await shell.openPath(targetPath);
@@ -67,13 +67,13 @@ export function registerCoreReadHandlers({
     if (!parsed.success) return fail("INVALID_PAYLOAD", "openWorkProduct requires { companyId, id }.");
     const companyError = ensureCompanyExists(parsed.data.companyId);
     if (companyError) return companyError;
-    const target = db.resolveWorkProductTarget(parsed.data.id, parsed.data.companyId);
+    const target = db.documentsMod.resolveWorkProductTarget(parsed.data.id, parsed.data.companyId);
     if (!target) return fail("WORK_PRODUCT_NOT_FOUND", "Work product not found or its workspace is unresolved.");
     if (target.kind === "url") {
       const error = await shell.openExternal(target.value).then(() => "").catch((err: unknown) => err instanceof Error ? err.message : String(err));
       return error ? fail("OPEN_PATH_FAILED", error) : ok(true);
     }
-    if (!db.canOpenPath(target.value)) {
+    if (!db.settings.canOpenPath(target.value)) {
       return fail("OPEN_PATH_FORBIDDEN", "The requested path is outside the managed desktop workspace.");
     }
     const error = await shell.openPath(target.value);
@@ -88,12 +88,12 @@ export function registerCoreReadHandlers({
       return ok(null);
     }
     const backupPath = join(result.filePaths[0]!, `agentcompany-backup-${Date.now()}`);
-    await db.exportBackup(backupPath);
+    await db.backupMod.exportBackup(backupPath);
     return ok(backupPath);
   });
 
   registerHandle(IPC_CHANNELS.restoreProfile, async () => {
-    const hasActiveRuns = db.listSnapshot().runs.some((run: { status: string }) => run.status === "queued" || run.status === "running");
+    const hasActiveRuns = db.snap.listSnapshot().runs.some((run: { status: string }) => run.status === "queued" || run.status === "running");
     if (hasActiveRuns) {
       return fail("RESTORE_BLOCKED", "Stop all active runs before restoring a profile backup.");
     }
@@ -103,7 +103,7 @@ export function registerCoreReadHandlers({
     if (result.canceled || result.filePaths.length === 0) {
       return ok(false);
     }
-    await db.restoreFromBackup(result.filePaths[0]!);
+    await db.backupMod.restoreFromBackup(result.filePaths[0]!);
     resetAfterRestore();
     publishDomainChanged();
     return ok(true);
@@ -111,7 +111,7 @@ export function registerCoreReadHandlers({
 
   registerHandle(IPC_CHANNELS.updateSettings, async (_event, payload) => {
     const parsed = settingsSchema.parse(payload);
-    db.updateSettings(parsed);
+    db.settings.updateSettings(parsed);
     if (parsed.theme) {
       nativeTheme.themeSource = parsed.theme;
     }
@@ -138,7 +138,7 @@ export function registerCoreReadHandlers({
   registerHandle(IPC_CHANNELS.getConnectorDisabledModels, (_event, payload) => {
     try {
       const parsed = connectorModelPoolQuerySchema.parse(payload);
-      return ok(db.getDisabledModels(parsed.companyId, parsed.connectorId));
+      return ok(db.settings.getDisabledModels(parsed.companyId, parsed.connectorId));
     } catch (err) {
       logger.warn(`[ipc] getConnectorDisabledModels failed:`, err instanceof Error ? err.message : String(err));
       return ok([]);

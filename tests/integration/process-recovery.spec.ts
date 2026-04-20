@@ -54,7 +54,7 @@ function scaffold(db: AppDatabase): ScaffoldResult {
   const connectorId: ConnectorId = "gemini-cli";
 
   // Connector
-  db.saveConnector({
+  db.connectorsCrud.saveConnector({
     id: connectorId,
     model: "gemini-2.5-pro",
     envBindingText: "",
@@ -69,7 +69,7 @@ function scaffold(db: AppDatabase): ScaffoldResult {
   });
 
   // Workspace
-  const workspaceId = db.saveWorkspace({
+  const workspaceId = db.workspacesMod.saveWorkspace({
     companyId,
     name: "Primary Workspace",
     localPath: "/tmp/recovery-test",
@@ -94,7 +94,7 @@ function scaffold(db: AppDatabase): ScaffoldResult {
   });
 
   // Goal
-  const goalId = db.saveGoal({
+  const goalId = db.entityCrud.saveGoal({
     companyId,
     title: "Build login page",
     description: "Implement login page with authentication",
@@ -103,7 +103,7 @@ function scaffold(db: AppDatabase): ScaffoldResult {
   });
 
   // Project
-  const projectId = db.saveProject({
+  const projectId = db.entityCrud.saveProject({
     companyId,
     goalId,
     name: "Auth Module",
@@ -169,7 +169,7 @@ function createAndStartRun(
   db.runs.markRunStatus(runId, "running", "Starting execution");
 
   if (opts.claimWorkspace !== false) {
-    db.claimWorkspaceLock(opts.workspaceId, runId);
+    db.workspacesMod.claimWorkspaceLock(opts.workspaceId, runId);
   }
 
   // Set agent status to "running" to simulate active execution
@@ -385,7 +385,7 @@ describe("Process Recovery -- Worker Crash Detection", () => {
       workspaceId: s.workspaceId,
       connectorId: s.connectorId,
     });
-    expect(db.claimWorkspaceLock(s.workspaceId, newRunId)).toBe(true);
+    expect(db.workspacesMod.claimWorkspaceLock(s.workspaceId, newRunId)).toBe(true);
   });
 
   it("tasks set to blocked after crash", () => {

@@ -28,7 +28,7 @@ function createNoopLogger() {
 }
 
 function createScaffold(db: AppDatabase) {
-  db.updateConnectorHealth({
+  db.connectorsCrud.updateConnectorHealth({
     id: "openai-codex",
     status: "ready",
     authState: "authenticated",
@@ -42,7 +42,7 @@ function createScaffold(db: AppDatabase) {
     status: "active",
     executionMode: "ai_cofounder",
   });
-  const workspaceId = db.saveWorkspace({
+  const workspaceId = db.workspacesMod.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: "/tmp/thread-wait",
@@ -116,7 +116,7 @@ describe("thread wait + heartbeat integration", () => {
     threadIntegration.onTaskCreated(taskId, companyId);
     threadIntegration.onRunFinished("run-1", taskId, engineerId, companyId, "succeeded", null);
 
-    const thread = db.listThreads({
+    const thread = db.threads.listThreads({
       companyId,
       type: "task",
       relatedEntityType: "task",
@@ -128,7 +128,7 @@ describe("thread wait + heartbeat integration", () => {
       throw new Error("Expected a task thread to exist for the completed run.");
     }
 
-    let waitStates = db.listThreadWaitStates(companyId).filter((entry) => entry.threadId === thread.id);
+    let waitStates = db.threads.listThreadWaitStates(companyId).filter((entry) => entry.threadId === thread.id);
     expect(waitStates).toHaveLength(1);
     expect(waitStates[0]?.waitingFor).toBe("user_reply");
     expect(checkpointEngine.shouldPauseHeartbeat(companyId, engineerId)).toBe(true);
@@ -165,7 +165,7 @@ describe("thread wait + heartbeat integration", () => {
       body: "Board reviewed this deliverable. Continue.",
     });
 
-    waitStates = db.listThreadWaitStates(companyId).filter((entry) => entry.threadId === thread.id);
+    waitStates = db.threads.listThreadWaitStates(companyId).filter((entry) => entry.threadId === thread.id);
     expect(waitStates).toHaveLength(0);
     expect(threadIntegration.hasUnresolvedWaitStatesForAgent(companyId, engineerId)).toBe(false);
     expect(checkpointEngine.shouldPauseHeartbeat(companyId, engineerId)).toBe(false);
@@ -192,7 +192,7 @@ describe("thread wait + heartbeat integration", () => {
     });
 
     threadIntegration.onTaskCreated(taskId, companyId);
-    const thread = db.listThreads({
+    const thread = db.threads.listThreads({
       companyId,
       type: "task",
       relatedEntityType: "task",
@@ -215,7 +215,7 @@ describe("thread wait + heartbeat integration", () => {
     });
 
     threadIntegration.onApprovalCreated(approvalId, companyId, taskId, "draft_review", "Draft review needed");
-    let waitStates = db.listThreadWaitStates(companyId).filter((entry) => entry.relatedApprovalId === approvalId);
+    let waitStates = db.threads.listThreadWaitStates(companyId).filter((entry) => entry.relatedApprovalId === approvalId);
     expect(waitStates).toHaveLength(1);
     expect(waitStates[0]?.waitingFor).toBe("user_approval");
     expect(checkpointEngine.shouldPauseHeartbeat(companyId, engineerId)).toBe(true);
@@ -234,7 +234,7 @@ describe("thread wait + heartbeat integration", () => {
       body: "Board left a comment but did not decide approval yet.",
     });
 
-    waitStates = db.listThreadWaitStates(companyId).filter((entry) => entry.relatedApprovalId === approvalId);
+    waitStates = db.threads.listThreadWaitStates(companyId).filter((entry) => entry.relatedApprovalId === approvalId);
     expect(waitStates).toHaveLength(1);
     expect(checkpointEngine.shouldPauseHeartbeat(companyId, engineerId)).toBe(true);
 
@@ -244,7 +244,7 @@ describe("thread wait + heartbeat integration", () => {
       decisionNote: "Approved by board",
     });
     threadIntegration.onApprovalResolved(approvalId, companyId, "approved");
-    waitStates = db.listThreadWaitStates(companyId).filter((entry) => entry.relatedApprovalId === approvalId);
+    waitStates = db.threads.listThreadWaitStates(companyId).filter((entry) => entry.relatedApprovalId === approvalId);
     expect(waitStates).toHaveLength(0);
     expect(checkpointEngine.shouldPauseHeartbeat(companyId, engineerId)).toBe(false);
 

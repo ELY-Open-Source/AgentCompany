@@ -164,7 +164,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
     }
     const connectorRecord = (() => {
       try {
-        return db.getConnector(input.connectorId);
+        return db.connectorsCrud.getConnector(input.connectorId);
       } catch (err) {
         log.warn(`[api/agents] getConnector failed for ${input.connectorId}:`, err instanceof Error ? err.message : String(err));
         return null;
@@ -257,7 +257,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
       return;
     }
 
-    db.addActivity({
+    db.activityMod.addActivity({
       companyId,
       actor: token.agentId,
       action: "agent.hire_requested",

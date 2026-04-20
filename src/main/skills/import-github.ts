@@ -155,7 +155,7 @@ export function createGitHubImporter({ db, logger, skillFilesDir }: GitHubImport
 
       await materializeSkillFiles(companyId, rawSlug, ghSkill.markdown, inventory);
 
-      const { isUpdate } = db.upsertCompanySkill({
+      const { isUpdate } = db.skills.upsertCompanySkill({
         id: skillId,
         companyId,
         key,

@@ -34,7 +34,7 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
     shared.db.runs.markRunStatus(run.id, "running", "Started");
 
     // Verify it's running
-    let snapshot = shared.db.listSnapshot();
+    let snapshot = shared.db.snap.listSnapshot();
     expect(snapshot.runs.find((r) => r.id === run.id)?.status).toBe("running");
 
     // Simulate app restart — close and re-init
@@ -44,7 +44,7 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
     shared.db = new AppDatabase(profileDir);
     shared.db.init(); // This calls interruptStaleRuns()
 
-    snapshot = shared.db.listSnapshot();
+    snapshot = shared.db.snap.listSnapshot();
     const recoveredRun = snapshot.runs.find((r) => r.id === run.id);
     expect(recoveredRun?.status).toBe("interrupted");
   });
@@ -83,7 +83,7 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
       unattributedCost: true,
     });
 
-    const snapshot = shared.db.listSnapshot();
+    const snapshot = shared.db.snap.listSnapshot();
     const recovered = snapshot.runs.find((r) => r.id === run.id);
     expect(recovered?.status).toBe("interrupted");
     expect(recovered?.errorMessage).toBe("Worker process exited unexpectedly.");

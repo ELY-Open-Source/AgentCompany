@@ -50,7 +50,7 @@ export function handleTaskStatusChange(
   }
   if (!task) return;
 
-  db.addActivity({
+  db.activityMod.addActivity({
     companyId,
     actor: task.assigneeAgentId ?? "board",
     action: "task.status_changed",

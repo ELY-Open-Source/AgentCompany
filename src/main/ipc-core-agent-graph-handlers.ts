@@ -9,7 +9,7 @@ import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
 import { resolveApprovalDecision } from "./approval-policy";
 import { shouldAutoApprove } from "./execution-policy";
 import { getHireNameValidationError, getHireRoutingValidationError, resolveHireReportsTo } from "./agent-permissions";
-import { validateConnectorModelSelection } from "./connector-model-policy";
+import { validateConnectorModelSelection, connectorPolicyDepsFromDb } from "./connector-model-policy";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
 
 export function registerCoreAgentGraphHandlers({
@@ -40,8 +40,8 @@ export function registerCoreAgentGraphHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
-    const id = db.saveWorkspace(parsed);
-    db.addActivity({
+    const id = db.workspacesMod.saveWorkspace(parsed);
+    db.activityMod.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: parsed.id ? "workspace.updated" : "workspace.created",
@@ -87,7 +87,7 @@ export function registerCoreAgentGraphHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
-    const connectorRecord = db.findConnector(parsed.connectorId);
+    const connectorRecord = db.connectorsCrud.findConnector(parsed.connectorId);
     if (!connectorRecord) {
       return fail("CONNECTOR_NOT_FOUND", "The selected connector does not exist.");
     }
@@ -95,7 +95,7 @@ export function registerCoreAgentGraphHandlers({
     if (connectorIssue) {
       return fail("CONNECTOR_NOT_READY", connectorIssue);
     }
-    const modelSelection = validateConnectorModelSelection(db, parsed.companyId, parsed.connectorId, parsed.model ?? null);
+    const modelSelection = validateConnectorModelSelection(connectorPolicyDepsFromDb(db), parsed.companyId, parsed.connectorId, parsed.model ?? null);
     if (!modelSelection.ok) {
       return fail("CONNECTOR_MODEL_NOT_ALLOWED", modelSelection.error);
     }
@@ -124,7 +124,7 @@ export function registerCoreAgentGraphHandlers({
     } catch (error) {
       return fail("INVALID_AGENT_HIERARCHY", error instanceof Error ? error.message : "Agent could not be saved.");
     }
-    db.addActivity({
+    db.activityMod.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: parsed.id ? "agent.updated" : "agent.created",
@@ -155,7 +155,7 @@ export function registerCoreAgentGraphHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
-    const connectorRecord = db.findConnector(parsed.connectorId);
+    const connectorRecord = db.connectorsCrud.findConnector(parsed.connectorId);
     if (!connectorRecord) {
       return fail("CONNECTOR_NOT_FOUND", "The selected connector does not exist.");
     }
@@ -181,7 +181,7 @@ export function registerCoreAgentGraphHandlers({
     if (routingError) {
       return fail("INVALID_HIRE_ROUTING", routingError);
     }
-    const modelSelection = validateConnectorModelSelection(db, parsed.companyId, parsed.connectorId, parsed.model ?? null);
+    const modelSelection = validateConnectorModelSelection(connectorPolicyDepsFromDb(db), parsed.companyId, parsed.connectorId, parsed.model ?? null);
     if (!modelSelection.ok) {
       return fail("CONNECTOR_MODEL_NOT_ALLOWED", modelSelection.error);
     }
@@ -237,7 +237,7 @@ export function registerCoreAgentGraphHandlers({
       return fail("HIRE_REQUEST_FAILED", error instanceof Error ? error.message : "Hire request could not be created.");
     }
 
-    db.addActivity({
+    db.activityMod.addActivity({
       companyId: parsed.companyId,
       actor: parsed.requestedByAgentId ?? "board",
       action: "agent.hire_requested",
@@ -268,7 +268,7 @@ export function registerCoreAgentGraphHandlers({
     const parsed = deleteEntitySchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.belongsToCompany("agents", parsed.id, parsed.companyId)) {
+    if (!db.settings.belongsToCompany("agents", parsed.id, parsed.companyId)) {
       return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
     }
     const agent = db.entityCrud.getAgent(parsed.id);
@@ -279,7 +279,7 @@ export function registerCoreAgentGraphHandlers({
       );
     }
     db.agents.deleteAgent(parsed.id, parsed.companyId);
-    db.addActivity({
+    db.activityMod.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: "agent.deleted",
@@ -295,7 +295,7 @@ export function registerCoreAgentGraphHandlers({
     const parsed = deleteEntitySchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.belongsToCompany("approvals", parsed.id, parsed.companyId)) {
+    if (!db.settings.belongsToCompany("approvals", parsed.id, parsed.companyId)) {
       return fail("APPROVAL_NOT_FOUND", "Approval not found in the current company.");
     }
     const approval = db.approvalsMod.getApprovalRecord(parsed.id);
@@ -306,7 +306,7 @@ export function registerCoreAgentGraphHandlers({
       );
     }
     db.approvalsMod.deleteApproval(parsed.id, parsed.companyId);
-    db.addActivity({
+    db.activityMod.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: "approval.deleted",

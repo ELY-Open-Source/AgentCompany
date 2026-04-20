@@ -255,7 +255,7 @@ export function canAssignTask(db: AppDatabase, companyId: string, actorAgentId: 
   if (!targetAgentId || targetAgentId === actorAgentId) {
     return true;
   }
-  if (!db.belongsToCompany("agents", targetAgentId, companyId)) {
+  if (!db.settings.belongsToCompany("agents", targetAgentId, companyId)) {
     return false;
   }
   if (canManageOrganization(db, companyId, actorAgentId)) {

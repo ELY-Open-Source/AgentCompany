@@ -60,7 +60,7 @@ export function registerAgentCoordinationHandlers({
     if (!message) {
       return fail("MESSAGE_NOT_FOUND", "Message not found in the current company.");
     }
-    if (parsed.readerAgentId && !db.belongsToCompany("agents", parsed.readerAgentId, parsed.companyId)) {
+    if (parsed.readerAgentId && !db.settings.belongsToCompany("agents", parsed.readerAgentId, parsed.companyId)) {
       return fail("INVALID_COMPANY_REFERENCE", "The selected message reader does not belong to the current company.");
     }
     if (parsed.readerAgentId) {

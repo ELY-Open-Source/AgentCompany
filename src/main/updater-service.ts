@@ -107,7 +107,7 @@ export function createUpdaterService({
   }
 
   async function checkForUpdates(options: { manual?: boolean } = {}) {
-    const snapshot = db.listSnapshot();
+    const snapshot = db.snap.listSnapshot();
     const updateUrl = process.env.AGENTCOMPANY_UPDATE_URL?.trim();
     const skipReason = shouldSkipUpdateCheck({
       isPackaged: app.isPackaged,

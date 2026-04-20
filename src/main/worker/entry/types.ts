@@ -87,12 +87,12 @@ export interface WorkerServiceDependencies {
     companyId: string;
     agent: ReturnType<AppDatabase["entityCrud"]["getAgent"]>;
     task: ReturnType<AppDatabase["entityCrud"]["getTask"]> | null;
-    connector: ReturnType<AppDatabase["getConnector"]>;
-    workspace: ReturnType<AppDatabase["getWorkspace"]>;
+    connector: ReturnType<AppDatabase["connectorsCrud"]["getConnector"]>;
+    workspace: ReturnType<AppDatabase["workspacesMod"]["getWorkspace"]>;
     workspaceMode: "exclusive" | "shared" | "none";
     companyName: string;
     companyDescription: string;
-    snapshot: ReturnType<AppDatabase["listSnapshot"]>;
+    snapshot: ReturnType<AppDatabase["snap"]["listSnapshot"]>;
     trigger: string;
   }) => void;
   processRunCompletion: (run: RunRecord, event: z.infer<typeof workerMessageSchema> & { type: "run-finished" }) => void;

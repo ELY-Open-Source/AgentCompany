@@ -323,7 +323,7 @@ function retireDeletedArtifacts(
   deleted: string[],
 ): ProjectionOutcome[] {
   if (deleted.length === 0) return [];
-  const archived = db.archiveWorkProductsByExternalPaths({
+  const archived = db.documentsMod.archiveWorkProductsByExternalPaths({
     companyId: ctx.companyId,
     workspaceId: ctx.workspaceId,
     provider: "filesystem",
@@ -608,13 +608,13 @@ function upsertFilesystemArtifact(
   // Every touch refreshes `last_touched_by_run_id` so the deliverable
   // signal, the DocumentCenter preview, and the run-provenance readers
   // all see the latest run that wrote the file.
-  const existing = db.findWorkProductByExternalId(ctx.companyId, provider, relativePath, ctx.workspaceId);
+  const existing = db.documentsMod.findWorkProductByExternalId(ctx.companyId, provider, relativePath, ctx.workspaceId);
   if (existing) {
     // `status: "active"` flips a previously-archived row (earlier run
     // retired the path, this run recreated it) back into the visible
     // DocumentCenter set. `lastTouchedByRunId` keeps the provenance
     // timeline pointed at the run that just wrote the bytes.
-    db.updateWorkProduct(existing.id, ctx.companyId, {
+    db.documentsMod.updateWorkProduct(existing.id, ctx.companyId, {
       title,
       status: "active",
       lastTouchedByRunId: ctx.runId,
@@ -622,7 +622,7 @@ function upsertFilesystemArtifact(
     });
     return { kind: "updated", workProductId: existing.id, relativePath };
   }
-  const workProductId = db.createWorkProduct({
+  const workProductId = db.documentsMod.createWorkProduct({
     companyId: ctx.companyId,
     taskId: ctx.taskId,
     workspaceId: ctx.workspaceId,

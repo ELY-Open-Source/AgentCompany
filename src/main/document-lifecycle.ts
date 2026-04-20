@@ -84,7 +84,7 @@ export function createDocumentWithLifecycle(
 ): DocumentLifecycleOutcome {
   const outcome = deps.db.withTransaction(() => {
     const isNew = !input.id;
-    const id = deps.db.saveDocument(input);
+    const id = deps.db.documentsMod.saveDocument(input);
     const taskId = deriveTaskIdFromRun(deps.db, input.sourceRunId, input.companyId, deps.logger);
 
     let deliverableReviewApprovalId: string | null = null;

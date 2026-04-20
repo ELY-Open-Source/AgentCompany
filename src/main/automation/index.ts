@@ -107,7 +107,7 @@ export function createAutomationService({
 
   function evaluateAutomationRules(trigger: string, ctx: AutomationEventContext) {
     try {
-      const rules = db.listActiveAutomationRules(ctx.companyId, trigger);
+      const rules = db.automationMod.listActiveAutomationRules(ctx.companyId, trigger);
       for (const rule of rules) {
         if (!matchesConditions(db, rule, ctx, logger)) continue;
         const executionKey = JSON.stringify({
@@ -127,7 +127,7 @@ export function createAutomationService({
         activeAutomationExecutions.add(executionKey);
         try {
           executeAutomationAction(actionDeps, actionCallbacks, rule, ctx);
-          db.recordAutomationExecution(
+          db.automationMod.recordAutomationExecution(
             rule.id,
             ctx.companyId,
             rule.name,
@@ -145,7 +145,7 @@ export function createAutomationService({
           logger.info(`[automation] Fired rule "${rule.name}" (${trigger} → ${rule.action})`);
         } catch (error) {
           logger.error(`[automation] Failed to execute action for rule "${rule.name}": ${error instanceof Error ? error.message : String(error)}`);
-          db.recordAutomationExecution(
+          db.automationMod.recordAutomationExecution(
             rule.id,
             ctx.companyId,
             rule.name,
@@ -164,7 +164,7 @@ export function createAutomationService({
 
   function evaluateWorkflowTriggers(trigger: string, ctx: AutomationEventContext) {
     try {
-      const workflows = db.listTriggerableWorkflows(ctx.companyId, trigger);
+      const workflows = db.automationMod.listTriggerableWorkflows(ctx.companyId, trigger);
       for (const workflow of workflows) {
         if (!matchesEventConfig(db, workflow.triggerConfigJson, null, ctx, logger)) continue;
         const executionKey = JSON.stringify({

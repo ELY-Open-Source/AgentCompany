@@ -70,7 +70,7 @@ export function registerContentOperationsHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
-    const id = db.saveMeeting(parsed);
+    const id = db.knowledgeMod.saveMeeting(parsed);
     publishDomainChanged();
     return ok(id);
   });
@@ -79,10 +79,10 @@ export function registerContentOperationsHandlers({
     const parsed = deleteEntitySchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.belongsToCompany("meetings", parsed.id, parsed.companyId)) {
+    if (!db.settings.belongsToCompany("meetings", parsed.id, parsed.companyId)) {
       return fail("ENTITY_NOT_FOUND", "Meeting not found in the current company.");
     }
-    db.deleteMeeting(parsed.id, parsed.companyId);
+    db.knowledgeMod.deleteMeeting(parsed.id, parsed.companyId);
     publishDomainChanged();
     return ok(true);
   });
@@ -134,10 +134,10 @@ export function registerContentOperationsHandlers({
     const parsed = deleteEntitySchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.belongsToCompany("documents", parsed.id, parsed.companyId)) {
+    if (!db.settings.belongsToCompany("documents", parsed.id, parsed.companyId)) {
       return fail("ENTITY_NOT_FOUND", "Document not found in the current company.");
     }
-    db.deleteDocument(parsed.id, parsed.companyId);
+    db.documentsMod.deleteDocument(parsed.id, parsed.companyId);
     publishDomainChanged();
     return ok(true);
   });
@@ -159,7 +159,7 @@ export function registerContentOperationsHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
-    const id = db.saveKnowledgeEntry(parsed);
+    const id = db.knowledgeMod.saveKnowledgeEntry(parsed);
     publishDomainChanged();
     return ok(id);
   });
@@ -168,10 +168,10 @@ export function registerContentOperationsHandlers({
     const parsed = deleteEntitySchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.belongsToCompany("knowledge_base", parsed.id, parsed.companyId)) {
+    if (!db.settings.belongsToCompany("knowledge_base", parsed.id, parsed.companyId)) {
       return fail("ENTITY_NOT_FOUND", "Knowledge entry not found in the current company.");
     }
-    db.deleteKnowledgeEntry(parsed.id, parsed.companyId);
+    db.knowledgeMod.deleteKnowledgeEntry(parsed.id, parsed.companyId);
     publishDomainChanged();
     return ok(true);
   });
@@ -183,13 +183,13 @@ export function registerContentOperationsHandlers({
     let previousSprintStatus: string | null = null;
     if (parsed.id) {
       try {
-        previousSprintStatus = db.listSnapshot().sprints.find((s: { id: string }) => s.id === parsed.id)?.status ?? null;
+        previousSprintStatus = db.snap.listSnapshot().sprints.find((s: { id: string }) => s.id === parsed.id)?.status ?? null;
       } catch (err) {
         logger.warn(`[ipc/content] listSnapshot failed while resolving sprint ${parsed.id} previous status:`, err instanceof Error ? err.message : String(err));
         previousSprintStatus = null;
       }
     }
-    const id = db.saveSprint(parsed);
+    const id = db.knowledgeMod.saveSprint(parsed);
     if (parsed.status === "active" && previousSprintStatus !== "active") {
       dispatchAutomation("sprint_started", { companyId: parsed.companyId });
     }
@@ -204,10 +204,10 @@ export function registerContentOperationsHandlers({
     const parsed = deleteEntitySchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.belongsToCompany("sprints", parsed.id, parsed.companyId)) {
+    if (!db.settings.belongsToCompany("sprints", parsed.id, parsed.companyId)) {
       return fail("ENTITY_NOT_FOUND", "Sprint not found in the current company.");
     }
-    db.deleteSprint(parsed.id, parsed.companyId);
+    db.knowledgeMod.deleteSprint(parsed.id, parsed.companyId);
     publishDomainChanged();
     return ok(true);
   });

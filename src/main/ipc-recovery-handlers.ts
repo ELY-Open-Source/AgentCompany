@@ -33,7 +33,7 @@ export function registerRecoveryHandlers({
     const parsed = recoveryRetrySchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.belongsToCompany("tasks", parsed.taskId, parsed.companyId)) {
+    if (!db.settings.belongsToCompany("tasks", parsed.taskId, parsed.companyId)) {
       return fail("TASK_NOT_FOUND", "Task not found in the current company.");
     }
     db.tasks.retryInterruptedTask(parsed.taskId, parsed.agentId, parsed.companyId);
@@ -50,7 +50,7 @@ export function registerRecoveryHandlers({
     const parsed = recoveryTaskSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.belongsToCompany("tasks", parsed.taskId, parsed.companyId)) {
+    if (!db.settings.belongsToCompany("tasks", parsed.taskId, parsed.companyId)) {
       return fail("TASK_NOT_FOUND", "Task not found in the current company.");
     }
     db.tasks.markInterruptedTaskFailed(parsed.taskId);

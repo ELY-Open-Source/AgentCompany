@@ -11,7 +11,7 @@ const { createAgent } = shared;
 
 describe("Automation Rules CRUD", () => {
   it("creates, reads, toggles, and deletes an automation rule", () => {
-    const ruleId = shared.db.saveAutomationRule({
+    const ruleId = shared.db.automationMod.saveAutomationRule({
       companyId: shared.companyId,
       name: "Auto-escalate blocked tasks",
       description: "When a task is blocked, notify the manager",
@@ -28,7 +28,7 @@ describe("Automation Rules CRUD", () => {
     expect(ruleId).toBeTruthy();
 
     // Rule appears in snapshot
-    const snapshot = shared.db.listSnapshot();
+    const snapshot = shared.db.snap.listSnapshot();
     const rule = snapshot.automationRules.find(r => r.id === ruleId);
     expect(rule).toBeTruthy();
     expect(rule!.name).toBe("Auto-escalate blocked tasks");
@@ -39,36 +39,36 @@ describe("Automation Rules CRUD", () => {
     expect(rule!.executionCount).toBe(0);
 
     // Toggle to paused
-    shared.db.toggleAutomationRule(ruleId, shared.companyId, "paused");
-    const updated = shared.db.listSnapshot().automationRules.find(r => r.id === ruleId);
+    shared.db.automationMod.toggleAutomationRule(ruleId, shared.companyId, "paused");
+    const updated = shared.db.snap.listSnapshot().automationRules.find(r => r.id === ruleId);
     expect(updated!.status).toBe("paused");
 
     // Record execution
-    shared.db.recordAutomationExecution(ruleId, shared.companyId, "Auto-escalate blocked tasks", "task_blocked", "escalate_to_manager", "Escalated task-123");
-    const afterExec = shared.db.listSnapshot().automationRules.find(r => r.id === ruleId);
+    shared.db.automationMod.recordAutomationExecution(ruleId, shared.companyId, "Auto-escalate blocked tasks", "task_blocked", "escalate_to_manager", "Escalated task-123");
+    const afterExec = shared.db.snap.listSnapshot().automationRules.find(r => r.id === ruleId);
     expect(afterExec!.executionCount).toBe(1);
     expect(afterExec!.lastExecutedAt).toBeTruthy();
 
     // Automation log
-    const log = shared.db.getAutomationLog(shared.companyId);
+    const log = shared.db.automationMod.getAutomationLog(shared.companyId);
     expect(log).toHaveLength(1);
     expect(log[0].ruleName).toBe("Auto-escalate blocked tasks");
 
     // Delete
-    shared.db.deleteAutomationRule(ruleId, shared.companyId);
-    const afterDelete = shared.db.listSnapshot().automationRules.find(r => r.id === ruleId);
+    shared.db.automationMod.deleteAutomationRule(ruleId, shared.companyId);
+    const afterDelete = shared.db.snap.listSnapshot().automationRules.find(r => r.id === ruleId);
     expect(afterDelete).toBeUndefined();
   });
 
   it("updates an existing rule", () => {
-    const ruleId = shared.db.saveAutomationRule({
+    const ruleId = shared.db.automationMod.saveAutomationRule({
       companyId: shared.companyId,
       name: "Original name",
       trigger: "task_created",
       action: "assign_task",
     });
 
-    shared.db.saveAutomationRule({
+    shared.db.automationMod.saveAutomationRule({
       id: ruleId,
       companyId: shared.companyId,
       name: "Updated name",
@@ -77,7 +77,7 @@ describe("Automation Rules CRUD", () => {
       priority: 90,
     });
 
-    const rule = shared.db.listSnapshot().automationRules.find(r => r.id === ruleId);
+    const rule = shared.db.snap.listSnapshot().automationRules.find(r => r.id === ruleId);
     expect(rule!.name).toBe("Updated name");
     expect(rule!.action).toBe("notify_agent");
     expect(rule!.priority).toBe(90);
@@ -171,7 +171,7 @@ describe("Agent Messages", () => {
     const engineeringLeadId = createAgent({ name: "Engineering Lead", role: "Lead", department: "engineering" });
     const productLeadId = createAgent({ name: "Product Lead", role: "Lead", department: "product" });
 
-    const projectId = shared.db.saveProject({
+    const projectId = shared.db.entityCrud.saveProject({
       companyId: shared.companyId,
       name: "Cross-team Project",
       description: "Scope",
@@ -229,7 +229,7 @@ describe("Agent Messages", () => {
 
   it("appears in snapshot", () => {
     shared.db.messages.sendAgentMessage({ companyId: shared.companyId, fromAgentId: agentAId, channel: "company", subject: "Snapshot test", body: "Hi" });
-    const snapshot = shared.db.listSnapshot();
+    const snapshot = shared.db.snap.listSnapshot();
     expect(snapshot.agentMessages.length).toBeGreaterThanOrEqual(1);
     expect(snapshot.agentMessages[0].subject).toBe("Snapshot test");
   });
@@ -316,7 +316,7 @@ describe("Auto Task Assignment", () => {
 
 describe("Workflow Pipelines", () => {
   it("creates, activates, and deletes a workflow", () => {
-    const wfId = shared.db.saveWorkflow({
+    const wfId = shared.db.automationMod.saveWorkflow({
       companyId: shared.companyId,
       name: "Code Review Pipeline",
       description: "Auto-review flow for PRs",
@@ -330,14 +330,14 @@ describe("Workflow Pipelines", () => {
     });
 
     expect(wfId).toBeTruthy();
-    const snapshot = shared.db.listSnapshot();
+    const snapshot = shared.db.snap.listSnapshot();
     const wf = snapshot.workflows.find(w => w.id === wfId);
     expect(wf!.name).toBe("Code Review Pipeline");
     expect(wf!.status).toBe("draft");
     expect(wf!.runCount).toBe(0);
 
     // Delete
-    shared.db.deleteWorkflow(wfId, shared.companyId);
-    expect(shared.db.listSnapshot().workflows.find(w => w.id === wfId)).toBeUndefined();
+    shared.db.automationMod.deleteWorkflow(wfId, shared.companyId);
+    expect(shared.db.snap.listSnapshot().workflows.find(w => w.id === wfId)).toBeUndefined();
   });
 });

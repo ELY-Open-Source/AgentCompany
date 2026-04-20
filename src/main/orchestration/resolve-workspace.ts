@@ -31,28 +31,28 @@ export function resolveWorkspaceWithLockMode(
   agent: { workspaceId: string | null },
   companyId: string,
 ): {
-  workspace: ReturnType<AppDatabase["getWorkspace"]>;
+  workspace: ReturnType<AppDatabase["workspacesMod"]["getWorkspace"]>;
   lockMode: WorkspaceLockMode;
   source: "task" | "agent" | "project" | "company_fallback" | "none";
 } {
   if (task) {
-    const taskWorkspace = db.getWorkspace(task.workspaceId);
+    const taskWorkspace = db.workspacesMod.getWorkspace(task.workspaceId);
     if (taskWorkspace) {
       return { workspace: taskWorkspace, lockMode: "exclusive", source: "task" };
     }
   }
 
-  const agentWorkspace = db.getWorkspace(agent.workspaceId);
+  const agentWorkspace = db.workspacesMod.getWorkspace(agent.workspaceId);
   if (agentWorkspace) {
     return { workspace: agentWorkspace, lockMode: "exclusive", source: "agent" };
   }
 
-  const projectWorkspace = db.getProjectPrimaryWorkspace(task?.projectId ?? null, companyId);
+  const projectWorkspace = db.workspacesMod.getProjectPrimaryWorkspace(task?.projectId ?? null, companyId);
   if (projectWorkspace) {
     return { workspace: projectWorkspace, lockMode: "exclusive", source: "project" };
   }
 
-  const fallbackWorkspace = db.getAnyCompanyWorkspace(companyId);
+  const fallbackWorkspace = db.workspacesMod.getAnyCompanyWorkspace(companyId);
   if (fallbackWorkspace) {
     return { workspace: fallbackWorkspace, lockMode: "exclusive", source: "company_fallback" };
   }

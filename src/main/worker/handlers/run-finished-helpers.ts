@@ -68,9 +68,9 @@ export function finalizeRun(
   leaseRenewalMap.delete(event.runId);
   const runOutcome = db.runs.finishRun(event);
   if (run.workspaceId) {
-    db.releaseWorkspaceLock(run.workspaceId, run.id);
+    db.workspacesMod.releaseWorkspaceLock(run.workspaceId, run.id);
   }
-  db.addActivity({
+  db.activityMod.addActivity({
     companyId: run.companyId,
     actor: run.agentId,
     action: `run.${event.status}`,
@@ -165,7 +165,7 @@ export function emitAndNotifyCompletion(
   }
 
   if (updatedAgent && runOutcome.budgetHardStopped) {
-    db.addActivity({
+    db.activityMod.addActivity({
       companyId: updatedAgent.companyId,
       actor: "system",
       action: "agent.auto_paused",
@@ -229,8 +229,8 @@ export function runPostCompletionAutomation(
   // EXEC-05: Promote deferred wakes after run completion
   let hadDeferredWakes = false;
   if (!isQuitting() && !destroyed) {
-    const promoted = db.promoteWakeupRequests(run.agentId, run.companyId);
-    const pendingWakeTrigger = db.getPreferredWakeTrigger(run.agentId, run.companyId);
+    const promoted = db.wakeup.promoteWakeupRequests(run.agentId, run.companyId);
+    const pendingWakeTrigger = db.wakeup.getPreferredWakeTrigger(run.agentId, run.companyId);
     if (promoted > 0) {
       logger.info(`[worker] Promoted ${promoted} deferred wake(s) for agent ${run.agentId}`);
     }
@@ -348,7 +348,7 @@ function hasUnfinishedTeamBuilding(
       .getDirectReports(agentId, companyId)
       .filter((r) => r.status !== "pending_approval" && r.status !== "terminated");
     if (activeReports.length > 0) return false;
-    const goalCount = db.countActiveGoalsForCompany(companyId);
+    const goalCount = db.entityCrud.countActiveGoalsForCompany(companyId);
     if (goalCount === 0) return false;
     const pendingHires = db.approvalsMod
       .listCompanyApprovalsByType(companyId, "hire_agent")

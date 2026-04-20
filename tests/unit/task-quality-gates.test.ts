@@ -154,8 +154,10 @@ describe("checkCapabilityMatch", () => {
       entityCrud: {
         getAgent: (_id: string) => agent,
       },
-      listAgentSkillAssignments: (_id: string) => skillAssignments,
-      getCompanySkill: (_companyId: string, skillId: string) => skills[skillId] ?? null,
+      skills: {
+        listAgentSkillAssignments: (_id: string) => skillAssignments,
+        getCompanySkill: (_companyId: string, skillId: string) => skills[skillId] ?? null,
+      },
     };
   }
 

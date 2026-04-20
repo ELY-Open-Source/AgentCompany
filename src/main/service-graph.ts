@@ -118,7 +118,7 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
   }
 
   function init() {
-    nativeTheme.themeSource = db.listSnapshot().theme;
+    nativeTheme.themeSource = db.snap.listSnapshot().theme;
 
     leaf = createLeafServices({ db, logger, notify, publishDomainChanged });
 

@@ -28,14 +28,14 @@ describe("hire routing guards", () => {
       description: "Hire routing regression coverage",
       status: "active",
     });
-    db.updateConnectorHealth({
+    db.connectorsCrud.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
       lastError: null,
     });
-    const workspaceId = db.saveWorkspace({
+    const workspaceId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,

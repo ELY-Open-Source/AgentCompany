@@ -39,7 +39,7 @@ describe("AppDatabase", () => {
       description: "Operator company",
       status: "active",
     });
-    const workspaceId = db.saveWorkspace({
+    const workspaceId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Primary Workspace",
       localPath: "/tmp/northline",
@@ -60,14 +60,14 @@ describe("AppDatabase", () => {
       capabilities: "Directs execution",
       budgetMonthlyUsd: 250,
     });
-    const goalId = db.saveGoal({
+    const goalId = db.entityCrud.saveGoal({
       companyId,
       title: "Ship the desktop product",
       description: "Stabilize the local operator console.",
       ownerAgentId: agentId,
       status: "active",
     });
-    const projectId = db.saveProject({
+    const projectId = db.entityCrud.saveProject({
       companyId,
       goalId,
       name: "Desktop Rebuild",
@@ -88,20 +88,20 @@ describe("AppDatabase", () => {
       status: "todo",
     });
 
-    db.saveSecret({
+    db.entityCrud.saveSecret({
       companyId,
       name: "vault-openai",
       description: "OpenAI API token",
       value: "sk-test-secret",
     });
-    db.saveConnector({
+    db.connectorsCrud.saveConnector({
       id: "openai-codex",
       model: "gpt-5",
       envBindingText: "OPENAI_API_KEY=vault-openai",
       notes: "Primary coding connector",
     });
 
-    const snapshot = db.listSnapshot();
+    const snapshot = db.snap.listSnapshot();
 
     expect(snapshot.currentCompanyId).toBe(companyId);
     expect(snapshot.workspaces[0]?.id).toBe(workspaceId);
@@ -109,7 +109,7 @@ describe("AppDatabase", () => {
     expect(snapshot.goals[0]?.id).toBe(goalId);
     expect(snapshot.projects[0]?.id).toBe(projectId);
     expect(snapshot.tasks[0]?.id).toBe(taskId);
-    expect(db.resolveSecretEnv("OPENAI_API_KEY=vault-openai", companyId)).toEqual({
+    expect(db.entityCrud.resolveSecretEnv("OPENAI_API_KEY=vault-openai", companyId)).toEqual({
       OPENAI_API_KEY: "sk-test-secret",
     });
   });
@@ -122,7 +122,7 @@ describe("AppDatabase", () => {
     });
     const backupDir = await mkdtemp(join(tmpdir(), "agentcompany-backup-"));
 
-    await db.exportBackup(backupDir);
+    await db.backupMod.exportBackup(backupDir);
     db.company.saveCompany({
       id: companyId,
       name: "Mutated Company",
@@ -130,9 +130,9 @@ describe("AppDatabase", () => {
       status: "paused",
     });
 
-    await db.restoreFromBackup(backupDir);
+    await db.backupMod.restoreFromBackup(backupDir);
 
-    const snapshot = db.listSnapshot();
+    const snapshot = db.snap.listSnapshot();
     expect(snapshot.companies[0]?.name).toBe("Backup Test Co");
 
     await rm(backupDir, { recursive: true, force: true });
@@ -150,19 +150,19 @@ describe("AppDatabase", () => {
       status: "active",
     });
 
-    db.saveSecret({
+    db.entityCrud.saveSecret({
       companyId: alphaCompanyId,
       name: "shared-secret-name",
       description: "Alpha secret",
       value: "alpha-secret",
     });
 
-    expect(db.resolveSecretEnv("API_KEY=shared-secret-name", alphaCompanyId)).toEqual({
+    expect(db.entityCrud.resolveSecretEnv("API_KEY=shared-secret-name", alphaCompanyId)).toEqual({
       API_KEY: "alpha-secret",
     });
     // Beta company has no secret named "shared-secret-name", so resolveSecretEnv
     // falls back to using the raw value literally (allows direct env bindings).
-    expect(db.resolveSecretEnv("API_KEY=shared-secret-name", betaCompanyId)).toEqual({
+    expect(db.entityCrud.resolveSecretEnv("API_KEY=shared-secret-name", betaCompanyId)).toEqual({
       API_KEY: "shared-secret-name",
     });
   });
@@ -173,7 +173,7 @@ describe("AppDatabase", () => {
       description: "Atomic checkout validation",
       status: "active",
     });
-    const workspaceId = db.saveWorkspace({
+    const workspaceId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Execution Workspace",
       localPath: "/tmp/checkout",
@@ -194,7 +194,7 @@ describe("AppDatabase", () => {
       capabilities: "Leads",
       budgetMonthlyUsd: 100,
     });
-    db.saveConnector({
+    db.connectorsCrud.saveConnector({
       id: "openai-codex",
       model: "gpt-5",
       envBindingText: "",
@@ -238,7 +238,7 @@ describe("AppDatabase", () => {
       description: "Budget hard stop validation",
       status: "active",
     });
-    const workspaceId = db.saveWorkspace({
+    const workspaceId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Budget Workspace",
       localPath: "/tmp/budget",
@@ -395,7 +395,7 @@ describe("AppDatabase", () => {
 
   it("runs forward-only migrations and creates schema_migrations table", () => {
     // The migration system runs during init() — verify the tracking table exists
-    const snapshot = db.listSnapshot();
+    const snapshot = db.snap.listSnapshot();
     expect(snapshot).toBeTruthy();
 
     // Verify we can re-init without errors (migrations are idempotent)
@@ -403,7 +403,7 @@ describe("AppDatabase", () => {
     db = new AppDatabase(tempDir);
     db.init();
 
-    const snapshot2 = db.listSnapshot();
+    const snapshot2 = db.snap.listSnapshot();
     expect(snapshot2).toBeTruthy();
   });
 
@@ -413,7 +413,7 @@ describe("AppDatabase", () => {
       description: "Workspace lock test",
       status: "active",
     });
-    const wsId = db.saveWorkspace({
+    const wsId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Lockable WS",
       localPath: "/tmp/lock-test",
@@ -423,24 +423,24 @@ describe("AppDatabase", () => {
     });
 
     // Acquire lock for run-1
-    expect(db.acquireWorkspaceLock(wsId, "run-1")).toBe(true);
-    let ws = db.getWorkspace(wsId);
+    expect(db.workspacesMod.acquireWorkspaceLock(wsId, "run-1")).toBe(true);
+    let ws = db.workspacesMod.getWorkspace(wsId);
     expect(ws?.state).toBe("busy");
 
     // Same run can re-acquire (idempotent)
-    expect(db.acquireWorkspaceLock(wsId, "run-1")).toBe(true);
+    expect(db.workspacesMod.acquireWorkspaceLock(wsId, "run-1")).toBe(true);
 
     // Different run cannot acquire while run-1 holds the lock
-    expect(db.acquireWorkspaceLock(wsId, "run-2")).toBe(false);
+    expect(db.workspacesMod.acquireWorkspaceLock(wsId, "run-2")).toBe(false);
 
     // Release lock
-    db.releaseWorkspaceLock(wsId, "run-1");
-    ws = db.getWorkspace(wsId);
+    db.workspacesMod.releaseWorkspaceLock(wsId, "run-1");
+    ws = db.workspacesMod.getWorkspace(wsId);
     expect(ws?.state).toBe("ready");
 
     // Now run-2 can acquire
-    expect(db.acquireWorkspaceLock(wsId, "run-2")).toBe(true);
-    db.releaseWorkspaceLock(wsId, "run-2");
+    expect(db.workspacesMod.acquireWorkspaceLock(wsId, "run-2")).toBe(true);
+    db.workspacesMod.releaseWorkspaceLock(wsId, "run-2");
   });
 
   it("releases all workspace locks on crash recovery", () => {
@@ -449,7 +449,7 @@ describe("AppDatabase", () => {
       description: "Lock recovery test",
       status: "active",
     });
-    const wsId = db.saveWorkspace({
+    const wsId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "Recovery WS",
       localPath: "/tmp/recovery-test",
@@ -458,11 +458,11 @@ describe("AppDatabase", () => {
       isPrimary: true,
     });
 
-    db.acquireWorkspaceLock(wsId, "stale-run");
-    expect(db.getWorkspace(wsId)?.state).toBe("busy");
+    db.workspacesMod.acquireWorkspaceLock(wsId, "stale-run");
+    expect(db.workspacesMod.getWorkspace(wsId)?.state).toBe("busy");
 
-    db.releaseAllWorkspaceLocks();
-    expect(db.getWorkspace(wsId)?.state).toBe("ready");
+    db.workspacesMod.releaseAllWorkspaceLocks();
+    expect(db.workspacesMod.getWorkspace(wsId)?.state).toBe("ready");
   });
 
   it("purges expired run logs based on retention setting", async () => {
@@ -471,7 +471,7 @@ describe("AppDatabase", () => {
       description: "Log purge test",
       status: "active",
     });
-    const wsId = db.saveWorkspace({
+    const wsId = db.workspacesMod.saveWorkspace({
       companyId,
       name: "PurgeWS",
       localPath: "/tmp/purge",
@@ -521,7 +521,7 @@ describe("AppDatabase", () => {
     expect(db.runs.readRunLog(run.id)).toContain("test log line");
 
     // Set retention to 1 day and manually backdate the run's finished_at
-    db.updateSettings({ logRetentionDays: 1 });
+    db.settings.updateSettings({ logRetentionDays: 1 });
     // Backdate finished_at to 10 days ago
     const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000).toISOString();
     // Direct SQL update for test only
@@ -529,7 +529,7 @@ describe("AppDatabase", () => {
       .prepare("update runs set finished_at = ? where id = ?")
       .run(tenDaysAgo, run.id);
 
-    const purged = db.purgeExpiredRunLogs();
+    const purged = db.settings.purgeExpiredRunLogs();
     expect(purged).toBe(1);
 
     // Log should be gone after purge

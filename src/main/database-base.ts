@@ -17,6 +17,7 @@ import { buildActivityMethods } from "./database/activity";
 import { buildSkillMethods } from "./database/skills";
 import { buildBudgetMethods } from "./database/budget";
 import { buildEntityCrudMethods } from "./database/entity-crud";
+import { listInvalidEnvBindingKeys, parseEnvBindingText } from "./connectors";
 import { buildDocumentMethods } from "./database/documents";
 import { buildAutomationMethods } from "./database/automation";
 import { buildKnowledgeMethods } from "./database/knowledge";
@@ -119,23 +120,23 @@ export class AppDatabaseBase {
     this.company = buildCompanyMethods(getDb, ra, tx, {
       getSetting: (key) => this.getSetting(key),
       setSetting: (key, value) => this.setSetting(key, value),
-      listSnapshot: (options) => this.listSnapshot(options),
-      addComment: (input) => this.addComment(input),
+      listSnapshot: (options) => this.snap.listSnapshot(options),
+      addComment: (input) => this.activityMod.addComment(input),
     });
     this.agents = buildAgentMethods(getDb, ra, tx, {
       getAgent: (id) => this.entityCrud.getAgent(id),
       wouldCreateAgentCycle: (agentId, reportsTo) => this.wouldCreateAgentCycle(agentId, reportsTo),
-      recordConfigRevision: (input) => this.recordConfigRevision(input),
+      recordConfigRevision: (input) => this.documentsMod.recordConfigRevision(input),
       cancelRunForDeletion: (runId, taskId, workspaceId, summary) => this.runs.cancelRunForDeletion(runId, taskId, workspaceId, summary),
-      addActivity: (input) => this.addActivity(input),
+      addActivity: (input) => this.activityMod.addActivity(input),
     });
     this.tasks = buildTaskMethods(getDb, ra, tx, {
-      addComment: (input) => this.addComment(input),
-      addActivity: (input) => this.addActivity(input),
+      addComment: (input) => this.activityMod.addComment(input),
+      addActivity: (input) => this.activityMod.addActivity(input),
     });
     this.messages = buildMessageMethods(getDb, ra, {
       getAgent: (id) => this.entityCrud.getAgent(id),
-      addActivity: (input) => this.addActivity(input),
+      addActivity: (input) => this.activityMod.addActivity(input),
       transaction: tx,
     });
     this.runs = buildRunMethods(getDb, ra, tx, { logsDir: this.logsDir });
@@ -147,11 +148,14 @@ export class AppDatabaseBase {
     this.skills = buildSkillMethods(getDb, ra);
     this.budget = buildBudgetMethods(getDb, ra, tx);
     this.entityCrud = buildEntityCrudMethods(getDb, ra, tx, {
-      addActivity: (input) => this.addActivity(input),
+      addActivity: (input) => this.activityMod.addActivity(input),
+      vault: this.vault,
+      listInvalidEnvBindingKeys,
+      parseEnvBindingText,
     });
     this.documentsMod = buildDocumentMethods(getDb, ra, tx);
     this.automationMod = buildAutomationMethods(getDb, ra, {
-      addActivity: (input) => this.addActivity(input),
+      addActivity: (input) => this.activityMod.addActivity(input),
     });
     this.knowledgeMod = buildKnowledgeMethods(getDb, ra);
     this.wakeup = buildWakeupMethods(getDb, ra, tx);
@@ -229,49 +233,10 @@ export class AppDatabaseBase {
 
   close() { this.db.close(); }
 
-  // ─── Settings ──────────────────────────────────────────────────────────────
-
-  getCurrentCompanyId() { return this.settings.getCurrentCompanyId(); }
-  setCurrentCompany(companyId: string) { this.settings.setCurrentCompany(companyId); }
-  hasCompany(companyId: string) { return this.settings.hasCompany(companyId); }
-  belongsToCompany(table: "workspaces" | "agents" | "goals" | "projects" | "tasks" | "approvals" | "runs" | "secrets" | "meetings" | "documents" | "knowledge_base" | "sprints" | "automation_rules" | "workflow_pipelines", id: string, companyId: string) { return this.settings.belongsToCompany(table, id, companyId); }
-  updateSettings(input: { theme?: "system" | "light" | "dark"; locale?: "en" | "zh"; updatesEnabled?: boolean; logRetentionDays?: number }) { this.settings.updateSettings(input); }
-  getLogRetentionDays() { return this.settings.getLogRetentionDays(); }
-  purgeExpiredRunLogs() { return this.settings.purgeExpiredRunLogs(); }
-  canOpenPath(targetPath: string) { return this.settings.canOpenPath(targetPath); }
-  getDisabledModels(companyId: string, connectorId: string) { return this.settings.getDisabledModels(companyId, connectorId); }
-  setDisabledModels(companyId: string, connectorId: string, models: Array<{ id: string; label: string }>) { this.settings.setDisabledModels(companyId, connectorId, models); }
-  hasModelPoolSettings(companyId: string, connectorId: string) { return this.settings.hasModelPoolSettings(companyId, connectorId); }
-  getLastBudgetResetMonth(companyId: string) { return this.settings.getLastBudgetResetMonth(companyId); }
-  setLastBudgetResetMonth(companyId: string, month: string) { this.settings.setLastBudgetResetMonth(companyId, month); }
-
-  // ─── Snapshot ──────────────────────────────────────────────────────────────
-
-  listSnapshot(options: { companyId?: string | null } = {}): ProfileSnapshot { return this.snap.listSnapshot(options); }
-  listRendererSnapshot(): ProfileSnapshot { return this.snap.listRendererSnapshot(); }
-
-  // ─── Connectors ────────────────────────────────────────────────────────────
-
-  saveConnector(input: { id: ConnectorId; model: string | null; envBindingText: string; notes: string }) { this.connectorsCrud.saveConnector(input); }
-  updateConnectorHealth(input: { id: ConnectorId; status: string; authState: string; version: string | null; lastError: string | null }) { this.connectorsCrud.updateConnectorHealth(input); }
-  getConnector(id: ConnectorId) { return this.connectorsCrud.getConnector(id); }
-  findConnector(id: ConnectorId) { return this.connectorsCrud.findConnector(id); }
-
-  // ─── Workspaces ────────────────────────────────────────────────────────────
-
-  saveWorkspace(input: { id?: string | null; companyId: string; name: string; localPath: string; repoUrl: string; repoRef: string; projectId?: string | null; isPrimary: boolean }) { return this.workspacesMod.saveWorkspace(input); }
-  getWorkspace(id: string | null | undefined) { return this.workspacesMod.getWorkspace(id); }
-  getProjectPrimaryWorkspace(projectId: string | null | undefined, companyId: string) { return this.workspacesMod.getProjectPrimaryWorkspace(projectId, companyId); }
-  listWorkspaceLocalPaths(companyId: string) { return this.workspacesMod.listWorkspaceLocalPaths(companyId); }
-  getAnyCompanyWorkspace(companyId: string) { return this.workspacesMod.getAnyCompanyWorkspace(companyId); }
-  deleteWorkspace(id: string, companyId: string) { this.workspacesMod.deleteWorkspace(id, companyId); }
-  acquireWorkspaceLock(workspaceId: string, runId: string) { return this.workspacesMod.acquireWorkspaceLock(workspaceId, runId); }
-  claimWorkspaceLock(workspaceId: string, runId: string) { return this.workspacesMod.claimWorkspaceLock(workspaceId, runId); }
-  releaseWorkspaceLock(workspaceId: string, runId: string) { this.workspacesMod.releaseWorkspaceLock(workspaceId, runId); }
-  releaseAllWorkspaceLocks() { this.workspacesMod.releaseAllWorkspaceLocks(); }
-  releaseStaleWorkspaceLocks() { return this.workspacesMod.releaseStaleWorkspaceLocks(); }
-  isWorkspaceLocked(workspaceId: string) { return this.workspacesMod.isWorkspaceLocked(workspaceId); }
-
+  // ─── Internal helper: relock releaseAllWorkspaceLocks is used by
+  //   crash-recovery below; callers should prefer
+  //   `db.workspacesMod.releaseAllWorkspaceLocks()` directly.
+  //
   // ─── Internal infrastructure ───────────────────────────────────────────────
   protected _lastInterruptedCount = 0;
   get lastInterruptedCount(): number { return this._lastInterruptedCount; }
@@ -301,7 +266,7 @@ export class AppDatabaseBase {
         )
         .run(ts);
       this.db.prepare("update agents set status = 'idle', updated_at = ? where status = 'running'").run(ts);
-      this.releaseAllWorkspaceLocks();
+      this.workspacesMod.releaseAllWorkspaceLocks();
     });
     return interruptedCount;
   }
@@ -389,10 +354,4 @@ export class AppDatabaseBase {
     return this.transaction(operation);
   }
 
-  // ─── Methods used by subclass constructor callbacks ────────────────────────
-
-  addActivity(input: { companyId: string; actor: string; action: string; entityType: string; entityId: string; detail: string }) { this.activityMod.addActivity(input); }
-  addComment(input: { companyId: string; taskId: string; authorAgentId: string | null; authorName: string; body: string }) { return this.activityMod.addComment(input); }
-  listRecentTaskComments(taskIds: string[], sinceIso: string, limit: number) { return this.activityMod.listRecentTaskComments(taskIds, sinceIso, limit); }
-  recordConfigRevision(input: { companyId: string; agentId: string; changedKeys: string[]; configBefore: Record<string, unknown>; configAfter: Record<string, unknown>; source?: string; rolledBackFromRevisionId?: string | null; createdByAgentId?: string | null; createdByUserId?: string | null }) { return this.documentsMod.recordConfigRevision(input); }
 }
