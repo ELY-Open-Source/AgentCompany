@@ -169,9 +169,9 @@ export const API_KEY_CONNECTORS: ConnectorDefinition[] = [
     label: "Fireworks Fire Pass",
     description:
       "Fireworks Fire Pass — $7/week subscription for unlimited Kimi K2.5 Turbo. Uses the same FIREWORKS_API_KEY; the Fire Pass entitlement is attached to the account.",
-    defaultModel: "accounts/fireworks/models/kimi-k2.5-turbo",
+    defaultModel: "accounts/fireworks/routers/kimi-k2p5-turbo",
     auth: { type: "api_key", envKey: "FIREWORKS_API_KEY" },
     notes:
-      "Covers Kimi K2.5 Turbo only; other Fireworks models still bill per-token. See https://docs.fireworks.ai/firepass.",
+      "Fire Pass routes through the dedicated router id accounts/fireworks/routers/kimi-k2p5-turbo on both the OpenAI- and Anthropic-compat endpoints. See https://docs.fireworks.ai/firepass.",
   },
 ];

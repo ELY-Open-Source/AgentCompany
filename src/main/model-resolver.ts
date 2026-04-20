@@ -25,7 +25,15 @@ const FIREWORKS_OPENAI_BASE_URL = "https://api.fireworks.ai/inference/v1";
 const FIREWORKS_DEFAULT_CONTEXT = 128_000;
 const FIREWORKS_DEFAULT_MAX_TOKENS = 8192;
 
-export const FIREWORKS_FIREPASS_MODEL_ID = "accounts/fireworks/models/kimi-k2.5-turbo";
+// Fire Pass routes subscription traffic through a dedicated router id,
+// not the per-token model path. The canonical identifier is documented
+// at https://docs.fireworks.ai/firepass and applies to both the
+// OpenAI-compatible (`/inference/v1`) and Anthropic-compatible
+// (`/inference`) endpoints. Do not "align" this to the
+// `accounts/fireworks/models/...` id — the subscription entitlement
+// only attaches to the router route, and switching to the model path
+// makes Fireworks bill per-token and reject Fire-Pass-only callers.
+export const FIREWORKS_FIREPASS_MODEL_ID = "accounts/fireworks/routers/kimi-k2p5-turbo";
 export const FIREWORKS_FIREPASS_MODEL_NAME = "Kimi K2.5 Turbo (Fire Pass)";
 
 const FIREWORKS_CURATED_MODELS: Array<{ id: string; name: string; contextWindow?: number }> = [
