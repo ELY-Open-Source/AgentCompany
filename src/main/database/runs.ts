@@ -145,6 +145,11 @@ export function buildRunMethods(
           getDb()
             .prepare("UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?")
             .run(ts, run.taskId, input.runId);
+          // B2 Phase 1 step 3/5 — dual-write: release the shadow lease
+          // for this run at the same instant the legacy lock is cleared.
+          getDb()
+            .prepare("DELETE FROM task_leases WHERE task_id = ? AND run_id = ?")
+            .run(run.taskId, input.runId);
           if (runNeverStarted) {
             // Roll the task back to `todo` when no *other* live run claims
             // it. Invariant: `task.status = 'in_progress'` ⇒ a queued or
@@ -208,6 +213,11 @@ export function buildRunMethods(
         getDb()
           .prepare("UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?")
           .run(ts, taskId, runId);
+        // B2 Phase 1 step 3/5 — dual-write: drop the shadow lease when
+        // the legacy cancellation clears checkout_run_id.
+        getDb()
+          .prepare("DELETE FROM task_leases WHERE task_id = ? AND run_id = ?")
+          .run(taskId, runId);
       }
       if (workspaceId) {
         getDb()

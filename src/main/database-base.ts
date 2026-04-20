@@ -386,6 +386,15 @@ export class AppDatabaseBase {
         ).run(ts, ts);
       }
       this.db.prepare("update tasks set active_run_id = null where active_run_id in (select id from runs where status = 'interrupted')").run();
+      // B2 Phase 1 step 3/5 — dual-write: drop shadow leases whose run
+      // has been interrupted. Uses the freshly finished_at timestamp to
+      // scope the deletion to this sweep's run set, matching the legacy
+      // path's "just-interrupted" semantics.
+      this.db
+        .prepare(
+          "DELETE FROM task_leases WHERE run_id IN (SELECT id FROM runs WHERE status = 'interrupted' AND finished_at = ?)",
+        )
+        .run(ts);
       this.db.prepare("update agents set status = 'idle', updated_at = ? where status = 'running'").run(ts);
       this.releaseAllWorkspaceLocks();
     });
@@ -401,6 +410,12 @@ export class AppDatabaseBase {
     const ts = nowIso();
     for (const task of stale) {
       this.db.prepare(`UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, status = 'todo', updated_at = ? WHERE id = ?`).run(ts, task.id);
+      // B2 Phase 1 step 3/5 — dual-write: drop the shadow lease whose
+      // legacy counterpart was just torn down. Matches the legacy
+      // path's "clear everything for this stuck task" semantics; the
+      // trigger that mirrored status → phase has already advanced
+      // `tasks.phase` back to `todo` so the new surface stays coherent.
+      this.db.prepare(`DELETE FROM task_leases WHERE task_id = ?`).run(task.id);
     }
     return stale.map((t) => ({ taskId: t.id, companyId: t.companyId, title: t.title }));
   }

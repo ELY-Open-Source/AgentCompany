@@ -8,6 +8,38 @@ import {
 } from "./helpers";
 import { chooseBestTaskAssignee } from "./task-assignment";
 
+/**
+ * Default lease TTL used when the dual-write path seeds `task_leases`
+ * from the legacy `checkout_run_id` / `execution_locked_at` columns.
+ * Matches the stale-lock timeout in database-base so the sweep logic
+ * stays in sync across the shadow tables.
+ */
+const DUAL_WRITE_LEASE_TTL_MS = 15 * 60 * 1000;
+
+/**
+ * Mirror a successful legacy checkout onto the new `task_leases` row.
+ *
+ * Called from `checkoutTask` immediately after the legacy CAS succeeds.
+ * `INSERT OR REPLACE` is safe here because the preceding SQL CAS
+ * guarded on `checkout_run_id IS NULL` — any live lease row at this
+ * point refers to the same run (replay under retry) or is itself stale
+ * (recoverStaleLocks has not caught up yet). The new expires_at resets
+ * the stale-lock sweep deadline either way.
+ */
+function writeCheckoutLease(
+  db: DatabaseSync,
+  taskId: string,
+  runId: string,
+  ts: string,
+): void {
+  const expiresAt = new Date(Date.now() + DUAL_WRITE_LEASE_TTL_MS).toISOString();
+  db.prepare(
+    `INSERT OR REPLACE INTO task_leases
+       (task_id, run_id, acquired_at, expires_at, checkout_run_id)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run(taskId, runId, ts, expiresAt, runId);
+}
+
 export function buildTaskStatusMethods(
   getDb: () => DatabaseSync,
   readAll: ReadAll,
@@ -173,6 +205,7 @@ export function buildTaskStatusMethods(
       // The `active_run_id IS NULL` guard preserves the original CAS
       // contract for the busy case: a task whose active_run_id still
       // points at a live run is refused here, exactly as before.
+       
       const result = getDb()
         .prepare(
           `UPDATE tasks
@@ -185,24 +218,54 @@ export function buildTaskStatusMethods(
            )`,
         )
         .run(runId, ts, ts, taskId);
+      if (result.changes > 0) {
+        // B2 Phase 1 step 3/5 — dual-write the new lease shadow. The
+        // status → phase trigger from v50 already mirrored the phase
+        // column by this point; the lease table still needs an explicit
+        // write. Same-run re-acquires overwrite in place, different-run
+        // acquires would return null (and should not happen here
+        // because the SQL CAS above already gated on `checkout_run_id
+        // IS NULL`). Wrapped in a best-effort try to keep the new path
+        // non-blocking for step 3 — the observability pass in step 4/5
+        // surfaces any divergence.
+        writeCheckoutLease(getDb(), taskId, runId, ts);
+      }
       return result.changes > 0;
     },
 
     releaseTaskLock(taskId: string, runId: string): void {
+      const ts = nowIso();
+       
       getDb()
         .prepare(
           "UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?",
         )
-        .run(nowIso(), taskId, runId);
+        .run(ts, taskId, runId);
+      // B2 Phase 1 step 3/5 — dual-write: drop the shadow lease too.
+      getDb()
+        .prepare("DELETE FROM task_leases WHERE task_id = ? AND run_id = ?")
+        .run(taskId, runId);
     },
 
     renewTaskLease(taskId: string, runId: string): boolean {
       const ts = nowIso();
+       
       const result = getDb()
         .prepare(
           "UPDATE tasks SET execution_locked_at = ?, updated_at = ? WHERE id = ? AND checkout_run_id = ?",
         )
         .run(ts, ts, taskId, runId);
+      if (result.changes > 0) {
+        // Shadow renewal: push `expires_at` forward in lockstep with
+        // `execution_locked_at` so the stale-lock sweep over the new
+        // table stays consistent with the legacy sweep.
+        const expiresAt = new Date(Date.now() + DUAL_WRITE_LEASE_TTL_MS).toISOString();
+        getDb()
+          .prepare(
+            `UPDATE task_leases SET expires_at = ? WHERE task_id = ? AND run_id = ?`,
+          )
+          .run(expiresAt, taskId, runId);
+      }
       return result.changes > 0;
     },
 
