@@ -2,6 +2,7 @@ import { app } from "electron";
 import electronUpdater from "electron-updater";
 import type { AppDatabase } from "./database";
 import type { NotificationOptions } from "./notification-service";
+import { classifyUnknownError } from "./errors/index.js";
 
 const { autoUpdater } = electronUpdater;
 
@@ -140,7 +141,12 @@ export function createUpdaterService({
       const result = await autoUpdater.checkForUpdates();
       return Boolean(result?.updateInfo);
     } catch (error) {
-      logger.error(error);
+      const classified = classifyUnknownError(error, {
+        kind: "upstream",
+        code: "updater.check_for_updates.failed",
+        message: "autoUpdater.checkForUpdates() failed",
+      });
+      logger.error(`[${classified.code}] ${classified.message}`, error);
       manualCheckPending = false;
       return false;
     }

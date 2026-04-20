@@ -1,6 +1,7 @@
 import { Notification, app } from "electron";
 import type { BrowserWindow } from "electron";
 import type { DesktopEvent, SectionId } from "@shared/types";
+import { classifyUnknownError } from "./errors/index.js";
 
 export interface NotificationOptions {
   title: string;
@@ -205,8 +206,13 @@ export function createNotificationService(deps: NotificationServiceDependencies)
       try {
         notification.close();
       } catch (error) {
+        const classified = classifyUnknownError(error, {
+          kind: "recoverable",
+          code: "notification.close.failed",
+          message: "notification.close() during destroy failed",
+        });
         deps.logger.warn(
-          `[notification] notification.close() during destroy failed: ${error instanceof Error ? error.message : String(error)}`,
+          `[${classified.code}] ${classified.message}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }

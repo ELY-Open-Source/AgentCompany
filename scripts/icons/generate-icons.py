@@ -34,7 +34,7 @@ for _lib_dir in ("/opt/homebrew/opt/cairo/lib", "/usr/local/opt/cairo/lib"):
 import cairosvg  # noqa: E402  — must come after DYLD_LIBRARY_PATH setup
 from PIL import Image  # noqa: E402
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 ASSETS = ROOT / "assets"
 LANDING = ROOT / "landing" / "public"
 ICONSET = ASSETS / "icon.iconset"

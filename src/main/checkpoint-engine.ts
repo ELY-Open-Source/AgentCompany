@@ -16,6 +16,7 @@ import {
   CHECKPOINT_TASK_TYPES,
   STRATEGY_DOCUMENT_TYPES,
 } from "./execution-policy";
+import { classifyUnknownError } from "./errors/index.js";
 
 interface CheckpointDeps {
   db: AppDatabase;
@@ -81,7 +82,12 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
         publishDomainChanged();
         return approvalId;
       } catch (err) {
-        logger.error(`[checkpoint] onTaskStarted failed: ${err instanceof Error ? err.message : String(err)}`);
+        const classified = classifyUnknownError(err, {
+          kind: "recoverable",
+          code: "checkpoint.on_task_started.failed",
+          message: "onTaskStarted failed",
+        });
+        logger.error(`[${classified.code}] ${classified.message}: ${err instanceof Error ? err.message : String(err)}`);
         return null;
       }
     },
@@ -123,7 +129,12 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
         publishDomainChanged();
         return approvalId;
       } catch (err) {
-        logger.error(`[checkpoint] onDocumentDrafted failed: ${err instanceof Error ? err.message : String(err)}`);
+        const classified = classifyUnknownError(err, {
+          kind: "recoverable",
+          code: "checkpoint.on_document_drafted.failed",
+          message: "onDocumentDrafted failed",
+        });
+        logger.error(`[${classified.code}] ${classified.message}: ${err instanceof Error ? err.message : String(err)}`);
         return null;
       }
     },

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { loadSkills } from "@mariozechner/pi-coding-agent";
 import type { AppDatabase } from "../database";
 import type { SkillImportResult, ProjectedSkill } from "../skill-types.js";
+import { classifyUnknownError } from "../errors/index.js";
 
 interface RuntimeDeps {
   db: AppDatabase;
@@ -131,14 +132,24 @@ export function createSkillRuntime({ db, logger, skillsRoot, skillFilesDir, impo
         try {
           return statSyncLocal(join(builtinDir, name)).isDirectory();
         } catch (error) {
-          logger.warn(
-            `[skills] statSync failed for builtin entry ${name}: ${error instanceof Error ? error.message : String(error)}`,
-          );
+          const classified = classifyUnknownError(error, {
+            kind: "recoverable",
+            code: "skills.builtin.stat_failed",
+            message: `statSync failed for builtin entry ${name}`,
+            context: { builtinDir, entry: name },
+          });
+          logger.warn(`[${classified.code}] ${classified.message}: ${error instanceof Error ? error.message : String(error)}`);
           return false;
         }
       });
-    } catch {
-      logger.warn(`[skills] Failed to read builtin skills directory: ${builtinDir}`);
+    } catch (err) {
+      const classified = classifyUnknownError(err, {
+        kind: "recoverable",
+        code: "skills.builtin.readdir_failed",
+        message: `Failed to read builtin skills directory`,
+        context: { builtinDir },
+      });
+      logger.warn(`[${classified.code}] ${classified.message}: ${builtinDir}`);
       return [];
     }
 

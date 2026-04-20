@@ -2,6 +2,7 @@ import { join } from "node:path";
 import log from "electron-log/main.js";
 import type { AppDatabase } from "./database";
 import { BrowserManager } from "./browser-manager";
+import { classifyUnknownError } from "./errors/index.js";
 
 interface BrowserActionDependencies {
   db: AppDatabase;
@@ -30,7 +31,13 @@ export function createBrowserActionService({
     try {
       return db.getApprovalRecord(approvalId);
     } catch (err) {
-      log.warn(`[browser-action] getApprovalRecord failed for ${approvalId}:`, err instanceof Error ? err.message : String(err));
+      const classified = classifyUnknownError(err, {
+        kind: "recoverable",
+        code: "browser_action.approval.lookup_failed",
+        message: `getApprovalRecord failed for ${approvalId}`,
+        context: { approvalId },
+      });
+      log.warn(`[${classified.code}]`, classified.message, classified.context);
       return null;
     }
   }
@@ -73,7 +80,14 @@ export function createBrowserActionService({
     let payload: Record<string, unknown>;
     try {
       payload = JSON.parse(action.payloadJson) as Record<string, unknown>;
-    } catch {
+    } catch (err) {
+      const classified = classifyUnknownError(err, {
+        kind: "user_input",
+        code: "browser_action.payload.invalid_json",
+        message: `Browser action ${actionId} has invalid JSON payload`,
+        context: { actionId },
+      });
+      log.warn(`[${classified.code}]`, classified.message, classified.context);
       db.updateBrowserAction(actionId, {
         status: "failed",
         errorMessage: "Browser action payload is not valid JSON.",

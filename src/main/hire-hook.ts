@@ -1,6 +1,7 @@
 import log from "electron-log/main.js";
 import { getConnectorDefinition } from "./connectors";
 import type { AppDatabase } from "./database";
+import { classifyUnknownError } from "./errors/index.js";
 
 /**
  * Payload captured when an agent hire is approved. Kept for call-sites that
@@ -36,16 +37,28 @@ export async function notifyHireApproved(
     let agent;
     try {
       agent = db.getAgent(input.agentId);
-    } catch {
-      log.warn(`[hire-hook] Agent ${input.agentId} not found, skipping hire notification.`);
+    } catch (err) {
+      const classified = classifyUnknownError(err, {
+        kind: "recoverable",
+        code: "hire_hook.agent.not_found",
+        message: `Agent ${input.agentId} not found, skipping hire notification`,
+        context: { agentId: input.agentId, companyId: input.companyId },
+      });
+      log.warn(`[${classified.code}] ${classified.message}`);
       return;
     }
 
     let connectorDef;
     try {
       connectorDef = getConnectorDefinition(agent.connectorId);
-    } catch {
-      log.warn(`[hire-hook] No connector definition for ${agent.connectorId}, skipping hire notification.`);
+    } catch (err) {
+      const classified = classifyUnknownError(err, {
+        kind: "recoverable",
+        code: "hire_hook.connector.not_found",
+        message: `No connector definition for ${agent.connectorId}, skipping hire notification`,
+        context: { connectorId: agent.connectorId, agentId: input.agentId },
+      });
+      log.warn(`[${classified.code}] ${classified.message}`);
       return;
     }
 
@@ -73,8 +86,14 @@ export async function notifyHireApproved(
       detail: `Hire approved: ${payload.agentName} via ${connectorDef.id}`,
     });
   } catch (error) {
+    const classified = classifyUnknownError(error, {
+      kind: "upstream",
+      code: "hire_hook.notify.exception",
+      message: `Exception notifying hire for agent ${input.agentId}`,
+      context: { agentId: input.agentId, companyId: input.companyId },
+    });
     const message = error instanceof Error ? error.message : String(error);
-    log.error(`[hire-hook] Exception notifying hire for agent ${input.agentId}: ${message}`);
+    log.error(`[${classified.code}] ${classified.message}: ${message}`);
     try {
       db.addActivity({
         companyId: input.companyId,

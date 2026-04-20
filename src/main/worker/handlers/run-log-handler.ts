@@ -1,6 +1,7 @@
 import { filterRunLogChunk } from "../observability/run-log-filter";
 import { persistRunEvent } from "../observability/run-event-recorder";
 import type { HandlerContext, HandlerDeps, WorkerMessageEvent } from "./handler-context";
+import { classifyUnknownError } from "../../errors/index.js";
 
 const LEASE_RENEWAL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -40,8 +41,14 @@ export async function handleRunLog(
         db.renewTaskLease(run.taskId, run.id);
       }
       leaseRenewalMap.set(event.runId, now);
-    } catch {
-      // Run not found — skip lease renewal
+    } catch (err) {
+      const classified = classifyUnknownError(err, {
+        kind: "recoverable",
+        code: "worker.run_log.lease_renewal_lookup_failed",
+        message: `Run ${event.runId} not found during lease renewal`,
+        context: { runId: event.runId },
+      });
+      logger.warn(`[${classified.code}] ${classified.message}`);
     }
   }
 }

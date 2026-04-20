@@ -26,6 +26,7 @@ import type { AppDatabase } from "./database";
 import type { ThreadIntegrationService } from "./thread-integration";
 import type { createCheckpointEngine } from "./checkpoint-engine";
 import type { DocumentLifecycleProcessor } from "./document-lifecycle-processor";
+import { classifyUnknownError } from "./errors/index.js";
 
 export type CheckpointEngineLike = Pick<
   ReturnType<typeof createCheckpointEngine>,
@@ -167,8 +168,14 @@ function deriveTaskIdFromRun(
     if (run.companyId !== companyId) return null;
     return run.taskId ?? null;
   } catch (error) {
+    const classified = classifyUnknownError(error, {
+      kind: "recoverable",
+      code: "document_lifecycle.get_run.failed",
+      message: `getRun(${runId}) failed while deriving taskId`,
+      context: { runId, companyId },
+    });
     logger.warn(
-      `[document-lifecycle] getRun(${runId}) failed while deriving taskId: ${error instanceof Error ? error.message : String(error)}`,
+      `[${classified.code}] ${classified.message}: ${error instanceof Error ? error.message : String(error)}`,
     );
     return null;
   }

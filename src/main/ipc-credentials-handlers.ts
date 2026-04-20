@@ -15,6 +15,7 @@ import type { CredentialResolver } from "./credentials/credential-resolver";
 import type { CredentialStore } from "./credentials/credential-store";
 import type { StoredCredentialPayload } from "./credentials/types";
 import { ok } from "./ipc-core-common";
+import { classifyUnknownError } from "./errors/index.js";
 
 /** Strip credential-shaped substrings from an error message before sending it
  * back to the renderer. Matches are anchored to issuer-specific prefixes so
@@ -104,7 +105,13 @@ export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () =
       deps.emitEvent({ type: "credentials-changed", connectorId: parsed.data.connectorId });
       return ok<CredentialSummary>(stored);
     } catch (error) {
-      deps.logger.error(`[credentials] save failed for ${parsed.data.connectorId}: ${describeError(error)}`);
+      const err = classifyUnknownError(error, {
+        kind: "upstream",
+        code: "credentials.save.failed",
+        message: `save failed for ${parsed.data.connectorId}`,
+        context: { connectorId: parsed.data.connectorId },
+      });
+      deps.logger.error(`[${err.code}] ${err.message}: ${describeError(error)}`);
       return deps.fail("SAVE_FAILED", "Could not save credential. Check application logs for details.");
     }
   });
@@ -118,7 +125,13 @@ export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () =
       deps.emitEvent({ type: "credentials-changed", connectorId: parsed.data.connectorId });
       return ok(true);
     } catch (error) {
-      deps.logger.error(`[credentials] remove failed for ${parsed.data.connectorId}: ${describeError(error)}`);
+      const err = classifyUnknownError(error, {
+        kind: "upstream",
+        code: "credentials.remove.failed",
+        message: `remove failed for ${parsed.data.connectorId}`,
+        context: { connectorId: parsed.data.connectorId },
+      });
+      deps.logger.error(`[${err.code}] ${err.message}: ${describeError(error)}`);
       return deps.fail("REMOVE_FAILED", "Could not remove credential. Check application logs for details.");
     }
   });
@@ -130,15 +143,27 @@ export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () =
     try {
       definition = getConnectorDefinition(parsed.data.connectorId);
     } catch (error) {
-      deps.logger.error(`[credentials] test failed lookup for ${parsed.data.connectorId}: ${describeError(error)}`);
+      const err = classifyUnknownError(error, {
+        kind: "user_input",
+        code: "credentials.test.unknown_connector",
+        message: `test failed lookup for ${parsed.data.connectorId}`,
+        context: { connectorId: parsed.data.connectorId },
+      });
+      deps.logger.error(`[${err.code}] ${err.message}: ${describeError(error)}`);
       return deps.fail("UNKNOWN_CONNECTOR", "Unknown connector.");
     }
     let resolved;
     try {
       resolved = await deps.resolver.resolve(parsed.data.connectorId);
     } catch (error) {
+      const err = classifyUnknownError(error, {
+        kind: "upstream",
+        code: "credentials.test.resolve_failed",
+        message: `test resolve failed for ${parsed.data.connectorId}`,
+        context: { connectorId: parsed.data.connectorId },
+      });
       const message = describeError(error);
-      deps.logger.error(`[credentials] test resolve failed for ${parsed.data.connectorId}: ${message}`);
+      deps.logger.error(`[${err.code}] ${err.message}: ${message}`);
       return ok({ ok: false, message: redactSecrets(message) });
     }
 

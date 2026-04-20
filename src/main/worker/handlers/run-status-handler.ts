@@ -1,5 +1,6 @@
 import { persistRunEvent } from "../observability/run-event-recorder";
 import type { HandlerContext, HandlerDeps, WorkerMessageEvent } from "./handler-context";
+import { classifyUnknownError } from "../../errors/index.js";
 
 export function handleRunStatus(
   event: Extract<WorkerMessageEvent, { type: "run-status" }>,
@@ -34,8 +35,14 @@ export function handleRunStatus(
         db.renewTaskLease(run.taskId, run.id);
       }
       onRunStarted?.(run.id, run.taskId, run.agentId, run.companyId);
-    } catch {
-      // Run not found — skip status handling
+    } catch (err) {
+      const classified = classifyUnknownError(err, {
+        kind: "recoverable",
+        code: "worker.run_status.run_not_found",
+        message: `Run ${event.runId} not found during status handling`,
+        context: { runId: event.runId, status: event.status },
+      });
+      logger.warn(`[${classified.code}] ${classified.message}`);
     }
   }
   emitEvent(event);

@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 import type { DesktopEvent } from "@shared/types";
 import type { DesktopResult } from "@shared/contracts";
 import type { NotificationOptions } from "./notification-service";
+import { classifyUnknownError } from "./errors/index.js";
 
 interface IpcSupportDependencies {
   isDev: boolean;
@@ -73,9 +74,15 @@ export function createIpcSupport({
       try {
         return await handler(event, ...args);
       } catch (error) {
+        const classified = classifyUnknownError(error, {
+          kind: error instanceof ZodError ? "user_input" : "upstream",
+          code: error instanceof ZodError ? "ipc.payload.invalid" : "ipc.handler.failed",
+          message: `IPC handler ${channel} threw`,
+          context: { channel },
+        });
         const rawMessage = error instanceof Error ? error.message : String(error);
         const sanitized = sanitizeHandlerError(error);
-        logger.error(`[ipc:${channel}] ${rawMessage}`);
+        logger.error(`[${classified.code}] [ipc:${channel}] ${rawMessage}`);
         return fail(sanitized.code, sanitized.message);
       }
     });
@@ -116,9 +123,15 @@ export function createIpcSupport({
         return;
       }
       const key = event.type ?? "<untyped>";
+      const classified = classifyUnknownError(error, {
+        kind: "recoverable",
+        code: "ipc.emit_event.send_failed",
+        message: `emitEvent(${key}) failed`,
+        context: { eventType: key },
+      });
       if (!emitWarnedChannels.has(key)) {
         emitWarnedChannels.add(key);
-        logger.error(`[ipc] emitEvent(${key}) failed: ${message}`);
+        logger.error(`[${classified.code}] ${classified.message}: ${message}`);
       }
     }
   }

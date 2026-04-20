@@ -10,7 +10,7 @@
   },
   "main": "out/main/index.js",
   "scripts": {
-    "assets:generate": "python3 scripts/generate-icons.py",
+    "assets:generate": "python3 scripts/icons/generate-icons.py",
     "dev": "electron-vite dev",
     "build:verify": "electron-vite build",
     "build": "electron-vite build && node scripts/build-desktop.mjs",
