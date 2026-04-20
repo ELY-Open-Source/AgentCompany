@@ -3,6 +3,8 @@
 > 日期：2026-04-20
 > 决策者：Roundtable（Linus Torvalds + Andrej Karpathy + Steve Jobs）
 > 作用：诚实记录用户硬约束 vs 问题.md 清单之间的不可能三角，明确今晚实施了什么、延后了什么、因约束冲突无法做什么。
+>
+> **2026-04-20 update**：用户放宽 fixture/tests 禁令 — 允许 dev-only `tests/eval/` 目录（不进 production bundle）。**B5 已 unblock**，Karpathy 正在落地 eval harness。mock / fallback / silent-catch 仍全量禁止。详见文末 "Constraint timeline"。
 
 ---
 
@@ -182,3 +184,27 @@ Karpathy 在圆桌 explicitly 提出：用户硬约束若能放宽为"**fixture-
 今晚交付了 3 个 zero-risk 的 surgical commit（cert / version pin / shim 删除）+ 14 个 technical debt proposal。**用户约束下 B5/C5/M3/M6 四大关键项无法开始**，整个 product 的可度量性依赖用户放宽一个 fixture 维度的例外。在此之前，后续所有 proposal 的实施都处于"设计已定 / 验证手段缺失"的悬停状态。
 
 Linus 最后一句：**"先让数据结构对，其它 6 步会一起变简单"——但前提是你能证明改完是对的。现在我们连那个证明机制都没有。**
+
+---
+
+## Constraint timeline
+
+| 日期 | 变化 | 影响 |
+|------|------|------|
+| 2026-04-20 (initial) | 用户硬约束：NEVER tests / mock / fixture / logging / fallback；production live；无 backup。 | B5 / C5 / M3 / M6 全部 blocked；14 项 proposal 仅写文档。 |
+| 2026-04-20 (update) | 用户放宽 tests 禁令：允许 dev-only `tests/eval/` 目录，build 产物排除。mock / fallback / silent-catch 仍全量禁止。 | **B5 unblock** — Karpathy 开始搭 eval harness；C5 / M3 / M6 仍受 mock 禁令影响，需二次评估；B2 / B3 / B4 / C4 / C7 的验证路径打开，可进入排期。 |
+
+### 当前仍 blocked 的项
+
+| 项 | 剩余阻塞 | 下一步 |
+|----|---------|------|
+| C5 — pi hook 契约测试 | 需要 golden fixture；若 `tests/eval/` 视为"非 mock 的真实快照"则可落地。 | 待 B5 harness 形态定稿后复盘。 |
+| M3 — migration 行为 eval baseline | 依赖 B5 稳定运行 + schema 历史回放能力。 | B5 落地后补 baseline capture。 |
+| M6 — 分层测试 + LLM 行为覆盖 | 契约层仍受 mock 禁令影响；eval 层 B5 解锁后可启动。 | 分两批推进：行为层（B5 内）先上，契约层待约束再议。 |
+
+### 继续保持的约束
+
+- No production mocks / fallbacks / silent catches — 仅 dev `tests/eval/` 例外。
+- No runtime logging / telemetry beyond existing electron-log usage.
+- No dual-write migrations without backup path。
+- `tests/eval/` 必须在 `electron-builder.yml` 的 files 过滤中排除，保证不进生产 bundle。
