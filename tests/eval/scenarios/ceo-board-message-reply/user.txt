@@ -1,0 +1,7 @@
+Inbound message from the Board (message_id=m_42, channel=ceo_board, from=Board/Human):
+
+Subject: Beta ship status
+
+"Two weeks to end of quarter. Where are we on the beta? Give me the biggest risk and who owns mitigating it."
+
+Trigger: message. Unread count: 1. Mark m_42 read, then compose and send your reply via /api/agent_message/send. Do it now; do not write a plan document first.
