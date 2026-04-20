@@ -54,6 +54,7 @@ oldreference/
 *.md
 !/README.md
 !/docs/*.md
+!/docs/proposals/*.md
 !/CLAUDE.md
 !/.planning/**/*.md
 !/src/main/prompt-builder/**/*.md
