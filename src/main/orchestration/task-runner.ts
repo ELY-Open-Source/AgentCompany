@@ -1,14 +1,15 @@
 import { randomUUID } from "node:crypto";
-import type { AppDatabase } from "../database";
 import type { AgentRecord, ConnectorRecord } from "@shared/types";
 import type { DesktopResult } from "@shared/contracts";
 import type { OrchestrationDependencies } from "./types";
 import type { RunDispatchParams } from "./turn-context";
+import type { ResolveWorkspaceFn } from "./run-dispatch";
+import { WorkspaceConfigurationError } from "./resolve-workspace";
 import { pickModelForAgent } from "../model-dispatch";
 
 export function createTaskRunner(
   deps: OrchestrationDependencies,
-  resolveWorkspace: (task: { workspaceId: string | null; projectId?: string | null } | null, agent: { workspaceId: string | null }, companyId: string) => { workspace: ReturnType<AppDatabase["workspacesMod"]["getWorkspace"]>; lockMode: "exclusive" | "shared" | "none"; source: string },
+  resolveWorkspace: ResolveWorkspaceFn,
   getRunEligibilityFailure: (agent: AgentRecord, connector: ConnectorRecord, projectId?: string | null) => string | null,
   dispatchRunToWorker: (params: RunDispatchParams) => void,
   hasActiveRun: (filter: { taskId?: string; agentId?: string; companyId: string }) => boolean,
@@ -93,7 +94,19 @@ export function createTaskRunner(
       return fail("CHECKOUT_RACE_LOST", "Another run claimed this task. Refresh and try again.");
     }
 
-    const workspaceResolution = resolveWorkspace(task, agent, task.companyId);
+    let workspaceResolution: ReturnType<typeof resolveWorkspace>;
+    try {
+      workspaceResolution = resolveWorkspace(task, agent, task.companyId);
+    } catch (error) {
+      if (error instanceof WorkspaceConfigurationError) {
+        // Resolver refused to guess a workspace. Release the lease
+        // we just claimed so the task row does not stall at
+        // `in_progress`; surface the error to the caller.
+        db.tasks.releaseTaskLock(task.id, runId);
+        return fail("WORKSPACE_UNRESOLVED", error.message);
+      }
+      throw error;
+    }
     const workspace = workspaceResolution.workspace;
     if (workspace && workspace.companyId !== task.companyId) {
       return fail("WORKSPACE_COMPANY_MISMATCH", "The selected workspace does not belong to the task company.");

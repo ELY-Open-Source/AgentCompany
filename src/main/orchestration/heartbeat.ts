@@ -3,6 +3,8 @@ import type { AppDatabase } from "../database";
 import type { AgentRecord, ConnectorRecord } from "@shared/types";
 import type { OrchestrationDependencies } from "./types";
 import type { RunDispatchParams } from "./turn-context";
+import type { ResolveWorkspaceFn } from "./run-dispatch";
+import { WorkspaceConfigurationError } from "./resolve-workspace";
 import { pickModelForAgent } from "../model-dispatch";
 import { HUMAN_SENDER_ID } from "../messaging/dispatch";
 
@@ -28,7 +30,8 @@ export type HeartbeatSkipReason =
   | "awaiting_user_review"
   | "pending_deliverable_review"
   | "checkout_race_lost"
-  | "no_actionable_tasks";
+  | "no_actionable_tasks"
+  | "workspace_unresolved";
 
 export type HeartbeatStartResult =
   | { status: "started"; runId: string }
@@ -41,7 +44,7 @@ const SKIPPED = (reason: HeartbeatSkipReason): HeartbeatStartResult => ({
 
 export function createHeartbeat(
   deps: OrchestrationDependencies,
-  resolveWorkspace: (task: { workspaceId: string | null; projectId?: string | null } | null, agent: { workspaceId: string | null }, companyId: string) => { workspace: ReturnType<AppDatabase["workspacesMod"]["getWorkspace"]>; lockMode: "exclusive" | "shared" | "none"; source: string },
+  resolveWorkspace: ResolveWorkspaceFn,
   getRunEligibilityFailure: (agent: AgentRecord, connector: ConnectorRecord, projectId?: string | null) => string | null,
   dispatchRunToWorker: (params: RunDispatchParams) => void,
   hasActiveRun: (filter: { taskId?: string; agentId?: string; companyId: string }) => boolean,
@@ -201,7 +204,34 @@ export function createHeartbeat(
       logger.info(`[heartbeat] Starting taskless heartbeat run for ${agent.name}`);
     }
 
-    const workspaceResolution = resolveWorkspace(task, agent, companyId);
+    let workspaceResolution: ReturnType<typeof resolveWorkspace>;
+    try {
+      workspaceResolution = resolveWorkspace(task, agent, companyId);
+    } catch (error) {
+      if (error instanceof WorkspaceConfigurationError) {
+        // A coding-role task landed here with no bound workspace. We
+        // refuse to silently pick a shared workspace (the old
+        // company_fallback silent-corruption path) — the operator
+        // needs to bind a workspace explicitly. Release the lease
+        // the earlier checkoutTask just claimed so the task re-enters
+        // the pool at the next heartbeat instead of stalling as
+        // `in_progress` with no run.
+        if (task) {
+          db.tasks.releaseTaskLock(task.id, runId);
+        }
+        db.activityMod.addActivity({
+          companyId,
+          actor: "system",
+          action: "heartbeat.workspace_unresolved",
+          entityType: "agent",
+          entityId: agent.id,
+          detail: error.message,
+        });
+        logger.warn(`[heartbeat] Workspace unresolved for ${agent.name}: ${error.message}`);
+        return SKIPPED("workspace_unresolved");
+      }
+      throw error;
+    }
     const workspace = workspaceResolution.workspace;
     logger.info(
       `[heartbeat] Workspace resolution for ${agent.name}: task.workspaceId=${task?.workspaceId ?? "null"}, agent.workspaceId=${agent.workspaceId ?? "null"}, projectId=${task?.projectId ?? "null"}, source=${workspaceResolution.source}, mode=${workspaceResolution.lockMode}, resolved=${workspace?.name ?? "NONE"}, localPath=${workspace?.localPath ?? "NONE"}`,

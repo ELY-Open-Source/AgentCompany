@@ -1,9 +1,24 @@
 import { getConnectorExecutionReadinessIssue } from "@shared/connector-policy";
-import type { ConnectorRecord } from "@shared/types";
+import type { AgentRecord, ConnectorRecord, DepartmentId, TaskRecord } from "@shared/types";
 import type { OrchestrationDependencies } from "./types";
 import { buildRunPayload, type RunDispatchParams } from "./turn-context";
 import { validateConnectorModelSelection } from "../connector-model-policy";
 import { resolveWorkspaceWithLockMode } from "./resolve-workspace";
+
+type ResolveWorkspaceTaskInput =
+  | (Pick<TaskRecord, "workspaceId" | "projectId"> & { requiresFilesystem?: boolean })
+  | null;
+
+type ResolveWorkspaceAgentInput = Pick<AgentRecord, "workspaceId"> & {
+  role?: string | null;
+  department?: DepartmentId | null;
+};
+
+export type ResolveWorkspaceFn = (
+  task: ResolveWorkspaceTaskInput,
+  agent: ResolveWorkspaceAgentInput,
+  companyId: string,
+) => ReturnType<typeof resolveWorkspaceWithLockMode>;
 
 export function createRunDispatch(deps: OrchestrationDependencies) {
   const {
@@ -20,13 +35,8 @@ export function createRunDispatch(deps: OrchestrationDependencies) {
     evaluatePreRunSessionRotation,
   } = deps;
 
-  function resolveWorkspace(
-    task: { workspaceId: string | null; projectId?: string | null } | null,
-    agent: { workspaceId: string | null },
-    companyId: string,
-  ) {
-    return resolveWorkspaceWithLockMode(db, task, agent, companyId);
-  }
+  const resolveWorkspace: ResolveWorkspaceFn = (task, agent, companyId) =>
+    resolveWorkspaceWithLockMode(db, task, agent, companyId);
 
   function getRunEligibilityFailure(
     agent: { status: string; budgetMonthlyUsd: number; spentMonthlyUsd: number; name: string; connectorId: string; id: string; companyId: string; model?: string | null },
