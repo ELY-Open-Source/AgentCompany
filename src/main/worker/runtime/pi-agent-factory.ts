@@ -30,6 +30,10 @@ export interface PiAgentFactoryInput {
   taskSessionId: string;
   systemPrompt: string;
   model: Model<Api>;
+  // `never` preserves the pre-C4 contract where the caller owns tool
+  // typing (pi-coding-agent's union is too wide to mirror here and C4
+  // adds local internal tools with their own TSchema). The caller casts
+  // a concrete tools array at the `createPiAgent` site.
   tools: never;
   priorMessages: AgentMessage[];
   thinkingLevel: ThinkingLevel;

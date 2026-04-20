@@ -90,6 +90,28 @@ export function wireApiServer(deps: WireApiServerDeps): AgentApiServer {
     automation.handleApprovalResolved(approvalId, companyId, decision);
     deps.threadIntegration.onApprovalResolved(approvalId, companyId, decision);
   };
+  const onApprovalCreated = (
+    approvalId: string,
+    companyId: string,
+    taskId: string | null,
+    approvalType: string,
+    summary: string,
+  ) => {
+    deps.threadIntegration.onApprovalCreated(approvalId, companyId, taskId, approvalType, summary);
+  };
+
+  // Cross-wire the same callbacks into the pi runtime bridge so the
+  // internal-tool path (C4) triggers identical thread/automation
+  // notifications as the HTTP route.
+  const piRuntime = deps.serviceGraph.getPiRuntime();
+  if (!piRuntime) {
+    throw new Error("Pi runtime is not initialized; cannot wire internal-tool callbacks.");
+  }
+  piRuntime.runtimeBridge.setInternalToolCallbacks({
+    onApprovalCreated,
+    onApprovalResolved,
+    onDomainChanged: deps.publishDomainChanged,
+  });
 
   const allowedOrigins = [deps.isDev && deps.devServerUrl ? new URL(deps.devServerUrl).origin : null, "app://-"]
     .filter((origin): origin is string => Boolean(origin));
@@ -102,9 +124,7 @@ export function wireApiServer(deps: WireApiServerDeps): AgentApiServer {
     onCommentPosted: (taskId, companyId, authorAgentId) => {
       dispatchAutomation("comment_posted", { companyId, taskId, agentId: authorAgentId ?? undefined });
     },
-    onApprovalCreated: (approvalId, companyId, taskId, approvalType, summary) => {
-      deps.threadIntegration.onApprovalCreated(approvalId, companyId, taskId, approvalType, summary);
-    },
+    onApprovalCreated,
     onApprovalResolved,
     createDocument: (input) =>
       createDocumentWithLifecycle(

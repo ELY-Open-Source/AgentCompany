@@ -21,6 +21,14 @@ export interface RunJob {
   executionMode: "ai_ceo" | "ai_cofounder";
   /** Seed user turn that kicks off the pi agent loop. Never empty. */
   initialUserTurn: string;
+  /**
+   * Internal tools (`hire_agent`, `file_approval`) to register on this
+   * run's agent in addition to the default coding tools. Determined on
+   * main side before enqueue (see `pi-agent-factory.ts:inject hire_agent
+   * and file_approval into CEO agent`) so the worker never needs to
+   * inspect company/agent state. Empty array = no extra tools.
+   */
+  internalTools: ReadonlyArray<"hire_agent" | "file_approval">;
 }
 
 /**

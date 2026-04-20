@@ -29,6 +29,33 @@ import type {
   BeforeToolCallRpcPayload,
   TransformContextRpcPayload,
 } from "./hook-rpc";
+import { routeInternalToolCall } from "./internal-tools/router";
+import type { InvokeInternalToolRpcPayload } from "@main/worker/runtime/internal-tools/internal-tool-rpc";
+
+/**
+ * Side-effect callbacks the internal-tool handlers invoke after a
+ * successful DB write. These come from the same wire-api-server fabric
+ * the HTTP routes funnel through, so thread integration / automation /
+ * renderer domain-change notifications stay identical across both
+ * entry points. Supplied lazily via `setInternalToolCallbacks` because
+ * the graph builds `RuntimeBridge` before the orchestration/thread-
+ * integration layer exists.
+ */
+export interface InternalToolCallbacks {
+  onApprovalCreated: (
+    approvalId: string,
+    companyId: string,
+    taskId: string | null,
+    approvalType: string,
+    summary: string,
+  ) => void;
+  onApprovalResolved: (
+    approvalId: string,
+    companyId: string,
+    decision: string,
+  ) => void;
+  onDomainChanged: () => void;
+}
 
 export interface RuntimeBridgeDeps {
   db: AppDatabase;
@@ -46,7 +73,8 @@ type RpcMethod =
   | "prepareRun"
   | "beforeToolCall"
   | "afterToolCall"
-  | "transformContext";
+  | "transformContext"
+  | "invokeInternalTool";
 
 /**
  * Single owner of pi runtime side-effects in main.
@@ -99,6 +127,7 @@ export class RuntimeBridge {
   private readonly costWriter: CostWriter;
   private readonly activeRuns = new Map<string, ActiveRunContext>();
   private readonly sessionStores = new Map<string, SqliteSessionStore>();
+  private internalToolCallbacks: InternalToolCallbacks | null = null;
   /**
    * Per-run inbound-message registry. Primary identity is
    * `record.id` (the `agent_messages.id`). A monotonically allocated
@@ -113,6 +142,20 @@ export class RuntimeBridge {
 
   constructor(private readonly deps: RuntimeBridgeDeps) {
     this.costWriter = new CostWriter({ db: deps.db });
+  }
+
+  /**
+   * Late-bind the side-effect callbacks used by the internal-tool
+   * router. The graph must call this exactly once before any tool
+   * invocation fires; missing callbacks at RPC time throw rather than
+   * silently skipping the notification, so a wiring regression surfaces
+   * on the first tool call instead of as a stale-UI ghost.
+   */
+  setInternalToolCallbacks(callbacks: InternalToolCallbacks): void {
+    if (this.internalToolCallbacks) {
+      throw new Error("RuntimeBridge.setInternalToolCallbacks called twice.");
+    }
+    this.internalToolCallbacks = callbacks;
   }
 
   private registerActiveRun(context: ActiveRunContext): void {
@@ -519,10 +562,49 @@ export class RuntimeBridge {
           return this.handleAfterToolCallRpc(request.runId, request.payload as AfterToolCallRpcPayload);
         case "transformContext":
           return this.handleTransformContextRpc(request.runId, request.payload as TransformContextRpcPayload);
+        case "invokeInternalTool":
+          return this.handleInvokeInternalToolRpc(request.runId, request.payload as InvokeInternalToolRpcPayload);
       }
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
+  }
+
+  private handleInvokeInternalToolRpc(
+    runId: string,
+    payload: InvokeInternalToolRpcPayload,
+  ): { ok: true; result: unknown } | { ok: false; error: string } {
+    const ctx = this.activeRuns.get(runId);
+    if (!ctx) {
+      return { ok: false, error: `invokeInternalTool: no active run ${runId}` };
+    }
+    const callbacks = this.internalToolCallbacks;
+    if (!callbacks) {
+      return {
+        ok: false,
+        error: "invokeInternalTool: internal-tool callbacks not wired — service graph init regression.",
+      };
+    }
+    const result = routeInternalToolCall(
+      {
+        hireAgent: {
+          db: this.deps.db,
+          onApprovalResolved: callbacks.onApprovalResolved,
+          onDomainChanged: callbacks.onDomainChanged,
+          logger: this.deps.logger,
+        },
+        fileApproval: {
+          db: this.deps.db,
+          onApprovalCreated: callbacks.onApprovalCreated,
+          onApprovalResolved: callbacks.onApprovalResolved,
+          onDomainChanged: callbacks.onDomainChanged,
+          logger: this.deps.logger,
+        },
+      },
+      { companyId: ctx.companyId, agentId: ctx.agentId },
+      payload,
+    );
+    return { ok: true, result };
   }
 
   private async handlePrepareRunRpc(

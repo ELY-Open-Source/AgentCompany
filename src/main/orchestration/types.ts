@@ -46,6 +46,14 @@ export interface EnqueueRunPayload {
    * on a concrete action cue instead of a context-free `Continue.`.
    */
   initialUserTurn: string;
+  /**
+   * Internal tools main decides to inject for this specific run (C4).
+   * Currently only CEOs with hire authority receive `hire_agent` and
+   * `file_approval`; any other agent's `internalTools` is empty. The
+   * decision is made at dispatch time from the resolved CEO mode so the
+   * worker never re-derives it.
+   */
+  internalTools: ReadonlyArray<"hire_agent" | "file_approval">;
 }
 
 export interface OrchestrationDependencies {

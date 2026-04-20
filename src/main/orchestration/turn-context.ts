@@ -14,6 +14,7 @@ import type { WorkspaceLockMode, EnqueueRunPayload } from "./types";
 import { normalizeCommentsForPrompt } from "../messaging/normalize";
 import { getConnectorModelPolicy, validateConnectorModelSelection } from "../connector-model-policy";
 import { resolveInitialUserTurn } from "./initial-user-turn";
+import { resolveInternalToolsForAgent } from "./internal-tool-selector";
 import { logAppError } from "../errors/index.js";
 
 export interface RunDispatchParams {
@@ -364,6 +365,8 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     { db },
   );
 
+  const internalTools = resolveInternalToolsForAgent(db, agent);
+
   return {
     runId,
     companyId,
@@ -382,5 +385,6 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     taskSessionId: taskSessionId ?? runId,
     executionMode: db.company.getCompanyExecutionMode(companyId) as "ai_ceo" | "ai_cofounder",
     initialUserTurn,
+    internalTools,
   };
 }
