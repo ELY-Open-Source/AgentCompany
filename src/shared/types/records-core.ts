@@ -156,6 +156,15 @@ export interface TaskRecord {
   costUsd: number;
   taskType: string | null;
   requiresUserReview: boolean;
+  /**
+   * Per-task filesystem lock policy (v52+). When `true` the
+   * orchestrator resolves a workspace and holds it exclusively for
+   * the duration of the run; when `false` the run executes with
+   * `lockMode='none'` and agents run in parallel on shared read-only
+   * context. Inferred from agent role at task creation and toggled
+   * explicitly by callers that know their task mutates the tree.
+   */
+  requiresFilesystem: boolean;
   startedAt: string | null;
   completedAt: string | null;
   cancelledAt: string | null;

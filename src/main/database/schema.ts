@@ -17,6 +17,7 @@ import { createMigrationsV48V48 } from "./migrations/v48-v48";
 import { createMigrationsV49V49 } from "./migrations/v49-v49";
 import { createMigrationsV50V50 } from "./migrations/v50-v50";
 import { createMigrationsV51V51 } from "./migrations/v51-v51";
+import { createMigrationsV52V52 } from "./migrations/v52-v52";
 import {
   columnExists,
   nowIso,
@@ -214,6 +215,7 @@ export function runMigrations(
     ...createMigrationsV49V49(deps),
     ...createMigrationsV50V50(deps),
     ...createMigrationsV51V51(deps),
+    ...createMigrationsV52V52(deps),
   ];
 
   // Pre-migration snapshot. If any migration is pending we take a full

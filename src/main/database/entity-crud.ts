@@ -53,11 +53,12 @@ export function buildEntityCrudMethods(
     getTask(id: string): TaskRecord {
       const row = getDb()
         .prepare(
-          "select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, cost_usd as costUsd, task_type as taskType, requires_user_review as requiresUserReview, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks where id = ?",
+          "select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, active_run_id as activeRunId, cost_usd as costUsd, task_type as taskType, requires_user_review as requiresUserReview, requires_filesystem as requiresFilesystem, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks where id = ?",
         )
         .get(id) as TaskRecord | undefined;
       if (!row) throw new Error(`Task not found: ${id}`);
       row.requiresUserReview = Boolean(row.requiresUserReview);
+      row.requiresFilesystem = Boolean(row.requiresFilesystem);
       row.startedAt = row.startedAt ?? null;
       row.completedAt = row.completedAt ?? null;
       row.cancelledAt = row.cancelledAt ?? null;
