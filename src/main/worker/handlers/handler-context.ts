@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { WorkerServiceDependencies, workerMessageSchema } from "../worker-types";
+import type { WorkerServiceDependencies, workerMessageSchema } from "../entry/types";
 
 export type WorkerMessageEvent = z.infer<typeof workerMessageSchema>;
 

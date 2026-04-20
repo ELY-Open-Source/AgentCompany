@@ -2,7 +2,7 @@ import type { z } from "zod";
 import { createCircuitBreaker } from "../circuit-breaker";
 import { handleFailureEscalation, handleSuccessReset } from "../failure-escalation";
 import { persistRunEvent } from "../run-event-recorder";
-import type { workerMessageSchema } from "../worker-types";
+import type { workerMessageSchema } from "../entry/types";
 import type { HandlerContext, HandlerDeps, WorkerMessageEvent } from "./handler-context";
 
 type RunFinishedEvent = Extract<WorkerMessageEvent, { type: "run-finished" }>;

@@ -1,9 +1,9 @@
 import { app, utilityProcess } from "electron";
-import { workerMessageSchema, type WorkerServiceDependencies } from "./worker/worker-types";
-import { handleWorkerExit } from "./worker/worker-crash-recovery";
-import { handleWorkerMessage } from "./worker/worker-message-handler";
+import { workerMessageSchema, type WorkerServiceDependencies } from "./worker/entry/types";
+import { handleWorkerExit } from "./worker/entry/crash-recovery";
+import { handleWorkerMessage } from "./worker/entry/message-handler";
 
-export { workerMessageSchema } from "./worker/worker-types";
+export { workerMessageSchema } from "./worker/entry/types";
 
 export function createWorkerService({
   db,

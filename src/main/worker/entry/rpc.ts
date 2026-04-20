@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { ChildMessage } from "./worker-helpers";
+import type { ChildMessage } from "../worker-helpers";
 
 interface PendingRpc {
   resolve: (value: { ok: true; result: unknown } | { ok: false; error: string }) => void;

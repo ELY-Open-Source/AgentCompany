@@ -1,6 +1,6 @@
-import type { ChildMessage, ParentMessage, RunJob } from "./worker-helpers";
-import { WorkerRpcClient } from "./worker-rpc";
-import { WorkerRunner } from "./worker-runner";
+import type { ChildMessage, ParentMessage, RunJob } from "../worker-helpers";
+import { WorkerRpcClient } from "./rpc";
+import { WorkerRunner } from "../worker-runner";
 
 const parentPort = process.parentPort;
 

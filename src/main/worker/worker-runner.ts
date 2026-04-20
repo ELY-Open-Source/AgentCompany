@@ -5,7 +5,7 @@ import type { ChildMessage, RunJob } from "./worker-helpers";
 import { applyEnvOverrides, buildRedactor } from "./worker-helpers";
 import { createCodingTools } from "@mariozechner/pi-coding-agent";
 import { createPiAgent, resolveThinkingLevel } from "./pi-agent-factory";
-import type { WorkerRpcClient } from "./worker-rpc";
+import type { WorkerRpcClient } from "./entry/rpc";
 
 interface PrepareRunResult {
   provider: string;

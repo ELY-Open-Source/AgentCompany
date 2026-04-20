@@ -1,9 +1,9 @@
-import type { RuntimeBridge, RuntimeMessageInjector } from "../agent-runtime";
-import type { workerMessageSchema } from "./worker-types";
-import { handleRunLog } from "./handlers/run-log-handler";
-import { handleRunStatus } from "./handlers/run-status-handler";
-import { handleRunFinished } from "./handlers/run-finished-handler";
-import type { HandlerContext, HandlerDeps } from "./handlers/handler-context";
+import type { RuntimeBridge, RuntimeMessageInjector } from "../../agent-runtime";
+import type { workerMessageSchema } from "./types";
+import { handleRunLog } from "../handlers/run-log-handler";
+import { handleRunStatus } from "../handlers/run-status-handler";
+import { handleRunFinished } from "../handlers/run-finished-handler";
+import type { HandlerContext, HandlerDeps } from "../handlers/handler-context";
 
 export async function handleWorkerMessage(
   message: unknown,

@@ -1,10 +1,10 @@
 import { z } from "zod";
-import type { AppDatabase } from "../database";
+import type { AppDatabase } from "../../database";
 import type { DesktopEvent, RunRecord } from "@shared/types";
-import type { NotificationOptions } from "../notification-service";
-import type { createBudgetEnforcementService } from "../budget-enforcement-service";
-import type { createSessionManagementService } from "../session-management-service";
-import type { RuntimeBridge, RuntimeMessageInjector } from "../agent-runtime";
+import type { NotificationOptions } from "../../notification-service";
+import type { createBudgetEnforcementService } from "../../budget-enforcement-service";
+import type { createSessionManagementService } from "../../session-management-service";
+import type { RuntimeBridge, RuntimeMessageInjector } from "../../agent-runtime";
 
 const runStatusSchema = z.enum(["queued", "running", "succeeded", "failed", "cancelled", "timed_out", "interrupted"]);
 
