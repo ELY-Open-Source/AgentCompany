@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import log from "electron-log/main.js";
 import { createMigrationsV1V15 } from "./migrations/v1-v15";
 import { createMigrationsV16V25 } from "./migrations/v16-v25";
 import { createMigrationsV26V34 } from "./migrations/v26-v34";
@@ -99,7 +100,12 @@ export function migrateSecretsTable(db: DatabaseSync, readAll: ReadAll) {
   db.exec("drop table secrets_legacy;");
 }
 
-export function initializeDatabase(db: DatabaseSync, ra: ReadAll, tx: Transaction): void {
+export function initializeDatabase(
+  db: DatabaseSync,
+  ra: ReadAll,
+  tx: Transaction,
+  createAutomaticBackup: (reason: string) => string,
+): void {
   db.exec(`
       create table if not exists settings (key text primary key, value text not null);
       create table if not exists companies (id text primary key, name text not null, description text not null, status text not null, created_at text not null, updated_at text not null);
@@ -150,7 +156,7 @@ export function initializeDatabase(db: DatabaseSync, ra: ReadAll, tx: Transactio
 
   migrateSecretsTable(db, ra);
   db.exec(`create index if not exists idx_secrets_company on secrets(company_id);`);
-  runMigrations(db, ra, tx);
+  runMigrations(db, ra, tx, createAutomaticBackup);
   ensureOptionalColumns(db);
 
   db.exec(`
@@ -181,6 +187,7 @@ export function runMigrations(
   db: DatabaseSync,
   readAll: ReadAll,
   transaction: Transaction,
+  createAutomaticBackup: (reason: string) => string,
 ) {
   db.exec(`create table if not exists schema_migrations (version integer primary key, name text not null, applied_at text not null);`);
   const applied = new Set(readAll<{ version: number }>("select version from schema_migrations").map((row) => row.version));
@@ -202,6 +209,19 @@ export function runMigrations(
     ...createMigrationsV47V47(deps),
     ...createMigrationsV48V48(deps),
   ];
+
+  // Pre-migration snapshot. If any migration is pending we take a full
+  // profile snapshot before touching a single row. A migration crash
+  // then yields a well-labelled recovery point instead of a half-
+  // upgraded profile. The snapshot itself must succeed — failure here
+  // aborts the run with the raw error so the caller can surface it to
+  // the operator rather than silently upgrade in-place.
+  const pending = migrations.filter((m) => !applied.has(m.version));
+  if (pending.length > 0) {
+    const highestTargetVersion = pending.reduce((max, m) => Math.max(max, m.version), 0);
+    const path = createAutomaticBackup(`pre-migration-v${highestTargetVersion}`);
+    log.info(`[schema] pre-migration snapshot for v${highestTargetVersion} at ${path}`);
+  }
 
   for (const migration of migrations) {
     if (applied.has(migration.version)) continue;

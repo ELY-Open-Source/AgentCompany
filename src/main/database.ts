@@ -159,6 +159,7 @@ export class AppDatabase extends AppDatabaseBase {
   // ─── Backup ────────────────────────────────────────────────────────────────
 
   exportBackup(targetDir: string) { return this.backupMod.exportBackup(targetDir); }
+  createAutomaticBackup(reason: string) { return this.backupMod.createAutomaticBackup(reason); }
   async restoreFromBackup(sourceDir: string) { return this.backupMod.restoreFromBackup(sourceDir); }
 
   // ─── Thread Runtime ────────────────────────────────────────────────────────

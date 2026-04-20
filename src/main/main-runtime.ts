@@ -60,7 +60,7 @@ export function createMainRuntime({
       isDev,
       devServerOrigin,
       profileDir,
-      appDatabaseFactory: (targetProfileDir) => new AppDatabase(targetProfileDir, { isPackaged: app.isPackaged }),
+      appDatabaseFactory: (targetProfileDir) => new AppDatabase(targetProfileDir, { isPackaged: app.isPackaged, appVersion: app.getVersion() }),
       initSigningKey: initializeAgentTokenSigningKey,
       windowStatePath,
       preloadPath,

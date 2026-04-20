@@ -1,8 +1,41 @@
-import { chmodSync, existsSync, mkdirSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { copyFile, cp, rm } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { DatabaseSync, backup as backupDatabase } from "node:sqlite";
 import log from "electron-log/main.js";
+
+function readSchemaVersion(db: DatabaseSync): number {
+  const row = db
+    .prepare("select coalesce(max(version), 0) as v from schema_migrations")
+    .get() as { v: number } | undefined;
+  return row?.v ?? 0;
+}
+
+function readGitSha(): string | null {
+  try {
+    const out = execFileSync("git", ["rev-parse", "HEAD"], {
+      stdio: ["ignore", "pipe", "ignore"],
+      cwd: process.cwd(),
+      timeout: 1000,
+    });
+    const sha = out.toString("utf8").trim();
+    return sha.length === 40 ? sha : null;
+  } catch {
+    return null;
+  }
+}
+
+function timestampSegment(): string {
+  // Filesystem-safe variant of ISO 8601 (YYYYMMDD-HHmmss-SSS).
+  const now = new Date();
+  const pad = (n: number, w = 2) => n.toString().padStart(w, "0");
+  return (
+    `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}-` +
+    `${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}-` +
+    `${pad(now.getUTCMilliseconds(), 3)}`
+  );
+}
 
 async function copyIfExists(source: string, destination: string) {
   if (!existsSync(source)) {
@@ -23,9 +56,68 @@ export function buildBackupMethods(
     logsDir: string;
     artifactsDir: string;
     backupsDir: string;
+    appVersion: string;
   },
 ) {
   return {
+    /**
+     * Take a synchronous snapshot of the profile before a destructive or
+     * risky operation (currently: pre-migration). Named so the operator
+     * can tell snapshots apart by reason and target schema version.
+     *
+     * Uses `VACUUM INTO` + `cpSync` rather than the async `exportBackup`
+     * path so the caller — `runMigrations`, which is synchronous — can
+     * block on the backup without any async plumbing. The returned path
+     * is absolute so a failed migration can surface the recovery point
+     * in logs verbatim.
+     *
+     * Failure modes are reported by throwing. There is no fallback: if
+     * we cannot take a snapshot we must not touch the schema.
+     */
+    createAutomaticBackup(reason: string): string {
+      if (!reason || reason.includes("/") || reason.includes("\\")) {
+        throw new Error(`createAutomaticBackup: invalid reason "${reason}"`);
+      }
+      const db = deps.getDb();
+      const schemaVersion = readSchemaVersion(db);
+      const segment = `${reason}-v${schemaVersion}-${timestampSegment()}`;
+      const targetDir = join(deps.backupsDir, segment);
+      mkdirSync(deps.backupsDir, { recursive: true });
+      mkdirSync(targetDir, { recursive: true });
+
+      // VACUUM INTO takes a single consistent snapshot of the live DB
+      // while the connection is held open — no WAL checkpoint dance, no
+      // torn writes, works on sqlite3 ≥ 3.27. The destination must not
+      // exist; `mkdirSync` above only created the parent directory.
+      const dbTarget = join(targetDir, "profile.sqlite").replace(/'/g, "''");
+      db.exec(`VACUUM INTO '${dbTarget}'`);
+
+      // Side-car files (logs + artifacts) ride along so operators
+      // restoring from this snapshot see the same run history the
+      // migration saw. `cpSync` is recursive and force-overwrites.
+      if (existsSync(deps.logsDir)) {
+        cpSync(deps.logsDir, join(targetDir, "logs"), { recursive: true, force: true });
+      }
+      if (existsSync(deps.artifactsDir)) {
+        cpSync(deps.artifactsDir, join(targetDir, "artifacts"), { recursive: true, force: true });
+      }
+
+      const manifest = {
+        reason,
+        schemaVersion,
+        appVersion: deps.appVersion,
+        createdAt: new Date().toISOString(),
+        gitSha: readGitSha(),
+      };
+      writeFileSync(
+        join(targetDir, "backup-manifest.json"),
+        `${JSON.stringify(manifest, null, 2)}\n`,
+        { encoding: "utf8" },
+      );
+      log.info(`[database/backup] automatic snapshot "${reason}" written to ${targetDir}`);
+      return targetDir;
+    },
+
     exportBackup(targetDir: string) {
       mkdirSync(targetDir, { recursive: true });
       deps.getDb().exec("PRAGMA wal_checkpoint(TRUNCATE);");

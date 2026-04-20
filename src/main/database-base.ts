@@ -43,6 +43,7 @@ export class AppDatabaseBase {
   readonly logsDir: string;
   readonly artifactsDir: string;
   readonly backupsDir: string;
+  readonly appVersion: string;
   readonly vault: SecretVault;
   protected db: DatabaseSync;
 
@@ -76,12 +77,16 @@ export class AppDatabaseBase {
   public readonly credentialsTable: ReturnType<typeof buildCredentialMethods>;
   public readonly modelCapabilities: ReturnType<typeof buildModelCapabilityMethods>;
 
-  constructor(rootDir: string, options: { isPackaged?: boolean } = {}) {
+  constructor(rootDir: string, options: { isPackaged?: boolean; appVersion?: string } = {}) {
     this.profileDir = rootDir;
     this.dbPath = join(rootDir, "profile.sqlite");
     this.logsDir = join(rootDir, "logs");
     this.artifactsDir = join(rootDir, "artifacts");
     this.backupsDir = join(rootDir, "backups");
+    // Stamped into backup manifests so an operator looking at an old
+    // snapshot can tell which build produced it. Callers (bootstrap)
+    // pass `electron.app.getVersion()`; tests omit it.
+    this.appVersion = options.appVersion ?? "unknown";
     mkdirSync(rootDir, { recursive: true });
     mkdirSync(this.logsDir, { recursive: true });
     mkdirSync(this.artifactsDir, { recursive: true });
@@ -159,6 +164,7 @@ export class AppDatabaseBase {
       profileDir: this.profileDir, dbPath: this.dbPath,
       logsDir: this.logsDir, artifactsDir: this.artifactsDir,
       backupsDir: this.backupsDir,
+      appVersion: this.appVersion,
     });
   }
 
@@ -167,7 +173,7 @@ export class AppDatabaseBase {
   init() {
     const ra = <T>(sql: string, ...params: SQLInputValue[]) => this.readAll<T>(sql, ...params);
     const tx = <T>(op: () => T) => this.transaction(op);
-    initializeDatabase(this.db, ra, tx);
+    initializeDatabase(this.db, ra, tx, (reason) => this.backupMod.createAutomaticBackup(reason));
     this.connectorsCrud.seedConnectors();
     this.modelCapabilities.seedModelCapabilities(MODEL_CAPABILITY_SEED);
     // Crash-recovery: a run still at `running` on boot means the worker
