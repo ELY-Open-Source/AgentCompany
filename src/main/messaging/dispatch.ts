@@ -1,4 +1,4 @@
-import type { AppDatabase } from "./database";
+import type { AppDatabase } from "../database";
 import type { AgentMessageRecord, DesktopEvent, MessageChannel, MentionResult, SectionId } from "@shared/types";
 
 /**

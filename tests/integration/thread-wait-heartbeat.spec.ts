@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { AppDatabase } from "../../src/main/database";
 import { createThreadIntegration } from "../../src/main/thread-integration";
 import { createCheckpointEngine } from "../../src/main/checkpoint-engine";
-import { dispatchAgentMessage, HUMAN_SENDER_ID } from "../../src/main/message-dispatch";
+import { dispatchAgentMessage, HUMAN_SENDER_ID } from "../../src/main/messaging/dispatch";
 
 const tempDirs: string[] = [];
 

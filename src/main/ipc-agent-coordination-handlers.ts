@@ -5,7 +5,7 @@ import {
   searchMessagesSchema,
 } from "@shared/contracts";
 import { fail, ok, type RegisterDomainHandlersDependencies } from "./ipc-domain-common";
-import { dispatchAgentMessage } from "./message-dispatch";
+import { dispatchAgentMessage } from "./messaging/dispatch";
 
 export function registerAgentCoordinationHandlers({
   registerHandle,

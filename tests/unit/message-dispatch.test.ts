@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppDatabase } from "../../src/main/database";
 import { createThreadIntegration } from "../../src/main/thread-integration";
-import { dispatchAgentMessage, HUMAN_SENDER_ID } from "../../src/main/message-dispatch";
+import { dispatchAgentMessage, HUMAN_SENDER_ID } from "../../src/main/messaging/dispatch";
 
 const tempDirs: string[] = [];
 

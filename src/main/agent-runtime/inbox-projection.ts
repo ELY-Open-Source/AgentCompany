@@ -23,7 +23,7 @@ export interface AgentDirectory {
 
 /**
  * Strip control characters (except newlines/tabs) and collapse excessive
- * whitespace runs. Mirrors `message-normalize.ts#cleanText` to keep the
+ * whitespace runs. Mirrors `messaging/normalize.ts#cleanText` to keep the
  * transcript resilient against garbage from upstream senders.
  */
 function cleanText(text: string): string {

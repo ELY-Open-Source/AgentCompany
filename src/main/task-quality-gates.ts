@@ -9,7 +9,7 @@ import log from "electron-log/main.js";
 import type { DesktopEvent } from "@shared/types";
 import type { AppDatabase } from "@main/database";
 import type { NotificationOptions } from "@main/notification-service";
-import type { dispatchAgentMessage } from "@main/message-dispatch";
+import type { dispatchAgentMessage } from "@main/messaging/dispatch";
 import type { resolveApprovalDecision } from "@main/approval-policy";
 import { validateTaskRubric } from "@main/task-rubrics";
 

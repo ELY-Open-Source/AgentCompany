@@ -18,7 +18,7 @@
 
 import type { AppDatabase } from "../database";
 import type { AgentMessageRecord } from "@shared/types";
-import { HUMAN_SENDER_ID } from "../message-dispatch";
+import { HUMAN_SENDER_ID } from "../messaging/dispatch";
 
 export interface InitialUserTurnDeps {
   db: AppDatabase;

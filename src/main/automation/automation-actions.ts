@@ -1,6 +1,6 @@
 import type { AppDatabase } from "../database";
 import type { AutomationAction, DesktopEvent } from "@shared/types";
-import { dispatchAgentMessage } from "../message-dispatch";
+import { dispatchAgentMessage } from "../messaging/dispatch";
 import { validateTaskCreation } from "../task-quality-gates";
 import type { AutomationEventContext } from "./types";
 import { parseActionConfig, type AutomationActionConfigMap } from "./automation-action-schemas";

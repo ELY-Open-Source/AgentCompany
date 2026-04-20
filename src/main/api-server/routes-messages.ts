@@ -1,6 +1,6 @@
 import log from "electron-log/main.js";
 import { agentMessageInputSchema } from "@shared/contracts";
-import { dispatchAgentMessage } from "../message-dispatch";
+import { dispatchAgentMessage } from "../messaging/dispatch";
 import { requireParam, type AgentApiServer } from "./server-core";
 
 export function registerMessageRoutes(server: AgentApiServer) {

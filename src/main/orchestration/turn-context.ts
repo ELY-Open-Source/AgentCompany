@@ -11,7 +11,7 @@ import type { AppDatabase } from "../database";
 import type { ProjectedSkill } from "../skill-types";
 import type { ConnectorId, ExecutionMode } from "@shared/types";
 import type { WorkspaceLockMode, EnqueueRunPayload } from "./types";
-import { normalizeCommentsForPrompt } from "../message-normalize";
+import { normalizeCommentsForPrompt } from "../messaging/normalize";
 import { getConnectorModelPolicy, validateConnectorModelSelection } from "../connector-model-policy";
 import { resolveInitialUserTurn } from "./initial-user-turn";
 

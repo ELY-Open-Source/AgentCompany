@@ -2,7 +2,7 @@ import type { OrchestrationDependencies } from "./types";
 import { sweepStaleReviews } from "../task-quality-gates";
 import type { SweepStaleReviewsDeps } from "../task-quality-gates";
 import { resolveApprovalDecision } from "../approval-policy";
-import { dispatchAgentMessage } from "../message-dispatch";
+import { dispatchAgentMessage } from "../messaging/dispatch";
 
 export function createHousekeepingScheduler(
   deps: OrchestrationDependencies,

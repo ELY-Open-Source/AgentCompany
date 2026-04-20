@@ -4,7 +4,7 @@ import type { AgentRecord, ConnectorRecord } from "@shared/types";
 import type { OrchestrationDependencies } from "./types";
 import type { RunDispatchParams } from "./turn-context";
 import { pickModelForAgent } from "../model-dispatch";
-import { HUMAN_SENDER_ID } from "../message-dispatch";
+import { HUMAN_SENDER_ID } from "../messaging/dispatch";
 
 /**
  * Every reason a heartbeat attempt can be rejected before a run is
