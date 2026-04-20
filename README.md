@@ -20,7 +20,7 @@
 ---
 
 <p align="center">
-  <img src="screenshots/Dashboard.jpeg" width="800" alt="AgentCompany dashboard" />
+  <img src="docs/screenshots/Dashboard.jpeg" width="800" alt="AgentCompany dashboard" />
 </p>
 
 ## What it does
@@ -60,42 +60,42 @@ Switch at Settings → Execution mode.
 CEO builds the org chart from one goal.
 
 <p align="center">
-  <img src="screenshots/Auto-OrgChart-Team.jpeg" width="700" alt="Org chart" />
+  <img src="docs/screenshots/Auto-OrgChart-Team.jpeg" width="700" alt="Org chart" />
 </p>
 
 ### Agent messaging
 Threads and DMs between agents. Direct / department / project / company / incident channels resolve to wake targets; each message lands in the recipient's transcript as a pi `AgentMessage` turn. If the recipient is already running, the message is delivered live via pi's steer queue; if not, it waits in the inbox until the next prepareRun.
 
 <p align="center">
-  <img src="screenshots/AI-Internal-Realtime-Message.jpeg" width="700" alt="Agent messaging" />
+  <img src="docs/screenshots/AI-Internal-Realtime-Message.jpeg" width="700" alt="Agent messaging" />
 </p>
 
 ### Tasks
 Goals break into tasks. Agents pick them up, report progress, escalate blockers.
 
 <p align="center">
-  <img src="screenshots/Auto-Task.jpeg" width="700" alt="Task queue" />
+  <img src="docs/screenshots/Auto-Task.jpeg" width="700" alt="Task queue" />
 </p>
 
 ### Approvals
 Hiring, deliverables, plan/scope/strategy reviews, budget overrides, production deploys pause for the board. The same approval policy gates the agent's destructive tools (`bash` / `write` / `edit`) via pi's `beforeToolCall` hook, so a pending approval stops file and shell mutations instead of just flagging them after the fact.
 
 <p align="center">
-  <img src="screenshots/Approval-by-Human.jpeg" width="700" alt="Approvals" />
+  <img src="docs/screenshots/Approval-by-Human.jpeg" width="700" alt="Approvals" />
 </p>
 
 ### Documents
 Plans, strategies, and specs in a shared center, linked to the tasks that produced them.
 
 <p align="center">
-  <img src="screenshots/Document-Center.jpeg" width="700" alt="Document center" />
+  <img src="docs/screenshots/Document-Center.jpeg" width="700" alt="Document center" />
 </p>
 
 ### Launch in a minute
 Name, mission, goal, provider, mode.
 
 <p align="center">
-  <img src="screenshots/Onboarding.jpeg" width="700" alt="Onboarding" />
+  <img src="docs/screenshots/Onboarding.jpeg" width="700" alt="Onboarding" />
 </p>
 
 ---
@@ -170,6 +170,22 @@ src/
 - Workspace locks are single-writer-per-repo — every resolved workspace is held exclusively for the duration of the run; contenders queue on the wakeup table.
 - Thread runtime (`conversation_threads` / `conversation_events` / `thread_wait_states`) sits above pi's `AgentMessage` stream.
 - Startup only runs schema migrations plus `interruptStaleRuns`; all other data-repair lives at the transition point or in explicit maintenance paths.
+
+---
+
+## Top-level directories
+
+| Path | Purpose |
+|------|---------|
+| `src/` | TypeScript source for main / preload / renderer / shared. |
+| `tests/` | Vitest unit + integration, Playwright e2e, `tests/eval/` for LLM-behavior eval. |
+| `assets/` | App icons, tray icons, and macOS entitlements. Referenced by `electron-builder.yml` and `src/main/index.ts` — must stay at repo root. |
+| `builtin-skills/` | Agent skill bundles shipped with the app. Loaded at runtime from `process.cwd()` or `process.resourcesPath` (see `src/main/skills/runtime.ts`) and packaged by `electron-builder.yml`. Must stay at repo root. |
+| `docs/` | Contributor-facing documentation, proposals, release notes, and README screenshots (`docs/screenshots/`). |
+| `scripts/` | Build, release, and packaging Node scripts. |
+| `landing/` | Marketing site (Next.js). Has its own `landing/public/screenshots/`, separate from `docs/screenshots/`. |
+| `AgentCompany-Rust/` | Exploratory Rust port; see section below. |
+| `pi-mono-reference/` | Read-only reference checkout of the pi-mono SDK used by the runtime. |
 
 ---
 
