@@ -70,7 +70,7 @@
 2.  **​自动化执行​**: `curl`、`cat`、`git` 等命令直接运行免确认；Playwright 脚本在终端持续会话，禁止无意义的暂停。
 3.  **​子代理分流​**: 复杂问题（多于1个、需 Review/研究/并行分析）必须拆解并使用子代理（5.4 模型），保持主上下文纯净。
 4.  **​API 接入​**: 参考 `/Users/ifengz/CodingCase/002_DevelopSpec/1.Doc/`中的现成方案，并不断补充新内容。
-5.  **​自我进化​**: 用户指正后立即更新 `lessons.md`。开始新任务前必须回顾 `lessons.md`。
+5.  **​自我进化​**: 用户指正后立即更新项目级 `AGENTS.md`。
 
 ## 运维安全守则 (Operations Constraints)
 
