@@ -149,14 +149,14 @@ export function registerCoreReadHandlers({
     const input = metricsQuerySchema.parse(payload);
     const err = ensureCompanyExists(input.companyId);
     if (err) return err;
-    return ok(db.getCompanyMetrics(input.companyId, input.days));
+    return ok(db.company.getCompanyMetrics(input.companyId, input.days));
   });
 
   registerHandle(IPC_CHANNELS.getStandupReport, (_event, payload) => {
     const companyId = z.string().uuid().parse(payload);
     const err = ensureCompanyExists(companyId);
     if (err) return err;
-    return ok(db.getStandupReport(companyId));
+    return ok(db.company.getStandupReport(companyId));
   });
 
   // --- Entity getters for granular IPC updates ---
@@ -194,7 +194,7 @@ export function registerCoreReadHandlers({
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
     try {
-      const run = db.getRun(parsed.id);
+      const run = db.runs.getRun(parsed.id);
       if (run.companyId !== parsed.companyId) return fail("RUN_NOT_FOUND", "Run not found in current company.");
       return ok(run);
     } catch (err) {
@@ -208,7 +208,7 @@ export function registerCoreReadHandlers({
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
     try {
-      const approval = db.getApprovalRecord(parsed.id);
+      const approval = db.approvalsMod.getApprovalRecord(parsed.id);
       if (approval.companyId !== parsed.companyId) return fail("APPROVAL_NOT_FOUND", "Approval not found in current company.");
       return ok(approval);
     } catch (err) {

@@ -27,7 +27,7 @@ import { AppDatabase } from "../../src/main/database";
  */
 
 function createTestCompany(db: AppDatabase): string {
-  return db.saveCompany({
+  return db.company.saveCompany({
     name: "Phase Helper Company",
     description: "B2 phase + lease unit tests",
     status: "active",
@@ -94,7 +94,7 @@ function createTestRun(
   agentId: string,
   workspaceId: string,
 ): string {
-  const { id } = db.createRun({
+  const { id } = db.runs.createRun({
     companyId,
     taskId,
     agentId,

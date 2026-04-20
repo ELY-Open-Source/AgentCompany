@@ -34,7 +34,7 @@ async function createHarness() {
     lastError: null,
   });
 
-  const companyId = db.saveCompany({
+  const companyId = db.company.saveCompany({
     name: "Document Provenance Co",
     description: "Tests document revision provenance through run completion",
     status: "active",
@@ -82,7 +82,7 @@ async function createHarness() {
     status: "draft",
   });
 
-  const run = db.createRun({
+  const run = db.runs.createRun({
     companyId,
     taskId,
     agentId,
@@ -284,7 +284,7 @@ describe("document run provenance", () => {
   it("creates deliverable review approvals that stay linked to the originating task", async () => {
     const harness = await createHarness();
     try {
-      harness.db.saveCompany({
+      harness.db.company.saveCompany({
         id: harness.companyId,
         name: "Document Provenance Co",
         description: "Tests document review task linkage",

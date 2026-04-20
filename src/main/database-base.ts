@@ -250,68 +250,12 @@ export class AppDatabaseBase {
   listSnapshot(options: { companyId?: string | null } = {}): ProfileSnapshot { return this.snap.listSnapshot(options); }
   listRendererSnapshot(): ProfileSnapshot { return this.snap.listRendererSnapshot(); }
 
-  // ─── Company ───────────────────────────────────────────────────────────────
-
-  saveCompany(input: { id?: string | null; name: string; description: string; status: string; autoApproveHires?: boolean; reviewDeliverables?: boolean; executionMode?: string }) { return this.company.saveCompany(input); }
-  deleteCompany(id: string) { return this.company.deleteCompany(id); }
-  getCompanyStatus(companyId: string) { return this.company.getCompanyStatus(companyId); }
-  getCompanyBasic(companyId: string) { return this.company.getCompanyBasic(companyId); }
-  getCompanyExecutionMode(companyId: string) { return this.company.getCompanyExecutionMode(companyId); }
-  getCompanyApprovalSettings(companyId: string) { return this.company.getCompanyApprovalSettings(companyId); }
-  listActiveCompanyIds() { return this.company.listActiveCompanyIds(); }
-  getCompanyMetrics(companyId: string, days: number = 30) { return this.company.getCompanyMetrics(companyId, days); }
-  getStandupReport(companyId: string) { return this.company.getStandupReport(companyId); }
-  getDashboardSnapshot(companyId: string) { return this.company.getDashboardSnapshot(companyId); }
-
   // ─── Connectors ────────────────────────────────────────────────────────────
 
   saveConnector(input: { id: ConnectorId; model: string | null; envBindingText: string; notes: string }) { this.connectorsCrud.saveConnector(input); }
   updateConnectorHealth(input: { id: ConnectorId; status: string; authState: string; version: string | null; lastError: string | null }) { this.connectorsCrud.updateConnectorHealth(input); }
   getConnector(id: ConnectorId) { return this.connectorsCrud.getConnector(id); }
   findConnector(id: ConnectorId) { return this.connectorsCrud.findConnector(id); }
-
-  // ─── Runs ──────────────────────────────────────────────────────────────────
-
-  getRun(id: string) { return this.runs.getRun(id); }
-  getRunAuthState(runId: string) { return this.runs.getRunAuthState(runId); }
-  createRun(input: { id?: string; companyId: string; taskId: string | null; agentId: string; workspaceId: string | null; connectorId: ConnectorId }) { return this.runs.createRun(input); }
-  appendRunLog(runId: string, stream: "stdout" | "stderr", chunk: string) { return this.runs.appendRunLog(runId, stream, chunk); }
-  readRunLog(runId: string) { return this.runs.readRunLog(runId); }
-  readRunLogChunk(runId: string, offset = 0, limit = 65_536) { return this.runs.readRunLogChunk(runId, offset, limit); }
-  markRunStatus(runId: string, status: RunStatus, message: string) { return this.runs.markRunStatus(runId, status, message); }
-  finishRun(input: { runId: string; status: RunStatus; summary: string | null; errorMessage: string | null; exitCode: number | null; signal: string | null; model: string | null; unattributedCost: boolean }) { return this.runs.finishRun(input); }
-  recordCostEntry(input: { runId: string; companyId: string; agentId: string; taskId: string | null; connectorId: string; amountUsd: number | null; unattributed: boolean }) { return this.runs.recordCostEntry(input); }
-  hasActiveRun(filter: { companyId: string; taskId?: string; agentId?: string }) { return this.runs.hasActiveRun(filter); }
-  listQueuedRuns() { return this.runs.listQueuedRuns(); }
-  getInterruptedRunsForRecovery() { return this.runs.getInterruptedRunsForRecovery(); }
-  appendRunEvent(input: { companyId: string; runId: string; agentId: string; eventType: string; stream?: string | null; level?: string | null; message?: string | null; payload?: Record<string, unknown> | null }) { return this.runs.appendRunEvent(input); }
-  listRunEvents(runId: string, companyId: string, opts?: { offset?: number; limit?: number }) { return this.runs.listRunEvents(runId, companyId, opts); }
-  listRunEventsAfter(runId: string, companyId: string, afterSeq: number, limit: number) { return this.runs.listRunEventsAfter(runId, companyId, afterSeq, limit); }
-  updateRunActor(runId: string, actorType: string, actorId: string | null) { return this.runs.updateRunActor(runId, actorType, actorId); }
-
-  // ─── Approvals ─────────────────────────────────────────────────────────────
-
-  requestApproval(input: { companyId: string; relatedTaskId?: string | null; requestedByAgentId?: string | null; relatedAgentId?: string | null; type: string; payloadSummary: string; impactSummary: string; payloadJson?: string | null }) { return this.approvalsMod.requestApproval(input); }
-  decideApproval(input: { companyId?: string | null; approvalId: string; state: string; decisionNote: string }) { return this.approvalsMod.decideApproval(input); }
-  getApprovalRecord(id: string) { return this.approvalsMod.getApprovalRecord(id); }
-  findApprovalById(id: string) { return this.approvalsMod.findApprovalById(id); }
-  deleteApproval(id: string, companyId: string) { this.approvalsMod.deleteApproval(id, companyId); }
-  getBlockingApproval(companyId: string, agentId: string, taskId: string | null) { return this.approvalsMod.getBlockingApproval(companyId, agentId, taskId); }
-  resubmitApproval(approvalId: string, companyId: string) { this.approvalsMod.resubmitApproval(approvalId, companyId); }
-  addApprovalComment(input: { companyId: string; approvalId: string; authorAgentId?: string | null; authorUserId?: string | null; body: string }) { return this.approvalsMod.addApprovalComment(input); }
-  listApprovalComments(approvalId: string, companyId: string) { return this.approvalsMod.listApprovalComments(approvalId, companyId); }
-  linkTaskToApproval(taskId: string, approvalId: string, companyId: string, linkedByAgentId?: string | null) { this.approvalsMod.linkTaskToApproval(taskId, approvalId, companyId, linkedByAgentId); }
-  unlinkTaskFromApproval(taskId: string, approvalId: string) { this.approvalsMod.unlinkTaskFromApproval(taskId, approvalId); }
-  listApprovalsForTask(taskId: string) { return this.approvalsMod.listApprovalsForTask(taskId); }
-  listTasksForApproval(approvalId: string) { return this.approvalsMod.listTasksForApproval(approvalId); }
-  linkManyTasksToApproval(approvalId: string, taskIds: string[], companyId: string, linkedByAgentId?: string | null) { this.approvalsMod.linkManyTasksToApproval(approvalId, taskIds, companyId, linkedByAgentId); }
-  listAgentPendingApprovals(companyId: string, agentId: string) { return this.approvalsMod.listAgentPendingApprovals(companyId, agentId); }
-  listAgentResolvedApprovals(companyId: string, agentId: string, limit?: number) { return this.approvalsMod.listAgentResolvedApprovals(companyId, agentId, limit); }
-  listPendingHireApprovalPayloads(companyId: string) { return this.approvalsMod.listPendingHireApprovalPayloads(companyId); }
-  listApprovalsForApi(companyId: string, filters: { requestedByAgentId?: string; relatedTaskId?: string; statuses?: string[] | null }) { return this.approvalsMod.listApprovalsForApi(companyId, filters); }
-  findPendingApprovalForTask(companyId: string, taskId: string) { return this.approvalsMod.findPendingApprovalForTask(companyId, taskId); }
-  hasPendingReviewApprovalForAgent(companyId: string, agentId: string) { return this.approvalsMod.hasPendingReviewApprovalForAgent(companyId, agentId); }
-  listCompanyApprovalsByType(companyId: string, type: string) { return this.approvalsMod.listCompanyApprovalsByType(companyId, type); }
 
   // ─── Workspaces ────────────────────────────────────────────────────────────
 

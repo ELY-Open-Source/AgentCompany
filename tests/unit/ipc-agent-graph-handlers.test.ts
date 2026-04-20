@@ -38,7 +38,7 @@ describe("ipc-core-agent-graph-handlers model enforcement", () => {
       version: "test",
       lastError: null,
     });
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Handler Test Co",
       description: "Tests saveAgent model validation",
       status: "active",

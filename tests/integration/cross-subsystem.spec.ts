@@ -64,7 +64,7 @@ function scaffold(db: AppDatabase, budgetAmountCents = 500): ScaffoldResult {
     notes: "Non-exempt connector for session rotation tests",
   });
 
-  const companyId = db.saveCompany({
+  const companyId = db.company.saveCompany({
     name: "Pipeline Test Corp",
     description: "Cross-subsystem pipeline integration tests",
     status: "active",
@@ -187,7 +187,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     });
 
     // 2. CAS checkout: create run and checkout task
-    const { id: runId } = db.createRun({
+    const { id: runId } = db.runs.createRun({
       companyId: s.companyId,
       taskId,
       agentId: s.agentId,
@@ -207,9 +207,9 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     expect(budgetResult.blockedBy).toHaveLength(0);
 
     // 4. Execute run
-    db.markRunStatus(runId, "running", "Starting");
-    db.recordCostEntry({ runId, companyId: s.companyId, agentId: s.agentId, taskId, connectorId: "gemini-cli", amountUsd: 0.05, unattributed: false });
-    db.finishRun({
+    db.runs.markRunStatus(runId, "running", "Starting");
+    db.runs.recordCostEntry({ runId, companyId: s.companyId, agentId: s.agentId, taskId, connectorId: "gemini-cli", amountUsd: 0.05, unattributed: false });
+    db.runs.finishRun({
       runId,
       status: "succeeded",
       summary: "Login page built with form validation",
@@ -229,7 +229,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     sessionService.accumulateTokenUsage(sessionId, 5000, 2000, runId);
 
     // 6. Verify final state
-    const run = db.getRun(runId);
+    const run = db.runs.getRun(runId);
     expect(run.status).toBe("succeeded");
 
     const task = db.entityCrud.getTask(taskId);
@@ -266,7 +266,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     });
 
     // First agent checks out
-    const { id: runId1 } = db.createRun({
+    const { id: runId1 } = db.runs.createRun({
       companyId: s.companyId,
       taskId,
       agentId: s.agentId,
@@ -289,7 +289,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       capabilities: "Backend development",
       budgetMonthlyUsd: 100,
     });
-    const { id: runId2 } = db.createRun({
+    const { id: runId2 } = db.runs.createRun({
       companyId: s.companyId,
       taskId,
       agentId: agent2Id,
@@ -322,7 +322,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       status: "todo",
     });
 
-    const { id: runId } = db.createRun({
+    const { id: runId } = db.runs.createRun({
       companyId: s.companyId,
       taskId,
       agentId: s.agentId,
@@ -331,9 +331,9 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     });
 
     db.tasks.checkoutTask(taskId, runId);
-    db.markRunStatus(runId, "running", "Starting");
-    db.recordCostEntry({ runId, companyId: s.companyId, agentId: s.agentId, taskId, connectorId: s.connectorId, amountUsd: 1.5, unattributed: false });
-    db.finishRun({
+    db.runs.markRunStatus(runId, "running", "Starting");
+    db.runs.recordCostEntry({ runId, companyId: s.companyId, agentId: s.agentId, taskId, connectorId: s.connectorId, amountUsd: 1.5, unattributed: false });
+    db.runs.finishRun({
       runId,
       status: "succeeded",
       summary: "Done",
@@ -382,7 +382,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     });
 
     // Run 1: create run and accumulate tokens
-    const { id: runId1 } = db.createRun({
+    const { id: runId1 } = db.runs.createRun({
       companyId: s.companyId,
       taskId,
       agentId: s.agentId,
@@ -392,7 +392,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
     sessionService.accumulateTokenUsage(sessionId, 5000, 2000, runId1);
 
     // Run 2: create another run and accumulate more tokens
-    const { id: runId2 } = db.createRun({
+    const { id: runId2 } = db.runs.createRun({
       companyId: s.companyId,
       taskId,
       agentId: s.agentId,
@@ -432,7 +432,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       status: "todo",
     });
 
-    const { id: runId1 } = db.createRun({
+    const { id: runId1 } = db.runs.createRun({
       companyId: s.companyId,
       taskId: taskId1,
       agentId: s.agentId,
@@ -440,9 +440,9 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       connectorId: s.connectorId,
     });
     db.tasks.checkoutTask(taskId1, runId1);
-    db.markRunStatus(runId1, "running", "Starting");
-    db.recordCostEntry({ runId: runId1, companyId: s.companyId, agentId: s.agentId, taskId: taskId1, connectorId: s.connectorId, amountUsd: 3.0, unattributed: false });
-    db.finishRun({
+    db.runs.markRunStatus(runId1, "running", "Starting");
+    db.runs.recordCostEntry({ runId: runId1, companyId: s.companyId, agentId: s.agentId, taskId: taskId1, connectorId: s.connectorId, amountUsd: 3.0, unattributed: false });
+    db.runs.finishRun({
       runId: runId1,
       status: "succeeded",
       summary: "First task done",
@@ -473,7 +473,7 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       status: "todo",
     });
 
-    const { id: runId2 } = db.createRun({
+    const { id: runId2 } = db.runs.createRun({
       companyId: s.companyId,
       taskId: taskId2,
       agentId: s.agentId,
@@ -481,9 +481,9 @@ describe("Cross-Subsystem Pipeline (D-04)", () => {
       connectorId: s.connectorId,
     });
     db.tasks.checkoutTask(taskId2, runId2);
-    db.markRunStatus(runId2, "running", "Starting");
-    db.recordCostEntry({ runId: runId2, companyId: s.companyId, agentId: s.agentId, taskId: taskId2, connectorId: s.connectorId, amountUsd: 3.0, unattributed: false });
-    db.finishRun({
+    db.runs.markRunStatus(runId2, "running", "Starting");
+    db.runs.recordCostEntry({ runId: runId2, companyId: s.companyId, agentId: s.agentId, taskId: taskId2, connectorId: s.connectorId, amountUsd: 3.0, unattributed: false });
+    db.runs.finishRun({
       runId: runId2,
       status: "succeeded",
       summary: "Second task done",

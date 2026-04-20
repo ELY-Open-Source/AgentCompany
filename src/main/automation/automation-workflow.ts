@@ -160,7 +160,7 @@ export async function runWorkflowPipeline(
     const { config, ctx } = buildWorkflowActionContext(companyId, step, actor);
 
     if (step.requiresApproval) {
-      const approvalId = db.requestApproval({
+      const approvalId = db.approvalsMod.requestApproval({
         companyId,
         requestedByAgentId: actor?.id ?? null,
         relatedTaskId: ctx.taskId ?? null,

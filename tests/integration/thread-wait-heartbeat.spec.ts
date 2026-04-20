@@ -36,7 +36,7 @@ function createScaffold(db: AppDatabase) {
     lastError: null,
   });
 
-  const companyId = db.saveCompany({
+  const companyId = db.company.saveCompany({
     name: "Thread Wait Co",
     description: "Tests cofounder wait states and replies",
     status: "active",
@@ -204,7 +204,7 @@ describe("thread wait + heartbeat integration", () => {
       throw new Error("Expected a task thread to exist for approval resolution testing.");
     }
 
-    const approvalId = db.requestApproval({
+    const approvalId = db.approvalsMod.requestApproval({
       companyId,
       relatedTaskId: taskId,
       requestedByAgentId: engineerId,
@@ -238,7 +238,7 @@ describe("thread wait + heartbeat integration", () => {
     expect(waitStates).toHaveLength(1);
     expect(checkpointEngine.shouldPauseHeartbeat(companyId, engineerId)).toBe(true);
 
-    db.decideApproval({
+    db.approvalsMod.decideApproval({
       approvalId,
       state: "approved",
       decisionNote: "Approved by board",

@@ -134,7 +134,7 @@ function checkOperationalApprovalBlock(
   toolName: string,
 ): BeforeToolCallRpcResult {
   try {
-    const blocking = deps.db.getBlockingApproval(ctx.companyId, ctx.agentId, ctx.taskId);
+    const blocking = deps.db.approvalsMod.getBlockingApproval(ctx.companyId, ctx.agentId, ctx.taskId);
     if (!blocking) return { block: false, reason: null };
     if (!OPERATIONAL_APPROVAL_TYPES.has(blocking.type as ApprovalType)) {
       return { block: false, reason: null };

@@ -31,7 +31,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
     });
     const parsed = wakeSchema.safeParse(body);
     const reason = parsed.success ? parsed.data.reason : "peer_request";
-    const alreadyActive = db.hasActiveRun({ companyId: token.companyId, agentId: targetAgentId });
+    const alreadyActive = db.runs.hasActiveRun({ companyId: token.companyId, agentId: targetAgentId });
     const runId = onWakeAgent(targetAgentId, token.companyId, reason);
     if (runId) {
       server.json(res, 200, { ok: true, runId, message: `Wake started for agent ${targetAgentId}` });
@@ -65,7 +65,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Current agent is not allowed to trigger heartbeat for this agent" });
       return;
     }
-    const alreadyActive = db.hasActiveRun({ companyId: token.companyId, agentId: targetAgentId });
+    const alreadyActive = db.runs.hasActiveRun({ companyId: token.companyId, agentId: targetAgentId });
     const runId = onWakeAgent(targetAgentId, token.companyId, "peer_request");
     if (runId) {
       server.json(res, 200, { ok: true, runId, message: `Heartbeat triggered for agent ${targetAgentId}` });

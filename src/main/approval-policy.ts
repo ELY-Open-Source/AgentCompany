@@ -20,7 +20,7 @@ export function resolveApprovalDecision({
   actor?: string;
 }) {
   const note = decisionNote ?? "";
-  db.decideApproval({
+  db.approvalsMod.decideApproval({
     companyId,
     approvalId,
     state,

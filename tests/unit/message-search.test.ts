@@ -26,7 +26,7 @@ describe("AppDatabase.searchMessages", () => {
     db = new AppDatabase(tempDir);
     db.init();
 
-    companyId = db.saveCompany({
+    companyId = db.company.saveCompany({
       name: "Search Test Corp",
       description: "Company for testing message search",
       status: "active",
@@ -61,7 +61,7 @@ describe("AppDatabase.searchMessages", () => {
     });
 
     // Seed messages across different channels
-    db.sendAgentMessage({
+    db.messages.sendAgentMessage({
       companyId,
       fromAgentId: agentA,
       toAgentId: agentB,
@@ -71,7 +71,7 @@ describe("AppDatabase.searchMessages", () => {
       priority: "normal",
     });
 
-    db.sendAgentMessage({
+    db.messages.sendAgentMessage({
       companyId,
       fromAgentId: agentB,
       toAgentId: agentA,
@@ -81,7 +81,7 @@ describe("AppDatabase.searchMessages", () => {
       priority: "normal",
     });
 
-    db.sendAgentMessage({
+    db.messages.sendAgentMessage({
       companyId,
       fromAgentId: agentA,
       channel: "company",
@@ -90,7 +90,7 @@ describe("AppDatabase.searchMessages", () => {
       priority: "normal",
     });
 
-    db.sendAgentMessage({
+    db.messages.sendAgentMessage({
       companyId,
       fromAgentId: agentA,
       channel: "department",
@@ -100,7 +100,7 @@ describe("AppDatabase.searchMessages", () => {
       priority: "urgent",
     });
 
-    db.sendAgentMessage({
+    db.messages.sendAgentMessage({
       companyId,
       fromAgentId: agentB,
       channel: "department",
@@ -117,21 +117,21 @@ describe("AppDatabase.searchMessages", () => {
   });
 
   it("returns messages where body contains the query string", () => {
-    const results = db.searchMessages(companyId, "velocity");
+    const results = db.messages.searchMessages(companyId, "velocity");
     expect(results.length).toBe(1);
     expect(results[0].companyId).toBe(companyId);
     expect(results[0].body.toLowerCase()).toContain("velocity");
   });
 
   it("returns messages where subject contains the query string", () => {
-    const results = db.searchMessages(companyId, "retrospective");
+    const results = db.messages.searchMessages(companyId, "retrospective");
     expect(results.length).toBe(1);
     expect(results[0].subject).toBe("Sprint retrospective");
   });
 
   it("escapes LIKE wildcards so % and _ match literally", () => {
     // Insert a message with literal % and _ characters
-    db.sendAgentMessage({
+    db.messages.sendAgentMessage({
       companyId,
       fromAgentId: agentA,
       channel: "company",
@@ -141,25 +141,25 @@ describe("AppDatabase.searchMessages", () => {
     });
 
     // Search for the literal "95%"
-    const percentResults = db.searchMessages(companyId, "95%");
+    const percentResults = db.messages.searchMessages(companyId, "95%");
     expect(percentResults.length).toBe(1);
     expect(percentResults[0].body).toContain("95%");
 
     // Search for the literal "disk_io"
-    const underscoreResults = db.searchMessages(companyId, "disk_io");
+    const underscoreResults = db.messages.searchMessages(companyId, "disk_io");
     expect(underscoreResults.length).toBe(1);
     expect(underscoreResults[0].body).toContain("disk_io");
   });
 
   it("scopes to a specific channel when channel param is provided", () => {
-    const results = db.searchMessages(companyId, "approvals", { channel: "department" });
+    const results = db.messages.searchMessages(companyId, "approvals", { channel: "department" });
     expect(results.length).toBe(1);
     expect(results[0].channel).toBe("department");
     expect(results[0].body).toContain("approvals");
   });
 
   it("scopes to channelTargetId when provided alongside channel", () => {
-    const results = db.searchMessages(companyId, "updated", {
+    const results = db.messages.searchMessages(companyId, "updated", {
       channel: "department",
       channelTargetId: "design",
     });
@@ -168,14 +168,14 @@ describe("AppDatabase.searchMessages", () => {
   });
 
   it("returns empty array when no matches", () => {
-    const results = db.searchMessages(companyId, "xyznonexistentquery");
+    const results = db.messages.searchMessages(companyId, "xyznonexistentquery");
     expect(results).toEqual([]);
   });
 
   it("respects the limit parameter (default 50)", () => {
     // Insert 60 messages
     for (let i = 0; i < 60; i++) {
-      db.sendAgentMessage({
+      db.messages.sendAgentMessage({
         companyId,
         fromAgentId: agentA,
         channel: "company",
@@ -186,16 +186,16 @@ describe("AppDatabase.searchMessages", () => {
     }
 
     // Default limit should be 50
-    const defaultResults = db.searchMessages(companyId, "flood test");
+    const defaultResults = db.messages.searchMessages(companyId, "flood test");
     expect(defaultResults.length).toBe(50);
 
     // Explicit limit of 10
-    const limitedResults = db.searchMessages(companyId, "flood test", { limit: 10 });
+    const limitedResults = db.messages.searchMessages(companyId, "flood test", { limit: 10 });
     expect(limitedResults.length).toBe(10);
   });
 
   it("returns results ordered by created_at DESC (most recent first)", () => {
-    const results = db.searchMessages(companyId, "migration");
+    const results = db.messages.searchMessages(companyId, "migration");
     expect(results.length).toBeGreaterThanOrEqual(2);
 
     for (let i = 1; i < results.length; i++) {

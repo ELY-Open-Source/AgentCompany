@@ -22,7 +22,7 @@ describe("knowledge provenance", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Knowledge Provenance Co",
       description: "Tests sourceRunId updates on knowledge entry edits",
       status: "active",

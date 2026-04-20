@@ -31,7 +31,7 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
     const cmoId = createAgent({ name: "Aria", role: "CMO", reportsTo: ceoId, status: "pending_approval" as "idle" });
 
     // 3. CEO submits org strategy approval
-    const orgApprovalId = shared.db.requestApproval({
+    const orgApprovalId = shared.db.approvalsMod.requestApproval({
       companyId: shared.companyId,
       requestedByAgentId: ceoId,
       type: "approve_ceo_strategy",
@@ -64,7 +64,7 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
     expect(phase1Prompt).toContain("Awaiting Org Strategy Approval");
 
     // 4. Board approves hires
-    const hireApprovalCTO = shared.db.requestApproval({
+    const hireApprovalCTO = shared.db.approvalsMod.requestApproval({
       companyId: shared.companyId,
       requestedByAgentId: ceoId,
       type: "hire_agent",
@@ -72,9 +72,9 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
       impactSummary: "Test",
       payloadJson: JSON.stringify({ agentId: ctoId }),
     });
-    shared.db.decideApproval({ approvalId: hireApprovalCTO, state: "approved", decisionNote: "Approved" });
+    shared.db.approvalsMod.decideApproval({ approvalId: hireApprovalCTO, state: "approved", decisionNote: "Approved" });
 
-    const hireApprovalCMO = shared.db.requestApproval({
+    const hireApprovalCMO = shared.db.approvalsMod.requestApproval({
       companyId: shared.companyId,
       requestedByAgentId: ceoId,
       type: "hire_agent",
@@ -82,14 +82,14 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
       impactSummary: "Test",
       payloadJson: JSON.stringify({ agentId: cmoId }),
     });
-    shared.db.decideApproval({ approvalId: hireApprovalCMO, state: "approved", decisionNote: "Approved" });
+    shared.db.approvalsMod.decideApproval({ approvalId: hireApprovalCMO, state: "approved", decisionNote: "Approved" });
 
     // Agents now idle
     expect(shared.db.entityCrud.getAgent(ctoId).status).toBe("idle");
     expect(shared.db.entityCrud.getAgent(cmoId).status).toBe("idle");
 
     // 5. Board approves org strategy
-    shared.db.decideApproval({ approvalId: orgApprovalId, state: "approved", decisionNote: "Go ahead" });
+    shared.db.approvalsMod.decideApproval({ approvalId: orgApprovalId, state: "approved", decisionNote: "Go ahead" });
 
     // 6. CEO now in Phase 2
     const updatedCto = shared.db.entityCrud.getAgent(ctoId);
@@ -287,7 +287,7 @@ describe("Review Fix: Rejected approval wakes agent", () => {
   it("decideApproval with rejected state still triggers wake (tested via DB)", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
 
-    const approvalId = shared.db.requestApproval({
+    const approvalId = shared.db.approvalsMod.requestApproval({
       companyId: shared.companyId,
       requestedByAgentId: ceoId,
       type: "approve_ceo_strategy",
@@ -295,14 +295,14 @@ describe("Review Fix: Rejected approval wakes agent", () => {
       impactSummary: "test",
     });
 
-    shared.db.decideApproval({
+    shared.db.approvalsMod.decideApproval({
       approvalId,
       state: "rejected",
       decisionNote: "Not ready",
     });
 
     // Verify approval state
-    const approval = shared.db.getApprovalRecord(approvalId);
+    const approval = shared.db.approvalsMod.getApprovalRecord(approvalId);
     expect(approval.state).toBe("rejected");
     // The IPC handler in index.ts now wakes on rejected too —
     // we verify the DB layer works; the wakeAgentIfPossible call is in index.ts

@@ -46,11 +46,11 @@ export function registerCoreAdminHandlers({
 >) {
   registerHandle(IPC_CHANNELS.saveCompany, async (_event, payload) => {
     const parsed = companyInputSchema.parse(payload);
-    const previousMode = parsed.id ? db.getCompanyExecutionMode(parsed.id) : parsed.executionMode;
+    const previousMode = parsed.id ? db.company.getCompanyExecutionMode(parsed.id) : parsed.executionMode;
     const previousApprovalSettings = parsed.id
-      ? db.getCompanyApprovalSettings(parsed.id)
+      ? db.company.getCompanyApprovalSettings(parsed.id)
       : { autoApproveHires: parsed.autoApproveHires, reviewDeliverables: parsed.reviewDeliverables };
-    const id = db.saveCompany(parsed);
+    const id = db.company.saveCompany(parsed);
     reconcileExecutionModeChange({
       db,
       companyId: id,
@@ -159,7 +159,7 @@ export function registerCoreAdminHandlers({
     if (!db.hasCompany(companyId)) {
       return fail("COMPANY_NOT_FOUND", "Company not found.");
     }
-    db.deleteCompany(companyId);
+    db.company.deleteCompany(companyId);
     publishDomainChanged();
     return ok(true);
   });

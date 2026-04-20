@@ -12,7 +12,7 @@ export function createIdleAutomationScheduler(deps: OrchestrationDependencies) {
       try {
         if (isQuitting() || !hasWorkerReady()) return;
 
-        const activeCompanies = db.listActiveCompanyIds();
+        const activeCompanies = db.company.listActiveCompanyIds();
         const now = Date.now();
 
         for (const company of activeCompanies) {

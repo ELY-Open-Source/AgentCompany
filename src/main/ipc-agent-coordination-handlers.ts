@@ -56,7 +56,7 @@ export function registerAgentCoordinationHandlers({
     const parsed = markMessageReadSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    const message = db.getAgentMessage(parsed.messageId, parsed.companyId);
+    const message = db.messages.getAgentMessage(parsed.messageId, parsed.companyId);
     if (!message) {
       return fail("MESSAGE_NOT_FOUND", "Message not found in the current company.");
     }
@@ -64,7 +64,7 @@ export function registerAgentCoordinationHandlers({
       return fail("INVALID_COMPANY_REFERENCE", "The selected message reader does not belong to the current company.");
     }
     if (parsed.readerAgentId) {
-      const visibleToReader = db
+      const visibleToReader = db.messages
         .listAgentMessages(parsed.companyId, {
           agentId: parsed.readerAgentId,
           messageId: parsed.messageId,
@@ -75,7 +75,7 @@ export function registerAgentCoordinationHandlers({
         return fail("MESSAGE_NOT_VISIBLE", "This message is not visible to the selected reader.");
       }
     }
-    db.markMessageReadForReader(parsed.messageId, parsed.companyId, parsed.readerAgentId ?? null);
+    db.messages.markMessageReadForReader(parsed.messageId, parsed.companyId, parsed.readerAgentId ?? null);
     publishDomainChanged();
     return ok(true);
   });
@@ -84,7 +84,7 @@ export function registerAgentCoordinationHandlers({
     const parsed = searchMessagesSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    return ok(db.searchMessages(parsed.companyId, parsed.query, {
+    return ok(db.messages.searchMessages(parsed.companyId, parsed.query, {
       channel: parsed.channel,
       channelTargetId: parsed.channelTargetId,
       limit: parsed.limit,

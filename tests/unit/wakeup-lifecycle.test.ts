@@ -19,7 +19,7 @@ import { AppDatabase } from "../../src/main/database";
 // ---------------------------------------------------------------------------
 
 function createTestCompany(db: AppDatabase): string {
-  return db.saveCompany({
+  return db.company.saveCompany({
     name: "Wakeup Test Company",
     description: "Wakeup lifecycle tests",
     status: "active",

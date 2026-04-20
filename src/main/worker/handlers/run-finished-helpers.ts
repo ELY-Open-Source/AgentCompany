@@ -6,13 +6,13 @@ import type { workerMessageSchema } from "../entry/types";
 import type { HandlerContext, HandlerDeps, WorkerMessageEvent } from "./handler-context";
 
 type RunFinishedEvent = Extract<WorkerMessageEvent, { type: "run-finished" }>;
-type RunRecord = ReturnType<HandlerDeps["db"]["getRun"]>;
+type RunRecord = ReturnType<HandlerDeps["db"]["runs"]["getRun"]>;
 type TaskRecord = ReturnType<HandlerDeps["db"]["entityCrud"]["getTask"]>;
 
 export interface RunFinishedContext {
   run: RunRecord;
   task: TaskRecord | null;
-  runOutcome: ReturnType<HandlerDeps["db"]["finishRun"]>;
+  runOutcome: ReturnType<HandlerDeps["db"]["runs"]["finishRun"]>;
 }
 
 export function finalizeRun(
@@ -25,7 +25,7 @@ export function finalizeRun(
 
   let run: RunRecord;
   try {
-    run = db.getRun(event.runId);
+    run = db.runs.getRun(event.runId);
   } catch (error) {
     logger.warn(
       `[finalizeRun] getRun(${event.runId}) failed; run may have been deleted: ${error instanceof Error ? error.message : String(error)}`,
@@ -66,7 +66,7 @@ export function finalizeRun(
   }
 
   leaseRenewalMap.delete(event.runId);
-  const runOutcome = db.finishRun(event);
+  const runOutcome = db.runs.finishRun(event);
   if (run.workspaceId) {
     db.releaseWorkspaceLock(run.workspaceId, run.id);
   }
@@ -350,7 +350,7 @@ function hasUnfinishedTeamBuilding(
     if (activeReports.length > 0) return false;
     const goalCount = db.countActiveGoalsForCompany(companyId);
     if (goalCount === 0) return false;
-    const pendingHires = db
+    const pendingHires = db.approvalsMod
       .listCompanyApprovalsByType(companyId, "hire_agent")
       .filter((a) => a.state === "pending");
     return pendingHires.length === 0;

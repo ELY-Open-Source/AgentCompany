@@ -16,8 +16,8 @@ export async function handleRunLog(
   const filtered = filterRunLogChunk(event.stream, event.chunk);
   if (filtered === null) return;
 
-  await db.appendRunLog(event.runId, event.stream, filtered);
-  const runState = db.getRunAuthState(event.runId);
+  await db.runs.appendRunLog(event.runId, event.stream, filtered);
+  const runState = db.runs.getRunAuthState(event.runId);
   if (runState) {
     persistRunEvent(db, logger, {
       companyId: runState.companyId,
@@ -36,7 +36,7 @@ export async function handleRunLog(
   const lastRenewal = leaseRenewalMap.get(event.runId) ?? 0;
   if (now - lastRenewal >= LEASE_RENEWAL_INTERVAL_MS) {
     try {
-      const run = db.getRun(event.runId);
+      const run = db.runs.getRun(event.runId);
       if (run.taskId) {
         db.tasks.renewTaskLease(run.taskId, run.id);
       }

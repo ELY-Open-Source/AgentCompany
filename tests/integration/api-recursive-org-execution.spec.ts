@@ -32,7 +32,7 @@ async function createHarness() {
     lastError: null,
   });
 
-  const companyId = db.saveCompany({
+  const companyId = db.company.saveCompany({
     name: "Recursive Org Co",
     description: "Tests manager-driven recursive hires",
     status: "active",
@@ -81,7 +81,7 @@ async function createHarness() {
     priority: "high",
     status: "in_progress",
   });
-  const run = db.createRun({ companyId, taskId, agentId: ctoId, workspaceId, connectorId: "openai-codex" });
+  const run = db.runs.createRun({ companyId, taskId, agentId: ctoId, workspaceId, connectorId: "openai-codex" });
   const token = createAgentToken(ctoId, companyId, run.id);
   const server = createApiServer(db, () => {}, () => null);
   const port = await server.start();
@@ -130,12 +130,12 @@ describe("recursive org execution", () => {
       expect(pendingHire.status).toBe("pending_approval");
       expect(pendingHire.reportsTo).toBe(harness.ctoId);
 
-      const approval = harness.db.getApprovalRecord(body.approvalId);
+      const approval = harness.db.approvalsMod.getApprovalRecord(body.approvalId);
       expect(approval.type).toBe("hire_agent");
       expect(approval.requestedByAgentId).toBe(harness.ctoId);
       expect(approval.relatedAgentId).toBe(body.agentId);
 
-      harness.db.decideApproval({
+      harness.db.approvalsMod.decideApproval({
         approvalId: body.approvalId,
         state: "approved",
         decisionNote: "Approved by board",
@@ -192,7 +192,7 @@ describe("recursive org execution", () => {
         priority: "high",
         status: "in_progress",
       });
-      const hrRun = harness.db.createRun({
+      const hrRun = harness.db.runs.createRun({
         companyId: harness.companyId,
         taskId: hrTaskId,
         agentId: hrId,

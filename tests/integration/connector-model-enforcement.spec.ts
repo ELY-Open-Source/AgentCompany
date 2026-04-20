@@ -57,7 +57,7 @@ function createOrchestrationHarness(db: AppDatabase) {
     runDispatch.resolveWorkspace,
     runDispatch.getRunEligibilityFailure,
     runDispatch.dispatchRunToWorker,
-    (filter) => db.hasActiveRun(filter),
+    (filter) => db.runs.hasActiveRun(filter),
   );
 
   return { deps, taskRunner };
@@ -77,7 +77,7 @@ describe("connector model enforcement", () => {
       lastError: null,
     });
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Runtime Enforcement Co",
       description: "Blocks runs when agent models are disabled",
       status: "active",
@@ -141,7 +141,7 @@ describe("connector model enforcement", () => {
       lastError: null,
     });
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Recovered Run Co",
       description: "Rejects invalid queued runs during recovery",
       status: "active",
@@ -177,7 +177,7 @@ describe("connector model enforcement", () => {
       status: "todo",
     });
 
-    const run = db.createRun({
+    const run = db.runs.createRun({
       companyId,
       taskId,
       agentId,

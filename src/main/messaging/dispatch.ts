@@ -184,7 +184,7 @@ export function validateAgentMessageInput(
   }
 
   if (input.parentMessageId) {
-    const parentMessage = db.getAgentMessage(input.parentMessageId, input.companyId);
+    const parentMessage = db.messages.getAgentMessage(input.parentMessageId, input.companyId);
     if (!parentMessage) {
       return {
         code: "PARENT_MESSAGE_NOT_FOUND",
@@ -317,8 +317,8 @@ export function dispatchAgentMessage(
   const persistedMessage = normalized.channel === "direct"
     ? { ...normalized, senderKind, mentionedAgentIds }
     : { ...normalized, toAgentId: null, senderKind, mentionedAgentIds };
-  const id = deps.db.sendAgentMessage(persistedMessage);
-  const message = deps.db.getAgentMessage(id, normalized.companyId);
+  const id = deps.db.messages.sendAgentMessage(persistedMessage);
+  const message = deps.db.messages.getAgentMessage(id, normalized.companyId);
   if (message && deps.emitEvent) {
     deps.emitEvent({ type: "new-message", message });
   }

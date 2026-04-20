@@ -288,7 +288,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     task,
     companyName,
     locale: snapshot.locale,
-    executionMode: db.getCompanyExecutionMode(companyId) as ExecutionMode,
+    executionMode: db.company.getCompanyExecutionMode(companyId) as ExecutionMode,
     goals: snapshot.goals.filter((goal) => goal.companyId === companyId),
     projects: snapshot.projects.filter((project) => project.companyId === companyId),
     directReports: db.agents.getDirectReports(agent.id, companyId),
@@ -354,7 +354,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     systemPrompt,
     trigger,
     taskSessionId: taskSessionId ?? runId,
-    executionMode: db.getCompanyExecutionMode(companyId) as "ai_ceo" | "ai_cofounder",
+    executionMode: db.company.getCompanyExecutionMode(companyId) as "ai_ceo" | "ai_cofounder",
     initialUserTurn,
   };
 }

@@ -37,7 +37,7 @@ describe("AppDatabase", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Orbit Foundry",
       description: "Test company",
       status: "active",
@@ -113,7 +113,7 @@ describe("AppDatabase", () => {
       OPENAI_API_KEY: "sk-test-123",
     });
 
-    const run = db.createRun({
+    const run = db.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -121,11 +121,11 @@ describe("AppDatabase", () => {
       connectorId: "openai-codex",
     });
 
-    await db.appendRunLog(run.id, "stdout", "hello from run\n");
-    expect(db.readRunLog(run.id)).toContain("hello from run");
+    await db.runs.appendRunLog(run.id, "stdout", "hello from run\n");
+    expect(db.runs.readRunLog(run.id)).toContain("hello from run");
 
-    db.markRunStatus(run.id, "running", "Connector launched");
-    db.finishRun({
+    db.runs.markRunStatus(run.id, "running", "Connector launched");
+    db.runs.finishRun({
       runId: run.id,
       status: "succeeded",
       summary: "Completed successfully",
@@ -143,7 +143,7 @@ describe("AppDatabase", () => {
 
     await db.exportBackup(backupDir);
 
-    db.saveCompany({
+    db.company.saveCompany({
       name: "Temporary company",
       description: "Should disappear after restore",
       status: "active",
@@ -164,13 +164,13 @@ describe("AppDatabase", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const alphaCompanyId = db.saveCompany({
+    const alphaCompanyId = db.company.saveCompany({
       name: "Alpha",
       description: "Alpha company",
       status: "active",
     });
 
-    const betaCompanyId = db.saveCompany({
+    const betaCompanyId = db.company.saveCompany({
       name: "Beta",
       description: "Beta company",
       status: "active",

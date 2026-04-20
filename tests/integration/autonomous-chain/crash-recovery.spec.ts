@@ -23,7 +23,7 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
       status: "in_progress",
     });
 
-    const run = shared.db.createRun({
+    const run = shared.db.runs.createRun({
       companyId: shared.companyId,
       taskId,
       agentId,
@@ -31,7 +31,7 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
       connectorId: "openai-codex",
     });
 
-    shared.db.markRunStatus(run.id, "running", "Started");
+    shared.db.runs.markRunStatus(run.id, "running", "Started");
 
     // Verify it's running
     let snapshot = shared.db.listSnapshot();
@@ -61,7 +61,7 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
       status: "in_progress",
     });
 
-    const run = shared.db.createRun({
+    const run = shared.db.runs.createRun({
       companyId: shared.companyId,
       taskId,
       agentId,
@@ -69,10 +69,10 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
       connectorId: "openai-codex",
     });
 
-    shared.db.markRunStatus(run.id, "running", "Started");
+    shared.db.runs.markRunStatus(run.id, "running", "Started");
 
     // Simulate crash recovery - mark as interrupted
-    shared.db.finishRun({
+    shared.db.runs.finishRun({
       runId: run.id,
       status: "interrupted",
       summary: "Worker process crashed.",

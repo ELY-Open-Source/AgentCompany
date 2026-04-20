@@ -27,9 +27,9 @@ export function createBrowserActionService({
    * missing. Isolates the "approval row disappeared" case so the caller does
    * not need to nest a try/catch around the state machine.
    */
-  function getApprovalOrNull(approvalId: string): ReturnType<typeof db.getApprovalRecord> | null {
+  function getApprovalOrNull(approvalId: string): ReturnType<typeof db.approvalsMod.getApprovalRecord> | null {
     try {
-      return db.getApprovalRecord(approvalId);
+      return db.approvalsMod.getApprovalRecord(approvalId);
     } catch (err) {
       const classified = classifyUnknownError(err, {
         kind: "recoverable",

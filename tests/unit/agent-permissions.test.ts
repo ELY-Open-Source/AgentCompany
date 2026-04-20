@@ -30,7 +30,7 @@ describe("canManageOrganization", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Org Permissions Co",
       description: "Tests recursive org authority",
       status: "active",
@@ -100,7 +100,7 @@ describe("canManageOrganization", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Org Permission Override Co",
       description: "Tests permission-based org authority",
       status: "active",
@@ -154,7 +154,7 @@ describe("canManageOrganization", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Scoped Authority Co",
       description: "Tests that branch growth does not unlock org-wide admin powers",
       status: "active",

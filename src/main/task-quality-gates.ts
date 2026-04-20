@@ -214,7 +214,7 @@ export function sweepStaleReviews(
     const chain = deps.db.agents.getChainOfCommand(reviewer.id);
     const escalationTarget = chain.length > 0 ? chain[0] : null;
 
-    const pendingApproval = deps.db.findPendingApprovalForTask(companyId, task.id);
+    const pendingApproval = deps.db.approvalsMod.findPendingApprovalForTask(companyId, task.id);
 
     // In ai_cofounder mode, ALL approvals require human decision — never auto-advance.
     if (isCofounderMode && pendingApproval) {

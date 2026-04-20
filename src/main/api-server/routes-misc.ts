@@ -42,7 +42,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
 
     const postActions = ["post", "reply", "dm"];
     if (account.requireApproval && postActions.includes(input.actionType)) {
-      const approvalId = db.requestApproval({
+      const approvalId = db.approvalsMod.requestApproval({
         companyId,
         type: "dangerous_command",
         relatedTaskId: null,
@@ -142,7 +142,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
 
     const contentPreview = parsed.data.content.slice(0, 120) + (parsed.data.content.length > 120 ? "..." : "");
 
-    const approvalId = db.requestApproval({
+    const approvalId = db.approvalsMod.requestApproval({
       companyId,
       requestedByAgentId: token.agentId,
       type: "social_post",

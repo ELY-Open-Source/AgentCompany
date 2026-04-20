@@ -298,14 +298,14 @@ export function registerCoreAgentGraphHandlers({
     if (!db.belongsToCompany("approvals", parsed.id, parsed.companyId)) {
       return fail("APPROVAL_NOT_FOUND", "Approval not found in the current company.");
     }
-    const approval = db.getApprovalRecord(parsed.id);
+    const approval = db.approvalsMod.getApprovalRecord(parsed.id);
     if (approval.state === "pending" && approval.type === "hire_agent") {
       return fail(
         "APPROVAL_DELETE_BLOCKED",
         "Pending hire approvals cannot be deleted. Reject the hire request instead so the linked agent record stays consistent.",
       );
     }
-    db.deleteApproval(parsed.id, parsed.companyId);
+    db.approvalsMod.deleteApproval(parsed.id, parsed.companyId);
     db.addActivity({
       companyId: parsed.companyId,
       actor: "board",

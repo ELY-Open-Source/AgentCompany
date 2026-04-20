@@ -256,7 +256,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const { agents, tasks, recentActivity } = db.getDashboardSnapshot(companyId);
+    const { agents, tasks, recentActivity } = db.company.getDashboardSnapshot(companyId);
 
     const tasksByStatus: Record<string, number> = {};
     for (const t of tasks) {

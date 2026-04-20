@@ -38,7 +38,7 @@ export function createTaskRunner(
       return fail("WORKER_UNAVAILABLE", "Orchestration worker is not ready.");
     }
     const task = db.entityCrud.getTask(taskId);
-    const companyStatus = db.getCompanyStatus(task.companyId);
+    const companyStatus = db.company.getCompanyStatus(task.companyId);
     if (companyStatus !== "active") {
       return fail("COMPANY_NOT_ACTIVE", "Runs can only start while the company is active.");
     }
@@ -78,7 +78,7 @@ export function createTaskRunner(
     if (db.agents.isAgentPendingApproval(agent.id)) {
       return fail("AGENT_PENDING_APPROVAL", "This agent is pending hire approval and cannot run tasks.");
     }
-    const blockingApproval = db.getBlockingApproval(task.companyId, agent.id, task.id);
+    const blockingApproval = db.approvalsMod.getBlockingApproval(task.companyId, agent.id, task.id);
     if (blockingApproval) {
       return fail(
         "APPROVAL_GATE_BLOCKED",
@@ -99,7 +99,7 @@ export function createTaskRunner(
       return fail("WORKSPACE_COMPANY_MISMATCH", "The selected workspace does not belong to the task company.");
     }
 
-    const run = db.createRun({
+    const run = db.runs.createRun({
       id: runId,
       companyId: task.companyId,
       taskId: task.id,
@@ -108,7 +108,7 @@ export function createTaskRunner(
       connectorId: connector.id,
     });
 
-    const companyBasic = db.getCompanyBasic(task.companyId);
+    const companyBasic = db.company.getCompanyBasic(task.companyId);
     dispatchRunToWorker({
       runId: run.id,
       companyId: task.companyId,
@@ -163,7 +163,7 @@ export function createTaskRunner(
     const snapshot = db.listSnapshot();
     const companiesById = new Map(snapshot.companies.map((company) => [company.id, company]));
 
-    for (const run of db.listQueuedRuns()) {
+    for (const run of db.runs.listQueuedRuns()) {
       const company = companiesById.get(run.companyId);
       if (!company || company.status !== "active") {
         continue;
@@ -186,7 +186,7 @@ export function createTaskRunner(
         const eligibilityFailure = getRunEligibilityFailure(agent, connector, task?.projectId ?? null);
         if (eligibilityFailure) {
           if (eligibilityFailure === "CONNECTOR_MODEL_NOT_ALLOWED") {
-            db.finishRun({
+            db.runs.finishRun({
               runId: run.id,
               status: "failed",
               summary: "Queued run rejected during recovery because the agent model is disabled or invalid for its connector.",

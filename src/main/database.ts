@@ -12,15 +12,6 @@ export class AppDatabase extends AppDatabaseBase {
 
   listComments(taskId: string) { return this.activityMod.listComments(taskId); }
 
-  // ─── Messages ──────────────────────────────────────────────────────────────
-
-  sendAgentMessage(input: { companyId: string; fromAgentId: string; toAgentId?: string | null; channel?: string; channelTargetId?: string | null; subject: string; body: string; priority?: string; parentMessageId?: string | null; attachmentsJson?: string; senderKind?: "agent" | "human" | "system"; mentionedAgentIds?: readonly string[] }) { return this.messages.sendAgentMessage(input); }
-  getAgentMessage(messageId: string, companyId: string) { return this.messages.getAgentMessage(messageId, companyId); }
-  listAgentMessages(companyId: string, opts?: { agentId?: string; messageId?: string; channel?: string; channelTargetId?: string | null; unreadOnly?: boolean; limit?: number }) { return this.messages.listAgentMessages(companyId, opts); }
-  searchMessages(companyId: string, query: string, opts?: { channel?: string; channelTargetId?: string | null; limit?: number }) { return this.messages.searchMessages(companyId, query, opts); }
-  markMessageReadForReader(messageId: string, companyId: string, readerAgentId?: string | null) { return this.messages.markMessageReadForReader(messageId, companyId, readerAgentId); }
-  listAgentInboxUnread(companyId: string, agentId: string) { return this.messages.listAgentInboxUnread(companyId, agentId); }
-
   // ─── Social & Browser Actions ──────────────────────────────────────────────
 
   saveSocialAccount(input: { id?: string | null; companyId: string; platform: string; accountName: string; displayName?: string; profileUrl?: string; credentialSecretId?: string | null; status?: string; requireApproval?: boolean; metadataJson?: string }) { return this.social.saveSocialAccount(input); }

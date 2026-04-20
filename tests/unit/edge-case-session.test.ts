@@ -21,7 +21,7 @@ import type { ConnectorId } from "@shared/types";
 // ---------------------------------------------------------------------------
 
 function scaffold(db: AppDatabase, connectorId: ConnectorId = "gemini-cli") {
-  const companyId = db.saveCompany({
+  const companyId = db.company.saveCompany({
     name: "Session Edge Case Co",
     description: "Session rotation edge case tests (D-05.3)",
     status: "active",
@@ -175,14 +175,14 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     }
 
     // Create a completed run for history (so generateHandoff has run data)
-    const run = db.createRun({
+    const run = db.runs.createRun({
       companyId,
       taskId,
       agentId,
       workspaceId,
       connectorId: "gemini-cli" as ConnectorId,
     });
-    db.finishRun({
+    db.runs.finishRun({
       runId: run.id,
       status: "succeeded",
       summary: "Completed initial implementation",
@@ -305,14 +305,14 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     db.tasks.incrementSessionUsage(sessionId, 300000, 200000, "run-1");
 
     // Create a completed run for run history
-    const run = db.createRun({
+    const run = db.runs.createRun({
       companyId,
       taskId,
       agentId,
       workspaceId,
       connectorId: "gemini-cli" as ConnectorId,
     });
-    db.finishRun({
+    db.runs.finishRun({
       runId: run.id,
       status: "succeeded",
       summary: "Previous work done",

@@ -217,7 +217,7 @@ export class AgentApiServer {
     if (typeof claimedRunId !== "string" || claimedRunId.trim() !== token.runId) {
       return { ok: false, status: 401, error: "Missing or mismatched X-Agent-Company-Run-Id header" };
     }
-    const runState = this._db.getRunAuthState(token.runId);
+    const runState = this._db.runs.getRunAuthState(token.runId);
     if (!runState || runState.companyId !== token.companyId || runState.agentId !== token.agentId) {
       return { ok: false, status: 403, error: "Token references an unknown or mismatched run" };
     }

@@ -22,7 +22,7 @@ describe("Step 6: Run failure escalation (database layer)", () => {
       status: "in_progress",
     });
 
-    const run = shared.db.createRun({
+    const run = shared.db.runs.createRun({
       companyId: shared.companyId,
       taskId,
       agentId,
@@ -30,9 +30,9 @@ describe("Step 6: Run failure escalation (database layer)", () => {
       connectorId: "openai-codex",
     });
 
-    shared.db.markRunStatus(run.id, "running", "Started");
+    shared.db.runs.markRunStatus(run.id, "running", "Started");
 
-    const outcome = shared.db.finishRun({
+    const outcome = shared.db.runs.finishRun({
       runId: run.id,
       status: "failed",
       summary: null,

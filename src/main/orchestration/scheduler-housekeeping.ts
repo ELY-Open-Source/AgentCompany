@@ -27,7 +27,7 @@ export function createHousekeepingScheduler(
       try {
         if (isQuitting() || !hasWorkerReady()) return;
 
-        const activeCompanies = db.listActiveCompanyIds();
+        const activeCompanies = db.company.listActiveCompanyIds();
 
         for (const company of activeCompanies) {
           try {
@@ -52,7 +52,7 @@ export function createHousekeepingScheduler(
                 dispatchAgentMessage,
                 resolveApprovalDecision,
                 notify,
-                getCompanyExecutionMode: (cId: string) => db.getCompanyExecutionMode(cId),
+                getCompanyExecutionMode: (cId: string) => db.company.getCompanyExecutionMode(cId),
                 handleTaskStatusChange: (taskId: string, cId: string, previousStatus: string, newStatus: string) => {
                   deps.dispatchAutomation("task_status_changed", { companyId: cId, taskId, previousStatus, newStatus });
                   publishDomainChanged();

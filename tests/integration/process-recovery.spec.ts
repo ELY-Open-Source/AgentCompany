@@ -62,7 +62,7 @@ function scaffold(db: AppDatabase): ScaffoldResult {
   });
 
   // Company
-  const companyId = db.saveCompany({
+  const companyId = db.company.saveCompany({
     name: "Recovery Test Corp",
     description: "Process recovery integration tests",
     status: "active",
@@ -157,7 +157,7 @@ function createAndStartRun(
       status: "todo",
     });
 
-  const { id: runId } = db.createRun({
+  const { id: runId } = db.runs.createRun({
     companyId: opts.companyId,
     taskId,
     agentId: opts.agentId,
@@ -166,7 +166,7 @@ function createAndStartRun(
   });
 
   db.tasks.checkoutTask(taskId, runId);
-  db.markRunStatus(runId, "running", "Starting execution");
+  db.runs.markRunStatus(runId, "running", "Starting execution");
 
   if (opts.claimWorkspace !== false) {
     db.claimWorkspaceLock(opts.workspaceId, runId);
@@ -278,8 +278,8 @@ describe("Process Recovery -- Worker Crash Detection", () => {
     const interruptedCount = simulateWorkerCrash(db);
 
     expect(interruptedCount).toBe(2);
-    expect(db.getRun(run1.runId).status).toBe("interrupted");
-    expect(db.getRun(run2.runId).status).toBe("interrupted");
+    expect(db.runs.getRun(run1.runId).status).toBe("interrupted");
+    expect(db.runs.getRun(run2.runId).status).toBe("interrupted");
   });
 
   it("releases task locks after crash", () => {
@@ -378,7 +378,7 @@ describe("Process Recovery -- Worker Crash Detection", () => {
       priority: "medium",
       status: "todo",
     });
-    const { id: newRunId } = db.createRun({
+    const { id: newRunId } = db.runs.createRun({
       companyId: s.companyId,
       taskId: taskId2,
       agentId: agent2Id,
@@ -530,7 +530,7 @@ describe("Process Recovery -- Multiple Concurrent Runs", () => {
 
     expect(interruptedCount).toBe(3);
     for (const run of runs) {
-      expect(db.getRun(run.runId).status).toBe("interrupted");
+      expect(db.runs.getRun(run.runId).status).toBe("interrupted");
     }
   });
 

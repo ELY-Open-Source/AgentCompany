@@ -28,7 +28,7 @@ type RawDb = {
 // ---------------------------------------------------------------------------
 
 function createTestCompany(db: AppDatabase): string {
-  return db.saveCompany({
+  return db.company.saveCompany({
     name: "Edge Case Company",
     description: "Concurrent checkout edge case tests (D-05.1)",
     status: "active",
@@ -110,14 +110,14 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     const agentB = createTestAgent(db, companyId, workspaceId, "Agent-B");
     const taskId = createTestTask(db, companyId, workspaceId);
 
-    const { id: runIdA } = db.createRun({
+    const { id: runIdA } = db.runs.createRun({
       companyId,
       taskId,
       agentId: agentA,
       workspaceId,
       connectorId: "gemini-cli",
     });
-    const { id: runIdB } = db.createRun({
+    const { id: runIdB } = db.runs.createRun({
       companyId,
       taskId,
       agentId: agentB,
@@ -146,14 +146,14 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     const agentB = createTestAgent(db, companyId, workspaceId, "Agent-B");
     const taskId1 = createTestTask(db, companyId, workspaceId);
 
-    const { id: runIdA } = db.createRun({
+    const { id: runIdA } = db.runs.createRun({
       companyId,
       taskId: taskId1,
       agentId: agentA,
       workspaceId,
       connectorId: "gemini-cli",
     });
-    const { id: runIdB1 } = db.createRun({
+    const { id: runIdB1 } = db.runs.createRun({
       companyId,
       taskId: taskId1,
       agentId: agentB,
@@ -168,7 +168,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
 
     // Agent-B can still checkout a DIFFERENT task
     const taskId2 = createTestTask(db, companyId, workspaceId);
-    const { id: runIdB2 } = db.createRun({
+    const { id: runIdB2 } = db.runs.createRun({
       companyId,
       taskId: taskId2,
       agentId: agentB,
@@ -192,7 +192,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     const taskId = createTestTask(db, companyId, workspaceId);
 
     // Agent-A checks out successfully
-    const { id: runIdA } = db.createRun({
+    const { id: runIdA } = db.runs.createRun({
       companyId,
       taskId,
       agentId: agentA,
@@ -202,7 +202,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     expect(db.tasks.checkoutTask(taskId, runIdA)).toBe(true);
 
     // Task is now in_progress. A new run from Agent-B tries to checkout
-    const { id: runIdB } = db.createRun({
+    const { id: runIdB } = db.runs.createRun({
       companyId,
       taskId,
       agentId: agentB,
@@ -225,7 +225,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     const taskId = createTestTask(db, companyId, workspaceId);
 
     // Agent-A checks out task
-    const { id: runIdA } = db.createRun({
+    const { id: runIdA } = db.runs.createRun({
       companyId,
       taskId,
       agentId: agentA,
@@ -246,7 +246,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
 
     // Task is still in_progress though, so a new checkout fails
     // (CAS checks status IN ('todo', 'backlog'))
-    const { id: runIdB } = db.createRun({
+    const { id: runIdB } = db.runs.createRun({
       companyId,
       taskId,
       agentId: agentB,
@@ -264,7 +264,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     const agentA = createTestAgent(db, companyId, workspaceId, "Agent-A");
     const taskId = createTestTask(db, companyId, workspaceId);
 
-    const { id: runIdA } = db.createRun({
+    const { id: runIdA } = db.runs.createRun({
       companyId,
       taskId,
       agentId: agentA,
@@ -300,7 +300,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     const taskId = createTestTask(db, companyId, workspaceId);
 
     // Agent-A checks out, then lock goes stale
-    const { id: runIdA } = db.createRun({
+    const { id: runIdA } = db.runs.createRun({
       companyId,
       taskId,
       agentId: agentA,
@@ -322,7 +322,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     expect(db.entityCrud.getTask(taskId).status).toBe("todo");
 
     // Agent-B can now checkout the recovered task
-    const { id: runIdB } = db.createRun({
+    const { id: runIdB } = db.runs.createRun({
       companyId,
       taskId,
       agentId: agentB,

@@ -573,7 +573,7 @@ export class RuntimeBridge {
     // `?unreadOnly=true`, so agents posted status comments instead of
     // replies. The explicit read endpoint is the sole signal.
     const store = this.getOrCreateStore(payload.taskSessionId);
-    const inboxRecords = this.deps.db.listAgentInboxUnread(payload.companyId, payload.agentId);
+    const inboxRecords = this.deps.db.messages.listAgentInboxUnread(payload.companyId, payload.agentId);
     if (inboxRecords.length > 0) {
       this.deps.db.withTransaction(() => {
         for (const record of inboxRecords) {

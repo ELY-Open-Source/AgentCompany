@@ -27,7 +27,7 @@ function createScaffold(db: AppDatabase) {
     lastError: null,
   });
 
-  const companyId = db.saveCompany({
+  const companyId = db.company.saveCompany({
     name: "Message Dispatch Co",
     description: "Tests board wake and wait-state resolution",
     status: "active",
@@ -191,9 +191,9 @@ describe("message dispatch", () => {
     if (!result.ok) throw new Error("Expected dispatch to succeed.");
     expect(new Set(result.data.wakeTargets)).toEqual(new Set([ceoId, ctoId]));
 
-    const ceoInbox = db.listAgentInboxUnread(companyId, ceoId);
+    const ceoInbox = db.messages.listAgentInboxUnread(companyId, ceoId);
     expect(ceoInbox.map((entry) => entry.id)).toContain(result.data.id);
-    const ctoInbox = db.listAgentInboxUnread(companyId, ctoId);
+    const ctoInbox = db.messages.listAgentInboxUnread(companyId, ctoId);
     expect(ctoInbox.map((entry) => entry.id)).toContain(result.data.id);
 
     db.close();
@@ -230,9 +230,9 @@ describe("message dispatch", () => {
 
     // The message is still visible to CTO's inbox — they were the
     // addressed recipient — but CTO is not required to answer.
-    const ctoInbox = db.listAgentInboxUnread(companyId, ctoId);
+    const ctoInbox = db.messages.listAgentInboxUnread(companyId, ctoId);
     expect(ctoInbox.map((entry) => entry.id)).toContain(result.data.id);
-    const ceoInbox = db.listAgentInboxUnread(companyId, ceoId);
+    const ceoInbox = db.messages.listAgentInboxUnread(companyId, ceoId);
     expect(ceoInbox.map((entry) => entry.id)).toContain(result.data.id);
 
     db.close();

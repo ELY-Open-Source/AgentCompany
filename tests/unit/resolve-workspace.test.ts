@@ -27,7 +27,7 @@ import { resolveWorkspaceWithLockMode } from "../../src/main/orchestration/resol
  */
 
 function seedCompany(db: AppDatabase) {
-  const companyId = db.saveCompany({
+  const companyId = db.company.saveCompany({
     name: "Parallel Co",
     description: "Regression fixture",
     status: "active",
@@ -151,7 +151,7 @@ describe("resolveWorkspaceWithLockMode", () => {
   });
 
   it("no workspace at all → none", () => {
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Empty Co",
       description: "",
       status: "active",

@@ -28,7 +28,7 @@ type RawDb = {
 // ---------------------------------------------------------------------------
 
 function createTestCompany(db: AppDatabase): string {
-  return db.saveCompany({
+  return db.company.saveCompany({
     name: "Test Company",
     description: "Atomic checkout tests",
     status: "active",
@@ -109,7 +109,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.createRun({
+    const { id: runId } = db.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -131,14 +131,14 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId1 } = db.createRun({
+    const { id: runId1 } = db.runs.createRun({
       companyId,
       taskId,
       agentId,
       workspaceId,
       connectorId: "openai-codex",
     });
-    const { id: runId2 } = db.createRun({
+    const { id: runId2 } = db.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -160,7 +160,7 @@ describe("CAS checkout", () => {
     // Manually set task to in_progress
     (db as unknown as RawDb).db.prepare("UPDATE tasks SET status = 'in_progress' WHERE id = ?").run(taskId);
 
-    const { id: runId } = db.createRun({
+    const { id: runId } = db.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -178,7 +178,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.createRun({
+    const { id: runId } = db.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -187,8 +187,8 @@ describe("CAS checkout", () => {
     });
 
     db.tasks.checkoutTask(taskId, runId);
-    db.markRunStatus(runId, "running", "");
-    db.finishRun({
+    db.runs.markRunStatus(runId, "running", "");
+    db.runs.finishRun({
       runId,
       status: "succeeded",
       summary: "Done",
@@ -214,7 +214,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.createRun({
+    const { id: runId } = db.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -223,7 +223,7 @@ describe("CAS checkout", () => {
     });
 
     db.tasks.checkoutTask(taskId, runId);
-    db.markRunStatus(runId, "running", "");
+    db.runs.markRunStatus(runId, "running", "");
 
     // Deleting the agent triggers cancelRunForDeletion for active runs
     db.agents.deleteAgent(agentId, companyId);
@@ -243,7 +243,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.createRun({
+    const { id: runId } = db.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -283,7 +283,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.createRun({
+    const { id: runId } = db.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -316,7 +316,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.createRun({
+    const { id: runId } = db.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -328,7 +328,7 @@ describe("CAS checkout", () => {
 
     // Never call markRunStatus('running', ...) — this simulates the
     // "workspace already locked" bail-out inside dispatchRunToWorker.
-    db.finishRun({
+    db.runs.finishRun({
       runId,
       status: "failed",
       summary: null,
@@ -343,7 +343,7 @@ describe("CAS checkout", () => {
 
     // And the next CAS checkout must succeed — proving the heartbeat
     // retry path is unblocked.
-    const { id: retryRunId } = db.createRun({
+    const { id: retryRunId } = db.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -364,7 +364,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.createRun({
+    const { id: runId } = db.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -372,7 +372,7 @@ describe("CAS checkout", () => {
       connectorId: "openai-codex",
     });
     db.tasks.checkoutTask(taskId, runId);
-    db.finishRun({
+    db.runs.finishRun({
       runId,
       status: "cancelled",
       summary: null,
@@ -397,7 +397,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.createRun({
+    const { id: runId } = db.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -405,8 +405,8 @@ describe("CAS checkout", () => {
       connectorId: "openai-codex",
     });
     db.tasks.checkoutTask(taskId, runId);
-    db.markRunStatus(runId, "running", "");
-    db.finishRun({
+    db.runs.markRunStatus(runId, "running", "");
+    db.runs.finishRun({
       runId,
       status: "failed",
       summary: null,
@@ -465,7 +465,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: liveRunId } = db.createRun({
+    const { id: liveRunId } = db.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -473,7 +473,7 @@ describe("CAS checkout", () => {
       connectorId: "openai-codex",
     });
     db.tasks.checkoutTask(taskId, liveRunId);
-    db.markRunStatus(liveRunId, "running", "");
+    db.runs.markRunStatus(liveRunId, "running", "");
 
     db.close();
     db = new AppDatabase(tempDir);

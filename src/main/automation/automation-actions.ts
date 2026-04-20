@@ -208,7 +208,7 @@ export function executeAutomationAction(
     }
     case "create_approval": {
       const approvalType = (config.approvalType as string) ?? "document_review";
-      db.requestApproval({
+      db.approvalsMod.requestApproval({
         companyId: ctx.companyId,
         relatedTaskId: ctx.taskId ?? null,
         requestedByAgentId: ctx.agentId ?? null,
@@ -340,7 +340,7 @@ export function executeAutomationAction(
         (approval) => approval.companyId === ctx.companyId && approval.state === "pending",
       );
       for (const approval of pendingApprovals.slice(0, 5)) {
-        db.decideApproval({
+        db.approvalsMod.decideApproval({
           companyId: ctx.companyId,
           approvalId: approval.id,
           state: "approved",

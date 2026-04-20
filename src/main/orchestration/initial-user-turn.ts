@@ -44,7 +44,7 @@ export function resolveInitialUserTurn(
   }
 
   if (trigger === "message" || trigger === "peer_request") {
-    const unread = deps.db.listAgentInboxUnread(companyId, agentId);
+    const unread = deps.db.messages.listAgentInboxUnread(companyId, agentId);
     if (unread.length > 0) {
       return buildCommunicationTurn(trigger, unread, deps.db);
     }

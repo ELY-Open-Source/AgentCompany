@@ -58,7 +58,7 @@ function createHarness(db: AppDatabase) {
     runDispatch.resolveWorkspace,
     runDispatch.getRunEligibilityFailure,
     runDispatch.dispatchRunToWorker,
-    (filter) => db.hasActiveRun(filter),
+    (filter) => db.runs.hasActiveRun(filter),
   );
 
   return { enqueueWorkerRun, taskRunner };
@@ -78,7 +78,7 @@ describe("agent model switching", () => {
       lastError: null,
     });
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Model Switch Co",
       description: "Tests post-hire model switching",
       status: "active",
@@ -126,7 +126,7 @@ describe("agent model switching", () => {
       throw new Error("Expected first run to queue successfully.");
     }
 
-    db.finishRun({
+    db.runs.finishRun({
       runId: firstRun.data,
       status: "succeeded",
       summary: "Done",

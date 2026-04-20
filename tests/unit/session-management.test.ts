@@ -21,7 +21,7 @@ import type { ConnectorId, TaskSessionRecord } from "@shared/types";
 // Helpers — create a minimal company + agent + task scaffold
 // ---------------------------------------------------------------------------
 function scaffold(db: AppDatabase) {
-  const companyId = db.saveCompany({
+  const companyId = db.company.saveCompany({
     name: "Session Test Co",
     description: "Testing session management",
     status: "active",
@@ -185,8 +185,8 @@ describe("task_sessions CRUD", () => {
     const { taskId, companyId, agentId, workspaceId } = scaffold(db);
 
     // Create some runs
-    const run1 = db.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "claude-pro" });
-    db.finishRun({
+    const run1 = db.runs.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "claude-pro" });
+    db.runs.finishRun({
       runId: run1.id,
       status: "succeeded",
       summary: "First run done",
@@ -197,8 +197,8 @@ describe("task_sessions CRUD", () => {
       unattributedCost: false,
     });
 
-    const run2 = db.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "claude-pro" });
-    db.finishRun({
+    const run2 = db.runs.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "claude-pro" });
+    db.runs.finishRun({
       runId: run2.id,
       status: "failed",
       summary: "Second run failed",
@@ -431,8 +431,8 @@ describe("session management service", () => {
       });
 
       // Create a completed run for history
-      const run = db.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "gemini-cli" as ConnectorId });
-      db.finishRun({
+      const run = db.runs.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "gemini-cli" as ConnectorId });
+      db.runs.finishRun({
         runId: run.id,
         status: "succeeded",
         summary: "Implemented initial logic",

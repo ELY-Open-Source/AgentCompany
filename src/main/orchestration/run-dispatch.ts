@@ -83,7 +83,7 @@ export function createRunDispatch(deps: OrchestrationDependencies) {
       params.workspace &&
       !db.claimWorkspaceLock(params.workspace.id, params.runId)
     ) {
-      db.finishRun({
+      db.runs.finishRun({
         runId: params.runId,
         status: "cancelled",
         summary: null,

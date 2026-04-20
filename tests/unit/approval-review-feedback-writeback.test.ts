@@ -31,7 +31,7 @@ describe("deliverable review feedback writeback", () => {
       lastError: null,
     });
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Review Feedback Co",
       description: "Tests review feedback knowledge writeback",
       status: "active",
@@ -75,7 +75,7 @@ describe("deliverable review feedback writeback", () => {
       authorAgentId: agentId,
       status: "in_review",
     });
-    const approvalId = db.requestApproval({
+    const approvalId = db.approvalsMod.requestApproval({
       companyId,
       relatedTaskId: taskId,
       requestedByAgentId: agentId,
@@ -85,7 +85,7 @@ describe("deliverable review feedback writeback", () => {
       payloadJson: JSON.stringify({ documentIds: [documentId] }),
     });
 
-    db.decideApproval({
+    db.approvalsMod.decideApproval({
       approvalId,
       state: "revision_requested",
       decisionNote: "Add stronger competitor evidence and a clearer recommendation.",

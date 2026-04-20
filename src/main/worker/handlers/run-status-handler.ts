@@ -9,8 +9,8 @@ export function handleRunStatus(
 ): void {
   const { db, logger, emitEvent, onRunStarted } = deps;
 
-  const runState = db.getRunAuthState(event.runId);
-  db.markRunStatus(event.runId, event.status, event.message);
+  const runState = db.runs.getRunAuthState(event.runId);
+  db.runs.markRunStatus(event.runId, event.status, event.message);
   if (runState) {
     persistRunEvent(db, logger, {
       companyId: runState.companyId,
@@ -30,7 +30,7 @@ export function handleRunStatus(
     // dispatchRunToWorker before enqueue. Only lease renewal and
     // run-started housekeeping run here.
     try {
-      const run = db.getRun(event.runId);
+      const run = db.runs.getRun(event.runId);
       if (run.taskId) {
         db.tasks.renewTaskLease(run.taskId, run.id);
       }

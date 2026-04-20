@@ -33,7 +33,7 @@ export function handleWorkerExit(
 
   for (const run of snapshot.runs) {
     if (run.status === "running") {
-      db.finishRun({
+      db.runs.finishRun({
         runId: run.id,
         status: "interrupted",
         summary: "Worker process crashed.",
@@ -119,7 +119,7 @@ export function handleWorkerExit(
         });
       } catch (error) {
         logger.warn(`[worker] Failed to re-enqueue run ${candidate.id}: ${error instanceof Error ? error.message : String(error)}`);
-        db.finishRun({
+        db.runs.finishRun({
           runId: candidate.id,
           status: "interrupted",
           summary: "Could not re-enqueue after worker restart.",

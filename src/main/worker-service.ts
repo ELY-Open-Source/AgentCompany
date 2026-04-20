@@ -183,7 +183,7 @@ export function createWorkerService({
       const snapshot = db.listSnapshot();
       for (const run of snapshot.runs) {
         if (run.status === "running" || run.status === "queued") {
-          db.finishRun({
+          db.runs.finishRun({
             runId: run.id,
             status: "interrupted",
             summary: "Application shut down.",

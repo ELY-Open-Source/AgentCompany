@@ -69,7 +69,7 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
 
         // In co-founder mode, set wait state when task enters review
         if (newStatus === "in_review") {
-          const mode = db.getCompanyExecutionMode(companyId) as ExecutionMode;
+          const mode = db.company.getCompanyExecutionMode(companyId) as ExecutionMode;
           if (mode === "ai_cofounder") {
             const reason = `@Board review needed: Task "${task.title}" is ready for your review.`;
             db.setThreadWaitState({
@@ -104,7 +104,7 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
      */
     onApprovalCreated(approvalId: string, companyId: string, taskId: string | null, approvalType: string, summary: string): void {
       try {
-        const approval = db.getApprovalRecord(approvalId);
+        const approval = db.approvalsMod.getApprovalRecord(approvalId);
         const task = taskId ? db.entityCrud.getTask(taskId) : null;
         const thread = task
           ? ensureTaskThread(db, task.id, companyId, task.title)
@@ -127,7 +127,7 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
         db.subscribe({ threadId: thread.id, subscriberId: "user", subscriberType: "user" });
 
         // In co-founder mode, set wait state for user approval
-        const mode = db.getCompanyExecutionMode(companyId) as ExecutionMode;
+        const mode = db.company.getCompanyExecutionMode(companyId) as ExecutionMode;
         if (mode === "ai_cofounder") {
           const approvalReason = `@Board approval needed: ${approvalType}`;
           db.setThreadWaitState({
@@ -247,7 +247,7 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
         // In co-founder mode, successful runs create a user_reply wait state
         // so the heartbeat pauses until the human reviews the output
         if (status === "succeeded") {
-          const mode = db.getCompanyExecutionMode(companyId) as ExecutionMode;
+          const mode = db.company.getCompanyExecutionMode(companyId) as ExecutionMode;
           if (mode === "ai_cofounder") {
             const task = db.entityCrud.getTask(taskId);
             const completionReason = `@Board review needed: Agent completed work on "${task.title}" — awaiting your review.`;

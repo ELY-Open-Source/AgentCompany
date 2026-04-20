@@ -34,7 +34,7 @@ describe("AppDatabase", () => {
   });
 
   it("persists company-scoped entities and resolves secret env bindings", () => {
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Northline Systems",
       description: "Operator company",
       status: "active",
@@ -115,7 +115,7 @@ describe("AppDatabase", () => {
   });
 
   it("backs up and restores the profile", async () => {
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Backup Test Co",
       description: "Backup validation company",
       status: "active",
@@ -123,7 +123,7 @@ describe("AppDatabase", () => {
     const backupDir = await mkdtemp(join(tmpdir(), "agentcompany-backup-"));
 
     await db.exportBackup(backupDir);
-    db.saveCompany({
+    db.company.saveCompany({
       id: companyId,
       name: "Mutated Company",
       description: "Changed after backup",
@@ -139,12 +139,12 @@ describe("AppDatabase", () => {
   });
 
   it("scopes secret resolution to the owning company", () => {
-    const alphaCompanyId = db.saveCompany({
+    const alphaCompanyId = db.company.saveCompany({
       name: "Alpha Company",
       description: "Alpha",
       status: "active",
     });
-    const betaCompanyId = db.saveCompany({
+    const betaCompanyId = db.company.saveCompany({
       name: "Beta Company",
       description: "Beta",
       status: "active",
@@ -168,7 +168,7 @@ describe("AppDatabase", () => {
   });
 
   it("atomically checks out unclaimed work via CAS with run ID", () => {
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Checkout Company",
       description: "Atomic checkout validation",
       status: "active",
@@ -210,14 +210,14 @@ describe("AppDatabase", () => {
       status: "todo",
     });
 
-    const { id: runId1 } = db.createRun({
+    const { id: runId1 } = db.runs.createRun({
       companyId,
       taskId,
       agentId: leadId,
       workspaceId,
       connectorId: "openai-codex",
     });
-    const { id: runId2 } = db.createRun({
+    const { id: runId2 } = db.runs.createRun({
       companyId,
       taskId,
       agentId: leadId,
@@ -233,7 +233,7 @@ describe("AppDatabase", () => {
   });
 
   it("auto-pauses an agent when a run exhausts the monthly budget", () => {
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Budget Company",
       description: "Budget hard stop validation",
       status: "active",
@@ -269,7 +269,7 @@ describe("AppDatabase", () => {
       status: "todo",
     });
 
-    const run = db.createRun({
+    const run = db.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -278,7 +278,7 @@ describe("AppDatabase", () => {
     });
 
     // Simulate a per-message cost entry (written by CostWriter in prod).
-    db.recordCostEntry({
+    db.runs.recordCostEntry({
       runId: run.id,
       companyId,
       agentId,
@@ -288,7 +288,7 @@ describe("AppDatabase", () => {
       unattributed: false,
     });
 
-    const outcome = db.finishRun({
+    const outcome = db.runs.finishRun({
       runId: run.id,
       status: "succeeded",
       summary: "Budget consumed",
@@ -305,7 +305,7 @@ describe("AppDatabase", () => {
   });
 
   it("activates pending hires when the corresponding approval is granted", () => {
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Hiring Company",
       description: "Approval-driven hiring",
       status: "active",
@@ -337,7 +337,7 @@ describe("AppDatabase", () => {
       budgetMonthlyUsd: 50,
     });
 
-    const approvalId = db.requestApproval({
+    const approvalId = db.approvalsMod.requestApproval({
       companyId,
       relatedTaskId: null,
       requestedByAgentId: managerId,
@@ -347,7 +347,7 @@ describe("AppDatabase", () => {
       payloadJson: JSON.stringify({ agentId: pendingHireId }),
     });
 
-    db.decideApproval({
+    db.approvalsMod.decideApproval({
       approvalId,
       state: "approved",
       decisionNote: "Approved",
@@ -357,7 +357,7 @@ describe("AppDatabase", () => {
   });
 
   it("detects pending-approval agents via isAgentPendingApproval", () => {
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Gate Test Co",
       description: "Approval gate validation",
       status: "active",
@@ -408,7 +408,7 @@ describe("AppDatabase", () => {
   });
 
   it("acquires and releases workspace locks", () => {
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Lock Test Co",
       description: "Workspace lock test",
       status: "active",
@@ -444,7 +444,7 @@ describe("AppDatabase", () => {
   });
 
   it("releases all workspace locks on crash recovery", () => {
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Recovery Co",
       description: "Lock recovery test",
       status: "active",
@@ -466,7 +466,7 @@ describe("AppDatabase", () => {
   });
 
   it("purges expired run logs based on retention setting", async () => {
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Purge Co",
       description: "Log purge test",
       status: "active",
@@ -502,11 +502,11 @@ describe("AppDatabase", () => {
       status: "todo",
     });
 
-    const run = db.createRun({ companyId, taskId, agentId, workspaceId: wsId, connectorId: "openai-codex" });
-    await db.appendRunLog(run.id, "stdout", "test log line\n");
+    const run = db.runs.createRun({ companyId, taskId, agentId, workspaceId: wsId, connectorId: "openai-codex" });
+    await db.runs.appendRunLog(run.id, "stdout", "test log line\n");
 
     // Finish the run with a very old timestamp
-    db.finishRun({
+    db.runs.finishRun({
       runId: run.id,
       status: "succeeded",
       summary: "done",
@@ -518,7 +518,7 @@ describe("AppDatabase", () => {
     });
 
     // Log should exist before purge
-    expect(db.readRunLog(run.id)).toContain("test log line");
+    expect(db.runs.readRunLog(run.id)).toContain("test log line");
 
     // Set retention to 1 day and manually backdate the run's finished_at
     db.updateSettings({ logRetentionDays: 1 });
@@ -533,11 +533,11 @@ describe("AppDatabase", () => {
     expect(purged).toBe(1);
 
     // Log should be gone after purge
-    expect(db.readRunLog(run.id)).toBe("");
+    expect(db.runs.readRunLog(run.id)).toBe("");
   });
 
   it("populates related_agent_id on hire approvals", () => {
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Agent Approval Co",
       description: "test",
       status: "active",
@@ -569,7 +569,7 @@ describe("AppDatabase", () => {
       budgetMonthlyUsd: 50,
     });
 
-    const approvalId = db.requestApproval({
+    const approvalId = db.approvalsMod.requestApproval({
       companyId,
       requestedByAgentId: managerId,
       type: "hire_agent",
@@ -578,12 +578,12 @@ describe("AppDatabase", () => {
       payloadJson: JSON.stringify({ agentId: hireId }),
     });
 
-    const approval = db.getApprovalRecord(approvalId);
+    const approval = db.approvalsMod.getApprovalRecord(approvalId);
     // related_agent_id should be populated from payloadJson extraction
     expect(approval.relatedAgentId).toBe(hireId);
 
     // Explicit relatedAgentId param should also work
-    const approvalId2 = db.requestApproval({
+    const approvalId2 = db.approvalsMod.requestApproval({
       companyId,
       requestedByAgentId: managerId,
       relatedAgentId: hireId,
@@ -592,7 +592,7 @@ describe("AppDatabase", () => {
       impactSummary: "test",
     });
 
-    const approval2 = db.getApprovalRecord(approvalId2);
+    const approval2 = db.approvalsMod.getApprovalRecord(approvalId2);
     expect(approval2.relatedAgentId).toBe(hireId);
   });
 

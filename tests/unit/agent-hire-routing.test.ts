@@ -23,7 +23,7 @@ describe("hire routing guards", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Routing Co",
       description: "Hire routing regression coverage",
       status: "active",

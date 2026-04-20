@@ -31,7 +31,7 @@ describe("hire approval routing", () => {
       lastError: null,
     });
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Hire Routing Co",
       description: "Tests recursive hire wake routing",
       status: "active",
@@ -91,7 +91,7 @@ describe("hire approval routing", () => {
       payloadJson: "{}",
     });
 
-    db.decideApproval({
+    db.approvalsMod.decideApproval({
       approvalId,
       state: "approved",
       decisionNote: "Approved by board",

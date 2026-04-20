@@ -136,7 +136,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
         });
         const reviewerAgent = db.entityCrud.getAgent(token.agentId);
         const docTitles = docs.map((d) => d.title).join(", ");
-        db.requestApproval({
+        db.approvalsMod.requestApproval({
           companyId: task.companyId,
           relatedTaskId: task.id,
           requestedByAgentId: token.agentId,

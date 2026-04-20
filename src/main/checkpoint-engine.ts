@@ -27,7 +27,7 @@ interface CheckpointDeps {
 }
 
 export function getCompanyExecutionMode(db: AppDatabase, companyId: string): ExecutionMode {
-  return db.getCompanyExecutionMode(companyId) as ExecutionMode;
+  return db.company.getCompanyExecutionMode(companyId) as ExecutionMode;
 }
 
 export function createCheckpointEngine(deps: CheckpointDeps) {
@@ -60,7 +60,7 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
         // the moment delegation starts.
         if (task.parentId) return null;
 
-        const approvalId = db.requestApproval({
+        const approvalId = db.approvalsMod.requestApproval({
           companyId,
           relatedTaskId: taskId,
           requestedByAgentId: agentId,
@@ -107,7 +107,7 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
           ? "strategy_review"
           : "draft_review";
 
-        const approvalId = db.requestApproval({
+        const approvalId = db.approvalsMod.requestApproval({
           companyId,
           relatedTaskId: taskId,
           requestedByAgentId: authorAgentId,
@@ -154,7 +154,7 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
         }
 
         // Check for pending approvals related to this agent's tasks
-        return db.hasPendingReviewApprovalForAgent(companyId, agentId);
+        return db.approvalsMod.hasPendingReviewApprovalForAgent(companyId, agentId);
       } catch (err) {
         logger.error(`[checkpoint] shouldPauseHeartbeat failed: ${err instanceof Error ? err.message : String(err)}`);
         return false;

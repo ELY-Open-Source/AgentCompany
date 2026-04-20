@@ -220,7 +220,7 @@ export function createOnboardingService({
     const connectors = db.listSnapshot({ companyId: null }).connectors;
     const selectedConnectorId = resolveOnboardingConnector(connectors, input.connectorId);
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: input.companyName.trim(),
       description: input.companyDescription.trim(),
       status: "active",

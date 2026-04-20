@@ -22,7 +22,7 @@ describe("agent budget policy synchronization", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Budget Sync Co",
       description: "Budget sync regression coverage",
       status: "active",

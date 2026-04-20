@@ -21,7 +21,7 @@ export function emitCrashRecoveryNotification(deps: RecoverInterruptedTasksDeps)
   const interruptedCount = deps.db.lastInterruptedCount;
   if (interruptedCount <= 0) return;
   deps.logger.warn(`[bootstrap] Detected ${interruptedCount} interrupted runs from previous session. Sending recovery notification.`);
-  const interruptedRuns = deps.db.getInterruptedRunsForRecovery();
+  const interruptedRuns = deps.db.runs.getInterruptedRunsForRecovery();
   if (interruptedRuns.length === 0) return;
   deps.emitEvent({ type: "recovery-needed", interruptedRuns });
   deps.notify({

@@ -164,7 +164,7 @@ function deriveTaskIdFromRun(
 ): string | null {
   if (!runId) return null;
   try {
-    const run = db.getRun(runId);
+    const run = db.runs.getRun(runId);
     if (run.companyId !== companyId) return null;
     return run.taskId ?? null;
   } catch (error) {
@@ -187,12 +187,12 @@ function maybeRaiseDeliverableReviewApproval(
   documentId: string,
   taskId: string | null,
 ): string | null {
-  const companySettings = deps.db.getCompanyApprovalSettings(input.companyId);
+  const companySettings = deps.db.company.getCompanyApprovalSettings(input.companyId);
   if (!companySettings?.reviewDeliverables) return null;
-  if (deps.db.getCompanyExecutionMode(input.companyId) === "ai_cofounder") return null;
+  if (deps.db.company.getCompanyExecutionMode(input.companyId) === "ai_cofounder") return null;
   if (deps.db.tasks.hasPendingDeliverableReviews(input.companyId)) return null;
 
-  const approvalId = deps.db.requestApproval({
+  const approvalId = deps.db.approvalsMod.requestApproval({
     companyId: input.companyId,
     relatedTaskId: taskId,
     requestedByAgentId: input.authorAgentId ?? "",

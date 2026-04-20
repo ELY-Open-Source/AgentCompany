@@ -53,7 +53,7 @@ async function createHarness(): Promise<Harness> {
     lastError: null,
   });
 
-  const companyId = db.saveCompany({
+  const companyId = db.company.saveCompany({
     name: "Work Products Co",
     description: "Tests archived visibility, bulk retirement, deliverable signal",
     status: "active",
@@ -88,7 +88,7 @@ async function createHarness(): Promise<Harness> {
     priority: "medium",
     status: "in_progress",
   });
-  const run = db.createRun({
+  const run = db.runs.createRun({
     companyId,
     taskId,
     agentId,

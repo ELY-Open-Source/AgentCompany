@@ -54,7 +54,7 @@ export function installSharedSetup(): SharedHandle {
     state.db = new AppDatabase(profileDir);
     state.db.init();
 
-    state.companyId = state.db.saveCompany({
+    state.companyId = state.db.company.saveCompany({
       name: "Autonomous Test Corp",
       description: "Test company for autonomous chain",
       status: "active",

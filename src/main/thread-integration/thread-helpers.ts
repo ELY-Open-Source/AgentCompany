@@ -150,7 +150,7 @@ export function announceApprovalToBoard(
   );
   if (!target) return;
 
-  const messageId = db.sendAgentMessage({
+  const messageId = db.messages.sendAgentMessage({
     companyId: approval.companyId,
     fromAgentId: approval.requestedByAgentId,
     channel: target.channel,
@@ -160,7 +160,7 @@ export function announceApprovalToBoard(
     priority: "urgent",
     senderKind: "agent",
   });
-  const message = db.getAgentMessage(messageId, approval.companyId);
+  const message = db.messages.getAgentMessage(messageId, approval.companyId);
   if (message) {
     deps.emitEvent({ type: "new-message", message });
   }

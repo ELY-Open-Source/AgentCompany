@@ -29,7 +29,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
   // and the standup module is registered separately in api-server/index.ts.
 
   server.addRoute("GET", "/api/agents/me/metrics", (_req, res, _params, token) => {
-    const companyMetrics = db.getCompanyMetrics(token.companyId, 30);
+    const companyMetrics = db.company.getCompanyMetrics(token.companyId, 30);
     const agentMetric = companyMetrics.agentMetrics.find(m => m.agentId === token.agentId);
     if (!agentMetric) {
       server.json(res, 404, { error: "Metrics not found" });
@@ -45,7 +45,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
       server.json(res, 404, { error: "Agent not found" });
       return;
     }
-    const companyMetrics = db.getCompanyMetrics(token.companyId, 30);
+    const companyMetrics = db.company.getCompanyMetrics(token.companyId, 30);
     const agentMetric = companyMetrics.agentMetrics.find((metric) => metric.agentId === agentId);
     if (!agentMetric) {
       server.json(res, 404, { error: "Metrics not found" });
@@ -190,7 +190,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
       return;
     }
     // Also check pending hire approvals with the same name to prevent concurrent duplicate requests
-    const pendingHires = db.listPendingHireApprovalPayloads(companyId);
+    const pendingHires = db.approvalsMod.listPendingHireApprovalPayloads(companyId);
     for (const pending of pendingHires) {
       try {
         const payload = pending.payloadJson ? JSON.parse(pending.payloadJson) as Record<string, unknown> : {};

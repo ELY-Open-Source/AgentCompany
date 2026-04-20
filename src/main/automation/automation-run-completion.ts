@@ -181,7 +181,7 @@ function createDeliverableReviewApproval(
 ): string {
   const { db, logger, publishDomainChanged, notify } = deps;
   const docTitles = docs.map((d) => d.title).join(", ");
-  const approvalId = db.requestApproval({
+  const approvalId = db.approvalsMod.requestApproval({
     companyId,
     relatedTaskId: taskId,
     requestedByAgentId: agentId,
@@ -232,9 +232,9 @@ function decideTerminalStatus(
   companyId: string,
 ): "in_review" | "done" {
   if (agent.reportsTo !== null) return "in_review";
-  const mode = db.getCompanyExecutionMode(companyId);
+  const mode = db.company.getCompanyExecutionMode(companyId);
   if (mode !== "ai_ceo") return "in_review";
-  const settings = db.getCompanyApprovalSettings(companyId);
+  const settings = db.company.getCompanyApprovalSettings(companyId);
   return settings?.reviewDeliverables ? "in_review" : "done";
 }
 

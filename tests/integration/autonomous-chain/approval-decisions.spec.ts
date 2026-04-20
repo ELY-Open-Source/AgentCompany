@@ -14,7 +14,7 @@ describe("Step 4: Hire approval + decideApproval", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
     const hireId = createAgent({ name: "CTO", role: "CTO", reportsTo: ceoId, status: "pending_approval" as "idle" });
 
-    const approvalId = shared.db.requestApproval({
+    const approvalId = shared.db.approvalsMod.requestApproval({
       companyId: shared.companyId,
       requestedByAgentId: ceoId,
       type: "hire_agent",
@@ -23,7 +23,7 @@ describe("Step 4: Hire approval + decideApproval", () => {
       payloadJson: JSON.stringify({ agentId: hireId }),
     });
 
-    shared.db.decideApproval({
+    shared.db.approvalsMod.decideApproval({
       approvalId,
       state: "approved",
       decisionNote: "Approved by board",
@@ -37,7 +37,7 @@ describe("Step 4: Hire approval + decideApproval", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
     const hireId = createAgent({ name: "CTO", role: "CTO", reportsTo: ceoId, status: "pending_approval" as "idle" });
 
-    const approvalId = shared.db.requestApproval({
+    const approvalId = shared.db.approvalsMod.requestApproval({
       companyId: shared.companyId,
       requestedByAgentId: ceoId,
       type: "hire_agent",
@@ -46,7 +46,7 @@ describe("Step 4: Hire approval + decideApproval", () => {
       payloadJson: JSON.stringify({ agentId: hireId }),
     });
 
-    shared.db.decideApproval({
+    shared.db.approvalsMod.decideApproval({
       approvalId,
       state: "rejected",
       decisionNote: "Not needed",
@@ -59,7 +59,7 @@ describe("Step 4: Hire approval + decideApproval", () => {
   it("getApprovalRecord includes payloadJson", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
     const hireId = createAgent({ name: "CTO", role: "CTO", reportsTo: ceoId, status: "pending_approval" as "idle" });
-    const approvalId = shared.db.requestApproval({
+    const approvalId = shared.db.approvalsMod.requestApproval({
       companyId: shared.companyId,
       requestedByAgentId: ceoId,
       type: "hire_agent",
@@ -68,7 +68,7 @@ describe("Step 4: Hire approval + decideApproval", () => {
       payloadJson: JSON.stringify({ agentId: hireId, config: { connector: "openai-codex" } }),
     });
 
-    const approval = shared.db.getApprovalRecord(approvalId);
+    const approval = shared.db.approvalsMod.getApprovalRecord(approvalId);
     expect(approval.payloadJson).toBeTruthy();
     const payload = JSON.parse(approval.payloadJson!);
     expect(payload.agentId).toBe(hireId);

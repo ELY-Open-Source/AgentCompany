@@ -32,7 +32,7 @@ describe("skill-aware capability registry", () => {
       lastError: null,
     });
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Skill Match Co",
       description: "Tests skill-aware assignment",
       status: "active",
@@ -122,7 +122,7 @@ describe("skill-aware capability registry", () => {
       lastError: null,
     });
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Registry Co",
       description: "Tests capability registry prompt injection",
       status: "active",

@@ -142,7 +142,7 @@ export function registerMessageRoutes(server: AgentApiServer) {
       return;
     }
 
-    const messages = db.listAgentMessages(companyId, {
+    const messages = db.messages.listAgentMessages(companyId, {
       agentId: token.agentId,
       channel: channelParam ?? undefined,
       channelTargetId: channelTargetId && channelTargetId.length > 0 ? channelTargetId : undefined,
@@ -158,12 +158,12 @@ export function registerMessageRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const message = db.getAgentMessage(requireParam(params, "messageId"), companyId);
+    const message = db.messages.getAgentMessage(requireParam(params, "messageId"), companyId);
     if (!message) {
       server.json(res, 404, { error: "Message not found" });
       return;
     }
-    const visibleToAgent = db.listAgentMessages(companyId, {
+    const visibleToAgent = db.messages.listAgentMessages(companyId, {
       agentId: token.agentId,
       messageId: message.id,
       limit: 1,
@@ -172,7 +172,7 @@ export function registerMessageRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "This message is not visible to the current agent" });
       return;
     }
-    db.markMessageReadForReader(requireParam(params, "messageId"), companyId, token.agentId);
+    db.messages.markMessageReadForReader(requireParam(params, "messageId"), companyId, token.agentId);
     onDomainChanged();
     server.json(res, 200, { ok: true });
   });

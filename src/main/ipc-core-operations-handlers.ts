@@ -56,7 +56,7 @@ export function registerCoreOperationHandlers({
     }
     let id: string;
     try {
-      id = db.requestApproval(parsed);
+      id = db.approvalsMod.requestApproval(parsed);
     } catch (error) {
       return fail("APPROVAL_INVALID", error instanceof Error ? error.message : "Approval could not be created.");
     }
@@ -109,7 +109,7 @@ export function registerCoreOperationHandlers({
     if (!db.belongsToCompany("approvals", parsed.approvalId, parsed.companyId)) {
       return fail("APPROVAL_NOT_FOUND", "Approval not found in the current company.");
     }
-    const approval = db.getApprovalRecord(parsed.approvalId);
+    const approval = db.approvalsMod.getApprovalRecord(parsed.approvalId);
     if (!approval || approval.companyId !== parsed.companyId) {
       return fail("APPROVAL_NOT_FOUND", "Approval not found in the current company.");
     }
@@ -154,7 +154,7 @@ export function registerCoreOperationHandlers({
     if (!db.belongsToCompany("runs", parsed.runId, parsed.companyId)) {
       return fail("RUN_NOT_FOUND", "Run not found in the current company.");
     }
-    return ok(db.readRunLog(parsed.runId));
+    return ok(db.runs.readRunLog(parsed.runId));
   });
 
   registerHandle(IPC_CHANNELS.getRunLogChunk, (_event, payload) => {
@@ -164,7 +164,7 @@ export function registerCoreOperationHandlers({
     if (!db.belongsToCompany("runs", parsed.runId, parsed.companyId)) {
       return fail("RUN_NOT_FOUND", "Run not found in the current company.");
     }
-    return ok(db.readRunLogChunk(parsed.runId, parsed.offset, parsed.limit));
+    return ok(db.runs.readRunLogChunk(parsed.runId, parsed.offset, parsed.limit));
   });
 
   registerHandle(IPC_CHANNELS.addComment, async (_event, payload) => {

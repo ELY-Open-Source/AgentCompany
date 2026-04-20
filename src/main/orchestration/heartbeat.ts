@@ -66,7 +66,7 @@ export function createHeartbeat(
     const isMessageWake = trigger === "message";
     const isCommunicationWake = isMessageWake || trigger === "peer_request";
     if (!hasWorkerReady()) return SKIPPED("worker_not_ready");
-    const companyStatus = db.getCompanyStatus(companyId);
+    const companyStatus = db.company.getCompanyStatus(companyId);
     if (companyStatus !== "active") return SKIPPED("company_inactive");
     const agent = db.entityCrud.getAgent(agentId);
     if (agent.companyId !== companyId) {
@@ -131,8 +131,8 @@ export function createHeartbeat(
     }
     if (db.agents.isAgentPendingApproval(agentId)) return SKIPPED("pending_approval");
 
-    const companyMode = db.getCompanyExecutionMode(companyId);
-    const approvalSettings = db.getCompanyApprovalSettings(companyId);
+    const companyMode = db.company.getCompanyExecutionMode(companyId);
+    const approvalSettings = db.company.getCompanyApprovalSettings(companyId);
     const shouldEnforceHumanReview =
       companyMode === "ai_cofounder" || approvalSettings?.reviewDeliverables === true;
 
@@ -207,7 +207,7 @@ export function createHeartbeat(
       `[heartbeat] Workspace resolution for ${agent.name}: task.workspaceId=${task?.workspaceId ?? "null"}, agent.workspaceId=${agent.workspaceId ?? "null"}, projectId=${task?.projectId ?? "null"}, source=${workspaceResolution.source}, mode=${workspaceResolution.lockMode}, resolved=${workspace?.name ?? "NONE"}, localPath=${workspace?.localPath ?? "NONE"}`,
     );
 
-    const run = db.createRun({
+    const run = db.runs.createRun({
       id: runId,
       companyId,
       taskId: task?.id ?? null,
@@ -216,7 +216,7 @@ export function createHeartbeat(
       connectorId: connector.id,
     });
 
-    const companyBasic = db.getCompanyBasic(companyId);
+    const companyBasic = db.company.getCompanyBasic(companyId);
     dispatchRunToWorker({
       runId: run.id,
       companyId,
@@ -238,7 +238,7 @@ export function createHeartbeat(
     try {
       const actorType = trigger === "timer" || trigger === "bootstrap" ? "system" : "agent";
       const actorId = trigger === "timer" || trigger === "bootstrap" ? null : trigger;
-      db.updateRunActor(run.id, actorType, actorId);
+      db.runs.updateRunActor(run.id, actorType, actorId);
     } catch (error) {
       logger.warn(
         `[heartbeat] updateRunActor failed for run ${run.id}: ${error instanceof Error ? error.message : String(error)}`,

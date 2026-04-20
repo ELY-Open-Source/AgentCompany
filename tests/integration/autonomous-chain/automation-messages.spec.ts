@@ -104,7 +104,7 @@ describe("Agent Messages", () => {
   });
 
   it("sends and retrieves direct messages", () => {
-    const msgId = shared.db.sendAgentMessage({
+    const msgId = shared.db.messages.sendAgentMessage({
       companyId: shared.companyId,
       fromAgentId: agentAId,
       toAgentId: agentBId,
@@ -116,7 +116,7 @@ describe("Agent Messages", () => {
 
     expect(msgId).toBeTruthy();
 
-    const messages = shared.db.listAgentMessages(shared.companyId);
+    const messages = shared.db.messages.listAgentMessages(shared.companyId);
     expect(messages).toHaveLength(1);
     expect(messages[0].subject).toBe("Need design review");
     expect(messages[0].fromAgentId).toBe(agentAId);
@@ -125,7 +125,7 @@ describe("Agent Messages", () => {
   });
 
   it("marks messages as read", () => {
-    const msgId = shared.db.sendAgentMessage({
+    const msgId = shared.db.messages.sendAgentMessage({
       companyId: shared.companyId,
       fromAgentId: agentAId,
       toAgentId: agentBId,
@@ -133,14 +133,14 @@ describe("Agent Messages", () => {
       body: "Hello",
     });
 
-    shared.db.markMessageReadForReader(msgId, shared.companyId);
-    const messages = shared.db.listAgentMessages(shared.companyId);
+    shared.db.messages.markMessageReadForReader(msgId, shared.companyId);
+    const messages = shared.db.messages.listAgentMessages(shared.companyId);
     const updatedMessage = messages.find((message) => message.id === msgId);
     expect(updatedMessage?.readAt).toBeTruthy();
   });
 
   it("tracks read state per agent without marking the sender unread", () => {
-    const msgId = shared.db.sendAgentMessage({
+    const msgId = shared.db.messages.sendAgentMessage({
       companyId: shared.companyId,
       fromAgentId: agentAId,
       toAgentId: agentBId,
@@ -148,22 +148,22 @@ describe("Agent Messages", () => {
       body: "Hello",
     });
 
-    const senderView = shared.db.listAgentMessages(shared.companyId, { agentId: agentAId });
+    const senderView = shared.db.messages.listAgentMessages(shared.companyId, { agentId: agentAId });
     expect(senderView).toHaveLength(1);
     expect(senderView[0].id).toBe(msgId);
     expect(senderView[0].readAt).toBeTruthy();
 
-    const recipientViewBefore = shared.db.listAgentMessages(shared.companyId, { agentId: agentBId, unreadOnly: true });
+    const recipientViewBefore = shared.db.messages.listAgentMessages(shared.companyId, { agentId: agentBId, unreadOnly: true });
     expect(recipientViewBefore).toHaveLength(1);
     expect(recipientViewBefore[0].id).toBe(msgId);
 
-    shared.db.markMessageReadForReader(msgId, shared.companyId, agentBId);
+    shared.db.messages.markMessageReadForReader(msgId, shared.companyId, agentBId);
 
-    const recipientViewAfter = shared.db.listAgentMessages(shared.companyId, { agentId: agentBId, unreadOnly: true });
+    const recipientViewAfter = shared.db.messages.listAgentMessages(shared.companyId, { agentId: agentBId, unreadOnly: true });
     expect(recipientViewAfter).toHaveLength(0);
 
     const thirdAgentId = createAgent({ name: "Agent C" });
-    const thirdView = shared.db.listAgentMessages(shared.companyId, { agentId: thirdAgentId });
+    const thirdView = shared.db.messages.listAgentMessages(shared.companyId, { agentId: thirdAgentId });
     expect(thirdView).toHaveLength(0);
   });
 
@@ -188,7 +188,7 @@ describe("Agent Messages", () => {
       priority: "medium",
     });
 
-    const deptMessageId = shared.db.sendAgentMessage({
+    const deptMessageId = shared.db.messages.sendAgentMessage({
       companyId: shared.companyId,
       fromAgentId: engineeringLeadId,
       channel: "department",
@@ -196,7 +196,7 @@ describe("Agent Messages", () => {
       subject: "Engineering update",
       body: "Only engineering should see this",
     });
-    const projectMessageId = shared.db.sendAgentMessage({
+    const projectMessageId = shared.db.messages.sendAgentMessage({
       companyId: shared.companyId,
       fromAgentId: engineeringLeadId,
       channel: "project",
@@ -205,30 +205,30 @@ describe("Agent Messages", () => {
       body: "Only project members should see this",
     });
 
-    const engineeringView = shared.db.listAgentMessages(shared.companyId, { agentId: engineeringLeadId });
+    const engineeringView = shared.db.messages.listAgentMessages(shared.companyId, { agentId: engineeringLeadId });
     expect(engineeringView.some((message) => message.id === deptMessageId)).toBe(true);
     expect(engineeringView.some((message) => message.id === projectMessageId)).toBe(true);
 
-    const productView = shared.db.listAgentMessages(shared.companyId, { agentId: productLeadId });
+    const productView = shared.db.messages.listAgentMessages(shared.companyId, { agentId: productLeadId });
     expect(productView.some((message) => message.id === deptMessageId)).toBe(false);
     expect(productView.some((message) => message.id === projectMessageId)).toBe(false);
   });
 
   it("filters messages by channel", () => {
-    shared.db.sendAgentMessage({ companyId: shared.companyId, fromAgentId: agentAId, subject: "Dept update", body: "All good", channel: "department", channelTargetId: "engineering" });
-    shared.db.sendAgentMessage({ companyId: shared.companyId, fromAgentId: agentAId, toAgentId: agentBId, subject: "DM", body: "Hey", channel: "direct" });
+    shared.db.messages.sendAgentMessage({ companyId: shared.companyId, fromAgentId: agentAId, subject: "Dept update", body: "All good", channel: "department", channelTargetId: "engineering" });
+    shared.db.messages.sendAgentMessage({ companyId: shared.companyId, fromAgentId: agentAId, toAgentId: agentBId, subject: "DM", body: "Hey", channel: "direct" });
 
-    const deptMsgs = shared.db.listAgentMessages(shared.companyId, { channel: "department" });
+    const deptMsgs = shared.db.messages.listAgentMessages(shared.companyId, { channel: "department" });
     expect(deptMsgs).toHaveLength(1);
     expect(deptMsgs[0].subject).toBe("Dept update");
 
-    const directMsgs = shared.db.listAgentMessages(shared.companyId, { channel: "direct" });
+    const directMsgs = shared.db.messages.listAgentMessages(shared.companyId, { channel: "direct" });
     expect(directMsgs).toHaveLength(1);
     expect(directMsgs[0].subject).toBe("DM");
   });
 
   it("appears in snapshot", () => {
-    shared.db.sendAgentMessage({ companyId: shared.companyId, fromAgentId: agentAId, channel: "company", subject: "Snapshot test", body: "Hi" });
+    shared.db.messages.sendAgentMessage({ companyId: shared.companyId, fromAgentId: agentAId, channel: "company", subject: "Snapshot test", body: "Hi" });
     const snapshot = shared.db.listSnapshot();
     expect(snapshot.agentMessages.length).toBeGreaterThanOrEqual(1);
     expect(snapshot.agentMessages[0].subject).toBe("Snapshot test");

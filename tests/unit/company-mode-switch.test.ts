@@ -40,7 +40,7 @@ describe("company mode switching", () => {
       lastError: null,
     });
 
-    const companyId = db.saveCompany({
+    const companyId = db.company.saveCompany({
       name: "Mode Switch Co",
       description: "Execution mode cleanup",
       status: "active",
@@ -101,7 +101,7 @@ describe("company mode switching", () => {
     threadIntegration.onTaskCreated(taskId, companyId);
     threadIntegration.onRunFinished("run-1", taskId, engineerId, companyId, "succeeded", null);
     db.tasks.setTaskRequiresUserReview(taskId, true);
-    const approvalId = db.requestApproval({
+    const approvalId = db.approvalsMod.requestApproval({
       companyId,
       relatedTaskId: taskId,
       requestedByAgentId: engineerId,
@@ -114,7 +114,7 @@ describe("company mode switching", () => {
 
     expect(db.listThreadWaitStates(companyId).length).toBeGreaterThan(0);
     expect(db.entityCrud.getTask(taskId).requiresUserReview).toBe(true);
-    expect(db.getApprovalRecord(approvalId).state).toBe("pending");
+    expect(db.approvalsMod.getApprovalRecord(approvalId).state).toBe("pending");
 
     const handlers = new Map<string, IpcHandler>();
     registerCoreAdminHandlers({
@@ -147,10 +147,10 @@ describe("company mode switching", () => {
     }) as { ok: boolean };
 
     expect(result.ok).toBe(true);
-    expect(db.getCompanyExecutionMode(companyId)).toBe("ai_ceo");
+    expect(db.company.getCompanyExecutionMode(companyId)).toBe("ai_ceo");
     expect(db.listThreadWaitStates(companyId)).toHaveLength(0);
     expect(db.entityCrud.getTask(taskId).requiresUserReview).toBe(false);
-    expect(db.getApprovalRecord(approvalId).state).toBe("approved");
+    expect(db.approvalsMod.getApprovalRecord(approvalId).state).toBe("approved");
 
     db.close();
   });
