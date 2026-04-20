@@ -56,6 +56,7 @@ oldreference/
 !/docs/*.md
 !/docs/proposals/*.md
 !/CLAUDE.md
+!/AGENTS.md
 !/.planning/**/*.md
 !/src/main/prompt-builder/**/*.md
 # Bundled Agent Skills ship their SKILL.md / README.md as source of truth.

@@ -1,3 +1,17 @@
+# CLAUDE.md
+
+> Claude Code–specific entry point. The talk-normal style block and core
+> persona below are intentionally mirrored from `AGENTS.md` so that the Claude
+> Code config loader picks them up at top priority — do not replace with a
+> pointer.
+>
+> For the shared, agent-agnostic principles (engineering constraints, workflow,
+> output specs), `AGENTS.md` is the canonical source. Claude Code–only hooks,
+> permissions, and settings live in `.claude/settings.json` and
+> `.claude/settings.local.json`.
+
+---
+
 4. <!-- talk-normal 0.6.2 -->
 
   Be direct and informative. No filler, no fluff, but give enough to be useful.
