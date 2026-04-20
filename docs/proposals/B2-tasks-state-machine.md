@@ -254,3 +254,58 @@ INSERT INTO task_leases (task_id, run_id, acquired_at, expires_at, session_id) V
 - `attempted_count`（重试次数）
 
 这些存在 tasks 的辅助列或独立表——独立于 phase enum，不参与 CAS。
+
+## Phase 2 considerations
+
+> 追加时间：2026-04-20（Roundtable T1 Linus/Jobs review 之后）
+> 状态：Phase 1（步骤 1/5–5/5）已完成并加了一轮 follow-up 修补（advanceTaskStatus lease 清理 + interruptStaleRuns scoping + ESLint 规则加固）。下面这组问题在 Phase 1 明确不动。
+
+### Phase 1 实际形态
+
+- v50 migration 加了 `tasks.phase` 列 + `task_leases` 表 + status→phase TRIGGER。
+- 所有 status 写路径走 `advanceTaskStatus` / `checkoutTask` / `releaseTaskLock` / `renewTaskLease` / `saveTask` / `recoverStaleLocks` / `interruptStaleRuns`。每处都显式写 lease（INSERT / UPDATE / DELETE）并由 TRIGGER 镜像 status→phase。
+- Dev-mode 启动时跑 `verifyPhaseConsistency` 报告任何 legacy 列 vs 新 phase/lease 之间的分歧行。
+- ESLint `no-restricted-syntax` 规则现在抓 `UPDATE tasks SET ...status =` 的所有字面量变体以及 `UPDATE tasks SET ${...}` 的 template head；所有 5 处灰度写点都带 rationale 注释。
+- 读路径**没有切**到 phase / task_leases（Round 2 共识"only dual-write, no switch-read"）。
+
+### 未决的架构争论
+
+**Linus ask：删掉 status→phase TRIGGER，改为显式双写。**
+
+论点：TRIGGER 是隐式耦合，任何新写路径都"顺带"改 phase，容易让人忘记也要处理 lease。显式双写把"我在改 status + 改 phase + 改 lease"三件事放在同一段代码里，review 时一眼能看全。
+
+反论点：现状是 TRIGGER + consistency probe 双层护栏。TRIGGER 保证 `phase` 永远跟 `status` 同步（SQL 层强制），probe 在 dev 里暴露 `phase` vs `lease` 分歧。如果在 Phase 1 window 里删 TRIGGER，就要在 aba6fa3 往后的 5 个 commit 里把每个写点都加一遍显式 phase 更新——改动面大、易漏、测试信心低。Round 2 共识是 Phase 1 只做 dual-write，TRIGGER 留到 Phase 2 专门评估。
+
+**决定**：Phase 1 不动 TRIGGER。Phase 2 开始时重新评估，届时已有 fixture + 行为基线，可以用明确的 test coverage 证伪"删 TRIGGER 会引入 regression"。
+
+**Jobs ask：Phase 2 把读路径切到 phase / task_leases。**
+
+论点：Dual-write 只是过渡态；只要读路径还看 legacy `status` / `active_run_id` / `checkout_run_id` 三列，phase 和 lease 就只是"给自己看的影子"，不会暴露业务错误。
+
+反论点：切读之前必须有 eval 基线能证明"同一 company 输入下 v50 dual-write 模式 和 v51 read-from-phase 模式的 agent 行为序列一致"。B5 eval harness 是 blocking dependency（见顶部），在 fixture 录好之前切读是盲切。
+
+**决定**：Phase 2 前 B5 eval harness 必须就绪。
+
+### Phase 2 entry criteria
+
+以下全部满足才进 Phase 2：
+
+1. **B5 eval harness 能录一批 run trace 作为 baseline**：选 3 个 company 模板，每个跑一轮完整 sprint，记录 tool call 序列 + state transition 序列。
+2. **Phase 1 dev-mode probe 连续 7 天 0 divergence**：启动时 `verifyPhaseConsistency` 的 `inconsistent` 字段必须持续为 0。如果还有分歧，说明 Phase 1 还没收敛，不该往前走。
+3. **Phase 1 所有 grandfathered 写点都有 test 覆盖**：`advanceTaskStatus` lease 清理、`checkoutTask` lease 写入、`interruptStaleRuns` scoping、`recoverStaleLocks` lease 清理。T1 follow-up 已补齐 `advanceTaskStatus`，其余在 Phase 2 开工前补齐。
+4. **TRIGGER vs 显式双写定案**：Phase 2 第一个 commit 要么保留 TRIGGER 并写 contract test 钉死 `status ⇔ phase` 不变式，要么删 TRIGGER 并把显式 phase 更新加到所有写点。两条路径都是可验证的；Phase 2 开工时用 review 投票选一条。
+
+### Phase 3 drop-old-columns gate
+
+Phase 2 完成（所有读路径切到 phase / task_leases）并运行 14 天、`checkout_race_lost` 计数连续为 0 之后才进 Phase 3：
+
+1. **静态扫描确认没有新的 legacy 列 reader**：`status IN ('todo', 'backlog')`、`checkout_run_id`、`execution_locked_at`、`active_run_id` 全站搜索 0 命中（migrations 除外）。
+2. **ESLint 规则升级为 `error`**：任何新增的 legacy 列引用直接 fail build。
+3. **灰度 1 个 company 7 天**：观察 `sqlite_busy` 不增、`checkout_race_lost` 不增、renderer 没有新 404/500。
+4. **v51 migration 删列**：`active_run_id`、`checkout_run_id`、`execution_locked_at`、`active_session_id`、`status`（如保留则降为 derived view）。删列前自动备份一次。
+
+### 明确不在 Phase 2 scope
+
+- **M7 Phase 2 call-site switch**：Round 2 共识 M7 只做 Phase 1。Phase 2 开工时如需重开，走独立 proposal。
+- **B4 single-writer actor**：互补 proposal，独立推进。
+- **IPC 契约改动**：renderer 看到的仍是 `TaskRecord.status`，由 map 层从 phase/lease 合成。
