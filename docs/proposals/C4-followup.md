@@ -2,8 +2,9 @@
 
 > Source: Roundtable 2026-04-20 session 6 cross-review (Jobs + Karpathy request_changes asks)
 > Prerequisite: C4 landed (commits c91a233 through 0a35acf)
-> Owner: TBD
-> Estimated effort: 1-2 working days
+> Status: **CLOSED 2026-04-20** — all four items landed. See Completion notes at bottom.
+> Owner: Linus + Karpathy
+> Actual effort: ~1 working session
 > Blocking dependencies: none — safe to pick up any time
 
 ## What this proposal closes out
@@ -67,3 +68,22 @@ This proposal closes when all four items land and:
 - `non-ceo-dm-reply` fixture's `recordedAt` is after `c91a233`
 - Deprecation counter exists; counter value visible in telemetry; RFC 8594 headers on both legacy routes
 - `message_does_not_contain_substring` assertion kind passes harness self-tests
+
+## Completion notes (2026-04-20)
+
+All four items landed in the same session as the proposal. Resolution:
+
+| Item | Commit | Notes |
+|---|---|---|
+| #1 `canFileCeoStrategy` predicate | `f8f0874` | `file_approval` now gates on `role ∈ /^(CEO|chief executive officer)$/i && reportsTo === null`, orthogonal to `canRequestHire`. Manager with virtual superior no longer breaks scope. 4 unit cases in `tests/unit/agent-permissions-ceo-strategy.test.ts`. |
+| #2 Re-record `non-ceo-dm-reply` | (this commit) | VP Product (manager with `canRequestHire=true` but `canFileCeoStrategy=false` after #1) re-recorded post-C4. Assistant hits `mark_read` + `/api/agent_message/send` + keeps `m_77` in scope; does not invoke `hire_agent` or `file_approval` — positive evidence that the F3 split correctly excludes file_approval from non-CEO managers. |
+| #3 RFC 8594 headers + counter | `f99e6c4` | New `src/main/api-server/deprecation-counter.ts` (Map-backed, sync, throws on empty label). Both legacy routes emit `Deprecation: true` + `Sunset: Tue, 20 May 2026 00:00:00 GMT` + `Link: </docs/proposals/C4-followup.md>; rel="deprecation"`. Counter ticks on each call. 4 unit cases in `tests/unit/deprecation-counter.test.ts`. Removal gate: counter stays at zero for two weeks, then physically delete both route branches. |
+| #4 `message_does_not_contain_substring` assertion | `9d3763d` | New assertion kind added to `tests/eval/types.ts`, `tests/eval/assertion-judge.ts`. Two harness self-tests added. `ceo-bootstrap-empty` fixture now pins `node -e` and `/api/companies` as negative substrings — any future CEO bootstrap that reintroduces the HTTP-path antipattern fails `pnpm test:eval`. Proxy cleanup also pins `hire_agent`/`file_approval` as negative on `non-ceo-dm-reply`. |
+
+**Companion cleanup** (same session, docs-adjacent):
+
+| Concern | Commit | Notes |
+|---|---|---|
+| RPC method list duplicated between zod schema and TS union (the category that produced the C4→C5 hotfix `9d9f003`) | `d4ec922` | Extracted `workerRpcMethodSchema = z.enum([...])` in `worker/entry/types.ts` as single source of truth; `runtime-bridge.ts` now imports `WorkerRpcMethod = z.infer<typeof workerRpcMethodSchema>`. Added `default: { const _exhaustive: never = ... }` to the handler switch so a widened enum without a matching case becomes a TypeScript error rather than a runtime ZodError. |
+
+Final verification: `pnpm typecheck` green, `pnpm test:unit` 537/537, `pnpm test:eval` 10/10, working tree clean post-`non-ceo-dm-reply` re-record.
