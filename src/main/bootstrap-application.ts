@@ -17,6 +17,7 @@ import { prepareDatabase } from "./bootstrap/prepare-database";
 import { prepareServices } from "./bootstrap/prepare-services";
 import { wireApiServer, type CreateApiServerFn } from "./bootstrap/wire-api-server";
 import { recoverScheduledPosts } from "./bootstrap/recover-scheduled-posts";
+import { backfillWorkspaceArtifacts } from "./bootstrap/backfill-workspace-artifacts";
 import { runStartupHealthChecks } from "./bootstrap/run-startup-health-checks";
 import { emitCrashRecoveryNotification, recoverShutdownInterruptedTasks } from "./bootstrap/recover-interrupted-tasks";
 
@@ -143,6 +144,13 @@ export async function bootstrapApplication(deps: BootstrapApplicationDependencie
     isQuittingRef: deps.isQuittingRef,
     getBrowserActionService: () => serviceGraph.getBrowserActionService(),
   });
+
+  // One-time backfill: surface deliverables that cognitive runs wrote
+  // to disk while the projector was suppressed by the pre-observationPath
+  // bug (regression of T1 workspace fix, repaired in 2c12c1a). Gated by
+  // a settings flag so subsequent boots skip the workspace walk; the
+  // post-fix projector handles new file activity inside each run.
+  backfillWorkspaceArtifacts({ db, logger: log });
 
   // Register cleanup for bootstrap-owned resources during quit.
   // Runs BEFORE service-graph's onBeforeQuit (which is registered later).
