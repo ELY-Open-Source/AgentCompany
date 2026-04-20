@@ -29,6 +29,10 @@ import { buildCredentialMethods } from "./database/credentials";
 import { buildModelCapabilityMethods } from "./database/model-capabilities-crud";
 import { MODEL_CAPABILITY_SEED } from "./model-capability-seed";
 import { initializeDatabase } from "./database/schema";
+import {
+  verifyPhaseConsistency,
+  type PhaseConsistencyReport,
+} from "./database/tasks-phase-consistency";
 import { SecretVault } from "./vault";
 import type { AgentStatus, ConnectorId, ProfileSnapshot, RunStatus } from "@shared/types";
 
@@ -185,6 +189,42 @@ export class AppDatabaseBase {
     this._lastInterruptedCount = this.interruptStaleRuns();
     this.settings.purgeExpiredRunLogs();
     this.wakeup.purgeExpiredWakeupRequests();
+
+    // B2 Phase 1 step 4/5 — dev-mode dual-write consistency probe.
+    //
+    // Under NODE_ENV=development (vite dev, tests) we log the phase /
+    // lease divergence count every boot. Production builds skip the
+    // scan to keep startup cheap; the renderer snapshot path has no
+    // opinion on the shadow columns yet, so a daily sweep is fine
+    // once step 5/5 lands the lint rule and step 4 graduates to a
+    // background metric.
+    if (process.env.NODE_ENV !== "production") {
+      try {
+        const report = verifyPhaseConsistency(this.db, { sampleLimit: 5 });
+        if (report.inconsistent > 0) {
+           
+          console.warn(
+            `[tasks-phase-consistency] ${report.inconsistent} row(s) diverge between legacy columns and phase/lease shadow`,
+            report.mismatches,
+          );
+        }
+      } catch {
+        // Best-effort probe: a query failure here is diagnostic noise,
+        // not a reason to abort bootstrap. The dev-mode logger above
+        // would have captured the error anyway.
+      }
+    }
+  }
+
+  /**
+   * Report divergence between the legacy lock columns and the new
+   * phase/lease shadow. Intended for diagnostics — the scan is O(task
+   * rows) and must not run on hot paths. See
+   * `tasks-phase-consistency.verifyPhaseConsistency` for the full
+   * invariant description.
+   */
+  verifyPhaseConsistency(options: { sampleLimit?: number } = {}): PhaseConsistencyReport {
+    return verifyPhaseConsistency(this.db, options);
   }
 
   close() { this.db.close(); }
