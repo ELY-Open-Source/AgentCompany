@@ -15,20 +15,11 @@
 
 import {
   Agent,
-  type AfterToolCallResult,
   type AgentMessage,
-  type BeforeToolCallResult,
   type ThinkingLevel,
 } from "@mariozechner/pi-agent-core";
 import { streamSimple, type Api, type Model } from "@mariozechner/pi-ai";
-import type {
-  AfterToolCallRpcPayload,
-  AfterToolCallRpcResult,
-  BeforeToolCallRpcPayload,
-  BeforeToolCallRpcResult,
-  TransformContextRpcPayload,
-  TransformContextRpcResult,
-} from "@main/agent-runtime/hook-rpc";
+import { buildAgentHooks } from "@main/agent-runtime/agent-hooks";
 import type { WorkerRpcClient } from "../entry/rpc";
 // Side-effect import: drags the hook signature contract into the typecheck
 // graph so any drift in pi-agent-core hook shapes breaks the build here.
@@ -66,7 +57,7 @@ export function resolveThinkingLevel(effort: string | null | undefined): Thinkin
 }
 
 export function createPiAgent(input: PiAgentFactoryInput): Agent {
-  const { runId, rpc } = input;
+  const hooks = buildAgentHooks({ runId: input.runId, rpc: input.rpc });
   return new Agent({
     initialState: {
       systemPrompt: input.systemPrompt,
@@ -82,53 +73,8 @@ export function createPiAgent(input: PiAgentFactoryInput): Agent {
         apiKey: input.apiKey,
         headers: { ...(options?.headers ?? {}), ...(input.extraHeaders ?? {}) },
       }),
-    beforeToolCall: async (ctx): Promise<BeforeToolCallResult | undefined> => {
-      const payload: BeforeToolCallRpcPayload = {
-        toolName: ctx.toolCall.name,
-        toolCallId: ctx.toolCall.id,
-        args: ctx.args,
-      };
-      const response = await rpc.invoke(runId, "beforeToolCall", payload);
-      if (!response.ok) {
-        // RPC failure must fail closed for destructive tools: main is
-        // the source of truth for approval state, and silently running
-        // without it would bypass the gate. The loop converts the thrown
-        // error into a tool-error result and surfaces it to the agent.
-        throw new Error(`beforeToolCall RPC failed: ${response.error}`);
-      }
-      const result = response.result as BeforeToolCallRpcResult;
-      if (!result.block) return undefined;
-      return { block: true, reason: result.reason ?? undefined };
-    },
-    afterToolCall: async (ctx): Promise<AfterToolCallResult | undefined> => {
-      const payload: AfterToolCallRpcPayload = {
-        toolName: ctx.toolCall.name,
-        toolCallId: ctx.toolCall.id,
-        args: ctx.args,
-        resultContent: ctx.result.content,
-        resultDetails: ctx.result.details,
-        isError: ctx.isError,
-      };
-      const response = await rpc.invoke(runId, "afterToolCall", payload);
-      if (!response.ok) {
-        // After-hook failure is informational: the tool already ran,
-        // projection is a best-effort write. Drop the hook rather than
-        // corrupting the tool result.
-        return undefined;
-      }
-      const result = response.result as AfterToolCallRpcResult;
-      const override: AfterToolCallResult = {};
-      if (result.contentOverride) override.content = result.contentOverride;
-      if (result.isErrorOverride !== null) override.isError = result.isErrorOverride;
-      return Object.keys(override).length === 0 ? undefined : override;
-    },
-    transformContext: async (messages): Promise<AgentMessage[]> => {
-      const payload: TransformContextRpcPayload = { messages };
-      const response = await rpc.invoke(runId, "transformContext", payload);
-      if (!response.ok) return messages;
-      const result = response.result as TransformContextRpcResult;
-      if (result.changed && result.messages) return result.messages;
-      return messages;
-    },
+    beforeToolCall: hooks.beforeToolCall,
+    afterToolCall: hooks.afterToolCall,
+    transformContext: hooks.transformContext,
   });
 }
