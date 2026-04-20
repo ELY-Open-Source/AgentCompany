@@ -95,6 +95,16 @@ export function registerAgentRoutes(server: AgentApiServer) {
     server.json(res, 200, agents);
   });
 
+  /**
+   * @deprecated since C4 (2026-04-20). Agents should file hires via the
+   * first-class `hire_agent` pi tool (see
+   * `src/main/worker/runtime/internal-tools/hire-agent-tool.ts`). This
+   * HTTP route stays live for legacy clients (UI form post, automation
+   * tests, unmigrated scripts) during the deprecation window and will
+   * be removed once tool-path eval confirms no regressions. Every
+   * successful request emits a `log.warn` tagged with `[deprecated]`
+   * so residual callers are easy to audit.
+   */
   server.addRoute("POST", "/api/companies/:companyId/agents", (_req, res, params, token, body) => {
     const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
@@ -105,6 +115,9 @@ export function registerAgentRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Current agent is not allowed to request hires" });
       return;
     }
+    log.warn(
+      `[deprecated][C4] POST /api/companies/${companyId}/agents — prefer the hire_agent internal tool (caller agent=${token.agentId}).`,
+    );
     const reportsToProvided =
       typeof body === "object" &&
       body !== null &&

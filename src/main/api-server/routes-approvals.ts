@@ -17,6 +17,15 @@ export function registerApprovalRoutes(server: AgentApiServer) {
   const onDomainChanged = server.onDomainChanged;
   const onWakeAgent = server.onWakeAgent;
 
+  /**
+   * @deprecated since C4 (2026-04-20) for the `approve_ceo_strategy`
+   * flow. CEOs should file that approval via the `file_approval` pi
+   * tool (see `src/main/worker/runtime/internal-tools/file-approval-
+   * tool.ts`). Other approval types still use this HTTP route. Once
+   * every approval type has a tool surface, this route is removed
+   * outright; until then, the deprecated warn is scoped to
+   * `approve_ceo_strategy` so signal stays clean.
+   */
   server.addRoute("POST", "/api/companies/:companyId/approvals", (_req, res, params, token, body) => {
     const companyId = requireParam(params, "companyId");
     if (companyId !== token.companyId) {
@@ -33,6 +42,11 @@ export function registerApprovalRoutes(server: AgentApiServer) {
       return;
     }
     const input = parsed.data;
+    if (input.type === "approve_ceo_strategy") {
+      log.warn(
+        `[deprecated][C4] POST /api/companies/${companyId}/approvals type=approve_ceo_strategy — prefer the file_approval internal tool (caller agent=${token.agentId}).`,
+      );
+    }
     if (server.companyRefError(res, companyId, [
       { id: input.relatedTaskId, table: "tasks", label: "related task" },
       { id: token.agentId, table: "agents", label: "requesting agent" },
