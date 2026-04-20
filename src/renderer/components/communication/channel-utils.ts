@@ -9,10 +9,45 @@ function labelForParticipant(id: string | undefined, agentMap: Map<string, Agent
   return agentMap.get(id)?.name ?? id.slice(0, 8)
 }
 
+/**
+ * Resolve the participant-pair key that a direct message belongs to.
+ *
+ * A chat is a conversation thread, not a one-hop DM pair. When the user
+ * writes "@CEO 更新一下进度" inside their chat with 张工程师, CEO's
+ * reply targets `__board__` (the human reader) via
+ * `toAgentId=__board__, parentMessageId=<original>`. Keying that reply
+ * by `sort(fromAgent, toAgent)` alone would split it into a separate
+ * Board↔CEO pane and strand the user in two half-conversations. By
+ * walking `parentMessageId` back to the root of the thread and using
+ * the root's participant pair, every reply in the chain lands in the
+ * same chat surface the sender originally chose.
+ *
+ * Cycle guard: `parentMessageId` is user-supplied in some replies, so a
+ * malformed cycle must not wedge the UI. We bail out once the visit set
+ * sees an id twice and treat the current message as its own root.
+ */
+function resolveDirectThreadPair(
+  msg: AgentMessageRecord,
+  byId: Map<string, AgentMessageRecord>,
+): [string, string] | null {
+  const visited = new Set<string>()
+  let cursor: AgentMessageRecord | undefined = msg
+  while (cursor && cursor.parentMessageId && !visited.has(cursor.id)) {
+    visited.add(cursor.id)
+    const parent = byId.get(cursor.parentMessageId)
+    if (!parent || parent.channel !== "direct" || !parent.toAgentId) break
+    cursor = parent
+  }
+  if (!cursor || !cursor.toAgentId) return null
+  const ids = [cursor.fromAgentId, cursor.toAgentId].sort()
+  return [ids[0]!, ids[1]!]
+}
+
 export function deriveChannels(messages: AgentMessageRecord[], agents: AgentRecord[], projects?: ProjectRecord[]): ChannelDescriptor[] {
   const channelMap = new Map<string, ChannelDescriptor>()
   const agentMap = new Map(agents.map((a) => [a.id, a]))
   const projectMap = new Map((projects ?? []).map((p) => [p.id, p]))
+  const byId = new Map(messages.map((m) => [m.id, m]))
 
   channelMap.set("company-all", { key: "company-all", kind: "message", channel: "company", label: "#company-wide", targetId: null, agentId: null, participantIds: [] })
 
@@ -25,15 +60,16 @@ export function deriveChannels(messages: AgentMessageRecord[], agents: AgentReco
 
   for (const msg of messages) {
     let key: string; let label: string; let agentId: string | null = null
+    let participantIds: string[] = []
     switch (msg.channel) {
       case "direct": {
-        const otherId = msg.toAgentId
-        if (!otherId) { key = "direct-broadcast"; label = "Broadcast DMs" }
+        const pair = resolveDirectThreadPair(msg, byId)
+        if (!pair) { key = "direct-broadcast"; label = "Broadcast DMs" }
         else {
-          const ids = [msg.fromAgentId, otherId].sort()
-          key = `direct-${ids.join("-")}`
-          label = `${labelForParticipant(ids[0], agentMap)} \u2194 ${labelForParticipant(ids[1], agentMap)}`
-          agentId = ids.find((id) => id !== BOARD_ID) ?? ids[1] ?? null
+          key = `direct-${pair.join("-")}`
+          label = `${labelForParticipant(pair[0], agentMap)} \u2194 ${labelForParticipant(pair[1], agentMap)}`
+          agentId = pair.find((id) => id !== BOARD_ID) ?? pair[1] ?? null
+          participantIds = pair
         }
         break }
       case "department": { const d = msg.channelTargetId ?? "general"; key = `department-${d}`; label = `#${d.replace(/_/g, "-")}`; break }
@@ -42,7 +78,7 @@ export function deriveChannels(messages: AgentMessageRecord[], agents: AgentReco
       case "incident": { const iid = msg.channelTargetId ?? "room"; key = `incident-${iid}`; label = iid === "room" ? "#incident-room" : `#incident-${iid.slice(0, 8)}`; break }
     }
     if (!channelMap.has(key)) {
-      channelMap.set(key, { key, kind: "message", channel: msg.channel, label, targetId: msg.channelTargetId, agentId, participantIds: msg.channel === "direct" && msg.toAgentId ? [msg.fromAgentId, msg.toAgentId].sort() : [] })
+      channelMap.set(key, { key, kind: "message", channel: msg.channel, label, targetId: msg.channelTargetId, agentId, participantIds })
     }
   }
 
@@ -67,6 +103,7 @@ export function deriveTaskDiscussionChannels(comments: CommentRecord[], tasks: T
 }
 
 export function getChannelMessages(messages: AgentMessageRecord[], channel: ChannelDescriptor): AgentMessageRecord[] {
+  const byId = new Map(messages.map((m) => [m.id, m]))
   return messages.filter((msg) => {
     if (channel.channel === "company" && msg.channel === "company") return true
     if (channel.channel === "department" && msg.channel === "department") return msg.channelTargetId === channel.targetId
@@ -75,8 +112,9 @@ export function getChannelMessages(messages: AgentMessageRecord[], channel: Chan
     if (channel.channel === "direct" && msg.channel === "direct") {
       if (channel.key === "direct-broadcast") return !msg.toAgentId
       if (!msg.toAgentId || channel.participantIds.length < 2) return false
-      const ids = [msg.fromAgentId, msg.toAgentId].sort()
-      return ids[0] === channel.participantIds[0] && ids[1] === channel.participantIds[1]
+      const pair = resolveDirectThreadPair(msg, byId)
+      if (!pair) return false
+      return pair[0] === channel.participantIds[0] && pair[1] === channel.participantIds[1]
     }
     return false
   })

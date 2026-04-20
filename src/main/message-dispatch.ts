@@ -237,9 +237,21 @@ export function resolveMessageWakeTargets(
   mentionedAgentIds?: readonly string[],
 ): string[] {
   const wakeTargets = new Set<string>();
+  const mentioned = mentionedAgentIds ?? resolveMentionedAgentIds(db, input);
+  const hasExplicitMentions = mentioned.length > 0;
 
   if (input.channel === "direct" && input.toAgentId && input.toAgentId !== input.fromAgentId) {
-    wakeTargets.add(input.toAgentId);
+    // Chatroom semantics: when the body carries explicit @mentions, the
+    // mention list is the recipient list. The DM's `toAgentId` is only
+    // woken if the sender named them; otherwise the named agent takes
+    // over the turn and the DM partner "keeps working" — exactly the
+    // behaviour the operator asks for when they say "@CEO 更新一下进度"
+    // inside a chat with 张工程师 and expects CEO (not 张工程师) to
+    // answer. With no mentions, preserve the historical "DM always
+    // wakes the recipient" contract so every existing flow is intact.
+    if (!hasExplicitMentions || mentioned.includes(input.toAgentId)) {
+      wakeTargets.add(input.toAgentId);
+    }
   }
 
   if (input.channel === "department" && input.channelTargetId) {
@@ -270,7 +282,6 @@ export function resolveMessageWakeTargets(
     }
   }
 
-  const mentioned = mentionedAgentIds ?? resolveMentionedAgentIds(db, input);
   for (const mentionedId of mentioned) {
     wakeTargets.add(mentionedId);
   }

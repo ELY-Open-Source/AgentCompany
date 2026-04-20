@@ -199,6 +199,45 @@ describe("message dispatch", () => {
     db.close();
   });
 
+  it("redirects a DM's wake to the @mentioned agent instead of the DM recipient (chatroom semantics)", async () => {
+    const profileDir = await createTempDir("agentcompany-message-redirect-");
+    const db = new AppDatabase(profileDir);
+    db.init();
+
+    const { companyId, ceoId, ctoId } = createScaffold(db);
+    const wakeAgentIfPossible = vi.fn().mockReturnValue(null);
+
+    const result = dispatchAgentMessage({
+      db,
+      wakeAgentIfPossible,
+    }, {
+      companyId,
+      fromAgentId: HUMAN_SENDER_ID,
+      fromHumanUser: true,
+      channel: "direct",
+      toAgentId: ctoId,
+      subject: "progress",
+      body: "@CEO 更新一下进度。",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("Expected dispatch to succeed.");
+    // CEO is the only wake target — the DM recipient (CTO) is NOT
+    // woken because an explicit @mention overrides the implicit DM
+    // recipient. This is what lets the operator say "@CEO" inside a
+    // chat with CTO and have CEO (not CTO) take the turn.
+    expect(result.data.wakeTargets).toEqual([ceoId]);
+
+    // The message is still visible to CTO's inbox — they were the
+    // addressed recipient — but CTO is not required to answer.
+    const ctoInbox = db.listAgentInboxUnread(companyId, ctoId);
+    expect(ctoInbox.map((entry) => entry.id)).toContain(result.data.id);
+    const ceoInbox = db.listAgentInboxUnread(companyId, ceoId);
+    expect(ceoInbox.map((entry) => entry.id)).toContain(result.data.id);
+
+    db.close();
+  });
+
   it("keeps __board__ out of wake targets even when the recipient is the human reader", async () => {
     const profileDir = await createTempDir("agentcompany-message-board-wake-");
     const db = new AppDatabase(profileDir);
