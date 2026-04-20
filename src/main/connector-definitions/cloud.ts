@@ -7,7 +7,7 @@
  * run (see `pi-mono-reference/packages/ai/src/env-api-keys.ts`).
  */
 
-import type { ConnectorDefinition } from "./connector-definitions";
+import type { ConnectorDefinition } from "../connector-definitions";
 
 export const CLOUD_CONNECTORS: ConnectorDefinition[] = [
   {

@@ -11,7 +11,7 @@
  * set.
  */
 
-import type { ConnectorDefinition } from "./connector-definitions";
+import type { ConnectorDefinition } from "../connector-definitions";
 
 export const API_KEY_CONNECTORS: ConnectorDefinition[] = [
   {

@@ -18,15 +18,13 @@
  * Entries live in three companion files to keep every module under the
  * 400-line cap:
  *
- *   - `connector-definitions-data-oauth.ts`   — 5 OAuth providers
- *   - `connector-definitions-data-apikey.ts`  — 18 API-key providers
- *   - `connector-definitions-data-cloud.ts`   — 3 Cloud providers
+ *   - `connector-definitions/oauth.ts`   — 5 OAuth providers
+ *   - `connector-definitions/apikey.ts`  — 18 API-key providers
+ *   - `connector-definitions/cloud.ts`   — 3 Cloud providers
  */
 
 import type { ConnectorId } from "@shared/types";
-import { OAUTH_CONNECTORS } from "./connector-definitions-data-oauth";
-import { API_KEY_CONNECTORS } from "./connector-definitions-data-apikey";
-import { CLOUD_CONNECTORS } from "./connector-definitions-data-cloud";
+import { OAUTH_CONNECTORS, API_KEY_CONNECTORS, CLOUD_CONNECTORS } from "./connector-definitions/index";
 
 /**
  * OAuth provider id recognised by the AgentCompany credential layer. These

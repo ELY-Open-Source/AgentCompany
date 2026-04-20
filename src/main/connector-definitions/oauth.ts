@@ -13,7 +13,7 @@
  * `getOAuthProvider`.
  */
 
-import type { ConnectorDefinition } from "./connector-definitions";
+import type { ConnectorDefinition } from "../connector-definitions";
 
 export const OAUTH_CONNECTORS: ConnectorDefinition[] = [
   {
