@@ -295,7 +295,8 @@ export function triggerSelfWake(
 
   try {
     const actionableTasks = db.listAgentTasks(run.agentId, run.companyId, ["todo", "in_progress"]);
-    if (actionableTasks.length === 0) return;
+    const hasWorkToContinue = actionableTasks.length > 0 || hasUnfinishedTeamBuilding(db, run.agentId, run.companyId);
+    if (!hasWorkToContinue) return;
 
     const allowed = cb.tryWake(run.agentId, run.companyId);
     if (!allowed) {
@@ -320,5 +321,40 @@ export function triggerSelfWake(
     logger.warn(
       `[self-wake] self-wake evaluation failed for agent ${run.agentId}: ${error instanceof Error ? error.message : String(error)}`,
     );
+  }
+}
+
+/**
+ * Returns true when a top-level agent (CEO) still has team-building work
+ * in flight: the company has an active goal, zero active direct reports,
+ * and no pending hire approvals. Each wake in that window files at most a
+ * handful of hire_agent POSTs, so chaining runs via self-wake instead of
+ * waiting for the 2-minute heartbeat timer takes bootstrap from
+ * 10-plus minutes down to the LLM's round-trip time.
+ *
+ * The circuit breaker on the caller side still applies, so a CEO that
+ * keeps completing runs without actually creating hires gets paused
+ * after MAX_CONSECUTIVE_WAKES attempts.
+ */
+function hasUnfinishedTeamBuilding(
+  db: HandlerDeps["db"],
+  agentId: string,
+  companyId: string,
+): boolean {
+  try {
+    const agent = db.getAgent(agentId);
+    if (agent.reportsTo !== null) return false;
+    const activeReports = db
+      .getDirectReports(agentId, companyId)
+      .filter((r) => r.status !== "pending_approval" && r.status !== "terminated");
+    if (activeReports.length > 0) return false;
+    const goalCount = db.countActiveGoalsForCompany(companyId);
+    if (goalCount === 0) return false;
+    const pendingHires = db
+      .listCompanyApprovalsByType(companyId, "hire_agent")
+      .filter((a) => a.state === "pending");
+    return pendingHires.length === 0;
+  } catch {
+    return false;
   }
 }
