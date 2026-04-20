@@ -53,6 +53,7 @@ export const workerMessageSchema = z.union([
       "beforeToolCall",
       "afterToolCall",
       "transformContext",
+      "invokeInternalTool",
     ]),
     payload: z.unknown(),
   }),
