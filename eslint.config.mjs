@@ -126,17 +126,33 @@ export default tseslint.config(
       "no-restricted-syntax": [
         "error",
         {
-          // Plain string literals and normal template heads.
+          // Plain string literals: any `UPDATE tasks SET ...status = ...`
+          // regardless of column ordering. The previous variant only
+          // caught `SET status` as the first column, letting writes
+          // like `SET checkout_run_id = ..., status = 'todo'` slip
+          // through silently.
           selector:
-            "Literal[value=/\\b[Uu][Pp][Dd][Aa][Tt][Ee]\\s+tasks\\s+[Ss][Ee][Tt]\\s+status\\b/]",
+            "Literal[value=/\\b[Uu][Pp][Dd][Aa][Tt][Ee]\\s+tasks\\s+[Ss][Ee][Tt]\\s[^;]*\\bstatus\\s*=/]",
           message:
             "B2 Phase 1: write task.status through advanceTaskPhase (or tag with `// eslint-disable-next-line no-restricted-syntax` + dual-write rationale for grandfathered sites).",
         },
         {
           selector:
-            "TemplateElement[value.raw=/\\b[Uu][Pp][Dd][Aa][Tt][Ee]\\s+tasks\\s+[Ss][Ee][Tt]\\s+status\\b/]",
+            "TemplateElement[value.raw=/\\b[Uu][Pp][Dd][Aa][Tt][Ee]\\s+tasks\\s+[Ss][Ee][Tt]\\s[^;]*\\bstatus\\s*=/]",
           message:
             "B2 Phase 1: write task.status through advanceTaskPhase (or tag with `// eslint-disable-next-line no-restricted-syntax` + dual-write rationale for grandfathered sites).",
+        },
+        {
+          // Dynamic-SQL bypass: `UPDATE tasks SET ${...}` where the
+          // first interpolation is a JS-built column list. The literal
+          // head ends with `SET ` (trailing space) and `status` never
+          // shows up in the template itself. Match the head-only shape
+          // so this helper must carry an explicit eslint-disable with
+          // a dual-write rationale, same as the grandfathered sites.
+          selector:
+            "TemplateElement[value.raw=/\\b[Uu][Pp][Dd][Aa][Tt][Ee]\\s+tasks\\s+[Ss][Ee][Tt]\\s*$/]",
+          message:
+            "B2 Phase 1: dynamic `UPDATE tasks SET ${...}` helpers bypass the literal-SET guard; route through advanceTaskPhase or tag with `// eslint-disable-next-line no-restricted-syntax` + dual-write rationale.",
         },
       ],
     },

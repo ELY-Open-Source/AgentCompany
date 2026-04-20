@@ -280,6 +280,116 @@ describe("tasks-phase helpers", () => {
     });
   });
 
+  describe("advanceTaskStatus lease cleanup", () => {
+    // B2 Phase 1 follow-up (Linus review ask #1): advanceTaskStatus
+    // used to write only the status column, leaving any lease row
+    // behind as an orphan. The helpers below seed a lease directly,
+    // then drive status transitions and assert the shadow row lifecycle.
+    function seedLease(taskId: string, runId: string): void {
+      const acquired = new Date().toISOString();
+      const expires = new Date(Date.now() + 60_000).toISOString();
+      (db as unknown as {
+        db: { prepare: (sql: string) => { run: (...args: unknown[]) => unknown } };
+      }).db
+        .prepare(
+          `INSERT OR REPLACE INTO task_leases
+             (task_id, run_id, acquired_at, expires_at, checkout_run_id)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(taskId, runId, acquired, expires, runId);
+    }
+
+    function readLease(taskId: string): { run_id: string } | undefined {
+      return (db as unknown as {
+        db: { prepare: (sql: string) => { get: (...args: unknown[]) => unknown } };
+      }).db
+        .prepare("SELECT run_id FROM task_leases WHERE task_id = ?")
+        .get(taskId) as { run_id: string } | undefined;
+    }
+
+    it("drops the lease when the task transitions to done", () => {
+      const companyId = createTestCompany(db);
+      createTestConnector(db);
+      const workspaceId = createTestWorkspace(db, companyId);
+      const agentId = createTestAgent(db, companyId, workspaceId);
+      const taskId = createTestTask(db, companyId, agentId, workspaceId);
+      const runId = createTestRun(db, companyId, taskId, agentId, workspaceId);
+
+      db.tasks.advanceTaskStatus(taskId, "in_progress");
+      seedLease(taskId, runId);
+      expect(readLease(taskId)?.run_id).toBe(runId);
+
+      db.tasks.advanceTaskStatus(taskId, "done");
+      expect(readLease(taskId)).toBeUndefined();
+    });
+
+    it("drops the lease when the task transitions to cancelled", () => {
+      const companyId = createTestCompany(db);
+      createTestConnector(db);
+      const workspaceId = createTestWorkspace(db, companyId);
+      const agentId = createTestAgent(db, companyId, workspaceId);
+      const taskId = createTestTask(db, companyId, agentId, workspaceId);
+      const runId = createTestRun(db, companyId, taskId, agentId, workspaceId);
+
+      db.tasks.advanceTaskStatus(taskId, "in_progress");
+      seedLease(taskId, runId);
+
+      db.tasks.advanceTaskStatus(taskId, "cancelled");
+      expect(readLease(taskId)).toBeUndefined();
+    });
+
+    it("drops the lease when the task transitions to blocked", () => {
+      const companyId = createTestCompany(db);
+      createTestConnector(db);
+      const workspaceId = createTestWorkspace(db, companyId);
+      const agentId = createTestAgent(db, companyId, workspaceId);
+      const taskId = createTestTask(db, companyId, agentId, workspaceId);
+      const runId = createTestRun(db, companyId, taskId, agentId, workspaceId);
+
+      db.tasks.advanceTaskStatus(taskId, "in_progress");
+      seedLease(taskId, runId);
+
+      db.tasks.advanceTaskStatus(taskId, "blocked");
+      expect(readLease(taskId)).toBeUndefined();
+    });
+
+    it("drops the lease when the task is bounced back to todo", () => {
+      const companyId = createTestCompany(db);
+      createTestConnector(db);
+      const workspaceId = createTestWorkspace(db, companyId);
+      const agentId = createTestAgent(db, companyId, workspaceId);
+      const taskId = createTestTask(db, companyId, agentId, workspaceId);
+      const runId = createTestRun(db, companyId, taskId, agentId, workspaceId);
+
+      db.tasks.advanceTaskStatus(taskId, "in_progress");
+      seedLease(taskId, runId);
+
+      db.tasks.advanceTaskStatus(taskId, "todo");
+      expect(readLease(taskId)).toBeUndefined();
+    });
+
+    it("leaves the lease intact when the task transitions to in_review", () => {
+      const companyId = createTestCompany(db);
+      createTestConnector(db);
+      const workspaceId = createTestWorkspace(db, companyId);
+      const agentId = createTestAgent(db, companyId, workspaceId);
+      // in_review guard requires either a reports_to or requires_user_review.
+      db.tasks.setTaskRequiresUserReview(
+        createTestTask(db, companyId, agentId, workspaceId),
+        true,
+      );
+      const taskId = createTestTask(db, companyId, agentId, workspaceId);
+      db.tasks.setTaskRequiresUserReview(taskId, true);
+      const runId = createTestRun(db, companyId, taskId, agentId, workspaceId);
+
+      db.tasks.advanceTaskStatus(taskId, "in_progress");
+      seedLease(taskId, runId);
+
+      db.tasks.advanceTaskStatus(taskId, "in_review");
+      expect(readLease(taskId)?.run_id).toBe(runId);
+    });
+  });
+
   describe("releaseTaskLease", () => {
     it("releases the lease when the runId matches", () => {
       const companyId = createTestCompany(db);

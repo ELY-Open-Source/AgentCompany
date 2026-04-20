@@ -43,12 +43,26 @@ function writeCheckoutLease(
 export function buildTaskStatusMethods(
   getDb: () => DatabaseSync,
   readAll: ReadAll,
-  _transaction: Transaction,
+  transaction: Transaction,
   deps: {
     addComment: (input: { companyId: string; taskId: string; authorAgentId: string | null; authorName: string; body: string }) => void;
     addActivity: (input: { companyId: string; actor: string; action: string; entityType: string; entityId: string; detail: string }) => void;
   },
 ) {
+  // Terminal phases and "returned to queue" phases release any existing
+  // lease: once a task is done/cancelled/blocked or bounced back to
+  // todo/backlog the execution grant no longer has a referent. We mirror
+  // that in `task_leases` explicitly — the status→phase trigger only
+  // touches the phase column and leaves the lease row behind, producing
+  // an orphan that the dev-mode consistency probe surfaces as a
+  // divergence. Production would silently drift instead.
+  const STATUSES_THAT_CLEAR_LEASE = new Set<string>([
+    "done",
+    "cancelled",
+    "blocked",
+    "todo",
+    "backlog",
+  ]);
   function incrementActiveSprintVelocity(companyId: string, delta: number): void {
     const ts = nowIso();
     const today = ts.slice(0, 10);
@@ -150,9 +164,27 @@ export function buildTaskStatusMethods(
         timestampSets.push("active_run_id = NULL");
       }
 
-      getDb()
-        .prepare(`UPDATE tasks SET ${timestampSets.join(", ")} WHERE id = ?`)
-        .run(...timestampValues, taskId);
+      const shouldClearLease = STATUSES_THAT_CLEAR_LEASE.has(newStatus);
+      transaction(() => {
+        getDb()
+          .prepare(
+            // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: advanceTaskStatus is the sanctioned dynamic-SQL helper; timestampSets[0] is always the literal "status = ?". Status→phase trigger plus the explicit DELETE FROM task_leases below keep the shadow surface coherent.
+            `UPDATE tasks SET ${timestampSets.join(", ")} WHERE id = ?`,
+          )
+          .run(...timestampValues, taskId);
+        if (shouldClearLease) {
+          // Drop any live lease row in the same transaction so no
+          // caller observes the intermediate state of "task in terminal
+          // or backlog phase, lease still present". `releaseTaskLock`
+          // clears the lease on the happy path (normal run completion),
+          // but terminal transitions can come from review timeouts,
+          // retries, automation rules, etc. without ever going through
+          // that helper.
+          getDb()
+            .prepare("DELETE FROM task_leases WHERE task_id = ?")
+            .run(taskId);
+        }
+      });
 
       if (comment) {
         deps.addComment({
@@ -205,9 +237,9 @@ export function buildTaskStatusMethods(
       // The `active_run_id IS NULL` guard preserves the original CAS
       // contract for the busy case: a task whose active_run_id still
       // points at a live run is refused here, exactly as before.
-       
       const result = getDb()
         .prepare(
+          // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: checkoutTask CAS writes status='in_progress' as part of the atomic lock acquisition. The status→phase trigger mirrors to the new phase column and writeCheckoutLease below writes the shadow lease in the same call.
           `UPDATE tasks
            SET checkout_run_id = ?, execution_locked_at = ?, status = 'in_progress', updated_at = ?
          WHERE id = ?

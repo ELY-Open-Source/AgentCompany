@@ -246,26 +246,52 @@ export class AppDatabaseBase {
     const ts = nowIso();
     let interruptedCount = 0;
     this.transaction(() => {
-      const result = this.db
-        .prepare("update runs set status = 'interrupted', error_message = 'AgentCompany restarted before the run could report completion.', finished_at = ?, updated_at = ? where status = 'running'")
-        .run(ts, ts);
-      interruptedCount = Number(result.changes);
-      if (interruptedCount > 0) {
-        this.db.prepare(
-          // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: crash-recovery sweep; trigger mirrors status→phase, step 3/5 already drops shadow leases below
-          `update tasks set status = 'blocked', updated_at = ? where id in (select task_id from runs where status = 'interrupted' and finished_at = ?) and status in ('in_progress', 'todo')`,
-        ).run(ts, ts);
+      // Capture the run ids this sweep intends to interrupt BEFORE
+      // mutating anything. The old code scoped the downstream task +
+      // lease cleanup with `WHERE finished_at = ?` against the freshly
+      // stamped timestamp — safe in isolation, but ISO-millisecond
+      // ties with an earlier interrupted run are possible in principle
+      // and would clean unrelated leases. Pinning the set to explicit
+      // ids removes that dependency on timestamp uniqueness entirely.
+      const staleRuns = this.db
+        .prepare("SELECT id FROM runs WHERE status = 'running'")
+        .all() as Array<{ id: string }>;
+      if (staleRuns.length === 0) {
+        // Nothing to interrupt; still let agent/workspace recovery run
+        // so a boot that crashed while workers were already idle can
+        // still reset agent rows parked at `status = 'running'`.
+        this.db.prepare("update agents set status = 'idle', updated_at = ? where status = 'running'").run(ts);
+        this.workspacesMod.releaseAllWorkspaceLocks();
+        return;
       }
-      this.db.prepare("update tasks set active_run_id = null where active_run_id in (select id from runs where status = 'interrupted')").run();
-      // B2 Phase 1 step 3/5 — dual-write: drop shadow leases whose run
-      // has been interrupted. Uses the freshly finished_at timestamp to
-      // scope the deletion to this sweep's run set, matching the legacy
-      // path's "just-interrupted" semantics.
+      const runIds = staleRuns.map((r) => r.id);
+      const placeholders = runIds.map(() => "?").join(",");
       this.db
         .prepare(
-          "DELETE FROM task_leases WHERE run_id IN (SELECT id FROM runs WHERE status = 'interrupted' AND finished_at = ?)",
+          `update runs set status = 'interrupted', error_message = 'AgentCompany restarted before the run could report completion.', finished_at = ?, updated_at = ? where id in (${placeholders})`,
         )
-        .run(ts);
+        .run(ts, ts, ...runIds);
+      interruptedCount = runIds.length;
+      this.db
+        .prepare(
+          // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: crash-recovery sweep scoped to the exact run ids captured above. The trigger mirrors status→phase; the DELETE below drops shadow leases for the same id set.
+          `update tasks set status = 'blocked', updated_at = ? where id in (select task_id from runs where id in (${placeholders})) and status in ('in_progress', 'todo')`,
+        )
+        .run(ts, ...runIds);
+      this.db
+        .prepare(
+          `update tasks set active_run_id = null where active_run_id in (${placeholders})`,
+        )
+        .run(...runIds);
+      // B2 Phase 1 step 3/5 — dual-write: drop shadow leases whose run
+      // has been interrupted. Scoped by explicit run id list so two
+      // sweeps with identical ISO-millisecond `finished_at` stamps can
+      // never alias each other's lease cleanup.
+      this.db
+        .prepare(
+          `DELETE FROM task_leases WHERE run_id IN (${placeholders})`,
+        )
+        .run(...runIds);
       this.db.prepare("update agents set status = 'idle', updated_at = ? where status = 'running'").run(ts);
       this.workspacesMod.releaseAllWorkspaceLocks();
     });
@@ -280,7 +306,12 @@ export class AppDatabaseBase {
     );
     const ts = nowIso();
     for (const task of stale) {
-      this.db.prepare(`UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, status = 'todo', updated_at = ? WHERE id = ?`).run(ts, task.id);
+      this.db
+        .prepare(
+          // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: stale-lock recovery bounces the task back to todo and drops the shadow lease on the next statement; trigger mirrors status→phase.
+          `UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, status = 'todo', updated_at = ? WHERE id = ?`,
+        )
+        .run(ts, task.id);
       // B2 Phase 1 step 3/5 — dual-write: drop the shadow lease whose
       // legacy counterpart was just torn down. Matches the legacy
       // path's "clear everything for this stuck task" semantics; the

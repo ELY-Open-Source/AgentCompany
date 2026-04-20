@@ -70,6 +70,7 @@ export function buildTaskCrudMethods(
       if (existing) {
         getDb()
           .prepare(
+            // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: saveTask upsert path writes the full row (including status) as a single atomic UPDATE. The status→phase trigger keeps the shadow phase column in sync; no lease is ever held by saveTask callers (lease writes live behind checkoutTask).
             "update tasks set project_id = ?, goal_id = ?, parent_id = ?, title = ?, description = ?, assignee_agent_id = ?, workspace_id = ?, priority = ?, status = ?, updated_at = ? where id = ? and company_id = ?",
           )
           .run(
