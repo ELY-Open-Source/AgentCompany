@@ -62,6 +62,16 @@ export class WorkspaceConfigurationError extends Error {
   }
 }
 
+// TODO(post-v52 stabilisation, target 2026-05-20): delete this safety net
+// once every task-creation path sets `requires_filesystem` explicitly.
+// Rationale: during v52 rollout some legacy creators still emit tasks with
+// a null `requires_filesystem`, and a CTO-typed task without the flag
+// would otherwise fall through to lockMode=none and happily write files
+// under no lock. Once seed data + every `db.tasks.saveTask` callsite is
+// audited (tracked in docs/architecture/workspace-concurrency.md
+// "Sunset coding-role inference"), this regex and the rule-2 role branch
+// below both get removed and the column becomes the single source of
+// truth. Do not extend this regex — add columns instead.
 const CODING_ROLE_PATTERN = /cto|engineer|developer|devops|sre/i;
 
 /**
@@ -143,7 +153,7 @@ function inferLockMode(
   }
 
   throw new WorkspaceConfigurationError(
-    `Task requires a filesystem-backed run but no workspace is bound to the task, agent, or project (companyId=${companyId}).`,
+    `Task requires a filesystem-backed run but no workspace is bound to the task, agent, or project (companyId=${companyId}, taskId=${task?.workspaceId === undefined ? "<null-task>" : (task as { id?: string }).id ?? "<unknown>"}, agentId=${(agent as { id?: string }).id ?? "<unknown>"}, projectId=${task?.projectId ?? "<null>"}).`,
   );
 }
 

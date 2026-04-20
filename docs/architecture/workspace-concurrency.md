@@ -64,15 +64,24 @@ takes an exclusive lock on its agent workspace. Once every task
 creation path sets `requires_filesystem` explicitly the role inference
 becomes a no-op.
 
+### Sunset coding-role inference
+
+The coding-role regex in `resolve-workspace.ts` exists only for the
+v52 transition window. Before the next major, audit every
+`db.tasks.saveTask` caller, every migration seed, and any workflow
+that writes the `tasks` row; each must set `requires_filesystem`
+explicitly based on the task's real filesystem intent. When the audit
+is complete, delete the regex and the `agentSignalsFilesystem` branch
+from `inferLockMode` and remove this section. Target window: post
+v52 stabilisation, 2026-05-20.
+
 ## Decision table
 
-```
-task.workspaceId set          → exclusive on task.workspaceId
-task.requiresFilesystem=1     → exclusive on agent.workspaceId
-  OR agent role is coding       or project primary; throws if
-                                 neither exists
-everything else               → none / workspace=null
-```
+| Signal on the (task, agent) pair | Lock mode | Workspace used |
+| --- | --- | --- |
+| `task.workspaceId` set (explicit opt-in, e.g. PR-review task) | `exclusive` | The task's workspace |
+| `task.requiresFilesystem = 1` **OR** agent role matches coding pattern **OR** `agent.department = "engineering"` | `exclusive` | `agent.workspaceId` → project primary → throws `WorkspaceConfigurationError` |
+| Everything else (strategy, ops, finance, PM, drafting) | `none` | `null` — no lock claimed |
 
 Explicit `task.workspaceId` always wins. This is the escape hatch for
 "run this PR-review task on *that specific* branch workspace", and
