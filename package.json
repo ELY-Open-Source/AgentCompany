@@ -33,9 +33,9 @@
     "postinstall": "node scripts/postinstall.mjs"
   },
   "dependencies": {
-    "@mariozechner/pi-agent-core": "^0.67.6",
-    "@mariozechner/pi-ai": "^0.67.6",
-    "@mariozechner/pi-coding-agent": "^0.67.6",
+    "@mariozechner/pi-agent-core": "0.67.68",
+    "@mariozechner/pi-ai": "0.67.68",
+    "@mariozechner/pi-coding-agent": "0.67.68",
     "@phosphor-icons/react": "2.1.10",
     "@tanstack/react-virtual": "^3.13.23",
     "electron-log": "5.4.3",
