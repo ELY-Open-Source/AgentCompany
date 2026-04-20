@@ -80,6 +80,8 @@
 
 ### B5 — LLM 行为 eval harness
 
+> **2026-04-20 update**: tests 解禁，B5 已 unblock，本日完成 minimal harness scaffold（`tests/eval/` — loader / replay-client / assertion judge / eval-runner / vitest driver / record-fixture CLI）；LLM-as-judge 延后到 B5.1（见 `docs/proposals/B5.1-llm-as-judge-followup.md`），等 fixture 累积到 N ≥ 10 再上。
+
 **要求**：
 - Fixture：录一批 company 初始状态 + pi 请求 → 期望 tool calls 子集
 - Judge：LLM-as-judge 评分（是否 hire / 是否避免写 plan / 回复 message 是否 mark-read）
@@ -91,6 +93,8 @@
 
 ### C5 — pi hook 契约测试
 
+> **2026-04-20 update**: tests 解禁，执行依赖 B5 fixture 累积到位；B5 scaffold 已落地（本日），等首批 recorded trace 入库后即可开写 hook 契约 fixture。
+
 **要求**：每个 hook 的输入输出 shape 由 golden fixture 验证；升级 pi 前必跑。
 
 **冲突**：fixture 被禁。
@@ -99,6 +103,8 @@
 
 ### M3 — migration 行为 eval baseline
 
+> **2026-04-20 update**: tests 解禁，执行依赖 B5 fixture 累积；B5 scaffold 已落地（本日），migration baseline 在 fixture 足够多之后可以按 schema 版本钉 snapshot。
+
 **要求**：48 次 schema 演化需要每次附带行为 eval baseline；每次 migration PR 必须附 eval diff。
 
 **冲突**：eval 依赖 B5（blocked）。
@@ -106,6 +112,8 @@
 **后果**：无法回答"v38 → v48 之间 CEO 的平均 hire 数变了吗"这类关键问题。
 
 ### M6 — 分层测试 + LLM 行为覆盖
+
+> **2026-04-20 update**: tests 解禁，执行依赖 B5 fixture 累积；B5 scaffold 已落地（本日），M6 的 LLM 行为覆盖层将直接消费 B5 的 `tests/eval/fixtures/` 而不再另起炉灶。
 
 **要求**：集成测试走真 SQLite 临时 db；契约测试走 pi fixture；LLM 行为走 eval harness。
 
