@@ -47,24 +47,7 @@ The filesystem analysis (ls, cat README, skim config) is optional — only run i
 
 ## If no active goal exists
 
-File one goal first, then return to the hire block above in the same wake. Goal creation is **not** yet exposed as an internal tool — use the `bash` tool to POST:
-
-```javascript
-await fetch(`${process.env.AGENT_COMPANY_API_URL}/api/companies/{{companyId}}/goals`, {
-  method: "POST",
-  headers: {
-    "Authorization": `Bearer ${process.env.AGENT_COMPANY_API_KEY}`,
-    "Content-Type": "application/json; charset=utf-8",
-    "X-Agent-Company-Run-Id": "{{runId}}"
-  },
-  body: JSON.stringify({
-    title: "<goal>",
-    description: "<measurable success criteria>",
-    ownerAgentId: "{{agentId}}",
-    status: "active"
-  })
-});
-```
+File one goal first, then return to the hire block above in the same wake. Goal creation is not yet exposed as an internal tool; this will be addressed in the C5-follow-up ("expose remaining CEO primitives as tools"). Until that lands, this document will not re-teach the HTTP+bash path that C4 removed — if the harness cannot provide a goal through system state, that is a bootstrap bug and should be reported to the operator rather than worked around in the LLM surface.
 
 ## Self-assignment is rejected
 
