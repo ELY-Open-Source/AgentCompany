@@ -17,7 +17,7 @@ impl AppRoot {
         ];
 
         div()
-            .w(px(292.0))
+            .w(px(256.0))
             .h_full()
             .p_4()
             .gap_4()
@@ -41,7 +41,7 @@ impl AppRoot {
                     )
                     .child(
                         div()
-                            .text_xs()
+                            .text_size(px(11.0))
                             .text_color(theme::text_subtle())
                             .child("local-first"),
                     ),
@@ -54,40 +54,38 @@ impl AppRoot {
                     .child(
                         div()
                             .flex_1()
-                            .px_4()
-                            .py_3()
+                            .px_3()
+                            .py_2()
                             .border_1()
-                            .rounded_lg()
+                            .rounded(px(0.0))
                             .border_color(theme::panel_border())
                             .bg(theme::panel())
                             .child(
-                                div().text_sm().text_color(theme::text_primary()).child(
-                                    self.snapshot
-                                        .current_company()
-                                        .map(|company| company.name.clone())
-                                        .unwrap_or_else(|| "AgentCompany".to_string()),
-                                ),
-                            )
-                            .child(
                                 div()
-                                    .text_xs()
-                                    .text_color(theme::text_muted())
-                                    .child("native GPUI shell"),
+                                    .text_size(px(13.0))
+                                    .font_weight(gpui::FontWeight::MEDIUM)
+                                    .text_color(theme::text_primary())
+                                    .child(
+                                        self.snapshot
+                                            .current_company()
+                                            .map(|company| company.name.clone())
+                                            .unwrap_or_else(|| "AgentCompany".to_string()),
+                                    ),
                             ),
                     )
                     .child(
                         div()
-                            .w(px(44.0))
-                            .h(px(44.0))
-                            .rounded_lg()
+                            .w(px(30.0))
+                            .h(px(30.0))
+                            .rounded(px(0.0))
                             .border_1()
                             .border_color(theme::panel_border())
                             .bg(theme::panel())
                             .flex()
                             .items_center()
                             .justify_center()
-                            .text_sm()
-                            .text_color(theme::text_secondary())
+                            .text_size(px(12.0))
+                            .text_color(theme::text_muted())
                             .child("⌘"),
                     ),
             )
@@ -97,16 +95,10 @@ impl AppRoot {
                 let company_id = company.id.clone();
                 div()
                     .id(SharedString::from(format!("company-{}", company.id)))
-                    .px_4()
-                    .py_3()
-                    .rounded_lg()
+                    .px_3()
+                    .py_2()
+                    .rounded(px(0.0))
                     .cursor_pointer()
-                    .border_1()
-                    .border_color(if active {
-                        theme::selection_border()
-                    } else {
-                        theme::panel_border()
-                    })
                     .bg(if active {
                         theme::selection_fill()
                     } else {
@@ -118,19 +110,18 @@ impl AppRoot {
                     }))
                     .child(
                         div()
-                            .text_sm()
+                            .text_size(px(13.0))
+                            .font_weight(if active {
+                                gpui::FontWeight::SEMIBOLD
+                            } else {
+                                gpui::FontWeight::MEDIUM
+                            })
                             .text_color(if active {
                                 theme::sidebar_text_active()
                             } else {
                                 theme::sidebar_text()
                             })
                             .child(company.name.clone()),
-                    )
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(theme::text_muted())
-                            .child(format!("{} mode", company.execution_mode.replace('_', " "))),
                     )
             }))
             .child(div().h(px(1.0)).bg(theme::sidebar_divider()))
@@ -145,16 +136,10 @@ impl AppRoot {
                     .flex()
                     .items_center()
                     .justify_between()
-                    .px_4()
-                    .py_3()
-                    .rounded_lg()
+                    .px_3()
+                    .py(px(7.0))
+                    .rounded(px(0.0))
                     .cursor_pointer()
-                    .border_1()
-                    .border_color(if active {
-                        theme::selection_border()
-                    } else {
-                        theme::sidebar_bg()
-                    })
                     .bg(if active {
                         theme::selection_fill()
                     } else {
@@ -170,7 +155,12 @@ impl AppRoot {
                         this.state.section = section;
                         cx.notify();
                     }))
-                    .child(div().text_sm().child(label))
+                    .child(
+                        div()
+                            .text_size(px(13.0))
+                            .font_weight(gpui::FontWeight::MEDIUM)
+                            .child(label),
+                    )
                     .when_some(badge.filter(|count| *count > 0), |container, count| {
                         container.child(
                             div()
@@ -183,7 +173,7 @@ impl AppRoot {
                                 } else {
                                     theme::badge_dark()
                                 })
-                                .text_xs()
+                                .text_size(px(11.0))
                                 .text_color(theme::panel())
                                 .child(count.to_string()),
                         )
@@ -200,23 +190,6 @@ impl AppRoot {
                     cx.notify();
                 },
             ))
-            .child(
-                div()
-                    .px_4()
-                    .py_3()
-                    .rounded_lg()
-                    .bg(theme::panel_muted())
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(theme::text_muted())
-                            .child(format!(
-                                "{} agents · {} channels",
-                                self.snapshot.agents.len(),
-                                self.snapshot.agent_messages.len()
-                            )),
-                    ),
-            )
     }
 }
 
@@ -233,7 +206,7 @@ where
         .id(SharedString::from(format!("sidebar-footer-{label}")))
         .px_4()
         .py_3()
-        .rounded_lg()
+        .rounded(px(0.0))
         .cursor_pointer()
         .bg(if active {
             theme::selection_fill()

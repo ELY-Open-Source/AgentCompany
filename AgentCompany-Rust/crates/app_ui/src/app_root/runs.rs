@@ -49,7 +49,7 @@ fn render_run_queue_panel(
 ) -> impl IntoElement {
     div().w(px(420.0)).gap_5().child(
         div()
-            .rounded_lg()
+            .rounded(px(0.0))
             .border_1()
             .border_color(theme::panel_border())
             .bg(theme::panel())
@@ -86,7 +86,7 @@ fn render_run_queue_panel(
                 container.child(
                     div()
                         .mt(px(16.0))
-                        .rounded_lg()
+                        .rounded(px(0.0))
                         .border_1()
                         .border_color(theme::panel_border())
                         .bg(theme::panel_muted())
@@ -127,7 +127,7 @@ fn run_queue_row(
 
     div()
         .id(SharedString::from(format!("run-row-{}", run.id)))
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(if active {
             theme::selection_border()
@@ -154,42 +154,43 @@ fn run_queue_row(
                 .items_center()
                 .gap_3()
                 .child(
-                    div()
-                        .flex_1()
-                        .child(
-                            div()
-                                .text_sm()
-                                .text_color(theme::text_primary())
-                                .truncate()
-                                .child(title),
-                        )
-                        .child(
-                            div()
-                                .mt(px(4.0))
-                                .text_xs()
-                                .text_color(theme::text_muted())
-                                .truncate()
-                                .child(subtitle),
-                        ),
+                        div()
+                            .flex_1()
+                            .child(
+                                div()
+                                    .text_size(px(13.0))
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .text_color(theme::text_primary())
+                                    .truncate()
+                                    .child(title),
+                            )
+                            .child(
+                                div()
+                                    .mt(px(2.0))
+                                    .text_size(px(11.0))
+                                    .text_color(theme::text_muted())
+                                    .truncate()
+                                    .child(subtitle),
+                            ),
                 )
                 .child(run_status_badge(run.status.as_str())),
         )
         .child(
             div()
-                .mt(px(8.0))
+                .mt(px(6.0))
                 .flex()
                 .justify_between()
                 .gap_3()
                 .child(
                     div()
-                        .text_xs()
+                        .text_size(px(11.0))
                         .text_color(theme::text_muted())
                         .line_clamp(1)
                         .child(supporting_text),
                 )
                 .child(
                     div()
-                        .text_xs()
+                        .text_size(px(11.0))
                         .text_color(theme::text_muted())
                         .child(short_date(run.updated_at.as_str()).to_string()),
                 ),
@@ -222,7 +223,7 @@ fn render_run_detail_column<'a>(
                 .flex()
                 .items_center()
                 .justify_center()
-                .rounded_lg()
+                .rounded(px(0.0))
                 .border_1()
                 .border_color(theme::panel_border())
                 .bg(theme::panel())
@@ -254,7 +255,7 @@ fn runs_empty_state() -> impl IntoElement {
         .flex()
         .items_center()
         .justify_center()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
@@ -280,7 +281,7 @@ fn runs_empty_state() -> impl IntoElement {
 
 fn run_detail_panel(snapshot: &domain::ProfileSnapshot, run: &domain::Run) -> impl IntoElement {
     div()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
@@ -350,7 +351,7 @@ fn run_detail_panel(snapshot: &domain::ProfileSnapshot, run: &domain::Run) -> im
         .child(
             div()
                 .mt(px(16.0))
-                .rounded_lg()
+                .rounded(px(0.0))
                 .border_1()
                 .border_color(theme::panel_inset_border())
                 .bg(theme::panel_inset())
@@ -370,7 +371,7 @@ fn run_detail_panel(snapshot: &domain::ProfileSnapshot, run: &domain::Run) -> im
                 content.child(
                     div()
                         .mt(px(16.0))
-                        .rounded_lg()
+                        .rounded(px(0.0))
                         .border_1()
                         .border_color(theme::danger())
                         .bg(theme::danger_bg())
@@ -386,7 +387,7 @@ fn run_detail_panel(snapshot: &domain::ProfileSnapshot, run: &domain::Run) -> im
 
 fn run_trace_panel(snapshot: &domain::ProfileSnapshot, run: &domain::Run) -> impl IntoElement {
     div()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
@@ -402,7 +403,7 @@ fn run_trace_panel(snapshot: &domain::ProfileSnapshot, run: &domain::Run) -> imp
 
 fn secondary_data_panel(title: &'static str, body: gpui::AnyElement) -> impl IntoElement {
     div()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
@@ -654,7 +655,7 @@ fn run_live_controls_panel<'a>(
     cx: &'a mut Context<AppRoot>,
 ) -> impl IntoElement + 'a {
     div()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())

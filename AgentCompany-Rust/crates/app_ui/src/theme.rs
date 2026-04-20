@@ -127,3 +127,40 @@ pub fn selection_border() -> Hsla {
 pub fn badge_dark() -> Hsla {
     rgb(0x6b7280).into()
 }
+
+// Tailwind v4 theme variable aliases (exact oklch → rgb from original styles.css)
+pub fn card() -> Hsla {
+    rgb(0xffffff).into()
+}
+
+pub fn muted() -> Hsla {
+    rgb(0xf7f7f7).into()
+}
+
+pub fn accent() -> Hsla {
+    rgb(0xf7f7f7).into()
+}
+
+pub fn foreground() -> Hsla {
+    rgb(0x222222).into()
+}
+
+pub fn muted_foreground() -> Hsla {
+    rgb(0x5e5e5e).into()
+}
+
+pub fn primary() -> Hsla {
+    rgb(0x2d2d2d).into()
+}
+
+pub fn primary_foreground() -> Hsla {
+    rgb(0xfafafa).into()
+}
+
+pub fn destructive() -> Hsla {
+    rgb(0xc74a4a).into()
+}
+
+pub fn border() -> Hsla {
+    rgb(0xe8e8e8).into()
+}

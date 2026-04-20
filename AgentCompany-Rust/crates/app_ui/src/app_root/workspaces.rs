@@ -56,7 +56,7 @@ impl AppRoot {
                         .flex()
                         .items_center()
                         .justify_center()
-                        .rounded_lg()
+                        .rounded(px(0.0))
                         .border_1()
                         .border_color(theme::panel_border())
                         .bg(theme::panel())

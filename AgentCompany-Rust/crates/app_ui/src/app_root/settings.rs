@@ -220,7 +220,7 @@ fn settings_tab_button(
 fn settings_panel(label: &'static str, rows: Vec<gpui::AnyElement>) -> impl IntoElement {
     div()
         .p_5()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
@@ -290,7 +290,7 @@ where
         .id(SharedString::from(format!("settings-action-{label}")))
         .px_3()
         .py_2()
-        .rounded_lg()
+        .rounded(px(0.0))
         .cursor_pointer()
         .bg(if active {
             theme::primary_action()

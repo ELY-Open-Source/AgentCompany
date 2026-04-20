@@ -186,7 +186,7 @@ impl InboxRow {
                     .flex()
                     .gap_3()
                     .items_center()
-                    .child(div().w(px(36.0)).h(px(36.0)).rounded_lg().bg(tile_bg))
+                    .child(div().w(px(36.0)).h(px(36.0)).rounded(px(0.0)).bg(tile_bg))
                     .child(
                         div()
                             .flex_1()

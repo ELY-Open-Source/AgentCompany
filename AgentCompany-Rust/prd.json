@@ -302,7 +302,7 @@
         "cargo test --workspace passes"
       ],
       "priority": 22,
-      "passes": true,
+      "passes": false,
       "notes": "Passed: shared native surface tokens were tightened toward screenshot-aligned desktop values, warming the pane fills, softening borders, and refining selection/accent colors without touching parent-directory source files."
     },
     {
@@ -315,7 +315,7 @@
         "cargo test --workspace passes"
       ],
       "priority": 23,
-      "passes": true,
+      "passes": false,
       "notes": "Passed: messages and inbox chrome were tightened toward screenshot parity with calmer pane spacing, smaller radii, warmer sidebar treatment, lighter message avatar chrome, and denser list rows while keeping real interactions intact."
     },
     {
@@ -328,7 +328,7 @@
         "cargo test --workspace passes"
       ],
       "priority": 24,
-      "passes": true,
+      "passes": false,
       "notes": "Passed: ui-parity-audit.md now records the fine-grained current-directory visual audit after the shared-skin and communication-skin passes, and the workspace still passes cargo clippy and cargo test."
     }
   ]

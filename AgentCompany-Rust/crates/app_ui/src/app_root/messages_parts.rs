@@ -1,7 +1,13 @@
 use super::*;
 
 pub(super) fn message_section_label(label: &'static str) -> impl IntoElement {
-    div().text_xs().text_color(theme::text_muted()).child(label)
+    div()
+        .text_size(px(11.0))
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .text_color(theme::muted_foreground())
+        .mb(px(4.0))
+        .px(px(8.0))
+        .child(label)
 }
 
 pub(super) fn selected_message_card(message: Option<&domain::AgentMessage>) -> impl IntoElement {
@@ -14,30 +20,31 @@ pub(super) fn selected_message_card(message: Option<&domain::AgentMessage>) -> i
     });
     div()
         .p_4()
-        .rounded_md()
+        .rounded(px(0.0))
         .border_1()
-        .border_color(theme::panel_border())
-        .bg(theme::panel())
+        .border_color(theme::border())
+        .bg(theme::card())
         .child(message_header(message, false))
         .child(
             div()
                 .mt(px(16.0))
-                .text_lg()
-                .text_color(theme::text_primary())
+                .text_size(px(14.0))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_color(theme::foreground())
                 .child(subject),
         )
         .child(
             div()
                 .mt(px(12.0))
-                .text_base()
-                .text_color(theme::text_secondary())
+                .text_size(px(14.0))
+                .text_color(theme::muted_foreground())
                 .child(body),
         )
         .child(
             div()
                 .mt(px(16.0))
-                .text_sm()
-                .text_color(theme::text_muted())
+                .text_size(px(14.0))
+                .text_color(theme::muted_foreground())
                 .child("↩ Reply"),
         )
 }
@@ -45,24 +52,25 @@ pub(super) fn selected_message_card(message: Option<&domain::AgentMessage>) -> i
 pub(super) fn compact_message_card(message: &domain::AgentMessage) -> impl IntoElement {
     div()
         .mt(px(16.0))
-        .p_5()
-        .rounded_lg()
+        .p(px(12.0))
+        .rounded(px(0.0))
         .border_1()
-        .border_color(theme::panel_border())
-        .bg(theme::panel())
+        .border_color(theme::border())
+        .bg(theme::card())
         .child(message_header(Some(message), true))
         .child(
             div()
                 .mt(px(12.0))
-                .text_base()
-                .text_color(theme::text_primary())
+                .text_size(px(14.0))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_color(theme::foreground())
                 .child(message.subject.clone()),
         )
         .child(
             div()
                 .mt(px(8.0))
-                .text_sm()
-                .text_color(theme::text_muted())
+                .text_size(px(14.0))
+                .text_color(theme::muted_foreground())
                 .line_clamp(2)
                 .child(message.body.clone()),
         )
@@ -82,62 +90,75 @@ fn message_header(message: Option<&domain::AgentMessage>, urgent: bool) -> impl 
         .gap_3()
         .child(
             div()
-                .w(px(40.0))
-                .h(px(40.0))
+                .w(px(36.0))
+                .h(px(36.0))
                 .rounded_full()
-                .bg(theme::accent_orange_soft())
+                .bg(theme::accent())
                 .border_1()
-                .border_color(theme::panel_border())
-                .text_color(theme::accent_orange())
+                .border_color(theme::border())
+                .text_color(theme::foreground())
                 .flex()
                 .items_center()
                 .justify_center()
+                .text_size(px(14.0))
+                .font_weight(gpui::FontWeight::MEDIUM)
                 .child(sender.to_string()),
         )
         .child(
             div()
                 .flex()
+                .flex_1()
                 .gap_2()
                 .items_center()
                 .child(
-                    div().text_sm().text_color(theme::accent_orange()).child(
-                        message
-                            .map(|item| item.sender_kind.clone())
-                            .unwrap_or_else(|| "human".to_string()),
-                    ),
-                )
-                .child(
-                    div().text_sm().text_color(theme::text_muted()).child(
-                        message
-                            .map(|item| item.channel.clone())
-                            .unwrap_or_else(|| "company".to_string()),
-                    ),
+                    div()
+                        .text_size(px(14.0))
+                        .font_weight(gpui::FontWeight::MEDIUM)
+                        .text_color(theme::foreground())
+                        .child(
+                            message
+                                .map(|item| item.sender_kind.clone())
+                                .unwrap_or_else(|| "human".to_string()),
+                        ),
                 )
                 .child(
                     div()
-                        .px_2()
-                        .py_1()
+                        .text_size(px(12.0))
+                        .text_color(theme::muted_foreground())
+                        .child(
+                            message
+                                .map(|item| item.channel.clone())
+                                .unwrap_or_else(|| "company".to_string()),
+                        ),
+                )
+                .child(
+                    div()
+                        .px(px(8.0))
+                        .py(px(2.0))
                         .rounded_full()
-                        .bg(theme::accent_orange_soft())
-                        .text_xs()
-                        .text_color(theme::accent_orange())
+                        .bg(theme::primary())
+                        .text_size(px(10.0))
+                        .font_weight(gpui::FontWeight::MEDIUM)
+                        .text_color(theme::primary_foreground())
                         .child("OPERATIONS"),
                 )
                 .child(
                     div()
-                        .text_sm()
-                        .text_color(theme::text_muted())
+                        .flex_1()
+                        .text_size(px(12.0))
+                        .text_color(theme::muted_foreground())
                         .child(timestamp),
                 )
                 .when(urgent, |container| {
                     container.child(
                         div()
-                            .px_2()
-                            .py_1()
+                            .px(px(8.0))
+                            .py(px(2.0))
                             .rounded_full()
-                            .bg(theme::danger_bg())
-                            .text_xs()
-                            .text_color(theme::danger())
+                            .bg(theme::destructive())
+                            .text_size(px(10.0))
+                            .font_weight(gpui::FontWeight::MEDIUM)
+                            .text_color(theme::primary_foreground())
                             .child("URGENT"),
                     )
                 }),
@@ -156,28 +177,29 @@ fn trim_sender(sender: &str) -> &str {
 
 pub(super) fn composer_chip(label: &str) -> impl IntoElement {
     div()
-        .px_4()
-        .py_3()
-        .rounded_lg()
+        .px(px(12.0))
+        .py(px(6.0))
+        .rounded(px(0.0))
         .border_1()
-        .border_color(theme::panel_border())
-        .bg(theme::panel())
-        .text_sm()
-        .text_color(theme::text_secondary())
+        .border_color(theme::border())
+        .bg(theme::muted())
+        .text_size(px(12.0))
+        .font_weight(gpui::FontWeight::MEDIUM)
+        .text_color(theme::muted_foreground())
         .child(label.to_string())
 }
 
 pub(super) fn composer_subject(message: Option<&domain::AgentMessage>) -> impl IntoElement {
     div()
         .flex_1()
-        .px_4()
-        .py_3()
-        .rounded_lg()
+        .px(px(12.0))
+        .py(px(6.0))
+        .rounded(px(0.0))
         .border_1()
-        .border_color(theme::panel_border())
-        .bg(theme::panel())
-        .text_sm()
-        .text_color(theme::text_subtle())
+        .border_color(theme::border())
+        .bg(theme::card())
+        .text_size(px(14.0))
+        .text_color(theme::muted_foreground())
         .child(
             message
                 .map(|item| item.subject.clone())

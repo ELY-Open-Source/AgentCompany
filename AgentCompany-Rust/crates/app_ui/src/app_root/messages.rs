@@ -37,7 +37,6 @@ impl AppRoot {
 
         div()
             .flex()
-            .gap_3()
             .child(render_message_sidebar(
                 &channel_groups,
                 selected_channel.as_deref(),
@@ -47,10 +46,8 @@ impl AppRoot {
             .child(
                 div()
                     .flex_1()
-                    .border_1()
-                    .rounded_md()
-                    .border_color(theme::panel_border())
-                    .bg(theme::panel())
+                    .flex_col()
+                    .bg(theme::card())
                     .child(render_message_header(
                         self,
                         selected_channel.as_deref(),
@@ -61,8 +58,9 @@ impl AppRoot {
                         div()
                             .id("messages-stream")
                             .flex_1()
-                            .p_4()
                             .overflow_scroll()
+                            .px(px(8.0))
+                            .py(px(12.0))
                             .when(visible_messages.is_empty(), |container| {
                                 container.child(selected_message_card(None))
                             })
@@ -77,7 +75,7 @@ impl AppRoot {
                                             message.id
                                         )))
                                         .cursor_pointer()
-                                        .hover(|style| style.bg(theme::panel_hover()))
+                                        .hover(|style| style.bg(theme::muted()))
                                         .on_click(cx.listener(move |this, _, _, cx| {
                                             this.state.selected_message_id =
                                                 Some(message_id.clone());
@@ -225,101 +223,131 @@ fn render_message_sidebar<'a>(
     cx: &'a mut Context<AppRoot>,
 ) -> impl IntoElement + 'a {
     div()
-        .w(px(292.0))
-        .p_3()
-        .gap_3()
-        .border_1()
-        .rounded_md()
-        .border_color(theme::panel_border())
-        .bg(theme::sidebar_bg())
-        .children(groups.iter().map(|group| {
+        .w(px(260.0))
+        .flex_col()
+        .overflow_hidden()
+        .border_r_1()
+        .border_color(theme::border())
+        .bg(theme::card())
+        .child(
             div()
-                .gap_2()
-                .child(message_section_label(group.label))
-                .children(group.rows.iter().map(|channel| {
-                    let active = active_channel == Some(channel.key.as_str());
-                    let next_message_id = channel
-                        .rows
-                        .first()
-                        .cloned()
-                        .or_else(|| selected_message_id.clone())
-                        .unwrap_or_default();
+                .id("message-sidebar-scroll")
+                .flex_1()
+                .overflow_scroll()
+                .px(px(8.0))
+                .py(px(12.0))
+                .children(groups.iter().map(|group| {
                     div()
-                        .id(SharedString::from(format!(
-                            "message-channel-{}",
-                            channel.key
-                        )))
-                        .cursor_pointer()
-                        .hover(|style| style.bg(theme::panel_hover()))
-                        .bg(if active {
-                            theme::selection_fill()
-                        } else {
-                            theme::panel()
-                        })
-                        .rounded_md()
-                        .px_3()
-                        .py_2()
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            if !next_message_id.is_empty() {
-                                this.state.selected_message_id = Some(next_message_id.clone());
-                            }
-                            cx.notify();
-                        }))
-                        .child(
+                        .mb_3()
+                        .child(message_section_label(group.label))
+                        .children(group.rows.iter().map(|channel| {
+                            let active = active_channel == Some(channel.key.as_str());
+                            let next_message_id = channel
+                                .rows
+                                .first()
+                                .cloned()
+                                .or_else(|| selected_message_id.clone())
+                                .unwrap_or_default();
                             div()
-                                .flex()
-                                .items_center()
-                                .gap_3()
+                                .id(SharedString::from(format!(
+                                    "message-channel-{}",
+                                    channel.key
+                                )))
+                                .cursor_pointer()
+                                .hover(|style| {
+                                    if active {
+                                        style
+                                    } else {
+                                        style.bg(theme::muted())
+                                    }
+                                })
+                                .bg(if active {
+                                    theme::accent()
+                                } else {
+                                    theme::card()
+                                })
+                                .px(px(12.0))
+                                .py(px(8.0))
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    if !next_message_id.is_empty() {
+                                        this.state.selected_message_id = Some(next_message_id.clone());
+                                    }
+                                    cx.notify();
+                                }))
                                 .child(
                                     div()
-                                        .w(px(28.0))
-                                        .h(px(28.0))
-                                        .rounded_md()
-                                        .bg(theme::panel_muted()),
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(10.0))
+                                        .child(
+                                            div()
+                                                .w(px(28.0))
+                                                .h(px(28.0))
+                                                .flex()
+                                                .items_center()
+                                                .justify_center()
+                                                .rounded(px(0.0))
+                                                .bg(theme::muted()),
+                                        )
+                                        .child(
+                                            div().flex_1().child(
+                                                div()
+                                                    .text_size(px(13.0))
+                                                    .font_weight(if active || channel.count > 0 {
+                                                        gpui::FontWeight::SEMIBOLD
+                                                    } else {
+                                                        gpui::FontWeight::MEDIUM
+                                                    })
+                                                    .text_color(if active || channel.count > 0 {
+                                                        theme::foreground()
+                                                    } else {
+                                                        theme::muted_foreground()
+                                                    })
+                                                    .truncate()
+                                                    .child(channel.label.clone()),
+                                            ),
+                                        )
+                                        .when(channel.urgent, |container| {
+                                            container.child(
+                                                div()
+                                                    .w(px(8.0))
+                                                    .h(px(8.0))
+                                                    .rounded_full()
+                                                    .bg(theme::destructive()),
+                                            )
+                                        })
+                                        .when(channel.count > 0, |container| {
+                                            container.child(
+                                                div()
+                                                    .h(px(18.0))
+                                                    .min_w(px(18.0))
+                                                    .flex()
+                                                    .items_center()
+                                                    .justify_center()
+                                                    .rounded_full()
+                                                    .bg(theme::primary())
+                                                    .px(px(4.0))
+                                                    .text_size(px(10.0))
+                                                    .font_weight(gpui::FontWeight::BOLD)
+                                                    .text_color(theme::primary_foreground())
+                                                    .child(channel.count.to_string()),
+                                            )
+                                        }),
                                 )
-                                .child(
-                                    div().flex_1().child(
-                                        div()
-                                            .text_sm()
-                                            .text_color(if active {
-                                                theme::sidebar_text_active()
-                                            } else {
-                                                theme::text_secondary()
-                                            })
-                                            .truncate()
-                                            .child(channel.label.clone()),
-                                    ),
-                                )
-                                .when(channel.urgent, |container| {
-                                    container.child(
-                                        div()
-                                            .w(px(8.0))
-                                            .h(px(8.0))
-                                            .rounded_full()
-                                            .bg(theme::danger()),
-                                    )
-                                })
-                                .when(channel.count > 0, |container| {
-                                    container.child(
-                                        div()
-                                            .px_2()
-                                            .py_1()
-                                            .rounded_full()
-                                            .bg(theme::primary_action())
-                                            .text_xs()
-                                            .text_color(theme::primary_action_text())
-                                            .child(channel.count.to_string()),
-                                    )
-                                }),
-                        )
-                }))
-        }))
+                        }))
+                })),
+        )
         .child(
             div()
                 .flex()
                 .justify_between()
-                .text_xs()
-                .text_color(theme::text_muted())
+                .items_center()
+                .px(px(16.0))
+                .py(px(8.0))
+                .border_t_1()
+                .border_color(theme::border())
+                .text_size(px(11.0))
+                .text_color(theme::muted_foreground())
                 .child(format!(
                     "{} channels",
                     groups.iter().map(|group| group.rows.len()).sum::<usize>()
@@ -338,23 +366,25 @@ fn render_message_header(
         .flex()
         .justify_between()
         .items_center()
-        .px_5()
-        .py_4()
+        .px(px(16.0))
+        .py(px(10.0))
         .border_b_1()
-        .border_color(theme::panel_border())
+        .border_color(theme::border())
+        .bg(theme::card())
         .child(
             div()
                 .child(
                     div()
-                        .text_lg()
-                        .text_color(theme::text_primary())
+                        .text_size(px(13.0))
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .text_color(theme::foreground())
                         .child(active_channel.unwrap_or("Select a channel").to_string()),
                 )
                 .child(
                     div()
                         .mt(px(4.0))
-                        .text_sm()
-                        .text_color(theme::text_muted())
+                        .text_size(px(11.0))
+                        .text_color(theme::muted_foreground())
                         .child(format!("{} visible messages", visible_count)),
                 ),
         )
@@ -374,11 +404,11 @@ fn render_message_composer<'a>(
     cx: &'a mut Context<AppRoot>,
 ) -> impl IntoElement + 'a {
     div()
-        .px_4()
-        .py_3()
+        .px(px(16.0))
+        .py(px(12.0))
         .border_t_1()
-        .border_color(theme::panel_border())
-        .bg(theme::panel())
+        .border_color(theme::border())
+        .bg(theme::card())
         .child(
             div()
                 .flex()
@@ -390,10 +420,10 @@ fn render_message_composer<'a>(
             div()
                 .mt(px(12.0))
                 .p_3()
-                .rounded_lg()
-                .bg(theme::panel_inset())
+                .rounded(px(0.0))
+                .bg(theme::muted())
                 .border_1()
-                .border_color(theme::panel_inset_border())
+                .border_color(theme::border())
                 .child(root.message_input.clone()),
         )
         .child(
@@ -404,8 +434,8 @@ fn render_message_composer<'a>(
                 .items_center()
                 .child(
                     div()
-                        .text_xs()
-                        .text_color(theme::text_muted())
+                        .text_size(px(11.0))
+                        .text_color(theme::muted_foreground())
                         .child("Reply, mention, or route an operational update."),
                 )
                 .child(
@@ -426,14 +456,15 @@ fn render_message_inspector(selected: Option<&domain::AgentMessage>) -> impl Int
     div()
         .w(px(320.0))
         .border_1()
-        .rounded_lg()
-        .border_color(theme::panel_border())
-        .bg(theme::panel())
-        .p_5()
+        .rounded(px(0.0))
+        .border_color(theme::border())
+        .bg(theme::card())
+        .p(px(20.0))
         .child(
             div()
-                .text_lg()
-                .text_color(theme::text_primary())
+                .text_size(px(13.0))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_color(theme::foreground())
                 .child("Conversation details"),
         )
         .child(selected_message_card(selected))
@@ -445,26 +476,27 @@ fn render_message_inspector(selected: Option<&domain::AgentMessage>) -> impl Int
 fn message_filter_toggle(unread_only: bool, cx: &mut Context<AppRoot>) -> impl IntoElement {
     div()
         .id("message-filter-toggle")
-        .px_3()
-        .py_2()
+        .px(px(10.0))
+        .py(px(6.0))
         .rounded_full()
         .cursor_pointer()
         .bg(if unread_only {
-            theme::primary_action()
+            theme::primary()
         } else {
-            theme::panel_muted()
+            theme::muted()
         })
-        .text_xs()
+        .text_size(px(11.0))
+        .font_weight(gpui::FontWeight::MEDIUM)
         .text_color(if unread_only {
-            theme::primary_action_text()
+            theme::primary_foreground()
         } else {
-            theme::text_secondary()
+            theme::muted_foreground()
         })
         .hover(|style| {
             style.bg(if unread_only {
-                theme::primary_action_hover()
+                theme::primary()
             } else {
-                theme::panel_hover()
+                theme::muted()
             })
         })
         .on_click(cx.listener(move |this, _, _, cx| {

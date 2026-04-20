@@ -34,7 +34,7 @@ impl AppRoot {
     fn render_pending_approval_list(&self, cx: &mut Context<Self>) -> impl IntoElement + '_ {
         let pending = pending_approvals(&self.snapshot).collect::<Vec<_>>();
         div()
-            .rounded_lg()
+            .rounded(px(0.0))
             .border_1()
             .border_color(theme::panel_border())
             .bg(theme::panel())
@@ -103,7 +103,7 @@ impl AppRoot {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + '_ {
         div()
-            .rounded_lg()
+            .rounded(px(0.0))
             .border_1()
             .border_color(theme::panel_border())
             .bg(theme::panel())
@@ -126,7 +126,7 @@ impl AppRoot {
                     .child(
                         div()
                             .mt(px(10.0))
-                            .rounded_lg()
+                            .rounded(px(0.0))
                             .border_1()
                             .border_color(theme::panel_inset_border())
                             .bg(theme::panel_inset())
@@ -140,7 +140,7 @@ impl AppRoot {
                         inner.child(
                             div()
                                 .mt(px(12.0))
-                                .rounded_lg()
+                                .rounded(px(0.0))
                                 .border_1()
                                 .border_color(theme::panel_border())
                                 .bg(theme::panel())
@@ -275,7 +275,7 @@ fn render_review_groups_panel(groups: &ReviewGroups<'_>) -> impl IntoElement {
     let has_rows =
         !(groups.board.is_empty() && groups.user.is_empty() && groups.manager.is_empty());
     div()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
@@ -337,7 +337,7 @@ fn review_group_section<'a>(
                     div()
                         .w(px(28.0))
                         .h(px(28.0))
-                        .rounded_lg()
+                        .rounded(px(0.0))
                         .bg(theme::panel_muted()),
                 )
                 .child(

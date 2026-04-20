@@ -209,33 +209,59 @@ impl AppRoot {
 }
 
 fn recovery_banner(runs: &[&domain::Run]) -> impl IntoElement {
+    let danger_30 = gpui::Hsla { a: 0.3, ..theme::danger() };
     div()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
-        .border_color(theme::danger())
-        .bg(theme::danger_bg())
-        .p_4()
-        .gap_3()
-        .child(div().text_sm().text_color(theme::danger()).child(format!(
-            "{} interrupted task(s) detected from the previous session",
-            runs.len()
-        )))
+        .border_color(danger_30)
+        .bg(theme::warning_bg())
+        .px_4()
+        .py_4()
+        .mb_4()
+        .child(
+            div()
+                .flex()
+                .gap_2()
+                .items_center()
+                .child(
+                    div()
+                        .w(px(16.0))
+                        .h(px(16.0))
+                        .rounded(px(4.0))
+                        .bg(theme::danger())
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(div().w(px(10.0)).h(px(10.0)).rounded_full().bg(theme::panel())),
+                )
+                .child(
+                    div()
+                        .text_size(px(13.0))
+                        .font_weight(gpui::FontWeight::MEDIUM)
+                        .text_color(theme::text_primary())
+                        .child(format!(
+                            "{} interrupted task(s) detected from the previous session",
+                            runs.len()
+                        )),
+                ),
+        )
         .children(runs.iter().map(|run| {
             div()
-                .rounded_md()
+                .mt(px(8.0))
+                .rounded(px(4.0))
                 .bg(theme::panel())
                 .px_4()
                 .py_3()
                 .child(
                     div()
-                        .text_sm()
+                        .text_size(px(13.0))
                         .text_color(theme::text_primary())
                         .child(overview_run_title_from_run(run)),
                 )
                 .child(
                     div()
                         .mt(px(4.0))
-                        .text_xs()
+                        .text_size(px(11.0))
                         .text_color(theme::text_muted())
                         .child(run.id.get(..8).unwrap_or(run.id.as_str()).to_string()),
                 )
@@ -243,13 +269,14 @@ fn recovery_banner(runs: &[&domain::Run]) -> impl IntoElement {
 }
 
 fn budget_alert_banner(agents: &[&domain::Agent], cx: &mut Context<AppRoot>) -> impl IntoElement {
+    let danger_30 = gpui::Hsla { a: 0.3, ..theme::danger() };
     div().gap_2().children(agents.iter().map(|agent| {
         div()
             .id(SharedString::from(format!("budget-alert-{}", agent.id)))
-            .rounded_lg()
+            .rounded(px(0.0))
             .border_1()
-            .border_color(theme::danger())
-            .bg(theme::accent_orange_soft())
+            .border_color(danger_30)
+            .bg(theme::danger_bg())
             .px_4()
             .py_3()
             .cursor_pointer()
@@ -260,12 +287,30 @@ fn budget_alert_banner(agents: &[&domain::Agent], cx: &mut Context<AppRoot>) -> 
             }))
             .child(
                 div()
-                    .text_sm()
-                    .text_color(theme::accent_orange())
-                    .child(format!(
-                        "{} is at ${:.2} / ${:.2} monthly budget.",
-                        agent.name, agent.spent_monthly_usd, agent.budget_monthly_usd
-                    )),
+                    .flex()
+                    .gap_2()
+                    .items_center()
+                    .child(
+                        div()
+                            .w(px(16.0))
+                            .h(px(16.0))
+                            .rounded(px(4.0))
+                            .bg(theme::danger())
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(div().w(px(10.0)).h(px(10.0)).rounded_full().bg(theme::panel())),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(13.0))
+                            .font_weight(gpui::FontWeight::MEDIUM)
+                            .text_color(theme::text_primary())
+                            .child(format!(
+                                "{} is at ${:.2} / ${:.2} monthly budget.",
+                                agent.name, agent.spent_monthly_usd, agent.budget_monthly_usd
+                            )),
+                    ),
             )
     }))
 }
@@ -275,17 +320,25 @@ fn metric_card(
     value: String,
     subtitle: String,
     icon_bg: gpui::Hsla,
-    tone: gpui::Hsla,
+    _tone: gpui::Hsla,
     target_section: SectionId,
     cx: &mut Context<AppRoot>,
 ) -> impl IntoElement {
+    let icon_letter = match label {
+        "ACTIVE TASKS" => "T",
+        "APPROVALS" => "A",
+        "RUNS" => "R",
+        "AGENTS" => "A",
+        _ => "•",
+    };
     div()
         .id(SharedString::from(format!("overview-metric-{label}")))
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
-        .p_4()
+        .px_4()
+        .py_4()
         .cursor_pointer()
         .hover(|style| style.bg(theme::panel_hover()))
         .on_click(cx.listener(move |this, _, _, cx| {
@@ -297,16 +350,45 @@ fn metric_card(
                 .flex()
                 .gap_4()
                 .items_center()
-                .child(div().w(px(48.0)).h(px(48.0)).rounded_lg().bg(icon_bg))
+                .child(
+                    div()
+                        .w(px(48.0))
+                        .h(px(48.0))
+                        .rounded(px(4.0))
+                        .bg(icon_bg)
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(
+                            div()
+                                .text_size(px(18.0))
+                                .font_weight(gpui::FontWeight::BOLD)
+                                .text_color(theme::text_muted())
+                                .child(icon_letter),
+                        ),
+                )
                 .child(
                     div()
                         .flex_1()
-                        .child(div().text_xs().text_color(theme::text_muted()).child(label))
-                        .child(div().text_3xl().text_color(tone).child(value))
+                        .child(
+                            div()
+                                .text_size(px(11.0))
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .text_color(theme::text_muted())
+                                .child(label),
+                        )
+                        .child(
+                            div()
+                                .text_size(px(28.0))
+                                .font_weight(gpui::FontWeight::BOLD)
+                                .text_color(theme::text_primary())
+                                .child(value),
+                        )
                         .child(
                             div()
                                 .mt(px(6.0))
-                                .text_xs()
+                                .text_size(px(11.0))
+                                .font_weight(gpui::FontWeight::MEDIUM)
                                 .text_color(theme::text_muted())
                                 .child(subtitle),
                         ),
@@ -315,7 +397,11 @@ fn metric_card(
 }
 
 fn eyebrow_label(label: &'static str) -> impl IntoElement {
-    div().text_xs().text_color(theme::text_muted()).child(label)
+    div()
+        .text_size(px(11.0))
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .text_color(theme::text_muted())
+        .child(label)
 }
 
 fn needs_attention_label() -> impl IntoElement {
@@ -332,7 +418,8 @@ fn needs_attention_label() -> impl IntoElement {
         )
         .child(
             div()
-                .text_xs()
+                .text_size(px(11.0))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
                 .text_color(theme::accent_orange())
                 .child("NEEDS ATTENTION"),
         )
@@ -350,7 +437,7 @@ fn attention_row(
     let selected_id = target_id.map(str::to_string);
     div()
         .id(SharedString::from(format!("overview-attention-{title}")))
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
@@ -373,26 +460,48 @@ fn attention_row(
                 .flex()
                 .gap_3()
                 .items_center()
-                .child(div().w(px(36.0)).h(px(36.0)).rounded_lg().bg(tile_bg))
+                .child(
+                    div()
+                        .w(px(36.0))
+                        .h(px(36.0))
+                        .rounded(px(4.0))
+                        .bg(tile_bg)
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(
+                            div()
+                                .w(px(8.0))
+                                .h(px(8.0))
+                                .rounded_full()
+                                .bg(accent),
+                        ),
+                )
                 .child(
                     div()
                         .flex_1()
                         .child(
                             div()
-                                .text_sm()
+                                .text_size(px(13.0))
+                                .font_weight(gpui::FontWeight::MEDIUM)
                                 .text_color(theme::text_primary())
                                 .child(title),
                         )
                         .child(
                             div()
                                 .mt(px(4.0))
-                                .text_xs()
+                                .text_size(px(11.0))
                                 .text_color(theme::text_muted())
                                 .line_clamp(2)
                                 .child(subtitle),
                         ),
                 )
-                .child(div().w(px(10.0)).h(px(10.0)).rounded_full().bg(accent)),
+                .child(
+                    div()
+                        .text_size(px(14.0))
+                        .text_color(theme::text_muted())
+                        .child(">"),
+                ),
         )
 }
 
@@ -440,21 +549,23 @@ fn success_rate_card(snapshot: &domain::ProfileSnapshot) -> impl IntoElement {
         completed as f32 / finished as f32
     };
     div()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
         .p_5()
         .child(
             div()
-                .text_xs()
+                .text_size(px(11.0))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
                 .text_color(theme::text_muted())
                 .child("SUCCESS RATE"),
         )
         .child(
             div()
                 .mt(px(10.0))
-                .text_3xl()
+                .text_size(px(28.0))
+                .font_weight(gpui::FontWeight::BOLD)
                 .text_color(theme::accent_teal())
                 .child(format!("{:.0}%", rate * 100.0)),
         )
@@ -487,28 +598,30 @@ fn cost_trend_card(snapshot: &domain::ProfileSnapshot) -> impl IntoElement {
         total / costs.len() as f64
     };
     div()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
         .p_5()
         .child(
             div()
-                .text_xs()
+                .text_size(px(11.0))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
                 .text_color(theme::text_muted())
                 .child("COST TREND"),
         )
         .child(
             div()
                 .mt(px(10.0))
-                .text_3xl()
+                .text_size(px(28.0))
+                .font_weight(gpui::FontWeight::BOLD)
                 .text_color(theme::text_primary())
                 .child(format!("${total:.2}")),
         )
         .child(
             div()
                 .mt(px(8.0))
-                .text_xs()
+                .text_size(px(11.0))
                 .text_color(theme::text_muted())
                 .child(format!("Average ${average:.2} per metered run")),
         )
@@ -542,12 +655,18 @@ fn mini_chart_card(
         .unwrap_or(1)
         .max(1) as f32;
     div()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
         .p_5()
-        .child(div().text_xs().text_color(theme::text_muted()).child(label))
+        .child(
+            div()
+                .text_size(px(11.0))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_color(theme::text_muted())
+                .child(label),
+        )
         .children(rows.into_iter().map(|(name, count)| {
             div()
                 .mt(px(12.0))
@@ -557,13 +676,15 @@ fn mini_chart_card(
                         .justify_between()
                         .child(
                             div()
-                                .text_sm()
+                                .text_size(px(13.0))
+                                .font_weight(gpui::FontWeight::MEDIUM)
                                 .text_color(theme::text_primary())
                                 .child(name),
                         )
                         .child(
                             div()
-                                .text_xs()
+                                .text_size(px(11.0))
+                                .font_weight(gpui::FontWeight::MEDIUM)
                                 .text_color(theme::text_muted())
                                 .child(count.to_string()),
                         ),
@@ -587,7 +708,7 @@ fn mini_chart_card(
 
 fn budget_utilization_card(snapshot: &domain::ProfileSnapshot) -> impl IntoElement {
     div()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
@@ -609,16 +730,21 @@ fn budget_utilization_card(snapshot: &domain::ProfileSnapshot) -> impl IntoEleme
                                 .items_center()
                                 .child(
                                     div()
-                                        .text_sm()
+                                        .text_size(px(13.0))
+                                        .font_weight(gpui::FontWeight::MEDIUM)
                                         .text_color(theme::text_primary())
                                         .child(agent.name.clone()),
                                 )
-                                .child(div().text_xs().text_color(theme::text_muted()).child(
-                                    format!(
-                                        "${:.2} / ${:.2}",
-                                        agent.spent_monthly_usd, agent.budget_monthly_usd
-                                    ),
-                                )),
+                                .child(
+                                    div()
+                                        .text_size(px(11.0))
+                                        .font_weight(gpui::FontWeight::MEDIUM)
+                                        .text_color(theme::text_muted())
+                                        .child(format!(
+                                            "${:.2} / ${:.2}",
+                                            agent.spent_monthly_usd, agent.budget_monthly_usd
+                                        )),
+                                ),
                         )
                         .child(
                             div()
@@ -650,7 +776,8 @@ fn active_work_header(cx: &mut Context<AppRoot>) -> impl IntoElement {
             div()
                 .id("overview-all-runs")
                 .cursor_pointer()
-                .text_xs()
+                .text_size(px(11.0))
+                .font_weight(gpui::FontWeight::MEDIUM)
                 .text_color(theme::accent_blue())
                 .hover(|style| style.text_color(theme::text_primary()))
                 .on_click(cx.listener(|this, _, _, cx| {
@@ -667,7 +794,7 @@ fn active_work_card<'a>(
     cx: &mut Context<AppRoot>,
 ) -> impl IntoElement + 'a {
     div()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
@@ -692,20 +819,21 @@ fn active_work_card<'a>(
                         this.state.selected_run_id = Some(run_id.clone());
                         cx.notify();
                     }))
-                    .px_5()
-                    .py_4()
+                    .px_4()
+                    .py_3()
                     .border_b_1()
                     .border_color(theme::panel_border())
                     .child(
                         div()
-                            .text_base()
+                            .text_size(px(13.0))
+                            .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(theme::text_primary())
                             .child(overview_run_title(snapshot, run)),
                     )
                     .child(
                         div()
                             .mt(px(4.0))
-                            .text_sm()
+                            .text_size(px(11.0))
                             .text_color(theme::text_muted())
                             .child(format!(
                                 "{} · {}",
@@ -719,26 +847,27 @@ fn active_work_card<'a>(
 
 fn activity_feed_card(snapshot: &domain::ProfileSnapshot) -> impl IntoElement {
     div()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
         .children(snapshot.activity.iter().take(10).map(|item| {
             div()
-                .px_5()
-                .py_4()
+                .px_4()
+                .py_3()
                 .border_b_1()
                 .border_color(theme::panel_border())
                 .child(
                     div()
-                        .text_sm()
+                        .text_size(px(13.0))
+                        .font_weight(gpui::FontWeight::MEDIUM)
                         .text_color(theme::text_primary())
                         .child(format!("{} {}", item.actor, item.action.replace('_', " "))),
                 )
                 .child(
                     div()
                         .mt(px(4.0))
-                        .text_xs()
+                        .text_size(px(11.0))
                         .text_color(theme::text_muted())
                         .child(item.detail.clone()),
                 )

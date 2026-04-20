@@ -360,8 +360,10 @@ impl Render for AppRoot {
                     .flex_col()
                     .child(
                         div()
-                            .px_8()
-                            .py_5()
+                            .px_6()
+                            .h(px(56.0))
+                            .flex()
+                            .items_center()
                             .border_b_1()
                             .border_color(theme::panel_border())
                             .bg(theme::shell_header())
@@ -370,41 +372,25 @@ impl Render for AppRoot {
                                     .flex()
                                     .items_center()
                                     .justify_between()
+                                    .w_full()
                                     .child(
                                         div()
-                                            .child(
-                                                div()
-                                                    .text_3xl()
-                                                    .text_color(theme::text_primary())
-                                                    .child(self.state.section.label()),
-                                            )
-                                            .child(
-                                                div()
-                                                    .text_sm()
-                                                    .text_color(theme::text_muted())
-                                                    .child(header),
-                                            )
-                                            .child(
-                                                div()
-                                                    .text_sm()
-                                                    .text_color(theme::text_subtle())
-                                                    .child(self.state.status_line.clone().unwrap_or_else(|| {
-                                                        "Native Rust shell is reading the shared local profile."
-                                                            .to_string()
-                                                    })),
-                                            ),
+                                            .text_size(px(14.0))
+                                            .font_weight(gpui::FontWeight::MEDIUM)
+                                            .text_color(theme::text_primary())
+                                            .child(self.state.section.label()),
                                     )
                                     .child(
                                         div()
                                             .px_4()
                                             .py_3()
-                                            .rounded_lg()
+                                            .rounded(px(0.0))
                                             .border_1()
                                             .border_color(theme::panel_border())
                                             .bg(theme::panel())
-                                            .text_sm()
+                                            .text_size(px(14.0))
                                             .text_color(theme::text_secondary())
-                                            .child("Show console"),
+                                            .child(header),
                                     ),
                             ),
                     )

@@ -41,7 +41,7 @@ impl AppRoot {
         selected: Option<&domain::Document>,
     ) -> impl IntoElement + '_ {
         div()
-            .rounded_lg()
+            .rounded(px(0.0))
             .border_1()
             .border_color(theme::panel_border())
             .bg(theme::panel())
@@ -117,7 +117,7 @@ impl AppRoot {
         selected: Option<&domain::Document>,
     ) -> impl IntoElement + '_ {
         div()
-            .rounded_lg()
+            .rounded(px(0.0))
             .border_1()
             .border_color(theme::panel_border())
             .bg(theme::panel())
@@ -146,7 +146,7 @@ impl AppRoot {
                     .child(
                         div()
                             .mt(px(16.0))
-                            .rounded_lg()
+                            .rounded(px(0.0))
                             .border_1()
                             .border_color(theme::panel_inset_border())
                             .bg(theme::panel_inset())
@@ -209,7 +209,7 @@ fn document_section_label(label: &'static str) -> impl IntoElement {
 
 fn render_work_products<'a>(products: &'a [&'a domain::ArtifactRecord]) -> impl IntoElement + 'a {
     div()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())

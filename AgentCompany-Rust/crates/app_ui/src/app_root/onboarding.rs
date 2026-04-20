@@ -193,7 +193,7 @@ impl AppRoot {
                     ))
                     .child(
                         div()
-                            .rounded_lg()
+                            .rounded(px(0.0))
                             .border_1()
                             .border_color(theme::panel_border())
                             .bg(theme::panel_inset())
@@ -255,7 +255,7 @@ impl AppRoot {
                     ))
                     .child(
                         div()
-                            .rounded_lg()
+                            .rounded(px(0.0))
                             .border_1()
                             .border_color(theme::panel_border())
                             .bg(theme::panel_inset())
@@ -383,7 +383,7 @@ impl AppRoot {
                     ))
                     .child(
                         div()
-                            .rounded_lg()
+                            .rounded(px(0.0))
                             .border_1()
                             .border_color(theme::panel_border())
                             .bg(theme::panel_inset())
@@ -443,7 +443,7 @@ impl AppRoot {
                     )
                     .child(
                         div()
-                            .rounded_lg()
+                            .rounded(px(0.0))
                             .border_1()
                             .border_color(theme::panel_border())
                             .bg(theme::panel_inset())
@@ -484,7 +484,7 @@ impl AppRoot {
                     .child(self.onboarding_goal_detail_input.clone())
                     .child(
                         div()
-                            .rounded_lg()
+                            .rounded(px(0.0))
                             .border_1()
                             .border_color(theme::panel_border())
                             .bg(theme::panel_inset())
@@ -830,7 +830,7 @@ fn step_connector(active: bool) -> impl IntoElement {
 
 fn onboarding_metric_row(label: &'static str, value: String) -> impl IntoElement {
     div()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel_inset())
@@ -892,7 +892,7 @@ fn onboarding_card() -> gpui::Div {
     div()
         .w_full()
         .p_8()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_border())
         .bg(theme::panel())
@@ -1018,7 +1018,7 @@ fn summary_tile(label: &'static str, value: String) -> impl IntoElement {
     div()
         .min_h(px(92.0))
         .p_5()
-        .rounded_lg()
+        .rounded(px(0.0))
         .border_1()
         .border_color(theme::panel_inset_border())
         .bg(theme::panel_inset())
