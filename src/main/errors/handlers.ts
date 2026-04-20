@@ -9,7 +9,7 @@
 import { classifyUnknownError, type AppError, type AppErrorMeta } from "./taxonomy.js";
 
 export interface Logger {
-  error: (...args: unknown[]) => void;
+  error?: (...args: unknown[]) => void;
   warn?: (...args: unknown[]) => void;
 }
 
@@ -41,8 +41,10 @@ export function logAppError(
   if (causeDetail) parts.push(`cause=${causeDetail}`);
   if (level === "warn" && typeof logger.warn === "function") {
     logger.warn(...parts);
-  } else {
+  } else if (typeof logger.error === "function") {
     logger.error(...parts);
+  } else if (typeof logger.warn === "function") {
+    logger.warn(...parts);
   }
   return err;
 }

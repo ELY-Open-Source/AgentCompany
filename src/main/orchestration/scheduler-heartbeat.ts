@@ -1,3 +1,4 @@
+import { logAppError } from "../errors/index.js";
 import type { HeartbeatStartResult } from "./heartbeat";
 import type { OrchestrationDependencies } from "./types";
 
@@ -29,9 +30,12 @@ export function createHeartbeatScheduler(
         heartbeatSkip: { reason, at: new Date().toISOString() },
       });
     } catch (error) {
-      logger.warn(
-        `[heartbeat] Failed to persist skip reason for agent ${agentId}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      logAppError(logger, error, {
+        kind: "recoverable",
+        code: "scheduler.heartbeat.persist_skip_failed",
+        message: `Failed to persist heartbeat skip reason for agent ${agentId}`,
+        context: { agentId, companyId },
+      }, "warn");
     }
   }
 
@@ -43,9 +47,12 @@ export function createHeartbeatScheduler(
       delete next.heartbeatSkip;
       db.agents.setRuntimeState(agentId, companyId, next);
     } catch (error) {
-      logger.warn(
-        `[heartbeat] Failed to clear skip reason for agent ${agentId}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      logAppError(logger, error, {
+        kind: "recoverable",
+        code: "scheduler.heartbeat.clear_skip_failed",
+        message: `Failed to clear heartbeat skip reason for agent ${agentId}`,
+        context: { agentId, companyId },
+      }, "warn");
     }
   }
 
@@ -123,11 +130,20 @@ export function createHeartbeatScheduler(
               scheduleLastFiredMap.set(scheduleKey, now);
             }
           } catch (error) {
-            logger.error(`[heartbeat] Error processing company ${company.id}: ${error instanceof Error ? error.message : String(error)}`);
+            logAppError(logger, error, {
+              kind: "recoverable",
+              code: "scheduler.heartbeat.company_tick_failed",
+              message: `Heartbeat tick failed for company ${company.id}`,
+              context: { companyId: company.id },
+            });
           }
         }
       } catch (error) {
-        logger.error(`[heartbeat] Scheduler error: ${error instanceof Error ? error.message : String(error)}`);
+        logAppError(logger, error, {
+          kind: "recoverable",
+          code: "scheduler.heartbeat.tick_failed",
+          message: "Heartbeat scheduler tick raised; next interval will retry",
+        });
       }
     }, 15_000);
   }

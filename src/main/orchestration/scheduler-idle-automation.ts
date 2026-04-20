@@ -1,3 +1,4 @@
+import { logAppError } from "../errors/index.js";
 import type { OrchestrationDependencies } from "./types";
 
 export function createIdleAutomationScheduler(deps: OrchestrationDependencies) {
@@ -32,11 +33,20 @@ export function createIdleAutomationScheduler(deps: OrchestrationDependencies) {
               }
             }
           } catch (error) {
-            logger.error(`[idle-automation] Error processing company ${company.id}: ${error instanceof Error ? error.message : String(error)}`);
+            logAppError(logger, error, {
+              kind: "recoverable",
+              code: "scheduler.idle_automation.company_tick_failed",
+              message: `Idle automation tick failed for company ${company.id}`,
+              context: { companyId: company.id },
+            });
           }
         }
       } catch (error) {
-        logger.error(`[idle-automation] Scheduler error: ${error instanceof Error ? error.message : String(error)}`);
+        logAppError(logger, error, {
+          kind: "recoverable",
+          code: "scheduler.idle_automation.tick_failed",
+          message: "Idle automation scheduler tick raised; next interval will retry",
+        });
       }
     }, 60_000);
   }

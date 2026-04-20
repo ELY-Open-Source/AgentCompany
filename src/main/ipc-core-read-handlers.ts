@@ -10,6 +10,7 @@ import {
   settingsSchema,
 } from "@shared/contracts";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
+import { logAppError } from "./errors/index.js";
 
 export function registerCoreReadHandlers({
   registerHandle,
@@ -130,7 +131,12 @@ export function registerCoreReadHandlers({
       const parsed = connectorInputSchema.shape.id.parse(connectorId);
       return ok(await listConnectorModels(parsed));
     } catch (err) {
-      logger.warn(`[ipc] listConnectorModels failed for connector ${String(connectorId)}:`, err instanceof Error ? err.message : String(err));
+      logAppError(logger, err, {
+        kind: "upstream",
+        code: "ipc.list_connector_models.failed",
+        message: `listConnectorModels failed for connector ${String(connectorId)}`,
+        context: { connectorId },
+      }, "warn");
       return ok([]);
     }
   });
@@ -140,7 +146,11 @@ export function registerCoreReadHandlers({
       const parsed = connectorModelPoolQuerySchema.parse(payload);
       return ok(db.settings.getDisabledModels(parsed.companyId, parsed.connectorId));
     } catch (err) {
-      logger.warn(`[ipc] getConnectorDisabledModels failed:`, err instanceof Error ? err.message : String(err));
+      logAppError(logger, err, {
+        kind: "user_input",
+        code: "ipc.get_connector_disabled_models.invalid_payload",
+        message: "getConnectorDisabledModels rejected payload (schema parse failed)",
+      }, "warn");
       return ok([]);
     }
   });
@@ -170,7 +180,12 @@ export function registerCoreReadHandlers({
       if (task.companyId !== parsed.companyId) return fail("TASK_NOT_FOUND", "Task not found in current company.");
       return ok(task);
     } catch (err) {
-      logger.warn(`[ipc] getTask failed for id ${parsed.id}:`, err instanceof Error ? err.message : String(err));
+      logAppError(logger, err, {
+        kind: "recoverable",
+        code: "ipc.get_task.lookup_failed",
+        message: `getTask failed for id ${parsed.id}`,
+        context: { taskId: parsed.id, companyId: parsed.companyId },
+      }, "warn");
       return fail("TASK_NOT_FOUND", "Task not found.");
     }
   });
@@ -184,7 +199,12 @@ export function registerCoreReadHandlers({
       if (agent.companyId !== parsed.companyId) return fail("AGENT_NOT_FOUND", "Agent not found in current company.");
       return ok(agent);
     } catch (err) {
-      logger.warn(`[ipc] getAgent failed for id ${parsed.id}:`, err instanceof Error ? err.message : String(err));
+      logAppError(logger, err, {
+        kind: "recoverable",
+        code: "ipc.get_agent.lookup_failed",
+        message: `getAgent failed for id ${parsed.id}`,
+        context: { agentId: parsed.id, companyId: parsed.companyId },
+      }, "warn");
       return fail("AGENT_NOT_FOUND", "Agent not found.");
     }
   });
@@ -198,7 +218,12 @@ export function registerCoreReadHandlers({
       if (run.companyId !== parsed.companyId) return fail("RUN_NOT_FOUND", "Run not found in current company.");
       return ok(run);
     } catch (err) {
-      logger.warn(`[ipc] getRun failed for id ${parsed.id}:`, err instanceof Error ? err.message : String(err));
+      logAppError(logger, err, {
+        kind: "recoverable",
+        code: "ipc.get_run.lookup_failed",
+        message: `getRun failed for id ${parsed.id}`,
+        context: { runId: parsed.id, companyId: parsed.companyId },
+      }, "warn");
       return fail("RUN_NOT_FOUND", "Run not found.");
     }
   });
@@ -212,7 +237,12 @@ export function registerCoreReadHandlers({
       if (approval.companyId !== parsed.companyId) return fail("APPROVAL_NOT_FOUND", "Approval not found in current company.");
       return ok(approval);
     } catch (err) {
-      logger.warn(`[ipc] getApprovalRecord failed for id ${parsed.id}:`, err instanceof Error ? err.message : String(err));
+      logAppError(logger, err, {
+        kind: "recoverable",
+        code: "ipc.get_approval.lookup_failed",
+        message: `getApprovalRecord failed for id ${parsed.id}`,
+        context: { approvalId: parsed.id, companyId: parsed.companyId },
+      }, "warn");
       return fail("APPROVAL_NOT_FOUND", "Approval not found.");
     }
   });

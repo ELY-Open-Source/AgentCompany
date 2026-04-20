@@ -3,6 +3,7 @@ import { sweepStaleReviews } from "../task-quality-gates";
 import type { SweepStaleReviewsDeps } from "../task-quality-gates";
 import { resolveApprovalDecision } from "../approval-policy";
 import { dispatchAgentMessage } from "../messaging/dispatch";
+import { logAppError } from "../errors/index.js";
 
 export function createHousekeepingScheduler(
   deps: OrchestrationDependencies,
@@ -73,10 +74,20 @@ export function createHousekeepingScheduler(
                 publishDomainChanged();
               }
             } catch (error) {
-              logger.error(`[housekeeping] Stale review sweep failed: ${error instanceof Error ? error.message : String(error)}`);
+              logAppError(logger, error, {
+                kind: "recoverable",
+                code: "scheduler.housekeeping.stale_review_sweep_failed",
+                message: `Stale review sweep failed for company ${company.id}`,
+                context: { companyId: company.id },
+              });
             }
           } catch (error) {
-            logger.error(`[housekeeping] Error processing company ${company.id}: ${error instanceof Error ? error.message : String(error)}`);
+            logAppError(logger, error, {
+              kind: "recoverable",
+              code: "scheduler.housekeeping.company_tick_failed",
+              message: `Housekeeping tick failed for company ${company.id}`,
+              context: { companyId: company.id },
+            });
           }
         }
 
@@ -86,7 +97,11 @@ export function createHousekeepingScheduler(
             logger.info(`[housekeeping] Purged ${staleWakeups} expired wakeup request(s)`);
           }
         } catch (error) {
-          logger.error(`[housekeeping] Wakeup purge failed: ${error instanceof Error ? error.message : String(error)}`);
+          logAppError(logger, error, {
+            kind: "recoverable",
+            code: "scheduler.housekeeping.wakeup_purge_failed",
+            message: "Expired wakeup request purge failed; next tick will retry",
+          });
         }
 
         try {
@@ -102,10 +117,18 @@ export function createHousekeepingScheduler(
             logger.info(`[housekeeping] Purged ${purgedProjections} orphan inbox projection ledger row(s)`);
           }
         } catch (error) {
-          logger.error(`[housekeeping] Inbox projection purge failed: ${error instanceof Error ? error.message : String(error)}`);
+          logAppError(logger, error, {
+            kind: "recoverable",
+            code: "scheduler.housekeeping.inbox_projection_purge_failed",
+            message: "Orphan inbox projection purge failed; next tick will retry",
+          });
         }
       } catch (error) {
-        logger.error(`[housekeeping] Scheduler error: ${error instanceof Error ? error.message : String(error)}`);
+        logAppError(logger, error, {
+          kind: "recoverable",
+          code: "scheduler.housekeeping.tick_failed",
+          message: "Housekeeping scheduler tick raised; next interval will retry",
+        });
       }
     }, 300_000);
   }

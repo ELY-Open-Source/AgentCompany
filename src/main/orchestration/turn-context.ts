@@ -14,6 +14,7 @@ import type { WorkspaceLockMode, EnqueueRunPayload } from "./types";
 import { normalizeCommentsForPrompt } from "../messaging/normalize";
 import { getConnectorModelPolicy, validateConnectorModelSelection } from "../connector-model-policy";
 import { resolveInitialUserTurn } from "./initial-user-turn";
+import { logAppError } from "../errors/index.js";
 
 export interface RunDispatchParams {
   runId: string;
@@ -111,7 +112,12 @@ function resolveSessionHandoff(
   try {
     return deps.getSessionHandoff(agentId);
   } catch (err) {
-    deps.logger.warn(`[run] Failed to load session handoff for agent ${agentId}: ${err instanceof Error ? err.message : String(err)}`);
+    logAppError(deps.logger, err, {
+      kind: "recoverable",
+      code: "run.session_handoff.load_failed",
+      message: `Failed to load session handoff for agent ${agentId}; continuing without handoff`,
+      context: { agentId },
+    }, "warn");
     return null;
   }
 }
@@ -126,7 +132,12 @@ function resolveSkills(
   try {
     return deps.listRuntimeSkillEntries(companyId, agentId, connectorId);
   } catch (err) {
-    deps.logger.warn(`[run] Failed to fetch managed skills for agent ${agentName}: ${err instanceof Error ? err.message : String(err)}`);
+    logAppError(deps.logger, err, {
+      kind: "recoverable",
+      code: "run.skills.fetch_failed",
+      message: `Failed to fetch managed skills for agent ${agentName}; proceeding with empty skill set`,
+      context: { agentId, agentName, connectorId, companyId },
+    }, "warn");
     return [];
   }
 }

@@ -1,3 +1,4 @@
+import { logAppError } from "../errors/index.js";
 import type { OrchestrationDependencies } from "./types";
 
 export function createLockRecoveryScheduler(deps: OrchestrationDependencies) {
@@ -27,7 +28,11 @@ export function createLockRecoveryScheduler(deps: OrchestrationDependencies) {
             logger.info(`[lock-recovery] Recovered stale lock on task ${task.taskId}: "${task.title}"`);
           }
         } catch (err) {
-          logger.error(`[lock-recovery] Stale lock recovery failed: ${err instanceof Error ? err.message : String(err)}`);
+          logAppError(logger, err, {
+            kind: "recoverable",
+            code: "scheduler.lock_recovery.stale_lock_sweep_failed",
+            message: "Stale task lock recovery sweep failed; next tick will retry",
+          });
         }
 
         try {
@@ -37,10 +42,18 @@ export function createLockRecoveryScheduler(deps: OrchestrationDependencies) {
             publishDomainChanged();
           }
         } catch (error) {
-          logger.error(`[lock-recovery] Stale workspace lock cleanup failed: ${error instanceof Error ? error.message : String(error)}`);
+          logAppError(logger, error, {
+            kind: "recoverable",
+            code: "scheduler.lock_recovery.workspace_lock_sweep_failed",
+            message: "Stale workspace lock cleanup failed; next tick will retry",
+          });
         }
       } catch (error) {
-        logger.error(`[lock-recovery] Scheduler error: ${error instanceof Error ? error.message : String(error)}`);
+        logAppError(logger, error, {
+          kind: "recoverable",
+          code: "scheduler.lock_recovery.tick_failed",
+          message: "Lock recovery scheduler tick raised; next interval will retry",
+        });
       }
     }, 60_000);
   }

@@ -1,6 +1,7 @@
 import type { AppDatabase } from "../database";
 import type { NotificationOptions } from "../notification-service";
 import type { AutomationEventContext } from "./types";
+import { logAppError } from "../errors/index.js";
 
 export interface HandlerDeps {
   db: AppDatabase;
@@ -45,7 +46,12 @@ export function handleTaskStatusChange(
   try {
     task = db.entityCrud.getTask(taskId);
   } catch (error) {
-    deps.logger.warn(`[automation] handleTaskStatusChange: task ${taskId} not found:`, error);
+    logAppError(deps.logger, error, {
+      kind: "recoverable",
+      code: "automation.task_status_change.task_not_found",
+      message: `handleTaskStatusChange: task ${taskId} disappeared before handler could read it`,
+      context: { taskId, companyId },
+    }, "warn");
     return;
   }
   if (!task) return;
@@ -72,7 +78,12 @@ export function handleTaskStatusChange(
       context.department = agent.department ?? undefined;
     }
   } catch (error) {
-    deps.logger.warn(`[automation] Agent ${task.assigneeAgentId} deleted after task update — continuing without department context:`, error);
+    logAppError(deps.logger, error, {
+      kind: "recoverable",
+      code: "automation.task_status_change.assignee_deleted",
+      message: `Agent ${task.assigneeAgentId} deleted after task update; continuing without department context`,
+      context: { taskId, agentId: task.assigneeAgentId, companyId },
+    }, "warn");
   }
 
   dispatchAutomation("task_status_changed", context);
@@ -103,7 +114,12 @@ export function handleTaskStatusChange(
         }
       }
     } catch (err) {
-      deps.logger.warn(`[automation] Parent task ${task.parentId} lookup failed during completion cascade:`, err instanceof Error ? err.message : String(err));
+      logAppError(deps.logger, err, {
+        kind: "recoverable",
+        code: "automation.task_status_change.parent_lookup_failed",
+        message: `Parent task ${task.parentId} lookup failed during completion cascade`,
+        context: { taskId, parentTaskId: task.parentId, companyId },
+      }, "warn");
     }
   }
 }
@@ -122,7 +138,12 @@ export function handleTaskCreated(
   try {
     task = db.entityCrud.getTask(taskId);
   } catch (error) {
-    deps.logger.warn(`[automation] handleTaskCreated: task ${taskId} not found:`, error);
+    logAppError(deps.logger, error, {
+      kind: "recoverable",
+      code: "automation.task_created.task_not_found",
+      message: `handleTaskCreated: task ${taskId} disappeared before handler could read it`,
+      context: { taskId, companyId },
+    }, "warn");
     return;
   }
   if (!task) return;
