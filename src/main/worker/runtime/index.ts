@@ -1,11 +1,11 @@
 import type { Agent, AgentMessage } from "@mariozechner/pi-agent-core";
-import { resolveModel, resolveExtraStreamHeaders } from "../model-resolver";
+import { resolveModel, resolveExtraStreamHeaders } from "../../model-resolver";
 import type { RunStatus } from "@shared/types";
-import type { ChildMessage, RunJob } from "./worker-helpers";
-import { applyEnvOverrides, buildRedactor } from "./worker-helpers";
+import type { ChildMessage, RunJob } from "./helpers";
+import { applyEnvOverrides, buildRedactor } from "./helpers";
 import { createCodingTools } from "@mariozechner/pi-coding-agent";
 import { createPiAgent, resolveThinkingLevel } from "./pi-agent-factory";
-import type { WorkerRpcClient } from "./entry/rpc";
+import type { WorkerRpcClient } from "../entry/rpc";
 
 interface PrepareRunResult {
   provider: string;

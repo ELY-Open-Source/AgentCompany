@@ -29,7 +29,7 @@ import type {
   TransformContextRpcPayload,
   TransformContextRpcResult,
 } from "@main/agent-runtime/hook-rpc";
-import type { WorkerRpcClient } from "./entry/rpc";
+import type { WorkerRpcClient } from "../entry/rpc";
 // Side-effect import: drags the hook signature contract into the typecheck
 // graph so any drift in pi-agent-core hook shapes breaks the build here.
 import "./pi-hook-contract";

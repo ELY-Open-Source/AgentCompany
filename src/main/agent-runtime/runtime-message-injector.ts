@@ -26,7 +26,7 @@
 import { randomUUID } from "node:crypto";
 import type { AppDatabase } from "@main/database";
 import type { AgentMessageRecord } from "@shared/types";
-import type { ParentMessage } from "@main/worker/worker-helpers";
+import type { ParentMessage } from "@main/worker/runtime/helpers";
 import type { RuntimeBridge } from "./runtime-bridge";
 
 export interface RuntimeMessageInjectorDeps {
