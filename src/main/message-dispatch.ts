@@ -260,6 +260,13 @@ export function resolveMessageWakeTargets(
     }
   }
 
+  // The human participant (`__board__`) is a reader, not a wake-able
+  // agent: it has no runtime, no heartbeat, no DB row. Leaving it in the
+  // set makes `wakeAgentIfPossible` call `db.getAgent("__board__")`,
+  // which throws "Agent not found" and spams the log. Filter once, at
+  // the point of resolution, so every downstream consumer is clean.
+  wakeTargets.delete(HUMAN_SENDER_ID);
+
   return Array.from(wakeTargets);
 }
 

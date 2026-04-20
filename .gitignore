@@ -57,6 +57,11 @@ oldreference/
 !/CLAUDE.md
 !/.planning/**/*.md
 !/src/main/prompt-builder/**/*.md
+# Bundled Agent Skills ship their SKILL.md / README.md as source of truth.
+# The Pi skills loader rejects entries whose frontmatter `name` diverges from
+# the parent directory; losing SKILL.md to the blanket *.md ignore meant a
+# fresh checkout silently dropped every skill from the catalogue.
+!/builtin-skills/**/*.md
 *.zip
 *.blockmap
 *.exe

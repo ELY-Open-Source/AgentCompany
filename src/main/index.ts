@@ -1,3 +1,4 @@
+import "./suppress-warnings";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { app } from "electron";

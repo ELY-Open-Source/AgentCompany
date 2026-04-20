@@ -4,6 +4,7 @@ import type { AgentRecord, ConnectorRecord } from "@shared/types";
 import type { OrchestrationDependencies } from "./types";
 import type { RunDispatchParams } from "./turn-context";
 import { pickModelForAgent } from "../model-dispatch";
+import { HUMAN_SENDER_ID } from "../message-dispatch";
 
 /**
  * Every reason a heartbeat attempt can be rejected before a run is
@@ -258,6 +259,12 @@ export function createHeartbeat(
 
   function wakeAgentIfPossible(agentId: string | null | undefined, companyId: string, trigger: string, context?: Record<string, unknown>) {
     if (!agentId || isQuitting()) return null;
+    // `__board__` is the human participant sentinel, not an agent row.
+    // Upstream filters should strip it before we get here, but keeping
+    // this guard as defense-in-depth prevents a single stray call site
+    // (e.g. a future automation action that forwards the `toAgentId`
+    // raw) from spamming the log with "Agent not found: __board__".
+    if (agentId === HUMAN_SENDER_ID) return null;
     try {
       const agent = db.getAgent(agentId);
       if (agent.companyId !== companyId) {

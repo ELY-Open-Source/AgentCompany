@@ -96,8 +96,19 @@ export function createIpcSupport({
   function emitEvent(event: DesktopEvent) {
     const mainWindow = getMainWindow();
     if (!mainWindow || mainWindow.isDestroyed()) return;
+    const webContents = mainWindow.webContents;
+    if (webContents.isDestroyed() || webContents.isCrashed()) return;
+    // `mainFrame.detached` flips true while the frame is being torn down
+    // or swapped during a navigation. Sending into a detached frame is
+    // what makes Electron's native layer throw "Render frame was
+    // disposed" and also what makes its own WebFrameMain.prototype.send
+    // spam `console.error('Error sending from webFrameMain: ', …)` to
+    // stderr on every call. Short-circuiting here closes the window
+    // between our `isDestroyed` check and the native send.
+    const mainFrame = webContents.mainFrame;
+    if (!mainFrame || mainFrame.detached) return;
     try {
-      mainWindow.webContents.send("agent-company:event", event);
+      webContents.send("agent-company:event", event);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (message.includes(renderFrameDisposedMessage)) {
