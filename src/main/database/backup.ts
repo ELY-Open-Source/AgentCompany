@@ -21,7 +21,11 @@ function readGitSha(): string | null {
     });
     const sha = out.toString("utf8").trim();
     return sha.length === 40 ? sha : null;
-  } catch {
+  } catch (e) {
+    log.warn(
+      "[database/backup] git rev-parse HEAD failed; manifest.gitSha will be null",
+      e instanceof Error ? e.message : String(e),
+    );
     return null;
   }
 }
@@ -89,6 +93,12 @@ export function buildBackupMethods(
       // while the connection is held open — no WAL checkpoint dance, no
       // torn writes, works on sqlite3 ≥ 3.27. The destination must not
       // exist; `mkdirSync` above only created the parent directory.
+      //
+      // Safety invariant under WAL mode: VACUUM INTO opens an implicit
+      // read transaction that sees every committed frame including those
+      // still in profile.sqlite-wal. DO NOT add PRAGMA wal_checkpoint
+      // here — a TRUNCATE checkpoint would fight concurrent writers and
+      // buys nothing for the snapshot; a PASSIVE checkpoint is redundant.
       const dbTarget = join(targetDir, "profile.sqlite").replace(/'/g, "''");
       db.exec(`VACUUM INTO '${dbTarget}'`);
 
