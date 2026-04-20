@@ -25,13 +25,124 @@ yet; that tier is proposed in
 ```bash
 # Assertion-only eval (no fixtures needed; passes on empty fixture dir)
 pnpm test:eval
-
-# Record a stub fixture header (full recorder lands in B5.1)
-pnpm eval:record -- \
-  --fixture-id ceo-team-building-empty \
-  --scenario "Empty company, CEO bootstrap" \
-  --out tests/eval/fixtures/ceo-team-building-empty.jsonl
 ```
+
+## Recording your first fixture
+
+The recorder drives the **real** `@mariozechner/pi-ai` client against a
+live provider. No mocks, no fallbacks. A fixture that exists was
+produced by a real API call, end of story.
+
+### Step 1 — export an API key
+
+Pick the provider you want to record against and export the matching
+variable:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-…
+# or
+export OPENAI_API_KEY=sk-…
+# or
+export GOOGLE_API_KEY=…
+```
+
+The recorder **fails hard** if the variable is absent. This is
+deliberate: silently skipping the call would produce a fixture that
+documents the wrong thing.
+
+### Step 2 — write the system prompt and user message to disk
+
+The recorder reads both from files so you can version your scenarios
+without pasting long prompts into shell args. Put them anywhere; the
+conventional location is under `tests/eval/scenarios/<id>/`:
+
+```bash
+mkdir -p tests/eval/scenarios/ceo-bootstrap-empty
+cat > tests/eval/scenarios/ceo-bootstrap-empty/system.txt <<'EOF'
+You are the CEO of AgentCompany. Your team is empty. Call the `hire_agent`
+tool to file the first three hires for the engineering, design, and
+research departments. After all three, call `approve_ceo_strategy` once.
+EOF
+
+cat > tests/eval/scenarios/ceo-bootstrap-empty/user.txt <<'EOF'
+Build me a team.
+EOF
+```
+
+Empty files are rejected. A fixture with no real prompt captures no
+real behaviour.
+
+### Step 3 — record
+
+```bash
+pnpm eval:record \
+  --scenario "Empty company, CEO bootstrap" \
+  --fixture-id ceo-bootstrap-empty \
+  --provider anthropic \
+  --model claude-sonnet-4-5-20250929 \
+  --system-prompt-file tests/eval/scenarios/ceo-bootstrap-empty/system.txt \
+  --user-message-file tests/eval/scenarios/ceo-bootstrap-empty/user.txt \
+  --output tests/eval/fixtures/ceo-bootstrap-empty.jsonl
+```
+
+On success you'll see the usage ledger printed to stdout and the JSONL
+written at `--output`. The assertions block is written empty; the next
+step is to fill it in.
+
+### Step 4 — add assertions
+
+Open the fixture you just wrote and replace the empty assertions block:
+
+```diff
+- {"type":"assertions","assertions":[]}
++ {"type":"assertions","assertions":[
++   {"kind":"tool_called","name":"hire_agent","min_count":3,"max_count":5},
++   {"kind":"message_contains_substring","role":"assistant","substring":"engineering"},
++   {"kind":"trace_max_turns","max":40}
++ ]}
+```
+
+Common assertion shapes:
+
+```json
+{"kind":"tool_called","name":"hire_agent","min_count":3}
+{"kind":"no_tool_called","name":"delete_everything"}
+{"kind":"message_contains_substring","role":"assistant","substring":"approve_ceo_strategy"}
+{"kind":"tool_call_arg_matches","name":"hire_agent","arg_path":"department","matches_regex":"^(engineering|design|research)$"}
+```
+
+See `types.ts` for the exhaustive schema.
+
+### Step 5 — verify
+
+```bash
+pnpm test:eval --run
+```
+
+A green run means: given the recorded assistant turn, every assertion
+you wrote passes. A red run means either the assertion is wrong or the
+assistant did not produce the behaviour you expected — inspect the
+fixture and decide which.
+
+### Re-recording
+
+Fixtures drift when the system prompt changes (the `systemPromptHash`
+header surfaces that). To re-record, delete the old fixture and run the
+recorder again. Do **not** hand-edit the `turn` records; that defeats
+the point of recording against a real provider.
+
+### What the recorder does NOT do
+
+- It does not loop tool calls back to the provider. Today's recorder
+  captures one turn: user message in, assistant reply out. Multi-turn
+  with tool execution is B5.1's scope.
+- It does not retry on provider errors. A 529 or a 5xx surfaces as a
+  non-zero exit and nothing is written. Re-run manually if you think
+  the failure was transient.
+- It does not reach into AgentCompany's `src/main/` to import the
+  worker's system prompt builder or tool catalogue. You bring your own
+  prompt and message text on the CLI. Importing the worker would
+  require the Electron runtime; the CLI is node-only on purpose.
 
 ## Fixture JSONL format
 
@@ -78,11 +189,14 @@ belongs in the LLM-as-judge tier. See
 
 ## What this scaffold does NOT do tonight
 
-- **No synthesized fixtures.** `fixtures/` ships empty. The user records
-  real traces by running the recorder against a live provider.
+- **No synthesized fixtures.** `fixtures/` ships empty. Fixtures arrive
+  by running the recorder against a live provider.
+- **No multi-turn tool-use recording.** The recorder captures one
+  user→assistant turn. Multi-turn runs with real tool execution are
+  B5.1's scope.
 - **No live-replay.** `replay-client.ts` is ready to swap into the agent
-  loop; wiring it into a real `pi-agent-core` Agent instance is the B5.1
-  task. Tonight the runner asserts against recorded turns directly.
+  loop; wiring it into a real `pi-agent-core` Agent instance is also
+  B5.1. Tonight the runner asserts against recorded turns directly.
 - **No LLM-as-judge.** Assertions are structural only. Semantic judgment
   tier is proposed separately.
 - **No logging / telemetry.** Results are returned from `runEval` as
