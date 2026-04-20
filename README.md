@@ -173,6 +173,20 @@ src/
 
 ---
 
+## AgentCompany-Rust
+
+The `AgentCompany-Rust/` directory is an exploratory parallel implementation of the runtime in Rust (GPUI-based desktop shell, SQLite storage, pi bridge). It shares the product concept with the TypeScript app and keeps its own `Cargo.toml` workspace, PRD, and progress notes under `AgentCompany-Rust/`.
+
+Current status:
+
+- TypeScript Electron app is the shipping product and the only target of the release pipeline (`pnpm build`, `pnpm release:*`).
+- Rust workspace is experimental, not wired into CI, not packaged, not distributed.
+- Schemas and runtime contracts are maintained independently; no cross-language codegen yet.
+
+Detailed design lives in `AgentCompany-Rust/PRD.md`. Positioning beyond "exploratory parallel implementation" is left to the Rust owner to document.
+
+---
+
 ## Tech Stack
 
 | Layer | Tech |
