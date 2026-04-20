@@ -134,6 +134,29 @@ function evaluateOne(
         reason: `no ${assertion.role} message contained substring "${assertion.substring}"`,
       };
     }
+    case "message_does_not_contain_substring": {
+      for (const turn of turns) {
+        if (turn.role !== assertion.role) continue;
+        const content = turn.content;
+        if (!Array.isArray(content)) continue;
+        for (const block of content) {
+          if (
+            block &&
+            typeof block === "object" &&
+            (block as { type?: string }).type === "text" &&
+            typeof (block as { text?: unknown }).text === "string" &&
+            ((block as { text: string }).text).includes(assertion.substring)
+          ) {
+            return {
+              assertion,
+              passed: false,
+              reason: `a ${assertion.role} message contained forbidden substring "${assertion.substring}"`,
+            };
+          }
+        }
+      }
+      return { assertion, passed: true };
+    }
     case "tool_call_arg_matches": {
       const matches = toolCalls.filter(
         (occ) => occ.toolCall.name === assertion.name,

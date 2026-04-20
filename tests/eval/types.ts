@@ -108,6 +108,17 @@ export type Assertion =
       substring: string;
     }
   | {
+      /**
+       * Negative substring check. Fails when *any* message of `role` contains
+       * `substring`; used to pin post-refactor invariants where a particular
+       * pattern must disappear from the trace (for example, asserting that a
+       * CEO bootstrap no longer emits `node -e` after C4).
+       */
+      kind: "message_does_not_contain_substring";
+      role: "assistant" | "user";
+      substring: string;
+    }
+  | {
       kind: "tool_call_arg_matches";
       name: string;
       /** Dotted JSON path into the tool call's arguments object, e.g. "agent.role". */

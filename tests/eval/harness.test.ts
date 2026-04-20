@@ -131,6 +131,34 @@ describe("harness self-test (in-memory fixture)", () => {
     expect(reasons[2]).toContain("trace has 2 turns, max allowed is 1");
   });
 
+  it("message_does_not_contain_substring passes when substring is absent", () => {
+    const fixture = buildInMemoryFixture([
+      {
+        kind: "message_does_not_contain_substring",
+        role: "assistant",
+        substring: "node -e",
+      },
+    ]);
+    const result = runEval(fixture);
+    expect(result.passed).toBe(true);
+    expect(result.assertions[0]?.passed).toBe(true);
+  });
+
+  it("message_does_not_contain_substring fails when substring is present", () => {
+    const fixture = buildInMemoryFixture([
+      {
+        kind: "message_does_not_contain_substring",
+        role: "assistant",
+        substring: "Hiring a writer",
+      },
+    ]);
+    const result = runEval(fixture);
+    expect(result.passed).toBe(false);
+    expect(result.assertions[0]?.reason).toContain(
+      'a assistant message contained forbidden substring "Hiring a writer"',
+    );
+  });
+
   it("judgeAssertions is a pure function of (assertions, turns)", () => {
     const fixture = buildInMemoryFixture([]);
     const first = judgeAssertions(
