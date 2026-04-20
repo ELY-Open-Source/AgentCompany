@@ -49,9 +49,33 @@ export type WorkspaceResolutionSource =
   | "none";
 
 export interface WorkspaceResolution {
+  /**
+   * The workspace whose lock the dispatcher will claim. Non-null iff
+   * `lockMode === 'exclusive'` — the type system enforces the pair.
+   */
   workspace: WorkspaceRecord | null;
   lockMode: WorkspaceLockMode;
   source: WorkspaceResolutionSource;
+  /**
+   * Where the artifact projector should *observe* for files this run
+   * may produce, independent of the lock decision. Set whenever the
+   * company has at least one workspace row, even when `lockMode='none'`
+   * — cognitive agents still write deliverables to disk via `bash`,
+   * and the projector needs an observation root to scan against the
+   * mtime baseline. Null only when the company has no workspace at
+   * all (genuinely nowhere to look).
+   *
+   * For `lockMode='exclusive'` this is always the same path as
+   * `workspace.localPath`. For `lockMode='none'` this is the
+   * company's primary/oldest workspace localPath, picked by
+   * `getCompanyObservationWorkspace` — *no lock claim*.
+   *
+   * Decoupling observation from locking is what fixes the regression
+   * where cognitive agents wrote 19 files but the DocumentCenter
+   * surfaced only 1: previously `workspacePath` shared the lock
+   * decision, so any non-exclusive run lost its projector.
+   */
+  observationPath: string | null;
 }
 
 export class WorkspaceConfigurationError extends Error {
@@ -177,7 +201,19 @@ export function resolveWorkspaceWithLockMode(
   const decision = inferLockMode(db, task, agent, companyId);
 
   if (decision.lockMode === "none") {
-    return { workspace: null, lockMode: "none", source: "none" };
+    // No lock claim, but the cognitive run can still touch the
+    // filesystem via `bash`. Pick a stable observation root so the
+    // artifact projector can baseline + diff the run's footprint.
+    // `getCompanyObservationWorkspace` returns the primary or oldest
+    // workspace; null only when the company has no workspace row at
+    // all, in which case there is genuinely nothing to observe.
+    const observation = db.workspacesMod.getCompanyObservationWorkspace(companyId);
+    return {
+      workspace: null,
+      lockMode: "none",
+      source: "none",
+      observationPath: observation?.localPath ?? null,
+    };
   }
 
   if (!decision.workspaceId) {
@@ -198,5 +234,11 @@ export function resolveWorkspaceWithLockMode(
     );
   }
 
-  return { workspace, lockMode: "exclusive", source: decision.source };
+  return {
+    workspace,
+    lockMode: "exclusive",
+    source: decision.source,
+    // Exclusive runs observe the same path they lock — single source.
+    observationPath: workspace.localPath,
+  };
 }

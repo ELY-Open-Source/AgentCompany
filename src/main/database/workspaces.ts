@@ -61,6 +61,28 @@ export function buildWorkspaceMethods(
       return row ? { ...row, isPrimary: toBoolean(row.isPrimary) } : null;
     },
 
+    /**
+     * Pick a single workspace per company for *observation only* (no
+     * lock claim). Used by the artifact projector to know where on
+     * disk a `lockMode='none'` cognitive run might write files. The
+     * tie-break order is `is_primary` first, then earliest `created_at`
+     * — i.e. the workspace the operator marked as canonical wins, and
+     * if no one is marked, the oldest row wins (which historically is
+     * the company's default scratch directory).
+     *
+     * Returns `null` when the company has no workspace at all; the
+     * caller treats that as "agent has no observation surface", which
+     * is correct — there is genuinely nowhere to look for files.
+     */
+    getCompanyObservationWorkspace(companyId: string): WorkspaceRecord | null {
+      const row = getDb()
+        .prepare(
+          "select id, company_id as companyId, name, local_path as localPath, repo_url as repoUrl, repo_ref as repoRef, project_id as projectId, state, is_primary as isPrimary, created_at as createdAt, updated_at as updatedAt from workspaces where company_id = ? order by is_primary desc, created_at asc limit 1",
+        )
+        .get(companyId) as WorkspaceRecord | undefined;
+      return row ? { ...row, isPrimary: toBoolean(row.isPrimary) } : null;
+    },
+
     listWorkspaceLocalPaths(companyId: string): string[] {
       const rows = getDb()
         .prepare("select local_path as localPath from workspaces where company_id = ? and local_path is not null")

@@ -28,6 +28,16 @@ export interface RunDispatchParams {
   connector: ReturnType<AppDatabase["connectorsCrud"]["getConnector"]>;
   workspace: ReturnType<AppDatabase["workspacesMod"]["getWorkspace"]>;
   workspaceMode: WorkspaceLockMode;
+  /**
+   * Filesystem root the artifact projector observes for files this run
+   * may produce, independent of `workspaceMode`. Set whenever the
+   * resolver found a workspace row in the company (including for
+   * `lockMode='none'` cognitive runs that do not claim the lock but
+   * still write deliverables via `bash`). Optional so legacy callers
+   * that bypass the resolver keep typechecking; the new resolver
+   * always sets it.
+   */
+  observationPath?: string | null;
   companyName: string;
   companyDescription: string;
   snapshot: ReturnType<AppDatabase["snap"]["listSnapshot"]>;
@@ -286,7 +296,7 @@ function buildConnectorCatalog(
  * This is the core composition step that was previously inlined in dispatchRunToWorker.
  */
 export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps): EnqueueRunPayload {
-  const { runId, companyId, agent, task, connector, workspace, workspaceMode, companyName, companyDescription, snapshot, trigger } = params;
+  const { runId, companyId, agent, task, connector, workspace, workspaceMode, observationPath, companyName, companyDescription, snapshot, trigger } = params;
   const { db } = deps;
 
   const { env, apiUrl, apiKey } = assembleApiEnv(db, connector, companyId, agent.id, runId, trigger, deps);
@@ -375,7 +385,13 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     agentName: agent.name,
     connectorId: connector.id,
     workspaceId: workspaceMode === "exclusive" ? (workspace?.id ?? null) : null,
-    workspacePath: workspace?.localPath ?? null,
+    // observationPath, not lock target. Cognitive runs (lockMode='none')
+    // still write deliverables via bash; the artifact projector needs an
+    // observation root regardless of whether we hold the lock. Falls back
+    // to workspace?.localPath for old call sites that did not yet thread
+    // the observationPath through (the resolver always sets it now;
+    // callers that bypass the resolver remain on the legacy field).
+    workspacePath: observationPath ?? workspace?.localPath ?? null,
     workspaceMode,
     model: modelSelection.effectiveModel,
     thinkingEffort,

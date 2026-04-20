@@ -217,4 +217,49 @@ describe("resolveWorkspaceWithLockMode", () => {
       expect(m.workspace).toBeNull();
     }
   });
+
+  it("lockMode=none still returns observationPath when company has a workspace (artifact projector regression)", () => {
+    const { companyId } = seedCompany(db);
+    const result = resolveWorkspaceWithLockMode(
+      db,
+      null,
+      { workspaceId: null, role: "CMO", department: "marketing" },
+      companyId,
+    );
+    expect(result.lockMode).toBe("none");
+    expect(result.workspace).toBeNull();
+    // Observation path is the company's primary workspace localPath
+    // even though no lock is claimed — the artifact projector needs
+    // somewhere to baseline + diff so files written by cognitive
+    // runs surface in the DocumentCenter.
+    expect(result.observationPath).toBe("/tmp/fixture");
+  });
+
+  it("lockMode=none observationPath is null when company has no workspace at all", () => {
+    const companyId = db.company.saveCompany({
+      name: "No-workspace Co",
+      description: "",
+      status: "active",
+    });
+    const result = resolveWorkspaceWithLockMode(
+      db,
+      null,
+      { workspaceId: null, role: "CFO", department: "finance" },
+      companyId,
+    );
+    expect(result.lockMode).toBe("none");
+    expect(result.observationPath).toBeNull();
+  });
+
+  it("lockMode=exclusive observationPath equals workspace.localPath (single source)", () => {
+    const { companyId, workspaceId } = seedCompany(db);
+    const result = resolveWorkspaceWithLockMode(
+      db,
+      null,
+      { workspaceId, role: "CTO", department: "engineering" },
+      companyId,
+    );
+    expect(result.lockMode).toBe("exclusive");
+    expect(result.observationPath).toBe(result.workspace?.localPath);
+  });
 });

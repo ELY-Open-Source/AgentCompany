@@ -255,6 +255,7 @@ export function createHeartbeat(
       connector,
       workspace,
       workspaceMode: workspaceResolution.lockMode,
+      observationPath: workspaceResolution.observationPath,
       companyName: companyBasic?.name ?? "Unknown",
       companyDescription: companyBasic?.description ?? "",
       snapshot: db.snap.listSnapshot(),
