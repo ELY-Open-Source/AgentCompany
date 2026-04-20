@@ -1,7 +1,7 @@
 import type { z } from "zod";
-import { createCircuitBreaker } from "../circuit-breaker";
-import { handleFailureEscalation, handleSuccessReset } from "../failure-escalation";
-import { persistRunEvent } from "../run-event-recorder";
+import { createCircuitBreaker } from "../observability/circuit-breaker";
+import { handleFailureEscalation, handleSuccessReset } from "../observability/failure-escalation";
+import { persistRunEvent } from "../observability/run-event-recorder";
 import type { workerMessageSchema } from "../entry/types";
 import type { HandlerContext, HandlerDeps, WorkerMessageEvent } from "./handler-context";
 

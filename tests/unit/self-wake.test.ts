@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCircuitBreaker, MAX_CONSECUTIVE_WAKES } from "@main/worker/circuit-breaker";
+import { createCircuitBreaker, MAX_CONSECUTIVE_WAKES } from "@main/worker/observability/circuit-breaker";
 
 /**
  * Tests for the self-wake circuit breaker used in worker-message-handler.ts.

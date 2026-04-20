@@ -1,5 +1,5 @@
-import { filterRunLogChunk } from "../run-log-filter";
-import { persistRunEvent } from "../run-event-recorder";
+import { filterRunLogChunk } from "../observability/run-log-filter";
+import { persistRunEvent } from "../observability/run-event-recorder";
 import type { HandlerContext, HandlerDeps, WorkerMessageEvent } from "./handler-context";
 
 const LEASE_RENEWAL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes

@@ -3,7 +3,7 @@ import {
   handleFailureEscalation,
   handleSuccessReset,
   type EscalationDeps,
-} from "@main/worker/failure-escalation";
+} from "@main/worker/observability/failure-escalation";
 
 /**
  * Tests for the retry-aware failure escalation pipeline.

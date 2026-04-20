@@ -1,4 +1,4 @@
-import { persistRunEvent } from "../run-event-recorder";
+import { persistRunEvent } from "../observability/run-event-recorder";
 import type { HandlerContext, HandlerDeps, WorkerMessageEvent } from "./handler-context";
 
 export function handleRunStatus(

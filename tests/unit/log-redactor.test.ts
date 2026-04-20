@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { redactTokens } from "../../src/main/worker/log-redactor";
+import { redactTokens } from "../../src/main/worker/observability/log-redactor";
 
 /** Verifies the worker process token redactor strips known
  * credential-shaped substrings from log strings before they leave the

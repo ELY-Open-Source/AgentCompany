@@ -1,4 +1,4 @@
-import type { AppDatabase } from "../database";
+import type { AppDatabase } from "../../database";
 
 interface PersistInput {
   companyId: string;
