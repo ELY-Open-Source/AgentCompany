@@ -48,6 +48,14 @@ export interface CompactionOutcome {
  * Returns a compacted message list when the incoming transcript
  * exceeds the budget, or `{ changed: false }` when no compaction is
  * needed. The transformContext hook forwards the result verbatim.
+ *
+ * Cutoff must land on a user-turn boundary so we never orphan a
+ * `toolResult` from its originating assistant `toolCall`. pi-ai's
+ * message shape pairs assistant-with-toolCall blocks against standalone
+ * `{ role: "toolResult", toolCallId }` messages — cutting mid-pair
+ * would leave the provider with a dangling id and crash the next call.
+ * When no safe boundary exists within reach, we decline to compact and
+ * let the upstream token budget handle it.
  */
 export function compactMessagesIfNeeded(messages: AgentMessage[]): CompactionOutcome {
   const estimatedTokens = estimateTokens(messages);
@@ -58,7 +66,12 @@ export function compactMessagesIfNeeded(messages: AgentMessage[]): CompactionOut
     return { changed: false, messages: null };
   }
 
-  const cutoff = messages.length - RECENT_MESSAGE_TAIL;
+  const desiredCutoff = messages.length - RECENT_MESSAGE_TAIL;
+  const cutoff = findSafeCutoff(messages, desiredCutoff);
+  if (cutoff === null) {
+    return { changed: false, messages: null };
+  }
+
   const older = messages.slice(0, cutoff);
   const recent = messages.slice(cutoff);
 
@@ -70,6 +83,27 @@ export function compactMessagesIfNeeded(messages: AgentMessage[]): CompactionOut
   } as AgentMessage;
 
   return { changed: true, messages: [summary, ...recent] };
+}
+
+/**
+ * Walk back from `desiredCutoff` until we find an index where the
+ * message at that position starts a clean user turn. A user turn is
+ * identifiable by `role === "user"`; anything else (`assistant`,
+ * `toolResult`, or custom app message) can reference or be referenced
+ * by neighbouring messages and must stay grouped.
+ *
+ * Returns `null` when no safe boundary exists in [1, desiredCutoff] —
+ * e.g. an entirely tool-chained transcript. Returning null signals "do
+ * not compact"; callers must pass the transcript through unchanged.
+ */
+function findSafeCutoff(messages: AgentMessage[], desiredCutoff: number): number | null {
+  for (let i = desiredCutoff; i >= 1; i--) {
+    const raw = messages[i] as MessageLike | undefined;
+    if (raw && raw.role === "user") {
+      return i;
+    }
+  }
+  return null;
 }
 
 function estimateTokens(messages: AgentMessage[]): number {
