@@ -198,6 +198,11 @@ export function createOnboardingService({
       workspaceId: workspaceId ?? leadAgent.workspaceId ?? null,
       priority: "high",
       status: "todo",
+      // Kickoff explicitly reads the workspace codebase (see
+      // description above — "list the top-level directory, read key
+      // files"), so this is a filesystem-touching task and must take
+      // an exclusive lock on the bound workspace.
+      requiresFilesystem: true,
     });
 
     const startRunResult = queueTaskRun(taskId, "assignment", "system");

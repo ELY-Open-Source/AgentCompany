@@ -57,6 +57,16 @@ export function buildTaskCrudMethods(
       workspaceId?: string | null;
       priority: string;
       status: string;
+      /**
+       * Per-task filesystem lock policy (v52+). When omitted the
+       * column defaults to 0 at the SQL layer for inserts, and the
+       * existing value is preserved on updates. Callers opt in with
+       * `true` when they know the task will read/write the working
+       * tree (CEO kickoff reads the repo, CTO code changes mutate
+       * it, etc.). Leaving it undefined is the safe default for
+       * purely cognitive tasks.
+       */
+      requiresFilesystem?: boolean;
     }): string {
       const id = ensureId(input.id ?? null);
       const ts = nowIso();
@@ -68,29 +78,52 @@ export function buildTaskCrudMethods(
         .prepare("select id from tasks where id = ? and company_id = ?")
         .get(id, input.companyId) as { id: string } | undefined;
       if (existing) {
-        getDb()
-          .prepare(
-            // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: saveTask upsert path writes the full row (including status) as a single atomic UPDATE. The status→phase trigger keeps the shadow phase column in sync; no lease is ever held by saveTask callers (lease writes live behind checkoutTask).
-            "update tasks set project_id = ?, goal_id = ?, parent_id = ?, title = ?, description = ?, assignee_agent_id = ?, workspace_id = ?, priority = ?, status = ?, updated_at = ? where id = ? and company_id = ?",
-          )
-          .run(
-            normalizeOptionalId(input.projectId),
-            normalizeOptionalId(input.goalId),
-            normalizeOptionalId(input.parentId),
-            input.title,
-            input.description,
-            assigneeAgentId,
-            normalizeOptionalId(input.workspaceId),
-            input.priority,
-            input.status,
-            ts,
-            id,
-            input.companyId,
-          );
+        if (input.requiresFilesystem === undefined) {
+          getDb()
+            .prepare(
+              // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: saveTask upsert path writes the full row (including status) as a single atomic UPDATE. The status→phase trigger keeps the shadow phase column in sync; no lease is ever held by saveTask callers (lease writes live behind checkoutTask).
+              "update tasks set project_id = ?, goal_id = ?, parent_id = ?, title = ?, description = ?, assignee_agent_id = ?, workspace_id = ?, priority = ?, status = ?, updated_at = ? where id = ? and company_id = ?",
+            )
+            .run(
+              normalizeOptionalId(input.projectId),
+              normalizeOptionalId(input.goalId),
+              normalizeOptionalId(input.parentId),
+              input.title,
+              input.description,
+              assigneeAgentId,
+              normalizeOptionalId(input.workspaceId),
+              input.priority,
+              input.status,
+              ts,
+              id,
+              input.companyId,
+            );
+        } else {
+          getDb()
+            .prepare(
+              // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: saveTask upsert path writes the full row (including status) as a single atomic UPDATE. The status→phase trigger keeps the shadow phase column in sync; no lease is ever held by saveTask callers (lease writes live behind checkoutTask).
+              "update tasks set project_id = ?, goal_id = ?, parent_id = ?, title = ?, description = ?, assignee_agent_id = ?, workspace_id = ?, priority = ?, status = ?, requires_filesystem = ?, updated_at = ? where id = ? and company_id = ?",
+            )
+            .run(
+              normalizeOptionalId(input.projectId),
+              normalizeOptionalId(input.goalId),
+              normalizeOptionalId(input.parentId),
+              input.title,
+              input.description,
+              assigneeAgentId,
+              normalizeOptionalId(input.workspaceId),
+              input.priority,
+              input.status,
+              input.requiresFilesystem ? 1 : 0,
+              ts,
+              id,
+              input.companyId,
+            );
+        }
       } else {
         getDb()
           .prepare(
-            "insert into tasks (id, company_id, project_id, goal_id, parent_id, title, description, assignee_agent_id, workspace_id, status, priority, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "insert into tasks (id, company_id, project_id, goal_id, parent_id, title, description, assignee_agent_id, workspace_id, status, priority, requires_filesystem, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           )
           .run(
             id,
@@ -104,6 +137,7 @@ export function buildTaskCrudMethods(
             normalizeOptionalId(input.workspaceId),
             input.status,
             input.priority,
+            input.requiresFilesystem ? 1 : 0,
             ts,
             ts,
           );
