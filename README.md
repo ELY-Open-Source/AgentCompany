@@ -203,6 +203,33 @@ Detailed design lives in `AgentCompany-Rust/PRD.md`. Positioning beyond "explora
 
 ---
 
+## Scripts
+
+`package.json` scripts follow a `<group>:<subgroup>` convention. Common entry points:
+
+| Script | Purpose |
+|--------|---------|
+| `pnpm dev` | Run the Electron app in dev mode (electron-vite). |
+| `pnpm typecheck` | `tsc --noEmit` using the root `tsconfig.json`. |
+| `pnpm lint` / `pnpm lint:fix` | ESLint across the repo; `:fix` auto-fixes. |
+| `pnpm test` | Vitest unit + integration in one pass. |
+| `pnpm test:unit` / `pnpm test:integration` / `pnpm test:e2e` | Individual test tiers. |
+| `pnpm test:run` | Sequential unit → integration → e2e. |
+| `pnpm build:verify` | `electron-vite build` only — no packaging. |
+| `pnpm build` / `pnpm build:dir` / `pnpm build:current` | Full packaged build / unpackaged dir / current host platform. |
+| `pnpm release:local` | Signed release pipeline — see `docs/release/local-r2.md`. |
+| `pnpm release:cloudflare` / `pnpm release:boss` | Distribution pipelines. |
+| `pnpm verify` | `typecheck && lint && test:unit && test:integration && test:e2e`. |
+| `pnpm verify:release` | `verify && build:dir` — the full gate before a release. |
+
+Rules for adding scripts:
+
+- Use `group:subgroup` (`test:unit`, `build:dir`, `release:local`); avoid flat verbs like `checktypes`.
+- `group` alone should do the useful-by-default thing for that group.
+- `verify` is the CI-side aggregate; keep it in sync when adding a new tier.
+
+---
+
 ## Tech Stack
 
 | Layer | Tech |
