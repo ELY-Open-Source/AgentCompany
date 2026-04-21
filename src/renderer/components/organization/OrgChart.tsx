@@ -158,7 +158,7 @@ export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentR
                   <span className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{node.agent.title || node.agent.role}</span>
                   <div className="mt-1.5 flex items-center gap-2">
                     <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold tracking-tight text-muted-foreground">{connectorLabel}</span>
-                    {node.agent.heartbeatEnabled ? <Heartbeat size={10} className="text-success" /> : null}
+                    {node.agent.heartbeatEnabled ? <Heartbeat size={10} className="text-primary" /> : null}
                   </div>
                 </div>
               </div>
