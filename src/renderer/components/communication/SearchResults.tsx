@@ -84,10 +84,7 @@ export function SearchResults({ results, query, loading, agents, onNavigateToRes
   if (results.length === 0 && query.length > 0) {
     return (
       <div className="flex h-full items-center justify-center">
-        <EmptyState
-          title={t("comm.searchEmptyTitle")}
-          detail={t("comm.searchEmptyDetail")}
-        />
+        <EmptyState title={t("comm.searchEmptyTitle")} />
       </div>
     )
   }

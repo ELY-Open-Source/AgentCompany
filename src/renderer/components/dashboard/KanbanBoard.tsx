@@ -50,7 +50,6 @@ export function KanbanBoard({ tasks, agents, runs, onSelectTask }: KanbanProps) 
       <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
         <Briefcase size={32} className="mb-3 text-muted-foreground" />
         <div className="text-[14px] font-medium text-muted-foreground">{t("kanban.noTasks")}</div>
-        <div className="mt-1 text-[12px] text-muted-foreground">{t("kanban.noTasksDetail")}</div>
       </div>
     );
   }

@@ -38,7 +38,7 @@ export function ActivityList({ activity }: { activity: ActivityRecord[] }) {
     overscan: 15,
   })
 
-  if (activity.length === 0) return <EmptyState title={t("exec.noActivityYet")} detail={t("exec.noActivityDetail")} />
+  if (activity.length === 0) return <EmptyState title={t("exec.noActivityYet")} />
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">

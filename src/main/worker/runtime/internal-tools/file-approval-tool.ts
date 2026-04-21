@@ -76,7 +76,19 @@ export const fileApprovalSchema = Type.Object({
   payloadJson: Type.Optional(
     Type.String({
       description:
-        "Optional JSON string carrying structured approval payload. Must be valid JSON if provided.",
+        "Optional JSON string carrying type-specific structured payload (hire proposal, social draft, etc.). Must be valid JSON if provided. For attaching existing documents or work products, use documentIds / workProductIds — the board UI renders those directly on the first screen.",
+    }),
+  ),
+  documentIds: Type.Optional(
+    Type.Array(Type.String(), {
+      description:
+        "UUIDs of existing company documents to attach to this approval. The board inspector surfaces each attachment on the first screen of the approval modal. Prefer this over jamming {documentIds:[...]} into payloadJson.",
+    }),
+  ),
+  workProductIds: Type.Optional(
+    Type.Array(Type.String(), {
+      description:
+        "UUIDs of existing work products (files on disk, external URLs) to attach to this approval. The board inspector renders each row as a clickable link that opens in the operator's default application.",
     }),
   ),
   relatedTaskId: Type.Optional(
@@ -104,7 +116,7 @@ export function createFileApprovalTool(rpc: WorkerRpcClient, runId: string): Age
     name: FILE_APPROVAL_TOOL_NAME,
     label: "file approval",
     description:
-      "File an approval request with the company board. Use for 'approve_ceo_strategy' after filing initial hires, or for any other decision that requires board sign-off. The request is auto-approved when the company is in hands-off mode; otherwise it waits for the human operator.",
+      "File an approval request with the company board. Use for 'approve_ceo_strategy' after filing initial hires, or for any other decision that requires board sign-off. When the approval references existing documents or work products (e.g. deliverable_review, document_review), pass their UUIDs via documentIds / workProductIds so the board inspector can render them as clickable attachments on the first screen — do not bury IDs inside payloadJson. The request is auto-approved when the company is in hands-off mode; otherwise it waits for the human operator.",
     parameters: fileApprovalSchema,
     async execute(toolCallId, params, _signal?, _onUpdate?) {
       const payload: InvokeInternalToolRpcPayload = {

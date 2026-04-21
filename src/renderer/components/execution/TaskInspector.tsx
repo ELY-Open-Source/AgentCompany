@@ -1,99 +1,256 @@
-import { useState, useMemo } from "react"
-import { CheckCircle, ListChecks, Pencil, Play, ShieldCheck, Trash, XCircle, Warning, Robot, ArrowRight } from "../ui/icons"
-import type { CommentRecord, GoalRecord, ProfileSnapshot, ProjectRecord, RunRecord, TaskRecord, TaskStatus, WorkspaceRecord } from "@shared/types"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
+import type {
+  CommentRecord, GoalRecord, ProfileSnapshot, ProjectRecord, RunRecord,
+  TaskRecord, TaskStatus, WorkspaceRecord,
+} from "@shared/types"
 import { useT } from "../../i18n"
-import { formatMoney, formatTime } from "../../lib/formatters"
 import { unwrap } from "../../lib/desktop"
-import { ActionButton, ConfirmDialog, Eyebrow, InlineNotice, Input, Select, StatusPill, TextArea } from "../ui"
-import { describeActionError } from "./execution-utils"
-import { TaskComments } from "./TaskComments"
+import { ConfirmDialog, InlineNotice } from "../ui"
+import { describeActionError, shouldAlertGovernance, type GovernanceAlert } from "./execution-utils"
+import { TaskInspectorOverview } from "./TaskInspectorOverview"
+import { TaskInspectorSubtasks } from "./TaskInspectorSubtasks"
+import { TaskInspectorActivity } from "./TaskInspectorActivity"
+import { TaskInspectorGovernance } from "./TaskInspectorGovernance"
+import { TaskInspectorEditForm } from "./TaskInspectorEditForm"
 import { useAppStore } from "../../state/store"
+import type { TaskInspectorTab } from "../../state/slices/ui"
 
-export function TaskInspector({ task, tasks, runs, agents, goals, projects, workspaces, companyId, onRun, onCancelRun, onCreateApproval, onOpenDiscussion, comments, onRefresh, onDeleted }: {
-  task: TaskRecord; tasks: TaskRecord[]; runs: RunRecord[]; agents: ProfileSnapshot["agents"]; goals: GoalRecord[]; projects: ProjectRecord[]; workspaces: WorkspaceRecord[]; companyId: string
-  onRun: (taskId: string) => Promise<void>; onCancelRun: (runId: string) => Promise<void>; onCreateApproval: () => Promise<void>; onOpenDiscussion: (taskId: string) => void
-  comments: CommentRecord[]; onRefresh: () => Promise<void>; onDeleted: () => Promise<void>
+function alertTone(alerts: GovernanceAlert[]): "danger" | "warn" {
+  return alerts.some((a) => a.severity === "danger") ? "danger" : "warn"
+}
+
+function alertMessage(alerts: GovernanceAlert[], t: (key: string, fallback?: string) => string): string {
+  const parts = alerts.map((a) => {
+    if (a.kind === "blocked") return t("exec.alertBlocked", "Blocked — needs unblock approval")
+    if (a.kind === "budget_over") return t("exec.alertBudgetOver", "Assignee budget > 80%")
+    return t("exec.alertMissingReviewer", "In review without a reviewer")
+  })
+  return parts.join(" · ")
+}
+
+export function TaskInspector({
+  task, tasks, runs, agents, goals, projects, workspaces, companyId,
+  onRun, onCancelRun, onCreateApproval, onOpenDiscussion,
+  comments, onRefresh, onDeleted,
+}: {
+  task: TaskRecord
+  tasks: TaskRecord[]
+  runs: RunRecord[]
+  agents: ProfileSnapshot["agents"]
+  goals: GoalRecord[]
+  projects: ProjectRecord[]
+  workspaces: WorkspaceRecord[]
+  companyId: string
+  onRun: (taskId: string) => Promise<void>
+  onCancelRun: (runId: string) => Promise<void>
+  onCreateApproval: () => Promise<void>
+  onOpenDiscussion: (taskId: string) => void
+  comments: CommentRecord[]
+  onRefresh: () => Promise<void>
+  onDeleted: () => Promise<void>
 }) {
   const t = useT()
   const addToast = useAppStore((s) => s.addToast)
-  const [editing, setEditing] = useState(false); const [editTitle, setEditTitle] = useState(task.title); const [editDescription, setEditDescription] = useState(task.description)
-  const [editPriority, setEditPriority] = useState(task.priority); const [editStatus, setEditStatus] = useState<TaskStatus>(task.status); const [editAssignee, setEditAssignee] = useState(task.assigneeAgentId ?? "")
-  const [editWorkspace, setEditWorkspace] = useState(task.workspaceId ?? ""); const [editProject, setEditProject] = useState(task.projectId ?? ""); const [editGoal, setEditGoal] = useState(task.goalId ?? "")
-  const [confirmDelete, setConfirmDelete] = useState(false); const [actionError, setActionError] = useState<string | null>(null); const [actionNotice, setActionNotice] = useState<string | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null); const [savingChanges, setSavingChanges] = useState(false); const [updatingStatus, setUpdatingStatus] = useState<TaskStatus | null>(null); const [creatingApproval, setCreatingApproval] = useState(false)
+  const tab = useAppStore((s) => s.taskInspectorTab)
+  const setTab = useAppStore((s) => s.setTaskInspectorTab)
+  const [editing, setEditing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [actionNotice, setActionNotice] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [updatingStatus, setUpdatingStatus] = useState<TaskStatus | null>(null)
+  const [creatingApproval, setCreatingApproval] = useState(false)
 
-  const agentMap = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents]);
-  const assignee = agentMap.get(task.assigneeAgentId ?? "") ?? null; const project = projects.find((e) => e.id === task.projectId) ?? null
-  const goal = goals.find((e) => e.id === task.goalId) ?? null; const workspace = workspaces.find((e) => e.id === task.workspaceId) ?? null
-  const activeRun = runs.find((r) => r.id === task.activeRunId) ?? null; const reviewer = assignee?.reportsTo ? (agentMap.get(assignee.reportsTo) ?? null) : null
-  const needsGovernance = task.status === "blocked" || (task.status === "in_review" && !reviewer)
-  const budgetWarning = assignee && assignee.budgetMonthlyUsd > 0 ? assignee.spentMonthlyUsd / assignee.budgetMonthlyUsd : 0
+  const agentMap = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents])
+  const assignee = agentMap.get(task.assigneeAgentId ?? "") ?? null
+  const project = projects.find((p) => p.id === task.projectId) ?? null
+  const goal = goals.find((g) => g.id === task.goalId) ?? null
+  const workspace = workspaces.find((w) => w.id === task.workspaceId) ?? null
+  const activeRun = runs.find((r) => r.id === task.activeRunId) ?? null
+  const reviewer = assignee?.reportsTo ? agentMap.get(assignee.reportsTo) ?? null : null
 
-  function startEdit() { setActionError(null); setActionNotice(null); setEditTitle(task.title); setEditDescription(task.description); setEditPriority(task.priority); setEditStatus(task.status); setEditAssignee(task.assigneeAgentId ?? ""); setEditWorkspace(task.workspaceId ?? ""); setEditProject(task.projectId ?? ""); setEditGoal(task.goalId ?? ""); setEditing(true) }
-  async function saveChanges() { setActionError(null); setActionNotice(null); setSavingChanges(true); try { unwrap(await window.agentCompany.saveTask({ id: task.id, companyId: task.companyId, title: editTitle, description: editDescription, priority: editPriority as TaskRecord["priority"], status: editStatus, assigneeAgentId: editAssignee || null, workspaceId: editWorkspace || null, projectId: editProject || null, goalId: editGoal || null })); await onRefresh(); setEditing(false); setActionNotice("Task changes saved."); addToast("Task changes saved", "success") } catch (e) { setActionError(describeActionError(e)) } finally { setSavingChanges(false) } }
-  async function quickStatus(status: TaskStatus) { setActionError(null); setActionNotice(null); setUpdatingStatus(status); try { unwrap(await window.agentCompany.saveTask({ id: task.id, companyId: task.companyId, title: task.title, description: task.description, priority: task.priority, status, assigneeAgentId: task.assigneeAgentId, workspaceId: task.workspaceId, projectId: task.projectId, goalId: task.goalId })); await onRefresh(); setActionNotice(`Task moved to ${status.replaceAll("_", " ")}.`) } catch (e) { setActionError(describeActionError(e)) } finally { setUpdatingStatus(null) } }
-  async function handleCreateApproval() { setActionError(null); setActionNotice(null); setCreatingApproval(true); try { await onCreateApproval(); setActionNotice(task.status === "blocked" ? "Approval created and routed to leadership." : "Approval created."); addToast("Approval created and routed to leadership", "success") } catch (e) { setActionError(describeActionError(e)) } finally { setCreatingApproval(false) } }
-  async function handleDelete() { setDeleteError(null); try { unwrap(await window.agentCompany.deleteTask({ id: task.id, companyId })); setConfirmDelete(false); addToast("Task deleted", "success"); await onDeleted() } catch (e) { setDeleteError(describeActionError(e)) } }
+  const subtasksCount = tasks.filter((s) => s.parentId === task.id).length
+  const commentsCount = comments.length
+  const runsCount = runs.length
+  const alerts = useMemo(
+    () => shouldAlertGovernance(task, assignee, reviewer),
+    [task, assignee, reviewer],
+  )
+
+  // If the currently-selected tab disappears (e.g. Subtasks hidden because
+  // subtasksCount===0), fall back to Overview so the modal never shows a
+  // blank body. Keeps the persisted tab sticky in all other cases.
+  useEffect(() => {
+    if (tab === "subtasks" && subtasksCount === 0) setTab("overview")
+  }, [tab, subtasksCount, setTab])
+
+  async function quickStatus(status: TaskStatus) {
+    setActionError(null); setActionNotice(null); setUpdatingStatus(status)
+    try {
+      unwrap(await window.agentCompany.saveTask({
+        id: task.id, companyId: task.companyId, title: task.title, description: task.description,
+        priority: task.priority, status, assigneeAgentId: task.assigneeAgentId,
+        workspaceId: task.workspaceId, projectId: task.projectId, goalId: task.goalId,
+      }))
+      await onRefresh()
+      setActionNotice(`Task moved to ${status.replaceAll("_", " ")}.`)
+    } catch (e) {
+      setActionError(describeActionError(e))
+    } finally {
+      setUpdatingStatus(null)
+    }
+  }
+
+  async function handleCreateApproval() {
+    setActionError(null); setActionNotice(null); setCreatingApproval(true)
+    try {
+      await onCreateApproval()
+      setActionNotice(task.status === "blocked" ? "Approval created and routed to leadership." : "Approval created.")
+      addToast("Approval created and routed to leadership", "success")
+    } catch (e) {
+      setActionError(describeActionError(e))
+    } finally {
+      setCreatingApproval(false)
+    }
+  }
+
+  async function handleDelete() {
+    setDeleteError(null)
+    try {
+      unwrap(await window.agentCompany.deleteTask({ id: task.id, companyId }))
+      setConfirmDelete(false)
+      addToast("Task deleted", "success")
+      await onDeleted()
+    } catch (e) {
+      setDeleteError(describeActionError(e))
+    }
+  }
+
+  const tabBtn = (key: TaskInspectorTab, label: string, badge?: ReactNode) => {
+    const active = tab === key
+    return (
+      <button
+        type="button"
+        onClick={() => setTab(key)}
+        className={`relative flex items-center rounded-md px-3 py-1.5 text-[12px] font-semibold transition ${
+          active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+        }`}
+      >
+        {label}
+        {badge}
+      </button>
+    )
+  }
+
+  const countPill = (value: number) => (
+    <span className={`ml-1 rounded-full px-1.5 text-[10px] ${tab === "activity" ? "bg-primary-foreground/20" : "bg-muted-foreground/15"}`}>{value}</span>
+  )
+
+  // Activity badge is a single total. The comments/runs split lives inside
+  // the Activity tab as filter chips — one signal per surface.
+  const activityBadge = commentsCount + runsCount > 0 ? countPill(commentsCount + runsCount) : null
+
+  // Governance signal speaks once via the Overview banner. No tab-level dot —
+  // duplicating the alert adds noise without context.
 
   return (
-    <div className="space-y-6">
-      <ConfirmDialog open={confirmDelete} title={t("exec.deleteTask")} message={`${t("exec.deleteTaskConfirm").replace("{0}", task.title)}`} errorMessage={deleteError} onConfirm={() => void handleDelete()} onCancel={() => { setDeleteError(null); setConfirmDelete(false) }} />
-      {budgetWarning > 0.8 && assignee ? <div className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-[13px] font-medium ${budgetWarning > 1 ? "border-[color:var(--destructive)] bg-destructive-muted text-destructive" : "border-[color:var(--destructive)] bg-warning-muted text-warning"}`}><Warning size={16} weight="fill" />{assignee.name} {t("exec.budgetUsed").replace("{0}", String(Math.round(budgetWarning * 100)))} ({formatMoney(assignee.spentMonthlyUsd)} / {formatMoney(assignee.budgetMonthlyUsd)})</div> : null}
+    <div className="space-y-5">
+      <ConfirmDialog
+        open={confirmDelete}
+        title={t("exec.deleteTask")}
+        message={t("exec.deleteTaskConfirm").replace("{0}", task.title)}
+        errorMessage={deleteError}
+        onConfirm={() => void handleDelete()}
+        onCancel={() => { setDeleteError(null); setConfirmDelete(false) }}
+      />
+
       {actionError ? <InlineNotice message={actionError} /> : null}
       {!actionError && actionNotice ? <InlineNotice message={actionNotice} tone="success" /> : null}
+
       {editing ? (
-        <div className="grid min-w-0 gap-3 md:grid-cols-2">
-          <div className="md:col-span-2"><Input label={t("exec.title")} value={editTitle} onChange={setEditTitle} placeholder={t("exec.taskTitle")} /></div>
-          <div className="md:col-span-2"><TextArea label={t("exec.description")} value={editDescription} onChange={setEditDescription} placeholder={t("exec.description")} rows={4} /></div>
-          <Select label={t("exec.priority")} value={editPriority} onChange={v => setEditPriority(v as TaskRecord["priority"])} options={["critical","high","medium","low"].map(v => ({ value: v, label: v }))} />
-          <Select label={t("exec.status")} value={editStatus} onChange={v => setEditStatus(v as TaskStatus)} options={["backlog","todo","in_progress","in_review","done","blocked","cancelled"].map(v => ({ value: v, label: v.replaceAll("_"," ") }))} />
-          <Select label={t("exec.assignee")} value={editAssignee} onChange={setEditAssignee} options={[{ value: "", label: t("exec.unassigned") }, ...agents.map(a => ({ value: a.id, label: a.name }))]} />
-          <Select label={t("exec.workspace")} value={editWorkspace} onChange={setEditWorkspace} options={[{ value: "", label: t("exec.noWorkspace") }, ...workspaces.map(w => ({ value: w.id, label: w.name }))]} />
-          <Select label={t("exec.project")} value={editProject} onChange={setEditProject} options={[{ value: "", label: t("exec.noProject") }, ...projects.map(p => ({ value: p.id, label: p.name }))]} />
-          <Select label={t("exec.goal")} value={editGoal} onChange={setEditGoal} options={[{ value: "", label: t("exec.noGoal") }, ...goals.map(g => ({ value: g.id, label: g.title }))]} />
-          <div className="md:col-span-2 flex gap-3"><ActionButton label={t("exec.save")} tone="accent" onClick={() => void saveChanges()} icon={CheckCircle} loading={savingChanges} /><ActionButton label={t("exec.cancel")} onClick={() => setEditing(false)} icon={XCircle} /></div>
-        </div>
+        <TaskInspectorEditForm
+          task={task}
+          agents={agents}
+          goals={goals}
+          projects={projects}
+          workspaces={workspaces}
+          onDone={() => setEditing(false)}
+          onRefresh={onRefresh}
+          onError={setActionError}
+          onNotice={setActionNotice}
+          addToast={addToast}
+        />
       ) : (
         <>
-          <div className="grid gap-x-6 gap-y-2 text-[13px] md:grid-cols-2">
-            {assignee && <div className="text-muted-foreground">{t("exec.assigneeLabel")} <span className="text-foreground">{assignee.name}</span></div>}
-            {project && <div className="text-muted-foreground">{t("exec.projectLabel")} <span className="text-foreground">{project.name}</span></div>}
-            {goal && <div className="text-muted-foreground">{t("exec.goalLabel")} <span className="text-foreground">{goal.title}</span></div>}
-            {task.parentId && (() => { const parent = tasks.find((t) => t.id === task.parentId); return parent ? <div className="text-muted-foreground">{t("exec.parentLabel")} <span className="text-foreground">{parent.title}</span></div> : null })()}
-            {workspace && <div className="text-muted-foreground">{t("exec.workspaceLabel")} <span className="text-foreground">{workspace.name}</span></div>}
-            {task.costUsd > 0 && <div className="text-muted-foreground">{t("exec.costLabel")} <span className="font-mono tabular-nums text-foreground">{formatMoney(task.costUsd)}</span></div>}
+          <div className="flex flex-wrap items-center gap-1 border-b border-border pb-2">
+            {tabBtn("overview", t("exec.tabOverview", "Overview"))}
+            {subtasksCount > 0 && tabBtn("subtasks", t("exec.tabSubtasks", "Subtasks"), countPill(subtasksCount))}
+            {tabBtn("activity", t("exec.tabActivity", "Activity"), activityBadge)}
+            {tabBtn("governance", t("exec.tabGovernance", "Governance"))}
           </div>
-          {task.description ? <div className="text-[13px] leading-relaxed text-muted-foreground whitespace-pre-wrap">{task.description}</div> : null}
-          {task.status === "in_review" && reviewer ? <div className="rounded-lg border border-[color:var(--primary)] bg-accent px-4 py-3"><div className="flex items-center gap-2 text-[13px] font-semibold text-primary"><Robot size={16} weight="fill" />{t("exec.beingReviewedBy").replace("{0}", reviewer.name + (reviewer.title ? ` (${reviewer.title})` : ""))}</div><div className="mt-1 text-[13px] leading-relaxed text-primary">{t("exec.submittedForReview").replace("{0}", assignee?.name ?? "").replace("{1}", reviewer.name)}</div></div>
-          : needsGovernance ? <div className="rounded-lg border border-[color:var(--destructive)] bg-warning-muted px-4 py-3"><div className="flex items-center gap-2 text-[13px] font-semibold text-warning"><ShieldCheck size={16} weight="fill" />{task.status === "blocked" ? t("exec.governanceRequired") : t("exec.waitingOnReview")}</div><div className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{task.status === "blocked" ? t("exec.blockedGovernance") : t("exec.reviewGovernance")}</div><div className="mt-3"><ActionButton label={task.status === "blocked" ? t("exec.createUnblockApproval") : t("exec.createReviewApproval")} onClick={() => void handleCreateApproval()} icon={ShieldCheck} loading={creatingApproval} /></div></div> : null}
-          <div className="flex items-center gap-3">
-            {activeRun ? <ActionButton label={t("exec.cancelRun")} onClick={() => void onCancelRun(activeRun.id)} icon={XCircle} tone="danger" /> : <>
-              {["todo","in_progress","blocked"].includes(task.status) && <ActionButton label={t("exec.run")} onClick={() => void onRun(task.id)} icon={Play} tone="accent" />}
-              {task.status === "in_review" && <ActionButton label={t("exec.done")} onClick={() => void quickStatus("done")} icon={CheckCircle} tone="accent" loading={updatingStatus === "done"} />}
-              {task.status === "blocked" && <ActionButton label={t("exec.unblock")} onClick={() => void quickStatus("in_progress")} icon={Play} loading={updatingStatus === "in_progress"} />}
-            </>}
-            <ActionButton label={t("exec.discussion")} onClick={() => onOpenDiscussion(task.id)} icon={ArrowRight} />
-            <ActionButton label={t("exec.edit")} onClick={startEdit} icon={Pencil} />
-            <ActionButton label={t("exec.delete")} onClick={() => setConfirmDelete(true)} icon={Trash} tone="danger" />
-          </div>
+
+          {tab === "overview" && (
+            <>
+              {alerts.length > 0 ? (
+                <InlineNotice
+                  tone={alertTone(alerts)}
+                  message={alertMessage(alerts, t)}
+                  action={
+                    <button
+                      type="button"
+                      onClick={() => setTab("governance")}
+                      className="shrink-0 rounded-md border border-current px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+                    >
+                      {t("exec.openGovernance", "Open")}
+                    </button>
+                  }
+                />
+              ) : null}
+              <TaskInspectorOverview
+                task={task}
+                tasks={tasks}
+                activeRun={activeRun}
+                assignee={assignee}
+                project={project}
+                goal={goal}
+                workspace={workspace}
+                onRun={onRun}
+                onCancelRun={onCancelRun}
+                onQuickStatus={quickStatus}
+                onOpenDiscussion={onOpenDiscussion}
+                onEdit={() => { setActionError(null); setActionNotice(null); setEditing(true) }}
+                onDelete={() => setConfirmDelete(true)}
+                updatingStatus={updatingStatus}
+              />
+            </>
+          )}
+
+          {tab === "subtasks" && subtasksCount > 0 && (
+            <TaskInspectorSubtasks task={task} tasks={tasks} agents={agents} />
+          )}
+
+          {tab === "activity" && (
+            <TaskInspectorActivity
+              taskId={task.id}
+              companyId={task.companyId}
+              agents={agents}
+              comments={comments}
+              runs={runs}
+              onRefresh={onRefresh}
+            />
+          )}
+
+          {tab === "governance" && (
+            <TaskInspectorGovernance
+              task={task}
+              assignee={assignee}
+              reviewer={reviewer}
+              onCreateApproval={handleCreateApproval}
+              creatingApproval={creatingApproval}
+            />
+          )}
         </>
       )}
-      {(() => { const subtasks = tasks.filter((t) => t.parentId === task.id); if (subtasks.length === 0) return null; return (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2"><ListChecks size={14} className="text-muted-foreground" /><Eyebrow>{t("exec.subtasks")} ({subtasks.length})</Eyebrow><span className="text-[10px] text-success">{t("exec.doneCount").replace("{0}", String(subtasks.filter((st) => st.status === "done").length)).replace("{1}", String(subtasks.length))}</span></div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-success transition-all duration-300" style={{ width: `${subtasks.length > 0 ? (subtasks.filter((t) => t.status === "done").length / subtasks.length) * 100 : 0}%` }} /></div>
-          <div className="space-y-1">{subtasks.map((sub) => { const subAssignee = agentMap.get(sub.assigneeAgentId ?? ""); return (
-            <div key={sub.id} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] bg-muted">
-              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${sub.status === "done" ? "bg-success" : sub.status === "in_progress" ? "bg-primary" : sub.status === "blocked" ? "bg-destructive" : sub.status === "in_review" ? "bg-warning" : "bg-[color:var(--muted-foreground)]"}`} />
-              <span className={`flex-1 truncate ${sub.status === "done" ? "line-through text-muted-foreground" : "text-foreground"}`}>{sub.title}</span>
-              {subAssignee ? <span className="shrink-0 text-[10px] text-muted-foreground">{subAssignee.name}</span> : null}<StatusPill status={sub.status} />
-            </div>) })}</div></div>) })()}
-      <TaskComments taskId={task.id} companyId={task.companyId} agents={agents} comments={comments} onRefresh={onRefresh} />
-      {runs.length > 0 && <div className="space-y-2"><Eyebrow>{t("exec.runHistory")}</Eyebrow><div className="space-y-2">{runs.slice(0, 8).map((run) => { const runAgent = agentMap.get(run.agentId); const isActive = run.status === "running" || run.status === "queued"; return (
-        <div key={run.id} className={`rounded-lg border px-3 py-2.5 ${isActive ? "border-[color:var(--primary)] bg-success-muted" : run.status === "failed" || run.status === "timed_out" ? "border-[color:var(--destructive)] border-opacity-30 bg-destructive-muted" : "border-border bg-muted"}`}>
-          <div className="flex items-center justify-between gap-2"><div className="min-w-0 flex-1"><div className="flex items-center gap-2">{isActive ? <span className="h-2 w-2 animate-pulse rounded-full bg-success" /> : null}<span className="truncate text-[13px] font-medium text-foreground">{run.summary || (isActive ? t("exec.runningEllipsis") : t("exec.completedRun"))}</span></div><div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">{runAgent ? <span>{runAgent.name}</span> : null}<span>{run.connectorId.replace("_local", "")}</span>{run.model ? <span className="font-mono">{run.model}</span> : null}<span>{formatTime(run.startedAt)}</span>{run.costUsd != null && run.costUsd > 0 ? <span className="font-mono tabular-nums">{formatMoney(run.costUsd)}</span> : null}</div></div><StatusPill status={run.status} /></div>
-          {run.errorMessage ? <div className="mt-1.5 rounded bg-destructive-muted px-2 py-1 text-[11px] text-destructive break-words">{run.errorMessage}</div> : null}
-        </div>) })}{runs.length > 8 && <div className="text-[11px] text-muted-foreground text-center">{t("exec.moreRuns").replace("{0}", String(runs.length - 8))}</div>}</div></div>}
     </div>
   )
 }

@@ -14,7 +14,7 @@
  */
 
 import type { AppDatabase } from "@main/database";
-import { approvalInputSchema } from "@shared/contracts";
+import { approvalInputSchema, mergeApprovalAttachments } from "@shared/contracts";
 import { resolveApprovalDecision } from "@main/approval-policy";
 import { shouldAutoApprove } from "@main/execution-policy";
 import { UserInputError, UpstreamError, classifyUnknownError } from "@main/errors";
@@ -90,6 +90,25 @@ export function handleFileApprovalToolCall(
     }
   }
 
+  // Fold schema-level documentIds / workProductIds into payloadJson so the
+  // desktop inspector has a single source of truth. payloadJson remains the
+  // escape hatch for type-specific structured fields. Malformed payloadJson
+  // (non-JSON or non-object) is a producer bug — surface it to the agent as
+  // UserInputError so the tool call can be corrected, not silently stashed.
+  let mergedPayloadJson: string | null;
+  try {
+    mergedPayloadJson = mergeApprovalAttachments(
+      input.payloadJson,
+      input.documentIds,
+      input.workProductIds,
+    );
+  } catch (error) {
+    throw new UserInputError({
+      code: "file_approval.payload_json.invalid",
+      message: error instanceof Error ? error.message : "payloadJson must be a JSON object or null.",
+    });
+  }
+
   let approvalId: string;
   try {
     approvalId = db.approvalsMod.requestApproval({
@@ -100,7 +119,7 @@ export function handleFileApprovalToolCall(
       relatedAgentId: input.relatedAgentId ?? null,
       payloadSummary: input.payloadSummary,
       impactSummary: input.impactSummary,
-      payloadJson: input.payloadJson ?? null,
+      payloadJson: mergedPayloadJson,
     });
   } catch (error) {
     throw classifyUnknownError(error, {

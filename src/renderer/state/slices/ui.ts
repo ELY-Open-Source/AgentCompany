@@ -11,12 +11,15 @@ export interface Toast {
 
 function nextToastId() { return `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`; }
 
+export type TaskInspectorTab = "overview" | "subtasks" | "activity" | "governance";
+
 export interface UiSlice {
   locale: AppLocale;
   showOnboarding: boolean;
   initialOnboardingLocked: boolean;
   confirmDeleteCompanyId: string | null;
   taskViewMode: "list" | "kanban";
+  taskInspectorTab: TaskInspectorTab;
   logRevision: number;
   toasts: Toast[];
   setLocale: (locale: AppLocale) => void;
@@ -24,6 +27,7 @@ export interface UiSlice {
   setInitialOnboardingLocked: (locked: boolean) => void;
   setConfirmDeleteCompanyId: (id: string | null) => void;
   setTaskViewMode: (mode: "list" | "kanban") => void;
+  setTaskInspectorTab: (tab: TaskInspectorTab) => void;
   incrementLogRevision: () => void;
   addToast: (message: string, tone?: Toast["tone"]) => void;
   dismissToast: (id: string) => void;
@@ -40,6 +44,7 @@ export const createUiSlice: StateCreator<
   initialOnboardingLocked: false,
   confirmDeleteCompanyId: null,
   taskViewMode: "list",
+  taskInspectorTab: "overview",
   logRevision: 0,
   toasts: [],
   setLocale: (locale) =>
@@ -61,6 +66,10 @@ export const createUiSlice: StateCreator<
   setTaskViewMode: (mode) =>
     set((state) => {
       state.taskViewMode = mode;
+    }),
+  setTaskInspectorTab: (tab) =>
+    set((state) => {
+      state.taskInspectorTab = tab;
     }),
   incrementLogRevision: () =>
     set((state) => {

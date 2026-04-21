@@ -18,7 +18,7 @@ export function TaskQueue({ tasks, runs, selectedTaskId, onSelect }: { tasks: Ta
     overscan: 10,
   })
 
-  if (tasks.length === 0) return <EmptyState title={t("exec.taskQueueEmpty")} detail={t("exec.taskQueueEmptyDetail")} />
+  if (tasks.length === 0) return <EmptyState title={t("exec.taskQueueEmpty")} />
   return (
     <div
       ref={parentRef}

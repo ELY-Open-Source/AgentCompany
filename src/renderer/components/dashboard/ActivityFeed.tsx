@@ -51,7 +51,7 @@ export function ActivityFeed({ activity, agents, limit = 15 }: { activity: Activ
             key={item.id}
             initial={index === 0 ? { opacity: 0, y: -8 } : false}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-start gap-3 rounded-lg px-3 py-2 transition hover:bg-muted"
+            className="flex items-start gap-3 rounded-lg px-3 py-2 transition hover:bg-muted/50"
           >
             <div className="mt-0.5 shrink-0">
               <Icon size={14} className="text-muted-foreground" />

@@ -17,7 +17,7 @@ export function ApprovalList({ approvals, selectedApprovalId, onSelect }: { appr
     overscan: 10,
   })
 
-  if (approvals.length === 0) return <EmptyState title={t("exec.noApprovals")} detail={t("exec.noApprovalsDetail")} />
+  if (approvals.length === 0) return <EmptyState title={t("exec.noApprovals")} />
   return (
     <div
       ref={parentRef}

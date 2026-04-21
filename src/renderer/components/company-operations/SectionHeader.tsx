@@ -13,7 +13,7 @@ export function SectionHeader({
   return (
     <div className="mb-4 flex items-center justify-between">
       <div>
-        <div className="text-[16px] font-semibold text-foreground">{title}</div>
+        <div className="text-[15px] font-semibold text-foreground">{title}</div>
         <div className="text-[12px] text-muted-foreground">{count} item{count === 1 ? "" : "s"}</div>
       </div>
       <ActionButton label="New" icon={Plus} tone="accent" onClick={action} />

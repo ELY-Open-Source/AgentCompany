@@ -37,7 +37,7 @@ export function AgentWorkloadChart({ data, reducedMotion }: AgentWorkloadChartPr
           axisLine={false}
           tickLine={false}
         />
-        <Tooltip content={<ChartTooltip valueSuffix=" runs" />} />
+        <Tooltip content={<ChartTooltip valueSuffix=" runs" labelMode="plain" />} />
         <Bar
           dataKey="runs"
           fill="var(--primary)"

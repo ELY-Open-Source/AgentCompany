@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { SectionId } from "@shared/types";
 import { deriveInboxItems } from "@shared/inbox-items";
 import { Inbox } from "../../components/inbox/Inbox";
@@ -18,7 +18,8 @@ import { DocumentCenter } from "../../components/company-operations/DocumentCent
 import { KnowledgeBaseManager } from "../../components/company-operations/KnowledgeBaseManager";
 import { MeetingsManager } from "../../components/company-operations/MeetingsManager";
 import { SprintManager } from "../../components/company-operations/SprintManager";
-import { EmptyState, Panel } from "../../components/ui";
+import { ActionButton, EmptyState, Modal } from "../../components/ui";
+import { Plus } from "../../components/ui/icons";
 import { useT } from "../../i18n";
 import { unwrap } from "../../lib/desktop";
 import { useAppStore } from "../../state/store";
@@ -67,6 +68,8 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
   const setSelectedApprovalId = useAppStore((s) => s.setSelectedApprovalId);
   const setSection = useAppStore((s) => s.setSection);
   const navigateTo = useAppStore((s) => s.navigateTo);
+
+  const [workspaceCreatorOpen, setWorkspaceCreatorOpen] = useState(false);
 
   if (!snapshot) return null;
 
@@ -226,10 +229,7 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
             onRefresh={refresh}
           />
         ) : (
-          <EmptyState
-            title={t("ops.documentsEmptyTitle")}
-            detail={t("ops.documentsSelectCompany")}
-          />
+          <EmptyState title={t("ops.documentsEmptyTitle")} />
         )
       ) : null}
 
@@ -246,11 +246,18 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
       ) : null}
 
       {section === "workspaces" && currentCompany ? (
-        <TwoPaneLayout
-          title="Workspaces"
-          eyebrow={undefined}
-          primary={
-            <Panel title="Workspace registry">
+        <>
+          <TwoPaneLayout
+            split="vertical"
+            action={
+              <ActionButton
+                label={t("exec.addWorkspace")}
+                onClick={() => setWorkspaceCreatorOpen(true)}
+                icon={Plus}
+                tone="accent"
+              />
+            }
+            primary={
               <WorkspaceList
                 workspaces={companyWorkspaces}
                 projects={companyProjects}
@@ -260,27 +267,34 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
                 onOpen={openPathWithFeedback}
                 onDeleted={refresh}
               />
-            </Panel>
-          }
-          secondary={
-            <div className="space-y-6">
-              <Panel title="Workspace control center">
-                <WorkspaceInspector
-                  workspace={selectedWorkspace}
-                  agents={companyAgents}
-                  tasks={tasks}
-                  runs={runs}
-                  documents={companyDocuments}
-                  project={selectedWorkspace ? (companyProjects.find((project) => project.id === selectedWorkspace.projectId) ?? null) : null}
-                  onOpen={openPathWithFeedback}
-                />
-              </Panel>
-              <Panel title="Add workspace">
-                <WorkspaceCreator companyId={currentCompany.id} projects={companyProjects} onSaved={refresh} />
-              </Panel>
-            </div>
-          }
-        />
+            }
+            secondary={
+              <WorkspaceInspector
+                workspace={selectedWorkspace}
+                agents={companyAgents}
+                tasks={tasks}
+                runs={runs}
+                documents={companyDocuments}
+                project={selectedWorkspace ? (companyProjects.find((project) => project.id === selectedWorkspace.projectId) ?? null) : null}
+                onOpen={openPathWithFeedback}
+              />
+            }
+          />
+          <Modal
+            open={workspaceCreatorOpen}
+            title={t("exec.addWorkspace")}
+            onClose={() => setWorkspaceCreatorOpen(false)}
+          >
+            <WorkspaceCreator
+              companyId={currentCompany.id}
+              projects={companyProjects}
+              onSaved={async () => {
+                await refresh();
+                setWorkspaceCreatorOpen(false);
+              }}
+            />
+          </Modal>
+        </>
       ) : null}
 
       {section === "settings" && currentCompany ? (

@@ -77,10 +77,7 @@ export function IncidentList({ companyId, agents, projects }: IncidentListProps)
 
       <div className="flex-1 overflow-y-auto px-4 pb-4">
         {incidents.length === 0 ? (
-          <EmptyState
-            title="No budget incidents"
-            detail={filter === "open" ? "No open incidents. All spending is within limits." : "No incidents recorded yet."}
-          />
+          <EmptyState title={filter === "open" ? "No open incidents" : "No incidents yet"} />
         ) : (
           <ListFrame>
             {incidents.map((incident) => {

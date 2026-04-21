@@ -20,7 +20,7 @@ export function ProjectList({
 }) {
   const t = useT();
   if (projects.length === 0) {
-    return <EmptyState title={t("org.noProjectsYet")} detail={t("org.noProjectsDetail")} />;
+    return <EmptyState title={t("org.noProjectsYet")} />;
   }
   return (
     <ListFrame>

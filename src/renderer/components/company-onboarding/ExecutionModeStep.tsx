@@ -54,7 +54,7 @@ export function ExecutionModeStep({ initialValue, onContinue, onBack }: Executio
         <button
           type="button"
           onClick={() => onContinue(executionMode)}
-          className="flex items-center gap-2 rounded-md bg-[color:var(--primary)] px-4 py-2 text-[13px] font-medium text-white transition hover:opacity-90"
+          className="flex items-center gap-2 rounded-md bg-[color:var(--primary)] px-4 py-2 text-[13px] font-medium text-[color:var(--primary-foreground)] transition hover:opacity-90"
         >
           {t("onboarding.continue")}
           <ArrowRight size={14} />

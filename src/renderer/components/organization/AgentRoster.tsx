@@ -33,7 +33,7 @@ export function AgentRoster({
   })
 
   if (agents.length === 0) {
-    return <EmptyState title={t("org.noAgentsYet")} detail={t("org.noAgentsDetail")} />
+    return <EmptyState title={t("org.noAgentsYet")} />
   }
 
   return (

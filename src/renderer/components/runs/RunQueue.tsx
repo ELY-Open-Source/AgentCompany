@@ -93,10 +93,7 @@ export function RunQueue({
           })}
         </ListFrame>
         {filteredRuns.length === 0 ? (
-          <EmptyState
-            title={t("runs.noRunsMatch")}
-            detail={t("runs.noRunsMatchDetail")}
-          />
+          <EmptyState title={t("runs.noRunsMatch")} />
         ) : null}
       </Panel>
     </div>

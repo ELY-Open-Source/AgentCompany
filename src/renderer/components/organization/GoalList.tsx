@@ -16,7 +16,7 @@ export function GoalList({
 }) {
   const t = useT();
   if (goals.length === 0) {
-    return <EmptyState title={t("org.noGoalsYet")} detail={t("org.noGoalsDetail")} />;
+    return <EmptyState title={t("org.noGoalsYet")} />;
   }
   return (
     <ListFrame>

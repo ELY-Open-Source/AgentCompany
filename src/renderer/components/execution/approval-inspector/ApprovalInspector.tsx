@@ -1,6 +1,9 @@
 import { useState } from "react"
-import type { AgentRecord, ApprovalRecord, DocumentRecord, TaskRecord } from "@shared/types"
-import { extractApprovalDocumentReferences } from "@shared/approval-documents"
+import type { AgentRecord, ApprovalRecord, DocumentRecord, TaskRecord, WorkProductRecord } from "@shared/types"
+import {
+  extractApprovalDocumentReferences,
+  extractApprovalWorkProductIds,
+} from "@shared/approval-documents"
 import { useT } from "../../../i18n"
 import { unwrap } from "../../../lib/desktop"
 import { Card, ConfirmDialog, Eyebrow, InlineNotice } from "../../ui"
@@ -20,6 +23,7 @@ export function ApprovalInspector({
   agents,
   tasks,
   documents,
+  workProducts,
   companyId,
   onDecide,
   onDeleted,
@@ -28,6 +32,7 @@ export function ApprovalInspector({
   agents: AgentRecord[]
   tasks: TaskRecord[]
   documents?: DocumentRecord[]
+  workProducts?: WorkProductRecord[]
   companyId: string
   onDecide: (state: DecisionState, note?: string) => Promise<void>
   onDeleted: () => Promise<void>
@@ -47,7 +52,9 @@ export function ApprovalInspector({
   const isDecided = approval.state !== "pending"
   const isSocialPost = approval.type === "social_post"
   const socialPlatform = useSocialPlatform(approval)
-  const hasDocumentReferences = extractApprovalDocumentReferences(approval.payloadJson).length > 0
+  const hasDocumentReferences =
+    extractApprovalDocumentReferences(approval.payloadJson).length > 0 ||
+    extractApprovalWorkProductIds(approval.payloadJson).length > 0
 
   async function handleDelete() {
     setActionError(null)
@@ -114,6 +121,17 @@ export function ApprovalInspector({
       <div className="border-y border-border py-4 space-y-4">
         <ApprovalSummary approval={approval} requestingAgent={requestingAgent} relatedTask={relatedTask} />
         {approval.type === "hire_agent" ? <ProposedHireCard approval={approval} agents={agents} /> : null}
+        {/* Documents/work-products promoted above the warning banner: whatever
+            the reviewer is approving, the artifacts themselves are the
+            primary evidence. Pushing them to the first screen means the
+            operator can open the PDF or read the doc before wading through
+            org-strategy boilerplate. */}
+        <ApprovalDocumentsPanel
+          approval={approval}
+          documents={documents}
+          workProducts={workProducts}
+          companyId={companyId}
+        />
         {approval.type === "approve_ceo_strategy" ? (
           <Card
             padding="sm"
@@ -127,7 +145,6 @@ export function ApprovalInspector({
             </div>
           </Card>
         ) : null}
-        <ApprovalDocumentsPanel approval={approval} documents={documents} companyId={companyId} />
         {approval.type === "deliverable_review" && !hasDocumentReferences ? (
           <DeliverableReviewPanel approval={approval} documents={documents} agents={agents} />
         ) : null}

@@ -5,13 +5,39 @@ Body: {
   "relatedTaskId": "{taskId — what task is this for}",
   "requestedByAgentId": "{{agentId}}",
   "payloadSummary": "Clear description of what you need and why",
-  "impactSummary": "What happens if this is approved vs denied"
+  "impactSummary": "What happens if this is approved vs denied",
+  "documentIds": ["{docUuid1}", "{docUuid2}"],
+  "workProductIds": ["{workProductUuid}"]
 }
 Approval types:
   - secret_access: Need API keys, credentials, or account access
   - hire_agent: Proposing a new team member
   - approve_ceo_strategy: CEO submitting org strategy for Board review
   - dangerous_command: Irreversible action that needs human sign-off
+
+Attaching artifacts:
+  - `documentIds` — UUIDs of existing company documents. The board inspector
+    renders each as a clickable row on the first screen of the approval modal,
+    so reviewers can open and edit inline.
+  - `workProductIds` — UUIDs of existing work products (files on disk,
+    external URLs). The inspector surfaces each row with a click-to-open
+    action that hands off to the operator's default application.
+  - Prefer these schema-typed arrays over stuffing `{documentIds:[...]}` into
+    `payloadJson`. Agents using the `file_approval` internal tool pass the
+    same fields directly as arguments.
+
+Example — deliverable_review that asks the CEO to sign off on a spec and an
+exported PDF:
+```
+{
+  "type": "deliverable_review",
+  "relatedTaskId": "8f7a...",
+  "payloadSummary": "Q2 launch plan ready for CEO review",
+  "impactSummary": "Unblocks the kickoff email if approved; revision_requested loops back to me.",
+  "documentIds": ["2c9d...e41a"],
+  "workProductIds": ["55ab...90ff"]
+}
+```
 
 ### Check Approval Status
 GET /api/approvals/{approvalId}

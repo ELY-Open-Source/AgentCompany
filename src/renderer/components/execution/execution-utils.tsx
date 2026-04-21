@@ -1,9 +1,49 @@
+import type { ProfileSnapshot, TaskRecord } from "@shared/types"
 import {
   Robot, CheckSquare, Play, ShieldCheck, Gear, FolderOpen, Key, Target, Briefcase, Buildings,
 } from "../ui/icons"
 
 export function describeActionError(error: unknown) {
   return error instanceof Error ? error.message : "The action could not be completed."
+}
+
+export type GovernanceAlertKind = "blocked" | "budget_over" | "missing_reviewer"
+export type GovernanceAlertSeverity = "warning" | "danger"
+export interface GovernanceAlert {
+  kind: GovernanceAlertKind
+  severity: GovernanceAlertSeverity
+}
+
+type Agent = ProfileSnapshot["agents"][number]
+
+/**
+ * Collect the governance signals the user should see the moment a task opens.
+ * Returned alerts drive the banner at the top of Overview and the badge on
+ * the Governance tab; the tab itself still renders the full narrative + action.
+ */
+export function shouldAlertGovernance(
+  task: TaskRecord,
+  assignee?: Agent | null,
+  reviewer?: Agent | null,
+): GovernanceAlert[] {
+  const alerts: GovernanceAlert[] = []
+
+  if (task.status === "blocked") {
+    alerts.push({ kind: "blocked", severity: "danger" })
+  }
+
+  if (assignee && assignee.budgetMonthlyUsd > 0) {
+    const ratio = assignee.spentMonthlyUsd / assignee.budgetMonthlyUsd
+    if (ratio > 0.8) {
+      alerts.push({ kind: "budget_over", severity: ratio > 1 ? "danger" : "warning" })
+    }
+  }
+
+  if (task.status === "in_review" && !reviewer) {
+    alerts.push({ kind: "missing_reviewer", severity: "warning" })
+  }
+
+  return alerts
 }
 
 export const ENTITY_ICONS: Record<string, typeof Robot> = {

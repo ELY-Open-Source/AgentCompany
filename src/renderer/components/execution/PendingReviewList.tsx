@@ -106,7 +106,7 @@ export function PendingReviewList({ tasks, agents, approvals }: PendingReviewLis
   const t = useT()
   const reviewTasks = tasks.filter((tk) => tk.status === "in_review")
   if (reviewTasks.length === 0) {
-    return <EmptyState title={t("exec.noReviewsInProgress")} detail={t("exec.noReviewsDetail")} />
+    return <EmptyState title={t("exec.noReviewsInProgress")} />
   }
   const pendingApprovalTaskIds = new Set(
     approvals

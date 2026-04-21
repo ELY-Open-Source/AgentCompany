@@ -77,10 +77,7 @@ export function RunCenter({
 
   if (runs.length === 0) {
     return (
-      <EmptyState
-        title={t("runs.noRunsYet")}
-        detail={t("runs.noRunsDetail")}
-      />
+      <EmptyState title={t("runs.noRunsYet")} />
     );
   }
 

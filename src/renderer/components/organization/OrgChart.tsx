@@ -82,7 +82,7 @@ export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentR
     setZoom(nz);
   }, [zoom, pan]);
 
-  if (agents.length === 0) return <EmptyState title={t("org.noAgentsToDisplay")} detail={t("org.noAgentsToDisplayDetail")} />;
+  if (agents.length === 0) return <EmptyState title={t("org.noAgentsToDisplay")} />;
 
   const zoomIn = () => { const nz = Math.min(zoom * 1.2, 2); const c = containerRef.current; if (c) { const cx = c.clientWidth / 2; const cy = c.clientHeight / 2; const s = nz / zoom; setPan({ x: cx - s * (cx - pan.x), y: cy - s * (cy - pan.y) }); } setZoom(nz); };
   const zoomOut = () => { const nz = Math.max(zoom * 0.8, 0.2); const c = containerRef.current; if (c) { const cx = c.clientWidth / 2; const cy = c.clientHeight / 2; const s = nz / zoom; setPan({ x: cx - s * (cx - pan.x), y: cy - s * (cy - pan.y) }); } setZoom(nz); };

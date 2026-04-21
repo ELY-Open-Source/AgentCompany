@@ -106,7 +106,6 @@ export function SkillsSection({
           {skills.length === 0 ? (
             <EmptyState
               title={t("skills.emptyTitle")}
-              detail={t("skills.emptyDetail")}
               action={
                 <ActionButton
                   label={t("skills.importButton")}
@@ -139,10 +138,7 @@ export function SkillsSection({
           />
         ) : (
           <div className="flex flex-1 items-center justify-center">
-            <EmptyState
-              title={t("skills.selectToViewTitle")}
-              detail={t("skills.selectToViewDetail")}
-            />
+            <EmptyState title={t("skills.selectToViewTitle")} />
           </div>
         )}
       </div>

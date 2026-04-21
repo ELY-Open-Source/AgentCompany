@@ -72,7 +72,6 @@ export function PolicyList({ companyId, agents, projects }: PolicyListProps) {
       <div className="p-6">
         <EmptyState
           title="No budget policies"
-          detail="Add your first policy to track and enforce spending limits."
           action={<ActionButton label="Add Policy" icon={Plus} onClick={handleAdd} />}
         />
         <PolicyFormModal

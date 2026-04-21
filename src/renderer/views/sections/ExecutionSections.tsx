@@ -71,6 +71,7 @@ export function ExecutionSections({ section }: ExecutionSectionsProps) {
     companyWorkspaces,
     companyCosts,
     companyDocuments,
+    companyWorkProducts,
     filteredActivity,
     selectedTask,
     selectedConnector,
@@ -148,7 +149,7 @@ export function ExecutionSections({ section }: ExecutionSectionsProps) {
 
       {section === "tasks" ? (
         <>
-          <Panel title="Goals" action={<ActionButton label="New goal" icon={Target} tone="accent" onClick={() => setSelectedGoalId(NEW_ENTITY_ID)} />}>
+          <Panel action={<ActionButton label="New goal" icon={Target} tone="accent" onClick={() => setSelectedGoalId(NEW_ENTITY_ID)} />}>
             <GoalList goals={companyGoals} agents={companyAgents} selectedGoalId={selectedGoalId} onSelect={setSelectedGoalId} />
           </Panel>
           <Modal open={selectedGoalId === NEW_ENTITY_ID && section === "tasks"} title="New goal" onClose={() => setSelectedGoalId(null)}>
@@ -169,7 +170,6 @@ export function ExecutionSections({ section }: ExecutionSectionsProps) {
           </Modal>
 
           <Panel
-            title="Task queue"
             action={
               <div className="flex items-center gap-2">
                 <div className="flex rounded-lg border border-border bg-card">
@@ -244,7 +244,7 @@ export function ExecutionSections({ section }: ExecutionSectionsProps) {
           <Panel title="Agent reviews in progress">
             <PendingReviewList tasks={tasks} agents={companyAgents} approvals={pendingApprovals} />
           </Panel>
-          <Panel title="Pending approvals">
+          <Panel>
             <ApprovalList approvals={pendingApprovals} selectedApprovalId={selectedApproval?.id ?? null} onSelect={setSelectedApprovalId} />
           </Panel>
           <Modal open={!!selectedApproval} title={selectedApproval?.payloadSummary ?? "Approval detail"} onClose={() => setSelectedApprovalId(null)}>
@@ -254,6 +254,7 @@ export function ExecutionSections({ section }: ExecutionSectionsProps) {
                 agents={companyAgents}
                 tasks={tasks}
                 documents={companyDocuments}
+                workProducts={companyWorkProducts}
                 companyId={currentCompany.id}
                 onDecide={async (state, note) => {
                   unwrap(await window.agentCompany.decideApproval({ companyId: currentCompany.id, approvalId: selectedApproval.id, state, decisionNote: note ?? `${state} from desktop control surface.` }));
@@ -286,8 +287,6 @@ export function ExecutionSections({ section }: ExecutionSectionsProps) {
           </div>
           {costsTab === "costs" ? (
             <TwoPaneLayout
-              title="Costs"
-              eyebrow={undefined}
               primary={
                 <Panel title="Recent cost entries">
                   <CostList costs={companyCosts} agents={companyAgents} runs={runs} />

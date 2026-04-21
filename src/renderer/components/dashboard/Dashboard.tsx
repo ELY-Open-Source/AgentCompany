@@ -192,7 +192,7 @@ export function Dashboard(props: DashboardProps) {
                 key={run.id}
                 type="button"
                 onClick={() => onNavigate("runs", run.id)}
-                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted"
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted/50"
               >
                 <div className="relative shrink-0">
                   <Robot size={16} className="text-success" />

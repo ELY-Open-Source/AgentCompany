@@ -79,23 +79,18 @@ function WorkProductRow({ product, companyId }: { product: WorkProductRecord; co
   // path as absolute.
   const primaryAction = product.url || (product.provider === "filesystem" && product.externalId)
     ? () => { void window.agentCompany.openWorkProduct({ companyId, id: product.id }); }
-    : null;
-  const rowBody = (
-    <div className="min-w-0 flex-1 text-left">
-      <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
-        <FileText size={15} className="text-muted-foreground" />
-        <span className="truncate">{product.title}</span>
-      </div>
-      <div className="mt-1 text-[11px] text-muted-foreground">{subtitle}</div>
-    </div>
-  );
+    : undefined;
   return (
-    <ListRow>
+    <ListRow onClick={primaryAction}>
       <div className="flex items-start justify-between gap-3">
-        {primaryAction
-          ? <button type="button" className="min-w-0 flex-1 text-left" onClick={primaryAction}>{rowBody}</button>
-          : rowBody}
-        <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1 text-left">
+          <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+            <FileText size={15} className="text-muted-foreground" />
+            <span className="truncate">{product.title}</span>
+          </div>
+          <div className="mt-1 text-[11px] text-muted-foreground">{subtitle}</div>
+        </div>
+        <div data-row-action className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <StatusPill status={product.status} />
         </div>
       </div>
@@ -128,7 +123,6 @@ export function DocumentCenter({ companyId, documents, workProducts, agents, pro
       {isEmpty ? (
         <EmptyState
           title={t("ops.documentsEmptyTitle")}
-          detail={t("ops.documentsEmptyDetail")}
           action={<ActionButton label={t("ops.documentsEmptyAction")} icon={Plus} tone="accent" onClick={() => setEditingId(NEW_ENTITY_ID)} />}
         />
       ) : null}
@@ -139,19 +133,19 @@ export function DocumentCenter({ companyId, documents, workProducts, agents, pro
           </div>
           <ListFrame>
             {documents.map((document) => (
-              <ListRow key={document.id}>
+              <ListRow key={document.id} onClick={() => setEditingId(document.id)}>
                 <div className="flex items-start justify-between gap-3">
-                  <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setEditingId(document.id)}>
+                  <div className="min-w-0 flex-1 text-left">
                     <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
                       <FileText size={15} className="text-primary" />
                       <span className="truncate">{document.title}</span>
                     </div>
                     <div className="mt-1 text-[11px] text-muted-foreground">{document.type.replaceAll("_", " ")} · v{document.version} · {document.updatedAt.slice(0, 10)}</div>
-                  </button>
-                  <div className="flex items-center gap-2">
+                  </div>
+                  <div data-row-action className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     <StatusPill status={document.status} />
-                    <button type="button" aria-label="Edit document" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={() => setEditingId(document.id)}><NotePencil size={14} /></button>
-                    <button type="button" aria-label="Delete document" className="rounded p-1 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(document.id)}><Trash size={14} /></button>
+                    <button type="button" aria-label="Edit document" className="rounded p-1 text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); setEditingId(document.id); }}><NotePencil size={14} /></button>
+                    <button type="button" aria-label="Delete document" className="rounded p-1 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteId(document.id); }}><Trash size={14} /></button>
                   </div>
                 </div>
               </ListRow>

@@ -139,9 +139,6 @@ function RulesPanel({ rules, companyId, onRefresh, t }: { rules: AutomationRuleR
             <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
               <Lightning size={36} className="mb-3 text-muted-foreground" />
               <div className="text-[14px] font-medium text-muted-foreground">{t("auto.rules.noRules")}</div>
-              <div className="mx-auto mt-1 max-w-[42ch] text-[12px] leading-relaxed text-muted-foreground">
-                {t("auto.rules.noRulesDetail")}
-              </div>
               <div className="mt-4">
                 <ActionButton label={t("auto.rules.createFirstRule")} onClick={() => setShowCreate(true)} icon={Lightning} tone="accent" />
               </div>
@@ -221,9 +218,6 @@ function WorkflowsPanel({ workflows, companyId, onRefresh, t }: { workflows: Wor
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
           <ArrowsClockwise size={36} className="mb-3 text-muted-foreground" />
           <div className="text-[14px] font-medium text-muted-foreground">{t("auto.workflows.noWorkflows")}</div>
-          <div className="mx-auto mt-1 max-w-[42ch] text-[12px] leading-relaxed text-muted-foreground">
-            {t("auto.workflows.noWorkflowsDetail")}
-          </div>
           <div className="mt-4">
             <ActionButton label={t("auto.workflows.createFirstWorkflow")} onClick={() => setShowCreate(true)} icon={ArrowsClockwise} tone="accent" />
           </div>

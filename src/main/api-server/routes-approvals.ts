@@ -1,6 +1,6 @@
 import { z } from "zod";
 import log from "electron-log/main.js";
-import { approvalInputSchema } from "@shared/contracts";
+import { approvalInputSchema, mergeApprovalAttachments } from "@shared/contracts";
 import { resolveApprovalDecision } from "../approval-policy";
 import { shouldAutoApprove } from "../execution-policy";
 import { incrementDeprecationCall } from "./deprecation-counter";
@@ -94,6 +94,27 @@ export function registerApprovalRoutes(server: AgentApiServer) {
       }
     }
 
+    // Fold the schema-level documentIds / workProductIds into payloadJson so
+    // the ApprovalInspector and extractApprovalDocumentReferences can read a
+    // single source of truth. Legacy callers that stuffed documentIds inside
+    // payloadJson keep working unchanged. Malformed payloadJson (non-JSON
+    // or non-object) surfaces as 400 at the API boundary — no silent
+    // rawPayload stashing, because that hid producer bugs from the operator.
+    let mergedPayloadJson: string | null;
+    try {
+      mergedPayloadJson = mergeApprovalAttachments(
+        input.payloadJson,
+        input.documentIds,
+        input.workProductIds,
+      );
+    } catch (error) {
+      server.json(res, 400, {
+        error: error instanceof Error ? error.message : "Invalid approval payloadJson",
+        code: "INVALID_PAYLOAD_JSON",
+      });
+      return;
+    }
+
     let id: string;
     try {
       id = db.approvalsMod.requestApproval({
@@ -104,7 +125,7 @@ export function registerApprovalRoutes(server: AgentApiServer) {
         relatedAgentId: input.relatedAgentId ?? null,
         payloadSummary: input.payloadSummary,
         impactSummary: input.impactSummary,
-        payloadJson: input.payloadJson ?? null,
+        payloadJson: mergedPayloadJson,
       });
     } catch (error) {
       server.json(res, 422, { error: error instanceof Error ? error.message : "Approval could not be created" });

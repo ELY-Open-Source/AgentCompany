@@ -28,7 +28,7 @@ export function CostList({ costs, agents, runs }: { costs: ProfileSnapshot["cost
     overscan: 10,
   })
 
-  if (costs.length === 0) return <EmptyState title={t("exec.noCostData")} detail={t("exec.noCostDataDetail")} />
+  if (costs.length === 0) return <EmptyState title={t("exec.noCostData")} />
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">

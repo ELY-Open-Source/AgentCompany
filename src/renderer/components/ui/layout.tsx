@@ -97,20 +97,48 @@ export function ListRow({
   children,
   className = "",
   onClick,
+  ariaLabel,
 }: {
   children: ReactNode;
   className?: string;
   onClick?: () => void;
+  /**
+   * Optional accessible name for the row. Required whenever the row's visible
+   * children don't already include readable text (e.g. icon-only or graphic
+   * rows). Omit when children already provide a textual label.
+   */
+  ariaLabel?: string;
 }) {
   if (onClick) {
+    // Use role="button" on a div (instead of a native <button>) so callers can
+    // nest real <button> elements inside for per-action controls (edit, delete,
+    // status pills). Nested <button> inside <button> is invalid HTML.
+    //
+    // `has-[[data-row-action]:hover]:bg-transparent` suppresses the row's
+    // hover bg when the pointer is actually over an inner action cluster
+    // (marked with `data-row-action`). This way hover tells the user where
+    // the click lands: on the row, or on the action — never both at once.
     return (
-      <button
-        type="button"
-        className={`focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 block w-full border-b border-border px-5 py-4 text-left last:border-b-0 ${className}`}
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label={ariaLabel}
+        className={`block w-full cursor-pointer border-b border-border px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-muted/50 has-[[data-row-action]:hover]:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${className}`}
         onClick={onClick}
+        onKeyDown={(event) => {
+          // Only handle keys that originated on the row itself. Without this
+          // guard, Space/Enter dispatched from a nested <button> (e.g. an
+          // action pill) would bubble up, get preventDefault'd, and trigger
+          // the row's onClick — swallowing the inner button's own activation.
+          if (event.target !== event.currentTarget) return;
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onClick();
+          }
+        }}
       >
         {children}
-      </button>
+      </div>
     );
   }
   return <div className={`border-b border-border px-5 py-4 last:border-b-0 ${className}`}>{children}</div>;
