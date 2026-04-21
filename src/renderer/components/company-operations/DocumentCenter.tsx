@@ -3,6 +3,7 @@ import { FileText, FloppyDisk, NotePencil, Plus, Trash } from "../ui/icons";
 import type { AgentRecord, DocumentRecord, GoalRecord, ProjectRecord, WorkProductRecord } from "@shared/types";
 import { ActionButton, ConfirmDialog, EmptyState, InlineNotice, Input, ListFrame, ListRow, Modal, Select, StatusPill, TextArea } from "../ui";
 import { useT } from "../../i18n";
+import { useAppStore } from "../../state/store";
 import { documentTypeOptions, documentStatusOptions, splitTags, parseTags } from "./helpers";
 import { SectionHeader } from "./SectionHeader";
 import { NEW_ENTITY_ID } from "../../lib/constants";
@@ -66,6 +67,7 @@ function DocumentEditor({ companyId, agents, projects, goals, document, onSaved 
 }
 
 function WorkProductRow({ product, companyId }: { product: WorkProductRecord; companyId: string }) {
+  const addToast = useAppStore((s) => s.addToast);
   const subtitle = [
     product.type.replaceAll("_", " "),
     product.provider,
@@ -76,9 +78,16 @@ function WorkProductRow({ product, companyId }: { product: WorkProductRecord; co
   // the main process can join it against the work product's workspace
   // root before handing off to the OS shell. Direct `openPath(externalId)`
   // used to flash a failure when the renderer tried to treat the relative
-  // path as absolute.
+  // path as absolute. Surface shell failures (no associated app, path
+  // outside managed root, workspace moved) as a toast so the click
+  // doesn't look like a dead button when the OS can't complete the open.
   const primaryAction = product.url || (product.provider === "filesystem" && product.externalId)
-    ? () => { void window.agentCompany.openWorkProduct({ companyId, id: product.id }); }
+    ? async () => {
+        const result = await window.agentCompany.openWorkProduct({ companyId, id: product.id });
+        if (!result.ok) {
+          addToast(`Couldn't open ${product.title}: ${result.error.message}`, "danger");
+        }
+      }
     : undefined;
   return (
     <ListRow onClick={primaryAction}>
