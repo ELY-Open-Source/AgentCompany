@@ -64,20 +64,20 @@
   --kami-parchment: oklch(0.959 0.008 95);
   --kami-ivory: oklch(0.977 0.006 95);
   --kami-warm-sand: oklch(0.915 0.013 95);
-  --kami-deep-dark: oklch(0.156 0.003 95);
-  --kami-dark-surface: oklch(0.283 0.003 95);
+  --kami-deep-dark: oklch(0.172 0.013 80);
+  --kami-dark-surface: oklch(0.296 0.014 80);
   --kami-ink: oklch(0.306 0.083 258);
   --kami-ink-light: oklch(0.462 0.096 255);
-  --kami-near-black: oklch(0.156 0.003 95);
-  --kami-dark-warm: oklch(0.336 0.004 95);
+  --kami-near-black: oklch(0.172 0.013 80);
+  --kami-dark-warm: oklch(0.350 0.014 80);
   --kami-charcoal: oklch(0.403 0.006 95);
   --kami-olive: oklch(0.466 0.006 95);
   --kami-stone: oklch(0.608 0.007 95);
-  --kami-warm-silver: oklch(0.739 0.010 95);
+  --kami-warm-silver: oklch(0.770 0.015 85);
   --kami-border-cream: oklch(0.913 0.014 95);
   --kami-border-warm: oklch(0.888 0.014 95);
   --kami-border-soft: oklch(0.904 0.013 95);
-  --kami-border-dark: oklch(0.283 0.003 95);
+  --kami-border-dark: oklch(0.340 0.014 80);
   --kami-ring-warm: oklch(0.832 0.011 95);
   --kami-ring-deep: oklch(0.783 0.012 95);
   --kami-tag-tint-lightest: oklch(0.949 0.011 245);
@@ -90,11 +90,11 @@
   color-scheme: light;
   --radius: 0.5rem;
   --background: oklch(0.959 0.008 95);
-  --foreground: oklch(0.156 0.003 95);
+  --foreground: oklch(0.172 0.013 80);
   --card: oklch(0.977 0.006 95);
-  --card-foreground: oklch(0.156 0.003 95);
+  --card-foreground: oklch(0.172 0.013 80);
   --popover: oklch(0.977 0.006 95);
-  --popover-foreground: oklch(0.156 0.003 95);
+  --popover-foreground: oklch(0.172 0.013 80);
   --primary: oklch(0.306 0.083 258);
   --primary-foreground: oklch(0.977 0.006 95);
   --secondary: oklch(0.915 0.013 95);
@@ -110,7 +110,7 @@
   --success-foreground: oklch(0.977 0.006 95);
   --success-muted: oklch(0.93 0.030 145);
   --warning: oklch(0.72 0.100 75);
-  --warning-foreground: oklch(0.156 0.003 95);
+  --warning-foreground: oklch(0.172 0.013 80);
   --warning-muted: oklch(0.95 0.025 85);
   --caution: oklch(0.62 0.130 50);
   --caution-foreground: oklch(0.977 0.006 95);
@@ -134,19 +134,19 @@
 }
 
 .dark {
-  --background: oklch(0.156 0.003 95);
+  --background: oklch(0.172 0.013 80);
   --foreground: oklch(0.959 0.008 95);
-  --card: oklch(0.283 0.003 95);
+  --card: oklch(0.296 0.014 80);
   --card-foreground: oklch(0.959 0.008 95);
-  --popover: oklch(0.283 0.003 95);
+  --popover: oklch(0.296 0.014 80);
   --popover-foreground: oklch(0.959 0.008 95);
   --primary: oklch(0.462 0.096 255);
   --primary-foreground: oklch(0.959 0.008 95);
-  --secondary: oklch(0.283 0.003 95);
-  --secondary-foreground: oklch(0.739 0.010 95);
-  --muted: oklch(0.283 0.003 95);
-  --muted-foreground: oklch(0.739 0.010 95);
-  --accent: oklch(0.28 0.03 250);
+  --secondary: oklch(0.296 0.014 80);
+  --secondary-foreground: oklch(0.770 0.015 85);
+  --muted: oklch(0.296 0.014 80);
+  --muted-foreground: oklch(0.770 0.015 85);
+  --accent: oklch(0.320 0.035 245);
   --accent-foreground: oklch(0.959 0.008 95);
   --destructive: oklch(0.60 0.17 25);
   --destructive-foreground: oklch(0.959 0.008 95);
@@ -155,26 +155,26 @@
   --success-foreground: oklch(0.959 0.008 95);
   --success-muted: oklch(0.28 0.050 145);
   --warning: oklch(0.82 0.100 75);
-  --warning-foreground: oklch(0.156 0.003 95);
+  --warning-foreground: oklch(0.172 0.013 80);
   --warning-muted: oklch(0.28 0.050 85);
   --caution: oklch(0.72 0.130 50);
   --caution-foreground: oklch(0.959 0.008 95);
   --caution-muted: oklch(0.28 0.050 60);
-  --border: oklch(0.283 0.003 95);
-  --input: oklch(0.283 0.003 95);
+  --border: oklch(0.340 0.014 80);
+  --input: oklch(0.340 0.014 80);
   --ring: oklch(0.832 0.011 95);
   --chart-1: oklch(0.755 0.038 252);
   --chart-2: oklch(0.625 0.060 253);
   --chart-3: oklch(0.505 0.075 254);
   --chart-4: oklch(0.462 0.096 255);
   --chart-5: oklch(0.395 0.082 256);
-  --sidebar: oklch(0.156 0.003 95);
-  --sidebar-foreground: oklch(0.739 0.010 95);
+  --sidebar: oklch(0.172 0.013 80);
+  --sidebar-foreground: oklch(0.770 0.015 85);
   --sidebar-primary: oklch(0.462 0.096 255);
   --sidebar-primary-foreground: oklch(0.959 0.008 95);
-  --sidebar-accent: oklch(0.283 0.003 95);
+  --sidebar-accent: oklch(0.296 0.014 80);
   --sidebar-accent-foreground: oklch(0.959 0.008 95);
-  --sidebar-border: oklch(0.283 0.003 95);
+  --sidebar-border: oklch(0.340 0.014 80);
   --sidebar-ring: oklch(0.832 0.011 95);
 }
 
@@ -453,7 +453,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   padding: 0;
   border: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent);
   border-radius: calc(var(--radius) - 3px);
-  background: oklch(0.283 0.003 95);
+  background: oklch(0.296 0.014 80);
   color: oklch(0.959 0.008 95);
   overflow-x: auto;
 }
@@ -461,7 +461,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 /* Dark-surface code theme for CodeMirror code blocks inside the MDXEditor.
    Overrides the default cm6-theme-basic-light. Uses kami warm-charcoal palette. */
 .paperclip-mdxeditor .cm-editor {
-  background-color: oklch(0.283 0.003 95) !important;
+  background-color: oklch(0.296 0.014 80) !important;
   color: oklch(0.959 0.008 95) !important;
   font-size: 1em;
 }
@@ -473,7 +473,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 }
 
 .paperclip-mdxeditor .cm-activeLineGutter {
-  background-color: oklch(0.283 0.003 95) !important;
+  background-color: oklch(0.296 0.014 80) !important;
 }
 
 .paperclip-mdxeditor .cm-activeLine {
@@ -516,7 +516,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 .paperclip-mdxeditor-content [class*="_codeBlockToolbar_"] select {
   background-color: oklch(0.228 0.003 95);
   color: oklch(0.959 0.008 95);
-  border-color: oklch(0.336 0.004 95);
+  border-color: oklch(0.350 0.014 80);
 }
 
 .paperclip-mdxeditor-content [class*="_codeMirrorWrapper_"]:hover [class*="_codeMirrorToolbar_"],
@@ -530,16 +530,16 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
    Dark-surface code blocks with compact sizing.
    Override prose CSS variables so prose-invert can't revert to defaults. */
 .paperclip-markdown {
-  --tw-prose-pre-bg: oklch(0.283 0.003 95);
+  --tw-prose-pre-bg: oklch(0.296 0.014 80);
   --tw-prose-pre-code: oklch(0.959 0.008 95);
-  --tw-prose-invert-pre-bg: oklch(0.283 0.003 95);
+  --tw-prose-invert-pre-bg: oklch(0.296 0.014 80);
   --tw-prose-invert-pre-code: oklch(0.959 0.008 95);
 }
 
 .paperclip-markdown pre {
   border: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent) !important;
   border-radius: calc(var(--radius) - 3px) !important;
-  background-color: oklch(0.283 0.003 95) !important;
+  background-color: oklch(0.296 0.014 80) !important;
   color: oklch(0.959 0.008 95) !important;
   padding: 0.5rem 0.65rem !important;
   margin: 0.4rem 0 !important;
