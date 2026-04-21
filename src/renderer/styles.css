@@ -46,104 +46,136 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0px;
-  --radius-xl: 0px;
-  --font-sans: "Maple Mono", "Maple Mono NF CN", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", "PingFang SC", sans-serif;
-  --font-mono: "Maple Mono NF CN", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --font-serif: "Newsreader", "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", "STSong", Georgia, "Cambria", "Times New Roman", serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Source Han Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", Roboto, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "Maple Mono NF CN", "Maple Mono", "SF Mono", Consolas, Monaco, ui-monospace, monospace;
+}
+
+/*
+ * Kami source-of-truth tokens (oklch-encoded).
+ * Do not consume directly in components -- consume through the
+ * shadcn aliases (--background, --primary, ...) which map to these.
+ */
+:root {
+  --kami-parchment: oklch(0.959 0.008 95);
+  --kami-ivory: oklch(0.977 0.006 95);
+  --kami-warm-sand: oklch(0.915 0.013 95);
+  --kami-deep-dark: oklch(0.156 0.003 95);
+  --kami-dark-surface: oklch(0.283 0.003 95);
+  --kami-ink: oklch(0.306 0.083 258);
+  --kami-ink-light: oklch(0.462 0.096 255);
+  --kami-near-black: oklch(0.156 0.003 95);
+  --kami-dark-warm: oklch(0.336 0.004 95);
+  --kami-charcoal: oklch(0.403 0.006 95);
+  --kami-olive: oklch(0.466 0.006 95);
+  --kami-stone: oklch(0.608 0.007 95);
+  --kami-warm-silver: oklch(0.739 0.010 95);
+  --kami-border-cream: oklch(0.913 0.014 95);
+  --kami-border-warm: oklch(0.888 0.014 95);
+  --kami-border-soft: oklch(0.904 0.013 95);
+  --kami-border-dark: oklch(0.283 0.003 95);
+  --kami-ring-warm: oklch(0.832 0.011 95);
+  --kami-ring-deep: oklch(0.783 0.012 95);
+  --kami-tag-tint-lightest: oklch(0.949 0.011 245);
+  --kami-tag-tint-light: oklch(0.922 0.019 245);
+  --kami-tag-tint-medium: oklch(0.862 0.026 245);
+  --kami-tag-tint-strong: oklch(0.883 0.024 245);
 }
 
 :root {
   color-scheme: light;
-  --radius: 0;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
-  --destructive-muted: oklch(0.95 0.03 25);
-  --success: oklch(0.55 0.17 145);
-  --success-foreground: oklch(0.985 0 0);
-  --success-muted: oklch(0.96 0.04 155);
-  --warning: oklch(0.68 0.17 85);
-  --warning-foreground: oklch(0.985 0 0);
-  --warning-muted: oklch(0.97 0.04 95);
-  --caution: oklch(0.63 0.19 55);
-  --caution-foreground: oklch(0.985 0 0);
-  --caution-muted: oklch(0.96 0.04 60);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --radius: 0.5rem;
+  --background: oklch(0.959 0.008 95);
+  --foreground: oklch(0.156 0.003 95);
+  --card: oklch(0.977 0.006 95);
+  --card-foreground: oklch(0.156 0.003 95);
+  --popover: oklch(0.977 0.006 95);
+  --popover-foreground: oklch(0.156 0.003 95);
+  --primary: oklch(0.306 0.083 258);
+  --primary-foreground: oklch(0.977 0.006 95);
+  --secondary: oklch(0.915 0.013 95);
+  --secondary-foreground: oklch(0.403 0.006 95);
+  --muted: oklch(0.904 0.013 95);
+  --muted-foreground: oklch(0.466 0.006 95);
+  --accent: oklch(0.922 0.019 245);
+  --accent-foreground: oklch(0.306 0.083 258);
+  --destructive: oklch(0.516 0.186 25);
+  --destructive-foreground: oklch(0.977 0.006 95);
+  --destructive-muted: oklch(0.92 0.030 25);
+  --success: oklch(0.55 0.085 145);
+  --success-foreground: oklch(0.977 0.006 95);
+  --success-muted: oklch(0.93 0.030 145);
+  --warning: oklch(0.72 0.100 75);
+  --warning-foreground: oklch(0.156 0.003 95);
+  --warning-muted: oklch(0.95 0.025 85);
+  --caution: oklch(0.62 0.130 50);
+  --caution-foreground: oklch(0.977 0.006 95);
+  --caution-muted: oklch(0.93 0.030 60);
+  --border: oklch(0.888 0.014 95);
+  --input: oklch(0.888 0.014 95);
+  --ring: oklch(0.832 0.011 95);
+  --chart-1: oklch(0.306 0.083 258);
+  --chart-2: oklch(0.395 0.082 256);
+  --chart-3: oklch(0.505 0.075 254);
+  --chart-4: oklch(0.625 0.060 253);
+  --chart-5: oklch(0.755 0.038 252);
+  --sidebar: oklch(0.977 0.006 95);
+  --sidebar-foreground: oklch(0.403 0.006 95);
+  --sidebar-primary: oklch(0.306 0.083 258);
+  --sidebar-primary-foreground: oklch(0.977 0.006 95);
+  --sidebar-accent: oklch(0.922 0.019 245);
+  --sidebar-accent-foreground: oklch(0.306 0.083 258);
+  --sidebar-border: oklch(0.888 0.014 95);
+  --sidebar-ring: oklch(0.832 0.011 95);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.637 0.237 25.331);
-  --destructive-foreground: oklch(0.985 0 0);
-  --destructive-muted: oklch(0.25 0.06 25 / 0.5);
-  --success: oklch(0.72 0.17 155);
-  --success-foreground: oklch(0.985 0 0);
-  --success-muted: oklch(0.28 0.07 155 / 0.5);
-  --warning: oklch(0.82 0.17 90);
-  --warning-foreground: oklch(0.985 0 0);
-  --warning-muted: oklch(0.35 0.07 85 / 0.5);
-  --caution: oklch(0.75 0.17 60);
-  --caution-foreground: oklch(0.985 0 0);
-  --caution-muted: oklch(0.30 0.07 60 / 0.5);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.145 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+  --background: oklch(0.156 0.003 95);
+  --foreground: oklch(0.959 0.008 95);
+  --card: oklch(0.283 0.003 95);
+  --card-foreground: oklch(0.959 0.008 95);
+  --popover: oklch(0.283 0.003 95);
+  --popover-foreground: oklch(0.959 0.008 95);
+  --primary: oklch(0.462 0.096 255);
+  --primary-foreground: oklch(0.959 0.008 95);
+  --secondary: oklch(0.283 0.003 95);
+  --secondary-foreground: oklch(0.739 0.010 95);
+  --muted: oklch(0.283 0.003 95);
+  --muted-foreground: oklch(0.739 0.010 95);
+  --accent: oklch(0.28 0.03 250);
+  --accent-foreground: oklch(0.959 0.008 95);
+  --destructive: oklch(0.60 0.17 25);
+  --destructive-foreground: oklch(0.959 0.008 95);
+  --destructive-muted: oklch(0.26 0.06 25);
+  --success: oklch(0.65 0.085 145);
+  --success-foreground: oklch(0.959 0.008 95);
+  --success-muted: oklch(0.28 0.050 145);
+  --warning: oklch(0.82 0.100 75);
+  --warning-foreground: oklch(0.156 0.003 95);
+  --warning-muted: oklch(0.28 0.050 85);
+  --caution: oklch(0.72 0.130 50);
+  --caution-foreground: oklch(0.959 0.008 95);
+  --caution-muted: oklch(0.28 0.050 60);
+  --border: oklch(0.283 0.003 95);
+  --input: oklch(0.283 0.003 95);
+  --ring: oklch(0.832 0.011 95);
+  --chart-1: oklch(0.755 0.038 252);
+  --chart-2: oklch(0.625 0.060 253);
+  --chart-3: oklch(0.505 0.075 254);
+  --chart-4: oklch(0.462 0.096 255);
+  --chart-5: oklch(0.395 0.082 256);
+  --sidebar: oklch(0.156 0.003 95);
+  --sidebar-foreground: oklch(0.739 0.010 95);
+  --sidebar-primary: oklch(0.462 0.096 255);
+  --sidebar-primary-foreground: oklch(0.959 0.008 95);
+  --sidebar-accent: oklch(0.283 0.003 95);
+  --sidebar-accent-foreground: oklch(0.959 0.008 95);
+  --sidebar-border: oklch(0.283 0.003 95);
+  --sidebar-ring: oklch(0.832 0.011 95);
 }
 
 /* Hide all scrollbars globally while keeping scroll functionality */
@@ -162,6 +194,7 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
     height: 100%;
     overflow: hidden;
   }
@@ -372,22 +405,25 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 
 .paperclip-mdxeditor-content h1 {
   margin: 1.4em 0 0.9em;
+  font-family: var(--font-serif);
   font-size: 1.75em;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.2;
 }
 
 .paperclip-mdxeditor-content h2 {
   margin: 1.3em 0 0.85em;
+  font-family: var(--font-serif);
   font-size: 1.35em;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.3;
 }
 
 .paperclip-mdxeditor-content h3 {
   margin: 1.2em 0 0.8em;
+  font-family: var(--font-serif);
   font-size: 1.15em;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.35;
 }
 
@@ -405,7 +441,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 }
 
 .paperclip-mdxeditor-content code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono);
   font-size: 1em;
 }
 
@@ -414,48 +450,48 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   padding: 0;
   border: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent);
   border-radius: calc(var(--radius) - 3px);
-  background: #1e1e2e;
-  color: #cdd6f4;
+  background: oklch(0.283 0.003 95);
+  color: oklch(0.959 0.008 95);
   overflow-x: auto;
 }
 
-/* Dark theme for CodeMirror code blocks inside the MDXEditor.
-   Overrides the default cm6-theme-basic-light that MDXEditor bundles. */
+/* Dark-surface code theme for CodeMirror code blocks inside the MDXEditor.
+   Overrides the default cm6-theme-basic-light. Uses kami warm-charcoal palette. */
 .paperclip-mdxeditor .cm-editor {
-  background-color: #1e1e2e !important;
-  color: #cdd6f4 !important;
+  background-color: oklch(0.283 0.003 95) !important;
+  color: oklch(0.959 0.008 95) !important;
   font-size: 1em;
 }
 
 .paperclip-mdxeditor .cm-gutters {
-  background-color: #181825 !important;
-  color: #585b70 !important;
-  border-right: 1px solid #313244 !important;
+  background-color: oklch(0.228 0.003 95) !important;
+  color: oklch(0.466 0.006 95) !important;
+  border-right: 1px solid oklch(0.228 0.003 95) !important;
 }
 
 .paperclip-mdxeditor .cm-activeLineGutter {
-  background-color: #1e1e2e !important;
+  background-color: oklch(0.283 0.003 95) !important;
 }
 
 .paperclip-mdxeditor .cm-activeLine {
-  background-color: color-mix(in oklab, #cdd6f4 5%, transparent) !important;
+  background-color: color-mix(in oklab, oklch(0.959 0.008 95) 5%, transparent) !important;
 }
 
 .paperclip-mdxeditor .cm-cursor,
 .paperclip-mdxeditor .cm-dropCursor {
-  border-left-color: #cdd6f4 !important;
+  border-left-color: oklch(0.959 0.008 95) !important;
 }
 
 .paperclip-mdxeditor .cm-selectionBackground {
-  background-color: color-mix(in oklab, #89b4fa 25%, transparent) !important;
+  background-color: color-mix(in oklab, oklch(0.462 0.096 255) 25%, transparent) !important;
 }
 
 .paperclip-mdxeditor .cm-focused .cm-selectionBackground {
-  background-color: color-mix(in oklab, #89b4fa 30%, transparent) !important;
+  background-color: color-mix(in oklab, oklch(0.462 0.096 255) 30%, transparent) !important;
 }
 
 .paperclip-mdxeditor .cm-content {
-  caret-color: #cdd6f4;
+  caret-color: oklch(0.959 0.008 95);
 }
 
 /* MDXEditor code block language selector -- show on hover only */
@@ -475,9 +511,9 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 
 .paperclip-mdxeditor-content [class*="_codeMirrorToolbar_"] select,
 .paperclip-mdxeditor-content [class*="_codeBlockToolbar_"] select {
-  background-color: #313244;
-  color: #cdd6f4;
-  border-color: #45475a;
+  background-color: oklch(0.228 0.003 95);
+  color: oklch(0.959 0.008 95);
+  border-color: oklch(0.336 0.004 95);
 }
 
 .paperclip-mdxeditor-content [class*="_codeMirrorWrapper_"]:hover [class*="_codeMirrorToolbar_"],
@@ -488,20 +524,20 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 }
 
 /* Rendered markdown code blocks & inline code (prose/MarkdownBody context).
-   Dark theme code blocks with compact sizing.
+   Dark-surface code blocks with compact sizing.
    Override prose CSS variables so prose-invert can't revert to defaults. */
 .paperclip-markdown {
-  --tw-prose-pre-bg: #1e1e2e;
-  --tw-prose-pre-code: #cdd6f4;
-  --tw-prose-invert-pre-bg: #1e1e2e;
-  --tw-prose-invert-pre-code: #cdd6f4;
+  --tw-prose-pre-bg: oklch(0.283 0.003 95);
+  --tw-prose-pre-code: oklch(0.959 0.008 95);
+  --tw-prose-invert-pre-bg: oklch(0.283 0.003 95);
+  --tw-prose-invert-pre-code: oklch(0.959 0.008 95);
 }
 
 .paperclip-markdown pre {
   border: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent) !important;
   border-radius: calc(var(--radius) - 3px) !important;
-  background-color: #1e1e2e !important;
-  color: #cdd6f4 !important;
+  background-color: oklch(0.283 0.003 95) !important;
+  color: oklch(0.959 0.008 95) !important;
   padding: 0.5rem 0.65rem !important;
   margin: 0.4rem 0 !important;
   font-size: 1em !important;
@@ -510,7 +546,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 }
 
 .paperclip-markdown code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono);
   font-size: 1em;
 }
 
@@ -535,7 +571,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 }
 
 .dark .prose :not(pre) > code {
-  background-color: #ffffff0f;
+  background-color: color-mix(in oklab, var(--foreground) 8%, transparent);
 }
 
 .paperclip-markdown {
@@ -590,7 +626,8 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   margin-top: 1.75rem;
   margin-bottom: 0.45rem;
   color: var(--foreground);
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-weight: 500;
   letter-spacing: -0.01em;
   line-height: 1.3;
 }
@@ -613,11 +650,11 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 
 .paperclip-markdown :where(strong, b) {
   color: var(--foreground);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .paperclip-markdown a {
-  color: color-mix(in oklab, var(--foreground) 76%, #0969da 24%);
+  color: color-mix(in oklab, var(--foreground) 76%, var(--primary) 24%);
   text-decoration: none;
 }
 
@@ -627,7 +664,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 }
 
 .dark .paperclip-markdown a {
-  color: color-mix(in oklab, var(--foreground) 80%, #58a6ff 20%);
+  color: color-mix(in oklab, var(--foreground) 80%, var(--primary) 20%);
 }
 
 .paperclip-markdown blockquote {
@@ -652,7 +689,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 }
 
 .paperclip-markdown th {
-  font-weight: 600;
+  font-weight: 500;
   text-align: left;
 }
 
