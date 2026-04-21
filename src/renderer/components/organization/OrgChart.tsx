@@ -131,18 +131,11 @@ export function OrgChart({ agents, connectors, onSelectAgent }: { agents: AgentR
           const isActive = node.agent.status === "active" || isRunning;
           const isError = node.agent.status === "error";
           const isPending = node.agent.status === "pending_approval";
-          // Binary hierarchy: the root (no reportsTo) gets a bold primary bar;
-          // everyone else gets a hairline neutral bar. Managerial rank is
-          // already communicated by tree position — duplicating it via a
-          // color (previously "warning" orange, which read as an alert
-          // rather than a rank) was misleading.
-          const isRoot = !node.agent.reportsTo;
           return (
-            <div key={node.agent.id} data-org-card role="button" tabIndex={0} aria-label={t("org.agentAria").replace("{name}", node.agent.name).replace("{title}", node.agent.title || node.agent.role).replace("{status}", node.agent.status)} className={`absolute cursor-pointer select-none rounded-lg border bg-card shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${isRunning ? "border-[color:var(--primary)] shadow-[0_0_12px_color-mix(in_oklch,var(--success)_15%,transparent)]" : isError ? "border-[color:var(--destructive)] border-opacity-50" : isPending ? "border-[color:var(--destructive)] border-dashed" : "border-border hover:border-border"}`} style={{ left: node.x, top: node.y, width: CARD_W, minHeight: CARD_H }} onClick={() => onSelectAgent?.(node.agent.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelectAgent?.(node.agent.id); } }}>
-              <div className={`rounded-t-[7px] ${isRoot ? "h-[4px] bg-primary" : "h-[2px] bg-border"}`} />
+            <div key={node.agent.id} data-org-card role="button" tabIndex={0} aria-label={t("org.agentAria").replace("{name}", node.agent.name).replace("{title}", node.agent.title || node.agent.role).replace("{status}", node.agent.status)} className={`absolute cursor-pointer select-none rounded-lg border bg-card transition-colors duration-150 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${isError ? "border-[color:var(--destructive)] border-opacity-50" : isPending ? "border-[color:var(--destructive)] border-dashed" : "border-border"}`} style={{ left: node.x, top: node.y, width: CARD_W, minHeight: CARD_H }} onClick={() => onSelectAgent?.(node.agent.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelectAgent?.(node.agent.id); } }}>
               <div className="flex items-center gap-3 px-4 py-3">
                 <div className="relative shrink-0">
-                  <div className={`flex h-11 w-11 items-center justify-center rounded-full text-[13px] font-bold ${isActive ? "bg-success-muted text-success" : isError ? "bg-destructive-muted text-destructive" : "bg-muted text-muted-foreground"}`}>{initials}</div>
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-full text-[13px] font-semibold ${isActive ? "bg-accent text-primary" : isError ? "bg-destructive-muted text-destructive" : "bg-muted text-muted-foreground"}`}>{initials}</div>
                   {isRunning ? (
                     <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5" aria-hidden="true">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40" style={{ backgroundColor: dotColor, willChange: "transform" }} />
