@@ -36,11 +36,7 @@ const syncExcludes = [
 const bossSnapshotIncludes = [
   remoteBossWorkflowFile,
   "boss-build/boss-runtime.json",
-  "boss-build/build-boss-desktop.mjs",
   "boss-build/build-boss-edition.mjs",
-  "boss-build/build-boss-mac.mjs",
-  "boss-build/build-boss.mjs",
-  "boss-build/build-boss.sh",
   "boss-build/electron-builder-boss.yml",
 ];
 
