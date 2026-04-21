@@ -78,14 +78,14 @@ function WorkProductRow({ product, companyId }: { product: WorkProductRecord; co
   // the main process can join it against the work product's workspace
   // root before handing off to the OS shell. Direct `openPath(externalId)`
   // used to flash a failure when the renderer tried to treat the relative
-  // path as absolute. Surface shell failures (no associated app, path
-  // outside managed root, workspace moved) as a toast so the click
-  // doesn't look like a dead button when the OS can't complete the open.
+  // path as absolute. On failure show a single user-facing line — never
+  // leak the backend reason code or the resolver's null-chain detail to
+  // the operator, those belong in a main-process log, not the UI.
   const primaryAction = product.url || (product.provider === "filesystem" && product.externalId)
     ? async () => {
         const result = await window.agentCompany.openWorkProduct({ companyId, id: product.id });
         if (!result.ok) {
-          addToast(`Couldn't open ${product.title}: ${result.error.message}`, "danger");
+          addToast(`Couldn't open ${product.title}`, "danger");
         }
       }
     : undefined;
