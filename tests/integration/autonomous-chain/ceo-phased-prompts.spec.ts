@@ -28,10 +28,10 @@ describe("Step 2: CEO phased prompts", () => {
     // shows the hire POST curl up front, and reaches for the
     // server-enforced STRATEGY_BEFORE_HIRES / STRATEGY_ALREADY_FILED
     // codes instead of prose ordering directives.
-    expect(prompt).toContain("file 3–5 `hire_agent` requests");
+    expect(prompt).toContain("file 3–5 `hire_agent` tool calls");
     expect(prompt).toContain("Do this first — file the hires");
-    expect(prompt).toContain("STRATEGY_BEFORE_HIRES");
-    expect(prompt).toContain("STRATEGY_ALREADY_FILED");
+    expect(prompt).toContain("file_approval.strategy.before_hires");
+    expect(prompt).toContain("file_approval.strategy.already_filed");
     expect(prompt).not.toContain("Awaiting Org Strategy Approval");
     expect(prompt).not.toContain("Goal Decomposition");
   });
