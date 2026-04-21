@@ -35,8 +35,8 @@ export default function WaitStateIndicator({ waitState, onReply, onNavigateAppro
   const duration = timeAgo(waitState.createdAt)
 
   return (
-    <div className="flex items-center gap-3 rounded-md border-l-2 border-warning bg-warning-muted px-3 py-2">
-      <Hourglass size={18} weight="fill" className="shrink-0 text-warning" />
+    <div className="flex items-center gap-3 rounded-md border-l-2 border-primary bg-accent px-3 py-2">
+      <Hourglass size={18} weight="fill" className="shrink-0 text-primary" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-foreground">{waitState.reason}</p>
         <p className="text-xs text-muted-foreground">{t("wait.waitingSince")} {duration}</p>
@@ -44,7 +44,7 @@ export default function WaitStateIndicator({ waitState, onReply, onNavigateAppro
       {isApproval && onNavigateApproval ? (
         <button
           onClick={() => { const id = waitState.relatedApprovalId; if (id) onNavigateApproval(id); }}
-          className="flex shrink-0 items-center gap-1.5 rounded-md bg-warning px-3 py-1.5 text-xs font-medium text-primary-foreground hover:brightness-95"
+          className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:brightness-95"
         >
           <CheckCircle size={14} />
           {t("wait.review")}
@@ -52,7 +52,7 @@ export default function WaitStateIndicator({ waitState, onReply, onNavigateAppro
       ) : (
         <button
           onClick={() => onReply(waitState.id, waitState.threadId)}
-          className="flex shrink-0 items-center gap-1.5 rounded-md bg-warning px-3 py-1.5 text-xs font-medium text-primary-foreground hover:brightness-95"
+          className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:brightness-95"
         >
           <ChatCircle size={14} />
           {isReview ? t("wait.review") : t("wait.reply")}

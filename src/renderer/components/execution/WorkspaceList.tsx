@@ -27,8 +27,8 @@ export function WorkspaceList({ workspaces, projects, companyId, selectedWorkspa
               {(() => {
                 const isSelected = selectedWorkspaceId === workspace.id;
                 return (
-                  <div className={`group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-l-2 py-2 pl-2 pr-1 transition-colors ${isSelected ? "border-l-[color:var(--success)]" : "border-l-transparent hover:border-l-border"}`}>
-                    <span aria-hidden="true" className={`select-none transition-colors ${isSelected ? "text-success" : "text-muted-foreground group-hover:text-foreground"}`}>›</span>
+                  <div className={`group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-l-2 py-2 pl-2 pr-1 transition-colors ${isSelected ? "border-l-[color:var(--primary)]" : "border-l-transparent hover:border-l-border"}`}>
+                    <span aria-hidden="true" className={`select-none transition-colors ${isSelected ? "text-primary" : "text-muted-foreground group-hover:text-foreground"}`}>›</span>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <div className="truncate text-[13px] font-medium text-foreground">{workspace.name}</div>

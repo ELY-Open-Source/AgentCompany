@@ -87,7 +87,6 @@ export function Dashboard(props: DashboardProps) {
           label={t("dash.activeTasks")}
           value={activeTasks.length}
           icon={Briefcase}
-          tone={activeTasks.length > 0 ? "accent" : "default"}
           onClick={() => onNavigate("tasks")}
           subtitle={`${tasks.filter((t) => t.status === "todo").length} ${t("dash.queued")}`}
         />
@@ -95,7 +94,6 @@ export function Dashboard(props: DashboardProps) {
           label={t("dash.approvals")}
           value={pendingApprovals.length}
           icon={ShieldCheck}
-          tone={pendingApprovals.length > 0 ? "warn" : "default"}
           onClick={() => onNavigate("approvals")}
           subtitle={pendingApprovals.length > 0 ? t("dash.needsAttention") : t("dash.allClear")}
         />
@@ -103,7 +101,6 @@ export function Dashboard(props: DashboardProps) {
           label={t("common.agents")}
           value={activeAgents.length}
           icon={Robot}
-          tone={activeAgents.filter((a) => a.status === "running").length > 0 ? "success" : "default"}
           onClick={() => onNavigate("agents")}
           subtitle={`${activeAgents.filter((a) => a.status === "running").length} ${t("dash.running")}`}
         />
