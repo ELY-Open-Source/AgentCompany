@@ -10,26 +10,14 @@ import {
 import type { InboxItemType } from "@shared/types";
 import { Card } from "../ui";
 
-export const typeConfig: Record<InboxItemType, { icon: React.ElementType; color: string; bg: string; label: string }> = {
-  pending_approval: { icon: ShieldCheck, color: "var(--destructive)", bg: "var(--muted-foreground)", label: "Approval" },
-  failed_run: { icon: XCircle, color: "var(--destructive)", bg: "var(--destructive)", label: "Failed Run" },
-  budget_warning: { icon: CurrencyCircleDollar, color: "var(--destructive)", bg: "var(--muted-foreground)", label: "Budget" },
-  blocked_task: { icon: Warning, color: "var(--destructive)", bg: "var(--destructive)", label: "Blocked" },
-  review_needed: { icon: Eye, color: "var(--primary)", bg: "var(--primary)", label: "Review" },
-  agent_message: { icon: ChatCircle, color: "var(--primary)", bg: "var(--primary)", label: "Message" },
+export const typeConfig: Record<InboxItemType, { icon: React.ElementType; label: string }> = {
+  pending_approval: { icon: ShieldCheck, label: "Approval" },
+  failed_run: { icon: XCircle, label: "Failed Run" },
+  budget_warning: { icon: CurrencyCircleDollar, label: "Budget" },
+  blocked_task: { icon: Warning, label: "Blocked" },
+  review_needed: { icon: Eye, label: "Review" },
+  agent_message: { icon: ChatCircle, label: "Message" },
 };
-
-export const severityColors: Record<string, string> = {
-  critical: "border-l-[color:var(--destructive)]",
-  high: "border-l-[color:var(--destructive)]",
-  medium: "border-l-[color:var(--primary)]",
-  low: "border-l-[color:var(--border)]",
-};
-
-export function severityBorderClass(severity: string | null | undefined): string {
-  if (!severity) return "border-l-[color:var(--border)]";
-  return severityColors[severity] ?? "border-l-[color:var(--border)]";
-}
 
 export function CompactMetric({ label, value, tone = "default", subtitle }: {
   label: string;

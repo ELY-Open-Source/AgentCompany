@@ -6,6 +6,7 @@ const ATTENTION_STAGGER_MAX = 8;
 const ATTENTION_STAGGER_STEP = 0.04;
 
 export type AttentionTone = "warn" | "danger" | "info" | "neutral";
+export type AttentionVariant = "card" | "line";
 
 export interface AttentionRowProps {
   icon: ElementType;
@@ -21,6 +22,7 @@ export interface AttentionRowProps {
   borderAccentClass?: string;
   showArrow?: boolean;
   iconWeight?: "fill" | "bold" | "regular";
+  variant?: AttentionVariant;
 }
 
 const toneIconClass: Record<AttentionTone, string> = {
@@ -51,30 +53,53 @@ export function AttentionRow({
   borderAccentClass,
   showArrow = true,
   iconWeight,
+  variant = "card",
 }: AttentionRowProps) {
   const iconClass = iconColor ? "" : toneIconClass[tone];
-  const bgClass = rowBgClass ?? toneBgClass[tone];
   const delay = Math.min(index, ATTENTION_STAGGER_MAX) * ATTENTION_STAGGER_STEP;
-  const borderClass = borderAccentClass ?? "border-[color:var(--destructive)] border-opacity-20 hover:border-opacity-40";
   const isButton = typeof onClick === "function";
-  const commonClass = `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 rounded-lg border ${borderClass} ${bgClass} px-4 py-3 text-left transition`;
 
-  const iconElement = iconTileBg ? (
-    <div
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-      style={{ backgroundColor: iconTileBg }}
-    >
-      <Icon size={18} weight={iconWeight} className={iconClass} style={iconColor ? { color: iconColor } : undefined} />
-    </div>
-  ) : (
-    <Icon size={18} weight={iconWeight} className={`shrink-0 ${iconClass}`} style={iconColor ? { color: iconColor } : undefined} />
-  );
+  const chromeClass =
+    variant === "line"
+      ? "border-b border-border/60 hover:bg-muted/40 px-2 py-3"
+      : (() => {
+          const bgClass = rowBgClass ?? toneBgClass[tone];
+          const borderClass =
+            borderAccentClass ??
+            "border-[color:var(--destructive)] border-opacity-20 hover:border-opacity-40";
+          return `rounded-lg border ${borderClass} ${bgClass} px-4 py-3`;
+        })();
 
+  const commonClass = `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex w-full items-center gap-3 text-left transition ${chromeClass}`;
+
+  const iconElement =
+    variant === "card" && iconTileBg ? (
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+        style={{ backgroundColor: iconTileBg }}
+      >
+        <Icon
+          size={18}
+          weight={iconWeight}
+          className={iconClass}
+          style={iconColor ? { color: iconColor } : undefined}
+        />
+      </div>
+    ) : (
+      <Icon
+        size={18}
+        weight={iconWeight}
+        className={`shrink-0 ${iconClass}`}
+        style={iconColor ? { color: iconColor } : undefined}
+      />
+    );
+
+  const titleWeightClass = variant === "line" ? "" : "font-medium";
   const inner = (
     <>
       {iconElement}
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-medium text-foreground">{title}</div>
+        <div className={`truncate text-[13px] ${titleWeightClass} text-foreground`}>{title}</div>
         {subtitle ? <div className="mt-0.5 text-[11px] text-muted-foreground">{subtitle}</div> : null}
       </div>
       {rightMeta}

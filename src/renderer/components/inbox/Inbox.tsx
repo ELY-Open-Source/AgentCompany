@@ -8,7 +8,7 @@ import {
 import type { InboxItem, InboxItemType, SectionId } from "@shared/types";
 import { timeAgo } from "../../lib/formatters";
 import { useT } from "../../i18n";
-import { typeConfig, severityBorderClass } from "./inbox-helpers";
+import { typeConfig } from "./inbox-helpers";
 import { AttentionRow } from "../ui";
 
 interface InboxProps {
@@ -104,12 +104,15 @@ export function Inbox({ items, onNavigate }: InboxProps) {
           <div className="mt-1 text-[12px] text-muted-foreground">{t("inbox.noItemsNow")}</div>
         </div>
       ) : (
-        <div className="space-y-1.5">
+        <div>
           <AnimatePresence>
             {filteredItems.map((item, i) => {
               const config = typeConfig[item.type];
               const Icon = config.icon;
-              const title = <span className="truncate">{item.title}</span>;
+              const isUrgent = item.severity === "critical" || item.severity === "high";
+              const title = (
+                <span className={`truncate ${isUrgent ? "font-semibold" : "font-medium"}`}>{item.title}</span>
+              );
               const subtitle = (
                 <span className="flex items-center gap-2">
                   {item.agentName ? (
@@ -119,6 +122,9 @@ export function Inbox({ items, onNavigate }: InboxProps) {
                     </span>
                   ) : null}
                   <span className="truncate">{item.subtitle.slice(0, 80)}</span>
+                  {isUrgent ? (
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                  ) : null}
                   <span className="shrink-0 tabular-nums">{timeAgo(item.createdAt)}</span>
                 </span>
               );
@@ -127,11 +133,9 @@ export function Inbox({ items, onNavigate }: InboxProps) {
                   key={item.id}
                   index={i}
                   icon={Icon}
-                  iconColor={config.color}
-                  iconTileBg={config.bg}
-                  iconWeight="fill"
-                  rowBgClass="bg-card"
-                  borderAccentClass={`border-l-[3px] border-border hover:shadow-md hover:-translate-y-px ${severityBorderClass(item.severity)}`}
+                  tone="info"
+                  iconWeight={isUrgent ? "bold" : "regular"}
+                  variant="line"
                   title={title}
                   subtitle={subtitle}
                   onClick={() => handleItemClick(item)}
