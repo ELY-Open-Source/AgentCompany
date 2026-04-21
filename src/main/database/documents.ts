@@ -351,24 +351,26 @@ export function buildDocumentMethods(
      * artifact) or a concrete absolute path that downstream
      * `canOpenPath` validates.
      */
-    resolveWorkProductTarget(workProductId: string, companyId: string): { kind: "url" | "path"; value: string } | null {
+    resolveWorkProductTarget(
+      workProductId: string,
+      companyId: string,
+    ):
+      | { kind: "url" | "path"; value: string }
+      | { kind: "error"; reason: "not_found" | "archived" | "no_target" | "workspace_unresolved" | "path_escape"; detail: string } {
       const row = getDb().prepare(
         "SELECT provider, external_id, url, status, task_id, created_by_run_id, last_touched_by_run_id, workspace_id FROM work_products WHERE id = ? AND company_id = ?",
       ).get(workProductId, companyId) as
         | { provider: string; external_id: string | null; url: string | null; status: string; task_id: string | null; created_by_run_id: string | null; last_touched_by_run_id: string | null; workspace_id: string | null }
         | undefined;
-      if (!row) return null;
-      // Archived rows are retirement tombstones — the file no longer
-      // exists (or was explicitly retired) and the row is kept for
-      // audit only. Refuse to resolve a target so `openWorkProduct`
-      // can fail cleanly instead of pointing the shell at a path that
-      // leads nowhere.
-      if (row.status === "archived") return null;
+      if (!row) return { kind: "error", reason: "not_found", detail: `No work_product row with id=${workProductId}` };
+      if (row.status === "archived") return { kind: "error", reason: "archived", detail: "Work product is archived (retirement tombstone)" };
 
       if (row.url && row.url.length > 0) {
         return { kind: "url", value: row.url };
       }
-      if (row.provider !== "filesystem" || !row.external_id) return null;
+      if (row.provider !== "filesystem" || !row.external_id) {
+        return { kind: "error", reason: "no_target", detail: `provider=${row.provider} external_id=${row.external_id ?? "null"} url=null` };
+      }
 
       const workspaceRoot = resolveWorkspaceRoot(
         getDb,
@@ -377,10 +379,18 @@ export function buildDocumentMethods(
         row.task_id,
         row.last_touched_by_run_id ?? row.created_by_run_id,
       );
-      if (!workspaceRoot) return null;
+      if (!workspaceRoot) {
+        return {
+          kind: "error",
+          reason: "workspace_unresolved",
+          detail: `workspace_id=${row.workspace_id ?? "null"} task_id=${row.task_id ?? "null"} run_id=${row.last_touched_by_run_id ?? row.created_by_run_id ?? "null"} — none led to a workspace with a local_path`,
+        };
+      }
 
       const absolute = joinWorkspaceRelative(workspaceRoot, row.external_id);
-      if (!absolute) return null;
+      if (!absolute) {
+        return { kind: "error", reason: "path_escape", detail: `external_id=${row.external_id} escapes workspace root ${workspaceRoot}` };
+      }
       return { kind: "path", value: absolute };
     },
 

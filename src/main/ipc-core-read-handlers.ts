@@ -69,7 +69,16 @@ export function registerCoreReadHandlers({
     const companyError = ensureCompanyExists(parsed.data.companyId);
     if (companyError) return companyError;
     const target = db.documentsMod.resolveWorkProductTarget(parsed.data.id, parsed.data.companyId);
-    if (!target) return fail("WORK_PRODUCT_NOT_FOUND", "Work product not found or its workspace is unresolved.");
+    if (target.kind === "error") {
+      const codeByReason = {
+        not_found: "WORK_PRODUCT_NOT_FOUND",
+        archived: "WORK_PRODUCT_ARCHIVED",
+        no_target: "WORK_PRODUCT_NO_TARGET",
+        workspace_unresolved: "WORK_PRODUCT_WORKSPACE_UNRESOLVED",
+        path_escape: "WORK_PRODUCT_PATH_ESCAPE",
+      } as const;
+      return fail(codeByReason[target.reason], target.detail);
+    }
     if (target.kind === "url") {
       const error = await shell.openExternal(target.value).then(() => "").catch((err: unknown) => err instanceof Error ? err.message : String(err));
       return error ? fail("OPEN_PATH_FAILED", error) : ok(true);
