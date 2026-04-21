@@ -174,7 +174,7 @@ describe("work_products archived visibility", () => {
 
       expect(
         harness.db.documentsMod.resolveWorkProductTarget(id, harness.companyId),
-      ).toBeNull();
+      ).toMatchObject({ kind: "error", reason: "archived" });
     } finally {
       harness.db.close();
     }
@@ -236,7 +236,7 @@ describe("work_products bulk retirement", () => {
       expect(second).toHaveLength(0);
       expect(
         harness.db.documentsMod.resolveWorkProductTarget(id, harness.companyId),
-      ).toBeNull();
+      ).toMatchObject({ kind: "error", reason: "archived" });
     } finally {
       harness.db.close();
     }
@@ -278,7 +278,7 @@ describe("work_products bulk retirement", () => {
 
       expect(
         harness.db.documentsMod.resolveWorkProductTarget(workProductId, harness.companyId),
-      ).toBeNull();
+      ).toMatchObject({ kind: "error", reason: "archived" });
     } finally {
       harness.db.close();
     }
