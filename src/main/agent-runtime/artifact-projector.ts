@@ -608,29 +608,41 @@ function upsertFilesystemArtifact(
   const title = lastSlash >= 0 ? relativePath.slice(lastSlash + 1) : relativePath;
 
   const provider = "filesystem";
+  // Reverse-resolve workspaceId from workspacePath when ctx didn't
+  // carry it. The run may have been created before workspace_id was
+  // tracked end-to-end, but the projector only ever walks a workspace
+  // whose local_path is known — that path uniquely identifies the
+  // workspace row, so it is safe to persist the foreign key instead
+  // of writing another orphan.
+  const resolvedWorkspaceId =
+    ctx.workspaceId ?? db.workspacesMod.findWorkspaceIdByLocalPath(ctx.companyId, workspacePath);
   // Identity is scoped to (company, workspace, provider, externalId) so two
   // workspaces with the same relative path do not collapse onto one row.
   // Every touch refreshes `last_touched_by_run_id` so the deliverable
   // signal, the DocumentCenter preview, and the run-provenance readers
   // all see the latest run that wrote the file.
-  const existing = db.documentsMod.findWorkProductByExternalId(ctx.companyId, provider, relativePath, ctx.workspaceId);
+  const existing = db.documentsMod.findWorkProductByExternalId(ctx.companyId, provider, relativePath, resolvedWorkspaceId);
   if (existing) {
     // `status: "active"` flips a previously-archived row (earlier run
     // retired the path, this run recreated it) back into the visible
     // DocumentCenter set. `lastTouchedByRunId` keeps the provenance
     // timeline pointed at the run that just wrote the bytes.
-    db.documentsMod.updateWorkProduct(existing.id, ctx.companyId, {
+    // Only include workspaceId in the patch when we actually have one —
+    // otherwise the UPDATE would clobber a previously-resolved
+    // workspace_id back to null (the original source of orphan rows).
+    const patch: Parameters<typeof db.documentsMod.updateWorkProduct>[2] = {
       title,
       status: "active",
       lastTouchedByRunId: ctx.runId,
-      workspaceId: ctx.workspaceId,
-    });
+    };
+    if (resolvedWorkspaceId) patch.workspaceId = resolvedWorkspaceId;
+    db.documentsMod.updateWorkProduct(existing.id, ctx.companyId, patch);
     return { kind: "updated", workProductId: existing.id, relativePath };
   }
   const workProductId = db.documentsMod.createWorkProduct({
     companyId: ctx.companyId,
     taskId: ctx.taskId,
-    workspaceId: ctx.workspaceId,
+    workspaceId: resolvedWorkspaceId,
     type: "file",
     provider,
     externalId: relativePath,

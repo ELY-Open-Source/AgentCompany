@@ -51,6 +51,24 @@ export function buildWorkspaceMethods(
       return row ? { ...row, isPrimary: toBoolean(row.isPrimary) } : null;
     },
 
+    /**
+     * Reverse-lookup a workspace's id by its local_path within a
+     * company. Used by the artifact projector to heal a run context
+     * whose workspaceId was never bound but whose workspacePath is
+     * still known — we look up the row that owns that path so the
+     * resulting work_product carries a real foreign key instead of
+     * another null that downstream readers would have to heal again.
+     * Returns null when the path does not match any workspace (the
+     * caller proceeds without a workspace_id, which is then handled
+     * defensively by updateWorkProduct).
+     */
+    findWorkspaceIdByLocalPath(companyId: string, localPath: string): string | null {
+      const row = getDb()
+        .prepare("select id from workspaces where company_id = ? and local_path = ? limit 1")
+        .get(companyId, localPath) as { id: string } | undefined;
+      return row?.id ?? null;
+    },
+
     getProjectPrimaryWorkspace(projectId: string | null | undefined, companyId: string): WorkspaceRecord | null {
       if (!projectId) return null;
       const row = getDb()
