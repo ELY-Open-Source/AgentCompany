@@ -47,7 +47,7 @@ export function ChannelHeader({
   const t = useT()
 
   return (
-    <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-2.5">
+    <div className="flex items-center gap-3 border-b border-border bg-background px-4 py-2.5">
       {!showSidebar ? (
         <button
           type="button"

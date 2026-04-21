@@ -105,7 +105,7 @@ export function ChannelSidebar({
       animate={{ width: 260, opacity: 1 }}
       exit={{ width: 0, opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="flex h-full shrink-0 flex-col overflow-hidden border-r border-border bg-card"
+      className="flex h-full shrink-0 flex-col overflow-hidden border-r border-border bg-background"
       style={{ width: 260 }}
     >
       <div className="flex-1 overflow-y-auto px-2 py-3">
