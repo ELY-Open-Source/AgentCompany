@@ -90,7 +90,7 @@ export function SkillAgentToggles(props: SkillAgentTogglesProps) {
               }`}
             >
               <span
-                className={`block h-[14px] w-[14px] rounded-full bg-white shadow-sm transition-transform ${
+                className={`block h-[14px] w-[14px] rounded-full bg-background shadow-sm transition-transform ${
                   isAssigned ? "translate-x-[14px]" : "translate-x-0"
                 }`}
               />

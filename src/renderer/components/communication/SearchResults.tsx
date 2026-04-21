@@ -158,7 +158,7 @@ export function SearchResults({ results, query, loading, agents, onNavigateToRes
                       </span>
                       <span
                         className="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium"
-                        style={{ backgroundColor: `${config.color}18`, color: config.color }}
+                        style={{ backgroundColor: `color-mix(in oklab, ${config.color}, transparent 91%)`, color: config.color }}
                       >
                         <ChannelIcon size={10} weight="bold" />
                         {t(config.labelKey)}

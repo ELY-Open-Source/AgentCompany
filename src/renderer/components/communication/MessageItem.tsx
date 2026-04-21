@@ -45,7 +45,7 @@ export const AgentAvatar = memo(function AgentAvatar({
   return (
     <div
       className={`flex shrink-0 items-center justify-center rounded-full font-bold ${sizeClass}`}
-      style={{ backgroundColor: `${color}18`, color }}
+      style={{ backgroundColor: `color-mix(in oklab, ${color}, transparent 91%)`, color }}
     >
       {initials}
     </div>

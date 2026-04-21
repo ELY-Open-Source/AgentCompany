@@ -77,7 +77,7 @@ export function ToggleSwitch({ checked, onChange, label }: { checked: boolean; o
       aria-label={label}
     >
       <span
-        className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${checked ? "translate-x-[18px]" : "translate-x-[3px]"}`}
+        className={`inline-block h-3.5 w-3.5 rounded-full bg-background shadow-sm transition-transform ${checked ? "translate-x-[18px]" : "translate-x-[3px]"}`}
       />
     </button>
   );

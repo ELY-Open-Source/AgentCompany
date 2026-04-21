@@ -140,7 +140,7 @@ export function CommandPaletteView({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.98 }}
             transition={panelTransition}
-            className="w-full max-w-[560px] rounded-lg border border-border bg-card px-5 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+            className="w-full max-w-[560px] rounded-lg border border-border bg-card px-5 py-4 shadow-[0_4px_24px_color-mix(in_oklab,var(--foreground)_5%,transparent)]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-3 flex items-center gap-3">

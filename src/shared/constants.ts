@@ -21,16 +21,16 @@ export const DEPARTMENT_OPTIONS: Array<{ value: DepartmentId | ""; label: string
 ];
 
 export const DEPARTMENT_COLORS: Record<DepartmentId, string> = {
-  executive: "#8b5cf6",
-  engineering: "#3b82f6",
-  product: "#f59e0b",
-  marketing: "#ec4899",
-  sales: "#10b981",
-  hr: "#6366f1",
-  finance: "#14b8a6",
-  legal: "#a78bfa",
-  operations: "#f97316",
-  customer_support: "#06b6d4",
-  research: "#0ea5e9",
-  design: "#f43f5e",
+  executive: "var(--primary)",
+  engineering: "var(--kami-ink)",
+  product: "var(--kami-dark-warm)",
+  marketing: "var(--kami-olive)",
+  sales: "var(--kami-olive)",
+  hr: "var(--kami-charcoal)",
+  finance: "var(--kami-charcoal)",
+  legal: "var(--kami-stone)",
+  operations: "var(--kami-dark-warm)",
+  customer_support: "var(--kami-stone)",
+  research: "var(--kami-ink)",
+  design: "var(--primary)",
 };

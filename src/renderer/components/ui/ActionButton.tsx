@@ -25,9 +25,9 @@ export function ActionButton({
   const isDisabled = loading || disabled;
   const toneClass =
     tone === "accent"
-      ? "border-transparent bg-primary text-primary-foreground shadow-[0_1px_3px_rgba(74,93,122,0.35)] hover:bg-primary/90"
+      ? "border-transparent bg-primary text-primary-foreground shadow-[0_0_0_1px_color-mix(in_oklab,var(--primary)_40%,transparent)] hover:bg-primary/90"
       : tone === "danger"
-        ? "border-transparent bg-destructive text-primary-foreground shadow-[0_1px_3px_rgba(220,53,69,0.3)] hover:brightness-90"
+        ? "border-transparent bg-destructive text-primary-foreground shadow-[0_0_0_1px_color-mix(in_oklab,var(--destructive)_40%,transparent)] hover:brightness-90"
         : "border-border bg-card text-foreground hover:bg-muted";
 
   const sizing = iconOnly
