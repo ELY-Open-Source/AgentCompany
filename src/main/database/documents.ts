@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { statSync } from "node:fs";
 import { isAbsolute, resolve as resolvePath, relative as relativePath } from "node:path";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import type { ReadAll, Transaction } from "./helpers";
@@ -379,19 +380,43 @@ export function buildDocumentMethods(
         row.task_id,
         row.last_touched_by_run_id ?? row.created_by_run_id,
       );
-      if (!workspaceRoot) {
-        return {
-          kind: "error",
-          reason: "workspace_unresolved",
-          detail: `workspace_id=${row.workspace_id ?? "null"} task_id=${row.task_id ?? "null"} run_id=${row.last_touched_by_run_id ?? row.created_by_run_id ?? "null"} — none led to a workspace with a local_path`,
-        };
+      if (workspaceRoot) {
+        const absolute = joinWorkspaceRelative(workspaceRoot, row.external_id);
+        if (!absolute) {
+          return { kind: "error", reason: "path_escape", detail: `external_id=${row.external_id} escapes workspace root ${workspaceRoot}` };
+        }
+        return { kind: "path", value: absolute };
       }
 
-      const absolute = joinWorkspaceRelative(workspaceRoot, row.external_id);
-      if (!absolute) {
-        return { kind: "error", reason: "path_escape", detail: `external_id=${row.external_id} escapes workspace root ${workspaceRoot}` };
+      // Fourth-tier heal: orphan rows created before the projector tracked
+      // workspace_id end-to-end lose the link through all three joins. If
+      // the externalId resolves to a real file inside the company's
+      // observation (primary/oldest) workspace, we treat that as the
+      // canonical root for this row. No guessing across all workspaces —
+      // just one deterministic fallback, and it only fires when the file
+      // actually exists on disk so the shell never sees a phantom path.
+      const observation = getDb()
+        .prepare(
+          "SELECT local_path as localPath FROM workspaces WHERE company_id = ? AND local_path IS NOT NULL ORDER BY is_primary DESC, created_at ASC LIMIT 1",
+        )
+        .get(companyId) as { localPath: string } | undefined;
+      if (observation?.localPath) {
+        const candidate = joinWorkspaceRelative(observation.localPath, row.external_id);
+        if (candidate) {
+          try {
+            if (statSync(candidate).isFile()) {
+              return { kind: "path", value: candidate };
+            }
+          } catch {
+            // fall through to error below
+          }
+        }
       }
-      return { kind: "path", value: absolute };
+      return {
+        kind: "error",
+        reason: "workspace_unresolved",
+        detail: `workspace_id=${row.workspace_id ?? "null"} task_id=${row.task_id ?? "null"} run_id=${row.last_touched_by_run_id ?? row.created_by_run_id ?? "null"} — none led to a workspace with a local_path, and ${row.external_id} is not present in the company's observation workspace${observation?.localPath ? ` (${observation.localPath})` : " (no observation workspace exists)"}`,
+      };
     },
 
     // Task-scoped visible listing. Archived rows stay in the table as
