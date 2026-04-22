@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { buildSystemPrompt } from "../../src/main/prompt-builder/index";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { buildSystemPrompt, buildTaskPrompt } from "../../src/main/prompt-builder/index";
 import type { PromptContext } from "../../src/main/prompt-builder/index";
 
 function buildCtx(overrides: Partial<PromptContext> = {}): PromptContext {
@@ -72,6 +72,10 @@ function buildCtx(overrides: Partial<PromptContext> = {}): PromptContext {
 }
 
 describe("buildSystemPrompt leadership classification", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("treats first-layer executive leaders as managers even before they have direct reports", () => {
     const prompt = buildSystemPrompt(buildCtx());
 
@@ -94,5 +98,32 @@ describe("buildSystemPrompt leadership classification", () => {
     expect(prompt).toContain("<name>ui&lt;review&gt;&amp;qa</name>");
     expect(prompt).toContain("<description>Use for A&amp;B &quot;checks&quot; and &apos;snapshots&apos;.</description>");
     expect(prompt).toContain("<location>/tmp/skills/ui&lt;review&gt;&amp;qa/SKILL.md</location>");
+  });
+
+  it("keeps the system prompt byte-stable across wall-clock changes", () => {
+    const ctx = buildCtx();
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-22T10:00:00.000Z"));
+    const first = buildSystemPrompt(ctx);
+    vi.setSystemTime(new Date("2026-04-23T23:59:00.000Z"));
+    const second = buildSystemPrompt(ctx);
+
+    expect(second).toBe(first);
+  });
+
+  it("keeps volatile task context after the cacheable system prefix", () => {
+    const ctx = buildCtx({ wakeReason: "timer" });
+    const systemPrompt = buildSystemPrompt(ctx);
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-22T10:00:00.000Z"));
+    const first = buildTaskPrompt(ctx);
+    vi.setSystemTime(new Date("2026-04-23T23:59:00.000Z"));
+    const second = buildTaskPrompt(ctx);
+
+    expect(first.slice(0, systemPrompt.length)).toBe(systemPrompt);
+    expect(second.slice(0, systemPrompt.length)).toBe(systemPrompt);
+    expect(first.slice(systemPrompt.length)).not.toBe(second.slice(systemPrompt.length));
   });
 });
