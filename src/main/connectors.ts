@@ -1,8 +1,9 @@
-import type { CapabilityMatrix, ConnectorRecord } from "@shared/types";
-import { CONNECTORS, type ConnectorDefinition } from "./connector-definitions";
+import { getProviders, type KnownProvider } from "@mariozechner/pi-ai";
+import type { CapabilityMatrix, ConnectorId, ConnectorRecord } from "@shared/types";
+import { CONNECTORS, type ConnectorDefinition, type ConnectorProvider, type LocalModelResolverProvider } from "./connector-definitions";
 import { buildApiKeyDoc, buildCloudDoc, buildOAuthDoc } from "./connector-definitions-docs";
 export { CONNECTORS } from "./connector-definitions";
-export type { ConnectorDefinition } from "./connector-definitions";
+export type { ConnectorDefinition, ConnectorProvider, LocalModelResolverProvider } from "./connector-definitions";
 export { findConnectorDefinition, listFeaturedOnboardingConnectors } from "./connector-definitions-lookup";
 
 const RESERVED_ENV_BINDING_KEYS = new Set([
@@ -16,6 +17,12 @@ const RESERVED_ENV_BINDING_KEYS = new Set([
   "LD_PRELOAD",
   "PWD",
 ]);
+
+const LOCAL_MODEL_RESOLVER_PROVIDERS: ReadonlySet<LocalModelResolverProvider> = new Set([
+  "fireworks",
+  "fireworks-firepass",
+]);
+const PI_KNOWN_PROVIDER_IDS: ReadonlySet<string> = new Set(getProviders());
 
 /**
  * Pi-mono drives all provider dispatch through pi-ai, so the adapter-era
@@ -37,6 +44,23 @@ export function getConnectorDefinition(id: string) {
     throw new Error(`Unknown connector: ${id}`);
   }
   return definition;
+}
+
+export function isPiKnownProvider(provider: string): provider is KnownProvider {
+  return PI_KNOWN_PROVIDER_IDS.has(provider);
+}
+
+export function isLocalModelResolverProvider(provider: string): provider is LocalModelResolverProvider {
+  return LOCAL_MODEL_RESOLVER_PROVIDERS.has(provider as LocalModelResolverProvider);
+}
+
+export function getConnectorProvider(id: ConnectorId): ConnectorProvider {
+  return getConnectorDefinition(id).provider;
+}
+
+export function getConnectorKnownProvider(id: ConnectorId): KnownProvider | null {
+  const provider = getConnectorProvider(id);
+  return isPiKnownProvider(provider) ? provider : null;
 }
 
 export function parseEnvBindingText(text: string): Record<string, string> {

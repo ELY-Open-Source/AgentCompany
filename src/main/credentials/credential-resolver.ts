@@ -1,6 +1,6 @@
 import { getOAuthProvider } from "@mariozechner/pi-ai/oauth";
 import { getEnvApiKey } from "@mariozechner/pi-ai";
-import { getConnectorDefinition } from "@main/connectors";
+import { getConnectorDefinition, isPiKnownProvider } from "@main/connectors";
 import { CredentialStore } from "./credential-store";
 import type { OAuthCredentialPayload, StoredCredentialPayload } from "./types";
 
@@ -72,14 +72,11 @@ export class CredentialResolver {
           if (!fromEnv) throw new CredentialError("CREDENTIAL_MISSING", connectorId, `Env var ${stored.value.value} is not set.`);
           return { apiKey: fromEnv };
         }
-        if (!definition.provider) {
-          throw new CredentialError("CREDENTIAL_MISSING", connectorId, `No credential or env API key for ${connectorId}.`);
+        if (isPiKnownProvider(definition.provider)) {
+          const envKey = getEnvApiKey(definition.provider);
+          if (envKey) return { apiKey: envKey };
         }
-        const envKey = getEnvApiKey(definition.provider as never);
-        if (!envKey) {
-          throw new CredentialError("CREDENTIAL_MISSING", connectorId, `No credential or env API key for ${connectorId}.`);
-        }
-        return { apiKey: envKey };
+        throw new CredentialError("CREDENTIAL_MISSING", connectorId, `No credential or env API key for ${connectorId}.`);
       }
       case "azure": {
         if (stored?.kind !== "azure") {

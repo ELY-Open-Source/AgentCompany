@@ -1,6 +1,6 @@
 import { getEnvApiKey } from "@mariozechner/pi-ai";
 import type { AppDatabase } from "./database";
-import { getConnectorDefinition, parseEnvBindingText } from "./connectors";
+import { getConnectorDefinition, isPiKnownProvider, parseEnvBindingText } from "./connectors";
 import type { ConnectorId } from "@shared/types";
 import type { CredentialStore } from "./credentials";
 
@@ -51,7 +51,7 @@ export function createConnectorHealthService({
         if (stored?.kind === "api_key") {
           return { status: "ready", authState: "ok", lastError: null };
         }
-        if (definition.provider && getEnvApiKey(definition.provider as never)) {
+        if (isPiKnownProvider(definition.provider) && getEnvApiKey(definition.provider)) {
           return { status: "ready", authState: "ok", lastError: null };
         }
         // Re-parse envBindingText on every probe: it is user-editable and must

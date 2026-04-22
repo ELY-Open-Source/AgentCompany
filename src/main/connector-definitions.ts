@@ -23,6 +23,7 @@
  *   - `connector-definitions/cloud.ts`   — 3 Cloud providers
  */
 
+import type { KnownProvider } from "@mariozechner/pi-ai";
 import type { ConnectorId } from "@shared/types";
 import { OAUTH_CONNECTORS, API_KEY_CONNECTORS, CLOUD_CONNECTORS } from "./connector-definitions/index";
 
@@ -67,11 +68,14 @@ export type ConnectorAuth =
   | ConnectorAuthAzure
   | ConnectorAuthGcpAdc;
 
+export type LocalModelResolverProvider = "fireworks" | "fireworks-firepass";
+export type ConnectorProvider = KnownProvider | LocalModelResolverProvider;
+
 export interface ConnectorDefinition {
   /** Stable AgentCompany id; the `connectors` table primary key. */
   id: ConnectorId;
   /** pi-ai `KnownProvider` id (or a locally-resolved provider for Fireworks). */
-  provider: string;
+  provider: ConnectorProvider;
   /** Human-readable label for the Settings panel and onboarding rail. */
   label: string;
   /** One-line explanation shown under the label. */

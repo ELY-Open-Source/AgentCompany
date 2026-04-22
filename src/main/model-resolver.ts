@@ -17,7 +17,8 @@
  */
 
 import log from "electron-log/main.js";
-import { getModel, getModels, type Api, type Model } from "@mariozechner/pi-ai";
+import { getModels, type Api, type Model } from "@mariozechner/pi-ai";
+import { isPiKnownProvider } from "./connectors";
 
 // Fireworks' OpenAI-compatible root. The OpenAI SDK appends
 // `/chat/completions`, `/models`, etc. to this baseURL.
@@ -67,8 +68,12 @@ export function resolveModel(provider: string, modelId: string): Model<Api> | nu
     const curated = FIREWORKS_CURATED_MODELS.find((entry) => entry.id === modelId);
     return buildFireworksModel(modelId, curated?.name, curated?.contextWindow);
   }
+  if (!isPiKnownProvider(provider)) {
+    log.warn(`[model-resolver] Unknown pi provider: ${provider}`);
+    return null;
+  }
   try {
-    return getModel(provider as never, modelId as never) ?? null;
+    return getModels(provider).find((model) => model.id === modelId) ?? null;
   } catch (err) {
     log.warn(`[model-resolver] getModel failed for ${provider}/${modelId}:`, err instanceof Error ? err.message : String(err));
     return null;
@@ -82,8 +87,12 @@ export function resolveModels(provider: string): Array<{ id: string; name: strin
   if (provider === "fireworks") {
     return FIREWORKS_CURATED_MODELS.map(({ id, name }) => ({ id, name }));
   }
+  if (!isPiKnownProvider(provider)) {
+    log.warn(`[model-resolver] Unknown pi provider: ${provider}`);
+    return [];
+  }
   try {
-    const models = getModels(provider as never) ?? [];
+    const models = getModels(provider);
     return models.map((model: { id: string; name?: string }) => ({ id: model.id, name: model.name ?? model.id }));
   } catch (err) {
     log.warn(`[model-resolver] getModels failed for ${provider}:`, err instanceof Error ? err.message : String(err));
