@@ -45,6 +45,20 @@ export interface PromptContext {
   companySkillCatalog?: Array<{ name: string; slug: string; description: string | null }>;
   /** Company workspaces visible to the current run. */
   companyWorkspaces?: Array<{ name: string; localPath: string }>;
+  /**
+   * Pending-skip context from the heartbeat scheduler. Present only
+   * when the scheduler most recently refused to dispatch this agent
+   * (e.g. worker not ready, cooldown). Surfacing it into the system
+   * prompt is the reader half of the scheduler-side write — without
+   * it, a multi-day skip streak would be invisible to the agent even
+   * though `runtime_state_json.heartbeatSkip` tracks it precisely.
+   */
+  heartbeatSkip?: {
+    reason: string;
+    streak: number;
+    since: string;
+    lastTickAt: string;
+  } | null;
 }
 
 export function buildTaskPrompt(ctx: PromptContext): string {
@@ -67,6 +81,10 @@ export function buildTaskPrompt(ctx: PromptContext): string {
       agentId: ctx.agent.id,
     });
     parts.push(`\n${m.wakeReasonHeading}\n${explanation}\n`);
+  }
+
+  if (ctx.heartbeatSkip) {
+    parts.push(`\n${m.heartbeatSkipSection(ctx.heartbeatSkip)}`);
   }
 
   parts.push(`\n${m.timeAwarenessSection}`);

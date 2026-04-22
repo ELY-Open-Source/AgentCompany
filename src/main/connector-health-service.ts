@@ -1,6 +1,6 @@
 import { getEnvApiKey } from "@mariozechner/pi-ai";
 import type { AppDatabase } from "./database";
-import { getConnectorDefinition } from "./connectors";
+import { getConnectorDefinition, parseEnvBindingText } from "./connectors";
 import type { ConnectorId } from "@shared/types";
 import type { CredentialStore } from "./credentials";
 
@@ -52,6 +52,16 @@ export function createConnectorHealthService({
           return { status: "ready", authState: "ok", lastError: null };
         }
         if (definition.provider && getEnvApiKey(definition.provider as never)) {
+          return { status: "ready", authState: "ok", lastError: null };
+        }
+        // Re-parse envBindingText on every probe: it is user-editable and must
+        // not be cached into credentialStore. An explicit binding for the
+        // connector's declared envKey (non-empty value) counts as ready.
+        const connector = db.connectorsCrud.findConnector(id);
+        const boundValue = connector
+          ? parseEnvBindingText(connector.envBindingText)[definition.auth.envKey]
+          : undefined;
+        if (boundValue && boundValue.length > 0) {
           return { status: "ready", authState: "ok", lastError: null };
         }
         return {
