@@ -3,6 +3,7 @@ import type { workerMessageSchema } from "./types";
 import { handleRunLog } from "../handlers/run-log-handler";
 import { handleRunStatus } from "../handlers/run-status-handler";
 import { handleRunFinished } from "../handlers/run-finished-handler";
+import { handleContextCompaction } from "../handlers/context-compaction-handler";
 import type { HandlerContext, HandlerDeps } from "../handlers/handler-context";
 
 export async function handleWorkerMessage(
@@ -67,6 +68,9 @@ export async function handleWorkerMessage(
       }
       return;
     }
+    case "context-compaction":
+      handleContextCompaction(event, deps, context);
+      return;
     case "rpc-request": {
       const bridge = deps.getRuntimeBridge?.();
       const response = bridge

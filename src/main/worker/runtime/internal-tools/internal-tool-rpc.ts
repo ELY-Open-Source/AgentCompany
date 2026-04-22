@@ -9,7 +9,7 @@
  * none of which the worker should replicate.
  *
  * This is structurally the same pattern as `beforeToolCall`/
- * `afterToolCall`/`transformContext` in `hook-rpc.ts`; what's different
+ * `afterToolCall` in `hook-rpc.ts`; what's different
  * is that those are side-effect hooks around pi's own tools, whereas
  * this is a primary-effect tool whose business logic lives entirely in
  * main. Keeping the payload shape minimal (name + JSON args) mirrors

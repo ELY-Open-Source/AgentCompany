@@ -1,15 +1,13 @@
 /**
  * Main-side implementations of pi's tool-execution hooks. Invoked by
- * `RuntimeBridge.handleRpc` when the worker proxies `beforeToolCall`,
- * `afterToolCall`, or `transformContext`.
+ * `RuntimeBridge.handleRpc` when the worker proxies `beforeToolCall`
+ * or `afterToolCall`.
  *
  * Each handler is deliberately isolated to one concern:
  *  - `beforeToolCall`: operational-approval gate (blocks destructive
  *    tools only while an approval that gates EXECUTION is pending)
  *  - `afterToolCall`: filesystem artifact projection (bash/write/edit
  *    outputs become `work_products`)
- *  - `transformContext`: per-LLM-call auto-compaction via a pure
- *    reducer
  *
  * Policy lives here; `RuntimeBridge` stays a pure IPC router.
  */
@@ -20,14 +18,11 @@ import type {
   AfterToolCallRpcResult,
   BeforeToolCallRpcPayload,
   BeforeToolCallRpcResult,
-  TransformContextRpcPayload,
-  TransformContextRpcResult,
 } from "./hook-rpc";
 import {
   projectToolExecutionToWorkProduct,
   type ArtifactProjectorRunContext,
 } from "./artifact-projector";
-import { compactMessagesIfNeeded } from "./context-compactor";
 import {
   isCofounderMandatoryApproval,
   isOperationalApproval,
@@ -193,19 +188,4 @@ export function handleAfterToolCall(
     );
   }
   return NO_OP_AFTER;
-}
-
-/**
- * Context-transform hook. Delegates to `compactMessagesIfNeeded`,
- * which is a pure, provider-free deterministic compactor. Runs before
- * every LLM call; short transcripts short-circuit on the token-budget
- * check so the steady-state cost is negligible.
- */
-export function handleTransformContext(
-  _deps: HookHandlerDeps,
-  _ctx: ActiveRunContext,
-  payload: TransformContextRpcPayload,
-): TransformContextRpcResult {
-  const outcome = compactMessagesIfNeeded(payload.messages);
-  return { changed: outcome.changed, messages: outcome.messages };
 }

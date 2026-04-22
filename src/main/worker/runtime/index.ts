@@ -178,6 +178,18 @@ export class WorkerRunner {
           apiKey: prepared.apiKey,
           extraHeaders,
           rpc,
+          onContextCompaction: (telemetry) => {
+            post({
+              type: "context-compaction",
+              runId: telemetry.runId,
+              emittedAt: telemetry.emittedAt,
+              estimatedTokens: telemetry.estimatedTokens,
+              originalMessageCount: telemetry.originalMessageCount,
+              compactedMessageCount: telemetry.compactedMessageCount,
+              compactedOlderMessageCount: telemetry.compactedOlderMessageCount,
+              retainedRecentMessageCount: telemetry.retainedRecentMessageCount,
+            });
+          },
         });
         this.activeAgents.set(job.runId, agent);
         post({ type: "run-agent-state", runId: job.runId, state: "agent_active" });

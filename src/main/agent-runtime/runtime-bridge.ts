@@ -20,14 +20,12 @@ import { captureBaselineIfRequired, reconcileWorkspaceArtifacts } from "./artifa
 import {
   handleBeforeToolCall,
   handleAfterToolCall,
-  handleTransformContext,
   type ActiveRunContext,
   type ActiveRunLifecycleState,
 } from "./hook-handlers";
 import type {
   AfterToolCallRpcPayload,
   BeforeToolCallRpcPayload,
-  TransformContextRpcPayload,
 } from "./hook-rpc";
 import { routeInternalToolCall } from "./internal-tools/router";
 import type { InvokeInternalToolRpcPayload } from "@main/worker/runtime/internal-tools/internal-tool-rpc";
@@ -85,9 +83,9 @@ type RpcMethod = WorkerRpcMethod;
  * - Forwards `agent-event` from the worker to the renderer (push channel).
  * - Persists each `message_end` message via `SqliteSessionStore`.
  * - Calls `CostWriter` for assistant messages with usage.
- * - Proxies pi's tool-execution hooks (`beforeToolCall` / `afterToolCall`
- *   / `transformContext`) into policy handlers: approval-gate checks,
- *   filesystem artifact projection, and context compaction.
+ * - Proxies pi's tool-execution hooks (`beforeToolCall` / `afterToolCall`)
+ *   into policy handlers: approval-gate checks and filesystem artifact
+ *   projection.
  *
  * Policy itself lives in `hook-handlers.ts`; this class is a pure IPC
  * router plus an `ActiveRunContext` cache.
@@ -563,8 +561,6 @@ export class RuntimeBridge {
           return this.handleBeforeToolCallRpc(request.runId, request.payload as BeforeToolCallRpcPayload);
         case "afterToolCall":
           return this.handleAfterToolCallRpc(request.runId, request.payload as AfterToolCallRpcPayload);
-        case "transformContext":
-          return this.handleTransformContextRpc(request.runId, request.payload as TransformContextRpcPayload);
         case "invokeInternalTool":
           return this.handleInvokeInternalToolRpc(request.runId, request.payload as InvokeInternalToolRpcPayload);
         default: {
@@ -733,15 +729,4 @@ export class RuntimeBridge {
     return { ok: true, result };
   }
 
-  private handleTransformContextRpc(
-    runId: string,
-    payload: TransformContextRpcPayload,
-  ): { ok: true; result: unknown } | { ok: false; error: string } {
-    const ctx = this.activeRuns.get(runId);
-    if (!ctx) {
-      return { ok: false, error: `transformContext: no active run ${runId}` };
-    }
-    const result = handleTransformContext(this.deps, ctx, payload);
-    return { ok: true, result };
-  }
 }

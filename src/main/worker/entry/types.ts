@@ -24,7 +24,6 @@ export const workerRpcMethodSchema = z.enum([
   "prepareRun",
   "beforeToolCall",
   "afterToolCall",
-  "transformContext",
   "invokeInternalTool",
 ]);
 
@@ -64,6 +63,16 @@ export const workerMessageSchema = z.union([
     taskId: z.string().nullable(),
     emittedAt: z.string(),
     event: z.record(z.string(), z.unknown()).and(z.object({ type: z.string() })),
+  }),
+  z.object({
+    type: z.literal("context-compaction"),
+    runId: z.string().uuid(),
+    emittedAt: z.string(),
+    estimatedTokens: z.number(),
+    originalMessageCount: z.number().int(),
+    compactedMessageCount: z.number().int(),
+    compactedOlderMessageCount: z.number().int(),
+    retainedRecentMessageCount: z.number().int(),
   }),
   z.object({
     type: z.literal("rpc-request"),

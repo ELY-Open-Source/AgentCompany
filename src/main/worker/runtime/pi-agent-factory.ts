@@ -9,8 +9,8 @@
  * thrown hooks — a thrown `beforeToolCall` produces an error tool
  * result, a thrown `afterToolCall` likewise — so RPC failures degrade
  * to a deterministic tool-error instead of crashing the run. The
- * `transformContext` contract explicitly forbids throwing, so on RPC
- * failure we return the original messages unchanged.
+ * `transformContext` runs the deterministic compactor in the worker
+ * process and lets compaction failures fail the run explicitly.
  */
 
 import {
@@ -20,6 +20,7 @@ import {
 } from "@mariozechner/pi-agent-core";
 import { streamSimple, type Api, type Model } from "@mariozechner/pi-ai";
 import { buildAgentHooks } from "@main/agent-runtime/agent-hooks";
+import type { ContextCompactionTelemetry } from "@main/agent-runtime/agent-hooks";
 import type { WorkerRpcClient } from "../entry/rpc";
 // Side-effect import: drags the hook signature contract into the typecheck
 // graph so any drift in pi-agent-core hook shapes breaks the build here.
@@ -40,6 +41,7 @@ export interface PiAgentFactoryInput {
   apiKey: string;
   extraHeaders: Record<string, string> | undefined;
   rpc: WorkerRpcClient;
+  onContextCompaction?: (telemetry: ContextCompactionTelemetry) => void;
 }
 
 /** Map the UI-facing `thinkingEffort` string onto pi's `ThinkingLevel`. */
@@ -61,7 +63,11 @@ export function resolveThinkingLevel(effort: string | null | undefined): Thinkin
 }
 
 export function createPiAgent(input: PiAgentFactoryInput): Agent {
-  const hooks = buildAgentHooks({ runId: input.runId, rpc: input.rpc });
+  const hooks = buildAgentHooks({
+    runId: input.runId,
+    rpc: input.rpc,
+    onContextCompaction: input.onContextCompaction,
+  });
   return new Agent({
     initialState: {
       systemPrompt: input.systemPrompt,

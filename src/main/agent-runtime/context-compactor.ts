@@ -51,6 +51,15 @@ interface MessageLike {
 export interface CompactionOutcome {
   changed: boolean;
   messages: AgentMessage[] | null;
+  telemetry: CompactionTelemetry | null;
+}
+
+export interface CompactionTelemetry {
+  estimatedTokens: number;
+  originalMessageCount: number;
+  compactedMessageCount: number;
+  compactedOlderMessageCount: number;
+  retainedRecentMessageCount: number;
 }
 
 /**
@@ -69,16 +78,16 @@ export interface CompactionOutcome {
 export function compactMessagesIfNeeded(messages: AgentMessage[]): CompactionOutcome {
   const estimatedTokens = estimateTokens(messages);
   if (estimatedTokens < COMPACTION_TRIGGER_TOKENS) {
-    return { changed: false, messages: null };
+    return { changed: false, messages: null, telemetry: null };
   }
   if (messages.length <= RECENT_MESSAGE_TAIL + 1) {
-    return { changed: false, messages: null };
+    return { changed: false, messages: null, telemetry: null };
   }
 
   const desiredCutoff = messages.length - RECENT_MESSAGE_TAIL;
   const cutoff = findSafeCutoff(messages, desiredCutoff);
   if (cutoff === null) {
-    return { changed: false, messages: null };
+    return { changed: false, messages: null, telemetry: null };
   }
 
   const older = messages.slice(0, cutoff);
@@ -91,7 +100,18 @@ export function compactMessagesIfNeeded(messages: AgentMessage[]): CompactionOut
     timestamp: Date.now(),
   } as AgentMessage;
 
-  return { changed: true, messages: [summary, ...recent] };
+  const compactedMessages = [summary, ...recent];
+  return {
+    changed: true,
+    messages: compactedMessages,
+    telemetry: {
+      estimatedTokens,
+      originalMessageCount: messages.length,
+      compactedMessageCount: compactedMessages.length,
+      compactedOlderMessageCount: older.length,
+      retainedRecentMessageCount: recent.length,
+    },
+  };
 }
 
 /**

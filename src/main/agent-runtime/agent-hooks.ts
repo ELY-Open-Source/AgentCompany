@@ -12,10 +12,9 @@
  * `buildAgentHooks` collapses the wiring into a single object whose
  * shape mirrors the subset of `AgentOptions` that we populate. The
  * factory spreads the result into `new Agent({...})`, so the agent
- * contract is still the pi-defined one — this is a pure organizational
- * refactor. Behavior (RPC shapes, failure modes, tool-name semantics)
- * is preserved verbatim by routing through the same `WorkerRpcClient`
- * the factory previously held.
+ * contract is still the pi-defined one. Tool policy stays routed
+ * through `WorkerRpcClient`; context compaction runs inside the worker
+ * so the full transcript never crosses the worker-main boundary.
  *
  * The signatures below are pinned to pi via `pi-hook-contract`: any
  * drift in `AgentOptions.beforeToolCall` / `afterToolCall` /
@@ -34,21 +33,28 @@ import type {
   AfterToolCallRpcResult,
   BeforeToolCallRpcPayload,
   BeforeToolCallRpcResult,
-  TransformContextRpcPayload,
-  TransformContextRpcResult,
 } from "./hook-rpc";
 import type { WorkerRpcClient } from "../worker/entry/rpc";
+import {
+  compactMessagesIfNeeded,
+  type CompactionTelemetry,
+} from "./context-compactor";
+
+export interface ContextCompactionTelemetry extends CompactionTelemetry {
+  runId: string;
+  emittedAt: string;
+}
 
 /**
  * Inputs the aggregator needs to produce a hook bundle. `rpc` is the
- * worker-side RPC client that ships hook invocations back to main
- * where the actual policy (approval gate, artifact projection, context
- * compaction) lives. `runId` is the routing key main uses to look up
- * the per-run `ActiveRunContext` in `RuntimeBridge`.
+ * worker-side RPC client that ships policy hook invocations back to
+ * main. `runId` is the routing key main uses to look up the per-run
+ * `ActiveRunContext` in `RuntimeBridge`.
  */
 export interface AgentHooksDeps {
   runId: string;
   rpc: WorkerRpcClient;
+  onContextCompaction?: (telemetry: ContextCompactionTelemetry) => void;
 }
 
 /**
@@ -74,11 +80,11 @@ export interface AgentHookBundle {
  *    must never silently bypass main's approval gate.
  *  - `afterToolCall`: fail-open RPC. Projection is observational; if
  *    main cannot be reached the tool result stands unchanged.
- *  - `transformContext`: fail-open RPC. The pi contract forbids throws
- *    here, so on RPC failure we return the original transcript.
+ *  - `transformContext`: worker-local compaction. The transcript stays
+ *    inside the worker; main receives telemetry only.
  */
 export function buildAgentHooks(deps: AgentHooksDeps): AgentHookBundle {
-  const { runId, rpc } = deps;
+  const { runId, rpc, onContextCompaction } = deps;
 
   const beforeToolCall: AgentHookBundle["beforeToolCall"] = async (
     ctx,
@@ -129,12 +135,24 @@ export function buildAgentHooks(deps: AgentHooksDeps): AgentHookBundle {
   const transformContext: AgentHookBundle["transformContext"] = async (
     messages,
   ): Promise<AgentMessage[]> => {
-    const payload: TransformContextRpcPayload = { messages };
-    const response = await rpc.invoke(runId, "transformContext", payload);
-    if (!response.ok) return messages;
-    const result = response.result as TransformContextRpcResult;
-    if (result.changed && result.messages) return result.messages;
-    return messages;
+    try {
+      const outcome = compactMessagesIfNeeded(messages);
+      if (outcome.changed && outcome.messages) {
+        if (outcome.telemetry) {
+          onContextCompaction?.({
+            ...outcome.telemetry,
+            runId,
+            emittedAt: new Date().toISOString(),
+          });
+        }
+        return outcome.messages;
+      }
+      return messages;
+    } catch (error) {
+      throw new Error(
+        `transformContext compaction failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   };
 
   return { beforeToolCall, afterToolCall, transformContext };

@@ -77,6 +77,16 @@ export type ChildMessage =
       emittedAt: string;
       event: { type: string } & Record<string, unknown>;
     }
+  | {
+      type: "context-compaction";
+      runId: string;
+      emittedAt: string;
+      estimatedTokens: number;
+      originalMessageCount: number;
+      compactedMessageCount: number;
+      compactedOlderMessageCount: number;
+      retainedRecentMessageCount: number;
+    }
   | { type: "rpc-request"; rpcId: string; runId: string; method: string; payload: unknown }
   | { type: "run-agent-state"; runId: string; state: RunAgentLifecycleState }
   | { type: "steer-ack"; runId: string; correlationId: string; accepted: boolean };
