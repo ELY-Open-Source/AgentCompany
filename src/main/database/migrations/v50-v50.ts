@@ -1,4 +1,5 @@
 import log from "electron-log/main.js";
+import { STALE_LOCK_TIMEOUT_MS } from "../../constants";
 import type { Migration, MigrationDeps } from "./types";
 import { columnExists, nowIso, tableExists } from "./types";
 
@@ -41,8 +42,6 @@ import { columnExists, nowIso, tableExists } from "./types";
  * throwing, because the FK would reject them and the existing lock was
  * already orphaned pre-migration.
  */
-
-const STALE_LOCK_TIMEOUT_MS = 15 * 60 * 1000;
 
 export function createMigrationsV50V50(deps: MigrationDeps): Migration[] {
   const { db } = deps;

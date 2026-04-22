@@ -24,6 +24,7 @@
  */
 
 import type { AppDatabase } from "./database";
+import { DOCUMENT_LIFECYCLE_PROCESSOR_DEFAULTS } from "./constants";
 import type { DocumentLifecycleEventRow } from "./database/document-lifecycle-events";
 
 export interface LifecycleHookContext {
@@ -59,19 +60,11 @@ export interface LifecycleProcessorOptions {
   sweepIntervalMs: number;
 }
 
-const DEFAULT_MAX_ATTEMPTS = 5;
-const DEFAULT_STALE_RUNNING_MS = 60_000;
-const DEFAULT_BATCH_SIZE = 32;
-const DEFAULT_SWEEP_INTERVAL_MS = 15_000;
-
 export function makeLifecycleProcessorOptions(
   overrides: Partial<LifecycleProcessorOptions> & Pick<LifecycleProcessorOptions, "db" | "logger">,
 ): LifecycleProcessorOptions {
   return {
-    maxAttempts: DEFAULT_MAX_ATTEMPTS,
-    staleRunningMs: DEFAULT_STALE_RUNNING_MS,
-    batchSize: DEFAULT_BATCH_SIZE,
-    sweepIntervalMs: DEFAULT_SWEEP_INTERVAL_MS,
+    ...DOCUMENT_LIFECYCLE_PROCESSOR_DEFAULTS,
     ...overrides,
   };
 }

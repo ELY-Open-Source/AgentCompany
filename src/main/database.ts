@@ -1,7 +1,7 @@
 import type { SQLInputValue } from "node:sqlite";
 import { AppDatabaseBase } from "./database-base";
 
-export { STALE_LOCK_TIMEOUT_MS } from "./database-base";
+export { STALE_LOCK_TIMEOUT_MS } from "./constants";
 
 /**
  * AppDatabase — concrete persistence surface wired to the twenty-six

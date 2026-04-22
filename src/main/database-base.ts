@@ -32,12 +32,11 @@ import { MODEL_CAPABILITY_SEED } from "./model-capability-seed";
 import { initializeDatabase } from "./database/schema";
 import { SecretVault } from "./vault";
 import type { AgentStatus, ConnectorId, ProfileSnapshot, RunStatus } from "@shared/types";
+import { STALE_LOCK_TIMEOUT_MS } from "./constants";
 
 function nowIso() {
   return new Date().toISOString();
 }
-export const STALE_LOCK_TIMEOUT_MS = 15 * 60 * 1000;
-
 export class AppDatabaseBase {
   readonly profileDir: string;
   readonly dbPath: string;
