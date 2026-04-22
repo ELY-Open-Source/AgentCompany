@@ -18,7 +18,7 @@ export const CLOUD_CONNECTORS: ConnectorDefinition[] = [
       "Anthropic, Amazon Nova, and Llama models served through AWS Bedrock. Honours standard AWS credential discovery (profile, IAM keys, Bedrock bearer tokens, ECS roles, IRSA).",
     defaultModel: "us.anthropic.claude-sonnet-4-20250514-v1:0",
     auth: { type: "aws" },
-    onboardingFeatured: true,
+    onboardingFeatured: false,
     notes:
       "Credentials resolved from AWS_PROFILE | AWS_ACCESS_KEY_ID+AWS_SECRET_ACCESS_KEY | AWS_BEARER_TOKEN_BEDROCK | AWS_CONTAINER_CREDENTIALS_* | AWS_WEB_IDENTITY_TOKEN_FILE. Region defaults to us-east-1.",
   },

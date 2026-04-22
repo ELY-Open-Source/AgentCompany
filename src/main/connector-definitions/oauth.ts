@@ -24,7 +24,7 @@ export const OAUTH_CONNECTORS: ConnectorDefinition[] = [
       "Anthropic Claude via Claude Pro / Max subscription OAuth. Runs entirely through pi-mono's built-in OAuth handler; no API key required.",
     defaultModel: "claude-sonnet-4-5",
     auth: { type: "oauth", oauthId: "anthropic" },
-    onboardingFeatured: true,
+    onboardingFeatured: false,
     notes:
       "Requires an active Claude Pro or Max subscription. Tokens refresh automatically.",
   },
@@ -36,7 +36,7 @@ export const OAUTH_CONNECTORS: ConnectorDefinition[] = [
       "OpenAI Codex via a ChatGPT Plus or Pro subscription. Personal-use only — production workloads should use the OpenAI API connector.",
     defaultModel: "gpt-5.3-codex",
     auth: { type: "oauth", oauthId: "openai-codex" },
-    onboardingFeatured: true,
+    onboardingFeatured: false,
     notes: "Personal use only; requires ChatGPT Plus or Pro.",
   },
   {

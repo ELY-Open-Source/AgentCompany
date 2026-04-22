@@ -77,7 +77,7 @@ export function useAgentForm({
   companyId,
 }: UseAgentFormArgs): AgentFormState {
   const executionReadyConnectors = useMemo(
-    () => connectors.filter((connector) => isConnectorExecutionReady(connector)),
+    () => connectors.filter((connector) => isConnectorExecutionReady(connector) && connector.id === "fireworks-firepass"),
     [connectors],
   );
 
