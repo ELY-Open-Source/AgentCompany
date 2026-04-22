@@ -15,7 +15,7 @@ import { useCompanyController } from "./hooks/useCompanyController";
 import { useCommandPaletteHotkeys } from "./hooks/useCommandPaletteHotkeys";
 import { AppActionsContext, type AppActions } from "./hooks/useAppActions";
 import { SectionContext } from "./hooks/useSectionContext";
-import { createAppErrorNotice, describeDesktopError, formatDesktopResultError, unwrap } from "./lib/desktop";
+import { createAppErrorNotice, describeDesktopError, formatDesktopResultNotice } from "./lib/desktop";
 
 function Shell({
   locale,
@@ -64,7 +64,7 @@ export function App() {
       return;
     }
     const result = await window.agentCompany.startTaskRun({ companyId: company.currentCompany.id, taskId });
-    if (!result.ok) { setError(formatDesktopResultError(result.error)); return; }
+    if (!result.ok) { setError(formatDesktopResultNotice(result.error)); return; }
     setSelectedRunId(result.data);
     await company.refresh();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- Zustand setters and company.refresh are stable
@@ -74,7 +74,8 @@ export function App() {
     try {
       const run = company.runs.find((entry) => entry.id === runId);
       if (!run) throw new Error("Selected run is no longer available.");
-      unwrap(await window.agentCompany.cancelRun({ companyId: run.companyId, runId }));
+      const result = await window.agentCompany.cancelRun({ companyId: run.companyId, runId });
+      if (!result.ok) { setError(formatDesktopResultNotice(result.error)); return; }
       await company.refresh();
       setError(null);
     } catch (err) { setError(describeDesktopError(err)); }

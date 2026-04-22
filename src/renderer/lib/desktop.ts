@@ -21,6 +21,7 @@ export type AppErrorInput =
 const GENERIC_ERROR_CODE = "APP_ERROR";
 const ACTION_REQUIRED_CODE = "ACTION_REQUIRED";
 const DEFAULT_ACTION_HINT = "Use this code when reporting the issue.";
+const SILENT_ERROR_CODES = new Set(["APP_SHUTTING_DOWN"]);
 
 const ACTION_HINTS_BY_CODE: Record<string, string> = {
   ACTION_REQUIRED: "Complete the required selection, then retry the action.",
@@ -29,7 +30,7 @@ const ACTION_HINTS_BY_CODE: Record<string, string> = {
   AGENT_NOT_RUNNABLE: "Open Agents, activate the assigned agent, then retry the task.",
   APP_SHUTTING_DOWN: "Restart AgentCompany after shutdown completes.",
   BUDGET_POLICY_BLOCKED: "Open Budget, update the blocking policy, then retry the run.",
-  CHECKOUT_RACE_LOST: "Refresh tasks, review the current assignee, then retry the run.",
+  CHECKOUT_RACE_LOST: "Refresh tasks, review the current assignee, then try again.",
   COMPANY_NOT_ACTIVE: "Select the active company, then retry the action.",
   COMPANY_NOT_FOUND: "Refresh companies, select an existing company, then retry the action.",
   CONNECTOR_MODEL_NOT_ALLOWED: "Open Connectors, enable an allowed model, then retry the run.",
@@ -74,6 +75,13 @@ export function createAppErrorNotice(
 
 export function formatDesktopResultError(error: DesktopErrorEnvelope): AppErrorNotice {
   return createAppErrorNotice(error.message, error.code);
+}
+
+export function formatDesktopResultNotice(error: DesktopErrorEnvelope): AppErrorNotice | null {
+  if (isSilentDesktopErrorCode(error.code)) {
+    return null;
+  }
+  return formatDesktopResultError(error);
 }
 
 export function describeDesktopError(error: unknown): AppErrorNotice {
@@ -148,6 +156,10 @@ function actionHintForCode(code: string): string {
   }
 
   return DEFAULT_ACTION_HINT;
+}
+
+function isSilentDesktopErrorCode(code: string): boolean {
+  return SILENT_ERROR_CODES.has(normalizeCode(code).toUpperCase());
 }
 
 function isDesktopErrorEnvelope(error: unknown): error is DesktopErrorEnvelope {

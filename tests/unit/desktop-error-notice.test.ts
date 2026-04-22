@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { DesktopResult } from "@shared/contracts";
 import { describe, expect, it } from "vitest";
 import {
@@ -5,6 +7,7 @@ import {
   describeDesktopError,
   DesktopError,
   formatDesktopResultError,
+  formatDesktopResultNotice,
   normalizeAppErrorNotice,
   unwrap,
 } from "../../src/renderer/lib/desktop";
@@ -42,6 +45,33 @@ describe("renderer desktop error notices", () => {
       message: "The assigned agent model is disabled or invalid for its connector.",
       actionHint: "Open Connectors, enable an allowed model, then retry the run.",
     });
+  });
+
+  it("keeps checkout races actionable for retry", () => {
+    const notice = formatDesktopResultNotice({
+      code: "CHECKOUT_RACE_LOST",
+      message: "Another run claimed this task first.",
+    });
+
+    expect(notice).toEqual({
+      code: "CHECKOUT_RACE_LOST",
+      message: "Another run claimed this task first.",
+      actionHint: "Refresh tasks, review the current assignee, then try again.",
+    });
+  });
+
+  it("suppresses shutdown noise from DesktopResult notices", () => {
+    expect(formatDesktopResultNotice({
+      code: "APP_SHUTTING_DOWN",
+      message: "The app is shutting down.",
+    })).toBeNull();
+  });
+
+  it("keeps App cancelRun on the DesktopResult envelope path", () => {
+    const source = readFileSync(join(process.cwd(), "src/renderer/App.tsx"), "utf8");
+
+    expect(source).not.toContain("unwrap(await window.agentCompany.cancelRun");
+    expect(source).toContain("formatDesktopResultNotice(result.error)");
   });
 
   it("describes thrown DesktopError instances with their original code", () => {
