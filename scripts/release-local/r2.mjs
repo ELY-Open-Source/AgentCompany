@@ -1,6 +1,11 @@
-import { readdir } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
+import { createReadStream } from "node:fs";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
+
+const wranglerSingleUploadLimit = 290 * 1024 * 1024;
 
 const defaultBucket = "agentcompany-updates";
 const defaultPrefix = "AC";
@@ -123,14 +128,63 @@ export async function prepareR2ReleaseHost({ rootDir }) {
   };
 }
 
+function createS3ClientForLargeUploads() {
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID?.trim();
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY?.trim();
+  const endpoint = process.env.R2_S3_ENDPOINT?.trim()
+    || (process.env.R2_ACCOUNT_ID ? `https://${process.env.R2_ACCOUNT_ID.trim()}.r2.cloudflarestorage.com` : "");
+  if (!accessKeyId || !secretAccessKey || !endpoint) {
+    throw new Error(
+      "Large file (>290 MiB) requires R2 S3 credentials. Set R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_S3_ENDPOINT (or R2_ACCOUNT_ID) in .env.release.local.",
+    );
+  }
+  return new S3Client({
+    region: "auto",
+    endpoint,
+    credentials: { accessKeyId, secretAccessKey },
+    forcePathStyle: false,
+  });
+}
+
+async function uploadViaS3Multipart({ bucket, key, filePath, fileName }) {
+  const client = createS3ClientForLargeUploads();
+  const upload = new Upload({
+    client,
+    params: {
+      Bucket: bucket,
+      Key: key,
+      Body: createReadStream(filePath),
+      ContentType: guessContentType(fileName),
+      CacheControl: fileName.endsWith(".yml") ? "no-cache" : "public, max-age=31536000, immutable",
+    },
+    partSize: 64 * 1024 * 1024,
+    queueSize: 4,
+  });
+  upload.on("httpUploadProgress", (p) => {
+    if (p.loaded && p.total) {
+      process.stdout.write(`\r[s3-multipart] ${key} ${(p.loaded / p.total * 100).toFixed(1)}%`);
+    }
+  });
+  await upload.done();
+  process.stdout.write(`\n[s3-multipart] ${key} uploaded\n`);
+}
+
 export async function uploadReleaseFiles({ rootDir, releaseDir, bucket, releasePrefix }) {
   const files = (await readdir(releaseDir, { withFileTypes: true }))
     .filter((entry) => entry.isFile() && !ignoredReleaseFiles.has(entry.name))
     .map((entry) => entry.name);
 
   for (const fileName of files) {
-    const objectPath = `${bucket}/${normalizePathSegment(releasePrefix)}/${fileName}`;
+    const key = `${normalizePathSegment(releasePrefix)}/${fileName}`;
+    const objectPath = `${bucket}/${key}`;
     const filePath = join(releaseDir, fileName);
+    const { size } = await stat(filePath);
+
+    if (size > wranglerSingleUploadLimit) {
+      await uploadViaS3Multipart({ bucket, key, filePath, fileName });
+      continue;
+    }
+
     const args = [
       "r2", "object", "put", objectPath,
       "--remote",
