@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -93,6 +94,16 @@ describe("resolveWorkspaceWithLockMode", () => {
     expect(result.source).toBe("none");
     expect(result.lockMode).toBe("none");
     expect(result.workspace).toBeNull();
+  });
+
+  it("keeps the role-regex workspace safety net deleted", () => {
+    const source = readFileSync(
+      join(process.cwd(), "src/main/orchestration/resolve-workspace.ts"),
+      "utf8",
+    );
+    expect(source).not.toContain("CODING_ROLE_PATTERN");
+    expect(source).not.toContain("post-v52 stabilisation");
+    expect(source).not.toContain("2026-05-20");
   });
 
   it("persisted requiresFilesystem=false stays lock-free for engineering-assigned tasks", () => {
