@@ -41,6 +41,8 @@
  *     and ideally the process.
  */
 
+import log from "electron-log/main.js";
+
 export type ErrorKind = "recoverable" | "user_input" | "upstream" | "fatal";
 
 export interface AppErrorMeta {
@@ -146,6 +148,8 @@ export class FatalError extends AppError {
   }
 }
 
+let rawStringifyFallbackWarned = false;
+
 /**
  * Wrap an unknown thrown value into an AppError.
  *
@@ -199,12 +203,22 @@ function stringifyRaw(value: unknown): string {
   }
   try {
     return JSON.stringify(value);
-  } catch {
+  } catch (error) {
     // The raw value is a cyclic / un-serialisable object. `String(value)`
     // falls back to "[object Object]" which is still better than losing
     // the fact that something was thrown.
+    warnRawStringifyFallback(error);
     return String(value);
   }
+}
+
+function warnRawStringifyFallback(error: unknown): void {
+  if (rawStringifyFallbackWarned) return;
+  rawStringifyFallbackWarned = true;
+  log.warn(
+    "[errors] stringifyRaw failed; using String(value) for raw thrown value.",
+    error instanceof Error ? error.message : String(error),
+  );
 }
 
 /**
