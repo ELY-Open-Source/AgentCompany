@@ -125,38 +125,6 @@ export function registerTaskRoutes(server: AgentApiServer) {
         return;
       }
 
-      // Deliverable review gate: intercept agent trying to advance a flagged task to "done".
-      // This MUST succeed — silently skipping review would let unreviewed work advance.
-      if (update.status === "done" && task.requiresUserReview) {
-        const docs = db.documentsMod.listImportantDocsForReview({
-          companyId: task.companyId,
-          types: IMPORTANT_DOC_TYPES,
-          authorAgentId: task.assigneeAgentId ?? null,
-          taskId: task.id,
-          limit: 10,
-        });
-        const reviewerAgent = db.entityCrud.getAgent(token.agentId);
-        const docTitles = docs.map((d) => d.title).join(", ");
-        db.approvalsMod.requestApproval({
-          companyId: task.companyId,
-          relatedTaskId: task.id,
-          requestedByAgentId: token.agentId,
-          type: "deliverable_review",
-          payloadSummary: `Review deliverable: ${docTitles || task.title}`.slice(0, 280),
-          impactSummary: `${reviewerAgent.name} reviewed and approved. Awaiting your final review.`.slice(0, 400),
-          payloadJson: JSON.stringify({ documentIds: docs.map((d) => d.id), documents: docs }),
-        });
-        db.tasks.setTaskRequiresUserReview(task.id, false);
-        if (task.assigneeAgentId) {
-          const prodAgent = db.entityCrud.getAgent(task.assigneeAgentId);
-          if (prodAgent.heartbeatEnabled) {
-            db.agents.setHeartbeat(task.assigneeAgentId, false, prodAgent.heartbeatIntervalSec || 120);
-          }
-        }
-        db.activityMod.addComment({ companyId: task.companyId, taskId: task.id, authorAgentId: null, authorName: "System", body: "Deliverable submitted for board review." });
-        update.status = "in_review";
-      }
-
       // Validate status transition
       const effectiveStatus = update.status ?? task.status;
       const VALID_STATUSES = new Set(["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"]);
@@ -165,69 +133,63 @@ export function registerTaskRoutes(server: AgentApiServer) {
         return;
       }
 
-      // Apply status side-effect timestamps FIRST via advanceTaskStatus
-      // so started_at / completed_at / cancelled_at are set correctly.
-      // advanceTaskStatus checks previousStatus !== newStatus internally,
-      // so it must run before saveTask writes the new status.
-      if (update.status && update.status !== task.status) {
-        db.tasks.advanceTaskStatus(task.id, update.status);
-      }
-
-      const input: Record<string, unknown> = {
-        id: task.id,
-        companyId: task.companyId,
-        title: update.title ?? task.title,
-        description: update.description ?? task.description,
-        status: effectiveStatus,
-        priority: update.priority ?? task.priority,
-        projectId: task.projectId,
-        goalId: task.goalId,
-        parentId: task.parentId,
-        assigneeAgentId: newAssignee,
-        workspaceId: task.workspaceId,
-        requiresFilesystem: update.requiresFilesystem ?? task.requiresFilesystem,
-      };
-      db.tasks.saveTask(input as Parameters<typeof db.tasks.saveTask>[0]);
-
-      if (update.comment) {
-        const agent = db.entityCrud.getAgent(token.agentId);
-        db.activityMod.addComment({
+      const actorAgent = db.entityCrud.getAgent(token.agentId);
+      let reviewRequest: { reviewerAgentName: string; documents: Array<{ id: string; title: string } & Record<string, unknown>> } | null = null;
+      if (effectiveStatus === "done" && task.requiresUserReview) {
+        const docs = db.documentsMod.listImportantDocsForReview({
           companyId: task.companyId,
+          types: IMPORTANT_DOC_TYPES,
+          authorAgentId: task.assigneeAgentId ?? null,
           taskId: task.id,
-          authorAgentId: token.agentId,
-          authorName: agent.name,
-          body: update.comment,
+          limit: 10,
         });
+        reviewRequest = { reviewerAgentName: actorAgent.name, documents: docs };
       }
 
-      db.activityMod.addActivity({
+      const updateResult = db.tasks.updateTaskWithReviewSideEffects({
+        taskId: task.id,
         companyId: task.companyId,
-        actor: token.agentId,
-        action: `task.${update.status ? "status_changed" : "updated"}`,
-        entityType: "task",
-        entityId: task.id,
-        detail: update.comment ?? `Status → ${update.status ?? task.status}`,
+        actorAgentId: token.agentId,
+        actorName: actorAgent.name,
+        task: {
+          title: update.title ?? task.title,
+          description: update.description ?? task.description,
+          status: effectiveStatus,
+          priority: update.priority ?? task.priority,
+          projectId: task.projectId,
+          goalId: task.goalId,
+          parentId: task.parentId,
+          assigneeAgentId: newAssignee,
+          workspaceId: task.workspaceId,
+          requiresFilesystem: update.requiresFilesystem ?? task.requiresFilesystem,
+        },
+        comment: update.comment,
+        reviewRequest,
+        activity: {
+          action: `task.${update.status ? "status_changed" : "updated"}`,
+          detail: update.comment ?? `Status -> ${update.status ?? task.status}`,
+        },
       });
 
       onDomainChanged();
 
       // Fire automation rules for status changes
-      const previousStatus = task.status;
-      const newStatus = update.status ?? task.status;
-      if (update.status && previousStatus !== newStatus) {
+      const previousStatus = updateResult.previousStatus;
+      const newStatus = updateResult.newStatus;
+      if (update.status && updateResult.statusChanged) {
         callbacks.onTaskStatusChanged(task.id, task.companyId, previousStatus, newStatus);
       }
 
-      if (update.status && ["done", "in_review"].includes(update.status)) {
-        if (task.parentId) {
+      if (update.status && ["done", "in_review"].includes(newStatus)) {
+        if (updateResult.parentId) {
           try {
-            const parentTask = db.entityCrud.getTask(task.parentId);
+            const parentTask = db.entityCrud.getTask(updateResult.parentId);
             if (parentTask.assigneeAgentId && parentTask.assigneeAgentId !== token.agentId) {
               onWakeAgent(parentTask.assigneeAgentId, task.companyId, "subtask_completed");
             }
           } catch (error) {
             log.warn(
-              `[api/tasks] parent task lookup failed for ${task.parentId}: ${error instanceof Error ? error.message : String(error)}`,
+              `[api/tasks] parent task lookup failed for ${updateResult.parentId}: ${error instanceof Error ? error.message : String(error)}`,
             );
           }
         } else {
@@ -242,16 +204,16 @@ export function registerTaskRoutes(server: AgentApiServer) {
         }
       }
 
-      if (update.status === "blocked") {
+      if (update.status && newStatus === "blocked") {
         const chain = db.agents.getChainOfCommand(token.agentId);
         if (chain.length > 0) {
           onWakeAgent(chain[0].id, task.companyId, "report_blocked");
         }
       }
 
-      if (update.status && ["in_progress", "todo"].includes(update.status) &&
-          task.assigneeAgentId && task.assigneeAgentId !== token.agentId) {
-        onWakeAgent(task.assigneeAgentId, task.companyId, "assignment");
+      if (update.status && ["in_progress", "todo"].includes(newStatus) &&
+          updateResult.newAssigneeAgentId && updateResult.newAssigneeAgentId !== token.agentId) {
+        onWakeAgent(updateResult.newAssigneeAgentId, task.companyId, "assignment");
       }
 
       if (update.comment) {
@@ -270,8 +232,8 @@ export function registerTaskRoutes(server: AgentApiServer) {
       }
 
       // Wake new assignee when task is reassigned
-      if (newAssignee && newAssignee !== task.assigneeAgentId && newAssignee !== token.agentId) {
-        onWakeAgent(newAssignee, task.companyId, "assignment");
+      if (updateResult.newAssigneeAgentId && updateResult.newAssigneeAgentId !== updateResult.previousAssigneeAgentId && updateResult.newAssigneeAgentId !== token.agentId) {
+        onWakeAgent(updateResult.newAssigneeAgentId, task.companyId, "assignment");
       }
 
       server.json(res, 200, { ok: true });

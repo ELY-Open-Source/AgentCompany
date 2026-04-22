@@ -134,6 +134,8 @@ export class AppDatabaseBase {
     this.tasks = buildTaskMethods(getDb, ra, tx, {
       addComment: (input) => this.activityMod.addComment(input),
       addActivity: (input) => this.activityMod.addActivity(input),
+      requestApproval: (input) => this.approvalsMod.requestApproval(input),
+      setHeartbeat: (agentId, enabled, intervalSec) => this.agents.setHeartbeat(agentId, enabled, intervalSec),
     });
     this.messages = buildMessageMethods(getDb, ra, {
       getAgent: (id) => this.entityCrud.getAgent(id),

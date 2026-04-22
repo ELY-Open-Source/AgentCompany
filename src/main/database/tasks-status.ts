@@ -8,6 +8,8 @@ import {
 } from "./helpers";
 import { chooseBestTaskAssignee } from "./task-assignment";
 import { TASK_LEASE_TTL_MS, checkoutTaskInTransaction } from "./task-checkout";
+import { guardInReviewHasReviewer } from "./task-review-guard";
+import { assertValidTaskStatus, buildTaskStatusTransition } from "./task-status-rules";
 
 export function buildTaskStatusMethods(
   getDb: () => DatabaseSync,
@@ -18,20 +20,6 @@ export function buildTaskStatusMethods(
     addActivity: (input: { companyId: string; actor: string; action: string; entityType: string; entityId: string; detail: string }) => void;
   },
 ) {
-  // Terminal phases and "returned to queue" phases release any existing
-  // lease: once a task is done/cancelled/blocked or bounced back to
-  // todo/backlog the execution grant no longer has a referent. We mirror
-  // that in `task_leases` explicitly — the status→phase trigger only
-  // touches the phase column and leaves the lease row behind, producing
-  // an orphan that the dev-mode consistency probe surfaces as a
-  // divergence. Production would silently drift instead.
-  const STATUSES_THAT_CLEAR_LEASE = new Set<string>([
-    "done",
-    "cancelled",
-    "blocked",
-    "todo",
-    "backlog",
-  ]);
   function incrementActiveSprintVelocity(companyId: string, delta: number): void {
     const ts = nowIso();
     const today = ts.slice(0, 10);
@@ -42,106 +30,30 @@ export function buildTaskStatusMethods(
       .run(delta, ts, companyId, today, today);
   }
 
-  const VALID_TASK_STATUSES = new Set([
-    "backlog",
-    "todo",
-    "in_progress",
-    "in_review",
-    "done",
-    "blocked",
-    "cancelled",
-  ]);
-
-  /**
-   * Guard against the "in_review dead letter": a task whose assignee is
-   * a top-level agent (reports_to IS NULL, the DB invariant CEO marker)
-   * and that does not require user review has no reachable reviewer —
-   * no manager to walk up to, and no human gate. Without this guard the
-   * CEO heartbeat loops forever re-proposing the same approval.
-   *
-   * The right root fix is to reject the transition at source: a caller
-   * that moves such a task into `in_review` must first set
-   * requires_user_review=1 (escalate to human) or route differently
-   * (advance to done, hire a reviewer, bounce to todo). Previous
-   * versions silently resurrected these tasks at every DB init; this
-   * replaces the startup side-effect with a clear runtime error.
-   */
-  function guardInReviewHasReviewer(taskId: string): void {
-    const row = readAll<{ requiresUserReview: number; reportsTo: string | null }>(
-      `select t.requires_user_review as requiresUserReview,
-              a.reports_to as reportsTo
-         from tasks t
-         left join agents a on a.id = t.assignee_agent_id
-        where t.id = ?`,
-      taskId,
-    )[0];
-    if (!row) return;
-    if (row.requiresUserReview === 1) return;
-    if (row.reportsTo !== null) return;
-    throw new Error(
-      `Task ${taskId} has a top-level assignee and no reviewer: cannot enter in_review without requires_user_review=1.`,
-    );
-  }
-
   return {
     advanceTaskStatus(
       taskId: string,
       newStatus: string,
       comment?: string,
     ): { previousStatus: string } {
-      if (!VALID_TASK_STATUSES.has(newStatus)) {
-        throw new Error(`Invalid task status: ${newStatus}`);
-      }
+      assertValidTaskStatus(newStatus);
       const task = getDb()
         .prepare("select status, company_id from tasks where id = ?")
         .get(taskId) as { status: string; company_id: string } | undefined;
       if (!task) throw new Error(`Task not found: ${taskId}`);
       const previousStatus = task.status;
       if (previousStatus === newStatus) return { previousStatus };
-      if (newStatus === "in_review") guardInReviewHasReviewer(taskId);
+      if (newStatus === "in_review") guardInReviewHasReviewer(readAll, taskId);
       const ts = nowIso();
-
-      // Status side-effect timestamps (Paperclip pattern)
-      const timestampSets: string[] = ["status = ?", "updated_at = ?"];
-      const timestampValues: (string | null)[] = [newStatus, ts];
-
-      if (newStatus === "in_progress") {
-        // Set startedAt only once (first time entering in_progress)
-        timestampSets.push("started_at = COALESCE(started_at, ?)");
-        timestampValues.push(ts);
-      }
-      if (newStatus === "done") {
-        timestampSets.push("completed_at = ?");
-        timestampValues.push(ts);
-      } else {
-        timestampSets.push("completed_at = NULL");
-      }
-      if (newStatus === "cancelled") {
-        timestampSets.push("cancelled_at = ?");
-        timestampValues.push(ts);
-      } else {
-        timestampSets.push("cancelled_at = NULL");
-      }
-      if (newStatus !== "in_progress") {
-        timestampSets.push("checkout_run_id = NULL");
-      }
-      // Returning a task to todo / backlog drops any active-run claim
-      // as well — heartbeat picks candidate tasks by !activeRunId, so
-      // leaving a stale pointer here (e.g. after startup recovery of a
-      // crashed run) silently hides the task from every future wake.
-      if (newStatus === "todo" || newStatus === "backlog") {
-        timestampSets.push("active_run_id = NULL");
-      }
-
-      const shouldClearLease = STATUSES_THAT_CLEAR_LEASE.has(newStatus);
+      const transition = buildTaskStatusTransition(newStatus, ts);
       transaction(() => {
         getDb()
           .prepare(
-            // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: advanceTaskStatus is the sanctioned dynamic-SQL helper; timestampSets[0] is always the literal "status = ?". Status→phase trigger plus the explicit DELETE FROM task_leases below keep the shadow surface coherent.
-            `UPDATE tasks SET ${timestampSets.join(", ")} WHERE id = ?`,
+            // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: advanceTaskStatus is the sanctioned dynamic-SQL helper; transition.sets[0] is always the literal "status = ?". Status→phase trigger plus the explicit DELETE FROM task_leases below keep the shadow surface coherent.
+            `UPDATE tasks SET ${transition.sets.join(", ")} WHERE id = ?`,
           )
-          .run(...timestampValues, taskId);
-        if (shouldClearLease) {
+          .run(...transition.values, taskId);
+        if (transition.clearsLease) {
           // Drop any live lease row in the same transaction so no
           // caller observes the intermediate state of "task in terminal
           // or backlog phase, lease still present". `releaseTaskLock`
