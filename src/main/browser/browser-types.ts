@@ -25,6 +25,7 @@ export interface PlatformRule {
   authCheckUrl: string;
   allowedHosts: string[];
   cookieOrigins: string[];
+  authenticatedCookieNames?: string[];
   unauthenticatedUrlMarkers: string[];
 }
 
@@ -34,6 +35,7 @@ export const PLATFORM_RULES: Record<string, PlatformRule> = {
     authCheckUrl: "https://x.com/home",
     allowedHosts: ["x.com", "twitter.com"],
     cookieOrigins: ["https://x.com", "https://twitter.com"],
+    authenticatedCookieNames: ["auth_token"],
     unauthenticatedUrlMarkers: ["/i/flow/login", "/login"],
   },
   linkedin: {
@@ -41,6 +43,7 @@ export const PLATFORM_RULES: Record<string, PlatformRule> = {
     authCheckUrl: "https://www.linkedin.com/feed/",
     allowedHosts: ["linkedin.com"],
     cookieOrigins: ["https://www.linkedin.com"],
+    authenticatedCookieNames: ["li_at"],
     unauthenticatedUrlMarkers: ["/login", "/checkpoint"],
   },
   instagram: {
@@ -48,6 +51,7 @@ export const PLATFORM_RULES: Record<string, PlatformRule> = {
     authCheckUrl: "https://www.instagram.com/",
     allowedHosts: ["instagram.com"],
     cookieOrigins: ["https://www.instagram.com"],
+    authenticatedCookieNames: ["sessionid", "ds_user_id"],
     unauthenticatedUrlMarkers: ["/accounts/login"],
   },
   facebook: {
@@ -55,6 +59,7 @@ export const PLATFORM_RULES: Record<string, PlatformRule> = {
     authCheckUrl: "https://www.facebook.com/",
     allowedHosts: ["facebook.com"],
     cookieOrigins: ["https://www.facebook.com"],
+    authenticatedCookieNames: ["c_user", "xs"],
     unauthenticatedUrlMarkers: ["/login"],
   },
   reddit: {
@@ -62,6 +67,7 @@ export const PLATFORM_RULES: Record<string, PlatformRule> = {
     authCheckUrl: "https://www.reddit.com/",
     allowedHosts: ["reddit.com"],
     cookieOrigins: ["https://www.reddit.com"],
+    authenticatedCookieNames: ["reddit_session", "token_v2"],
     unauthenticatedUrlMarkers: ["/login"],
   },
   youtube: {
@@ -69,6 +75,7 @@ export const PLATFORM_RULES: Record<string, PlatformRule> = {
     authCheckUrl: "https://www.youtube.com/",
     allowedHosts: ["youtube.com", "google.com"],
     cookieOrigins: ["https://www.youtube.com", "https://accounts.google.com"],
+    authenticatedCookieNames: ["SAPISID", "LOGIN_INFO"],
     unauthenticatedUrlMarkers: ["/signin", "/ServiceLogin"],
   },
   tiktok: {
@@ -76,6 +83,7 @@ export const PLATFORM_RULES: Record<string, PlatformRule> = {
     authCheckUrl: "https://www.tiktok.com/foryou",
     allowedHosts: ["tiktok.com"],
     cookieOrigins: ["https://www.tiktok.com"],
+    authenticatedCookieNames: ["sessionid", "sessionid_ss"],
     unauthenticatedUrlMarkers: ["/login"],
   },
   bluesky: {
@@ -97,6 +105,7 @@ export const PLATFORM_RULES: Record<string, PlatformRule> = {
     authCheckUrl: "https://www.threads.net/",
     allowedHosts: ["threads.net"],
     cookieOrigins: ["https://www.threads.net"],
+    authenticatedCookieNames: ["sessionid", "ds_user_id"],
     unauthenticatedUrlMarkers: ["/login"],
   },
   pinterest: {
@@ -104,6 +113,7 @@ export const PLATFORM_RULES: Record<string, PlatformRule> = {
     authCheckUrl: "https://www.pinterest.com/",
     allowedHosts: ["pinterest.com"],
     cookieOrigins: ["https://www.pinterest.com"],
+    authenticatedCookieNames: ["_pinterest_sess"],
     unauthenticatedUrlMarkers: ["/login"],
   },
   telegram: {
@@ -132,6 +142,7 @@ export const PLATFORM_RULES: Record<string, PlatformRule> = {
     authCheckUrl: "https://weibo.com/",
     allowedHosts: ["weibo.com", "weibo.cn"],
     cookieOrigins: ["https://weibo.com"],
+    authenticatedCookieNames: ["SUB", "SUBP"],
     unauthenticatedUrlMarkers: ["/login", "/signup"],
   },
   xiaohongshu: {

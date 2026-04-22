@@ -5,6 +5,7 @@ import { join, resolve, sep } from "node:path";
 import log from "electron-log/main.js";
 import type { BrowserAction, BrowserActionResult, QueuedAction } from "./browser/browser-types";
 import { getPlatformRules, attachWindowSecurity, assertAllowedUrl, waitForLoad, runAction } from "./browser/browser-action-executor";
+import { hasAuthenticatedCookie } from "./browser/browser-action-auth";
 
 export type { BrowserAction, BrowserActionResult } from "./browser/browser-types";
 
@@ -242,7 +243,7 @@ export class BrowserManager {
         }
       }),
     );
-    const hasCookies = cookieSets.some((cookies) => cookies.length > 0);
+    const hasCookies = hasAuthenticatedCookie(cookieSets, rules.authenticatedCookieNames);
     if (!hasCookies) {
       return false;
     }
