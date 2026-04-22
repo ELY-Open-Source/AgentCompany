@@ -18,7 +18,7 @@ export type EvalPromptAudience =
   | "individual_contributor";
 
 export interface EvalScenarioMatrixEntry {
-  fixtureId: string;
+  scenarioId: string;
   audience: EvalPromptAudience;
   requiredSops: string[];
   forbiddenSops?: string[];
@@ -32,7 +32,7 @@ export interface LoadedScenarioContract {
 
 export const EVAL_SCENARIO_MATRIX: EvalScenarioMatrixEntry[] = [
   {
-    fixtureId: "ceo-board-message-reply",
+    scenarioId: "ceo-board-message-reply",
     audience: "executive",
     requiredSops: [
       "SOP-001: Daily Standup Protocol",
@@ -41,7 +41,7 @@ export const EVAL_SCENARIO_MATRIX: EvalScenarioMatrixEntry[] = [
     ],
   },
   {
-    fixtureId: "ceo-bootstrap-empty",
+    scenarioId: "ceo-bootstrap-empty",
     audience: "executive",
     requiredSops: [
       "SOP-003: Delegation Protocol",
@@ -50,7 +50,7 @@ export const EVAL_SCENARIO_MATRIX: EvalScenarioMatrixEntry[] = [
     ],
   },
   {
-    fixtureId: "ic-task-execute",
+    scenarioId: "ic-task-execute",
     audience: "individual_contributor",
     requiredSops: [
       "SOP-002: Task Lifecycle",
@@ -63,7 +63,7 @@ export const EVAL_SCENARIO_MATRIX: EvalScenarioMatrixEntry[] = [
     ],
   },
   {
-    fixtureId: "manager-task-handoff",
+    scenarioId: "manager-task-handoff",
     audience: "manager",
     requiredSops: [
       "SOP-002: Task Lifecycle",
@@ -72,12 +72,32 @@ export const EVAL_SCENARIO_MATRIX: EvalScenarioMatrixEntry[] = [
     ],
   },
   {
-    fixtureId: "non-ceo-dm-reply",
+    scenarioId: "non-ceo-dm-reply",
     audience: "manager",
     requiredSops: [
       "SOP-001: Daily Standup Protocol",
       "SOP-007: Inter-Agent Communication",
       "SOP-008: Cross-Department Collaboration",
+    ],
+  },
+  {
+    scenarioId: "ceo-budget-cadence-incident",
+    audience: "executive",
+    requiredSops: [
+      "SOP-006: Escalation Chain",
+      "SOP-010: Budget & Financial Protocol",
+      "SOP-012: Sprint & Cadence Management",
+      "SOP-013: Incident Response Protocol",
+    ],
+  },
+  {
+    scenarioId: "manager-docs-knowledge-handoff",
+    audience: "manager",
+    requiredSops: [
+      "SOP-006: Escalation Chain",
+      "SOP-009: Document Management",
+      "SOP-013: Incident Response Protocol",
+      "SOP-015: Knowledge Management",
     ],
   },
 ];

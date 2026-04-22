@@ -20,8 +20,8 @@
  */
 
 import { existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile, readdir } from "node:fs/promises";
+import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { judgeAssertions } from "./assertion-judge.js";
 import { runEval } from "./eval-runner.js";
@@ -41,6 +41,9 @@ import type {
 } from "./types.js";
 
 const FIXTURE_DIR = join(__dirname, "fixtures");
+const SOP_DIR = join(__dirname, "../../src/main/prompt-builder/sops");
+const SOP_ID_PATTERN = /^(SOP-\d{3}):/;
+const SOP_HEADING_PATTERN = /^## (SOP-\d{3}: .+)$/m;
 
 async function listFixtures(): Promise<string[]> {
   if (!existsSync(FIXTURE_DIR)) return [];
@@ -49,6 +52,37 @@ async function listFixtures(): Promise<string[]> {
     .filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl"))
     .map((entry) => join(FIXTURE_DIR, entry.name))
     .sort();
+}
+
+async function listSourceSops(): Promise<Array<{ id: string; heading: string; fileName: string }>> {
+  const entries = await readdir(SOP_DIR, { withFileTypes: true });
+  const sopFiles = entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".en.md"))
+    .map((entry) => join(SOP_DIR, entry.name))
+    .sort();
+
+  const sops: Array<{ id: string; heading: string; fileName: string }> = [];
+  for (const filePath of sopFiles) {
+    const content = await readFile(filePath, "utf8");
+    const heading = content.match(SOP_HEADING_PATTERN)?.[1];
+    if (!heading) {
+      throw new Error(`eval SOP coverage: ${basename(filePath)} is missing a level-2 SOP heading`);
+    }
+    const id = heading.match(SOP_ID_PATTERN)?.[1];
+    if (!id) {
+      throw new Error(`eval SOP coverage: ${basename(filePath)} has malformed heading "${heading}"`);
+    }
+    sops.push({ id, heading, fileName: basename(filePath) });
+  }
+  return sops;
+}
+
+function extractCoveredSopId(sop: string): string {
+  const id = sop.match(SOP_ID_PATTERN)?.[1];
+  if (!id) {
+    throw new Error(`eval SOP coverage: matrix entry has malformed SOP label "${sop}"`);
+  }
+  return id;
 }
 
 function buildInMemoryFixture(assertions: Assertion[]): FixtureFile {
@@ -202,7 +236,7 @@ describe("harness self-test (in-memory fixture)", () => {
 
 describe("eval SOP coverage matrix", () => {
   it.each(EVAL_SCENARIO_MATRIX)(
-    "covers real prompt SOPs for $fixtureId",
+    "covers real prompt SOPs for $scenarioId",
     (entry) => {
       const prompt = buildMatrixPrompt(entry);
       for (const sop of entry.requiredSops) {
@@ -213,6 +247,29 @@ describe("eval SOP coverage matrix", () => {
       }
     },
   );
+
+  it("pairs every source SOP file with at least one eval matrix scenario", async () => {
+    const sourceSops = await listSourceSops();
+    const coveredSopIds = new Set(
+      EVAL_SCENARIO_MATRIX.flatMap((entry) => entry.requiredSops.map(extractCoveredSopId)),
+    );
+
+    const missing = sourceSops
+      .filter((sop) => !coveredSopIds.has(sop.id))
+      .map((sop) => `${sop.id} ${sop.fileName}`);
+
+    expect(missing).toEqual([]);
+  });
+
+  it("keeps eval matrix SOP labels tied to source SOP files", async () => {
+    const sourceSops = await listSourceSops();
+    const sourceSopIds = new Set(sourceSops.map((sop) => sop.id));
+    const unknown = EVAL_SCENARIO_MATRIX
+      .flatMap((entry) => entry.requiredSops.map(extractCoveredSopId))
+      .filter((sopId) => !sourceSopIds.has(sopId));
+
+    expect(unknown).toEqual([]);
+  });
 });
 
 const fixturePaths = await listFixtures();

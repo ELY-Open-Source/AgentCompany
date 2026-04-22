@@ -22,6 +22,17 @@ shapes, message substrings, and turn caps. Semantic quality judgment belongs in
 | `harness.test.ts` | vitest driver that walks `fixtures/` and asserts every fixture passes. |
 | `fixtures/` | Recorded JSONL traces. Git-tracked. Not bundled into production (`electron-builder.yml` only ships `out/**`). |
 
+## SOP coverage gate
+
+`scenario-contract.ts` owns the prompt SOP coverage matrix. Each row renders a
+real `buildTaskPrompt` context for one audience and lists the SOP headings that
+must be present or absent for that scenario.
+
+`harness.test.ts` reads every source file under
+`src/main/prompt-builder/sops/*.en.md` and requires each `SOP-###` heading to be
+claimed by at least one matrix scenario. Adding, deleting, or renaming a SOP
+therefore changes `pnpm test:eval` directly.
+
 ## Running
 
 ```bash
@@ -187,6 +198,8 @@ belongs in the LLM-as-judge tier. See
 
 - Fixtures are recorded traces from live provider calls.
 - `fixtures/` belongs in git and participates in `pnpm verify`.
+- Every source SOP under `src/main/prompt-builder/sops/` belongs to at least
+  one `EVAL_SCENARIO_MATRIX.requiredSops` entry.
 - `scenarios/<fixtureId>/system.txt` must hash to
   `meta.systemPromptHash`.
 - `scenarios/<fixtureId>/user.txt` must match the first user turn exactly.
