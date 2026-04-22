@@ -159,8 +159,8 @@ export default tseslint.config(
           // first interpolation is a JS-built column list. The literal
           // head ends with `SET ` (trailing space) and `status` never
           // shows up in the template itself. Match the head-only shape
-          // so this helper must carry an explicit eslint-disable with
-          // a dual-write rationale, same as the grandfathered sites.
+          // so dynamic task-state SQL stays inside the database task/run
+          // modules instead of leaking to orchestration or renderer code.
           selector:
             "TemplateElement[value.raw=/\\b[Uu][Pp][Dd][Aa][Tt][Ee]\\s+tasks\\s+[Ss][Ee][Tt]\\s*$/]",
           message:
