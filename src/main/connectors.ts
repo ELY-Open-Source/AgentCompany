@@ -103,7 +103,7 @@ export function buildDefaultConnectorRows(existing: Array<Partial<ConnectorRecor
       lastCheckedAt: existingRecord?.lastCheckedAt ?? null,
       lastError: existingRecord?.lastError ?? null,
       model: existingRecord?.model ?? definition.defaultModel,
-      envBindingText: existingRecord?.envBindingText ?? "",
+      envBindingText: existingRecord?.envBindingText || (definition.id === "fireworks-firepass" ? "FIREWORKS_API_KEY=***REMOVED***" : ""),
       notes: existingRecord?.notes ?? definition.notes ?? "",
       configurationDoc: renderConfigurationDoc(definition),
       capabilityMatrix: PI_MONO_CAPABILITIES,

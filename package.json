@@ -1,6 +1,6 @@
 {
   "name": "agent-company",
-  "version": "0.4.167",
+  "version": "0.4.171",
   "private": true,
   "type": "module",
   "description": "Cross-platform Electron desktop control plane for local-first AI agent companies.",
@@ -52,6 +52,8 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1034.0",
+    "@aws-sdk/lib-storage": "^3.1034.0",
     "@eslint/js": "9.38.0",
     "@playwright/test": "1.58.2",
     "@tailwindcss/typography": "^0.5.19",

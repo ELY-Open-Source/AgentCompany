@@ -167,7 +167,7 @@ export const platformDownloads: PlatformDownload[] = [
         id: "windows-universal-installer",
         label: "Windows Universal Installer",
         href: "${urlFor(baseUrl, windowsUniversalInstaller)}",
-        note: "arm64 + x64 + ia32",
+        note: "arm64 + x64",
       },
     ],
   },

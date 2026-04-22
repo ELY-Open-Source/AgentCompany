@@ -22,7 +22,7 @@ export const API_KEY_CONNECTORS: ConnectorDefinition[] = [
       "Direct Anthropic Messages API. Use this for production workloads where OAuth subscription tiers are not appropriate.",
     defaultModel: "claude-sonnet-4-5",
     auth: { type: "api_key", envKey: "ANTHROPIC_API_KEY" },
-    onboardingFeatured: true,
+    onboardingFeatured: false,
   },
   {
     id: "openai",
@@ -32,7 +32,7 @@ export const API_KEY_CONNECTORS: ConnectorDefinition[] = [
       "OpenAI Responses + Chat Completions endpoints. Covers GPT-5 family and Codex deployments.",
     defaultModel: "gpt-5.4",
     auth: { type: "api_key", envKey: "OPENAI_API_KEY" },
-    onboardingFeatured: true,
+    onboardingFeatured: false,
   },
   {
     id: "google",
@@ -165,6 +165,7 @@ export const API_KEY_CONNECTORS: ConnectorDefinition[] = [
   },
   {
     id: "fireworks-firepass",
+    onboardingFeatured: true,
     provider: "fireworks-firepass",
     label: "Fireworks Fire Pass",
     description:

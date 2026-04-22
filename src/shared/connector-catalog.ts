@@ -50,7 +50,7 @@ const OAUTH_ENTRIES: ConnectorCatalogEntry[] = [
     description: "Anthropic Claude via Claude Pro / Max subscription OAuth.",
     defaultModel: "claude-sonnet-4-5",
     auth: { type: "oauth", oauthId: "anthropic" },
-    onboardingFeatured: true,
+    onboardingFeatured: false,
     notes: "Requires an active Claude Pro or Max subscription. Tokens refresh automatically.",
   },
   {
@@ -60,7 +60,7 @@ const OAUTH_ENTRIES: ConnectorCatalogEntry[] = [
     description: "OpenAI Codex via a ChatGPT Plus or Pro subscription.",
     defaultModel: "gpt-5.3-codex",
     auth: { type: "oauth", oauthId: "openai-codex" },
-    onboardingFeatured: true,
+    onboardingFeatured: false,
     notes: "Personal use only; requires ChatGPT Plus or Pro.",
   },
   {
@@ -100,7 +100,7 @@ const API_KEY_ENTRIES: ConnectorCatalogEntry[] = [
     description: "Direct Anthropic Messages API for production workloads.",
     defaultModel: "claude-sonnet-4-5",
     auth: { type: "api_key", envKey: "ANTHROPIC_API_KEY" },
-    onboardingFeatured: true,
+    onboardingFeatured: false,
   },
   {
     id: "openai",
@@ -109,7 +109,7 @@ const API_KEY_ENTRIES: ConnectorCatalogEntry[] = [
     description: "OpenAI Responses + Chat Completions endpoints. GPT-5 family and Codex deployments.",
     defaultModel: "gpt-5.4",
     auth: { type: "api_key", envKey: "OPENAI_API_KEY" },
-    onboardingFeatured: true,
+    onboardingFeatured: false,
   },
   {
     id: "google",
@@ -233,6 +233,7 @@ const API_KEY_ENTRIES: ConnectorCatalogEntry[] = [
   },
   {
     id: "fireworks-firepass",
+    onboardingFeatured: true,
     provider: "fireworks-firepass",
     label: "Fireworks Fire Pass",
     description: "Fireworks Fire Pass — subscription bundle. Same FIREWORKS_API_KEY.",
@@ -250,7 +251,6 @@ const CLOUD_ENTRIES: ConnectorCatalogEntry[] = [
     description: "Anthropic, Amazon Nova, and Llama models served through AWS Bedrock.",
     defaultModel: "us.anthropic.claude-sonnet-4-20250514-v1:0",
     auth: { type: "aws" },
-    onboardingFeatured: true,
     notes: "Honours standard AWS credential discovery. Region defaults to us-east-1.",
   },
   {

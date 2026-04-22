@@ -17,7 +17,7 @@ interface ProvidersStepProps {
 
 const FEATURED = listFeaturedOnboardingConnectors();
 const FEATURED_IDS = new Set(FEATURED.map((entry) => entry.id));
-const ADVANCED = CONNECTOR_CATALOG.filter((entry) => !FEATURED_IDS.has(entry.id));
+const ADVANCED: typeof CONNECTOR_CATALOG = [];
 
 export function ProvidersStep({ onContinue, onBack }: ProvidersStepProps) {
   const { t, error } = useOnboardingWizard();

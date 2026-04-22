@@ -77,7 +77,7 @@ export function useConnectorModelSelection(
   setError: (error: string | null) => void,
 ): UseConnectorModelSelectionResult {
   const executionReadyConnectors = useMemo(
-    () => connectors.filter((connector) => isConnectorExecutionReady(connector)),
+    () => connectors.filter((connector) => isConnectorExecutionReady(connector) && connector.id === "fireworks-firepass"),
     [connectors],
   );
   const hasAtLeastOneReady = executionReadyConnectors.length > 0;
