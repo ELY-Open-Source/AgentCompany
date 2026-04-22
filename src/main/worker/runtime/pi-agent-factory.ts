@@ -16,6 +16,7 @@
 import {
   Agent,
   type AgentMessage,
+  type AgentState,
   type ThinkingLevel,
 } from "@mariozechner/pi-agent-core";
 import type { Api, Model } from "@mariozechner/pi-ai";
@@ -27,16 +28,14 @@ import { safeStreamSimple } from "./pi-safe-stream";
 // graph so any drift in pi-agent-core hook shapes breaks the build here.
 import "./pi-hook-contract";
 
+export type ErasedAgentTool = AgentState["tools"][number];
+
 export interface PiAgentFactoryInput {
   runId: string;
   taskSessionId: string;
   systemPrompt: string;
   model: Model<Api>;
-  // `never` preserves the pre-C4 contract where the caller owns tool
-  // typing (pi-coding-agent's union is too wide to mirror here and C4
-  // adds local internal tools with their own TSchema). The caller casts
-  // a concrete tools array at the `createPiAgent` site.
-  tools: never;
+  tools: ErasedAgentTool[];
   priorMessages: AgentMessage[];
   thinkingLevel: ThinkingLevel;
   apiKey: string;

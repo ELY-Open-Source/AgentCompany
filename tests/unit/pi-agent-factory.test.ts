@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Model } from "@mariozechner/pi-ai";
 import { describe, expect, it } from "vitest";
 import { createPiAgent } from "../../src/main/worker/runtime/pi-agent-factory";
@@ -25,7 +27,7 @@ describe("pi agent factory", () => {
       taskSessionId: "session_1",
       systemPrompt: "You are an engineer.",
       model: createModel(),
-      tools: [] as never,
+      tools: [],
       priorMessages: [],
       thinkingLevel: "off",
       apiKey: "test-key",
@@ -38,5 +40,15 @@ describe("pi agent factory", () => {
     });
 
     expect(agent.toolExecution).toBe("sequential");
+  });
+
+  it("keeps worker tool arrays on the erased pi tool contract", () => {
+    const runnerSource = readFileSync(join(process.cwd(), "src/main/worker/runtime/index.ts"), "utf8");
+    const factorySource = readFileSync(join(process.cwd(), "src/main/worker/runtime/pi-agent-factory.ts"), "utf8");
+
+    expect(runnerSource).not.toContain("as unknown as AgentTool");
+    expect(runnerSource).not.toContain("as never");
+    expect(factorySource).not.toContain("tools: never");
+    expect(factorySource).toContain('type ErasedAgentTool = AgentState["tools"][number]');
   });
 });

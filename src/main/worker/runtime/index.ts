@@ -1,10 +1,10 @@
-import type { Agent, AgentMessage, AgentTool } from "@mariozechner/pi-agent-core";
+import type { Agent, AgentMessage } from "@mariozechner/pi-agent-core";
 import { resolveModel, resolveExtraStreamHeaders } from "../../model-resolver";
 import type { RunStatus } from "@shared/types";
 import type { ChildMessage, RunJob } from "./helpers";
 import { applyEnvOverrides, buildRedactor } from "./helpers";
 import { createCodingTools } from "@mariozechner/pi-coding-agent";
-import { createPiAgent, resolveThinkingLevel } from "./pi-agent-factory";
+import { createPiAgent, resolveThinkingLevel, type ErasedAgentTool } from "./pi-agent-factory";
 import type { WorkerRpcClient } from "../entry/rpc";
 import { createHireAgentTool, HIRE_AGENT_TOOL_NAME } from "./internal-tools/hire-agent-tool";
 import { createFileApprovalTool, FILE_APPROVAL_TOOL_NAME } from "./internal-tools/file-approval-tool";
@@ -149,20 +149,14 @@ export class WorkerRunner {
 
         const cwd = job.workspacePath ?? process.cwd();
         const codingTools = createCodingTools(cwd);
-        // pi's `AgentTool<TSchema>` is generic over the concrete TypeBox
-        // schema; two tools with different schemas cannot share a single
-        // `AgentTool<TSchema>[]` without widening to the base shape. The
-        // internal-tool factories return properly-typed instances; we
-        // widen via unknown only at the array boundary so each execute
-        // signature stays type-checked at definition time.
-        const internalTools: AgentTool[] = [];
+        const internalTools: ErasedAgentTool[] = [];
         for (const toolName of job.internalTools ?? []) {
           switch (toolName) {
             case HIRE_AGENT_TOOL_NAME:
-              internalTools.push(createHireAgentTool(rpc, job.runId) as unknown as AgentTool);
+              internalTools.push(createHireAgentTool(rpc, job.runId));
               break;
             case FILE_APPROVAL_TOOL_NAME:
-              internalTools.push(createFileApprovalTool(rpc, job.runId) as unknown as AgentTool);
+              internalTools.push(createFileApprovalTool(rpc, job.runId));
               break;
             default: {
               // Exhaustiveness guard: a new entry in the `internalTools`
@@ -173,7 +167,7 @@ export class WorkerRunner {
             }
           }
         }
-        const tools = [...codingTools, ...internalTools] as never;
+        const tools: ErasedAgentTool[] = [...codingTools, ...internalTools];
 
         const agent = createPiAgent({
           runId: job.runId,
