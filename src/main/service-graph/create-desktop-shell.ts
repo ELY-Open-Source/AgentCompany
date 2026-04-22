@@ -4,8 +4,6 @@ import type { DesktopEvent } from "@shared/types";
 import type { DesktopResult } from "@shared/contracts";
 import { createDesktopShellService } from "../desktop-shell-service";
 import type { NotificationOptions } from "../notification-service";
-import type { LateBinding } from "./late-binding";
-import type { createUpdaterService } from "../updater-service";
 
 export interface DesktopShellDeps {
   db: AppDatabase;
@@ -22,15 +20,11 @@ export interface DesktopShellDeps {
     channel: string,
     handler: (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<DesktopResult<unknown>> | DesktopResult<unknown>,
   ) => void;
-  updaterRef: LateBinding<ReturnType<typeof createUpdaterService>>;
+  checkForUpdates: () => Promise<void>;
   logger: { warn: (...args: unknown[]) => void };
 }
 
-/**
- * Build the desktop shell service. `updaterRef` is late-bound because the
- * updater is constructed after the shell; the menu's "Check for updates"
- * handler resolves it at call time.
- */
+/** Build the desktop shell service with concrete updater and window callbacks. */
 export function createDesktopShell({
   db,
   preloadPath,
@@ -43,7 +37,7 @@ export function createDesktopShell({
   emitEvent,
   notify,
   registerHandle,
-  updaterRef,
+  checkForUpdates,
   logger,
 }: DesktopShellDeps) {
   const desktopShellService = createDesktopShellService({
@@ -59,7 +53,7 @@ export function createDesktopShell({
       isQuittingRef.current = true;
     },
     onCheckForUpdates: async () => {
-      await updaterRef.get().checkForUpdates();
+      await checkForUpdates();
     },
     onBackupProfile: async () => {
       const target = await import("electron").then(({ dialog }) => dialog.showOpenDialog({

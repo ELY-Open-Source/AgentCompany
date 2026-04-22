@@ -4,7 +4,6 @@ import type { DesktopEvent } from "@shared/types";
 import { createAutomationService } from "../automation-service";
 import { createBrowserActionService } from "../browser-action-service";
 import { createOnboardingService } from "../onboarding-service";
-import { createUpdaterService } from "../updater-service";
 import type { createOrchestrationService } from "../orchestration-service";
 import type { createSkillService } from "../skill-service";
 import type { NotificationOptions } from "../notification-service";
@@ -31,12 +30,11 @@ export interface BackgroundServices {
   automationService: ReturnType<typeof createAutomationService>;
   browserActionService: ReturnType<typeof createBrowserActionService>;
   onboardingService: ReturnType<typeof createOnboardingService>;
-  updaterService: ReturnType<typeof createUpdaterService>;
 }
 
 /**
  * Build background services that run off the main dispatch loop: automation
- * triggers, browser-action dispatch, onboarding hire flow, and the updater.
+ * triggers, browser-action dispatch, and onboarding hire flow.
  * Orchestration is fully assembled at this point, so all dependencies are
  * concrete references rather than lazy slots.
  */
@@ -88,8 +86,5 @@ export function createBackgroundServices({
     },
   });
 
-  const updaterService = createUpdaterService({ db, logger, notify });
-  updaterService.attachListeners();
-
-  return { automationService, browserActionService, onboardingService, updaterService };
+  return { automationService, browserActionService, onboardingService };
 }

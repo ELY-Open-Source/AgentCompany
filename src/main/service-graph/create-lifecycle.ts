@@ -8,7 +8,6 @@ import type { createDesktopShellService } from "../desktop-shell-service";
 import type { createOrchestrationService } from "../orchestration-service";
 import type { createWorkerService } from "../worker-service";
 import type { PiRuntimeServices } from "../service-graph-pi-runtime";
-import type { LateBinding } from "./late-binding";
 
 /** Overall budget for awaited shutdown drain (worker exit + API close). */
 const SHUTDOWN_BUDGET_MS = 5_000;
@@ -35,11 +34,6 @@ export interface LifecycleDeps {
    * old onBeforeQuit.
    */
   clearServiceRefs: () => void;
-  /**
-   * Late bindings owned by the graph; cleared after drain so any stray
-   * post-quit access fails loudly rather than returning stale data.
-   */
-  lateBindings: Array<LateBinding<unknown>>;
 }
 
 /**
@@ -62,7 +56,6 @@ export function createLifecycle(deps: LifecycleDeps) {
     workerService,
     desktopShellService,
     clearServiceRefs,
-    lateBindings,
   } = deps;
 
   let drainPromise: Promise<number> | null = null;
@@ -113,7 +106,6 @@ export function createLifecycle(deps: LifecycleDeps) {
     try { db.close(); } catch (err) { logger.warn("[lifecycle] db.close failed:", err); }
 
     clearServiceRefs();
-    for (const binding of lateBindings) binding.clear();
 
     if (outcome === "timeout") {
       const stuck = listActiveRunIds();

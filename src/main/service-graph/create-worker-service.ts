@@ -1,14 +1,12 @@
 import type { AppDatabase } from "../database";
-import type { DesktopEvent, RunRecord } from "@shared/types";
+import type { DesktopEvent } from "@shared/types";
 import { createWorkerService } from "../worker-service";
-import type { createOrchestrationService } from "../orchestration-service";
-import type { createAutomationService } from "../automation-service";
 import type { createBudgetEnforcementService } from "../budget-enforcement-service";
 import type { createSessionManagementService } from "../session-management-service";
 import type { PiRuntimeServices } from "../service-graph-pi-runtime";
 import type { NotificationOptions } from "../notification-service";
 import type { RuntimeMessageInjector } from "../agent-runtime";
-import type { LateBinding } from "./late-binding";
+import type { WorkerServiceDependencies } from "../worker/entry/types";
 
 export interface WorkerServiceDeps {
   db: AppDatabase;
@@ -22,8 +20,9 @@ export interface WorkerServiceDeps {
   isQuittingRef: { current: boolean };
   publishDomainChanged: () => void;
   emitEvent: (event: DesktopEvent) => void;
-  orchestrationRef: LateBinding<ReturnType<typeof createOrchestrationService>>;
-  automationRef: LateBinding<ReturnType<typeof createAutomationService>>;
+  wakeAgentIfPossible: WorkerServiceDependencies["wakeAgentIfPossible"];
+  dispatchRunToWorker: WorkerServiceDependencies["dispatchRunToWorker"];
+  processRunCompletion: WorkerServiceDependencies["processRunCompletion"];
   onRunStarted?: (runId: string, taskId: string | null, agentId: string, companyId: string) => void;
   onRunCompleted?: (runId: string, taskId: string | null, agentId: string, companyId: string, status: string, summary: string | null, errorMessage: string | null) => void;
   notify: (options: NotificationOptions) => void;
@@ -38,11 +37,7 @@ export interface WorkerServiceDeps {
   getRuntimeMessageInjector: () => RuntimeMessageInjector | null;
 }
 
-/**
- * Build the worker service. Orchestration and automation are late-bound via
- * LateBinding slots because they are constructed after the worker but close
- * over the worker's dispatch functions.
- */
+/** Build the worker service with dispatch callbacks supplied by the service event hub. */
 export function buildWorkerService(deps: WorkerServiceDeps) {
   const {
     db,
@@ -51,8 +46,9 @@ export function buildWorkerService(deps: WorkerServiceDeps) {
     isQuittingRef,
     publishDomainChanged,
     emitEvent,
-    orchestrationRef,
-    automationRef,
+    wakeAgentIfPossible,
+    dispatchRunToWorker,
+    processRunCompletion,
     onRunStarted,
     onRunCompleted,
     notify,
@@ -61,19 +57,6 @@ export function buildWorkerService(deps: WorkerServiceDeps) {
     piRuntimeRef,
     getRuntimeMessageInjector,
   } = deps;
-
-  const wakeAgentIfPossible = (agentId: string | null | undefined, companyId: string, trigger: string) =>
-    orchestrationRef.get().wakeAgentIfPossible(agentId, companyId, trigger);
-
-  const dispatchRunToWorker: Parameters<typeof createWorkerService>[0]["dispatchRunToWorker"] = (params) =>
-    orchestrationRef.get().dispatchRunToWorker(params);
-
-  const processRunCompletion = (
-    run: RunRecord,
-    event: Parameters<ReturnType<typeof createAutomationService>["processRunCompletion"]>[1],
-  ) => {
-    automationRef.get().processRunCompletion(run, event);
-  };
 
   return createWorkerService({
     db,

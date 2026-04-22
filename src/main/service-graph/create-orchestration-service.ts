@@ -5,10 +5,8 @@ import type { createBudgetEnforcementService } from "../budget-enforcement-servi
 import type { createSessionManagementService } from "../session-management-service";
 import type { createSkillService } from "../skill-service";
 import type { createWorkerService } from "../worker-service";
-import type { createAutomationService, AutomationEventContext } from "../automation-service";
-import type { createBrowserActionService } from "../browser-action-service";
 import type { NotificationOptions } from "../notification-service";
-import type { LateBinding } from "./late-binding";
+import type { OrchestrationDependencies } from "../orchestration/types";
 
 export interface OrchestrationServiceDeps {
   db: AppDatabase;
@@ -28,17 +26,11 @@ export interface OrchestrationServiceDeps {
   budgetService: ReturnType<typeof createBudgetEnforcementService>;
   sessionService: ReturnType<typeof createSessionManagementService>;
   workerService: ReturnType<typeof createWorkerService>;
-  automationRef: LateBinding<ReturnType<typeof createAutomationService>>;
-  browserActionRef: LateBinding<ReturnType<typeof createBrowserActionService>>;
+  dispatchAutomation: OrchestrationDependencies["dispatchAutomation"];
   checkpointEngine?: { shouldPauseHeartbeat: (companyId: string, agentId: string) => boolean };
 }
 
-/**
- * Build the orchestration service with resolved dependencies. Late bindings
- * for automation and browser-action are required because orchestration's
- * dispatchAutomation closure is invoked long after assembly — the slots are
- * filled in the same init() pass, before any scheduler tick.
- */
+/** Build the orchestration service with concrete worker wiring and event dispatch. */
 export function buildOrchestrationService({
   db,
   logger,
@@ -52,13 +44,9 @@ export function buildOrchestrationService({
   budgetService,
   sessionService,
   workerService,
-  automationRef,
+  dispatchAutomation,
   checkpointEngine,
 }: OrchestrationServiceDeps) {
-  const dispatchAutomation = (trigger: string, ctx: AutomationEventContext) => {
-    automationRef.get().dispatchAutomation(trigger, ctx);
-  };
-
   return createOrchestrationService({
     db,
     logger,

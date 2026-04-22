@@ -13,14 +13,14 @@ import type { createAutomationService } from "./automation-service";
 import type { createBrowserActionService } from "./browser-action-service";
 import type { createOnboardingService } from "./onboarding-service";
 import type { createOrchestrationService } from "./orchestration-service";
-import type { createUpdaterService } from "./updater-service";
+import { createUpdaterService } from "./updater-service";
 import { createLeafServices } from "./service-graph/create-leaf-services";
 import { createDesktopShell } from "./service-graph/create-desktop-shell";
 import { buildWorkerService } from "./service-graph/create-worker-service";
 import { buildOrchestrationService } from "./service-graph/create-orchestration-service";
 import { createBackgroundServices } from "./service-graph/create-background-services";
 import { createLifecycle } from "./service-graph/create-lifecycle";
-import { LateBinding } from "./service-graph/late-binding";
+import { createServiceEventHub } from "./service-graph/service-event-hub";
 
 interface ServiceGraphDependencies {
   db: AppDatabase;
@@ -58,9 +58,8 @@ interface ServiceGraphDependencies {
 
 /**
  * Thin orchestrator: assembles services in a deterministic topological order
- * and exposes them via read-only getters. All wiring is performed via
- * explicit dependency passing; late-bound cycles are handled by
- * `LateBinding` slots that throw if accessed before assignment.
+ * and exposes them via read-only getters. Cross-service callbacks are routed
+ * through a typed event hub so construction order stays explicit.
  */
 export function createServiceGraph(deps: ServiceGraphDependencies) {
   const {
@@ -101,16 +100,7 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
   let leaf: ReturnType<typeof createLeafServices> | null = null;
   let runtimeMessageInjector: RuntimeMessageInjector | null = null;
   const piRuntimeRef: { current: PiRuntimeServices | null } = { current: null };
-
-  // Late-bound slots resolve circular construction: worker needs orchestration
-  // (for dispatchRunToWorker), orchestration needs worker (for enqueueWorkerRun),
-  // orchestration needs automation (for dispatchAutomation), automation/orchestration
-  // need browser-action (for dispatchBrowserAction). Each is filled inside
-  // init() before the corresponding getter closure is ever invoked.
-  const orchestrationRef = new LateBinding<ReturnType<typeof createOrchestrationService>>("orchestrationService");
-  const automationRef = new LateBinding<ReturnType<typeof createAutomationService>>("automationService");
-  const browserActionRef = new LateBinding<ReturnType<typeof createBrowserActionService>>("browserActionService");
-  const updaterRef = new LateBinding<ReturnType<typeof createUpdaterService>>("updaterService");
+  const serviceEvents = createServiceEventHub();
 
   function requireLeaf() {
     if (!leaf) throw new Error("Leaf services are not initialized.");
@@ -121,6 +111,8 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
     nativeTheme.themeSource = db.snap.listSnapshot().theme;
 
     leaf = createLeafServices({ db, logger, notify, publishDomainChanged });
+    updaterService = createUpdaterService({ db, logger, notify });
+    updaterService.attachListeners();
 
     desktopShellService = createDesktopShell({
       db,
@@ -134,7 +126,11 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
       emitEvent,
       notify,
       registerHandle,
-      updaterRef,
+      checkForUpdates: async () => {
+        const updater = updaterService;
+        if (!updater) throw new Error("Updater service is not initialized.");
+        await updater.checkForUpdates({ manual: true });
+      },
       logger,
     });
 
@@ -163,8 +159,9 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
       isQuittingRef,
       publishDomainChanged,
       emitEvent,
-      orchestrationRef,
-      automationRef,
+      wakeAgentIfPossible: serviceEvents.wakeAgentIfPossible,
+      dispatchRunToWorker: serviceEvents.dispatchRunToWorker,
+      processRunCompletion: serviceEvents.processRunCompletion,
       onRunStarted,
       onRunCompleted,
       notify,
@@ -183,9 +180,8 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
         worker.postMessage(message);
       },
       getWakeAgent: () => {
-        if (!orchestrationRef.isAssigned()) return null;
-        const orch = orchestrationRef.get();
-        return (agentId, companyId, trigger) => orch.wakeAgentIfPossible(agentId, companyId, trigger);
+        if (!serviceEvents.hasOrchestrationHandlers()) return null;
+        return (agentId, companyId, trigger) => serviceEvents.wakeAgentIfPossible(agentId, companyId, trigger);
       },
       logger,
     });
@@ -203,13 +199,10 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
       budgetService: leaf.budgetEnforcementService,
       sessionService: leaf.sessionManagementService,
       workerService,
-      automationRef,
-      browserActionRef,
+      dispatchAutomation: serviceEvents.dispatchAutomation,
       checkpointEngine,
     });
-    orchestrationRef.set(orchestrationService);
-
-    workerService.createWorker();
+    serviceEvents.registerOrchestration(orchestrationService);
 
     const background = createBackgroundServices({
       db,
@@ -226,10 +219,9 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
     automationService = background.automationService;
     browserActionService = background.browserActionService;
     onboardingService = background.onboardingService;
-    updaterService = background.updaterService;
-    automationRef.set(automationService);
-    browserActionRef.set(browserActionService);
-    updaterRef.set(updaterService);
+    serviceEvents.registerAutomation(automationService);
+    serviceEvents.assertReady();
+    workerService.createWorker();
 
     appLifecycleService = createLifecycle({
       db,
@@ -254,13 +246,8 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
         appLifecycleService = null;
         runtimeMessageInjector = null;
         leaf = null;
+        serviceEvents.clear();
       },
-      lateBindings: [
-        orchestrationRef as LateBinding<unknown>,
-        automationRef as LateBinding<unknown>,
-        browserActionRef as LateBinding<unknown>,
-        updaterRef as LateBinding<unknown>,
-      ],
     });
   }
 
