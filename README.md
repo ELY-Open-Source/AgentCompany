@@ -189,7 +189,8 @@ src/
 | `scripts/` | Build, release, and packaging Node scripts. |
 | `landing/` | Marketing site (Next.js). Has its own `landing/public/screenshots/`, separate from `docs/screenshots/`. |
 | `AgentCompany-Rust/` | Exploratory Rust port; see section below. |
-| `pi-mono-reference/` | Local reference snapshot only. Shipping runtime source of truth is the pinned `@mariozechner/*` npm dependencies in root `package.json`. |
+
+Agent runtime source of truth is the pinned `@mariozechner/*` npm dependency set in root `package.json` and `pnpm-lock.yaml`. Third-party reference snapshots live outside this repository.
 
 ---
 

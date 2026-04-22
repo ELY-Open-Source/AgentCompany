@@ -161,7 +161,7 @@ function getDockerBuildCommands(platform) {
 }
 
 // Paths under rootDir that the container needs. Credentials, env files, docs,
-// screenshots, pi-mono-reference, and other host-only state are deliberately
+// screenshots, and other host-only state are deliberately
 // excluded to keep secrets out of the Wine/Linux builder image.
 const containerSourceMounts = [
   { host: "src", mode: "ro" },

@@ -59,7 +59,6 @@ AgentCompany/
 │       ├── package.json
 │       ├── app/
 │       └── ...
-├── pi-mono-reference/       # 保留在 root（现状）
 └── docs/
 ```
 
@@ -155,7 +154,7 @@ packages:
 - **不引入 turborepo / nx**：pnpm workspace 已足够，加 task runner 是过度工程
 - **不改代码模块边界**：desktop 内部代码结构本 proposal 不动
 - **不做跨 package 共享代码**：landing 目前不需要 desktop 的类型；如果未来需要再加 `packages/shared/`
-- **不动 pi-mono-reference/**：那是第三方 reference 副本，保留在 root
+- **第三方 runtime reference snapshot 边界**：reference snapshot 已迁出本仓库，monorepo split 保持这个边界
 - **不改 git branching strategy**：单仓单分支 vs 多分支不是本 proposal 问题
 
 ## 参考文件清单
@@ -198,7 +197,6 @@ AgentCompany/
 ├── .gitignore
 ├── CLAUDE.md / AGENTS.md
 ├── docs/
-├── pi-mono-reference/                # 保留根（第三方 reference）
 ├── scripts/
 │   ├── desktop/                      # electron-builder / signing / release
 │   └── landing/                      # cloudflare deploy / release-links
