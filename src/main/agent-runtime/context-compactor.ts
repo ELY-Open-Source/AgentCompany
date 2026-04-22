@@ -41,11 +41,16 @@ const RECENT_MESSAGE_TAIL = 20;
 const CHARS_PER_TOKEN = 2;
 /** Per-assistant-message summary cap to keep the compacted turn readable. */
 const MAX_SUMMARY_CHARS_PER_MESSAGE = 160;
+const MAX_TOOL_RESULT_LINES = 12;
+const MAX_TOOL_RESULT_FACTS = 10;
+const MAX_FACT_VALUE_CHARS = 120;
 
 interface MessageLike {
   role?: string;
   content?: unknown;
   timestamp?: number;
+  toolCallId?: string;
+  details?: unknown;
 }
 
 export interface CompactionOutcome {
@@ -180,6 +185,14 @@ function buildSummaryText(older: AgentMessage[]): string {
       lines.push(`- ${point}`);
     }
   }
+  const toolResultFacts = collectToolResultFacts(older);
+  if (toolResultFacts.length > 0) {
+    lines.push("");
+    lines.push("Tool results:");
+    for (const fact of toolResultFacts) {
+      lines.push(`- ${fact}`);
+    }
+  }
   lines.push("");
   lines.push(`(${older.length} earlier message${older.length === 1 ? "" : "s"} compacted.)`);
   return lines.join("\n");
@@ -206,6 +219,107 @@ function collectAssistantHighlights(messages: AgentMessage[]): string[] {
     if (highlights.length >= 12) break;
   }
   return highlights;
+}
+
+function collectToolResultFacts(messages: AgentMessage[]): string[] {
+  const toolNamesById = collectToolNamesById(messages);
+  const facts: string[] = [];
+  for (const message of messages) {
+    const raw = message as MessageLike;
+    if (raw.role !== "toolResult") continue;
+    const toolCallId = raw.toolCallId ?? "unknown";
+    const toolName = toolNamesById.get(toolCallId) ?? "tool";
+    const resultFacts = collectFactsFromToolResult(raw);
+    const factText =
+      resultFacts.length > 0
+        ? resultFacts.slice(0, MAX_TOOL_RESULT_FACTS).join("; ")
+        : `result=${truncate(firstSentence(extractTextForEstimate(raw)), MAX_FACT_VALUE_CHARS)}`;
+    facts.push(`${toolName} ${toolCallId}: ${factText}`);
+    if (facts.length >= MAX_TOOL_RESULT_LINES) break;
+  }
+  return facts;
+}
+
+function collectToolNamesById(messages: AgentMessage[]): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const message of messages) {
+    const raw = message as MessageLike;
+    if (raw.role !== "assistant" || !Array.isArray(raw.content)) continue;
+    for (const block of raw.content) {
+      if (!block || typeof block !== "object") continue;
+      const obj = block as { type?: string; id?: string; name?: string };
+      if (obj.type === "toolCall" && typeof obj.id === "string" && typeof obj.name === "string") {
+        names.set(obj.id, obj.name);
+      }
+    }
+  }
+  return names;
+}
+
+function collectFactsFromToolResult(message: MessageLike): string[] {
+  const facts = new Map<string, string>();
+  if (message.toolCallId) facts.set("toolCallId", message.toolCallId);
+  collectStructuredFacts(message.details, facts);
+  const text = extractTextForEstimate(message).trim();
+  collectStructuredFacts(parseJsonObject(text), facts);
+  collectTextFacts(text, facts);
+  return [...facts.entries()].map(([key, value]) => `${key}=${value}`);
+}
+
+function parseJsonObject(text: string): unknown {
+  if (!text.startsWith("{") && !text.startsWith("[")) return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function collectStructuredFacts(value: unknown, facts: Map<string, string>, path: string[] = []): void {
+  if (facts.size >= MAX_TOOL_RESULT_FACTS) return;
+  if (value === null || value === undefined) return;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    const key = path.at(-1);
+    if (key && shouldPreserveFactKey(key)) {
+      facts.set(key, truncate(String(value), MAX_FACT_VALUE_CHARS));
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value.slice(0, 8)) {
+      collectStructuredFacts(item, facts, path);
+    }
+    return;
+  }
+  if (typeof value !== "object") return;
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    collectStructuredFacts(nested, facts, [...path, key]);
+  }
+}
+
+function collectTextFacts(text: string, facts: Map<string, string>): void {
+  const pattern = /\b(taskId|approvalId|messageId|status|state|decision|error)\s*[:=]\s*("[^"]+"|'[^']+'|[^,;\s}]+)/g;
+  for (const match of text.matchAll(pattern)) {
+    const key = match[1];
+    const rawValue = match[2];
+    if (!key || !rawValue || facts.has(key)) continue;
+    facts.set(key, truncate(rawValue.replace(/^["']|["']$/g, ""), MAX_FACT_VALUE_CHARS));
+    if (facts.size >= MAX_TOOL_RESULT_FACTS) break;
+  }
+}
+
+function shouldPreserveFactKey(key: string): boolean {
+  const lower = key.toLowerCase();
+  return (
+    lower === "id" ||
+    lower.endsWith("id") ||
+    lower.endsWith("_id") ||
+    lower === "status" ||
+    lower === "state" ||
+    lower === "error" ||
+    lower === "decision" ||
+    lower === "ok"
+  );
 }
 
 function firstSentence(text: string): string {
