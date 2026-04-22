@@ -39,7 +39,7 @@ jobs:
       - name: Build electron-vite
         run: pnpm exec electron-vite build
       - name: Package
-        run: pnpm exec electron-builder --win --x64 --ia32 --arm64 --config electron-builder.yml --publish never
+        run: pnpm exec electron-builder --win --x64 --arm64 --config electron-builder.yml --publish never
         env:
           CSC_LINK: ${{ secrets.WIN_CERTIFICATE_P12_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD }}

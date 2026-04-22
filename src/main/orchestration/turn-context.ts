@@ -292,6 +292,43 @@ function buildConnectorCatalog(
 }
 
 /**
+ * Lift the scheduler-written `heartbeatSkip` blob out of
+ * `runtime_state_json` into a typed PromptContext slice. The heartbeat
+ * scheduler writes the reader-free fields {reason, streak, since,
+ * lastTickAt}; we validate the shape here because `getRuntimeState`
+ * returns `Record<string, unknown>` and bad JSON shouldn't poison the
+ * prompt. Missing / malformed entries return null — the prompt section
+ * is omitted rather than rendered with placeholder values.
+ */
+function readHeartbeatSkip(
+  db: AppDatabase,
+  agentId: string,
+): {
+  reason: string;
+  streak: number;
+  since: string;
+  lastTickAt: string;
+} | null {
+  const state = db.agents.getRuntimeState(agentId);
+  const raw = state["heartbeatSkip"];
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  const reason = record.reason;
+  const streak = record.streak;
+  const since = record.since;
+  const lastTickAt = record.lastTickAt;
+  if (
+    typeof reason !== "string" ||
+    typeof streak !== "number" ||
+    typeof since !== "string" ||
+    typeof lastTickAt !== "string"
+  ) {
+    return null;
+  }
+  return { reason, streak, since, lastTickAt };
+}
+
+/**
  * Assemble the full run payload from resolved entities and dependencies.
  * This is the core composition step that was previously inlined in dispatchRunToWorker.
  */
@@ -308,6 +345,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
   const initialHandoff = resolveSessionHandoff(agent.id, deps);
   const { taskSessionId, sessionHandoff } = resolveSession(db, agent, companyId, connector.id, initialHandoff, deps);
   const skills = resolveSkills(companyId, agent.id, connector.id, agent.name, deps);
+  const heartbeatSkip = readHeartbeatSkip(db, agent.id);
 
   const systemPrompt = apiUrl ? buildTaskPrompt({
     agent,
@@ -353,6 +391,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
       .filter((workspace) => workspace.companyId === companyId)
       .map((workspace) => ({ name: workspace.name, localPath: workspace.localPath })),
     companyDocuments: snapshot.documents.filter((d) => d.companyId === companyId),
+    heartbeatSkip,
   }) : null;
 
   const thinkingEffort = extractThinkingEffort(agent.metadataJson, deps.logger, agent.id);
