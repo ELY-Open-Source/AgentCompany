@@ -26,10 +26,17 @@ import { describe, expect, it } from "vitest";
 import { judgeAssertions } from "./assertion-judge.js";
 import { runEval } from "./eval-runner.js";
 import { loadFixture } from "./fixture-loader.js";
+import {
+  EVAL_SCENARIO_MATRIX,
+  assertScenarioMatchesFixture,
+  buildMatrixPrompt,
+  loadScenarioContract,
+} from "./scenario-contract.js";
 import type {
   Assertion,
   AssistantTurn,
   FixtureFile,
+  ToolResultTurn,
   UserTurn,
 } from "./types.js";
 
@@ -71,6 +78,25 @@ function buildInMemoryFixture(assertions: Assertion[]): FixtureFile {
       output: 60,
     },
   };
+  const toolResultTurn: ToolResultTurn = {
+    type: "turn",
+    turnIndex: 2,
+    role: "toolResult",
+    toolUseId: "call_001",
+    content: [{ type: "text", text: "hired agent-42" }],
+  };
+  const finalAssistantTurn: AssistantTurn = {
+    type: "turn",
+    turnIndex: 3,
+    role: "assistant",
+    content: [{ type: "text", text: "Writer hired." }],
+    tokenLedger: {
+      input: 0,
+      cache_read: 0,
+      cache_creation: 0,
+      output: 0,
+    },
+  };
   return {
     meta: {
       type: "meta",
@@ -80,13 +106,13 @@ function buildInMemoryFixture(assertions: Assertion[]): FixtureFile {
       scenario: "in-memory self-test fixture",
       systemPromptHash: "sha256:self-test",
     },
-    turns: [userTurn, assistantTurn],
+    turns: [userTurn, assistantTurn, toolResultTurn, finalAssistantTurn],
     assertions,
   };
 }
 
 describe("harness self-test (in-memory fixture)", () => {
-  it("passes when every assertion matches the recorded trace", () => {
+  it("passes when every assertion matches the recorded trace", async () => {
     const fixture = buildInMemoryFixture([
       { kind: "tool_called", name: "hire_agent", min_count: 1 },
       {
@@ -103,7 +129,7 @@ describe("harness self-test (in-memory fixture)", () => {
       },
       { kind: "trace_max_turns", max: 5 },
     ]);
-    const result = runEval(fixture);
+    const result = await runEval(fixture, { systemPrompt: "Self-test prompt." });
     expect(result.passed).toBe(true);
     expect(result.fixtureId).toBe("self-test/in-memory");
     expect(result.assertions).toHaveLength(5);
@@ -117,21 +143,21 @@ describe("harness self-test (in-memory fixture)", () => {
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
   });
 
-  it("fails with a precise reason when an assertion misses", () => {
+  it("fails with a precise reason when an assertion misses", async () => {
     const fixture = buildInMemoryFixture([
       { kind: "tool_called", name: "write_plan", min_count: 1 },
       { kind: "no_tool_called", name: "hire_agent" },
       { kind: "trace_max_turns", max: 1 },
     ]);
-    const result = runEval(fixture);
+    const result = await runEval(fixture, { systemPrompt: "Self-test prompt." });
     expect(result.passed).toBe(false);
     const reasons = result.assertions.map((r) => r.reason ?? "");
     expect(reasons[0]).toContain('expected at least 1 call(s) to "write_plan"');
     expect(reasons[1]).toContain('expected no call to "hire_agent"');
-    expect(reasons[2]).toContain("trace has 2 turns, max allowed is 1");
+    expect(reasons[2]).toContain("trace has 4 turns, max allowed is 1");
   });
 
-  it("message_does_not_contain_substring passes when substring is absent", () => {
+  it("message_does_not_contain_substring passes when substring is absent", async () => {
     const fixture = buildInMemoryFixture([
       {
         kind: "message_does_not_contain_substring",
@@ -139,12 +165,12 @@ describe("harness self-test (in-memory fixture)", () => {
         substring: "node -e",
       },
     ]);
-    const result = runEval(fixture);
+    const result = await runEval(fixture, { systemPrompt: "Self-test prompt." });
     expect(result.passed).toBe(true);
     expect(result.assertions[0]?.passed).toBe(true);
   });
 
-  it("message_does_not_contain_substring fails when substring is present", () => {
+  it("message_does_not_contain_substring fails when substring is present", async () => {
     const fixture = buildInMemoryFixture([
       {
         kind: "message_does_not_contain_substring",
@@ -152,7 +178,7 @@ describe("harness self-test (in-memory fixture)", () => {
         substring: "Hiring a writer",
       },
     ]);
-    const result = runEval(fixture);
+    const result = await runEval(fixture, { systemPrompt: "Self-test prompt." });
     expect(result.passed).toBe(false);
     expect(result.assertions[0]?.reason).toContain(
       'a assistant message contained forbidden substring "Hiring a writer"',
@@ -174,12 +200,31 @@ describe("harness self-test (in-memory fixture)", () => {
   });
 });
 
+describe("eval SOP coverage matrix", () => {
+  it.each(EVAL_SCENARIO_MATRIX)(
+    "covers real prompt SOPs for $fixtureId",
+    (entry) => {
+      const prompt = buildMatrixPrompt(entry);
+      for (const sop of entry.requiredSops) {
+        expect(prompt).toContain(sop);
+      }
+      for (const sop of entry.forbiddenSops ?? []) {
+        expect(prompt).not.toContain(sop);
+      }
+    },
+  );
+});
+
 const fixturePaths = await listFixtures();
 
 describe.each(fixturePaths)("eval fixture %s", (fixturePath) => {
   it("passes all assertions", async () => {
     const fixture = await loadFixture(fixturePath);
-    const result = runEval(fixture);
+    const scenario = await loadScenarioContract(fixture.meta.fixtureId);
+    assertScenarioMatchesFixture(fixture, scenario);
+    const result = await runEval(fixture, {
+      systemPrompt: scenario.systemPrompt,
+    });
     if (!result.passed) {
       const failures = result.assertions
         .filter((assertion) => !assertion.passed)

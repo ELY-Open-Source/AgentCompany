@@ -1,23 +1,20 @@
 /**
- * Eval runner for B5 harness.
+ * Eval runner for the recorded-fixture harness.
  *
- * Given a parsed `FixtureFile`, produces an `EvalResult` by:
- *  1. Summing the token ledger across all recorded assistant turns.
- *  2. Running the assertion judge against the recorded turns.
- *  3. Measuring wall-clock duration of steps (1)–(2).
- *
- * Tonight's scope deliberately evaluates assertions against the RECORDED
- * trace, not a live replay-driven agent loop. That keeps the harness
- * useful as a snapshot-regression tool the moment the first fixture lands,
- * without wiring in the full `pi-agent-core` Agent loop (which requires
- * tools + hooks and is better done incrementally once we have fixtures).
- *
- * The replay-client + fixture-loader are written now so the live-replay
- * tier can be added in B5.1 without reshaping types.
+ * A fixture now runs through the real `pi-agent-core` Agent loop with a
+ * replay stream and recorded tool-result executors. Assertions are judged
+ * against the replayed transcript that the Agent produced, so tool-call
+ * ordering, tool-result handoff, token ledger aggregation, and assertion
+ * evaluation share the same path the worker uses in production.
  */
 
 import { judgeAssertions } from "./assertion-judge.js";
-import type { EvalResult, FixtureFile, TokenLedger } from "./types.js";
+import { replayFixtureThroughAgent } from "./tool-loop-replay.js";
+import type { EvalResult, FixtureFile, TokenLedger, TraceTurn } from "./types.js";
+
+export interface RunEvalOptions {
+  systemPrompt?: string;
+}
 
 const ZERO_LEDGER: TokenLedger = {
   input: 0,
@@ -26,8 +23,8 @@ const ZERO_LEDGER: TokenLedger = {
   output: 0,
 };
 
-function sumLedger(fixture: FixtureFile): TokenLedger {
-  return fixture.turns.reduce<TokenLedger>((acc, turn) => {
+function sumLedger(turns: TraceTurn[]): TokenLedger {
+  return turns.reduce<TokenLedger>((acc, turn) => {
     if (turn.role !== "assistant") return acc;
     return {
       input: acc.input + turn.tokenLedger.input,
@@ -38,10 +35,17 @@ function sumLedger(fixture: FixtureFile): TokenLedger {
   }, ZERO_LEDGER);
 }
 
-export function runEval(fixture: FixtureFile): EvalResult {
+export async function runEval(
+  fixture: FixtureFile,
+  options: RunEvalOptions = {},
+): Promise<EvalResult> {
   const start = Date.now();
-  const results = judgeAssertions(fixture.assertions, fixture.turns);
-  const tokenLedger = sumLedger(fixture);
+  const replayedTurns = await replayFixtureThroughAgent(
+    fixture,
+    options.systemPrompt ?? "",
+  );
+  const results = judgeAssertions(fixture.assertions, replayedTurns);
+  const tokenLedger = sumLedger(replayedTurns);
   const durationMs = Date.now() - start;
   const passed = results.every((result) => result.passed);
 

@@ -28,10 +28,10 @@ pnpm eval:record -- \
   --system-prompt-preview "$(cat /tmp/current-system-prompt.txt)"
 ```
 
-The current CLI writes a stub meta + empty assertions. The full recorder
-(which drives `pi-agent-core` against a real provider using the
-AgentCompany worker's system prompt and tool registry) lands in a
-follow-up commit — see `../README.md` for the B5 roadmap.
+The current CLI records the provider assistant turn for a scenario prompt and
+user message. `pnpm test:eval` runs the fixture through `pi-agent-core` with
+recorded tool-result replay and validates the scenario prompt hash before
+assertions run.
 
 ## Committing fixtures
 

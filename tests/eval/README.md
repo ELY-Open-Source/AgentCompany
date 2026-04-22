@@ -1,10 +1,10 @@
-# B5 eval harness (minimal scaffold)
+# B5 eval harness
 
-This directory holds the minimal LLM behavior eval tier for AgentCompany.
-It replays recorded LLM traces (fixtures) and checks structural assertions
-against them — tool names, call counts, argument shapes, message
-substrings, and turn caps. It does *not* perform semantic quality judgment
-yet; that tier is proposed in
+This directory holds the LLM behavior eval tier for AgentCompany. It replays
+recorded LLM traces (fixtures) through `pi-agent-core`'s Agent loop, feeds
+recorded tool results back through replay tools, and checks structural
+assertions against the replayed transcript: tool names, call counts, argument
+shapes, message substrings, and turn caps. Semantic quality judgment belongs in
 `docs/proposals/B5.1-llm-as-judge-followup.md`.
 
 ## File layout
@@ -13,9 +13,11 @@ yet; that tier is proposed in
 |---|---|
 | `types.ts` | Wire types — fixtures, assertions, results. Reuses `@mariozechner/pi-ai` primitives. |
 | `fixture-loader.ts` | JSONL → `FixtureFile`. Rejects malformed or missing meta/assertions blocks. |
-| `replay-client.ts` | Swaps in for `pi-ai`'s `streamSimple`; replays recorded assistant turns. Used by the live-replay tier in B5.1. |
+| `replay-client.ts` | Swaps in for `pi-ai`'s `streamSimple`; replays recorded assistant turns. |
+| `tool-loop-replay.ts` | Runs a fixture through `pi-agent-core` Agent with recorded tool-result executors. |
+| `scenario-contract.ts` | Validates scenario prompt/user files, prompt hashes, and real prompt-builder SOP coverage. |
 | `assertion-judge.ts` | Structural assertions over recorded trace. No semantic judgment. |
-| `eval-runner.ts` | Parse fixture → judge assertions → produce `EvalResult`. |
+| `eval-runner.ts` | Parse fixture → Agent replay → judge assertions → produce `EvalResult`. |
 | `record-fixture.ts` | CLI for writing fixture meta headers. Full record loop lands in B5.1. |
 | `harness.test.ts` | vitest driver that walks `fixtures/` and asserts every fixture passes. |
 | `fixtures/` | Recorded JSONL traces. Git-tracked. Not bundled into production (`electron-builder.yml` only ships `out/**`). |
@@ -23,7 +25,7 @@ yet; that tier is proposed in
 ## Running
 
 ```bash
-# Assertion-only eval (no fixtures needed; passes on empty fixture dir)
+# Agent-loop replay eval
 pnpm test:eval
 ```
 
@@ -119,10 +121,10 @@ See `types.ts` for the exhaustive schema.
 pnpm test:eval --run
 ```
 
-A green run means: given the recorded assistant turn, every assertion
-you wrote passes. A red run means either the assertion is wrong or the
-assistant did not produce the behaviour you expected — inspect the
-fixture and decide which.
+A green run means the scenario prompt hash matches, the first user message
+matches, the recorded transcript replays through the Agent loop, and every
+assertion passes. A red run points at the broken contract: scenario drift,
+tool-loop shape, replay failure, or assertion mismatch.
 
 ### Re-recording
 
@@ -131,18 +133,12 @@ header surfaces that). To re-record, delete the old fixture and run the
 recorder again. Do **not** hand-edit the `turn` records; that defeats
 the point of recording against a real provider.
 
-### What the recorder does NOT do
+### Recorder boundary
 
-- It does not loop tool calls back to the provider. Today's recorder
-  captures one turn: user message in, assistant reply out. Multi-turn
-  with tool execution is B5.1's scope.
-- It does not retry on provider errors. A 529 or a 5xx surfaces as a
-  non-zero exit and nothing is written. Re-run manually if you think
-  the failure was transient.
-- It does not reach into AgentCompany's `src/main/` to import the
-  worker's system prompt builder or tool catalogue. You bring your own
-  prompt and message text on the CLI. Importing the worker would
-  require the Electron runtime; the CLI is node-only on purpose.
+The recorder captures the live provider response for the system prompt and
+user message on disk. Tool-call replay happens during `pnpm test:eval`, where
+recorded assistant turns run through the real Agent loop and recorded tool
+results are returned by deterministic replay tools.
 
 ## Fixture JSONL format
 
@@ -187,24 +183,17 @@ Anything that requires semantic judgment (tone, strategy, plan quality)
 belongs in the LLM-as-judge tier. See
 `docs/proposals/B5.1-llm-as-judge-followup.md`.
 
-## What this scaffold does NOT do tonight
+## Hard contracts
 
-- **No synthesized fixtures.** `fixtures/` ships empty. Fixtures arrive
-  by running the recorder against a live provider.
-- **No multi-turn tool-use recording.** The recorder captures one
-  user→assistant turn. Multi-turn runs with real tool execution are
-  B5.1's scope.
-- **No live-replay.** `replay-client.ts` is ready to swap into the agent
-  loop; wiring it into a real `pi-agent-core` Agent instance is also
-  B5.1. Tonight the runner asserts against recorded turns directly.
-- **No LLM-as-judge.** Assertions are structural only. Semantic judgment
-  tier is proposed separately.
-- **No logging / telemetry.** Results are returned from `runEval` as
-  plain values; the vitest reporter is the only output surface.
-
-Each omission is deliberate and documented. Nothing here silently degrades
-to a placeholder — missing fixture = hard error, malformed fixture = hard
-error, exhausted fixture = hard error.
+- Fixtures are recorded traces from live provider calls.
+- `fixtures/` belongs in git and participates in `pnpm verify`.
+- `scenarios/<fixtureId>/system.txt` must hash to
+  `meta.systemPromptHash`.
+- `scenarios/<fixtureId>/user.txt` must match the first user turn exactly.
+- Structured assistant `toolCall` blocks require matching `toolResult` turns
+  before the next assistant or user turn.
+- Replay exhaustion, malformed fixtures, and scenario drift throw hard errors.
+- Assertions stay structural; semantic judgment lives in the follow-up tier.
 
 ## Production bundle posture
 
