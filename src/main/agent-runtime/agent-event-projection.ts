@@ -7,8 +7,8 @@
  * types are added here; the bridge pipes the result into its run-log
  * stream.
  *
- * Reference: pi-mono-reference/packages/agent/src/types.ts `AgentEvent`
- * union is the canonical shape we project.
+ * The `@mariozechner/pi-agent-core` `AgentEvent` union is the
+ * canonical shape we project.
  */
 
 export type AgentEventLogChunk = { stream: "stdout" | "stderr"; chunk: string };

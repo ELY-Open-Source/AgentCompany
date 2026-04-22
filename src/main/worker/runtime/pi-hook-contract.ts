@@ -2,7 +2,7 @@
  * Compile-time contract between local hook implementations and
  * `pi-agent-core` callback signatures.
  *
- * B1 pinned `@mariozechner/pi-agent-core` to 0.67.68 (in-tree reference)
+ * Root `package.json` pins `@mariozechner/pi-agent-core` to 0.67.68
  * while our worker wires local hooks — `beforeToolCall`, `afterToolCall`,
  * `transformContext` — into the pi Agent constructor. Those hooks carry
  * deep structural coupling: pi decides the context shape passed in and

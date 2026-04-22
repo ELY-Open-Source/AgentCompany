@@ -185,7 +185,7 @@ src/
 | `scripts/` | Build, release, and packaging Node scripts. |
 | `landing/` | Marketing site (Next.js). Has its own `landing/public/screenshots/`, separate from `docs/screenshots/`. |
 | `AgentCompany-Rust/` | Exploratory Rust port; see section below. |
-| `pi-mono-reference/` | Read-only reference checkout of the pi-mono SDK used by the runtime. |
+| `pi-mono-reference/` | Local reference snapshot only. Shipping runtime source of truth is the pinned `@mariozechner/*` npm dependencies in root `package.json`. |
 
 ---
 

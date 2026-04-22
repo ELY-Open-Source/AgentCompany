@@ -4,7 +4,7 @@
  * Cloud providers have bespoke credential discovery — multi-variable AWS /
  * Azure setups, or gcloud Application Default Credentials for Vertex. The
  * `auth.type` marker tells the credential resolver which discovery path to
- * run (see `pi-mono-reference/packages/ai/src/env-api-keys.ts`).
+ * run in the pinned `@mariozechner/pi-ai` runtime.
  */
 
 import type { ConnectorDefinition } from "../connector-definitions";

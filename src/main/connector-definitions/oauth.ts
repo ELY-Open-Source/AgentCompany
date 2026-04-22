@@ -1,8 +1,8 @@
 /**
  * OAuth-based pi-mono connectors.
  *
- * Each entry targets one of the five built-in pi-ai OAuth providers
- * (see `pi-mono-reference/packages/ai/src/utils/oauth/index.ts`). The
+ * Each entry targets one of the five built-in OAuth providers from the
+ * pinned `@mariozechner/pi-ai` runtime. The
  * runtime opens the provider's browser auth flow, stores the refreshed
  * token in the `credentials` table, and passes it as the API key when
  * invoking pi-ai.

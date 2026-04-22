@@ -1,8 +1,8 @@
 /**
  * API-key pi-mono connectors.
  *
- * Each entry maps to a pi-ai `KnownProvider` (see
- * `pi-mono-reference/packages/ai/src/env-api-keys.ts`) — except for the two
+ * Each entry maps to a pi-ai `KnownProvider` from the pinned
+ * `@mariozechner/pi-ai` runtime, except for the two
  * Fireworks entries, which are resolved locally in `src/main/model-resolver.ts`.
  *
  * `envKey` is the standard environment variable pi-mono reads when no
