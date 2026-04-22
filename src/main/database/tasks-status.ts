@@ -7,7 +7,7 @@ import {
   taskPriorityOrderSql,
 } from "./helpers";
 import { chooseBestTaskAssignee } from "./task-assignment";
-import { TASK_LEASE_TTL_MS, checkoutTaskInTransaction } from "./task-checkout";
+import { checkoutTaskInTransaction } from "./task-checkout";
 import { guardInReviewHasReviewer } from "./task-review-guard";
 import { assertValidTaskStatus, buildTaskStatusTransition } from "./task-status-rules";
 
@@ -49,22 +49,9 @@ export function buildTaskStatusMethods(
       transaction(() => {
         getDb()
           .prepare(
-            // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: advanceTaskStatus is the sanctioned dynamic-SQL helper; transition.sets[0] is always the literal "status = ?". Status→phase trigger plus the explicit DELETE FROM task_leases below keep the shadow surface coherent.
             `UPDATE tasks SET ${transition.sets.join(", ")} WHERE id = ?`,
           )
           .run(...transition.values, taskId);
-        if (transition.clearsLease) {
-          // Drop any live lease row in the same transaction so no
-          // caller observes the intermediate state of "task in terminal
-          // or backlog phase, lease still present". `releaseTaskLock`
-          // clears the lease on the happy path (normal run completion),
-          // but terminal transitions can come from review timeouts,
-          // retries, automation rules, etc. without ever going through
-          // that helper.
-          getDb()
-            .prepare("DELETE FROM task_leases WHERE task_id = ?")
-            .run(taskId);
-        }
       });
 
       if (comment) {
@@ -108,37 +95,20 @@ export function buildTaskStatusMethods(
 
     releaseTaskLock(taskId: string, runId: string): void {
       const ts = nowIso();
-       
       getDb()
         .prepare(
           "UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?",
         )
         .run(ts, taskId, runId);
-      // B2 Phase 1 step 3/5 — dual-write: drop the shadow lease too.
-      getDb()
-        .prepare("DELETE FROM task_leases WHERE task_id = ? AND run_id = ?")
-        .run(taskId, runId);
     },
 
     renewTaskLease(taskId: string, runId: string): boolean {
       const ts = nowIso();
-       
       const result = getDb()
         .prepare(
           "UPDATE tasks SET execution_locked_at = ?, updated_at = ? WHERE id = ? AND checkout_run_id = ?",
         )
         .run(ts, ts, taskId, runId);
-      if (result.changes > 0) {
-        // Shadow renewal: push `expires_at` forward in lockstep with
-        // `execution_locked_at` so the stale-lock sweep over the new
-        // table stays consistent with the legacy sweep.
-        const expiresAt = new Date(Date.now() + TASK_LEASE_TTL_MS).toISOString();
-        getDb()
-          .prepare(
-            `UPDATE task_leases SET expires_at = ? WHERE task_id = ? AND run_id = ?`,
-          )
-          .run(expiresAt, taskId, runId);
-      }
       return result.changes > 0;
     },
 
@@ -250,7 +220,6 @@ export function buildTaskStatusMethods(
     ): void {
       const ts = nowIso();
       getDb()
-        // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: crash-recovery retry bounces task back to todo; trigger mirrors status→phase, no lease held at this point
         .prepare("update tasks set status = 'todo', updated_at = ? where id = ?")
         .run(ts, taskId);
       getDb()
@@ -276,7 +245,6 @@ export function buildTaskStatusMethods(
     markInterruptedTaskFailed(taskId: string): void {
       const ts = nowIso();
       getDb()
-        // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: crash-recovery terminal transition; trigger mirrors status→phase, lease was already cleared by interruptStaleRuns
         .prepare("update tasks set status = 'cancelled', updated_at = ? where id = ?")
         .run(ts, taskId);
     },

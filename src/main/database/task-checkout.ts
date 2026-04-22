@@ -1,7 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
 
-export const TASK_LEASE_TTL_MS = 15 * 60 * 1000;
-
 function isoFromMs(ms: number): string {
   return new Date(ms).toISOString();
 }
@@ -25,7 +23,6 @@ export function checkoutTaskInTransaction(
   const ts = isoFromMs(nowMs);
   const result = db
     .prepare(
-      // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: checkout CAS is the single sanctioned status='in_progress' lock acquisition. The same transaction writes active_run_id and task_leases.
       `UPDATE tasks
        SET checkout_run_id = ?,
            active_run_id = ?,
@@ -41,13 +38,6 @@ export function checkoutTaskInTransaction(
   if (result.changes === 0) {
     return false;
   }
-
-  const expiresAt = isoFromMs(nowMs + TASK_LEASE_TTL_MS);
-  db.prepare(
-    `INSERT OR REPLACE INTO task_leases
-       (task_id, run_id, acquired_at, expires_at, checkout_run_id)
-     VALUES (?, ?, ?, ?, ?)`,
-  ).run(taskId, runId, ts, expiresAt, runId);
 
   return true;
 }

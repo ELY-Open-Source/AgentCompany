@@ -77,7 +77,6 @@ export function buildTaskCrudMethods(
         if (input.requiresFilesystem === undefined) {
           getDb()
             .prepare(
-              // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: saveTask upsert path writes the full row (including status) as a single atomic UPDATE. The status→phase trigger keeps the shadow phase column in sync; no lease is ever held by saveTask callers (lease writes live behind checkoutTask).
               "update tasks set project_id = ?, goal_id = ?, parent_id = ?, title = ?, description = ?, assignee_agent_id = ?, workspace_id = ?, priority = ?, status = ?, updated_at = ? where id = ? and company_id = ?",
             )
             .run(
@@ -97,7 +96,6 @@ export function buildTaskCrudMethods(
         } else {
           getDb()
             .prepare(
-              // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: saveTask upsert path writes the full row (including status) as a single atomic UPDATE. The status→phase trigger keeps the shadow phase column in sync; no lease is ever held by saveTask callers (lease writes live behind checkoutTask).
               "update tasks set project_id = ?, goal_id = ?, parent_id = ?, title = ?, description = ?, assignee_agent_id = ?, workspace_id = ?, priority = ?, status = ?, requires_filesystem = ?, updated_at = ? where id = ? and company_id = ?",
             )
             .run(
@@ -167,17 +165,6 @@ export function buildTaskCrudMethods(
               "UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?",
             )
             .run(ts, run.taskId, run.id);
-          // B2 Phase 1 step 3/5 — dual-write: cascade to the shadow
-          // lease row so a task-delete does not leave an orphan lease
-          // behind. The FK on `task_leases.task_id` would also cascade
-          // via the DELETE at the end of this transaction; we clear
-          // here explicitly so the intermediate state (task still
-          // present, lease already gone) matches what `releaseTaskLock`
-          // would have done if the delete had gone through the normal
-          // lifecycle path.
-          getDb()
-            .prepare("DELETE FROM task_leases WHERE task_id = ? AND run_id = ?")
-            .run(run.taskId, run.id);
           if (run.workspaceId) {
             getDb()
               .prepare(

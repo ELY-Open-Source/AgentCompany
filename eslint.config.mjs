@@ -119,23 +119,21 @@ export default tseslint.config(
     },
   },
   {
-    // B2 Phase 1 step 5/5 — block new raw status-writes on tasks.
+    // C-01 — keep task state writes behind the database domain modules.
     //
-    // During dual-write every `UPDATE tasks SET status = ...` must go
-    // through `advanceTaskPhase` (or the four grandfathered sites in
-    // database-base.ts / database/tasks-*.ts / database/runs.ts that
-    // already dual-write and carry `eslint-disable-next-line
-    // no-restricted-syntax` with a comment explaining the exemption).
-    // The no-restricted-syntax rule below intercepts string literals
-    // and template literals whose text starts with the offending SQL
-    // prefix. New code that needs to mutate `tasks.status` must either
-    // route through `advanceTaskPhase` (preferred) or add an
-    // `eslint-disable-next-line` with a rationale comment.
-    //
-    // Migrations are deliberately excluded — schema changes operate on
-    // the legacy column by design.
+    // `tasks.status` and the same-row runtime lock columns are the single
+    // source of truth. Callers outside the database task/run modules must
+    // use `db.tasks.*` / `db.runs.*` helpers instead of issuing ad hoc SQL.
     files: ["src/main/**/*.ts"],
-    ignores: ["src/main/database/migrations/**/*.ts"],
+    ignores: [
+      "src/main/database/migrations/**/*.ts",
+      "src/main/database/task-checkout.ts",
+      "src/main/database-base.ts",
+      "src/main/database/tasks-crud.ts",
+      "src/main/database/tasks-status.ts",
+      "src/main/database/tasks-update.ts",
+      "src/main/database/runs.ts",
+    ],
     rules: {
       "no-restricted-syntax": [
         "error",
@@ -148,13 +146,13 @@ export default tseslint.config(
           selector:
             "Literal[value=/\\b[Uu][Pp][Dd][Aa][Tt][Ee]\\s+tasks\\s+[Ss][Ee][Tt]\\s[^;]*\\bstatus\\s*=/]",
           message:
-            "B2 Phase 1: write task.status through advanceTaskPhase (or tag with `// eslint-disable-next-line no-restricted-syntax` + dual-write rationale for grandfathered sites).",
+            "C-01: write task.status through the database task/run helpers.",
         },
         {
           selector:
             "TemplateElement[value.raw=/\\b[Uu][Pp][Dd][Aa][Tt][Ee]\\s+tasks\\s+[Ss][Ee][Tt]\\s[^;]*\\bstatus\\s*=/]",
           message:
-            "B2 Phase 1: write task.status through advanceTaskPhase (or tag with `// eslint-disable-next-line no-restricted-syntax` + dual-write rationale for grandfathered sites).",
+            "C-01: write task.status through the database task/run helpers.",
         },
         {
           // Dynamic-SQL bypass: `UPDATE tasks SET ${...}` where the
@@ -166,7 +164,7 @@ export default tseslint.config(
           selector:
             "TemplateElement[value.raw=/\\b[Uu][Pp][Dd][Aa][Tt][Ee]\\s+tasks\\s+[Ss][Ee][Tt]\\s*$/]",
           message:
-            "B2 Phase 1: dynamic `UPDATE tasks SET ${...}` helpers bypass the literal-SET guard; route through advanceTaskPhase or tag with `// eslint-disable-next-line no-restricted-syntax` + dual-write rationale.",
+            "C-01: write task.status through the database task/run helpers.",
         },
       ],
     },

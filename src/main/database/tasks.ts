@@ -4,7 +4,6 @@ import { buildTaskCrudMethods } from "./tasks-crud";
 import { buildTaskQueryMethods } from "./task-queries";
 import { buildTaskSessionMethods } from "./task-sessions-crud";
 import { buildTaskStatusMethods } from "./tasks-status";
-import { buildTasksPhaseMethods } from "./tasks-phase";
 import { buildTaskUpdateMethods } from "./tasks-update";
 
 export function buildTaskMethods(
@@ -33,6 +32,5 @@ export function buildTaskMethods(
     ...buildTaskSessionMethods(getDb, readAll, transaction),
     ...buildTaskStatusMethods(getDb, readAll, transaction, deps),
     ...buildTaskUpdateMethods(getDb, readAll, transaction, deps),
-    ...buildTasksPhaseMethods(getDb),
   };
 }

@@ -30,10 +30,6 @@ import { buildCredentialMethods } from "./database/credentials";
 import { buildModelCapabilityMethods } from "./database/model-capabilities-crud";
 import { MODEL_CAPABILITY_SEED } from "./model-capability-seed";
 import { initializeDatabase } from "./database/schema";
-import {
-  verifyPhaseConsistency,
-  type PhaseConsistencyReport,
-} from "./database/tasks-phase-consistency";
 import { SecretVault } from "./vault";
 import type { AgentStatus, ConnectorId, ProfileSnapshot, RunStatus } from "@shared/types";
 
@@ -196,42 +192,6 @@ export class AppDatabaseBase {
     this._lastInterruptedCount = this.interruptStaleRuns();
     this.settings.purgeExpiredRunLogs();
     this.wakeup.purgeExpiredWakeupRequests();
-
-    // B2 Phase 1 step 4/5 — dev-mode dual-write consistency probe.
-    //
-    // Under NODE_ENV=development (vite dev, tests) we log the phase /
-    // lease divergence count every boot. Production builds skip the
-    // scan to keep startup cheap; the renderer snapshot path has no
-    // opinion on the shadow columns yet, so a daily sweep is fine
-    // once step 5/5 lands the lint rule and step 4 graduates to a
-    // background metric.
-    if (process.env.NODE_ENV !== "production") {
-      try {
-        const report = verifyPhaseConsistency(this.db, { sampleLimit: 5 });
-        if (report.inconsistent > 0) {
-           
-          console.warn(
-            `[tasks-phase-consistency] ${report.inconsistent} row(s) diverge between legacy columns and phase/lease shadow`,
-            report.mismatches,
-          );
-        }
-      } catch {
-        // Best-effort probe: a query failure here is diagnostic noise,
-        // not a reason to abort bootstrap. The dev-mode logger above
-        // would have captured the error anyway.
-      }
-    }
-  }
-
-  /**
-   * Report divergence between the legacy lock columns and the new
-   * phase/lease shadow. Intended for diagnostics — the scan is O(task
-   * rows) and must not run on hot paths. See
-   * `tasks-phase-consistency.verifyPhaseConsistency` for the full
-   * invariant description.
-   */
-  verifyPhaseConsistency(options: { sampleLimit?: number } = {}): PhaseConsistencyReport {
-    return verifyPhaseConsistency(this.db, options);
   }
 
   close() { this.db.close(); }
@@ -276,22 +236,12 @@ export class AppDatabaseBase {
       interruptedCount = runIds.length;
       this.db
         .prepare(
-          // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: crash-recovery sweep scoped to the exact run ids captured above. The trigger mirrors status→phase; the DELETE below drops shadow leases for the same id set.
           `update tasks set status = 'blocked', updated_at = ? where id in (select task_id from runs where id in (${placeholders})) and status in ('in_progress', 'todo')`,
         )
         .run(ts, ...runIds);
       this.db
         .prepare(
           `update tasks set active_run_id = null where active_run_id in (${placeholders})`,
-        )
-        .run(...runIds);
-      // B2 Phase 1 step 3/5 — dual-write: drop shadow leases whose run
-      // has been interrupted. Scoped by explicit run id list so two
-      // sweeps with identical ISO-millisecond `finished_at` stamps can
-      // never alias each other's lease cleanup.
-      this.db
-        .prepare(
-          `DELETE FROM task_leases WHERE run_id IN (${placeholders})`,
         )
         .run(...runIds);
       this.db.prepare("update agents set status = 'idle', updated_at = ? where status = 'running'").run(ts);
@@ -310,16 +260,9 @@ export class AppDatabaseBase {
     for (const task of stale) {
       this.db
         .prepare(
-          // eslint-disable-next-line no-restricted-syntax -- B2 Phase 1 grandfathered: stale-lock recovery bounces the task back to todo and drops the shadow lease on the next statement; trigger mirrors status→phase.
           `UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, status = 'todo', updated_at = ? WHERE id = ?`,
         )
         .run(ts, task.id);
-      // B2 Phase 1 step 3/5 — dual-write: drop the shadow lease whose
-      // legacy counterpart was just torn down. Matches the legacy
-      // path's "clear everything for this stuck task" semantics; the
-      // trigger that mirrored status → phase has already advanced
-      // `tasks.phase` back to `todo` so the new surface stays coherent.
-      this.db.prepare(`DELETE FROM task_leases WHERE task_id = ?`).run(task.id);
     }
     return stale.map((t) => ({ taskId: t.id, companyId: t.companyId, title: t.title }));
   }

@@ -8,14 +8,6 @@ export const VALID_TASK_STATUSES = new Set([
   "cancelled",
 ]);
 
-const STATUSES_THAT_CLEAR_LEASE = new Set<string>([
-  "done",
-  "cancelled",
-  "blocked",
-  "todo",
-  "backlog",
-]);
-
 export function assertValidTaskStatus(status: string): void {
   if (!VALID_TASK_STATUSES.has(status)) {
     throw new Error(`Invalid task status: ${status}`);
@@ -25,7 +17,7 @@ export function assertValidTaskStatus(status: string): void {
 export function buildTaskStatusTransition(
   newStatus: string,
   timestamp: string,
-): { sets: string[]; values: (string | null)[]; clearsLease: boolean } {
+): { sets: string[]; values: (string | null)[] } {
   const sets: string[] = ["status = ?", "updated_at = ?"];
   const values: (string | null)[] = [newStatus, timestamp];
 
@@ -52,9 +44,5 @@ export function buildTaskStatusTransition(
     sets.push("active_run_id = NULL");
   }
 
-  return {
-    sets,
-    values,
-    clearsLease: STATUSES_THAT_CLEAR_LEASE.has(newStatus),
-  };
+  return { sets, values };
 }

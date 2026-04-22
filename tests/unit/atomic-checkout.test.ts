@@ -157,13 +157,14 @@ describe("CAS checkout", () => {
     const task = db.entityCrud.getTask(taskId);
     expect(task.activeRunId).toBeNull();
     expect(task.status).toBe("todo");
-    const lease = (db as unknown as RawDb).db
-      .prepare("SELECT run_id FROM task_leases WHERE task_id = ?")
-      .get(taskId);
-    expect(lease).toBeUndefined();
+    const lock = (db as unknown as RawDb).db
+      .prepare("SELECT checkout_run_id, execution_locked_at FROM tasks WHERE id = ?")
+      .get(taskId) as { checkout_run_id: string | null; execution_locked_at: string | null };
+    expect(lock.checkout_run_id).toBeNull();
+    expect(lock.execution_locked_at).toBeNull();
   });
 
-  it("createTaskRun atomically creates the run and claims the task lease", () => {
+  it("createTaskRun atomically creates the run and claims the task row lock", () => {
     const companyId = createTestCompany(db);
     createTestConnector(db);
     const workspaceId = createTestWorkspace(db, companyId);
@@ -182,10 +183,10 @@ describe("CAS checkout", () => {
     const task = db.entityCrud.getTask(taskId);
     expect(task.status).toBe("in_progress");
     expect(task.activeRunId).toBe(run?.id);
-    const lease = (db as unknown as RawDb).db
-      .prepare("SELECT run_id FROM task_leases WHERE task_id = ?")
-      .get(taskId) as { run_id: string } | undefined;
-    expect(lease?.run_id).toBe(run?.id);
+    const lock = (db as unknown as RawDb).db
+      .prepare("SELECT checkout_run_id FROM tasks WHERE id = ?")
+      .get(taskId) as { checkout_run_id: string | null };
+    expect(lock.checkout_run_id).toBe(run?.id);
   });
 
   it("createTaskRun rolls back the run row when checkout loses the race", () => {

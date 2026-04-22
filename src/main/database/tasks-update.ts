@@ -211,16 +211,10 @@ export function buildTaskUpdateMethods(
         }
 
         const updateResult = getDb()
-          // eslint-disable-next-line no-restricted-syntax -- R-03 sanctioned domain update helper: SET clauses come from fixed literals only; status->phase trigger and explicit task_leases delete keep the dual-write surface coherent inside this transaction.
           .prepare(`update tasks set ${sets.join(", ")} where id = ? and company_id = ?`)
           .run(...values, input.taskId, input.companyId);
         if (updateResult.changes === 0) {
           throw new Error(`Task not found: ${input.taskId}`);
-        }
-        if (transition?.clearsLease) {
-          getDb()
-            .prepare("DELETE FROM task_leases WHERE task_id = ?")
-            .run(input.taskId);
         }
         if (newStatus === "done" && current.status !== "done") {
           incrementActiveSprintVelocity(input.companyId, 1);

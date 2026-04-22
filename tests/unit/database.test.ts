@@ -33,6 +33,21 @@ describe("AppDatabase", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
+  it("keeps task runtime state on the tasks row", () => {
+    const shadowTables = db.queryAll<{ name: string }>(
+      "select name from sqlite_master where type = 'table' and name = 'task_leases'",
+    );
+    const phaseColumns = db.queryAll<{ name: string }>("pragma table_info(tasks)")
+      .filter((column) => column.name === "phase");
+    const phaseTriggers = db.queryAll<{ name: string }>(
+      "select name from sqlite_master where type = 'trigger' and name like 'trg_tasks_phase_from_status_%'",
+    );
+
+    expect(shadowTables).toEqual([]);
+    expect(phaseColumns).toEqual([]);
+    expect(phaseTriggers).toEqual([]);
+  });
+
   it("persists company-scoped entities and resolves secret env bindings", () => {
     const companyId = db.company.saveCompany({
       name: "Northline Systems",
