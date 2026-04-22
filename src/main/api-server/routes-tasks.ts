@@ -14,6 +14,7 @@ const taskUpdateSchema = z.object({
   description: z.string().max(4000).optional(),
   assigneeAgentId: z.string().uuid().nullable().optional(),
   priority: z.enum(["critical", "high", "medium", "low"]).optional(),
+  requiresFilesystem: z.boolean().optional(),
 });
 
 const checkoutSchema = z.object({
@@ -184,6 +185,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
         parentId: task.parentId,
         assigneeAgentId: newAssignee,
         workspaceId: task.workspaceId,
+        requiresFilesystem: update.requiresFilesystem ?? task.requiresFilesystem,
       };
       db.tasks.saveTask(input as Parameters<typeof db.tasks.saveTask>[0]);
 
@@ -344,6 +346,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
         priority: input.priority,
         status: input.status,
         workspaceId: input.workspaceId ?? null,
+        requiresFilesystem: input.requiresFilesystem,
       });
     } catch (error) {
       server.json(res, 422, { error: error instanceof Error ? error.message : "Task could not be saved" });

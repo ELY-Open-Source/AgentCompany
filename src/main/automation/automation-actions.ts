@@ -100,6 +100,7 @@ export function executeAutomationAction(
             description: task.description,
             assigneeAgentId: ctx.agentId,
             workspaceId: task.workspaceId,
+            requiresFilesystem: task.requiresFilesystem,
             priority: task.priority,
             status: "todo",
           });
@@ -128,6 +129,7 @@ export function executeAutomationAction(
         assigneeAgentId,
         priority,
         status: assigneeAgentId ? "todo" : "backlog",
+        requiresFilesystem: cfg.requiresFilesystem,
       });
       handleTaskCreated(taskId, ctx.companyId);
       logger.info(`[automation] Created task: ${title} (${taskId})`);

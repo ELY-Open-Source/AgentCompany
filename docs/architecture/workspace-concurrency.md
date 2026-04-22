@@ -3,10 +3,9 @@
 ## Summary
 
 A run's workspace lock policy is inferred per task. `lockMode='none'`
-is the default (pure cognitive work runs in parallel with no lock);
-`lockMode='exclusive'` is the opt-in for runs that mutate the
-filesystem. There is no shared lock mode and no silent fallback to
-someone else's workspace.
+is the default for pure cognitive work. `lockMode='exclusive'` is
+selected by an explicit `task.workspaceId` or by
+`task.requires_filesystem=1`.
 
 All decisions live in one function: `resolveWorkspaceWithLockMode` in
 `src/main/orchestration/resolve-workspace.ts`.
@@ -22,13 +21,11 @@ exclusive lock and only one ever executed. The user experience
 degraded from "parallel C-suite" to "one agent at a time" with no
 error and no log line naming the cause.
 
-The fix is not to pick a different fallback. It is to stop inferring
-filesystem use from the shape of the graph and ask the task row:
+The fix asks the task row for filesystem intent:
 **does this task actually touch the filesystem?** Strategy writing,
-financial planning, document drafting, PM decisions — none of them
-open a file or shell out — so by default they run fully in parallel
-with `lockMode='none'`. Coding tasks opt in, and that opt-in is the
-only path that takes a lock.
+financial planning, document drafting, and PM decisions run fully in
+parallel with `lockMode='none'`. Filesystem tasks opt in through
+`requires_filesystem=1`.
 
 ## The per-task signal: `tasks.requires_filesystem`
 
@@ -36,57 +33,40 @@ v52 added `tasks.requires_filesystem INTEGER NOT NULL DEFAULT 0`.
 The column answers one question: "does this particular task mutate
 the working tree?"
 
-- `0` (default) → the task is cognitive. `lockMode='none'`.
-- `1` → the task mutates files. `lockMode='exclusive'` on an
+- `0` (default) -> the task is cognitive. `lockMode='none'`.
+- `1` -> the task mutates files. `lockMode='exclusive'` on an
   explicit workspace.
 
 Backfill at migration time is conservative — `1` is only set when we
 have positive evidence: in-flight tasks already holding a lease, and
 todo/backlog tasks whose assignee is in an engineering-flavoured
-role. Everything else is `0`. New tasks default to `0` and the
-creator explicitly flips to `1` when the task mutates files (a
-follow-up CTO seed commit wires this into the default template).
+role. Everything else is `0`. New tasks default to `0`; creators set
+`1` when the task mutates files.
 
-## Coding-role inference (safety net)
+## Legacy role backfill
 
-A second signal fires when the resolving agent matches the coding
-pattern:
+Role and department matching now live only in the v52 data backfill:
 
 ```
-role matches /cto|engineer|developer|devops|sre/i
+role matched /cto|engineer|developer|devops|sre/i
   OR department === "engineering"
 ```
 
-This is a transition-window safety net: in existing companies whose
-task rows predate v52 (the backfill may not have caught every case),
-a CTO heartbeat with no `requires_filesystem=1` task still correctly
-takes an exclusive lock on its agent workspace. Once every task
-creation path sets `requires_filesystem` explicitly the role inference
-becomes a no-op.
-
-### Sunset coding-role inference
-
-The coding-role regex in `resolve-workspace.ts` exists only for the
-v52 transition window. Before the next major, audit every
-`db.tasks.saveTask` caller, every migration seed, and any workflow
-that writes the `tasks` row; each must set `requires_filesystem`
-explicitly based on the task's real filesystem intent. When the audit
-is complete, delete the regex and the `agentSignalsFilesystem` branch
-from `inferLockMode` and remove this section. Target window: post
-v52 stabilisation, 2026-05-20.
+The runtime resolver reads task state only: `task.workspaceId`,
+`task.requiresFilesystem`, `task.projectId`, and `agent.workspaceId`.
+Every production task creation path writes `requiresFilesystem`
+explicitly.
 
 ## Decision table
 
 | Signal on the (task, agent) pair | Lock mode | Workspace used |
 | --- | --- | --- |
 | `task.workspaceId` set (explicit opt-in, e.g. PR-review task) | `exclusive` | The task's workspace |
-| `task.requiresFilesystem = 1` **OR** agent role matches coding pattern **OR** `agent.department = "engineering"` | `exclusive` | `agent.workspaceId` → project primary → throws `WorkspaceConfigurationError` |
-| Everything else (strategy, ops, finance, PM, drafting) | `none` | `null` — no lock claimed |
+| `task.requiresFilesystem = 1` | `exclusive` | `agent.workspaceId` -> project primary -> throws `WorkspaceConfigurationError` |
+| Everything else (strategy, ops, finance, PM, drafting) | `none` | `null` |
 
 Explicit `task.workspaceId` always wins. This is the escape hatch for
-"run this PR-review task on *that specific* branch workspace", and
-it bypasses both the filesystem signal and the coding-role
-inference.
+"run this PR-review task on *that specific* branch workspace".
 
 ## Why `company_fallback` was removed
 

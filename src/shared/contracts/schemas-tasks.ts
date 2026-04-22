@@ -32,6 +32,7 @@ export const taskInputSchema = z.object({
   description: z.string().default(""),
   assigneeAgentId: optionalId,
   workspaceId: optionalId,
+  requiresFilesystem: z.boolean().default(false),
   priority: z.enum(["critical", "high", "medium", "low"]).default("medium"),
   status: z.enum(["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"]).default("todo"),
 });

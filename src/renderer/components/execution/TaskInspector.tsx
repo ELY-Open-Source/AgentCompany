@@ -90,7 +90,8 @@ export function TaskInspector({
       unwrap(await window.agentCompany.saveTask({
         id: task.id, companyId: task.companyId, title: task.title, description: task.description,
         priority: task.priority, status, assigneeAgentId: task.assigneeAgentId,
-        workspaceId: task.workspaceId, projectId: task.projectId, goalId: task.goalId,
+        workspaceId: task.workspaceId, requiresFilesystem: task.requiresFilesystem,
+        projectId: task.projectId, goalId: task.goalId,
       }))
       await onRefresh()
       setActionNotice(`Task moved to ${status.replaceAll("_", " ")}.`)

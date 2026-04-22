@@ -24,6 +24,7 @@ export const createTaskConfigSchema = z.object({
   priority: taskPrioritySchema.optional(),
   assigneeAgentId: z.string().nullable().optional(),
   projectId: z.string().optional(),
+  requiresFilesystem: z.boolean().default(false),
 });
 
 export const notifyAgentConfigSchema = z.object({

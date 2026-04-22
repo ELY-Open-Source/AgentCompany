@@ -140,6 +140,7 @@ export function registerMeetingRoutes(server: AgentApiServer) {
             assigneeAgentId: item.assigneeAgentId ?? null,
             status: item.assigneeAgentId ? "todo" : "backlog",
             priority: "medium",
+            requiresFilesystem: false,
           });
           if (item.assigneeAgentId) {
             onWakeAgent(item.assigneeAgentId, token.companyId, "assignment");

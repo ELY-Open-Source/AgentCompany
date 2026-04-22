@@ -58,13 +58,9 @@ export function buildTaskCrudMethods(
       priority: string;
       status: string;
       /**
-       * Per-task filesystem lock policy (v52+). When omitted the
-       * column defaults to 0 at the SQL layer for inserts, and the
-       * existing value is preserved on updates. Callers opt in with
-       * `true` when they know the task will read/write the working
-       * tree (CEO kickoff reads the repo, CTO code changes mutate
-       * it, etc.). Leaving it undefined is the safe default for
-       * purely cognitive tasks.
+       * Per-task filesystem lock policy (v52+). Production callers
+       * pass this explicitly. Direct DB fixtures may omit it: inserts
+       * use the SQL default 0 and updates preserve the stored value.
        */
       requiresFilesystem?: boolean;
     }): string {

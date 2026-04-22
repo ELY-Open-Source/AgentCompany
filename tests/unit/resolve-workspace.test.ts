@@ -21,14 +21,14 @@ import {
 /**
  * Workspace lock policy (v52+).
  *
- * `lockMode='exclusive'` is opt-in — either the task carries an
- * explicit workspaceId, or the task's requiresFilesystem column is
- * true, or the resolving agent is in a coding role. Every other
- * case returns `lockMode='none'` and `workspace=null`, so four
- * pure-cognitive agents run fully in parallel without queueing on
- * a single workspace lock. The previous `company_fallback` step
- * (which returned any workspace in the company as the lock target)
- * has been removed and now throws `WorkspaceConfigurationError`.
+ * `lockMode='exclusive'` is opt-in: the task carries an explicit
+ * workspaceId or the task's requiresFilesystem column is true.
+ * Every other case returns `lockMode='none'` and `workspace=null`,
+ * so four pure-cognitive agents run fully in parallel without
+ * queueing on a single workspace lock. The previous
+ * `company_fallback` step has been removed and now throws
+ * `WorkspaceConfigurationError` for filesystem tasks with no
+ * resolvable workspace.
  */
 
 function seedCompany(db: AppDatabase) {
@@ -82,7 +82,7 @@ describe("resolveWorkspaceWithLockMode", () => {
     expect(result.workspace?.id).toBe(workspaceId);
   });
 
-  it("coding-role agent + agent workspace → exclusive on agent workspace", () => {
+  it("agent role and department do not infer filesystem locking", () => {
     const { companyId, workspaceId } = seedCompany(db);
     const result = resolveWorkspaceWithLockMode(
       db,
@@ -90,12 +90,47 @@ describe("resolveWorkspaceWithLockMode", () => {
       { workspaceId, role: "CTO", department: "engineering" },
       companyId,
     );
-    expect(result.source).toBe("agent");
-    expect(result.lockMode).toBe("exclusive");
-    expect(result.workspace?.id).toBe(workspaceId);
+    expect(result.source).toBe("none");
+    expect(result.lockMode).toBe("none");
+    expect(result.workspace).toBeNull();
   });
 
-  it("coding-role agent + project primary workspace → exclusive on project workspace", () => {
+  it("persisted requiresFilesystem=false stays lock-free for engineering-assigned tasks", () => {
+    const { companyId, workspaceId } = seedCompany(db);
+    const agentId = db.agents.saveAgent({
+      companyId,
+      name: "Engineering Lead",
+      role: "CTO",
+      title: "CTO",
+      department: "engineering",
+      status: "active",
+      reportsTo: null,
+      connectorId: "openai-codex",
+      workspaceId,
+      model: null,
+      capabilities: "Architecture",
+      budgetMonthlyUsd: 100,
+    });
+    const taskId = db.tasks.saveTask({
+      companyId,
+      title: "Review launch plan",
+      description: "Read the plan and respond with strategic comments.",
+      assigneeAgentId: agentId,
+      workspaceId: null,
+      priority: "medium",
+      status: "todo",
+      requiresFilesystem: false,
+    });
+    const task = db.entityCrud.getTask(taskId);
+    const agent = db.entityCrud.getAgent(agentId);
+    const result = resolveWorkspaceWithLockMode(db, task, agent, companyId);
+    expect(task.requiresFilesystem).toBe(false);
+    expect(result.source).toBe("none");
+    expect(result.lockMode).toBe("none");
+    expect(result.workspace).toBeNull();
+  });
+
+  it("requiresFilesystem + project primary workspace → exclusive on project workspace", () => {
     const { companyId } = seedCompany(db);
     const projectId = db.entityCrud.saveProject({
       companyId,
@@ -135,7 +170,7 @@ describe("resolveWorkspaceWithLockMode", () => {
     expect(result.source).toBe("agent");
   });
 
-  it("pure cognitive task (no coding role, no requiresFilesystem) → none", () => {
+  it("pure cognitive task without requiresFilesystem → none", () => {
     const { companyId } = seedCompany(db);
     const result = resolveWorkspaceWithLockMode(
       db,
@@ -255,7 +290,7 @@ describe("resolveWorkspaceWithLockMode", () => {
     const { companyId, workspaceId } = seedCompany(db);
     const result = resolveWorkspaceWithLockMode(
       db,
-      null,
+      { workspaceId: null, projectId: null, requiresFilesystem: true },
       { workspaceId, role: "CTO", department: "engineering" },
       companyId,
     );

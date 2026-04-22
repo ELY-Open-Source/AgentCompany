@@ -18,7 +18,7 @@ export function TaskCreator({ companyId, goals, projects, agents, workspaces, on
 
   async function handleCreateTask() {
     setSubmitError(null); setSubmitting(true)
-    try { unwrap(await window.agentCompany.saveTask({ companyId, projectId: projectId || null, goalId: goalId || null, title, description, assigneeAgentId: assigneeAgentId || null, workspaceId: workspaceId || null, priority: priority as TaskRecord["priority"], status: "todo" })); setTitle(""); setDescription(""); await onSaved() } catch (e) { setSubmitError(describeActionError(e)) } finally { setSubmitting(false) }
+    try { unwrap(await window.agentCompany.saveTask({ companyId, projectId: projectId || null, goalId: goalId || null, title, description, assigneeAgentId: assigneeAgentId || null, workspaceId: workspaceId || null, requiresFilesystem: Boolean(workspaceId), priority: priority as TaskRecord["priority"], status: "todo" })); setTitle(""); setDescription(""); await onSaved() } catch (e) { setSubmitError(describeActionError(e)) } finally { setSubmitting(false) }
   }
 
   const [showAdvanced, setShowAdvanced] = useState(false)

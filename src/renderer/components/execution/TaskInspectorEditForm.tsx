@@ -43,6 +43,7 @@ export function TaskInspectorEditForm({
         status,
         assigneeAgentId: assignee || null,
         workspaceId: workspace || null,
+        requiresFilesystem: task.requiresFilesystem,
         projectId: project || null,
         goalId: goal || null,
       }))
