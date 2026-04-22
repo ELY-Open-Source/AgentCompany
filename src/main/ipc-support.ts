@@ -44,16 +44,16 @@ export function createIpcSupport({
   getDb,
   notificationService,
 }: IpcSupportDependencies) {
-  function sanitizeHandlerError(error: unknown) {
-    if (error instanceof ZodError) {
+  function sanitizeHandlerError(classified: { code: string }) {
+    if (classified.code === "ipc.payload.invalid") {
       return {
-        code: "IPC_INVALID_PAYLOAD",
+        code: classified.code,
         message: "The desktop request payload is invalid.",
       };
     }
     return {
-      code: "IPC_HANDLER_FAILED",
-      message: "The desktop operation failed. Review the application logs for details.",
+      code: classified.code,
+      message: "The desktop operation failed. Use the error code when reporting this issue.",
     };
   }
 
@@ -81,7 +81,7 @@ export function createIpcSupport({
           context: { channel },
         });
         const rawMessage = error instanceof Error ? error.message : String(error);
-        const sanitized = sanitizeHandlerError(error);
+        const sanitized = sanitizeHandlerError(classified);
         logger.error(`[${classified.code}] [ipc:${channel}] ${rawMessage}`);
         return fail(sanitized.code, sanitized.message);
       }
