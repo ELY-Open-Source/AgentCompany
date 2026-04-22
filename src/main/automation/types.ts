@@ -12,23 +12,6 @@ export const IMPORTANT_DOCUMENT_TYPES = new Set([
   "budget_proposal", "architecture_decision", "contract", "sop",
 ]);
 
-export const WORKFLOW_ACTIONS: ReadonlySet<AutomationAction> = new Set([
-  "assign_task",
-  "create_task",
-  "notify_agent",
-  "send_message",
-  "trigger_heartbeat",
-  "create_approval",
-  "update_task_status",
-  "escalate_to_manager",
-  "cross_department_notify",
-  "schedule_meeting",
-  "create_document",
-  "auto_approve",
-  "reassign_task",
-  "run_task",
-]);
-
 export interface WorkflowStepState {
   id: string;
   name: string;

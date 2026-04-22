@@ -10,7 +10,7 @@
  */
 
 import { z } from "zod";
-import { approvalTypeEnum } from "@shared/types";
+import { approvalTypeEnum, type AutomationAction } from "@shared/types";
 
 const messageChannelSchema = z.enum(["direct", "department", "company", "project", "incident"]);
 const messagePrioritySchema = z.enum(["urgent", "normal", "low"]);
@@ -87,7 +87,7 @@ export const runTaskConfigSchema = z.object({
   taskId: z.string().optional(),
 });
 
-const ACTION_SCHEMAS = {
+export const ACTION_SCHEMAS = {
   assign_task: assignTaskConfigSchema,
   create_task: createTaskConfigSchema,
   notify_agent: notifyAgentConfigSchema,
@@ -102,7 +102,14 @@ const ACTION_SCHEMAS = {
   auto_approve: autoApproveConfigSchema,
   reassign_task: reassignTaskConfigSchema,
   run_task: runTaskConfigSchema,
-} as const;
+} as const satisfies Record<AutomationAction, z.ZodTypeAny>;
+
+export const AUTOMATION_ACTIONS = Object.freeze(Object.keys(ACTION_SCHEMAS)) as readonly AutomationAction[];
+export const WORKFLOW_ACTIONS: ReadonlySet<AutomationAction> = new Set(AUTOMATION_ACTIONS);
+
+export function isAutomationAction(action: string): action is AutomationAction {
+  return WORKFLOW_ACTIONS.has(action as AutomationAction);
+}
 
 export type AutomationActionConfigMap = {
   [K in keyof typeof ACTION_SCHEMAS]: z.infer<typeof ACTION_SCHEMAS[K]>;

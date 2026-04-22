@@ -1,9 +1,10 @@
 import { z } from "zod";
 import type { AppDatabase } from "../database";
 import type { AgentRecord } from "@shared/types";
-import { WORKFLOW_ACTIONS, type WorkflowStepState, type AutomationEventContext } from "./types";
+import type { WorkflowStepState, AutomationEventContext } from "./types";
 import type { ActionDeps, ActionCallbacks } from "./automation-actions";
 import { executeAutomationAction } from "./automation-actions";
+import { isAutomationAction } from "./automation-action-schemas";
 
 // Raw workflow step shape accepted from the DB `stepsJson` column. All fields
 // are optional/loose because legacy rows used free-form typeof checks; zod
@@ -36,13 +37,13 @@ export function normalizeWorkflowSteps(raw: unknown): WorkflowStepState[] {
   const parsed = workflowStepsInputSchema.parse(raw);
   return parsed.map((step, index) => {
     const rawAction = step.action ?? "send_message";
-    if (!WORKFLOW_ACTIONS.has(rawAction as WorkflowStepState["action"])) {
+    if (!isAutomationAction(rawAction)) {
       throw new Error(`Workflow step ${index + 1} has unsupported action "${rawAction}".`);
     }
     return {
       id: step.id && step.id.length > 0 ? step.id : `step-${index + 1}`,
       name: step.name && step.name.length > 0 ? step.name : `Step ${index + 1}`,
-      action: rawAction as WorkflowStepState["action"],
+      action: rawAction,
       configJson: step.configJson ?? "{}",
       assigneeDepartment: step.assigneeDepartment ?? null,
       assigneeAgentId: step.assigneeAgentId ?? null,
