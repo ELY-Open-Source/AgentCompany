@@ -195,6 +195,7 @@ export class RuntimeBridge {
         taskId: ctx.taskId,
         workspaceId: ctx.workspaceId,
         workspacePath: ctx.workspacePath,
+        logger: this.deps.logger,
         workspaceBaseline: ctx.workspaceBaseline,
       });
       const inserted = outcomes.filter((o) => o.kind === "inserted").length;
@@ -643,7 +644,7 @@ export class RuntimeBridge {
     // `git status` is the source of truth there, and paying for an
     // O(tree) scan on every run just to throw the result away is a
     // hot-path tax the scheduler should not be paying.
-    const baseline = captureBaselineIfRequired(payload.workspacePath);
+    const baseline = captureBaselineIfRequired(payload.workspacePath, this.deps.logger);
     this.registerActiveRun({
       runId,
       agentId: payload.agentId,

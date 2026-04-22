@@ -4,9 +4,10 @@
 // modules. If 2026-05-20 passes without decomposition, a follow-up session
 // MUST revisit and either decompose or justify the ceiling exception.
 import { isAbsolute, relative, resolve } from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
 import type { AppDatabase } from "@main/database";
+import { logAppError, type Logger } from "../errors/index.js";
 
 /**
  * Filesystem artifact protocol for pi tool invocations.
@@ -84,6 +85,7 @@ export type ArtifactProjectorRunContext = {
   taskId: string | null;
   workspaceId: string | null;
   workspacePath: string | null;
+  logger?: Logger;
   /**
    * mtime snapshot captured at run start for workspaces that are NOT
    * a git repo. Diff-against-baseline is how `projectBashArtifacts`
@@ -114,6 +116,28 @@ const BASELINE_SKIP_DIR_NAMES: ReadonlySet<string> = new Set([
   ".pnpm-store",
 ]);
 
+const DEFAULT_ARTIFACT_LOGGER: Logger = console;
+
+function logArtifactFsError(
+  logger: Logger | undefined,
+  error: unknown,
+  code: string,
+  message: string,
+  context: Record<string, unknown>,
+): void {
+  logAppError(
+    logger ?? DEFAULT_ARTIFACT_LOGGER,
+    error,
+    {
+      kind: "recoverable",
+      code,
+      message,
+      context,
+    },
+    "warn",
+  );
+}
+
 /**
  * Capture a run-start mtime baseline only for workspaces that need
  * one. Git workspaces return null here because `git status` already
@@ -130,12 +154,22 @@ const BASELINE_SKIP_DIR_NAMES: ReadonlySet<string> = new Set([
  * still covers every path that was captured while the operator sees
  * the cap signal.
  */
-export function captureBaselineIfRequired(workspacePath: string | null): WorkspaceBaseline | null {
+export function captureBaselineIfRequired(
+  workspacePath: string | null,
+  logger?: Logger,
+): WorkspaceBaseline | null {
   if (!workspacePath) return null;
   if (isGitRepo(workspacePath)) return null;
   try {
     if (!statSync(workspacePath).isDirectory()) return null;
-  } catch {
+  } catch (error) {
+    logArtifactFsError(
+      logger,
+      error,
+      "artifact.fs.workspace_stat_failed",
+      "Failed to stat workspace before artifact baseline capture.",
+      { workspacePath },
+    );
     return null;
   }
   const mtimeByRelPath = new Map<string, number>();
@@ -151,7 +185,14 @@ export function captureBaselineIfRequired(workspacePath: string | null): Workspa
     let entries: { name: string; isDirectory: () => boolean; isSymbolicLink: () => boolean }[];
     try {
       entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
+    } catch (error) {
+      logArtifactFsError(
+        logger,
+        error,
+        "artifact.fs.baseline_readdir_failed",
+        "Failed to read workspace directory during artifact baseline capture.",
+        { workspacePath, dir },
+      );
       continue;
     }
     for (const entry of entries) {
@@ -168,7 +209,14 @@ export function captureBaselineIfRequired(workspacePath: string | null): Workspa
         const rel = relative(workspacePath, abs);
         if (rel.length === 0) continue;
         mtimeByRelPath.set(rel, stat.mtimeMs);
-      } catch {
+      } catch (error) {
+        logArtifactFsError(
+          logger,
+          error,
+          "artifact.fs.baseline_stat_failed",
+          "Failed to stat workspace file during artifact baseline capture.",
+          { workspacePath, absPath: abs },
+        );
         continue;
       }
       if (mtimeByRelPath.size >= MAX_BASELINE_ENTRIES) {
@@ -366,7 +414,11 @@ function retireDeletedArtifacts(
  * emit a `baseline_truncated` outcome so operators see the degraded
  * signal.
  */
-function diffAgainstBaseline(workspacePath: string, baseline: WorkspaceBaseline): GitChangeSet {
+function diffAgainstBaseline(
+  workspacePath: string,
+  baseline: WorkspaceBaseline,
+  logger: Logger | undefined,
+): GitChangeSet {
   const changed: string[] = [];
   const seenRels = new Set<string>();
   const stack: string[] = [workspacePath];
@@ -376,7 +428,14 @@ function diffAgainstBaseline(workspacePath: string, baseline: WorkspaceBaseline)
     let entries: { name: string; isDirectory: () => boolean; isSymbolicLink: () => boolean }[];
     try {
       entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
+    } catch (error) {
+      logArtifactFsError(
+        logger,
+        error,
+        "artifact.fs.diff_readdir_failed",
+        "Failed to read workspace directory during artifact diff.",
+        { workspacePath, dir },
+      );
       continue;
     }
     for (const entry of entries) {
@@ -392,7 +451,14 @@ function diffAgainstBaseline(workspacePath: string, baseline: WorkspaceBaseline)
         const stat = statSync(abs);
         if (!stat.isFile()) continue;
         mtimeMs = stat.mtimeMs;
-      } catch {
+      } catch (error) {
+        logArtifactFsError(
+          logger,
+          error,
+          "artifact.fs.diff_stat_failed",
+          "Failed to stat workspace file during artifact diff.",
+          { workspacePath, absPath: abs },
+        );
         continue;
       }
       const rel = relative(workspacePath, abs);
@@ -458,12 +524,19 @@ function collectChangedPaths(ctx: ArtifactProjectorRunContext): ChangeSet {
     try {
       const gitSet = listChangedRelPaths(ctx.workspacePath);
       return { source: "git", changed: gitSet.changed, deleted: gitSet.deleted };
-    } catch {
+    } catch (error) {
+      logArtifactFsError(
+        ctx.logger,
+        error,
+        "artifact.fs.git_status_failed",
+        "Failed to read git status during artifact projection.",
+        { workspacePath: ctx.workspacePath, runId: ctx.runId },
+      );
       return { source: "none", changed: [], deleted: [], skipReason: "git_status_failed" };
     }
   }
   if (ctx.workspaceBaseline) {
-    const diff = diffAgainstBaseline(ctx.workspacePath, ctx.workspaceBaseline);
+    const diff = diffAgainstBaseline(ctx.workspacePath, ctx.workspaceBaseline, ctx.logger);
     return {
       source: "baseline",
       changed: diff.changed,
@@ -510,16 +583,12 @@ function projectBashArtifacts(
  * itself would accept the directory, which is the semantics we want.
  */
 function isGitRepo(workspacePath: string): boolean {
-  try {
-    execFileSync("git", ["rev-parse", "--is-inside-work-tree"], {
-      cwd: workspacePath,
-      timeout: 2_000,
-      stdio: ["ignore", "ignore", "ignore"],
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  const result = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], {
+    cwd: workspacePath,
+    timeout: 2_000,
+    stdio: ["ignore", "ignore", "ignore"],
+  });
+  return result.status === 0;
 }
 
 interface GitChangeSet {
@@ -597,7 +666,18 @@ function upsertFilesystemArtifact(
   let stat: ReturnType<typeof statSync>;
   try {
     stat = statSync(absPath);
-  } catch {
+  } catch (error) {
+    logArtifactFsError(
+      ctx.logger,
+      error,
+      "artifact.fs.path_stat_failed",
+      "Failed to stat filesystem artifact before projection.",
+      {
+        workspacePath,
+        absPath,
+        runId: ctx.runId,
+      },
+    );
     return { kind: "skipped", reason: "path_missing" };
   }
   if (!stat.isFile()) {

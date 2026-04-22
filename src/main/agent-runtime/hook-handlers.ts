@@ -162,6 +162,7 @@ export function handleAfterToolCall(
     taskId: ctx.taskId,
     workspaceId: ctx.workspaceId,
     workspacePath: ctx.workspacePath,
+    logger: deps.logger,
     workspaceBaseline: ctx.workspaceBaseline,
   };
   try {
