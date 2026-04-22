@@ -271,6 +271,23 @@ export function importantRulesSection(companyId: string, agentId: string, runId:
 
 export const wakeReasonHeading = "# Wake Reason";
 
+export function heartbeatSkipSection(args: {
+  reason: string;
+  streak: number;
+  since: string;
+  lastTickAt: string;
+}): string {
+  return `# Heartbeat Skip Status
+The scheduler most recently declined to dispatch this agent.
+- Reason: ${args.reason}
+- Consecutive skips: ${args.streak}
+- First skip in this streak: ${args.since}
+- Last tick: ${args.lastTickAt}
+
+If this streak is long and unexplained, it likely means a subsystem (worker pool, connector, quota, checkpoint hold) has been blocking wakes. Check the subsystem before assuming silence means nothing is wrong.
+`;
+}
+
 export const timeAwarenessSection = `# Time Awareness
 Consider what phase of operations the company is in and prioritize accordingly:
 - Early in a sprint cycle → planning, task breakdown, delegation

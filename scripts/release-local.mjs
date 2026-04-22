@@ -150,7 +150,7 @@ function makeDockerEnv(platform) {
 function getDockerBuildCommands(platform) {
   if (platform === "win") {
     return [
-      "node scripts/build-desktop.mjs --win nsis --x64 --ia32",
+      "node scripts/build-desktop.mjs --win nsis --x64",
       "node scripts/build-desktop.mjs --win nsis --arm64",
     ];
   }
