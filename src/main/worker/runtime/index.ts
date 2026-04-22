@@ -8,6 +8,12 @@ import { createPiAgent, resolveThinkingLevel } from "./pi-agent-factory";
 import type { WorkerRpcClient } from "../entry/rpc";
 import { createHireAgentTool, HIRE_AGENT_TOOL_NAME } from "./internal-tools/hire-agent-tool";
 import { createFileApprovalTool, FILE_APPROVAL_TOOL_NAME } from "./internal-tools/file-approval-tool";
+import {
+  classifyRunUsage,
+  hasAttributableAssistantUsage,
+  isTerminalAssistantStopReason,
+  type TerminalAssistantStopReason,
+} from "../../run-usage-status";
 
 interface PrepareRunResult {
   provider: string;
@@ -100,6 +106,8 @@ export class WorkerRunner {
       inputTokens: null,
       outputTokens: null,
     };
+    let sawAttributableUsage = false;
+    let terminalStopReason: TerminalAssistantStopReason | null = null;
     let errorMessage: string | null = null;
 
     // Inject the AgentCompany job env (AGENT_COMPANY_API_URL / API_KEY /
@@ -217,12 +225,12 @@ export class WorkerRunner {
               errorMessage?: string;
               usage?: { input?: number; output?: number; cost?: { total?: number } };
             };
-            if (
-              maybeAssistant.role === "assistant"
-              && (maybeAssistant.stopReason === "error" || maybeAssistant.stopReason === "aborted")
-            ) {
+            if (maybeAssistant.role === "assistant" && isTerminalAssistantStopReason(maybeAssistant.stopReason)) {
+              terminalStopReason = maybeAssistant.stopReason;
               errorMessage = maybeAssistant.errorMessage ?? `Agent stopped with ${maybeAssistant.stopReason}.`;
-            } else if (maybeAssistant.role === "assistant" && maybeAssistant.usage) {
+            }
+            if (hasAttributableAssistantUsage(maybeAssistant)) {
+              sawAttributableUsage = true;
               finalUsage = {
                 inputTokens: typeof maybeAssistant.usage.input === "number" ? maybeAssistant.usage.input : finalUsage.inputTokens,
                 outputTokens: typeof maybeAssistant.usage.output === "number" ? maybeAssistant.usage.output : finalUsage.outputTokens,
@@ -265,6 +273,12 @@ export class WorkerRunner {
       : errorMessage
         ? "failed"
         : "succeeded";
+    const usageStatus = classifyRunUsage({
+      runStatus: status,
+      errorMessage,
+      sawAttributableUsage,
+      terminalStopReason,
+    });
 
     post({
       type: "run-finished",
@@ -275,12 +289,8 @@ export class WorkerRunner {
       exitCode: null,
       signal: null,
       model: resolvedModelId,
-      // Worker no longer owns cost attribution — CostWriter (main-side)
-      // writes per-message rows, finishRun sums them. This flag stays true
-      // only for run paths that never had a chance to emit usage (errors
-      // before the first message_end); per-message drift detection belongs
-      // elsewhere.
-      unattributedCost: finalUsage.inputTokens === null,
+      usageStatus,
+      unattributedCost: usageStatus !== "ok",
       inputTokens: finalUsage.inputTokens,
       outputTokens: finalUsage.outputTokens,
     });

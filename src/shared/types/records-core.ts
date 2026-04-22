@@ -14,6 +14,7 @@ import type {
   ApprovalState,
   ApprovalType,
   RunStatus,
+  RunUsageStatus,
   SkillSourceType,
   TrustLevel,
 } from "./enums";
@@ -201,6 +202,7 @@ export interface RunRecord {
   model: string | null;
   costUsd: number | null;
   unattributedCost: boolean;
+  usageStatus: RunUsageStatus;
   startedAt: string | null;
   finishedAt: string | null;
   logPath: string | null;

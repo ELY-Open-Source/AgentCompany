@@ -2,12 +2,13 @@ import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
-import type { ConnectorId, RunRecord } from "@shared/types";
+import type { ConnectorId, RunRecord, RunUsageStatus } from "@shared/types";
 import { type ReadAll, type Transaction, nowIso, toBoolean } from "./helpers";
 import { buildRunLogMethods } from "./run-logs";
 import { buildRunEventMethods } from "./run-events";
 import { buildCostEntryMethods } from "./cost-entries";
 import { checkoutTaskInTransaction } from "./task-checkout";
+import { deriveLegacyRunUsageStatus } from "../run-usage-status";
 
 class TaskCheckoutConflict extends Error {
   constructor(readonly taskId: string) {
@@ -58,7 +59,7 @@ export function buildRunMethods(
     getRun(id: string): RunRecord {
       const row = getDb()
         .prepare(
-          "select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId, connector_id as connectorId, status, summary, error_message as errorMessage, exit_code as exitCode, signal, model, cost_usd as costUsd, unattributed_cost as unattributedCost, started_at as startedAt, finished_at as finishedAt, log_path as logPath, created_at as createdAt, updated_at as updatedAt from runs where id = ?",
+          "select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId, connector_id as connectorId, status, summary, error_message as errorMessage, exit_code as exitCode, signal, model, cost_usd as costUsd, unattributed_cost as unattributedCost, usage_status as usageStatus, started_at as startedAt, finished_at as finishedAt, log_path as logPath, created_at as createdAt, updated_at as updatedAt from runs where id = ?",
         )
         .get(id) as RunRecord | undefined;
       if (!row) throw new Error(`Run not found: ${id}`);
@@ -150,6 +151,7 @@ export function buildRunMethods(
       signal: string | null;
       model: string | null;
       unattributedCost: boolean;
+      usageStatus?: RunUsageStatus;
     }) {
       const run = getDb().prepare("select task_id as taskId, agent_id as agentId, company_id as companyId, connector_id as connectorId, started_at as startedAt from runs where id = ?").get(input.runId) as
         | { taskId: string | null; agentId: string; companyId: string; connectorId: ConnectorId; startedAt: string | null }
@@ -165,6 +167,10 @@ export function buildRunMethods(
       const runNeverStarted =
         run.startedAt === null && (input.status === "failed" || input.status === "cancelled");
       const ts = nowIso();
+      const usageStatus = input.usageStatus ?? deriveLegacyRunUsageStatus({
+        runStatus: input.status,
+        unattributedCost: input.unattributedCost,
+      });
 
       // Cost is owned by CostWriter — per-message rows in `cost_entries`.
       // finishRun reads the aggregate instead of writing another row, so
@@ -189,12 +195,12 @@ export function buildRunMethods(
       transaction(() => {
         getDb()
           .prepare(
-            "update runs set status = ?, summary = ?, error_message = ?, exit_code = ?, signal = ?, model = ?, cost_usd = ?, unattributed_cost = ?, finished_at = ?, updated_at = ? where id = ?",
+            "update runs set status = ?, summary = ?, error_message = ?, exit_code = ?, signal = ?, model = ?, cost_usd = ?, unattributed_cost = ?, usage_status = ?, finished_at = ?, updated_at = ? where id = ?",
           )
           .run(
             input.status, input.summary ?? "", input.errorMessage, input.exitCode,
             input.signal, input.model, runCostUsd,
-            input.unattributedCost ? 1 : 0, ts, ts, input.runId,
+            input.unattributedCost ? 1 : 0, usageStatus, ts, ts, input.runId,
           );
         if (run.taskId !== null) {
           getDb().prepare("update tasks set active_run_id = null, updated_at = ? where id = ?").run(ts, run.taskId);
@@ -262,9 +268,9 @@ export function buildRunMethods(
       const ts = nowIso();
       getDb()
         .prepare(
-          "update runs set status = 'cancelled', summary = ?, error_message = null, exit_code = null, signal = null, model = null, cost_usd = null, unattributed_cost = 1, finished_at = ?, updated_at = ? where id = ?",
+          "update runs set status = 'cancelled', summary = ?, error_message = null, exit_code = null, signal = null, model = null, cost_usd = null, unattributed_cost = 1, usage_status = ?, finished_at = ?, updated_at = ? where id = ?",
         )
-        .run(summary, ts, ts, runId);
+        .run(summary, "aborted_before_usage", ts, ts, runId);
       if (taskId !== null) {
         getDb().prepare("update tasks set active_run_id = null, updated_at = ? where id = ?").run(ts, taskId);
         getDb()
@@ -309,7 +315,7 @@ export function buildRunMethods(
         `select id, company_id as companyId, task_id as taskId, agent_id as agentId, workspace_id as workspaceId,
                 connector_id as connectorId, status, summary, error_message as errorMessage, exit_code as exitCode,
                 signal, model, cost_usd as costUsd,
-                unattributed_cost as unattributedCost, started_at as startedAt, finished_at as finishedAt,
+                unattributed_cost as unattributedCost, usage_status as usageStatus, started_at as startedAt, finished_at as finishedAt,
                 log_path as logPath, created_at as createdAt, updated_at as updatedAt
            from runs
           where status = 'queued'

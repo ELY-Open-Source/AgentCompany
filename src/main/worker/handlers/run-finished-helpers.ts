@@ -47,6 +47,7 @@ export function finalizeRun(
       exitCode: event.exitCode,
       signal: event.signal,
       model: event.model,
+      usageStatus: event.usageStatus,
       unattributedCost: event.unattributedCost,
       inputTokens: event.inputTokens,
       outputTokens: event.outputTokens,

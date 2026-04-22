@@ -145,6 +145,15 @@ export type RunStatus =
   | "timed_out"
   | "interrupted";
 
+export const RUN_USAGE_STATUSES = [
+  "ok",
+  "pre_first_message",
+  "error_stop",
+  "aborted_before_usage",
+] as const;
+
+export type RunUsageStatus = (typeof RUN_USAGE_STATUSES)[number];
+
 export type DepartmentId =
   | "executive"
   | "engineering"

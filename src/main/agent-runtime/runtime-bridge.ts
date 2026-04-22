@@ -16,6 +16,7 @@ import type { CredentialResolver } from "@main/credentials";
 import { getConnectorDefinition } from "@main/connectors";
 import { projectInboxMessageToPi } from "./inbox-projection";
 import { projectAgentEventToLogChunk, extractTextBody } from "./agent-event-projection";
+import { hasAttributableAssistantUsage } from "../run-usage-status";
 import { captureBaselineIfRequired, reconcileWorkspaceArtifacts } from "./artifact-projector";
 import {
   handleBeforeToolCall,
@@ -357,9 +358,16 @@ export class RuntimeBridge {
     if (envelope.event.type === "message_end") {
       const ctx = this.activeRuns.get(envelope.runId);
       const messageRaw = envelope.event.message as
-        | { role?: string; usage?: unknown; content?: unknown; toolCallId?: string; timestamp?: number }
+        | {
+            role?: string;
+            stopReason?: string;
+            usage?: { input?: unknown; output?: unknown };
+            content?: unknown;
+            toolCallId?: string;
+            timestamp?: number;
+          }
         | undefined;
-      if (ctx && messageRaw?.role === "assistant" && messageRaw.usage) {
+      if (ctx && hasAttributableAssistantUsage(messageRaw)) {
         try {
           this.costWriter.observeAssistantMessage({
             runId: ctx.runId,

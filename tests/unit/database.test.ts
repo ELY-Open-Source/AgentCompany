@@ -304,6 +304,60 @@ describe("AppDatabase", () => {
     expect(db.entityCrud.getAgent(agentId).spentMonthlyUsd).toBe(12);
   });
 
+  it("persists explicit run usage status", () => {
+    const companyId = db.company.saveCompany({
+      name: "Usage Status Company",
+      description: "Tracks run usage status",
+      status: "active",
+    });
+    const workspaceId = db.workspacesMod.saveWorkspace({
+      companyId,
+      name: "Usage Workspace",
+      localPath: "/tmp/usage-status",
+      repoUrl: "",
+      repoRef: "",
+      isPrimary: true,
+    });
+    const agentId = db.agents.saveAgent({
+      companyId,
+      name: "Usage Agent",
+      role: "Engineer",
+      title: "Engineer",
+      status: "active",
+      reportsTo: null,
+      connectorId: "openai-codex",
+      workspaceId,
+      model: "gpt-5",
+      capabilities: "Run tasks",
+      budgetMonthlyUsd: 100,
+    });
+    const taskId = db.tasks.saveTask({
+      companyId,
+      title: "Usage task",
+      description: "Exercise explicit usage status.",
+      assigneeAgentId: agentId,
+      workspaceId,
+      priority: "medium",
+      status: "in_progress",
+    });
+    const run = db.runs.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "openai-codex" });
+
+    db.runs.finishRun({
+      runId: run.id,
+      status: "failed",
+      summary: null,
+      errorMessage: "stream setup failed",
+      exitCode: null,
+      signal: null,
+      model: "gpt-5",
+      unattributedCost: true,
+      usageStatus: "error_stop",
+    });
+
+    expect(db.runs.getRun(run.id).usageStatus).toBe("error_stop");
+    expect(db.snap.listSnapshot().runs.find((record) => record.id === run.id)?.usageStatus).toBe("error_stop");
+  });
+
   it("activates pending hires when the corresponding approval is granted", () => {
     const companyId = db.company.saveCompany({
       name: "Hiring Company",

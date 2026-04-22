@@ -156,9 +156,9 @@ export function buildTaskCrudMethods(
           const ts = nowIso();
           getDb()
             .prepare(
-              "update runs set status = 'cancelled', summary = ?, error_message = null, exit_code = null, signal = null, model = null, session_display_id = null, cost_usd = null, unattributed_cost = 1, finished_at = ?, updated_at = ? where id = ?",
+              "update runs set status = 'cancelled', summary = ?, error_message = null, exit_code = null, signal = null, model = null, session_display_id = null, cost_usd = null, unattributed_cost = 1, usage_status = ?, finished_at = ?, updated_at = ? where id = ?",
             )
-            .run("Task deleted.", ts, ts, run.id);
+            .run("Task deleted.", "aborted_before_usage", ts, ts, run.id);
           getDb()
             .prepare("update tasks set active_run_id = null, updated_at = ? where id = ?")
             .run(ts, run.taskId);

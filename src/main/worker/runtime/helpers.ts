@@ -1,5 +1,5 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { RunStatus } from "@shared/types";
+import type { RunStatus, RunUsageStatus } from "@shared/types";
 
 export interface RunJob {
   runId: string;
@@ -64,6 +64,7 @@ export type ChildMessage =
       exitCode: number | null;
       signal: string | null;
       model: string | null;
+      usageStatus: RunUsageStatus;
       unattributedCost: boolean;
       inputTokens: number | null;
       outputTokens: number | null;

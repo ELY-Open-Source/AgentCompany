@@ -29,6 +29,7 @@ function makeRun(overrides: Partial<RunRecord> = {}): RunRecord {
     model: null,
     costUsd: null,
     unattributedCost: false,
+    usageStatus: "ok",
     startedAt: null,
     finishedAt: null,
     logPath: null,

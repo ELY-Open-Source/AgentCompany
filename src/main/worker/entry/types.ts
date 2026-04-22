@@ -1,12 +1,13 @@
 import { z } from "zod";
 import type { AppDatabase } from "../../database";
-import type { DesktopEvent, RunRecord } from "@shared/types";
+import { RUN_USAGE_STATUSES, type DesktopEvent, type RunRecord } from "@shared/types";
 import type { NotificationOptions } from "../../notification-service";
 import type { createBudgetEnforcementService } from "../../budget-enforcement-service";
 import type { createSessionManagementService } from "../../session-management-service";
 import type { RuntimeBridge, RuntimeMessageInjector } from "../../agent-runtime";
 
 const runStatusSchema = z.enum(["queued", "running", "succeeded", "failed", "cancelled", "timed_out", "interrupted"]);
+const runUsageStatusSchema = z.enum(RUN_USAGE_STATUSES);
 
 /**
  * Single source of truth for worker → main RPC method names.
@@ -51,6 +52,7 @@ export const workerMessageSchema = z.union([
     exitCode: z.number().int().nullable(),
     signal: z.string().nullable(),
     model: z.string().nullable(),
+    usageStatus: runUsageStatusSchema,
     unattributedCost: z.boolean(),
     inputTokens: z.number().nullable(),
     outputTokens: z.number().nullable(),

@@ -19,6 +19,7 @@ import { createMigrationsV50V50 } from "./migrations/v50-v50";
 import { createMigrationsV51V51 } from "./migrations/v51-v51";
 import { createMigrationsV52V52 } from "./migrations/v52-v52";
 import { createMigrationsV53V53 } from "./migrations/v53-v53";
+import { createMigrationsV54V54 } from "./migrations/v54-v54";
 import {
   columnExists,
   nowIso,
@@ -49,6 +50,7 @@ export function ensureOptionalColumns(db: DatabaseSync) {
   addColumnIfMissing("tasks", "checkout_run_id", "alter table tasks add column checkout_run_id text");
   addColumnIfMissing("tasks", "execution_locked_at", "alter table tasks add column execution_locked_at text");
   addColumnIfMissing("tasks", "active_session_id", "alter table tasks add column active_session_id text");
+  addColumnIfMissing("runs", "usage_status", "alter table runs add column usage_status text not null default 'pre_first_message'");
   addColumnIfMissing("cost_entries", "project_id", "alter table cost_entries add column project_id text");
   db.exec(`
     create table if not exists task_comments (id text primary key, company_id text not null, task_id text not null, author_agent_id text, author_name text not null, body text not null, created_at text not null);
@@ -121,7 +123,7 @@ export function initializeDatabase(
       create table if not exists projects (id text primary key, company_id text not null, goal_id text, name text not null, description text not null, lead_agent_id text, status text not null, target_date text, created_at text not null, updated_at text not null);
       create table if not exists tasks (id text primary key, company_id text not null, project_id text, goal_id text, parent_id text, title text not null, description text not null, assignee_agent_id text, workspace_id text, status text not null, priority text not null, active_run_id text, session_json text, session_display_id text, cost_usd real not null default 0, created_at text not null, updated_at text not null);
       create table if not exists approvals (id text primary key, company_id text not null, related_task_id text, requested_by_agent_id text, type text not null, payload_summary text not null, impact_summary text not null, payload_json text, decision_note text not null default '', state text not null, created_at text not null, updated_at text not null);
-      create table if not exists runs (id text primary key, company_id text not null, task_id text not null, agent_id text not null, workspace_id text, connector_id text not null, status text not null, summary text not null, error_message text, exit_code integer, signal text, model text, session_display_id text, cost_usd real, unattributed_cost integer not null default 0, started_at text, finished_at text, log_path text, created_at text not null, updated_at text not null);
+      create table if not exists runs (id text primary key, company_id text not null, task_id text not null, agent_id text not null, workspace_id text, connector_id text not null, status text not null, summary text not null, error_message text, exit_code integer, signal text, model text, session_display_id text, cost_usd real, unattributed_cost integer not null default 0, usage_status text not null default 'pre_first_message', started_at text, finished_at text, log_path text, created_at text not null, updated_at text not null);
       create table if not exists cost_entries (id text primary key, company_id text not null, run_id text not null, task_id text, agent_id text, connector_id text not null, amount_usd real, unattributed integer not null default 0, created_at text not null);
       create table if not exists activity (id text primary key, company_id text not null, actor text not null, action text not null, entity_type text not null, entity_id text not null, detail text not null, created_at text not null);
       create table if not exists secrets (id text primary key, company_id text not null, name text not null, description text not null, backend text not null, ciphertext blob not null, updated_at text not null, created_at text not null, unique(company_id, name));
@@ -218,6 +220,7 @@ export function runMigrations(
     ...createMigrationsV51V51(deps),
     ...createMigrationsV52V52(deps),
     ...createMigrationsV53V53(deps),
+    ...createMigrationsV54V54(deps),
   ];
 
   // Pre-migration snapshot. If any migration is pending we take a full

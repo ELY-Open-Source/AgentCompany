@@ -107,6 +107,7 @@ function cancelRun(runId: string) {
       exitCode: null,
       signal: null,
       model: null,
+      usageStatus: "aborted_before_usage",
       unattributedCost: true,
       inputTokens: null,
       outputTokens: null,
