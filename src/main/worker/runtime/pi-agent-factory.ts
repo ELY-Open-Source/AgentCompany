@@ -87,5 +87,6 @@ export function createPiAgent(input: PiAgentFactoryInput): Agent {
     beforeToolCall: hooks.beforeToolCall,
     afterToolCall: hooks.afterToolCall,
     transformContext: hooks.transformContext,
+    toolExecution: "sequential",
   });
 }
