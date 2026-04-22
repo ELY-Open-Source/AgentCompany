@@ -7,6 +7,7 @@ import { createApiServer } from "../../src/main/api-server";
 import { AppDatabase } from "../../src/main/database";
 import { processRunCompletion } from "../../src/main/automation/automation-run-completion";
 import { createDocumentWithLifecycle } from "../../src/main/document-lifecycle";
+import { createTestApiServerCallbacks } from "../support/api-server-callbacks";
 
 const tempDirs: string[] = [];
 
@@ -92,7 +93,7 @@ async function createHarness() {
   const token = createAgentToken(agentId, companyId, run.id);
   const silentLogger = { warn: () => {}, error: () => {} };
   const noopLifecycleProcessor = { drainForDocument: () => {} };
-  const server = createApiServer(db, () => {}, () => null, {
+  const server = createApiServer(db, createTestApiServerCallbacks({
     createDocument: (input) =>
       createDocumentWithLifecycle(
         {
@@ -107,7 +108,7 @@ async function createHarness() {
         },
         input,
       ),
-  });
+  }));
   const port = await server.start();
 
   return {

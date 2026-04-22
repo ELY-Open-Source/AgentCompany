@@ -83,6 +83,35 @@ export interface ApiServerEventCallbacks {
   notify: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
 }
 
+const REQUIRED_API_SERVER_CALLBACKS: readonly (keyof ApiServerEventCallbacks)[] = [
+  "onDomainChanged",
+  "onWakeAgent",
+  "onTaskCreated",
+  "onTaskStatusChanged",
+  "onCommentPosted",
+  "onApprovalCreated",
+  "onApprovalResolved",
+  "createDocument",
+  "onAutoAssignTask",
+  "onHumanMessage",
+  "injectRuntimeMessage",
+  "emitEvent",
+  "notify",
+];
+
+function assertCompleteApiServerCallbacks(
+  callbacks: Partial<ApiServerEventCallbacks> | null | undefined,
+): asserts callbacks is ApiServerEventCallbacks {
+  if (!callbacks) {
+    throw new Error("Missing AgentApiServer callbacks.");
+  }
+  for (const name of REQUIRED_API_SERVER_CALLBACKS) {
+    if (typeof callbacks[name] !== "function") {
+      throw new Error(`Missing AgentApiServer callback: ${name}`);
+    }
+  }
+}
+
 /**
  * Token-bucket rate limiter scoped per (companyId, agentId).
  *
@@ -139,32 +168,16 @@ export class AgentApiServer {
 
   constructor(
     db: AppDatabase,
-    onDomainChanged: () => void,
-    onWakeAgent: (agentId: string, companyId: string, trigger: string) => string | null,
-    callbacks?: Partial<ApiServerEventCallbacks>,
+    callbacks: ApiServerEventCallbacks,
     allowedOrigins: Iterable<string> = ["app://-"],
   ) {
+    assertCompleteApiServerCallbacks(callbacks);
     this._db = db;
-    this._onDomainChangedCb = onDomainChanged;
-    this._onWakeAgentCb = onWakeAgent;
-    this._emitEventCb = callbacks?.emitEvent ?? (() => {});
+    this._onDomainChangedCb = callbacks.onDomainChanged;
+    this._onWakeAgentCb = callbacks.onWakeAgent;
+    this._emitEventCb = callbacks.emitEvent;
     this._allowedOrigins = new Set(Array.from(allowedOrigins).filter(Boolean));
-    this._callbacks = {
-      onDomainChanged,
-      onWakeAgent,
-      onTaskCreated: callbacks?.onTaskCreated ?? (() => {}),
-      onTaskStatusChanged: callbacks?.onTaskStatusChanged ?? (() => {}),
-      onCommentPosted: callbacks?.onCommentPosted ?? (() => {}),
-      onApprovalCreated: callbacks?.onApprovalCreated ?? (() => {}),
-      onApprovalResolved: callbacks?.onApprovalResolved ?? (() => {}),
-      createDocument: callbacks?.createDocument
-        ?? (() => { throw new Error("createDocument callback is not wired."); }),
-      onAutoAssignTask: callbacks?.onAutoAssignTask ?? (() => null),
-      onHumanMessage: callbacks?.onHumanMessage ?? (() => {}),
-      injectRuntimeMessage: callbacks?.injectRuntimeMessage ?? (() => false),
-      emitEvent: callbacks?.emitEvent ?? (() => {}),
-      notify: callbacks?.notify ?? (() => {}),
-    };
+    this._callbacks = { ...callbacks };
   }
 
   setBrowserActionHandler(handler: (actionId: string, companyId: string) => void) {

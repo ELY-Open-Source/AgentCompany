@@ -69,13 +69,7 @@ export function createMainRuntime({
       devServerUrl,
       workerPath,
       createApiServer: (db, callbacks, allowedOrigins) =>
-        createApiServer(
-          db,
-          support.publishDomainChanged,
-          (agentId, companyId, trigger) => callbacks.onWakeAgent(agentId, companyId, trigger),
-          callbacks,
-          allowedOrigins,
-        ),
+        createApiServer(db, callbacks, allowedOrigins),
       createRunToken: createAgentToken,
       seedDefaultAutomationRules: support.seedDefaultAutomationRules,
       isQuittingRef: {

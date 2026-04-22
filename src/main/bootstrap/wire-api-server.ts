@@ -1,17 +1,13 @@
 import log from "electron-log/main.js";
-import type { AgentApiServer } from "../api-server";
+import type { AgentApiServer, ApiServerEventCallbacks } from "../api-server";
 import type { AppDatabase } from "../database";
-import type { AgentMessageRecord, DesktopEvent, SectionId } from "@shared/types";
+import type { DesktopEvent } from "@shared/types";
 import type { NotificationOptions } from "../notification-service";
 import type { createServiceGraph } from "../service-graph";
 import type { createThreadIntegration } from "../thread-integration";
 import type { createCheckpointEngine } from "../checkpoint-engine";
 import type { AutomationEventContext } from "../automation/types";
-import {
-  createDocumentWithLifecycle,
-  type DocumentLifecycleInput,
-  type DocumentLifecycleOutcome,
-} from "../document-lifecycle";
+import { createDocumentWithLifecycle } from "../document-lifecycle";
 import type { DocumentLifecycleProcessor } from "../document-lifecycle-processor";
 
 type ServiceGraph = ReturnType<typeof createServiceGraph>;
@@ -19,21 +15,7 @@ type ThreadIntegration = ReturnType<typeof createThreadIntegration>;
 type CheckpointEngine = ReturnType<typeof createCheckpointEngine>;
 
 export interface CreateApiServerFn {
-  (db: AppDatabase, callbacks: {
-    onDomainChanged: () => void;
-    onWakeAgent: (agentId: string, companyId: string, trigger: string) => string | null;
-    onTaskCreated: (taskId: string, companyId: string) => void;
-    onTaskStatusChanged: (taskId: string, companyId: string, prev: string, next: string) => void;
-    onCommentPosted: (taskId: string, companyId: string, authorAgentId: string | null) => void;
-    onApprovalCreated: (approvalId: string, companyId: string, taskId: string | null, approvalType: string, summary: string) => void;
-    onApprovalResolved: (approvalId: string, companyId: string, decision: string) => void;
-    createDocument: (input: DocumentLifecycleInput) => DocumentLifecycleOutcome;
-    onAutoAssignTask: (taskId: string, companyId: string) => string | null;
-    onHumanMessage: (companyId: string, toAgentId?: string | null, threadId?: string | null, waitStateId?: string | null) => void;
-    injectRuntimeMessage: (recipientAgentId: string, companyId: string, message: AgentMessageRecord) => boolean;
-    emitEvent: (event: DesktopEvent) => void;
-    notify: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
-  }, allowedOrigins: string[]): AgentApiServer;
+  (db: AppDatabase, callbacks: ApiServerEventCallbacks, allowedOrigins: string[]): AgentApiServer;
 }
 
 export interface WireApiServerDeps {

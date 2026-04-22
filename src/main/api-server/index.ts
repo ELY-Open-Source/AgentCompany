@@ -21,12 +21,10 @@ export { AgentApiServer };
  */
 export function createApiServer(
   db: AppDatabase,
-  onDomainChanged: () => void,
-  onWakeAgent: (agentId: string, companyId: string, trigger: string) => string | null,
-  callbacks?: Partial<ApiServerEventCallbacks>,
+  callbacks: ApiServerEventCallbacks,
   allowedOrigins?: Iterable<string>,
 ): AgentApiServer {
-  const server = new AgentApiServer(db, onDomainChanged, onWakeAgent, callbacks, allowedOrigins);
+  const server = new AgentApiServer(db, callbacks, allowedOrigins);
   registerAgentRoutes(server);
   registerAgentControlRoutes(server);
   registerAgentStandupRoute(server);

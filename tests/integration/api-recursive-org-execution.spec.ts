@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createAgentToken, initializeAgentTokenSigningKey } from "../../src/main/agent-auth";
 import { createApiServer } from "../../src/main/api-server";
 import { AppDatabase } from "../../src/main/database";
+import { createTestApiServerCallbacks } from "../support/api-server-callbacks";
 
 const tempDirs: string[] = [];
 
@@ -83,7 +84,7 @@ async function createHarness() {
   });
   const run = db.runs.createRun({ companyId, taskId, agentId: ctoId, workspaceId, connectorId: "openai-codex" });
   const token = createAgentToken(ctoId, companyId, run.id);
-  const server = createApiServer(db, () => {}, () => null);
+  const server = createApiServer(db, createTestApiServerCallbacks());
   const port = await server.start();
 
   return {
