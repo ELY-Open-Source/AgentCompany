@@ -1,11 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron";
+import { IPC_CHANNELS } from "@shared/contracts/channels";
+import type { DesktopApi } from "@shared/contracts/desktop-api";
 import {
-  IPC_CHANNELS,
   PRELOAD_FORWARDERS,
   mapPreloadInvokeArgs,
-  type DesktopApi,
   type PreloadForwardedApi,
-} from "@shared/contracts";
+} from "@shared/contracts/preload-forwarders";
 import type { DesktopEvent } from "@shared/types";
 
 function createForwardedApi(): PreloadForwardedApi {

@@ -22,10 +22,7 @@ export default defineConfig({
     },
   },
   preload: {
-    // zod is bundled into preload because preload runs as sandboxed CJS
-    // and cannot resolve externalized ESM deps at runtime. Inlining keeps
-    // IPC Zod validation working inside the preload layer.
-    plugins: [externalizeDepsPlugin({ exclude: ["zod"] })],
+    plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
         "@shared": resolve("src/shared"),
