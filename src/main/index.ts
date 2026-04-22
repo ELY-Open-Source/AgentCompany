@@ -1,4 +1,4 @@
-import "./suppress-warnings";
+import "./install-main-warning-suppressions";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { app } from "electron";
