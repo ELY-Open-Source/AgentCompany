@@ -24,14 +24,10 @@ describe("Step 2: CEO phased prompts", () => {
 
     const prompt = buildSystemPrompt(ctx);
     expect(prompt).toContain("Team Building Phase");
-    // The rewritten prompt is action-first: it names the single job,
-    // shows the hire POST curl up front, and reaches for the
-    // server-enforced STRATEGY_BEFORE_HIRES / STRATEGY_ALREADY_FILED
-    // codes instead of prose ordering directives.
     expect(prompt).toContain("file 3–5 `hire_agent` tool calls");
     expect(prompt).toContain("Do this first — file the hires");
-    expect(prompt).toContain("file_approval.strategy.before_hires");
-    expect(prompt).toContain("file_approval.strategy.already_filed");
+    expect(prompt).not.toContain("file_approval.strategy.before_hires");
+    expect(prompt).not.toContain("file_approval.strategy.already_filed");
     expect(prompt).not.toContain("Awaiting Org Strategy Approval");
     expect(prompt).not.toContain("Goal Decomposition");
   });
@@ -51,6 +47,8 @@ describe("Step 2: CEO phased prompts", () => {
 
     const prompt = buildSystemPrompt(ctx);
     expect(prompt).toContain("Awaiting Hire Approvals");
+    expect(prompt).toContain("call `file_approval` once");
+    expect(prompt).toContain("file_approval.strategy.before_hires");
     expect(prompt).not.toContain("Team Building Phase");
     expect(prompt).not.toContain("Goal Decomposition");
   });

@@ -54,22 +54,9 @@ export function resolveInitialUserTurn(
 
   // CEO / team-building semantic cue (C4 part 4/5).
   //
-  // The pre-C4 version of this block hard-coded the tool name (`bash`),
-  // the runtime (`node -e ...`), the API paths (`/api/companies/:id/
-  // agents` + `/api/companies/:id/approvals`), the call count (3-5),
-  // and the imperative tone ("Start the first POST NOW. Do not write
-  // a plan document."). Every one of those was an implementation
-  // detail leaking into the LLM turn — when pi-agent-core swapped
-  // `bash`, when the HTTP path moved, or when the number policy shifted,
-  // the prompt silently drifted from reality and the CEO stopped filing
-  // hires.
-  //
-  // The new cue is deliberately short. The Team Building Phase
-  // operating instructions (see `ceo-modes/team-building.en.md`) own
-  // the SOP; this turn just points at it and tells the CEO to execute
-  // via the `hire_agent` and `file_approval` tools that C4 part 3/5
-  // registered on its agent. No tool names, no HTTP endpoints — the
-  // tool surface is the contract.
+  // The turn names the state and points at the mode contract. The action
+  // policy lives in the tool schema and the CEO-mode instructions so model
+  // swaps do not depend on an imperative one-off user sentence.
   if (trigger === "timer" || trigger === "bootstrap" || trigger === "app_restart_resume") {
     const cue = tryResolveCeoTeamBuildingCue({ agentId, companyId, db: deps.db });
     if (cue !== null) return cue;
@@ -102,7 +89,7 @@ function tryResolveCeoTeamBuildingCue(params: {
     if (activeReports.length > 0) return null;
     return [
       "This wake: your team is empty.",
-      "File 3-5 hire_agent requests and 1 approve_ceo_strategy via your assigned tools. Execute now, do not write a plan document.",
+      "Follow the Team Building operating instructions using the tools exposed for this run, then return.",
     ].join("\n\n");
   } catch (error) {
     logAppError(

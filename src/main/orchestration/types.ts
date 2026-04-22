@@ -48,10 +48,9 @@ export interface EnqueueRunPayload {
   initialUserTurn: string;
   /**
    * Internal tools main decides to inject for this specific run (C4).
-   * Currently only CEOs with hire authority receive `hire_agent` and
-   * `file_approval`; any other agent's `internalTools` is empty. The
-   * decision is made at dispatch time from the resolved CEO mode so the
-   * worker never re-derives it.
+   * Hiring authority receives `hire_agent`; CEO strategy approval receives
+   * `file_approval` after the initial team-building hire pass has started.
+   * The decision is made at dispatch time so the worker never re-derives it.
    */
   internalTools: ReadonlyArray<"hire_agent" | "file_approval">;
 }

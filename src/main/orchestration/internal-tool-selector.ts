@@ -9,16 +9,12 @@
  *    anyone with org-management authority) receives `hire_agent`. A
  *    manager hiring an IC is a legitimate flow.
  *  - An agent that `canFileCeoStrategy` (genuine CEO: CEO-equivalent
- *    role + `reportsTo === null`) receives `file_approval` so the
- *    `approve_ceo_strategy` flow works without the HTTP shim. Peer
- *    agents use the HTTP path until the file_approval surface is
- *    generalised.
+ *    role + `reportsTo === null`) receives `file_approval` after the
+ *    initial team-building phase has produced at least one hire.
  *
- * The two predicates are intentionally orthogonal — a VP with hiring
- * authority should not inherit CEO-strategy approval scope, and a CEO
- * with a virtual superior inserted above them should not silently
- * lose strategy scope either (guarded by `canFileCeoStrategy`'s role
- * check, not just `reportsTo`).
+ * The two predicates are intentionally orthogonal: a VP with hiring
+ * authority receives hiring scope, while CEO-strategy approval remains
+ * pinned to the CEO role and the current org phase.
  *
  * No hedging, no sentinel values: if the DB lookup throws the caller
  * is already in a broken state and should not silently fall through
@@ -39,8 +35,31 @@ export function resolveInternalToolsForAgent(
   if (canRequestHire(db, agent.companyId, agent.id)) {
     tools.push("hire_agent");
   }
-  if (canFileCeoStrategy(db, agent.companyId, agent.id)) {
+  if (canFileCeoStrategy(db, agent.companyId, agent.id) && !isInitialTeamBuildingPhase(db, agent)) {
     tools.push("file_approval");
   }
   return tools;
+}
+
+function isInitialTeamBuildingPhase(db: AppDatabase, agent: AgentRecord): boolean {
+  if (!canFileCeoStrategy(db, agent.companyId, agent.id)) return false;
+
+  const directReports = db.agents.getDirectReports(agent.id, agent.companyId);
+  const activeReports = directReports.filter(
+    (report) => report.status !== "pending_approval" && report.status !== "terminated",
+  );
+  const pendingReportRows = directReports.filter((report) => report.status === "pending_approval");
+  const pendingHireApprovals = db.approvalsMod
+    .listCompanyApprovalsByType(agent.companyId, "hire_agent")
+    .filter((approval) => approval.state === "pending");
+  const pendingStrategyApprovals = db.approvalsMod
+    .listCompanyApprovalsByType(agent.companyId, "approve_ceo_strategy")
+    .filter((approval) => approval.state === "pending");
+
+  return (
+    activeReports.length === 0 &&
+    pendingReportRows.length === 0 &&
+    pendingHireApprovals.length === 0 &&
+    pendingStrategyApprovals.length === 0
+  );
 }

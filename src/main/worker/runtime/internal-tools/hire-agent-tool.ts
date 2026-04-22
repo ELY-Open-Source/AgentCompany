@@ -122,7 +122,7 @@ export function createHireAgentTool(rpc: WorkerRpcClient, runId: string): AgentT
     name: HIRE_AGENT_TOOL_NAME,
     label: "hire agent",
     description:
-      "File a hire_agent approval to add a new direct report to the company. Use when the CEO (or another manager) needs to fill a role. The approval is auto-approved for companies configured in hands-off mode; otherwise it goes to the board. Do not invoke for an agent that already exists.",
+      "File a hire_agent approval to add one direct report. During CEO Team Building, call this tool 3 to 5 times to populate the initial team. Outside Team Building, use it when the CEO or another manager needs to fill one role. The approval is auto-approved for hands-off companies; otherwise it goes to the board.",
     parameters: hireAgentSchema,
     async execute(toolCallId, params, _signal?, _onUpdate?) {
       const payload: InvokeInternalToolRpcPayload = {
