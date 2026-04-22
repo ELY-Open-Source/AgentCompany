@@ -30,6 +30,38 @@ function makeLongTranscript(olderFacts: AgentMessage[]): AgentMessage[] {
 }
 
 describe("context compactor tool result facts", () => {
+  it("uses tokenizer counts so long CJK transcripts compact before provider overflow", () => {
+    const messages: AgentMessage[] = [
+      {
+        role: "user",
+        content: [{ type: "text", text: "Start the Chinese market launch review." }],
+        timestamp: 1,
+      } as AgentMessage,
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "I will keep the plan concise." }],
+        timestamp: 2,
+      } as AgentMessage,
+      {
+        role: "user",
+        content: [{ type: "text", text: "请完成市场复盘，保留所有客户反馈与行动项。 ".repeat(8_000) }],
+        timestamp: 3,
+      } as AgentMessage,
+    ];
+    for (let i = 0; i < 42; i += 1) {
+      messages.push({
+        role: i % 2 === 0 ? "user" : "assistant",
+        content: [{ type: "text", text: `recent ${i}` }],
+        timestamp: 100 + i,
+      } as AgentMessage);
+    }
+
+    const outcome = compactMessagesIfNeeded(messages);
+
+    expect(outcome.changed).toBe(true);
+    expect(outcome.telemetry?.estimatedTokens).toBeGreaterThanOrEqual(120_000);
+  });
+
   it("preserves task, approval, message, status, decision, and error facts from tool results", () => {
     const messages = makeLongTranscript([
       {

@@ -1,7 +1,7 @@
 # Proposal C3-followup: 用真实 tokenizer 替换字符估算
 
 > 来源：Roundtable 2026-04-20 surgical compactor 修复；C3 首轮决定先用保守常量 (2 chars/token) 落地
-> 状态：proposed（中间态已落地，真正解决方案待依赖就绪）
+> 状态：implemented（2026-04-22：`js-tiktoken` / `cl100k_base` 已接入 `context-compactor.ts`）
 > 提出：Karpathy (T2)
 > Owner: TBD
 > 估计工时：1 天（换依赖）+ 半天（灰度验证）
@@ -9,7 +9,7 @@
 
 ## 问题陈述
 
-`src/main/agent-runtime/context-compactor.ts` 的 `estimateTokens` 现在用 `Math.ceil(chars / 2)` 做 token 估算，作为 120k 阈值的守门人。
+`src/main/agent-runtime/context-compactor.ts` 曾用 `Math.ceil(chars / 2)` 做 token 估算，作为 120k 阈值的守门人。2026-04-22 已改成 `js-tiktoken` 的 `cl100k_base` 本地编码器，并保留每条 chat message 的固定结构开销。
 
 问题：
 1. **中文 BPE 实际约 1.5-2 tokens/char**：2 chars/token 的常量对 CJK 大致可用，但 mixed 中英 / emoji / code block 的实际比例会漂移。
@@ -29,9 +29,9 @@ pi-ai 0.67.68 没 export tokenizer。Compactor 作为 `transformContext` hook �
 
 ## 建议路径
 
-1. 先等 pi-ai 是否在后续 patch 里暴露 `countTokens(messages, model)`——如果暴露，零成本切过去。
-2. 若 6 周内上游没动作，引入 `tiktoken` + 模型 → encoding 映射表（Anthropic 用 `cl100k_base` 近似；Gemini / GPT 各自对应）。
-3. 保留 `estimateTokens(text: string): number` 的对外签名不变，只换内部实现——B3 配对修复和 hook 调用都无需动。
+1. 已接入 `js-tiktoken` + `cl100k_base`，保持 compactor 同步纯函数。
+2. pi-ai 后续若暴露 provider-native tokenizer，可在 `context-compactor.ts` 内替换编码器实现。
+3. hook 调用保持不变，`compactMessagesIfNeeded(messages)` 继续返回原有 `CompactionOutcome`。
 
 ## 不做的事
 

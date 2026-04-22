@@ -8,8 +8,8 @@
  * throttle when the context approaches their window.
  *
  * This compactor keeps the hook pure and provider-free: no LLM
- * round-trip, no mutation, no IO. It estimates token count using a
- * 4-chars-per-token heuristic, keeps recent traffic verbatim, and
+ * round-trip, no mutation, no IO. It counts transcript text with a
+ * local tiktoken-compatible encoder, keeps recent traffic verbatim, and
  * collapses older messages into a single "context summary" user turn
  * that preserves the assistant's narrative plus tool-call headlines.
  *
@@ -19,6 +19,7 @@
  */
 
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import { getEncoding } from "js-tiktoken";
 
 /** Token-budget threshold that triggers compaction. */
 const COMPACTION_TRIGGER_TOKENS = 120_000;
@@ -28,17 +29,8 @@ const COMPACTION_TRIGGER_TOKENS = 120_000;
  * losing mid-stream state (tool-call pairs, user intent).
  */
 const RECENT_MESSAGE_TAIL = 20;
-/**
- * Conservative tokens-per-char estimator. The former 4 chars/token value
- * under-counts CJK traffic by roughly 2x — Chinese BPE tokenizers land
- * closer to 1.5-2 tokens per character, so a 120k-token gate would
- * silently trip only after the real context already blew past the
- * window. 2 chars/token is a deliberate over-estimate for latin text in
- * exchange for not under-triggering on Chinese agent runs. The proper
- * fix is a real tokenizer — pi-ai 0.67.68 does not export one yet, so
- * see docs/proposals/C3-real-tokenizer-followup.md for the upgrade path.
- */
-const CHARS_PER_TOKEN = 2;
+const CONTEXT_ENCODING = getEncoding("cl100k_base");
+const CHAT_MESSAGE_OVERHEAD_TOKENS = 4;
 /** Per-assistant-message summary cap to keep the compacted turn readable. */
 const MAX_SUMMARY_CHARS_PER_MESSAGE = 160;
 const MAX_TOOL_RESULT_LINES = 12;
@@ -150,7 +142,8 @@ function estimateTokens(messages: AgentMessage[]): number {
 
 function estimateMessageTokens(message: AgentMessage): number {
   const raw = extractTextForEstimate(message as MessageLike);
-  return Math.ceil(raw.length / CHARS_PER_TOKEN);
+  if (raw.length === 0) return CHAT_MESSAGE_OVERHEAD_TOKENS;
+  return CONTEXT_ENCODING.encode(raw).length + CHAT_MESSAGE_OVERHEAD_TOKENS;
 }
 
 function extractTextForEstimate(message: MessageLike): string {
