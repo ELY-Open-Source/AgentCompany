@@ -3,6 +3,7 @@ import {
   classifyRunUsage,
   deriveLegacyRunUsageStatus,
   hasAttributableAssistantUsage,
+  isUsageStatusUnattributed,
 } from "../../src/main/run-usage-status";
 
 describe("run usage status", () => {
@@ -80,5 +81,12 @@ describe("run usage status", () => {
       "aborted_before_usage",
     );
     expect(deriveLegacyRunUsageStatus({ runStatus: "failed", unattributedCost: true })).toBe("pre_first_message");
+  });
+
+  it("derives the legacy unattributed-cost flag from usage status", () => {
+    expect(isUsageStatusUnattributed("ok")).toBe(false);
+    expect(isUsageStatusUnattributed("pre_first_message")).toBe(true);
+    expect(isUsageStatusUnattributed("error_stop")).toBe(true);
+    expect(isUsageStatusUnattributed("aborted_before_usage")).toBe(true);
   });
 });

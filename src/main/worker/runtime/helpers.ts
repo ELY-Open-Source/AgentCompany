@@ -65,7 +65,6 @@ export type ChildMessage =
       signal: string | null;
       model: string | null;
       usageStatus: RunUsageStatus;
-      unattributedCost: boolean;
       inputTokens: number | null;
       outputTokens: number | null;
     }

@@ -290,7 +290,6 @@ export class WorkerRunner {
       signal: null,
       model: resolvedModelId,
       usageStatus,
-      unattributedCost: usageStatus !== "ok",
       inputTokens: finalUsage.inputTokens,
       outputTokens: finalUsage.outputTokens,
     });

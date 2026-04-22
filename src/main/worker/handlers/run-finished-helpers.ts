@@ -4,6 +4,7 @@ import { handleFailureEscalation, handleSuccessReset } from "../observability/fa
 import { persistRunEvent } from "../observability/run-event-recorder";
 import type { workerMessageSchema } from "../entry/types";
 import type { HandlerContext, HandlerDeps, WorkerMessageEvent } from "./handler-context";
+import { isUsageStatusUnattributed } from "../../run-usage-status";
 
 type RunFinishedEvent = Extract<WorkerMessageEvent, { type: "run-finished" }>;
 type RunRecord = ReturnType<HandlerDeps["db"]["runs"]["getRun"]>;
@@ -33,6 +34,8 @@ export function finalizeRun(
     return null;
   }
 
+  const unattributedCost = isUsageStatusUnattributed(event.usageStatus);
+
   persistRunEvent(db, logger, {
     companyId: run.companyId,
     runId: run.id,
@@ -48,7 +51,7 @@ export function finalizeRun(
       signal: event.signal,
       model: event.model,
       usageStatus: event.usageStatus,
-      unattributedCost: event.unattributedCost,
+      unattributedCost,
       inputTokens: event.inputTokens,
       outputTokens: event.outputTokens,
     },
@@ -67,7 +70,7 @@ export function finalizeRun(
   }
 
   leaseRenewalMap.delete(event.runId);
-  const runOutcome = db.runs.finishRun(event);
+  const runOutcome = db.runs.finishRun({ ...event, unattributedCost });
   if (run.workspaceId) {
     db.workspacesMod.releaseWorkspaceLock(run.workspaceId, run.id);
   }

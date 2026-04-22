@@ -53,10 +53,9 @@ export const workerMessageSchema = z.union([
     signal: z.string().nullable(),
     model: z.string().nullable(),
     usageStatus: runUsageStatusSchema,
-    unattributedCost: z.boolean(),
     inputTokens: z.number().nullable(),
     outputTokens: z.number().nullable(),
-  }),
+  }).strict(),
   z.object({
     type: z.literal("agent-event"),
     runId: z.string().uuid(),

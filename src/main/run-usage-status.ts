@@ -56,6 +56,10 @@ export function classifyRunUsage(input: RunUsageClassificationInput): RunUsageSt
   return "pre_first_message";
 }
 
+export function isUsageStatusUnattributed(status: RunUsageStatus): boolean {
+  return status !== "ok";
+}
+
 export function deriveLegacyRunUsageStatus(input: {
   runStatus: RunStatus;
   unattributedCost: boolean;
