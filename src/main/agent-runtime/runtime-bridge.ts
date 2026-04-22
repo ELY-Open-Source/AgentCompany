@@ -1,21 +1,12 @@
-// TODO(M-followup by 2026-05-20): decompose — current file exceeds 500 LOC
-// ceiling (648 LOC). Split into sqlite-session-store wiring, cost/metrics
-// routing, and hook-dispatch assembly. If 2026-05-20 passes without
-// decomposition, a follow-up session MUST revisit and either decompose or
-// justify the ceiling exception.
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { AppDatabase } from "@main/database";
 import type { AgentMessageRecord, DesktopEvent } from "@shared/types";
-import {
-  ensureAgentCommunicationThread,
-  ensureTaskThread,
-} from "@main/thread-integration/thread-helpers";
 import { SqliteSessionStore } from "./sqlite-session-store";
 import { CostWriter } from "./cost-writer";
 import type { CredentialResolver } from "@main/credentials";
 import { getConnectorDefinition } from "@main/connectors";
 import { projectInboxMessageToPi } from "./inbox-projection";
-import { projectAgentEventToLogChunk, extractTextBody } from "./agent-event-projection";
+import { projectAgentEventToLogChunk } from "./agent-event-projection";
 import { hasAttributableAssistantUsage } from "../run-usage-status";
 import { captureBaselineIfRequired, reconcileWorkspaceArtifacts } from "./artifact-projector";
 import {
@@ -30,6 +21,8 @@ import type {
 } from "./hook-rpc";
 import { routeInternalToolCall } from "./internal-tools/router";
 import type { InvokeInternalToolRpcPayload } from "@main/worker/runtime/internal-tools/internal-tool-rpc";
+import { InboundCorrelationRegistryStore } from "./inbound-correlation-registry";
+import { RuntimeThreadProjector } from "./runtime-thread-projector";
 
 /**
  * Side-effect callbacks the internal-tool handlers invoke after a
@@ -91,59 +84,23 @@ type RpcMethod = WorkerRpcMethod;
  * Policy itself lives in `hook-handlers.ts`; this class is a pure IPC
  * router plus an `ActiveRunContext` cache.
  */
-interface InboundCorrelationEntry {
-  fromAgentId: string;
-  senderKind: AgentMessageRecord["senderKind"];
-  messageId: string;
-  /**
-   * Stable pi-message timestamp that the projected user turn carries.
-   * Reverse-indexed so `message_end` (which only surfaces the pi
-   * message shape) can resolve back to `messageId` without relying on
-   * wall-clock millisecond precision.
-   */
-  piTimestamp: number;
-}
-
-interface InboundCorrelationRegistry {
-  byMessageId: Map<string, InboundCorrelationEntry>;
-  byPiTimestamp: Map<number, string>;
-  lastAllocatedTimestamp: number;
-}
-
-/**
- * Upper bound on inbound-correlation entries retained per active run.
- *
- * Every inbound peer message injected during a single pi run allocates
- * one entry in both the messageId and piTimestamp maps of the registry.
- * A long-lived CEO session that accumulates thousands of mid-run DMs
- * would otherwise grow the maps without bound until the session
- * compaction fires (which does not clean these structures). Keeping the
- * `MAX_INBOUND_CORRELATIONS_PER_RUN` most recent entries is sufficient:
- * `message_end` resolves author identity immediately after each turn,
- * so the in-memory window only needs to cover pending-to-drain inbound
- * messages, not the full run history.
- */
-const MAX_INBOUND_CORRELATIONS_PER_RUN = 512;
-
 export class RuntimeBridge {
   private readonly costWriter: CostWriter;
+  private readonly threadProjector: RuntimeThreadProjector;
   private readonly activeRuns = new Map<string, ActiveRunContext>();
   private readonly sessionStores = new Map<string, SqliteSessionStore>();
   private internalToolCallbacks: InternalToolCallbacks | null = null;
-  /**
-   * Per-run inbound-message registry. Primary identity is
-   * `record.id` (the `agent_messages.id`). A monotonically allocated
-   * `piTimestamp` lives on every projected user turn so
-   * `message_end` — which only surfaces the pi-message shape — can
-   * invert the mapping back to the real author. The wall-clock
-   * `createdAt` is not enough: two messages that land in the same
-   * millisecond would collide on a timestamp-keyed map and one peer's
-   * identity would be silently lost in thread-event projection.
-   */
-  private readonly inboundCorrelations = new Map<string, InboundCorrelationRegistry>();
+  private readonly inboundCorrelations = new InboundCorrelationRegistryStore();
 
   constructor(private readonly deps: RuntimeBridgeDeps) {
     this.costWriter = new CostWriter({ db: deps.db });
+    this.threadProjector = new RuntimeThreadProjector({
+      db: deps.db,
+      logger: deps.logger,
+      resolveAgentName: (agentId) => this.resolveAgentName(agentId),
+      lookupInboundCorrelation: (runId, timestamp) =>
+        this.inboundCorrelations.lookup(runId, timestamp),
+    });
   }
 
   /**
@@ -181,7 +138,7 @@ export class RuntimeBridge {
     const ctx = this.activeRuns.get(runId);
     if (ctx) this.reconcileArtifactsForRun(ctx);
     this.activeRuns.delete(runId);
-    this.inboundCorrelations.delete(runId);
+    this.inboundCorrelations.deleteRun(runId);
     if (ctx) this.sessionStores.delete(ctx.taskSessionId);
   }
 
@@ -224,51 +181,12 @@ export class RuntimeBridge {
    * entries when `message_end` fires.
    */
   projectInboundMessage(runId: string, record: AgentMessageRecord): AgentMessage {
-    const registry = this.getOrCreateInboundRegistry(runId);
     const base = Date.parse(record.createdAt);
     const baseline = Number.isFinite(base) ? base : Date.now();
-    const allocated = Math.max(baseline, registry.lastAllocatedTimestamp + 1);
-    registry.lastAllocatedTimestamp = allocated;
-    const entry: InboundCorrelationEntry = {
-      fromAgentId: record.fromAgentId,
-      senderKind: record.senderKind,
-      messageId: record.id,
-      piTimestamp: allocated,
-    };
-    registry.byMessageId.set(record.id, entry);
-    registry.byPiTimestamp.set(allocated, record.id);
-    this.evictOldestCorrelationsIfNeeded(registry);
+    const allocated = this.inboundCorrelations.register(runId, record, baseline);
     return projectInboxMessageToPi(record, {
       getAgentName: (id) => this.resolveAgentName(id),
     }, { timestampOverride: allocated });
-  }
-
-  /**
-   * Bound the per-run correlation maps. JavaScript `Map` preserves
-   * insertion order, so dropping the head of each map retires the
-   * oldest entries. Eviction operates symmetrically on both maps so
-   * the reverse lookups remain consistent.
-   */
-  private evictOldestCorrelationsIfNeeded(registry: InboundCorrelationRegistry): void {
-    while (registry.byMessageId.size > MAX_INBOUND_CORRELATIONS_PER_RUN) {
-      const oldestMessageId = registry.byMessageId.keys().next().value;
-      if (!oldestMessageId) break;
-      const entry = registry.byMessageId.get(oldestMessageId);
-      registry.byMessageId.delete(oldestMessageId);
-      if (entry) registry.byPiTimestamp.delete(entry.piTimestamp);
-    }
-  }
-
-  private getOrCreateInboundRegistry(runId: string): InboundCorrelationRegistry {
-    const existing = this.inboundCorrelations.get(runId);
-    if (existing) return existing;
-    const registry: InboundCorrelationRegistry = {
-      byMessageId: new Map(),
-      byPiTimestamp: new Map(),
-      lastAllocatedTimestamp: 0,
-    };
-    this.inboundCorrelations.set(runId, registry);
-    return registry;
   }
 
   /** Returns the active run context for a given agent, if any. Used by
@@ -385,168 +303,7 @@ export class RuntimeBridge {
           );
         }
       }
-      this.recordThreadEvent(envelope, messageRaw);
-    }
-  }
-
-  /**
-   * Project the pi `message_end` event into a `conversation_events` row
-   * so renderer thread views stay live. Resolves the thread from the run
-   * context: task runs write into the task thread; taskless runs — used
-   * by communication wakes — write into a per-agent general thread so
-   * peer conversations remain visible in the UI.
-   *
-   * User-role messages whose pi timestamp matches a registered inbound
-   * injection are attributed back to the original author via the
-   * correlation map; without that, the envelope's `agentId` (the
-   * recipient) would be recorded as the sender and every peer message
-   * would collapse into a self-reply row.
-   *
-   * Best-effort: thread persistence failures must not interrupt the run.
-   */
-  private recordThreadEvent(
-    envelope: { runId: string; agentId: string; companyId: string; taskId: string | null },
-    message: { role?: string; content?: unknown; toolCallId?: string; timestamp?: number } | undefined,
-  ): void {
-    if (!message?.role) return;
-
-    const thread = this.resolveThreadForRun(envelope);
-    if (!thread) return;
-
-    try {
-      const body = extractTextBody(message.content);
-      const actor = this.resolveThreadEventActor(envelope, message);
-      this.deps.db.threads.addThreadEvent({
-        threadId: thread.id,
-        actorId: actor.actorId,
-        actorType: actor.actorType,
-        eventType: message.role === "toolResult" ? "system_note" : "message",
-        body: body.length > 4000 ? `${body.slice(0, 3997)}...` : body,
-        metadataJson: JSON.stringify({
-          runId: envelope.runId,
-          role: message.role,
-          sourceMessageId: actor.sourceMessageId ?? undefined,
-        }),
-      });
-    } catch (error) {
-      this.deps.logger.warn(
-        `[runtime-bridge] failed to project agent-event into thread ${thread.id}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-    }
-  }
-
-  private resolveThreadForRun(
-    envelope: { runId: string; agentId: string; companyId: string; taskId: string | null },
-  ) {
-    if (envelope.taskId) {
-      try {
-        const task = this.deps.db.entityCrud.getTask(envelope.taskId);
-        return ensureTaskThread(this.deps.db, envelope.taskId, envelope.companyId, task.title);
-      } catch (error) {
-        this.deps.logger.warn(
-          `[runtime-bridge] getTask failed for ${envelope.taskId}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-        return null;
-      }
-    }
-    try {
-      const agentLabel = this.resolveAgentName(envelope.agentId);
-      return ensureAgentCommunicationThread(
-        this.deps.db,
-        envelope.agentId,
-        envelope.companyId,
-        agentLabel,
-      );
-    } catch (error) {
-      this.deps.logger.warn(
-        `[runtime-bridge] ensureAgentCommunicationThread failed for ${envelope.agentId}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      return null;
-    }
-  }
-
-  private resolveThreadEventActor(
-    envelope: { runId: string; agentId: string },
-    message: { role?: string; timestamp?: number },
-  ): { actorId: string; actorType: "agent" | "user" | "system"; sourceMessageId: string | null } {
-    if (message.role === "user") {
-      const correlation = this.lookupInboundCorrelation(envelope.runId, message.timestamp);
-      if (correlation) {
-        const actorType: "agent" | "user" | "system" =
-          correlation.senderKind === "human"
-            ? "user"
-            : correlation.senderKind === "system"
-              ? "system"
-              : "agent";
-        return {
-          actorId: correlation.fromAgentId,
-          actorType,
-          sourceMessageId: correlation.messageId,
-        };
-      }
-      return { actorId: "user", actorType: "user", sourceMessageId: null };
-    }
-    if (message.role === "assistant") {
-      return { actorId: envelope.agentId, actorType: "agent", sourceMessageId: null };
-    }
-    return { actorId: envelope.agentId, actorType: "system", sourceMessageId: null };
-  }
-
-  private lookupInboundCorrelation(
-    runId: string,
-    timestamp: number | undefined,
-  ): InboundCorrelationEntry | null {
-    if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) return null;
-    const registry = this.inboundCorrelations.get(runId);
-    if (!registry) return null;
-    const messageId = registry.byPiTimestamp.get(timestamp);
-    if (!messageId) return null;
-    return registry.byMessageId.get(messageId) ?? null;
-  }
-
-  /**
-   * Write the conversation-event row for an inbound peer message that
-   * was projected onto the recipient's transcript as a prior-turn (via
-   * `prepareRun`). priorMessages never fire `message_end`, so this is
-   * the only path that surfaces them in the thread view. Mid-run steer
-   * injections still go through `recordThreadEvent` off `message_end`
-   * and resolve their author via `inboundCorrelations`.
-   */
-  private recordInboundMessageAsThreadEvent(
-    envelope: { runId: string; agentId: string; companyId: string; taskId: string | null },
-    record: AgentMessageRecord,
-  ): void {
-    const thread = this.resolveThreadForRun(envelope);
-    if (!thread) return;
-    try {
-      const body = record.body.length > 4000 ? `${record.body.slice(0, 3997)}...` : record.body;
-      const actorType: "agent" | "user" | "system" =
-        record.senderKind === "human"
-          ? "user"
-          : record.senderKind === "system"
-            ? "system"
-            : "agent";
-      this.deps.db.threads.addThreadEvent({
-        threadId: thread.id,
-        actorId: record.fromAgentId,
-        actorType,
-        eventType: "message",
-        body,
-        metadataJson: JSON.stringify({
-          runId: envelope.runId,
-          role: "user",
-          sourceMessageId: record.id,
-          projection: "prepare_run",
-        }),
-      });
-    } catch (error) {
-      this.deps.logger.warn(
-        `[runtime-bridge] inbound thread-event write failed for message ${record.id}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+      this.threadProjector.recordThreadEvent(envelope, messageRaw);
     }
   }
 
@@ -689,7 +446,7 @@ export class RuntimeBridge {
           // to distinct authors at `message_end`.
           const projected = this.projectInboundMessage(runId, record);
           store.appendMessage(projected);
-          this.recordInboundMessageAsThreadEvent(
+          this.threadProjector.recordInboundMessageAsThreadEvent(
             {
               runId,
               agentId: payload.agentId,

@@ -78,6 +78,20 @@ export default tseslint.config(
     },
   },
   {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "max-lines": ["error", { max: 500, skipBlankLines: true, skipComments: false }],
+    },
+  },
+  {
+    // Locale dictionaries are data tables generated as TypeScript
+    // modules. The max-lines ceiling applies to executable source.
+    files: ["src/renderer/i18n/*.ts"],
+    rules: {
+      "max-lines": "off",
+    },
+  },
+  {
     // C1 part 3/3 — block new top-level methods on AppDatabase.
     //
     // The whole point of the C1 codemod was to force callers through
