@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import type { ProfileSnapshot, SectionId } from "@shared/types";
-import { unwrap } from "../lib/desktop";
+import { describeDesktopError, unwrap } from "../lib/desktop";
 import { useAppStore } from "../state/store";
 
 export function useDataLoader(
@@ -32,7 +32,7 @@ export function useDataLoader(
       }
       store.setError(null);
     } catch (nextError) {
-      store.setError(nextError instanceof Error ? nextError.message : String(nextError));
+      store.setError(describeDesktopError(nextError));
     }
   }, []);
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { CompanyRecord, OnboardingBootstrapResult } from "@shared/types";
 import { useAppStore } from "../state/store";
 import { NEW_ENTITY_ID } from "../lib/constants";
-import { unwrap } from "../lib/desktop";
+import { describeDesktopError, formatDesktopResultError, unwrap } from "../lib/desktop";
 import { useDesktopEvents } from "./useDesktopEvents";
 import { useDataLoader } from "./useDataLoader";
 import { useCompanyData } from "./useCompanyData";
@@ -98,7 +98,7 @@ export function useCompanyController() {
         incrementLogRevision();
         return;
       }
-      useAppStore.getState().setError(result.error.message);
+      useAppStore.getState().setError(formatDesktopResultError(result.error));
     })();
   }, [activeRunId, companyData.runs, incrementLogRevision]);
 
@@ -110,7 +110,7 @@ export function useCompanyController() {
       clearCompanyScopedUiState();
       await refresh();
       store.setError(null);
-    } catch (err) { store.setError(err instanceof Error ? err.message : String(err)); }
+    } catch (err) { store.setError(describeDesktopError(err)); }
   }, [clearCompanyScopedUiState, refresh]);
 
   const deleteCompany = useCallback(async (companyId: string) => {
@@ -120,7 +120,7 @@ export function useCompanyController() {
       store.setConfirmDeleteCompanyId(null);
       store.setCompanySwitcherOpen(false);
       await refresh();
-    } catch (err) { store.setError(err instanceof Error ? err.message : String(err)); }
+    } catch (err) { store.setError(describeDesktopError(err)); }
   }, [refresh]);
 
   const handleOnboardingDone = useCallback(async (summary: OnboardingBootstrapResult) => {
@@ -136,7 +136,7 @@ export function useCompanyController() {
   const openPathWithFeedback = useCallback(async (path: string) => {
     const store = useAppStore.getState();
     try { unwrap(await window.agentCompany.openPath(path)); store.setError(null); }
-    catch (err) { store.setError(err instanceof Error ? err.message : String(err)); }
+    catch (err) { store.setError(describeDesktopError(err)); }
   }, []);
 
   // HOOK-002 fix: return a STABLE useMemo'd object. Deps are each primitive

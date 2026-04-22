@@ -1,8 +1,9 @@
 import { createContext, useContext } from "react";
+import type { AppErrorInput } from "../lib/desktop";
 
 export interface AppActions {
   refresh: () => Promise<void>;
-  setError: (error: string | null) => void;
+  setError: (error: AppErrorInput) => void;
   openPathWithFeedback: (path: string) => Promise<void>;
   startRun: (taskId: string) => Promise<void>;
   cancelRun: (runId: string) => Promise<void>;

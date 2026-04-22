@@ -21,7 +21,7 @@ import { SprintManager } from "../../components/company-operations/SprintManager
 import { ActionButton, EmptyState, Modal } from "../../components/ui";
 import { Plus } from "../../components/ui/icons";
 import { useT } from "../../i18n";
-import { unwrap } from "../../lib/desktop";
+import { describeDesktopError, unwrap } from "../../lib/desktop";
 import { useAppStore } from "../../state/store";
 import { useSectionContext } from "../../hooks/useSectionContext";
 import { useAppActions } from "../../hooks/useAppActions";
@@ -135,7 +135,7 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
               unwrap(await window.agentCompany.triggerBrowserLogin({ companyId: snapshot.currentCompanyId, socialAccountId: accountId }));
               setError(null);
             } catch (error) {
-              setError(error instanceof Error ? error.message : String(error));
+              setError(describeDesktopError(error));
             }
           }}
           onDelete={async (id) => {
@@ -145,7 +145,7 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
               await refresh();
               setError(null);
             } catch (error) {
-              setError(error instanceof Error ? error.message : String(error));
+              setError(describeDesktopError(error));
             }
           }}
           onLogin={async (accountId) => {
@@ -155,7 +155,7 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
               await refresh();
               setError(null);
             } catch (error) {
-              setError(error instanceof Error ? error.message : String(error));
+              setError(describeDesktopError(error));
             }
           }}
           onOpenPath={async (path) => {
@@ -163,7 +163,7 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
               unwrap(await window.agentCompany.openPath(path));
               setError(null);
             } catch (error) {
-              setError(error instanceof Error ? error.message : String(error));
+              setError(describeDesktopError(error));
             }
           }}
           onCancelAction={async (actionId) => {
@@ -173,7 +173,7 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
               await refresh();
               setError(null);
             } catch (error) {
-              setError(error instanceof Error ? error.message : String(error));
+              setError(describeDesktopError(error));
             }
           }}
           onNavigate={(sectionName, entityId) => {

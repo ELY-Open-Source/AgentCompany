@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion"
 import { CheckCircle, Warning, X, XCircle } from "./ui/icons"
 import { useAppStore } from "../state/store"
 import { useReducedMotion } from "./ui"
+import type { Toast } from "../state/slices/ui"
 
 const TONE_CONFIG = {
   success: { icon: CheckCircle, className: "bg-success-muted border-success text-success" },
@@ -34,9 +35,7 @@ export default function ToastContainer() {
               className={`flex w-[320px] items-start gap-2.5 rounded-lg border px-4 py-3 shadow-lg ${cfg.className}`}
             >
               <Icon size={16} weight="fill" className="mt-px shrink-0" />
-              <span className="max-h-[6.5rem] min-w-0 flex-1 overflow-y-auto break-words text-[13px] font-medium leading-relaxed">
-                {toast.message}
-              </span>
+              <ToastMessage message={toast.message} />
               <button
                 type="button"
                 onClick={() => dismiss(toast.id)}
@@ -49,6 +48,28 @@ export default function ToastContainer() {
           )
         })}
       </AnimatePresence>
+    </div>
+  )
+}
+
+function ToastMessage({ message }: { message: Toast["message"] }) {
+  if (typeof message === "string") {
+    return (
+      <span className="max-h-[6.5rem] min-w-0 flex-1 overflow-y-auto break-words text-[13px] font-medium leading-relaxed">
+        {message}
+      </span>
+    )
+  }
+
+  return (
+    <div className="max-h-[7.5rem] min-w-0 flex-1 overflow-y-auto">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <span className="rounded bg-background/80 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.08em]">
+          {message.code}
+        </span>
+        <span className="min-w-0 break-words text-[12px] font-semibold leading-5">{message.actionHint}</span>
+      </div>
+      <div className="mt-1 break-words text-[12px] leading-5 opacity-80">{message.message}</div>
     </div>
   )
 }

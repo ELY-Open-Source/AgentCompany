@@ -10,6 +10,7 @@ import { SkillList } from "./SkillList";
 import { SkillImportModal } from "./SkillImportModal";
 import { SkillDetail } from "./SkillDetail";
 import { useT } from "../../i18n";
+import { describeDesktopError, formatDesktopResultError } from "../../lib/desktop";
 
 export function SkillsSection({
   companyId,
@@ -37,10 +38,10 @@ export function SkillsSection({
       if (result.ok) {
         setSkills(result.data);
       } else {
-        addToast(result.error.message, "danger");
+        addToast(formatDesktopResultError(result.error), "danger");
       }
     } catch (error) {
-      addToast(error instanceof Error ? error.message : "Failed to load skills", "danger");
+      addToast(describeDesktopError(error), "danger");
     }
   }, [companyId, setSkills, addToast]);
 

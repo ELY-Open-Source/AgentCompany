@@ -15,7 +15,7 @@ import { useCompanyController } from "./hooks/useCompanyController";
 import { useCommandPaletteHotkeys } from "./hooks/useCommandPaletteHotkeys";
 import { AppActionsContext, type AppActions } from "./hooks/useAppActions";
 import { SectionContext } from "./hooks/useSectionContext";
-import { unwrap } from "./lib/desktop";
+import { createAppErrorNotice, describeDesktopError, formatDesktopResultError, unwrap } from "./lib/desktop";
 
 function Shell({
   locale,
@@ -55,9 +55,16 @@ export function App() {
   const isMac = !showCustomTitleBar;
 
   const startRun = useCallback(async (taskId: string) => {
-    if (!company.currentCompany) { setError("Select a company before starting a run."); return; }
+    if (!company.currentCompany) {
+      setError(createAppErrorNotice(
+        "Select a company before starting a run.",
+        "COMPANY_REQUIRED",
+        "Select a company in the sidebar, then start the run.",
+      ));
+      return;
+    }
     const result = await window.agentCompany.startTaskRun({ companyId: company.currentCompany.id, taskId });
-    if (!result.ok) { setError(result.error.message); return; }
+    if (!result.ok) { setError(formatDesktopResultError(result.error)); return; }
     setSelectedRunId(result.data);
     await company.refresh();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- Zustand setters and company.refresh are stable
@@ -70,7 +77,7 @@ export function App() {
       unwrap(await window.agentCompany.cancelRun({ companyId: run.companyId, runId }));
       await company.refresh();
       setError(null);
-    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+    } catch (err) { setError(describeDesktopError(err)); }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- setError is a stable Zustand setter
   }, [company.refresh, company.runs]);
 

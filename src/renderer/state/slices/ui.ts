@@ -2,10 +2,11 @@ import type { StateCreator } from "zustand";
 import type { AppState } from "../store";
 import type { AppLocale } from "@shared/locale";
 import { DEFAULT_LOCALE } from "@shared/locale";
+import type { AppErrorNotice } from "../../lib/desktop";
 
 export interface Toast {
   id: string;
-  message: string;
+  message: string | AppErrorNotice;
   tone: "success" | "danger" | "warn";
 }
 
@@ -29,7 +30,7 @@ export interface UiSlice {
   setTaskViewMode: (mode: "list" | "kanban") => void;
   setTaskInspectorTab: (tab: TaskInspectorTab) => void;
   incrementLogRevision: () => void;
-  addToast: (message: string, tone?: Toast["tone"]) => void;
+  addToast: (message: Toast["message"], tone?: Toast["tone"]) => void;
   dismissToast: (id: string) => void;
 }
 

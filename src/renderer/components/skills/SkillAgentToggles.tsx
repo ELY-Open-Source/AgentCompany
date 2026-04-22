@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AgentRecord, SkillRecord } from "@shared/types";
 import { useAppStore } from "../../state/store";
+import { formatDesktopResultError } from "../../lib/desktop";
 
 type SkillAgentTogglesProps =
   | { mode: "skill"; companyId: string; skillId: string; agents: AgentRecord[] }
@@ -48,7 +49,7 @@ export function SkillAgentToggles(props: SkillAgentTogglesProps) {
           return next;
         });
       } else {
-        addToast(result.error.message, "danger");
+        addToast(formatDesktopResultError(result.error), "danger");
       }
       setTogglingId(null);
     },

@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { WarningCircle } from "../components/ui/icons";
 import type { SectionId } from "@shared/types";
+import type { AppErrorNotice } from "../lib/desktop";
 import { ErrorBoundary } from "../components/ui";
 import { OrganizationSections } from "./sections/OrganizationSections";
 import { ExecutionSections } from "./sections/ExecutionSections";
@@ -8,7 +9,7 @@ import { OperationsSections } from "./sections/OperationsSections";
 
 interface SectionContentViewProps {
   section: SectionId;
-  error: string | null;
+  error: AppErrorNotice | null;
   pageTransition: { duration: number; ease?: readonly [number, number, number, number] } | { duration: number };
 }
 
@@ -19,9 +20,20 @@ export function SectionContentView({ section, error, pageTransition }: SectionCo
       <div className={isCommunication ? "flex min-h-0 flex-1 flex-col" : "mx-auto flex w-full max-w-[1040px] flex-col px-6 py-6 lg:px-10 lg:py-8"}>
 
         {error ? (
-          <div className={`flex items-center gap-3 rounded-lg bg-destructive-muted px-4 py-3 text-[13px] text-destructive ${isCommunication ? "mx-6 mt-4" : "mb-6"}`}>
-            <WarningCircle size={18} />
-            <span>{error}</span>
+          <div
+            role="alert"
+            className={`flex items-start gap-3 rounded-lg bg-destructive-muted px-4 py-3 text-destructive ${isCommunication ? "mx-6 mt-4" : "mb-6"}`}
+          >
+            <WarningCircle size={18} className="mt-0.5 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="rounded bg-background/80 px-1.5 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-[0.08em]">
+                  {error.code}
+                </span>
+                <span className="min-w-0 text-[13px] font-semibold leading-5">{error.actionHint}</span>
+              </div>
+              <div className="mt-1 break-words text-[12px] leading-5 text-destructive/80">{error.message}</div>
+            </div>
           </div>
         ) : null}
 

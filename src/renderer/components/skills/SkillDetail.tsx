@@ -14,6 +14,7 @@ import { ActionButton, StatusPill, Eyebrow } from "../ui";
 import { SkillAgentToggles } from "./SkillAgentToggles";
 import { buildTree, SkillFileTree } from "./SkillFileTree";
 import { useT, type TranslationFn } from "../../i18n";
+import { formatDesktopResultError } from "../../lib/desktop";
 
 const sourceIconMap: Record<string, typeof GithubLogo> = {
   github: GithubLogo,
@@ -114,7 +115,7 @@ export function SkillDetail({
       if (result.ok) {
         setDetail(result.data);
       } else {
-        addToast(result.error.message, "danger");
+        addToast(formatDesktopResultError(result.error), "danger");
       }
     }
     void load();
@@ -147,7 +148,7 @@ export function SkillDetail({
     if (result.ok) {
       setUpdateStatus(result.data);
     } else {
-      addToast(result.error.message, "danger");
+      addToast(formatDesktopResultError(result.error), "danger");
     }
   }, [companyId, skillId, detail, addToast]);
 
@@ -157,7 +158,7 @@ export function SkillDetail({
       addToast(t("skill.deleted"), "success");
       onDeleted();
     } else {
-      addToast(result.error.message, "danger");
+      addToast(formatDesktopResultError(result.error), "danger");
     }
   }, [companyId, skillId, addToast, onDeleted, t]);
 

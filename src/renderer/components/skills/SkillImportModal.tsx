@@ -8,6 +8,7 @@ import {
 import { Modal, ActionButton, Input } from "../ui";
 import { useAppStore } from "../../state/store";
 import { useT } from "../../i18n";
+import { describeDesktopError, formatDesktopResultError } from "../../lib/desktop";
 
 type TabId = "github" | "local" | "url" | "skills_sh";
 
@@ -95,10 +96,10 @@ export function SkillImportModal({
         onImported();
         handleClose();
       } else {
-        addToast(result.error.message, "danger");
+        addToast(formatDesktopResultError(result.error), "danger");
       }
     } catch (error) {
-      addToast(error instanceof Error ? error.message : t("skillImport.failed"), "danger");
+      addToast(describeDesktopError(error), "danger");
     } finally {
       setIsImporting(false);
     }

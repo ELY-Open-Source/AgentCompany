@@ -9,6 +9,13 @@ import type {
   StandupReport,
   TaskRecord,
 } from "@shared/types";
+import {
+  describeDesktopError,
+  formatDesktopResultError,
+  normalizeAppErrorNotice,
+  type AppErrorInput,
+  type AppErrorNotice,
+} from "../../lib/desktop";
 
 // Sidebar badge counts and inbox items both live in the renderer —
 // derived on every read from the snapshot (see `@shared/sidebar-badges`
@@ -26,11 +33,11 @@ export interface CompanySlice {
   snapshotRevision: number;
   companyMetrics: CompanyMetrics | null;
   standupReport: StandupReport | null;
-  error: string | null;
+  error: AppErrorNotice | null;
   setSnapshot: (snapshot: ProfileSnapshot | null) => void;
   setCompanyMetrics: (metrics: CompanyMetrics | null) => void;
   setStandupReport: (report: StandupReport | null) => void;
-  setError: (error: string | null) => void;
+  setError: (error: AppErrorInput) => void;
   refreshSnapshot: () => Promise<void>;
   patchTask: (task: TaskRecord) => void;
   removeTask: (taskId: string) => void;
@@ -68,7 +75,7 @@ export const createCompanySlice: StateCreator<
     }),
   setError: (error) =>
     set((state) => {
-      state.error = error;
+      state.error = normalizeAppErrorNotice(error);
     }),
   refreshSnapshot: async () => {
     try {
@@ -80,12 +87,12 @@ export const createCompanySlice: StateCreator<
         });
       } else {
         set((state) => {
-          state.error = result.error.message;
+          state.error = formatDesktopResultError(result.error);
         });
       }
     } catch (err) {
       set((state) => {
-        state.error = err instanceof Error ? err.message : String(err);
+        state.error = describeDesktopError(err);
       });
     }
   },
