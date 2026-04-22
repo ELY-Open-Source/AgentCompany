@@ -123,14 +123,18 @@ async function main() {
   ]);
 
   const content = `export type PlatformDownloadAsset = {
+  architectures: ReleaseArchitecture[];
   id: string;
   label: string;
   href: string;
   note: string;
 };
 
+export type ReleaseArchitecture = "arm64" | "x64" | "x86";
+
 export type PlatformDownload = {
   id: "macos" | "windows" | "linux";
+  packageDescription: string;
   title: string;
   note: string;
   assets: PlatformDownloadAsset[];
@@ -141,16 +145,19 @@ export const releaseVersion = "${version}";
 export const platformDownloads: PlatformDownload[] = [
   {
     id: "macos",
+    packageDescription: "signed and notarized DMG builds",
     title: "macOS",
     note: "Signed + notarized DMG builds",
     assets: [
       {
+        architectures: ["arm64"],
         id: "macos-arm64-dmg",
         label: "Apple Silicon DMG",
         href: "${urlFor(baseUrl, macArm64Dmg)}",
         note: "arm64",
       },
       {
+        architectures: ["x64"],
         id: "macos-x64-dmg",
         label: "Intel Mac DMG",
         href: "${urlFor(baseUrl, macIntelDmg)}",
@@ -160,10 +167,12 @@ export const platformDownloads: PlatformDownload[] = [
   },
   {
     id: "windows",
+    packageDescription: "an NSIS installer build",
     title: "Windows",
     note: "NSIS installer builds",
     assets: [
       {
+        architectures: ["arm64", "x64"],
         id: "windows-universal-installer",
         label: "Windows Universal Installer",
         href: "${urlFor(baseUrl, windowsUniversalInstaller)}",
@@ -173,40 +182,47 @@ export const platformDownloads: PlatformDownload[] = [
   },
   {
     id: "linux",
+    packageDescription: "AppImage, DEB, and RPM builds",
     title: "Linux",
     note: "AppImage, DEB, and RPM builds",
     assets: [
       {
+        architectures: ["x64"],
         id: "linux-x64-appimage",
         label: "Linux x64 AppImage",
         href: "${urlFor(baseUrl, linuxX64AppImage)}",
         note: "x64",
       },
       {
+        architectures: ["x64"],
         id: "linux-x64-deb",
         label: "Linux x64 DEB",
         href: "${urlFor(baseUrl, linuxX64Deb)}",
         note: "x64",
       },
       {
+        architectures: ["x64"],
         id: "linux-x64-rpm",
         label: "Linux x64 RPM",
         href: "${urlFor(baseUrl, linuxX64Rpm)}",
         note: "x64",
       },
       {
+        architectures: ["arm64"],
         id: "linux-arm64-appimage",
         label: "Linux ARM64 AppImage",
         href: "${urlFor(baseUrl, linuxArm64AppImage)}",
         note: "arm64",
       },
       {
+        architectures: ["arm64"],
         id: "linux-arm64-deb",
         label: "Linux ARM64 DEB",
         href: "${urlFor(baseUrl, linuxArm64Deb)}",
         note: "arm64",
       },
       {
+        architectures: ["arm64"],
         id: "linux-arm64-rpm",
         label: "Linux ARM64 RPM",
         href: "${urlFor(baseUrl, linuxArm64Rpm)}",

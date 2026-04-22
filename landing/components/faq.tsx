@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { platformSupportSummary } from "../lib/platform-support";
 
 const faqs = [
   {
@@ -11,13 +12,11 @@ const faqs = [
   },
   {
     question: "How do I download AgentCompany?",
-    answer:
-      "Use the download section on this page to choose the build that matches your architecture and package format. macOS ships as signed and notarized DMGs, Windows ships as a universal installer covering ARM64, x64, and x86, and Linux ships as AppImage, DEB, and RPM builds from our Cloudflare release host.",
+    answer: platformSupportSummary.downloadAnswer,
   },
   {
     question: "What platforms does AgentCompany support?",
-    answer:
-      "AgentCompany is available on macOS arm64 and x64, Windows ARM64/x64/x86, and Linux x64 and ARM64. It is built with Electron and the desktop feature set stays aligned across all supported targets.",
+    answer: platformSupportSummary.platformAnswer,
   },
   {
     question: "What AI models can AgentCompany use?",

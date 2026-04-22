@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "../components/theme-provider";
+import { platformSupportSummary } from "../lib/platform-support";
 
 const description =
   "Local-first desktop control plane for autonomous AI companies. Set a goal, let an AI CEO assemble specialists, delegate work, and deliver code, research, content, and operations from your desktop.";
@@ -143,7 +144,7 @@ const faqJsonLd = {
       name: "How do I download AgentCompany?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Use the download section on the website to choose the installer for your platform. macOS ships as a signed and notarized DMG. Windows and Linux builds are distributed directly from our Cloudflare release host.",
+        text: platformSupportSummary.downloadAnswer,
       },
     },
     {
@@ -151,7 +152,7 @@ const faqJsonLd = {
       name: "What platforms does AgentCompany support?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "AgentCompany is available on macOS, Windows, and Linux. It is built with Electron and runs natively on all three platforms with full feature parity.",
+        text: platformSupportSummary.platformAnswer,
       },
     },
     {
