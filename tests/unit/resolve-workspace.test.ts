@@ -32,18 +32,18 @@ import {
  */
 
 function seedCompany(db: AppDatabase) {
-  const companyId = db.company.saveCompany({
+  const companyId = db.core.company.saveCompany({
     name: "Parallel Co",
     description: "Regression fixture",
     status: "active",
   });
-  db.connectorsCrud.saveConnector({
+  db.core.connectors.saveConnector({
     id: "openai-codex",
     model: "gpt-5",
     envBindingText: "",
     notes: "fixture",
   });
-  const workspaceId = db.workspacesMod.saveWorkspace({
+  const workspaceId = db.core.workspaces.saveWorkspace({
     companyId,
     name: "Default",
     localPath: "/tmp/fixture",
@@ -97,7 +97,7 @@ describe("resolveWorkspaceWithLockMode", () => {
 
   it("persisted requiresFilesystem=false stays lock-free for engineering-assigned tasks", () => {
     const { companyId, workspaceId } = seedCompany(db);
-    const agentId = db.agents.saveAgent({
+    const agentId = db.core.agents.saveAgent({
       companyId,
       name: "Engineering Lead",
       role: "CTO",
@@ -111,7 +111,7 @@ describe("resolveWorkspaceWithLockMode", () => {
       capabilities: "Architecture",
       budgetMonthlyUsd: 100,
     });
-    const taskId = db.tasks.saveTask({
+    const taskId = db.core.tasks.saveTask({
       companyId,
       title: "Review launch plan",
       description: "Read the plan and respond with strategic comments.",
@@ -121,8 +121,8 @@ describe("resolveWorkspaceWithLockMode", () => {
       status: "todo",
       requiresFilesystem: false,
     });
-    const task = db.entityCrud.getTask(taskId);
-    const agent = db.entityCrud.getAgent(agentId);
+    const task = db.core.entity.getTask(taskId);
+    const agent = db.core.entity.getAgent(agentId);
     const result = resolveWorkspaceWithLockMode(db, task, agent, companyId);
     expect(task.requiresFilesystem).toBe(false);
     expect(result.source).toBe("none");
@@ -132,13 +132,13 @@ describe("resolveWorkspaceWithLockMode", () => {
 
   it("requiresFilesystem + project primary workspace → exclusive on project workspace", () => {
     const { companyId } = seedCompany(db);
-    const projectId = db.entityCrud.saveProject({
+    const projectId = db.core.entity.saveProject({
       companyId,
       name: "Platform",
       description: "",
       status: "active",
     });
-    const projectWsId = db.workspacesMod.saveWorkspace({
+    const projectWsId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Project repo",
       localPath: "/tmp/project-ws",
@@ -185,7 +185,7 @@ describe("resolveWorkspaceWithLockMode", () => {
 
   it("task.workspaceId wins over agent.workspaceId even when both are set", () => {
     const { companyId, workspaceId: agentWsId } = seedCompany(db);
-    const taskWsId = db.workspacesMod.saveWorkspace({
+    const taskWsId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Task-only",
       localPath: "/tmp/task-ws",
@@ -205,7 +205,7 @@ describe("resolveWorkspaceWithLockMode", () => {
   });
 
   it("filesystem-requiring task with no resolvable workspace → throws WorkspaceConfigurationError", () => {
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Empty Co",
       description: "",
       status: "active",
@@ -221,7 +221,7 @@ describe("resolveWorkspaceWithLockMode", () => {
   });
 
   it("non-coding role with no workspace bindings → none (never throws, never falls back to shared lock)", () => {
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Empty Co",
       description: "",
       status: "active",
@@ -271,7 +271,7 @@ describe("resolveWorkspaceWithLockMode", () => {
   });
 
   it("lockMode=none observationPath is null when company has no workspace at all", () => {
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "No-workspace Co",
       description: "",
       status: "active",

@@ -30,12 +30,12 @@ describe("canManageOrganization", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Org Permissions Co",
       description: "Tests recursive org authority",
       status: "active",
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -44,7 +44,7 @@ describe("canManageOrganization", () => {
       isPrimary: true,
     });
 
-    const ceoId = db.agents.saveAgent({
+    const ceoId = db.core.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -57,7 +57,7 @@ describe("canManageOrganization", () => {
       capabilities: "Lead the company",
       budgetMonthlyUsd: 250,
     });
-    const ctoId = db.agents.saveAgent({
+    const ctoId = db.core.agents.saveAgent({
       companyId,
       name: "CTO",
       role: "CTO",
@@ -71,7 +71,7 @@ describe("canManageOrganization", () => {
       budgetMonthlyUsd: 220,
       department: "engineering",
     });
-    const engineerId = db.agents.saveAgent({
+    const engineerId = db.core.agents.saveAgent({
       companyId,
       name: "Engineer",
       role: "Engineer",
@@ -100,12 +100,12 @@ describe("canManageOrganization", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Org Permission Override Co",
       description: "Tests permission-based org authority",
       status: "active",
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -113,7 +113,7 @@ describe("canManageOrganization", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const ceoId = db.agents.saveAgent({
+    const ceoId = db.core.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -126,7 +126,7 @@ describe("canManageOrganization", () => {
       capabilities: "Lead the company",
       budgetMonthlyUsd: 250,
     });
-    const agentId = db.agents.saveAgent({
+    const agentId = db.core.agents.saveAgent({
       companyId,
       name: "Operations Lead",
       role: "Specialist",
@@ -142,7 +142,7 @@ describe("canManageOrganization", () => {
     });
 
     expect(canManageOrganization(db, companyId, agentId)).toBe(false);
-    db.agents.setAgentPermission(agentId, companyId, "organization_manage", true);
+    db.core.agents.setAgentPermission(agentId, companyId, "organization_manage", true);
     expect(canManageOrganization(db, companyId, agentId)).toBe(true);
     expect(canRequestHire(db, companyId, agentId)).toBe(true);
 
@@ -154,12 +154,12 @@ describe("canManageOrganization", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Scoped Authority Co",
       description: "Tests that branch growth does not unlock org-wide admin powers",
       status: "active",
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -167,7 +167,7 @@ describe("canManageOrganization", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const ceoId = db.agents.saveAgent({
+    const ceoId = db.core.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -180,7 +180,7 @@ describe("canManageOrganization", () => {
       capabilities: "Lead the company",
       budgetMonthlyUsd: 250,
     });
-    const ctoId = db.agents.saveAgent({
+    const ctoId = db.core.agents.saveAgent({
       companyId,
       name: "CTO",
       role: "CTO",
@@ -194,7 +194,7 @@ describe("canManageOrganization", () => {
       budgetMonthlyUsd: 220,
       department: "engineering",
     });
-    const cmoId = db.agents.saveAgent({
+    const cmoId = db.core.agents.saveAgent({
       companyId,
       name: "CMO",
       role: "CMO",
@@ -208,7 +208,7 @@ describe("canManageOrganization", () => {
       budgetMonthlyUsd: 220,
       department: "marketing",
     });
-    const ctoReportId = db.agents.saveAgent({
+    const ctoReportId = db.core.agents.saveAgent({
       companyId,
       name: "Engineer",
       role: "Engineer",
@@ -223,7 +223,7 @@ describe("canManageOrganization", () => {
       department: "engineering",
     });
 
-    const cmoTaskId = db.tasks.saveTask({
+    const cmoTaskId = db.core.tasks.saveTask({
       companyId,
       title: "Launch campaign",
       description: "Owned by the marketing branch",
@@ -242,7 +242,7 @@ describe("canManageOrganization", () => {
     expect(canManageProject(db, companyId, ctoId, cmoId)).toBe(false);
     expect(canManageGoal(db, companyId, ceoId, cmoId)).toBe(true);
     expect(canManageProject(db, companyId, ceoId, cmoId)).toBe(true);
-    expect(db.entityCrud.getTask(cmoTaskId).assigneeAgentId).toBe(cmoId);
+    expect(db.core.entity.getTask(cmoTaskId).assigneeAgentId).toBe(cmoId);
 
     db.close();
   });

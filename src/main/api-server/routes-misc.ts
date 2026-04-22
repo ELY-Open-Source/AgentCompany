@@ -34,7 +34,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
 
     const input = parsed.data;
 
-    const account = db.social.getSocialAccount(input.socialAccountId, companyId);
+    const account = db.core.social.getSocialAccount(input.socialAccountId, companyId);
     if (!account) {
       server.json(res, 404, { error: "Social account not found" });
       return;
@@ -42,7 +42,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
 
     const postActions = ["post", "reply", "dm"];
     if (account.requireApproval && postActions.includes(input.actionType)) {
-      const approvalId = db.approvalsMod.requestApproval({
+      const approvalId = db.core.approvals.requestApproval({
         companyId,
         type: "dangerous_command",
         relatedTaskId: null,
@@ -51,7 +51,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
         impactSummary: `Will ${input.actionType} on ${account.displayName || account.accountName}'s ${account.platform} account. Content will be publicly visible.`,
       });
 
-      const actionId = db.social.saveBrowserAction({
+      const actionId = db.core.social.saveBrowserAction({
         companyId,
         socialAccountId: input.socialAccountId,
         agentId: token.agentId,
@@ -61,7 +61,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
         approvalId,
       });
 
-      db.activityMod.addActivity({
+      db.core.activity.addActivity({
         companyId,
         actor: token.agentId,
         action: "browser.action_pending_approval",
@@ -75,7 +75,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
       return;
     }
 
-    const actionId = db.social.saveBrowserAction({
+    const actionId = db.core.social.saveBrowserAction({
       companyId,
       socialAccountId: input.socialAccountId,
       agentId: token.agentId,
@@ -84,7 +84,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
       status: "queued",
     });
 
-    db.activityMod.addActivity({
+    db.core.activity.addActivity({
       companyId,
       actor: token.agentId,
       action: "browser.action_queued",
@@ -108,7 +108,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const accounts = db.social.listSocialAccounts(requireParam(params, "companyId"));
+    const accounts = db.core.social.listSocialAccounts(requireParam(params, "companyId"));
     const sanitized = accounts.map(a => ({
       id: a.id,
       platform: a.platform,
@@ -134,7 +134,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
       return;
     }
 
-    const account = db.social.getSocialAccount(parsed.data.socialAccountId, companyId);
+    const account = db.core.social.getSocialAccount(parsed.data.socialAccountId, companyId);
     if (!account) {
       server.json(res, 404, { error: "Social account not found" });
       return;
@@ -142,7 +142,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
 
     const contentPreview = parsed.data.content.slice(0, 120) + (parsed.data.content.length > 120 ? "..." : "");
 
-    const approvalId = db.approvalsMod.requestApproval({
+    const approvalId = db.core.approvals.requestApproval({
       companyId,
       requestedByAgentId: token.agentId,
       type: "social_post",
@@ -171,7 +171,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
     const status = url.searchParams.get("status") ?? undefined;
     const limit = Number(url.searchParams.get("limit") || 50);
 
-    const actions = db.social.listBrowserActions(requireParam(params, "companyId"), { socialAccountId, status, limit });
+    const actions = db.core.social.listBrowserActions(requireParam(params, "companyId"), { socialAccountId, status, limit });
     server.json(res, 200, actions);
   });
 
@@ -198,7 +198,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
     }
 
     const input = parsed.data;
-    const id = db.knowledgeMod.saveKnowledgeEntry({
+    const id = db.core.knowledge.saveKnowledgeEntry({
       companyId: token.companyId,
       category: input.category,
       topic: input.topic,
@@ -219,7 +219,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const entries = db.knowledgeMod.listKnowledgeEntries(token.companyId);
+    const entries = db.core.knowledge.listKnowledgeEntries(token.companyId);
     server.json(res, 200, entries);
   });
 
@@ -231,7 +231,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const skills = db.skills.listCompanySkills(companyId);
+    const skills = db.core.skills.listCompanySkills(companyId);
     server.json(res, 200, skills.map((s) => ({
       id: s.id,
       name: s.name,
@@ -244,7 +244,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("GET", "/api/skills/:skillId", (_req, res, params, token) => {
-    const skill = db.skills.getCompanySkill(token.companyId, requireParam(params, "skillId"));
+    const skill = db.core.skills.getCompanySkill(token.companyId, requireParam(params, "skillId"));
     if (!skill) {
       server.json(res, 404, { error: "Skill not found" });
       return;

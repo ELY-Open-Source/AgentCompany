@@ -19,7 +19,7 @@ afterEach(async () => {
 });
 
 function createScaffold(db: AppDatabase) {
-  db.connectorsCrud.updateConnectorHealth({
+  db.core.connectors.updateConnectorHealth({
     id: "openai-codex",
     status: "ready",
     authState: "authenticated",
@@ -27,13 +27,13 @@ function createScaffold(db: AppDatabase) {
     lastError: null,
   });
 
-  const companyId = db.company.saveCompany({
+  const companyId = db.core.company.saveCompany({
     name: "Message Dispatch Co",
     description: "Tests board wake and wait-state resolution",
     status: "active",
     executionMode: "ai_cofounder",
   });
-  const workspaceId = db.workspacesMod.saveWorkspace({
+  const workspaceId = db.core.workspaces.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: "/tmp/message-dispatch",
@@ -41,7 +41,7 @@ function createScaffold(db: AppDatabase) {
     repoRef: "",
     isPrimary: true,
   });
-  const ceoId = db.agents.saveAgent({
+  const ceoId = db.core.agents.saveAgent({
     companyId,
     name: "CEO",
     role: "CEO",
@@ -54,7 +54,7 @@ function createScaffold(db: AppDatabase) {
     capabilities: "Lead the company",
     budgetMonthlyUsd: 250,
   });
-  const ctoId = db.agents.saveAgent({
+  const ctoId = db.core.agents.saveAgent({
     companyId,
     name: "CTO",
     role: "CTO",
@@ -68,7 +68,7 @@ function createScaffold(db: AppDatabase) {
     budgetMonthlyUsd: 200,
     department: "engineering",
   });
-  const cmoId = db.agents.saveAgent({
+  const cmoId = db.core.agents.saveAgent({
     companyId,
     name: "CMO",
     role: "CMO",
@@ -82,7 +82,7 @@ function createScaffold(db: AppDatabase) {
     budgetMonthlyUsd: 200,
     department: "marketing",
   });
-  const pendingId = db.agents.saveAgent({
+  const pendingId = db.core.agents.saveAgent({
     companyId,
     name: "Pending Recruit",
     role: "IC",
@@ -96,7 +96,7 @@ function createScaffold(db: AppDatabase) {
     budgetMonthlyUsd: 100,
     department: "engineering",
   });
-  const terminatedId = db.agents.saveAgent({
+  const terminatedId = db.core.agents.saveAgent({
     companyId,
     name: "Former COO",
     role: "COO",
@@ -111,7 +111,7 @@ function createScaffold(db: AppDatabase) {
     department: "operations",
   });
 
-  const taskId = db.tasks.saveTask({
+  const taskId = db.core.tasks.saveTask({
     companyId,
     title: "Review architecture plan",
     description: "Need board feedback in the thread.",
@@ -191,9 +191,9 @@ describe("message dispatch", () => {
     if (!result.ok) throw new Error("Expected dispatch to succeed.");
     expect(new Set(result.data.wakeTargets)).toEqual(new Set([ceoId, ctoId]));
 
-    const ceoInbox = db.messages.listAgentInboxUnread(companyId, ceoId);
+    const ceoInbox = db.core.messages.listAgentInboxUnread(companyId, ceoId);
     expect(ceoInbox.map((entry) => entry.id)).toContain(result.data.id);
-    const ctoInbox = db.messages.listAgentInboxUnread(companyId, ctoId);
+    const ctoInbox = db.core.messages.listAgentInboxUnread(companyId, ctoId);
     expect(ctoInbox.map((entry) => entry.id)).toContain(result.data.id);
 
     db.close();
@@ -230,9 +230,9 @@ describe("message dispatch", () => {
 
     // The message is still visible to CTO's inbox — they were the
     // addressed recipient — but CTO is not required to answer.
-    const ctoInbox = db.messages.listAgentInboxUnread(companyId, ctoId);
+    const ctoInbox = db.core.messages.listAgentInboxUnread(companyId, ctoId);
     expect(ctoInbox.map((entry) => entry.id)).toContain(result.data.id);
-    const ceoInbox = db.messages.listAgentInboxUnread(companyId, ceoId);
+    const ceoInbox = db.core.messages.listAgentInboxUnread(companyId, ceoId);
     expect(ceoInbox.map((entry) => entry.id)).toContain(result.data.id);
 
     db.close();
@@ -282,7 +282,7 @@ describe("message dispatch", () => {
     });
 
     threadIntegration.onTaskCreated(taskId, companyId);
-    const thread = db.threads.listThreads({
+    const thread = db.core.threads.listThreads({
       companyId,
       type: "task",
       relatedEntityType: "task",
@@ -294,21 +294,21 @@ describe("message dispatch", () => {
       throw new Error("Expected task thread to exist.");
     }
 
-    const replyWait = db.threads.setThreadWaitState({
+    const replyWait = db.core.threads.setThreadWaitState({
       threadId: thread.id,
       companyId,
       waitingFor: "user_reply",
       relatedApprovalId: null,
       reason: "Reply needed",
     });
-    const reviewWait = db.threads.setThreadWaitState({
+    const reviewWait = db.core.threads.setThreadWaitState({
       threadId: thread.id,
       companyId,
       waitingFor: "user_review",
       relatedApprovalId: null,
       reason: "Review needed",
     });
-    const approvalWait = db.threads.setThreadWaitState({
+    const approvalWait = db.core.threads.setThreadWaitState({
       threadId: thread.id,
       companyId,
       waitingFor: "user_approval",
@@ -328,7 +328,7 @@ describe("message dispatch", () => {
       body: "Board-wide update",
     });
 
-    let unresolved = db.threads.listThreadWaitStates(companyId);
+    let unresolved = db.core.threads.listThreadWaitStates(companyId);
     expect(unresolved.some((entry) => entry.id === replyWait.id)).toBe(false);
     expect(unresolved.some((entry) => entry.id === reviewWait.id)).toBe(true);
 
@@ -346,7 +346,7 @@ describe("message dispatch", () => {
       body: "Specific reply for the thread",
     });
 
-    unresolved = db.threads.listThreadWaitStates(companyId);
+    unresolved = db.core.threads.listThreadWaitStates(companyId);
     expect(unresolved.some((entry) => entry.id === reviewWait.id)).toBe(false);
     expect(unresolved.some((entry) => entry.id === approvalWait.id)).toBe(true);
 

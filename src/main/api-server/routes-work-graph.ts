@@ -35,7 +35,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       return;
     }
 
-    const id = db.entityCrud.saveProject({
+    const id = db.core.entity.saveProject({
       companyId,
       name: input.name,
       description: input.description ?? "",
@@ -45,7 +45,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       targetDate: input.targetDate ?? null,
     });
 
-    db.activityMod.addActivity({
+    db.core.activity.addActivity({
       companyId,
       actor: token.agentId,
       action: "project.created",
@@ -79,7 +79,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       return;
     }
 
-    const existing = db.entityCrud.getProjectForUpdate(projectId, token.companyId);
+    const existing = db.core.entity.getProjectForUpdate(projectId, token.companyId);
     if (!existing) {
       server.json(res, 404, { error: "Project not found" });
       return;
@@ -91,7 +91,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
     }
 
     try {
-      db.entityCrud.saveProject({
+      db.core.entity.saveProject({
         id: projectId,
         companyId: token.companyId,
         name: parsed.data.name ?? existing.name,
@@ -135,8 +135,8 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       return;
     }
 
-    const id = db.entityCrud.saveGoal(input);
-    db.activityMod.addActivity({
+    const id = db.core.entity.saveGoal(input);
+    db.core.activity.addActivity({
       companyId,
       actor: token.agentId,
       action: "goal.created",
@@ -167,7 +167,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       return;
     }
 
-    const existing = db.entityCrud.getGoalForUpdate(goalId, token.companyId);
+    const existing = db.core.entity.getGoalForUpdate(goalId, token.companyId);
     if (!existing) {
       server.json(res, 404, { error: "Goal not found" });
       return;
@@ -179,7 +179,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
     }
 
     try {
-      db.entityCrud.saveGoal({
+      db.core.entity.saveGoal({
         id: goalId,
         companyId: token.companyId,
         title: parsed.data.title ?? existing.title,
@@ -200,7 +200,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const goals = db.entityCrud.listGoals(params.companyId);
+    const goals = db.core.entity.listGoals(params.companyId);
     server.json(res, 200, goals);
   });
 
@@ -209,7 +209,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const projects = db.entityCrud.listProjects(params.companyId);
+    const projects = db.core.entity.listProjects(params.companyId);
     server.json(res, 200, projects);
   });
 
@@ -219,7 +219,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const sprints = db.knowledgeMod.listSprints(companyId);
+    const sprints = db.core.knowledge.listSprints(companyId);
     server.json(res, 200, sprints);
   });
 
@@ -231,7 +231,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
     }
     const data = body as Record<string, unknown>;
     try {
-      const id = db.knowledgeMod.saveSprint({
+      const id = db.core.knowledge.saveSprint({
         companyId,
         name: String(data.name ?? "Sprint"),
         goal: String(data.goal ?? ""),
@@ -256,7 +256,7 @@ export function registerWorkGraphRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const { agents, tasks, recentActivity } = db.company.getDashboardSnapshot(companyId);
+    const { agents, tasks, recentActivity } = db.core.company.getDashboardSnapshot(companyId);
 
     const tasksByStatus: Record<string, number> = {};
     for (const t of tasks) {

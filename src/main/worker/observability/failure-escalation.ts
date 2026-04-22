@@ -13,15 +13,17 @@ import { decideRunAttempt } from "../../run-attempt-policy";
 
 export interface EscalationDeps {
   db: {
-    tasks: {
-      getTaskRetryCount: (taskId: string) => number;
-      incrementTaskRetryCount: (taskId: string) => void;
-      resetTaskRetryCount: (taskId: string) => void;
-      advanceTaskStatus: (taskId: string, status: string, note: string) => unknown;
-    };
-    agents: {
-      getChainOfCommand: (agentId: string) => Array<{ id: string; name: string }>;
-      getCeoForCompany: (companyId: string) => { id: string; name: string } | null;
+    core: {
+      tasks: {
+        getTaskRetryCount: (taskId: string) => number;
+        incrementTaskRetryCount: (taskId: string) => void;
+        resetTaskRetryCount: (taskId: string) => void;
+        advanceTaskStatus: (taskId: string, status: string, note: string) => unknown;
+      };
+      agents: {
+        getChainOfCommand: (agentId: string) => Array<{ id: string; name: string }>;
+        getCeoForCompany: (companyId: string) => { id: string; name: string } | null;
+      };
     };
   };
   wakeAgentIfPossible: (agentId: string, companyId: string, trigger: string) => unknown;
@@ -48,7 +50,7 @@ export function handleFailureEscalation(
   scheduleRetry: (fn: () => void, delayMs: number) => void,
 ): EscalationResult {
   const { db, wakeAgentIfPossible, notify, logger } = deps;
-  const retryCount = db.tasks.getTaskRetryCount(run.taskId);
+  const retryCount = db.core.tasks.getTaskRetryCount(run.taskId);
   const retryDecision = decideRunAttempt({
     kind: "task_failure",
     retryCount,
@@ -56,8 +58,8 @@ export function handleFailureEscalation(
   });
 
   if (retryDecision.action === "retry") {
-    db.tasks.incrementTaskRetryCount(run.taskId);
-    db.tasks.advanceTaskStatus(
+    db.core.tasks.incrementTaskRetryCount(run.taskId);
+    db.core.tasks.advanceTaskStatus(
       run.taskId,
       "todo",
       `Run ${eventStatus} (attempt ${retryDecision.attemptNumber}/${maxRetryAttempts}). Auto-retrying after ${retryCooldownMs / 1000}s cooldown.`,
@@ -72,14 +74,14 @@ export function handleFailureEscalation(
   }
 
   // Retry limit reached — escalate up the chain
-  db.tasks.resetTaskRetryCount(run.taskId);
+  db.core.tasks.resetTaskRetryCount(run.taskId);
   logger.warn(
     `[escalation] Task ${run.taskId} failed ${maxRetryAttempts} times. Escalating to manager.`,
   );
 
   let escalated = false;
   try {
-    const chain = db.agents.getChainOfCommand(run.agentId);
+    const chain = db.core.agents.getChainOfCommand(run.agentId);
     if (chain.length > 0) {
       wakeAgentIfPossible(chain[0].id, run.companyId, "report_failed");
       escalated = true;
@@ -95,7 +97,7 @@ export function handleFailureEscalation(
 
   if (!escalated) {
     try {
-      const ceo = db.agents.getCeoForCompany(run.companyId);
+      const ceo = db.core.agents.getCeoForCompany(run.companyId);
       if (ceo) {
         wakeAgentIfPossible(ceo.id, run.companyId, "report_failed");
         escalated = true;
@@ -131,7 +133,7 @@ export function handleSuccessReset(
   logger?: EscalationDeps["logger"],
 ): void {
   try {
-    db.tasks.resetTaskRetryCount(taskId);
+    db.core.tasks.resetTaskRetryCount(taskId);
   } catch (error) {
     logger?.warn(
       `[escalation] resetTaskRetryCount failed for task ${taskId}: ${error instanceof Error ? error.message : String(error)}`,

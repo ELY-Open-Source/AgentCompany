@@ -62,7 +62,7 @@ export function createLifecycle(deps: LifecycleDeps) {
 
   function listActiveRunIds(): string[] {
     try {
-      return db.snap.listSnapshot().runs
+      return db.projection.snapshot.listSnapshot().runs
         .filter((r) => r.status === "running" || r.status === "queued")
         .map((r) => r.id);
     } catch (err) {

@@ -71,15 +71,15 @@ export function registerFileRoutes(server: AgentApiServer) {
     const reviewerAgentId = data.reviewerAgentId ?? null;
     const projectId = data.projectId ?? null;
     const goalId = data.goalId ?? null;
-    if (reviewerAgentId && !db.settings.belongsToCompany("agents", reviewerAgentId, token.companyId)) {
+    if (reviewerAgentId && !db.core.settings.belongsToCompany("agents", reviewerAgentId, token.companyId)) {
       server.json(res, 400, { error: "Reviewer agent does not belong to the current company" });
       return;
     }
-    if (projectId && !db.settings.belongsToCompany("projects", projectId, token.companyId)) {
+    if (projectId && !db.core.settings.belongsToCompany("projects", projectId, token.companyId)) {
       server.json(res, 400, { error: "Project does not belong to the current company" });
       return;
     }
-    if (goalId && !db.settings.belongsToCompany("goals", goalId, token.companyId)) {
+    if (goalId && !db.core.settings.belongsToCompany("goals", goalId, token.companyId)) {
       server.json(res, 400, { error: "Goal does not belong to the current company" });
       return;
     }
@@ -114,7 +114,7 @@ export function registerFileRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const docs = db.documentsMod.listDocuments(token.companyId);
+    const docs = db.core.documents.listDocuments(token.companyId);
     server.json(res, 200, docs);
   });
 
@@ -128,7 +128,7 @@ export function registerFileRoutes(server: AgentApiServer) {
       server.json(res, 400, { error: "Missing documentId" });
       return;
     }
-    const doc = db.documentsMod.getDocumentForUpdate(documentId, token.companyId);
+    const doc = db.core.documents.getDocumentForUpdate(documentId, token.companyId);
     if (!doc) {
       server.json(res, 404, { error: "Document not found in this company" });
       return;
@@ -146,7 +146,7 @@ export function registerFileRoutes(server: AgentApiServer) {
       server.json(res, 400, { error: "Missing documentId" });
       return;
     }
-    const doc = db.documentsMod.getDocumentForUpdate(documentId, token.companyId);
+    const doc = db.core.documents.getDocumentForUpdate(documentId, token.companyId);
     if (!doc) {
       server.json(res, 404, { error: "Document not found in this company" });
       return;
@@ -158,14 +158,14 @@ export function registerFileRoutes(server: AgentApiServer) {
     const reviewerAgentId = data.reviewerAgentId !== undefined
       ? (data.reviewerAgentId ?? null)
       : doc.reviewerAgentId;
-    if (data.reviewerAgentId !== undefined && reviewerAgentId && !db.settings.belongsToCompany("agents", reviewerAgentId, token.companyId)) {
+    if (data.reviewerAgentId !== undefined && reviewerAgentId && !db.core.settings.belongsToCompany("agents", reviewerAgentId, token.companyId)) {
       server.json(res, 400, { error: "Reviewer agent does not belong to the current company" });
       return;
     }
 
     // Conflict detection: if baseRevisionId provided, verify it matches current
     if (data.baseRevisionId !== undefined) {
-      const currentRevId = db.documentsMod.getDocumentLatestRevisionId(documentId);
+      const currentRevId = db.core.documents.getDocumentLatestRevisionId(documentId);
       if (currentRevId && data.baseRevisionId !== currentRevId) {
         server.json(res, 409, { error: "Document was updated by someone else", currentRevisionId: currentRevId });
         return;
@@ -182,7 +182,7 @@ export function registerFileRoutes(server: AgentApiServer) {
     // Content update → create revision for audit trail
     let updatedVersion = doc.version;
     if (data.content !== undefined) {
-      const revision = db.documentsMod.createDocumentRevision({
+      const revision = db.core.documents.createDocumentRevision({
         documentId,
         companyId: token.companyId,
         body: data.content,
@@ -194,9 +194,9 @@ export function registerFileRoutes(server: AgentApiServer) {
 
     // Field updates (title, reviewer, tags, etc.)
     if (data.status !== undefined) {
-      db.documentsMod.updateDocumentStatus(documentId, token.companyId, data.status);
+      db.core.documents.updateDocumentStatus(documentId, token.companyId, data.status);
     }
-    db.documentsMod.saveDocument({
+    db.core.documents.saveDocument({
       id: documentId,
       companyId: token.companyId,
       type: data.type ?? doc.type,
@@ -213,14 +213,14 @@ export function registerFileRoutes(server: AgentApiServer) {
     });
 
     onDomainChanged();
-    server.json(res, 200, { updated: true, latestRevisionId: db.documentsMod.getDocumentLatestRevisionId(documentId) });
+    server.json(res, 200, { updated: true, latestRevisionId: db.core.documents.getDocumentLatestRevisionId(documentId) });
   });
 
   server.addRoute("GET", "/api/companies/:companyId/documents/:documentId/revisions", (_req, res, params, token) => {
     if (params.companyId !== token.companyId) { server.json(res, 403, { error: "Company mismatch" }); return; }
     const documentId = params.documentId;
     if (!documentId) { server.json(res, 400, { error: "Missing documentId" }); return; }
-    const revisions = db.documentsMod.listDocumentRevisions(documentId, token.companyId);
+    const revisions = db.core.documents.listDocumentRevisions(documentId, token.companyId);
     server.json(res, 200, revisions);
   });
 
@@ -228,9 +228,9 @@ export function registerFileRoutes(server: AgentApiServer) {
 
   server.addRoute("GET", "/api/issues/:issueId/work-products", (_req, res, params, token) => {
     try {
-      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
+      const task = db.core.entity.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) { server.json(res, 404, { error: "Task not found" }); return; }
-      const products = db.documentsMod.listWorkProductsForTask(task.id, task.companyId);
+      const products = db.core.documents.listWorkProductsForTask(task.id, task.companyId);
       server.json(res, 200, products);
     } catch (error) {
       log.warn(`[api/work-products] list failed for issue ${params.issueId}: ${error instanceof Error ? error.message : String(error)}`);
@@ -240,12 +240,12 @@ export function registerFileRoutes(server: AgentApiServer) {
 
   server.addRoute("POST", "/api/issues/:issueId/work-products", (_req, res, params, token, body) => {
     try {
-      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
+      const task = db.core.entity.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) { server.json(res, 404, { error: "Task not found" }); return; }
       const parsed = createWorkProductSchema.safeParse(body);
       if (!parsed.success) { server.json(res, 400, { error: "Invalid input", details: parsed.error.flatten() }); return; }
       const data = parsed.data;
-      const id = db.documentsMod.createWorkProduct({
+      const id = db.core.documents.createWorkProduct({
         companyId: task.companyId,
         taskId: task.id,
         projectId: data.projectId ?? task.projectId,
@@ -275,7 +275,7 @@ export function registerFileRoutes(server: AgentApiServer) {
     if (!wpId) { server.json(res, 400, { error: "Missing workProductId" }); return; }
     const parsed = updateWorkProductSchema.safeParse(body);
     if (!parsed.success) { server.json(res, 400, { error: "Invalid input", details: parsed.error.flatten() }); return; }
-    const changes = db.documentsMod.updateWorkProduct(wpId, token.companyId, parsed.data);
+    const changes = db.core.documents.updateWorkProduct(wpId, token.companyId, parsed.data);
     if (changes === 0) { server.json(res, 404, { error: "Work product not found" }); return; }
     onDomainChanged();
     server.json(res, 200, { updated: true });
@@ -284,7 +284,7 @@ export function registerFileRoutes(server: AgentApiServer) {
   server.addRoute("DELETE", "/api/work-products/:workProductId", (_req, res, params, token) => {
     const wpId = params.workProductId;
     if (!wpId) { server.json(res, 400, { error: "Missing workProductId" }); return; }
-    const changes = db.documentsMod.deleteWorkProduct(wpId, token.companyId);
+    const changes = db.core.documents.deleteWorkProduct(wpId, token.companyId);
     if (changes === 0) { server.json(res, 404, { error: "Work product not found" }); return; }
     onDomainChanged();
     server.json(res, 200, { deleted: true });
@@ -294,9 +294,9 @@ export function registerFileRoutes(server: AgentApiServer) {
 
   server.addRoute("GET", "/api/issues/:issueId/documents", (_req, res, params, token) => {
     try {
-      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
+      const task = db.core.entity.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) { server.json(res, 404, { error: "Task not found" }); return; }
-      const links = db.documentsMod.listDocumentsForTask(task.id, task.companyId);
+      const links = db.core.documents.listDocumentsForTask(task.id, task.companyId);
       server.json(res, 200, links);
     } catch (error) {
       log.warn(`[api/task-documents] list failed for issue ${params.issueId}: ${error instanceof Error ? error.message : String(error)}`);
@@ -306,7 +306,7 @@ export function registerFileRoutes(server: AgentApiServer) {
 
   server.addRoute("PUT", "/api/issues/:issueId/documents/:key", (_req, res, params, token, body) => {
     try {
-      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
+      const task = db.core.entity.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) { server.json(res, 404, { error: "Task not found" }); return; }
       const key = String(params.key ?? "").trim().toLowerCase();
       if (!key || !/^[a-z0-9][a-z0-9_-]*$/.test(key) || key.length > 64) {
@@ -315,10 +315,10 @@ export function registerFileRoutes(server: AgentApiServer) {
       const parsed = linkDocumentSchema.safeParse(body);
       if (!parsed.success) { server.json(res, 400, { error: "Invalid input", details: parsed.error.flatten() }); return; }
       const documentId = parsed.data.documentId;
-      if (!db.settings.belongsToCompany("documents", documentId, token.companyId)) {
+      if (!db.core.settings.belongsToCompany("documents", documentId, token.companyId)) {
         server.json(res, 400, { error: "Document does not belong to this company" }); return;
       }
-      const linkId = db.documentsMod.linkDocumentToTask(task.id, documentId, task.companyId, key);
+      const linkId = db.core.documents.linkDocumentToTask(task.id, documentId, task.companyId, key);
       onDomainChanged();
       server.json(res, 200, { id: linkId, key });
     } catch (error) {
@@ -329,10 +329,10 @@ export function registerFileRoutes(server: AgentApiServer) {
 
   server.addRoute("DELETE", "/api/issues/:issueId/documents/:key", (_req, res, params, token) => {
     try {
-      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
+      const task = db.core.entity.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) { server.json(res, 404, { error: "Task not found" }); return; }
       const key = String(params.key ?? "").trim().toLowerCase();
-      db.documentsMod.unlinkDocumentFromTask(task.id, key, task.companyId);
+      db.core.documents.unlinkDocumentFromTask(task.id, key, task.companyId);
       onDomainChanged();
       server.json(res, 200, { unlinked: true });
     } catch (error) {

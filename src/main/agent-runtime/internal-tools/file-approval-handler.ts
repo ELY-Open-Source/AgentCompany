@@ -5,7 +5,7 @@
  * `api-server/routes-approvals.ts`: validate → enforce the
  * `approve_ceo_strategy` ordering gate → request approval → auto-
  * approve or notify. Both the tool path and the HTTP path funnel
- * through the same `db.approvalsMod.requestApproval` + `shouldAutoApprove`
+ * through the same `db.core.approvals.requestApproval` + `shouldAutoApprove`
  * plumbing, so the board sees identical rows regardless of entry point.
  *
  * No fallbacks: malformed input throws UserInputError, DB failures
@@ -71,7 +71,7 @@ export function handleFileApprovalToolCall(
   // otherwise re-open the exact loop the HTTP gate was written to
   // close.
   if (input.type === "approve_ceo_strategy") {
-    const companyHireApprovals = db.approvalsMod.listCompanyApprovalsByType(companyId, "hire_agent");
+    const companyHireApprovals = db.core.approvals.listCompanyApprovalsByType(companyId, "hire_agent");
     if (companyHireApprovals.length === 0) {
       throw new UserInputError({
         code: "file_approval.strategy.before_hires",
@@ -79,7 +79,7 @@ export function handleFileApprovalToolCall(
           "approve_ceo_strategy requires at least one hire_agent approval to exist first. File the intended hires, then the strategy.",
       });
     }
-    const existingStrategy = db.approvalsMod
+    const existingStrategy = db.core.approvals
       .listCompanyApprovalsByType(companyId, "approve_ceo_strategy")
       .find((a) => a.state === "pending" || a.state === "approved");
     if (existingStrategy) {
@@ -111,7 +111,7 @@ export function handleFileApprovalToolCall(
 
   let approvalId: string;
   try {
-    approvalId = db.approvalsMod.requestApproval({
+    approvalId = db.core.approvals.requestApproval({
       companyId,
       type: input.type,
       relatedTaskId: input.relatedTaskId ?? null,
@@ -131,7 +131,7 @@ export function handleFileApprovalToolCall(
   }
 
   try {
-    db.activityMod.addActivity({
+    db.core.activity.addActivity({
       companyId,
       actor: requesterId,
       action: "approval.created",

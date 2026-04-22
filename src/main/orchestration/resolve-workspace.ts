@@ -136,7 +136,7 @@ function inferLockMode(
     return { lockMode: "exclusive", workspaceId: agent.workspaceId, source: "agent" };
   }
 
-  const projectWorkspace = db.workspacesMod.getProjectPrimaryWorkspace(
+  const projectWorkspace = db.core.workspaces.getProjectPrimaryWorkspace(
     task?.projectId ?? null,
     companyId,
   );
@@ -179,7 +179,7 @@ export function resolveWorkspaceWithLockMode(
     // `getCompanyObservationWorkspace` returns the primary or oldest
     // workspace; null only when the company has no workspace row at
     // all, in which case there is genuinely nothing to observe.
-    const observation = db.workspacesMod.getCompanyObservationWorkspace(companyId);
+    const observation = db.core.workspaces.getCompanyObservationWorkspace(companyId);
     return {
       workspace: null,
       lockMode: "none",
@@ -194,7 +194,7 @@ export function resolveWorkspaceWithLockMode(
     );
   }
 
-  const workspace = db.workspacesMod.getWorkspace(decision.workspaceId);
+  const workspace = db.core.workspaces.getWorkspace(decision.workspaceId);
   if (!workspace) {
     throw new WorkspaceConfigurationError(
       `Resolved workspace ${decision.workspaceId} does not exist (companyId=${companyId}, source=${decision.source}).`,

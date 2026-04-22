@@ -57,7 +57,7 @@ export function wireApiServer(deps: WireApiServerDeps): AgentApiServer {
     deps.threadIntegration.onTaskStatusChanged(taskId, companyId, prev, next);
     if (prev === "todo" && next === "in_progress") {
       try {
-        const task = deps.db.entityCrud.getTask(taskId);
+        const task = deps.db.core.entity.getTask(taskId);
         deps.checkpointEngine.onTaskStarted(taskId, companyId, task.assigneeAgentId);
       } catch (error) {
         log.warn(
@@ -120,7 +120,7 @@ export function wireApiServer(deps: WireApiServerDeps): AgentApiServer {
         },
         input,
       ),
-    onAutoAssignTask: (taskId, companyId) => deps.db.tasks.autoAssignTask(taskId, companyId),
+    onAutoAssignTask: (taskId, companyId) => deps.db.core.tasks.autoAssignTask(taskId, companyId),
     onHumanMessage: (companyId, toAgentId, threadId, waitStateId) => {
       deps.threadIntegration.onHumanMessage(companyId, toAgentId, threadId, waitStateId);
       deps.publishDomainChanged();

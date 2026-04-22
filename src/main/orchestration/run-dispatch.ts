@@ -57,7 +57,7 @@ export function createRunDispatch(deps: OrchestrationDependencies) {
   ): void {
     const errorMessage = formatDispatchError(error);
     logger.error(`[run] Dispatch failed before worker enqueue for ${params.runId}: ${errorMessage}`);
-    db.runs.finishRun({
+    db.core.runs.finishRun({
       runId: params.runId,
       status: "failed",
       summary: "Run failed before worker enqueue.",
@@ -68,9 +68,9 @@ export function createRunDispatch(deps: OrchestrationDependencies) {
       unattributedCost: true,
     });
     if (workspaceLockClaimed && params.workspaceMode === "exclusive" && params.workspace) {
-      db.workspacesMod.releaseWorkspaceLock(params.workspace.id, params.runId);
+      db.core.workspaces.releaseWorkspaceLock(params.workspace.id, params.runId);
     }
-    db.activityMod.addActivity({
+    db.core.activity.addActivity({
       companyId: params.companyId,
       actor: params.agent.id,
       action: "run.failed",
@@ -102,8 +102,8 @@ export function createRunDispatch(deps: OrchestrationDependencies) {
     }
     const modelSelection = validateConnectorModelSelection(
       {
-        getConnector: (id) => db.connectorsCrud.getConnector(id),
-        getDisabledModels: (cid, connId) => db.settings.getDisabledModels(cid, connId),
+        getConnector: (id) => db.core.connectors.getConnector(id),
+        getDisabledModels: (cid, connId) => db.core.settings.getDisabledModels(cid, connId),
       },
       agent.companyId,
       connector.id,
@@ -142,8 +142,8 @@ export function createRunDispatch(deps: OrchestrationDependencies) {
       // `todo` via the `finishRun` never-started branch, so heartbeat picks
       // it up on the next cycle with no manual intervention.
       if (params.workspaceMode === "exclusive" && params.workspace) {
-        if (!db.workspacesMod.claimWorkspaceLock(params.workspace.id, params.runId)) {
-          db.runs.finishRun({
+        if (!db.core.workspaces.claimWorkspaceLock(params.workspace.id, params.runId)) {
+          db.core.runs.finishRun({
             runId: params.runId,
             status: "cancelled",
             summary: null,

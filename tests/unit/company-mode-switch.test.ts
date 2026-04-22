@@ -32,7 +32,7 @@ describe("company mode switching", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -40,7 +40,7 @@ describe("company mode switching", () => {
       lastError: null,
     });
 
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Mode Switch Co",
       description: "Execution mode cleanup",
       status: "active",
@@ -48,7 +48,7 @@ describe("company mode switching", () => {
       autoApproveHires: false,
       reviewDeliverables: true,
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -56,7 +56,7 @@ describe("company mode switching", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const ceoId = db.agents.saveAgent({
+    const ceoId = db.core.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -69,7 +69,7 @@ describe("company mode switching", () => {
       capabilities: "Lead the company",
       budgetMonthlyUsd: 250,
     });
-    const engineerId = db.agents.saveAgent({
+    const engineerId = db.core.agents.saveAgent({
       companyId,
       name: "Engineer",
       role: "Engineer",
@@ -83,7 +83,7 @@ describe("company mode switching", () => {
       budgetMonthlyUsd: 180,
       department: "engineering",
     });
-    const taskId = db.tasks.saveTask({
+    const taskId = db.core.tasks.saveTask({
       companyId,
       title: "Ship feature",
       description: "Waits for cofounder review.",
@@ -100,8 +100,8 @@ describe("company mode switching", () => {
 
     threadIntegration.onTaskCreated(taskId, companyId);
     threadIntegration.onRunFinished("run-1", taskId, engineerId, companyId, "succeeded", null);
-    db.tasks.setTaskRequiresUserReview(taskId, true);
-    const approvalId = db.approvalsMod.requestApproval({
+    db.core.tasks.setTaskRequiresUserReview(taskId, true);
+    const approvalId = db.core.approvals.requestApproval({
       companyId,
       relatedTaskId: taskId,
       requestedByAgentId: engineerId,
@@ -112,9 +112,9 @@ describe("company mode switching", () => {
     });
     threadIntegration.onApprovalCreated(approvalId, companyId, taskId, "deliverable_review", "Review deliverable");
 
-    expect(db.threads.listThreadWaitStates(companyId).length).toBeGreaterThan(0);
-    expect(db.entityCrud.getTask(taskId).requiresUserReview).toBe(true);
-    expect(db.approvalsMod.getApprovalRecord(approvalId).state).toBe("pending");
+    expect(db.core.threads.listThreadWaitStates(companyId).length).toBeGreaterThan(0);
+    expect(db.core.entity.getTask(taskId).requiresUserReview).toBe(true);
+    expect(db.core.approvals.getApprovalRecord(approvalId).state).toBe("pending");
 
     const handlers = new Map<string, IpcHandler>();
     registerCoreAdminHandlers({
@@ -122,7 +122,7 @@ describe("company mode switching", () => {
         handlers.set(channel, handler);
       },
       db,
-      ensureCompanyExists: (id) => (db.settings.hasCompany(id) ? null : { ok: false, error: { code: "COMPANY_NOT_FOUND", message: "missing" } }),
+      ensureCompanyExists: (id) => (db.core.settings.hasCompany(id) ? null : { ok: false, error: { code: "COMPANY_NOT_FOUND", message: "missing" } }),
       publishDomainChanged: vi.fn(),
       handleApprovalResolved: (resolvedApprovalId, resolvedCompanyId, decision) => {
         threadIntegration.onApprovalResolved(resolvedApprovalId, resolvedCompanyId, decision);
@@ -147,10 +147,10 @@ describe("company mode switching", () => {
     }) as { ok: boolean };
 
     expect(result.ok).toBe(true);
-    expect(db.company.getCompanyExecutionMode(companyId)).toBe("ai_ceo");
-    expect(db.threads.listThreadWaitStates(companyId)).toHaveLength(0);
-    expect(db.entityCrud.getTask(taskId).requiresUserReview).toBe(false);
-    expect(db.approvalsMod.getApprovalRecord(approvalId).state).toBe("approved");
+    expect(db.core.company.getCompanyExecutionMode(companyId)).toBe("ai_ceo");
+    expect(db.core.threads.listThreadWaitStates(companyId)).toHaveLength(0);
+    expect(db.core.entity.getTask(taskId).requiresUserReview).toBe(false);
+    expect(db.core.approvals.getApprovalRecord(approvalId).state).toBe("approved");
 
     db.close();
   });

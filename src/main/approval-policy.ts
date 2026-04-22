@@ -20,13 +20,13 @@ export function resolveApprovalDecision({
   actor?: string;
 }) {
   const note = decisionNote ?? "";
-  db.approvalsMod.decideApproval({
+  db.core.approvals.decideApproval({
     companyId,
     approvalId,
     state,
     decisionNote: note,
   });
-  db.activityMod.addActivity({
+  db.core.activity.addActivity({
     companyId,
     actor,
     action: `approval.${state}`,

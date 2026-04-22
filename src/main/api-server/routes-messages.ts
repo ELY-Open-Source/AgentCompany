@@ -20,13 +20,13 @@ export function registerMessageRoutes(server: AgentApiServer) {
       return;
     }
     try {
-      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
+      const task = db.core.entity.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) {
         server.json(res, 404, { error: "Task not found" });
         return;
       }
-      const agent = db.entityCrud.getAgent(token.agentId);
-      const comment = db.activityMod.addComment({
+      const agent = db.core.entity.getAgent(token.agentId);
+      const comment = db.core.activity.addComment({
         companyId: task.companyId,
         taskId: task.id,
         authorAgentId: token.agentId,
@@ -44,14 +44,14 @@ export function registerMessageRoutes(server: AgentApiServer) {
         wokenForComment.add(task.assigneeAgentId);
       }
 
-      const chain = db.agents.getChainOfCommand(token.agentId);
+      const chain = db.core.agents.getChainOfCommand(token.agentId);
       if (chain.length > 0 && chain[0].id !== token.agentId && !wokenForComment.has(chain[0].id)) {
         onWakeAgent(chain[0].id, task.companyId, "comment");
         wokenForComment.add(chain[0].id);
       }
 
       // @mention detection: wake any mentioned agents not already woken
-      const mentionedIds = db.agents.findMentionedAgentIds(task.companyId, input.body);
+      const mentionedIds = db.core.agents.findMentionedAgentIds(task.companyId, input.body);
       for (const mentionedId of mentionedIds) {
         if (mentionedId !== token.agentId && !wokenForComment.has(mentionedId)) {
           onWakeAgent(mentionedId, task.companyId, "comment_mentioned");
@@ -68,7 +68,7 @@ export function registerMessageRoutes(server: AgentApiServer) {
 
   server.addRoute("GET", "/api/issues/:issueId/comments", (_req, res, params, token) => {
     try {
-      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
+      const task = db.core.entity.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) {
         server.json(res, 404, { error: "Task not found" });
         return;
@@ -78,7 +78,7 @@ export function registerMessageRoutes(server: AgentApiServer) {
       server.json(res, 404, { error: "Task not found" });
       return;
     }
-    const comments = db.activityMod.listComments(requireParam(params, "issueId"));
+    const comments = db.core.activity.listComments(requireParam(params, "issueId"));
     server.json(res, 200, comments);
   });
 
@@ -142,7 +142,7 @@ export function registerMessageRoutes(server: AgentApiServer) {
       return;
     }
 
-    const messages = db.messages.listAgentMessages(companyId, {
+    const messages = db.core.messages.listAgentMessages(companyId, {
       agentId: token.agentId,
       channel: channelParam ?? undefined,
       channelTargetId: channelTargetId && channelTargetId.length > 0 ? channelTargetId : undefined,
@@ -158,12 +158,12 @@ export function registerMessageRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const message = db.messages.getAgentMessage(requireParam(params, "messageId"), companyId);
+    const message = db.core.messages.getAgentMessage(requireParam(params, "messageId"), companyId);
     if (!message) {
       server.json(res, 404, { error: "Message not found" });
       return;
     }
-    const visibleToAgent = db.messages.listAgentMessages(companyId, {
+    const visibleToAgent = db.core.messages.listAgentMessages(companyId, {
       agentId: token.agentId,
       messageId: message.id,
       limit: 1,
@@ -172,7 +172,7 @@ export function registerMessageRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "This message is not visible to the current agent" });
       return;
     }
-    db.messages.markMessageReadForReader(requireParam(params, "messageId"), companyId, token.agentId);
+    db.core.messages.markMessageReadForReader(requireParam(params, "messageId"), companyId, token.agentId);
     onDomainChanged();
     server.json(res, 200, { ok: true });
   });

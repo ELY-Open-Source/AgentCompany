@@ -43,8 +43,8 @@ export function registerCoreTaskGraphHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
-    const id = db.entityCrud.saveGoal(parsed);
-    db.activityMod.addActivity({
+    const id = db.core.entity.saveGoal(parsed);
+    db.core.activity.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: parsed.id ? "goal.updated" : "goal.created",
@@ -70,8 +70,8 @@ export function registerCoreTaskGraphHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
-    const id = db.entityCrud.saveProject(parsed);
-    db.activityMod.addActivity({
+    const id = db.core.entity.saveProject(parsed);
+    db.core.activity.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: parsed.id ? "project.updated" : "project.created",
@@ -113,7 +113,7 @@ export function registerCoreTaskGraphHandlers({
       const taskId = parsed.id;
       if (!taskId) return fail("INVALID_TASK_STATE", "Task ID required for updates.");
       try {
-        const existingTask = db.entityCrud.getTask(taskId);
+        const existingTask = db.core.entity.getTask(taskId);
         previousStatus = existingTask.status;
         previousAssigneeAgentId = existingTask.assigneeAgentId;
       } catch (err) {
@@ -124,11 +124,11 @@ export function registerCoreTaskGraphHandlers({
     }
     let id: string;
     try {
-      id = db.tasks.saveTask(parsed);
+      id = db.core.tasks.saveTask(parsed);
     } catch (error) {
       return fail("INVALID_TASK_STATE", error instanceof Error ? error.message : "Task could not be saved.");
     }
-    db.activityMod.addActivity({
+    db.core.activity.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: isNew ? "task.created" : "task.updated",
@@ -145,7 +145,7 @@ export function registerCoreTaskGraphHandlers({
       // User (board) manually advancing a flagged task to done: clear the review flag
       if (parsed.status === "done") {
         try {
-          db.tasks.setTaskRequiresUserReview(id, false);
+          db.core.tasks.setTaskRequiresUserReview(id, false);
         } catch (error) {
           logger.warn(
             `[ipc-task] setTaskRequiresUserReview(false) failed for task ${id}: ${error instanceof Error ? error.message : String(error)}`,
@@ -175,10 +175,10 @@ export function registerCoreTaskGraphHandlers({
   });
 
   const deleteHandlers = [
-    { channel: IPC_CHANNELS.deleteTask, table: "tasks", entity: "task", deleteFn: (id: string, companyId: string) => db.tasks.deleteTask(id, companyId) },
-    { channel: IPC_CHANNELS.deleteGoal, table: "goals", entity: "goal", deleteFn: (id: string, companyId: string) => db.entityCrud.deleteGoal(id, companyId) },
-    { channel: IPC_CHANNELS.deleteProject, table: "projects", entity: "project", deleteFn: (id: string, companyId: string) => db.entityCrud.deleteProject(id, companyId) },
-    { channel: IPC_CHANNELS.deleteWorkspace, table: "workspaces", entity: "workspace", deleteFn: (id: string, companyId: string) => db.workspacesMod.deleteWorkspace(id, companyId) },
+    { channel: IPC_CHANNELS.deleteTask, table: "tasks", entity: "task", deleteFn: (id: string, companyId: string) => db.core.tasks.deleteTask(id, companyId) },
+    { channel: IPC_CHANNELS.deleteGoal, table: "goals", entity: "goal", deleteFn: (id: string, companyId: string) => db.core.entity.deleteGoal(id, companyId) },
+    { channel: IPC_CHANNELS.deleteProject, table: "projects", entity: "project", deleteFn: (id: string, companyId: string) => db.core.entity.deleteProject(id, companyId) },
+    { channel: IPC_CHANNELS.deleteWorkspace, table: "workspaces", entity: "workspace", deleteFn: (id: string, companyId: string) => db.core.workspaces.deleteWorkspace(id, companyId) },
   ] as const;
 
   for (const { channel, table, entity, deleteFn } of deleteHandlers) {
@@ -186,11 +186,11 @@ export function registerCoreTaskGraphHandlers({
       const parsed = deleteEntitySchema.parse(payload);
       const companyError = ensureCompanyExists(parsed.companyId);
       if (companyError) return companyError;
-      if (!db.settings.belongsToCompany(table, parsed.id, parsed.companyId)) {
+      if (!db.core.settings.belongsToCompany(table, parsed.id, parsed.companyId)) {
         return fail(`${entity.toUpperCase()}_NOT_FOUND`, `${entity.charAt(0).toUpperCase() + entity.slice(1)} not found in the current company.`);
       }
       deleteFn(parsed.id, parsed.companyId);
-      db.activityMod.addActivity({
+      db.core.activity.addActivity({
         companyId: parsed.companyId,
         actor: "board",
         action: `${entity}.deleted`,

@@ -111,14 +111,14 @@ export interface WorkerServiceDependencies {
   dispatchRunToWorker: (params: {
     runId: string;
     companyId: string;
-    agent: ReturnType<AppDatabase["entityCrud"]["getAgent"]>;
-    task: ReturnType<AppDatabase["entityCrud"]["getTask"]> | null;
-    connector: ReturnType<AppDatabase["connectorsCrud"]["getConnector"]>;
-    workspace: ReturnType<AppDatabase["workspacesMod"]["getWorkspace"]>;
+    agent: ReturnType<AppDatabase["core"]["entity"]["getAgent"]>;
+    task: ReturnType<AppDatabase["core"]["entity"]["getTask"]> | null;
+    connector: ReturnType<AppDatabase["core"]["connectors"]["getConnector"]>;
+    workspace: ReturnType<AppDatabase["core"]["workspaces"]["getWorkspace"]>;
     workspaceMode: "exclusive" | "shared" | "none";
     companyName: string;
     companyDescription: string;
-    snapshot: ReturnType<AppDatabase["snap"]["listSnapshot"]>;
+    snapshot: ReturnType<AppDatabase["projection"]["snapshot"]["listSnapshot"]>;
     trigger: string;
   }) => void;
   processRunCompletion: (run: RunRecord, event: z.infer<typeof workerMessageSchema> & { type: "run-finished" }) => void;

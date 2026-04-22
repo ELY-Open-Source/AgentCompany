@@ -28,7 +28,7 @@ function createNoopLogger() {
 }
 
 function createScaffold(db: AppDatabase) {
-  db.connectorsCrud.updateConnectorHealth({
+  db.core.connectors.updateConnectorHealth({
     id: "openai-codex",
     status: "ready",
     authState: "authenticated",
@@ -36,13 +36,13 @@ function createScaffold(db: AppDatabase) {
     lastError: null,
   });
 
-  const companyId = db.company.saveCompany({
+  const companyId = db.core.company.saveCompany({
     name: "Thread Wait Co",
     description: "Tests cofounder wait states and replies",
     status: "active",
     executionMode: "ai_cofounder",
   });
-  const workspaceId = db.workspacesMod.saveWorkspace({
+  const workspaceId = db.core.workspaces.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: "/tmp/thread-wait",
@@ -50,7 +50,7 @@ function createScaffold(db: AppDatabase) {
     repoRef: "",
     isPrimary: true,
   });
-  const ceoId = db.agents.saveAgent({
+  const ceoId = db.core.agents.saveAgent({
     companyId,
     name: "CEO",
     role: "CEO",
@@ -63,7 +63,7 @@ function createScaffold(db: AppDatabase) {
     capabilities: "Lead the company",
     budgetMonthlyUsd: 250,
   });
-  const engineerId = db.agents.saveAgent({
+  const engineerId = db.core.agents.saveAgent({
     companyId,
     name: "Engineer",
     role: "Engineer",
@@ -76,7 +76,7 @@ function createScaffold(db: AppDatabase) {
     capabilities: "Ship features",
     budgetMonthlyUsd: 180,
   });
-  const taskId = db.tasks.saveTask({
+  const taskId = db.core.tasks.saveTask({
     companyId,
     title: "Ship the feature",
     description: "Implement the approved deliverable and wait for co-founder review.",
@@ -116,7 +116,7 @@ describe("thread wait + heartbeat integration", () => {
     threadIntegration.onTaskCreated(taskId, companyId);
     threadIntegration.onRunFinished("run-1", taskId, engineerId, companyId, "succeeded", null);
 
-    const thread = db.threads.listThreads({
+    const thread = db.core.threads.listThreads({
       companyId,
       type: "task",
       relatedEntityType: "task",
@@ -128,12 +128,12 @@ describe("thread wait + heartbeat integration", () => {
       throw new Error("Expected a task thread to exist for the completed run.");
     }
 
-    let waitStates = db.threads.listThreadWaitStates(companyId).filter((entry) => entry.threadId === thread.id);
+    let waitStates = db.core.threads.listThreadWaitStates(companyId).filter((entry) => entry.threadId === thread.id);
     expect(waitStates).toHaveLength(1);
     expect(waitStates[0]?.waitingFor).toBe("user_reply");
     expect(checkpointEngine.shouldPauseHeartbeat(companyId, engineerId)).toBe(true);
 
-    const otherAgentId = db.agents.saveAgent({
+    const otherAgentId = db.core.agents.saveAgent({
       companyId,
       name: "Marketer",
       role: "CMO",
@@ -141,7 +141,7 @@ describe("thread wait + heartbeat integration", () => {
       status: "idle",
       reportsTo: null,
       connectorId: "openai-codex",
-      workspaceId: db.entityCrud.getTask(taskId).workspaceId ?? null,
+      workspaceId: db.core.entity.getTask(taskId).workspaceId ?? null,
       model: null,
       capabilities: "Drive marketing work",
       budgetMonthlyUsd: 180,
@@ -165,7 +165,7 @@ describe("thread wait + heartbeat integration", () => {
       body: "Board reviewed this deliverable. Continue.",
     });
 
-    waitStates = db.threads.listThreadWaitStates(companyId).filter((entry) => entry.threadId === thread.id);
+    waitStates = db.core.threads.listThreadWaitStates(companyId).filter((entry) => entry.threadId === thread.id);
     expect(waitStates).toHaveLength(0);
     expect(threadIntegration.hasUnresolvedWaitStatesForAgent(companyId, engineerId)).toBe(false);
     expect(checkpointEngine.shouldPauseHeartbeat(companyId, engineerId)).toBe(false);
@@ -192,7 +192,7 @@ describe("thread wait + heartbeat integration", () => {
     });
 
     threadIntegration.onTaskCreated(taskId, companyId);
-    const thread = db.threads.listThreads({
+    const thread = db.core.threads.listThreads({
       companyId,
       type: "task",
       relatedEntityType: "task",
@@ -204,7 +204,7 @@ describe("thread wait + heartbeat integration", () => {
       throw new Error("Expected a task thread to exist for approval resolution testing.");
     }
 
-    const approvalId = db.approvalsMod.requestApproval({
+    const approvalId = db.core.approvals.requestApproval({
       companyId,
       relatedTaskId: taskId,
       requestedByAgentId: engineerId,
@@ -215,7 +215,7 @@ describe("thread wait + heartbeat integration", () => {
     });
 
     threadIntegration.onApprovalCreated(approvalId, companyId, taskId, "draft_review", "Draft review needed");
-    let waitStates = db.threads.listThreadWaitStates(companyId).filter((entry) => entry.relatedApprovalId === approvalId);
+    let waitStates = db.core.threads.listThreadWaitStates(companyId).filter((entry) => entry.relatedApprovalId === approvalId);
     expect(waitStates).toHaveLength(1);
     expect(waitStates[0]?.waitingFor).toBe("user_approval");
     expect(checkpointEngine.shouldPauseHeartbeat(companyId, engineerId)).toBe(true);
@@ -234,17 +234,17 @@ describe("thread wait + heartbeat integration", () => {
       body: "Board left a comment but did not decide approval yet.",
     });
 
-    waitStates = db.threads.listThreadWaitStates(companyId).filter((entry) => entry.relatedApprovalId === approvalId);
+    waitStates = db.core.threads.listThreadWaitStates(companyId).filter((entry) => entry.relatedApprovalId === approvalId);
     expect(waitStates).toHaveLength(1);
     expect(checkpointEngine.shouldPauseHeartbeat(companyId, engineerId)).toBe(true);
 
-    db.approvalsMod.decideApproval({
+    db.core.approvals.decideApproval({
       approvalId,
       state: "approved",
       decisionNote: "Approved by board",
     });
     threadIntegration.onApprovalResolved(approvalId, companyId, "approved");
-    waitStates = db.threads.listThreadWaitStates(companyId).filter((entry) => entry.relatedApprovalId === approvalId);
+    waitStates = db.core.threads.listThreadWaitStates(companyId).filter((entry) => entry.relatedApprovalId === approvalId);
     expect(waitStates).toHaveLength(0);
     expect(checkpointEngine.shouldPauseHeartbeat(companyId, engineerId)).toBe(false);
 

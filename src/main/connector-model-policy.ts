@@ -14,12 +14,14 @@ interface ConnectorModelPolicyDeps {
  * domain modules so we do not repeat the closure literal at every site.
  */
 export function connectorPolicyDepsFromDb(db: {
-  connectorsCrud: { getConnector: (id: ConnectorId) => { id: ConnectorId; label?: string | null; model: string | null } };
-  settings: { getDisabledModels: (companyId: string, connectorId: string) => Array<{ id: string; label: string }> };
+  core: {
+    connectors: { getConnector: (id: ConnectorId) => { id: ConnectorId; label?: string | null; model: string | null } };
+    settings: { getDisabledModels: (companyId: string, connectorId: string) => Array<{ id: string; label: string }> };
+  };
 }): ConnectorModelPolicyDeps {
   return {
-    getConnector: (id) => db.connectorsCrud.getConnector(id),
-    getDisabledModels: (cid, connId) => db.settings.getDisabledModels(cid, connId),
+    getConnector: (id) => db.core.connectors.getConnector(id),
+    getDisabledModels: (cid, connId) => db.core.settings.getDisabledModels(cid, connId),
   };
 }
 

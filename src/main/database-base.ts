@@ -31,12 +31,47 @@ import { buildModelCapabilityMethods } from "./database/model-capabilities-crud"
 import { MODEL_CAPABILITY_SEED } from "./model-capability-seed";
 import { initializeDatabase } from "./database/schema";
 import { SecretVault } from "./vault";
-import type { AgentStatus, ConnectorId, ProfileSnapshot, RunStatus } from "@shared/types";
 import { STALE_LOCK_TIMEOUT_MS } from "./constants";
 
 function nowIso() {
   return new Date().toISOString();
 }
+
+export interface AppDatabaseCoreModules {
+  threads: ReturnType<typeof buildThreadMethods>;
+  company: ReturnType<typeof buildCompanyMethods>;
+  agents: ReturnType<typeof buildAgentMethods>;
+  tasks: ReturnType<typeof buildTaskMethods>;
+  messages: ReturnType<typeof buildMessageMethods>;
+  runs: ReturnType<typeof buildRunMethods>;
+  settings: ReturnType<typeof buildSettingsMethods>;
+  connectors: ReturnType<typeof buildConnectorMethods>;
+  workspaces: ReturnType<typeof buildWorkspaceMethods>;
+  approvals: ReturnType<typeof buildApprovalMethods>;
+  social: ReturnType<typeof buildSocialMethods>;
+  activity: ReturnType<typeof buildActivityMethods>;
+  skills: ReturnType<typeof buildSkillMethods>;
+  budget: ReturnType<typeof buildBudgetMethods>;
+  entity: ReturnType<typeof buildEntityCrudMethods>;
+  documents: ReturnType<typeof buildDocumentMethods>;
+  knowledge: ReturnType<typeof buildKnowledgeMethods>;
+  backup: ReturnType<typeof buildBackupMethods>;
+  credentials: ReturnType<typeof buildCredentialMethods>;
+  modelCapabilities: ReturnType<typeof buildModelCapabilityMethods>;
+}
+
+export interface AppDatabaseAutomationModules {
+  rules: ReturnType<typeof buildAutomationMethods>;
+  wakeup: ReturnType<typeof buildWakeupMethods>;
+}
+
+export interface AppDatabaseProjectionModules {
+  snapshot: ReturnType<typeof buildSnapshotMethods>;
+  sessionEntries: ReturnType<typeof buildSessionEntryMethods>;
+  inbox: ReturnType<typeof buildInboxProjectionMethods>;
+  documentLifecycleEvents: ReturnType<typeof buildDocumentLifecycleEventMethods>;
+}
+
 export class AppDatabaseBase {
   readonly profileDir: string;
   readonly dbPath: string;
@@ -47,36 +82,9 @@ export class AppDatabaseBase {
   readonly vault: SecretVault;
   protected db: DatabaseSync;
 
-  // Domain modules. The canonical surface — call these directly from
-  // every consumer (`db.tasks.saveTask(...)`, not `db.saveTask(...)`).
-  // The ESLint rule in eslint.config.mjs blocks new top-level methods
-  // on AppDatabase so the old pass-through layer cannot grow back.
-  public readonly threads: ReturnType<typeof buildThreadMethods>;
-  public readonly company: ReturnType<typeof buildCompanyMethods>;
-  public readonly agents: ReturnType<typeof buildAgentMethods>;
-  public readonly tasks: ReturnType<typeof buildTaskMethods>;
-  public readonly messages: ReturnType<typeof buildMessageMethods>;
-  public readonly runs: ReturnType<typeof buildRunMethods>;
-  public readonly snap: ReturnType<typeof buildSnapshotMethods>;
-  public readonly settings: ReturnType<typeof buildSettingsMethods>;
-  public readonly connectorsCrud: ReturnType<typeof buildConnectorMethods>;
-  public readonly workspacesMod: ReturnType<typeof buildWorkspaceMethods>;
-  public readonly approvalsMod: ReturnType<typeof buildApprovalMethods>;
-  public readonly social: ReturnType<typeof buildSocialMethods>;
-  public readonly activityMod: ReturnType<typeof buildActivityMethods>;
-  public readonly skills: ReturnType<typeof buildSkillMethods>;
-  public readonly budget: ReturnType<typeof buildBudgetMethods>;
-  public readonly entityCrud: ReturnType<typeof buildEntityCrudMethods>;
-  public readonly documentsMod: ReturnType<typeof buildDocumentMethods>;
-  public readonly automationMod: ReturnType<typeof buildAutomationMethods>;
-  public readonly knowledgeMod: ReturnType<typeof buildKnowledgeMethods>;
-  public readonly wakeup: ReturnType<typeof buildWakeupMethods>;
-  public readonly backupMod: ReturnType<typeof buildBackupMethods>;
-  public readonly sessionEntries: ReturnType<typeof buildSessionEntryMethods>;
-  public readonly inboxProjections: ReturnType<typeof buildInboxProjectionMethods>;
-  public readonly documentLifecycleEvents: ReturnType<typeof buildDocumentLifecycleEventMethods>;
-  public readonly credentialsTable: ReturnType<typeof buildCredentialMethods>;
-  public readonly modelCapabilities: ReturnType<typeof buildModelCapabilityMethods>;
+  public readonly core: AppDatabaseCoreModules;
+  public readonly automation: AppDatabaseAutomationModules;
+  public readonly projection: AppDatabaseProjectionModules;
 
   constructor(rootDir: string, options: { isPackaged?: boolean; appVersion?: string } = {}) {
     this.profileDir = rootDir;
@@ -99,70 +107,70 @@ export class AppDatabaseBase {
     const ra = <T>(sql: string, ...params: SQLInputValue[]) => this.readAll<T>(sql, ...params);
     const tx = <T>(op: () => T) => this.transaction(op);
 
-    this.activityMod = buildActivityMethods(getDb, ra);
-    this.settings = buildSettingsMethods(getDb, ra, {
+    const activity = buildActivityMethods(getDb, ra);
+    const settings = buildSettingsMethods(getDb, ra, {
       profileDir: this.profileDir, logsDir: this.logsDir,
       artifactsDir: this.artifactsDir, backupsDir: this.backupsDir,
     });
-    this.connectorsCrud = buildConnectorMethods(getDb, ra);
-    this.snap = buildSnapshotMethods(getDb, ra, {
-      getCurrentCompanyId: () => this.settings.getCurrentCompanyId(),
+    const connectors = buildConnectorMethods(getDb, ra);
+    const snapshot = buildSnapshotMethods(getDb, ra, {
+      getCurrentCompanyId: () => settings.getCurrentCompanyId(),
       getSetting: (key) => this.getSetting(key),
-      readConnectors: () => this.connectorsCrud.readConnectors(),
+      readConnectors: () => connectors.readConnectors(),
       profileDir: this.profileDir,
       vaultBackendLabel: () => this.vault.getBackendLabel(),
     });
-    this.threads = buildThreadMethods(getDb, ra);
-    this.company = buildCompanyMethods(getDb, ra, tx, {
-      getSetting: (key) => this.getSetting(key),
-      setSetting: (key, value) => this.setSetting(key, value),
-      listSnapshot: (options) => this.snap.listSnapshot(options),
-      addComment: (input) => this.activityMod.addComment(input),
-    });
-    this.agents = buildAgentMethods(getDb, ra, tx, {
-      getAgent: (id) => this.entityCrud.getAgent(id),
-      wouldCreateAgentCycle: (agentId, reportsTo) => this.wouldCreateAgentCycle(agentId, reportsTo),
-      recordConfigRevision: (input) => this.documentsMod.recordConfigRevision(input),
-      cancelRunForDeletion: (runId, taskId, workspaceId, summary) => this.runs.cancelRunForDeletion(runId, taskId, workspaceId, summary),
-      addActivity: (input) => this.activityMod.addActivity(input),
-    });
-    this.tasks = buildTaskMethods(getDb, ra, tx, {
-      addComment: (input) => this.activityMod.addComment(input),
-      addActivity: (input) => this.activityMod.addActivity(input),
-      requestApproval: (input) => this.approvalsMod.requestApproval(input),
-      setHeartbeat: (agentId, enabled, intervalSec) => this.agents.setHeartbeat(agentId, enabled, intervalSec),
-    });
-    this.messages = buildMessageMethods(getDb, ra, {
-      getAgent: (id) => this.entityCrud.getAgent(id),
-      addActivity: (input) => this.activityMod.addActivity(input),
-      transaction: tx,
-    });
-    this.runs = buildRunMethods(getDb, ra, tx, { logsDir: this.logsDir });
-    this.workspacesMod = buildWorkspaceMethods(getDb, ra, tx);
-    this.approvalsMod = buildApprovalMethods(getDb, ra, tx, {
-      getAgent: (id) => this.entityCrud.getAgent(id),
-    });
-    this.social = buildSocialMethods(getDb, ra, tx);
-    this.skills = buildSkillMethods(getDb, ra);
-    this.budget = buildBudgetMethods(getDb, ra, tx);
-    this.entityCrud = buildEntityCrudMethods(getDb, ra, tx, {
-      addActivity: (input) => this.activityMod.addActivity(input),
+    const threads = buildThreadMethods(getDb, ra);
+    const entity = buildEntityCrudMethods(getDb, ra, tx, {
+      addActivity: (input) => activity.addActivity(input),
       vault: this.vault,
       listInvalidEnvBindingKeys,
       parseEnvBindingText,
     });
-    this.documentsMod = buildDocumentMethods(getDb, ra, tx);
-    this.automationMod = buildAutomationMethods(getDb, ra, {
-      addActivity: (input) => this.activityMod.addActivity(input),
+    const documents = buildDocumentMethods(getDb, ra, tx);
+    const runs = buildRunMethods(getDb, ra, tx, { logsDir: this.logsDir });
+    const company = buildCompanyMethods(getDb, ra, tx, {
+      getSetting: (key) => this.getSetting(key),
+      setSetting: (key, value) => this.setSetting(key, value),
+      listSnapshot: (options) => snapshot.listSnapshot(options),
+      addComment: (input) => activity.addComment(input),
     });
-    this.knowledgeMod = buildKnowledgeMethods(getDb, ra);
-    this.wakeup = buildWakeupMethods(getDb, ra, tx);
-    this.sessionEntries = buildSessionEntryMethods(getDb, ra, tx);
-    this.inboxProjections = buildInboxProjectionMethods(getDb);
-    this.documentLifecycleEvents = buildDocumentLifecycleEventMethods(getDb, ra);
-    this.credentialsTable = buildCredentialMethods(getDb, ra, tx);
-    this.modelCapabilities = buildModelCapabilityMethods(getDb, ra, tx);
-    this.backupMod = buildBackupMethods({
+    const agents = buildAgentMethods(getDb, ra, tx, {
+      getAgent: (id) => entity.getAgent(id),
+      wouldCreateAgentCycle: (agentId, reportsTo) => this.wouldCreateAgentCycle(agentId, reportsTo),
+      recordConfigRevision: (input) => documents.recordConfigRevision(input),
+      cancelRunForDeletion: (runId, taskId, workspaceId, summary) => runs.cancelRunForDeletion(runId, taskId, workspaceId, summary),
+      addActivity: (input) => activity.addActivity(input),
+    });
+    const approvals = buildApprovalMethods(getDb, ra, tx, {
+      getAgent: (id) => entity.getAgent(id),
+    });
+    const tasks = buildTaskMethods(getDb, ra, tx, {
+      addComment: (input) => activity.addComment(input),
+      addActivity: (input) => activity.addActivity(input),
+      requestApproval: (input) => approvals.requestApproval(input),
+      setHeartbeat: (agentId, enabled, intervalSec) => agents.setHeartbeat(agentId, enabled, intervalSec),
+    });
+    const messages = buildMessageMethods(getDb, ra, {
+      getAgent: (id) => entity.getAgent(id),
+      addActivity: (input) => activity.addActivity(input),
+      transaction: tx,
+    });
+    const workspaces = buildWorkspaceMethods(getDb, ra, tx);
+    const social = buildSocialMethods(getDb, ra, tx);
+    const skills = buildSkillMethods(getDb, ra);
+    const budget = buildBudgetMethods(getDb, ra, tx);
+    const automationRules = buildAutomationMethods(getDb, ra, {
+      addActivity: (input) => activity.addActivity(input),
+    });
+    const knowledge = buildKnowledgeMethods(getDb, ra);
+    const wakeup = buildWakeupMethods(getDb, ra, tx);
+    const sessionEntries = buildSessionEntryMethods(getDb, ra, tx);
+    const inbox = buildInboxProjectionMethods(getDb);
+    const documentLifecycleEvents = buildDocumentLifecycleEventMethods(getDb, ra);
+    const credentials = buildCredentialMethods(getDb, ra, tx);
+    const modelCapabilities = buildModelCapabilityMethods(getDb, ra, tx);
+    const backup = buildBackupMethods({
       getDb, setDb: (db) => { this.db = db; },
       openConnection: () => this.openConnection(),
       init: () => this.init(),
@@ -172,6 +180,31 @@ export class AppDatabaseBase {
       backupsDir: this.backupsDir,
       appVersion: this.appVersion,
     });
+
+    this.core = {
+      threads,
+      company,
+      agents,
+      tasks,
+      messages,
+      runs,
+      settings,
+      connectors,
+      workspaces,
+      approvals,
+      social,
+      activity,
+      skills,
+      budget,
+      entity,
+      documents,
+      knowledge,
+      backup,
+      credentials,
+      modelCapabilities,
+    };
+    this.automation = { rules: automationRules, wakeup };
+    this.projection = { snapshot, sessionEntries, inbox, documentLifecycleEvents };
   }
 
   // ─── Lifecycle ─────────────────────────────────────────────────────────────
@@ -179,9 +212,9 @@ export class AppDatabaseBase {
   init() {
     const ra = <T>(sql: string, ...params: SQLInputValue[]) => this.readAll<T>(sql, ...params);
     const tx = <T>(op: () => T) => this.transaction(op);
-    initializeDatabase(this.db, ra, tx, (reason) => this.backupMod.createAutomaticBackup(reason));
-    this.connectorsCrud.seedConnectors();
-    this.modelCapabilities.seedModelCapabilities(MODEL_CAPABILITY_SEED);
+    initializeDatabase(this.db, ra, tx, (reason) => this.core.backup.createAutomaticBackup(reason));
+    this.core.connectors.seedConnectors();
+    this.core.modelCapabilities.seedModelCapabilities(MODEL_CAPABILITY_SEED);
     // Crash-recovery: a run still at `running` on boot means the worker
     // died mid-turn. Flip it to `interrupted`, surface the related task
     // as `blocked` for operator attention, and release workspace locks.
@@ -189,15 +222,15 @@ export class AppDatabaseBase {
     // all other "data-repair" passes have moved to explicit runtime
     // state-machine guards (see `tasks-status.ts`) or maintenance IPC.
     this._lastInterruptedCount = this.interruptStaleRuns();
-    this.settings.purgeExpiredRunLogs();
-    this.wakeup.purgeExpiredWakeupRequests();
+    this.core.settings.purgeExpiredRunLogs();
+    this.automation.wakeup.purgeExpiredWakeupRequests();
   }
 
   close() { this.db.close(); }
 
   // ─── Internal helper: relock releaseAllWorkspaceLocks is used by
   //   crash-recovery below; callers should prefer
-  //   `db.workspacesMod.releaseAllWorkspaceLocks()` directly.
+  //   `db.core.workspaces.releaseAllWorkspaceLocks()` directly.
   //
   // ─── Internal infrastructure ───────────────────────────────────────────────
   protected _lastInterruptedCount = 0;
@@ -222,7 +255,7 @@ export class AppDatabaseBase {
         // so a boot that crashed while workers were already idle can
         // still reset agent rows parked at `status = 'running'`.
         this.db.prepare("update agents set status = 'idle', updated_at = ? where status = 'running'").run(ts);
-        this.workspacesMod.releaseAllWorkspaceLocks();
+        this.core.workspaces.releaseAllWorkspaceLocks();
         return;
       }
       const runIds = staleRuns.map((r) => r.id);
@@ -244,7 +277,7 @@ export class AppDatabaseBase {
         )
         .run(...runIds);
       this.db.prepare("update agents set status = 'idle', updated_at = ? where status = 'running'").run(ts);
-      this.workspacesMod.releaseAllWorkspaceLocks();
+      this.core.workspaces.releaseAllWorkspaceLocks();
     });
     return interruptedCount;
   }
@@ -267,7 +300,7 @@ export class AppDatabaseBase {
   }
 
   protected incrementActiveSprintVelocity(companyId: string, delta: number) {
-    this.entityCrud.incrementActiveSprintVelocity(companyId, delta);
+    this.core.entity.incrementActiveSprintVelocity(companyId, delta);
   }
 
   protected getSetting(key: string): string | null {

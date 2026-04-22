@@ -23,7 +23,7 @@ export function matchesEventConfig(
   if (conditions.previousStatus && ctx.previousStatus && conditions.previousStatus !== ctx.previousStatus) return false;
   if (conditions.priority) {
     try {
-      const task = ctx.taskId ? db.entityCrud.getTask(ctx.taskId) : null;
+      const task = ctx.taskId ? db.core.entity.getTask(ctx.taskId) : null;
       if (task && task.priority !== conditions.priority) return false;
       // If task was deleted, skip this condition instead of rejecting the rule.
     } catch (err) {
@@ -32,7 +32,7 @@ export function matchesEventConfig(
   }
   if (typeof conditions.budgetThresholdPct === "number" && ctx.agentId) {
     try {
-      const agent = db.entityCrud.getAgent(ctx.agentId);
+      const agent = db.core.entity.getAgent(ctx.agentId);
       if (agent.budgetMonthlyUsd > 0) {
         const utilization = agent.spentMonthlyUsd / agent.budgetMonthlyUsd;
         if (utilization < (conditions.budgetThresholdPct as number) / 100) return false;

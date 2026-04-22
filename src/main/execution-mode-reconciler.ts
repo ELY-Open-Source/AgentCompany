@@ -27,12 +27,12 @@ const REVIEW_WAIT_STATE_TYPES = new Set(["user_reply", "user_review", "user_appr
 
 function collectImpactedAgentIdsFromWaitStates(db: AppDatabase, companyId: string): Set<string> {
   const agentIds = new Set<string>();
-  const waitStates = db.threads.listThreadWaitStates(companyId);
+  const waitStates = db.core.threads.listThreadWaitStates(companyId);
   for (const waitState of waitStates) {
-    const thread = db.threads.getThread(waitState.threadId, companyId);
+    const thread = db.core.threads.getThread(waitState.threadId, companyId);
     if (!thread || thread.relatedEntityType !== "task" || !thread.relatedEntityId) continue;
     try {
-      const task = db.entityCrud.getTask(thread.relatedEntityId);
+      const task = db.core.entity.getTask(thread.relatedEntityId);
       if (task.assigneeAgentId) {
         agentIds.add(task.assigneeAgentId);
       }
@@ -69,7 +69,7 @@ function collectImpactedAgentIdsFromReviewState(db: AppDatabase, companyId: stri
     }
     if (!approval.relatedTaskId) continue;
     try {
-      const task = db.entityCrud.getTask(approval.relatedTaskId);
+      const task = db.core.entity.getTask(approval.relatedTaskId);
       if (task.assigneeAgentId) {
         agentIds.add(task.assigneeAgentId);
       }
@@ -84,11 +84,11 @@ function collectImpactedAgentIdsFromReviewState(db: AppDatabase, companyId: stri
 function resumeAgents(db: AppDatabase, companyId: string, agentIds: Iterable<string>): void {
   for (const agentId of agentIds) {
     try {
-      const agent = db.entityCrud.getAgent(agentId);
+      const agent = db.core.entity.getAgent(agentId);
       if (agent.companyId !== companyId) continue;
       if (["terminated", "pending_approval"].includes(agent.status)) continue;
       if (!agent.heartbeatEnabled) {
-        db.agents.setHeartbeat(agent.id, true, agent.heartbeatIntervalSec || 120);
+        db.core.agents.setHeartbeat(agent.id, true, agent.heartbeatIntervalSec || 120);
       }
     } catch (err) {
       log.warn(`[execution-mode-reconciler] resumeAgents failed for ${agentId}:`, err instanceof Error ? err.message : String(err));
@@ -143,10 +143,10 @@ export function reconcileExecutionModeChange({
       });
     }
 
-    const waitStates = db.threads.listThreadWaitStates(companyId);
+    const waitStates = db.core.threads.listThreadWaitStates(companyId);
     for (const waitState of waitStates) {
       if (!REVIEW_WAIT_STATE_TYPES.has(waitState.waitingFor)) continue;
-      db.threads.resolveThreadWaitState(waitState.id, companyId);
+      db.core.threads.resolveThreadWaitState(waitState.id, companyId);
     }
   }
 
@@ -156,7 +156,7 @@ export function reconcileExecutionModeChange({
       companyId,
     );
     for (const task of tasks) {
-      db.tasks.setTaskRequiresUserReview(task.id, false);
+      db.core.tasks.setTaskRequiresUserReview(task.id, false);
     }
   }
 

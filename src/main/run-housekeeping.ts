@@ -54,7 +54,7 @@ function shouldProduceKnowledge(
     );
   }
   try {
-    const agent = db.entityCrud.getAgent(agentId);
+    const agent = db.core.entity.getAgent(agentId);
     return Boolean(agent.department && KNOWLEDGE_PRODUCING_DEPARTMENTS.has(agent.department));
   } catch (error) {
     logger.warn(
@@ -97,7 +97,7 @@ export function createRunHousekeeping({ db, logger, threadIntegration }: RunHous
         try {
           let topic = `Run ${runId.slice(0, 8)}`;
           try {
-            const task = db.entityCrud.getTask(taskId);
+            const task = db.core.entity.getTask(taskId);
             topic = task.title;
           } catch (error) {
             logger.warn(
@@ -105,7 +105,7 @@ export function createRunHousekeeping({ db, logger, threadIntegration }: RunHous
             );
           }
 
-          db.knowledgeMod.saveKnowledgeEntry({
+          db.core.knowledge.saveKnowledgeEntry({
             companyId,
             category: "lesson_learned",
             topic,
@@ -121,7 +121,7 @@ export function createRunHousekeeping({ db, logger, threadIntegration }: RunHous
       // 3. On failure, record an activity log entry
       if (status === "failed") {
         try {
-          db.activityMod.addActivity({
+          db.core.activity.addActivity({
             companyId,
             actor: agentId,
             action: "run.failed",

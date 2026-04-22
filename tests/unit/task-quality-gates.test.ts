@@ -151,12 +151,14 @@ describe("ACCEPTANCE_CRITERIA_KEYWORDS", () => {
 describe("checkCapabilityMatch", () => {
   function makeMockDb(agent: { name: string; capabilities: string }, skillAssignments: string[] = [], skills: Record<string, { name: string; description: string | null; slug: string }> = {}) {
     return {
-      entityCrud: {
-        getAgent: (_id: string) => agent,
-      },
-      skills: {
-        listAgentSkillAssignments: (_id: string) => skillAssignments,
-        getCompanySkill: (_companyId: string, skillId: string) => skills[skillId] ?? null,
+      core: {
+        entity: {
+          getAgent: (_id: string) => agent,
+        },
+        skills: {
+          listAgentSkillAssignments: (_id: string) => skillAssignments,
+          getCompanySkill: (_companyId: string, skillId: string) => skills[skillId] ?? null,
+        },
       },
     };
   }

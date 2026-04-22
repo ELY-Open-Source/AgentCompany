@@ -32,7 +32,7 @@ export function registerCoreReadHandlers({
   | "listConnectorModels"
   | "logger"
 >) {
-  registerHandle(IPC_CHANNELS.loadSnapshot, () => ok(db.snap.listRendererSnapshot()));
+  registerHandle(IPC_CHANNELS.loadSnapshot, () => ok(db.projection.snapshot.listRendererSnapshot()));
 
   registerHandle(IPC_CHANNELS.pickDirectory, async () => {
     const result = await dialog.showOpenDialog({
@@ -45,7 +45,7 @@ export function registerCoreReadHandlers({
     if (typeof targetPath !== "string" || targetPath.length === 0) {
       return fail("INVALID_PATH", "A valid path is required.");
     }
-    if (!db.settings.canOpenPath(targetPath)) {
+    if (!db.core.settings.canOpenPath(targetPath)) {
       return fail("OPEN_PATH_FORBIDDEN", "The requested path is outside the managed desktop workspace.");
     }
     const error = await shell.openPath(targetPath);
@@ -68,7 +68,7 @@ export function registerCoreReadHandlers({
     if (!parsed.success) return fail("INVALID_PAYLOAD", "openWorkProduct requires { companyId, id }.");
     const companyError = ensureCompanyExists(parsed.data.companyId);
     if (companyError) return companyError;
-    const target = db.documentsMod.resolveWorkProductTarget(parsed.data.id, parsed.data.companyId);
+    const target = db.core.documents.resolveWorkProductTarget(parsed.data.id, parsed.data.companyId);
     if (target.kind === "error") {
       const codeByReason = {
         not_found: "WORK_PRODUCT_NOT_FOUND",
@@ -83,7 +83,7 @@ export function registerCoreReadHandlers({
       const error = await shell.openExternal(target.value).then(() => "").catch((err: unknown) => err instanceof Error ? err.message : String(err));
       return error ? fail("OPEN_PATH_FAILED", error) : ok(true);
     }
-    if (!db.settings.canOpenPath(target.value)) {
+    if (!db.core.settings.canOpenPath(target.value)) {
       return fail("OPEN_PATH_FORBIDDEN", "The requested path is outside the managed desktop workspace.");
     }
     const error = await shell.openPath(target.value);
@@ -98,12 +98,12 @@ export function registerCoreReadHandlers({
       return ok(null);
     }
     const backupPath = join(result.filePaths[0]!, `agentcompany-backup-${Date.now()}`);
-    await db.backupMod.exportBackup(backupPath);
+    await db.core.backup.exportBackup(backupPath);
     return ok(backupPath);
   });
 
   registerHandle(IPC_CHANNELS.restoreProfile, async () => {
-    const hasActiveRuns = db.snap.listSnapshot().runs.some((run: { status: string }) => run.status === "queued" || run.status === "running");
+    const hasActiveRuns = db.projection.snapshot.listSnapshot().runs.some((run: { status: string }) => run.status === "queued" || run.status === "running");
     if (hasActiveRuns) {
       return fail("RESTORE_BLOCKED", "Stop all active runs before restoring a profile backup.");
     }
@@ -113,7 +113,7 @@ export function registerCoreReadHandlers({
     if (result.canceled || result.filePaths.length === 0) {
       return ok(false);
     }
-    await db.backupMod.restoreFromBackup(result.filePaths[0]!);
+    await db.core.backup.restoreFromBackup(result.filePaths[0]!);
     resetAfterRestore();
     publishDomainChanged();
     return ok(true);
@@ -121,7 +121,7 @@ export function registerCoreReadHandlers({
 
   registerHandle(IPC_CHANNELS.updateSettings, async (_event, payload) => {
     const parsed = settingsSchema.parse(payload);
-    db.settings.updateSettings(parsed);
+    db.core.settings.updateSettings(parsed);
     if (parsed.theme) {
       nativeTheme.themeSource = parsed.theme;
     }
@@ -153,7 +153,7 @@ export function registerCoreReadHandlers({
   registerHandle(IPC_CHANNELS.getConnectorDisabledModels, (_event, payload) => {
     try {
       const parsed = connectorModelPoolQuerySchema.parse(payload);
-      return ok(db.settings.getDisabledModels(parsed.companyId, parsed.connectorId));
+      return ok(db.core.settings.getDisabledModels(parsed.companyId, parsed.connectorId));
     } catch (err) {
       logAppError(logger, err, {
         kind: "user_input",
@@ -168,14 +168,14 @@ export function registerCoreReadHandlers({
     const input = metricsQuerySchema.parse(payload);
     const err = ensureCompanyExists(input.companyId);
     if (err) return err;
-    return ok(db.company.getCompanyMetrics(input.companyId, input.days));
+    return ok(db.core.company.getCompanyMetrics(input.companyId, input.days));
   });
 
   registerHandle(IPC_CHANNELS.getStandupReport, (_event, payload) => {
     const companyId = z.string().uuid().parse(payload);
     const err = ensureCompanyExists(companyId);
     if (err) return err;
-    return ok(db.company.getStandupReport(companyId));
+    return ok(db.core.company.getStandupReport(companyId));
   });
 
   // --- Entity getters for granular IPC updates ---
@@ -185,7 +185,7 @@ export function registerCoreReadHandlers({
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
     try {
-      const task = db.entityCrud.getTask(parsed.id);
+      const task = db.core.entity.getTask(parsed.id);
       if (task.companyId !== parsed.companyId) return fail("TASK_NOT_FOUND", "Task not found in current company.");
       return ok(task);
     } catch (err) {
@@ -204,7 +204,7 @@ export function registerCoreReadHandlers({
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
     try {
-      const agent = db.entityCrud.getAgent(parsed.id);
+      const agent = db.core.entity.getAgent(parsed.id);
       if (agent.companyId !== parsed.companyId) return fail("AGENT_NOT_FOUND", "Agent not found in current company.");
       return ok(agent);
     } catch (err) {
@@ -223,7 +223,7 @@ export function registerCoreReadHandlers({
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
     try {
-      const run = db.runs.getRun(parsed.id);
+      const run = db.core.runs.getRun(parsed.id);
       if (run.companyId !== parsed.companyId) return fail("RUN_NOT_FOUND", "Run not found in current company.");
       return ok(run);
     } catch (err) {
@@ -242,7 +242,7 @@ export function registerCoreReadHandlers({
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
     try {
-      const approval = db.approvalsMod.getApprovalRecord(parsed.id);
+      const approval = db.core.approvals.getApprovalRecord(parsed.id);
       if (approval.companyId !== parsed.companyId) return fail("APPROVAL_NOT_FOUND", "Approval not found in current company.");
       return ok(approval);
     } catch (err) {

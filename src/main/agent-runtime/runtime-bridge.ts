@@ -235,7 +235,7 @@ export class RuntimeBridge {
    */
   private resolveAgentName(agentId: string): string {
     try {
-      const name = this.deps.db.agents.findAgentName(agentId);
+      const name = this.deps.db.core.agents.findAgentName(agentId);
       if (name && name.length > 0) return name;
     } catch (error) {
       this.deps.logger.warn(
@@ -434,11 +434,11 @@ export class RuntimeBridge {
     // `?unreadOnly=true`, so agents posted status comments instead of
     // replies. The explicit read endpoint is the sole signal.
     const store = this.getOrCreateStore(payload.taskSessionId);
-    const inboxRecords = this.deps.db.messages.listAgentInboxUnread(payload.companyId, payload.agentId);
+    const inboxRecords = this.deps.db.core.messages.listAgentInboxUnread(payload.companyId, payload.agentId);
     if (inboxRecords.length > 0) {
       this.deps.db.withTransaction(() => {
         for (const record of inboxRecords) {
-          const claimed = this.deps.db.inboxProjections.claimProjection(record.id, payload.taskSessionId);
+          const claimed = this.deps.db.projection.inbox.claimProjection(record.id, payload.taskSessionId);
           if (!claimed) continue;
           // `projectInboundMessage` allocates a monotonic pi-timestamp
           // and indexes the correlation under `record.id`. Two rows

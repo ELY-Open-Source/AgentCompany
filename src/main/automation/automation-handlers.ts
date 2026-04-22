@@ -42,9 +42,9 @@ export function handleTaskStatusChange(
   const { db, wakeAgentIfPossible } = deps;
   const { dispatchAutomation } = callbacks;
 
-  let task: ReturnType<typeof db.entityCrud.getTask> | null = null;
+  let task: ReturnType<typeof db.core.entity.getTask> | null = null;
   try {
-    task = db.entityCrud.getTask(taskId);
+    task = db.core.entity.getTask(taskId);
   } catch (error) {
     logAppError(deps.logger, error, {
       kind: "recoverable",
@@ -56,7 +56,7 @@ export function handleTaskStatusChange(
   }
   if (!task) return;
 
-  db.activityMod.addActivity({
+  db.core.activity.addActivity({
     companyId,
     actor: task.assigneeAgentId ?? "board",
     action: "task.status_changed",
@@ -74,7 +74,7 @@ export function handleTaskStatusChange(
   };
   try {
     if (task.assigneeAgentId) {
-      const agent = db.entityCrud.getAgent(task.assigneeAgentId);
+      const agent = db.core.entity.getAgent(task.assigneeAgentId);
       context.department = agent.department ?? undefined;
     }
   } catch (error) {
@@ -91,7 +91,7 @@ export function handleTaskStatusChange(
   if (newStatus === "blocked") {
     dispatchAutomation("task_blocked", context);
     if (task.assigneeAgentId) {
-      const manager = db.agents.getManagerForAgent(task.assigneeAgentId);
+      const manager = db.core.agents.getManagerForAgent(task.assigneeAgentId);
       if (manager) {
         wakeAgentIfPossible(manager.id, companyId, "report_blocked");
       }
@@ -100,14 +100,14 @@ export function handleTaskStatusChange(
 
   if (newStatus === "done" && task.parentId) {
     try {
-      const siblings = db.tasks.listChildTasks(task.parentId, companyId);
+      const siblings = db.core.tasks.listChildTasks(task.parentId, companyId);
       const allDone = siblings.every((entry) => entry.id === taskId ? true : entry.status === "done");
       if (allDone) {
-        const parent = db.entityCrud.getTask(task.parentId);
+        const parent = db.core.entity.getTask(task.parentId);
         if (parent.assigneeAgentId) {
           wakeAgentIfPossible(parent.assigneeAgentId, companyId, "subtask_completed");
         } else {
-          const assignedId = db.tasks.autoAssignTask(parent.id, companyId);
+          const assignedId = db.core.tasks.autoAssignTask(parent.id, companyId);
           if (assignedId) {
             wakeAgentIfPossible(assignedId, companyId, "subtask_completed");
           }
@@ -134,9 +134,9 @@ export function handleTaskCreated(
   const { db, wakeAgentIfPossible } = deps;
   const { dispatchAutomation } = callbacks;
 
-  let task: ReturnType<typeof db.entityCrud.getTask> | null = null;
+  let task: ReturnType<typeof db.core.entity.getTask> | null = null;
   try {
-    task = db.entityCrud.getTask(taskId);
+    task = db.core.entity.getTask(taskId);
   } catch (error) {
     logAppError(deps.logger, error, {
       kind: "recoverable",
@@ -155,7 +155,7 @@ export function handleTaskCreated(
   });
 
   if (!task.assigneeAgentId) {
-    const assignedId = db.tasks.autoAssignTask(taskId, companyId);
+    const assignedId = db.core.tasks.autoAssignTask(taskId, companyId);
     if (assignedId) {
       wakeAgentIfPossible(assignedId, companyId, "assignment");
     }

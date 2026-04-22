@@ -82,7 +82,7 @@ export class DocumentLifecycleProcessor {
 
   /** Immediate drain scoped to one document, used right after commit. */
   drainForDocument(documentId: string): void {
-    const batch = this.options.db.documentLifecycleEvents.claimPendingBatch({
+    const batch = this.options.db.projection.documentLifecycleEvents.claimPendingBatch({
       limit: this.options.batchSize,
       maxAttempts: this.options.maxAttempts,
       documentId,
@@ -92,7 +92,7 @@ export class DocumentLifecycleProcessor {
 
   /** Periodic sweep: rescues stragglers across all documents. */
   processBatch(): number {
-    const batch = this.options.db.documentLifecycleEvents.claimPendingBatch({
+    const batch = this.options.db.projection.documentLifecycleEvents.claimPendingBatch({
       limit: this.options.batchSize,
       maxAttempts: this.options.maxAttempts,
     });
@@ -103,7 +103,7 @@ export class DocumentLifecycleProcessor {
   /** Move rows stuck in `running` back to `pending`. */
   reclaimStale(): number {
     const cutoff = new Date(Date.now() - this.options.staleRunningMs).toISOString();
-    const reclaimed = this.options.db.documentLifecycleEvents.reclaimStaleRunning(cutoff);
+    const reclaimed = this.options.db.projection.documentLifecycleEvents.reclaimStaleRunning(cutoff);
     if (reclaimed > 0) {
       this.options.logger.info(
         `[document-lifecycle] reclaimed ${reclaimed} stale running row(s) past ${this.options.staleRunningMs}ms cutoff`,
@@ -155,7 +155,7 @@ export class DocumentLifecycleProcessor {
     const handler = this.handlers.get(row.hookType);
     if (!handler) {
       const reason = `No handler registered for hook type "${row.hookType}"`;
-      this.options.db.documentLifecycleEvents.markFailed(row.id, reason);
+      this.options.db.projection.documentLifecycleEvents.markFailed(row.id, reason);
       this.options.logger.error(`[document-lifecycle] ${reason} (event ${row.id})`);
       return;
     }
@@ -165,7 +165,7 @@ export class DocumentLifecycleProcessor {
       payload = row.payloadJson ? (JSON.parse(row.payloadJson) as Record<string, unknown>) : {};
     } catch (error) {
       const reason = `payload_json parse failed: ${describeError(error)}`;
-      this.options.db.documentLifecycleEvents.markFailed(row.id, reason);
+      this.options.db.projection.documentLifecycleEvents.markFailed(row.id, reason);
       this.options.logger.error(`[document-lifecycle] ${reason} (event ${row.id})`);
       return;
     }
@@ -191,21 +191,21 @@ export class DocumentLifecycleProcessor {
   private recordOutcome(row: DocumentLifecycleEventRow, outcome: LifecycleHookOutcome): void {
     try {
       if (outcome.kind === "succeeded") {
-        this.options.db.documentLifecycleEvents.markSucceeded(row.id);
+        this.options.db.projection.documentLifecycleEvents.markSucceeded(row.id);
         return;
       }
       if (outcome.kind === "failed") {
-        this.options.db.documentLifecycleEvents.markFailed(row.id, outcome.reason);
+        this.options.db.projection.documentLifecycleEvents.markFailed(row.id, outcome.reason);
         return;
       }
       if (row.attempts >= this.options.maxAttempts) {
-        this.options.db.documentLifecycleEvents.markFailed(
+        this.options.db.projection.documentLifecycleEvents.markFailed(
           row.id,
           `Retry budget exhausted (${row.attempts}/${this.options.maxAttempts}): ${outcome.reason}`,
         );
         return;
       }
-      this.options.db.documentLifecycleEvents.markRetryable(row.id, outcome.reason);
+      this.options.db.projection.documentLifecycleEvents.markRetryable(row.id, outcome.reason);
     } catch (error) {
       this.options.logger.warn(
         `[document-lifecycle] recordOutcome failed for ${row.id}: ${describeError(error)}`,

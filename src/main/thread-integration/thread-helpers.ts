@@ -12,7 +12,7 @@ export interface ThreadIntegrationDeps {
 }
 
 export function findTaskThread(db: AppDatabase, taskId: string, companyId: string) {
-  const existing = db.threads.listThreads({
+  const existing = db.core.threads.listThreads({
     companyId,
     type: "task" as ThreadType,
     relatedEntityType: "task",
@@ -26,7 +26,7 @@ export function ensureTaskThread(db: AppDatabase, taskId: string, companyId: str
   const existing = findTaskThread(db, taskId, companyId);
   if (existing) return existing;
 
-  return db.threads.createThread({
+  return db.core.threads.createThread({
     companyId,
     title,
     type: "task" as ThreadType,
@@ -36,7 +36,7 @@ export function ensureTaskThread(db: AppDatabase, taskId: string, companyId: str
 }
 
 export function findAgentCommunicationThread(db: AppDatabase, agentId: string, companyId: string) {
-  const existing = db.threads.listThreads({
+  const existing = db.core.threads.listThreads({
     companyId,
     type: "general" as ThreadType,
     relatedEntityType: "agent",
@@ -62,7 +62,7 @@ export function ensureAgentCommunicationThread(
   const existing = findAgentCommunicationThread(db, agentId, companyId);
   if (existing) return existing;
 
-  return db.threads.createThread({
+  return db.core.threads.createThread({
     companyId,
     title: `${agentLabel} · communication`,
     type: "general" as ThreadType,
@@ -72,7 +72,7 @@ export function ensureAgentCommunicationThread(
 }
 
 export function findApprovalThread(db: AppDatabase, approvalId: string, companyId: string) {
-  const existing = db.threads.listThreads({
+  const existing = db.core.threads.listThreads({
     companyId,
     type: "approval" as ThreadType,
     relatedEntityType: "approval",
@@ -86,7 +86,7 @@ export function ensureApprovalThread(db: AppDatabase, approvalId: string, compan
   const existing = findApprovalThread(db, approvalId, companyId);
   if (existing) return existing;
 
-  return db.threads.createThread({
+  return db.core.threads.createThread({
     companyId,
     title,
     type: "approval" as ThreadType,
@@ -104,7 +104,7 @@ function resolveApprovalAnnouncementChannel(
 ): { channel: "department" | "project" | "company"; channelTargetId: string | null } | null {
   if (requestedByAgentId) {
     try {
-      const requester = db.entityCrud.getAgent(requestedByAgentId);
+      const requester = db.core.entity.getAgent(requestedByAgentId);
       if (requester.companyId === companyId && requester.department) {
         return { channel: "department", channelTargetId: requester.department };
       }
@@ -115,7 +115,7 @@ function resolveApprovalAnnouncementChannel(
 
   if (taskId) {
     try {
-      const task = db.entityCrud.getTask(taskId);
+      const task = db.core.entity.getTask(taskId);
       if (task.companyId === companyId && task.projectId) {
         return { channel: "project", channelTargetId: task.projectId };
       }
@@ -150,7 +150,7 @@ export function announceApprovalToBoard(
   );
   if (!target) return;
 
-  const messageId = db.messages.sendAgentMessage({
+  const messageId = db.core.messages.sendAgentMessage({
     companyId: approval.companyId,
     fromAgentId: approval.requestedByAgentId,
     channel: target.channel,
@@ -160,7 +160,7 @@ export function announceApprovalToBoard(
     priority: "urgent",
     senderKind: "agent",
   });
-  const message = db.messages.getAgentMessage(messageId, approval.companyId);
+  const message = db.core.messages.getAgentMessage(messageId, approval.companyId);
   if (message) {
     deps.emitEvent({ type: "new-message", message });
   }
@@ -176,7 +176,7 @@ export function notifyThreadSubscribers(
   notify?: (options: { title: string; body: string }) => void,
 ): void {
   if (!notify) return;
-  const subscriptions = db.threads.listSubscriptions(threadId);
+  const subscriptions = db.core.threads.listSubscriptions(threadId);
   for (const sub of subscriptions) {
     if (sub.subscriberType !== "user") continue;
     if (sub.notifyOn === "none") continue;

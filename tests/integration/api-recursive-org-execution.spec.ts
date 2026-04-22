@@ -25,7 +25,7 @@ async function createHarness() {
   const db = new AppDatabase(profileDir);
   db.init();
 
-  db.connectorsCrud.updateConnectorHealth({
+  db.core.connectors.updateConnectorHealth({
     id: "openai-codex",
     status: "ready",
     authState: "authenticated",
@@ -33,12 +33,12 @@ async function createHarness() {
     lastError: null,
   });
 
-  const companyId = db.company.saveCompany({
+  const companyId = db.core.company.saveCompany({
     name: "Recursive Org Co",
     description: "Tests manager-driven recursive hires",
     status: "active",
   });
-  const workspaceId = db.workspacesMod.saveWorkspace({
+  const workspaceId = db.core.workspaces.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: profileDir,
@@ -46,7 +46,7 @@ async function createHarness() {
     repoRef: "",
     isPrimary: true,
   });
-  const ceoId = db.agents.saveAgent({
+  const ceoId = db.core.agents.saveAgent({
     companyId,
     name: "CEO",
     role: "CEO",
@@ -59,7 +59,7 @@ async function createHarness() {
     capabilities: "Lead the company",
     budgetMonthlyUsd: 250,
   });
-  const ctoId = db.agents.saveAgent({
+  const ctoId = db.core.agents.saveAgent({
     companyId,
     name: "CTO",
     role: "CTO",
@@ -73,7 +73,7 @@ async function createHarness() {
     budgetMonthlyUsd: 220,
     department: "engineering",
   });
-  const taskId = db.tasks.saveTask({
+  const taskId = db.core.tasks.saveTask({
     companyId,
     title: "Build the org",
     description: "CTO should hire the first IC under engineering.",
@@ -82,7 +82,7 @@ async function createHarness() {
     priority: "high",
     status: "in_progress",
   });
-  const run = db.runs.createRun({ companyId, taskId, agentId: ctoId, workspaceId, connectorId: "openai-codex" });
+  const run = db.core.runs.createRun({ companyId, taskId, agentId: ctoId, workspaceId, connectorId: "openai-codex" });
   const token = createAgentToken(ctoId, companyId, run.id);
   const server = createApiServer(db, createTestApiServerCallbacks());
   const port = await server.start();
@@ -127,26 +127,26 @@ describe("recursive org execution", () => {
       const body = await response.json() as { agentId: string; approvalId: string; autoApproved: boolean };
       expect(body.autoApproved).toBe(false);
 
-      const pendingHire = harness.db.entityCrud.getAgent(body.agentId);
+      const pendingHire = harness.db.core.entity.getAgent(body.agentId);
       expect(pendingHire.status).toBe("pending_approval");
       expect(pendingHire.reportsTo).toBe(harness.ctoId);
 
-      const approval = harness.db.approvalsMod.getApprovalRecord(body.approvalId);
+      const approval = harness.db.core.approvals.getApprovalRecord(body.approvalId);
       expect(approval.type).toBe("hire_agent");
       expect(approval.requestedByAgentId).toBe(harness.ctoId);
       expect(approval.relatedAgentId).toBe(body.agentId);
 
-      harness.db.approvalsMod.decideApproval({
+      harness.db.core.approvals.decideApproval({
         approvalId: body.approvalId,
         state: "approved",
         decisionNote: "Approved by board",
       });
 
-      const approvedHire = harness.db.entityCrud.getAgent(body.agentId);
+      const approvedHire = harness.db.core.entity.getAgent(body.agentId);
       expect(approvedHire.status).toBe("idle");
-      expect(harness.db.agents.getDirectReports(harness.ctoId, harness.companyId).map((agent) => agent.id)).toContain(body.agentId);
-      expect(harness.db.agents.getDirectReports(harness.ceoId, harness.companyId).map((agent) => agent.id)).not.toContain(body.agentId);
-      expect(harness.db.agents.getChainOfCommand(body.agentId).map((agent) => agent.id)).toEqual([harness.ctoId, harness.ceoId]);
+      expect(harness.db.core.agents.getDirectReports(harness.ctoId, harness.companyId).map((agent) => agent.id)).toContain(body.agentId);
+      expect(harness.db.core.agents.getDirectReports(harness.ceoId, harness.companyId).map((agent) => agent.id)).not.toContain(body.agentId);
+      expect(harness.db.core.agents.getChainOfCommand(body.agentId).map((agent) => agent.id)).toEqual([harness.ctoId, harness.ceoId]);
 
       const agentResponse = await fetch(`${harness.baseUrl}/api/agents/${body.agentId}`, {
         headers: harness.headers,
@@ -170,7 +170,7 @@ describe("recursive org execution", () => {
   it("routes cross-department hires to the relevant department lead when reportsTo is omitted", async () => {
     const harness = await createHarness();
     try {
-      const hrId = harness.db.agents.saveAgent({
+      const hrId = harness.db.core.agents.saveAgent({
         companyId: harness.companyId,
         name: "HR Director",
         role: "HR Director",
@@ -184,7 +184,7 @@ describe("recursive org execution", () => {
         budgetMonthlyUsd: 180,
         department: "hr",
       });
-      const hrTaskId = harness.db.tasks.saveTask({
+      const hrTaskId = harness.db.core.tasks.saveTask({
         companyId: harness.companyId,
         title: "Fill engineering gap",
         description: "Request a backend engineer for the engineering team.",
@@ -193,7 +193,7 @@ describe("recursive org execution", () => {
         priority: "high",
         status: "in_progress",
       });
-      const hrRun = harness.db.runs.createRun({
+      const hrRun = harness.db.core.runs.createRun({
         companyId: harness.companyId,
         taskId: hrTaskId,
         agentId: hrId,
@@ -224,7 +224,7 @@ describe("recursive org execution", () => {
 
       expect(response.status).toBe(201);
       const body = await response.json() as { agentId: string };
-      const pendingHire = harness.db.entityCrud.getAgent(body.agentId);
+      const pendingHire = harness.db.core.entity.getAgent(body.agentId);
       expect(pendingHire.department).toBe("engineering");
       expect(pendingHire.reportsTo).toBe(harness.ctoId);
     } finally {
@@ -264,7 +264,7 @@ describe("recursive org execution", () => {
   it("manager cannot route a hire outside their reporting branch", async () => {
     const harness = await createHarness();
     try {
-      const cmoId = harness.db.agents.saveAgent({
+      const cmoId = harness.db.core.agents.saveAgent({
         companyId: harness.companyId,
         name: "CMO",
         role: "CMO",

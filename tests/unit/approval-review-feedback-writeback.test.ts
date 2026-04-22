@@ -23,7 +23,7 @@ describe("deliverable review feedback writeback", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -31,12 +31,12 @@ describe("deliverable review feedback writeback", () => {
       lastError: null,
     });
 
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Review Feedback Co",
       description: "Tests review feedback knowledge writeback",
       status: "active",
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -44,7 +44,7 @@ describe("deliverable review feedback writeback", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.agents.saveAgent({
+    const agentId = db.core.agents.saveAgent({
       companyId,
       name: "Research Lead",
       role: "Researcher",
@@ -58,7 +58,7 @@ describe("deliverable review feedback writeback", () => {
       budgetMonthlyUsd: 180,
       department: "research",
     });
-    const taskId = db.tasks.saveTask({
+    const taskId = db.core.tasks.saveTask({
       companyId,
       title: "Draft market report",
       description: "Produce a market report with concrete evidence and business insight.",
@@ -67,7 +67,7 @@ describe("deliverable review feedback writeback", () => {
       priority: "high",
       status: "in_review",
     });
-    const documentId = db.documentsMod.saveDocument({
+    const documentId = db.core.documents.saveDocument({
       companyId,
       type: "knowledge_article",
       title: "Market report",
@@ -75,7 +75,7 @@ describe("deliverable review feedback writeback", () => {
       authorAgentId: agentId,
       status: "in_review",
     });
-    const approvalId = db.approvalsMod.requestApproval({
+    const approvalId = db.core.approvals.requestApproval({
       companyId,
       relatedTaskId: taskId,
       requestedByAgentId: agentId,
@@ -85,7 +85,7 @@ describe("deliverable review feedback writeback", () => {
       payloadJson: JSON.stringify({ documentIds: [documentId] }),
     });
 
-    db.approvalsMod.decideApproval({
+    db.core.approvals.decideApproval({
       approvalId,
       state: "revision_requested",
       decisionNote: "Add stronger competitor evidence and a clearer recommendation.",
@@ -107,7 +107,7 @@ describe("deliverable review feedback writeback", () => {
       trackTimer: vi.fn(),
     }, approvalId, companyId, "revision_requested");
 
-    const knowledgeEntries = db.snap.listSnapshot().knowledgeBase.filter((entry) => entry.companyId === companyId);
+    const knowledgeEntries = db.projection.snapshot.listSnapshot().knowledgeBase.filter((entry) => entry.companyId === companyId);
     expect(knowledgeEntries).toHaveLength(1);
     expect(knowledgeEntries[0]?.category).toBe("lesson_learned");
     expect(knowledgeEntries[0]?.importance).toBe("high");
@@ -116,8 +116,8 @@ describe("deliverable review feedback writeback", () => {
     expect(knowledgeEntries[0]?.content).toContain("revision_requested");
     expect(knowledgeEntries[0]?.content).toContain("stronger competitor evidence");
     expect(wakeAgentIfPossible).toHaveBeenCalledWith(agentId, companyId, "revision_needed");
-    expect(db.entityCrud.getTask(taskId).status).toBe("in_progress");
-    const document = db.snap.listSnapshot().documents.find((entry) => entry.id === documentId);
+    expect(db.core.entity.getTask(taskId).status).toBe("in_progress");
+    const document = db.projection.snapshot.listSnapshot().documents.find((entry) => entry.id === documentId);
     expect(document?.status).toBe("draft");
 
     db.close();

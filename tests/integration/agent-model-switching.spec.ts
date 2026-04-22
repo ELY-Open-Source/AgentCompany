@@ -58,7 +58,7 @@ function createHarness(db: AppDatabase) {
     runDispatch.resolveWorkspace,
     runDispatch.getRunEligibilityFailure,
     runDispatch.dispatchRunToWorker,
-    (filter) => db.runs.hasActiveRun(filter),
+    (filter) => db.core.runs.hasActiveRun(filter),
   );
 
   return { enqueueWorkerRun, taskRunner };
@@ -70,7 +70,7 @@ describe("agent model switching", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -78,12 +78,12 @@ describe("agent model switching", () => {
       lastError: null,
     });
 
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Model Switch Co",
       description: "Tests post-hire model switching",
       status: "active",
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -91,7 +91,7 @@ describe("agent model switching", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.agents.saveAgent({
+    const agentId = db.core.agents.saveAgent({
       companyId,
       name: "Engineer",
       role: "Engineer",
@@ -107,7 +107,7 @@ describe("agent model switching", () => {
 
     const { enqueueWorkerRun, taskRunner } = createHarness(db);
 
-    const firstTaskId = db.tasks.saveTask({
+    const firstTaskId = db.core.tasks.saveTask({
       companyId,
       title: "Initial model task",
       description: "Use the first model for this run.",
@@ -126,7 +126,7 @@ describe("agent model switching", () => {
       throw new Error("Expected first run to queue successfully.");
     }
 
-    db.runs.finishRun({
+    db.core.runs.finishRun({
       runId: firstRun.data,
       status: "succeeded",
       summary: "Done",
@@ -137,7 +137,7 @@ describe("agent model switching", () => {
       unattributedCost: true,
     });
 
-    db.agents.saveAgent({
+    db.core.agents.saveAgent({
       id: agentId,
       companyId,
       name: "Engineer",
@@ -152,7 +152,7 @@ describe("agent model switching", () => {
       budgetMonthlyUsd: 200,
     });
 
-    const secondTaskId = db.tasks.saveTask({
+    const secondTaskId = db.core.tasks.saveTask({
       companyId,
       title: "Updated model task",
       description: "Use the new model for this run.",

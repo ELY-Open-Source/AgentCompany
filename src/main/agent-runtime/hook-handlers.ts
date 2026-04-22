@@ -113,9 +113,9 @@ function checkOperationalApprovalBlock(
   toolName: string,
 ): BeforeToolCallRpcResult {
   try {
-    const blocking = deps.db.approvalsMod.getBlockingApproval(ctx.companyId, ctx.agentId, ctx.taskId);
+    const blocking = deps.db.core.approvals.getBlockingApproval(ctx.companyId, ctx.agentId, ctx.taskId);
     if (!blocking) return { block: false, reason: null };
-    const companyMode = deps.db.company.getCompanyExecutionMode(ctx.companyId);
+    const companyMode = deps.db.core.company.getCompanyExecutionMode(ctx.companyId);
     const cofounderCheckpointBlocks =
       companyMode === "ai_cofounder" && isCofounderMandatoryApproval(blocking.type);
     if (!isOperationalApproval(blocking.type) && !cofounderCheckpointBlocks) {

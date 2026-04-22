@@ -50,7 +50,7 @@ export class CredentialStore {
   constructor(private readonly deps: CredentialStoreDeps) {}
 
   list(): CredentialSummary[] {
-    return this.deps.db.credentialsTable.list().map((row) => ({
+    return this.deps.db.core.credentials.list().map((row) => ({
       connectorId: row.connectorId,
       kind: row.kind as CredentialKind,
       displayHint: row.displayHint,
@@ -66,7 +66,7 @@ export class CredentialStore {
   save(connectorId: string, payload: StoredCredentialPayload, expiresAt: string | null = null): CredentialSummary {
     const json = JSON.stringify(payload.value);
     const { backend, payload: ciphertext } = this.deps.db.vault.encrypt(json);
-    const stored = this.deps.db.credentialsTable.upsert({
+    const stored = this.deps.db.core.credentials.upsert({
       connectorId,
       kind: payload.kind,
       backend: backend as CredentialBackend,
@@ -91,7 +91,7 @@ export class CredentialStore {
 
   /** Decrypts and returns the typed credential payload. Returns null when missing. */
   read(connectorId: string): StoredCredentialPayload | null {
-    const row = this.deps.db.credentialsTable.get(connectorId);
+    const row = this.deps.db.core.credentials.get(connectorId);
     if (!row) return null;
     const json = this.deps.db.vault.decrypt(
       row.backend,
@@ -102,17 +102,17 @@ export class CredentialStore {
   }
 
   remove(connectorId: string): void {
-    this.deps.db.credentialsTable.remove(connectorId);
+    this.deps.db.core.credentials.remove(connectorId);
   }
 
   setStatus(connectorId: string, status: CredentialStatus, lastError: string | null = null): void {
-    this.deps.db.credentialsTable.setStatus(connectorId, status, lastError);
+    this.deps.db.core.credentials.setStatus(connectorId, status, lastError);
   }
 
   /** Replaces the OAuth ciphertext after a successful refresh. */
   saveRefreshedOAuth(connectorId: string, payload: StoredCredentialPayload, expiresAt: string | null): void {
     const { backend, payload: ciphertext } = this.deps.db.vault.encrypt(JSON.stringify(payload.value));
-    this.deps.db.credentialsTable.markRefreshed(
+    this.deps.db.core.credentials.markRefreshed(
       connectorId,
       backend as CredentialBackend,
       ciphertext,

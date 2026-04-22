@@ -31,9 +31,9 @@ describe("Step 1: CEO role detection", () => {
   it("identifies manager when has reports and has chain of command", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
     const managerId = createAgent({ name: "CTO", role: "CTO", reportsTo: ceoId });
-    const ceo = shared.db.entityCrud.getAgent(ceoId);
+    const ceo = shared.db.core.entity.getAgent(ceoId);
     const icId = createAgent({ name: "IC", role: "Engineer", reportsTo: managerId });
-    const ic = shared.db.entityCrud.getAgent(icId);
+    const ic = shared.db.core.entity.getAgent(icId);
 
     const ctx = buildCtx({
       agentId: managerId,
@@ -49,7 +49,7 @@ describe("Step 1: CEO role detection", () => {
 
   it("identifies IC when has chain of command and no direct reports", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
-    const ceo = shared.db.entityCrud.getAgent(ceoId);
+    const ceo = shared.db.core.entity.getAgent(ceoId);
     const icId = createAgent({ name: "Dev", role: "Engineer", reportsTo: ceoId });
 
     const ctx = buildCtx({

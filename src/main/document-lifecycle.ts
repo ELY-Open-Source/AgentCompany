@@ -84,7 +84,7 @@ export function createDocumentWithLifecycle(
 ): DocumentLifecycleOutcome {
   const outcome = deps.db.withTransaction(() => {
     const isNew = !input.id;
-    const id = deps.db.documentsMod.saveDocument(input);
+    const id = deps.db.core.documents.saveDocument(input);
     const taskId = deriveTaskIdFromRun(deps.db, input.sourceRunId, input.companyId, deps.logger);
 
     let deliverableReviewApprovalId: string | null = null;
@@ -114,7 +114,7 @@ export function createDocumentWithLifecycle(
       // memoised closure — so a crash between this commit and the first
       // handler attempt is self-healing: the periodic sweeper picks the
       // row up on its next tick.
-      deps.db.documentLifecycleEvents.enqueue({
+      deps.db.projection.documentLifecycleEvents.enqueue({
         companyId: input.companyId,
         documentId: id,
         hookType: "automation_dispatch",
@@ -126,7 +126,7 @@ export function createDocumentWithLifecycle(
       });
 
       if (input.reviewerAgentId && input.reviewerAgentId !== input.authorAgentId) {
-        deps.db.documentLifecycleEvents.enqueue({
+        deps.db.projection.documentLifecycleEvents.enqueue({
           companyId: input.companyId,
           documentId: id,
           hookType: "reviewer_wake",
@@ -164,7 +164,7 @@ function deriveTaskIdFromRun(
 ): string | null {
   if (!runId) return null;
   try {
-    const run = db.runs.getRun(runId);
+    const run = db.core.runs.getRun(runId);
     if (run.companyId !== companyId) return null;
     return run.taskId ?? null;
   } catch (error) {
@@ -187,12 +187,12 @@ function maybeRaiseDeliverableReviewApproval(
   documentId: string,
   taskId: string | null,
 ): string | null {
-  const companySettings = deps.db.company.getCompanyApprovalSettings(input.companyId);
+  const companySettings = deps.db.core.company.getCompanyApprovalSettings(input.companyId);
   if (!companySettings?.reviewDeliverables) return null;
-  if (deps.db.company.getCompanyExecutionMode(input.companyId) === "ai_cofounder") return null;
-  if (deps.db.tasks.hasPendingDeliverableReviews(input.companyId)) return null;
+  if (deps.db.core.company.getCompanyExecutionMode(input.companyId) === "ai_cofounder") return null;
+  if (deps.db.core.tasks.hasPendingDeliverableReviews(input.companyId)) return null;
 
-  const approvalId = deps.db.approvalsMod.requestApproval({
+  const approvalId = deps.db.core.approvals.requestApproval({
     companyId: input.companyId,
     relatedTaskId: taskId,
     requestedByAgentId: input.authorAgentId ?? "",
@@ -207,9 +207,9 @@ function maybeRaiseDeliverableReviewApproval(
 
   if (input.authorAgentId) {
     try {
-      const agent = deps.db.entityCrud.getAgent(input.authorAgentId);
+      const agent = deps.db.core.entity.getAgent(input.authorAgentId);
       if (agent.heartbeatEnabled) {
-        deps.db.agents.setHeartbeat(input.authorAgentId, false, agent.heartbeatIntervalSec || 120);
+        deps.db.core.agents.setHeartbeat(input.authorAgentId, false, agent.heartbeatIntervalSec || 120);
       }
     } catch (error) {
       deps.logger.warn(

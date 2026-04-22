@@ -36,20 +36,22 @@ function makeDb(
   approvals: Record<string, Array<{ id: string; state: string }>> = {},
 ): AppDatabase {
   return {
-    entityCrud: {
-      getAgent: vi.fn((agentId: string) => {
-        const found = [agent, ...reports].find((candidate) => candidate.id === agentId);
-        if (!found) throw new Error(`Agent not found: ${agentId}`);
-        return found;
-      }),
-    },
-    agents: {
-      hasAgentPermission: vi.fn(() => false),
-      getDirectReports: vi.fn(() => reports),
-      getChainOfCommand: vi.fn(() => []),
-    },
-    approvalsMod: {
-      listCompanyApprovalsByType: vi.fn((_companyId: string, type: string) => approvals[type] ?? []),
+    core: {
+      entity: {
+        getAgent: vi.fn((agentId: string) => {
+          const found = [agent, ...reports].find((candidate) => candidate.id === agentId);
+          if (!found) throw new Error(`Agent not found: ${agentId}`);
+          return found;
+        }),
+      },
+      agents: {
+        hasAgentPermission: vi.fn(() => false),
+        getDirectReports: vi.fn(() => reports),
+        getChainOfCommand: vi.fn(() => []),
+      },
+      approvals: {
+        listCompanyApprovalsByType: vi.fn((_companyId: string, type: string) => approvals[type] ?? []),
+      },
     },
   } as unknown as AppDatabase;
 }

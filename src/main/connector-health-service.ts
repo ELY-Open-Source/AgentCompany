@@ -27,7 +27,7 @@ export function createConnectorHealthService({
   credentialStore,
 }: ConnectorHealthDependencies) {
   function randomFallbackCompanyId() {
-    const snapshot = db.snap.listSnapshot();
+    const snapshot = db.projection.snapshot.listSnapshot();
     return snapshot.companies[0]?.id ?? "00000000-0000-0000-0000-000000000000";
   }
 
@@ -57,7 +57,7 @@ export function createConnectorHealthService({
         // Re-parse envBindingText on every probe: it is user-editable and must
         // not be cached into credentialStore. An explicit binding for the
         // connector's declared envKey (non-empty value) counts as ready.
-        const connector = db.connectorsCrud.findConnector(id);
+        const connector = db.core.connectors.findConnector(id);
         const boundValue = connector
           ? parseEnvBindingText(connector.envBindingText)[definition.auth.envKey]
           : undefined;
@@ -113,12 +113,12 @@ export function createConnectorHealthService({
   }
 
   async function checkConnector(id: ConnectorId) {
-    const companyId = db.settings.getCurrentCompanyId() ?? randomFallbackCompanyId();
+    const companyId = db.core.settings.getCurrentCompanyId() ?? randomFallbackCompanyId();
 
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id,
       status: "detected",
-      authState: db.connectorsCrud.getConnector(id).authState,
+      authState: db.core.connectors.getConnector(id).authState,
       version: null,
       lastError: null,
     });
@@ -126,14 +126,14 @@ export function createConnectorHealthService({
 
     try {
       const result = evaluateCredential(id);
-      db.connectorsCrud.updateConnectorHealth({
+      db.core.connectors.updateConnectorHealth({
         id,
         status: result.status,
         authState: result.authState,
         version: null,
         lastError: result.lastError,
       });
-      db.activityMod.addActivity({
+      db.core.activity.addActivity({
         companyId,
         actor: "system",
         action: "connector.tested",
@@ -145,7 +145,7 @@ export function createConnectorHealthService({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`[connector] Health check failed for ${id}: ${errorMessage}`);
-      db.connectorsCrud.updateConnectorHealth({
+      db.core.connectors.updateConnectorHealth({
         id,
         status: "error",
         authState: "unknown",

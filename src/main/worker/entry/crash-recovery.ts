@@ -22,7 +22,7 @@ export function handleWorkerExit(
 
   logger.warn(`[worker] Worker exited with code ${code}, recovering...`);
 
-  const snapshot = db.snap.listSnapshot();
+  const snapshot = db.projection.snapshot.listSnapshot();
   const affectedAgentIds = new Set<string>();
   const affectedCompanyIds = new Map<string, string>();
   const requeueCandidates: Array<{
@@ -36,7 +36,7 @@ export function handleWorkerExit(
 
   for (const run of snapshot.runs) {
     if (run.status === "running") {
-      db.runs.finishRun({
+      db.core.runs.finishRun({
         runId: run.id,
         status: "interrupted",
         summary: "Worker process crashed.",
@@ -47,16 +47,16 @@ export function handleWorkerExit(
         unattributedCost: true,
       });
       if (run.workspaceId) {
-        db.workspacesMod.releaseWorkspaceLock(run.workspaceId, run.id);
+        db.core.workspaces.releaseWorkspaceLock(run.workspaceId, run.id);
       }
       // EXEC-02: Release execution lock on crash recovery
       if (run.taskId) {
-        db.tasks.releaseTaskLock(run.taskId, run.id);
+        db.core.tasks.releaseTaskLock(run.taskId, run.id);
       }
       affectedAgentIds.add(run.agentId);
       affectedCompanyIds.set(run.agentId, run.companyId);
 
-      const chain = db.agents.getChainOfCommand(run.agentId);
+      const chain = db.core.agents.getChainOfCommand(run.agentId);
       if (chain.length > 0) {
         wakeAgentIfPossible(chain[0].id, run.companyId, "report_failed");
       }
@@ -75,11 +75,11 @@ export function handleWorkerExit(
   for (const agentId of affectedAgentIds) {
     // EXEC-05: Promote deferred wakes after crash recovery
     const cid = affectedCompanyIds.get(agentId) ?? "";
-    const promoted = db.wakeup.promoteWakeupRequests(agentId, cid);
+    const promoted = db.automation.wakeup.promoteWakeupRequests(agentId, cid);
     if (promoted > 0) {
       logger.info(`[worker] Promoted ${promoted} deferred wake(s) for agent ${agentId} after crash recovery`);
     }
-    const pendingWakeTrigger = db.wakeup.getPreferredWakeTrigger(agentId, cid);
+    const pendingWakeTrigger = db.automation.wakeup.getPreferredWakeTrigger(agentId, cid);
     if (pendingWakeTrigger) {
       wakeAgentIfPossible(agentId, cid, pendingWakeTrigger);
     }
@@ -92,18 +92,18 @@ export function handleWorkerExit(
   const worker = getWorker();
   if (requeueCandidates.length > 0 && worker) {
     logger.info(`[worker] Re-enqueuing ${requeueCandidates.length} queued run(s) after worker restart.`);
-    const recoverySnapshot = db.snap.listSnapshot();
+    const recoverySnapshot = db.projection.snapshot.listSnapshot();
     for (const candidate of requeueCandidates) {
       try {
         // The crashed run may still own a workspace lock acquired during the
         // original dispatch; release it before re-dispatch so the replay
         // does not self-collide with "Workspace is locked by another run".
         if (candidate.workspaceId) {
-          db.workspacesMod.releaseWorkspaceLock(candidate.workspaceId, candidate.id);
+          db.core.workspaces.releaseWorkspaceLock(candidate.workspaceId, candidate.id);
         }
-        const task = candidate.taskId ? db.entityCrud.getTask(candidate.taskId) : null;
-        const agent = db.entityCrud.getAgent(candidate.agentId);
-        const connector = db.connectorsCrud.getConnector(agent.connectorId);
+        const task = candidate.taskId ? db.core.entity.getTask(candidate.taskId) : null;
+        const agent = db.core.entity.getAgent(candidate.agentId);
+        const connector = db.core.connectors.getConnector(agent.connectorId);
         const { workspace, lockMode } = resolveWorkspaceWithLockMode(db, task, agent, candidate.companyId);
         const recoveryCompany = recoverySnapshot.companies.find((company) => company.id === candidate.companyId);
 
@@ -122,7 +122,7 @@ export function handleWorkerExit(
         });
       } catch (error) {
         logger.warn(`[worker] Failed to re-enqueue run ${candidate.id}: ${error instanceof Error ? error.message : String(error)}`);
-        db.runs.finishRun({
+        db.core.runs.finishRun({
           runId: candidate.id,
           status: "interrupted",
           summary: "Could not re-enqueue after worker restart.",
@@ -133,7 +133,7 @@ export function handleWorkerExit(
           unattributedCost: true,
         });
         if (candidate.workspaceId) {
-          db.workspacesMod.releaseWorkspaceLock(candidate.workspaceId, candidate.id);
+          db.core.workspaces.releaseWorkspaceLock(candidate.workspaceId, candidate.id);
         }
       }
     }

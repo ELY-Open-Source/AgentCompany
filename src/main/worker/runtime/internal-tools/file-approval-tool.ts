@@ -4,7 +4,7 @@
  * Collapses the `bash + node -e + fetch POST /api/companies/:id/approvals`
  * chain into a single tool-call the CEO (or any agent with request
  * authority) can invoke directly. The handler in main reuses the same
- * `db.approvalsMod.requestApproval` primitive and auto-approval policy
+ * `db.core.approvals.requestApproval` primitive and auto-approval policy
  * the HTTP route uses, so both paths produce identical rows and the
  * `approve_ceo_strategy` ordering gate fires identically.
  *

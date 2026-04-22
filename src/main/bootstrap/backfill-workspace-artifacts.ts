@@ -97,7 +97,7 @@ export function backfillWorkspaceArtifacts(
     filesAlreadyTracked: 0,
     filesIgnored: 0,
   };
-  const flag = deps.db.settings.getSetting(SETTINGS_FLAG_KEY);
+  const flag = deps.db.core.settings.getSetting(SETTINGS_FLAG_KEY);
   if (flag === "true") return empty;
 
   let filesScanned = 0;
@@ -105,9 +105,9 @@ export function backfillWorkspaceArtifacts(
   let filesAlreadyTracked = 0;
   let filesIgnored = 0;
 
-  const snapshot = deps.db.snap.listSnapshot();
+  const snapshot = deps.db.projection.snapshot.listSnapshot();
   for (const company of snapshot.companies) {
-    const observation = deps.db.workspacesMod.getCompanyObservationWorkspace(company.id);
+    const observation = deps.db.core.workspaces.getCompanyObservationWorkspace(company.id);
     if (!observation) continue;
     const workspaceRoot = observation.localPath;
     if (!workspaceRoot || !existsSync(workspaceRoot)) continue;
@@ -186,7 +186,7 @@ export function backfillWorkspaceArtifacts(
           }
         }
 
-        const existing = deps.db.documentsMod.findWorkProductByExternalId(
+        const existing = deps.db.core.documents.findWorkProductByExternalId(
           company.id,
           "filesystem",
           rel,
@@ -197,7 +197,7 @@ export function backfillWorkspaceArtifacts(
           continue;
         }
         const title = lastSlash >= 0 ? rel.slice(lastSlash + 1) : rel;
-        deps.db.documentsMod.createWorkProduct({
+        deps.db.core.documents.createWorkProduct({
           companyId: company.id,
           taskId: null,
           workspaceId: observation.id,
@@ -212,7 +212,7 @@ export function backfillWorkspaceArtifacts(
     }
   }
 
-  deps.db.settings.setSetting(SETTINGS_FLAG_KEY, "true");
+  deps.db.core.settings.setSetting(SETTINGS_FLAG_KEY, "true");
   deps.logger.info(
     `[backfill-workspace-artifacts] scanned=${filesScanned} inserted=${filesInserted} already-tracked=${filesAlreadyTracked} ignored=${filesIgnored}`,
   );

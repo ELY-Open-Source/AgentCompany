@@ -48,19 +48,19 @@ export function registerCoreOperationHandlers({
     const parsed = approvalInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    const invalidTask = parsed.relatedTaskId && !db.settings.belongsToCompany("tasks", parsed.relatedTaskId, parsed.companyId);
-    const invalidAgent = parsed.requestedByAgentId && !db.settings.belongsToCompany("agents", parsed.requestedByAgentId, parsed.companyId);
-    const invalidRelatedAgent = parsed.relatedAgentId && !db.settings.belongsToCompany("agents", parsed.relatedAgentId, parsed.companyId);
+    const invalidTask = parsed.relatedTaskId && !db.core.settings.belongsToCompany("tasks", parsed.relatedTaskId, parsed.companyId);
+    const invalidAgent = parsed.requestedByAgentId && !db.core.settings.belongsToCompany("agents", parsed.requestedByAgentId, parsed.companyId);
+    const invalidRelatedAgent = parsed.relatedAgentId && !db.core.settings.belongsToCompany("agents", parsed.relatedAgentId, parsed.companyId);
     if (invalidTask || invalidAgent || invalidRelatedAgent) {
       return fail("INVALID_COMPANY_REFERENCE", "The approval references data outside the current company.");
     }
     let id: string;
     try {
-      id = db.approvalsMod.requestApproval(parsed);
+      id = db.core.approvals.requestApproval(parsed);
     } catch (error) {
       return fail("APPROVAL_INVALID", error instanceof Error ? error.message : "Approval could not be created.");
     }
-    db.activityMod.addActivity({
+    db.core.activity.addActivity({
       companyId: parsed.companyId,
       actor: parsed.requestedByAgentId ?? "board",
       action: "approval.created",
@@ -106,10 +106,10 @@ export function registerCoreOperationHandlers({
     const parsed = approvalDecisionSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.settings.belongsToCompany("approvals", parsed.approvalId, parsed.companyId)) {
+    if (!db.core.settings.belongsToCompany("approvals", parsed.approvalId, parsed.companyId)) {
       return fail("APPROVAL_NOT_FOUND", "Approval not found in the current company.");
     }
-    const approval = db.approvalsMod.getApprovalRecord(parsed.approvalId);
+    const approval = db.core.approvals.getApprovalRecord(parsed.approvalId);
     if (!approval || approval.companyId !== parsed.companyId) {
       return fail("APPROVAL_NOT_FOUND", "Approval not found in the current company.");
     }
@@ -130,7 +130,7 @@ export function registerCoreOperationHandlers({
     const parsed = startRunSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.settings.belongsToCompany("tasks", parsed.taskId, parsed.companyId)) {
+    if (!db.core.settings.belongsToCompany("tasks", parsed.taskId, parsed.companyId)) {
       return fail("TASK_NOT_FOUND", "Task not found in the current company.");
     }
     return queueTaskRun(parsed.taskId, "manual", "board");
@@ -140,7 +140,7 @@ export function registerCoreOperationHandlers({
     const parsed = cancelRunSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.settings.belongsToCompany("runs", parsed.runId, parsed.companyId)) {
+    if (!db.core.settings.belongsToCompany("runs", parsed.runId, parsed.companyId)) {
       return fail("RUN_NOT_FOUND", "Run not found in the current company.");
     }
     getWorkerProcess()?.postMessage({ type: "cancel-run", runId: parsed.runId });
@@ -151,34 +151,34 @@ export function registerCoreOperationHandlers({
     const parsed = runLogSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.settings.belongsToCompany("runs", parsed.runId, parsed.companyId)) {
+    if (!db.core.settings.belongsToCompany("runs", parsed.runId, parsed.companyId)) {
       return fail("RUN_NOT_FOUND", "Run not found in the current company.");
     }
-    return ok(db.runs.readRunLog(parsed.runId));
+    return ok(db.core.runs.readRunLog(parsed.runId));
   });
 
   registerHandle(IPC_CHANNELS.getRunLogChunk, (_event, payload) => {
     const parsed = runLogChunkSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.settings.belongsToCompany("runs", parsed.runId, parsed.companyId)) {
+    if (!db.core.settings.belongsToCompany("runs", parsed.runId, parsed.companyId)) {
       return fail("RUN_NOT_FOUND", "Run not found in the current company.");
     }
-    return ok(db.runs.readRunLogChunk(parsed.runId, parsed.offset, parsed.limit));
+    return ok(db.core.runs.readRunLogChunk(parsed.runId, parsed.offset, parsed.limit));
   });
 
   registerHandle(IPC_CHANNELS.addComment, async (_event, payload) => {
     const parsed = commentInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    const comment = db.activityMod.addComment({
+    const comment = db.core.activity.addComment({
       companyId: parsed.companyId,
       taskId: parsed.taskId,
       authorAgentId: parsed.authorAgentId ?? null,
       authorName: parsed.authorName,
       body: parsed.body,
     });
-    db.activityMod.addActivity({
+    db.core.activity.addActivity({
       companyId: parsed.companyId,
       actor: parsed.authorAgentId ?? "board",
       action: "comment.created",
@@ -189,7 +189,7 @@ export function registerCoreOperationHandlers({
     emitEvent({ type: "agent-message", taskId: parsed.taskId, comment });
     emitEvent({ type: "task-updated", taskId: parsed.taskId, action: "updated" });
     try {
-      const task = db.entityCrud.getTask(parsed.taskId);
+      const task = db.core.entity.getTask(parsed.taskId);
       if (task.assigneeAgentId) {
         wakeAgentIfPossible(task.assigneeAgentId, task.companyId, "comment");
       }
@@ -208,11 +208,11 @@ export function registerCoreOperationHandlers({
     const parsed = heartbeatSettingsSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.settings.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
+    if (!db.core.settings.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
       return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
     }
-    db.agents.setHeartbeat(parsed.agentId, parsed.enabled, parsed.intervalSec);
-    db.activityMod.addActivity({
+    db.core.agents.setHeartbeat(parsed.agentId, parsed.enabled, parsed.intervalSec);
+    db.core.activity.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: parsed.enabled ? "heartbeat.enabled" : "heartbeat.disabled",
@@ -229,7 +229,7 @@ export function registerCoreOperationHandlers({
     const parsed = triggerHeartbeatSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.settings.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
+    if (!db.core.settings.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
       return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
     }
     const runId = wakeAgentIfPossible(parsed.agentId, parsed.companyId, parsed.trigger);

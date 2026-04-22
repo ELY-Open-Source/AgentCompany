@@ -29,7 +29,7 @@ type RawDb = {
 // ---------------------------------------------------------------------------
 
 function createTestCompany(db: AppDatabase): string {
-  return db.company.saveCompany({
+  return db.core.company.saveCompany({
     name: "Test Company",
     description: "Atomic checkout tests",
     status: "active",
@@ -37,7 +37,7 @@ function createTestCompany(db: AppDatabase): string {
 }
 
 function createTestConnector(db: AppDatabase): void {
-  db.connectorsCrud.saveConnector({
+  db.core.connectors.saveConnector({
     id: "openai-codex",
     model: "gpt-5",
     envBindingText: "",
@@ -46,7 +46,7 @@ function createTestConnector(db: AppDatabase): void {
 }
 
 function createTestWorkspace(db: AppDatabase, companyId: string): string {
-  return db.workspacesMod.saveWorkspace({
+  return db.core.workspaces.saveWorkspace({
     companyId,
     name: "Test Workspace",
     localPath: "/tmp/test-workspace",
@@ -57,7 +57,7 @@ function createTestWorkspace(db: AppDatabase, companyId: string): string {
 }
 
 function createTestAgent(db: AppDatabase, companyId: string, workspaceId: string, name = "Agent"): string {
-  return db.agents.saveAgent({
+  return db.core.agents.saveAgent({
     companyId,
     name,
     role: "IC",
@@ -73,7 +73,7 @@ function createTestAgent(db: AppDatabase, companyId: string, workspaceId: string
 }
 
 function createTestTask(db: AppDatabase, companyId: string, agentId: string | null, workspaceId: string): string {
-  return db.tasks.saveTask({
+  return db.core.tasks.saveTask({
     companyId,
     title: "Test Task",
     description: "A test task for checkout",
@@ -110,7 +110,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.runs.createRun({
+    const { id: runId } = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -118,10 +118,10 @@ describe("CAS checkout", () => {
       connectorId: "openai-codex",
     });
 
-    const result = db.tasks.checkoutTask(taskId, runId);
+    const result = db.core.tasks.checkoutTask(taskId, runId);
     expect(result).toBe(true);
 
-    const task = db.entityCrud.getTask(taskId);
+    const task = db.core.entity.getTask(taskId);
     expect(task.status).toBe("in_progress");
   });
 
@@ -132,7 +132,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    db.runs.createRun({
+    db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -140,7 +140,7 @@ describe("CAS checkout", () => {
       connectorId: "openai-codex",
     });
 
-    const task = db.entityCrud.getTask(taskId);
+    const task = db.core.entity.getTask(taskId);
     expect(task.activeRunId).toBeNull();
     expect(task.status).toBe("todo");
   });
@@ -152,9 +152,9 @@ describe("CAS checkout", () => {
     const taskId = createTestTask(db, companyId, null, workspaceId);
     const missingRunId = randomUUID();
 
-    expect(() => db.tasks.checkoutTask(taskId, missingRunId)).toThrow(/Run not found/);
+    expect(() => db.core.tasks.checkoutTask(taskId, missingRunId)).toThrow(/Run not found/);
 
-    const task = db.entityCrud.getTask(taskId);
+    const task = db.core.entity.getTask(taskId);
     expect(task.activeRunId).toBeNull();
     expect(task.status).toBe("todo");
     const lock = (db as unknown as RawDb).db
@@ -171,7 +171,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const run = db.runs.createTaskRun({
+    const run = db.core.runs.createTaskRun({
       companyId,
       taskId,
       agentId,
@@ -180,7 +180,7 @@ describe("CAS checkout", () => {
     });
 
     expect(run).not.toBeNull();
-    const task = db.entityCrud.getTask(taskId);
+    const task = db.core.entity.getTask(taskId);
     expect(task.status).toBe("in_progress");
     expect(task.activeRunId).toBe(run?.id);
     const lock = (db as unknown as RawDb).db
@@ -196,7 +196,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const firstRun = db.runs.createTaskRun({
+    const firstRun = db.core.runs.createTaskRun({
       companyId,
       taskId,
       agentId,
@@ -206,7 +206,7 @@ describe("CAS checkout", () => {
     expect(firstRun).not.toBeNull();
 
     const losingRunId = randomUUID();
-    const secondRun = db.runs.createTaskRun({
+    const secondRun = db.core.runs.createTaskRun({
       id: losingRunId,
       companyId,
       taskId,
@@ -229,14 +229,14 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId1 } = db.runs.createRun({
+    const { id: runId1 } = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
       workspaceId,
       connectorId: "openai-codex",
     });
-    const { id: runId2 } = db.runs.createRun({
+    const { id: runId2 } = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -244,8 +244,8 @@ describe("CAS checkout", () => {
       connectorId: "openai-codex",
     });
 
-    expect(db.tasks.checkoutTask(taskId, runId1)).toBe(true);
-    expect(db.tasks.checkoutTask(taskId, runId2)).toBe(false);
+    expect(db.core.tasks.checkoutTask(taskId, runId1)).toBe(true);
+    expect(db.core.tasks.checkoutTask(taskId, runId2)).toBe(false);
   });
 
   it("CAS checkout rejects already-in-progress tasks", () => {
@@ -258,7 +258,7 @@ describe("CAS checkout", () => {
     // Manually set task to in_progress
     (db as unknown as RawDb).db.prepare("UPDATE tasks SET status = 'in_progress' WHERE id = ?").run(taskId);
 
-    const { id: runId } = db.runs.createRun({
+    const { id: runId } = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -266,7 +266,7 @@ describe("CAS checkout", () => {
       connectorId: "openai-codex",
     });
 
-    expect(db.tasks.checkoutTask(taskId, runId)).toBe(false);
+    expect(db.core.tasks.checkoutTask(taskId, runId)).toBe(false);
   });
 
   it("lock release in finishRun clears checkout fields", () => {
@@ -276,7 +276,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.runs.createRun({
+    const { id: runId } = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -284,9 +284,9 @@ describe("CAS checkout", () => {
       connectorId: "openai-codex",
     });
 
-    db.tasks.checkoutTask(taskId, runId);
-    db.runs.markRunStatus(runId, "running", "");
-    db.runs.finishRun({
+    db.core.tasks.checkoutTask(taskId, runId);
+    db.core.runs.markRunStatus(runId, "running", "");
+    db.core.runs.finishRun({
       runId,
       status: "succeeded",
       summary: "Done",
@@ -312,7 +312,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.runs.createRun({
+    const { id: runId } = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -320,11 +320,11 @@ describe("CAS checkout", () => {
       connectorId: "openai-codex",
     });
 
-    db.tasks.checkoutTask(taskId, runId);
-    db.runs.markRunStatus(runId, "running", "");
+    db.core.tasks.checkoutTask(taskId, runId);
+    db.core.runs.markRunStatus(runId, "running", "");
 
     // Deleting the agent triggers cancelRunForDeletion for active runs
-    db.agents.deleteAgent(agentId, companyId);
+    db.core.agents.deleteAgent(agentId, companyId);
 
     const row = (db as unknown as RawDb).db
       .prepare("SELECT checkout_run_id, execution_locked_at FROM tasks WHERE id = ?")
@@ -341,7 +341,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.runs.createRun({
+    const { id: runId } = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -349,7 +349,7 @@ describe("CAS checkout", () => {
       connectorId: "openai-codex",
     });
 
-    db.tasks.checkoutTask(taskId, runId);
+    db.core.tasks.checkoutTask(taskId, runId);
 
     // Backdate execution_locked_at to 20 minutes ago
     const backdated = new Date(Date.now() - 20 * 60 * 1000).toISOString();
@@ -363,7 +363,7 @@ describe("CAS checkout", () => {
     expect(recovered[0].taskId).toBe(taskId);
     expect(recovered[0].companyId).toBe(companyId);
 
-    const task = db.entityCrud.getTask(taskId);
+    const task = db.core.entity.getTask(taskId);
     expect(task.status).toBe("todo");
 
     const row = (db as unknown as RawDb).db
@@ -381,7 +381,7 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.runs.createRun({
+    const { id: runId } = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -389,12 +389,12 @@ describe("CAS checkout", () => {
       connectorId: "openai-codex",
     });
 
-    db.tasks.checkoutTask(taskId, runId);
+    db.core.tasks.checkoutTask(taskId, runId);
 
     const recovered = db.recoverStaleLocks();
     expect(recovered.length).toBe(0);
 
-    const task = db.entityCrud.getTask(taskId);
+    const task = db.core.entity.getTask(taskId);
     expect(task.status).toBe("in_progress");
   });
 
@@ -414,19 +414,19 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.runs.createRun({
+    const { id: runId } = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
       workspaceId,
       connectorId: "openai-codex",
     });
-    db.tasks.checkoutTask(taskId, runId);
-    expect(db.entityCrud.getTask(taskId).status).toBe("in_progress");
+    db.core.tasks.checkoutTask(taskId, runId);
+    expect(db.core.entity.getTask(taskId).status).toBe("in_progress");
 
     // Never call markRunStatus('running', ...) — this simulates the
     // "workspace already locked" bail-out inside dispatchRunToWorker.
-    db.runs.finishRun({
+    db.core.runs.finishRun({
       runId,
       status: "failed",
       summary: null,
@@ -437,18 +437,18 @@ describe("CAS checkout", () => {
       unattributedCost: true,
     });
 
-    expect(db.entityCrud.getTask(taskId).status).toBe("todo");
+    expect(db.core.entity.getTask(taskId).status).toBe("todo");
 
     // And the next CAS checkout must succeed — proving the heartbeat
     // retry path is unblocked.
-    const { id: retryRunId } = db.runs.createRun({
+    const { id: retryRunId } = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
       workspaceId,
       connectorId: "openai-codex",
     });
-    expect(db.tasks.checkoutTask(taskId, retryRunId)).toBe(true);
+    expect(db.core.tasks.checkoutTask(taskId, retryRunId)).toBe(true);
   });
 
   it("cancelled run that never started also rolls task back to 'todo'", () => {
@@ -462,15 +462,15 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.runs.createRun({
+    const { id: runId } = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
       workspaceId,
       connectorId: "openai-codex",
     });
-    db.tasks.checkoutTask(taskId, runId);
-    db.runs.finishRun({
+    db.core.tasks.checkoutTask(taskId, runId);
+    db.core.runs.finishRun({
       runId,
       status: "cancelled",
       summary: null,
@@ -481,7 +481,7 @@ describe("CAS checkout", () => {
       unattributedCost: true,
     });
 
-    expect(db.entityCrud.getTask(taskId).status).toBe("todo");
+    expect(db.core.entity.getTask(taskId).status).toBe("todo");
   });
 
   it("failed run that did start stays 'in_progress' (human retry path)", () => {
@@ -495,16 +495,16 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: runId } = db.runs.createRun({
+    const { id: runId } = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
       workspaceId,
       connectorId: "openai-codex",
     });
-    db.tasks.checkoutTask(taskId, runId);
-    db.runs.markRunStatus(runId, "running", "");
-    db.runs.finishRun({
+    db.core.tasks.checkoutTask(taskId, runId);
+    db.core.runs.markRunStatus(runId, "running", "");
+    db.core.runs.finishRun({
       runId,
       status: "failed",
       summary: null,
@@ -515,7 +515,7 @@ describe("CAS checkout", () => {
       unattributedCost: false,
     });
 
-    expect(db.entityCrud.getTask(taskId).status).toBe("in_progress");
+    expect(db.core.entity.getTask(taskId).status).toBe("in_progress");
   });
 
   it("advanceTaskStatus('in_review') rejects a CEO self-review that has no reviewer", () => {
@@ -531,9 +531,9 @@ describe("CAS checkout", () => {
     const ceoId = createTestAgent(db, companyId, workspaceId, "CEO");
     const taskId = createTestTask(db, companyId, ceoId, workspaceId);
 
-    expect(() => db.tasks.advanceTaskStatus(taskId, "in_review")).toThrow(/no reviewer/);
+    expect(() => db.core.tasks.advanceTaskStatus(taskId, "in_review")).toThrow(/no reviewer/);
     // Task status must remain unchanged after the rejected transition.
-    expect(db.entityCrud.getTask(taskId).status).toBe("todo");
+    expect(db.core.entity.getTask(taskId).status).toBe("todo");
   });
 
   it("advanceTaskStatus('in_review') accepts a CEO assignee flagged requires_user_review=1", () => {
@@ -543,10 +543,10 @@ describe("CAS checkout", () => {
     const workspaceId = createTestWorkspace(db, companyId);
     const ceoId = createTestAgent(db, companyId, workspaceId, "CEO");
     const taskId = createTestTask(db, companyId, ceoId, workspaceId);
-    db.tasks.setTaskRequiresUserReview(taskId, true);
+    db.core.tasks.setTaskRequiresUserReview(taskId, true);
 
-    db.tasks.advanceTaskStatus(taskId, "in_review");
-    expect(db.entityCrud.getTask(taskId).status).toBe("in_review");
+    db.core.tasks.advanceTaskStatus(taskId, "in_review");
+    expect(db.core.entity.getTask(taskId).status).toBe("in_review");
   });
 
   it("interruptStaleRuns surfaces shutdown-era running runs without startup task rewrites", () => {
@@ -563,21 +563,21 @@ describe("CAS checkout", () => {
     const agentId = createTestAgent(db, companyId, workspaceId);
     const taskId = createTestTask(db, companyId, null, workspaceId);
 
-    const { id: liveRunId } = db.runs.createRun({
+    const { id: liveRunId } = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
       workspaceId,
       connectorId: "openai-codex",
     });
-    db.tasks.checkoutTask(taskId, liveRunId);
-    db.runs.markRunStatus(liveRunId, "running", "");
+    db.core.tasks.checkoutTask(taskId, liveRunId);
+    db.core.runs.markRunStatus(liveRunId, "running", "");
 
     db.close();
     db = new AppDatabase(tempDir);
     db.init();
 
     expect(db.lastInterruptedCount).toBe(1);
-    expect(db.entityCrud.getTask(taskId).status).toBe("blocked");
+    expect(db.core.entity.getTask(taskId).status).toBe("blocked");
   });
 });

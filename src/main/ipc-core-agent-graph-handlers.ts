@@ -40,8 +40,8 @@ export function registerCoreAgentGraphHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
-    const id = db.workspacesMod.saveWorkspace(parsed);
-    db.activityMod.addActivity({
+    const id = db.core.workspaces.saveWorkspace(parsed);
+    db.core.activity.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: parsed.id ? "workspace.updated" : "workspace.created",
@@ -64,7 +64,7 @@ export function registerCoreAgentGraphHandlers({
         "Create new agents through the hiring workflow so approval, onboarding, and org state stay synchronized.",
       );
     }
-    const existingAgent = parsed.id ? db.entityCrud.findAgent(parsed.id) : null;
+    const existingAgent = parsed.id ? db.core.entity.findAgent(parsed.id) : null;
     if (!existingAgent || existingAgent.companyId !== parsed.companyId) {
       return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
     }
@@ -87,7 +87,7 @@ export function registerCoreAgentGraphHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
-    const connectorRecord = db.connectorsCrud.findConnector(parsed.connectorId);
+    const connectorRecord = db.core.connectors.findConnector(parsed.connectorId);
     if (!connectorRecord) {
       return fail("CONNECTOR_NOT_FOUND", "The selected connector does not exist.");
     }
@@ -101,7 +101,7 @@ export function registerCoreAgentGraphHandlers({
     }
     let id: string;
     try {
-      id = db.agents.saveAgent({
+      id = db.core.agents.saveAgent({
         id: parsed.id ?? null,
         companyId: parsed.companyId,
         name: parsed.name,
@@ -124,7 +124,7 @@ export function registerCoreAgentGraphHandlers({
     } catch (error) {
       return fail("INVALID_AGENT_HIERARCHY", error instanceof Error ? error.message : "Agent could not be saved.");
     }
-    db.activityMod.addActivity({
+    db.core.activity.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: parsed.id ? "agent.updated" : "agent.created",
@@ -155,7 +155,7 @@ export function registerCoreAgentGraphHandlers({
     if (invalidReference) {
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
-    const connectorRecord = db.connectorsCrud.findConnector(parsed.connectorId);
+    const connectorRecord = db.core.connectors.findConnector(parsed.connectorId);
     if (!connectorRecord) {
       return fail("CONNECTOR_NOT_FOUND", "The selected connector does not exist.");
     }
@@ -188,7 +188,7 @@ export function registerCoreAgentGraphHandlers({
     const managerLabel = resolvedReportsTo
       ? (() => {
         try {
-          return db.entityCrud.getAgent(resolvedReportsTo).name;
+          return db.core.entity.getAgent(resolvedReportsTo).name;
         } catch (err) {
           logger.warn(`[ipc/agent-graph] getAgent failed for manager ${resolvedReportsTo}:`, err instanceof Error ? err.message : String(err));
           return resolvedReportsTo;
@@ -237,7 +237,7 @@ export function registerCoreAgentGraphHandlers({
       return fail("HIRE_REQUEST_FAILED", error instanceof Error ? error.message : "Hire request could not be created.");
     }
 
-    db.activityMod.addActivity({
+    db.core.activity.addActivity({
       companyId: parsed.companyId,
       actor: parsed.requestedByAgentId ?? "board",
       action: "agent.hire_requested",
@@ -268,18 +268,18 @@ export function registerCoreAgentGraphHandlers({
     const parsed = deleteEntitySchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.settings.belongsToCompany("agents", parsed.id, parsed.companyId)) {
+    if (!db.core.settings.belongsToCompany("agents", parsed.id, parsed.companyId)) {
       return fail("AGENT_NOT_FOUND", "Agent not found in the current company.");
     }
-    const agent = db.entityCrud.getAgent(parsed.id);
+    const agent = db.core.entity.getAgent(parsed.id);
     if (agent.status === "pending_approval") {
       return fail(
         "AGENT_APPROVAL_REQUIRED",
         "Pending hires cannot be deleted from the agent editor. Reject the hire request from Hiring or Approvals instead.",
       );
     }
-    db.agents.deleteAgent(parsed.id, parsed.companyId);
-    db.activityMod.addActivity({
+    db.core.agents.deleteAgent(parsed.id, parsed.companyId);
+    db.core.activity.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: "agent.deleted",
@@ -295,18 +295,18 @@ export function registerCoreAgentGraphHandlers({
     const parsed = deleteEntitySchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.settings.belongsToCompany("approvals", parsed.id, parsed.companyId)) {
+    if (!db.core.settings.belongsToCompany("approvals", parsed.id, parsed.companyId)) {
       return fail("APPROVAL_NOT_FOUND", "Approval not found in the current company.");
     }
-    const approval = db.approvalsMod.getApprovalRecord(parsed.id);
+    const approval = db.core.approvals.getApprovalRecord(parsed.id);
     if (approval.state === "pending" && approval.type === "hire_agent") {
       return fail(
         "APPROVAL_DELETE_BLOCKED",
         "Pending hire approvals cannot be deleted. Reject the hire request instead so the linked agent record stays consistent.",
       );
     }
-    db.approvalsMod.deleteApproval(parsed.id, parsed.companyId);
-    db.activityMod.addActivity({
+    db.core.approvals.deleteApproval(parsed.id, parsed.companyId);
+    db.core.activity.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: "approval.deleted",

@@ -54,7 +54,7 @@ function scaffold(db: AppDatabase): ScaffoldResult {
   const connectorId: ConnectorId = "gemini-cli";
 
   // Connector
-  db.connectorsCrud.saveConnector({
+  db.core.connectors.saveConnector({
     id: connectorId,
     model: "gemini-2.5-pro",
     envBindingText: "",
@@ -62,14 +62,14 @@ function scaffold(db: AppDatabase): ScaffoldResult {
   });
 
   // Company
-  const companyId = db.company.saveCompany({
+  const companyId = db.core.company.saveCompany({
     name: "Recovery Test Corp",
     description: "Process recovery integration tests",
     status: "active",
   });
 
   // Workspace
-  const workspaceId = db.workspacesMod.saveWorkspace({
+  const workspaceId = db.core.workspaces.saveWorkspace({
     companyId,
     name: "Primary Workspace",
     localPath: "/tmp/recovery-test",
@@ -79,7 +79,7 @@ function scaffold(db: AppDatabase): ScaffoldResult {
   });
 
   // Agent
-  const agentId = db.agents.saveAgent({
+  const agentId = db.core.agents.saveAgent({
     companyId,
     name: "RecoveryAgent",
     role: "IC",
@@ -94,7 +94,7 @@ function scaffold(db: AppDatabase): ScaffoldResult {
   });
 
   // Goal
-  const goalId = db.entityCrud.saveGoal({
+  const goalId = db.core.entity.saveGoal({
     companyId,
     title: "Build login page",
     description: "Implement login page with authentication",
@@ -103,7 +103,7 @@ function scaffold(db: AppDatabase): ScaffoldResult {
   });
 
   // Project
-  const projectId = db.entityCrud.saveProject({
+  const projectId = db.core.entity.saveProject({
     companyId,
     goalId,
     name: "Auth Module",
@@ -145,7 +145,7 @@ function createAndStartRun(
 ): { runId: string; taskId: string } {
   const taskId =
     opts.taskId ??
-    db.tasks.saveTask({
+    db.core.tasks.saveTask({
       companyId: opts.companyId,
       title: opts.taskTitle ?? "Test Task",
       description:
@@ -157,7 +157,7 @@ function createAndStartRun(
       status: "todo",
     });
 
-  const { id: runId } = db.runs.createRun({
+  const { id: runId } = db.core.runs.createRun({
     companyId: opts.companyId,
     taskId,
     agentId: opts.agentId,
@@ -165,11 +165,11 @@ function createAndStartRun(
     connectorId: opts.connectorId,
   });
 
-  db.tasks.checkoutTask(taskId, runId);
-  db.runs.markRunStatus(runId, "running", "Starting execution");
+  db.core.tasks.checkoutTask(taskId, runId);
+  db.core.runs.markRunStatus(runId, "running", "Starting execution");
 
   if (opts.claimWorkspace !== false) {
-    db.workspacesMod.claimWorkspaceLock(opts.workspaceId, runId);
+    db.core.workspaces.claimWorkspaceLock(opts.workspaceId, runId);
   }
 
   // Set agent status to "running" to simulate active execution
@@ -243,7 +243,7 @@ describe("Process Recovery -- Worker Crash Detection", () => {
     const s = scaffold(db);
 
     // Create a second agent for a second run
-    const agent2Id = db.agents.saveAgent({
+    const agent2Id = db.core.agents.saveAgent({
       companyId: s.companyId,
       name: "Agent2",
       role: "IC",
@@ -278,8 +278,8 @@ describe("Process Recovery -- Worker Crash Detection", () => {
     const interruptedCount = simulateWorkerCrash(db);
 
     expect(interruptedCount).toBe(2);
-    expect(db.runs.getRun(run1.runId).status).toBe("interrupted");
-    expect(db.runs.getRun(run2.runId).status).toBe("interrupted");
+    expect(db.core.runs.getRun(run1.runId).status).toBe("interrupted");
+    expect(db.core.runs.getRun(run2.runId).status).toBe("interrupted");
   });
 
   it("releases task locks after crash", () => {
@@ -306,7 +306,7 @@ describe("Process Recovery -- Worker Crash Detection", () => {
     // However, after crash, the task is set to "blocked" and a subsequent
     // stale lock recovery pass handles the checkout_run_id.
     // For this test, verify the task status is blocked (the recovery mechanism).
-    const task = db.entityCrud.getTask(taskId);
+    const task = db.core.entity.getTask(taskId);
     expect(task.status).toBe("blocked");
   });
 
@@ -320,11 +320,11 @@ describe("Process Recovery -- Worker Crash Detection", () => {
     });
 
     // Verify agent is running before crash
-    expect(db.entityCrud.getAgent(s.agentId).status).toBe("running");
+    expect(db.core.entity.getAgent(s.agentId).status).toBe("running");
 
     simulateWorkerCrash(db);
 
-    expect(db.entityCrud.getAgent(s.agentId).status).toBe("idle");
+    expect(db.core.entity.getAgent(s.agentId).status).toBe("idle");
   });
 
   it("releases workspace locks after crash", () => {
@@ -356,7 +356,7 @@ describe("Process Recovery -- Worker Crash Detection", () => {
     expect(wsAfter.lock_holder_run_id).toBeNull();
 
     // Verify we can re-claim the workspace (lock is truly released)
-    const agent2Id = db.agents.saveAgent({
+    const agent2Id = db.core.agents.saveAgent({
       companyId: s.companyId,
       name: "Agent2",
       role: "IC",
@@ -369,7 +369,7 @@ describe("Process Recovery -- Worker Crash Detection", () => {
       capabilities: "Testing",
       budgetMonthlyUsd: 100,
     });
-    const taskId2 = db.tasks.saveTask({
+    const taskId2 = db.core.tasks.saveTask({
       companyId: s.companyId,
       title: "Recovery Task",
       description: "A recovery task after crash to verify workspace lock is released properly.",
@@ -378,14 +378,14 @@ describe("Process Recovery -- Worker Crash Detection", () => {
       priority: "medium",
       status: "todo",
     });
-    const { id: newRunId } = db.runs.createRun({
+    const { id: newRunId } = db.core.runs.createRun({
       companyId: s.companyId,
       taskId: taskId2,
       agentId: agent2Id,
       workspaceId: s.workspaceId,
       connectorId: s.connectorId,
     });
-    expect(db.workspacesMod.claimWorkspaceLock(s.workspaceId, newRunId)).toBe(true);
+    expect(db.core.workspaces.claimWorkspaceLock(s.workspaceId, newRunId)).toBe(true);
   });
 
   it("tasks set to blocked after crash", () => {
@@ -398,12 +398,12 @@ describe("Process Recovery -- Worker Crash Detection", () => {
     });
 
     // Verify task is in_progress before crash
-    expect(db.entityCrud.getTask(taskId).status).toBe("in_progress");
+    expect(db.core.entity.getTask(taskId).status).toBe("in_progress");
 
     simulateWorkerCrash(db);
 
     // Task should be blocked (prevents heartbeat re-queuing)
-    expect(db.entityCrud.getTask(taskId).status).toBe("blocked");
+    expect(db.core.entity.getTask(taskId).status).toBe("blocked");
   });
 });
 
@@ -422,12 +422,12 @@ describe("Process Recovery -- Context Preservation (D-02)", () => {
     });
 
     // Verify assignment before crash
-    expect(db.entityCrud.getTask(taskId).assigneeAgentId).toBe(s.agentId);
+    expect(db.core.entity.getTask(taskId).assigneeAgentId).toBe(s.agentId);
 
     simulateWorkerCrash(db);
 
     // Agent assignment must be preserved for retry context
-    expect(db.entityCrud.getTask(taskId).assigneeAgentId).toBe(s.agentId);
+    expect(db.core.entity.getTask(taskId).assigneeAgentId).toBe(s.agentId);
   });
 
   it("session handoff markdown generated on crash", () => {
@@ -440,7 +440,7 @@ describe("Process Recovery -- Context Preservation (D-02)", () => {
     });
 
     // Create a task session (simulating what happens during normal execution)
-    const sessionId = db.tasks.createNewSession({
+    const sessionId = db.core.tasks.createNewSession({
       companyId: s.companyId,
       agentId: s.agentId,
       adapterType: "gemini-cli",
@@ -448,7 +448,7 @@ describe("Process Recovery -- Context Preservation (D-02)", () => {
 
     // Drive the session past the maxRuns=20 threshold so rotation fires.
     for (let i = 0; i < 20; i++) {
-      db.tasks.incrementSessionUsage(sessionId, 1000, 500, `${runId}-${i}`);
+      db.core.tasks.incrementSessionUsage(sessionId, 1000, 500, `${runId}-${i}`);
     }
 
     const sessionService = createSessionManagementService({
@@ -456,7 +456,7 @@ describe("Process Recovery -- Context Preservation (D-02)", () => {
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     });
 
-    const session = db.tasks.getSessionById(sessionId);
+    const session = db.core.tasks.getSessionById(sessionId);
     expect(session).not.toBeNull();
 
     const rotationResult = sessionService.evaluateRotation(session!);
@@ -499,7 +499,7 @@ describe("Process Recovery -- Multiple Concurrent Runs", () => {
     const agents = [s.agentId];
     for (let i = 2; i <= 3; i++) {
       agents.push(
-        db.agents.saveAgent({
+        db.core.agents.saveAgent({
           companyId: s.companyId,
           name: `Agent${i}`,
           role: "IC",
@@ -530,7 +530,7 @@ describe("Process Recovery -- Multiple Concurrent Runs", () => {
 
     expect(interruptedCount).toBe(3);
     for (const run of runs) {
-      expect(db.runs.getRun(run.runId).status).toBe("interrupted");
+      expect(db.core.runs.getRun(run.runId).status).toBe("interrupted");
     }
   });
 
@@ -540,7 +540,7 @@ describe("Process Recovery -- Multiple Concurrent Runs", () => {
     const agents = [s.agentId];
     for (let i = 2; i <= 3; i++) {
       agents.push(
-        db.agents.saveAgent({
+        db.core.agents.saveAgent({
           companyId: s.companyId,
           name: `Agent${i}`,
           role: "IC",
@@ -571,7 +571,7 @@ describe("Process Recovery -- Multiple Concurrent Runs", () => {
 
     // All tasks should be blocked (crash recovery sets them to blocked)
     for (const run of runs) {
-      const task = db.entityCrud.getTask(run.taskId);
+      const task = db.core.entity.getTask(run.taskId);
       expect(task.status).toBe("blocked");
     }
 

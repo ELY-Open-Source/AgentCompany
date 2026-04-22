@@ -31,20 +31,20 @@ describe("ipc-core-agent-graph-handlers model enforcement", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
       lastError: null,
     });
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Handler Test Co",
       description: "Tests saveAgent model validation",
       status: "active",
     });
-    db.settings.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    db.core.settings.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -52,7 +52,7 @@ describe("ipc-core-agent-graph-handlers model enforcement", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.agents.saveAgent({
+    const agentId = db.core.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -72,7 +72,7 @@ describe("ipc-core-agent-graph-handlers model enforcement", () => {
         handlers.set(channel, handler);
       },
       db,
-      ensureCompanyExists: (id) => (db.settings.hasCompany(id) ? null : { ok: false, error: { code: "COMPANY_NOT_FOUND", message: "missing" } }),
+      ensureCompanyExists: (id) => (db.core.settings.hasCompany(id) ? null : { ok: false, error: { code: "COMPANY_NOT_FOUND", message: "missing" } }),
       findInvalidReference: () => null,
       publishDomainChanged: vi.fn(),
       handleApprovalResolved: vi.fn(),

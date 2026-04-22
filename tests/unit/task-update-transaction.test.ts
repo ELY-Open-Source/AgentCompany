@@ -15,18 +15,18 @@ vi.mock("electron", () => ({
 import { AppDatabase } from "../../src/main/database";
 
 function seedCompany(db: AppDatabase) {
-  const companyId = db.company.saveCompany({
+  const companyId = db.core.company.saveCompany({
     name: "Review Co",
     description: "Task update transaction tests",
     status: "active",
   });
-  db.connectorsCrud.saveConnector({
+  db.core.connectors.saveConnector({
     id: "openai-codex",
     model: "gpt-5",
     envBindingText: "",
     notes: "fixture",
   });
-  const managerId = db.agents.saveAgent({
+  const managerId = db.core.agents.saveAgent({
     companyId,
     name: "Manager",
     role: "VP Engineering",
@@ -40,7 +40,7 @@ function seedCompany(db: AppDatabase) {
     capabilities: "Review",
     budgetMonthlyUsd: 100,
   });
-  const workerId = db.agents.saveAgent({
+  const workerId = db.core.agents.saveAgent({
     companyId,
     name: "Worker",
     role: "Engineer",
@@ -58,7 +58,7 @@ function seedCompany(db: AppDatabase) {
 }
 
 function createReviewTask(db: AppDatabase, input: { companyId: string; assigneeAgentId: string }) {
-  const taskId = db.tasks.saveTask({
+  const taskId = db.core.tasks.saveTask({
     companyId: input.companyId,
     title: "Ship review packet",
     description: "Prepare a review packet.",
@@ -67,7 +67,7 @@ function createReviewTask(db: AppDatabase, input: { companyId: string; assigneeA
     status: "todo",
     requiresFilesystem: false,
   });
-  db.tasks.setTaskRequiresUserReview(taskId, true);
+  db.core.tasks.setTaskRequiresUserReview(taskId, true);
   return taskId;
 }
 
@@ -91,7 +91,7 @@ describe("updateTaskWithReviewSideEffects", () => {
     const taskId = createReviewTask(db, { companyId, assigneeAgentId: managerId });
 
     expect(() =>
-      db.tasks.updateTaskWithReviewSideEffects({
+      db.core.tasks.updateTaskWithReviewSideEffects({
         taskId,
         companyId,
         actorAgentId: managerId,
@@ -120,18 +120,18 @@ describe("updateTaskWithReviewSideEffects", () => {
       }),
     ).toThrow(/cannot enter in_review/);
 
-    const task = db.entityCrud.getTask(taskId);
+    const task = db.core.entity.getTask(taskId);
     expect(task.status).toBe("todo");
     expect(task.requiresUserReview).toBe(true);
-    expect(db.snap.listSnapshot().approvals).toHaveLength(0);
-    expect(db.activityMod.listComments(taskId)).toHaveLength(0);
+    expect(db.projection.snapshot.listSnapshot().approvals).toHaveLength(0);
+    expect(db.core.activity.listComments(taskId)).toHaveLength(0);
   });
 
   it("commits review approval, flag clear, status, main row, comment, and activity together", () => {
     const { companyId, managerId, workerId } = seedCompany(db);
     const taskId = createReviewTask(db, { companyId, assigneeAgentId: workerId });
 
-    const result = db.tasks.updateTaskWithReviewSideEffects({
+    const result = db.core.tasks.updateTaskWithReviewSideEffects({
       taskId,
       companyId,
       actorAgentId: managerId,
@@ -159,8 +159,8 @@ describe("updateTaskWithReviewSideEffects", () => {
       },
     });
 
-    const task = db.entityCrud.getTask(taskId);
-    const approvals = db.snap.listSnapshot().approvals;
+    const task = db.core.entity.getTask(taskId);
+    const approvals = db.projection.snapshot.listSnapshot().approvals;
     expect(result.previousStatus).toBe("todo");
     expect(result.newStatus).toBe("in_review");
     expect(result.reviewRequested).toBe(true);
@@ -170,7 +170,7 @@ describe("updateTaskWithReviewSideEffects", () => {
     expect(task.requiresUserReview).toBe(false);
     expect(approvals).toHaveLength(1);
     expect(approvals[0]?.type).toBe("deliverable_review");
-    expect(db.activityMod.listComments(taskId).map((comment) => comment.body)).toEqual([
+    expect(db.core.activity.listComments(taskId).map((comment) => comment.body)).toEqual([
       "Deliverable submitted for board review.",
       "Ready for board review.",
     ]);

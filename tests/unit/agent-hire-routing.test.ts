@@ -23,19 +23,19 @@ describe("hire routing guards", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Routing Co",
       description: "Hire routing regression coverage",
       status: "active",
     });
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
       lastError: null,
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -43,7 +43,7 @@ describe("hire routing guards", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const ceoId = db.agents.saveAgent({
+    const ceoId = db.core.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -57,7 +57,7 @@ describe("hire routing guards", () => {
       budgetMonthlyUsd: 250,
       department: "executive",
     });
-    const hrId = db.agents.saveAgent({
+    const hrId = db.core.agents.saveAgent({
       companyId,
       name: "HR Lead",
       role: "HR Lead",
@@ -71,7 +71,7 @@ describe("hire routing guards", () => {
       budgetMonthlyUsd: 180,
       department: "hr",
     });
-    const ctoId = db.agents.saveAgent({
+    const ctoId = db.core.agents.saveAgent({
       companyId,
       name: "CTO",
       role: "CTO",

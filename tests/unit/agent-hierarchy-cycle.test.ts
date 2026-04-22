@@ -26,7 +26,7 @@ describe("agent hierarchy cycle guard", () => {
     tempDir = await mkdtemp(join(tmpdir(), "agentcompany-hierarchy-"));
     db = new AppDatabase(tempDir);
     db.init();
-    companyId = db.company.saveCompany({
+    companyId = db.core.company.saveCompany({
       name: "Hierarchy Guard Co",
       description: "Tests reporting relationships.",
       status: "active",
@@ -57,11 +57,11 @@ describe("agent hierarchy cycle guard", () => {
 
     saveAgent("engineer", "ceo");
 
-    expect(db.entityCrud.getAgent("engineer").reportsTo).toBe("ceo");
+    expect(db.core.entity.getAgent("engineer").reportsTo).toBe("ceo");
   });
 
   function saveAgent(id: string, reportsTo: string | null): string {
-    return db.agents.saveAgent({
+    return db.core.agents.saveAgent({
       id,
       companyId,
       name: id,

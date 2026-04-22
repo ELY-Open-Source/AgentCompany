@@ -17,7 +17,7 @@ export function createLockRecoveryScheduler(deps: OrchestrationDependencies) {
         try {
           const recovered = db.recoverStaleLocks();
           for (const task of recovered) {
-            db.activityMod.addActivity({
+            db.core.activity.addActivity({
               companyId: task.companyId,
               actor: "system",
               action: "execution.lock_recovered",
@@ -36,7 +36,7 @@ export function createLockRecoveryScheduler(deps: OrchestrationDependencies) {
         }
 
         try {
-          const staleReleased = db.workspacesMod.releaseStaleWorkspaceLocks();
+          const staleReleased = db.core.workspaces.releaseStaleWorkspaceLocks();
           if (staleReleased > 0) {
             logger.info(`[lock-recovery] Released ${staleReleased} stale workspace lock(s)`);
             publishDomainChanged();

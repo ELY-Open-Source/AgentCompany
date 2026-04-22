@@ -16,7 +16,7 @@ function parsePositiveInt(value: string | null, fallback: number) {
 }
 
 function resolveAuthorizedRun(server: AgentApiServer, token: TokenPayload, runId: string) {
-  const runState = server.db.runs.getRunAuthState(runId);
+  const runState = server.db.core.runs.getRunAuthState(runId);
   if (!runState || runState.companyId !== token.companyId || runState.agentId !== token.agentId) {
     return null;
   }
@@ -40,7 +40,7 @@ export function registerRunRoutes(server: AgentApiServer) {
     const url = new URL(req.url ?? "/", `http://127.0.0.1:${server.port}`);
     const offset = parsePositiveInt(url.searchParams.get("offset"), 0);
     const limit = Math.min(parsePositiveInt(url.searchParams.get("limit"), DEFAULT_EVENT_LIMIT), MAX_EVENT_LIMIT);
-    const events = server.db.runs.listRunEvents(runId, token.companyId, { offset, limit });
+    const events = server.db.core.runs.listRunEvents(runId, token.companyId, { offset, limit });
     server.json(res, 200, { events, nextOffset: offset + events.length });
   });
 
@@ -66,7 +66,7 @@ export function registerRunRoutes(server: AgentApiServer) {
 
     const flushPendingEvents = () => {
       while (true) {
-        const events = server.db.runs.listRunEventsAfter(runId, token.companyId, cursor, SSE_BATCH_LIMIT);
+        const events = server.db.core.runs.listRunEventsAfter(runId, token.companyId, cursor, SSE_BATCH_LIMIT);
         if (events.length === 0) return;
         for (const event of events) {
           writeSse(res, "run-event", event);

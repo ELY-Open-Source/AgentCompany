@@ -20,13 +20,13 @@ import { logAppError } from "../errors/index.js";
 export interface RunDispatchParams {
   runId: string;
   companyId: string;
-  agent: ReturnType<AppDatabase["entityCrud"]["getAgent"]>;
+  agent: ReturnType<AppDatabase["core"]["entity"]["getAgent"]>;
   // `task` is null for heartbeat runs (agent wake-ups with no assigned task).
   // Downstream code (prompt builder, worker payload, session pointer)
   // branches on this — when null, skip task-scoped state.
-  task: ReturnType<AppDatabase["entityCrud"]["getTask"]> | null;
-  connector: ReturnType<AppDatabase["connectorsCrud"]["getConnector"]>;
-  workspace: ReturnType<AppDatabase["workspacesMod"]["getWorkspace"]>;
+  task: ReturnType<AppDatabase["core"]["entity"]["getTask"]> | null;
+  connector: ReturnType<AppDatabase["core"]["connectors"]["getConnector"]>;
+  workspace: ReturnType<AppDatabase["core"]["workspaces"]["getWorkspace"]>;
   workspaceMode: WorkspaceLockMode;
   /**
    * Filesystem root the artifact projector observes for files this run
@@ -40,7 +40,7 @@ export interface RunDispatchParams {
   observationPath?: string | null;
   companyName: string;
   companyDescription: string;
-  snapshot: ReturnType<AppDatabase["snap"]["listSnapshot"]>;
+  snapshot: ReturnType<AppDatabase["projection"]["snapshot"]["listSnapshot"]>;
   trigger: string;
   /**
    * Model id resolved by `pickModelForAgent` at dispatch time. When the
@@ -75,7 +75,7 @@ function assembleApiEnv(
   trigger: string,
   deps: Pick<TurnContextDeps, "getApiPort" | "createRunToken">,
 ) {
-  const env = db.entityCrud.resolveSecretEnv(connector.envBindingText, companyId);
+  const env = db.core.entity.resolveSecretEnv(connector.envBindingText, companyId);
   const apiPort = deps.getApiPort();
   const apiUrl = apiPort ? `http://127.0.0.1:${apiPort}` : "";
   const apiKey = apiUrl ? deps.createRunToken(agentId, companyId, runId) : "";
@@ -93,8 +93,8 @@ function assembleApiEnv(
 }
 
 function assembleRecentComments(
-  assignedTasks: ReturnType<AppDatabase["tasks"]["listAgentTasks"]>,
-  reviewTasks: ReturnType<AppDatabase["tasks"]["listAgentTasks"]>,
+  assignedTasks: ReturnType<AppDatabase["core"]["tasks"]["listAgentTasks"]>,
+  reviewTasks: ReturnType<AppDatabase["core"]["tasks"]["listAgentTasks"]>,
   snapshot: RunDispatchParams["snapshot"],
 ) {
   const relevantTaskIds = new Set([
@@ -160,8 +160,8 @@ function resolveEnabledConnectorModels(
 ): string[] {
   return getConnectorModelPolicy(
     {
-      getConnector: (id) => db.connectorsCrud.getConnector(id),
-      getDisabledModels: (cid, connId) => db.settings.getDisabledModels(cid, connId),
+      getConnector: (id) => db.core.connectors.getConnector(id),
+      getDisabledModels: (cid, connId) => db.core.settings.getDisabledModels(cid, connId),
     },
     companyId,
     connector.id as ConnectorId,
@@ -179,7 +179,7 @@ function resolveSession(
   // Per-agent session: one ongoing transcript per agent; switching tasks
   // (or running taskless heartbeats) becomes a "now work on X" user turn
   // on the ongoing transcript rather than starting a fresh session.
-  const agentSessionId = db.tasks.ensureAgentSession({
+  const agentSessionId = db.core.tasks.ensureAgentSession({
     agentId: agent.id,
     companyId,
     adapterType: connectorId,
@@ -281,7 +281,7 @@ function buildConnectorCatalog(
 ) {
   return connectors
     .filter((c) => c.status === "ready")
-    .filter((c) => db.settings.hasModelPoolSettings(companyId, c.id))
+    .filter((c) => db.core.settings.hasModelPoolSettings(companyId, c.id))
     .map((c) => ({
       id: c.id,
       label: c.label,
@@ -309,7 +309,7 @@ function readHeartbeatSkip(
   since: string;
   lastTickAt: string;
 } | null {
-  const state = db.agents.getRuntimeState(agentId);
+  const state = db.core.agents.getRuntimeState(agentId);
   const raw = state["heartbeatSkip"];
   if (!raw || typeof raw !== "object") return null;
   const record = raw as Record<string, unknown>;
@@ -339,8 +339,8 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
   const { env, apiUrl, apiKey } = assembleApiEnv(db, connector, companyId, agent.id, runId, trigger, deps);
   env.AGENT_COMPANY_TASK_ID = task?.id ?? "";
 
-  const assignedTasks = db.tasks.listAgentTasks(agent.id, companyId, ["todo", "in_progress", "blocked"]);
-  const reviewTasks = db.tasks.listReviewTasksForManager(agent.id, companyId);
+  const assignedTasks = db.core.tasks.listAgentTasks(agent.id, companyId, ["todo", "in_progress", "blocked"]);
+  const reviewTasks = db.core.tasks.listReviewTasksForManager(agent.id, companyId);
   const recentComments = assembleRecentComments(assignedTasks, reviewTasks, snapshot);
   const initialHandoff = resolveSessionHandoff(agent.id, deps);
   const { taskSessionId, sessionHandoff } = resolveSession(db, agent, companyId, connector.id, initialHandoff, deps);
@@ -355,11 +355,11 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     task,
     companyName,
     locale: snapshot.locale,
-    executionMode: db.company.getCompanyExecutionMode(companyId) as ExecutionMode,
+    executionMode: db.core.company.getCompanyExecutionMode(companyId) as ExecutionMode,
     goals: snapshot.goals.filter((goal) => goal.companyId === companyId),
     projects: snapshot.projects.filter((project) => project.companyId === companyId),
-    directReports: db.agents.getDirectReports(agent.id, companyId),
-    chainOfCommand: db.agents.getChainOfCommand(agent.id),
+    directReports: db.core.agents.getDirectReports(agent.id, companyId),
+    chainOfCommand: db.core.agents.getChainOfCommand(agent.id),
     assignedTasks,
     allAgents: snapshot.agents.filter((entry) => entry.companyId === companyId),
     pendingApprovals: filterPendingApprovals(snapshot.approvals, companyId, agent.id),
@@ -368,7 +368,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     allTasks: snapshot.tasks.filter((entry) => entry.companyId === companyId),
     recentComments: normalizeCommentsForPrompt(recentComments),
     companyDescription,
-    socialAccounts: db.social.listSocialAccounts(companyId).map((account) => ({
+    socialAccounts: db.core.social.listSocialAccounts(companyId).map((account) => ({
       id: account.id,
       platform: account.platform,
       accountName: account.accountName,
@@ -382,7 +382,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     allConnectors: buildConnectorCatalog(db, companyId, snapshot.connectors),
     sessionHandoff,
     skills,
-    companySkillCatalog: db.skills.listCompanySkills(companyId).map((skill) => ({
+    companySkillCatalog: db.core.skills.listCompanySkills(companyId).map((skill) => ({
       name: skill.name,
       slug: skill.slug,
       description: skill.description,
@@ -398,8 +398,8 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
   const modelForRun = params.resolvedModel !== undefined ? params.resolvedModel : agent.model;
   const modelSelection = validateConnectorModelSelection(
     {
-      getConnector: (id) => db.connectorsCrud.getConnector(id),
-      getDisabledModels: (cid, connId) => db.settings.getDisabledModels(cid, connId),
+      getConnector: (id) => db.core.connectors.getConnector(id),
+      getDisabledModels: (cid, connId) => db.core.settings.getDisabledModels(cid, connId),
     },
     companyId,
     connector.id,
@@ -438,7 +438,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     systemPrompt,
     trigger,
     taskSessionId: taskSessionId ?? runId,
-    executionMode: db.company.getCompanyExecutionMode(companyId) as "ai_ceo" | "ai_cofounder",
+    executionMode: db.core.company.getCompanyExecutionMode(companyId) as "ai_ceo" | "ai_cofounder",
     initialUserTurn,
     internalTools,
   };

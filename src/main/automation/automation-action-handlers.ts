@@ -58,7 +58,7 @@ function handleAssignTask({ deps, ctx }: TypedAutomationActionExecution<"assign_
   const { db, logger, wakeAgentIfPossible } = deps;
 
   if (ctx.taskId) {
-    const assignedId = db.tasks.autoAssignTask(ctx.taskId, ctx.companyId);
+    const assignedId = db.core.tasks.autoAssignTask(ctx.taskId, ctx.companyId);
     if (assignedId) {
       wakeAgentIfPossible(assignedId, ctx.companyId, "assignment");
     }
@@ -67,14 +67,14 @@ function handleAssignTask({ deps, ctx }: TypedAutomationActionExecution<"assign_
 
   if (!ctx.agentId) return;
 
-  const snapshot = db.snap.listSnapshot();
+  const snapshot = db.projection.snapshot.listSnapshot();
   const unassigned = snapshot.tasks
     .filter((task) => task.companyId === ctx.companyId && !task.assigneeAgentId && ["backlog", "todo"].includes(task.status))
     .sort((a, b) => (TASK_PRIORITY_SCORE[b.priority] ?? 0) - (TASK_PRIORITY_SCORE[a.priority] ?? 0));
   if (unassigned.length === 0) return;
 
   const task = unassigned[0]!;
-  db.tasks.saveTask({
+  db.core.tasks.saveTask({
     id: task.id,
     companyId: task.companyId,
     projectId: task.projectId,
@@ -106,7 +106,7 @@ function handleCreateTask({ deps, callbacks, ctx, config }: TypedAutomationActio
     return;
   }
 
-  const taskId = db.tasks.saveTask({
+  const taskId = db.core.tasks.saveTask({
     companyId: ctx.companyId,
     projectId: ctx.projectId ?? config.projectId ?? null,
     title,
@@ -140,7 +140,7 @@ function handleAgentNotification<K extends "notify_agent" | "send_message">({
 
   if (channel === "department" && !channelTargetId) {
     try {
-      const sender = db.entityCrud.getAgent(fromAgentId);
+      const sender = db.core.entity.getAgent(fromAgentId);
       channelTargetId = sender.department ?? null;
     } catch (err) {
       logger.warn(`[automation] getAgent failed for sender ${fromAgentId}; dropping department target:`, err instanceof Error ? err.message : String(err));
@@ -184,7 +184,7 @@ function handleTriggerHeartbeat({ deps, rule, ctx, config }: TypedAutomationActi
   if (!targetAgentId && ctx.agentId) {
     const triggerType = rule.trigger ?? "";
     if (triggerType === "run_completed" || triggerType === "run_failed") {
-      const manager = db.agents.getManagerForAgent(ctx.agentId);
+      const manager = db.core.agents.getManagerForAgent(ctx.agentId);
       targetAgentId = manager?.id ?? ctx.agentId;
     } else {
       targetAgentId = ctx.agentId;
@@ -197,7 +197,7 @@ function handleTriggerHeartbeat({ deps, rule, ctx, config }: TypedAutomationActi
 }
 
 function handleCreateApproval({ deps, ctx, config }: TypedAutomationActionExecution<"create_approval">): void {
-  deps.db.approvalsMod.requestApproval({
+  deps.db.core.approvals.requestApproval({
     companyId: ctx.companyId,
     relatedTaskId: ctx.taskId ?? null,
     requestedByAgentId: ctx.agentId ?? null,
@@ -219,8 +219,8 @@ function handleUpdateTaskStatus({
   const { db, publishDomainChanged } = deps;
   const { handleTaskStatusChange } = callbacks;
   const newStatus = config.status ?? "todo";
-  const previousTask = db.entityCrud.getTask(ctx.taskId);
-  db.tasks.advanceTaskStatus(ctx.taskId, newStatus, "Status changed by automation rule");
+  const previousTask = db.core.entity.getTask(ctx.taskId);
+  db.core.tasks.advanceTaskStatus(ctx.taskId, newStatus, "Status changed by automation rule");
   publishDomainChanged();
 
   if (previousTask.status !== newStatus && rule.trigger !== "task_status_changed") {
@@ -240,19 +240,19 @@ function handleEscalateToManager({
 
   let agentName = "an agent";
   try {
-    agentName = db.entityCrud.getAgent(targetAgentId).name;
+    agentName = db.core.entity.getAgent(targetAgentId).name;
   } catch (err) {
     logger.warn(`[automation] getAgent failed for escalation target ${targetAgentId}; using generic label:`, err instanceof Error ? err.message : String(err));
   }
 
   let taskTitle = ctx.taskId ?? "unknown";
   try {
-    if (ctx.taskId) taskTitle = db.entityCrud.getTask(ctx.taskId).title;
+    if (ctx.taskId) taskTitle = db.core.entity.getTask(ctx.taskId).title;
   } catch (err) {
     logger.warn(`[automation] getTask failed for escalation task ${ctx.taskId}; using id as title:`, err instanceof Error ? err.message : String(err));
   }
 
-  const manager = db.agents.getManagerForAgent(targetAgentId);
+  const manager = db.core.agents.getManagerForAgent(targetAgentId);
   const escalationBody = config.body ?? `Task "${taskTitle}" needs your attention. ${agentName} has flagged this as requiring manager intervention.`;
   const wakeTrigger = deriveEscalationWakeTrigger(ctx.newStatus ?? null, rule.trigger ?? null);
 
@@ -291,7 +291,7 @@ function handleCrossDepartmentNotify({
   const targetDepartment = rule.targetDepartment ?? config.department;
   if (!targetDepartment) return;
 
-  const departmentAgents = db.agents.getIdleAgentsForDepartment(ctx.companyId, targetDepartment);
+  const departmentAgents = db.core.agents.getIdleAgentsForDepartment(ctx.companyId, targetDepartment);
   const senderAgentId = ctx.agentId ?? departmentAgents[0]?.id;
   if (!senderAgentId) return;
 
@@ -322,7 +322,7 @@ function handleScheduleMeeting({ deps, ctx, config }: TypedAutomationActionExecu
   const offsetMinutes = config.scheduleOffsetMinutes ?? 60;
   const scheduledAt = config.scheduledAt ?? new Date(Date.now() + offsetMinutes * 60_000).toISOString();
 
-  deps.db.knowledgeMod.saveMeeting({
+  deps.db.core.knowledge.saveMeeting({
     companyId: ctx.companyId,
     type: meetingType,
     title,
@@ -334,7 +334,7 @@ function handleScheduleMeeting({ deps, ctx, config }: TypedAutomationActionExecu
 }
 
 function handleCreateDocument({ deps, ctx, config }: TypedAutomationActionExecution<"create_document">): void {
-  deps.db.documentsMod.saveDocument({
+  deps.db.core.documents.saveDocument({
     companyId: ctx.companyId,
     type: config.documentType ?? "status_report",
     title: config.title ?? "Auto-generated document",
@@ -345,13 +345,13 @@ function handleCreateDocument({ deps, ctx, config }: TypedAutomationActionExecut
 }
 
 function handleAutoApprove({ deps, callbacks, ctx }: TypedAutomationActionExecution<"auto_approve">): void {
-  const snapshot = deps.db.snap.listSnapshot();
+  const snapshot = deps.db.projection.snapshot.listSnapshot();
   const pendingApprovals = snapshot.approvals.filter(
     (approval) => approval.companyId === ctx.companyId && approval.state === "pending",
   );
 
   for (const approval of pendingApprovals.slice(0, 5)) {
-    deps.db.approvalsMod.decideApproval({
+    deps.db.core.approvals.decideApproval({
       companyId: ctx.companyId,
       approvalId: approval.id,
       state: "approved",
@@ -364,7 +364,7 @@ function handleAutoApprove({ deps, callbacks, ctx }: TypedAutomationActionExecut
 function handleReassignTask({ deps, ctx }: TypedAutomationActionExecution<"reassign_task">): void {
   if (!ctx.taskId) return;
 
-  const newAssignee = deps.db.tasks.autoAssignTask(ctx.taskId, ctx.companyId);
+  const newAssignee = deps.db.core.tasks.autoAssignTask(ctx.taskId, ctx.companyId);
   if (newAssignee) {
     deps.wakeAgentIfPossible(newAssignee, ctx.companyId, "assignment");
   }
@@ -374,7 +374,7 @@ function handleRunTask({ deps, ctx, config }: TypedAutomationActionExecution<"ru
   const targetTaskId = config.taskId ?? ctx.taskId;
   if (!targetTaskId) return;
 
-  const task = deps.db.entityCrud.getTask(targetTaskId);
+  const task = deps.db.core.entity.getTask(targetTaskId);
   if (!task.assigneeAgentId) return;
   deps.wakeAgentIfPossible(task.assigneeAgentId, ctx.companyId, "assignment");
 }

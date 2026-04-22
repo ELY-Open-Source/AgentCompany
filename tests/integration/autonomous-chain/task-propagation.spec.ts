@@ -15,7 +15,7 @@ describe("Step 5: Task status + comment wake propagation", () => {
     const ctoId = createAgent({ name: "CTO", role: "CTO", reportsTo: ceoId });
     const icId = createAgent({ name: "Dev", role: "Engineer", reportsTo: ctoId });
 
-    const chain = shared.db.agents.getChainOfCommand(icId);
+    const chain = shared.db.core.agents.getChainOfCommand(icId);
     expect(chain).toHaveLength(2);
     expect(chain[0].id).toBe(ctoId); // immediate manager
     expect(chain[1].id).toBe(ceoId); // top level
@@ -25,7 +25,7 @@ describe("Step 5: Task status + comment wake propagation", () => {
     // Create a potential cycle (shouldn't happen in practice, but guard against it)
     const agent1 = createAgent({ name: "Agent1" });
     // agent1 reports to no one (CEO), so chain should be empty
-    const chain = shared.db.agents.getChainOfCommand(agent1);
+    const chain = shared.db.core.agents.getChainOfCommand(agent1);
     expect(chain).toHaveLength(0);
   });
 
@@ -33,7 +33,7 @@ describe("Step 5: Task status + comment wake propagation", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
     const ctoId = createAgent({ name: "CTO", role: "CTO", reportsTo: ceoId });
 
-    const parentTaskId = shared.db.tasks.saveTask({
+    const parentTaskId = shared.db.core.tasks.saveTask({
       companyId: shared.companyId,
       title: "Build feature X",
       description: "Top-level task",
@@ -43,7 +43,7 @@ describe("Step 5: Task status + comment wake propagation", () => {
       status: "in_progress",
     });
 
-    const childTaskId = shared.db.tasks.saveTask({
+    const childTaskId = shared.db.core.tasks.saveTask({
       companyId: shared.companyId,
       title: "Implement module A",
       description: "Subtask",
@@ -54,10 +54,10 @@ describe("Step 5: Task status + comment wake propagation", () => {
       status: "todo",
     });
 
-    const childTask = shared.db.entityCrud.getTask(childTaskId);
+    const childTask = shared.db.core.entity.getTask(childTaskId);
     expect(childTask.parentId).toBe(parentTaskId);
 
-    const parentTask = shared.db.entityCrud.getTask(parentTaskId);
+    const parentTask = shared.db.core.entity.getTask(parentTaskId);
     expect(parentTask.assigneeAgentId).toBe(ctoId);
   });
 });

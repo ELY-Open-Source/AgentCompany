@@ -39,17 +39,17 @@ export function registerTaskRoutes(server: AgentApiServer) {
     const statuses = statusFilter ? statusFilter.split(",") : ["todo", "in_progress", "blocked"];
 
     if (assigneeAgentId) {
-      const tasks = db.tasks.listAgentTasks(assigneeAgentId, companyId, statuses);
+      const tasks = db.core.tasks.listAgentTasks(assigneeAgentId, companyId, statuses);
       server.json(res, 200, tasks);
     } else {
-      const tasks = db.tasks.listTasksByStatuses(companyId, statuses);
+      const tasks = db.core.tasks.listTasksByStatuses(companyId, statuses);
       server.json(res, 200, tasks);
     }
   });
 
   server.addRoute("GET", "/api/issues/:issueId", (_req, res, params, token) => {
     try {
-      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
+      const task = db.core.entity.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) {
         server.json(res, 404, { error: "Task not found" });
         return;
@@ -74,7 +74,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
     }
     let task;
     try {
-      task = db.entityCrud.getTask(requireParam(params, "issueId"));
+      task = db.core.entity.getTask(requireParam(params, "issueId"));
     } catch (err) {
       log.warn(`[api/tasks] getTask failed for checkout:`, err instanceof Error ? err.message : String(err));
       server.json(res, 404, { error: "Task not found" });
@@ -89,7 +89,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
       return;
     }
     const previousStatus = task.status;
-    const success = db.tasks.checkoutTask(task.id, token.runId);
+    const success = db.core.tasks.checkoutTask(task.id, token.runId);
     if (!success) {
       server.json(res, 409, { error: "Task cannot be checked out — already assigned or not in valid status" });
       return;
@@ -109,7 +109,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
     const update = parsedUpdate.data;
 
     try {
-      const task = db.entityCrud.getTask(requireParam(params, "issueId"));
+      const task = db.core.entity.getTask(requireParam(params, "issueId"));
       if (task.companyId !== token.companyId) {
         server.json(res, 404, { error: "Task not found" });
         return;
@@ -133,10 +133,10 @@ export function registerTaskRoutes(server: AgentApiServer) {
         return;
       }
 
-      const actorAgent = db.entityCrud.getAgent(token.agentId);
+      const actorAgent = db.core.entity.getAgent(token.agentId);
       let reviewRequest: { reviewerAgentName: string; documents: Array<{ id: string; title: string } & Record<string, unknown>> } | null = null;
       if (effectiveStatus === "done" && task.requiresUserReview) {
-        const docs = db.documentsMod.listImportantDocsForReview({
+        const docs = db.core.documents.listImportantDocsForReview({
           companyId: task.companyId,
           types: IMPORTANT_DOC_TYPES,
           authorAgentId: task.assigneeAgentId ?? null,
@@ -146,7 +146,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
         reviewRequest = { reviewerAgentName: actorAgent.name, documents: docs };
       }
 
-      const updateResult = db.tasks.updateTaskWithReviewSideEffects({
+      const updateResult = db.core.tasks.updateTaskWithReviewSideEffects({
         taskId: task.id,
         companyId: task.companyId,
         actorAgentId: token.agentId,
@@ -183,7 +183,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
       if (update.status && ["done", "in_review"].includes(newStatus)) {
         if (updateResult.parentId) {
           try {
-            const parentTask = db.entityCrud.getTask(updateResult.parentId);
+            const parentTask = db.core.entity.getTask(updateResult.parentId);
             if (parentTask.assigneeAgentId && parentTask.assigneeAgentId !== token.agentId) {
               onWakeAgent(parentTask.assigneeAgentId, task.companyId, "subtask_completed");
             }
@@ -197,7 +197,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
           // This is not a subtask — use a distinct wake reason so the
           // reviewer prompt does not misframe the work as "a subtask
           // you delegated".
-          const chain = db.agents.getChainOfCommand(token.agentId);
+          const chain = db.core.agents.getChainOfCommand(token.agentId);
           if (chain.length > 0) {
             onWakeAgent(chain[0].id, task.companyId, "task_review_requested");
           }
@@ -205,7 +205,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
       }
 
       if (update.status && newStatus === "blocked") {
-        const chain = db.agents.getChainOfCommand(token.agentId);
+        const chain = db.core.agents.getChainOfCommand(token.agentId);
         if (chain.length > 0) {
           onWakeAgent(chain[0].id, task.companyId, "report_blocked");
         }
@@ -225,7 +225,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
           onWakeAgent(task.assigneeAgentId, task.companyId, "comment");
           wokenForComment.add(task.assigneeAgentId);
         }
-        const chain = db.agents.getChainOfCommand(token.agentId);
+        const chain = db.core.agents.getChainOfCommand(token.agentId);
         if (chain.length > 0 && chain[0].id !== token.agentId && !wokenForComment.has(chain[0].id)) {
           onWakeAgent(chain[0].id, task.companyId, "comment");
         }
@@ -297,7 +297,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
 
     let id: string;
     try {
-      id = db.tasks.saveTask({
+      id = db.core.tasks.saveTask({
         companyId,
         title: input.title,
         description: input.description ?? "",
@@ -317,12 +317,12 @@ export function registerTaskRoutes(server: AgentApiServer) {
 
     // Auto-infer task_type from assignee's department
     if (input.assigneeAgentId) {
-      const assignee = db.entityCrud.getAgent(input.assigneeAgentId);
+      const assignee = db.core.entity.getAgent(input.assigneeAgentId);
       const inferredType = inferTaskType(assignee.department);
-      db.tasks.setTaskType(id, inferredType);
+      db.core.tasks.setTaskType(id, inferredType);
     }
 
-    db.activityMod.addActivity({
+    db.core.activity.addActivity({
       companyId,
       actor: token.agentId,
       action: "task.created",

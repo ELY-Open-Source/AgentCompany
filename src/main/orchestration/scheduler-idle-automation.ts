@@ -13,14 +13,14 @@ export function createIdleAutomationScheduler(deps: OrchestrationDependencies) {
       try {
         if (isQuitting() || !hasWorkerReady()) return;
 
-        const activeCompanies = db.company.listActiveCompanyIds();
+        const activeCompanies = db.core.company.listActiveCompanyIds();
         const now = Date.now();
 
         for (const company of activeCompanies) {
           try {
-            const companyAgents = db.agents.listActiveAgentsForCompany(company.id);
+            const companyAgents = db.core.agents.listActiveAgentsForCompany(company.id);
             for (const agent of companyAgents) {
-              if (!db.agents.hasAgentAssignedTasks(agent.id, company.id)) {
+              if (!db.core.agents.hasAgentAssignedTasks(agent.id, company.id)) {
                 const lastActive = agent.lastHeartbeatAt ? new Date(agent.lastHeartbeatAt).getTime() : 0;
                 const idleThreshold = 20 * 60 * 1000;
                 if (now - lastActive > idleThreshold) {

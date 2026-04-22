@@ -21,7 +21,7 @@ export function emitCrashRecoveryNotification(deps: RecoverInterruptedTasksDeps)
   const interruptedCount = deps.db.lastInterruptedCount;
   if (interruptedCount <= 0) return;
   deps.logger.warn(`[bootstrap] Detected ${interruptedCount} interrupted runs from previous session. Sending recovery notification.`);
-  const interruptedRuns = deps.db.runs.getInterruptedRunsForRecovery();
+  const interruptedRuns = deps.db.core.runs.getInterruptedRunsForRecovery();
   if (interruptedRuns.length === 0) return;
   deps.emitEvent({ type: "recovery-needed", interruptedRuns });
   deps.notify({
@@ -39,7 +39,7 @@ export function emitCrashRecoveryNotification(deps: RecoverInterruptedTasksDeps)
  */
 export function recoverShutdownInterruptedTasks(deps: RecoverInterruptedTasksDeps): void {
   try {
-    const snapshot = deps.db.snap.listSnapshot();
+    const snapshot = deps.db.projection.snapshot.listSnapshot();
     const shutdownRuns = snapshot.runs.filter(
       (r) => r.status === "interrupted" &&
         (r.summary === "Application shut down." || r.summary === "Worker process crashed."),
@@ -49,10 +49,10 @@ export function recoverShutdownInterruptedTasks(deps: RecoverInterruptedTasksDep
     for (const run of shutdownRuns) {
       try {
         if (run.taskId) {
-          const task = deps.db.entityCrud.getTask(run.taskId);
+          const task = deps.db.core.entity.getTask(run.taskId);
           if (task.status === "in_progress" || task.status === "blocked") {
-            deps.db.tasks.advanceTaskStatus(run.taskId, "todo", "Auto-resumed after app restart.");
-            deps.db.tasks.releaseTaskLock(run.taskId, run.id);
+            deps.db.core.tasks.advanceTaskStatus(run.taskId, "todo", "Auto-resumed after app restart.");
+            deps.db.core.tasks.releaseTaskLock(run.taskId, run.id);
           }
         }
         if (!resumedAgents.has(run.agentId)) {

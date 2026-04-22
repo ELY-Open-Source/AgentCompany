@@ -24,7 +24,7 @@ describe("skill-aware capability registry", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -32,12 +32,12 @@ describe("skill-aware capability registry", () => {
       lastError: null,
     });
 
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Skill Match Co",
       description: "Tests skill-aware assignment",
       status: "active",
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -46,7 +46,7 @@ describe("skill-aware capability registry", () => {
       isPrimary: true,
     });
 
-    db.agents.saveAgent({
+    db.core.agents.saveAgent({
       companyId,
       name: "Generic Engineer",
       role: "Engineer",
@@ -59,7 +59,7 @@ describe("skill-aware capability registry", () => {
       capabilities: "General software delivery",
       budgetMonthlyUsd: 200,
     });
-    const styledEngineerId = db.agents.saveAgent({
+    const styledEngineerId = db.core.agents.saveAgent({
       companyId,
       name: "Frontend Specialist",
       role: "Engineer",
@@ -75,7 +75,7 @@ describe("skill-aware capability registry", () => {
 
     const skillId = randomUUID();
     const now = new Date().toISOString();
-    db.skills.upsertCompanySkill({
+    db.core.skills.upsertCompanySkill({
       id: skillId,
       companyId,
       key: "frontend/react-ui",
@@ -92,9 +92,9 @@ describe("skill-aware capability registry", () => {
       createdAt: now,
       updatedAt: now,
     });
-    db.skills.assignSkillToAgent(styledEngineerId, skillId);
+    db.core.skills.assignSkillToAgent(styledEngineerId, skillId);
 
-    const taskId = db.tasks.saveTask({
+    const taskId = db.core.tasks.saveTask({
       companyId,
       title: "Build React dashboard widget",
       description: "Create an accessible React component with hooks and Tailwind styling.",
@@ -103,7 +103,7 @@ describe("skill-aware capability registry", () => {
       status: "todo",
     });
 
-    const assignedId = db.tasks.autoAssignTask(taskId, companyId);
+    const assignedId = db.core.tasks.autoAssignTask(taskId, companyId);
     expect(assignedId).toBe(styledEngineerId);
 
     db.close();
@@ -114,7 +114,7 @@ describe("skill-aware capability registry", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -122,12 +122,12 @@ describe("skill-aware capability registry", () => {
       lastError: null,
     });
 
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Registry Co",
       description: "Tests capability registry prompt injection",
       status: "active",
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -135,7 +135,7 @@ describe("skill-aware capability registry", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.agents.saveAgent({
+    const agentId = db.core.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -151,7 +151,7 @@ describe("skill-aware capability registry", () => {
 
     const skillId = randomUUID();
     const now = new Date().toISOString();
-    db.skills.upsertCompanySkill({
+    db.core.skills.upsertCompanySkill({
       id: skillId,
       companyId,
       key: "frontend/react-ui",
@@ -169,9 +169,9 @@ describe("skill-aware capability registry", () => {
       updatedAt: now,
     });
 
-    const snapshot = db.snap.listSnapshot();
+    const snapshot = db.projection.snapshot.listSnapshot();
     const prompt = buildTaskPrompt({
-      agent: db.entityCrud.getAgent(agentId),
+      agent: db.core.entity.getAgent(agentId),
       apiUrl: "http://127.0.0.1:3210",
       apiKey: "token",
       runId: "run-1",
@@ -193,7 +193,7 @@ describe("skill-aware capability registry", () => {
       allConnectors: snapshot.connectors
         .filter((connector) => connector.id === "openai-codex")
         .map((connector) => ({ id: connector.id, label: connector.label, status: connector.status, enabledModels: ["gpt-5.4"] })),
-      companySkillCatalog: db.skills.listCompanySkills(companyId).map((skill) => ({
+      companySkillCatalog: db.core.skills.listCompanySkills(companyId).map((skill) => ({
         name: skill.name,
         slug: skill.slug,
         description: skill.description,

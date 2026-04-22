@@ -36,7 +36,7 @@ describe("Step 2: CEO phased prompts", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
 
     const hireId = createAgent({ name: "CTO", role: "CTO", reportsTo: ceoId, status: "pending_approval" as "idle" });
-    const hire = shared.db.entityCrud.getAgent(hireId);
+    const hire = shared.db.core.entity.getAgent(hireId);
 
     const ctx = buildCtx({
       agentId: ceoId,
@@ -86,7 +86,7 @@ describe("Step 2: CEO phased prompts", () => {
   it("Phase 2: shows normal executive instructions when active reports and no pending org approval", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
     const ctoId = createAgent({ name: "CTO", role: "CTO", reportsTo: ceoId, status: "idle" });
-    const cto = shared.db.entityCrud.getAgent(ctoId);
+    const cto = shared.db.core.entity.getAgent(ctoId);
 
     const ctx = buildCtx({
       agentId: ceoId,
@@ -107,7 +107,7 @@ describe("Step 2: CEO phased prompts", () => {
   it("includes pending approvals section in prompt", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
     const ctoId = createAgent({ name: "CTO", role: "CTO", reportsTo: ceoId, status: "idle" });
-    const cto = shared.db.entityCrud.getAgent(ctoId);
+    const cto = shared.db.core.entity.getAgent(ctoId);
 
     const ctx = buildCtx({
       agentId: ceoId,
@@ -137,10 +137,10 @@ describe("Step 2: CEO phased prompts", () => {
 
   it("Manager prompt includes credential escalation guidance", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
-    const ceo = shared.db.entityCrud.getAgent(ceoId);
+    const ceo = shared.db.core.entity.getAgent(ceoId);
     const managerId = createAgent({ name: "CTO", role: "CTO", reportsTo: ceoId });
     const icId = createAgent({ name: "Dev", role: "Engineer", reportsTo: managerId });
-    const ic = shared.db.entityCrud.getAgent(icId);
+    const ic = shared.db.core.entity.getAgent(icId);
 
     const ctx = buildCtx({
       agentId: managerId,
@@ -154,7 +154,7 @@ describe("Step 2: CEO phased prompts", () => {
 
   it("IC prompt includes credential escalation guidance", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
-    const ceo = shared.db.entityCrud.getAgent(ceoId);
+    const ceo = shared.db.core.entity.getAgent(ceoId);
     const icId = createAgent({ name: "Dev", role: "Engineer", reportsTo: ceoId });
 
     const ctx = buildCtx({

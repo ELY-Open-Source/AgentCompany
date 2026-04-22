@@ -22,7 +22,7 @@ export function persistRunEvent(
   input: PersistInput,
 ) {
   try {
-    db.runs.appendRunEvent(input);
+    db.core.runs.appendRunEvent(input);
   } catch (error) {
     logger.warn(
       `[run-events] Failed to append ${input.eventType} for ${input.runId}: ${

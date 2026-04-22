@@ -140,8 +140,8 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
   function seedDefaultAutomationRules(companyId: string) {
     const db = requireDb();
     seedDefaultAutomationRulesImpl(companyId, {
-      listAutomationRuleNames: (targetCompanyId) => db.automationMod.listAutomationRuleNames(targetCompanyId),
-      saveAutomationRule: (input) => db.automationMod.saveAutomationRule(input),
+      listAutomationRuleNames: (targetCompanyId) => db.automation.rules.listAutomationRuleNames(targetCompanyId),
+      saveAutomationRule: (input) => db.automation.rules.saveAutomationRule(input),
     });
   }
 

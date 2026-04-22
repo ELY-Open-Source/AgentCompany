@@ -34,7 +34,7 @@ export function registerMeetingHandlers({
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
 
-    const id = db.knowledgeMod.saveMeeting(parsed);
+    const id = db.core.knowledge.saveMeeting(parsed);
     publishDomainChanged();
     return ok(id);
   });
@@ -43,10 +43,10 @@ export function registerMeetingHandlers({
     const parsed = deleteEntitySchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.settings.belongsToCompany("meetings", parsed.id, parsed.companyId)) {
+    if (!db.core.settings.belongsToCompany("meetings", parsed.id, parsed.companyId)) {
       return fail("ENTITY_NOT_FOUND", "Meeting not found in the current company.");
     }
-    db.knowledgeMod.deleteMeeting(parsed.id, parsed.companyId);
+    db.core.knowledge.deleteMeeting(parsed.id, parsed.companyId);
     publishDomainChanged();
     return ok(true);
   });

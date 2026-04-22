@@ -7,13 +7,13 @@ import { isUsageStatusUnattributed } from "../../run-usage-status";
 import { decideRunAttempt, runAttemptKey } from "../../run-attempt-policy";
 
 type RunFinishedEvent = Extract<WorkerMessageEvent, { type: "run-finished" }>;
-type RunRecord = ReturnType<HandlerDeps["db"]["runs"]["getRun"]>;
-type TaskRecord = ReturnType<HandlerDeps["db"]["entityCrud"]["getTask"]>;
+type RunRecord = ReturnType<HandlerDeps["db"]["core"]["runs"]["getRun"]>;
+type TaskRecord = ReturnType<HandlerDeps["db"]["core"]["entity"]["getTask"]>;
 
 export interface RunFinishedContext {
   run: RunRecord;
   task: TaskRecord | null;
-  runOutcome: ReturnType<HandlerDeps["db"]["runs"]["finishRun"]>;
+  runOutcome: ReturnType<HandlerDeps["db"]["core"]["runs"]["finishRun"]>;
 }
 
 export function finalizeRun(
@@ -26,7 +26,7 @@ export function finalizeRun(
 
   let run: RunRecord;
   try {
-    run = db.runs.getRun(event.runId);
+    run = db.core.runs.getRun(event.runId);
   } catch (error) {
     logger.warn(
       `[finalizeRun] getRun(${event.runId}) failed; run may have been deleted: ${error instanceof Error ? error.message : String(error)}`,
@@ -60,7 +60,7 @@ export function finalizeRun(
   let task: TaskRecord | null = null;
   if (run.taskId) {
     try {
-      task = db.entityCrud.getTask(run.taskId);
+      task = db.core.entity.getTask(run.taskId);
     } catch (error) {
       logger.warn(
         `[finalizeRun] getTask(${run.taskId}) failed; task may have been deleted: ${error instanceof Error ? error.message : String(error)}`,
@@ -70,11 +70,11 @@ export function finalizeRun(
   }
 
   leaseRenewalMap.delete(event.runId);
-  const runOutcome = db.runs.finishRun({ ...event, unattributedCost });
+  const runOutcome = db.core.runs.finishRun({ ...event, unattributedCost });
   if (run.workspaceId) {
-    db.workspacesMod.releaseWorkspaceLock(run.workspaceId, run.id);
+    db.core.workspaces.releaseWorkspaceLock(run.workspaceId, run.id);
   }
-  db.activityMod.addActivity({
+  db.core.activity.addActivity({
     companyId: run.companyId,
     actor: run.agentId,
     action: `run.${event.status}`,
@@ -101,9 +101,9 @@ export function accumulateAndRotateSession(
   // heartbeat run — the exact failure mode that lets a taskless transcript
   // grow past the model's context window. Resolve the session through the
   // agent, never through the task.
-  let agentRecord: ReturnType<HandlerDeps["db"]["entityCrud"]["getAgent"]>;
+  let agentRecord: ReturnType<HandlerDeps["db"]["core"]["entity"]["getAgent"]>;
   try {
-    agentRecord = db.entityCrud.getAgent(run.agentId);
+    agentRecord = db.core.entity.getAgent(run.agentId);
   } catch (error) {
     logger.warn(
       `[session] accumulateAndRotateSession: getAgent(${run.agentId}) failed; skipping: ${error instanceof Error ? error.message : String(error)}`,
@@ -111,7 +111,7 @@ export function accumulateAndRotateSession(
     return;
   }
   if (!agentRecord.sessionId) return;
-  const session = db.tasks.getSessionById(agentRecord.sessionId);
+  const session = db.core.tasks.getSessionById(agentRecord.sessionId);
   if (!session) return;
 
   sessionService.accumulateTokenUsage(
@@ -124,7 +124,7 @@ export function accumulateAndRotateSession(
   // that include this run, otherwise a run that just crossed the
   // threshold waits a full additional cycle to rotate — the exact
   // failure mode that let transcripts balloon past the context window.
-  const updatedSession = db.tasks.getSessionById(agentRecord.sessionId);
+  const updatedSession = db.core.tasks.getSessionById(agentRecord.sessionId);
   if (!updatedSession) return;
   const rotationResult = sessionService.evaluateRotation(updatedSession);
   if (rotationResult.shouldRotate) {
@@ -158,9 +158,9 @@ export function emitAndNotifyCompletion(
     });
   }
 
-  let updatedAgent: ReturnType<HandlerDeps["db"]["entityCrud"]["getAgent"]> | null = null;
+  let updatedAgent: ReturnType<HandlerDeps["db"]["core"]["entity"]["getAgent"]> | null = null;
   try {
-    updatedAgent = db.entityCrud.getAgent(run.agentId);
+    updatedAgent = db.core.entity.getAgent(run.agentId);
   } catch (error) {
     logger.warn(
       `[emitAndNotifyCompletion] getAgent(${run.agentId}) failed; skipping budget-paused notification: ${error instanceof Error ? error.message : String(error)}`,
@@ -169,7 +169,7 @@ export function emitAndNotifyCompletion(
   }
 
   if (updatedAgent && runOutcome.budgetHardStopped) {
-    db.activityMod.addActivity({
+    db.core.activity.addActivity({
       companyId: updatedAgent.companyId,
       actor: "system",
       action: "agent.auto_paused",
@@ -233,8 +233,8 @@ export function runPostCompletionAutomation(
   // EXEC-05: Promote deferred wakes after run completion
   let hadDeferredWakes = false;
   if (!isQuitting() && !destroyed) {
-    const promoted = db.wakeup.promoteWakeupRequests(run.agentId, run.companyId);
-    const pendingWakeTrigger = db.wakeup.getPreferredWakeTrigger(run.agentId, run.companyId);
+    const promoted = db.automation.wakeup.promoteWakeupRequests(run.agentId, run.companyId);
+    const pendingWakeTrigger = db.automation.wakeup.getPreferredWakeTrigger(run.agentId, run.companyId);
     if (promoted > 0) {
       logger.info(`[worker] Promoted ${promoted} deferred wake(s) for agent ${run.agentId}`);
     }
@@ -297,7 +297,7 @@ export function triggerSelfWake(
   if (hadDeferredWakes || isQuitting() || destroyed) return;
 
   try {
-    const actionableTasks = db.tasks.listAgentTasks(run.agentId, run.companyId, ["todo", "in_progress"]);
+    const actionableTasks = db.core.tasks.listAgentTasks(run.agentId, run.companyId, ["todo", "in_progress"]);
     const hasWorkToContinue = actionableTasks.length > 0 || hasUnfinishedTeamBuilding(db, run.agentId, run.companyId);
     const consecutiveSelfWakes = selfWakeAttemptMap.get(attemptKey) ?? 0;
     const decision = decideRunAttempt({
@@ -316,7 +316,7 @@ export function triggerSelfWake(
       );
       // Escalate to manager since agent is stuck
       try {
-        const chain = db.agents.getChainOfCommand(run.agentId);
+        const chain = db.core.agents.getChainOfCommand(run.agentId);
         if (chain.length > 0) {
           wakeAgentIfPossible(chain[0].id, run.companyId, "report_stuck");
         }
@@ -354,15 +354,15 @@ function hasUnfinishedTeamBuilding(
   companyId: string,
 ): boolean {
   try {
-    const agent = db.entityCrud.getAgent(agentId);
+    const agent = db.core.entity.getAgent(agentId);
     if (agent.reportsTo !== null) return false;
-    const activeReports = db.agents
+    const activeReports = db.core.agents
       .getDirectReports(agentId, companyId)
       .filter((r) => r.status !== "pending_approval" && r.status !== "terminated");
     if (activeReports.length > 0) return false;
-    const goalCount = db.entityCrud.countActiveGoalsForCompany(companyId);
+    const goalCount = db.core.entity.countActiveGoalsForCompany(companyId);
     if (goalCount === 0) return false;
-    const pendingHires = db.approvalsMod
+    const pendingHires = db.core.approvals
       .listCompanyApprovalsByType(companyId, "hire_agent")
       .filter((a) => a.state === "pending");
     return pendingHires.length === 0;

@@ -14,7 +14,7 @@ export async function runStartupHealthChecks(
   logger: Logger,
 ): Promise<void> {
   if (!connectorHealth) return;
-  const connectors = db.snap.listSnapshot().connectors;
+  const connectors = db.projection.snapshot.listSnapshot().connectors;
   const results = await Promise.allSettled(
     connectors.map((connector) => connectorHealth.checkConnector(connector.id)),
   );

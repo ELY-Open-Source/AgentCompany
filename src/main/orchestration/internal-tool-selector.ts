@@ -44,15 +44,15 @@ export function resolveInternalToolsForAgent(
 function isInitialTeamBuildingPhase(db: AppDatabase, agent: AgentRecord): boolean {
   if (!canFileCeoStrategy(db, agent.companyId, agent.id)) return false;
 
-  const directReports = db.agents.getDirectReports(agent.id, agent.companyId);
+  const directReports = db.core.agents.getDirectReports(agent.id, agent.companyId);
   const activeReports = directReports.filter(
     (report) => report.status !== "pending_approval" && report.status !== "terminated",
   );
   const pendingReportRows = directReports.filter((report) => report.status === "pending_approval");
-  const pendingHireApprovals = db.approvalsMod
+  const pendingHireApprovals = db.core.approvals
     .listCompanyApprovalsByType(agent.companyId, "hire_agent")
     .filter((approval) => approval.state === "pending");
-  const pendingStrategyApprovals = db.approvalsMod
+  const pendingStrategyApprovals = db.core.approvals
     .listCompanyApprovalsByType(agent.companyId, "approve_ceo_strategy")
     .filter((approval) => approval.state === "pending");
 

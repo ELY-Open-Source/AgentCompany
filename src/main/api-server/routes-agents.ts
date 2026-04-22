@@ -24,9 +24,9 @@ export function registerAgentRoutes(server: AgentApiServer) {
   const callbacks = server.callbacks;
   const onDomainChanged = server.onDomainChanged;
   server.addRoute("GET", "/api/agents/me", (_req, res, _params, token) => {
-    const agent = db.entityCrud.getAgent(token.agentId);
-    const chainOfCommand = db.agents.getChainOfCommand(token.agentId);
-    const directReports = db.agents.getDirectReports(token.agentId, token.companyId);
+    const agent = db.core.entity.getAgent(token.agentId);
+    const chainOfCommand = db.core.agents.getChainOfCommand(token.agentId);
+    const directReports = db.core.agents.getDirectReports(token.agentId, token.companyId);
     server.json(res, 200, { agent, chainOfCommand, directReports });
   });
 
@@ -36,7 +36,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
   // and the standup module is registered separately in api-server/index.ts.
 
   server.addRoute("GET", "/api/agents/me/metrics", (_req, res, _params, token) => {
-    const companyMetrics = db.company.getCompanyMetrics(token.companyId, 30);
+    const companyMetrics = db.core.company.getCompanyMetrics(token.companyId, 30);
     const agentMetric = companyMetrics.agentMetrics.find(m => m.agentId === token.agentId);
     if (!agentMetric) {
       server.json(res, 404, { error: "Metrics not found" });
@@ -47,12 +47,12 @@ export function registerAgentRoutes(server: AgentApiServer) {
 
   server.addRoute("GET", "/api/agents/:agentId/metrics", (_req, res, params, token) => {
     const agentId = requireParam(params, "agentId");
-    const agent = db.entityCrud.getAgent(agentId);
+    const agent = db.core.entity.getAgent(agentId);
     if (!agent || agent.companyId !== token.companyId) {
       server.json(res, 404, { error: "Agent not found" });
       return;
     }
-    const companyMetrics = db.company.getCompanyMetrics(token.companyId, 30);
+    const companyMetrics = db.core.company.getCompanyMetrics(token.companyId, 30);
     const agentMetric = companyMetrics.agentMetrics.find((metric) => metric.agentId === agentId);
     if (!agentMetric) {
       server.json(res, 404, { error: "Metrics not found" });
@@ -64,7 +64,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
   server.addRoute("GET", "/api/agents/:agentId", (_req, res, params, token) => {
     let agent;
     try {
-      agent = db.entityCrud.getAgent(requireParam(params, "agentId"));
+      agent = db.core.entity.getAgent(requireParam(params, "agentId"));
     } catch (err) {
       log.warn(`[api/agents] getAgent failed:`, err instanceof Error ? err.message : String(err));
       server.json(res, 404, { error: "Agent not found" });
@@ -74,12 +74,12 @@ export function registerAgentRoutes(server: AgentApiServer) {
       server.json(res, 404, { error: "Agent not found" });
       return;
     }
-    const directReports = db.agents.getDirectReports(agent.id, token.companyId);
+    const directReports = db.core.agents.getDirectReports(agent.id, token.companyId);
     const reportsTo = agent.reportsTo;
     const manager = reportsTo
       ? (() => {
           try {
-            return db.entityCrud.getAgent(reportsTo);
+            return db.core.entity.getAgent(reportsTo);
           } catch (error) {
             log.warn(`[api/agents] manager lookup failed for ${reportsTo}: ${error instanceof Error ? error.message : String(error)}`);
             return null;
@@ -98,7 +98,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Company mismatch" });
       return;
     }
-    const agents = db.agents.listAgentsForApi(params.companyId);
+    const agents = db.core.agents.listAgentsForApi(params.companyId);
     server.json(res, 200, agents);
   });
 
@@ -183,14 +183,14 @@ export function registerAgentRoutes(server: AgentApiServer) {
       resolvedReportsTo &&
       resolvedReportsTo !== token.agentId &&
       !canManageOrganization(db, companyId, token.agentId) &&
-      !db.agents.getChainOfCommand(resolvedReportsTo).some((agent) => agent.id === token.agentId)
+      !db.core.agents.getChainOfCommand(resolvedReportsTo).some((agent) => agent.id === token.agentId)
     ) {
       server.json(res, 403, { error: "Requested hire must report to you or a manager in your reporting chain." });
       return;
     }
     const connectorRecord = (() => {
       try {
-        return db.connectorsCrud.getConnector(input.connectorId);
+        return db.core.connectors.getConnector(input.connectorId);
       } catch (err) {
         log.warn(`[api/agents] getConnector failed for ${input.connectorId}:`, err instanceof Error ? err.message : String(err));
         return null;
@@ -207,7 +207,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
     }
 
     // Prevent duplicate agents: reject if a non-terminated agent with the same name already exists
-    const existingAgents = db.agents.listExistingAgentsForHireCheck(companyId);
+    const existingAgents = db.core.agents.listExistingAgentsForHireCheck(companyId);
     const duplicateByName = existingAgents.find(
       (a) => a.name.toLowerCase() === input.name.toLowerCase(),
     );
@@ -216,7 +216,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
       return;
     }
     // Also check pending hire approvals with the same name to prevent concurrent duplicate requests
-    const pendingHires = db.approvalsMod.listPendingHireApprovalPayloads(companyId);
+    const pendingHires = db.core.approvals.listPendingHireApprovalPayloads(companyId);
     for (const pending of pendingHires) {
       try {
         const payload = pending.payloadJson ? JSON.parse(pending.payloadJson) as Record<string, unknown> : {};
@@ -234,7 +234,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
     const managerLabel = resolvedReportsTo
       ? (() => {
         try {
-          return db.entityCrud.getAgent(resolvedReportsTo).name;
+          return db.core.entity.getAgent(resolvedReportsTo).name;
         } catch (err) {
           log.warn(`[api/agents] getAgent failed for manager ${resolvedReportsTo}:`, err instanceof Error ? err.message : String(err));
           return resolvedReportsTo;
@@ -283,7 +283,7 @@ export function registerAgentRoutes(server: AgentApiServer) {
       return;
     }
 
-    db.activityMod.addActivity({
+    db.core.activity.addActivity({
       companyId,
       actor: token.agentId,
       action: "agent.hire_requested",

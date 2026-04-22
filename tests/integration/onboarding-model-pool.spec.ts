@@ -52,11 +52,11 @@ function buildKickoffPayload(db: AppDatabase, summary: { companyId: string; lead
     throw new Error("Missing lead agent or task in onboarding summary.");
   }
 
-  const agent = db.entityCrud.getAgent(summary.leadAgentId);
-  const task = db.entityCrud.getTask(summary.taskId);
-  const connector = db.connectorsCrud.getConnector(agent.connectorId);
-  const workspace = summary.workspaceId ? db.workspacesMod.getWorkspace(summary.workspaceId) : null;
-  const company = db.snap.listSnapshot().companies.find((entry) => entry.id === summary.companyId);
+  const agent = db.core.entity.getAgent(summary.leadAgentId);
+  const task = db.core.entity.getTask(summary.taskId);
+  const connector = db.core.connectors.getConnector(agent.connectorId);
+  const workspace = summary.workspaceId ? db.core.workspaces.getWorkspace(summary.workspaceId) : null;
+  const company = db.projection.snapshot.listSnapshot().companies.find((entry) => entry.id === summary.companyId);
 
   if (!company) {
     throw new Error(`Company ${summary.companyId} not found in snapshot.`);
@@ -72,7 +72,7 @@ function buildKickoffPayload(db: AppDatabase, summary: { companyId: string; lead
     workspaceMode: "exclusive",
     companyName: company.name,
     companyDescription: company.description,
-    snapshot: db.snap.listSnapshot(),
+    snapshot: db.projection.snapshot.listSnapshot(),
     trigger: "bootstrap",
   }, {
     db,
@@ -98,7 +98,7 @@ describe("onboarding model pool integration", () => {
       throw new Error("openai-codex requires at least two models for this integration test.");
     }
 
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -125,11 +125,11 @@ describe("onboarding model pool integration", () => {
       throw new Error("Expected lead agent id from onboarding bootstrap.");
     }
 
-    const agent = db.entityCrud.getAgent(summary.leadAgentId);
+    const agent = db.core.entity.getAgent(summary.leadAgentId);
     expect(agent.connectorId).toBe("openai-codex");
     expect(agent.model).toBe(enabledModel);
-    expect(db.settings.getDisabledModels(summary.companyId, "openai-codex")).toEqual([{ id: disabledModel, label: disabledModel }]);
-    expect(db.settings.getCurrentCompanyId()).toBe(summary.companyId);
+    expect(db.core.settings.getDisabledModels(summary.companyId, "openai-codex")).toEqual([{ id: disabledModel, label: disabledModel }]);
+    expect(db.core.settings.getCurrentCompanyId()).toBe(summary.companyId);
 
     const payload = buildKickoffPayload(db, summary);
     expect(payload.model).toBe(enabledModel);
@@ -161,7 +161,7 @@ describe("onboarding model pool integration", () => {
       throw new Error("anthropic provider must expose at least two models from pi-ai.");
     }
 
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "anthropic",
       status: "ready",
       authState: "authenticated",
@@ -205,7 +205,7 @@ describe("onboarding model pool integration", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -230,7 +230,7 @@ describe("onboarding model pool integration", () => {
       throw new Error("Expected lead agent id from onboarding bootstrap.");
     }
 
-    const agent = db.entityCrud.getAgent(summary.leadAgentId);
+    const agent = db.core.entity.getAgent(summary.leadAgentId);
     expect(agent.model).toBeNull();
 
     const payload = buildKickoffPayload(db, summary);
@@ -254,7 +254,7 @@ describe("onboarding model pool integration", () => {
       throw new Error("openai-codex requires a default and fallback model for reroute testing.");
     }
 
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -296,7 +296,7 @@ describe("onboarding model pool integration", () => {
       throw new Error("openai-codex requires a model to validate onboarding rejection.");
     }
 
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",

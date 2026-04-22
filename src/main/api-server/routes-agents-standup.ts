@@ -3,23 +3,23 @@ import type { AgentApiServer } from "./server-core";
 export function registerAgentStandupRoute(server: AgentApiServer): void {
   const db = server.db;
   server.addRoute("GET", "/api/agents/me/standup", (_req, res, _params, token) => {
-    const agent = db.entityCrud.getAgent(token.agentId);
+    const agent = db.core.entity.getAgent(token.agentId);
     if (!agent || agent.companyId !== token.companyId) {
       server.json(res, 404, { error: "Agent not found" });
       return;
     }
 
-    const directReports = db.agents.listDirectReportsForStandup(token.companyId, token.agentId);
+    const directReports = db.core.agents.listDirectReportsForStandup(token.companyId, token.agentId);
 
-    const myTasks = db.tasks.listAssigneeTasksForStandup(token.companyId, token.agentId);
+    const myTasks = db.core.tasks.listAssigneeTasksForStandup(token.companyId, token.agentId);
 
-    const reportTasks = db.tasks.listTasksForAssignees(
+    const reportTasks = db.core.tasks.listTasksForAssignees(
       token.companyId,
       directReports.map((r) => r.id),
     );
 
     const reportStatusRows = directReports.length > 0
-      ? db.agents.listReportStatusesForStandup(token.companyId, token.agentId)
+      ? db.core.agents.listReportStatusesForStandup(token.companyId, token.agentId)
       : [];
 
     const tasksAwaitingMyReview = reportTasks.filter((t) => t.status === "in_review");
@@ -33,20 +33,20 @@ export function registerAgentStandupRoute(server: AgentApiServer): void {
       ...reportTasks.map((t) => t.id),
     ]);
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const recentComments = db.activityMod.listRecentTaskComments([...allRelevantTaskIds], twoHoursAgo, 20);
+    const recentComments = db.core.activity.listRecentTaskComments([...allRelevantTaskIds], twoHoursAgo, 20);
 
-    const myPendingApprovals = db.approvalsMod.listAgentPendingApprovals(token.companyId, token.agentId);
-    const myResolvedApprovals = db.approvalsMod.listAgentResolvedApprovals(token.companyId, token.agentId, 5);
+    const myPendingApprovals = db.core.approvals.listAgentPendingApprovals(token.companyId, token.agentId);
+    const myResolvedApprovals = db.core.approvals.listAgentResolvedApprovals(token.companyId, token.agentId, 5);
 
     // Unread inbox lives in the standup briefing as the agent's
     // canonical view of pending communication. Pre-fix the agent had
     // to make a second API call to /messages?unreadOnly=true that the
     // model frequently skipped, so messages from peers and managers
     // sat dark while the agent posted heartbeat status comments.
-    const unreadInbox = db.messages.listAgentInboxUnread(token.companyId, token.agentId);
+    const unreadInbox = db.core.messages.listAgentInboxUnread(token.companyId, token.agentId);
     const senderIds = new Set(unreadInbox.map((m) => m.fromAgentId));
     const senderNames = senderIds.size > 0
-      ? new Map(db.agents.listAgentNamesByIds(token.companyId, Array.from(senderIds)).map((row) => [row.id, row.name]))
+      ? new Map(db.core.agents.listAgentNamesByIds(token.companyId, Array.from(senderIds)).map((row) => [row.id, row.name]))
       : new Map<string, string>();
 
     // Recent outputs the AGENT itself produced — closes the
@@ -59,10 +59,10 @@ export function registerAgentStandupRoute(server: AgentApiServer): void {
     // surface keeps the briefing readable.
     const RECENT_OUTPUT_LIMIT = 20;
     const myTaskIds = new Set(myTasks.map((t) => t.id));
-    const recentDocuments = db.documentsMod.listDocuments(token.companyId)
+    const recentDocuments = db.core.documents.listDocuments(token.companyId)
       .filter((doc) => doc.authorAgentId === token.agentId)
       .slice(0, RECENT_OUTPUT_LIMIT);
-    const recentWorkProducts = db.documentsMod.listWorkProductsForCompany(token.companyId)
+    const recentWorkProducts = db.core.documents.listWorkProductsForCompany(token.companyId)
       .filter((wp) => wp.taskId !== null && myTaskIds.has(wp.taskId))
       .slice(0, RECENT_OUTPUT_LIMIT);
 
@@ -71,7 +71,7 @@ export function registerAgentStandupRoute(server: AgentApiServer): void {
       ...myTasks.map<[string, string]>((t) => [t.id, t.title]),
       ...reportTasks.map<[string, string]>((t) => [t.id, t.title]),
     ]);
-    const socialAccounts = db.social.listSocialAccounts(token.companyId);
+    const socialAccounts = db.core.social.listSocialAccounts(token.companyId);
 
     server.json(res, 200, {
       agent: { id: agent.id, name: agent.name, role: agent.role, status: agent.status },

@@ -27,7 +27,7 @@ interface CheckpointDeps {
 }
 
 export function getCompanyExecutionMode(db: AppDatabase, companyId: string): ExecutionMode {
-  return db.company.getCompanyExecutionMode(companyId) as ExecutionMode;
+  return db.core.company.getCompanyExecutionMode(companyId) as ExecutionMode;
 }
 
 export function createCheckpointEngine(deps: CheckpointDeps) {
@@ -48,8 +48,8 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
         const mode = getCompanyExecutionMode(db, companyId);
         if (mode !== "ai_cofounder") return null;
 
-        const task = db.entityCrud.getTask(taskId);
-        const taskType = db.tasks.getTaskType(taskId);
+        const task = db.core.entity.getTask(taskId);
+        const taskType = db.core.tasks.getTaskType(taskId);
 
         // Only create plan checkpoints for non-code task types
         if (!taskType || !CHECKPOINT_TASK_TYPES.has(taskType)) return null;
@@ -60,7 +60,7 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
         // the moment delegation starts.
         if (task.parentId) return null;
 
-        const approvalId = db.approvalsMod.requestApproval({
+        const approvalId = db.core.approvals.requestApproval({
           companyId,
           relatedTaskId: taskId,
           requestedByAgentId: agentId,
@@ -107,7 +107,7 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
           ? "strategy_review"
           : "draft_review";
 
-        const approvalId = db.approvalsMod.requestApproval({
+        const approvalId = db.core.approvals.requestApproval({
           companyId,
           relatedTaskId: taskId,
           requestedByAgentId: authorAgentId,
@@ -154,7 +154,7 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
         }
 
         // Check for pending approvals related to this agent's tasks
-        return db.approvalsMod.hasPendingReviewApprovalForAgent(companyId, agentId);
+        return db.core.approvals.hasPendingReviewApprovalForAgent(companyId, agentId);
       } catch (err) {
         logger.error(`[checkpoint] shouldPauseHeartbeat failed: ${err instanceof Error ? err.message : String(err)}`);
         return false;

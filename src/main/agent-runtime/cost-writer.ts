@@ -45,7 +45,7 @@ export class CostWriter {
       );
     }
 
-    this.deps.db.runs.recordCostEntry({
+    this.deps.db.core.runs.recordCostEntry({
       runId: input.runId,
       companyId: input.companyId,
       agentId: input.agentId,

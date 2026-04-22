@@ -49,12 +49,12 @@ describe("AppDatabase", () => {
   });
 
   it("persists company-scoped entities and resolves secret env bindings", () => {
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Northline Systems",
       description: "Operator company",
       status: "active",
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Primary Workspace",
       localPath: "/tmp/northline",
@@ -62,7 +62,7 @@ describe("AppDatabase", () => {
       repoRef: "main",
       isPrimary: true,
     });
-    const agentId = db.agents.saveAgent({
+    const agentId = db.core.agents.saveAgent({
       companyId,
       name: "Chief Operator",
       role: "CEO",
@@ -75,14 +75,14 @@ describe("AppDatabase", () => {
       capabilities: "Directs execution",
       budgetMonthlyUsd: 250,
     });
-    const goalId = db.entityCrud.saveGoal({
+    const goalId = db.core.entity.saveGoal({
       companyId,
       title: "Ship the desktop product",
       description: "Stabilize the local operator console.",
       ownerAgentId: agentId,
       status: "active",
     });
-    const projectId = db.entityCrud.saveProject({
+    const projectId = db.core.entity.saveProject({
       companyId,
       goalId,
       name: "Desktop Rebuild",
@@ -91,7 +91,7 @@ describe("AppDatabase", () => {
       status: "in_progress",
       targetDate: null,
     });
-    const taskId = db.tasks.saveTask({
+    const taskId = db.core.tasks.saveTask({
       companyId,
       projectId,
       goalId,
@@ -103,20 +103,20 @@ describe("AppDatabase", () => {
       status: "todo",
     });
 
-    db.entityCrud.saveSecret({
+    db.core.entity.saveSecret({
       companyId,
       name: "vault-openai",
       description: "OpenAI API token",
       value: "sk-test-secret",
     });
-    db.connectorsCrud.saveConnector({
+    db.core.connectors.saveConnector({
       id: "openai-codex",
       model: "gpt-5",
       envBindingText: "OPENAI_API_KEY=vault-openai",
       notes: "Primary coding connector",
     });
 
-    const snapshot = db.snap.listSnapshot();
+    const snapshot = db.projection.snapshot.listSnapshot();
 
     expect(snapshot.currentCompanyId).toBe(companyId);
     expect(snapshot.workspaces[0]?.id).toBe(workspaceId);
@@ -124,71 +124,71 @@ describe("AppDatabase", () => {
     expect(snapshot.goals[0]?.id).toBe(goalId);
     expect(snapshot.projects[0]?.id).toBe(projectId);
     expect(snapshot.tasks[0]?.id).toBe(taskId);
-    expect(db.entityCrud.resolveSecretEnv("OPENAI_API_KEY=vault-openai", companyId)).toEqual({
+    expect(db.core.entity.resolveSecretEnv("OPENAI_API_KEY=vault-openai", companyId)).toEqual({
       OPENAI_API_KEY: "sk-test-secret",
     });
   });
 
   it("backs up and restores the profile", async () => {
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Backup Test Co",
       description: "Backup validation company",
       status: "active",
     });
     const backupDir = await mkdtemp(join(tmpdir(), "agentcompany-backup-"));
 
-    await db.backupMod.exportBackup(backupDir);
-    db.company.saveCompany({
+    await db.core.backup.exportBackup(backupDir);
+    db.core.company.saveCompany({
       id: companyId,
       name: "Mutated Company",
       description: "Changed after backup",
       status: "paused",
     });
 
-    await db.backupMod.restoreFromBackup(backupDir);
+    await db.core.backup.restoreFromBackup(backupDir);
 
-    const snapshot = db.snap.listSnapshot();
+    const snapshot = db.projection.snapshot.listSnapshot();
     expect(snapshot.companies[0]?.name).toBe("Backup Test Co");
 
     await rm(backupDir, { recursive: true, force: true });
   });
 
   it("scopes secret resolution to the owning company", () => {
-    const alphaCompanyId = db.company.saveCompany({
+    const alphaCompanyId = db.core.company.saveCompany({
       name: "Alpha Company",
       description: "Alpha",
       status: "active",
     });
-    const betaCompanyId = db.company.saveCompany({
+    const betaCompanyId = db.core.company.saveCompany({
       name: "Beta Company",
       description: "Beta",
       status: "active",
     });
 
-    db.entityCrud.saveSecret({
+    db.core.entity.saveSecret({
       companyId: alphaCompanyId,
       name: "shared-secret-name",
       description: "Alpha secret",
       value: "alpha-secret",
     });
 
-    expect(db.entityCrud.resolveSecretEnv("API_KEY=shared-secret-name", alphaCompanyId)).toEqual({
+    expect(db.core.entity.resolveSecretEnv("API_KEY=shared-secret-name", alphaCompanyId)).toEqual({
       API_KEY: "alpha-secret",
     });
     // Beta company has no secret named "shared-secret-name", so resolveSecretEnv
     // falls back to using the raw value literally (allows direct env bindings).
-    expect(db.entityCrud.resolveSecretEnv("API_KEY=shared-secret-name", betaCompanyId)).toEqual({
+    expect(db.core.entity.resolveSecretEnv("API_KEY=shared-secret-name", betaCompanyId)).toEqual({
       API_KEY: "shared-secret-name",
     });
   });
 
   it("atomically checks out unclaimed work via CAS with run ID", () => {
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Checkout Company",
       description: "Atomic checkout validation",
       status: "active",
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Execution Workspace",
       localPath: "/tmp/checkout",
@@ -196,7 +196,7 @@ describe("AppDatabase", () => {
       repoRef: "main",
       isPrimary: true,
     });
-    const leadId = db.agents.saveAgent({
+    const leadId = db.core.agents.saveAgent({
       companyId,
       name: "Lead",
       role: "CEO",
@@ -209,13 +209,13 @@ describe("AppDatabase", () => {
       capabilities: "Leads",
       budgetMonthlyUsd: 100,
     });
-    db.connectorsCrud.saveConnector({
+    db.core.connectors.saveConnector({
       id: "openai-codex",
       model: "gpt-5",
       envBindingText: "",
       notes: "Test connector",
     });
-    const taskId = db.tasks.saveTask({
+    const taskId = db.core.tasks.saveTask({
       companyId,
       title: "Claim me",
       description: "First agent wins the checkout.",
@@ -225,14 +225,14 @@ describe("AppDatabase", () => {
       status: "todo",
     });
 
-    const { id: runId1 } = db.runs.createRun({
+    const { id: runId1 } = db.core.runs.createRun({
       companyId,
       taskId,
       agentId: leadId,
       workspaceId,
       connectorId: "openai-codex",
     });
-    const { id: runId2 } = db.runs.createRun({
+    const { id: runId2 } = db.core.runs.createRun({
       companyId,
       taskId,
       agentId: leadId,
@@ -240,20 +240,20 @@ describe("AppDatabase", () => {
       connectorId: "openai-codex",
     });
 
-    expect(db.tasks.checkoutTask(taskId, runId1)).toBe(true);
-    expect(db.tasks.checkoutTask(taskId, runId2)).toBe(false);
+    expect(db.core.tasks.checkoutTask(taskId, runId1)).toBe(true);
+    expect(db.core.tasks.checkoutTask(taskId, runId2)).toBe(false);
 
-    const task = db.entityCrud.getTask(taskId);
+    const task = db.core.entity.getTask(taskId);
     expect(task.status).toBe("in_progress");
   });
 
   it("auto-pauses an agent when a run exhausts the monthly budget", () => {
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Budget Company",
       description: "Budget hard stop validation",
       status: "active",
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Budget Workspace",
       localPath: "/tmp/budget",
@@ -261,7 +261,7 @@ describe("AppDatabase", () => {
       repoRef: "main",
       isPrimary: true,
     });
-    const agentId = db.agents.saveAgent({
+    const agentId = db.core.agents.saveAgent({
       companyId,
       name: "Budget Owner",
       role: "CTO",
@@ -274,7 +274,7 @@ describe("AppDatabase", () => {
       capabilities: "Ships work",
       budgetMonthlyUsd: 10,
     });
-    const taskId = db.tasks.saveTask({
+    const taskId = db.core.tasks.saveTask({
       companyId,
       title: "Spend budget",
       description: "One run should exhaust the allowance.",
@@ -284,7 +284,7 @@ describe("AppDatabase", () => {
       status: "todo",
     });
 
-    const run = db.runs.createRun({
+    const run = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
@@ -293,7 +293,7 @@ describe("AppDatabase", () => {
     });
 
     // Simulate a per-message cost entry (written by CostWriter in prod).
-    db.runs.recordCostEntry({
+    db.core.runs.recordCostEntry({
       runId: run.id,
       companyId,
       agentId,
@@ -303,7 +303,7 @@ describe("AppDatabase", () => {
       unattributed: false,
     });
 
-    const outcome = db.runs.finishRun({
+    const outcome = db.core.runs.finishRun({
       runId: run.id,
       status: "succeeded",
       summary: "Budget consumed",
@@ -315,17 +315,17 @@ describe("AppDatabase", () => {
     });
 
     expect(outcome.budgetHardStopped).toBe(true);
-    expect(db.entityCrud.getAgent(agentId).status).toBe("paused");
-    expect(db.entityCrud.getAgent(agentId).spentMonthlyUsd).toBe(12);
+    expect(db.core.entity.getAgent(agentId).status).toBe("paused");
+    expect(db.core.entity.getAgent(agentId).spentMonthlyUsd).toBe(12);
   });
 
   it("persists explicit run usage status", () => {
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Usage Status Company",
       description: "Tracks run usage status",
       status: "active",
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Usage Workspace",
       localPath: "/tmp/usage-status",
@@ -333,7 +333,7 @@ describe("AppDatabase", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.agents.saveAgent({
+    const agentId = db.core.agents.saveAgent({
       companyId,
       name: "Usage Agent",
       role: "Engineer",
@@ -346,7 +346,7 @@ describe("AppDatabase", () => {
       capabilities: "Run tasks",
       budgetMonthlyUsd: 100,
     });
-    const taskId = db.tasks.saveTask({
+    const taskId = db.core.tasks.saveTask({
       companyId,
       title: "Usage task",
       description: "Exercise explicit usage status.",
@@ -355,9 +355,9 @@ describe("AppDatabase", () => {
       priority: "medium",
       status: "in_progress",
     });
-    const run = db.runs.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "openai-codex" });
+    const run = db.core.runs.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "openai-codex" });
 
-    db.runs.finishRun({
+    db.core.runs.finishRun({
       runId: run.id,
       status: "failed",
       summary: null,
@@ -369,17 +369,17 @@ describe("AppDatabase", () => {
       usageStatus: "error_stop",
     });
 
-    expect(db.runs.getRun(run.id).usageStatus).toBe("error_stop");
-    expect(db.snap.listSnapshot().runs.find((record) => record.id === run.id)?.usageStatus).toBe("error_stop");
+    expect(db.core.runs.getRun(run.id).usageStatus).toBe("error_stop");
+    expect(db.projection.snapshot.listSnapshot().runs.find((record) => record.id === run.id)?.usageStatus).toBe("error_stop");
   });
 
   it("activates pending hires when the corresponding approval is granted", () => {
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Hiring Company",
       description: "Approval-driven hiring",
       status: "active",
     });
-    const managerId = db.agents.saveAgent({
+    const managerId = db.core.agents.saveAgent({
       companyId,
       name: "Manager",
       role: "CEO",
@@ -392,7 +392,7 @@ describe("AppDatabase", () => {
       capabilities: "Manages",
       budgetMonthlyUsd: 100,
     });
-    const pendingHireId = db.agents.saveAgent({
+    const pendingHireId = db.core.agents.saveAgent({
       companyId,
       name: "Pending Hire",
       role: "IC",
@@ -406,7 +406,7 @@ describe("AppDatabase", () => {
       budgetMonthlyUsd: 50,
     });
 
-    const approvalId = db.approvalsMod.requestApproval({
+    const approvalId = db.core.approvals.requestApproval({
       companyId,
       relatedTaskId: null,
       requestedByAgentId: managerId,
@@ -416,22 +416,22 @@ describe("AppDatabase", () => {
       payloadJson: JSON.stringify({ agentId: pendingHireId }),
     });
 
-    db.approvalsMod.decideApproval({
+    db.core.approvals.decideApproval({
       approvalId,
       state: "approved",
       decisionNote: "Approved",
     });
 
-    expect(db.entityCrud.getAgent(pendingHireId).status).toBe("idle");
+    expect(db.core.entity.getAgent(pendingHireId).status).toBe("idle");
   });
 
   it("detects pending-approval agents via isAgentPendingApproval", () => {
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Gate Test Co",
       description: "Approval gate validation",
       status: "active",
     });
-    const activeAgentId = db.agents.saveAgent({
+    const activeAgentId = db.core.agents.saveAgent({
       companyId,
       name: "Active Agent",
       role: "CTO",
@@ -444,7 +444,7 @@ describe("AppDatabase", () => {
       capabilities: "Ships",
       budgetMonthlyUsd: 100,
     });
-    const pendingAgentId = db.agents.saveAgent({
+    const pendingAgentId = db.core.agents.saveAgent({
       companyId,
       name: "Pending Agent",
       role: "IC",
@@ -458,13 +458,13 @@ describe("AppDatabase", () => {
       budgetMonthlyUsd: 50,
     });
 
-    expect(db.agents.isAgentPendingApproval(activeAgentId)).toBe(false);
-    expect(db.agents.isAgentPendingApproval(pendingAgentId)).toBe(true);
+    expect(db.core.agents.isAgentPendingApproval(activeAgentId)).toBe(false);
+    expect(db.core.agents.isAgentPendingApproval(pendingAgentId)).toBe(true);
   });
 
   it("runs forward-only migrations and creates schema_migrations table", () => {
     // The migration system runs during init() — verify the tracking table exists
-    const snapshot = db.snap.listSnapshot();
+    const snapshot = db.projection.snapshot.listSnapshot();
     expect(snapshot).toBeTruthy();
 
     // Verify we can re-init without errors (migrations are idempotent)
@@ -472,17 +472,17 @@ describe("AppDatabase", () => {
     db = new AppDatabase(tempDir);
     db.init();
 
-    const snapshot2 = db.snap.listSnapshot();
+    const snapshot2 = db.projection.snapshot.listSnapshot();
     expect(snapshot2).toBeTruthy();
   });
 
   it("acquires and releases workspace locks", () => {
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Lock Test Co",
       description: "Workspace lock test",
       status: "active",
     });
-    const wsId = db.workspacesMod.saveWorkspace({
+    const wsId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Lockable WS",
       localPath: "/tmp/lock-test",
@@ -492,33 +492,33 @@ describe("AppDatabase", () => {
     });
 
     // Acquire lock for run-1
-    expect(db.workspacesMod.acquireWorkspaceLock(wsId, "run-1")).toBe(true);
-    let ws = db.workspacesMod.getWorkspace(wsId);
+    expect(db.core.workspaces.acquireWorkspaceLock(wsId, "run-1")).toBe(true);
+    let ws = db.core.workspaces.getWorkspace(wsId);
     expect(ws?.state).toBe("busy");
 
     // Same run can re-acquire (idempotent)
-    expect(db.workspacesMod.acquireWorkspaceLock(wsId, "run-1")).toBe(true);
+    expect(db.core.workspaces.acquireWorkspaceLock(wsId, "run-1")).toBe(true);
 
     // Different run cannot acquire while run-1 holds the lock
-    expect(db.workspacesMod.acquireWorkspaceLock(wsId, "run-2")).toBe(false);
+    expect(db.core.workspaces.acquireWorkspaceLock(wsId, "run-2")).toBe(false);
 
     // Release lock
-    db.workspacesMod.releaseWorkspaceLock(wsId, "run-1");
-    ws = db.workspacesMod.getWorkspace(wsId);
+    db.core.workspaces.releaseWorkspaceLock(wsId, "run-1");
+    ws = db.core.workspaces.getWorkspace(wsId);
     expect(ws?.state).toBe("ready");
 
     // Now run-2 can acquire
-    expect(db.workspacesMod.acquireWorkspaceLock(wsId, "run-2")).toBe(true);
-    db.workspacesMod.releaseWorkspaceLock(wsId, "run-2");
+    expect(db.core.workspaces.acquireWorkspaceLock(wsId, "run-2")).toBe(true);
+    db.core.workspaces.releaseWorkspaceLock(wsId, "run-2");
   });
 
   it("releases all workspace locks on crash recovery", () => {
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Recovery Co",
       description: "Lock recovery test",
       status: "active",
     });
-    const wsId = db.workspacesMod.saveWorkspace({
+    const wsId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Recovery WS",
       localPath: "/tmp/recovery-test",
@@ -527,20 +527,20 @@ describe("AppDatabase", () => {
       isPrimary: true,
     });
 
-    db.workspacesMod.acquireWorkspaceLock(wsId, "stale-run");
-    expect(db.workspacesMod.getWorkspace(wsId)?.state).toBe("busy");
+    db.core.workspaces.acquireWorkspaceLock(wsId, "stale-run");
+    expect(db.core.workspaces.getWorkspace(wsId)?.state).toBe("busy");
 
-    db.workspacesMod.releaseAllWorkspaceLocks();
-    expect(db.workspacesMod.getWorkspace(wsId)?.state).toBe("ready");
+    db.core.workspaces.releaseAllWorkspaceLocks();
+    expect(db.core.workspaces.getWorkspace(wsId)?.state).toBe("ready");
   });
 
   it("purges expired run logs based on retention setting", async () => {
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Purge Co",
       description: "Log purge test",
       status: "active",
     });
-    const wsId = db.workspacesMod.saveWorkspace({
+    const wsId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "PurgeWS",
       localPath: "/tmp/purge",
@@ -548,7 +548,7 @@ describe("AppDatabase", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.agents.saveAgent({
+    const agentId = db.core.agents.saveAgent({
       companyId,
       name: "Purge Agent",
       role: "IC",
@@ -561,7 +561,7 @@ describe("AppDatabase", () => {
       capabilities: "test",
       budgetMonthlyUsd: 100,
     });
-    const taskId = db.tasks.saveTask({
+    const taskId = db.core.tasks.saveTask({
       companyId,
       title: "Purge task",
       description: "test",
@@ -571,11 +571,11 @@ describe("AppDatabase", () => {
       status: "todo",
     });
 
-    const run = db.runs.createRun({ companyId, taskId, agentId, workspaceId: wsId, connectorId: "openai-codex" });
-    await db.runs.appendRunLog(run.id, "stdout", "test log line\n");
+    const run = db.core.runs.createRun({ companyId, taskId, agentId, workspaceId: wsId, connectorId: "openai-codex" });
+    await db.core.runs.appendRunLog(run.id, "stdout", "test log line\n");
 
     // Finish the run with a very old timestamp
-    db.runs.finishRun({
+    db.core.runs.finishRun({
       runId: run.id,
       status: "succeeded",
       summary: "done",
@@ -587,10 +587,10 @@ describe("AppDatabase", () => {
     });
 
     // Log should exist before purge
-    expect(db.runs.readRunLog(run.id)).toContain("test log line");
+    expect(db.core.runs.readRunLog(run.id)).toContain("test log line");
 
     // Set retention to 1 day and manually backdate the run's finished_at
-    db.settings.updateSettings({ logRetentionDays: 1 });
+    db.core.settings.updateSettings({ logRetentionDays: 1 });
     // Backdate finished_at to 10 days ago
     const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000).toISOString();
     // Direct SQL update for test only
@@ -598,20 +598,20 @@ describe("AppDatabase", () => {
       .prepare("update runs set finished_at = ? where id = ?")
       .run(tenDaysAgo, run.id);
 
-    const purged = db.settings.purgeExpiredRunLogs();
+    const purged = db.core.settings.purgeExpiredRunLogs();
     expect(purged).toBe(1);
 
     // Log should be gone after purge
-    expect(db.runs.readRunLog(run.id)).toBe("");
+    expect(db.core.runs.readRunLog(run.id)).toBe("");
   });
 
   it("populates related_agent_id on hire approvals", () => {
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Agent Approval Co",
       description: "test",
       status: "active",
     });
-    const managerId = db.agents.saveAgent({
+    const managerId = db.core.agents.saveAgent({
       companyId,
       name: "Manager",
       role: "CEO",
@@ -624,7 +624,7 @@ describe("AppDatabase", () => {
       capabilities: "manage",
       budgetMonthlyUsd: 100,
     });
-    const hireId = db.agents.saveAgent({
+    const hireId = db.core.agents.saveAgent({
       companyId,
       name: "New Hire",
       role: "IC",
@@ -638,7 +638,7 @@ describe("AppDatabase", () => {
       budgetMonthlyUsd: 50,
     });
 
-    const approvalId = db.approvalsMod.requestApproval({
+    const approvalId = db.core.approvals.requestApproval({
       companyId,
       requestedByAgentId: managerId,
       type: "hire_agent",
@@ -647,12 +647,12 @@ describe("AppDatabase", () => {
       payloadJson: JSON.stringify({ agentId: hireId }),
     });
 
-    const approval = db.approvalsMod.getApprovalRecord(approvalId);
+    const approval = db.core.approvals.getApprovalRecord(approvalId);
     // related_agent_id should be populated from payloadJson extraction
     expect(approval.relatedAgentId).toBe(hireId);
 
     // Explicit relatedAgentId param should also work
-    const approvalId2 = db.approvalsMod.requestApproval({
+    const approvalId2 = db.core.approvals.requestApproval({
       companyId,
       requestedByAgentId: managerId,
       relatedAgentId: hireId,
@@ -661,7 +661,7 @@ describe("AppDatabase", () => {
       impactSummary: "test",
     });
 
-    const approval2 = db.approvalsMod.getApprovalRecord(approvalId2);
+    const approval2 = db.core.approvals.getApprovalRecord(approvalId2);
     expect(approval2.relatedAgentId).toBe(hireId);
   });
 

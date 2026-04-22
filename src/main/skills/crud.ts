@@ -23,11 +23,11 @@ export function createSkillCrud({ db, logger, cleanupSkillFiles, parseGitHubUrl 
   }
 
   function listForCompany(companyId: string): SkillRecord[] {
-    return db.skills.listCompanySkills(companyId);
+    return db.core.skills.listCompanySkills(companyId);
   }
 
   function getDetail(companyId: string, skillId: string): DesktopResult<SkillRecord> {
-    const skill = db.skills.getCompanySkill(companyId, skillId);
+    const skill = db.core.skills.getCompanySkill(companyId, skillId);
     if (!skill) return fail("not_found", `Skill ${skillId} not found`);
     return ok(skill);
   }
@@ -36,12 +36,12 @@ export function createSkillCrud({ db, logger, cleanupSkillFiles, parseGitHubUrl 
     companyId: string,
     skillId: string,
   ): Promise<DesktopResult<void>> {
-    const skill = db.skills.getCompanySkill(companyId, skillId);
+    const skill = db.core.skills.getCompanySkill(companyId, skillId);
     if (!skill) return fail("not_found", `Skill ${skillId} not found`);
 
     try {
       await cleanupSkillFiles(companyId, skill.slug);
-      db.skills.deleteCompanySkill(companyId, skillId);
+      db.core.skills.deleteCompanySkill(companyId, skillId);
       logger.info(`Skill deleted: ${skill.key}`);
       return ok(undefined);
     } catch (err) {
@@ -56,9 +56,9 @@ export function createSkillCrud({ db, logger, cleanupSkillFiles, parseGitHubUrl 
     agentId: string,
     skillId: string,
   ): DesktopResult<void> {
-    const skill = db.skills.getCompanySkill(companyId, skillId);
+    const skill = db.core.skills.getCompanySkill(companyId, skillId);
     if (!skill) return fail("not_found", `Skill ${skillId} not found for company`);
-    db.skills.assignSkillToAgent(agentId, skillId);
+    db.core.skills.assignSkillToAgent(agentId, skillId);
     return ok(undefined);
   }
 
@@ -67,7 +67,7 @@ export function createSkillCrud({ db, logger, cleanupSkillFiles, parseGitHubUrl 
     agentId: string,
     skillId: string,
   ): DesktopResult<void> {
-    db.skills.removeSkillFromAgent(agentId, skillId);
+    db.core.skills.removeSkillFromAgent(agentId, skillId);
     return ok(undefined);
   }
 
@@ -75,7 +75,7 @@ export function createSkillCrud({ db, logger, cleanupSkillFiles, parseGitHubUrl 
     companyId: string,
     skillId: string,
   ): Promise<DesktopResult<SkillUpdateStatus>> {
-    const skill = db.skills.getCompanySkill(companyId, skillId);
+    const skill = db.core.skills.getCompanySkill(companyId, skillId);
     if (!skill) return fail("not_found", `Skill ${skillId} not found`);
 
     if (skill.sourceType !== "github" && skill.sourceType !== "skills_sh") {

@@ -46,11 +46,11 @@ export function registerCoreAdminHandlers({
 >) {
   registerHandle(IPC_CHANNELS.saveCompany, async (_event, payload) => {
     const parsed = companyInputSchema.parse(payload);
-    const previousMode = parsed.id ? db.company.getCompanyExecutionMode(parsed.id) : parsed.executionMode;
+    const previousMode = parsed.id ? db.core.company.getCompanyExecutionMode(parsed.id) : parsed.executionMode;
     const previousApprovalSettings = parsed.id
-      ? db.company.getCompanyApprovalSettings(parsed.id)
+      ? db.core.company.getCompanyApprovalSettings(parsed.id)
       : { autoApproveHires: parsed.autoApproveHires, reviewDeliverables: parsed.reviewDeliverables };
-    const id = db.company.saveCompany(parsed);
+    const id = db.core.company.saveCompany(parsed);
     reconcileExecutionModeChange({
       db,
       companyId: id,
@@ -60,7 +60,7 @@ export function registerCoreAdminHandlers({
       nextReviewDeliverables: parsed.reviewDeliverables,
       handleApprovalResolved,
     });
-    db.activityMod.addActivity({
+    db.core.activity.addActivity({
       companyId: id,
       actor: "board",
       action: parsed.id ? "company.updated" : "company.created",
@@ -76,10 +76,10 @@ export function registerCoreAdminHandlers({
     if (typeof companyId !== "string" || !companyId) {
       return fail("INVALID_COMPANY_ID", "A valid company id is required.");
     }
-    if (!db.settings.hasCompany(companyId)) {
+    if (!db.core.settings.hasCompany(companyId)) {
       return fail("COMPANY_NOT_FOUND", "The selected company does not exist.");
     }
-    db.settings.setCurrentCompany(companyId);
+    db.core.settings.setCurrentCompany(companyId);
     publishDomainChanged();
     return ok(true);
   });
@@ -93,12 +93,12 @@ export function registerCoreAdminHandlers({
     // The per-company disabled-models pool is not consulted here —
     // connector config is a global hint, and pool enforcement
     // happens at run dispatch time where the company is known.
-    db.connectorsCrud.saveConnector({
+    db.core.connectors.saveConnector({
       ...parsed,
       model: parsed.model ?? null,
     });
-    db.activityMod.addActivity({
-      companyId: db.settings.getCurrentCompanyId() ?? "00000000-0000-0000-0000-000000000000",
+    db.core.activity.addActivity({
+      companyId: db.core.settings.getCurrentCompanyId() ?? "00000000-0000-0000-0000-000000000000",
       actor: "board",
       action: "connector.updated",
       entityType: "connector",
@@ -127,7 +127,7 @@ export function registerCoreAdminHandlers({
 
   registerHandle(IPC_CHANNELS.setConnectorDisabledModels, async (_event, payload) => {
     const parsed = connectorDisabledModelsSchema.parse(payload);
-    db.settings.setDisabledModels(parsed.companyId, parsed.connectorId, parsed.disabledModels);
+    db.core.settings.setDisabledModels(parsed.companyId, parsed.connectorId, parsed.disabledModels);
     publishDomainChanged();
     return ok(true);
   });
@@ -136,11 +136,11 @@ export function registerCoreAdminHandlers({
     const parsed = deleteEntitySchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.settings.belongsToCompany("secrets", parsed.id, parsed.companyId)) {
+    if (!db.core.settings.belongsToCompany("secrets", parsed.id, parsed.companyId)) {
       return fail("SECRET_NOT_FOUND", "Secret not found in the current company.");
     }
-    db.entityCrud.deleteSecret(parsed.id, parsed.companyId);
-    db.activityMod.addActivity({
+    db.core.entity.deleteSecret(parsed.id, parsed.companyId);
+    db.core.activity.addActivity({
       companyId: parsed.companyId,
       actor: "board",
       action: "secret.deleted",
@@ -156,10 +156,10 @@ export function registerCoreAdminHandlers({
     if (typeof companyId !== "string" || companyId.length === 0) {
       return fail("INVALID_INPUT", "Company ID is required.");
     }
-    if (!db.settings.hasCompany(companyId)) {
+    if (!db.core.settings.hasCompany(companyId)) {
       return fail("COMPANY_NOT_FOUND", "Company not found.");
     }
-    db.company.deleteCompany(companyId);
+    db.core.company.deleteCompany(companyId);
     publishDomainChanged();
     return ok(true);
   });

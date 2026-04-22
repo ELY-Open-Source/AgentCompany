@@ -31,7 +31,7 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
     const cmoId = createAgent({ name: "Aria", role: "CMO", reportsTo: ceoId, status: "pending_approval" as "idle" });
 
     // 3. CEO submits org strategy approval
-    const orgApprovalId = shared.db.approvalsMod.requestApproval({
+    const orgApprovalId = shared.db.core.approvals.requestApproval({
       companyId: shared.companyId,
       requestedByAgentId: ceoId,
       type: "approve_ceo_strategy",
@@ -40,8 +40,8 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
     });
 
     // CEO now in Phase 1
-    const ctoRecord = shared.db.entityCrud.getAgent(ctoId);
-    const cmoRecord = shared.db.entityCrud.getAgent(cmoId);
+    const ctoRecord = shared.db.core.entity.getAgent(ctoId);
+    const cmoRecord = shared.db.core.entity.getAgent(cmoId);
     const phase1Ctx = buildCtx({
       agentId: ceoId,
       directReports: [ctoRecord, cmoRecord],
@@ -64,7 +64,7 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
     expect(phase1Prompt).toContain("Awaiting Org Strategy Approval");
 
     // 4. Board approves hires
-    const hireApprovalCTO = shared.db.approvalsMod.requestApproval({
+    const hireApprovalCTO = shared.db.core.approvals.requestApproval({
       companyId: shared.companyId,
       requestedByAgentId: ceoId,
       type: "hire_agent",
@@ -72,9 +72,9 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
       impactSummary: "Test",
       payloadJson: JSON.stringify({ agentId: ctoId }),
     });
-    shared.db.approvalsMod.decideApproval({ approvalId: hireApprovalCTO, state: "approved", decisionNote: "Approved" });
+    shared.db.core.approvals.decideApproval({ approvalId: hireApprovalCTO, state: "approved", decisionNote: "Approved" });
 
-    const hireApprovalCMO = shared.db.approvalsMod.requestApproval({
+    const hireApprovalCMO = shared.db.core.approvals.requestApproval({
       companyId: shared.companyId,
       requestedByAgentId: ceoId,
       type: "hire_agent",
@@ -82,18 +82,18 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
       impactSummary: "Test",
       payloadJson: JSON.stringify({ agentId: cmoId }),
     });
-    shared.db.approvalsMod.decideApproval({ approvalId: hireApprovalCMO, state: "approved", decisionNote: "Approved" });
+    shared.db.core.approvals.decideApproval({ approvalId: hireApprovalCMO, state: "approved", decisionNote: "Approved" });
 
     // Agents now idle
-    expect(shared.db.entityCrud.getAgent(ctoId).status).toBe("idle");
-    expect(shared.db.entityCrud.getAgent(cmoId).status).toBe("idle");
+    expect(shared.db.core.entity.getAgent(ctoId).status).toBe("idle");
+    expect(shared.db.core.entity.getAgent(cmoId).status).toBe("idle");
 
     // 5. Board approves org strategy
-    shared.db.approvalsMod.decideApproval({ approvalId: orgApprovalId, state: "approved", decisionNote: "Go ahead" });
+    shared.db.core.approvals.decideApproval({ approvalId: orgApprovalId, state: "approved", decisionNote: "Go ahead" });
 
     // 6. CEO now in Phase 2
-    const updatedCto = shared.db.entityCrud.getAgent(ctoId);
-    const updatedCmo = shared.db.entityCrud.getAgent(cmoId);
+    const updatedCto = shared.db.core.entity.getAgent(ctoId);
+    const updatedCmo = shared.db.core.entity.getAgent(cmoId);
     const phase2Ctx = buildCtx({
       agentId: ceoId,
       directReports: [updatedCto, updatedCmo],
@@ -106,12 +106,12 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
     expect(phase2Prompt).toContain("Delegation");
 
     // 7. Verify hierarchical chain
-    const ctoChain = shared.db.agents.getChainOfCommand(ctoId);
+    const ctoChain = shared.db.core.agents.getChainOfCommand(ctoId);
     expect(ctoChain).toHaveLength(1);
     expect(ctoChain[0].id).toBe(ceoId);
 
     // 8. Create task tree
-    const projectId = shared.db.entityCrud.saveProject({
+    const projectId = shared.db.core.entity.saveProject({
       companyId: shared.companyId,
       name: "Launch MVP",
       description: "Build and launch MVP",
@@ -120,7 +120,7 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
       status: "in_progress",
     });
 
-    const parentTaskId = shared.db.tasks.saveTask({
+    const parentTaskId = shared.db.core.tasks.saveTask({
       companyId: shared.companyId,
       title: "Build backend",
       description: "Implement API",
@@ -133,7 +133,7 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
 
     // CTO creates subtask for IC (would be done via API)
     const icId = createAgent({ name: "Dev", role: "Engineer", reportsTo: ctoId, status: "idle" });
-    const subtaskId = shared.db.tasks.saveTask({
+    const subtaskId = shared.db.core.tasks.saveTask({
       companyId: shared.companyId,
       title: "Implement auth",
       description: "JWT auth",
@@ -146,12 +146,12 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
     });
 
     // Verify parent-child relationship
-    const subtask = shared.db.entityCrud.getTask(subtaskId);
+    const subtask = shared.db.core.entity.getTask(subtaskId);
     expect(subtask.parentId).toBe(parentTaskId);
 
     // 9. Wakeup request test: enqueue wake while IC is busy
-    shared.db.wakeup.enqueueWakeupRequest(shared.companyId, icId, "comment", "comment");
-    const queuedWakes = shared.db.wakeup.listWakeupRequests(shared.companyId, { agentId: icId, status: "queued" });
+    shared.db.automation.wakeup.enqueueWakeupRequest(shared.companyId, icId, "comment", "comment");
+    const queuedWakes = shared.db.automation.wakeup.listWakeupRequests(shared.companyId, { agentId: icId, status: "queued" });
     expect(queuedWakes).toHaveLength(1);
     expect(queuedWakes[0].source).toBe("comment");
 
@@ -159,7 +159,7 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
     const icPromptCtx = buildCtx({
       agentId: icId,
       task: subtask,
-      chainOfCommand: [shared.db.entityCrud.getAgent(ctoId), shared.db.entityCrud.getAgent(ceoId)],
+      chainOfCommand: [shared.db.core.entity.getAgent(ctoId), shared.db.core.entity.getAgent(ceoId)],
       wakeReason: "assignment",
     });
     const icPrompt = buildTaskPrompt(icPromptCtx);
@@ -175,12 +175,12 @@ describe("E2E: Wakeup request lifecycle with run lifecycle", () => {
 
     // Simulate: agent is running, wakes come in. All triggers are coalesced
     // into a single wakeup request with JSON array of trigger details.
-    shared.db.wakeup.enqueueWakeupRequest(shared.companyId, agentId, "subtask_completed", "subtask_completed");
-    shared.db.wakeup.enqueueWakeupRequest(shared.companyId, agentId, "comment", "comment");
-    shared.db.wakeup.enqueueWakeupRequest(shared.companyId, agentId, "report_blocked", "report_blocked");
+    shared.db.automation.wakeup.enqueueWakeupRequest(shared.companyId, agentId, "subtask_completed", "subtask_completed");
+    shared.db.automation.wakeup.enqueueWakeupRequest(shared.companyId, agentId, "comment", "comment");
+    shared.db.automation.wakeup.enqueueWakeupRequest(shared.companyId, agentId, "report_blocked", "report_blocked");
 
     // Verify coalesced into single row with all triggers
-    const wakes = shared.db.wakeup.listWakeupRequests(shared.companyId, { agentId, status: "queued" });
+    const wakes = shared.db.automation.wakeup.listWakeupRequests(shared.companyId, { agentId, status: "queued" });
     expect(wakes).toHaveLength(1);
     expect(wakes[0].coalescedCount).toBe(2);
 
@@ -191,7 +191,7 @@ describe("E2E: Wakeup request lifecycle with run lifecycle", () => {
     expect(triggers[2].trigger).toBe("report_blocked");
 
     // Wakes remain queued until consumed by the run lifecycle
-    expect(shared.db.wakeup.listWakeupRequests(shared.companyId, { agentId, status: "queued" })).toHaveLength(1);
+    expect(shared.db.automation.wakeup.listWakeupRequests(shared.companyId, { agentId, status: "queued" })).toHaveLength(1);
   });
 });
 
@@ -202,11 +202,11 @@ describe("E2E: Blocked escalation through org hierarchy", () => {
     const icId = createAgent({ name: "Dev", role: "Engineer", reportsTo: ctoId });
 
     // When IC marks task blocked, we need to find its manager
-    const chain = shared.db.agents.getChainOfCommand(icId);
+    const chain = shared.db.core.agents.getChainOfCommand(icId);
     expect(chain[0].id).toBe(ctoId); // immediate manager gets woken
 
     // When CTO needs to escalate further
-    const ctoChain = shared.db.agents.getChainOfCommand(ctoId);
+    const ctoChain = shared.db.core.agents.getChainOfCommand(ctoId);
     expect(ctoChain[0].id).toBe(ceoId);
   });
 });
@@ -216,7 +216,7 @@ describe("Review Fix: CEO phase ordering edge case", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
     // Hires submitted but not yet approved
     const hireId = createAgent({ name: "CTO", role: "CTO", reportsTo: ceoId, status: "pending_approval" as "idle" });
-    const hire = shared.db.entityCrud.getAgent(hireId);
+    const hire = shared.db.core.entity.getAgent(hireId);
 
     // Org strategy already approved (not in pendingApprovals), but hires still pending
     const ctx = buildCtx({
@@ -236,7 +236,7 @@ describe("Review Fix: CEO phase ordering edge case", () => {
   it("moves to Phase 2 once hires are approved (no pending org approval)", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
     const ctoId = createAgent({ name: "CTO", role: "CTO", reportsTo: ceoId, status: "idle" });
-    const cto = shared.db.entityCrud.getAgent(ctoId);
+    const cto = shared.db.core.entity.getAgent(ctoId);
 
     const ctx = buildCtx({
       agentId: ceoId,
@@ -287,7 +287,7 @@ describe("Review Fix: Rejected approval wakes agent", () => {
   it("decideApproval with rejected state still triggers wake (tested via DB)", () => {
     const ceoId = createAgent({ name: "CEO", role: "CEO" });
 
-    const approvalId = shared.db.approvalsMod.requestApproval({
+    const approvalId = shared.db.core.approvals.requestApproval({
       companyId: shared.companyId,
       requestedByAgentId: ceoId,
       type: "approve_ceo_strategy",
@@ -295,14 +295,14 @@ describe("Review Fix: Rejected approval wakes agent", () => {
       impactSummary: "test",
     });
 
-    shared.db.approvalsMod.decideApproval({
+    shared.db.core.approvals.decideApproval({
       approvalId,
       state: "rejected",
       decisionNote: "Not ready",
     });
 
     // Verify approval state
-    const approval = shared.db.approvalsMod.getApprovalRecord(approvalId);
+    const approval = shared.db.core.approvals.getApprovalRecord(approvalId);
     expect(approval.state).toBe("rejected");
     // The IPC handler in index.ts now wakes on rejected too —
     // we verify the DB layer works; the wakeAgentIfPossible call is in index.ts
@@ -315,7 +315,7 @@ describe("Review Fix: Root task completion notification", () => {
     const ctoId = createAgent({ name: "CTO", role: "CTO", reportsTo: ceoId });
 
     // CTO has a root-level task (no parentId)
-    const taskId = shared.db.tasks.saveTask({
+    const taskId = shared.db.core.tasks.saveTask({
       companyId: shared.companyId,
       title: "Standalone task from CEO",
       description: "No parent",
@@ -325,11 +325,11 @@ describe("Review Fix: Root task completion notification", () => {
       status: "done",
     });
 
-    const task = shared.db.entityCrud.getTask(taskId);
+    const task = shared.db.core.entity.getTask(taskId);
     expect(task.parentId).toBeNull();
 
     // CTO's chain of command includes CEO — so api-server can wake CEO on completion
-    const chain = shared.db.agents.getChainOfCommand(ctoId);
+    const chain = shared.db.core.agents.getChainOfCommand(ctoId);
     expect(chain).toHaveLength(1);
     expect(chain[0].id).toBe(ceoId);
   });

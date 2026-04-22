@@ -230,7 +230,7 @@ export class AgentApiServer {
     if (typeof claimedRunId !== "string" || claimedRunId.trim() !== token.runId) {
       return { ok: false, status: 401, error: "Missing or mismatched X-Agent-Company-Run-Id header" };
     }
-    const runState = this._db.runs.getRunAuthState(token.runId);
+    const runState = this._db.core.runs.getRunAuthState(token.runId);
     if (!runState || runState.companyId !== token.companyId || runState.agentId !== token.agentId) {
       return { ok: false, status: 403, error: "Token references an unknown or mismatched run" };
     }
@@ -362,7 +362,7 @@ export class AgentApiServer {
     companyId: string,
     refs: Array<{ id: string | null | undefined; table: "agents" | "goals" | "projects" | "tasks" | "workspaces" | "approvals"; label: string }>,
   ) {
-    const invalid = refs.find((ref) => ref.id && !this._db.settings.belongsToCompany(ref.table, ref.id, companyId));
+    const invalid = refs.find((ref) => ref.id && !this._db.core.settings.belongsToCompany(ref.table, ref.id, companyId));
     if (!invalid) return false;
     this.json(res, 422, { error: `${invalid.label} does not belong to the current company` });
     return true;

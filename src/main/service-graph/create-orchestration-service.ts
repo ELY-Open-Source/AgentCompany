@@ -67,9 +67,9 @@ export function buildOrchestrationService({
     checkpointEngine,
     getSessionHandoff: (agentId) => sessionService.getHandoffForAgent(agentId),
     evaluatePreRunSessionRotation: (agentId, _connectorId) => {
-      const agent = db.entityCrud.getAgent(agentId);
+      const agent = db.core.entity.getAgent(agentId);
       if (!agent.sessionId) return { rotated: false, handoff: null, sessionId: null };
-      const session = db.tasks.getSessionById(agent.sessionId);
+      const session = db.core.tasks.getSessionById(agent.sessionId);
       if (!session) return { rotated: false, handoff: null, sessionId: agent.sessionId };
       const result = sessionService.evaluateRotation(session);
       if (result.shouldRotate) {

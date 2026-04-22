@@ -52,7 +52,7 @@ export class RuntimeThreadProjector {
     try {
       const body = extractTextBody(message.content);
       const actor = this.resolveThreadEventActor(envelope, message);
-      this.deps.db.threads.addThreadEvent({
+      this.deps.db.core.threads.addThreadEvent({
         threadId: thread.id,
         actorId: actor.actorId,
         actorType: actor.actorType,
@@ -91,7 +91,7 @@ export class RuntimeThreadProjector {
           : record.senderKind === "system"
             ? "system"
             : "agent";
-      this.deps.db.threads.addThreadEvent({
+      this.deps.db.core.threads.addThreadEvent({
         threadId: thread.id,
         actorId: record.fromAgentId,
         actorType,
@@ -116,7 +116,7 @@ export class RuntimeThreadProjector {
   private resolveThreadForRun(envelope: RuntimeThreadEnvelope) {
     if (envelope.taskId) {
       try {
-        const task = this.deps.db.entityCrud.getTask(envelope.taskId);
+        const task = this.deps.db.core.entity.getTask(envelope.taskId);
         return ensureTaskThread(this.deps.db, envelope.taskId, envelope.companyId, task.title);
       } catch (error) {
         this.deps.logger.warn(

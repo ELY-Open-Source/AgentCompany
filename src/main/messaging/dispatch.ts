@@ -134,7 +134,7 @@ export function validateAgentMessageInput(
   input: NormalizedAgentMessageInput,
 ): MessageValidationError | null {
   // Human sender (BOARD_READER_ID) is always a valid sender — skip agent ownership check.
-  if (!input.fromHumanUser && !db.settings.belongsToCompany("agents", input.fromAgentId, input.companyId)) {
+  if (!input.fromHumanUser && !db.core.settings.belongsToCompany("agents", input.fromAgentId, input.companyId)) {
     return {
       code: "INVALID_COMPANY_REFERENCE",
       message: "The message sender does not belong to the current company.",
@@ -154,7 +154,7 @@ export function validateAgentMessageInput(
     };
   }
 
-  if (input.toAgentId && input.toAgentId !== HUMAN_SENDER_ID && !db.settings.belongsToCompany("agents", input.toAgentId, input.companyId)) {
+  if (input.toAgentId && input.toAgentId !== HUMAN_SENDER_ID && !db.core.settings.belongsToCompany("agents", input.toAgentId, input.companyId)) {
     return {
       code: "INVALID_COMPANY_REFERENCE",
       message: "The message recipient does not belong to the current company.",
@@ -168,7 +168,7 @@ export function validateAgentMessageInput(
         message: "Project messages require a project channel target.",
       };
     }
-    if (!db.settings.belongsToCompany("projects", input.channelTargetId, input.companyId)) {
+    if (!db.core.settings.belongsToCompany("projects", input.channelTargetId, input.companyId)) {
       return {
         code: "INVALID_COMPANY_REFERENCE",
         message: "The selected project channel does not belong to the current company.",
@@ -184,7 +184,7 @@ export function validateAgentMessageInput(
   }
 
   if (input.parentMessageId) {
-    const parentMessage = db.messages.getAgentMessage(input.parentMessageId, input.companyId);
+    const parentMessage = db.core.messages.getAgentMessage(input.parentMessageId, input.companyId);
     if (!parentMessage) {
       return {
         code: "PARENT_MESSAGE_NOT_FOUND",
@@ -201,17 +201,17 @@ function resolveProjectWakeTargets(
   input: NormalizedAgentMessageInput,
 ): string[] {
   if (!input.channelTargetId) return [];
-  const project = db.entityCrud.getProjectForUpdate(input.channelTargetId, input.companyId);
+  const project = db.core.entity.getProjectForUpdate(input.channelTargetId, input.companyId);
   const participantIds = new Set<string>();
   if (project?.leadAgentId) participantIds.add(project.leadAgentId);
-  for (const assigneeId of db.tasks.listProjectTaskAssigneeIds(input.channelTargetId, input.companyId)) {
+  for (const assigneeId of db.core.tasks.listProjectTaskAssigneeIds(input.channelTargetId, input.companyId)) {
     participantIds.add(assigneeId);
   }
 
   if (participantIds.size === 0) return [];
   const ids = Array.from(participantIds).filter((id) => id !== input.fromAgentId);
   if (ids.length === 0) return [];
-  return db.agents.listActiveAgentIdsFromIds(input.companyId, ids);
+  return db.core.agents.listActiveAgentIdsFromIds(input.companyId, ids);
 }
 
 /** Resolve the agents mentioned in a message body, stripped of the
@@ -222,7 +222,7 @@ export function resolveMentionedAgentIds(
   db: AppDatabase,
   input: Pick<NormalizedAgentMessageInput, "companyId" | "fromAgentId" | "body">,
 ): string[] {
-  const mentioned = db.agents.findMentionedAgentIds(input.companyId, input.body);
+  const mentioned = db.core.agents.findMentionedAgentIds(input.companyId, input.body);
   const filtered: string[] = [];
   for (const agentId of mentioned) {
     if (!agentId || agentId === input.fromAgentId || agentId === HUMAN_SENDER_ID) continue;
@@ -255,7 +255,7 @@ export function resolveMessageWakeTargets(
   }
 
   if (input.channel === "department" && input.channelTargetId) {
-    for (const agentId of db.agents.listDepartmentAgentIds(input.companyId, input.channelTargetId)) {
+    for (const agentId of db.core.agents.listDepartmentAgentIds(input.companyId, input.channelTargetId)) {
       if (agentId !== input.fromAgentId) wakeTargets.add(agentId);
     }
   }
@@ -265,7 +265,7 @@ export function resolveMessageWakeTargets(
     // workspace is a listener. Board-only fan-outs use the dedicated
     // `incident` channel; the previous top-level-only fan-out made the
     // "company" label a misnomer that silently dropped ICs.
-    for (const agentId of db.agents.listCompanyBroadcastAgentIds(input.companyId)) {
+    for (const agentId of db.core.agents.listCompanyBroadcastAgentIds(input.companyId)) {
       if (agentId !== input.fromAgentId) wakeTargets.add(agentId);
     }
   }
@@ -277,7 +277,7 @@ export function resolveMessageWakeTargets(
   }
 
   if (input.channel === "incident") {
-    for (const agentId of db.agents.listIncidentPingableAgentIds(input.companyId)) {
+    for (const agentId of db.core.agents.listIncidentPingableAgentIds(input.companyId)) {
       if (agentId !== input.fromAgentId) wakeTargets.add(agentId);
     }
   }
@@ -288,7 +288,7 @@ export function resolveMessageWakeTargets(
 
   // The human participant (`__board__`) is a reader, not a wake-able
   // agent: it has no runtime, no heartbeat, no DB row. Leaving it in the
-  // set makes `wakeAgentIfPossible` call `db.entityCrud.getAgent("__board__")`,
+  // set makes `wakeAgentIfPossible` call `db.core.entity.getAgent("__board__")`,
   // which throws "Agent not found" and spams the log. Filter once, at
   // the point of resolution, so every downstream consumer is clean.
   wakeTargets.delete(HUMAN_SENDER_ID);
@@ -317,8 +317,8 @@ export function dispatchAgentMessage(
   const persistedMessage = normalized.channel === "direct"
     ? { ...normalized, senderKind, mentionedAgentIds }
     : { ...normalized, toAgentId: null, senderKind, mentionedAgentIds };
-  const id = deps.db.messages.sendAgentMessage(persistedMessage);
-  const message = deps.db.messages.getAgentMessage(id, normalized.companyId);
+  const id = deps.db.core.messages.sendAgentMessage(persistedMessage);
+  const message = deps.db.core.messages.getAgentMessage(id, normalized.companyId);
   if (message && deps.emitEvent) {
     deps.emitEvent({ type: "new-message", message });
   }
@@ -330,7 +330,7 @@ export function dispatchAgentMessage(
     !normalized.fromHumanUser &&
     (message.channel !== "direct" || message.toAgentId === HUMAN_SENDER_ID)
   ) {
-    const senderName = deps.db.agents.findAgentName(message.fromAgentId) ?? "Agent";
+    const senderName = deps.db.core.agents.findAgentName(message.fromAgentId) ?? "Agent";
     deps.notify({
       title: truncateForNotification(`${senderName} · ${message.subject}`, 80),
       body: truncateForNotification(message.body, 140),
@@ -350,7 +350,7 @@ export function dispatchAgentMessage(
   const mentionResults: MentionResult[] = [];
 
   if (deps.wakeAgentIfPossible) {
-    const agentNameRows = deps.db.agents.listAgentNamesByIds(normalized.companyId, wakeTargets);
+    const agentNameRows = deps.db.core.agents.listAgentNamesByIds(normalized.companyId, wakeTargets);
     const agentNameMap = new Map(agentNameRows.map((a) => [a.id, a.name]));
     for (const wakeTarget of wakeTargets) {
       const agentName = agentNameMap.get(wakeTarget) ?? wakeTarget;
@@ -367,7 +367,7 @@ export function dispatchAgentMessage(
         continue;
       }
       const runId = deps.wakeAgentIfPossible(wakeTarget, normalized.companyId, wakeTrigger);
-      const hasQueuedWake = !runId && deps.db.wakeup.listWakeupRequests(normalized.companyId, {
+      const hasQueuedWake = !runId && deps.db.automation.wakeup.listWakeupRequests(normalized.companyId, {
         agentId: wakeTarget,
         limit: 10,
       }).some((request) => request.status === "queued" || request.status === "deferred");

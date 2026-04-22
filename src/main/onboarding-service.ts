@@ -85,9 +85,9 @@ export function createOnboardingService({
 }: OnboardingDependencies) {
   function updateAgentWorkspaceBinding(agentId: string, workspaceId: string | null) {
     if (!workspaceId) return;
-    const agent = db.entityCrud.getAgent(agentId);
+    const agent = db.core.entity.getAgent(agentId);
     if (agent.workspaceId === workspaceId) return;
-    db.agents.saveAgent({
+    db.core.agents.saveAgent({
       id: agent.id,
       companyId: agent.companyId,
       name: agent.name,
@@ -113,7 +113,7 @@ export function createOnboardingService({
     const trimmedPath = workspacePath.trim();
     if (!trimmedPath) return null;
     const wsLocale = getLocale();
-    return db.workspacesMod.saveWorkspace({
+    return db.core.workspaces.saveWorkspace({
       companyId,
       name: wsLocale === "zh" ? "默认工作区" : "Default Workspace",
       localPath: trimmedPath,
@@ -158,7 +158,7 @@ export function createOnboardingService({
       ? `Turn the founding goal "${activeGoal.title}" into an execution plan, delegation map, and the first wave of real work.`
       : "Establish the first operating plan, assign work, and start the company execution loop.";
 
-    const projectId = db.entityCrud.saveProject({
+    const projectId = db.core.entity.saveProject({
       companyId,
       goalId: activeGoal?.id ?? null,
       name: kickoffProjectName,
@@ -187,7 +187,7 @@ export function createOnboardingService({
           `Review the current company state, create the first real tasks, delegate initial work, and report progress through tasks, approvals, and messages.`,
         ].join("\n\n");
 
-    const taskId = db.tasks.saveTask({
+    const taskId = db.core.tasks.saveTask({
       companyId,
       projectId,
       goalId: activeGoal?.id ?? null,
@@ -222,10 +222,10 @@ export function createOnboardingService({
   }
 
   function bootstrapOnboarding(input: BootstrapInput): OnboardingBootstrapSummary {
-    const connectors = db.snap.listSnapshot({ companyId: null }).connectors;
+    const connectors = db.projection.snapshot.listSnapshot({ companyId: null }).connectors;
     const selectedConnectorId = resolveOnboardingConnector(connectors, input.connectorId);
 
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: input.companyName.trim(),
       description: input.companyDescription.trim(),
       status: "active",
@@ -239,7 +239,7 @@ export function createOnboardingService({
     // pre-commit; the pool settings arrive in the input payload and
     // land in the DB only once a company exists to scope them.
     for (const pool of input.connectorPoolSelections ?? []) {
-      db.settings.setDisabledModels(companyId, pool.connectorId, pool.disabledModels);
+      db.core.settings.setDisabledModels(companyId, pool.connectorId, pool.disabledModels);
     }
 
     // Validate the CEO model selection against the now-persisted pool
@@ -254,7 +254,7 @@ export function createOnboardingService({
 
     const goalTitle = input.goalTitle.trim();
     if (goalTitle) {
-      db.entityCrud.saveGoal({
+      db.core.entity.saveGoal({
         companyId,
         title: goalTitle,
         description: input.goalDescription.trim() || `Achieve: ${goalTitle}`,
@@ -265,7 +265,7 @@ export function createOnboardingService({
     }
 
     const ceoLocale = getLocale();
-    const ceoId = db.agents.saveAgent({
+    const ceoId = db.core.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -284,8 +284,8 @@ export function createOnboardingService({
       modelStrategy: "explicit",
       roleLevel: "c_suite",
     });
-    db.agents.setHeartbeat(ceoId, true, 120);
-    db.settings.setCurrentCompany(companyId);
+    db.core.agents.setHeartbeat(ceoId, true, 120);
+    db.core.settings.setCurrentCompany(companyId);
     seedDefaultAutomationRules(companyId);
 
     if (scanAndAssignSkills) {
@@ -297,7 +297,7 @@ export function createOnboardingService({
 
     const kickoff = createInitialExecutionLoop(companyId, workspaceId);
 
-    db.activityMod.addActivity({
+    db.core.activity.addActivity({
       companyId,
       actor: "board",
       action: "company.bootstrapped",

@@ -22,19 +22,19 @@ describe("agent budget policy synchronization", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Budget Sync Co",
       description: "Budget sync regression coverage",
       status: "active",
     });
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
       version: "test",
       lastError: null,
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -42,7 +42,7 @@ describe("agent budget policy synchronization", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.agents.saveAgent({
+    const agentId = db.core.agents.saveAgent({
       companyId,
       name: "Engineer",
       role: "Engineer",
@@ -57,7 +57,7 @@ describe("agent budget policy synchronization", () => {
       department: "engineering",
     });
 
-    const firstPolicyId = db.budget.saveBudgetPolicy({
+    const firstPolicyId = db.core.budget.saveBudgetPolicy({
       companyId,
       scopeType: "agent",
       scopeId: agentId,
@@ -70,7 +70,7 @@ describe("agent budget policy synchronization", () => {
       isActive: true,
     });
 
-    db.agents.saveAgent({
+    db.core.agents.saveAgent({
       id: agentId,
       companyId,
       name: "Engineer",
@@ -86,7 +86,7 @@ describe("agent budget policy synchronization", () => {
       department: "engineering",
     });
 
-    const secondPolicyId = db.budget.saveBudgetPolicy({
+    const secondPolicyId = db.core.budget.saveBudgetPolicy({
       companyId,
       scopeType: "agent",
       scopeId: agentId,
@@ -99,13 +99,13 @@ describe("agent budget policy synchronization", () => {
       isActive: true,
     });
 
-    const agentPolicies = db.budget.listBudgetPolicies(companyId).filter(
+    const agentPolicies = db.core.budget.listBudgetPolicies(companyId).filter(
       (policy) => policy.scopeType === "agent" && policy.scopeId === agentId,
     );
     expect(secondPolicyId).toBe(firstPolicyId);
     expect(agentPolicies).toHaveLength(1);
     expect(agentPolicies[0]?.amount).toBe(25_000);
-    expect(db.budget.getActivePoliciesForRun(companyId, agentId, null).map((policy) => policy.amount)).toEqual([25_000]);
+    expect(db.core.budget.getActivePoliciesForRun(companyId, agentId, null).map((policy) => policy.amount)).toEqual([25_000]);
 
     db.close();
   });

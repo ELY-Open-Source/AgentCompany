@@ -18,7 +18,7 @@ export class SqliteSessionStore {
   ) {}
 
   loadMessages(): AgentMessage[] {
-    const rows = this.db.sessionEntries.listActive(this.taskSessionId);
+    const rows = this.db.projection.sessionEntries.listActive(this.taskSessionId);
     const result: AgentMessage[] = [];
     for (const row of rows) {
       if (row.kind === "message") {
@@ -29,7 +29,7 @@ export class SqliteSessionStore {
   }
 
   appendMessage(message: AgentMessage): void {
-    this.db.sessionEntries.append({
+    this.db.projection.sessionEntries.append({
       taskSessionId: this.taskSessionId,
       kind: "message",
       role: (message as { role?: string }).role ?? null,

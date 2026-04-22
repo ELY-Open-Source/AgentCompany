@@ -35,13 +35,13 @@ describe("pi-mono migrations 27 + 28", () => {
     const db = new AppDatabase(dir);
     db.init();
 
-    db.sessionEntries.append({
+    db.projection.sessionEntries.append({
       taskSessionId: "test-session",
       kind: "message",
       role: "user",
       payloadJson: JSON.stringify({ role: "user", content: "hello" }),
     });
-    const rows = db.sessionEntries.listActive("test-session");
+    const rows = db.projection.sessionEntries.listActive("test-session");
     expect(rows).toHaveLength(1);
     expect(rows[0]?.kind).toBe("message");
     db.close();
@@ -53,7 +53,7 @@ describe("pi-mono migrations 27 + 28", () => {
     db.init();
 
     const cipher = db.vault.encrypt(JSON.stringify({ source: "literal", value: "sk-test-1234567890" }));
-    db.credentialsTable.upsert({
+    db.core.credentials.upsert({
       connectorId: "test-anthropic",
       kind: "api_key",
       backend: cipher.backend,
@@ -65,7 +65,7 @@ describe("pi-mono migrations 27 + 28", () => {
       lastError: null,
     });
 
-    const rows = db.credentialsTable.list();
+    const rows = db.core.credentials.list();
     expect(rows.some((row) => row.connectorId === "test-anthropic")).toBe(true);
     db.close();
   });
@@ -74,14 +74,14 @@ describe("pi-mono migrations 27 + 28", () => {
     const dir = await freshProfile("agentcompany-migration-idempotent-");
     const dbA = new AppDatabase(dir);
     dbA.init();
-    dbA.sessionEntries.append({
+    dbA.projection.sessionEntries.append({
       taskSessionId: "session-x",
       kind: "message",
       role: "user",
       payloadJson: JSON.stringify({ role: "user", content: "first" }),
     });
     const cipher = dbA.vault.encrypt(JSON.stringify({ source: "literal", value: "sk-keep-me" }));
-    dbA.credentialsTable.upsert({
+    dbA.core.credentials.upsert({
       connectorId: "test-keep",
       kind: "api_key",
       backend: cipher.backend,
@@ -96,8 +96,8 @@ describe("pi-mono migrations 27 + 28", () => {
 
     const dbB = new AppDatabase(dir);
     dbB.init();
-    expect(dbB.sessionEntries.listActive("session-x")).toHaveLength(1);
-    expect(dbB.credentialsTable.list().filter((row) => row.connectorId === "test-keep")).toHaveLength(1);
+    expect(dbB.projection.sessionEntries.listActive("session-x")).toHaveLength(1);
+    expect(dbB.core.credentials.list().filter((row) => row.connectorId === "test-keep")).toHaveLength(1);
     dbB.close();
   });
 
@@ -106,7 +106,7 @@ describe("pi-mono migrations 27 + 28", () => {
     const db = new AppDatabase(dir);
     db.init();
 
-    const rows = db.snap.listSnapshot().connectors.map((entry) => entry.id);
+    const rows = db.projection.snapshot.listSnapshot().connectors.map((entry) => entry.id);
     expect(rows.length).toBe(26);
     expect(rows).toContain("claude-pro");
     expect(rows).toContain("amazon-bedrock");

@@ -19,19 +19,19 @@ import {
 } from "../../src/main/agent-runtime/hook-handlers";
 
 function seedCofounderRun(db: AppDatabase) {
-  const companyId = db.company.saveCompany({
+  const companyId = db.core.company.saveCompany({
     name: "Gate Co",
     description: "Cofounder runtime gate test",
     status: "active",
     executionMode: "ai_cofounder",
   });
-  db.connectorsCrud.saveConnector({
+  db.core.connectors.saveConnector({
     id: "openai-codex",
     model: "gpt-5",
     envBindingText: "",
     notes: "fixture",
   });
-  const agentId = db.agents.saveAgent({
+  const agentId = db.core.agents.saveAgent({
     companyId,
     name: "Researcher",
     role: "Research Lead",
@@ -45,7 +45,7 @@ function seedCofounderRun(db: AppDatabase) {
     capabilities: "Research",
     budgetMonthlyUsd: 100,
   });
-  const taskId = db.tasks.saveTask({
+  const taskId = db.core.tasks.saveTask({
     companyId,
     title: "Draft market plan",
     description: "Prepare the market plan after approval.",
@@ -87,7 +87,7 @@ describe("cofounder approval runtime gate", () => {
 
   it("blocks destructive tools while a cofounder plan review is pending", () => {
     const { companyId, agentId, taskId, runContext } = seedCofounderRun(db);
-    const approvalId = db.approvalsMod.requestApproval({
+    const approvalId = db.core.approvals.requestApproval({
       companyId,
       relatedTaskId: taskId,
       requestedByAgentId: agentId,
@@ -97,7 +97,7 @@ describe("cofounder approval runtime gate", () => {
       payloadJson: "{}",
     });
 
-    const blocking = db.approvalsMod.getBlockingApproval(companyId, agentId, taskId);
+    const blocking = db.core.approvals.getBlockingApproval(companyId, agentId, taskId);
     expect(blocking?.id).toBe(approvalId);
 
     const result = handleBeforeToolCall(

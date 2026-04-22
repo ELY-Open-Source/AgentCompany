@@ -21,21 +21,21 @@ import type { ConnectorId } from "@shared/types";
 // ---------------------------------------------------------------------------
 
 function scaffold(db: AppDatabase, connectorId: ConnectorId = "gemini-cli") {
-  const companyId = db.company.saveCompany({
+  const companyId = db.core.company.saveCompany({
     name: "Session Edge Case Co",
     description: "Session rotation edge case tests (D-05.3)",
     status: "active",
   });
 
   // Always save gemini-cli (needed for most tests)
-  db.connectorsCrud.saveConnector({
+  db.core.connectors.saveConnector({
     id: "gemini-cli",
     model: "gemini-pro",
     envBindingText: "",
     notes: "Test connector - no native context management",
   });
 
-  const workspaceId = db.workspacesMod.saveWorkspace({
+  const workspaceId = db.core.workspaces.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: "/tmp/session-edge-test",
@@ -43,7 +43,7 @@ function scaffold(db: AppDatabase, connectorId: ConnectorId = "gemini-cli") {
     repoRef: "",
     isPrimary: true,
   });
-  const agentId = db.agents.saveAgent({
+  const agentId = db.core.agents.saveAgent({
     companyId,
     name: "Worker Agent",
     role: "developer",
@@ -56,14 +56,14 @@ function scaffold(db: AppDatabase, connectorId: ConnectorId = "gemini-cli") {
     capabilities: "Executes tasks",
     budgetMonthlyUsd: 100,
   });
-  const goalId = db.entityCrud.saveGoal({
+  const goalId = db.core.entity.saveGoal({
     companyId,
     title: "Ship feature",
     description: "Build session rotation edge case test",
     ownerAgentId: agentId,
     status: "active",
   });
-  const projectId = db.entityCrud.saveProject({
+  const projectId = db.core.entity.saveProject({
     companyId,
     goalId,
     name: "Session Project",
@@ -72,7 +72,7 @@ function scaffold(db: AppDatabase, connectorId: ConnectorId = "gemini-cli") {
     status: "in_progress",
     targetDate: null,
   });
-  const taskId = db.tasks.saveTask({
+  const taskId = db.core.tasks.saveTask({
     companyId,
     projectId,
     goalId,
@@ -114,7 +114,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
     // Create a session
-    const sessionId = db.tasks.createNewSession({
+    const sessionId = db.core.tasks.createNewSession({
       companyId,
       agentId,
       adapterType: "gemini-cli",
@@ -122,11 +122,11 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
 
     // Simulate runs until we reach the maxRuns threshold (20)
     for (let i = 0; i < 20; i++) {
-      db.tasks.incrementSessionUsage(sessionId, 1000, 500, `run-${i}`);
+      db.core.tasks.incrementSessionUsage(sessionId, 1000, 500, `run-${i}`);
     }
 
     // Get the updated session from DB
-    const session = db.tasks.getSessionById(sessionId);
+    const session = db.core.tasks.getSessionById(sessionId);
     expect(session).not.toBeNull();
     expect(session!.runCount).toBe(20);  // matches maxRuns threshold in session-management-service
 
@@ -140,16 +140,16 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     const { companyId, agentId, taskId } = scaffold(db);
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
-    const sessionId = db.tasks.createNewSession({
+    const sessionId = db.core.tasks.createNewSession({
       companyId,
       agentId,
       adapterType: "gemini-cli",
     });
 
     // Accumulate tokens past the 500_000 maxTokens threshold in one big call
-    db.tasks.incrementSessionUsage(sessionId, 300000, 250000, "big-run");
+    db.core.tasks.incrementSessionUsage(sessionId, 300000, 250000, "big-run");
 
-    const session = db.tasks.getSessionById(sessionId);
+    const session = db.core.tasks.getSessionById(sessionId);
     expect(session).not.toBeNull();
     const totalTokens = session!.totalInputTokens + session!.totalOutputTokens;
     expect(totalTokens).toBe(550000);
@@ -163,7 +163,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     const { companyId, agentId, taskId, workspaceId } = scaffold(db);
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
-    const sessionId = db.tasks.createNewSession({
+    const sessionId = db.core.tasks.createNewSession({
       companyId,
       agentId,
       adapterType: "gemini-cli",
@@ -171,18 +171,18 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
 
     // Accumulate enough to trigger rotation
     for (let i = 0; i < 20; i++) {
-      db.tasks.incrementSessionUsage(sessionId, 1000, 500, `run-${i}`);
+      db.core.tasks.incrementSessionUsage(sessionId, 1000, 500, `run-${i}`);
     }
 
     // Create a completed run for history (so generateHandoff has run data)
-    const run = db.runs.createRun({
+    const run = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
       workspaceId,
       connectorId: "gemini-cli" as ConnectorId,
     });
-    db.runs.finishRun({
+    db.core.runs.finishRun({
       runId: run.id,
       status: "succeeded",
       summary: "Completed initial implementation",
@@ -193,7 +193,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
       unattributedCost: false,
     });
 
-    const session = db.tasks.getSessionById(sessionId)!;
+    const session = db.core.tasks.getSessionById(sessionId)!;
     // generateHandoff is agent-scoped: it walks the agent's runs across
     // all tasks + taskless heartbeats, not a single task.
     const handoff = sessionService.generateHandoff(session);
@@ -203,7 +203,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     expect(handoff).toContain("## Recent Run History");
 
     // Archive the old session with handoff
-    db.tasks.archiveSession(sessionId, "max_runs", handoff);
+    db.core.tasks.archiveSession(sessionId, "max_runs", handoff);
 
     // Verify archived session has handoff stored
     const archivedRows = db.queryAll<{ handoffMarkdown: string | null }>(
@@ -217,27 +217,27 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     const { companyId, agentId, taskId } = scaffold(db);
 
     // Create initial session
-    const oldSessionId = db.tasks.createNewSession({
+    const oldSessionId = db.core.tasks.createNewSession({
       companyId,
       agentId,
       adapterType: "gemini-cli",
     });
 
     // Add usage to the old session
-    db.tasks.incrementSessionUsage(oldSessionId, 300000, 250000, "run-final");
+    db.core.tasks.incrementSessionUsage(oldSessionId, 300000, 250000, "run-final");
 
     // Archive the old session
-    db.tasks.archiveSession(oldSessionId, "max_tokens", "# Session Handoff\nPrevious work summary.");
+    db.core.tasks.archiveSession(oldSessionId, "max_tokens", "# Session Handoff\nPrevious work summary.");
 
     // Create new session
-    const newSessionId = db.tasks.createNewSession({
+    const newSessionId = db.core.tasks.createNewSession({
       companyId,
       agentId,
       adapterType: "gemini-cli",
     });
 
     // Get the new active session
-    const newSession = db.tasks.getSessionById(newSessionId);
+    const newSession = db.core.tasks.getSessionById(newSessionId);
     expect(newSession).not.toBeNull();
     expect(newSession!.id).toBe(newSessionId);
     expect(newSession!.id).not.toBe(oldSessionId);
@@ -252,7 +252,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     const { companyId, agentId, taskId } = scaffold(db, "gemini-cli");
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
-    const sessionId = db.tasks.createNewSession({
+    const sessionId = db.core.tasks.createNewSession({
       companyId,
       agentId,
       adapterType: "claude-pro",
@@ -260,10 +260,10 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
 
     // Accumulate way past all thresholds
     for (let i = 0; i < 25; i++) {
-      db.tasks.incrementSessionUsage(sessionId, 30000, 20000, `run-${i}`);
+      db.core.tasks.incrementSessionUsage(sessionId, 30000, 20000, `run-${i}`);
     }
 
-    const session = db.tasks.getSessionById(sessionId)!;
+    const session = db.core.tasks.getSessionById(sessionId)!;
     // Pi-mono delegates compaction to pi-agent-core; AgentCompany still applies rotation uniformly.
     const result = sessionService.evaluateRotation(session);
     expect(result.shouldRotate).toBe(true);
@@ -274,7 +274,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     const { companyId, agentId, taskId } = scaffold(db, "gemini-cli");
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
-    const sessionId = db.tasks.createNewSession({
+    const sessionId = db.core.tasks.createNewSession({
       companyId,
       agentId,
       adapterType: "openai-codex",
@@ -282,10 +282,10 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
 
     // Accumulate way past all thresholds
     for (let i = 0; i < 25; i++) {
-      db.tasks.incrementSessionUsage(sessionId, 30000, 20000, `run-${i}`);
+      db.core.tasks.incrementSessionUsage(sessionId, 30000, 20000, `run-${i}`);
     }
 
-    const session = db.tasks.getSessionById(sessionId)!;
+    const session = db.core.tasks.getSessionById(sessionId)!;
     // Pi-mono delegates compaction to pi-agent-core; AgentCompany still applies rotation uniformly.
     const result = sessionService.evaluateRotation(session);
     expect(result.shouldRotate).toBe(true);
@@ -297,22 +297,22 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
     // Create session and add usage
-    const sessionId = db.tasks.createNewSession({
+    const sessionId = db.core.tasks.createNewSession({
       companyId,
       agentId,
       adapterType: "gemini-cli",
     });
-    db.tasks.incrementSessionUsage(sessionId, 300000, 200000, "run-1");
+    db.core.tasks.incrementSessionUsage(sessionId, 300000, 200000, "run-1");
 
     // Create a completed run for run history
-    const run = db.runs.createRun({
+    const run = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
       workspaceId,
       connectorId: "gemini-cli" as ConnectorId,
     });
-    db.runs.finishRun({
+    db.core.runs.finishRun({
       runId: run.id,
       status: "succeeded",
       summary: "Previous work done",
@@ -324,7 +324,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
     });
 
     // Rotate the session (archives old, creates new)
-    const oldSession = db.tasks.getSessionById(sessionId)!;
+    const oldSession = db.core.tasks.getSessionById(sessionId)!;
     sessionService.rotateSession(oldSession);
 
     // After rotation, the handoff should be retrievable for the next run

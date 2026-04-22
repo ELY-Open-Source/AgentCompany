@@ -137,7 +137,7 @@ export function handleHireAgentToolCall(
     resolvedReportsTo &&
     resolvedReportsTo !== requesterId &&
     !canManageOrganization(db, companyId, requesterId) &&
-    !db.agents.getChainOfCommand(resolvedReportsTo).some((agent) => agent.id === requesterId)
+    !db.core.agents.getChainOfCommand(resolvedReportsTo).some((agent) => agent.id === requesterId)
   ) {
     throw new UserInputError({
       code: "hire_agent.routing.not_in_chain",
@@ -149,7 +149,7 @@ export function handleHireAgentToolCall(
 
   const connectorRecord = (() => {
     try {
-      return db.connectorsCrud.getConnector(input.connectorId);
+      return db.core.connectors.getConnector(input.connectorId);
     } catch (error) {
       throw new UserInputError({
         code: "hire_agent.connector.missing",
@@ -167,7 +167,7 @@ export function handleHireAgentToolCall(
     });
   }
 
-  const existingAgents = db.agents.listExistingAgentsForHireCheck(companyId);
+  const existingAgents = db.core.agents.listExistingAgentsForHireCheck(companyId);
   const duplicateByName = existingAgents.find(
     (a) => a.name.toLowerCase() === input.name.toLowerCase(),
   );
@@ -178,7 +178,7 @@ export function handleHireAgentToolCall(
     });
   }
 
-  const pendingHires = db.approvalsMod.listPendingHireApprovalPayloads(companyId);
+  const pendingHires = db.core.approvals.listPendingHireApprovalPayloads(companyId);
   for (const pending of pendingHires) {
     try {
       const payload = pending.payloadJson ? JSON.parse(pending.payloadJson) as Record<string, unknown> : {};
@@ -199,7 +199,7 @@ export function handleHireAgentToolCall(
   const managerLabel = resolvedReportsTo
     ? (() => {
         try {
-          return db.entityCrud.getAgent(resolvedReportsTo).name;
+          return db.core.entity.getAgent(resolvedReportsTo).name;
         } catch {
           return resolvedReportsTo;
         }
@@ -252,7 +252,7 @@ export function handleHireAgentToolCall(
   }
 
   try {
-    db.activityMod.addActivity({
+    db.core.activity.addActivity({
       companyId,
       actor: requesterId,
       action: "agent.hire_requested",

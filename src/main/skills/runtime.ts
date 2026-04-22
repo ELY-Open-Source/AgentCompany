@@ -35,9 +35,9 @@ export function createSkillRuntime({ db, logger, skillsRoot, skillFilesDir, impo
     agentId: string,
     _connectorId: string,
   ): ProjectedSkill[] {
-    const assignedIds = new Set(db.skills.listAgentSkillAssignments(agentId));
+    const assignedIds = new Set(db.core.skills.listAgentSkillAssignments(agentId));
     if (assignedIds.size === 0) return [];
-    const companySkills = db.skills.listCompanySkills(companyId);
+    const companySkills = db.core.skills.listCompanySkills(companyId);
     const skillPaths = companySkills
       .filter((s) => assignedIds.has(s.id))
       .map((s) => skillFilesDir(companyId, s.slug));
@@ -82,7 +82,7 @@ export function createSkillRuntime({ db, logger, skillsRoot, skillFilesDir, impo
       }
     }
 
-    const workspacePaths = db.workspacesMod.listWorkspaceLocalPaths(companyId);
+    const workspacePaths = db.core.workspaces.listWorkspaceLocalPaths(companyId);
     for (const wsPath of workspacePaths) {
       const agentcompanySkillsDir = join(wsPath, ".agentcompany", "skills");
       if (!existsSync(agentcompanySkillsDir)) continue;
@@ -159,12 +159,12 @@ export function createSkillRuntime({ db, logger, skillsRoot, skillFilesDir, impo
         const results = await importFromLocal(companyId, categoryDir);
         for (const result of results) {
           try {
-            const skill = db.skills.getCompanySkill(companyId, result.skillId);
+            const skill = db.core.skills.getCompanySkill(companyId, result.skillId);
             if (skill) {
               const existingMeta = skill.metadata ? JSON.parse(typeof skill.metadata === "string" ? skill.metadata : JSON.stringify(skill.metadata)) : {};
               existingMeta.builtinCategory = category;
               existingMeta.sourceKind = "builtin";
-              db.skills.updateCompanySkillMetadata(companyId, result.skillId, JSON.stringify(existingMeta));
+              db.core.skills.updateCompanySkillMetadata(companyId, result.skillId, JSON.stringify(existingMeta));
             }
           } catch (error) {
             logger.warn(

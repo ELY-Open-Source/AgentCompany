@@ -23,7 +23,7 @@ describe("hire approval routing", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -31,12 +31,12 @@ describe("hire approval routing", () => {
       lastError: null,
     });
 
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Hire Routing Co",
       description: "Tests recursive hire wake routing",
       status: "active",
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -44,7 +44,7 @@ describe("hire approval routing", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const ceoId = db.agents.saveAgent({
+    const ceoId = db.core.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -57,7 +57,7 @@ describe("hire approval routing", () => {
       capabilities: "Lead the company",
       budgetMonthlyUsd: 250,
     });
-    const ctoId = db.agents.saveAgent({
+    const ctoId = db.core.agents.saveAgent({
       companyId,
       name: "CTO",
       role: "CTO",
@@ -91,7 +91,7 @@ describe("hire approval routing", () => {
       payloadJson: "{}",
     });
 
-    db.approvalsMod.decideApproval({
+    db.core.approvals.decideApproval({
       approvalId,
       state: "approved",
       decisionNote: "Approved by board",
@@ -116,7 +116,7 @@ describe("hire approval routing", () => {
       trackTimer: vi.fn(),
     }, approvalId, companyId, "approved");
 
-    expect(db.entityCrud.getAgent(hireId).status).toBe("idle");
+    expect(db.core.entity.getAgent(hireId).status).toBe("idle");
     expect(dispatchAutomation).toHaveBeenCalledWith("approval_resolved", expect.objectContaining({ companyId, agentId: ctoId }));
     expect(dispatchAutomation).toHaveBeenCalledWith("hire_approved", expect.objectContaining({ companyId, agentId: hireId }));
     expect(wakeAgentIfPossible).toHaveBeenCalledWith(hireId, companyId, "assignment");

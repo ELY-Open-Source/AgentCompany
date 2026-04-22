@@ -51,7 +51,7 @@ export function retireDeletedArtifacts(
   deleted: string[],
 ): ProjectionOutcome[] {
   if (deleted.length === 0) return [];
-  const archived = db.documentsMod.archiveWorkProductsByExternalPaths({
+  const archived = db.core.documents.archiveWorkProductsByExternalPaths({
     companyId: ctx.companyId,
     workspaceId: ctx.workspaceId,
     provider: "filesystem",
@@ -97,24 +97,24 @@ function upsertFilesystemArtifact(
   const title = lastSlash >= 0 ? relativePath.slice(lastSlash + 1) : relativePath;
   const provider = "filesystem";
   const resolvedWorkspaceId =
-    ctx.workspaceId ?? db.workspacesMod.findWorkspaceIdByLocalPath(ctx.companyId, workspacePath);
-  const existing = db.documentsMod.findWorkProductByExternalId(
+    ctx.workspaceId ?? db.core.workspaces.findWorkspaceIdByLocalPath(ctx.companyId, workspacePath);
+  const existing = db.core.documents.findWorkProductByExternalId(
     ctx.companyId,
     provider,
     relativePath,
     resolvedWorkspaceId,
   );
   if (existing) {
-    const patch: Parameters<typeof db.documentsMod.updateWorkProduct>[2] = {
+    const patch: Parameters<typeof db.core.documents.updateWorkProduct>[2] = {
       title,
       status: "active",
       lastTouchedByRunId: ctx.runId,
     };
     if (resolvedWorkspaceId) patch.workspaceId = resolvedWorkspaceId;
-    db.documentsMod.updateWorkProduct(existing.id, ctx.companyId, patch);
+    db.core.documents.updateWorkProduct(existing.id, ctx.companyId, patch);
     return { kind: "updated", workProductId: existing.id, relativePath };
   }
-  const workProductId = db.documentsMod.createWorkProduct({
+  const workProductId = db.core.documents.createWorkProduct({
     companyId: ctx.companyId,
     taskId: ctx.taskId,
     workspaceId: resolvedWorkspaceId,

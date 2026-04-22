@@ -12,7 +12,7 @@ const { createAgent } = shared;
 describe("Step 6: Run failure escalation (database layer)", () => {
   it("finishRun marks run as failed and returns outcome", () => {
     const agentId = createAgent({ name: "IC", role: "Engineer" });
-    const taskId = shared.db.tasks.saveTask({
+    const taskId = shared.db.core.tasks.saveTask({
       companyId: shared.companyId,
       title: "Failing task",
       description: "Will fail",
@@ -22,7 +22,7 @@ describe("Step 6: Run failure escalation (database layer)", () => {
       status: "in_progress",
     });
 
-    const run = shared.db.runs.createRun({
+    const run = shared.db.core.runs.createRun({
       companyId: shared.companyId,
       taskId,
       agentId,
@@ -30,9 +30,9 @@ describe("Step 6: Run failure escalation (database layer)", () => {
       connectorId: "openai-codex",
     });
 
-    shared.db.runs.markRunStatus(run.id, "running", "Started");
+    shared.db.core.runs.markRunStatus(run.id, "running", "Started");
 
-    const outcome = shared.db.runs.finishRun({
+    const outcome = shared.db.core.runs.finishRun({
       runId: run.id,
       status: "failed",
       summary: null,
@@ -45,7 +45,7 @@ describe("Step 6: Run failure escalation (database layer)", () => {
 
     expect(outcome.budgetHardStopped).toBe(false);
 
-    const snapshot = shared.db.snap.listSnapshot();
+    const snapshot = shared.db.projection.snapshot.listSnapshot();
     const finishedRun = snapshot.runs.find((r) => r.id === run.id);
     expect(finishedRun?.status).toBe("failed");
     expect(finishedRun?.errorMessage).toBe("Process crashed");
@@ -56,7 +56,7 @@ describe("Step 6: Run failure escalation (database layer)", () => {
     const ctoId = createAgent({ name: "CTO", role: "CTO", reportsTo: ceoId });
     const icId = createAgent({ name: "Dev", role: "Engineer", reportsTo: ctoId });
 
-    const chain = shared.db.agents.getChainOfCommand(icId);
+    const chain = shared.db.core.agents.getChainOfCommand(icId);
     // First in chain is the immediate manager (CTO)
     expect(chain.length).toBeGreaterThan(0);
     expect(chain[0].name).toBe("CTO");

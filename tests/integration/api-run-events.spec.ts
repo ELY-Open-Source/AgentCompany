@@ -25,8 +25,8 @@ async function createHarness() {
   const db = new AppDatabase(profileDir);
   db.init();
 
-  const companyId = db.company.saveCompany({ name: "Orbit Foundry", description: "API test", status: "active" });
-  const workspaceId = db.workspacesMod.saveWorkspace({
+  const companyId = db.core.company.saveCompany({ name: "Orbit Foundry", description: "API test", status: "active" });
+  const workspaceId = db.core.workspaces.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: profileDir,
@@ -34,7 +34,7 @@ async function createHarness() {
     repoRef: "",
     isPrimary: true,
   });
-  const agentId = db.agents.saveAgent({
+  const agentId = db.core.agents.saveAgent({
     companyId,
     name: "Helios",
     role: "CEO",
@@ -47,7 +47,7 @@ async function createHarness() {
     capabilities: "Operate the company",
     budgetMonthlyUsd: 100,
   });
-  const taskId = db.tasks.saveTask({
+  const taskId = db.core.tasks.saveTask({
     companyId,
     title: "Ship the API",
     description: "Capture structured run events.",
@@ -56,7 +56,7 @@ async function createHarness() {
     priority: "high",
     status: "todo",
   });
-  const run = db.runs.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "openai-codex" });
+  const run = db.core.runs.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "openai-codex" });
   const token = createAgentToken(agentId, companyId, run.id);
   const server = createApiServer(db, createTestApiServerCallbacks());
   const port = await server.start();
@@ -96,7 +96,7 @@ describe("run event API", () => {
   it("returns persisted run events for the active run token", async () => {
     const harness = await createHarness();
     try {
-      harness.db.runs.appendRunEvent({
+      harness.db.core.runs.appendRunEvent({
         companyId: harness.companyId,
         runId: harness.runId,
         agentId: harness.agentId,
@@ -142,7 +142,7 @@ describe("run event API", () => {
       expect(reader).toBeDefined();
 
       setTimeout(() => {
-        harness.db.runs.appendRunEvent({
+        harness.db.core.runs.appendRunEvent({
           companyId: harness.companyId,
           runId: harness.runId,
           agentId: harness.agentId,

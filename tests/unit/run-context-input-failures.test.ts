@@ -28,19 +28,19 @@ function createLogger() {
 }
 
 function createCompanyRunFixture(db: AppDatabase, profileDir: string) {
-  db.connectorsCrud.updateConnectorHealth({
+  db.core.connectors.updateConnectorHealth({
     id: "openai-codex",
     status: "ready",
     authState: "authenticated",
     version: "test",
     lastError: null,
   });
-  const companyId = db.company.saveCompany({
+  const companyId = db.core.company.saveCompany({
     name: "Context Integrity Co",
     description: "Validates run context failures",
     status: "active",
   });
-  const workspaceId = db.workspacesMod.saveWorkspace({
+  const workspaceId = db.core.workspaces.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: profileDir,
@@ -48,7 +48,7 @@ function createCompanyRunFixture(db: AppDatabase, profileDir: string) {
     repoRef: "",
     isPrimary: true,
   });
-  const agentId = db.agents.saveAgent({
+  const agentId = db.core.agents.saveAgent({
     companyId,
     name: "Runtime Engineer",
     role: "Engineer",
@@ -61,7 +61,7 @@ function createCompanyRunFixture(db: AppDatabase, profileDir: string) {
     capabilities: "Ships runtime fixes",
     budgetMonthlyUsd: 250,
   });
-  const taskId = db.tasks.saveTask({
+  const taskId = db.core.tasks.saveTask({
     companyId,
     title: "Assemble safe run context",
     description: "The worker must start only with a complete context.",
@@ -110,7 +110,7 @@ function createHarness(
     runDispatch.resolveWorkspace,
     runDispatch.getRunEligibilityFailure,
     runDispatch.dispatchRunToWorker,
-    (filter) => db.runs.hasActiveRun(filter),
+    (filter) => db.core.runs.hasActiveRun(filter),
   );
   return { enqueueWorkerRun, emitEvent, logger, taskRunner };
 }
@@ -145,9 +145,9 @@ describe("run context input failures", () => {
       throw new Error("Expected the task runner to persist a failed run.");
     }
     expect(enqueueWorkerRun).not.toHaveBeenCalled();
-    const run = db.runs.getRun(result.data);
-    const task = db.entityCrud.getTask(taskId);
-    const workspace = db.workspacesMod.getWorkspace(task.workspaceId);
+    const run = db.core.runs.getRun(result.data);
+    const task = db.core.entity.getTask(taskId);
+    const workspace = db.core.workspaces.getWorkspace(task.workspaceId);
     expect(run.status).toBe("failed");
     expect(run.errorMessage).toContain("run.skills.fetch_failed");
     expect(task.status).toBe("todo");
@@ -172,8 +172,8 @@ describe("run context input failures", () => {
       throw new Error("Expected the task runner to persist a failed run.");
     }
     expect(enqueueWorkerRun).not.toHaveBeenCalled();
-    const run = db.runs.getRun(result.data);
-    const task = db.entityCrud.getTask(taskId);
+    const run = db.core.runs.getRun(result.data);
+    const task = db.core.entity.getTask(taskId);
     expect(run.status).toBe("failed");
     expect(run.errorMessage).toContain("run.session_handoff.load_failed");
     expect(task.status).toBe("todo");

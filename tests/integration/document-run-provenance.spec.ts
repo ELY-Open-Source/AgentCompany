@@ -27,7 +27,7 @@ async function createHarness() {
   const db = new AppDatabase(profileDir);
   db.init();
 
-  db.connectorsCrud.updateConnectorHealth({
+  db.core.connectors.updateConnectorHealth({
     id: "openai-codex",
     status: "ready",
     authState: "authenticated",
@@ -35,12 +35,12 @@ async function createHarness() {
     lastError: null,
   });
 
-  const companyId = db.company.saveCompany({
+  const companyId = db.core.company.saveCompany({
     name: "Document Provenance Co",
     description: "Tests document revision provenance through run completion",
     status: "active",
   });
-  const workspaceId = db.workspacesMod.saveWorkspace({
+  const workspaceId = db.core.workspaces.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: profileDir,
@@ -48,7 +48,7 @@ async function createHarness() {
     repoRef: "",
     isPrimary: true,
   });
-  const agentId = db.agents.saveAgent({
+  const agentId = db.core.agents.saveAgent({
     companyId,
     name: "Research Lead",
     role: "Researcher",
@@ -61,7 +61,7 @@ async function createHarness() {
     capabilities: "Research and synthesis",
     budgetMonthlyUsd: 180,
   });
-  const taskId = db.tasks.saveTask({
+  const taskId = db.core.tasks.saveTask({
     companyId,
     title: "Refresh the market report",
     description: "Update the report with new findings and submit it for review.",
@@ -70,9 +70,9 @@ async function createHarness() {
     priority: "high",
     status: "in_progress",
   });
-  db.tasks.setTaskType(taskId, "research");
+  db.core.tasks.setTaskType(taskId, "research");
 
-  const existingDocumentId = db.documentsMod.saveDocument({
+  const existingDocumentId = db.core.documents.saveDocument({
     companyId,
     type: "knowledge_article",
     title: "Market report",
@@ -83,7 +83,7 @@ async function createHarness() {
     status: "draft",
   });
 
-  const run = db.runs.createRun({
+  const run = db.core.runs.createRun({
     companyId,
     taskId,
     agentId,
@@ -150,7 +150,7 @@ describe("document run provenance", () => {
       )[0];
       expect(updatedDocument?.sourceRunId).toBe(harness.run.id);
 
-      const persistedRun = harness.db.snap.listSnapshot().runs.find((entry) => entry.id === harness.run.id);
+      const persistedRun = harness.db.projection.snapshot.listSnapshot().runs.find((entry) => entry.id === harness.run.id);
       if (!persistedRun) {
         throw new Error("Expected persisted run record for provenance test.");
       }
@@ -173,7 +173,7 @@ describe("document run provenance", () => {
       // ai_ceo + top-level CEO without `reviewDeliverables` advances
       // straight to `done` — there is no reviewer in that configuration
       // so the prior `in_review` state was a dead letter.
-      const task = harness.db.entityCrud.getTask(harness.taskId);
+      const task = harness.db.core.entity.getTask(harness.taskId);
       expect(task.status).toBe("done");
     } finally {
       harness.server.stop();
@@ -285,7 +285,7 @@ describe("document run provenance", () => {
   it("creates deliverable review approvals that stay linked to the originating task", async () => {
     const harness = await createHarness();
     try {
-      harness.db.company.saveCompany({
+      harness.db.core.company.saveCompany({
         id: harness.companyId,
         name: "Document Provenance Co",
         description: "Tests document review task linkage",
@@ -308,7 +308,7 @@ describe("document run provenance", () => {
       );
 
       expect(createResponse.status).toBe(201);
-      const approvals = harness.db.snap.listSnapshot().approvals.filter((approval) => approval.type === "deliverable_review");
+      const approvals = harness.db.projection.snapshot.listSnapshot().approvals.filter((approval) => approval.type === "deliverable_review");
       expect(approvals).toHaveLength(1);
       expect(approvals[0]?.relatedTaskId).toBe(harness.taskId);
     } finally {

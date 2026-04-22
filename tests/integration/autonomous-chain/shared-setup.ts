@@ -30,7 +30,7 @@ export interface SharedHandle {
   set db(value: AppDatabase);
   get companyId(): string;
   get workspaceId(): string;
-  createAgent(overrides?: Partial<Parameters<AppDatabase["agents"]["saveAgent"]>[0]>): string;
+  createAgent(overrides?: Partial<Parameters<AppDatabase["core"]["agents"]["saveAgent"]>[0]>): string;
   buildCtx(overrides?: Record<string, unknown>): Parameters<typeof buildSystemPrompt>[0];
   tempDirs: string[];
 }
@@ -54,13 +54,13 @@ export function installSharedSetup(): SharedHandle {
     state.db = new AppDatabase(profileDir);
     state.db.init();
 
-    state.companyId = state.db.company.saveCompany({
+    state.companyId = state.db.core.company.saveCompany({
       name: "Autonomous Test Corp",
       description: "Test company for autonomous chain",
       status: "active",
     });
 
-    state.workspaceId = state.db.workspacesMod.saveWorkspace({
+    state.workspaceId = state.db.core.workspaces.saveWorkspace({
       companyId: state.companyId,
       name: "Primary",
       localPath: profileDir,
@@ -80,8 +80,8 @@ export function installSharedSetup(): SharedHandle {
     return state.db;
   }
 
-  function createAgent(overrides: Partial<Parameters<AppDatabase["agents"]["saveAgent"]>[0]> = {}): string {
-    return currentDb().agents.saveAgent({
+  function createAgent(overrides: Partial<Parameters<AppDatabase["core"]["agents"]["saveAgent"]>[0]> = {}): string {
+    return currentDb().core.agents.saveAgent({
       companyId: state.companyId,
       name: "TestAgent",
       role: "CEO",
@@ -98,7 +98,7 @@ export function installSharedSetup(): SharedHandle {
   }
 
   function buildCtx(overrides: Record<string, unknown> = {}): Parameters<typeof buildSystemPrompt>[0] {
-    const agent = currentDb().entityCrud.getAgent(overrides.agentId as string ?? createAgent());
+    const agent = currentDb().core.entity.getAgent(overrides.agentId as string ?? createAgent());
     return {
       agent,
       apiUrl: "http://127.0.0.1:3000",

@@ -8,7 +8,7 @@ export function createOrchestrationService(deps: OrchestrationDependencies) {
   const { db } = deps;
 
   function hasActiveRun(filter: { taskId?: string; agentId?: string; companyId: string }) {
-    return db.runs.hasActiveRun(filter);
+    return db.core.runs.hasActiveRun(filter);
   }
 
   const runDispatch = createRunDispatch(deps);

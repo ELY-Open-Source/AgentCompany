@@ -22,13 +22,13 @@ describe("knowledge provenance", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Knowledge Provenance Co",
       description: "Tests sourceRunId updates on knowledge entry edits",
       status: "active",
     });
 
-    const knowledgeId = db.knowledgeMod.saveKnowledgeEntry({
+    const knowledgeId = db.core.knowledge.saveKnowledgeEntry({
       companyId,
       category: "lesson_learned",
       topic: "Original lesson",
@@ -37,7 +37,7 @@ describe("knowledge provenance", () => {
       sourceRunId: null,
     });
 
-    db.knowledgeMod.saveKnowledgeEntry({
+    db.core.knowledge.saveKnowledgeEntry({
       id: knowledgeId,
       companyId,
       category: "lesson_learned",

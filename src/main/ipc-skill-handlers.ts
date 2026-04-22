@@ -168,7 +168,7 @@ export function registerSkillHandlers({
     const parsed = listSkillAgentsSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    return ok(db.skills.listSkillAgentAssignments(parsed.skillId));
+    return ok(db.core.skills.listSkillAgentAssignments(parsed.skillId));
   });
 
   // ---- List skill IDs assigned to an agent ----
@@ -176,6 +176,6 @@ export function registerSkillHandlers({
     const parsed = listAgentSkillsSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    return ok(db.skills.listAgentSkillAssignments(parsed.agentId));
+    return ok(db.core.skills.listAgentSkillAssignments(parsed.agentId));
   });
 }

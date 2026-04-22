@@ -6,7 +6,7 @@ export function handleContextCompaction(
   deps: HandlerDeps,
   _context: HandlerContext,
 ): void {
-  const runState = deps.db.runs.getRunAuthState(event.runId);
+  const runState = deps.db.core.runs.getRunAuthState(event.runId);
   if (!runState) {
     deps.logger.warn(`[context-compaction] run ${event.runId} disappeared before telemetry could be recorded.`);
     return;

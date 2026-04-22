@@ -30,7 +30,7 @@ function recordReviewFeedbackKnowledge(
   if (!approval.relatedTaskId) return;
   if (decision === "approved") return;
 
-  const task = db.entityCrud.getTask(approval.relatedTaskId);
+  const task = db.core.entity.getTask(approval.relatedTaskId);
   const feedback = approval.decisionNote?.trim() || "Board requested revisions before approval.";
   const topic = `Review feedback: ${task.title}`;
   const content = [
@@ -39,7 +39,7 @@ function recordReviewFeedbackKnowledge(
     "Use this review guidance to improve future deliverables for similar work.",
   ].join("\n");
 
-  db.knowledgeMod.saveKnowledgeEntry({
+  db.core.knowledge.saveKnowledgeEntry({
     companyId: approval.companyId,
     category: "lesson_learned",
     topic,
@@ -84,7 +84,7 @@ export function handleApprovalResolved(
   const { db, logger, publishDomainChanged, notify, wakeAgentIfPossible, dispatchBrowserAction } = deps;
   const { dispatchAutomation, handleTaskStatusChange, runWorkflowPipeline, trackTimer } = callbacks;
 
-  const snapshot = db.snap.listSnapshot();
+  const snapshot = db.projection.snapshot.listSnapshot();
   const approval = snapshot.approvals.find((entry) => entry.id === approvalId);
   if (!approval) return;
 
@@ -95,7 +95,7 @@ export function handleApprovalResolved(
   });
 
   if (approval.type === "hire_agent" && decision === "approved" && approval.relatedAgentId) {
-    const agent = db.entityCrud.getAgent(approval.relatedAgentId);
+    const agent = db.core.entity.getAgent(approval.relatedAgentId);
 
     if (agent.status === "idle") {
       // Deterministic default skill kit. The CEO's operating prompt
@@ -111,7 +111,7 @@ export function handleApprovalResolved(
         department: agent.department,
       });
       if (assignedSkillIds.length > 0) {
-        db.activityMod.addActivity({
+        db.core.activity.addActivity({
           companyId,
           actor: "system",
           action: "agent.skills_defaulted",
@@ -121,7 +121,7 @@ export function handleApprovalResolved(
         });
       }
 
-      db.activityMod.addActivity({
+      db.core.activity.addActivity({
         companyId,
         actor: "system",
         action: "agent.hired",
@@ -136,13 +136,13 @@ export function handleApprovalResolved(
       });
       wakeAgentIfPossible(agent.id, companyId, "assignment");
 
-      const ceo = db.agents.getCeoForCompany(companyId);
+      const ceo = db.core.agents.getCeoForCompany(companyId);
       if (ceo && ceo.id !== agent.id) {
         wakeAgentIfPossible(ceo.id, companyId, "assignment");
       }
 
       publishDomainChanged();
-      const hireLocale = db.snap.listSnapshot().locale;
+      const hireLocale = db.projection.snapshot.listSnapshot().locale;
       notify({
         title: localizeNotification(hireLocale, "Agent Hired", "新员工入职"),
         body: localizeNotification(hireLocale, `${agent.name} joined as ${agent.role}`, `${agent.name} 已加入，职位：${agent.role}`),
@@ -170,31 +170,31 @@ export function handleApprovalResolved(
         ? "draft"
         : "in_review";
     for (const docId of documentIds) {
-      db.documentsMod.updateDocumentStatus(docId, companyId, docStatus);
+      db.core.documents.updateDocumentStatus(docId, companyId, docStatus);
     }
 
     if (approval.relatedTaskId) {
-      const task = db.entityCrud.getTask(approval.relatedTaskId);
+      const task = db.core.entity.getTask(approval.relatedTaskId);
       if (task.assigneeAgentId) {
-        const agent = db.entityCrud.getAgent(task.assigneeAgentId);
+        const agent = db.core.entity.getAgent(task.assigneeAgentId);
         if (!agent.heartbeatEnabled) {
-          db.agents.setHeartbeat(task.assigneeAgentId, true, agent.heartbeatIntervalSec || 120);
+          db.core.agents.setHeartbeat(task.assigneeAgentId, true, agent.heartbeatIntervalSec || 120);
           logger.info(`[deliverable-review] Resumed heartbeat for ${agent.name} after user ${decision}.`);
         }
       }
       if (decision === "approved") {
-        db.tasks.advanceTaskStatus(task.id, "done", "Board approved deliverable.");
+        db.core.tasks.advanceTaskStatus(task.id, "done", "Board approved deliverable.");
         handleTaskStatusChange(task.id, companyId, task.status, "done");
-        db.activityMod.addActivity({ companyId, actor: "board", action: "deliverable.approved", entityType: "task", entityId: task.id, detail: approval.decisionNote || "Deliverable approved by board." });
+        db.core.activity.addActivity({ companyId, actor: "board", action: "deliverable.approved", entityType: "task", entityId: task.id, detail: approval.decisionNote || "Deliverable approved by board." });
       } else if (decision === "rejected") {
         recordReviewFeedbackKnowledge(db, approval, decision);
-        db.tasks.advanceTaskStatus(task.id, "in_progress", `Board rejected deliverable: ${approval.decisionNote || "No reason given."}`);
+        db.core.tasks.advanceTaskStatus(task.id, "in_progress", `Board rejected deliverable: ${approval.decisionNote || "No reason given."}`);
         handleTaskStatusChange(task.id, companyId, task.status, "in_progress");
         if (task.assigneeAgentId) {
           wakeAgentIfPossible(task.assigneeAgentId, companyId, "revision_needed");
         }
       } else if (decision === "revision_requested") {
-        db.tasks.advanceTaskStatus(task.id, "in_progress", `Board requested revisions: ${approval.decisionNote || "No reason given."}`);
+        db.core.tasks.advanceTaskStatus(task.id, "in_progress", `Board requested revisions: ${approval.decisionNote || "No reason given."}`);
         handleTaskStatusChange(task.id, companyId, task.status, "in_progress");
         recordReviewFeedbackKnowledge(db, approval, decision);
         if (task.assigneeAgentId) {
@@ -202,9 +202,9 @@ export function handleApprovalResolved(
         }
       }
     } else if (approval.requestedByAgentId) {
-      const agent = db.entityCrud.getAgent(approval.requestedByAgentId);
+      const agent = db.core.entity.getAgent(approval.requestedByAgentId);
       if (!agent.heartbeatEnabled) {
-        db.agents.setHeartbeat(approval.requestedByAgentId, true, agent.heartbeatIntervalSec || 120);
+        db.core.agents.setHeartbeat(approval.requestedByAgentId, true, agent.heartbeatIntervalSec || 120);
         logger.info(`[deliverable-review] Resumed heartbeat for ${agent.name} after user ${decision}.`);
       }
       if (decision !== "approved") {
@@ -219,7 +219,7 @@ export function handleApprovalResolved(
     const documentIds = extractApprovalDocumentIds(approval.payloadJson);
     const docStatus = decision === "approved" ? "approved" : "draft";
     for (const docId of documentIds) {
-      db.documentsMod.updateDocumentStatus(docId, companyId, docStatus);
+      db.core.documents.updateDocumentStatus(docId, companyId, docStatus);
     }
     publishDomainChanged();
   }
@@ -235,8 +235,8 @@ export function handleApprovalResolved(
       };
       if (payload.policyId) {
         // Resolve the budget incident that triggered this approval
-        db.budget.resolveBudgetIncident(payload.policyId, companyId);
-        db.activityMod.addActivity({
+        db.core.budget.resolveBudgetIncident(payload.policyId, companyId);
+        db.core.activity.addActivity({
           companyId,
           actor: "board",
           action: "budget.override_approved",
@@ -250,10 +250,10 @@ export function handleApprovalResolved(
     }
   }
 
-  const browserAction = db.social.getBrowserActionByApprovalId(approvalId, companyId);
+  const browserAction = db.core.social.getBrowserActionByApprovalId(approvalId, companyId);
   if (browserAction) {
     if (decision === "approved") {
-      db.social.updateBrowserAction(browserAction.id, {
+      db.core.social.updateBrowserAction(browserAction.id, {
         status: "queued",
         resultSummary: "Approval granted. Dispatching browser action.",
         errorMessage: null,
@@ -263,7 +263,7 @@ export function handleApprovalResolved(
         logger.error(`[browser] Failed to dispatch approved browser action ${browserAction.id}: ${error instanceof Error ? error.message : String(error)}`);
       });
     } else if (decision === "rejected") {
-      db.social.updateBrowserAction(browserAction.id, {
+      db.core.social.updateBrowserAction(browserAction.id, {
         status: "cancelled",
         resultSummary: "Browser action was rejected during approval.",
         errorMessage: "Approval rejected by board.",
@@ -271,7 +271,7 @@ export function handleApprovalResolved(
       });
       publishDomainChanged();
     } else if (decision === "revision_requested") {
-      db.social.updateBrowserAction(browserAction.id, {
+      db.core.social.updateBrowserAction(browserAction.id, {
         status: "approval_required",
         resultSummary: "Board requested revisions before execution.",
         errorMessage: "Approval requires revisions before the browser action can run.",
@@ -291,7 +291,7 @@ export function handleApprovalResolved(
       };
 
       const dispatchSocialAction = () => {
-        const actionId = db.social.saveBrowserAction({
+        const actionId = db.core.social.saveBrowserAction({
           companyId: approval.companyId,
           socialAccountId: draft.socialAccountId,
           agentId: approval.requestedByAgentId ?? "",
@@ -333,14 +333,14 @@ export function handleApprovalResolved(
     const payload = workflowApprovalPayloadSchema.safeParse(JSON.parse(approval.payloadJson));
     if (payload.success && payload.data.workflowId && payload.data.stepId) {
       const { workflowId, stepId } = payload.data;
-      const workflow = db.automationMod.getWorkflowRecord(workflowId, companyId);
+      const workflow = db.automation.rules.getWorkflowRecord(workflowId, companyId);
       if (workflow) {
         const steps = normalizeWorkflowSteps(JSON.parse(workflow.stepsJson || "[]"));
         const stepIndex = steps.findIndex((step) => step.id === stepId);
         if (stepIndex >= 0) {
           if (decision === "approved") {
             steps[stepIndex]!.status = "pending";
-            db.automationMod.updateWorkflowExecution({
+            db.automation.rules.updateWorkflowExecution({
               id: workflow.id,
               companyId,
               status: "paused",
@@ -354,7 +354,7 @@ export function handleApprovalResolved(
             });
           } else {
             steps[stepIndex]!.status = decision === "revision_requested" ? "pending" : "failed";
-            db.automationMod.updateWorkflowExecution({
+            db.automation.rules.updateWorkflowExecution({
               id: workflow.id,
               companyId,
               status: decision === "revision_requested" ? "paused" : "failed",

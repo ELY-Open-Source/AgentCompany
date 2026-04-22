@@ -75,7 +75,7 @@ export function shouldAutoApprove(
   companyId: string,
   approvalType: string,
 ): boolean {
-  const rawMode = db.company.getCompanyExecutionMode(companyId);
+  const rawMode = db.core.company.getCompanyExecutionMode(companyId);
   assertExecutionMode(rawMode);
   const mode = rawMode;
 
@@ -89,7 +89,7 @@ export function shouldAutoApprove(
     return false;
   }
 
-  const settings = db.company.getCompanyApprovalSettings(companyId);
+  const settings = db.core.company.getCompanyApprovalSettings(companyId);
   if (!settings?.autoApproveHires) return false;
 
   // When reviewDeliverables is ON, CEO strategy needs human review

@@ -21,12 +21,12 @@ import type { ConnectorId, TaskSessionRecord } from "@shared/types";
 // Helpers — create a minimal company + agent + task scaffold
 // ---------------------------------------------------------------------------
 function scaffold(db: AppDatabase) {
-  const companyId = db.company.saveCompany({
+  const companyId = db.core.company.saveCompany({
     name: "Session Test Co",
     description: "Testing session management",
     status: "active",
   });
-  const workspaceId = db.workspacesMod.saveWorkspace({
+  const workspaceId = db.core.workspaces.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: "/tmp/session-test",
@@ -34,7 +34,7 @@ function scaffold(db: AppDatabase) {
     repoRef: "",
     isPrimary: true,
   });
-  const agentId = db.agents.saveAgent({
+  const agentId = db.core.agents.saveAgent({
     companyId,
     name: "Worker Agent",
     role: "developer",
@@ -47,14 +47,14 @@ function scaffold(db: AppDatabase) {
     capabilities: "Writes code",
     budgetMonthlyUsd: 100,
   });
-  const goalId = db.entityCrud.saveGoal({
+  const goalId = db.core.entity.saveGoal({
     companyId,
     title: "Ship feature",
     description: "Build session management",
     ownerAgentId: agentId,
     status: "active",
   });
-  const projectId = db.entityCrud.saveProject({
+  const projectId = db.core.entity.saveProject({
     companyId,
     goalId,
     name: "Session Project",
@@ -63,7 +63,7 @@ function scaffold(db: AppDatabase) {
     status: "in_progress",
     targetDate: null,
   });
-  const taskId = db.tasks.saveTask({
+  const taskId = db.core.tasks.saveTask({
     companyId,
     projectId,
     goalId,
@@ -96,19 +96,19 @@ describe("task_sessions CRUD", () => {
   });
 
   it("getSessionById returns null for an unknown id", () => {
-    const session = db.tasks.getSessionById("nonexistent");
+    const session = db.core.tasks.getSessionById("nonexistent");
     expect(session).toBeNull();
   });
 
   it("getSessionById returns TaskSessionRecord when valid session exists", () => {
     const { companyId, agentId } = scaffold(db);
-    const sessionId = db.tasks.createNewSession({
+    const sessionId = db.core.tasks.createNewSession({
       companyId,
       agentId,
       adapterType: "claude-pro",
     });
 
-    const session = db.tasks.getSessionById(sessionId);
+    const session = db.core.tasks.getSessionById(sessionId);
     expect(session).not.toBeNull();
     expect(session!.id).toBe(sessionId);
     expect(session!.companyId).toBe(companyId);
@@ -124,23 +124,23 @@ describe("task_sessions CRUD", () => {
 
   it("incrementSessionUsage atomically updates counters", () => {
     const { companyId, agentId } = scaffold(db);
-    const sessionId = db.tasks.createNewSession({
+    const sessionId = db.core.tasks.createNewSession({
       companyId,
       agentId,
       adapterType: "claude-pro",
     });
 
-    db.tasks.incrementSessionUsage(sessionId, 1000, 500, "run-001");
+    db.core.tasks.incrementSessionUsage(sessionId, 1000, 500, "run-001");
 
-    const session = db.tasks.getSessionById(sessionId);
+    const session = db.core.tasks.getSessionById(sessionId);
     expect(session!.runCount).toBe(1);
     expect(session!.totalInputTokens).toBe(1000);
     expect(session!.totalOutputTokens).toBe(500);
     expect(session!.lastRunId).toBe("run-001");
 
     // Second increment accumulates
-    db.tasks.incrementSessionUsage(sessionId, 2000, 800, "run-002");
-    const session2 = db.tasks.getSessionById(sessionId);
+    db.core.tasks.incrementSessionUsage(sessionId, 2000, 800, "run-002");
+    const session2 = db.core.tasks.getSessionById(sessionId);
     expect(session2!.runCount).toBe(2);
     expect(session2!.totalInputTokens).toBe(3000);
     expect(session2!.totalOutputTokens).toBe(1300);
@@ -149,15 +149,15 @@ describe("task_sessions CRUD", () => {
 
   it("archiveSession sets rotated_at, rotation_reason, handoff_markdown", () => {
     const { companyId, agentId } = scaffold(db);
-    const sessionId = db.tasks.createNewSession({
+    const sessionId = db.core.tasks.createNewSession({
       companyId,
       agentId,
       adapterType: "claude-pro",
     });
 
-    db.tasks.archiveSession(sessionId, "max_runs", "# Handoff\nSession reached 20 runs.");
+    db.core.tasks.archiveSession(sessionId, "max_runs", "# Handoff\nSession reached 20 runs.");
 
-    const session = db.tasks.getSessionById(sessionId);
+    const session = db.core.tasks.getSessionById(sessionId);
     expect(session!.rotatedAt).toBeTruthy();
     expect(session!.rotationReason).toBe("max_runs");
     expect(session!.handoffMarkdown).toBe("# Handoff\nSession reached 20 runs.");
@@ -166,7 +166,7 @@ describe("task_sessions CRUD", () => {
   it("createNewSession returns an id; adapter type persists", () => {
     const { companyId, agentId } = scaffold(db);
 
-    const sessionId = db.tasks.createNewSession({
+    const sessionId = db.core.tasks.createNewSession({
       companyId,
       agentId,
       adapterType: "gemini-cli",
@@ -175,7 +175,7 @@ describe("task_sessions CRUD", () => {
     expect(typeof sessionId).toBe("string");
     expect(sessionId.length).toBeGreaterThan(0);
 
-    const session = db.tasks.getSessionById(sessionId);
+    const session = db.core.tasks.getSessionById(sessionId);
     expect(session).not.toBeNull();
     expect(session!.id).toBe(sessionId);
     expect(session!.adapterType).toBe("gemini-cli");
@@ -185,8 +185,8 @@ describe("task_sessions CRUD", () => {
     const { taskId, companyId, agentId, workspaceId } = scaffold(db);
 
     // Create some runs
-    const run1 = db.runs.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "claude-pro" });
-    db.runs.finishRun({
+    const run1 = db.core.runs.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "claude-pro" });
+    db.core.runs.finishRun({
       runId: run1.id,
       status: "succeeded",
       summary: "First run done",
@@ -197,8 +197,8 @@ describe("task_sessions CRUD", () => {
       unattributedCost: false,
     });
 
-    const run2 = db.runs.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "claude-pro" });
-    db.runs.finishRun({
+    const run2 = db.core.runs.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "claude-pro" });
+    db.core.runs.finishRun({
       runId: run2.id,
       status: "failed",
       summary: "Second run failed",
@@ -209,7 +209,7 @@ describe("task_sessions CRUD", () => {
       unattributedCost: false,
     });
 
-    const runs = db.tasks.getRecentRunsForTask(taskId, 5);
+    const runs = db.core.tasks.getRecentRunsForTask(taskId, 5);
     expect(runs.length).toBe(2);
     // Most recent first
     expect(runs[0].id).toBe(run2.id);
@@ -401,7 +401,7 @@ describe("session management service", () => {
   describe("token accumulation", () => {
     it("accumulateTokenUsage calls db.incrementSessionUsage with correct args", () => {
       const { taskId, companyId, agentId } = scaffold(db);
-      const sessionId = db.tasks.createNewSession({
+      const sessionId = db.core.tasks.createNewSession({
         companyId,
         agentId,
         adapterType: "claude-pro",
@@ -410,7 +410,7 @@ describe("session management service", () => {
 
       svc.accumulateTokenUsage(sessionId, 5000, 2000, "run-abc");
 
-      const session = db.tasks.getSessionById(sessionId);
+      const session = db.core.tasks.getSessionById(sessionId);
       expect(session!.runCount).toBe(1);
       expect(session!.totalInputTokens).toBe(5000);
       expect(session!.totalOutputTokens).toBe(2000);
@@ -424,15 +424,15 @@ describe("session management service", () => {
   describe("handoff generation", () => {
     it("generateHandoff produces markdown with task title and run history", () => {
       const { taskId, companyId, agentId, workspaceId } = scaffold(db);
-      const sessionId = db.tasks.createNewSession({
+      const sessionId = db.core.tasks.createNewSession({
         companyId,
         agentId,
         adapterType: "gemini-cli",
       });
 
       // Create a completed run for history
-      const run = db.runs.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "gemini-cli" as ConnectorId });
-      db.runs.finishRun({
+      const run = db.core.runs.createRun({ companyId, taskId, agentId, workspaceId, connectorId: "gemini-cli" as ConnectorId });
+      db.core.runs.finishRun({
         runId: run.id,
         status: "succeeded",
         summary: "Implemented initial logic",
@@ -444,9 +444,9 @@ describe("session management service", () => {
       });
 
       // Increment session usage to have stats
-      db.tasks.incrementSessionUsage(sessionId, 10000, 5000, run.id);
+      db.core.tasks.incrementSessionUsage(sessionId, 10000, 5000, run.id);
 
-      const session = db.tasks.getSessionById(sessionId)!;
+      const session = db.core.tasks.getSessionById(sessionId)!;
       const svc = createSessionManagementService({ db, logger: mockLogger });
       // Handoff is now agent-scoped: it walks the agent's recent runs
       // (across tasks + heartbeats) rather than a single task. The task
@@ -468,16 +468,16 @@ describe("session management service", () => {
   describe("session rotation", () => {
     it("rotateSession archives old session, creates new, copies session_params", () => {
       const { taskId, companyId, agentId } = scaffold(db);
-      const oldSessionId = db.tasks.createNewSession({
+      const oldSessionId = db.core.tasks.createNewSession({
         companyId,
         agentId,
         adapterType: "gemini-cli",
       });
 
       // Add some usage
-      db.tasks.incrementSessionUsage(oldSessionId, 300000, 200000, "run-10");
+      db.core.tasks.incrementSessionUsage(oldSessionId, 300000, 200000, "run-10");
 
-      const oldSession = db.tasks.getSessionById(oldSessionId)!;
+      const oldSession = db.core.tasks.getSessionById(oldSessionId)!;
       const svc = createSessionManagementService({ db, logger: mockLogger });
       const newSessionId = svc.rotateSession(oldSession);
 
@@ -493,7 +493,7 @@ describe("session management service", () => {
       expect(archivedRows[0].handoffMarkdown).toContain("# Session Handoff");
 
       // New session is a distinct row with fresh counters.
-      const newSession = db.tasks.getSessionById(newSessionId)!;
+      const newSession = db.core.tasks.getSessionById(newSessionId)!;
       expect(newSession.id).toBe(newSessionId);
       expect(newSession.runCount).toBe(0);
       expect(newSession.totalInputTokens).toBe(0);
@@ -510,13 +510,13 @@ describe("session management service", () => {
       const svc = createSessionManagementService({ db, logger: mockLogger });
 
       // Create and rotate a session
-      const session1Id = db.tasks.createNewSession({
+      const session1Id = db.core.tasks.createNewSession({
         companyId,
         agentId,
         adapterType: "gemini-cli",
       });
-      db.tasks.incrementSessionUsage(session1Id, 100000, 50000, "run-1");
-      const session1 = db.tasks.getSessionById(session1Id)!;
+      db.core.tasks.incrementSessionUsage(session1Id, 100000, 50000, "run-1");
+      const session1 = db.core.tasks.getSessionById(session1Id)!;
       svc.rotateSession(session1);
 
       const handoff = svc.getHandoffContext(taskId);
@@ -526,7 +526,7 @@ describe("session management service", () => {
 
     it("getHandoffContext returns null when no rotated sessions exist", () => {
       const { taskId, companyId, agentId } = scaffold(db);
-      db.tasks.createNewSession({
+      db.core.tasks.createNewSession({
         companyId,
         agentId,
         adapterType: "gemini-cli",
@@ -544,16 +544,16 @@ describe("session management service", () => {
   describe("usage delta", () => {
     it("getUsageDelta returns token difference between snapshot and current totals", () => {
       const { taskId, companyId, agentId } = scaffold(db);
-      const sessionId = db.tasks.createNewSession({
+      const sessionId = db.core.tasks.createNewSession({
         companyId,
         agentId,
         adapterType: "gemini-cli",
       });
 
       // Pre-populate some usage
-      db.tasks.incrementSessionUsage(sessionId, 1000, 500, "run-1");
+      db.core.tasks.incrementSessionUsage(sessionId, 1000, 500, "run-1");
 
-      const session = db.tasks.getSessionById(sessionId)!;
+      const session = db.core.tasks.getSessionById(sessionId)!;
       const svc = createSessionManagementService({ db, logger: mockLogger });
 
       // Snapshot current state

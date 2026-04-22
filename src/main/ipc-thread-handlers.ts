@@ -13,7 +13,7 @@ export function registerThreadHandlers({ registerHandle, db, ensureCompanyExists
     const input = threadGetterSchema.parse(payload);
     const companyError = ensureCompanyExists(input.companyId);
     if (companyError) return companyError;
-    const thread = db.threads.getThread(input.threadId, input.companyId);
+    const thread = db.core.threads.getThread(input.threadId, input.companyId);
     if (!thread) return fail("THREAD_NOT_FOUND", "Thread not found");
     return ok(thread);
   });
@@ -22,7 +22,7 @@ export function registerThreadHandlers({ registerHandle, db, ensureCompanyExists
     const input = listThreadEventsSchema.parse(payload);
     const companyError = ensureCompanyExists(input.companyId);
     if (companyError) return companyError;
-    const events = db.threads.listThreadEvents(input.threadId, input.companyId, {
+    const events = db.core.threads.listThreadEvents(input.threadId, input.companyId, {
       limit: input.limit,
       offset: input.offset,
     });
@@ -33,7 +33,7 @@ export function registerThreadHandlers({ registerHandle, db, ensureCompanyExists
     const input = listThreadWaitStatesSchema.parse(payload);
     const companyError = ensureCompanyExists(input.companyId);
     if (companyError) return companyError;
-    const waitStates = db.threads.listThreadWaitStates(input.companyId, { resolvedOnly: input.resolvedOnly });
+    const waitStates = db.core.threads.listThreadWaitStates(input.companyId, { resolvedOnly: input.resolvedOnly });
     return ok(waitStates);
   });
 
@@ -41,9 +41,9 @@ export function registerThreadHandlers({ registerHandle, db, ensureCompanyExists
     const input = listThreadParticipantsSchema.parse(payload);
     const companyError = ensureCompanyExists(input.companyId);
     if (companyError) return companyError;
-    const thread = db.threads.getThread(input.threadId, input.companyId);
+    const thread = db.core.threads.getThread(input.threadId, input.companyId);
     if (!thread) return fail("THREAD_NOT_FOUND", "Thread not found");
-    const participants = db.threads.listParticipants(input.threadId);
+    const participants = db.core.threads.listParticipants(input.threadId);
     return ok(participants);
   });
 }

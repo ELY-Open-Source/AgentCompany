@@ -57,7 +57,7 @@ function createOrchestrationHarness(db: AppDatabase) {
     runDispatch.resolveWorkspace,
     runDispatch.getRunEligibilityFailure,
     runDispatch.dispatchRunToWorker,
-    (filter) => db.runs.hasActiveRun(filter),
+    (filter) => db.core.runs.hasActiveRun(filter),
   );
 
   return { deps, taskRunner };
@@ -69,7 +69,7 @@ describe("connector model enforcement", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -77,12 +77,12 @@ describe("connector model enforcement", () => {
       lastError: null,
     });
 
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Runtime Enforcement Co",
       description: "Blocks runs when agent models are disabled",
       status: "active",
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -90,7 +90,7 @@ describe("connector model enforcement", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.agents.saveAgent({
+    const agentId = db.core.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -103,7 +103,7 @@ describe("connector model enforcement", () => {
       capabilities: "Lead the company",
       budgetMonthlyUsd: 250,
     });
-    const taskId = db.tasks.saveTask({
+    const taskId = db.core.tasks.saveTask({
       companyId,
       title: "Run with invalid model",
       description: "This task should be blocked because the agent model is disabled.",
@@ -113,7 +113,7 @@ describe("connector model enforcement", () => {
       status: "todo",
     });
 
-    db.settings.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
+    db.core.settings.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
 
     const { taskRunner } = createOrchestrationHarness(db);
     const result = taskRunner.queueTaskRun(taskId, "manual", "board");
@@ -123,7 +123,7 @@ describe("connector model enforcement", () => {
       throw new Error("Expected queueTaskRun to reject the disabled model.");
     }
     expect(result.error.code).toBe("CONNECTOR_MODEL_NOT_ALLOWED");
-    expect(db.snap.listSnapshot().runs).toHaveLength(0);
+    expect(db.projection.snapshot.listSnapshot().runs).toHaveLength(0);
 
     db.close();
   });
@@ -133,7 +133,7 @@ describe("connector model enforcement", () => {
     const db = new AppDatabase(profileDir);
     db.init();
 
-    db.connectorsCrud.updateConnectorHealth({
+    db.core.connectors.updateConnectorHealth({
       id: "openai-codex",
       status: "ready",
       authState: "authenticated",
@@ -141,12 +141,12 @@ describe("connector model enforcement", () => {
       lastError: null,
     });
 
-    const companyId = db.company.saveCompany({
+    const companyId = db.core.company.saveCompany({
       name: "Recovered Run Co",
       description: "Rejects invalid queued runs during recovery",
       status: "active",
     });
-    const workspaceId = db.workspacesMod.saveWorkspace({
+    const workspaceId = db.core.workspaces.saveWorkspace({
       companyId,
       name: "Primary",
       localPath: profileDir,
@@ -154,7 +154,7 @@ describe("connector model enforcement", () => {
       repoRef: "",
       isPrimary: true,
     });
-    const agentId = db.agents.saveAgent({
+    const agentId = db.core.agents.saveAgent({
       companyId,
       name: "CEO",
       role: "CEO",
@@ -167,7 +167,7 @@ describe("connector model enforcement", () => {
       capabilities: "Lead the company",
       budgetMonthlyUsd: 250,
     });
-    const taskId = db.tasks.saveTask({
+    const taskId = db.core.tasks.saveTask({
       companyId,
       title: "Recover queued run",
       description: "This queued run should fail on recovery because the model is disabled.",
@@ -177,22 +177,22 @@ describe("connector model enforcement", () => {
       status: "todo",
     });
 
-    const run = db.runs.createRun({
+    const run = db.core.runs.createRun({
       companyId,
       taskId,
       agentId,
       workspaceId,
       connectorId: "openai-codex",
     });
-    const checkoutSuccess = db.tasks.checkoutTask(taskId, run.id);
+    const checkoutSuccess = db.core.tasks.checkoutTask(taskId, run.id);
     expect(checkoutSuccess).toBe(true);
 
-    db.settings.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
+    db.core.settings.setDisabledModels(companyId, "openai-codex", [{ id: "gpt-5.4", label: "gpt-5.4" }]);
 
     const { taskRunner } = createOrchestrationHarness(db);
     taskRunner.resumeQueuedRuns();
 
-    const recoveredRun = db.snap.listSnapshot().runs.find((entry) => entry.id === run.id);
+    const recoveredRun = db.projection.snapshot.listSnapshot().runs.find((entry) => entry.id === run.id);
     expect(recoveredRun?.status).toBe("failed");
     expect(recoveredRun?.errorMessage).toContain("Connector model is disabled or invalid");
 

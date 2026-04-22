@@ -28,15 +28,15 @@ export function createHousekeepingScheduler(
       try {
         if (isQuitting() || !hasWorkerReady()) return;
 
-        const activeCompanies = db.company.listActiveCompanyIds();
+        const activeCompanies = db.core.company.listActiveCompanyIds();
 
         for (const company of activeCompanies) {
           try {
             const currentMonth = new Date().toISOString().slice(0, 7);
-            const lastResetMonth = db.settings.getLastBudgetResetMonth(company.id) ?? "";
+            const lastResetMonth = db.core.settings.getLastBudgetResetMonth(company.id) ?? "";
             if (currentMonth !== lastResetMonth) {
-              db.agents.resetMonthlyBudgets(company.id);
-              db.settings.setLastBudgetResetMonth(company.id, currentMonth);
+              db.core.agents.resetMonthlyBudgets(company.id);
+              db.core.settings.setLastBudgetResetMonth(company.id, currentMonth);
               logger.info(`[housekeeping] Reset monthly budgets for company ${company.name} (${currentMonth})`);
             }
 
@@ -53,7 +53,7 @@ export function createHousekeepingScheduler(
                 dispatchAgentMessage,
                 resolveApprovalDecision,
                 notify,
-                getCompanyExecutionMode: (cId: string) => db.company.getCompanyExecutionMode(cId),
+                getCompanyExecutionMode: (cId: string) => db.core.company.getCompanyExecutionMode(cId),
                 handleTaskStatusChange: (taskId: string, cId: string, previousStatus: string, newStatus: string) => {
                   deps.dispatchAutomation("task_status_changed", { companyId: cId, taskId, previousStatus, newStatus });
                   publishDomainChanged();
@@ -92,7 +92,7 @@ export function createHousekeepingScheduler(
         }
 
         try {
-          const staleWakeups = db.wakeup.purgeExpiredWakeupRequests();
+          const staleWakeups = db.automation.wakeup.purgeExpiredWakeupRequests();
           if (staleWakeups > 0) {
             logger.info(`[housekeeping] Purged ${staleWakeups} expired wakeup request(s)`);
           }
@@ -112,7 +112,7 @@ export function createHousekeepingScheduler(
           // so an active rotation window cannot strip the ledger out
           // from under a live run.
           const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-          const purgedProjections = db.inboxProjections.purgeOrphanProjections(cutoff);
+          const purgedProjections = db.projection.inbox.purgeOrphanProjections(cutoff);
           if (purgedProjections > 0) {
             logger.info(`[housekeeping] Purged ${purgedProjections} orphan inbox projection ledger row(s)`);
           }

@@ -13,7 +13,7 @@ const { createAgent } = shared;
 describe("Step 7: Worker crash recovery (database layer)", () => {
   it("interruptStaleRuns clears running and queued runs on init", async () => {
     const agentId = createAgent({ name: "Agent" });
-    const taskId = shared.db.tasks.saveTask({
+    const taskId = shared.db.core.tasks.saveTask({
       companyId: shared.companyId,
       title: "In-progress task",
       description: "Running when crash happened",
@@ -23,7 +23,7 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
       status: "in_progress",
     });
 
-    const run = shared.db.runs.createRun({
+    const run = shared.db.core.runs.createRun({
       companyId: shared.companyId,
       taskId,
       agentId,
@@ -31,10 +31,10 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
       connectorId: "openai-codex",
     });
 
-    shared.db.runs.markRunStatus(run.id, "running", "Started");
+    shared.db.core.runs.markRunStatus(run.id, "running", "Started");
 
     // Verify it's running
-    let snapshot = shared.db.snap.listSnapshot();
+    let snapshot = shared.db.projection.snapshot.listSnapshot();
     expect(snapshot.runs.find((r) => r.id === run.id)?.status).toBe("running");
 
     // Simulate app restart — close and re-init
@@ -44,14 +44,14 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
     shared.db = new AppDatabase(profileDir);
     shared.db.init(); // This calls interruptStaleRuns()
 
-    snapshot = shared.db.snap.listSnapshot();
+    snapshot = shared.db.projection.snapshot.listSnapshot();
     const recoveredRun = snapshot.runs.find((r) => r.id === run.id);
     expect(recoveredRun?.status).toBe("interrupted");
   });
 
   it("finishRun can mark interrupted runs from crash recovery", () => {
     const agentId = createAgent({ name: "Agent" });
-    const taskId = shared.db.tasks.saveTask({
+    const taskId = shared.db.core.tasks.saveTask({
       companyId: shared.companyId,
       title: "Crash recovery task",
       description: "Test",
@@ -61,7 +61,7 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
       status: "in_progress",
     });
 
-    const run = shared.db.runs.createRun({
+    const run = shared.db.core.runs.createRun({
       companyId: shared.companyId,
       taskId,
       agentId,
@@ -69,10 +69,10 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
       connectorId: "openai-codex",
     });
 
-    shared.db.runs.markRunStatus(run.id, "running", "Started");
+    shared.db.core.runs.markRunStatus(run.id, "running", "Started");
 
     // Simulate crash recovery - mark as interrupted
-    shared.db.runs.finishRun({
+    shared.db.core.runs.finishRun({
       runId: run.id,
       status: "interrupted",
       summary: "Worker process crashed.",
@@ -83,7 +83,7 @@ describe("Step 7: Worker crash recovery (database layer)", () => {
       unattributedCost: true,
     });
 
-    const snapshot = shared.db.snap.listSnapshot();
+    const snapshot = shared.db.projection.snapshot.listSnapshot();
     const recovered = snapshot.runs.find((r) => r.id === run.id);
     expect(recovered?.status).toBe("interrupted");
     expect(recovered?.errorMessage).toBe("Worker process exited unexpectedly.");

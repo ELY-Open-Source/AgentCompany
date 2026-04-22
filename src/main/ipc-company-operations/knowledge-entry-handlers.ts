@@ -28,7 +28,7 @@ export function registerKnowledgeEntryHandlers({
       return fail("INVALID_COMPANY_REFERENCE", `The selected ${invalidReference.label} does not belong to the current company.`);
     }
 
-    const id = db.knowledgeMod.saveKnowledgeEntry(parsed);
+    const id = db.core.knowledge.saveKnowledgeEntry(parsed);
     publishDomainChanged();
     return ok(id);
   });
@@ -37,10 +37,10 @@ export function registerKnowledgeEntryHandlers({
     const parsed = deleteEntitySchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    if (!db.settings.belongsToCompany("knowledge_base", parsed.id, parsed.companyId)) {
+    if (!db.core.settings.belongsToCompany("knowledge_base", parsed.id, parsed.companyId)) {
       return fail("ENTITY_NOT_FOUND", "Knowledge entry not found in the current company.");
     }
-    db.knowledgeMod.deleteKnowledgeEntry(parsed.id, parsed.companyId);
+    db.core.knowledge.deleteKnowledgeEntry(parsed.id, parsed.companyId);
     publishDomainChanged();
     return ok(true);
   });

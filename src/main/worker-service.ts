@@ -181,10 +181,10 @@ export function createWorkerService({
 
     // Mark all running/queued runs as interrupted so DB state is clean on restart
     try {
-      const snapshot = db.snap.listSnapshot();
+      const snapshot = db.projection.snapshot.listSnapshot();
       for (const run of snapshot.runs) {
         if (run.status === "running" || run.status === "queued") {
-          db.runs.finishRun({
+          db.core.runs.finishRun({
             runId: run.id,
             status: "interrupted",
             summary: "Application shut down.",
@@ -195,10 +195,10 @@ export function createWorkerService({
             unattributedCost: true,
           });
           if (run.workspaceId) {
-            db.workspacesMod.releaseWorkspaceLock(run.workspaceId, run.id);
+            db.core.workspaces.releaseWorkspaceLock(run.workspaceId, run.id);
           }
           if (run.taskId) {
-            db.tasks.releaseTaskLock(run.taskId, run.id);
+            db.core.tasks.releaseTaskLock(run.taskId, run.id);
           }
         }
       }

@@ -12,7 +12,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
     const targetAgentId = requireParam(params, "agentId");
     const targetAgent = (() => {
       try {
-        return db.entityCrud.getAgent(targetAgentId);
+        return db.core.entity.getAgent(targetAgentId);
       } catch (err) {
         log.warn(`[api/agent-control] getAgent failed for ${targetAgentId}:`, err instanceof Error ? err.message : String(err));
         return null;
@@ -31,7 +31,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
     });
     const parsed = wakeSchema.safeParse(body);
     const reason = parsed.success ? parsed.data.reason : "peer_request";
-    const alreadyActive = db.runs.hasActiveRun({ companyId: token.companyId, agentId: targetAgentId });
+    const alreadyActive = db.core.runs.hasActiveRun({ companyId: token.companyId, agentId: targetAgentId });
     const runId = onWakeAgent(targetAgentId, token.companyId, reason);
     if (runId) {
       server.json(res, 200, { ok: true, runId, message: `Wake started for agent ${targetAgentId}` });
@@ -52,7 +52,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
     const targetAgentId = requireParam(params, "agentId");
     let targetAgent;
     try {
-      targetAgent = db.entityCrud.getAgent(targetAgentId);
+      targetAgent = db.core.entity.getAgent(targetAgentId);
     } catch (err) {
       log.warn(`[api/agent-control] getAgent failed for heartbeat ${targetAgentId}:`, err instanceof Error ? err.message : String(err));
       targetAgent = null;
@@ -65,7 +65,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
       server.json(res, 403, { error: "Current agent is not allowed to trigger heartbeat for this agent" });
       return;
     }
-    const alreadyActive = db.runs.hasActiveRun({ companyId: token.companyId, agentId: targetAgentId });
+    const alreadyActive = db.core.runs.hasActiveRun({ companyId: token.companyId, agentId: targetAgentId });
     const runId = onWakeAgent(targetAgentId, token.companyId, "peer_request");
     if (runId) {
       server.json(res, 200, { ok: true, runId, message: `Heartbeat triggered for agent ${targetAgentId}` });
@@ -86,7 +86,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
     const agentId = requireParam(params, "agentId");
     let agent;
     try {
-      agent = db.entityCrud.getAgent(agentId);
+      agent = db.core.entity.getAgent(agentId);
     } catch (error) {
       log.warn(`[api/agent-skills:GET] getAgent(${agentId}) failed: ${error instanceof Error ? error.message : String(error)}`);
       agent = null;
@@ -95,9 +95,9 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
       server.json(res, 404, { error: "Agent not found in your company" });
       return;
     }
-    const skillIds = db.skills.listAgentSkillAssignments(agentId);
+    const skillIds = db.core.skills.listAgentSkillAssignments(agentId);
     const skills = skillIds
-      .map((sid) => db.skills.getCompanySkill(token.companyId, sid))
+      .map((sid) => db.core.skills.getCompanySkill(token.companyId, sid))
       .filter((s): s is NonNullable<typeof s> => s != null);
     server.json(res, 200, skills.map((s) => ({
       id: s.id,
@@ -118,7 +118,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
     }
     let agent;
     try {
-      agent = db.entityCrud.getAgent(agentId);
+      agent = db.core.entity.getAgent(agentId);
     } catch (error) {
       log.warn(`[api/agent-skills:POST] getAgent(${agentId}) failed: ${error instanceof Error ? error.message : String(error)}`);
       agent = null;
@@ -127,12 +127,12 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
       server.json(res, 404, { error: "Agent not found in your company" });
       return;
     }
-    const skill = db.skills.getCompanySkill(token.companyId, parsed.data.skillId);
+    const skill = db.core.skills.getCompanySkill(token.companyId, parsed.data.skillId);
     if (!skill) {
       server.json(res, 404, { error: "Skill not found in your company" });
       return;
     }
-    db.skills.assignSkillToAgent(agentId, parsed.data.skillId);
+    db.core.skills.assignSkillToAgent(agentId, parsed.data.skillId);
     onDomainChanged();
     server.json(res, 200, { ok: true, message: `Skill "${skill.name}" assigned to agent ${agent.name}` });
   });
@@ -142,7 +142,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
     const skillId = requireParam(params, "skillId");
     let agent;
     try {
-      agent = db.entityCrud.getAgent(agentId);
+      agent = db.core.entity.getAgent(agentId);
     } catch (error) {
       log.warn(`[api/agent-skills:DELETE] getAgent(${agentId}) failed: ${error instanceof Error ? error.message : String(error)}`);
       agent = null;
@@ -151,7 +151,7 @@ export function registerAgentControlRoutes(server: AgentApiServer) {
       server.json(res, 404, { error: "Agent not found in your company" });
       return;
     }
-    db.skills.removeSkillFromAgent(agentId, skillId);
+    db.core.skills.removeSkillFromAgent(agentId, skillId);
     onDomainChanged();
     server.json(res, 200, { ok: true, message: `Skill removed from agent ${agent.name}` });
   });

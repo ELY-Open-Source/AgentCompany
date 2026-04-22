@@ -14,16 +14,18 @@ describe("sweepStaleReviews", () => {
   function makeSweepDeps(overrides: Partial<SweepStaleReviewsDeps> = {}): SweepStaleReviewsDeps {
     return {
       db: {
-        tasks: {
-          listReviewTasksForSweep: vi.fn().mockReturnValue([]),
-          advanceTaskStatus: vi.fn().mockReturnValue({ previousStatus: "in_review" }),
-        },
-        agents: {
-          getManagerForAgent: vi.fn().mockReturnValue(null),
-          getChainOfCommand: vi.fn().mockReturnValue([]),
-        },
-        approvalsMod: {
-          findPendingApprovalForTask: vi.fn().mockReturnValue(null),
+        core: {
+          tasks: {
+            listReviewTasksForSweep: vi.fn().mockReturnValue([]),
+            advanceTaskStatus: vi.fn().mockReturnValue({ previousStatus: "in_review" }),
+          },
+          agents: {
+            getManagerForAgent: vi.fn().mockReturnValue(null),
+            getChainOfCommand: vi.fn().mockReturnValue([]),
+          },
+          approvals: {
+            findPendingApprovalForTask: vi.fn().mockReturnValue(null),
+          },
         },
       } as unknown as AppDatabase,
       getCompanyExecutionMode: vi.fn().mockReturnValue("ai_ceo"),
@@ -49,14 +51,14 @@ describe("sweepStaleReviews", () => {
       getManagerForAgent: ReturnType<typeof vi.fn>;
       getChainOfCommand: ReturnType<typeof vi.fn>;
     };
-    approvalsMod: {
+    approvals: {
       findPendingApprovalForTask: ReturnType<typeof vi.fn>;
     };
   };
 
   it("escalates to manager's manager when task in_review for 35 minutes", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as SweepDbMock;
+    const dbMock = (deps.db as unknown as { core: SweepDbMock }).core;
 
     dbMock.tasks.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
@@ -81,7 +83,7 @@ describe("sweepStaleReviews", () => {
 
   it("does not escalate when task in_review for only 25 minutes", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as SweepDbMock;
+    const dbMock = (deps.db as unknown as { core: SweepDbMock }).core;
 
     dbMock.tasks.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: TWENTY_FIVE_MIN_AGO, title: "Build login" },
@@ -95,12 +97,12 @@ describe("sweepStaleReviews", () => {
 
   it("notifies the human when the reviewer has no higher manager", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as SweepDbMock;
+    const dbMock = (deps.db as unknown as { core: SweepDbMock }).core;
 
     dbMock.tasks.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
     ]);
-    dbMock.approvalsMod.findPendingApprovalForTask.mockReturnValueOnce(null);
+    dbMock.approvals.findPendingApprovalForTask.mockReturnValueOnce(null);
     dbMock.agents.getManagerForAgent.mockReturnValueOnce({ id: "ceo-1", name: "CEO", companyId: "company-1" });
     dbMock.agents.getChainOfCommand.mockReturnValueOnce([]);
 
@@ -119,14 +121,14 @@ describe("sweepStaleReviews", () => {
 
   it("auto-approves pending approval linked to a stale review task", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as SweepDbMock;
+    const dbMock = (deps.db as unknown as { core: SweepDbMock }).core;
 
     dbMock.tasks.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
     ]);
     dbMock.agents.getManagerForAgent.mockReturnValueOnce({ id: "manager-1", name: "Manager", companyId: "company-1" });
     dbMock.agents.getChainOfCommand.mockReturnValueOnce([{ id: "higher-1", name: "Higher" }]);
-    dbMock.approvalsMod.findPendingApprovalForTask.mockReturnValueOnce({ id: "approval-1", type: "deliverable_review" });
+    dbMock.approvals.findPendingApprovalForTask.mockReturnValueOnce({ id: "approval-1", type: "deliverable_review" });
 
     sweepStaleReviews("company-1", deps, NOW);
 
@@ -144,14 +146,14 @@ describe("sweepStaleReviews", () => {
 
   it("swallows resolveApprovalDecision races gracefully", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as SweepDbMock;
+    const dbMock = (deps.db as unknown as { core: SweepDbMock }).core;
 
     dbMock.tasks.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
     ]);
     dbMock.agents.getManagerForAgent.mockReturnValueOnce({ id: "manager-1", name: "Manager", companyId: "company-1" });
     dbMock.agents.getChainOfCommand.mockReturnValueOnce([{ id: "higher-1", name: "Higher" }]);
-    dbMock.approvalsMod.findPendingApprovalForTask.mockReturnValueOnce({ id: "approval-1", type: "deliverable_review" });
+    dbMock.approvals.findPendingApprovalForTask.mockReturnValueOnce({ id: "approval-1", type: "deliverable_review" });
     (deps.resolveApprovalDecision as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
       throw new Error("Approval already decided");
     });
@@ -161,14 +163,14 @@ describe("sweepStaleReviews", () => {
 
   it("advances task status to done after escalation", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as SweepDbMock;
+    const dbMock = (deps.db as unknown as { core: SweepDbMock }).core;
 
     dbMock.tasks.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Build login" },
     ]);
     dbMock.agents.getManagerForAgent.mockReturnValueOnce({ id: "manager-1", name: "Manager", companyId: "company-1" });
     dbMock.agents.getChainOfCommand.mockReturnValueOnce([{ id: "higher-1", name: "Higher" }]);
-    dbMock.approvalsMod.findPendingApprovalForTask.mockReturnValueOnce(null);
+    dbMock.approvals.findPendingApprovalForTask.mockReturnValueOnce(null);
 
     sweepStaleReviews("company-1", deps, NOW);
 
@@ -182,7 +184,7 @@ describe("sweepStaleReviews", () => {
 
   it("skips tasks without an assignee", () => {
     const deps = makeSweepDeps();
-    const dbMock = deps.db as unknown as SweepDbMock;
+    const dbMock = (deps.db as unknown as { core: SweepDbMock }).core;
 
     dbMock.tasks.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: null, updatedAt: THIRTY_FIVE_MIN_AGO, title: "Orphan task" },
@@ -202,7 +204,7 @@ describe("sweepStaleReviews", () => {
     const deps = makeSweepDeps({
       getCompanyExecutionMode: vi.fn().mockReturnValue("ai_cofounder"),
     });
-    const dbMock = deps.db as unknown as SweepDbMock;
+    const dbMock = (deps.db as unknown as { core: SweepDbMock }).core;
 
     dbMock.tasks.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: TWENTY_FIVE_MIN_AGO, title: "Review me" },
@@ -220,12 +222,12 @@ describe("sweepStaleReviews", () => {
     const deps = makeSweepDeps({
       getCompanyExecutionMode: vi.fn().mockReturnValue("ai_cofounder"),
     });
-    const dbMock = deps.db as unknown as SweepDbMock;
+    const dbMock = (deps.db as unknown as { core: SweepDbMock }).core;
 
     dbMock.tasks.listReviewTasksForSweep.mockReturnValueOnce([
       { id: "task-1", assigneeAgentId: "agent-1", updatedAt: THIRTY_FIVE_MIN_AGO, title: "Review me" },
     ]);
-    dbMock.approvalsMod.findPendingApprovalForTask.mockReturnValueOnce({ id: "approval-1", type: "deliverable_review" });
+    dbMock.approvals.findPendingApprovalForTask.mockReturnValueOnce({ id: "approval-1", type: "deliverable_review" });
     dbMock.agents.getManagerForAgent.mockReturnValueOnce({ id: "manager-1", name: "Manager", companyId: "company-1" });
 
     const count = sweepStaleReviews("company-1", deps, NOW);

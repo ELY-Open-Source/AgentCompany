@@ -32,7 +32,7 @@ const SUBJECT_PREVIEW_LEN = 80;
 export function resolveInitialUserTurn(
   params: {
     trigger: string | null;
-    task: ReturnType<AppDatabase["entityCrud"]["getTask"]> | null;
+    task: ReturnType<AppDatabase["core"]["entity"]["getTask"]> | null;
     companyId: string;
     agentId: string;
   },
@@ -46,7 +46,7 @@ export function resolveInitialUserTurn(
   }
 
   if (trigger === "message" || trigger === "peer_request") {
-    const unread = deps.db.messages.listAgentInboxUnread(companyId, agentId);
+    const unread = deps.db.core.messages.listAgentInboxUnread(companyId, agentId);
     if (unread.length > 0) {
       return buildCommunicationTurn(trigger, unread, deps.db);
     }
@@ -81,9 +81,9 @@ function tryResolveCeoTeamBuildingCue(params: {
 }): string | null {
   const { agentId, companyId, db } = params;
   try {
-    const agent = db.entityCrud.getAgent(agentId);
+    const agent = db.core.entity.getAgent(agentId);
     if (agent.reportsTo) return null;
-    const activeReports = db.agents
+    const activeReports = db.core.agents
       .getDirectReports(agentId, companyId)
       .filter((r) => r.status !== "pending_approval" && r.status !== "terminated");
     if (activeReports.length > 0) return null;
@@ -167,7 +167,7 @@ function buildGenericWakeTurn(trigger: string | null): string {
 
 function resolveAgentLabel(db: AppDatabase, agentId: string): string {
   try {
-    const name = db.agents.findAgentName(agentId);
+    const name = db.core.agents.findAgentName(agentId);
     if (name && name.length > 0) return name;
   } catch {
     // fall through

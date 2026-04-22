@@ -18,12 +18,12 @@ async function setupCompany(prefix: string) {
   const db = new AppDatabase(profileDir);
   db.init();
 
-  const companyId = db.company.saveCompany({
+  const companyId = db.core.company.saveCompany({
     name: "CEO Strategy Co",
     description: "Tests canFileCeoStrategy orthogonality",
     status: "active",
   });
-  const workspaceId = db.workspacesMod.saveWorkspace({
+  const workspaceId = db.core.workspaces.saveWorkspace({
     companyId,
     name: "Primary",
     localPath: profileDir,
@@ -43,7 +43,7 @@ describe("canFileCeoStrategy", () => {
   it("returns true for a genuine CEO who reports to the board", async () => {
     const { db, companyId, workspaceId } = await setupCompany("agentcompany-ceo-strategy-real-");
 
-    const ceoId = db.agents.saveAgent({
+    const ceoId = db.core.agents.saveAgent({
       companyId,
       name: "Ada",
       role: "CEO",
@@ -65,7 +65,7 @@ describe("canFileCeoStrategy", () => {
   it("returns false for a CEO-titled agent with a virtual superior", async () => {
     const { db, companyId, workspaceId } = await setupCompany("agentcompany-ceo-strategy-virtual-");
 
-    const boardId = db.agents.saveAgent({
+    const boardId = db.core.agents.saveAgent({
       companyId,
       name: "Board Proxy",
       role: "Board",
@@ -78,7 +78,7 @@ describe("canFileCeoStrategy", () => {
       capabilities: "Hold CEO accountable",
       budgetMonthlyUsd: 100,
     });
-    const ceoId = db.agents.saveAgent({
+    const ceoId = db.core.agents.saveAgent({
       companyId,
       name: "Ada",
       role: "CEO",
@@ -100,7 +100,7 @@ describe("canFileCeoStrategy", () => {
   it("returns false for a VP with no manager (role is not CEO)", async () => {
     const { db, companyId, workspaceId } = await setupCompany("agentcompany-ceo-strategy-vp-");
 
-    const vpId = db.agents.saveAgent({
+    const vpId = db.core.agents.saveAgent({
       companyId,
       name: "Kai",
       role: "VP Product",
@@ -124,7 +124,7 @@ describe("canFileCeoStrategy", () => {
   it("returns false for a plain IC", async () => {
     const { db, companyId, workspaceId } = await setupCompany("agentcompany-ceo-strategy-ic-");
 
-    const ceoId = db.agents.saveAgent({
+    const ceoId = db.core.agents.saveAgent({
       companyId,
       name: "Ada",
       role: "CEO",
@@ -137,7 +137,7 @@ describe("canFileCeoStrategy", () => {
       capabilities: "Lead the company",
       budgetMonthlyUsd: 250,
     });
-    const icId = db.agents.saveAgent({
+    const icId = db.core.agents.saveAgent({
       companyId,
       name: "Eve",
       role: "Engineer",

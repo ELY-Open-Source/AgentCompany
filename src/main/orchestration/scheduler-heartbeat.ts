@@ -51,8 +51,8 @@ export function createHeartbeatScheduler(
     lastTickAt: string,
   ) {
     try {
-      const existing = db.agents.getRuntimeState(agentId) as Record<string, unknown>;
-      db.agents.setRuntimeState(agentId, companyId, {
+      const existing = db.core.agents.getRuntimeState(agentId) as Record<string, unknown>;
+      db.core.agents.setRuntimeState(agentId, companyId, {
         ...existing,
         heartbeatSkip: {
           reason,
@@ -73,11 +73,11 @@ export function createHeartbeatScheduler(
 
   function clearSkip(agentId: string, companyId: string) {
     try {
-      const existing = db.agents.getRuntimeState(agentId) as Record<string, unknown>;
+      const existing = db.core.agents.getRuntimeState(agentId) as Record<string, unknown>;
       if (!("heartbeatSkip" in existing)) return;
       const next = { ...existing };
       delete next.heartbeatSkip;
-      db.agents.setRuntimeState(agentId, companyId, next);
+      db.core.agents.setRuntimeState(agentId, companyId, next);
     } catch (error) {
       logAppError(logger, error, {
         kind: "recoverable",
@@ -123,7 +123,7 @@ export function createHeartbeatScheduler(
         : null;
     if (action) {
       try {
-        db.activityMod.addActivity({
+        db.core.activity.addActivity({
           companyId,
           actor: "system",
           action,
@@ -154,7 +154,7 @@ export function createHeartbeatScheduler(
     if (!previous) return;
     skipStreakByAgent.delete(agentId);
     try {
-      db.activityMod.addActivity({
+      db.core.activity.addActivity({
         companyId,
         actor: "system",
         action: "heartbeat.skip_cleared",
@@ -196,12 +196,12 @@ export function createHeartbeatScheduler(
     try {
       if (isQuitting() || !hasWorkerReady()) return;
 
-      const activeCompanies = db.company.listActiveCompanyIds();
+      const activeCompanies = db.core.company.listActiveCompanyIds();
       const now = Date.now();
 
       for (const company of activeCompanies) {
         try {
-          const eligibleAgents = db.agents.listHeartbeatEligibleAgents(company.id);
+          const eligibleAgents = db.core.agents.listHeartbeatEligibleAgents(company.id);
 
           for (const agent of eligibleAgents) {
             if (hasActiveRun({ agentId: agent.id, companyId: company.id })) continue;
@@ -223,7 +223,7 @@ export function createHeartbeatScheduler(
             tryWake(agent.id, company.id, agent.name, "timer");
           }
 
-          const goalCount = db.entityCrud.countActiveGoalsForCompany(company.id);
+          const goalCount = db.core.entity.countActiveGoalsForCompany(company.id);
           // Bootstrap when the company has active goals but no work is
           // actually advancing. The previous gate ("taskCount === 0")
           // missed the case where every task is in_review or blocked —
@@ -232,9 +232,9 @@ export function createHeartbeatScheduler(
           // regular timer interval. countAdvancingTasksForCompany
           // counts only todo + in_progress so bootstrapping still
           // fires once the team stalls.
-          const advancingCount = db.tasks.countAdvancingTasksForCompany(company.id);
+          const advancingCount = db.core.tasks.countAdvancingTasksForCompany(company.id);
           if (goalCount > 0 && advancingCount === 0) {
-            const ceo = db.agents.getCeoForCompany(company.id);
+            const ceo = db.core.agents.getCeoForCompany(company.id);
             const ceoLastWake = ceo?.lastHeartbeatAt ? new Date(ceo.lastHeartbeatAt).getTime() : 0;
             const ceoLastAttempt = ceo ? attemptedAtByAgent.get(ceo.id) ?? 0 : 0;
             const ceoLastTouch = Math.max(ceoLastWake, ceoLastAttempt);

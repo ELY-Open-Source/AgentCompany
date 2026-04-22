@@ -147,7 +147,7 @@ function createMockDb() {
       return computeSpentCents(filtered);
     },
   };
-  return { policies, costEntries, budget };
+  return { policies, costEntries, core: { budget } };
 }
 
 // ======================================================================
@@ -162,7 +162,7 @@ describe("Budget Policy CRUD", () => {
   });
 
   it("saveBudgetPolicy creates new policy and returns its ID", () => {
-    const id = db.budget.saveBudgetPolicy({
+    const id = db.core.budget.saveBudgetPolicy({
       companyId: "c1",
       scopeType: "company",
       scopeId: "c1",
@@ -175,13 +175,13 @@ describe("Budget Policy CRUD", () => {
   });
 
   it("saveBudgetPolicy updates existing policy when ID provided", () => {
-    const id = db.budget.saveBudgetPolicy({
+    const id = db.core.budget.saveBudgetPolicy({
       companyId: "c1",
       scopeType: "company",
       scopeId: "c1",
       amount: 10000,
     });
-    db.budget.saveBudgetPolicy({
+    db.core.budget.saveBudgetPolicy({
       id,
       companyId: "c1",
       scopeType: "company",
@@ -193,14 +193,14 @@ describe("Budget Policy CRUD", () => {
   });
 
   it("deleteBudgetPolicy removes policy by ID", () => {
-    const id = db.budget.saveBudgetPolicy({
+    const id = db.core.budget.saveBudgetPolicy({
       companyId: "c1",
       scopeType: "company",
       scopeId: "c1",
       amount: 10000,
     });
     expect(db.policies).toHaveLength(1);
-    db.budget.deleteBudgetPolicy("c1", id);
+    db.core.budget.deleteBudgetPolicy("c1", id);
     expect(db.policies).toHaveLength(0);
   });
 });
@@ -213,27 +213,27 @@ describe("getActivePoliciesForRun", () => {
   });
 
   it("returns all active policies matching company+agent+project scopes", () => {
-    db.budget.saveBudgetPolicy({ companyId: "c1", scopeType: "company", scopeId: "c1", amount: 50000 });
-    db.budget.saveBudgetPolicy({ companyId: "c1", scopeType: "agent", scopeId: "a1", amount: 10000 });
-    db.budget.saveBudgetPolicy({ companyId: "c1", scopeType: "project", scopeId: "p1", amount: 20000 });
+    db.core.budget.saveBudgetPolicy({ companyId: "c1", scopeType: "company", scopeId: "c1", amount: 50000 });
+    db.core.budget.saveBudgetPolicy({ companyId: "c1", scopeType: "agent", scopeId: "a1", amount: 10000 });
+    db.core.budget.saveBudgetPolicy({ companyId: "c1", scopeType: "project", scopeId: "p1", amount: 20000 });
     // Different company — should not match
-    db.budget.saveBudgetPolicy({ companyId: "c2", scopeType: "company", scopeId: "c2", amount: 99999 });
+    db.core.budget.saveBudgetPolicy({ companyId: "c2", scopeType: "company", scopeId: "c2", amount: 99999 });
 
-    const result = db.budget.getActivePoliciesForRun("c1", "a1", "p1");
+    const result = db.core.budget.getActivePoliciesForRun("c1", "a1", "p1");
     expect(result).toHaveLength(3);
     expect(result.map((p) => p.scopeType).sort()).toEqual(["agent", "company", "project"]);
   });
 
   it("returns empty array when no policies exist (D-02: no policy = unlimited)", () => {
-    const result = db.budget.getActivePoliciesForRun("c1", "a1", null);
+    const result = db.core.budget.getActivePoliciesForRun("c1", "a1", null);
     expect(result).toEqual([]);
   });
 
   it("excludes project scope when projectId is null", () => {
-    db.budget.saveBudgetPolicy({ companyId: "c1", scopeType: "company", scopeId: "c1", amount: 50000 });
-    db.budget.saveBudgetPolicy({ companyId: "c1", scopeType: "project", scopeId: "p1", amount: 20000 });
+    db.core.budget.saveBudgetPolicy({ companyId: "c1", scopeType: "company", scopeId: "c1", amount: 50000 });
+    db.core.budget.saveBudgetPolicy({ companyId: "c1", scopeType: "project", scopeId: "p1", amount: 20000 });
 
-    const result = db.budget.getActivePoliciesForRun("c1", "a1", null);
+    const result = db.core.budget.getActivePoliciesForRun("c1", "a1", null);
     expect(result).toHaveLength(1);
     expect(result[0]!.scopeType).toBe("company");
   });
@@ -259,7 +259,7 @@ describe("getSpentInWindow", () => {
       amount: 100000, warnPercent: 80, hardStopEnabled: true, notifyEnabled: true,
       isActive: true, createdAt: now.toISOString(), updatedAt: now.toISOString(),
     };
-    const spent = db.budget.getSpentInWindow(policy);
+    const spent = db.core.budget.getSpentInWindow(policy);
     expect(spent).toBe(380); // (1.50 + 2.30) * 100 = 380 cents
   });
 
@@ -276,7 +276,7 @@ describe("getSpentInWindow", () => {
       amount: 100000, warnPercent: 80, hardStopEnabled: true, notifyEnabled: true,
       isActive: true, createdAt: now.toISOString(), updatedAt: now.toISOString(),
     };
-    const spent = db.budget.getSpentInWindow(policy);
+    const spent = db.core.budget.getSpentInWindow(policy);
     expect(spent).toBe(500); // Only a1's $5.00 = 500 cents
   });
 
@@ -293,7 +293,7 @@ describe("getSpentInWindow", () => {
       amount: 100000, warnPercent: 80, hardStopEnabled: true, notifyEnabled: true,
       isActive: true, createdAt: now.toISOString(), updatedAt: now.toISOString(),
     };
-    const spent = db.budget.getSpentInWindow(policy);
+    const spent = db.core.budget.getSpentInWindow(policy);
     expect(spent).toBe(750); // Only p1's $7.50 = 750 cents
   });
 });

@@ -60,13 +60,13 @@ export function createDesktopShell({
         properties: ["openDirectory", "createDirectory"],
       }));
       if (target.canceled || target.filePaths.length === 0) return;
-      await db.backupMod.exportBackup(`${target.filePaths[0]!}/agentcompany-backup-${Date.now()}`);
+      await db.core.backup.exportBackup(`${target.filePaths[0]!}/agentcompany-backup-${Date.now()}`);
     },
     onShortcut: (action) => emitEvent({ type: "shortcut", action }),
     notify,
     getActiveRunCount: () => {
       try {
-        const snapshot = db.snap.listSnapshot();
+        const snapshot = db.projection.snapshot.listSnapshot();
         return snapshot.runs.filter((r) => r.status === "running" || r.status === "queued").length;
       } catch (error) {
         logger.warn("[service-graph] getActiveRunCount failed:", error);
