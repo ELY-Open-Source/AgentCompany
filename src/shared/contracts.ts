@@ -8,3 +8,4 @@ export * from "./contracts/schemas-messages";
 export * from "./contracts/schemas-execution";
 export * from "./contracts/schemas-misc";
 export * from "./contracts/desktop-api";
+export * from "./contracts/preload-forwarders";
