@@ -54,7 +54,7 @@ export interface RunDispatchParams {
 
 export interface TurnContextDeps {
   db: AppDatabase;
-  logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void };
+  logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error?: (...args: unknown[]) => void };
   getApiPort: () => number;
   createRunToken: (agentId: string, companyId: string, runId: string) => string;
   listRuntimeSkillEntries: (companyId: string, agentId: string, connectorId: string) => ProjectedSkill[];
@@ -123,13 +123,13 @@ function resolveSessionHandoff(
   try {
     return deps.getSessionHandoff(agentId);
   } catch (err) {
-    logAppError(deps.logger, err, {
-      kind: "recoverable",
+    const appError = logAppError(deps.logger, err, {
+      kind: "upstream",
       code: "run.session_handoff.load_failed",
-      message: `Failed to load session handoff for agent ${agentId}; continuing without handoff`,
+      message: `Failed to load session handoff for agent ${agentId}.`,
       context: { agentId },
-    }, "warn");
-    return null;
+    });
+    throw appError;
   }
 }
 
@@ -143,13 +143,13 @@ function resolveSkills(
   try {
     return deps.listRuntimeSkillEntries(companyId, agentId, connectorId);
   } catch (err) {
-    logAppError(deps.logger, err, {
-      kind: "recoverable",
+    const appError = logAppError(deps.logger, err, {
+      kind: "upstream",
       code: "run.skills.fetch_failed",
-      message: `Failed to fetch managed skills for agent ${agentName}; proceeding with empty skill set`,
+      message: `Failed to fetch managed skills for agent ${agentName}.`,
       context: { agentId, agentName, connectorId, companyId },
-    }, "warn");
-    return [];
+    });
+    throw appError;
   }
 }
 

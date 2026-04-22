@@ -73,41 +73,23 @@ export function buildOrchestrationService({
       workerService.getWorker()?.postMessage({ type: "enqueue-run", payload });
     },
     isQuitting: () => isQuittingRef.current,
-    listRuntimeSkillEntries: (companyId, agentId, connectorId) => {
-      try {
-        return skillService.listRuntimeSkillEntries(companyId, agentId, connectorId);
-      } catch (error) {
-        logger.warn(`[service-graph] listRuntimeSkillEntries failed for agent ${agentId}:`, error);
-        return [];
-      }
-    },
+    listRuntimeSkillEntries: (companyId, agentId, connectorId) =>
+      skillService.listRuntimeSkillEntries(companyId, agentId, connectorId),
     budgetService,
     checkpointEngine,
-    getSessionHandoff: (agentId) => {
-      try {
-        return sessionService.getHandoffForAgent(agentId);
-      } catch (error) {
-        logger.warn(`[service-graph] getSessionHandoff failed for agent ${agentId}:`, error);
-        return null;
+    getSessionHandoff: (agentId) => sessionService.getHandoffForAgent(agentId),
+    evaluatePreRunSessionRotation: (agentId, _connectorId) => {
+      const agent = db.entityCrud.getAgent(agentId);
+      if (!agent.sessionId) return { rotated: false, handoff: null, sessionId: null };
+      const session = db.tasks.getSessionById(agent.sessionId);
+      if (!session) return { rotated: false, handoff: null, sessionId: agent.sessionId };
+      const result = sessionService.evaluateRotation(session);
+      if (result.shouldRotate) {
+        const newSessionId = sessionService.rotateSession(session);
+        const handoff = sessionService.getHandoffForAgent(agentId);
+        return { rotated: true, handoff, sessionId: newSessionId };
       }
-    },
-    evaluatePreRunSessionRotation: (agentId, connectorId) => {
-      try {
-        const agent = db.entityCrud.getAgent(agentId);
-        if (!agent.sessionId) return { rotated: false, handoff: null, sessionId: null };
-        const session = db.tasks.getSessionById(agent.sessionId);
-        if (!session) return { rotated: false, handoff: null, sessionId: agent.sessionId };
-        const result = sessionService.evaluateRotation(session);
-        if (result.shouldRotate) {
-          const newSessionId = sessionService.rotateSession(session);
-          const handoff = sessionService.getHandoffForAgent(agentId);
-          return { rotated: true, handoff, sessionId: newSessionId };
-        }
-        return { rotated: false, handoff: null, sessionId: agent.sessionId };
-      } catch (error) {
-        logger.warn(`[service-graph] evaluatePreRunSessionRotation failed for agent ${agentId}:`, error);
-        return { rotated: false, handoff: null, sessionId: null };
-      }
+      return { rotated: false, handoff: null, sessionId: agent.sessionId };
     },
   });
 }

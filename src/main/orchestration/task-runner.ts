@@ -127,15 +127,18 @@ export function createTaskRunner(
       trigger,
       resolvedModel: assignment.modelId,
     });
-    db.activityMod.addActivity({
-      companyId: task.companyId,
-      actor,
-      action: "run.queued",
-      entityType: "run",
-      entityId: run.id,
-      detail: task.title,
-    });
-    emitEvent({ type: "run-updated", runId: run.id, action: "created" });
+    const postDispatchRun = db.runs.getRun(run.id);
+    if (postDispatchRun.status === "queued" || postDispatchRun.status === "running") {
+      db.activityMod.addActivity({
+        companyId: task.companyId,
+        actor,
+        action: "run.queued",
+        entityType: "run",
+        entityId: run.id,
+        detail: task.title,
+      });
+      emitEvent({ type: "run-updated", runId: run.id, action: "created" });
+    }
     return ok(run.id);
   }
 
