@@ -4,6 +4,10 @@ import log from "electron-log/main.js";
 import type { ApprovalRecord } from "@shared/types";
 import type { ReadAll, Transaction } from "./helpers";
 import { normalizeOptionalId, nowIso, parseJson } from "./helpers";
+import {
+  COFOUNDER_MANDATORY_APPROVAL_TYPES,
+  OPERATIONAL_APPROVAL_TYPES,
+} from "../execution-policy";
 
 export function buildApprovalMethods(
   getDb: () => DatabaseSync,
@@ -240,6 +244,8 @@ export function buildApprovalMethods(
         ? "(related_task_id = ? or requested_by_agent_id = ?)"
         : "requested_by_agent_id = ?";
       const taskParams: SQLInputValue[] = taskId != null ? [taskId, agentId] : [agentId];
+      const operationalApprovalPlaceholders = OPERATIONAL_APPROVAL_TYPES.map(() => "?").join(", ");
+      const cofounderApprovalPlaceholders = COFOUNDER_MANDATORY_APPROVAL_TYPES.map(() => "?").join(", ");
       const rows = readAll<ApprovalRecord>(
         `select id, company_id as companyId, related_task_id as relatedTaskId,
                 requested_by_agent_id as requestedByAgentId, related_agent_id as relatedAgentId,
@@ -254,11 +260,15 @@ export function buildApprovalMethods(
              or (type = 'secret_access' and ${taskCondition})
              or (type = 'approve_ceo_strategy' and ${taskCondition})
              or (type = 'deliverable_review' and (requested_by_agent_id = ? or (related_task_id is not null and ${taskCondition})))
+             or (type in (${operationalApprovalPlaceholders}) and ${taskCondition})
+             or (type in (${cofounderApprovalPlaceholders}) and (requested_by_agent_id = ? or (related_task_id is not null and ${taskCondition})))
            )
          order by created_at asc limit 1`,
         companyId, agentId,
         ...taskParams, ...taskParams, ...taskParams,
         agentId, ...taskParams,
+        ...OPERATIONAL_APPROVAL_TYPES, ...taskParams,
+        ...COFOUNDER_MANDATORY_APPROVAL_TYPES, agentId, ...taskParams,
       );
       return rows.length > 0 ? rows[0] : null;
     },

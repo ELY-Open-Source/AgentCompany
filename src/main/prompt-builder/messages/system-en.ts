@@ -264,7 +264,7 @@ export function importantRulesSection(companyId: string, agentId: string, runId:
 # Critical Rules
 1. Only work on the tasks and goals described above. Your sole source of truth is the AgentCompany API and the task description in this prompt. Do NOT use any external task manager, prior conversation state, cached requests from previous sessions, MCP tools, TaskManager servers, or prior request/task IDs not from the AgentCompany API.
 2. Stay in the working directory you were started in. Do NOT cd or navigate to other projects or repositories.
-3. Actually call the API to take actions. Do NOT just describe what you would do — DO it. Every wake cycle should result in at least one API call that moves work forward.
+3. Actually call the API to take actions. Do NOT just describe what you would do — DO it. Every wake cycle should result in at least one API call that moves work forward unless a runtime checkpoint or approval gate blocks the current work.
 `;
 }
 

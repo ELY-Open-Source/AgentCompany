@@ -20,7 +20,7 @@ function assertExecutionMode(value: string): asserts value is ExecutionMode {
 }
 
 /** Approval types that always require human review in co-founder mode. */
-const COFOUNDER_MANDATORY_APPROVALS = new Set<ApprovalType>([
+export const COFOUNDER_MANDATORY_APPROVAL_TYPES = [
   "deliverable_review",
   "document_review",
   "plan_review",
@@ -30,7 +30,28 @@ const COFOUNDER_MANDATORY_APPROVALS = new Set<ApprovalType>([
   "exception_review",
   "approve_ceo_strategy",
   "production_deploy",
-]);
+] as const satisfies readonly ApprovalType[];
+
+const COFOUNDER_MANDATORY_APPROVALS = new Set<ApprovalType>(COFOUNDER_MANDATORY_APPROVAL_TYPES);
+
+export function isCofounderMandatoryApproval(approvalType: string): approvalType is ApprovalType {
+  return COFOUNDER_MANDATORY_APPROVALS.has(approvalType as ApprovalType);
+}
+
+/** Approval types that always gate destructive tools while pending. */
+export const OPERATIONAL_APPROVAL_TYPES = [
+  "dangerous_command",
+  "secret_access",
+  "production_deploy",
+  "social_post",
+  "budget_override",
+] as const satisfies readonly ApprovalType[];
+
+const OPERATIONAL_APPROVALS = new Set<ApprovalType>(OPERATIONAL_APPROVAL_TYPES);
+
+export function isOperationalApproval(approvalType: string): approvalType is ApprovalType {
+  return OPERATIONAL_APPROVALS.has(approvalType as ApprovalType);
+}
 
 /** Approval types eligible for auto-approval in CEO mode (when company settings allow). */
 const CEO_AUTO_APPROVABLE = new Set<ApprovalType>([
@@ -59,7 +80,7 @@ export function shouldAutoApprove(
   const mode = rawMode;
 
   // Co-founder mode: mandatory types always require human decision
-  if (mode === "ai_cofounder" && COFOUNDER_MANDATORY_APPROVALS.has(approvalType as ApprovalType)) {
+  if (mode === "ai_cofounder" && isCofounderMandatoryApproval(approvalType)) {
     return false;
   }
 

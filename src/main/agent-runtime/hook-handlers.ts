@@ -14,7 +14,6 @@
  * Policy lives here; `RuntimeBridge` stays a pure IPC router.
  */
 
-import type { ApprovalType } from "@shared/types";
 import type { AppDatabase } from "@main/database";
 import type {
   AfterToolCallRpcPayload,
@@ -29,6 +28,10 @@ import {
   type ArtifactProjectorRunContext,
 } from "./artifact-projector";
 import { compactMessagesIfNeeded } from "./context-compactor";
+import {
+  isCofounderMandatoryApproval,
+  isOperationalApproval,
+} from "../execution-policy";
 
 /**
  * Lifecycle phase of an active pi run as seen by main.
@@ -88,25 +91,6 @@ export function isDestructiveTool(toolName: string): boolean {
 }
 
 /**
- * Approval types that gate EXECUTION (not decision). These stop the
- * destructive toolchain until the board releases the hold.
- *
- * Decision-type approvals (deliverable_review, plan_review, hire_agent,
- * …) are deliberately excluded: they mean "a human owes an answer
- * about completed or proposed work". The agent is still free to reply
- * to messages, coordinate with peers, or work on unrelated tasks
- * while the decision is pending — blocking their tools there turns
- * the board-review pattern into a company-wide freeze.
- */
-const OPERATIONAL_APPROVAL_TYPES: ReadonlySet<ApprovalType> = new Set<ApprovalType>([
-  "dangerous_command",
-  "secret_access",
-  "production_deploy",
-  "social_post",
-  "budget_override",
-]);
-
-/**
  * Approval gate for destructive tools. Runs at every
  * `beforeToolCall`, so approvals created mid-run take effect on the
  * next tool call with no cross-process cache to invalidate.
@@ -136,7 +120,10 @@ function checkOperationalApprovalBlock(
   try {
     const blocking = deps.db.approvalsMod.getBlockingApproval(ctx.companyId, ctx.agentId, ctx.taskId);
     if (!blocking) return { block: false, reason: null };
-    if (!OPERATIONAL_APPROVAL_TYPES.has(blocking.type as ApprovalType)) {
+    const companyMode = deps.db.company.getCompanyExecutionMode(ctx.companyId);
+    const cofounderCheckpointBlocks =
+      companyMode === "ai_cofounder" && isCofounderMandatoryApproval(blocking.type);
+    if (!isOperationalApproval(blocking.type) && !cofounderCheckpointBlocks) {
       return { block: false, reason: null };
     }
     return {
