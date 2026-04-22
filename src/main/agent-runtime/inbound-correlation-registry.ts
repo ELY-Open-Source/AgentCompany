@@ -17,8 +17,6 @@ interface InboundCorrelationRegistry {
   lastAllocatedTimestamp: number;
 }
 
-const MAX_INBOUND_CORRELATIONS_PER_RUN = 512;
-
 export class InboundCorrelationRegistryStore {
   private readonly registries = new Map<string, InboundCorrelationRegistry>();
 
@@ -34,7 +32,6 @@ export class InboundCorrelationRegistryStore {
     };
     registry.byMessageId.set(record.id, entry);
     registry.byPiTimestamp.set(allocated, record.id);
-    this.evictOldestIfNeeded(registry);
     return allocated;
   }
 
@@ -61,15 +58,5 @@ export class InboundCorrelationRegistryStore {
     };
     this.registries.set(runId, registry);
     return registry;
-  }
-
-  private evictOldestIfNeeded(registry: InboundCorrelationRegistry): void {
-    while (registry.byMessageId.size > MAX_INBOUND_CORRELATIONS_PER_RUN) {
-      const oldestMessageId = registry.byMessageId.keys().next().value;
-      if (!oldestMessageId) break;
-      const entry = registry.byMessageId.get(oldestMessageId);
-      registry.byMessageId.delete(oldestMessageId);
-      if (entry) registry.byPiTimestamp.delete(entry.piTimestamp);
-    }
   }
 }
