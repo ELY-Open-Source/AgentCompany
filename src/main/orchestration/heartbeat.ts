@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { AppDatabase } from "../database";
 import type { AgentRecord, ConnectorRecord } from "@shared/types";
 import type { OrchestrationDependencies } from "./types";
@@ -165,22 +164,9 @@ export function createHeartbeat(
     const candidateTasks = assignedTasks;
 
     const candidateTask = candidateTasks.find((entry) => !entry.activeRunId) ?? null;
-    const runId = randomUUID();
     let task: ReturnType<AppDatabase["entityCrud"]["getTask"]> | null = null;
 
     if (candidateTask) {
-      const checkoutSuccess = db.tasks.checkoutTask(candidateTask.id, runId);
-      if (!checkoutSuccess) {
-        db.activityMod.addActivity({
-          companyId,
-          actor: "system",
-          action: "execution.checkout_rejected",
-          entityType: "task",
-          entityId: candidateTask.id,
-          detail: `Agent ${agent.name} lost checkout race on task "${candidateTask.title}"`,
-        });
-        return SKIPPED("checkout_race_lost");
-      }
       task = db.entityCrud.getTask(candidateTask.id);
     } else {
       const hasActiveAssignedRun = candidateTasks.some(
@@ -209,16 +195,6 @@ export function createHeartbeat(
       workspaceResolution = resolveWorkspace(task, agent, companyId);
     } catch (error) {
       if (error instanceof WorkspaceConfigurationError) {
-        // A coding-role task landed here with no bound workspace. We
-        // refuse to silently pick a shared workspace (the old
-        // company_fallback silent-corruption path) — the operator
-        // needs to bind a workspace explicitly. Release the lease
-        // the earlier checkoutTask just claimed so the task re-enters
-        // the pool at the next heartbeat instead of stalling as
-        // `in_progress` with no run.
-        if (task) {
-          db.tasks.releaseTaskLock(task.id, runId);
-        }
         db.activityMod.addActivity({
           companyId,
           actor: "system",
@@ -237,14 +213,35 @@ export function createHeartbeat(
       `[heartbeat] Workspace resolution for ${agent.name}: task.workspaceId=${task?.workspaceId ?? "null"}, agent.workspaceId=${agent.workspaceId ?? "null"}, projectId=${task?.projectId ?? "null"}, source=${workspaceResolution.source}, mode=${workspaceResolution.lockMode}, resolved=${workspace?.name ?? "NONE"}, localPath=${workspace?.localPath ?? "NONE"}`,
     );
 
-    const run = db.runs.createRun({
-      id: runId,
-      companyId,
-      taskId: task?.id ?? null,
-      agentId: agent.id,
-      workspaceId: workspaceResolution.lockMode === "exclusive" ? (workspace?.id ?? null) : null,
-      connectorId: connector.id,
-    });
+    const run = task
+      ? db.runs.createTaskRun({
+        companyId,
+        taskId: task.id,
+        agentId: agent.id,
+        workspaceId: workspaceResolution.lockMode === "exclusive" ? (workspace?.id ?? null) : null,
+        connectorId: connector.id,
+      })
+      : db.runs.createRun({
+        companyId,
+        taskId: null,
+        agentId: agent.id,
+        workspaceId: workspaceResolution.lockMode === "exclusive" ? (workspace?.id ?? null) : null,
+        connectorId: connector.id,
+      });
+    if (!run) {
+      if (!task) {
+        throw new Error("Taskless heartbeat run creation returned null.");
+      }
+      db.activityMod.addActivity({
+        companyId,
+        actor: "system",
+        action: "execution.checkout_rejected",
+        entityType: "task",
+        entityId: task.id,
+        detail: `Agent ${agent.name} lost checkout race on task "${task.title}"`,
+      });
+      return SKIPPED("checkout_race_lost");
+    }
 
     const companyBasic = db.company.getCompanyBasic(companyId);
     dispatchRunToWorker({

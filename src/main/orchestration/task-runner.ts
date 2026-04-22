@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { AgentRecord, ConnectorRecord } from "@shared/types";
 import type { DesktopResult } from "@shared/contracts";
 import type { OrchestrationDependencies } from "./types";
@@ -87,22 +86,11 @@ export function createTaskRunner(
       );
     }
 
-    // CAS checkout — atomic claim (EXEC-01, EXEC-02)
-    const runId = randomUUID();
-    const checkoutSuccess = db.tasks.checkoutTask(task.id, runId);
-    if (!checkoutSuccess) {
-      return fail("CHECKOUT_RACE_LOST", "Another run claimed this task. Refresh and try again.");
-    }
-
     let workspaceResolution: ReturnType<typeof resolveWorkspace>;
     try {
       workspaceResolution = resolveWorkspace(task, agent, task.companyId);
     } catch (error) {
       if (error instanceof WorkspaceConfigurationError) {
-        // Resolver refused to guess a workspace. Release the lease
-        // we just claimed so the task row does not stall at
-        // `in_progress`; surface the error to the caller.
-        db.tasks.releaseTaskLock(task.id, runId);
         return fail("WORKSPACE_UNRESOLVED", error.message);
       }
       throw error;
@@ -112,14 +100,16 @@ export function createTaskRunner(
       return fail("WORKSPACE_COMPANY_MISMATCH", "The selected workspace does not belong to the task company.");
     }
 
-    const run = db.runs.createRun({
-      id: runId,
+    const run = db.runs.createTaskRun({
       companyId: task.companyId,
       taskId: task.id,
       agentId: agent.id,
       workspaceId: workspaceResolution.lockMode === "exclusive" ? (workspace?.id ?? null) : null,
       connectorId: connector.id,
     });
+    if (!run) {
+      return fail("CHECKOUT_RACE_LOST", "Another run claimed this task. Refresh and try again.");
+    }
 
     const companyBasic = db.company.getCompanyBasic(task.companyId);
     dispatchRunToWorker({

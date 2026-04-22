@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -122,6 +123,102 @@ describe("CAS checkout", () => {
 
     const task = db.entityCrud.getTask(taskId);
     expect(task.status).toBe("in_progress");
+  });
+
+  it("createRun does not claim a task before checkout", () => {
+    const companyId = createTestCompany(db);
+    createTestConnector(db);
+    const workspaceId = createTestWorkspace(db, companyId);
+    const agentId = createTestAgent(db, companyId, workspaceId);
+    const taskId = createTestTask(db, companyId, null, workspaceId);
+
+    db.runs.createRun({
+      companyId,
+      taskId,
+      agentId,
+      workspaceId,
+      connectorId: "openai-codex",
+    });
+
+    const task = db.entityCrud.getTask(taskId);
+    expect(task.activeRunId).toBeNull();
+    expect(task.status).toBe("todo");
+  });
+
+  it("checkout rejects a missing run without mutating task state", () => {
+    const companyId = createTestCompany(db);
+    createTestConnector(db);
+    const workspaceId = createTestWorkspace(db, companyId);
+    const taskId = createTestTask(db, companyId, null, workspaceId);
+    const missingRunId = randomUUID();
+
+    expect(() => db.tasks.checkoutTask(taskId, missingRunId)).toThrow(/Run not found/);
+
+    const task = db.entityCrud.getTask(taskId);
+    expect(task.activeRunId).toBeNull();
+    expect(task.status).toBe("todo");
+    const lease = (db as unknown as RawDb).db
+      .prepare("SELECT run_id FROM task_leases WHERE task_id = ?")
+      .get(taskId);
+    expect(lease).toBeUndefined();
+  });
+
+  it("createTaskRun atomically creates the run and claims the task lease", () => {
+    const companyId = createTestCompany(db);
+    createTestConnector(db);
+    const workspaceId = createTestWorkspace(db, companyId);
+    const agentId = createTestAgent(db, companyId, workspaceId);
+    const taskId = createTestTask(db, companyId, null, workspaceId);
+
+    const run = db.runs.createTaskRun({
+      companyId,
+      taskId,
+      agentId,
+      workspaceId,
+      connectorId: "openai-codex",
+    });
+
+    expect(run).not.toBeNull();
+    const task = db.entityCrud.getTask(taskId);
+    expect(task.status).toBe("in_progress");
+    expect(task.activeRunId).toBe(run?.id);
+    const lease = (db as unknown as RawDb).db
+      .prepare("SELECT run_id FROM task_leases WHERE task_id = ?")
+      .get(taskId) as { run_id: string } | undefined;
+    expect(lease?.run_id).toBe(run?.id);
+  });
+
+  it("createTaskRun rolls back the run row when checkout loses the race", () => {
+    const companyId = createTestCompany(db);
+    createTestConnector(db);
+    const workspaceId = createTestWorkspace(db, companyId);
+    const agentId = createTestAgent(db, companyId, workspaceId);
+    const taskId = createTestTask(db, companyId, null, workspaceId);
+
+    const firstRun = db.runs.createTaskRun({
+      companyId,
+      taskId,
+      agentId,
+      workspaceId,
+      connectorId: "openai-codex",
+    });
+    expect(firstRun).not.toBeNull();
+
+    const losingRunId = randomUUID();
+    const secondRun = db.runs.createTaskRun({
+      id: losingRunId,
+      companyId,
+      taskId,
+      agentId,
+      workspaceId,
+      connectorId: "openai-codex",
+    });
+
+    expect(secondRun).toBeNull();
+    const stored = (db as unknown as RawDb).db
+      .prepare("SELECT id FROM runs WHERE id = ?")
+      .get(losingRunId);
+    expect(stored).toBeUndefined();
   });
 
   it("CAS checkout fails for second claimer", () => {

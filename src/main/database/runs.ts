@@ -7,6 +7,13 @@ import { type ReadAll, type Transaction, nowIso, toBoolean } from "./helpers";
 import { buildRunLogMethods } from "./run-logs";
 import { buildRunEventMethods } from "./run-events";
 import { buildCostEntryMethods } from "./cost-entries";
+import { checkoutTaskInTransaction } from "./task-checkout";
+
+class TaskCheckoutConflict extends Error {
+  constructor(readonly taskId: string) {
+    super(`Task checkout conflict: ${taskId}`);
+  }
+}
 
 export function buildRunMethods(
   getDb: () => DatabaseSync,
@@ -16,6 +23,33 @@ export function buildRunMethods(
     logsDir: string;
   },
 ) {
+  function insertRunRow(input: {
+    id: string;
+    companyId: string;
+    taskId: string | null;
+    agentId: string;
+    workspaceId: string | null;
+    connectorId: ConnectorId;
+    logPath: string;
+    ts: string;
+  }): void {
+    getDb()
+      .prepare(
+        "insert into runs (id, company_id, task_id, agent_id, workspace_id, connector_id, status, summary, unattributed_cost, log_path, created_at, updated_at) values (?, ?, ?, ?, ?, ?, 'queued', '', 0, ?, ?, ?)",
+      )
+      .run(
+        input.id,
+        input.companyId,
+        input.taskId,
+        input.agentId,
+        input.workspaceId,
+        input.connectorId,
+        input.logPath,
+        input.ts,
+        input.ts,
+      );
+  }
+
   return {
     ...buildRunLogMethods(getDb, readAll, transaction),
     ...buildRunEventMethods(getDb, readAll, transaction),
@@ -51,15 +85,37 @@ export function buildRunMethods(
       const ts = nowIso();
       const logPath = join(deps.logsDir, `${id}.log`);
       transaction(() => {
-        getDb()
-          .prepare(
-            "insert into runs (id, company_id, task_id, agent_id, workspace_id, connector_id, status, summary, unattributed_cost, log_path, created_at, updated_at) values (?, ?, ?, ?, ?, ?, 'queued', '', 0, ?, ?, ?)",
-          )
-          .run(id, input.companyId, input.taskId, input.agentId, input.workspaceId, input.connectorId, logPath, ts, ts);
-        if (input.taskId !== null) {
-          getDb().prepare("update tasks set active_run_id = ?, updated_at = ? where id = ?").run(id, ts, input.taskId);
-        }
+        insertRunRow({ ...input, id, logPath, ts });
       });
+      writeFileSync(logPath, "", "utf8");
+      return { id, logPath };
+    },
+
+    createTaskRun(input: {
+      id?: string;
+      companyId: string;
+      taskId: string;
+      agentId: string;
+      workspaceId: string | null;
+      connectorId: ConnectorId;
+    }): { id: string; logPath: string } | null {
+      const id = input.id ?? randomUUID();
+      const ts = nowIso();
+      const logPath = join(deps.logsDir, `${id}.log`);
+      try {
+        transaction(() => {
+          insertRunRow({ ...input, id, logPath, ts });
+          const checkoutOk = checkoutTaskInTransaction(getDb(), input.taskId, id);
+          if (!checkoutOk) {
+            throw new TaskCheckoutConflict(input.taskId);
+          }
+        });
+      } catch (error) {
+        if (error instanceof TaskCheckoutConflict) {
+          return null;
+        }
+        throw error;
+      }
       writeFileSync(logPath, "", "utf8");
       return { id, logPath };
     },
