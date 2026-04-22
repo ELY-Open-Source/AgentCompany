@@ -18,10 +18,11 @@ import {
   type AgentMessage,
   type ThinkingLevel,
 } from "@mariozechner/pi-agent-core";
-import { streamSimple, type Api, type Model } from "@mariozechner/pi-ai";
+import type { Api, Model } from "@mariozechner/pi-ai";
 import { buildAgentHooks } from "@main/agent-runtime/agent-hooks";
 import type { ContextCompactionTelemetry } from "@main/agent-runtime/agent-hooks";
 import type { WorkerRpcClient } from "../entry/rpc";
+import { safeStreamSimple } from "./pi-safe-stream";
 // Side-effect import: drags the hook signature contract into the typecheck
 // graph so any drift in pi-agent-core hook shapes breaks the build here.
 import "./pi-hook-contract";
@@ -78,7 +79,7 @@ export function createPiAgent(input: PiAgentFactoryInput): Agent {
     },
     sessionId: input.taskSessionId,
     streamFn: (model, messages, options) =>
-      streamSimple(model, messages, {
+      safeStreamSimple(model, messages, {
         ...options,
         apiKey: input.apiKey,
         headers: { ...(options?.headers ?? {}), ...(input.extraHeaders ?? {}) },

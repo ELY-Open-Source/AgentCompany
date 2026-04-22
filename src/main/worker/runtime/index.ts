@@ -211,8 +211,18 @@ export class WorkerRunner {
               taskSessionId: job.taskSessionId,
               message: event.message,
             });
-            const maybeAssistant = event.message as { role?: string; usage?: { input?: number; output?: number; cost?: { total?: number } } };
-            if (maybeAssistant.role === "assistant" && maybeAssistant.usage) {
+            const maybeAssistant = event.message as {
+              role?: string;
+              stopReason?: string;
+              errorMessage?: string;
+              usage?: { input?: number; output?: number; cost?: { total?: number } };
+            };
+            if (
+              maybeAssistant.role === "assistant"
+              && (maybeAssistant.stopReason === "error" || maybeAssistant.stopReason === "aborted")
+            ) {
+              errorMessage = maybeAssistant.errorMessage ?? `Agent stopped with ${maybeAssistant.stopReason}.`;
+            } else if (maybeAssistant.role === "assistant" && maybeAssistant.usage) {
               finalUsage = {
                 inputTokens: typeof maybeAssistant.usage.input === "number" ? maybeAssistant.usage.input : finalUsage.inputTokens,
                 outputTokens: typeof maybeAssistant.usage.output === "number" ? maybeAssistant.usage.output : finalUsage.outputTokens,
