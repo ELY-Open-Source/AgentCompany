@@ -1,11 +1,12 @@
 import { existsSync } from "node:fs";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareR2ReleaseHost, uploadReleaseFiles } from "./release-local/r2.mjs";
 import { loadEnvFile } from "./release/lib/dotenv.mjs";
 import { createRunner } from "./release/lib/process.mjs";
 import { createWorkflowHelpers } from "./release/lib/workflow.mjs";
+import { applyD1Migrations } from "./release/lib/d1-migrations.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, "..");
@@ -37,17 +38,7 @@ async function uploadWinAndLinuxToR2() {
 }
 
 async function applyLandingMigrations() {
-  const migrationsDir = join(landingDir, "migrations");
-  if (!existsSync(migrationsDir)) return;
-  const wranglerToml = await readFile(join(landingDir, "wrangler.toml"), "utf8");
-  const match = wranglerToml.match(/database_name\s*=\s*"([^"]+)"/);
-  if (!match) return;
-  const databaseName = match[1];
-  const migrationFiles = (await readdir(migrationsDir)).filter((n) => n.endsWith(".sql")).sort();
-  for (const fileName of migrationFiles) {
-    const command = `printf 'y\\n' | npx wrangler d1 execute ${databaseName} --remote --file migrations/${fileName}`;
-    await run("bash", ["-lc", command], { cwd: landingDir });
-  }
+  await applyD1Migrations({ landingDir, run });
 }
 
 async function buildAndDeployLanding() {
