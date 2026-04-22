@@ -53,9 +53,13 @@ export function App() {
 
   const showCustomTitleBar = window.agentCompany.platform !== "darwin";
   const isMac = !showCustomTitleBar;
+  const currentCompany = company.currentCompany;
+  const companyRuns = company.runs;
+  const refreshCompany = company.refresh;
+  const openPathWithFeedback = company.openPathWithFeedback;
 
   const startRun = useCallback(async (taskId: string) => {
-    if (!company.currentCompany) {
+    if (!currentCompany) {
       setError(createAppErrorNotice(
         "Select a company before starting a run.",
         "COMPANY_REQUIRED",
@@ -63,24 +67,22 @@ export function App() {
       ));
       return;
     }
-    const result = await window.agentCompany.startTaskRun({ companyId: company.currentCompany.id, taskId });
+    const result = await window.agentCompany.startTaskRun({ companyId: currentCompany.id, taskId });
     if (!result.ok) { setError(formatDesktopResultNotice(result.error)); return; }
     setSelectedRunId(result.data);
-    await company.refresh();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- Zustand setters and company.refresh are stable
-  }, [company.currentCompany, company.refresh]);
+    await refreshCompany();
+  }, [currentCompany, refreshCompany, setError, setSelectedRunId]);
 
   const cancelRun = useCallback(async (runId: string) => {
     try {
-      const run = company.runs.find((entry) => entry.id === runId);
+      const run = companyRuns.find((entry) => entry.id === runId);
       if (!run) throw new Error("Selected run is no longer available.");
       const result = await window.agentCompany.cancelRun({ companyId: run.companyId, runId });
       if (!result.ok) { setError(formatDesktopResultNotice(result.error)); return; }
-      await company.refresh();
+      await refreshCompany();
       setError(null);
     } catch (err) { setError(describeDesktopError(err)); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- setError is a stable Zustand setter
-  }, [company.refresh, company.runs]);
+  }, [companyRuns, refreshCompany, setError]);
 
   const { filteredNavItems, matchedAgents, matchedTasks, matchedRuns, matchedGoals, matchedProjects, hasEntityResults } =
     useMemo(() => ui.buildPaletteResults(
@@ -120,12 +122,12 @@ export function App() {
   });
 
   const appActions = useMemo<AppActions>(() => ({
-    refresh: company.refresh,
+    refresh: refreshCompany,
     setError,
-    openPathWithFeedback: company.openPathWithFeedback,
+    openPathWithFeedback,
     startRun,
     cancelRun,
-  }), [company.refresh, company.openPathWithFeedback, startRun, cancelRun, setError]);
+  }), [refreshCompany, openPathWithFeedback, startRun, cancelRun, setError]);
 
   if (!company.snapshot) {
     return (
