@@ -1,6 +1,5 @@
 import { DEPARTMENT_LABELS } from "@shared/constants";
 import type { DepartmentId } from "@shared/types";
-import { formatSkillsForPrompt } from "@mariozechner/pi-coding-agent";
 import {
   buildTaskSection,
   buildReviewSection,
@@ -30,27 +29,39 @@ function isLeadershipRole(ctx: PromptContext): boolean {
 }
 
 /**
- * Render the skill manifest block using pi-coding-agent's XML format.
- *
- * The full SKILL.md content is NOT injected — only name/description/filePath.
- * The agent loads SKILL.md on demand via the `read` tool (progressive
- * disclosure). Pi's `formatSkillsForPrompt` expects its full `Skill` shape, so
- * we supply synthetic values for the two fields we don't track (`sourceInfo`,
- * `disableModelInvocation`). Cast is safe because pi's XML renderer only reads
- * `name`, `description`, `filePath`, and `disableModelInvocation`.
+ * Render the Agent Skills manifest from the runtime projection. The prompt
+ * carries only name, description, and SKILL.md location; the agent reads the
+ * full file on demand through the filesystem tool.
  */
 function buildSkillManifest(skills: ProjectedSkill[] | undefined): string {
   if (!skills || skills.length === 0) return "";
-  const piShapedSkills = skills.map((s) => ({
-    name: s.name,
-    description: s.description,
-    filePath: s.filePath,
-    baseDir: s.baseDir,
-    disableModelInvocation: false,
-    // sourceInfo is required by pi's Skill interface but never read by
-    // formatSkillsForPrompt. Leaving it undefined and asserting the shape.
-  }));
-  return formatSkillsForPrompt(piShapedSkills as never);
+  const lines = [
+    "\n\nThe following skills provide specialized instructions for specific tasks.",
+    "Use the read tool to load a skill's file when the task matches its description.",
+    "When a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md / dirname of the path) and use that absolute path in tool commands.",
+    "",
+    "<available_skills>",
+  ];
+
+  for (const skill of skills) {
+    lines.push("  <skill>");
+    lines.push(`    <name>${escapeSkillXml(skill.name)}</name>`);
+    lines.push(`    <description>${escapeSkillXml(skill.description)}</description>`);
+    lines.push(`    <location>${escapeSkillXml(skill.filePath)}</location>`);
+    lines.push("  </skill>");
+  }
+
+  lines.push("</available_skills>");
+  return lines.join("\n");
+}
+
+function escapeSkillXml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
 }
 
 export function buildSystemPrompt(ctx: PromptContext): string {

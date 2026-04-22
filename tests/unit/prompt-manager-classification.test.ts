@@ -79,4 +79,20 @@ describe("buildSystemPrompt leadership classification", () => {
     expect(prompt).toContain("New hires for your team should report to you by default");
     expect(prompt).not.toContain("Operating Instructions (Individual Contributor)");
   });
+
+  it("renders projected skills without pi skill shape casts", () => {
+    const prompt = buildSystemPrompt(buildCtx({
+      skills: [{
+        name: "ui<review>&qa",
+        description: "Use for A&B \"checks\" and 'snapshots'.",
+        filePath: "/tmp/skills/ui<review>&qa/SKILL.md",
+        baseDir: "/tmp/skills/ui<review>&qa",
+      }],
+    }));
+
+    expect(prompt).toContain("<available_skills>");
+    expect(prompt).toContain("<name>ui&lt;review&gt;&amp;qa</name>");
+    expect(prompt).toContain("<description>Use for A&amp;B &quot;checks&quot; and &apos;snapshots&apos;.</description>");
+    expect(prompt).toContain("<location>/tmp/skills/ui&lt;review&gt;&amp;qa/SKILL.md</location>");
+  });
 });
