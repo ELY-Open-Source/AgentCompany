@@ -9,6 +9,8 @@
  *   5. Task succeeds                                     -> reset retry count
  */
 
+import { decideRunAttempt } from "../../run-attempt-policy";
+
 export interface EscalationDeps {
   db: {
     tasks: {
@@ -47,16 +49,21 @@ export function handleFailureEscalation(
 ): EscalationResult {
   const { db, wakeAgentIfPossible, notify, logger } = deps;
   const retryCount = db.tasks.getTaskRetryCount(run.taskId);
+  const retryDecision = decideRunAttempt({
+    kind: "task_failure",
+    retryCount,
+    maxRetryAttempts,
+  });
 
-  if (retryCount < maxRetryAttempts) {
+  if (retryDecision.action === "retry") {
     db.tasks.incrementTaskRetryCount(run.taskId);
     db.tasks.advanceTaskStatus(
       run.taskId,
       "todo",
-      `Run ${eventStatus} (attempt ${retryCount + 1}/${maxRetryAttempts}). Auto-retrying after ${retryCooldownMs / 1000}s cooldown.`,
+      `Run ${eventStatus} (attempt ${retryDecision.attemptNumber}/${maxRetryAttempts}). Auto-retrying after ${retryCooldownMs / 1000}s cooldown.`,
     );
     logger.info(
-      `[escalation] Retrying task ${run.taskId} (attempt ${retryCount + 1}/${maxRetryAttempts}) for agent ${run.agentId}`,
+      `[escalation] Retrying task ${run.taskId} (attempt ${retryDecision.attemptNumber}/${maxRetryAttempts}) for agent ${run.agentId}`,
     );
     scheduleRetry(() => {
       wakeAgentIfPossible(run.agentId, run.companyId, "retry_failed");

@@ -2,6 +2,7 @@ import { app, utilityProcess } from "electron";
 import { workerMessageSchema, type WorkerServiceDependencies } from "./worker/entry/types";
 import { handleWorkerExit } from "./worker/entry/crash-recovery";
 import { handleWorkerMessage } from "./worker/entry/message-handler";
+import { DEFAULT_MAX_CONSECUTIVE_SELF_WAKES } from "./run-attempt-policy";
 
 export { workerMessageSchema } from "./worker/entry/types";
 
@@ -25,8 +26,8 @@ export function createWorkerService({
 }: WorkerServiceDependencies) {
   const MAX_RETRY_ATTEMPTS = 2;
   const RETRY_COOLDOWN_MS = 30_000; // 30 seconds
-  const consecutiveWakeMap = new Map<string, number>();
-  const MAX_CONSECUTIVE_WAKES = 5;
+  const selfWakeAttemptMap = new Map<string, number>();
+  const MAX_CONSECUTIVE_SELF_WAKES = DEFAULT_MAX_CONSECUTIVE_SELF_WAKES;
   const leaseRenewalMap = new Map<string, number>();
 
   let worker: ReturnType<typeof utilityProcess.fork> | null = null;
@@ -131,8 +132,8 @@ export function createWorkerService({
         destroyed,
         MAX_RETRY_ATTEMPTS,
         RETRY_COOLDOWN_MS,
-        consecutiveWakeMap,
-        MAX_CONSECUTIVE_WAKES,
+        selfWakeAttemptMap,
+        MAX_CONSECUTIVE_SELF_WAKES,
         pendingRetryTimers,
         leaseRenewalMap,
       );

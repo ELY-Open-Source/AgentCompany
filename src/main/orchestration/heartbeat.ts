@@ -6,6 +6,7 @@ import type { ResolveWorkspaceFn } from "./run-dispatch";
 import { WorkspaceConfigurationError } from "./resolve-workspace";
 import { pickModelForAgent } from "../model-dispatch";
 import { HUMAN_SENDER_ID } from "../messaging/dispatch";
+import { decideRunAttempt } from "../run-attempt-policy";
 
 /**
  * Every reason a heartbeat attempt can be rejected before a run is
@@ -116,15 +117,19 @@ export function createHeartbeat(
     // agent runs at all.
     const heartbeatPolicy = db.agents.getHeartbeatPolicy(agent.id);
 
-    // maxConcurrentRuns check: count active runs for this agent
     const activeRunCount = db.agents.countActiveRunsForAgent(agent.id, companyId);
-    if (activeRunCount >= heartbeatPolicy.maxConcurrentRuns) return SKIPPED("max_concurrent_runs");
-
-    // Cooldown check: ensure enough time has passed since last heartbeat
-    if (!isMessageWake && agent.lastHeartbeatAt) {
-      const elapsed = Date.now() - new Date(agent.lastHeartbeatAt).getTime();
-      const cooldownMs = heartbeatPolicy.cooldownSec * 1000;
-      if (elapsed < cooldownMs) return SKIPPED("cooldown");
+    const runAttemptDecision = decideRunAttempt({
+      kind: "heartbeat",
+      trigger,
+      activeRunCount,
+      maxConcurrentRuns: heartbeatPolicy.maxConcurrentRuns,
+      lastStartedAtMs: agent.lastHeartbeatAt ? new Date(agent.lastHeartbeatAt).getTime() : null,
+      cooldownMs: heartbeatPolicy.cooldownSec * 1000,
+      nowMs: Date.now(),
+      bypassCooldown: isMessageWake,
+    });
+    if (runAttemptDecision.action === "skip") {
+      return SKIPPED(runAttemptDecision.reason);
     }
 
     // wakeOnDemand gate: if disabled, only timer/bootstrap triggers allowed

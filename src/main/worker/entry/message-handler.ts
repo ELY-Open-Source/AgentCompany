@@ -17,8 +17,8 @@ export async function handleWorkerMessage(
   destroyed: boolean,
   MAX_RETRY_ATTEMPTS: number,
   RETRY_COOLDOWN_MS: number,
-  consecutiveWakeMap: Map<string, number>,
-  MAX_CONSECUTIVE_WAKES: number,
+  selfWakeAttemptMap: Map<string, number>,
+  MAX_CONSECUTIVE_SELF_WAKES: number,
   pendingRetryTimers: Set<ReturnType<typeof setTimeout>>,
   leaseRenewalMap: Map<string, number>,
 ) {
@@ -33,8 +33,8 @@ export async function handleWorkerMessage(
     destroyed,
     MAX_RETRY_ATTEMPTS,
     RETRY_COOLDOWN_MS,
-    MAX_CONSECUTIVE_WAKES,
-    consecutiveWakeMap,
+    MAX_CONSECUTIVE_SELF_WAKES,
+    selfWakeAttemptMap,
     pendingRetryTimers,
     leaseRenewalMap,
   };

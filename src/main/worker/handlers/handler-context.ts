@@ -22,8 +22,8 @@ export interface HandlerContext {
   destroyed: boolean;
   MAX_RETRY_ATTEMPTS: number;
   RETRY_COOLDOWN_MS: number;
-  MAX_CONSECUTIVE_WAKES: number;
-  consecutiveWakeMap: Map<string, number>;
+  MAX_CONSECUTIVE_SELF_WAKES: number;
+  selfWakeAttemptMap: Map<string, number>;
   pendingRetryTimers: Set<ReturnType<typeof setTimeout>>;
   leaseRenewalMap: Map<string, number>;
 }

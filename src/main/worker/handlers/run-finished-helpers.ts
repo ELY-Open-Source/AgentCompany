@@ -1,10 +1,10 @@
 import type { z } from "zod";
-import { createCircuitBreaker } from "../observability/circuit-breaker";
 import { handleFailureEscalation, handleSuccessReset } from "../observability/failure-escalation";
 import { persistRunEvent } from "../observability/run-event-recorder";
 import type { workerMessageSchema } from "../entry/types";
 import type { HandlerContext, HandlerDeps, WorkerMessageEvent } from "./handler-context";
 import { isUsageStatusUnattributed } from "../../run-usage-status";
+import { decideRunAttempt, runAttemptKey } from "../../run-attempt-policy";
 
 type RunFinishedEvent = Extract<WorkerMessageEvent, { type: "run-finished" }>;
 type RunRecord = ReturnType<HandlerDeps["db"]["runs"]["getRun"]>;
@@ -284,28 +284,35 @@ export function triggerSelfWake(
   hadDeferredWakes: boolean,
 ): void {
   const { db, logger, isQuitting, wakeAgentIfPossible } = deps;
-  const { destroyed, consecutiveWakeMap, MAX_CONSECUTIVE_WAKES } = context;
+  const { destroyed, selfWakeAttemptMap, MAX_CONSECUTIVE_SELF_WAKES } = context;
   const { run } = rfCtx;
+  const attemptKey = runAttemptKey(run.agentId, run.companyId);
 
-  const cb = createCircuitBreaker(consecutiveWakeMap, MAX_CONSECUTIVE_WAKES);
-
-  // Reset circuit breaker when a task actually progressed (successful run)
+  // Reset self-wake attempts when a task actually progressed.
   if (event.status === "succeeded") {
-    cb.reset(run.agentId, run.companyId);
+    selfWakeAttemptMap.delete(attemptKey);
   }
 
-  // Self-wake with circuit breaker to prevent infinite loops
+  // Self-wake through the shared run-attempt policy.
   if (hadDeferredWakes || isQuitting() || destroyed) return;
 
   try {
     const actionableTasks = db.tasks.listAgentTasks(run.agentId, run.companyId, ["todo", "in_progress"]);
     const hasWorkToContinue = actionableTasks.length > 0 || hasUnfinishedTeamBuilding(db, run.agentId, run.companyId);
-    if (!hasWorkToContinue) return;
+    const consecutiveSelfWakes = selfWakeAttemptMap.get(attemptKey) ?? 0;
+    const decision = decideRunAttempt({
+      kind: "self_wake",
+      hasWorkToContinue,
+      consecutiveSelfWakes,
+      maxConsecutiveSelfWakes: MAX_CONSECUTIVE_SELF_WAKES,
+    });
 
-    const allowed = cb.tryWake(run.agentId, run.companyId);
-    if (!allowed) {
+    if (decision.action === "skip" && decision.reason === "no_work") return;
+
+    if (decision.action === "skip") {
+      selfWakeAttemptMap.delete(attemptKey);
       logger.warn(
-        `[self-wake] Circuit breaker: agent ${run.agentId} has self-woken ${MAX_CONSECUTIVE_WAKES} times without progress. Pausing self-wake.`,
+        `[self-wake] Run-attempt policy paused agent ${run.agentId} after ${MAX_CONSECUTIVE_SELF_WAKES} self-wakes without progress.`,
       );
       // Escalate to manager since agent is stuck
       try {
@@ -319,6 +326,7 @@ export function triggerSelfWake(
         );
       }
     } else {
+      selfWakeAttemptMap.set(attemptKey, consecutiveSelfWakes + 1);
       wakeAgentIfPossible(run.agentId, run.companyId, "task_continuation");
     }
   } catch (error) {
@@ -336,9 +344,9 @@ export function triggerSelfWake(
  * waiting for the 2-minute heartbeat timer takes bootstrap from
  * 10-plus minutes down to the LLM's round-trip time.
  *
- * The circuit breaker on the caller side still applies, so a CEO that
+ * The run-attempt policy on the caller side still applies, so a CEO that
  * keeps completing runs without actually creating hires gets paused
- * after MAX_CONSECUTIVE_WAKES attempts.
+ * after MAX_CONSECUTIVE_SELF_WAKES attempts.
  */
 function hasUnfinishedTeamBuilding(
   db: HandlerDeps["db"],
