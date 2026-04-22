@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { AsciiBackground } from "./ascii-background";
+import { landingHeroNarrative } from "../lib/product-narrative";
 
 const sharedEase: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
@@ -54,7 +55,7 @@ export function Hero() {
         <div className="flex flex-col items-center text-center">
           <motion.div {...heroMotion(0.05)}>
             <span className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide bg-[var(--accent-soft)] text-[var(--accent)] dark:text-[var(--muted-strong)] border border-[var(--border)]">
-              Agent Company
+              {landingHeroNarrative.eyebrow}
             </span>
           </motion.div>
 
@@ -62,16 +63,15 @@ export function Hero() {
             {...heroMotion(0.15)}
             className="mt-8 font-serif text-[clamp(2.75rem,2rem+3.8vw,5rem)] font-normal leading-[1.0] tracking-[-0.03em] text-[var(--text)]"
           >
-            Launch an AI Company <br className="hidden sm:block" />
-            <span className="text-[var(--accent)]">in Minutes</span>
+            {landingHeroNarrative.titleLine1} <br className="hidden sm:block" />
+            <span className="text-[var(--accent)]">{landingHeroNarrative.titleLine2}</span>
           </motion.h1>
 
           <motion.p
             {...heroMotion(0.25)}
             className="mt-7 max-w-2xl text-lg sm:text-xl leading-relaxed text-[var(--muted)]"
           >
-            Describe your company&apos;s mission. A CEO agent recruits the team, delegates work, and delivers real
-            results — code, content, research, and more. You&apos;re the founder.
+            {landingHeroNarrative.description}
           </motion.p>
 
           <motion.div {...heroMotion(0.35)} className="mt-12">
@@ -104,7 +104,7 @@ export function Hero() {
               <WindowsIcon />
               <LinuxIcon />
             </div>
-            <span>Available on macOS, Windows & Linux</span>
+            <span>{landingHeroNarrative.availability}</span>
           </motion.div>
         </div>
 

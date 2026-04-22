@@ -2,32 +2,19 @@
 
 import { motion, useInView } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import { landingHowItWorksNarrative } from "../lib/product-narrative";
 
-const demoMessages = [
-  { agent: "You", role: "system", text: "Build a SaaS landing page with pricing, blog, and auth.", delay: 0 },
-  { agent: "CEO", role: "ceo", text: "Analyzing goal... Creating departments: Engineering, Design, Content.", delay: 800 },
-  { agent: "CEO", role: "ceo", text: "Hiring 4 specialists for this mission.", delay: 1600 },
-  { agent: "Lead Engineer", role: "engineer", text: "Picked up task: Set up Next.js project with auth routes.", delay: 2400 },
-  { agent: "UI Designer", role: "designer", text: "Picked up task: Design landing page and pricing components.", delay: 3000 },
-  { agent: "Researcher", role: "researcher", text: "Picked up task: Competitive analysis of SaaS pricing models.", delay: 3600 },
-  { agent: "Lead Engineer", role: "engineer", text: "Completed: Auth scaffolding with JWT + session middleware.", delay: 4400 },
-  { agent: "UI Designer", role: "designer", text: "Completed: Responsive landing page with 3-tier pricing grid.", delay: 5200 },
-  { agent: "CEO", role: "ceo", text: "All tasks delivered. 3 documents ready for review.", delay: 6000 },
-];
+const demoMessages = landingHowItWorksNarrative.demoMessages;
 
 const logTone: Record<(typeof demoMessages)[number]["role"], string> = {
   system: "text-[var(--muted-strong)]",
-  ceo: "text-[#ca8a04]",
-  engineer: "text-[var(--accent)]",
-  designer: "text-[#8b5cf6]",
-  researcher: "text-[#059669]",
 };
 
-const steps = [
-  { number: 1, title: "Set Your Goal", description: "Describe the company, its mission, and what you want delivered." },
-  { number: 2, title: "Agents Self-Organize", description: "A CEO analyzes your goal, hires specialists, and delegates the work." },
-  { number: 3, title: "Collect Results", description: "Review deliverables, approve decisions, and download finished work." },
-];
+const dotTone: Record<(typeof demoMessages)[number]["role"], string> = {
+  system: "bg-[var(--muted-strong)]",
+};
+
+const steps = landingHowItWorksNarrative.steps;
 
 function DemoPanel() {
   const anchorRef = useRef<HTMLDivElement | null>(null);
@@ -72,17 +59,7 @@ function DemoPanel() {
             >
               <span className={`shrink-0 font-semibold inline-flex items-center gap-1.5 ${logTone[message.role]}`}>
                 <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    message.role === "system"
-                      ? "bg-[var(--muted-strong)]"
-                      : message.role === "ceo"
-                        ? "bg-[#ca8a04]"
-                        : message.role === "engineer"
-                          ? "bg-[var(--accent)]"
-                          : message.role === "designer"
-                            ? "bg-[#8b5cf6]"
-                            : "bg-[#059669]"
-                  }`}
+                  className={`w-1.5 h-1.5 rounded-full ${dotTone[message.role]}`}
                   aria-hidden="true"
                 />
                 {message.agent}
@@ -106,7 +83,7 @@ function DemoPanel() {
                 <path d="m9 12 2 2 4-4" />
                 <circle cx="12" cy="12" r="10" />
               </svg>
-              <span className="font-semibold">Company run complete. All deliverables ready.</span>
+              <span className="font-semibold">{landingHowItWorksNarrative.completionText}</span>
             </motion.div>
           )}
 
@@ -126,7 +103,7 @@ export function HowItWorks() {
             How It Works
           </p>
           <h2 className="font-serif text-[clamp(2rem,1.5rem+2.5vw,3.25rem)] tracking-[-0.01em] text-[var(--text)]">
-            Watch a Company Come to Life
+            {landingHowItWorksNarrative.heading}
           </h2>
         </div>
 
@@ -134,7 +111,7 @@ export function HowItWorks() {
           <div className="lg:col-span-2 relative">
             <div className="absolute left-[15px] top-10 bottom-4 w-px bg-[var(--border)] hidden lg:block" aria-hidden="true" />
 
-            <div className="space-y-10">
+            <div className="space-y-7">
               {steps.map((step, index) => (
                 <motion.div
                   key={step.number}

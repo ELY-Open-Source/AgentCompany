@@ -114,9 +114,13 @@ pnpm dev
 
 ### First run
 
-1. Onboarding probes your shell PATH for `node` (agents call the local HTTP API via `node -e`).
-2. Settings → Providers. Sign in or drop a key.
-3. Create a company: name, mission, goal, mode, workspace.
+1. Requirements. Welcome screen, then a Node.js check. CLI runtimes call the local API through `node -e`.
+2. Providers. Connect at least one runtime.
+3. Company. Enter name, description, and workspace.
+4. Team Models. Enable the models available to the CEO and workers.
+5. Mode. Default is `ai_ceo`; `ai_cofounder` keeps key decisions human-reviewed.
+6. Mission. Capture the first goal and acceptance description.
+7. Launch. AgentCompany creates the company, CEO agent, workspace, kickoff task, and initial run handoff.
 
 ---
 

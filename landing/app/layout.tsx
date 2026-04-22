@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "../components/theme-provider";
+import {
+  landingHowItWorksNarrative,
+  landingStructuredDataNarrative,
+} from "../lib/product-narrative";
 import { platformSupportSummary } from "../lib/platform-support";
 
 const description =
@@ -8,7 +12,7 @@ const description =
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://agent-company.dev"),
-  title: "AgentCompany — Launch an Autonomous AI Company in Minutes",
+  title: "AgentCompany - Launch an Autonomous AI Company from Your Desktop",
   description,
   keywords: [
     "AI company",
@@ -32,7 +36,7 @@ export const metadata: Metadata = {
     "AI company builder",
   ],
   openGraph: {
-    title: "AgentCompany — Launch an Autonomous AI Company in Minutes",
+    title: "AgentCompany - Launch an Autonomous AI Company from Your Desktop",
     description,
     url: "https://agent-company.dev/",
     siteName: "AgentCompany",
@@ -49,7 +53,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "AgentCompany — Launch an Autonomous AI Company in Minutes",
+    title: "AgentCompany - Launch an Autonomous AI Company from Your Desktop",
     description,
     images: ["/screenshots/Dashboard.jpeg"],
   },
@@ -76,19 +80,9 @@ const softwareJsonLd = {
   url: "https://agent-company.dev",
   downloadUrl: "https://agent-company.dev/#download",
   screenshot: "https://agent-company.dev/screenshots/Dashboard.jpeg",
-  datePublished: "2026-03-01",
-  softwareVersion: "1.0",
+  softwareVersion: landingStructuredDataNarrative.softwareVersion,
   description,
-  featureList: [
-    "One-click AI company creation",
-    "Self-organizing AI agent teams",
-    "Autonomous task management",
-    "Real-time agent communication",
-    "Human-in-the-loop approvals",
-    "AI document generation",
-    "Multi-connector support (Claude, Codex, Gemini)",
-    "Cross-platform (macOS, Windows, Linux)",
-  ],
+  featureList: landingStructuredDataNarrative.featureList,
   author: { "@type": "Organization", name: "AgentCompany", url: "https://agent-company.dev" },
 };
 
@@ -104,27 +98,13 @@ const howToJsonLd = {
   "@context": "https://schema.org",
   "@type": "HowTo",
   name: "How to Launch an Autonomous AI Company with AgentCompany",
-  description: "Create a fully autonomous AI company in three steps using the AgentCompany desktop app.",
-  step: [
-    {
-      "@type": "HowToStep",
-      position: 1,
-      name: "Set Your Goal",
-      text: "Describe the company, its mission, and what you want delivered. Connect your preferred AI runtime.",
-    },
-    {
-      "@type": "HowToStep",
-      position: 2,
-      name: "Agents Self-Organize",
-      text: "A CEO agent analyzes your goal, hires specialists, creates departments, and delegates the work autonomously.",
-    },
-    {
-      "@type": "HowToStep",
-      position: 3,
-      name: "Collect Results",
-      text: "Review deliverables, approve critical decisions, and download finished work including code, content, and research.",
-    },
-  ],
+  description: "Complete the AgentCompany desktop first-run flow and queue the first mission.",
+  step: landingHowItWorksNarrative.steps.map((step) => ({
+    "@type": "HowToStep",
+    position: step.number,
+    name: step.title,
+    text: step.description,
+  })),
 };
 
 const faqJsonLd = {
