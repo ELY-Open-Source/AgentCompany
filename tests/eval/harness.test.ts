@@ -32,6 +32,7 @@ import {
   buildMatrixPrompt,
   loadScenarioContract,
 } from "./scenario-contract.js";
+import { PI_RUNTIME_VERSION } from "../support/pi-runtime-contract";
 import type {
   Assertion,
   AssistantTurn,
@@ -306,6 +307,16 @@ describe("eval SOP coverage matrix", () => {
 });
 
 const fixturePaths = await listFixtures();
+
+describe("eval pi runtime contract", () => {
+  it("records every fixture against the shipping pi-agent-core version", async () => {
+    expect(fixturePaths.length).toBeGreaterThan(0);
+    for (const fixturePath of fixturePaths) {
+      const fixture = await loadFixture(fixturePath);
+      expect(fixture.meta.piAgentCoreVersion).toBe(PI_RUNTIME_VERSION);
+    }
+  });
+});
 
 describe.each(fixturePaths)("eval fixture %s", (fixturePath) => {
   it("passes all assertions", async () => {

@@ -180,8 +180,8 @@ Field contracts:
 
 - `meta.fixtureId` — stable kebab-case identifier used as the scenario name.
 - `meta.piAgentCoreVersion` — the `@mariozechner/pi-agent-core` version
-  used when the fixture was recorded. Drift against the installed version
-  is allowed but future tooling will surface a warning.
+  used when the fixture was recorded. It must match the shipping version
+  in `tests/support/pi-runtime-contract.ts`; drift fails `pnpm test:eval`.
 - `meta.systemPromptHash` — sha256 of the system prompt text. Changes in
   this hash are the canonical signal that a fixture is stale.
 - `turn.turnIndex` — strictly increasing from 0. Gaps or duplicates are
@@ -231,6 +231,7 @@ provider tier described in `docs/proposals/B5.1-llm-as-judge-followup.md`.
 - `scenarios/<fixtureId>/system.txt` must hash to
   `meta.systemPromptHash`.
 - `scenarios/<fixtureId>/user.txt` must match the first user turn exactly.
+- `meta.piAgentCoreVersion` must match the shipping pi runtime version.
 - `assertions.semanticRubric` must contain at least one semantic dimension.
 - Structured assistant `toolCall` blocks require matching `toolResult` turns
   before the next assistant or user turn.
