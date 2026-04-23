@@ -2,7 +2,7 @@ import type { IpcMainInvokeEvent } from "electron";
 import { z } from "zod";
 import type { DesktopResult } from "@shared/contracts";
 import type { bootstrapOnboardingSchema } from "@shared/contracts";
-import type { DesktopEvent, SectionId } from "@shared/types";
+import type { AgentMessageRecord, DesktopEvent, SectionId } from "@shared/types";
 import type { AppDatabase } from "./database";
 import type { createSkillService } from "./skill-service";
 import type { createBudgetEnforcementService } from "./budget-enforcement-service";
@@ -45,6 +45,7 @@ export interface RegisterDomainHandlersDependencies {
   emitEvent: (event: DesktopEvent) => void;
   notify: (options: { title: string; body: string; urgency: "critical" | "informational"; navigation?: { section: SectionId; entityId?: string }; batchKey?: string }) => void;
   wakeAgentIfPossible: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
+  injectRuntimeMessage: (recipientAgentId: string, companyId: string, message: AgentMessageRecord) => boolean;
   dispatchAutomation: (trigger: string, ctx: { companyId: string; [key: string]: unknown }) => void;
   runWorkflowPipeline: (workflowId: string, companyId: string) => Promise<void>;
   bootstrapOnboarding: (input: z.infer<typeof bootstrapOnboardingSchema>) => unknown;

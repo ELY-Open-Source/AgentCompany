@@ -15,6 +15,7 @@ export function registerAgentCoordinationHandlers({
   emitEvent,
   notify,
   wakeAgentIfPossible,
+  injectRuntimeMessage,
   onHumanMessage,
 }: Pick<
   RegisterDomainHandlersDependencies,
@@ -25,6 +26,7 @@ export function registerAgentCoordinationHandlers({
   | "emitEvent"
   | "notify"
   | "wakeAgentIfPossible"
+  | "injectRuntimeMessage"
   | "onHumanMessage"
 >) {
   registerHandle(IPC_CHANNELS.sendAgentMessage, async (_event, payload) => {
@@ -38,6 +40,7 @@ export function registerAgentCoordinationHandlers({
         notify,
         publishDomainChanged,
         wakeAgentIfPossible,
+        injectRuntimeMessage,
         onHumanMessage,
       },
       parsed,

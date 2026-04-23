@@ -202,6 +202,18 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
       notify: (options) => requireIpcSupport().notify(options),
       wakeAgentIfPossible: (agentId, companyId, trigger) =>
         requireOrchestrationService().wakeAgentIfPossible(agentId, companyId, trigger),
+      injectRuntimeMessage: (recipientAgentId, companyId, message) => {
+        const injector = requireServiceGraph().getRuntimeMessageInjector();
+        if (!injector) return false;
+        try {
+          return injector.tryInject(recipientAgentId, companyId, message);
+        } catch (error) {
+          log.warn(
+            `[ipc-domain] runtime message injection failed for agent ${recipientAgentId}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return false;
+        }
+      },
       dispatchAutomation: (trigger, ctx) => requireAutomationService().dispatchAutomation(trigger, ctx),
       runWorkflowPipeline: (workflowId, companyId) =>
         requireAutomationService().runWorkflowPipeline(workflowId, companyId),
