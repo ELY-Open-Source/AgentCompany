@@ -76,7 +76,12 @@ export function registerCoreReadHandlers({
         no_target: "WORK_PRODUCT_NO_TARGET",
         workspace_unresolved: "WORK_PRODUCT_WORKSPACE_UNRESOLVED",
         path_escape: "WORK_PRODUCT_PATH_ESCAPE",
+        path_missing: "WORK_PRODUCT_PATH_MISSING",
       } as const;
+      if (target.reason === "path_missing") {
+        db.core.documents.updateWorkProduct(parsed.data.id, parsed.data.companyId, { status: "archived" });
+        publishDomainChanged();
+      }
       return fail(codeByReason[target.reason], target.detail);
     }
     if (target.kind === "url") {

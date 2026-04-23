@@ -1,5 +1,6 @@
+import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, mkdir, rm, writeFile, unlink } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { AppDatabase } from "../../src/main/database";
@@ -107,6 +108,9 @@ async function createHarness(): Promise<Harness> {
 }
 
 function registerArtifact(harness: Harness, relativePath: string): string {
+  const absPath = join(harness.workspacePath, relativePath);
+  mkdirSync(dirname(absPath), { recursive: true });
+  writeFileSync(absPath, "tracked artifact", "utf8");
   return harness.db.core.documents.createWorkProduct({
     companyId: harness.companyId,
     taskId: harness.taskId,
@@ -175,6 +179,56 @@ describe("work_products archived visibility", () => {
       expect(
         harness.db.core.documents.resolveWorkProductTarget(id, harness.companyId),
       ).toMatchObject({ kind: "error", reason: "archived" });
+    } finally {
+      harness.db.close();
+    }
+  });
+
+  it("resolves workspace-prefixed filesystem rows through another company workspace when the bound root misses", async () => {
+    const harness = await createHarness();
+    try {
+      const parentPath = await createTempDir("agentcompany-parent-workspace-");
+      const projectPath = join(parentPath, "booking-app");
+      await mkdir(projectPath, { recursive: true });
+      await writeFile(join(projectPath, "AGENTS.md"), "instructions", "utf8");
+      harness.db.core.workspaces.saveWorkspace({
+        companyId: harness.companyId,
+        name: "Parent",
+        localPath: parentPath,
+        repoUrl: "",
+        repoRef: "",
+        isPrimary: false,
+      });
+
+      const id = harness.db.core.documents.createWorkProduct({
+        companyId: harness.companyId,
+        taskId: harness.taskId,
+        workspaceId: harness.workspaceId,
+        type: "file",
+        provider: "filesystem",
+        externalId: "booking-app/AGENTS.md",
+        title: "AGENTS.md",
+        url: null,
+        createdByRunId: harness.runId,
+      });
+
+      expect(
+        harness.db.core.documents.resolveWorkProductTarget(id, harness.companyId),
+      ).toEqual({ kind: "path", value: join(projectPath, "AGENTS.md") });
+    } finally {
+      harness.db.close();
+    }
+  });
+
+  it("reports missing filesystem rows when no company workspace contains the file", async () => {
+    const harness = await createHarness();
+    try {
+      const id = registerArtifact(harness, "docs/missing.md");
+      await unlink(join(harness.workspacePath, "docs/missing.md"));
+
+      expect(
+        harness.db.core.documents.resolveWorkProductTarget(id, harness.companyId),
+      ).toMatchObject({ kind: "error", reason: "path_missing" });
     } finally {
       harness.db.close();
     }

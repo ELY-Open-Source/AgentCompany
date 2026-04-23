@@ -33,6 +33,38 @@ function resolveWorkspaceRoot(
   return null;
 }
 
+function listCompanyWorkspaceRoots(
+  getDb: () => DatabaseSync,
+  companyId: string,
+): string[] {
+  return (getDb()
+    .prepare(
+      "SELECT local_path AS localPath FROM workspaces WHERE company_id = ? AND local_path IS NOT NULL ORDER BY is_primary DESC, created_at ASC",
+    )
+    .all(companyId) as Array<{ localPath: string }>)
+    .map((row) => row.localPath)
+    .filter((localPath) => localPath.length > 0);
+}
+
+function orderedUnique(values: Array<string | null>): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const value of values) {
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    unique.push(value);
+  }
+  return unique;
+}
+
+function fileExists(targetPath: string): boolean {
+  try {
+    return statSync(targetPath).isFile();
+  } catch {
+    return false;
+  }
+}
+
 function joinWorkspaceRelative(root: string, rel: string): string | null {
   if (isAbsolute(rel)) return null;
   const joined = resolvePath(root, rel);
@@ -155,7 +187,7 @@ export function buildWorkProductMethods(
       companyId: string,
     ):
       | { kind: "url" | "path"; value: string }
-      | { kind: "error"; reason: "not_found" | "archived" | "no_target" | "workspace_unresolved" | "path_escape"; detail: string } {
+      | { kind: "error"; reason: "not_found" | "archived" | "no_target" | "workspace_unresolved" | "path_escape" | "path_missing"; detail: string } {
       const row = getDb().prepare(
         "SELECT provider, external_id, url, status, task_id, created_by_run_id, last_touched_by_run_id, workspace_id FROM work_products WHERE id = ? AND company_id = ?",
       ).get(workProductId, companyId) as
@@ -169,42 +201,40 @@ export function buildWorkProductMethods(
         return { kind: "error", reason: "no_target", detail: `provider=${row.provider} external_id=${row.external_id ?? "null"} url=null` };
       }
 
-      const workspaceRoot = resolveWorkspaceRoot(
-        getDb,
-        companyId,
-        row.workspace_id,
-        row.task_id,
-        row.last_touched_by_run_id ?? row.created_by_run_id,
-      );
-      if (workspaceRoot) {
+      const workspaceRoots = orderedUnique([
+        resolveWorkspaceRoot(
+          getDb,
+          companyId,
+          row.workspace_id,
+          row.task_id,
+          row.last_touched_by_run_id ?? row.created_by_run_id,
+        ),
+        ...listCompanyWorkspaceRoots(getDb, companyId),
+      ]);
+      let firstCandidate: string | null = null;
+      for (const workspaceRoot of workspaceRoots) {
         const absolute = joinWorkspaceRelative(workspaceRoot, row.external_id);
         if (!absolute) {
           return { kind: "error", reason: "path_escape", detail: `external_id=${row.external_id} escapes workspace root ${workspaceRoot}` };
         }
-        return { kind: "path", value: absolute };
-      }
-
-      const observation = getDb()
-        .prepare(
-          "SELECT local_path as localPath FROM workspaces WHERE company_id = ? AND local_path IS NOT NULL ORDER BY is_primary DESC, created_at ASC LIMIT 1",
-        )
-        .get(companyId) as { localPath: string } | undefined;
-      if (observation?.localPath) {
-        const candidate = joinWorkspaceRelative(observation.localPath, row.external_id);
-        if (candidate) {
-          try {
-            if (statSync(candidate).isFile()) {
-              return { kind: "path", value: candidate };
-            }
-          } catch {
-            // fall through to error below
-          }
+        firstCandidate ??= absolute;
+        if (fileExists(absolute)) {
+          return { kind: "path", value: absolute };
         }
       }
+
+      if (firstCandidate) {
+        return {
+          kind: "error",
+          reason: "path_missing",
+          detail: `No registered company workspace contains ${row.external_id}; first candidate was ${firstCandidate}`,
+        };
+      }
+
       return {
         kind: "error",
         reason: "workspace_unresolved",
-        detail: `workspace_id=${row.workspace_id ?? "null"} task_id=${row.task_id ?? "null"} run_id=${row.last_touched_by_run_id ?? row.created_by_run_id ?? "null"} — none led to a workspace with a local_path, and ${row.external_id} is not present in the company's observation workspace${observation?.localPath ? ` (${observation.localPath})` : " (no observation workspace exists)"}`,
+        detail: `workspace_id=${row.workspace_id ?? "null"} task_id=${row.task_id ?? "null"} run_id=${row.last_touched_by_run_id ?? row.created_by_run_id ?? "null"} — none led to a workspace with a local_path`,
       };
     },
 
