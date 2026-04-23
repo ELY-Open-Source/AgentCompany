@@ -4,6 +4,8 @@ import { EnvelopeSimple, Hash, Buildings, Megaphone, Fire, MagnifyingGlass, Funn
 import type { AgentRecord, MessageChannel } from "@shared/types"
 import { AgentAvatar } from "./MessageItem"
 import type { ChannelDescriptor, TaskDiscussionDescriptor } from "./ChannelHeader"
+import type { MessageFilters } from "./message-filters"
+import { DEFAULT_MESSAGE_FILTERS, hasActiveMessageFilters } from "./message-filters"
 import { useT } from "../../i18n"
 import { Eyebrow, Select } from "../ui"
 
@@ -169,12 +171,7 @@ export function ChannelSidebar({
   )
 }
 
-export interface FilterState {
-  search: string
-  channelType: MessageChannel | "all"
-  priority: string
-  unreadOnly: boolean
-}
+export type FilterState = MessageFilters
 
 export function FilterBar({
   filters,
@@ -209,7 +206,7 @@ export function FilterBar({
           type="button"
           onClick={() => setExpanded(!expanded)}
           className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition ${
-            expanded || filters.channelType !== "all" || filters.priority !== "all" || filters.unreadOnly
+            expanded || hasActiveMessageFilters(filters)
               ? "border-transparent bg-primary text-primary-foreground"
               : "border-border text-muted-foreground hover:border-border"
           }`}
@@ -229,19 +226,6 @@ export function FilterBar({
           >
             <Select
               compact
-              value={filters.channelType}
-              onChange={(v) => onChangeFilters({ ...filters, channelType: v as MessageChannel | "all" })}
-              options={[
-                { value: "all", label: t("comm.allChannels") },
-                { value: "direct", label: t("comm.direct") },
-                { value: "department", label: t("comm.department") },
-                { value: "company", label: t("comm.company") },
-                { value: "project", label: t("nav.projects") },
-                { value: "incident", label: t("comm.incident") },
-              ]}
-            />
-            <Select
-              compact
               value={filters.priority}
               onChange={(v) => onChangeFilters({ ...filters, priority: v })}
               options={[
@@ -251,19 +235,10 @@ export function FilterBar({
                 { value: "low", label: t("comm.low") },
               ]}
             />
-            <button
-              type="button"
-              onClick={() => onChangeFilters({ ...filters, unreadOnly: !filters.unreadOnly })}
-              className={`rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition ${
-                filters.unreadOnly ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {t("comm.unreadOnly")}
-            </button>
-            {(filters.channelType !== "all" || filters.priority !== "all" || filters.unreadOnly) ? (
+            {filters.priority !== "all" ? (
               <button
                 type="button"
-                onClick={() => onChangeFilters({ search: filters.search, channelType: "all", priority: "all", unreadOnly: false })}
+                onClick={() => onChangeFilters({ ...DEFAULT_MESSAGE_FILTERS, search: filters.search })}
                 className="text-[11px] font-medium text-muted-foreground underline transition hover:text-foreground"
               >
                 {t("comm.clearFilters")}

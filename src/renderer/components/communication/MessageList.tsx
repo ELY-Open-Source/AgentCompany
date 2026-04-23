@@ -9,9 +9,7 @@ import { useRovingTabIndex } from "../../lib/keyboard"
 
 interface FilterState {
   search: string
-  channelType: string
   priority: string
-  unreadOnly: boolean
 }
 
 interface MessageListProps {
@@ -128,11 +126,11 @@ export function MessageList({
       <div className="flex h-full flex-col items-center justify-center text-center">
         <Tray size={36} className="mb-3 text-muted-foreground" />
         <div className="text-[14px] font-medium text-muted-foreground">
-          {filters.search || filters.unreadOnly || filters.priority !== "all"
+          {filters.search || filters.priority !== "all"
             ? t("comm.noMatchFilters")
             : t("comm.noMessagesChannel")}
         </div>
-        {(filters.search || filters.unreadOnly || filters.priority !== "all") ? (
+        {(filters.search || filters.priority !== "all") ? (
           <div className="mt-1 text-[13px] text-muted-foreground">{t("comm.adjustFilters")}</div>
         ) : null}
       </div>

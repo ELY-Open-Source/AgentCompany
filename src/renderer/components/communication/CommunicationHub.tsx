@@ -11,6 +11,7 @@ import { MessageComposer, TaskDiscussionComposer, NoChannelComposer } from "./Me
 import { SearchResults } from "./SearchResults"
 import ThreadPanel from "./ThreadPanel"
 import { deriveChannels, deriveTaskDiscussionChannels, getChannelMessages } from "./channel-utils"
+import { DEFAULT_MESSAGE_FILTERS, filterChannelMessages } from "./message-filters"
 import { useT, type TranslationFn } from "../../i18n"
 
 
@@ -66,7 +67,7 @@ export function CommunicationHub({ messages, comments, tasks, agents, projects, 
   const [replyTo, setReplyTo] = useState<AgentMessageRecord | null>(null)
   const [optimisticReadIds, setOptimisticReadIds] = useState<Set<string>>(new Set())
   const pendingReadIdsRef = useRef<Set<string>>(new Set())
-  const [filters, setFilters] = useState<FilterState>({ search: "", channelType: "all", priority: "all", unreadOnly: false })
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_MESSAGE_FILTERS)
 
   // Thread panel state from Zustand store
   const activeThreadId = useAppStore((s) => s.activeThreadId)
@@ -96,26 +97,33 @@ export function CommunicationHub({ messages, comments, tasks, agents, projects, 
   const taskDiscussionChannels = useMemo(() => deriveTaskDiscussionChannels(comments, tasks, forcedTaskId), [comments, forcedTaskId, tasks])
   const channels: AnyChannel[] = useMemo(() => [...messageChannels, ...taskDiscussionChannels], [messageChannels, taskDiscussionChannels])
 
-  useEffect(() => { if (channels.length === 0) { if (selectedChannelKey) setSelectedChannelKey(null); return }; if (!selectedChannelKey || !channels.some((c) => c.key === selectedChannelKey)) setSelectedChannelKey(channels[0].key) }, [channels, selectedChannelKey])
+  const handleSelectChannel = useCallback((key: string) => {
+    setSelectedChannelKey(key)
+    setReplyTo(null)
+    setFilters(DEFAULT_MESSAGE_FILTERS)
+    clearSearch()
+  }, [clearSearch])
+
+  useEffect(() => { if (channels.length === 0) { if (selectedChannelKey) setSelectedChannelKey(null); return }; if (!selectedChannelKey || !channels.some((c) => c.key === selectedChannelKey)) handleSelectChannel(channels[0].key) }, [channels, selectedChannelKey, handleSelectChannel])
 
   useEffect(() => {
     if (!selectedEntityId) return
     const matchMsg = effectiveMessages.find((m) => m.id === selectedEntityId)
     if (matchMsg) {
       const ch = messageChannels.find((ch) => getChannelMessages(effectiveMessages, ch).some((m) => m.id === selectedEntityId))
-      if (ch) setSelectedChannelKey(ch.key)
+      if (ch) handleSelectChannel(ch.key)
       onEntityConsumed?.()
       return
     }
     const matchCom = comments.find((c) => c.id === selectedEntityId)
     if (matchCom) {
-      setSelectedChannelKey(`task-${matchCom.taskId}`)
+      handleSelectChannel(`task-${matchCom.taskId}`)
       onEntityConsumed?.()
       return
     }
     const matchTask = taskDiscussionChannels.find((d) => d.taskId === selectedEntityId)
     if (matchTask) {
-      setSelectedChannelKey(matchTask.key)
+      handleSelectChannel(matchTask.key)
       onEntityConsumed?.()
       return
     }
@@ -125,21 +133,14 @@ export function CommunicationHub({ messages, comments, tasks, agents, projects, 
     // the effect refire on every snapshot and block the user from
     // navigating manually inside the communication hub.
     onEntityConsumed?.()
-  }, [selectedEntityId, effectiveMessages, comments, messageChannels, onEntityConsumed, taskDiscussionChannels])
+  }, [selectedEntityId, effectiveMessages, comments, messageChannels, onEntityConsumed, taskDiscussionChannels, handleSelectChannel])
 
   const activeChannel = useMemo(() => channels.find((c) => c.key === selectedChannelKey) ?? null, [channels, selectedChannelKey])
   const channelMessages = useMemo(() => { if (!activeChannel || activeChannel.kind !== "message") return []; return getChannelMessages(effectiveMessages, activeChannel).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) }, [effectiveMessages, activeChannel])
   const taskComments = useMemo(() => { if (!activeChannel || activeChannel.kind !== "task") return []; return comments.filter((c) => c.taskId === activeChannel.taskId).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) }, [comments, activeChannel])
   const activeTask = useMemo(() => { if (!activeChannel || activeChannel.kind !== "task") return null; return tasks.find((t) => t.id === activeChannel.taskId) ?? null }, [tasks, activeChannel])
 
-  const filteredMessages = useMemo(() => {
-    let r = channelMessages
-    if (filters.channelType !== "all") r = r.filter((m) => m.channel === filters.channelType)
-    if (filters.search && !searchQuery) { const q = filters.search.toLowerCase(); r = r.filter((m) => m.subject.toLowerCase().includes(q) || m.body.toLowerCase().includes(q) || (agentMap.get(m.fromAgentId)?.name ?? "").toLowerCase().includes(q)) }
-    if (filters.priority !== "all") r = r.filter((m) => m.priority === filters.priority)
-    if (filters.unreadOnly) r = r.filter((m) => !m.readAt)
-    return r
-  }, [channelMessages, filters, agentMap, searchQuery])
+  const filteredMessages = useMemo(() => filterChannelMessages(channelMessages, filters, agentMap, searchQuery), [channelMessages, filters, agentMap, searchQuery])
 
   // Debounced search via IPC
   useEffect(() => {
@@ -200,13 +201,13 @@ export function CommunicationHub({ messages, comments, tasks, agents, projects, 
     })
 
     if (matchingChannel) {
-      setSelectedChannelKey(matchingChannel.key)
+      handleSelectChannel(matchingChannel.key)
     }
 
     // Clear search to return to normal view
     setFilters((prev) => ({ ...prev, search: "" }))
     clearSearch()
-  }, [messageChannels, effectiveMessages, clearSearch])
+  }, [messageChannels, effectiveMessages, handleSelectChannel, clearSearch])
 
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
@@ -271,7 +272,7 @@ export function CommunicationHub({ messages, comments, tasks, agents, projects, 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
       <AnimatePresence initial={false}>
-        {showSidebar ? <ChannelSidebar channelGroups={channelGroups} taskDiscussionChannels={taskDiscussionChannels} selectedChannelKey={selectedChannelKey} onSelectChannel={setSelectedChannelKey} unreadByChannel={unreadByChannel} agents={agents} totalChannels={channels.length} onHideSidebar={() => setShowSidebar(false)} /> : null}
+        {showSidebar ? <ChannelSidebar channelGroups={channelGroups} taskDiscussionChannels={taskDiscussionChannels} selectedChannelKey={selectedChannelKey} onSelectChannel={handleSelectChannel} unreadByChannel={unreadByChannel} agents={agents} totalChannels={channels.length} onHideSidebar={() => setShowSidebar(false)} /> : null}
       </AnimatePresence>
       <div className="flex min-w-0 flex-1 flex-col">
         <ChannelHeader activeChannel={activeChannel} showSidebar={showSidebar} onShowSidebar={() => setShowSidebar(true)} channelMessages={channelMessages} taskDiscussionComments={taskComments} activeTask={activeTask} unreadByChannel={unreadByChannel} onNavigateToTask={onNavigateToTask} filterBar={<FilterBar filters={filters} onChangeFilters={setFilters} scopeToggle={scopeToggleElement} onSearchKeyDown={handleSearchKeyDown} />} />
