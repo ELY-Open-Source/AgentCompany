@@ -36,6 +36,7 @@ import type {
   Assertion,
   AssistantTurn,
   FixtureFile,
+  SemanticRubricDimension,
   ToolResultTurn,
   UserTurn,
 } from "./types.js";
@@ -85,7 +86,18 @@ function extractCoveredSopId(sop: string): string {
   return id;
 }
 
-function buildInMemoryFixture(assertions: Assertion[]): FixtureFile {
+const DEFAULT_SEMANTIC_RUBRIC: SemanticRubricDimension[] = [{
+  id: "executes-requested-action",
+  question: "Does the assistant execute the requested action?",
+  passRubric: "The assistant response contains the requested action evidence.",
+  failRubric: "The assistant response lacks action evidence.",
+  mustContain: ["Hiring a writer"],
+}];
+
+function buildInMemoryFixture(
+  assertions: Assertion[],
+  semanticRubric: SemanticRubricDimension[] = DEFAULT_SEMANTIC_RUBRIC,
+): FixtureFile {
   const userTurn: UserTurn = {
     type: "turn",
     turnIndex: 0,
@@ -142,6 +154,7 @@ function buildInMemoryFixture(assertions: Assertion[]): FixtureFile {
     },
     turns: [userTurn, assistantTurn, toolResultTurn, finalAssistantTurn],
     assertions,
+    semanticRubric,
   };
 }
 
@@ -168,6 +181,8 @@ describe("harness self-test (in-memory fixture)", () => {
     expect(result.fixtureId).toBe("self-test/in-memory");
     expect(result.assertions).toHaveLength(5);
     expect(result.assertions.every((r) => r.passed)).toBe(true);
+    expect(result.semanticRubric).toHaveLength(1);
+    expect(result.semanticRubric[0]?.passed).toBe(true);
     expect(result.tokenLedger).toEqual({
       input: 120,
       cache_read: 40,
@@ -175,6 +190,21 @@ describe("harness self-test (in-memory fixture)", () => {
       output: 60,
     });
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("fails when semantic rubric evidence is missing", async () => {
+    const fixture = buildInMemoryFixture([], [{
+      id: "must-mark-read",
+      question: "Does the assistant mark the inbound message read?",
+      passRubric: "The assistant calls mark_read.",
+      failRubric: "The assistant skips mark_read.",
+      mustContain: ["mark_read"],
+    }]);
+    const result = await runEval(fixture, { systemPrompt: "Self-test prompt." });
+    expect(result.passed).toBe(false);
+    expect(result.semanticRubric[0]?.reason).toContain(
+      'missing required evidence "mark_read"',
+    );
   });
 
   it("fails with a precise reason when an assertion misses", async () => {
@@ -242,6 +272,9 @@ describe("eval SOP coverage matrix", () => {
       for (const sop of entry.requiredSops) {
         expect(prompt).toContain(sop);
       }
+      for (const fragment of entry.requiredPromptFragments ?? []) {
+        expect(prompt).toContain(fragment);
+      }
       for (const sop of entry.forbiddenSops ?? []) {
         expect(prompt).not.toContain(sop);
       }
@@ -287,8 +320,12 @@ describe.each(fixturePaths)("eval fixture %s", (fixturePath) => {
         .filter((assertion) => !assertion.passed)
         .map((assertion) => `- ${assertion.assertion.kind}: ${assertion.reason ?? "<no reason>"}`)
         .join("\n");
+      const semanticFailures = result.semanticRubric
+        .filter((dimension) => !dimension.passed)
+        .map((dimension) => `- semantic ${dimension.dimensionId}: ${dimension.reason ?? "<no reason>"}`)
+        .join("\n");
       throw new Error(
-        `fixture ${result.fixtureId} failed:\n${failures}\ntoken ledger: ${JSON.stringify(result.tokenLedger)}`,
+        `fixture ${result.fixtureId} failed:\n${failures}\n${semanticFailures}\ntoken ledger: ${JSON.stringify(result.tokenLedger)}`,
       );
     }
     expect(result.passed).toBe(true);

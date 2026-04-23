@@ -88,9 +88,9 @@ export type TraceTurn = UserTurn | AssistantTurn | ToolResultTurn;
  * Structural assertions that can be evaluated against a replayed trace.
  *
  * Deliberately minimal: assertions express tool-call shape, order, count, and
- * textual substrings. Semantic quality judgments (tone, plan soundness) are
- * out of scope for this tier and will be handled by the LLM-as-judge tier
- * described in B5.1.
+ * textual substrings. Semantic behavior checks live in `semanticRubric` below,
+ * where each dimension ties a human-readable rubric to concrete transcript
+ * evidence that CI can verify without a provider key.
  */
 export type Assertion =
   | {
@@ -131,6 +131,22 @@ export type Assertion =
 export interface AssertionsBlock {
   type: "assertions";
   assertions: Assertion[];
+  semanticRubric: SemanticRubricDimension[];
+}
+
+export interface SemanticRubricDimension {
+  /** Stable kebab-case identifier within the fixture. */
+  id: string;
+  /** Human-readable semantic question being graded. */
+  question: string;
+  /** Concrete description of a passing answer. */
+  passRubric: string;
+  /** Concrete description of a failing answer. */
+  failRubric: string;
+  /** Required transcript evidence. Every item must appear in assistant text. */
+  mustContain: string[];
+  /** Forbidden transcript evidence. Any matching item fails the dimension. */
+  mustNotContain?: string[];
 }
 
 /**
@@ -147,6 +163,7 @@ export interface FixtureFile {
   meta: FixtureMeta;
   turns: TraceTurn[];
   assertions: Assertion[];
+  semanticRubric: SemanticRubricDimension[];
 }
 
 /**
@@ -159,6 +176,14 @@ export interface AssertionResult {
   reason?: string;
 }
 
+export interface SemanticRubricResult {
+  dimensionId: string;
+  passed: boolean;
+  evidence: string[];
+  /** Populated when `passed === false`; concise human-readable explanation. */
+  reason?: string;
+}
+
 /**
  * Result of evaluating one fixture against the current code path.
  */
@@ -166,6 +191,7 @@ export interface EvalResult {
   fixtureId: string;
   passed: boolean;
   assertions: AssertionResult[];
+  semanticRubric: SemanticRubricResult[];
   /** Aggregated token ledger summed across all assistant turns in the fixture. */
   tokenLedger: TokenLedger;
   /** Wall-clock duration of the replay, in milliseconds. */

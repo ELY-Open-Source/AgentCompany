@@ -31,8 +31,8 @@
  * - Fixture synthesis. If the provider call fails for any reason, the
  *   error is rethrown and no JSONL is written. `Let it crash`.
  * - Retrying, resuming, or merging with an existing fixture.
- * - Seeding assertions. The assertions block is written empty; the user
- *   fills it in by hand using the kinds documented in the README.
+ * - Seeding assertions or semantic rubrics. The assertions block is written
+ *   empty; the user fills it in by hand using the README contract.
  *
  * All failure modes surface as non-zero exits with a specific message —
  * the user should read the stderr line and fix the cause (missing env,
@@ -205,7 +205,7 @@ function buildAssistantTurn(final: AssistantMessage): AssistantTurn {
 }
 
 function buildEmptyAssertions(): AssertionsBlock {
-  return { type: "assertions", assertions: [] };
+  return { type: "assertions", assertions: [], semanticRubric: [] };
 }
 
 async function main(): Promise<void> {
@@ -282,7 +282,7 @@ async function main(): Promise<void> {
     [
       `record-fixture: wrote fixture ${args.fixtureId} to ${outPath}`,
       `record-fixture: usage ${usageSummary} stopReason=${final.stopReason}`,
-      `record-fixture: assertions block is empty — edit ${outPath} and add one or more assertion entries`,
+      `record-fixture: assertions block is empty — edit ${outPath} and add assertion plus semanticRubric entries`,
       `record-fixture: then verify with  pnpm test:eval --run`,
     ].join("\n") + "\n",
   );

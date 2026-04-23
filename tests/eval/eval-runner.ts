@@ -9,6 +9,7 @@
  */
 
 import { judgeAssertions } from "./assertion-judge.js";
+import { judgeSemanticRubric } from "./semantic-rubric-judge.js";
 import { replayFixtureThroughAgent } from "./tool-loop-replay.js";
 import type { EvalResult, FixtureFile, TokenLedger, TraceTurn } from "./types.js";
 
@@ -45,14 +46,18 @@ export async function runEval(
     options.systemPrompt ?? "",
   );
   const results = judgeAssertions(fixture.assertions, replayedTurns);
+  const semanticResults = judgeSemanticRubric(fixture.semanticRubric, replayedTurns);
   const tokenLedger = sumLedger(replayedTurns);
   const durationMs = Date.now() - start;
-  const passed = results.every((result) => result.passed);
+  const passed =
+    results.every((result) => result.passed) &&
+    semanticResults.every((result) => result.passed);
 
   return {
     fixtureId: fixture.meta.fixtureId,
     passed,
     assertions: results,
+    semanticRubric: semanticResults,
     tokenLedger,
     durationMs,
   };

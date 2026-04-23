@@ -6,7 +6,7 @@ import {
   buildTaskPrompt,
   type PromptContext,
 } from "../../src/main/prompt-builder/index";
-import type { AgentRecord } from "../../src/shared/types";
+import type { AgentRecord, ExecutionMode } from "../../src/shared/types";
 import type { FixtureFile, UserTurn } from "./types.js";
 
 const EVAL_DIR = dirname(fileURLToPath(import.meta.url));
@@ -20,8 +20,10 @@ export type EvalPromptAudience =
 export interface EvalScenarioMatrixEntry {
   scenarioId: string;
   audience: EvalPromptAudience;
+  executionMode?: ExecutionMode;
   requiredSops: string[];
   forbiddenSops?: string[];
+  requiredPromptFragments?: string[];
 }
 
 export interface LoadedScenarioContract {
@@ -100,6 +102,22 @@ export const EVAL_SCENARIO_MATRIX: EvalScenarioMatrixEntry[] = [
       "SOP-015: Knowledge Management",
     ],
   },
+  {
+    scenarioId: "cofounder-human-review-mode",
+    audience: "manager",
+    executionMode: "ai_cofounder",
+    requiredSops: [
+      "SOP-002: Task Lifecycle",
+      "SOP-004: Code Review Protocol",
+      "SOP-006: Escalation Chain",
+    ],
+    requiredPromptFragments: [
+      "# Execution Mode: AI Co-Founder (Human-Reviewed)",
+      "plan_review approval",
+      "move it to in_review status",
+      "Treat pending approvals as blocking",
+    ],
+  },
 ];
 
 function createAgent(overrides: Partial<AgentRecord>): AgentRecord {
@@ -129,7 +147,8 @@ function createAgent(overrides: Partial<AgentRecord>): AgentRecord {
   };
 }
 
-function buildPromptContext(audience: EvalPromptAudience): PromptContext {
+function buildPromptContext(entry: EvalScenarioMatrixEntry): PromptContext {
+  const audience = entry.audience;
   const ceo = createAgent({
     id: "ceo-1",
     name: "CEO",
@@ -174,6 +193,7 @@ function buildPromptContext(audience: EvalPromptAudience): PromptContext {
     apiKey: "eval-token",
     runId: "eval-run",
     task: null,
+    executionMode: entry.executionMode,
     companyName: "AgentCompany Eval",
     companyDescription: "Recorded eval prompt coverage",
     goals: [],
@@ -253,5 +273,5 @@ export function assertScenarioMatchesFixture(
 }
 
 export function buildMatrixPrompt(entry: EvalScenarioMatrixEntry): string {
-  return buildTaskPrompt(buildPromptContext(entry.audience));
+  return buildTaskPrompt(buildPromptContext(entry));
 }

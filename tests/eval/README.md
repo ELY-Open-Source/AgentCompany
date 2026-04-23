@@ -4,8 +4,11 @@ This directory holds the LLM behavior eval tier for AgentCompany. It replays
 recorded LLM traces (fixtures) through `pi-agent-core`'s Agent loop, feeds
 recorded tool results back through replay tools, and checks structural
 assertions against the replayed transcript: tool names, call counts, argument
-shapes, message substrings, and turn caps. Semantic quality judgment belongs in
-`docs/proposals/B5.1-llm-as-judge-followup.md`.
+shapes, message substrings, and turn caps. Each fixture also carries a
+deterministic semantic rubric: human-readable quality dimensions tied to
+required and forbidden assistant-transcript evidence. This gives CEO, manager,
+and IC behavior fixtures an automated quality gate inside `pnpm test:eval`;
+the eval matrix also pins the AI Co-Founder human-review prompt contract.
 
 ## File layout
 
@@ -17,6 +20,7 @@ shapes, message substrings, and turn caps. Semantic quality judgment belongs in
 | `tool-loop-replay.ts` | Runs a fixture through `pi-agent-core` Agent with recorded tool-result executors. |
 | `scenario-contract.ts` | Validates scenario prompt/user files, prompt hashes, and real prompt-builder SOP coverage. |
 | `assertion-judge.ts` | Structural assertions over recorded trace. No semantic judgment. |
+| `semantic-rubric-judge.ts` | Semantic rubric dimensions over assistant transcript evidence. |
 | `eval-runner.ts` | Parse fixture → Agent replay → judge assertions → produce `EvalResult`. |
 | `record-fixture.ts` | CLI for writing fixture meta headers. Full record loop lands in B5.1. |
 | `harness.test.ts` | vitest driver that walks `fixtures/` and asserts every fixture passes. |
@@ -112,6 +116,14 @@ Open the fixture you just wrote and replace the empty assertions block:
 +   {"kind":"tool_called","name":"hire_agent","min_count":3,"max_count":5},
 +   {"kind":"message_contains_substring","role":"assistant","substring":"engineering"},
 +   {"kind":"trace_max_turns","max":40}
++ ],"semanticRubric":[
++   {
++     "id":"ceo-team-bootstrap",
++     "question":"Does the CEO bootstrap a balanced leadership team?",
++     "passRubric":"The answer creates leadership hires across core functions and files strategy approval.",
++     "failRubric":"The answer writes a plan or omits core leadership coverage.",
++     "mustContain":["<hire_agent>","<file_approval>","approve_ceo_strategy"]
++   }
 + ]}
 ```
 
@@ -190,9 +202,25 @@ Field contracts:
 | `tool_call_arg_matches` | At least one call to `name` has the dotted `arg_path` resolving to a string matching `matches_regex`. |
 | `trace_max_turns` | Trace must have at most `max` turns. |
 
-Anything that requires semantic judgment (tone, strategy, plan quality)
-belongs in the LLM-as-judge tier. See
-`docs/proposals/B5.1-llm-as-judge-followup.md`.
+## Semantic rubric dimensions
+
+Every fixture must include `assertions.semanticRubric` with at least one
+dimension:
+
+```json
+{
+  "id": "peer-reply-with-owner-and-eta",
+  "question": "Does the manager reply with a concrete ETA and owner?",
+  "passRubric": "The answer marks the message read, sends a reply, gives a concrete ETA, and names the owner path.",
+  "failRubric": "The answer hires agents, files approval, or replies without a concrete ETA or owner.",
+  "mustContain": ["mark_read", "/api/agent_message/send", "EOD Friday"],
+  "mustNotContain": ["hire_agent", "file_approval"]
+}
+```
+
+The rubric text names the behavior. `mustContain` and `mustNotContain` make the
+behavior executable in CI. Live provider LLM judgment remains the B5.1
+provider tier described in `docs/proposals/B5.1-llm-as-judge-followup.md`.
 
 ## Hard contracts
 
@@ -203,10 +231,12 @@ belongs in the LLM-as-judge tier. See
 - `scenarios/<fixtureId>/system.txt` must hash to
   `meta.systemPromptHash`.
 - `scenarios/<fixtureId>/user.txt` must match the first user turn exactly.
+- `assertions.semanticRubric` must contain at least one semantic dimension.
 - Structured assistant `toolCall` blocks require matching `toolResult` turns
   before the next assistant or user turn.
 - Replay exhaustion, malformed fixtures, and scenario drift throw hard errors.
-- Assertions stay structural; semantic judgment lives in the follow-up tier.
+- Structural assertions and semantic rubric dimensions both gate
+  `pnpm test:eval`.
 
 ## Production bundle posture
 
