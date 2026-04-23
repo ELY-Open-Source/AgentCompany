@@ -4,7 +4,7 @@ import {
   ensureAgentCommunicationThread,
   ensureTaskThread,
 } from "@main/thread-integration/thread-helpers";
-import { extractTextBody } from "./agent-event-projection";
+import { extractMessageText } from "./agent-event-projection";
 import type { InboundCorrelationEntry } from "./inbound-correlation-registry";
 
 type RuntimeThreadEnvelope = {
@@ -45,18 +45,20 @@ export class RuntimeThreadProjector {
     message: RuntimeThreadMessage | undefined,
   ): void {
     if (!message?.role) return;
-
-    const thread = this.resolveThreadForRun(envelope);
-    if (!thread) return;
+    if (message.role !== "assistant" && message.role !== "user") return;
 
     try {
-      const body = extractTextBody(message.content);
+      const body = extractMessageText(message);
       const actor = this.resolveThreadEventActor(envelope, message);
+      if (!actor) return;
+      if (body.length === 0) return;
+      const thread = this.resolveThreadForRun(envelope);
+      if (!thread) return;
       this.deps.db.core.threads.addThreadEvent({
         threadId: thread.id,
         actorId: actor.actorId,
         actorType: actor.actorType,
-        eventType: message.role === "toolResult" ? "system_note" : "message",
+        eventType: "message",
         body: body.length > 4000 ? `${body.slice(0, 3997)}...` : body,
         metadataJson: JSON.stringify({
           runId: envelope.runId,
@@ -66,7 +68,7 @@ export class RuntimeThreadProjector {
       });
     } catch (error) {
       this.deps.logger.warn(
-        `[runtime-bridge] failed to project agent-event into thread ${thread.id}: ${
+        `[runtime-bridge] failed to project agent-event for run ${envelope.runId}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
@@ -144,7 +146,7 @@ export class RuntimeThreadProjector {
   private resolveThreadEventActor(
     envelope: { runId: string; agentId: string },
     message: { role?: string; timestamp?: number },
-  ): { actorId: string; actorType: "agent" | "user" | "system"; sourceMessageId: string | null } {
+  ): { actorId: string; actorType: "agent" | "user" | "system"; sourceMessageId: string | null } | null {
     if (message.role === "user") {
       const correlation = this.deps.lookupInboundCorrelation(envelope.runId, message.timestamp);
       if (correlation) {
@@ -160,11 +162,11 @@ export class RuntimeThreadProjector {
           sourceMessageId: correlation.messageId,
         };
       }
-      return { actorId: "user", actorType: "user", sourceMessageId: null };
+      return null;
     }
     if (message.role === "assistant") {
       return { actorId: envelope.agentId, actorType: "agent", sourceMessageId: null };
     }
-    return { actorId: envelope.agentId, actorType: "system", sourceMessageId: null };
+    return null;
   }
 }
