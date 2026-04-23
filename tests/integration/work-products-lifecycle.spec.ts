@@ -324,6 +324,7 @@ describe("work_products bulk retirement", () => {
         taskId: harness.taskId,
         workspaceId: harness.workspaceId,
         workspacePath: harness.workspacePath,
+        workspaceMode: "exclusive",
         workspaceBaseline: baseline,
       };
       const outcomes = reconcileWorkspaceArtifacts(harness.db, ctx);

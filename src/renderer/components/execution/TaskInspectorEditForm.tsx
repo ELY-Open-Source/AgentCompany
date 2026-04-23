@@ -27,6 +27,7 @@ export function TaskInspectorEditForm({
   const [status, setStatus] = useState<TaskStatus>(task.status)
   const [assignee, setAssignee] = useState(task.assigneeAgentId ?? "")
   const [workspace, setWorkspace] = useState(task.workspaceId ?? "")
+  const [requiresFilesystem, setRequiresFilesystem] = useState(task.requiresFilesystem)
   const [project, setProject] = useState(task.projectId ?? "")
   const [goal, setGoal] = useState(task.goalId ?? "")
   const [saving, setSaving] = useState(false)
@@ -43,7 +44,7 @@ export function TaskInspectorEditForm({
         status,
         assigneeAgentId: assignee || null,
         workspaceId: workspace || null,
-        requiresFilesystem: task.requiresFilesystem,
+        requiresFilesystem,
         projectId: project || null,
         goalId: goal || null,
       }))
@@ -66,6 +67,15 @@ export function TaskInspectorEditForm({
       <Select label={t("exec.status")} value={status} onChange={(v) => setStatus(v as TaskStatus)} options={["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"].map((v) => ({ value: v, label: v.replaceAll("_", " ") }))} />
       <Select label={t("exec.assignee")} value={assignee} onChange={setAssignee} options={[{ value: "", label: t("exec.unassigned") }, ...agents.map((a) => ({ value: a.id, label: a.name }))]} />
       <Select label={t("exec.workspace")} value={workspace} onChange={setWorkspace} options={[{ value: "", label: t("exec.noWorkspace") }, ...workspaces.map((w) => ({ value: w.id, label: w.name }))]} />
+      <label className="flex items-center gap-2.5 md:col-span-2">
+        <input
+          type="checkbox"
+          checked={requiresFilesystem}
+          onChange={(event) => setRequiresFilesystem(event.target.checked)}
+          className="h-4 w-4 rounded border-border accent-[color:var(--primary)]"
+        />
+        <span className="text-[13px] text-foreground">{t("exec.requiresFilesystem")}</span>
+      </label>
       <Select label={t("exec.project")} value={project} onChange={setProject} options={[{ value: "", label: t("exec.noProject") }, ...projects.map((p) => ({ value: p.id, label: p.name }))]} />
       <Select label={t("exec.goal")} value={goal} onChange={setGoal} options={[{ value: "", label: t("exec.noGoal") }, ...goals.map((g) => ({ value: g.id, label: g.title }))]} />
       <div className="md:col-span-2 flex gap-3">

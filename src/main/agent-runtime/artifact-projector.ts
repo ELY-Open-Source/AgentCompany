@@ -81,6 +81,9 @@ export function reconcileWorkspaceArtifacts(
   db: AppDatabase,
   ctx: ArtifactProjectorRunContext,
 ): ProjectionOutcome[] {
+  if (ctx.workspaceMode !== "exclusive") {
+    return [{ kind: "skipped", reason: "workspace_not_exclusive" }];
+  }
   return projectCollectedChanges(db, ctx, collectChangedPaths(ctx));
 }
 
@@ -88,6 +91,9 @@ function projectBashArtifacts(
   db: AppDatabase,
   ctx: ArtifactProjectorRunContext,
 ): ProjectionOutcome[] {
+  if (ctx.workspaceMode !== "exclusive") {
+    return [{ kind: "skipped", reason: "workspace_not_exclusive" }];
+  }
   return projectCollectedChanges(db, ctx, collectChangedPaths(ctx));
 }
 

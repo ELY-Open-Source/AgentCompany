@@ -109,34 +109,3 @@ export function buildRedactor(env: Record<string, string>): (text: string) => st
     return result;
   };
 }
-
-/**
- * Pushes extra env vars onto `process.env` and returns a restore function
- * that is **infallible** — each individual restore is guarded so a single
- * malformed key cannot leave a partial restore that keeps a provider
- * secret in the worker's env for the next run. Intended for short-lived
- * turn-scope env (`AGENT_COMPANY_*`, connector secrets). The worker runs
- * one agent at a time, so this is safe for the current scheduler; do not
- * convert it to concurrent run isolation — pass per-spawn env at the
- * child-process level instead.
- */
-export function applyEnvOverrides(overrides: Record<string, string>): () => void {
-  const saved: Record<string, string | undefined> = {};
-  for (const [key, value] of Object.entries(overrides)) {
-    saved[key] = process.env[key];
-    process.env[key] = value;
-  }
-  return () => {
-    for (const [key, previous] of Object.entries(saved)) {
-      try {
-        if (previous === undefined) delete process.env[key];
-        else process.env[key] = previous;
-      } catch {
-        // Individual restore failure is never fatal — move on so the
-        // remaining keys still revert. Should never happen in practice
-        // (the Node env-var assignment is synchronous and infallible for
-        // string values), but the guard lets the outer finally complete.
-      }
-    }
-  };
-}

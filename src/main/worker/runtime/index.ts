@@ -2,12 +2,12 @@ import type { Agent, AgentMessage } from "@mariozechner/pi-agent-core";
 import { resolveModel, resolveExtraStreamHeaders } from "../../model-resolver";
 import type { RunStatus } from "@shared/types";
 import type { ChildMessage, RunJob } from "./helpers";
-import { applyEnvOverrides, buildRedactor } from "./helpers";
-import { createCodingTools } from "@mariozechner/pi-coding-agent";
+import { buildRedactor } from "./helpers";
 import { createPiAgent, resolveThinkingLevel, type ErasedAgentTool } from "./pi-agent-factory";
 import type { WorkerRpcClient } from "../entry/rpc";
 import { createHireAgentTool, HIRE_AGENT_TOOL_NAME } from "./internal-tools/hire-agent-tool";
 import { createFileApprovalTool, FILE_APPROVAL_TOOL_NAME } from "./internal-tools/file-approval-tool";
+import { createRunScopedCodingTools, mergeRunEnvs } from "./run-tools";
 import {
   classifyRunUsage,
   hasAttributableAssistantUsage,
@@ -95,7 +95,7 @@ export class WorkerRunner {
 
   private async runImpl(job: RunJob): Promise<void> {
     const { post, rpc, isCancelled } = this.deps;
-    const redact = buildRedactor(job.env);
+    let redact = buildRedactor(job.env);
     const abortController = new AbortController();
     this.abortControllers.set(job.runId, abortController);
 
@@ -109,14 +109,6 @@ export class WorkerRunner {
     let sawAttributableUsage = false;
     let terminalStopReason: TerminalAssistantStopReason | null = null;
     let errorMessage: string | null = null;
-
-    // Inject the AgentCompany job env (AGENT_COMPANY_API_URL / API_KEY /
-    // AGENT_ID / COMPANY_ID / RUN_ID / TASK_ID / WAKE_REASON + provider
-    // secret bindings) into the worker's process.env BEFORE Agent
-    // construction, so the agent's bash-tool children can call back into
-    // our HTTP API via fetch(process.env.AGENT_COMPANY_API_URL). Restored
-    // in the outer finally regardless of success / abort / throw.
-    const restoreJobEnv = applyEnvOverrides(job.env);
 
     try {
       if (!job.model) {
@@ -132,134 +124,131 @@ export class WorkerRunner {
         modelId: job.model,
         workspaceId: job.workspaceId ?? null,
         workspacePath: job.workspacePath ?? null,
+        workspaceMode: job.workspaceMode,
       });
       if (!prepareResponse.ok) {
         throw new Error(prepareResponse.error);
       }
       const prepared = prepareResponse.result as PrepareRunResult;
+      const runEnv = mergeRunEnvs(job.env, prepared.extraEnv);
+      redact = buildRedactor(runEnv);
 
-      const restoreProviderEnv = applyEnvOverrides(prepared.extraEnv);
-      try {
-        const model = resolveModel(prepared.provider, job.model);
-        if (!model) {
-          throw new Error(`Unknown model ${job.model} for provider ${prepared.provider}.`);
-        }
-        resolvedModelId = model.id;
-        const extraHeaders = resolveExtraStreamHeaders(prepared.provider, prepared.apiKey);
+      const model = resolveModel(prepared.provider, job.model);
+      if (!model) {
+        throw new Error(`Unknown model ${job.model} for provider ${prepared.provider}.`);
+      }
+      resolvedModelId = model.id;
+      const extraHeaders = resolveExtraStreamHeaders(prepared.provider, prepared.apiKey);
 
-        const cwd = job.workspacePath ?? process.cwd();
-        const codingTools = createCodingTools(cwd);
-        const internalTools: ErasedAgentTool[] = [];
-        for (const toolName of job.internalTools ?? []) {
-          switch (toolName) {
-            case HIRE_AGENT_TOOL_NAME:
-              internalTools.push(createHireAgentTool(rpc, job.runId));
-              break;
-            case FILE_APPROVAL_TOOL_NAME:
-              internalTools.push(createFileApprovalTool(rpc, job.runId));
-              break;
-            default: {
-              // Exhaustiveness guard: a new entry in the `internalTools`
-              // array without a matching case should be a compile-time
-              // regression.
-              const _exhaustive: never = toolName;
-              throw new Error(`Unknown internal tool requested: ${String(_exhaustive)}`);
-            }
+      const cwd = job.workspacePath ?? process.cwd();
+      const codingTools = createRunScopedCodingTools(cwd, runEnv);
+      const internalTools: ErasedAgentTool[] = [];
+      for (const toolName of job.internalTools ?? []) {
+        switch (toolName) {
+          case HIRE_AGENT_TOOL_NAME:
+            internalTools.push(createHireAgentTool(rpc, job.runId));
+            break;
+          case FILE_APPROVAL_TOOL_NAME:
+            internalTools.push(createFileApprovalTool(rpc, job.runId));
+            break;
+          default: {
+            // Exhaustiveness guard: a new entry in the `internalTools`
+            // array without a matching case should be a compile-time
+            // regression.
+            const _exhaustive: never = toolName;
+            throw new Error(`Unknown internal tool requested: ${String(_exhaustive)}`);
           }
         }
-        const tools: ErasedAgentTool[] = [...codingTools, ...internalTools];
+      }
+      const tools: ErasedAgentTool[] = [...codingTools, ...internalTools];
 
-        const agent = createPiAgent({
-          runId: job.runId,
-          taskSessionId: job.taskSessionId,
-          systemPrompt: job.systemPrompt ?? "",
-          model,
-          tools,
-          priorMessages: prepared.priorMessages,
-          thinkingLevel: resolveThinkingLevel(job.thinkingEffort),
-          apiKey: prepared.apiKey,
-          extraHeaders,
-          rpc,
-          onContextCompaction: (telemetry) => {
-            post({
-              type: "context-compaction",
-              runId: telemetry.runId,
-              emittedAt: telemetry.emittedAt,
-              estimatedTokens: telemetry.estimatedTokens,
-              originalMessageCount: telemetry.originalMessageCount,
-              compactedMessageCount: telemetry.compactedMessageCount,
-              compactedOlderMessageCount: telemetry.compactedOlderMessageCount,
-              retainedRecentMessageCount: telemetry.retainedRecentMessageCount,
-            });
-          },
-        });
-        this.activeAgents.set(job.runId, agent);
-        post({ type: "run-agent-state", runId: job.runId, state: "agent_active" });
-
-        const unsubscribe = agent.subscribe(async (event) => {
-          const timestamp = new Date().toISOString();
+      const agent = createPiAgent({
+        runId: job.runId,
+        taskSessionId: job.taskSessionId,
+        systemPrompt: job.systemPrompt ?? "",
+        model,
+        tools,
+        priorMessages: prepared.priorMessages,
+        thinkingLevel: resolveThinkingLevel(job.thinkingEffort),
+        apiKey: prepared.apiKey,
+        extraHeaders,
+        rpc,
+        onContextCompaction: (telemetry) => {
           post({
-            type: "agent-event",
-            runId: job.runId,
-            agentId: job.agentId,
-            companyId: job.companyId,
-            taskId: job.taskId,
-            emittedAt: timestamp,
-            event: event as { type: string } & Record<string, unknown>,
+            type: "context-compaction",
+            runId: telemetry.runId,
+            emittedAt: telemetry.emittedAt,
+            estimatedTokens: telemetry.estimatedTokens,
+            originalMessageCount: telemetry.originalMessageCount,
+            compactedMessageCount: telemetry.compactedMessageCount,
+            compactedOlderMessageCount: telemetry.compactedOlderMessageCount,
+            retainedRecentMessageCount: telemetry.retainedRecentMessageCount,
           });
+        },
+      });
+      this.activeAgents.set(job.runId, agent);
+      post({ type: "run-agent-state", runId: job.runId, state: "agent_active" });
 
-          if (event.type === "message_end" && event.message) {
-            await rpc.invoke(job.runId, "persistMessage", {
-              taskSessionId: job.taskSessionId,
-              message: event.message,
-            });
-            const maybeAssistant = event.message as {
-              role?: string;
-              stopReason?: string;
-              errorMessage?: string;
-              usage?: { input?: number; output?: number; cost?: { total?: number } };
-            };
-            if (maybeAssistant.role === "assistant" && isTerminalAssistantStopReason(maybeAssistant.stopReason)) {
-              terminalStopReason = maybeAssistant.stopReason;
-              errorMessage = maybeAssistant.errorMessage ?? `Agent stopped with ${maybeAssistant.stopReason}.`;
-            }
-            if (hasAttributableAssistantUsage(maybeAssistant)) {
-              sawAttributableUsage = true;
-              finalUsage = {
-                inputTokens: typeof maybeAssistant.usage.input === "number" ? maybeAssistant.usage.input : finalUsage.inputTokens,
-                outputTokens: typeof maybeAssistant.usage.output === "number" ? maybeAssistant.usage.output : finalUsage.outputTokens,
-              };
-            }
-          }
+      const unsubscribe = agent.subscribe(async (event) => {
+        const timestamp = new Date().toISOString();
+        post({
+          type: "agent-event",
+          runId: job.runId,
+          agentId: job.agentId,
+          companyId: job.companyId,
+          taskId: job.taskId,
+          emittedAt: timestamp,
+          event: event as { type: string } & Record<string, unknown>,
         });
 
-        try {
-          const promptContent = job.initialUserTurn.trim();
-          if (promptContent.length === 0) {
-            throw new Error(`Run ${job.runId} has an empty initial user turn.`);
-          }
-          const promptMessage: AgentMessage = {
-            role: "user",
-            content: [{ type: "text", text: promptContent }],
-            timestamp: Date.now(),
+        if (event.type === "message_end" && event.message) {
+          await rpc.invoke(job.runId, "persistMessage", {
+            taskSessionId: job.taskSessionId,
+            message: event.message,
+          });
+          const maybeAssistant = event.message as {
+            role?: string;
+            stopReason?: string;
+            errorMessage?: string;
+            usage?: { input?: number; output?: number; cost?: { total?: number } };
           };
-          const runPromise = agent.prompt(promptMessage);
-          abortController.signal.addEventListener("abort", () => agent.abort(), { once: true });
-          await runPromise;
-        } finally {
-          post({ type: "run-agent-state", runId: job.runId, state: "closing" });
-          unsubscribe();
-          this.activeAgents.delete(job.runId);
+          if (maybeAssistant.role === "assistant" && isTerminalAssistantStopReason(maybeAssistant.stopReason)) {
+            terminalStopReason = maybeAssistant.stopReason;
+            errorMessage = maybeAssistant.errorMessage ?? `Agent stopped with ${maybeAssistant.stopReason}.`;
+          }
+          if (hasAttributableAssistantUsage(maybeAssistant)) {
+            sawAttributableUsage = true;
+            finalUsage = {
+              inputTokens: typeof maybeAssistant.usage.input === "number" ? maybeAssistant.usage.input : finalUsage.inputTokens,
+              outputTokens: typeof maybeAssistant.usage.output === "number" ? maybeAssistant.usage.output : finalUsage.outputTokens,
+            };
+          }
         }
+      });
+
+      try {
+        const promptContent = job.initialUserTurn.trim();
+        if (promptContent.length === 0) {
+          throw new Error(`Run ${job.runId} has an empty initial user turn.`);
+        }
+        const promptMessage: AgentMessage = {
+          role: "user",
+          content: [{ type: "text", text: promptContent }],
+          timestamp: Date.now(),
+        };
+        const runPromise = agent.prompt(promptMessage);
+        abortController.signal.addEventListener("abort", () => agent.abort(), { once: true });
+        await runPromise;
       } finally {
-        restoreProviderEnv();
+        post({ type: "run-agent-state", runId: job.runId, state: "closing" });
+        unsubscribe();
+        this.activeAgents.delete(job.runId);
       }
     } catch (error) {
       errorMessage = error instanceof Error ? error.message : String(error);
       post({ type: "run-log", runId: job.runId, stream: "stderr", chunk: redact(errorMessage) });
     } finally {
       this.abortControllers.delete(job.runId);
-      restoreJobEnv();
     }
 
     const status: RunStatus = isCancelled(job.runId)

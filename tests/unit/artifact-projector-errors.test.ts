@@ -6,6 +6,7 @@ import type { AppDatabase } from "../../src/main/database";
 import {
   captureBaselineIfRequired,
   projectToolExecutionToWorkProduct,
+  reconcileWorkspaceArtifacts,
   type ArtifactProjectorRunContext,
 } from "../../src/main/agent-runtime/artifact-projector";
 
@@ -56,6 +57,7 @@ describe("artifact projector error taxonomy", () => {
       taskId: "task-artifact-error",
       workspaceId: "workspace-artifact-error",
       workspacePath,
+      workspaceMode: "exclusive",
       logger,
       workspaceBaseline: null,
     };
@@ -82,5 +84,30 @@ describe("artifact projector error taxonomy", () => {
       expect.stringContaining("cause="),
     );
     expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it("skips broad bash projection when the run has no exclusive workspace lock", async () => {
+    const workspacePath = await createTempDir("agentcompany-shared-artifacts-");
+    const ctx: ArtifactProjectorRunContext = {
+      runId: "run-shared",
+      agentId: "agent-shared",
+      companyId: "company-shared",
+      taskId: "task-shared",
+      workspaceId: null,
+      workspacePath,
+      workspaceMode: "none",
+      logger: createLogger(),
+      workspaceBaseline: null,
+    };
+
+    expect(projectToolExecutionToWorkProduct({} as AppDatabase, ctx, {
+      toolName: "bash",
+      args: { command: "touch report.md" },
+      result: null,
+      isError: false,
+    })).toEqual([{ kind: "skipped", reason: "workspace_not_exclusive" }]);
+    expect(reconcileWorkspaceArtifacts({} as AppDatabase, ctx)).toEqual([
+      { kind: "skipped", reason: "workspace_not_exclusive" },
+    ]);
   });
 });

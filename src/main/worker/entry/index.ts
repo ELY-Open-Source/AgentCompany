@@ -15,11 +15,12 @@ interface ActiveRun {
 }
 
 /**
- * Single source of truth for scheduling invariants: "one agent at a time"
- * and "one exclusive-workspace lock at a time". Prior layout kept three
- * parallel structures (`activeByAgent`, `activeByWorkspace`, queue) that
- * had to be updated in lockstep. The Map-of-ActiveRun keyed by runId is
- * the only authoritative record; agent/workspace busy checks iterate it.
+ * Single source of truth for scheduling invariants: one active run per
+ * agent and one active run per exclusive workspace lock. Prior layout
+ * kept three parallel structures (`activeByAgent`, `activeByWorkspace`,
+ * queue) that had to be updated in lockstep. The Map-of-ActiveRun keyed
+ * by runId is the only authoritative record; agent/workspace busy checks
+ * iterate it.
  */
 const active = new Map<string, ActiveRun>();
 const queue: RunJob[] = [];

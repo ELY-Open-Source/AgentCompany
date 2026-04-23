@@ -415,6 +415,7 @@ export const zh: Record<string, string> = {
   "exec.unassigned": "未分配",
   "exec.workspace": "工作区",
   "exec.noWorkspace": "无工作区",
+  "exec.requiresFilesystem": "需要文件系统锁",
   "exec.project": "项目",
   "exec.noProject": "无项目",
   "exec.goal": "目标",

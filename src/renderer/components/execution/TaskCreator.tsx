@@ -14,11 +14,12 @@ export function TaskCreator({ companyId, goals, projects, agents, workspaces, on
   const [title, setTitle] = useState(""); const [description, setDescription] = useState("")
   const [goalId, setGoalId] = useState(goals[0]?.id ?? ""); const [projectId, setProjectId] = useState(projects[0]?.id ?? "")
   const [assigneeAgentId, setAssigneeAgentId] = useState(agents[0]?.id ?? ""); const [workspaceId, setWorkspaceId] = useState(workspaces[0]?.id ?? "")
+  const [requiresFilesystem, setRequiresFilesystem] = useState(false)
   const [priority, setPriority] = useState("medium"); const [submitError, setSubmitError] = useState<string | null>(null); const [submitting, setSubmitting] = useState(false)
 
   async function handleCreateTask() {
     setSubmitError(null); setSubmitting(true)
-    try { unwrap(await window.agentCompany.saveTask({ companyId, projectId: projectId || null, goalId: goalId || null, title, description, assigneeAgentId: assigneeAgentId || null, workspaceId: workspaceId || null, requiresFilesystem: Boolean(workspaceId), priority: priority as TaskRecord["priority"], status: "todo" })); setTitle(""); setDescription(""); await onSaved() } catch (e) { setSubmitError(describeActionError(e)) } finally { setSubmitting(false) }
+    try { unwrap(await window.agentCompany.saveTask({ companyId, projectId: projectId || null, goalId: goalId || null, title, description, assigneeAgentId: assigneeAgentId || null, workspaceId: workspaceId || null, requiresFilesystem, priority: priority as TaskRecord["priority"], status: "todo" })); setTitle(""); setDescription(""); setRequiresFilesystem(false); await onSaved() } catch (e) { setSubmitError(describeActionError(e)) } finally { setSubmitting(false) }
   }
 
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -41,6 +42,15 @@ export function TaskCreator({ companyId, goals, projects, agents, workspaces, on
           <Select label={t("exec.project")} value={projectId} onChange={setProjectId} options={[{ value: "", label: t("exec.noProject") }, ...projects.map((p) => ({ value: p.id, label: p.name }))]} />
           <Select label={t("exec.assignee")} value={assigneeAgentId} onChange={setAssigneeAgentId} options={[{ value: "", label: t("exec.unassigned") }, ...agents.map((a) => ({ value: a.id, label: a.name }))]} />
           <Select label={t("exec.workspace")} value={workspaceId} onChange={setWorkspaceId} options={[{ value: "", label: t("exec.noWorkspace") }, ...workspaces.map((w) => ({ value: w.id, label: w.name }))]} />
+          <label className="flex items-center gap-2.5 md:col-span-2">
+            <input
+              type="checkbox"
+              checked={requiresFilesystem}
+              onChange={(event) => setRequiresFilesystem(event.target.checked)}
+              className="h-4 w-4 rounded border-border accent-[color:var(--primary)]"
+            />
+            <span className="text-[13px] text-foreground">{t("exec.requiresFilesystem")}</span>
+          </label>
         </motion.div>
       ) : null}
       </AnimatePresence>

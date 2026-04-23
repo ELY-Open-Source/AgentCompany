@@ -415,6 +415,7 @@ export const en: Record<string, string> = {
   "exec.unassigned": "Unassigned",
   "exec.workspace": "Workspace",
   "exec.noWorkspace": "No workspace",
+  "exec.requiresFilesystem": "Requires filesystem lock",
   "exec.project": "Project",
   "exec.noProject": "No project",
   "exec.goal": "Goal",

@@ -5,7 +5,7 @@ import type { WorkspaceLockMode } from "./types";
 /**
  * Per-task workspace lock inference (v52+).
  *
- * The core invariant is: `lockMode='exclusive'` is an *opt-in*,
+ * The core invariant is: `lockMode='exclusive'` is an opt-in,
  * `lockMode='none'` is the default. Previously every resolved
  * workspace was held exclusively, which folded four runnable
  * agents onto a single company workspace lock and serialised the
@@ -103,16 +103,14 @@ type AgentInput = Pick<AgentRecord, "workspaceId"> & {
  *
  * Decision table:
  *
- *   1. `task.workspaceId` set -> exclusive on that workspace
- *      (explicit opt-in by the task author, e.g. PR branch tasks).
+ *   1. Cognitive task (`requiresFilesystem !== true`) -> none.
+ *      Workspace binding remains available as an observation root.
  *
- *   2. Task signals filesystem need (`requiresFilesystem === true`)
- *      -> exclusive on agent.workspaceId / project primary. Throws if
- *      neither exists.
+ *   2. Filesystem task with `task.workspaceId` set -> exclusive on
+ *      that workspace.
  *
- *   3. Otherwise -> none / null. Pure cognitive work: strategy,
- *      planning, document drafting, financial analysis, PM decisions
- *      runs with no workspace and no lock.
+ *   3. Filesystem task without `task.workspaceId` -> exclusive on
+ *      agent.workspaceId / project primary. Throws if neither exists.
  */
 function inferLockMode(
   db: AppDatabase,
@@ -120,18 +118,15 @@ function inferLockMode(
   agent: AgentInput,
   companyId: string,
 ): { lockMode: WorkspaceLockMode; workspaceId: string | null; source: WorkspaceResolutionSource } {
-  // Rule 1: task-level explicit workspace binding is the strongest
-  // signal available: the task row literally names the workspace.
-  if (task?.workspaceId) {
-    return { lockMode: "exclusive", workspaceId: task.workspaceId, source: "task" };
-  }
-
   if (task?.requiresFilesystem !== true) {
     return { lockMode: "none", workspaceId: null, source: "none" };
   }
 
-  // Rule 2: filesystem-touching task -> agent workspace first, then
-  // project primary.
+  if (task.workspaceId) {
+    return { lockMode: "exclusive", workspaceId: task.workspaceId, source: "task" };
+  }
+
+  // Filesystem-touching task -> agent workspace first, then project primary.
   if (agent.workspaceId) {
     return { lockMode: "exclusive", workspaceId: agent.workspaceId, source: "agent" };
   }
@@ -175,11 +170,25 @@ export function resolveWorkspaceWithLockMode(
   if (decision.lockMode === "none") {
     // No lock claim, but the cognitive run can still touch the
     // filesystem via `bash`. Pick a stable observation root so the
-    // artifact projector can baseline + diff the run's footprint.
-    // `getCompanyObservationWorkspace` returns the primary or oldest
-    // workspace; null only when the company has no workspace row at
-    // all, in which case there is genuinely nothing to observe.
-    const observation = db.core.workspaces.getCompanyObservationWorkspace(companyId);
+    // artifact projector can baseline + diff the run's footprint. A
+    // task-bound workspace is the strongest observation signal; the
+    // company primary/oldest workspace remains the company-level root.
+    let observation: WorkspaceRecord | null = null;
+    if (task?.workspaceId) {
+      observation = db.core.workspaces.getWorkspace(task.workspaceId);
+      if (!observation) {
+        throw new WorkspaceConfigurationError(
+          `Task observation workspace ${task.workspaceId} does not exist (companyId=${companyId}).`,
+        );
+      }
+      if (observation.companyId !== companyId) {
+        throw new WorkspaceConfigurationError(
+          `Task observation workspace ${observation.id} belongs to company ${observation.companyId}, not ${companyId}.`,
+        );
+      }
+    } else {
+      observation = db.core.workspaces.getCompanyObservationWorkspace(companyId);
+    }
     return {
       workspace: null,
       lockMode: "none",

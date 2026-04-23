@@ -152,6 +152,7 @@ export class RuntimeBridge {
         taskId: ctx.taskId,
         workspaceId: ctx.workspaceId,
         workspacePath: ctx.workspacePath,
+        workspaceMode: ctx.workspaceMode,
         logger: this.deps.logger,
         workspaceBaseline: ctx.workspaceBaseline,
       });
@@ -394,14 +395,13 @@ export class RuntimeBridge {
       modelId: string;
       workspaceId: string | null;
       workspacePath: string | null;
+      workspaceMode: "exclusive" | "shared" | "none";
     };
-    // Capture an mtime baseline only for non-git workspaces so `bash`
-    // and the end-of-run reconciliation can still diff changed files
-    // against a known-start reference. Git workspaces skip the walk —
-    // `git status` is the source of truth there, and paying for an
-    // O(tree) scan on every run just to throw the result away is a
-    // hot-path tax the scheduler should not be paying.
-    const baseline = captureBaselineIfRequired(payload.workspacePath, this.deps.logger);
+    // Baseline scans are safe only while this run owns the workspace lock.
+    const baseline =
+      payload.workspaceMode === "exclusive"
+        ? captureBaselineIfRequired(payload.workspacePath, this.deps.logger)
+        : null;
     this.registerActiveRun({
       runId,
       agentId: payload.agentId,
@@ -412,6 +412,7 @@ export class RuntimeBridge {
       taskSessionId: payload.taskSessionId,
       workspaceId: payload.workspaceId,
       workspacePath: payload.workspacePath,
+      workspaceMode: payload.workspaceMode,
       workspaceBaseline: baseline,
       state: "preparing",
     });

@@ -64,6 +64,7 @@ function seedCofounderRun(db: AppDatabase) {
     taskSessionId: "session-1",
     workspaceId: null,
     workspacePath: null,
+    workspaceMode: "none",
     workspaceBaseline: null,
     state: "agent_active",
   };

@@ -22,14 +22,13 @@ import {
 /**
  * Workspace lock policy (v52+).
  *
- * `lockMode='exclusive'` is opt-in: the task carries an explicit
- * workspaceId or the task's requiresFilesystem column is true.
- * Every other case returns `lockMode='none'` and `workspace=null`,
- * so four pure-cognitive agents run fully in parallel without
- * queueing on a single workspace lock. The previous
- * `company_fallback` step has been removed and now throws
- * `WorkspaceConfigurationError` for filesystem tasks with no
- * resolvable workspace.
+ * `lockMode='exclusive'` is opt-in: the task's requiresFilesystem
+ * column is true. A workspaceId can still provide the observation
+ * root for artifact projection, but it does not imply a write lock.
+ * Pure-cognitive agents run fully in parallel without queueing on a
+ * single workspace lock. The previous `company_fallback` step has
+ * been removed and now throws `WorkspaceConfigurationError` for
+ * filesystem tasks with no resolvable workspace.
  */
 
 function seedCompany(db: AppDatabase) {
@@ -70,11 +69,33 @@ describe("resolveWorkspaceWithLockMode", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it("task.workspaceId set → exclusive on that workspace", () => {
+  it("workspace-bound cognitive task stays lock-free and observes that workspace", () => {
+    const { companyId } = seedCompany(db);
+    const taskWorkspaceId = db.core.workspaces.saveWorkspace({
+      companyId,
+      name: "Task workspace",
+      localPath: "/tmp/task-observation",
+      repoUrl: "https://github.com/example/task-observation",
+      repoRef: "main",
+      isPrimary: false,
+    });
+    const result = resolveWorkspaceWithLockMode(
+      db,
+      { workspaceId: taskWorkspaceId, projectId: null, requiresFilesystem: false },
+      { workspaceId: null, role: "CMO", department: "marketing" },
+      companyId,
+    );
+    expect(result.source).toBe("none");
+    expect(result.lockMode).toBe("none");
+    expect(result.workspace).toBeNull();
+    expect(result.observationPath).toBe("/tmp/task-observation");
+  });
+
+  it("requiresFilesystem + task.workspaceId → exclusive on that workspace", () => {
     const { companyId, workspaceId } = seedCompany(db);
     const result = resolveWorkspaceWithLockMode(
       db,
-      { workspaceId, projectId: null },
+      { workspaceId, projectId: null, requiresFilesystem: true },
       { workspaceId: null, role: "CMO", department: "marketing" },
       companyId,
     );
@@ -194,7 +215,7 @@ describe("resolveWorkspaceWithLockMode", () => {
     expect(result.workspace).toBeNull();
   });
 
-  it("task.workspaceId wins over agent.workspaceId even when both are set", () => {
+  it("filesystem task workspaceId wins over agent.workspaceId when both are set", () => {
     const { companyId, workspaceId: agentWsId } = seedCompany(db);
     const taskWsId = db.core.workspaces.saveWorkspace({
       companyId,
@@ -206,7 +227,7 @@ describe("resolveWorkspaceWithLockMode", () => {
     });
     const result = resolveWorkspaceWithLockMode(
       db,
-      { workspaceId: taskWsId, projectId: null },
+      { workspaceId: taskWsId, projectId: null, requiresFilesystem: true },
       { workspaceId: agentWsId, role: "CTO", department: "engineering" },
       companyId,
     );

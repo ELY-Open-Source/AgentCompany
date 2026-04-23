@@ -14,6 +14,7 @@ export type ArtifactProjectorRunContext = {
   taskId: string | null;
   workspaceId: string | null;
   workspacePath: string | null;
+  workspaceMode: "exclusive" | "shared" | "none";
   logger?: Logger;
   /**
    * mtime snapshot captured at run start for workspaces that are NOT

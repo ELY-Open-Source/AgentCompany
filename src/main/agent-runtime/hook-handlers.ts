@@ -56,6 +56,7 @@ export interface ActiveRunContext {
   taskSessionId: string;
   workspaceId: string | null;
   workspacePath: string | null;
+  workspaceMode: "exclusive" | "shared" | "none";
   workspaceBaseline: import("./artifact-projector").WorkspaceBaseline | null;
   state: ActiveRunLifecycleState;
 }
@@ -162,6 +163,7 @@ export function handleAfterToolCall(
     taskId: ctx.taskId,
     workspaceId: ctx.workspaceId,
     workspacePath: ctx.workspacePath,
+    workspaceMode: ctx.workspaceMode,
     logger: deps.logger,
     workspaceBaseline: ctx.workspaceBaseline,
   };
