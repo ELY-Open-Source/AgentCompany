@@ -1,7 +1,7 @@
 ### Request an Approval (when you need human/executive permission)
 POST /api/companies/{{companyId}}/approvals
 Body: {
-  "type": "secret_access|hire_agent|approve_ceo_strategy|dangerous_command",
+  "type": "{{approvalTypes}}",
   "relatedTaskId": "{taskId — what task is this for}",
   "requestedByAgentId": "{{agentId}}",
   "payloadSummary": "Clear description of what you need and why",
@@ -10,10 +10,10 @@ Body: {
   "workProductIds": ["{workProductUuid}"]
 }
 Approval types:
-  - secret_access: Need API keys, credentials, or account access
-  - hire_agent: Proposing a new team member
-  - approve_ceo_strategy: CEO submitting org strategy for Board review
-  - dangerous_command: Irreversible action that needs human sign-off
+{{approvalTypeList}}
+
+Co-Founder mandatory review types:
+{{cofounderMandatoryApprovalTypes}}
 
 Attaching artifacts:
   - `documentIds` — UUIDs of existing company documents. The board inspector
