@@ -432,7 +432,7 @@ describe("Process Recovery -- Context Preservation (D-02)", () => {
 
   it("session handoff markdown generated on crash", () => {
     const s = scaffold(db);
-    const { taskId, runId } = createAndStartRun(db, {
+    const { runId } = createAndStartRun(db, {
       companyId: s.companyId,
       agentId: s.agentId,
       workspaceId: s.workspaceId,

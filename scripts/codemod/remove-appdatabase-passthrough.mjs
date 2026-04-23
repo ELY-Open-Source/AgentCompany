@@ -18,7 +18,6 @@
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { globSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { execSync } from "node:child_process";

@@ -95,7 +95,7 @@ export function useCompanyData(
       approvals: badges.pendingApprovals > 0 ? { count: badges.pendingApprovals, tone: "warn" } : undefined,
       communication: badges.unreadMessages > 0 ? { count: badges.unreadMessages, tone: "warn" } : undefined,
     };
-  }, [snapshot]);
+  }, [snapshot, currentCompany?.id]);
 
   return useMemo(() => ({
     tasks,

@@ -1,8 +1,5 @@
 import type { WorkerServiceDependencies } from "./types";
-import {
-  resolveWorkspaceWithLockMode,
-  WorkspaceConfigurationError,
-} from "../../orchestration/resolve-workspace";
+import { resolveWorkspaceWithLockMode } from "../../orchestration/resolve-workspace";
 
 export function handleWorkerExit(
   code: number | null,

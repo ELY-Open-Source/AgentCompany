@@ -110,7 +110,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
   });
 
   it("rotation triggered when run count exceeds maxRuns threshold", () => {
-    const { companyId, agentId, taskId } = scaffold(db);
+    const { companyId, agentId } = scaffold(db);
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
     // Create a session
@@ -137,7 +137,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
   });
 
   it("rotation triggered when token count exceeds maxTokens threshold", () => {
-    const { companyId, agentId, taskId } = scaffold(db);
+    const { companyId, agentId } = scaffold(db);
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
     const sessionId = db.core.tasks.createNewSession({
@@ -214,7 +214,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
   });
 
   it("new session created after rotation with clean counters", () => {
-    const { companyId, agentId, taskId } = scaffold(db);
+    const { companyId, agentId } = scaffold(db);
 
     // Create initial session
     const oldSessionId = db.core.tasks.createNewSession({
@@ -249,7 +249,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
   });
 
   it("claude connector triggers rotation under pi-mono (no native exemption)", () => {
-    const { companyId, agentId, taskId } = scaffold(db, "gemini-cli");
+    const { companyId, agentId } = scaffold(db, "gemini-cli");
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
     const sessionId = db.core.tasks.createNewSession({
@@ -271,7 +271,7 @@ describe("Edge Case: Session Rotation During Execution (D-05.3)", () => {
   });
 
   it("codex connector triggers rotation under pi-mono (no native exemption)", () => {
-    const { companyId, agentId, taskId } = scaffold(db, "gemini-cli");
+    const { companyId, agentId } = scaffold(db, "gemini-cli");
     const sessionService = createSessionManagementService({ db, logger: mockLogger });
 
     const sessionId = db.core.tasks.createNewSession({

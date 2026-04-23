@@ -400,7 +400,7 @@ describe("session management service", () => {
   // -------------------------------------------------------------------------
   describe("token accumulation", () => {
     it("accumulateTokenUsage calls db.incrementSessionUsage with correct args", () => {
-      const { taskId, companyId, agentId } = scaffold(db);
+      const { companyId, agentId } = scaffold(db);
       const sessionId = db.core.tasks.createNewSession({
         companyId,
         agentId,
@@ -467,7 +467,7 @@ describe("session management service", () => {
   // -------------------------------------------------------------------------
   describe("session rotation", () => {
     it("rotateSession archives old session, creates new, copies session_params", () => {
-      const { taskId, companyId, agentId } = scaffold(db);
+      const { companyId, agentId } = scaffold(db);
       const oldSessionId = db.core.tasks.createNewSession({
         companyId,
         agentId,
@@ -543,7 +543,7 @@ describe("session management service", () => {
   // -------------------------------------------------------------------------
   describe("usage delta", () => {
     it("getUsageDelta returns token difference between snapshot and current totals", () => {
-      const { taskId, companyId, agentId } = scaffold(db);
+      const { companyId, agentId } = scaffold(db);
       const sessionId = db.core.tasks.createNewSession({
         companyId,
         agentId,
