@@ -1,6 +1,7 @@
 /** Thread Integration — wires thread runtime into orchestration callbacks. */
 
 import type { ExecutionMode } from "@shared/types";
+import { classifyUnknownError } from "../errors";
 import {
   type ThreadIntegrationDeps,
   findTaskThread,
@@ -11,6 +12,22 @@ import {
 } from "./thread-helpers";
 
 export type { ThreadIntegrationDeps } from "./thread-helpers";
+
+function throwThreadIntegrationError(
+  logger: ThreadIntegrationDeps["logger"],
+  operation: string,
+  error: unknown,
+  context: Record<string, unknown>,
+): never {
+  const classified = classifyUnknownError(error, {
+    kind: "upstream",
+    code: `thread.integration.${operation}.failed`,
+    message: `Thread integration ${operation} failed`,
+    context,
+  });
+  logger.error(`[${classified.code}] ${classified.message}: ${error instanceof Error ? error.message : String(error)}`);
+  throw classified;
+}
 
 export function createThreadIntegration({ db, logger, emitEvent, publishDomainChanged, notify }: ThreadIntegrationDeps) {
   return {
@@ -104,44 +121,46 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
      */
     onApprovalCreated(approvalId: string, companyId: string, taskId: string | null, approvalType: string, summary: string): void {
       try {
-        const approval = db.core.approvals.getApprovalRecord(approvalId);
-        const task = taskId ? db.core.entity.getTask(taskId) : null;
-        const thread = task
-          ? ensureTaskThread(db, task.id, companyId, task.title)
-          : ensureApprovalThread(db, approvalId, companyId, summary || approval.payloadSummary);
+        db.withTransaction(() => {
+          const approval = db.core.approvals.getApprovalRecord(approvalId);
+          const task = taskId ? db.core.entity.getTask(taskId) : null;
+          const thread = task
+            ? ensureTaskThread(db, task.id, companyId, task.title)
+            : ensureApprovalThread(db, approvalId, companyId, summary || approval.payloadSummary);
 
-        db.core.threads.addThreadEvent({
-          threadId: thread.id,
-          actorId: "system",
-          actorType: "system",
-          eventType: "approval_request",
-          body: summary ? `@Board ${summary}` : `@Board approval required: ${approvalType}`,
-          metadataJson: JSON.stringify({ approvalId, approvalType }),
-        });
-
-        if (approval.requestedByAgentId) {
-          db.core.threads.addParticipant({ threadId: thread.id, participantId: approval.requestedByAgentId, participantType: "agent", role: "owner" });
-          db.core.threads.subscribe({ threadId: thread.id, subscriberId: approval.requestedByAgentId, subscriberType: "agent" });
-        }
-        db.core.threads.addParticipant({ threadId: thread.id, participantId: "user", participantType: "user", role: "observer" });
-        db.core.threads.subscribe({ threadId: thread.id, subscriberId: "user", subscriberType: "user" });
-
-        // In co-founder mode, set wait state for user approval
-        const mode = db.core.company.getCompanyExecutionMode(companyId) as ExecutionMode;
-        if (mode === "ai_cofounder") {
-          const approvalReason = `@Board approval needed: ${approvalType}`;
-          db.core.threads.setThreadWaitState({
+          db.core.threads.addThreadEvent({
             threadId: thread.id,
-            companyId,
-            waitingFor: "user_approval",
-            relatedApprovalId: approvalId,
-            reason: approvalReason,
+            actorId: "system",
+            actorType: "system",
+            eventType: "approval_request",
+            body: summary ? `@Board ${summary}` : `@Board approval required: ${approvalType}`,
+            metadataJson: JSON.stringify({ approvalId, approvalType }),
           });
-          notifyThreadSubscribers(db, thread.id, thread.title, approvalReason, notify);
-        }
-        announceApprovalToBoard(db, approval, { emitEvent, publishDomainChanged, logger });
+
+          if (approval.requestedByAgentId) {
+            db.core.threads.addParticipant({ threadId: thread.id, participantId: approval.requestedByAgentId, participantType: "agent", role: "owner" });
+            db.core.threads.subscribe({ threadId: thread.id, subscriberId: approval.requestedByAgentId, subscriberType: "agent" });
+          }
+          db.core.threads.addParticipant({ threadId: thread.id, participantId: "user", participantType: "user", role: "observer" });
+          db.core.threads.subscribe({ threadId: thread.id, subscriberId: "user", subscriberType: "user" });
+
+          // In co-founder mode, set wait state for user approval
+          const mode = db.core.company.getCompanyExecutionMode(companyId) as ExecutionMode;
+          if (mode === "ai_cofounder") {
+            const approvalReason = `@Board approval needed: ${approvalType}`;
+            db.core.threads.setThreadWaitState({
+              threadId: thread.id,
+              companyId,
+              waitingFor: "user_approval",
+              relatedApprovalId: approvalId,
+              reason: approvalReason,
+            });
+            notifyThreadSubscribers(db, thread.id, thread.title, approvalReason, notify);
+          }
+          announceApprovalToBoard(db, approval, { emitEvent, publishDomainChanged, logger });
+        });
       } catch (err) {
-        logger.error(`[thread-integration] onApprovalCreated failed: ${err instanceof Error ? err.message : String(err)}`);
+        throwThreadIntegrationError(logger, "onApprovalCreated", err, { approvalId, companyId, taskId, approvalType });
       }
     },
 
@@ -151,25 +170,27 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
      */
     onApprovalResolved(approvalId: string, companyId: string, decision: string): void {
       try {
-        // Resolve any wait states linked to this approval
-        const waitStates = db.core.threads.listThreadWaitStates(companyId);
-        for (const ws of waitStates) {
-          if (ws.relatedApprovalId === approvalId) {
-            db.core.threads.resolveThreadWaitState(ws.id, companyId);
+        db.withTransaction(() => {
+          // Resolve any wait states linked to this approval
+          const waitStates = db.core.threads.listThreadWaitStates(companyId);
+          for (const ws of waitStates) {
+            if (ws.relatedApprovalId === approvalId) {
+              db.core.threads.resolveThreadWaitState(ws.id, companyId);
 
-            // Add decision event to the thread
-            db.core.threads.addThreadEvent({
-              threadId: ws.threadId,
-              actorId: "user",
-              actorType: "user",
-              eventType: "approval_decision",
-              body: `Approval ${decision}`,
-              metadataJson: JSON.stringify({ approvalId, decision }),
-            });
+              // Add decision event to the thread
+              db.core.threads.addThreadEvent({
+                threadId: ws.threadId,
+                actorId: "user",
+                actorType: "user",
+                eventType: "approval_decision",
+                body: `Approval ${decision}`,
+                metadataJson: JSON.stringify({ approvalId, decision }),
+              });
+            }
           }
-        }
+        });
       } catch (err) {
-        logger.error(`[thread-integration] onApprovalResolved failed: ${err instanceof Error ? err.message : String(err)}`);
+        throwThreadIntegrationError(logger, "onApprovalResolved", err, { approvalId, companyId, decision });
       }
     },
 
@@ -278,44 +299,46 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
      */
     onHumanMessage(companyId: string, toAgentId?: string | null, threadId?: string | null, waitStateId?: string | null): void {
       try {
-        // Most precise: resolve a single identified wait state
-        if (waitStateId) {
-          db.core.threads.resolveThreadWaitState(waitStateId, companyId);
-          return;
-        }
-
-        // Scoped resolution: threadId or toAgentId resolve all user_* types
-        const SCOPED_WAIT_TYPES = new Set(["user_reply", "user_review"]);
-        const isScoped = Boolean(threadId || toAgentId);
-
-        const waitStates = db.core.threads.listThreadWaitStates(companyId);
-        for (const ws of waitStates) {
-          if (isScoped) {
-            if (!SCOPED_WAIT_TYPES.has(ws.waitingFor)) continue;
-          } else {
-            // Company-wide fallback: only resolve user_reply to prevent
-            // accidental resolution of reviews/approvals from casual messages
-            if (ws.waitingFor !== "user_reply") continue;
+        db.withTransaction(() => {
+          // Most precise: resolve a single identified wait state
+          if (waitStateId) {
+            db.core.threads.resolveThreadWaitState(waitStateId, companyId);
+            return;
           }
 
-          if (threadId) {
-            if (ws.threadId !== threadId) continue;
-          } else if (toAgentId) {
-            const thread = db.core.threads.getThread(ws.threadId, companyId);
-            if (!thread || thread.relatedEntityType !== "task" || !thread.relatedEntityId) continue;
-            try {
-              const task = db.core.entity.getTask(thread.relatedEntityId);
-              if (task.assigneeAgentId !== toAgentId) continue;
-            } catch (err) {
-              logger.warn(`[thread-integration] getTask failed for thread ${ws.threadId}:`, err instanceof Error ? err.message : String(err));
-              continue;
+          // Scoped resolution: threadId or toAgentId resolve all user_* types
+          const SCOPED_WAIT_TYPES = new Set(["user_reply", "user_review"]);
+          const isScoped = Boolean(threadId || toAgentId);
+
+          const waitStates = db.core.threads.listThreadWaitStates(companyId);
+          for (const ws of waitStates) {
+            if (isScoped) {
+              if (!SCOPED_WAIT_TYPES.has(ws.waitingFor)) continue;
+            } else {
+              // Company-wide fallback: only resolve user_reply to prevent
+              // accidental resolution of reviews/approvals from casual messages
+              if (ws.waitingFor !== "user_reply") continue;
             }
-          }
 
-          db.core.threads.resolveThreadWaitState(ws.id, companyId);
-        }
+            if (threadId) {
+              if (ws.threadId !== threadId) continue;
+            } else if (toAgentId) {
+              const thread = db.core.threads.getThread(ws.threadId, companyId);
+              if (!thread || thread.relatedEntityType !== "task" || !thread.relatedEntityId) continue;
+              try {
+                const task = db.core.entity.getTask(thread.relatedEntityId);
+                if (task.assigneeAgentId !== toAgentId) continue;
+              } catch (err) {
+                logger.warn(`[thread-integration] getTask failed for thread ${ws.threadId}:`, err instanceof Error ? err.message : String(err));
+                continue;
+              }
+            }
+
+            db.core.threads.resolveThreadWaitState(ws.id, companyId);
+          }
+        });
       } catch (err) {
-        logger.error(`[thread-integration] onHumanMessage failed: ${err instanceof Error ? err.message : String(err)}`);
+        throwThreadIntegrationError(logger, "onHumanMessage", err, { companyId, toAgentId, threadId, waitStateId });
       }
     },
 

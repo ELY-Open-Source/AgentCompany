@@ -6,6 +6,7 @@ import { AppDatabase } from "../../src/main/database";
 import { createThreadIntegration } from "../../src/main/thread-integration";
 import { createCheckpointEngine } from "../../src/main/checkpoint-engine";
 import { dispatchAgentMessage, HUMAN_SENDER_ID } from "../../src/main/messaging/dispatch";
+import { isAppError } from "../../src/main/errors";
 
 const tempDirs: string[] = [];
 
@@ -87,6 +88,14 @@ function createScaffold(db: AppDatabase) {
   });
 
   return { companyId, workspaceId, ceoId, engineerId, taskId };
+}
+
+function expectThreadIntegrationFailure(error: unknown, code: string) {
+  expect(isAppError(error)).toBe(true);
+  if (isAppError(error)) {
+    expect(error.kind).toBe("upstream");
+    expect(error.code).toBe(code);
+  }
 }
 
 describe("thread wait + heartbeat integration", () => {
@@ -273,6 +282,162 @@ describe("thread wait + heartbeat integration", () => {
     });
 
     expect(checkpointEngine.shouldPauseHeartbeat(companyId, engineerId)).toBe(true);
+
+    db.close();
+  });
+
+  it("rolls back approval-created thread writes when wait-state creation fails", async () => {
+    const profileDir = await createTempDir("agentcompany-approval-create-fail-");
+    const db = new AppDatabase(profileDir);
+    db.init();
+
+    const { companyId, engineerId, taskId } = createScaffold(db);
+    const threadIntegration = createThreadIntegration({
+      db,
+      logger: createNoopLogger(),
+    });
+    const approvalId = db.core.approvals.requestApproval({
+      companyId,
+      relatedTaskId: taskId,
+      requestedByAgentId: engineerId,
+      type: "draft_review",
+      payloadSummary: "Review the draft",
+      impactSummary: "Board approval is required before this work can continue.",
+      payloadJson: "{}",
+    });
+
+    vi.spyOn(db.core.threads, "setThreadWaitState").mockImplementation(() => {
+      throw new Error("wait-state write failed");
+    });
+
+    let thrown: unknown;
+    try {
+      threadIntegration.onApprovalCreated(approvalId, companyId, taskId, "draft_review", "Draft review needed");
+    } catch (error) {
+      thrown = error;
+    }
+
+    expectThreadIntegrationFailure(thrown, "thread.integration.onApprovalCreated.failed");
+    const taskThreads = db.core.threads.listThreads({
+      companyId,
+      type: "task",
+      relatedEntityType: "task",
+      relatedEntityId: taskId,
+      limit: 1,
+    });
+    expect(taskThreads).toHaveLength(0);
+
+    db.close();
+  });
+
+  it("rolls back approval resolution when decision event recording fails", async () => {
+    const profileDir = await createTempDir("agentcompany-approval-resolve-fail-");
+    const db = new AppDatabase(profileDir);
+    db.init();
+
+    const { companyId, engineerId, taskId } = createScaffold(db);
+    const threadIntegration = createThreadIntegration({
+      db,
+      logger: createNoopLogger(),
+    });
+    threadIntegration.onTaskCreated(taskId, companyId);
+    const approvalId = db.core.approvals.requestApproval({
+      companyId,
+      relatedTaskId: taskId,
+      requestedByAgentId: engineerId,
+      type: "draft_review",
+      payloadSummary: "Review the draft",
+      impactSummary: "Board approval is required before this work can continue.",
+      payloadJson: "{}",
+    });
+    threadIntegration.onApprovalCreated(approvalId, companyId, taskId, "draft_review", "Draft review needed");
+    const waitStateId = db.core.threads.listThreadWaitStates(companyId)
+      .find((entry) => entry.relatedApprovalId === approvalId)?.id;
+    expect(waitStateId).toBeTruthy();
+
+    const addThreadEvent = db.core.threads.addThreadEvent.bind(db.core.threads);
+    vi.spyOn(db.core.threads, "addThreadEvent").mockImplementation((input) => {
+      if (input.eventType === "approval_decision") {
+        throw new Error("decision event write failed");
+      }
+      return addThreadEvent(input);
+    });
+
+    let thrown: unknown;
+    try {
+      threadIntegration.onApprovalResolved(approvalId, companyId, "approved");
+    } catch (error) {
+      thrown = error;
+    }
+
+    expectThreadIntegrationFailure(thrown, "thread.integration.onApprovalResolved.failed");
+    const unresolved = db.core.threads.listThreadWaitStates(companyId)
+      .filter((entry) => entry.relatedApprovalId === approvalId);
+    expect(unresolved.map((entry) => entry.id)).toEqual([waitStateId]);
+
+    db.close();
+  });
+
+  it("rolls back human-message wait-state resolution when one resolution fails", async () => {
+    const profileDir = await createTempDir("agentcompany-human-message-fail-");
+    const db = new AppDatabase(profileDir);
+    db.init();
+
+    const { companyId, taskId } = createScaffold(db);
+    const threadIntegration = createThreadIntegration({
+      db,
+      logger: createNoopLogger(),
+    });
+    threadIntegration.onTaskCreated(taskId, companyId);
+    const thread = db.core.threads.listThreads({
+      companyId,
+      type: "task",
+      relatedEntityType: "task",
+      relatedEntityId: taskId,
+      limit: 1,
+    })[0];
+    if (!thread) {
+      throw new Error("Expected task thread for human-message failure testing.");
+    }
+
+    const first = db.core.threads.setThreadWaitState({
+      threadId: thread.id,
+      companyId,
+      waitingFor: "user_reply",
+      relatedApprovalId: null,
+      reason: "First reply needed",
+    });
+    const second = db.core.threads.setThreadWaitState({
+      threadId: thread.id,
+      companyId,
+      waitingFor: "user_review",
+      relatedApprovalId: null,
+      reason: "Second review needed",
+    });
+
+    const resolveThreadWaitState = db.core.threads.resolveThreadWaitState.bind(db.core.threads);
+    let resolutionCount = 0;
+    vi.spyOn(db.core.threads, "resolveThreadWaitState").mockImplementation((waitStateId, currentCompanyId) => {
+      resolutionCount += 1;
+      if (resolutionCount === 2) {
+        throw new Error("wait-state resolve failed");
+      }
+      resolveThreadWaitState(waitStateId, currentCompanyId);
+    });
+
+    let thrown: unknown;
+    try {
+      threadIntegration.onHumanMessage(companyId, null, thread.id, null);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expectThreadIntegrationFailure(thrown, "thread.integration.onHumanMessage.failed");
+    const unresolvedIds = db.core.threads.listThreadWaitStates(companyId)
+      .filter((entry) => entry.threadId === thread.id)
+      .map((entry) => entry.id)
+      .sort();
+    expect(unresolvedIds).toEqual([first.id, second.id].sort());
 
     db.close();
   });
