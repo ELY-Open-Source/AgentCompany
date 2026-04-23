@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppDatabase } from "../../src/main/database";
 import { createThreadIntegration } from "../../src/main/thread-integration";
 import { createCheckpointEngine } from "../../src/main/checkpoint-engine";
@@ -247,6 +247,32 @@ describe("thread wait + heartbeat integration", () => {
     waitStates = db.core.threads.listThreadWaitStates(companyId).filter((entry) => entry.relatedApprovalId === approvalId);
     expect(waitStates).toHaveLength(0);
     expect(checkpointEngine.shouldPauseHeartbeat(companyId, engineerId)).toBe(false);
+
+    db.close();
+  });
+
+  it("keeps co-founder heartbeat paused when wait-state lookup fails", async () => {
+    const profileDir = await createTempDir("agentcompany-wait-query-fail-");
+    const db = new AppDatabase(profileDir);
+    db.init();
+
+    const { companyId, engineerId } = createScaffold(db);
+    const threadIntegration = createThreadIntegration({
+      db,
+      logger: createNoopLogger(),
+    });
+    const checkpointEngine = createCheckpointEngine({
+      db,
+      logger: createNoopLogger(),
+      threadIntegration,
+      publishDomainChanged: () => {},
+      notify: () => {},
+    });
+    vi.spyOn(db.core.threads, "hasUnresolvedWaitStateForAgent").mockImplementation(() => {
+      throw new Error("wait-state query failed");
+    });
+
+    expect(checkpointEngine.shouldPauseHeartbeat(companyId, engineerId)).toBe(true);
 
     db.close();
   });

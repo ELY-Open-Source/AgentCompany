@@ -324,8 +324,8 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
         const waitStates = db.core.threads.listThreadWaitStates(companyId);
         return waitStates.length > 0;
       } catch (err) {
-        logger.warn(`[thread-integration] hasUnresolvedWaitStates query failed for company ${companyId}:`, err instanceof Error ? err.message : String(err));
-        return false;
+        logger.warn(`[thread-integration] hasUnresolvedWaitStates query failed for company ${companyId}; treating as blocked:`, err instanceof Error ? err.message : String(err));
+        return true;
       }
     },
 
@@ -339,8 +339,8 @@ export function createThreadIntegration({ db, logger, emitEvent, publishDomainCh
       try {
         return db.core.threads.hasUnresolvedWaitStateForAgent(companyId, agentId);
       } catch (err) {
-        logger.warn(`[thread-integration] hasUnresolvedWaitStatesForAgent query failed (company=${companyId} agent=${agentId}):`, err instanceof Error ? err.message : String(err));
-        return false;
+        logger.warn(`[thread-integration] hasUnresolvedWaitStatesForAgent query failed (company=${companyId} agent=${agentId}); treating as blocked:`, err instanceof Error ? err.message : String(err));
+        return true;
       }
     },
 

@@ -157,7 +157,7 @@ export function createCheckpointEngine(deps: CheckpointDeps) {
         return db.core.approvals.hasPendingReviewApprovalForAgent(companyId, agentId);
       } catch (err) {
         logger.error(`[checkpoint] shouldPauseHeartbeat failed: ${err instanceof Error ? err.message : String(err)}`);
-        return false;
+        return true;
       }
     },
 
