@@ -64,27 +64,48 @@ function resolveUpdateUrl(publicBaseUrl, releasePrefix) {
   return prefix ? `${baseUrl}/${prefix}` : baseUrl;
 }
 
+function hasS3Credentials() {
+  return Boolean(
+    process.env.R2_ACCESS_KEY_ID?.trim() &&
+    process.env.R2_SECRET_ACCESS_KEY?.trim(),
+  );
+}
+
 export async function prepareR2ReleaseHost({ rootDir }) {
   const prefix = normalizePathSegment(process.env.AGENTCOMPANY_RELEASE_PREFIX?.trim() || defaultPrefix);
-  const whoami = JSON.parse((await runWrangler(["whoami", "--json"], rootDir, true)).stdout);
-  const accountId = process.env.R2_ACCOUNT_ID?.trim()
+  const s3Mode = hasS3Credentials();
+
+  let accountId = process.env.R2_ACCOUNT_ID?.trim()
     || process.env.AGENTCOMPANY_R2_ACCOUNT_ID?.trim()
-    || whoami.accounts?.[0]?.id;
+    || "";
   if (!accountId) {
-    throw new Error("Unable to resolve Cloudflare account ID from wrangler.");
+    if (s3Mode) {
+      throw new Error("R2 S3 credentials set but R2_ACCOUNT_ID missing. Add it to .env.release.local.");
+    }
+    const whoami = JSON.parse((await runWrangler(["whoami", "--json"], rootDir, true)).stdout);
+    accountId = whoami.accounts?.[0]?.id;
+  }
+  if (!accountId) {
+    throw new Error("Unable to resolve Cloudflare account ID. Set R2_ACCOUNT_ID in .env.release.local.");
   }
 
   const bucket = process.env.R2_BUCKET?.trim()
     || process.env.AGENTCOMPANY_R2_BUCKET?.trim()
     || defaultBucket;
 
-  try {
-    await runWrangler(["r2", "bucket", "info", bucket, "--json"], rootDir, true);
-  } catch (error) {
-    if (!String(error).includes("does not exist")) {
-      throw error;
+  // Skip wrangler bucket-info/create when S3 creds are available: wrangler's
+  // OAuth may be logged into a different Cloudflare account (see Win host
+  // where the OAuth account has no R2 enabled). S3 API operations later in
+  // the flow cover the real bucket existence check.
+  if (!s3Mode) {
+    try {
+      await runWrangler(["r2", "bucket", "info", bucket, "--json"], rootDir, true);
+    } catch (error) {
+      if (!String(error).includes("does not exist")) {
+        throw error;
+      }
+      await runWrangler(["r2", "bucket", "create", bucket], rootDir, false);
     }
-    await runWrangler(["r2", "bucket", "create", bucket], rootDir, false);
   }
 
   let publicBaseUrl = process.env.R2_PUBLIC_BASE_URL?.trim()
@@ -92,6 +113,12 @@ export async function prepareR2ReleaseHost({ rootDir }) {
     || "";
 
   if (!publicBaseUrl) {
+    if (s3Mode) {
+      throw new Error(
+        "R2 S3 credentials set but R2_PUBLIC_BASE_URL missing. Add it to .env.release.local " +
+        "(e.g. R2_PUBLIC_BASE_URL=https://pub-<hash>.r2.dev).",
+      );
+    }
     const devUrlState = await runWrangler(["r2", "bucket", "dev-url", "get", bucket], rootDir, true)
       .then((result) => result.stdout)
       .catch(() => "");
