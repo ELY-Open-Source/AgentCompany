@@ -202,10 +202,13 @@ export class WorkerRunner {
         });
 
         if (event.type === "message_end" && event.message) {
-          await rpc.invoke(job.runId, "persistMessage", {
+          const persistResponse = await rpc.invoke(job.runId, "persistMessage", {
             taskSessionId: job.taskSessionId,
             message: event.message,
           });
+          if (!persistResponse.ok) {
+            throw new Error(`persistMessage RPC failed: ${persistResponse.error}`);
+          }
           const maybeAssistant = event.message as {
             role?: string;
             stopReason?: string;
