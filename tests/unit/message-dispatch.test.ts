@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppDatabase } from "../../src/main/database";
 import { createThreadIntegration } from "../../src/main/thread-integration";
 import { dispatchAgentMessage, HUMAN_SENDER_ID } from "../../src/main/messaging/dispatch";
+import { executeAutomationAction } from "../../src/main/automation/automation-actions";
 
 const tempDirs: string[] = [];
 
@@ -265,6 +266,77 @@ describe("message dispatch", () => {
       HUMAN_SENDER_ID,
       expect.anything(),
       expect.anything(),
+    );
+
+    db.close();
+  });
+
+  it("rejects direct messages addressed to the sender", async () => {
+    const profileDir = await createTempDir("agentcompany-message-self-direct-");
+    const db = new AppDatabase(profileDir);
+    db.init();
+
+    const { companyId, ceoId } = createScaffold(db);
+
+    const result = dispatchAgentMessage({
+      db,
+    }, {
+      companyId,
+      fromAgentId: ceoId,
+      channel: "direct",
+      toAgentId: ceoId,
+      subject: "self",
+      body: "This should not create a CEO to CEO channel.",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected self-DM dispatch to fail.");
+    expect(result.error.code).toBe("SELF_DIRECT_MESSAGE_FORBIDDEN");
+    expect(() => db.core.messages.sendAgentMessage({
+      companyId,
+      fromAgentId: ceoId,
+      toAgentId: ceoId,
+      subject: "self",
+      body: "Direct DB writers share the same invariant.",
+    })).toThrow("Direct messages require two distinct participants.");
+
+    db.close();
+  });
+
+  it("skips automation notifications that would address the sender", async () => {
+    const profileDir = await createTempDir("agentcompany-automation-self-direct-");
+    const db = new AppDatabase(profileDir);
+    db.init();
+
+    const { companyId, ceoId } = createScaffold(db);
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+
+    executeAutomationAction(
+      {
+        db,
+        logger,
+        emitEvent: vi.fn(),
+        publishDomainChanged: vi.fn(),
+        wakeAgentIfPossible: vi.fn(),
+      },
+      {
+        handleTaskCreated: vi.fn(),
+        handleApprovalResolved: vi.fn(),
+        handleTaskStatusChange: vi.fn(),
+      },
+      {
+        id: "rule-self",
+        name: "Self notification",
+        action: "notify_agent",
+        actionConfigJson: "{}",
+        targetDepartment: null,
+      },
+      { companyId, agentId: ceoId },
+    );
+
+    expect(db.core.messages.listAgentMessages(companyId, { channel: "direct" })).toHaveLength(0);
+    expect(logger.info).toHaveBeenCalledWith(
+      "[automation] Skipping rule \"Self notification\" - direct messages require two distinct participants",
     );
 
     db.close();

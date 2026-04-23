@@ -61,6 +61,9 @@ export function buildMessageMethods(
       if (channel === "direct" && !input.toAgentId) {
         throw new Error("Direct messages require a recipient.");
       }
+      if (channel === "direct" && input.toAgentId === input.fromAgentId) {
+        throw new Error("Direct messages require two distinct participants.");
+      }
       const senderKind = input.senderKind
         ?? (input.fromAgentId === BOARD_READER_ID ? "human" : "agent");
       const id = randomUUID();

@@ -53,6 +53,7 @@ export interface NormalizedAgentMessageInput {
 export interface MessageValidationError {
   code:
     | "DIRECT_MESSAGE_RECIPIENT_REQUIRED"
+    | "SELF_DIRECT_MESSAGE_FORBIDDEN"
     | "NON_DIRECT_MESSAGE_RECIPIENT_FORBIDDEN"
     | "INVALID_COMPANY_REFERENCE"
     | "CHANNEL_TARGET_REQUIRED"
@@ -145,6 +146,12 @@ export function validateAgentMessageInput(
     return {
       code: "DIRECT_MESSAGE_RECIPIENT_REQUIRED",
       message: "Direct messages require a recipient agent.",
+    };
+  }
+  if (input.channel === "direct" && input.toAgentId === input.fromAgentId) {
+    return {
+      code: "SELF_DIRECT_MESSAGE_FORBIDDEN",
+      message: "Direct messages require two distinct participants.",
     };
   }
   if (input.channel !== "direct" && input.toAgentId) {

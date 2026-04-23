@@ -64,6 +64,7 @@ export function deriveChannels(messages: AgentMessageRecord[], agents: AgentReco
     switch (msg.channel) {
       case "direct": {
         const pair = resolveDirectThreadPair(msg, byId)
+        if (pair && pair[0] === pair[1]) continue
         if (!pair) { key = "direct-broadcast"; label = "Broadcast DMs" }
         else {
           key = `direct-${pair.join("-")}`
@@ -114,6 +115,7 @@ export function getChannelMessages(messages: AgentMessageRecord[], channel: Chan
       if (!msg.toAgentId || channel.participantIds.length < 2) return false
       const pair = resolveDirectThreadPair(msg, byId)
       if (!pair) return false
+      if (pair[0] === pair[1]) return false
       return pair[0] === channel.participantIds[0] && pair[1] === channel.participantIds[1]
     }
     return false

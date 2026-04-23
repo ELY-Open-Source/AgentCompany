@@ -155,6 +155,12 @@ function handleAgentNotification<K extends "notify_agent" | "send_message">({
     );
     return;
   }
+  if (channel === "direct" && toAgentId === fromAgentId) {
+    logger.info(
+      `[automation] Skipping rule "${rule.name}" - direct messages require two distinct participants`,
+    );
+    return;
+  }
 
   const dispatchResult = dispatchAgentMessage(
     { db, emitEvent, publishDomainChanged, wakeAgentIfPossible },
