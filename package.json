@@ -1,6 +1,6 @@
 {
   "name": "agent-company",
-  "version": "0.4.174",
+  "version": "0.4.178",
   "private": true,
   "type": "module",
   "description": "Cross-platform Electron desktop control plane for local-first AI agent companies.",
@@ -20,6 +20,9 @@
     "release:cloudflare:public": "node scripts/release-public-cloudflare.mjs",
     "release:boss": "node scripts/release-boss.mjs",
     "release:local": "node scripts/release-local.mjs",
+    "release:local-mac": "node scripts/release-local-mac.mjs",
+    "release:local-winlinux": "node scripts/release-local-winlinux.mjs",
+    "release:website": "node scripts/release-website.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "node --disable-warning=ExperimentalWarning ./node_modules/vitest/vitest.mjs run",

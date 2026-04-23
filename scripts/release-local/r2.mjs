@@ -1,11 +1,9 @@
-import { readdir, stat } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
-import { S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
-
-const wranglerSingleUploadLimit = 290 * 1024 * 1024;
 
 const defaultBucket = "agentcompany-updates";
 const defaultPrefix = "AC";
@@ -169,6 +167,55 @@ async function uploadViaS3Multipart({ bucket, key, filePath, fileName }) {
   process.stdout.write(`\n[s3-multipart] ${key} uploaded\n`);
 }
 
+export function classifyReleaseArtifact(fileName) {
+  if (fileName === "latest-mac.yml") return "mac";
+  if (/\.dmg(\.blockmap)?$/.test(fileName)) return "mac";
+  if (/-mac\.zip(\.blockmap)?$/.test(fileName)) return "mac";
+  if (fileName === "latest.yml") return "win";
+  if (/\.exe(\.blockmap)?$/.test(fileName)) return "win";
+  if (fileName === "latest-linux.yml") return "linux";
+  if (/\.(AppImage|deb|rpm|snap)$/.test(fileName)) return "linux";
+  return "other";
+}
+
+export async function purgeReleasePrefix({ bucket, releasePrefix, keep }) {
+  const client = createS3ClientForLargeUploads();
+  const prefix = `${normalizePathSegment(releasePrefix)}/`;
+  const keepClass = new Set(Array.isArray(keep) ? keep : []);
+  let continuationToken;
+  let total = 0;
+  let skipped = 0;
+  do {
+    const list = await client.send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: prefix,
+      ContinuationToken: continuationToken,
+    }));
+    const candidates = list.Contents ?? [];
+    const toDelete = [];
+    for (const obj of candidates) {
+      const baseName = obj.Key.slice(prefix.length);
+      if (keepClass.has(classifyReleaseArtifact(baseName))) {
+        skipped += 1;
+        continue;
+      }
+      toDelete.push({ Key: obj.Key });
+    }
+    if (toDelete.length > 0) {
+      await client.send(new DeleteObjectsCommand({
+        Bucket: bucket,
+        Delete: { Objects: toDelete, Quiet: true },
+      }));
+      total += toDelete.length;
+    }
+    continuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
+  } while (continuationToken);
+  console.log(
+    `[r2-purge] deleted ${total} object(s) under ${bucket}/${prefix}` +
+    (skipped > 0 ? ` (kept ${skipped} in classes: ${[...keepClass].join(",")})` : ""),
+  );
+}
+
 export async function uploadReleaseFiles({ rootDir, releaseDir, bucket, releasePrefix }) {
   const files = (await readdir(releaseDir, { withFileTypes: true }))
     .filter((entry) => entry.isFile() && !ignoredReleaseFiles.has(entry.name))
@@ -176,22 +223,13 @@ export async function uploadReleaseFiles({ rootDir, releaseDir, bucket, releaseP
 
   for (const fileName of files) {
     const key = `${normalizePathSegment(releasePrefix)}/${fileName}`;
-    const objectPath = `${bucket}/${key}`;
     const filePath = join(releaseDir, fileName);
-    const { size } = await stat(filePath);
-
-    if (size > wranglerSingleUploadLimit) {
-      await uploadViaS3Multipart({ bucket, key, filePath, fileName });
-      continue;
-    }
-
-    const args = [
-      "r2", "object", "put", objectPath,
-      "--remote",
-      "--file", filePath,
-      "--content-type", guessContentType(fileName),
-      "--cache-control", fileName.endsWith(".yml") ? "no-cache" : "public, max-age=31536000, immutable",
-    ];
-    await runWrangler(args, rootDir, false);
+    // Always use the S3 multipart path: wrangler's OAuth token commonly lacks
+    // the r2 scope, which returns 401 on `r2 object put`. The S3 credentials
+    // (R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY) bypass that mismatch and
+    // handle every file size uniformly. `rootDir` is kept in the signature
+    // for call-site compatibility even though the S3 path does not need it.
+    void rootDir;
+    await uploadViaS3Multipart({ bucket, key, filePath, fileName });
   }
 }

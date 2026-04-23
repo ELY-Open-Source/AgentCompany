@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile, rm, writeFile, mkdir, cp, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { prepareR2ReleaseHost, uploadReleaseFiles } from "./release-local/r2.mjs";
+import { prepareR2ReleaseHost, purgeReleasePrefix, uploadReleaseFiles } from "./release-local/r2.mjs";
 import { loadEnvFile } from "./release/lib/dotenv.mjs";
 import { createRunner } from "./release/lib/process.mjs";
 import { createWorkflowHelpers } from "./release/lib/workflow.mjs";
@@ -282,6 +282,9 @@ async function main() {
   if (!options.skipVerify) {
     await run("pnpm", ["verify"]);
   }
+
+  const r2Host = await prepareR2ReleaseHost({ rootDir });
+  await purgeReleasePrefix({ bucket: r2Host.bucket, releasePrefix: r2Host.releasePrefix });
 
   await buildMacAndUpload();
 

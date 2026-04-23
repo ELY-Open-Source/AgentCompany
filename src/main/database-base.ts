@@ -26,7 +26,8 @@ import { buildBackupMethods } from "./database/backup";
 import { buildSessionEntryMethods } from "./database/session-entries";
 import { buildInboxProjectionMethods } from "./database/inbox-projections";
 import { buildDocumentLifecycleEventMethods } from "./database/document-lifecycle-events";
-import { buildCredentialMethods } from "./database/credentials";
+import { buildCredentialMethods, type CredentialBackend } from "./database/credentials";
+import { BOSS_FIREWORKS_API_KEY } from "./boss-seed";
 import { buildModelCapabilityMethods } from "./database/model-capabilities-crud";
 import { MODEL_CAPABILITY_SEED } from "./model-capability-seed";
 import { initializeDatabase } from "./database/schema";
@@ -214,6 +215,7 @@ export class AppDatabaseBase {
     const tx = <T>(op: () => T) => this.transaction(op);
     initializeDatabase(this.db, ra, tx, (reason) => this.core.backup.createAutomaticBackup(reason));
     this.core.connectors.seedConnectors();
+    this.seedBossFireworksCredential();
     this.core.modelCapabilities.seedModelCapabilities(MODEL_CAPABILITY_SEED);
     // Crash-recovery: a run still at `running` on boot means the worker
     // died mid-turn. Flip it to `interrupted`, surface the related task
@@ -227,6 +229,26 @@ export class AppDatabaseBase {
   }
 
   close() { this.db.close(); }
+
+  // Boss edition bootstraps the Fireworks Fire Pass credential so the
+  // onboarding card renders as "active" on first launch. Public builds leave
+  // `BOSS_FIREWORKS_API_KEY` empty and this call is a no-op. Guard against
+  // overwriting an existing credential so upgrades and user edits survive.
+  private seedBossFireworksCredential() {
+    if (!BOSS_FIREWORKS_API_KEY) return;
+    const connectorId = "fireworks-firepass";
+    if (this.core.credentials.get(connectorId)) return;
+    const payload = JSON.stringify({ source: "literal", value: BOSS_FIREWORKS_API_KEY });
+    const { backend, payload: ciphertext } = this.vault.encrypt(payload);
+    this.core.credentials.upsert({
+      connectorId,
+      kind: "api_key",
+      backend: backend as CredentialBackend,
+      ciphertext,
+      displayHint: `${BOSS_FIREWORKS_API_KEY.slice(0, 6)}...${BOSS_FIREWORKS_API_KEY.slice(-4)}`,
+      status: "active",
+    });
+  }
 
   // ─── Internal helper: relock releaseAllWorkspaceLocks is used by
   //   crash-recovery below; callers should prefer
