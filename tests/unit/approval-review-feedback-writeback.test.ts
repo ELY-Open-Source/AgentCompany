@@ -98,7 +98,7 @@ describe("deliverable review feedback writeback", () => {
       publishDomainChanged: () => {},
       notify: vi.fn(),
       wakeAgentIfPossible,
-      dispatchBrowserAction: async () => {},
+      queueBrowserActionExecution: () => {},
       isQuitting: () => false,
     }, {
       dispatchAutomation: vi.fn(),

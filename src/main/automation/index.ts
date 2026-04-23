@@ -21,7 +21,7 @@ export function createAutomationService({
   publishDomainChanged,
   notify,
   wakeAgentIfPossible,
-  dispatchBrowserAction,
+  queueBrowserActionExecution,
   isQuitting,
 }: AutomationDependencies) {
   const activeAutomationExecutions = new Set<string>();
@@ -48,7 +48,7 @@ export function createAutomationService({
     publishDomainChanged,
     notify,
     wakeAgentIfPossible,
-    dispatchBrowserAction,
+    queueBrowserActionExecution,
     isQuitting,
   };
 
@@ -58,7 +58,7 @@ export function createAutomationService({
     publishDomainChanged,
     notify,
     wakeAgentIfPossible,
-    dispatchBrowserAction,
+    queueBrowserActionExecution,
     isQuitting,
   };
 

@@ -13,7 +13,7 @@ export interface HandlerDeps {
   publishDomainChanged: () => void;
   notify: (options: NotificationOptions) => void;
   wakeAgentIfPossible: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
-  dispatchBrowserAction: (actionId: string, companyId: string) => Promise<void>;
+  queueBrowserActionExecution: (actionId: string, companyId: string) => void;
   isQuitting: () => boolean;
 }
 

@@ -57,8 +57,8 @@ export function createBackgroundServices({
   });
   browserActionService.resetBrowserManager();
 
-  const dispatchBrowserAction = async (actionId: string, companyId: string) =>
-    browserActionService.dispatchBrowserAction(actionId, companyId);
+  const queueBrowserActionExecution = (actionId: string, companyId: string) =>
+    browserActionService.queueBrowserActionExecution(actionId, companyId);
 
   const automationService = createAutomationService({
     db,
@@ -68,7 +68,7 @@ export function createBackgroundServices({
     notify,
     wakeAgentIfPossible: (agentId, companyId, trigger) =>
       orchestrationService.wakeAgentIfPossible(agentId, companyId, trigger),
-    dispatchBrowserAction,
+    queueBrowserActionExecution,
     isQuitting: () => isQuittingRef.current,
   });
 

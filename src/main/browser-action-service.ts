@@ -2,7 +2,7 @@ import { join } from "node:path";
 import log from "electron-log/main.js";
 import type { AppDatabase } from "./database";
 import { BrowserManager } from "./browser-manager";
-import { classifyUnknownError } from "./errors/index.js";
+import { classifyUnknownError, logAppError } from "./errors/index.js";
 
 interface BrowserActionDependencies {
   db: AppDatabase;
@@ -20,6 +20,62 @@ export function createBrowserActionService({
       throw new Error("Browser manager is not initialized.");
     }
     return browserManagerRef.current;
+  }
+
+  function formatError(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+  }
+
+  function recordDispatchFailure(actionId: string, companyId: string, error: unknown) {
+    const message = formatError(error);
+    logAppError(log, error, {
+      kind: "upstream",
+      code: "browser_action.dispatch.failed",
+      message: `Browser action ${actionId} dispatch failed`,
+      cause: error,
+      context: { actionId, companyId },
+    });
+
+    const action = db.core.social.getBrowserAction(actionId, companyId);
+    if (action && (action.status === "queued" || action.status === "running")) {
+      db.core.social.updateBrowserAction(actionId, {
+        status: "failed",
+        resultSummary: "Browser action dispatch failed before execution completed.",
+        errorMessage: message,
+        finishedAt: new Date().toISOString(),
+      });
+    }
+    db.core.activity.addActivity({
+      companyId,
+      actor: action?.agentId ?? "system",
+      action: "browser.action_dispatch_failed",
+      entityType: "browser_action",
+      entityId: actionId,
+      detail: message,
+    });
+    log.info("[browser] action dispatch telemetry", {
+      actionId,
+      companyId,
+      final_outcome: "dispatch_failed",
+      error: message,
+    });
+    publishDomainChanged();
+  }
+
+  function queueBrowserActionExecution(actionId: string, companyId: string): void {
+    void dispatchBrowserAction(actionId, companyId).catch((error) => {
+      try {
+        recordDispatchFailure(actionId, companyId, error);
+      } catch (recordError) {
+        logAppError(log, recordError, {
+          kind: "fatal",
+          code: "browser_action.dispatch_failure_record.failed",
+          message: `Failed to record browser action ${actionId} dispatch failure`,
+          cause: recordError,
+          context: { actionId, companyId, dispatchError: formatError(error) },
+        });
+      }
+    });
   }
 
   /**
@@ -157,6 +213,7 @@ export function createBrowserActionService({
 
   return {
     dispatchBrowserAction,
+    queueBrowserActionExecution,
     clearSocialAccountData,
     cancelAction,
     launchLoginBrowser,

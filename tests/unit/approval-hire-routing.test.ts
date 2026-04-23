@@ -107,7 +107,7 @@ describe("hire approval routing", () => {
       publishDomainChanged: () => {},
       notify,
       wakeAgentIfPossible,
-      dispatchBrowserAction: async () => {},
+      queueBrowserActionExecution: () => {},
       isQuitting: () => false,
     }, {
       dispatchAutomation,

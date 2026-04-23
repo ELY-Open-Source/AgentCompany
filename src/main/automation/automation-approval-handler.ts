@@ -62,7 +62,7 @@ export interface ApprovalHandlerDeps {
   publishDomainChanged: () => void;
   notify: (options: NotificationOptions) => void;
   wakeAgentIfPossible: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
-  dispatchBrowserAction: (actionId: string, companyId: string) => Promise<void>;
+  queueBrowserActionExecution: (actionId: string, companyId: string) => void;
   isQuitting: () => boolean;
 }
 
@@ -81,7 +81,7 @@ export function handleApprovalResolved(
   decision: string,
 ): void {
   if (deps.isQuitting()) return;
-  const { db, logger, publishDomainChanged, notify, wakeAgentIfPossible, dispatchBrowserAction } = deps;
+  const { db, logger, publishDomainChanged, notify, wakeAgentIfPossible, queueBrowserActionExecution } = deps;
   const { dispatchAutomation, handleTaskStatusChange, runWorkflowPipeline, trackTimer } = callbacks;
 
   const snapshot = db.projection.snapshot.listSnapshot();
@@ -259,9 +259,7 @@ export function handleApprovalResolved(
         errorMessage: null,
       });
       publishDomainChanged();
-      void dispatchBrowserAction(browserAction.id, companyId).catch((error) => {
-        logger.error(`[browser] Failed to dispatch approved browser action ${browserAction.id}: ${error instanceof Error ? error.message : String(error)}`);
-      });
+      queueBrowserActionExecution(browserAction.id, companyId);
     } else if (decision === "rejected") {
       db.core.social.updateBrowserAction(browserAction.id, {
         status: "cancelled",
@@ -301,9 +299,7 @@ export function handleApprovalResolved(
           approvalId: approval.id,
         });
         publishDomainChanged();
-        void dispatchBrowserAction(actionId, approval.companyId).catch((error) => {
-          logger.error(`[automation] Failed to dispatch approved social post ${actionId}: ${error instanceof Error ? error.message : String(error)}`);
-        });
+        queueBrowserActionExecution(actionId, approval.companyId);
       };
 
       if (draft.scheduledAt) {

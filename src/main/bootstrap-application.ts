@@ -131,10 +131,29 @@ export async function bootstrapApplication(deps: BootstrapApplicationDependencie
   app.on("before-quit", () => lifecycleProcessor.stop());
 
   if (apiServer && serviceGraph.getBrowserActionService()) {
-    apiServer.setBrowserActionHandler(async (actionId, companyId) => {
+    apiServer.setBrowserActionHandler((actionId, companyId) => {
       const browserActions = serviceGraph.getBrowserActionService();
-      if (!browserActions) throw new Error("Browser action service is not initialized");
-      await browserActions.dispatchBrowserAction(actionId, companyId);
+      if (!browserActions) {
+        const message = "Browser action service is not initialized.";
+        log.error(`[browser] ${message} action=${actionId}`);
+        db.core.social.updateBrowserAction(actionId, {
+          status: "failed",
+          resultSummary: "Browser action dispatch failed before execution completed.",
+          errorMessage: message,
+          finishedAt: new Date().toISOString(),
+        });
+        db.core.activity.addActivity({
+          companyId,
+          actor: "system",
+          action: "browser.action_dispatch_failed",
+          entityType: "browser_action",
+          entityId: actionId,
+          detail: message,
+        });
+        publishDomainChanged();
+        return;
+      }
+      browserActions.queueBrowserActionExecution(actionId, companyId);
     });
   }
 

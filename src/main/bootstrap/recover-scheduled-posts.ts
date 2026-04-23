@@ -9,7 +9,7 @@ export interface RecoverScheduledPostsDeps {
   db: AppDatabase;
   logger: Logger;
   isQuittingRef: { current: boolean };
-  getBrowserActionService: () => { dispatchBrowserAction: (actionId: string, companyId: string) => Promise<void> } | null;
+  getBrowserActionService: () => { queueBrowserActionExecution: (actionId: string, companyId: string) => void } | null;
 }
 
 export function recoverScheduledPosts(deps: RecoverScheduledPostsDeps): Set<ReturnType<typeof setTimeout>> {
@@ -30,7 +30,7 @@ export function recoverScheduledPosts(deps: RecoverScheduledPostsDeps): Set<Retu
             if (deps.isQuittingRef.current) return;
             const browserActions = deps.getBrowserActionService();
             if (browserActions) {
-              void browserActions.dispatchBrowserAction(action.id, company.id);
+              browserActions.queueBrowserActionExecution(action.id, company.id);
             }
           }, delay);
           timers.add(timer);

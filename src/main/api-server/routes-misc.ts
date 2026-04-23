@@ -97,7 +97,28 @@ export function registerMiscRoutes(server: AgentApiServer) {
 
     const onBrowserAction = server.onBrowserAction;
     if (onBrowserAction) {
-      onBrowserAction(actionId, companyId);
+      try {
+        onBrowserAction(actionId, companyId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        db.core.social.updateBrowserAction(actionId, {
+          status: "failed",
+          resultSummary: "Browser action dispatch failed before execution completed.",
+          errorMessage: message,
+          finishedAt: new Date().toISOString(),
+        });
+        db.core.activity.addActivity({
+          companyId,
+          actor: token.agentId,
+          action: "browser.action_dispatch_failed",
+          entityType: "browser_action",
+          entityId: actionId,
+          detail: message,
+        });
+        onDomainChanged();
+        server.json(res, 500, { id: actionId, status: "failed", error: "Browser action dispatch failed" });
+        return;
+      }
     }
 
     server.json(res, 201, { id: actionId, status: "queued", message: "Browser action queued for execution" });
