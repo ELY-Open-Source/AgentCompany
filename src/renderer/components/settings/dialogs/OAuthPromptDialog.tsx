@@ -1,27 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DesktopEvent } from "@shared/types";
 import { ActionButton, Modal } from "../../ui";
 import { useT } from "../../../i18n";
+import { nextOAuthPromptState, type PendingOAuthPrompt } from "./oauth-prompt-events";
 
 const desktop = (typeof window !== "undefined" ? window.agentCompany : null) as
   | (Window["agentCompany"] | null);
-
-type PendingPrompt =
-  | {
-      kind: "prompt";
-      connectorId: string;
-      requestId: string;
-      message: string;
-      placeholder?: string;
-      allowEmpty?: boolean;
-    }
-  | {
-      kind: "manual-code";
-      connectorId: string;
-      requestId: string;
-      authUrl?: string;
-      instructions?: string;
-    };
 
 /**
  * Listens for `oauth:prompt-request` and `oauth:manual-code-request` push
@@ -30,32 +14,17 @@ type PendingPrompt =
  */
 export function OAuthPromptDialog() {
   const t = useT();
-  const [pending, setPending] = useState<PendingPrompt | null>(null);
+  const [pending, setPending] = useState<PendingOAuthPrompt | null>(null);
+  const pendingRef = useRef<PendingOAuthPrompt | null>(null);
   const [value, setValue] = useState("");
 
   useEffect(() => {
     if (!desktop) return;
     const unsubscribe = desktop.subscribe((event: DesktopEvent) => {
-      if (event.type === "oauth:prompt-request") {
-        setPending({
-          kind: "prompt",
-          connectorId: event.connectorId,
-          requestId: event.requestId,
-          message: event.message,
-          placeholder: event.placeholder,
-          allowEmpty: event.allowEmpty,
-        });
-        setValue("");
-      } else if (event.type === "oauth:manual-code-request") {
-        setPending({
-          kind: "manual-code",
-          connectorId: event.connectorId,
-          requestId: event.requestId,
-          authUrl: event.authUrl,
-          instructions: event.instructions,
-        });
-        setValue("");
-      }
+      const next = nextOAuthPromptState(pendingRef.current, event);
+      if (next !== pendingRef.current) setValue("");
+      pendingRef.current = next;
+      setPending(next);
     });
     return unsubscribe;
   }, []);
@@ -78,6 +47,7 @@ export function OAuthPromptDialog() {
         code: value.trim(),
       });
     }
+    pendingRef.current = null;
     setPending(null);
     setValue("");
   };
@@ -85,6 +55,7 @@ export function OAuthPromptDialog() {
   const handleCancel = async () => {
     if (!desktop || !pending) return;
     await desktop.cancelOAuth({ connectorId: pending.connectorId });
+    pendingRef.current = null;
     setPending(null);
     setValue("");
   };
