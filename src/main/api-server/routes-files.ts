@@ -1,6 +1,18 @@
 import log from "electron-log/main.js";
 import { z } from "zod";
 import { requireParam, type AgentApiServer } from "./server-core";
+import { normalizeExternalHttpUrl } from "../external-url-policy";
+
+const workProductUrlSchema = z.string().trim().superRefine((value, ctx) => {
+  try {
+    normalizeExternalHttpUrl(value);
+  } catch (error) {
+    ctx.addIssue({
+      code: "custom",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+}).transform((value) => normalizeExternalHttpUrl(value));
 
 const createDocumentSchema = z.object({
   type: z.string().optional(),
@@ -30,7 +42,7 @@ const createWorkProductSchema = z.object({
   title: z.string(),
   projectId: z.string().optional(),
   externalId: z.string().optional(),
-  url: z.string().optional(),
+  url: workProductUrlSchema.optional(),
   status: z.string().optional(),
   reviewState: z.string().optional(),
   isPrimary: z.boolean().optional(),
@@ -43,7 +55,7 @@ const updateWorkProductSchema = z.object({
   provider: z.string().optional(),
   externalId: z.string().optional(),
   title: z.string().optional(),
-  url: z.string().optional(),
+  url: workProductUrlSchema.optional(),
   status: z.string().optional(),
   reviewState: z.string().optional(),
   isPrimary: z.boolean().optional(),

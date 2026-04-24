@@ -11,6 +11,31 @@ import {
 } from "@shared/contracts";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
 import { logAppError } from "./errors/index.js";
+import { classifyExternalUrl } from "./external-url-policy";
+
+async function openExternalUrlWithTrustPolicy(rawUrl: string) {
+  const decision = classifyExternalUrl(rawUrl);
+  if (decision.kind === "blocked") {
+    return fail("OPEN_EXTERNAL_URL_FORBIDDEN", decision.reason);
+  }
+  if (decision.kind === "confirm") {
+    const result = await dialog.showMessageBox({
+      type: "question",
+      buttons: ["Open Link", "Cancel"],
+      defaultId: 1,
+      cancelId: 1,
+      title: "Open External Link?",
+      message: "AgentCompany blocked an untrusted external link.",
+      detail: `${decision.url}\n\nOnly trusted product and documentation domains open automatically. Review this destination before continuing.`,
+    });
+    if (result.response !== 0) {
+      return ok(false);
+    }
+  }
+  const url = decision.url;
+  const error = await shell.openExternal(url).then(() => "").catch((err: unknown) => err instanceof Error ? err.message : String(err));
+  return error ? fail("OPEN_EXTERNAL_URL_FAILED", error) : ok(true);
+}
 
 export function registerCoreReadHandlers({
   registerHandle,
@@ -85,8 +110,7 @@ export function registerCoreReadHandlers({
       return fail(codeByReason[target.reason], target.detail);
     }
     if (target.kind === "url") {
-      const error = await shell.openExternal(target.value).then(() => "").catch((err: unknown) => err instanceof Error ? err.message : String(err));
-      return error ? fail("OPEN_PATH_FAILED", error) : ok(true);
+      return openExternalUrlWithTrustPolicy(target.value);
     }
     if (!db.core.settings.canOpenPath(target.value)) {
       return fail("OPEN_PATH_FORBIDDEN", "The requested path is outside the managed desktop workspace.");

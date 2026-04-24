@@ -16,6 +16,7 @@ import {
 import log from "electron-log/main.js";
 import { attachWindowStatePersistence, loadWindowState } from "./window-state";
 import type { NotificationOptions } from "./notification-service";
+import { classifyExternalUrl } from "./external-url-policy";
 
 export interface DesktopShellWindowDependencies {
   preloadPath: string;
@@ -41,27 +42,6 @@ function isWithinDirectory(rootPath: string, targetPath: string) {
   const normalizedRoot = resolve(rootPath);
   const normalizedTarget = resolve(targetPath);
   return normalizedTarget === normalizedRoot || normalizedTarget.startsWith(`${normalizedRoot}${sep}`);
-}
-
-const TRUSTED_EXTERNAL_HOSTS = new Set([
-  "github.com",
-  "www.github.com",
-  "agentcompany.pages.dev",
-  "claude.ai",
-  "www.electronjs.org",
-  "www.electron.build",
-]);
-
-function shouldOpenTrustedExternalUrl(rawUrl: string) {
-  try {
-    const url = new URL(rawUrl);
-    if (url.protocol !== "https:" && url.protocol !== "http:") {
-      return false;
-    }
-    return TRUSTED_EXTERNAL_HOSTS.has(url.hostname.toLowerCase());
-  } catch {
-    return false;
-  }
 }
 
 export function createDesktopShellWindow(deps: DesktopShellWindowDependencies) {
@@ -172,11 +152,12 @@ export function createDesktopShellWindow(deps: DesktopShellWindowDependencies) {
     });
     app.on("web-contents-created", (_event, contents) => {
       contents.setWindowOpenHandler(({ url }) => {
-        if (shouldOpenTrustedExternalUrl(url)) {
-          void shell.openExternal(url);
+        const decision = classifyExternalUrl(url);
+        if (decision.kind === "trusted") {
+          void shell.openExternal(decision.url);
           return { action: "deny" };
         }
-        if (url.startsWith("https://") || url.startsWith("http://")) {
+        if (decision.kind === "confirm") {
           // Dialog is dispatched asynchronously so the main-process event loop
           // is not blocked while the user decides. setWindowOpenHandler must
           // return synchronously, so the window is always denied here; if the
@@ -190,13 +171,13 @@ export function createDesktopShellWindow(deps: DesktopShellWindowDependencies) {
               cancelId: 1,
               title: "Open External Link?",
               message: "AgentCompany blocked an untrusted external link.",
-              detail: `${url}\n\nOnly trusted product and documentation domains open automatically. Review this destination before continuing.`,
+              detail: `${decision.url}\n\nOnly trusted product and documentation domains open automatically. Review this destination before continuing.`,
             };
             const result = parentWindow
               ? await dialog.showMessageBox(parentWindow, options)
               : await dialog.showMessageBox(options);
             if (result.response === 0) {
-              void shell.openExternal(url);
+              void shell.openExternal(decision.url);
             }
           })();
         }
