@@ -1,37 +1,44 @@
 import { useEffect, type MutableRefObject } from "react";
 import type { DesktopEvent } from "@shared/types";
 import {
-  createDomainEventBatcher,
-  isSnapshotIrrelevantEvent,
+  classifySnapshotEvent,
+  createSnapshotEventGuard,
   type GranularEventEntry,
-} from "../lib/ipc-batcher";
+} from "../lib/snapshot-events";
 import { useAppStore } from "../state/store";
 
 export function useDesktopEvents(
-  refreshRef: MutableRefObject<() => Promise<void>>,
+  refreshRef: MutableRefObject<(shouldApply?: () => boolean) => Promise<void>>,
   logBufferRef: MutableRefObject<Record<string, string>>,
   incrementLogRevision: () => void,
 ) {
   useEffect(() => {
-    void refreshRef.current();
     const store = useAppStore;
+    const eventGuard = createSnapshotEventGuard();
 
-    async function handleGranularBatch(events: GranularEventEntry[]) {
+    function requestFullRefresh() {
+      eventGuard.invalidateSnapshot();
+      const token = eventGuard.captureSnapshot();
+      void refreshRef.current(() => eventGuard.canApplySnapshot(token));
+    }
+
+    requestFullRefresh();
+
+    async function handleSnapshotEntityEvent(entry: GranularEventEntry) {
       const companyId = store.getState().snapshot?.currentCompanyId ?? null;
       if (!companyId) {
-        void refreshRef.current();
+        requestFullRefresh();
         return;
       }
 
       let needsFullRefresh = false;
+      eventGuard.invalidateSnapshot();
+      eventGuard.invalidateEntity(entry);
+      const token = eventGuard.captureEntity(entry);
 
-      for (const entry of events) {
-        // run-updated:completed touches too many entity types -- full refresh
-        if (entry.type === "run-updated" && entry.action === "completed") {
-          needsFullRefresh = true;
-          break;
-        }
-
+      if (entry.type === "run-updated" && entry.action === "completed") {
+        needsFullRefresh = true;
+      } else {
         try {
           switch (entry.type) {
             case "task-updated": {
@@ -39,6 +46,7 @@ export function useDesktopEvents(
                 store.getState().removeTask(entry.entityId);
               } else {
                 const result = await window.agentCompany.getTask({ companyId, id: entry.entityId });
+                if (!eventGuard.canApplyEntity(entry, token)) return;
                 if (result.ok) {
                   store.getState().patchTask(result.data);
                 } else {
@@ -52,6 +60,7 @@ export function useDesktopEvents(
                 store.getState().removeRun(entry.entityId);
               } else {
                 const result = await window.agentCompany.getRun({ companyId, id: entry.entityId });
+                if (!eventGuard.canApplyEntity(entry, token)) return;
                 if (result.ok) {
                   store.getState().patchRun(result.data);
                 } else {
@@ -65,6 +74,7 @@ export function useDesktopEvents(
                 store.getState().removeApproval(entry.entityId);
               } else {
                 const result = await window.agentCompany.getApproval({ companyId, id: entry.entityId });
+                if (!eventGuard.canApplyEntity(entry, token)) return;
                 if (result.ok) {
                   store.getState().patchApproval(result.data);
                 } else {
@@ -75,6 +85,7 @@ export function useDesktopEvents(
             }
             case "agent-updated": {
               const result = await window.agentCompany.getAgent({ companyId, id: entry.entityId });
+              if (!eventGuard.canApplyEntity(entry, token)) return;
               if (result.ok) {
                 store.getState().patchAgent(result.data);
               } else {
@@ -83,43 +94,23 @@ export function useDesktopEvents(
               break;
             }
             case "budget-changed": {
-              // Budget is a computed aggregate -- full refresh is needed
               needsFullRefresh = true;
               break;
             }
             default: {
-              // Unknown granular event type -- fall back (per D-05 / PERF-03)
               needsFullRefresh = true;
               break;
             }
           }
-        } catch (error) {
-          console.warn(
-            `[renderer/useDesktopEvents] granular fetch failed for ${entry.type}/${entry.entityId}; falling back to full refresh: ${error instanceof Error ? error.message : String(error)}`,
-          );
+        } catch {
           needsFullRefresh = true;
-          break;
         }
-
-        if (needsFullRefresh) break;
       }
 
       if (needsFullRefresh) {
-        void refreshRef.current();
+        requestFullRefresh();
       }
-      // Granular patches already update the snapshot arrays, and
-      // sidebar badges derive from the snapshot live — no separate
-      // badge refresh is needed.
     }
-
-    // 500ms window for full-refresh events (e.g. new-message,
-    // thread-wait-state-updated) so bursts coalesce into one reload.
-    // Granular entity events still flush at this window but are cheap.
-    const batcher = createDomainEventBatcher(
-      () => { void refreshRef.current(); },
-      (events) => { void handleGranularBatch(events); },
-      500,
-    );
 
     const unsubscribe = window.agentCompany.subscribe((event: DesktopEvent) => {
       if (event.type === "run-log") {
@@ -141,24 +132,27 @@ export function useDesktopEvents(
       }
       if (event.type === "shortcut") {
         if (event.action === "toggle-command-palette") store.getState().toggleCommandPalette();
-        if (event.action === "refresh") void refreshRef.current();
+        if (event.action === "refresh") requestFullRefresh();
         return;
       }
       if (event.type === "notification-click") {
         store.getState().navigateTo(event.section, event.entityId);
         return;
       }
-      // One-shot events that do not affect ProfileSnapshot -- handled by
-      // their own listeners elsewhere, never trigger a snapshot refresh.
-      if (isSnapshotIrrelevantEvent(event)) {
+
+      const decision = classifySnapshotEvent(event);
+      if (decision.kind === "ignore") {
         return;
       }
-      // All remaining data-mutating events go through the enhanced batcher
-      batcher.push(event);
+      if (decision.kind === "full-refresh") {
+        requestFullRefresh();
+        return;
+      }
+
+      void handleSnapshotEntityEvent(decision.entry);
     });
     return () => {
       unsubscribe();
-      batcher.dispose();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshRef and logBufferRef are stable refs; incrementLogRevision is a stable Zustand setter
   }, []);

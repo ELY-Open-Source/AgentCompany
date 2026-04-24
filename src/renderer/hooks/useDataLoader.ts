@@ -3,6 +3,8 @@ import type { ProfileSnapshot, SectionId } from "@shared/types";
 import { describeDesktopError, unwrap } from "../lib/desktop";
 import { useAppStore } from "../state/store";
 
+export type SnapshotRefreshGuard = () => boolean;
+
 export function useDataLoader(
   snapshot: ProfileSnapshot | null,
   section: SectionId,
@@ -11,10 +13,11 @@ export function useDataLoader(
   // selectedRunId via getState() at call time so its identity stays stable
   // across connector/run selection changes and AppActions consumers do not
   // cascade re-render.
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (shouldApply: SnapshotRefreshGuard = () => true) => {
     const store = useAppStore.getState();
     try {
       const next = unwrap<ProfileSnapshot>(await window.agentCompany.loadSnapshot());
+      if (!shouldApply()) return;
       store.setSnapshot(next);
       if (next.companies.length === 0) {
         store.setInitialOnboardingLocked(true);
@@ -26,12 +29,15 @@ export function useDataLoader(
       if (next.currentCompanyId) {
         store.setSocialAccounts(next.socialAccounts?.filter((a) => a.companyId === next.currentCompanyId) ?? []);
         const browserActionResult = await window.agentCompany.listBrowserActions({ companyId: next.currentCompanyId, limit: 50 });
+        if (!shouldApply()) return;
         if (browserActionResult.ok) {
           store.setBrowserActions(browserActionResult.data);
         }
       }
+      if (!shouldApply()) return;
       store.setError(null);
     } catch (nextError) {
+      if (!shouldApply()) return;
       store.setError(describeDesktopError(nextError));
     }
   }, []);

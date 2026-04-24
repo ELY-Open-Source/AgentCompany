@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import type {
   DesktopEvent,
   TaskUpdatedEvent,
@@ -7,7 +7,9 @@ import type {
   AgentUpdatedEvent,
   BudgetChangedEvent,
 } from "@shared/types";
-import type { GranularEventEntry } from "@renderer/lib/ipc-batcher";
+import {
+  classifySnapshotEvent,
+} from "@renderer/lib/snapshot-events";
 
 describe("selective IPC event types", () => {
   it("TaskUpdatedEvent discriminated by type field", () => {
@@ -63,7 +65,7 @@ describe("selective IPC event types", () => {
     expect(event.companyId).toBe("c-1");
   });
 
-  it("all five new event types are assignable to DesktopEvent union", () => {
+  it("all five entity event types are assignable to DesktopEvent union", () => {
     const events: DesktopEvent[] = [
       { type: "task-updated", taskId: "t-1", action: "created" },
       { type: "run-updated", runId: "r-1", action: "status_changed" },
@@ -74,8 +76,7 @@ describe("selective IPC event types", () => {
     expect(events).toHaveLength(5);
   });
 
-  it("DesktopEvent union has all 14 members (9 original + 5 new)", () => {
-    // This is a compile-time check -- if any type is missing, TypeScript will error
+  it("DesktopEvent union has all members used by snapshot classification", () => {
     const exhaustiveCheck = (event: DesktopEvent): string => {
       switch (event.type) {
         case "run-log":
@@ -130,262 +131,85 @@ describe("selective IPC event types", () => {
         }
       }
     };
-    // Dummy call to avoid unused-var warning
     expect(typeof exhaustiveCheck).toBe("function");
   });
 });
 
-// Extracted granular batch handler logic for testability
-// Mirrors the handleGranularBatch function in App.tsx
-async function handleGranularBatch(
-  events: GranularEventEntry[],
-  deps: {
-    companyId: string | null;
-    getTask: (input: { companyId: string; id: string }) => Promise<{ ok: boolean; data?: unknown }>;
-    getRun: (input: { companyId: string; id: string }) => Promise<{ ok: boolean; data?: unknown }>;
-    getApproval: (input: { companyId: string; id: string }) => Promise<{ ok: boolean; data?: unknown }>;
-    getAgent: (input: { companyId: string; id: string }) => Promise<{ ok: boolean; data?: unknown }>;
-    patchTask: (task: unknown) => void;
-    removeTask: (id: string) => void;
-    patchRun: (run: unknown) => void;
-    removeRun: (id: string) => void;
-    patchApproval: (approval: unknown) => void;
-    removeApproval: (id: string) => void;
-    patchAgent: (agent: unknown) => void;
-    refreshBadges: () => Promise<void>;
-    fullRefresh: () => void;
-  },
-) {
-  if (!deps.companyId) {
-    deps.fullRefresh();
-    return;
-  }
+describe("classifySnapshotEvent", () => {
+  it("maps direct entity events to one immediate entity decision", () => {
+    expect(classifySnapshotEvent({ type: "task-updated", taskId: "t-1", action: "updated" })).toEqual({
+      kind: "entity",
+      entry: { type: "task-updated", entityId: "t-1", action: "updated" },
+    });
+    expect(classifySnapshotEvent({ type: "run-updated", runId: "r-1", action: "status_changed" })).toEqual({
+      kind: "entity",
+      entry: { type: "run-updated", entityId: "r-1", action: "status_changed" },
+    });
+    expect(classifySnapshotEvent({ type: "approval-updated", approvalId: "a-1", action: "decided" })).toEqual({
+      kind: "entity",
+      entry: { type: "approval-updated", entityId: "a-1", action: "decided" },
+    });
+    expect(classifySnapshotEvent({ type: "agent-updated", agentId: "ag-1", action: "paused" })).toEqual({
+      kind: "entity",
+      entry: { type: "agent-updated", entityId: "ag-1", action: "paused" },
+    });
+    expect(classifySnapshotEvent({ type: "budget-changed", companyId: "company-1" })).toEqual({
+      kind: "entity",
+      entry: { type: "budget-changed", entityId: "company-1", action: "changed" },
+    });
+  });
 
-  let needsFullRefresh = false;
+  it("maps legacy progress events to their owning entities", () => {
+    expect(classifySnapshotEvent({ type: "run-status", runId: "r-1", status: "running", message: "Running" })).toEqual({
+      kind: "entity",
+      entry: { type: "run-updated", entityId: "r-1", action: "status_changed" },
+    });
+    expect(classifySnapshotEvent({ type: "heartbeat-status", agentId: "ag-1", enabled: true, nextWakeAt: null })).toEqual({
+      kind: "entity",
+      entry: { type: "agent-updated", entityId: "ag-1", action: "updated" },
+    });
+    expect(classifySnapshotEvent({ type: "agent-message", taskId: "t-1", comment: {} } as DesktopEvent)).toEqual({
+      kind: "entity",
+      entry: { type: "task-updated", entityId: "t-1", action: "updated" },
+    });
+  });
 
-  for (const entry of events) {
-    if (entry.type === "run-updated" && entry.action === "completed") {
-      needsFullRefresh = true;
-      break;
+  it("routes domain-wide events to full refresh", () => {
+    const events: DesktopEvent[] = [
+      { type: "domain-changed" },
+      { type: "new-message" } as DesktopEvent,
+      { type: "thread-wait-state-updated", threadId: "th-1", companyId: "c-1", waitStateId: "w-1", action: "created" },
+      { type: "credentials-changed", connectorId: "claude-pro" },
+      { type: "agent-event", runId: "r-1", agentId: "ag-1", companyId: "c-1", taskId: "t-1", emittedAt: "2026-01-01", event: { type: "x" } },
+      { type: "oauth:status", connectorId: "claude-pro", status: "active" },
+      { type: "oauth:auth-url", connectorId: "claude-pro", url: "https://example.com" },
+      { type: "oauth:progress", connectorId: "claude-pro", message: "Working" },
+      { type: "oauth:prompt-request", connectorId: "claude-pro", requestId: "req-1", message: "Code" },
+      { type: "oauth:manual-code-request", connectorId: "claude-pro", requestId: "req-1" },
+    ];
+
+    for (const event of events) {
+      expect(classifySnapshotEvent(event)).toEqual({ kind: "full-refresh" });
     }
+  });
 
-    try {
-      switch (entry.type) {
-        case "task-updated": {
-          if (entry.action === "deleted") {
-            deps.removeTask(entry.entityId);
-          } else {
-            const result = await deps.getTask({ companyId: deps.companyId, id: entry.entityId });
-            if (result.ok) {
-              deps.patchTask(result.data);
-            } else {
-              deps.removeTask(entry.entityId);
-            }
-          }
-          break;
-        }
-        case "run-updated": {
-          if (entry.action === "deleted") {
-            deps.removeRun(entry.entityId);
-          } else {
-            const result = await deps.getRun({ companyId: deps.companyId, id: entry.entityId });
-            if (result.ok) {
-              deps.patchRun(result.data);
-            } else {
-              deps.removeRun(entry.entityId);
-            }
-          }
-          break;
-        }
-        case "approval-updated": {
-          if (entry.action === "deleted") {
-            deps.removeApproval(entry.entityId);
-          } else {
-            const result = await deps.getApproval({ companyId: deps.companyId, id: entry.entityId });
-            if (result.ok) {
-              deps.patchApproval(result.data);
-            } else {
-              deps.removeApproval(entry.entityId);
-            }
-          }
-          break;
-        }
-        case "agent-updated": {
-          const result = await deps.getAgent({ companyId: deps.companyId, id: entry.entityId });
-          if (result.ok) {
-            deps.patchAgent(result.data);
-          } else {
-            needsFullRefresh = true;
-          }
-          break;
-        }
-        case "budget-changed": {
-          needsFullRefresh = true;
-          break;
-        }
-        default: {
-          needsFullRefresh = true;
-          break;
-        }
-      }
-    } catch {
-      needsFullRefresh = true;
-      break;
+  it("ignores events with independent listeners", () => {
+    const events: DesktopEvent[] = [
+      { type: "automation-fired", ruleId: "rule-1", ruleName: "Rule", trigger: "schedule", action: "run_task" },
+      { type: "recovery-needed", interruptedRuns: [] },
+      { type: "run-log", runId: "r-1", stream: "stdout", chunk: "chunk" },
+      { type: "shortcut", action: "refresh" },
+      { type: "notification-click", section: "tasks", entityId: "t-1" },
+    ];
+
+    for (const event of events) {
+      expect(classifySnapshotEvent(event)).toEqual({ kind: "ignore" });
     }
-
-    if (needsFullRefresh) break;
-  }
-
-  if (needsFullRefresh) {
-    deps.fullRefresh();
-  } else {
-    void deps.refreshBadges();
-  }
-}
-
-function createMockDeps() {
-  return {
-    companyId: "company-1" as string | null,
-    getTask: vi.fn().mockResolvedValue({ ok: true, data: { id: "t-1", title: "Test task" } }),
-    getRun: vi.fn().mockResolvedValue({ ok: true, data: { id: "r-1", status: "running" } }),
-    getApproval: vi.fn().mockResolvedValue({ ok: true, data: { id: "a-1", state: "pending" } }),
-    getAgent: vi.fn().mockResolvedValue({ ok: true, data: { id: "ag-1", name: "Agent" } }),
-    patchTask: vi.fn(),
-    removeTask: vi.fn(),
-    patchRun: vi.fn(),
-    removeRun: vi.fn(),
-    patchApproval: vi.fn(),
-    removeApproval: vi.fn(),
-    patchAgent: vi.fn(),
-    refreshBadges: vi.fn().mockResolvedValue(undefined),
-    fullRefresh: vi.fn(),
-  };
-}
-
-describe("handleGranularBatch", () => {
-  it("task-updated event calls getTask and patchTask", async () => {
-    const deps = createMockDeps();
-    await handleGranularBatch(
-      [{ type: "task-updated", entityId: "t-1", action: "updated" }],
-      deps,
-    );
-    expect(deps.getTask).toHaveBeenCalledWith({ companyId: "company-1", id: "t-1" });
-    expect(deps.patchTask).toHaveBeenCalledWith({ id: "t-1", title: "Test task" });
-    expect(deps.fullRefresh).not.toHaveBeenCalled();
-    expect(deps.refreshBadges).toHaveBeenCalled();
   });
 
-  it("deleted task calls removeTask without fetching", async () => {
-    const deps = createMockDeps();
-    await handleGranularBatch(
-      [{ type: "task-updated", entityId: "t-1", action: "deleted" }],
-      deps,
-    );
-    expect(deps.removeTask).toHaveBeenCalledWith("t-1");
-    expect(deps.getTask).not.toHaveBeenCalled();
-    expect(deps.fullRefresh).not.toHaveBeenCalled();
-  });
-
-  it("run-updated:completed triggers full refresh", async () => {
-    const deps = createMockDeps();
-    await handleGranularBatch(
-      [{ type: "run-updated", entityId: "r-1", action: "completed" }],
-      deps,
-    );
-    expect(deps.fullRefresh).toHaveBeenCalled();
-    expect(deps.getRun).not.toHaveBeenCalled();
-    expect(deps.refreshBadges).not.toHaveBeenCalled();
-  });
-
-  it("failed getTask fetch falls back to removeTask", async () => {
-    const deps = createMockDeps();
-    deps.getTask.mockResolvedValue({ ok: false, error: { code: "NOT_FOUND", message: "nope" } });
-    await handleGranularBatch(
-      [{ type: "task-updated", entityId: "t-1", action: "updated" }],
-      deps,
-    );
-    expect(deps.removeTask).toHaveBeenCalledWith("t-1");
-    expect(deps.patchTask).not.toHaveBeenCalled();
-  });
-
-  it("calls refreshBadges after successful granular processing", async () => {
-    const deps = createMockDeps();
-    await handleGranularBatch(
-      [{ type: "task-updated", entityId: "t-1", action: "created" }],
-      deps,
-    );
-    expect(deps.refreshBadges).toHaveBeenCalled();
-    expect(deps.fullRefresh).not.toHaveBeenCalled();
-  });
-
-  it("approval-updated event calls getApproval and patchApproval", async () => {
-    const deps = createMockDeps();
-    await handleGranularBatch(
-      [{ type: "approval-updated", entityId: "a-1", action: "decided" }],
-      deps,
-    );
-    expect(deps.getApproval).toHaveBeenCalledWith({ companyId: "company-1", id: "a-1" });
-    expect(deps.patchApproval).toHaveBeenCalledWith({ id: "a-1", state: "pending" });
-  });
-
-  it("agent-updated event calls getAgent and patchAgent", async () => {
-    const deps = createMockDeps();
-    await handleGranularBatch(
-      [{ type: "agent-updated", entityId: "ag-1", action: "paused" }],
-      deps,
-    );
-    expect(deps.getAgent).toHaveBeenCalledWith({ companyId: "company-1", id: "ag-1" });
-    expect(deps.patchAgent).toHaveBeenCalledWith({ id: "ag-1", name: "Agent" });
-  });
-
-  it("budget-changed triggers full refresh", async () => {
-    const deps = createMockDeps();
-    await handleGranularBatch(
-      [{ type: "budget-changed", entityId: "c-1", action: "changed" }],
-      deps,
-    );
-    expect(deps.fullRefresh).toHaveBeenCalled();
-    expect(deps.refreshBadges).not.toHaveBeenCalled();
-  });
-
-  it("no companyId triggers full refresh", async () => {
-    const deps = createMockDeps();
-    deps.companyId = null;
-    await handleGranularBatch(
-      [{ type: "task-updated", entityId: "t-1", action: "updated" }],
-      deps,
-    );
-    expect(deps.fullRefresh).toHaveBeenCalled();
-    expect(deps.getTask).not.toHaveBeenCalled();
-  });
-
-  it("IPC error falls back to full refresh", async () => {
-    const deps = createMockDeps();
-    deps.getTask.mockRejectedValue(new Error("IPC failed"));
-    await handleGranularBatch(
-      [{ type: "task-updated", entityId: "t-1", action: "updated" }],
-      deps,
-    );
-    expect(deps.fullRefresh).toHaveBeenCalled();
-  });
-
-  it("unknown event type triggers full refresh", async () => {
-    const deps = createMockDeps();
-    await handleGranularBatch(
-      [{ type: "some-unknown-event", entityId: "x-1", action: "created" }],
-      deps,
-    );
-    expect(deps.fullRefresh).toHaveBeenCalled();
-  });
-
-  it("run-updated:status_changed fetches and patches run", async () => {
-    const deps = createMockDeps();
-    await handleGranularBatch(
-      [{ type: "run-updated", entityId: "r-1", action: "status_changed" }],
-      deps,
-    );
-    expect(deps.getRun).toHaveBeenCalledWith({ companyId: "company-1", id: "r-1" });
-    expect(deps.patchRun).toHaveBeenCalledWith({ id: "r-1", status: "running" });
-    expect(deps.fullRefresh).not.toHaveBeenCalled();
+  it("routes unknown runtime event shapes to full refresh", () => {
+    expect(classifySnapshotEvent({ type: "future-event" } as unknown as DesktopEvent)).toEqual({
+      kind: "full-refresh",
+    });
   });
 });

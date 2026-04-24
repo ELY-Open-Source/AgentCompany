@@ -92,4 +92,4 @@ local-release/
 .omx/
 
 # Runtime state (written by app at runtime)
-state/
+/state/

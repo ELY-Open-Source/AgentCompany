@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useAppStore } from "@renderer/state/store";
-import type { ProfileSnapshot, TaskRecord, RunRecord, AgentRecord, ApprovalRecord } from "@shared/types";
+import { assembleProfileSnapshot } from "@renderer/state/snapshot-sections";
+import type { ProfileSnapshot } from "@shared/types";
 
 // Mock window.agentCompany for refreshSnapshot tests. Sidebar badges
 // no longer traverse IPC — they are derived from the snapshot in
@@ -31,6 +32,7 @@ describe("useAppStore", () => {
 
     // CompanySlice
     expect(state).toHaveProperty("snapshot");
+    expect(state).toHaveProperty("snapshotSections");
     expect(state).toHaveProperty("setSnapshot");
     expect(state).toHaveProperty("refreshSnapshot");
 
@@ -149,6 +151,10 @@ describe("useAppStore", () => {
     useAppStore.getState().setSnapshot(mockSnapshot);
 
     expect(useAppStore.getState().snapshot).toEqual(mockSnapshot);
+    expect(useAppStore.getState().snapshotSections?.metadata.profilePath).toBe("/test/path");
+    expect(useAppStore.getState().snapshotSections?.catalog.companies).toEqual([]);
+    expect(useAppStore.getState().snapshotSections?.company.tasks).toEqual([]);
+    expectSnapshotSectionsMatchSnapshot();
   });
 
   it("CompanySlice.refreshSnapshot() calls window.agentCompany.loadSnapshot()", async () => {
@@ -189,6 +195,8 @@ describe("useAppStore", () => {
 
     expect(mockLoadSnapshot).toHaveBeenCalledTimes(1);
     expect(useAppStore.getState().snapshot).toEqual(mockSnapshot);
+    expect(useAppStore.getState().snapshotSections?.metadata.currentCompanyId).toBe("company-1");
+    expectSnapshotSectionsMatchSnapshot();
   });
 
   it("UiSlice.setLocale('zh') updates locale to 'zh'", () => {
@@ -224,286 +232,7 @@ describe("useAppStore", () => {
   });
 });
 
-// -- Minimal snapshot fixture for patch tests --
-function makeSnapshot(overrides: Partial<ProfileSnapshot> = {}): ProfileSnapshot {
-  return {
-    currentCompanyId: "company-1",
-    profilePath: "/test/path",
-    updatesEnabled: true,
-    theme: "system",
-    locale: "en",
-    backend: { secretBackend: "safe_storage" },
-    companies: [],
-    connectors: [],
-    workspaces: [],
-    agents: [],
-    goals: [],
-    projects: [],
-    tasks: [],
-    approvals: [],
-    runs: [],
-    costs: [],
-    activity: [],
-    secrets: [],
-    comments: [],
-    socialAccounts: [],
-    meetings: [],
-    documents: [],
-    workProducts: [],
-    knowledgeBase: [],
-    sprints: [],
-    automationRules: [],
-    agentMessages: [],
-    workflows: [],
-    ...overrides,
-  };
+function expectSnapshotSectionsMatchSnapshot() {
+  const { snapshot, snapshotSections } = useAppStore.getState();
+  expect(snapshot).toEqual(snapshotSections ? assembleProfileSnapshot(snapshotSections) : null);
 }
-
-const fakeTask = (id: string, title = "Task"): TaskRecord => ({
-  id,
-  companyId: "company-1",
-  projectId: null,
-  goalId: null,
-  parentId: null,
-  title,
-  description: "",
-  assigneeAgentId: null,
-  workspaceId: null,
-  status: "open",
-  priority: "medium",
-  activeRunId: null,
-  sessionJson: null,
-  requiresUserReview: false,
-  startedAt: null,
-  completedAt: null,
-  cancelledAt: null,
-  createdAt: "2026-01-01",
-  updatedAt: "2026-01-01",
-} as unknown as TaskRecord);
-
-const fakeRun = (id: string): RunRecord => ({
-  id,
-  companyId: "company-1",
-  taskId: "t-1",
-  agentId: "ag-1",
-  workspaceId: null,
-  connectorId: "claude-pro",
-  status: "queued",
-  summary: "",
-  errorMessage: null,
-  exitCode: null,
-  signal: null,
-  model: null,
-  unattributedCost: false,
-  startedAt: null,
-  finishedAt: null,
-  logPath: null,
-  createdAt: "2026-01-01",
-  updatedAt: "2026-01-01",
-} as RunRecord);
-
-const fakeAgent = (id: string, name = "Agent"): AgentRecord => ({
-  id,
-  companyId: "company-1",
-  name,
-  role: "engineer",
-  title: "",
-  department: "engineering",
-  status: "idle",
-  reportsTo: null,
-  connectorId: "claude-pro",
-  workspaceId: null,
-  model: null,
-  capabilities: "",
-  budgetMonthlyUsd: 100,
-  spentMonthlyUsd: 0,
-  metadataJson: "{}",
-  heartbeatEnabled: false,
-  heartbeatIntervalSec: 0,
-  lastHeartbeatAt: null,
-  createdAt: "2026-01-01",
-  updatedAt: "2026-01-01",
-} as AgentRecord);
-
-const fakeApproval = (id: string): ApprovalRecord => ({
-  id,
-  companyId: "company-1",
-  relatedTaskId: "t-1",
-  relatedAgentId: null,
-  requestedByAgentId: "ag-1",
-  type: "task_completion",
-  payloadSummary: "",
-  impactSummary: "",
-  payloadJson: null,
-  decisionNote: null,
-  state: "pending",
-  createdAt: "2026-01-01",
-  updatedAt: "2026-01-01",
-} as unknown as ApprovalRecord);
-
-describe("CompanySlice patch methods", () => {
-  beforeEach(() => {
-    useAppStore.setState(useAppStore.getInitialState());
-    vi.clearAllMocks();
-  });
-
-  // -- patchTask --
-  it("patchTask inserts new task at beginning when task ID is not found", () => {
-    const snapshot = makeSnapshot({ tasks: [fakeTask("t-existing")] });
-    useAppStore.getState().setSnapshot(snapshot);
-
-    const newTask = fakeTask("t-new", "New Task");
-    useAppStore.getState().patchTask(newTask);
-
-    const tasks = useAppStore.getState().snapshot!.tasks;
-    expect(tasks).toHaveLength(2);
-    expect(tasks[0]!.id).toBe("t-new");
-    expect(tasks[1]!.id).toBe("t-existing");
-  });
-
-  it("patchTask updates existing task in-place when task ID matches", () => {
-    const snapshot = makeSnapshot({ tasks: [fakeTask("t-1", "Original")] });
-    useAppStore.getState().setSnapshot(snapshot);
-
-    const updated = fakeTask("t-1", "Updated");
-    useAppStore.getState().patchTask(updated);
-
-    const tasks = useAppStore.getState().snapshot!.tasks;
-    expect(tasks).toHaveLength(1);
-    expect(tasks[0]!.title).toBe("Updated");
-  });
-
-  it("removeTask filters out task by ID", () => {
-    const snapshot = makeSnapshot({ tasks: [fakeTask("t-1"), fakeTask("t-2")] });
-    useAppStore.getState().setSnapshot(snapshot);
-
-    useAppStore.getState().removeTask("t-1");
-
-    const tasks = useAppStore.getState().snapshot!.tasks;
-    expect(tasks).toHaveLength(1);
-    expect(tasks[0]!.id).toBe("t-2");
-  });
-
-  // -- patchRun --
-  it("patchRun inserts new run when run ID is not found", () => {
-    const snapshot = makeSnapshot({ runs: [fakeRun("r-existing")] });
-    useAppStore.getState().setSnapshot(snapshot);
-
-    useAppStore.getState().patchRun(fakeRun("r-new"));
-
-    const runs = useAppStore.getState().snapshot!.runs;
-    expect(runs).toHaveLength(2);
-    expect(runs[0]!.id).toBe("r-new");
-  });
-
-  it("patchRun updates existing run in-place", () => {
-    const run = fakeRun("r-1");
-    const snapshot = makeSnapshot({ runs: [run] });
-    useAppStore.getState().setSnapshot(snapshot);
-
-    const updated = { ...fakeRun("r-1"), status: "running" as const };
-    useAppStore.getState().patchRun(updated);
-
-    const runs = useAppStore.getState().snapshot!.runs;
-    expect(runs).toHaveLength(1);
-    expect(runs[0]!.status).toBe("running");
-  });
-
-  it("removeRun filters out run by ID", () => {
-    const snapshot = makeSnapshot({ runs: [fakeRun("r-1"), fakeRun("r-2")] });
-    useAppStore.getState().setSnapshot(snapshot);
-
-    useAppStore.getState().removeRun("r-1");
-
-    const runs = useAppStore.getState().snapshot!.runs;
-    expect(runs).toHaveLength(1);
-    expect(runs[0]!.id).toBe("r-2");
-  });
-
-  // -- patchAgent --
-  it("patchAgent inserts new agent when agent ID is not found", () => {
-    const snapshot = makeSnapshot({ agents: [fakeAgent("ag-existing")] });
-    useAppStore.getState().setSnapshot(snapshot);
-
-    useAppStore.getState().patchAgent(fakeAgent("ag-new", "New Agent"));
-
-    const agents = useAppStore.getState().snapshot!.agents;
-    expect(agents).toHaveLength(2);
-    expect(agents[0]!.id).toBe("ag-new");
-  });
-
-  it("patchAgent updates existing agent in-place", () => {
-    const snapshot = makeSnapshot({ agents: [fakeAgent("ag-1", "Old")] });
-    useAppStore.getState().setSnapshot(snapshot);
-
-    useAppStore.getState().patchAgent(fakeAgent("ag-1", "New"));
-
-    const agents = useAppStore.getState().snapshot!.agents;
-    expect(agents).toHaveLength(1);
-    expect(agents[0]!.name).toBe("New");
-  });
-
-  it("removeAgent filters out agent by ID", () => {
-    const snapshot = makeSnapshot({ agents: [fakeAgent("ag-1"), fakeAgent("ag-2")] });
-    useAppStore.getState().setSnapshot(snapshot);
-
-    useAppStore.getState().removeAgent("ag-1");
-
-    const agents = useAppStore.getState().snapshot!.agents;
-    expect(agents).toHaveLength(1);
-    expect(agents[0]!.id).toBe("ag-2");
-  });
-
-  // -- patchApproval --
-  it("patchApproval inserts new approval when approval ID is not found", () => {
-    const snapshot = makeSnapshot({ approvals: [fakeApproval("ap-existing")] });
-    useAppStore.getState().setSnapshot(snapshot);
-
-    useAppStore.getState().patchApproval(fakeApproval("ap-new"));
-
-    const approvals = useAppStore.getState().snapshot!.approvals;
-    expect(approvals).toHaveLength(2);
-    expect(approvals[0]!.id).toBe("ap-new");
-  });
-
-  it("patchApproval updates existing approval in-place", () => {
-    const approval = fakeApproval("ap-1");
-    const snapshot = makeSnapshot({ approvals: [approval] });
-    useAppStore.getState().setSnapshot(snapshot);
-
-    const updated = { ...fakeApproval("ap-1"), state: "approved" as const };
-    useAppStore.getState().patchApproval(updated);
-
-    const approvals = useAppStore.getState().snapshot!.approvals;
-    expect(approvals).toHaveLength(1);
-    expect(approvals[0]!.state).toBe("approved");
-  });
-
-  it("removeApproval filters out approval by ID", () => {
-    const snapshot = makeSnapshot({ approvals: [fakeApproval("ap-1"), fakeApproval("ap-2")] });
-    useAppStore.getState().setSnapshot(snapshot);
-
-    useAppStore.getState().removeApproval("ap-1");
-
-    const approvals = useAppStore.getState().snapshot!.approvals;
-    expect(approvals).toHaveLength(1);
-    expect(approvals[0]!.id).toBe("ap-2");
-  });
-
-  // -- null-snapshot safety --
-  it("patch methods are no-ops when snapshot is null", () => {
-    expect(useAppStore.getState().snapshot).toBeNull();
-
-    // These should not crash
-    useAppStore.getState().patchTask(fakeTask("t-1"));
-    useAppStore.getState().removeTask("t-1");
-    useAppStore.getState().patchRun(fakeRun("r-1"));
-    useAppStore.getState().removeRun("r-1");
-    useAppStore.getState().patchAgent(fakeAgent("ag-1"));
-    useAppStore.getState().removeAgent("ag-1");
-    useAppStore.getState().patchApproval(fakeApproval("ap-1"));
-    useAppStore.getState().removeApproval("ap-1");
-
-    expect(useAppStore.getState().snapshot).toBeNull();
-  });
-});

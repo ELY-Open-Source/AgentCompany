@@ -16,6 +16,11 @@ import {
   type AppErrorInput,
   type AppErrorNotice,
 } from "../../lib/desktop";
+import {
+  assembleProfileSnapshot,
+  splitProfileSnapshot,
+  type ProfileSnapshotSections,
+} from "../snapshot-sections";
 
 // Sidebar badge counts and inbox items both live in the renderer —
 // derived on every read from the snapshot (see `@shared/sidebar-badges`
@@ -24,6 +29,7 @@ import {
 // slice is what let the counters drift against the rendered content.
 export interface CompanySlice {
   snapshot: ProfileSnapshot | null;
+  snapshotSections: ProfileSnapshotSections | null;
   /**
    * Bumps only on full-snapshot replacements (setSnapshot / refreshSnapshot).
    * Granular patch/remove methods DO NOT bump this counter so that
@@ -49,6 +55,14 @@ export interface CompanySlice {
   removeApproval: (approvalId: string) => void;
 }
 
+function applySnapshotSections(
+  state: CompanySlice,
+  sections: ProfileSnapshotSections | null,
+) {
+  state.snapshotSections = sections;
+  state.snapshot = sections ? assembleProfileSnapshot(sections) : null;
+}
+
 export const createCompanySlice: StateCreator<
   AppState,
   [["zustand/immer", never]],
@@ -56,13 +70,14 @@ export const createCompanySlice: StateCreator<
   CompanySlice
 > = (set) => ({
   snapshot: null,
+  snapshotSections: null,
   snapshotRevision: 0,
   companyMetrics: null,
   standupReport: null,
   error: null,
   setSnapshot: (snapshot) =>
     set((state) => {
-      state.snapshot = snapshot;
+      applySnapshotSections(state, snapshot ? splitProfileSnapshot(snapshot) : null);
       state.snapshotRevision += 1;
     }),
   setCompanyMetrics: (metrics) =>
@@ -82,7 +97,7 @@ export const createCompanySlice: StateCreator<
       const result = await window.agentCompany.loadSnapshot();
       if (result.ok) {
         set((state) => {
-          state.snapshot = result.data;
+          applySnapshotSections(state, splitProfileSnapshot(result.data));
           state.snapshotRevision += 1;
         });
       } else {
@@ -101,65 +116,85 @@ export const createCompanySlice: StateCreator<
 
   patchTask: (task) =>
     set((state) => {
-      if (!state.snapshot) return;
-      const idx = state.snapshot.tasks.findIndex((t) => t.id === task.id);
+      if (!state.snapshotSections) return;
+      const tasks = state.snapshotSections.company.tasks;
+      const idx = tasks.findIndex((t) => t.id === task.id);
       if (idx >= 0) {
-        state.snapshot.tasks[idx] = task;
+        tasks[idx] = task;
       } else {
-        state.snapshot.tasks.unshift(task);
+        tasks.unshift(task);
       }
+      applySnapshotSections(state, state.snapshotSections);
     }),
   removeTask: (taskId) =>
     set((state) => {
-      if (!state.snapshot) return;
-      state.snapshot.tasks = state.snapshot.tasks.filter((t) => t.id !== taskId);
+      if (!state.snapshotSections) return;
+      state.snapshotSections.company.tasks = state.snapshotSections.company.tasks.filter(
+        (t) => t.id !== taskId,
+      );
+      applySnapshotSections(state, state.snapshotSections);
     }),
 
   patchRun: (run) =>
     set((state) => {
-      if (!state.snapshot) return;
-      const idx = state.snapshot.runs.findIndex((r) => r.id === run.id);
+      if (!state.snapshotSections) return;
+      const runs = state.snapshotSections.company.runs;
+      const idx = runs.findIndex((r) => r.id === run.id);
       if (idx >= 0) {
-        state.snapshot.runs[idx] = run;
+        runs[idx] = run;
       } else {
-        state.snapshot.runs.unshift(run);
+        runs.unshift(run);
       }
+      applySnapshotSections(state, state.snapshotSections);
     }),
   removeRun: (runId) =>
     set((state) => {
-      if (!state.snapshot) return;
-      state.snapshot.runs = state.snapshot.runs.filter((r) => r.id !== runId);
+      if (!state.snapshotSections) return;
+      state.snapshotSections.company.runs = state.snapshotSections.company.runs.filter(
+        (r) => r.id !== runId,
+      );
+      applySnapshotSections(state, state.snapshotSections);
     }),
 
   patchAgent: (agent) =>
     set((state) => {
-      if (!state.snapshot) return;
-      const idx = state.snapshot.agents.findIndex((a) => a.id === agent.id);
+      if (!state.snapshotSections) return;
+      const agents = state.snapshotSections.company.agents;
+      const idx = agents.findIndex((a) => a.id === agent.id);
       if (idx >= 0) {
-        state.snapshot.agents[idx] = agent;
+        agents[idx] = agent;
       } else {
-        state.snapshot.agents.unshift(agent);
+        agents.unshift(agent);
       }
+      applySnapshotSections(state, state.snapshotSections);
     }),
   removeAgent: (agentId) =>
     set((state) => {
-      if (!state.snapshot) return;
-      state.snapshot.agents = state.snapshot.agents.filter((a) => a.id !== agentId);
+      if (!state.snapshotSections) return;
+      state.snapshotSections.company.agents = state.snapshotSections.company.agents.filter(
+        (a) => a.id !== agentId,
+      );
+      applySnapshotSections(state, state.snapshotSections);
     }),
 
   patchApproval: (approval) =>
     set((state) => {
-      if (!state.snapshot) return;
-      const idx = state.snapshot.approvals.findIndex((a) => a.id === approval.id);
+      if (!state.snapshotSections) return;
+      const approvals = state.snapshotSections.company.approvals;
+      const idx = approvals.findIndex((a) => a.id === approval.id);
       if (idx >= 0) {
-        state.snapshot.approvals[idx] = approval;
+        approvals[idx] = approval;
       } else {
-        state.snapshot.approvals.unshift(approval);
+        approvals.unshift(approval);
       }
+      applySnapshotSections(state, state.snapshotSections);
     }),
   removeApproval: (approvalId) =>
     set((state) => {
-      if (!state.snapshot) return;
-      state.snapshot.approvals = state.snapshot.approvals.filter((a) => a.id !== approvalId);
+      if (!state.snapshotSections) return;
+      state.snapshotSections.company.approvals = state.snapshotSections.company.approvals.filter(
+        (a) => a.id !== approvalId,
+      );
+      applySnapshotSections(state, state.snapshotSections);
     }),
 });
