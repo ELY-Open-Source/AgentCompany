@@ -23,6 +23,10 @@ import type {
   ThreadWaitingFor,
   ThreadNotifyOn,
   DepartmentId,
+  WorkProductType,
+  WorkProductProvider,
+  WorkProductStatus,
+  WorkProductReviewState,
 } from "./enums";
 
 export interface SocialAccountRecord {
@@ -103,13 +107,13 @@ export interface WorkProductRecord {
   projectId: string | null;
   taskId: string | null;
   workspaceId: string | null;
-  type: string;
-  provider: string;
+  type: WorkProductType;
+  provider: WorkProductProvider;
   externalId: string | null;
   title: string;
   url: string | null;
-  status: string;
-  reviewState: string;
+  status: WorkProductStatus;
+  reviewState: WorkProductReviewState;
   isPrimary: boolean;
   summary: string | null;
   metadataJson: string | null;

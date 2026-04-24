@@ -235,6 +235,13 @@ export type DocumentType =
 
 export type DocumentStatus = "draft" | "in_review" | "approved" | "archived" | "superseded";
 
+export type {
+  WorkProductType,
+  WorkProductProvider,
+  WorkProductStatus,
+  WorkProductReviewState,
+} from "../contracts/schemas-work-products";
+
 export type KnowledgeCategory =
   | "lesson_learned"
   | "best_practice"

@@ -1,5 +1,11 @@
 import log from "electron-log/main.js";
 import { z } from "zod";
+import {
+  workProductProviderEnum,
+  workProductReviewStateEnum,
+  workProductStatusEnum,
+  workProductTypeEnum,
+} from "@shared/contracts";
 import { requireParam, type AgentApiServer } from "./server-core";
 import { normalizeExternalHttpUrl } from "../external-url-policy";
 
@@ -37,27 +43,27 @@ const updateDocumentSchema = z.object({
 });
 
 const createWorkProductSchema = z.object({
-  type: z.string(),
-  provider: z.string(),
+  type: workProductTypeEnum,
+  provider: workProductProviderEnum,
   title: z.string(),
   projectId: z.string().optional(),
   externalId: z.string().optional(),
   url: workProductUrlSchema.optional(),
-  status: z.string().optional(),
-  reviewState: z.string().optional(),
+  status: workProductStatusEnum.optional(),
+  reviewState: workProductReviewStateEnum.optional(),
   isPrimary: z.boolean().optional(),
   summary: z.string().optional(),
   metadata: z.unknown().optional(),
 });
 
 const updateWorkProductSchema = z.object({
-  type: z.string().optional(),
-  provider: z.string().optional(),
+  type: workProductTypeEnum.optional(),
+  provider: workProductProviderEnum.optional(),
   externalId: z.string().optional(),
   title: z.string().optional(),
   url: workProductUrlSchema.optional(),
-  status: z.string().optional(),
-  reviewState: z.string().optional(),
+  status: workProductStatusEnum.optional(),
+  reviewState: workProductReviewStateEnum.optional(),
   isPrimary: z.boolean().optional(),
   summary: z.string().optional(),
   metadataJson: z.string().optional(),

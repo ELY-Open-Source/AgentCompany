@@ -7,5 +7,6 @@ export * from "./contracts/schemas-approvals";
 export * from "./contracts/schemas-messages";
 export * from "./contracts/schemas-execution";
 export * from "./contracts/schemas-misc";
+export * from "./contracts/schemas-work-products";
 export * from "./contracts/desktop-api";
 export * from "./contracts/preload-forwarders";

@@ -93,6 +93,132 @@ async function createHarness() {
 }
 
 describe("work product URL API policy", () => {
+  it("rejects unknown work product taxonomy during creation", async () => {
+    const harness = await createHarness();
+    try {
+      const cases = [
+        { type: "spreadsheet", provider: "external", title: "Bad type" },
+        { type: "link", provider: "slack", title: "Bad provider" },
+        { type: "link", provider: "external", title: "Bad status", status: "ship_it" },
+        { type: "link", provider: "external", title: "Bad review", reviewState: "rubber_stamp" },
+      ];
+
+      for (const body of cases) {
+        const response = await fetch(`${harness.baseUrl}/api/issues/${harness.taskId}/work-products`, {
+          method: "POST",
+          headers: harness.headers,
+          body: JSON.stringify(body),
+        });
+
+        expect(response.status).toBe(400);
+      }
+      expect(harness.db.queryAll("select id from work_products")).toHaveLength(0);
+    } finally {
+      harness.server.stop();
+      harness.db.close();
+    }
+  });
+
+  it("rejects unknown work product taxonomy during updates", async () => {
+    const harness = await createHarness();
+    try {
+      const id = harness.db.core.documents.createWorkProduct({
+        companyId: harness.companyId,
+        taskId: harness.taskId,
+        type: "link",
+        provider: "external",
+        title: "External report",
+        status: "active",
+        reviewState: "none",
+      });
+      const cases = [
+        { type: "spreadsheet" },
+        { provider: "slack" },
+        { status: "ship_it" },
+        { reviewState: "rubber_stamp" },
+      ];
+
+      for (const body of cases) {
+        const response = await fetch(`${harness.baseUrl}/api/work-products/${id}`, {
+          method: "PATCH",
+          headers: harness.headers,
+          body: JSON.stringify(body),
+        });
+
+        expect(response.status).toBe(400);
+      }
+      const row = harness.db.queryAll<{
+        type: string;
+        provider: string;
+        status: string;
+        review_state: string;
+      }>("select type, provider, status, review_state from work_products where id = ? limit 1", id)[0];
+      expect(row).toEqual({
+        type: "link",
+        provider: "external",
+        status: "active",
+        review_state: "none",
+      });
+    } finally {
+      harness.server.stop();
+      harness.db.close();
+    }
+  });
+
+  it("rejects unknown work product taxonomy at the database boundary", async () => {
+    const harness = await createHarness();
+    try {
+      expect(() => harness.db.core.documents.createWorkProduct({
+        companyId: harness.companyId,
+        taskId: harness.taskId,
+        type: "link",
+        // @ts-expect-error verifies runtime validation for direct DB callers.
+        provider: "slack",
+        title: "Bad provider",
+      })).toThrow();
+      expect(harness.db.queryAll("select id from work_products")).toHaveLength(0);
+
+      expect(() => harness.db.core.documents.createWorkProduct({
+        companyId: harness.companyId,
+        taskId: harness.taskId,
+        type: "link",
+        provider: "external",
+        title: "Empty status",
+        // @ts-expect-error verifies runtime validation for direct DB callers.
+        status: "",
+      })).toThrow();
+      expect(harness.db.queryAll("select id from work_products")).toHaveLength(0);
+
+      expect(() => harness.db.core.documents.createWorkProduct({
+        companyId: harness.companyId,
+        taskId: harness.taskId,
+        type: "link",
+        provider: "external",
+        title: "Empty review state",
+        // @ts-expect-error verifies runtime validation for direct DB callers.
+        reviewState: "",
+      })).toThrow();
+      expect(harness.db.queryAll("select id from work_products")).toHaveLength(0);
+
+      const id = harness.db.core.documents.createWorkProduct({
+        companyId: harness.companyId,
+        taskId: harness.taskId,
+        type: "link",
+        provider: "external",
+        title: "External report",
+      });
+      expect(() => harness.db.core.documents.updateWorkProduct(id, harness.companyId, {
+        // @ts-expect-error verifies runtime validation for direct DB callers.
+        status: "ship_it",
+      })).toThrow();
+      const row = harness.db.queryAll<{ status: string }>("select status from work_products where id = ? limit 1", id)[0];
+      expect(row?.status).toBe("active");
+    } finally {
+      harness.server.stop();
+      harness.db.close();
+    }
+  });
+
   it("rejects blank URLs during work product creation", async () => {
     const harness = await createHarness();
     try {

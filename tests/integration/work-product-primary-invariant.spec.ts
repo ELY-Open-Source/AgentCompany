@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import { AppDatabase } from "../../src/main/database";
+import type { WorkProductType } from "../../src/shared/types";
 
 const tempDirs: string[] = [];
 
@@ -49,7 +50,7 @@ async function createHarness() {
   return { db, companyId, taskId };
 }
 
-function createWorkProduct(db: AppDatabase, companyId: string, taskId: string, title: string, isPrimary = false, type = "file") {
+function createWorkProduct(db: AppDatabase, companyId: string, taskId: string, title: string, isPrimary = false, type: WorkProductType = "file") {
   return db.core.documents.createWorkProduct({
     companyId,
     taskId,

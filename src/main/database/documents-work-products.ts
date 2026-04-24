@@ -2,6 +2,16 @@ import { randomUUID } from "node:crypto";
 import { statSync } from "node:fs";
 import { isAbsolute, resolve as resolvePath, relative as relativePath } from "node:path";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import {
+  workProductProviderEnum,
+  workProductReviewStateEnum,
+  workProductStatusEnum,
+  workProductTypeEnum,
+  type WorkProductProvider,
+  type WorkProductReviewState,
+  type WorkProductStatus,
+  type WorkProductType,
+} from "@shared/contracts";
 import type { ReadAll, Transaction } from "./helpers";
 import { nowIso } from "./helpers";
 
@@ -73,6 +83,22 @@ function joinWorkspaceRelative(root: string, rel: string): string | null {
   return joined;
 }
 
+function parseWorkProductType(value: string): WorkProductType {
+  return workProductTypeEnum.parse(value);
+}
+
+function parseWorkProductProvider(value: string): WorkProductProvider {
+  return workProductProviderEnum.parse(value);
+}
+
+function parseWorkProductStatus(value: string): WorkProductStatus {
+  return workProductStatusEnum.parse(value);
+}
+
+function parseWorkProductReviewState(value: string): WorkProductReviewState {
+  return workProductReviewStateEnum.parse(value);
+}
+
 export function buildWorkProductMethods(
   getDb: () => DatabaseSync,
   readAll: ReadAll,
@@ -82,19 +108,22 @@ export function buildWorkProductMethods(
     createWorkProduct(input: {
       companyId: string; taskId: string | null; projectId?: string | null;
       workspaceId?: string | null;
-      type: string; provider: string; externalId?: string | null;
-      title: string; url?: string | null; status?: string; reviewState?: string;
+      type: WorkProductType; provider: WorkProductProvider; externalId?: string | null;
+      title: string; url?: string | null; status?: WorkProductStatus; reviewState?: WorkProductReviewState;
       isPrimary?: boolean; summary?: string | null; metadataJson?: string | null;
       createdByRunId?: string | null;
     }): string {
       return transaction(() => {
         const id = randomUUID();
         const ts = nowIso();
-        const status = input.status ?? "active";
+        const type = parseWorkProductType(input.type);
+        const provider = parseWorkProductProvider(input.provider);
+        const status = input.status !== undefined ? parseWorkProductStatus(input.status) : "active";
+        const reviewState = input.reviewState !== undefined ? parseWorkProductReviewState(input.reviewState) : "none";
         if (input.isPrimary && input.taskId && status !== "archived") {
           getDb().prepare(
             "UPDATE work_products SET is_primary = 0, updated_at = ? WHERE company_id = ? AND task_id = ? AND type = ? AND status <> 'archived'",
-          ).run(ts, input.companyId, input.taskId, input.type);
+          ).run(ts, input.companyId, input.taskId, type);
         }
         getDb().prepare(
           `INSERT INTO work_products (id, company_id, project_id, task_id, workspace_id, type, provider, external_id, title, url, status, review_state, is_primary, summary, metadata_json, created_by_run_id, last_touched_by_run_id, created_at, updated_at)
@@ -102,9 +131,9 @@ export function buildWorkProductMethods(
         ).run(
           id, input.companyId, input.projectId ?? null, input.taskId ?? null,
           input.workspaceId ?? null,
-          input.type, input.provider, input.externalId ?? null,
+          type, provider, input.externalId ?? null,
           input.title, input.url ?? null, status,
-          input.reviewState ?? "none", input.isPrimary ? 1 : 0,
+          reviewState, input.isPrimary ? 1 : 0,
           input.summary ?? null, input.metadataJson ?? null,
           input.createdByRunId ?? null, input.createdByRunId ?? null, ts, ts,
         );
@@ -114,16 +143,17 @@ export function buildWorkProductMethods(
 
     findWorkProductByExternalId(
       companyId: string,
-      provider: string,
+      provider: WorkProductProvider,
       externalId: string,
       workspaceId: string | null,
     ): { id: string; taskId: string | null } | null {
+      const parsedProvider = parseWorkProductProvider(provider);
       if (workspaceId) {
         const row = getDb()
           .prepare(
             "SELECT id, task_id as taskId FROM work_products WHERE company_id = ? AND workspace_id = ? AND provider = ? AND external_id = ? LIMIT 1",
           )
-          .get(companyId, workspaceId, provider, externalId) as
+          .get(companyId, workspaceId, parsedProvider, externalId) as
           | { id: string; taskId: string | null }
           | undefined;
         return row ?? null;
@@ -132,7 +162,7 @@ export function buildWorkProductMethods(
         .prepare(
           "SELECT id, task_id as taskId FROM work_products WHERE company_id = ? AND workspace_id IS NULL AND provider = ? AND external_id = ? LIMIT 1",
         )
-        .get(companyId, provider, externalId) as
+        .get(companyId, parsedProvider, externalId) as
         | { id: string; taskId: string | null }
         | undefined;
       return row ?? null;
@@ -142,14 +172,14 @@ export function buildWorkProductMethods(
       id: string,
       companyId: string,
       patch: {
-        type?: string;
-        provider?: string;
+        type?: WorkProductType;
+        provider?: WorkProductProvider;
         externalId?: string | null;
         workspaceId?: string | null;
         title?: string;
         url?: string | null;
-        status?: string;
-        reviewState?: string;
+        status?: WorkProductStatus;
+        reviewState?: WorkProductReviewState;
         isPrimary?: boolean;
         summary?: string | null;
         metadataJson?: string | null;
@@ -165,8 +195,10 @@ export function buildWorkProductMethods(
         if (!current) return 0;
 
         const ts = nowIso();
-        const nextType = patch.type ?? current.type;
-        const nextStatus = patch.status ?? current.status;
+        const nextType = patch.type !== undefined ? parseWorkProductType(patch.type) : parseWorkProductType(current.type);
+        const nextStatus = patch.status !== undefined ? parseWorkProductStatus(patch.status) : parseWorkProductStatus(current.status);
+        const parsedProvider = patch.provider !== undefined ? parseWorkProductProvider(patch.provider) : undefined;
+        const parsedReviewState = patch.reviewState !== undefined ? parseWorkProductReviewState(patch.reviewState) : undefined;
         const nextIsPrimary = patch.isPrimary ?? Boolean(current.isPrimary);
         if (nextIsPrimary && current.taskId && nextStatus !== "archived") {
           getDb().prepare(
@@ -177,21 +209,21 @@ export function buildWorkProductMethods(
         const sets: string[] = ["updated_at = ?"];
         const values: SQLInputValue[] = [ts];
         const map: Array<[keyof typeof patch, string, (v: unknown) => SQLInputValue]> = [
-          ["type", "type", (v) => (v as string) ?? null],
-          ["provider", "provider", (v) => (v as string) ?? null],
+          ["type", "type", () => nextType],
+          ["provider", "provider", () => parsedProvider ?? null],
           ["externalId", "external_id", (v) => (v as string | null) ?? null],
           ["workspaceId", "workspace_id", (v) => (v as string | null) ?? null],
           ["title", "title", (v) => (v as string) ?? null],
           ["url", "url", (v) => (v as string | null) ?? null],
-          ["status", "status", (v) => (v as string) ?? null],
-          ["reviewState", "review_state", (v) => (v as string) ?? null],
+          ["status", "status", () => nextStatus],
+          ["reviewState", "review_state", () => parsedReviewState ?? null],
           ["isPrimary", "is_primary", (v) => (v ? 1 : 0)],
           ["summary", "summary", (v) => (v as string | null) ?? null],
           ["metadataJson", "metadata_json", (v) => (v as string | null) ?? null],
           ["lastTouchedByRunId", "last_touched_by_run_id", (v) => (v as string | null) ?? null],
         ];
         for (const [key, col, coerce] of map) {
-          if (key in patch) {
+          if (patch[key] !== undefined) {
             sets.push(`${col} = ?`);
             values.push(coerce(patch[key]));
           }
@@ -318,11 +350,12 @@ export function buildWorkProductMethods(
     archiveWorkProductsByExternalPaths(input: {
       companyId: string;
       workspaceId: string | null;
-      provider: string;
+      provider: WorkProductProvider;
       paths: string[];
       lastTouchedByRunId: string | null;
     }): Array<{ id: string; externalId: string }> {
       if (input.paths.length === 0) return [];
+      const provider = parseWorkProductProvider(input.provider);
       const ts = nowIso();
       const CHUNK = 500;
       const workspaceClause = input.workspaceId
@@ -336,7 +369,7 @@ export function buildWorkProductMethods(
           input.lastTouchedByRunId ?? null,
           ts,
           input.companyId,
-          input.provider,
+          provider,
         ];
         if (input.workspaceId) params.push(input.workspaceId);
         params.push(...chunk);

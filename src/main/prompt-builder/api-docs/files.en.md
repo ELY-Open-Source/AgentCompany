@@ -41,11 +41,11 @@ GET /api/companies/{{companyId}}/documents/{documentId}/revisions
 ### Work Products (Structured Deliverables)
 POST /api/issues/{issueId}/work-products
 Body: {
-  "type": "pull_request|branch|commit|artifact|document|preview_url|runtime_service",
-  "provider": "agentcompany|github|custom",
+  "type": "file|link|pull_request|branch|commit|artifact|document|preview_url|runtime_service",
+  "provider": "filesystem|external|agentcompany|github|custom",
   "title": "Work product title",
   "url": "https://... (optional)",
-  "status": "active|ready_for_review|approved|merged|closed|failed|draft",
+  "status": "active|ready_for_review|approved|merged|closed|failed|draft|archived",
   "reviewState": "none|needs_board_review|approved|changes_requested",
   "isPrimary": true,
   "summary": "Brief description of the deliverable"
