@@ -55,7 +55,7 @@ export function buildDocumentMethods(
 ) {
   return {
     ...buildConfigRevisionMethods(getDb, readAll, transaction),
-    ...buildWorkProductMethods(getDb, readAll),
+    ...buildWorkProductMethods(getDb, readAll, transaction),
     saveDocument(input: {
       id?: string | null; companyId: string; type: string; title: string; content?: string;
       authorAgentId?: string | null; reviewerAgentId?: string | null; projectId?: string | null;

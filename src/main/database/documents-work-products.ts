@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { statSync } from "node:fs";
 import { isAbsolute, resolve as resolvePath, relative as relativePath } from "node:path";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
-import type { ReadAll } from "./helpers";
+import type { ReadAll, Transaction } from "./helpers";
 import { nowIso } from "./helpers";
 
 function resolveWorkspaceRoot(
@@ -76,6 +76,7 @@ function joinWorkspaceRelative(root: string, rel: string): string | null {
 export function buildWorkProductMethods(
   getDb: () => DatabaseSync,
   readAll: ReadAll,
+  transaction: Transaction,
 ) {
   return {
     createWorkProduct(input: {
@@ -86,26 +87,29 @@ export function buildWorkProductMethods(
       isPrimary?: boolean; summary?: string | null; metadataJson?: string | null;
       createdByRunId?: string | null;
     }): string {
-      const id = randomUUID();
-      const ts = nowIso();
-      if (input.isPrimary && input.taskId) {
+      return transaction(() => {
+        const id = randomUUID();
+        const ts = nowIso();
+        const status = input.status ?? "active";
+        if (input.isPrimary && input.taskId && status !== "archived") {
+          getDb().prepare(
+            "UPDATE work_products SET is_primary = 0, updated_at = ? WHERE company_id = ? AND task_id = ? AND type = ? AND status <> 'archived'",
+          ).run(ts, input.companyId, input.taskId, input.type);
+        }
         getDb().prepare(
-          "UPDATE work_products SET is_primary = 0, updated_at = ? WHERE company_id = ? AND task_id = ? AND type = ?",
-        ).run(ts, input.companyId, input.taskId, input.type);
-      }
-      getDb().prepare(
-        `INSERT INTO work_products (id, company_id, project_id, task_id, workspace_id, type, provider, external_id, title, url, status, review_state, is_primary, summary, metadata_json, created_by_run_id, last_touched_by_run_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        id, input.companyId, input.projectId ?? null, input.taskId ?? null,
-        input.workspaceId ?? null,
-        input.type, input.provider, input.externalId ?? null,
-        input.title, input.url ?? null, input.status ?? "active",
-        input.reviewState ?? "none", input.isPrimary ? 1 : 0,
-        input.summary ?? null, input.metadataJson ?? null,
-        input.createdByRunId ?? null, input.createdByRunId ?? null, ts, ts,
-      );
-      return id;
+          `INSERT INTO work_products (id, company_id, project_id, task_id, workspace_id, type, provider, external_id, title, url, status, review_state, is_primary, summary, metadata_json, created_by_run_id, last_touched_by_run_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).run(
+          id, input.companyId, input.projectId ?? null, input.taskId ?? null,
+          input.workspaceId ?? null,
+          input.type, input.provider, input.externalId ?? null,
+          input.title, input.url ?? null, status,
+          input.reviewState ?? "none", input.isPrimary ? 1 : 0,
+          input.summary ?? null, input.metadataJson ?? null,
+          input.createdByRunId ?? null, input.createdByRunId ?? null, ts, ts,
+        );
+        return id;
+      });
     },
 
     findWorkProductByExternalId(
@@ -152,34 +156,52 @@ export function buildWorkProductMethods(
         lastTouchedByRunId?: string | null;
       },
     ): number {
-      const ts = nowIso();
-      const sets: string[] = ["updated_at = ?"];
-      const values: SQLInputValue[] = [ts];
-      const map: Array<[keyof typeof patch, string, (v: unknown) => SQLInputValue]> = [
-        ["type", "type", (v) => (v as string) ?? null],
-        ["provider", "provider", (v) => (v as string) ?? null],
-        ["externalId", "external_id", (v) => (v as string | null) ?? null],
-        ["workspaceId", "workspace_id", (v) => (v as string | null) ?? null],
-        ["title", "title", (v) => (v as string) ?? null],
-        ["url", "url", (v) => (v as string | null) ?? null],
-        ["status", "status", (v) => (v as string) ?? null],
-        ["reviewState", "review_state", (v) => (v as string) ?? null],
-        ["isPrimary", "is_primary", (v) => (v ? 1 : 0)],
-        ["summary", "summary", (v) => (v as string | null) ?? null],
-        ["metadataJson", "metadata_json", (v) => (v as string | null) ?? null],
-        ["lastTouchedByRunId", "last_touched_by_run_id", (v) => (v as string | null) ?? null],
-      ];
-      for (const [key, col, coerce] of map) {
-        if (key in patch) {
-          sets.push(`${col} = ?`);
-          values.push(coerce(patch[key]));
+      return transaction(() => {
+        const current = getDb().prepare(
+          "SELECT task_id as taskId, type, status, is_primary as isPrimary FROM work_products WHERE id = ? AND company_id = ?",
+        ).get(id, companyId) as
+          | { taskId: string | null; type: string; status: string; isPrimary: number }
+          | undefined;
+        if (!current) return 0;
+
+        const ts = nowIso();
+        const nextType = patch.type ?? current.type;
+        const nextStatus = patch.status ?? current.status;
+        const nextIsPrimary = patch.isPrimary ?? Boolean(current.isPrimary);
+        if (nextIsPrimary && current.taskId && nextStatus !== "archived") {
+          getDb().prepare(
+            "UPDATE work_products SET is_primary = 0, updated_at = ? WHERE company_id = ? AND task_id = ? AND type = ? AND status <> 'archived' AND id <> ?",
+          ).run(ts, companyId, current.taskId, nextType, id);
         }
-      }
-      values.push(id, companyId);
-      const result = getDb()
-        .prepare(`UPDATE work_products SET ${sets.join(", ")} WHERE id = ? AND company_id = ?`)
-        .run(...values);
-      return Number(result.changes ?? 0);
+
+        const sets: string[] = ["updated_at = ?"];
+        const values: SQLInputValue[] = [ts];
+        const map: Array<[keyof typeof patch, string, (v: unknown) => SQLInputValue]> = [
+          ["type", "type", (v) => (v as string) ?? null],
+          ["provider", "provider", (v) => (v as string) ?? null],
+          ["externalId", "external_id", (v) => (v as string | null) ?? null],
+          ["workspaceId", "workspace_id", (v) => (v as string | null) ?? null],
+          ["title", "title", (v) => (v as string) ?? null],
+          ["url", "url", (v) => (v as string | null) ?? null],
+          ["status", "status", (v) => (v as string) ?? null],
+          ["reviewState", "review_state", (v) => (v as string) ?? null],
+          ["isPrimary", "is_primary", (v) => (v ? 1 : 0)],
+          ["summary", "summary", (v) => (v as string | null) ?? null],
+          ["metadataJson", "metadata_json", (v) => (v as string | null) ?? null],
+          ["lastTouchedByRunId", "last_touched_by_run_id", (v) => (v as string | null) ?? null],
+        ];
+        for (const [key, col, coerce] of map) {
+          if (key in patch) {
+            sets.push(`${col} = ?`);
+            values.push(coerce(patch[key]));
+          }
+        }
+        values.push(id, companyId);
+        const result = getDb()
+          .prepare(`UPDATE work_products SET ${sets.join(", ")} WHERE id = ? AND company_id = ?`)
+          .run(...values);
+        return Number(result.changes ?? 0);
+      });
     },
 
     resolveWorkProductTarget(
