@@ -27,10 +27,6 @@ import {
   appendArtifactProjectionEvent,
   appendArtifactProjectionFailureEvent,
 } from "./artifact-projection-events";
-import {
-  isCofounderMandatoryApproval,
-  isOperationalApproval,
-} from "../execution-policy";
 
 /**
  * Lifecycle phase of an active pi run as seen by main.
@@ -120,12 +116,6 @@ function checkOperationalApprovalBlock(
   try {
     const blocking = deps.db.core.approvals.getBlockingApproval(ctx.companyId, ctx.agentId, ctx.taskId);
     if (!blocking) return { block: false, reason: null };
-    const companyMode = deps.db.core.company.getCompanyExecutionMode(ctx.companyId);
-    const cofounderCheckpointBlocks =
-      companyMode === "ai_cofounder" && isCofounderMandatoryApproval(blocking.type);
-    if (!isOperationalApproval(blocking.type) && !cofounderCheckpointBlocks) {
-      return { block: false, reason: null };
-    }
     return {
       block: true,
       reason: `Approval ${blocking.id} (${blocking.type}, state=${blocking.state}) is outstanding: ${blocking.payloadSummary}. Wait for the decision before retrying ${toolName}.`,

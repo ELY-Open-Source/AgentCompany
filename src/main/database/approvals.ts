@@ -3,11 +3,15 @@ import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import log from "electron-log/main.js";
 import type { ApprovalRecord } from "@shared/types";
 import type { ReadAll, Transaction } from "./helpers";
-import { normalizeOptionalId, nowIso, parseJson } from "./helpers";
-import {
-  COFOUNDER_MANDATORY_APPROVAL_TYPES,
-  OPERATIONAL_APPROVAL_TYPES,
-} from "../execution-policy";
+import { normalizeOptionalId, nowIso, parseJson, toBoolean } from "./helpers";
+
+export interface ApprovalPolicyRecord {
+  approvalType: string;
+  scopeType: string;
+  blocksExecution: boolean;
+  requiredMode: "any" | "ai_ceo" | "ai_cofounder";
+  autoApprovable: boolean;
+}
 
 export function buildApprovalMethods(
   getDb: () => DatabaseSync,
@@ -239,36 +243,65 @@ export function buildApprovalMethods(
       return readAll(sql, ...args);
     },
 
+    getApprovalPolicy(approvalType: string): ApprovalPolicyRecord | null {
+      const row = getDb()
+        .prepare(
+          "select approval_type as approvalType, scope_type as scopeType, blocks_execution as blocksExecution, required_mode as requiredMode, auto_approvable as autoApprovable from approval_policies where approval_type = ?",
+        )
+        .get(approvalType) as {
+          approvalType: string;
+          scopeType: string;
+          blocksExecution: number;
+          requiredMode: "any" | "ai_ceo" | "ai_cofounder";
+          autoApprovable: number;
+        } | undefined;
+      return row
+        ? {
+          approvalType: row.approvalType,
+          scopeType: row.scopeType,
+          blocksExecution: toBoolean(row.blocksExecution),
+          requiredMode: row.requiredMode,
+          autoApprovable: toBoolean(row.autoApprovable),
+        }
+        : null;
+    },
+
     getBlockingApproval(companyId: string, agentId: string, taskId: string | null): ApprovalRecord | null {
-      const taskCondition = taskId != null
-        ? "(related_task_id = ? or requested_by_agent_id = ?)"
-        : "requested_by_agent_id = ?";
-      const taskParams: SQLInputValue[] = taskId != null ? [taskId, agentId] : [agentId];
-      const operationalApprovalPlaceholders = OPERATIONAL_APPROVAL_TYPES.map(() => "?").join(", ");
-      const cofounderApprovalPlaceholders = COFOUNDER_MANDATORY_APPROVAL_TYPES.map(() => "?").join(", ");
+      const company = getDb()
+        .prepare("select execution_mode as executionMode from companies where id = ?")
+        .get(companyId) as { executionMode: "ai_ceo" | "ai_cofounder" } | undefined;
+      if (!company) {
+        throw new Error(`Company not found for approval gate: ${companyId}`);
+      }
       const rows = readAll<ApprovalRecord>(
         `select id, company_id as companyId, related_task_id as relatedTaskId,
                 requested_by_agent_id as requestedByAgentId, related_agent_id as relatedAgentId,
-                type, payload_summary as payloadSummary, impact_summary as impactSummary,
+                a.type, payload_summary as payloadSummary, impact_summary as impactSummary,
                 payload_json as payloadJson, decision_note as decisionNote, state,
-                created_at as createdAt, updated_at as updatedAt
-         from approvals
-         where company_id = ? and state = 'pending'
+                a.created_at as createdAt, a.updated_at as updatedAt
+         from approvals a
+         inner join approval_policies p on p.approval_type = a.type
+         where a.company_id = ?
+           and a.state = 'pending'
+           and p.blocks_execution = 1
+           and (p.required_mode = 'any' or p.required_mode = ?)
            and (
-             (type = 'hire_agent' and related_agent_id = ?)
-             or (type = 'dangerous_command' and ${taskCondition})
-             or (type = 'secret_access' and ${taskCondition})
-             or (type = 'approve_ceo_strategy' and ${taskCondition})
-             or (type = 'deliverable_review' and (requested_by_agent_id = ? or (related_task_id is not null and ${taskCondition})))
-             or (type in (${operationalApprovalPlaceholders}) and ${taskCondition})
-             or (type in (${cofounderApprovalPlaceholders}) and (requested_by_agent_id = ? or (related_task_id is not null and ${taskCondition})))
+             (p.scope_type = 'related_agent' and a.related_agent_id = ?)
+             or (
+               p.scope_type = 'requester_or_task'
+               and (
+                 a.requested_by_agent_id = ?
+                 or (? is not null and a.related_task_id = ?)
+               )
+             )
            )
-         order by created_at asc limit 1`,
-        companyId, agentId,
-        ...taskParams, ...taskParams, ...taskParams,
-        agentId, ...taskParams,
-        ...OPERATIONAL_APPROVAL_TYPES, ...taskParams,
-        ...COFOUNDER_MANDATORY_APPROVAL_TYPES, agentId, ...taskParams,
+         order by a.created_at asc limit 1`,
+        companyId,
+        company.executionMode,
+        agentId,
+        agentId,
+        taskId,
+        taskId,
       );
       return rows.length > 0 ? rows[0] : null;
     },

@@ -18,12 +18,12 @@ import {
   type ActiveRunContext,
 } from "../../src/main/agent-runtime/hook-handlers";
 
-function seedCofounderRun(db: AppDatabase) {
+function seedRun(db: AppDatabase, executionMode: "ai_ceo" | "ai_cofounder" = "ai_cofounder") {
   const companyId = db.core.company.saveCompany({
     name: "Gate Co",
     description: "Cofounder runtime gate test",
     status: "active",
-    executionMode: "ai_cofounder",
+    executionMode,
   });
   db.core.connectors.saveConnector({
     id: "openai-codex",
@@ -87,7 +87,7 @@ describe("cofounder approval runtime gate", () => {
   });
 
   it("blocks destructive tools while a cofounder plan review is pending", () => {
-    const { companyId, agentId, taskId, runContext } = seedCofounderRun(db);
+    const { companyId, agentId, taskId, runContext } = seedRun(db, "ai_cofounder");
     const approvalId = db.core.approvals.requestApproval({
       companyId,
       relatedTaskId: taskId,
@@ -116,5 +116,65 @@ describe("cofounder approval runtime gate", () => {
 
     expect(result.block).toBe(true);
     expect(result.reason).toContain("plan_review");
+  });
+
+  it("lets CEO-mode execution proceed past plan review policy", () => {
+    const { companyId, agentId, taskId, runContext } = seedRun(db, "ai_ceo");
+    db.core.approvals.requestApproval({
+      companyId,
+      relatedTaskId: taskId,
+      requestedByAgentId: agentId,
+      type: "plan_review",
+      payloadSummary: "Review plan",
+      impactSummary: "Human review requested for planning.",
+      payloadJson: "{}",
+    });
+
+    expect(db.core.approvals.getBlockingApproval(companyId, agentId, taskId)).toBeNull();
+    const result = handleBeforeToolCall(
+      {
+        db,
+        logger: { info: () => {}, warn: () => {}, error: () => {} },
+      },
+      runContext,
+      {
+        toolName: "bash",
+        toolCallId: "call-1",
+        args: { command: "touch allowed.txt" },
+      },
+    );
+
+    expect(result.block).toBe(false);
+  });
+
+  it("blocks operational approvals in CEO mode", () => {
+    const { companyId, agentId, taskId, runContext } = seedRun(db, "ai_ceo");
+    const approvalId = db.core.approvals.requestApproval({
+      companyId,
+      relatedTaskId: taskId,
+      requestedByAgentId: agentId,
+      type: "dangerous_command",
+      payloadSummary: "Approve destructive command",
+      impactSummary: "Host-level mutation requires explicit approval.",
+      payloadJson: "{}",
+    });
+
+    const blocking = db.core.approvals.getBlockingApproval(companyId, agentId, taskId);
+    expect(blocking?.id).toBe(approvalId);
+    const result = handleBeforeToolCall(
+      {
+        db,
+        logger: { info: () => {}, warn: () => {}, error: () => {} },
+      },
+      runContext,
+      {
+        toolName: "bash",
+        toolCallId: "call-1",
+        args: { command: "rm -rf dist" },
+      },
+    );
+
+    expect(result.block).toBe(true);
+    expect(result.reason).toContain("dangerous_command");
   });
 });

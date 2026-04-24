@@ -14,6 +14,14 @@ type IpcHandler = (
   ...args: unknown[]
 ) => Promise<DesktopResult<unknown>> | DesktopResult<unknown>;
 
+type RawDb = {
+  db: {
+    prepare: (sql: string) => {
+      run: (...args: unknown[]) => void;
+    };
+  };
+};
+
 const tempDirs: string[] = [];
 
 async function createTempDir(prefix: string) {
@@ -111,10 +119,23 @@ describe("company mode switching", () => {
       payloadJson: "{}",
     });
     threadIntegration.onApprovalCreated(approvalId, companyId, taskId, "deliverable_review", "Review deliverable");
+    (db as unknown as RawDb).db
+      .prepare("update approval_policies set blocks_execution = 1, required_mode = 'ai_cofounder', updated_at = ? where approval_type = 'incident_escalation'")
+      .run(new Date().toISOString());
+    const policyDrivenApprovalId = db.core.approvals.requestApproval({
+      companyId,
+      relatedTaskId: taskId,
+      requestedByAgentId: engineerId,
+      type: "incident_escalation",
+      payloadSummary: "Review incident policy",
+      impactSummary: "Data-driven cofounder review policy.",
+      payloadJson: "{}",
+    });
 
     expect(db.core.threads.listThreadWaitStates(companyId).length).toBeGreaterThan(0);
     expect(db.core.entity.getTask(taskId).requiresUserReview).toBe(true);
     expect(db.core.approvals.getApprovalRecord(approvalId).state).toBe("pending");
+    expect(db.core.approvals.getApprovalRecord(policyDrivenApprovalId).state).toBe("pending");
 
     const handlers = new Map<string, IpcHandler>();
     registerCoreAdminHandlers({
@@ -151,6 +172,7 @@ describe("company mode switching", () => {
     expect(db.core.threads.listThreadWaitStates(companyId)).toHaveLength(0);
     expect(db.core.entity.getTask(taskId).requiresUserReview).toBe(false);
     expect(db.core.approvals.getApprovalRecord(approvalId).state).toBe("approved");
+    expect(db.core.approvals.getApprovalRecord(policyDrivenApprovalId).state).toBe("approved");
 
     db.close();
   });

@@ -15,11 +15,16 @@ import {
   migrateTaskLeasesV57,
 } from "./migrations/v57-task-leases";
 import {
+  APPROVAL_POLICY_SCHEMA_VERSION,
+  assertApprovalPoliciesV58,
+  migrateApprovalPoliciesV58,
+} from "./migrations/v58-approval-policies";
+import {
   type ReadAll,
   type Transaction,
 } from "./migrations/types";
 
-const LATEST_SCHEMA_VERSION = TASK_LEASE_SCHEMA_VERSION;
+const LATEST_SCHEMA_VERSION = APPROVAL_POLICY_SCHEMA_VERSION;
 
 export function initializeDatabase(
   db: DatabaseSync,
@@ -38,6 +43,16 @@ export function initializeDatabase(
     tx(() => {
       seedSettings(db);
       assertTaskLeasesV57(db);
+      assertApprovalPoliciesV58(db);
+    });
+    return;
+  }
+
+  if (currentVersion === TASK_LEASE_SCHEMA_VERSION) {
+    tx(() => {
+      seedSettings(db);
+      assertTaskLeasesV57(db);
+      migrateApprovalPoliciesV58(db);
     });
     return;
   }
@@ -49,6 +64,7 @@ export function initializeDatabase(
       seedSettings(db);
       assertBaselineSchema(db);
       migrateTaskLeasesV57(db);
+      migrateApprovalPoliciesV58(db);
     });
     return;
   }
@@ -61,6 +77,7 @@ export function initializeDatabase(
       seedSettings(db);
       assertBaselineSchema(db);
       migrateTaskLeasesV57(db);
+      migrateApprovalPoliciesV58(db);
     });
     return;
   }
@@ -71,6 +88,7 @@ export function initializeDatabase(
     seedSettings(db);
     assertBaselineSchema(db);
     migrateTaskLeasesV57(db);
+    migrateApprovalPoliciesV58(db);
   });
 }
 

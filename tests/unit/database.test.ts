@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { mkdtemp, rm } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { approvalTypeEnum } from "../../src/shared/types";
 
 beforeAll(() => {
   process.env.AGENTCOMPANY_ALLOW_INSECURE_VAULT = "true";
@@ -479,6 +480,7 @@ describe("AppDatabase", () => {
     expect(migrations).toEqual([
       { version: 56, name: "baseline_v56" },
       { version: 57, name: "task_leases_runtime_ownership" },
+      { version: 58, name: "approval_policy_table" },
     ]);
 
     db.close();
@@ -491,6 +493,7 @@ describe("AppDatabase", () => {
     expect(migrationsAfterReinit).toEqual([
       { version: 56, name: "baseline_v56" },
       { version: 57, name: "task_leases_runtime_ownership" },
+      { version: 58, name: "approval_policy_table" },
     ]);
   });
 
@@ -533,6 +536,36 @@ describe("AppDatabase", () => {
       legacyAppDb.close();
       await rm(legacyDir, { recursive: true, force: true });
     }
+  });
+
+  it("seeds approval policies for every approval type", () => {
+    const rows = db.queryAll<{
+      approvalType: string;
+      scopeType: string;
+      blocksExecution: number;
+      requiredMode: string;
+      autoApprovable: number;
+    }>(
+      "select approval_type as approvalType, scope_type as scopeType, blocks_execution as blocksExecution, required_mode as requiredMode, auto_approvable as autoApprovable from approval_policies order by approval_type",
+    );
+    expect(rows.map((row) => row.approvalType).sort()).toEqual([...approvalTypeEnum.options].sort());
+    expect(rows.find((row) => row.approvalType === "plan_review")).toMatchObject({
+      scopeType: "requester_or_task",
+      blocksExecution: 1,
+      requiredMode: "ai_cofounder",
+      autoApprovable: 0,
+    });
+    expect(rows.find((row) => row.approvalType === "dangerous_command")).toMatchObject({
+      scopeType: "requester_or_task",
+      blocksExecution: 1,
+      requiredMode: "any",
+    });
+    expect(rows.find((row) => row.approvalType === "hire_agent")).toMatchObject({
+      scopeType: "related_agent",
+      blocksExecution: 1,
+      requiredMode: "any",
+      autoApprovable: 1,
+    });
   });
 
   it("acquires and releases workspace locks", () => {

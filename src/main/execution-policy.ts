@@ -1,17 +1,22 @@
 /**
- * Execution Policy — Single Source of Truth
+ * Execution Policy
  *
- * Centralizes all execution-mode-aware policy decisions:
- * - Which approval types require human review in co-founder mode
- * - Which approval types can be auto-approved in CEO mode
- * - Whether a given approval should be auto-approved based on mode + company settings
- *
- * checkpoint-engine.ts and approval-policy.ts both delegate here
- * instead of maintaining separate rule sets.
+ * Runtime decisions read the seeded approval_policies table. The exported
+ * constants below exist for prompt/docs contracts that need the same seed
+ * vocabulary without opening SQLite.
  */
 
 import type { AppDatabase } from "./database";
 import type { ApprovalType, ExecutionMode } from "@shared/types";
+export {
+  APPROVAL_POLICY_SEED,
+  COFOUNDER_MANDATORY_APPROVAL_TYPES,
+  OPERATIONAL_APPROVAL_TYPES,
+} from "./approval-policy-definitions";
+import {
+  COFOUNDER_MANDATORY_APPROVAL_TYPES,
+  OPERATIONAL_APPROVAL_TYPES,
+} from "./approval-policy-definitions";
 
 function assertExecutionMode(value: string): asserts value is ExecutionMode {
   if (value !== "ai_ceo" && value !== "ai_cofounder") {
@@ -19,45 +24,17 @@ function assertExecutionMode(value: string): asserts value is ExecutionMode {
   }
 }
 
-/** Approval types that always require human review in co-founder mode. */
-export const COFOUNDER_MANDATORY_APPROVAL_TYPES = [
-  "deliverable_review",
-  "document_review",
-  "plan_review",
-  "scope_review",
-  "draft_review",
-  "strategy_review",
-  "exception_review",
-  "approve_ceo_strategy",
-  "production_deploy",
-] as const satisfies readonly ApprovalType[];
-
 const COFOUNDER_MANDATORY_APPROVALS = new Set<ApprovalType>(COFOUNDER_MANDATORY_APPROVAL_TYPES);
 
 export function isCofounderMandatoryApproval(approvalType: string): approvalType is ApprovalType {
   return COFOUNDER_MANDATORY_APPROVALS.has(approvalType as ApprovalType);
 }
 
-/** Approval types that always gate destructive tools while pending. */
-export const OPERATIONAL_APPROVAL_TYPES = [
-  "dangerous_command",
-  "secret_access",
-  "production_deploy",
-  "social_post",
-  "budget_override",
-] as const satisfies readonly ApprovalType[];
-
 const OPERATIONAL_APPROVALS = new Set<ApprovalType>(OPERATIONAL_APPROVAL_TYPES);
 
 export function isOperationalApproval(approvalType: string): approvalType is ApprovalType {
   return OPERATIONAL_APPROVALS.has(approvalType as ApprovalType);
 }
-
-/** Approval types eligible for auto-approval in CEO mode (when company settings allow). */
-const CEO_AUTO_APPROVABLE = new Set<ApprovalType>([
-  "hire_agent",
-  "approve_ceo_strategy",
-]);
 
 /** Task types that get plan_review checkpoints in co-founder mode. */
 export const CHECKPOINT_TASK_TYPES = new Set(["research", "content", "management"]);
@@ -78,14 +55,12 @@ export function shouldAutoApprove(
   const rawMode = db.core.company.getCompanyExecutionMode(companyId);
   assertExecutionMode(rawMode);
   const mode = rawMode;
-
-  // Co-founder mode: mandatory types always require human decision
-  if (mode === "ai_cofounder" && isCofounderMandatoryApproval(approvalType)) {
+  const policy = db.core.approvals.getApprovalPolicy(approvalType);
+  if (!policy?.autoApprovable) {
     return false;
   }
 
-  // Only specific types are ever auto-approvable
-  if (!CEO_AUTO_APPROVABLE.has(approvalType as ApprovalType)) {
+  if (mode === "ai_cofounder" && policy.requiredMode === "ai_cofounder") {
     return false;
   }
 

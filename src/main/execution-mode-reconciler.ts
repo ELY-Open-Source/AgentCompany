@@ -12,17 +12,6 @@ type ReconcileExecutionModeChangeInput = {
   handleApprovalResolved: (approvalId: string, companyId: string, decision: string) => void;
 };
 
-const COFOUNDER_TRANSITION_APPROVAL_TYPES = [
-  "deliverable_review",
-  "document_review",
-  "plan_review",
-  "scope_review",
-  "draft_review",
-  "strategy_review",
-  "exception_review",
-  "approve_ceo_strategy",
-] as const;
-
 const REVIEW_WAIT_STATE_TYPES = new Set(["user_reply", "user_review", "user_approval"]);
 
 function collectImpactedAgentIdsFromWaitStates(db: AppDatabase, companyId: string): Set<string> {
@@ -122,13 +111,14 @@ export function reconcileExecutionModeChange({
 
   if (leavingCofounderMode) {
     const pendingApprovals = db.queryAll<{ id: string; type: string }>(
-      `select id, type
-         from approvals
-        where company_id = ?
-          and state = 'pending'
-          and type in (${COFOUNDER_TRANSITION_APPROVAL_TYPES.map(() => "?").join(", ")})`,
+      `select a.id, a.type
+         from approvals a
+         inner join approval_policies p on p.approval_type = a.type
+        where a.company_id = ?
+          and a.state = 'pending'
+          and p.blocks_execution = 1
+          and p.required_mode = 'ai_cofounder'`,
       companyId,
-      ...COFOUNDER_TRANSITION_APPROVAL_TYPES,
     );
     for (const approval of pendingApprovals) {
       resolveApprovalDecision({
