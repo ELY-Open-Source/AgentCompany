@@ -75,8 +75,8 @@ export function createBackgroundServices({
   const onboardingService = createOnboardingService({
     db,
     seedDefaultAutomationRules,
-    queueTaskRun: (taskId, trigger, actor) =>
-      orchestrationService.queueTaskRun(taskId, trigger, actor),
+    createTaskRunForDeferredDispatch: (taskId, trigger, actor) =>
+      orchestrationService.createTaskRunForDeferredDispatch(taskId, trigger, actor),
     publishDomainChanged,
     scanAndAssignSkills: async (companyId: string, _agentId: string) => {
       // All company skills are visible to every agent via progressive disclosure.

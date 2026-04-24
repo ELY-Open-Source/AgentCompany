@@ -38,6 +38,7 @@ export function createOrchestrationService(deps: OrchestrationDependencies) {
     wakeAgentIfPossible: heartbeat.wakeAgentIfPossible,
     dispatchRunToWorker: runDispatch.dispatchRunToWorker,
     queueTaskRun: taskRunner.queueTaskRun,
+    createTaskRunForDeferredDispatch: taskRunner.createTaskRunForDeferredDispatch,
     resumeQueuedRuns: taskRunner.resumeQueuedRuns,
     startAgentHeartbeatRun: heartbeat.startAgentHeartbeatRun,
     startAllSchedulers: scheduler.startAllSchedulers,

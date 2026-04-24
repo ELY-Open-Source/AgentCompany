@@ -43,7 +43,10 @@ function createBootstrapHarness(db: AppDatabase) {
     db,
     seedDefaultAutomationRules: noop,
     publishDomainChanged: noop,
-    queueTaskRun: () => ({ ok: true, data: "run-1" }),
+    createTaskRunForDeferredDispatch: () => ({
+      ok: true,
+      data: { runId: "run-1", dispatchAfterCommit: noop },
+    }),
   });
 }
 

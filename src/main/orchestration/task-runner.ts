@@ -6,6 +6,12 @@ import type { ResolveWorkspaceFn } from "./run-dispatch";
 import { WorkspaceConfigurationError } from "./resolve-workspace";
 import { pickModelForAgent } from "../model-dispatch";
 
+interface PreparedTaskRun {
+  runId: string;
+  taskTitle: string;
+  dispatchParams: RunDispatchParams;
+}
+
 export function createTaskRunner(
   deps: OrchestrationDependencies,
   resolveWorkspace: ResolveWorkspaceFn,
@@ -29,11 +35,15 @@ export function createTaskRunner(
     return { ok: false, error: { code, message } };
   }
 
-  function queueTaskRun(taskId: string, trigger: string, actor: string): DesktopResult<string> {
+  function prepareTaskRun(
+    taskId: string,
+    trigger: string,
+    options: { requireWorkerReady: boolean },
+  ): DesktopResult<PreparedTaskRun> {
     if (isQuitting()) {
       return fail("APP_SHUTTING_DOWN", "Application is shutting down.");
     }
-    if (!hasWorkerReady()) {
+    if (options.requireWorkerReady && !hasWorkerReady()) {
       logger.warn(`[run] Worker not ready — cannot queue run for task ${taskId} (trigger: ${trigger})`);
       return fail("WORKER_UNAVAILABLE", "Orchestration worker is not ready.");
     }
@@ -112,34 +122,69 @@ export function createTaskRunner(
     }
 
     const companyBasic = db.core.company.getCompanyBasic(task.companyId);
-    dispatchRunToWorker({
+    return ok({
       runId: run.id,
-      companyId: task.companyId,
-      agent,
-      task,
-      connector,
-      workspace,
-      workspaceMode: workspaceResolution.lockMode,
-      observationPath: workspaceResolution.observationPath,
-      companyName: companyBasic?.name ?? "Unknown",
-      companyDescription: companyBasic?.description ?? "",
-      snapshot: db.projection.snapshot.listSnapshot(),
-      trigger,
-      resolvedModel: assignment.modelId,
+      taskTitle: task.title,
+      dispatchParams: {
+        runId: run.id,
+        companyId: task.companyId,
+        agent,
+        task,
+        connector,
+        workspace,
+        workspaceMode: workspaceResolution.lockMode,
+        observationPath: workspaceResolution.observationPath,
+        companyName: companyBasic?.name ?? "Unknown",
+        companyDescription: companyBasic?.description ?? "",
+        snapshot: db.projection.snapshot.listSnapshot(),
+        trigger,
+        resolvedModel: assignment.modelId,
+      },
     });
-    const postDispatchRun = db.core.runs.getRun(run.id);
+  }
+
+  function recordQueuedRun(prepared: PreparedTaskRun, actor: string) {
+    const postDispatchRun = db.core.runs.getRun(prepared.runId);
     if (postDispatchRun.status === "queued" || postDispatchRun.status === "running") {
       db.core.activity.addActivity({
-        companyId: task.companyId,
+        companyId: prepared.dispatchParams.companyId,
         actor,
         action: "run.queued",
         entityType: "run",
-        entityId: run.id,
-        detail: task.title,
+        entityId: prepared.runId,
+        detail: prepared.taskTitle,
       });
-      emitEvent({ type: "run-updated", runId: run.id, action: "created" });
+      emitEvent({ type: "run-updated", runId: prepared.runId, action: "created" });
     }
-    return ok(run.id);
+  }
+
+  function dispatchPreparedTaskRun(prepared: PreparedTaskRun, actor: string) {
+    dispatchRunToWorker(prepared.dispatchParams);
+    recordQueuedRun(prepared, actor);
+  }
+
+  function queueTaskRun(taskId: string, trigger: string, actor: string): DesktopResult<string> {
+    const prepared = prepareTaskRun(taskId, trigger, { requireWorkerReady: true });
+    if (!prepared.ok) return prepared;
+    dispatchPreparedTaskRun(prepared.data, actor);
+    return ok(prepared.data.runId);
+  }
+
+  function createTaskRunForDeferredDispatch(taskId: string, trigger: string, actor: string): DesktopResult<{ runId: string; dispatchAfterCommit: () => void }> {
+    const prepared = prepareTaskRun(taskId, trigger, { requireWorkerReady: false });
+    if (!prepared.ok) return prepared;
+    return ok({
+      runId: prepared.data.runId,
+      dispatchAfterCommit: () => {
+        if (isQuitting()) return;
+        if (!hasWorkerReady()) {
+          logger.warn(`[run] Worker not ready — leaving queued run ${prepared.data.runId} for recovery (trigger: ${trigger})`);
+          recordQueuedRun(prepared.data, actor);
+          return;
+        }
+        dispatchPreparedTaskRun(prepared.data, actor);
+      },
+    });
   }
 
   function resumeQueuedRuns() {
@@ -236,5 +281,5 @@ export function createTaskRunner(
     }
   }
 
-  return { queueTaskRun, resumeQueuedRuns };
+  return { queueTaskRun, createTaskRunForDeferredDispatch, resumeQueuedRuns };
 }

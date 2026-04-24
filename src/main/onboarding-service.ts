@@ -13,6 +13,10 @@ interface OnboardingBootstrapSummary {
   runId: string | null;
 }
 
+interface InitialExecutionLoopResult extends OnboardingBootstrapSummary {
+  dispatchAfterCommit: () => void;
+}
+
 interface BootstrapInput {
   companyName: string;
   companyDescription: string;
@@ -33,9 +37,9 @@ interface BootstrapInput {
 interface OnboardingDependencies {
   db: AppDatabase;
   seedDefaultAutomationRules: (companyId: string) => void;
-  queueTaskRun: (taskId: string, trigger: string, actor: string) => {
+  createTaskRunForDeferredDispatch: (taskId: string, trigger: string, actor: string) => {
     ok: boolean;
-    data?: string;
+    data?: { runId: string; dispatchAfterCommit: () => void };
     error?: { code: string; message: string };
   };
   publishDomainChanged: () => void;
@@ -78,7 +82,7 @@ function resolveOnboardingConnector(
 export function createOnboardingService({
   db,
   seedDefaultAutomationRules,
-  queueTaskRun,
+  createTaskRunForDeferredDispatch,
   publishDomainChanged,
   scanAndAssignSkills,
   logger,
@@ -123,7 +127,7 @@ export function createOnboardingService({
     });
   }
 
-  function createInitialExecutionLoop(companyId: string, workspaceId: string | null): OnboardingBootstrapSummary {
+  function createInitialExecutionLoop(companyId: string, workspaceId: string | null): InitialExecutionLoopResult {
     const companyRows = db.queryAll<{ id: string; name: string; description: string }>(
       "select id, name, description from companies where id = ? limit 1",
       companyId,
@@ -205,7 +209,7 @@ export function createOnboardingService({
       requiresFilesystem: true,
     });
 
-    const startRunResult = queueTaskRun(taskId, "assignment", "system");
+    const startRunResult = createTaskRunForDeferredDispatch(taskId, "assignment", "system");
     if (!startRunResult.ok && !DEFERRABLE_RUN_ERRORS.has(startRunResult.error?.code ?? "")) {
       throw new Error(startRunResult.error?.message ?? "Failed to queue the initial execution loop.");
     }
@@ -217,96 +221,104 @@ export function createOnboardingService({
       leadAgentId: leadAgent.id,
       projectId,
       taskId,
-      runId: startRunResult.ok ? startRunResult.data ?? null : null,
+      runId: startRunResult.ok ? startRunResult.data?.runId ?? null : null,
+      dispatchAfterCommit: startRunResult.ok ? startRunResult.data?.dispatchAfterCommit ?? (() => {}) : () => {},
     };
   }
 
   function bootstrapOnboarding(input: BootstrapInput): OnboardingBootstrapSummary {
-    const connectors = db.projection.snapshot.listSnapshot({ companyId: null }).connectors;
-    const selectedConnectorId = resolveOnboardingConnector(connectors, input.connectorId);
+    const result = db.withTransaction(() => {
+      const connectors = db.projection.snapshot.listSnapshot({ companyId: null }).connectors;
+      const selectedConnectorId = resolveOnboardingConnector(connectors, input.connectorId);
 
-    const companyId = db.core.company.saveCompany({
-      name: input.companyName.trim(),
-      description: input.companyDescription.trim(),
-      status: "active",
-      autoApproveHires: input.autoApproveHires,
-      reviewDeliverables: input.reviewDeliverables,
-      executionMode: input.executionMode ?? "ai_ceo",
-    });
-
-    // Persist the user's per-connector disabled-model selections
-    // against the freshly-created company id. Onboarding is entirely
-    // pre-commit; the pool settings arrive in the input payload and
-    // land in the DB only once a company exists to scope them.
-    for (const pool of input.connectorPoolSelections ?? []) {
-      db.core.settings.setDisabledModels(companyId, pool.connectorId, pool.disabledModels);
-    }
-
-    // Validate the CEO model selection against the now-persisted pool
-    // scoped to this new company. Must run AFTER the pool is stored,
-    // otherwise the validator sees an empty pool and accepts anything.
-    const modelSelection = validateConnectorModelSelection(connectorPolicyDepsFromDb(db), companyId, selectedConnectorId, input.connectorModel ?? null);
-    if (!modelSelection.ok) {
-      throw new Error(modelSelection.error);
-    }
-
-    const workspaceId = createDefaultWorkspace(companyId, input.workspacePath);
-
-    const goalTitle = input.goalTitle.trim();
-    if (goalTitle) {
-      db.core.entity.saveGoal({
-        companyId,
-        title: goalTitle,
-        description: input.goalDescription.trim() || `Achieve: ${goalTitle}`,
+      const companyId = db.core.company.saveCompany({
+        name: input.companyName.trim(),
+        description: input.companyDescription.trim(),
         status: "active",
-        parentId: null,
-        ownerAgentId: null,
+        autoApproveHires: input.autoApproveHires,
+        reviewDeliverables: input.reviewDeliverables,
+        executionMode: input.executionMode ?? "ai_ceo",
       });
-    }
 
-    const ceoLocale = getLocale();
-    const ceoId = db.core.agents.saveAgent({
-      companyId,
-      name: "CEO",
-      role: "CEO",
-      title: ceoLocale === "zh" ? "首席执行官" : "Chief Executive Officer",
-      reportsTo: null,
-      connectorId: selectedConnectorId,
-      workspaceId,
-      model: input.connectorModel?.trim() || null,
-      capabilities: ceoLocale === "zh"
-        ? "高管领导力、战略规划、团队建设、目标分解、授权管理和组织运营。负责招募领导团队、制定战略，并协调公司所有运营活动。"
-        : "Executive leadership, strategic planning, team building, goal decomposition, delegation, and organizational management. Responsible for hiring the leadership team, setting strategy, and coordinating all company operations.",
-      budgetMonthlyUsd: 250,
-      status: "idle",
-      // CEO is pinned to the user's pick at onboarding. Never let the
-      // dispatcher re-route it.
-      modelStrategy: "explicit",
-      roleLevel: "c_suite",
+      // Persist the user's per-connector disabled-model selections
+      // against the freshly-created company id. Onboarding is entirely
+      // pre-commit; the pool settings arrive in the input payload and
+      // land in the DB only once a company exists to scope them.
+      for (const pool of input.connectorPoolSelections ?? []) {
+        db.core.settings.setDisabledModels(companyId, pool.connectorId, pool.disabledModels);
+      }
+
+      // Validate the CEO model selection against the now-persisted pool
+      // scoped to this new company. Must run AFTER the pool is stored,
+      // otherwise the validator sees an empty pool and accepts anything.
+      const modelSelection = validateConnectorModelSelection(connectorPolicyDepsFromDb(db), companyId, selectedConnectorId, input.connectorModel ?? null);
+      if (!modelSelection.ok) {
+        throw new Error(modelSelection.error);
+      }
+
+      const workspaceId = createDefaultWorkspace(companyId, input.workspacePath);
+
+      const goalTitle = input.goalTitle.trim();
+      if (goalTitle) {
+        db.core.entity.saveGoal({
+          companyId,
+          title: goalTitle,
+          description: input.goalDescription.trim() || `Achieve: ${goalTitle}`,
+          status: "active",
+          parentId: null,
+          ownerAgentId: null,
+        });
+      }
+
+      const ceoLocale = getLocale();
+      const ceoId = db.core.agents.saveAgent({
+        companyId,
+        name: "CEO",
+        role: "CEO",
+        title: ceoLocale === "zh" ? "首席执行官" : "Chief Executive Officer",
+        reportsTo: null,
+        connectorId: selectedConnectorId,
+        workspaceId,
+        model: input.connectorModel?.trim() || null,
+        capabilities: ceoLocale === "zh"
+          ? "高管领导力、战略规划、团队建设、目标分解、授权管理和组织运营。负责招募领导团队、制定战略，并协调公司所有运营活动。"
+          : "Executive leadership, strategic planning, team building, goal decomposition, delegation, and organizational management. Responsible for hiring the leadership team, setting strategy, and coordinating all company operations.",
+        budgetMonthlyUsd: 250,
+        status: "idle",
+        // CEO is pinned to the user's pick at onboarding. Never let the
+        // dispatcher re-route it.
+        modelStrategy: "explicit",
+        roleLevel: "c_suite",
+      });
+      db.core.agents.setHeartbeat(ceoId, true, 120);
+      db.core.settings.setCurrentCompany(companyId);
+      seedDefaultAutomationRules(companyId);
+
+      const kickoff = createInitialExecutionLoop(companyId, workspaceId);
+
+      db.core.activity.addActivity({
+        companyId,
+        actor: "board",
+        action: "company.bootstrapped",
+        entityType: "company",
+        entityId: companyId,
+        detail: `Bootstrapped from onboarding with connector ${selectedConnectorId}.`,
+      });
+
+      return { kickoff, ceoId };
     });
-    db.core.agents.setHeartbeat(ceoId, true, 120);
-    db.core.settings.setCurrentCompany(companyId);
-    seedDefaultAutomationRules(companyId);
 
+    result.kickoff.dispatchAfterCommit();
     if (scanAndAssignSkills) {
-      void scanAndAssignSkills(companyId, ceoId).catch((error) => {
+      void scanAndAssignSkills(result.kickoff.companyId, result.ceoId).catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
-        logger?.warn(`[onboarding] skill scan failed for agent ${ceoId}: ${message}`);
+        logger?.warn(`[onboarding] skill scan failed for agent ${result.ceoId}: ${message}`);
       });
     }
 
-    const kickoff = createInitialExecutionLoop(companyId, workspaceId);
-
-    db.core.activity.addActivity({
-      companyId,
-      actor: "board",
-      action: "company.bootstrapped",
-      entityType: "company",
-      entityId: companyId,
-      detail: `Bootstrapped from onboarding with connector ${selectedConnectorId}.`,
-    });
     publishDomainChanged();
-    return kickoff;
+    const { dispatchAfterCommit: _dispatchAfterCommit, ...summary } = result.kickoff;
+    return summary;
   }
 
   return {
