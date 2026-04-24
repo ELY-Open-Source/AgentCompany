@@ -462,18 +462,20 @@ describe("AppDatabase", () => {
     expect(db.core.agents.isAgentPendingApproval(pendingAgentId)).toBe(true);
   });
 
-  it("runs forward-only migrations and creates schema_migrations table", () => {
-    // The migration system runs during init() — verify the tracking table exists
-    const snapshot = db.projection.snapshot.listSnapshot();
-    expect(snapshot).toBeTruthy();
+  it("installs the v56 baseline once on a fresh profile", () => {
+    const migrations = db.queryAll<{ version: number; name: string }>(
+      "select version, name from schema_migrations order by version",
+    );
+    expect(migrations).toEqual([{ version: 56, name: "baseline_v56" }]);
 
-    // Verify we can re-init without errors (migrations are idempotent)
     db.close();
     db = new AppDatabase(tempDir);
     db.init();
 
-    const snapshot2 = db.projection.snapshot.listSnapshot();
-    expect(snapshot2).toBeTruthy();
+    const migrationsAfterReinit = db.queryAll<{ version: number; name: string }>(
+      "select version, name from schema_migrations order by version",
+    );
+    expect(migrationsAfterReinit).toEqual([{ version: 56, name: "baseline_v56" }]);
   });
 
   it("acquires and releases workspace locks", () => {

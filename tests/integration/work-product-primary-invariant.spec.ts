@@ -100,6 +100,16 @@ describe("work product primary invariant", () => {
         create table settings (key text primary key, value text not null);
         create table companies (id text primary key, name text not null, description text not null, status text not null, created_at text not null, updated_at text not null);
         create table agents (id text primary key, company_id text not null, status text not null, reports_to text, department text, connector_id text not null default 'openai-codex', updated_at text not null);
+        create table tasks (
+          id text primary key,
+          company_id text not null,
+          title text not null,
+          description text not null,
+          status text not null,
+          priority text not null,
+          created_at text not null,
+          updated_at text not null
+        );
         create table workspaces (id text primary key, company_id text not null, local_path text not null, state text not null, lock_holder_run_id text, lock_acquired_at text, updated_at text not null);
         create table agent_messages (id text primary key, company_id text not null, channel text not null, channel_target_id text, created_at text not null);
         create table model_capabilities (
@@ -132,7 +142,8 @@ describe("work product primary invariant", () => {
           created_by_run_id TEXT,
           last_touched_by_run_id TEXT,
           created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
         );
         create table schema_migrations (version integer primary key, name text not null, applied_at text not null);
       `);
@@ -144,6 +155,9 @@ describe("work product primary invariant", () => {
       rawDb
         .prepare("insert into companies (id, name, description, status, created_at, updated_at) values (?, ?, ?, ?, ?, ?)")
         .run("company-1", "Legacy Co", "", "active", ts, ts);
+      rawDb
+        .prepare("insert into tasks (id, company_id, title, description, status, priority, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)")
+        .run("task-1", "company-1", "Legacy task", "", "in_progress", "medium", ts, ts);
       rawDb
         .prepare("insert into work_products (id, company_id, task_id, type, provider, external_id, title, status, review_state, is_primary, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         .run("older-primary", "company-1", "task-1", "file", "filesystem", "older.md", "Older", "active", "none", 1, "2026-04-24T00:00:01.000Z", "2026-04-24T00:00:01.000Z");
