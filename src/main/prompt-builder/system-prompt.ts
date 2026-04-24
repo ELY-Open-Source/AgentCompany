@@ -16,6 +16,7 @@ import {
   buildDecisionAuthoritySection,
   buildDepartmentSection,
 } from "./operating-instructions";
+import { buildCEOModeInstructions } from "./operating-instructions-ceo";
 import type { PromptContext } from "./index";
 import type { ProjectedSkill } from "../skill-types";
 import { roleMatchesLeadershipKeywords } from "../agent-role-helpers";
@@ -64,7 +65,7 @@ function escapeSkillXml(value: string): string {
     .replaceAll("'", "&apos;");
 }
 
-export function buildSystemPrompt(ctx: PromptContext): string {
+export function buildStableSystemPrompt(ctx: PromptContext): string {
   const m = getSystemMessages();
   const sections: string[] = [];
 
@@ -132,16 +133,6 @@ export function buildSystemPrompt(ctx: PromptContext): string {
       }))
       .join("\n");
     sections.push(m.directReportsSection(lines));
-
-    const workloadLines = ctx.directReports.map((report) => {
-      const reportTasks = ctx.allTasks.filter((t) => t.assigneeAgentId === report.id);
-      const inProgress = reportTasks.filter((t) => t.status === "in_progress").length;
-      const inReview = reportTasks.filter((t) => t.status === "in_review").length;
-      const blocked = reportTasks.filter((t) => t.status === "blocked").length;
-      const todo = reportTasks.filter((t) => t.status === "todo").length;
-      return m.teamWorkloadLine(report.name, report.role, inProgress, inReview, blocked, todo);
-    }).join("\n");
-    sections.push(m.teamWorkloadSection(workloadLines));
   }
 
   if (ctx.agent.department) {
@@ -192,6 +183,44 @@ export function buildSystemPrompt(ctx: PromptContext): string {
     sections.push(m.projectsSection(lines));
   }
 
+  const audience = isCEO ? "executive" : isManager ? "manager" : "individual_contributor";
+  sections.push(buildSOPSection(audience));
+  sections.push(buildAPISection(ctx, audience));
+
+  sections.push(buildDepartmentSection(ctx));
+  sections.push(buildOperatingInstructions(ctx, isCEO, isManager));
+  sections.push(buildDecisionAuthoritySection(ctx, isCEO, isManager));
+
+  sections.push(m.structuredOutputSection);
+
+  return sections.join("\n");
+}
+
+export function buildSystemPrompt(ctx: PromptContext): string {
+  return buildStableSystemPrompt(ctx);
+}
+
+export function buildVolatilePromptTail(ctx: PromptContext): string {
+  const m = getSystemMessages();
+  const sections: string[] = [];
+  const isCEO = ctx.chainOfCommand.length === 0;
+
+  if (isCEO) {
+    sections.push(...buildCEOModeInstructions(ctx));
+  }
+
+  if (ctx.directReports.length > 0) {
+    const workloadLines = ctx.directReports.map((report) => {
+      const reportTasks = ctx.allTasks.filter((t) => t.assigneeAgentId === report.id);
+      const inProgress = reportTasks.filter((t) => t.status === "in_progress").length;
+      const inReview = reportTasks.filter((t) => t.status === "in_review").length;
+      const blocked = reportTasks.filter((t) => t.status === "blocked").length;
+      const todo = reportTasks.filter((t) => t.status === "todo").length;
+      return m.teamWorkloadLine(report.name, report.role, inProgress, inReview, blocked, todo);
+    }).join("\n");
+    sections.push(m.teamWorkloadSection(workloadLines));
+  }
+
   if (ctx.sessionHandoff) sections.push(m.sessionHandoffSection(ctx.sessionHandoff));
 
   if (ctx.task) {
@@ -218,20 +247,12 @@ export function buildSystemPrompt(ctx: PromptContext): string {
   const approvalsSection = buildPendingApprovalsSection(ctx.pendingApprovals);
   if (approvalsSection) sections.push(approvalsSection);
 
-  const audience = isCEO ? "executive" : isManager ? "manager" : "individual_contributor";
-  sections.push(buildSOPSection(audience));
-  sections.push(buildAPISection(ctx, audience));
-
   if (ctx.recentComments.length > 0) {
     const lines = ctx.recentComments.slice(0, 10)
       .map((c) => m.recentCommentLine(c.taskTitle, c.authorName, c.body))
       .join("\n");
     sections.push(m.recentCommentsSection(lines));
   }
-
-  sections.push(buildDepartmentSection(ctx));
-  sections.push(buildOperatingInstructions(ctx, isCEO, isManager));
-  sections.push(buildDecisionAuthoritySection(ctx, isCEO, isManager));
 
   const meetingsSection = buildMeetingsSection({
     upcomingMeetings: ctx.upcomingMeetings ?? [],
@@ -261,7 +282,6 @@ export function buildSystemPrompt(ctx: PromptContext): string {
   });
   if (docsSection) sections.push(docsSection);
 
-  sections.push(m.structuredOutputSection);
   sections.push(m.importantRulesSection(ctx.agent.companyId, ctx.agent.id, ctx.runId));
 
   const localeName = ctx.locale === "zh" ? "Chinese" : null;

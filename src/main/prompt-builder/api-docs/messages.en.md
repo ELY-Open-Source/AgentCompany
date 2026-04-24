@@ -23,7 +23,7 @@ Example — send urgent message to a peer:
   curl -s -X POST "$AGENT_COMPANY_API_URL/api/companies/{{companyId}}/messages" \
     -H "Authorization: Bearer $AGENT_COMPANY_API_KEY" \
     -H "Content-Type: application/json" \
-    -H "X-Agent-Company-Run-Id: {{runId}}" \
+    -H "X-Agent-Company-Run-Id: $AGENT_COMPANY_RUN_ID" \
     -d '{"toAgentId":"PEER_ID","channel":"direct","subject":"Need API spec for integration","body":"I am working on task X and need the API contract from your team. Can you share or create a document?","priority":"urgent"}'
 
 ### List Your Messages

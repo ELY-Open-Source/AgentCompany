@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { buildSystemPrompt } from "../../../src/main/prompt-builder/index";
+import { buildSystemPrompt, buildTaskPrompt } from "../../../src/main/prompt-builder/index";
 import { installSharedSetup } from "./shared-setup";
 
 const shared = installSharedSetup();
@@ -19,7 +19,7 @@ describe("Step 1: CEO role detection", () => {
       chainOfCommand: [], // top-level
     });
 
-    const prompt = buildSystemPrompt(ctx);
+    const prompt = buildTaskPrompt(ctx);
 
     // CEO should NOT get IC instructions
     expect(prompt).not.toContain("Individual Contributor");

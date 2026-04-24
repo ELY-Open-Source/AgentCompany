@@ -71,6 +71,54 @@ function buildCtx(overrides: Partial<PromptContext> = {}): PromptContext {
   };
 }
 
+function buildTask(overrides: Partial<NonNullable<PromptContext["task"]>> = {}): NonNullable<PromptContext["task"]> {
+  const now = new Date().toISOString();
+  return {
+    id: "task-1",
+    companyId: "company-1",
+    projectId: null,
+    goalId: null,
+    parentId: null,
+    title: "Ship volatile task",
+    description: "This task should live in the volatile prompt tail.",
+    assigneeAgentId: "agent-1",
+    workspaceId: null,
+    status: "in_progress",
+    priority: "high",
+    activeRunId: null,
+    costUsd: 0,
+    taskType: null,
+    requiresUserReview: false,
+    requiresFilesystem: false,
+    startedAt: null,
+    completedAt: null,
+    cancelledAt: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+function buildApproval(overrides: Partial<PromptContext["pendingApprovals"][number]> = {}): PromptContext["pendingApprovals"][number] {
+  const now = new Date().toISOString();
+  return {
+    id: "approval-1",
+    companyId: "company-1",
+    relatedTaskId: null,
+    relatedAgentId: null,
+    requestedByAgentId: "agent-1",
+    type: "approve_ceo_strategy",
+    payloadSummary: "Review the volatile org gate.",
+    impactSummary: "Board decision required.",
+    payloadJson: null,
+    decisionNote: "",
+    state: "pending",
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
 describe("buildSystemPrompt leadership classification", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -110,6 +158,84 @@ describe("buildSystemPrompt leadership classification", () => {
     const second = buildSystemPrompt(ctx);
 
     expect(second).toBe(first);
+  });
+
+  it("keeps run, locale, and task context out of the stable system prompt", () => {
+    const ctx = buildCtx({
+      runId: "run-volatile",
+      locale: "zh",
+      task: buildTask(),
+      wakeReason: "assignment",
+    });
+
+    const stablePrompt = buildSystemPrompt(ctx);
+    const fullPrompt = buildTaskPrompt(ctx);
+
+    expect(stablePrompt).not.toContain("run-volatile");
+    expect(stablePrompt).not.toContain("Ship volatile task");
+    expect(stablePrompt).not.toContain("Respond to the user in Chinese.");
+    expect(stablePrompt).not.toContain("{{runId}}");
+    expect(stablePrompt).toContain("$AGENT_COMPANY_RUN_ID");
+    expect(fullPrompt).toContain("Current Run ID: run-volatile");
+    expect(fullPrompt).toContain("Ship volatile task");
+    expect(fullPrompt).toContain("Respond to the user in Chinese.");
+  });
+
+  it("keeps the stable prefix identical across volatile run changes", () => {
+    const firstCtx = buildCtx({
+      runId: "run-a",
+      locale: "en",
+      task: buildTask({ id: "task-a", title: "First volatile task" }),
+      wakeReason: "timer",
+    });
+    const secondCtx = buildCtx({
+      runId: "run-b",
+      locale: "zh",
+      task: buildTask({ id: "task-b", title: "Second volatile task" }),
+      wakeReason: "assignment",
+    });
+
+    const firstStable = buildSystemPrompt(firstCtx);
+    const secondStable = buildSystemPrompt(secondCtx);
+    const secondFull = buildTaskPrompt(secondCtx);
+
+    expect(secondStable).toBe(firstStable);
+    expect(secondFull.slice(0, secondStable.length)).toBe(secondStable);
+    expect(secondFull.slice(secondStable.length)).toContain("Second volatile task");
+  });
+
+  it("keeps approval gates and workload counts out of the stable system prompt", () => {
+    const baseAgent = buildCtx().agent;
+    const report = {
+      ...baseAgent,
+      id: "report-1",
+      name: "Engineer",
+      role: "Engineer",
+      title: "Staff Engineer",
+      reportsTo: baseAgent.id,
+    };
+    const stableBase = buildCtx({
+      chainOfCommand: [],
+      directReports: [report],
+      allAgents: [baseAgent, report],
+      allTasks: [buildTask({ id: "report-task", assigneeAgentId: report.id, status: "todo" })],
+      pendingApprovals: [],
+    });
+    const volatileChanged = buildCtx({
+      chainOfCommand: [],
+      directReports: [report],
+      allAgents: [baseAgent, report],
+      allTasks: [buildTask({ id: "report-task", assigneeAgentId: report.id, status: "blocked" })],
+      pendingApprovals: [buildApproval()],
+    });
+
+    const stablePrompt = buildSystemPrompt(stableBase);
+    const changedStablePrompt = buildSystemPrompt(volatileChanged);
+    const changedFullPrompt = buildTaskPrompt(volatileChanged);
+
+    expect(changedStablePrompt).toBe(stablePrompt);
+    expect(changedFullPrompt).toContain("Pending Approvals");
+    expect(changedFullPrompt).toContain("1 blocked");
   });
 
   it("keeps volatile task context after the cacheable system prefix", () => {

@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { buildSystemPrompt, buildTaskPrompt } from "../../../src/main/prompt-builder/index";
+import { buildTaskPrompt } from "../../../src/main/prompt-builder/index";
 import type { ApprovalRecord } from "../../../src/shared/types";
 import { installSharedSetup } from "./shared-setup";
 
@@ -23,7 +23,7 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
       chainOfCommand: [],
       pendingApprovals: [],
     });
-    const phase0Prompt = buildSystemPrompt(phase0Ctx);
+    const phase0Prompt = buildTaskPrompt(phase0Ctx);
     expect(phase0Prompt).toContain("Team Building Phase");
 
     // 2. CEO submits hire requests
@@ -60,7 +60,7 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
         updatedAt: new Date().toISOString(),
       } as ApprovalRecord],
     });
-    const phase1Prompt = buildSystemPrompt(phase1Ctx);
+    const phase1Prompt = buildTaskPrompt(phase1Ctx);
     expect(phase1Prompt).toContain("Awaiting Org Strategy Approval");
 
     // 4. Board approves hires
@@ -100,7 +100,7 @@ describe("E2E: Full autonomous CEO cold start flow", () => {
       chainOfCommand: [],
       pendingApprovals: [], // all approved now
     });
-    const phase2Prompt = buildSystemPrompt(phase2Ctx);
+    const phase2Prompt = buildTaskPrompt(phase2Ctx);
     expect(phase2Prompt).toContain("Executive / CEO");
     expect(phase2Prompt).toContain("Goal Decomposition");
     expect(phase2Prompt).toContain("Delegation");
@@ -226,7 +226,7 @@ describe("Review Fix: CEO phase ordering edge case", () => {
       pendingApprovals: [], // org strategy already resolved
     });
 
-    const prompt = buildSystemPrompt(ctx);
+    const prompt = buildTaskPrompt(ctx);
     // Should NOT get Phase 0 (team building) — hires are already submitted
     expect(prompt).not.toContain("Team Building Phase");
     // Should get the awaiting hire approvals phase
@@ -245,7 +245,7 @@ describe("Review Fix: CEO phase ordering edge case", () => {
       pendingApprovals: [],
     });
 
-    const prompt = buildSystemPrompt(ctx);
+    const prompt = buildTaskPrompt(ctx);
     expect(prompt).toContain("Executive / CEO");
     expect(prompt).not.toContain("Awaiting Hire Approvals");
     expect(prompt).not.toContain("Team Building Phase");
@@ -277,7 +277,7 @@ describe("Review Fix: Org gate consistency (revision_requested)", () => {
       ],
     });
 
-    const prompt = buildSystemPrompt(ctx);
+    const prompt = buildTaskPrompt(ctx);
     expect(prompt).toContain("Awaiting Org Strategy Approval");
     expect(prompt).toContain("revision_requested");
   });

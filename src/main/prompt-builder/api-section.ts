@@ -104,7 +104,6 @@ function render(template: string, ctx: PromptContext): string {
     .replace(/\{\{apiUrl\}\}/g, ctx.apiUrl)
     .replace(/\{\{companyId\}\}/g, ctx.agent.companyId)
     .replace(/\{\{agentId\}\}/g, ctx.agent.id)
-    .replace(/\{\{runId\}\}/g, ctx.runId)
     .replace(/\{\{connectorIds\}\}/g, connectorIds)
     .replace(/\{\{approvalTypes\}\}/g, approvalTypeEnum.options.join("|"))
     .replace(/\{\{approvalTypeList\}\}/g, renderApprovalTypeList())

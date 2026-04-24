@@ -1,11 +1,11 @@
 import type { AgentRecord, ApprovalRecord, DocumentRecord, ExecutionMode, GoalRecord, KnowledgeEntryRecord, MeetingRecord, ProjectRecord, SprintRecord, TaskRecord } from "@shared/types";
 import type { AppLocale } from "@shared/locale";
 import type { ProjectedSkill } from "../skill-types";
-import { buildSystemPrompt } from "./system-prompt";
+import { buildSystemPrompt, buildVolatilePromptTail } from "./system-prompt";
 import { renderWakeReason } from "./wake-reasons";
 import { getSystemMessages } from "./messages";
 
-export { buildSystemPrompt } from "./system-prompt";
+export { buildStableSystemPrompt, buildSystemPrompt, buildVolatilePromptTail } from "./system-prompt";
 
 export interface PromptContext {
   agent: AgentRecord;
@@ -97,6 +97,11 @@ export function buildTaskPrompt(ctx: PromptContext): string {
   // text is needed for the system prompt anymore.
   if (ctx.task) {
     parts.push(m.immediateTaskSection(ctx.task.title, ctx.task.description, ctx.task.priority));
+  }
+
+  const volatileContextTail = buildVolatilePromptTail(ctx);
+  if (volatileContextTail) {
+    parts.push(`\n${volatileContextTail}`);
   }
 
   return parts.join("");

@@ -27,7 +27,7 @@ Example: Create a task assigned to a report:
   curl -s -X POST "$AGENT_COMPANY_API_URL/api/companies/{{companyId}}/issues" \
     -H "Authorization: Bearer $AGENT_COMPANY_API_KEY" \
     -H "Content-Type: application/json" \
-    -H "X-Agent-Company-Run-Id: {{runId}}" \
+    -H "X-Agent-Company-Run-Id: $AGENT_COMPANY_RUN_ID" \
     -d '{"title":"Implement user auth","description":"Build JWT-based auth with refresh tokens. Acceptance: login, logout, token refresh all work.","assigneeAgentId":"REPORT_ID","projectId":"PROJ_ID","goalId":"GOAL_ID","requiresFilesystem":true,"priority":"high","status":"todo"}'
 
 ### Update a Task
@@ -48,13 +48,13 @@ Example — approve reviewed work:
   curl -s -X PATCH "$AGENT_COMPANY_API_URL/api/issues/ISSUE_ID" \
     -H "Authorization: Bearer $AGENT_COMPANY_API_KEY" \
     -H "Content-Type: application/json" \
-    -H "X-Agent-Company-Run-Id: {{runId}}" \
+    -H "X-Agent-Company-Run-Id: $AGENT_COMPANY_RUN_ID" \
     -d '{"status":"done","comment":"Reviewed and approved. Implementation meets acceptance criteria."}'
 Example — request changes:
   curl -s -X PATCH "$AGENT_COMPANY_API_URL/api/issues/ISSUE_ID" \
     -H "Authorization: Bearer $AGENT_COMPANY_API_KEY" \
     -H "Content-Type: application/json" \
-    -H "X-Agent-Company-Run-Id: {{runId}}" \
+    -H "X-Agent-Company-Run-Id: $AGENT_COMPANY_RUN_ID" \
     -d '{"status":"in_progress","comment":"Needs changes: 1) Add error handling for edge case X. 2) Unit test coverage is below threshold."}'
 
 ### Checkout a Task (claim it before working)

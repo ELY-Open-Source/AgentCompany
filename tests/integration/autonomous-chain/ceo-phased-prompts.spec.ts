@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { buildSystemPrompt } from "../../../src/main/prompt-builder/index";
+import { buildSystemPrompt, buildTaskPrompt } from "../../../src/main/prompt-builder/index";
 import type { ApprovalRecord } from "../../../src/shared/types";
 import { installSharedSetup } from "./shared-setup";
 
@@ -22,14 +22,21 @@ describe("Step 2: CEO phased prompts", () => {
       pendingApprovals: [],
     });
 
-    const prompt = buildSystemPrompt(ctx);
+    const stablePrompt = buildSystemPrompt(ctx);
+    const prompt = buildTaskPrompt(ctx);
+
+    expect(stablePrompt).not.toContain("Team Building Phase");
+    expect(stablePrompt).not.toContain("Awaiting Hire Approvals");
+    expect(stablePrompt).not.toContain("Awaiting Org Strategy Approval");
     expect(prompt).toContain("Team Building Phase");
     expect(prompt).toContain("file 3–5 `hire_agent` tool calls");
     expect(prompt).toContain("Do this first — file the hires");
     expect(prompt).not.toContain("file_approval.strategy.before_hires");
     expect(prompt).not.toContain("file_approval.strategy.already_filed");
     expect(prompt).not.toContain("Awaiting Org Strategy Approval");
+    expect(prompt).not.toContain("Standup & Situational Assessment");
     expect(prompt).not.toContain("Goal Decomposition");
+    expect(prompt).not.toContain("Proactive Behaviors");
   });
 
   it("Phase 0.5: shows awaiting hire approvals when pending_approval hires exist but no org approval", () => {
@@ -45,12 +52,19 @@ describe("Step 2: CEO phased prompts", () => {
       pendingApprovals: [],
     });
 
-    const prompt = buildSystemPrompt(ctx);
+    const stablePrompt = buildSystemPrompt(ctx);
+    const prompt = buildTaskPrompt(ctx);
+
+    expect(stablePrompt).not.toContain("Team Building Phase");
+    expect(stablePrompt).not.toContain("Awaiting Hire Approvals");
+    expect(stablePrompt).not.toContain("Awaiting Org Strategy Approval");
     expect(prompt).toContain("Awaiting Hire Approvals");
     expect(prompt).toContain("call `file_approval` once");
     expect(prompt).toContain("file_approval.strategy.before_hires");
     expect(prompt).not.toContain("Team Building Phase");
+    expect(prompt).not.toContain("Standup & Situational Assessment");
     expect(prompt).not.toContain("Goal Decomposition");
+    expect(prompt).not.toContain("Proactive Behaviors");
   });
 
   it("Phase 1: shows awaiting org approval when pending approve_ceo_strategy exists", () => {
@@ -77,10 +91,17 @@ describe("Step 2: CEO phased prompts", () => {
       ],
     });
 
-    const prompt = buildSystemPrompt(ctx);
+    const stablePrompt = buildSystemPrompt(ctx);
+    const prompt = buildTaskPrompt(ctx);
+
+    expect(stablePrompt).not.toContain("Team Building Phase");
+    expect(stablePrompt).not.toContain("Awaiting Hire Approvals");
+    expect(stablePrompt).not.toContain("Awaiting Org Strategy Approval");
     expect(prompt).toContain("Awaiting Org Strategy Approval");
     expect(prompt).not.toContain("Team Building Phase");
+    expect(prompt).not.toContain("Standup & Situational Assessment");
     expect(prompt).not.toContain("Goal Decomposition");
+    expect(prompt).not.toContain("Proactive Behaviors");
   });
 
   it("Phase 2: shows normal executive instructions when active reports and no pending org approval", () => {
@@ -95,11 +116,12 @@ describe("Step 2: CEO phased prompts", () => {
       pendingApprovals: [],
     });
 
-    const prompt = buildSystemPrompt(ctx);
+    const prompt = buildTaskPrompt(ctx);
     expect(prompt).toContain("Executive / CEO");
     expect(prompt).toContain("Goal Decomposition");
     expect(prompt).toContain("Delegation");
     expect(prompt).toContain("Unblock & Coordinate");
+    expect(prompt).toContain("Proactive Behaviors");
     expect(prompt).not.toContain("Team Building Phase");
     expect(prompt).not.toContain("Awaiting Org Approval");
   });
@@ -130,7 +152,7 @@ describe("Step 2: CEO phased prompts", () => {
       ],
     });
 
-    const prompt = buildSystemPrompt(ctx);
+    const prompt = buildTaskPrompt(ctx);
     expect(prompt).toContain("Pending Approvals");
     expect(prompt).toContain("Need Twitter API keys");
   });

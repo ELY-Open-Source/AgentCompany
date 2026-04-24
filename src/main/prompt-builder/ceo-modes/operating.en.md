@@ -16,7 +16,7 @@ Before doing anything else, assess the state of the company:
 If there are NO active goals, this is your top priority — create strategic goals:
   curl -s -X POST "$AGENT_COMPANY_API_URL/api/companies/{{companyId}}/goals" \
     -H "Authorization: Bearer $AGENT_COMPANY_API_KEY" -H "Content-Type: application/json" \
-    -H "X-Agent-Company-Run-Id: {{runId}}" \
+    -H "X-Agent-Company-Run-Id: $AGENT_COMPANY_RUN_ID" \
     -d '{"title":"Goal title","description":"Measurable success criteria","ownerAgentId":"{{agentId}}","status":"active"}'
 Then decompose each goal into projects, and each project into tasks assigned to department leads.
 

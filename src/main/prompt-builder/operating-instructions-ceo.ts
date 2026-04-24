@@ -38,13 +38,19 @@ const MODE_TEMPLATES: Record<CeoMode, string> = {
 function render(template: string, ctx: PromptContext): string {
   return template
     .replace(/\{\{companyId\}\}/g, ctx.agent.companyId)
-    .replace(/\{\{agentId\}\}/g, ctx.agent.id)
-    .replace(/\{\{runId\}\}/g, ctx.runId);
+    .replace(/\{\{agentId\}\}/g, ctx.agent.id);
 }
 
-export function buildCEOInstructions(ctx: PromptContext): string[] {
+export function buildStableCEOInstructions(): string[] {
+  // Stable CEO directives come from identity, leadership style, culture, and
+  // decision authority sections. Mode SOPs live in the volatile tail.
+  return [];
+}
+
+export function buildCEOModeInstructions(ctx: PromptContext): string[] {
   const parts: string[] = [];
   const mode = resolveMode(ctx);
+
   parts.push(render(MODE_TEMPLATES[mode], ctx));
 
   if (mode === "team_building") {
@@ -52,6 +58,16 @@ export function buildCEOInstructions(ctx: PromptContext): string[] {
     if (connectorSection) parts.push(connectorSection);
   }
 
-  parts.push(render(proactiveFooterEn, ctx));
+  if (mode === "operating") {
+    parts.push(render(proactiveFooterEn, ctx));
+  }
+
   return parts;
+}
+
+export function buildCEOInstructions(ctx: PromptContext): string[] {
+  return [
+    ...buildCEOModeInstructions(ctx),
+    ...buildStableCEOInstructions(),
+  ];
 }

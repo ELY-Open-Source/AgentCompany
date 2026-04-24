@@ -1,5 +1,5 @@
 import type { PromptContext } from "./index";
-import { buildCEOInstructions } from "./operating-instructions-ceo";
+import { buildStableCEOInstructions } from "./operating-instructions-ceo";
 import { getOperatingMessages } from "./messages";
 
 import engineeringEn from "./department-guidelines/engineering.en.md?raw";
@@ -25,7 +25,7 @@ export function buildOperatingInstructions(ctx: PromptContext, isCEO: boolean, i
   }
 
   if (isCEO) {
-    parts.push(...buildCEOInstructions(ctx));
+    parts.push(...buildStableCEOInstructions());
   } else if (isManager) {
     parts.push(...m.managerInstructions(ctx.agent.companyId));
   } else {
