@@ -1,9 +1,11 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { FatalError } from "./errors/index.js";
 
 let signingKey: Buffer | null = null;
 const TOKEN_TTL_MS = 48 * 60 * 60 * 1000; // 48 hours
+const SIGNING_KEY_BYTES = 32;
 
 // Once-per-process warning when a malformed token shape is seen. Helps
 // diagnose schema breaks after upgrades — without leaking the full token.
@@ -12,7 +14,7 @@ function warnMalformedTokenOnce(token: string, reason: string) {
   if (loggedMalformedTokenWarning) return;
   loggedMalformedTokenWarning = true;
   const fingerprint = token.slice(0, 8);
-   
+
   console.warn(`[agent-auth] token shape invalid (${reason}); first8="${fingerprint}..."`);
 }
 
@@ -69,15 +71,25 @@ function getSigningKey() {
 }
 
 export function initializeAgentTokenSigningKey(profileDir: string) {
-  // Rotate the signing key on every launch. Any token issued by a prior
-  // process becomes unverifiable — agent sessions re-authenticate when
-  // they resume, so the cost of invalidating in-flight tokens is bounded
-  // and the blast radius of a leaked key is "until next restart".
   mkdirSync(profileDir, { recursive: true });
   const keyPath = join(profileDir, "agent-api-signing.key");
-  const nextKey = randomBytes(32);
-  writeFileSync(keyPath, nextKey, { mode: 0o600 });
-  signingKey = nextKey;
+  let key: Buffer;
+  try {
+    key = readFileSync(keyPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    key = randomBytes(SIGNING_KEY_BYTES);
+    writeFileSync(keyPath, key, { mode: 0o600, flag: "wx" });
+  }
+  if (key.length !== SIGNING_KEY_BYTES) {
+    throw new FatalError({
+      code: "agent_auth.signing_key.invalid",
+      message: `Agent token signing key must be ${SIGNING_KEY_BYTES} bytes.`,
+      context: { keyPath, actualBytes: key.length },
+    });
+  }
+  chmodSync(keyPath, 0o600);
+  signingKey = key;
 }
 
 export function createAgentToken(agentId: string, companyId: string, runId: string): string {
