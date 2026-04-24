@@ -17,7 +17,8 @@ vi.mock("electron", () => ({
 }));
 
 import { AppDatabase } from "../../src/main/database";
-import { createHeartbeatScheduler } from "../../src/main/orchestration/scheduler-heartbeat";
+import { createHeartbeat } from "../../src/main/orchestration/heartbeat";
+import { createScheduler } from "../../src/main/orchestration/scheduler";
 import type { OrchestrationDependencies } from "../../src/main/orchestration/types";
 
 function createLogger() {
@@ -61,8 +62,8 @@ function createAgent(db: AppDatabase, companyId: string, workspaceId: string): s
   const agentId = db.core.agents.saveAgent({
     companyId,
     name: "Scheduler Agent",
-    role: "Engineer",
-    title: "Runtime Engineer",
+    role: "CEO",
+    title: "Chief Executive Officer",
     status: "active",
     reportsTo: null,
     connectorId: "openai-codex",
@@ -75,7 +76,7 @@ function createAgent(db: AppDatabase, companyId: string, workspaceId: string): s
   return agentId;
 }
 
-function createDeps(db: AppDatabase): OrchestrationDependencies {
+function createDeps(db: AppDatabase, overrides: Partial<OrchestrationDependencies> = {}): OrchestrationDependencies {
   return {
     db,
     logger: createLogger(),
@@ -85,18 +86,20 @@ function createDeps(db: AppDatabase): OrchestrationDependencies {
     createRunToken: () => "test-token",
     getApiPort: () => 3210,
     dispatchAutomation: vi.fn(),
-    hasWorkerReady: () => false,
+    hasWorkerReady: () => true,
     enqueueWorkerRun: vi.fn(),
     isQuitting: () => false,
     listRuntimeSkillEntries: () => [],
     budgetService: {
+      autoCloseExpiredIncidents: vi.fn(() => 0),
       evaluateBudgetGate: vi.fn(() => ({ allowed: true, blockedBy: [] })),
     } as never,
     checkpointEngine: { shouldPauseHeartbeat: () => false },
+    ...overrides,
   };
 }
 
-describe("heartbeat scheduler", () => {
+describe("unified scheduler heartbeat cadence", () => {
   let tempDir: string;
   let db: AppDatabase;
 
@@ -114,30 +117,23 @@ describe("heartbeat scheduler", () => {
     vi.useRealTimers();
   });
 
-  it("records worker readiness skips from the heartbeat run decision", () => {
+  it("records worker readiness skips from the heartbeat wake decision", () => {
     const companyId = createCompany(db);
     createConnector(db);
     const workspaceId = createWorkspace(db, companyId, tempDir);
     const agentId = createAgent(db, companyId, workspaceId);
-    const startAgentHeartbeatRun = vi.fn(() => ({
-      status: "skipped" as const,
-      reason: "system_unavailable" as const,
-      detail: "worker_not_ready",
-    }));
-    const scheduler = createHeartbeatScheduler(
-      createDeps(db),
+    const heartbeat = createHeartbeat(
+      createDeps(db, { hasWorkerReady: () => false }),
+      () => {
+        throw new Error("resolveWorkspace should stay behind canRunAgent.");
+      },
+      () => null,
+      vi.fn(),
       () => false,
-      startAgentHeartbeatRun,
     );
 
-    try {
-      scheduler.start();
-      vi.advanceTimersByTime(15_000);
-    } finally {
-      scheduler.stop();
-    }
+    expect(heartbeat.wakeAgentIfPossible(agentId, companyId, "timer")).toBeNull();
 
-    expect(startAgentHeartbeatRun).toHaveBeenCalledWith(agentId, companyId, "timer");
     const activity = db.projection.snapshot.listSnapshot({ companyId }).activity;
     const skip = activity.find((entry) => entry.action === "heartbeat.skipped");
     expect(skip?.entityId).toBe(agentId);
@@ -148,5 +144,78 @@ describe("heartbeat scheduler", () => {
       trigger: "timer",
     });
     expect(db.core.agents.getRuntimeState(agentId)).not.toHaveProperty("heartbeatSkip");
+  });
+
+  it("keeps ordinary agent heartbeat cadence event-driven", () => {
+    const companyId = createCompany(db);
+    createConnector(db);
+    const workspaceId = createWorkspace(db, companyId, tempDir);
+    createAgent(db, companyId, workspaceId);
+    const wakeAgentIfPossible = vi.fn();
+    const scheduler = createScheduler(
+      createDeps(db),
+      () => false,
+      wakeAgentIfPossible,
+    );
+
+    try {
+      scheduler.startAllSchedulers();
+      vi.advanceTimersByTime(60_000);
+    } finally {
+      scheduler.stopAllSchedulers();
+    }
+
+    expect(wakeAgentIfPossible).not.toHaveBeenCalled();
+  });
+
+  it("bootstraps the CEO through the wake pipeline", () => {
+    const companyId = createCompany(db);
+    createConnector(db);
+    const workspaceId = createWorkspace(db, companyId, tempDir);
+    const agentId = createAgent(db, companyId, workspaceId);
+    db.core.entity.saveGoal({
+      companyId,
+      title: "Launch the company",
+      description: "Create the first operating plan.",
+      status: "active",
+      ownerAgentId: agentId,
+    });
+    const wakeAgentIfPossible = vi.fn();
+    const scheduler = createScheduler(
+      createDeps(db, { hasWorkerReady: () => false }),
+      () => false,
+      wakeAgentIfPossible,
+    );
+
+    try {
+      scheduler.startAllSchedulers();
+      vi.advanceTimersByTime(60_000);
+    } finally {
+      scheduler.stopAllSchedulers();
+    }
+
+    expect(wakeAgentIfPossible).toHaveBeenCalledWith(agentId, companyId, "bootstrap");
+  });
+
+  it("keeps schedule cadence running while the worker is unavailable", () => {
+    const companyId = createCompany(db);
+    const dispatchAutomation = vi.fn();
+    const scheduler = createScheduler(
+      createDeps(db, {
+        dispatchAutomation,
+        hasWorkerReady: () => false,
+      }),
+      () => false,
+      vi.fn(),
+    );
+
+    try {
+      scheduler.startAllSchedulers();
+      vi.advanceTimersByTime(60_000);
+    } finally {
+      scheduler.stopAllSchedulers();
+    }
+
+    expect(dispatchAutomation).toHaveBeenCalledWith("schedule", { companyId });
   });
 });

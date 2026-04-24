@@ -54,6 +54,77 @@ export function createHeartbeat(
     hasWorkerReady,
     isQuitting,
   } = deps;
+  const skipStreakByAgent = new Map<string, { reason: string; detail: string; count: number; since: string }>();
+  const SKIP_ONGOING_EVERY_N = 40;
+
+  function recordSkipActivity(
+    agentId: string,
+    companyId: string,
+    agentName: string,
+    reason: HeartbeatBlockReason,
+    detail: string,
+    trigger: string,
+  ) {
+    const tickAt = new Date().toISOString();
+    const previous = skipStreakByAgent.get(agentId);
+    const sameReason = previous && previous.reason === reason && previous.detail === detail;
+    const nextStreak = sameReason
+      ? { reason, detail, count: previous.count + 1, since: previous.since }
+      : { reason, detail, count: 1, since: tickAt };
+    skipStreakByAgent.set(agentId, nextStreak);
+
+    const action = !sameReason
+      ? "heartbeat.skipped"
+      : nextStreak.count % SKIP_ONGOING_EVERY_N === 0
+        ? "heartbeat.skip_ongoing"
+        : null;
+    if (!action) return;
+
+    try {
+      db.core.activity.addActivity({
+        companyId,
+        actor: "system",
+        action,
+        entityType: "agent",
+        entityId: agentId,
+        detail: JSON.stringify({
+          agentName,
+          reason,
+          detail,
+          streak: nextStreak.count,
+          since: nextStreak.since,
+          trigger,
+        }),
+      });
+    } catch (error) {
+      logger.warn(`[heartbeat] Failed to append ${action} activity for ${agentName}:`, error);
+    }
+  }
+
+  function clearSkipActivity(agentId: string, companyId: string, agentName: string) {
+    const previous = skipStreakByAgent.get(agentId);
+    if (!previous) return;
+    skipStreakByAgent.delete(agentId);
+    try {
+      db.core.activity.addActivity({
+        companyId,
+        actor: "system",
+        action: "heartbeat.skip_cleared",
+        entityType: "agent",
+        entityId: agentId,
+        detail: JSON.stringify({
+          agentName,
+          reason: previous.reason,
+          detail: previous.detail,
+          streak: previous.count,
+          since: previous.since,
+          resumedAt: new Date().toISOString(),
+        }),
+      });
+    } catch (error) {
+      logger.warn(`[heartbeat] Failed to append heartbeat.skip_cleared activity for ${agentName}:`, error);
+    }
+  }
 
   function ensureAgentHeartbeatEnabled(agentId: string) {
     const agent = db.core.entity.getAgent(agentId);
@@ -300,8 +371,9 @@ export function createHeartbeat(
     // (e.g. a future automation action that forwards the `toAgentId`
     // raw) from spamming the log with "Agent not found: __board__".
     if (agentId === HUMAN_SENDER_ID) return null;
+    let agent: AgentRecord;
     try {
-      const agent = db.core.entity.getAgent(agentId);
+      agent = db.core.entity.getAgent(agentId);
       if (agent.companyId !== companyId) {
         logger.warn(`[wake] Refusing cross-company wake for agent ${agentId}: ${agent.companyId} !== ${companyId}`);
         return null;
@@ -325,6 +397,7 @@ export function createHeartbeat(
 
     const result = startAgentHeartbeatRun(agentId, companyId, trigger);
     if (result.status === "skipped") {
+      recordSkipActivity(agentId, companyId, agent.name, result.reason, result.detail, trigger);
       db.automation.wakeup.enqueueWakeupRequest(
         companyId,
         agentId,
@@ -334,6 +407,7 @@ export function createHeartbeat(
       );
       return null;
     }
+    clearSkipActivity(agentId, companyId, agent.name);
     db.automation.wakeup.completePendingWakeupRequests(agentId, companyId, result.runId);
     return result.runId;
   }

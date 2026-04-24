@@ -22,7 +22,6 @@ export function createOrchestrationService(deps: OrchestrationDependencies) {
   const scheduler = createScheduler(
     deps,
     hasActiveRun,
-    heartbeat.startAgentHeartbeatRun,
     heartbeat.wakeAgentIfPossible,
   );
   const taskRunner = createTaskRunner(
