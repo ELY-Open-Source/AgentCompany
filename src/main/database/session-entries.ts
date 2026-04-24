@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import type { ReadAll, Transaction } from "./helpers";
 import { nowIso } from "./helpers";
 
@@ -33,7 +33,7 @@ export interface AppendInput {
 export function buildSessionEntryMethods(
   getDb: () => DatabaseSync,
   readAll: ReadAll,
-  _transaction: Transaction,
+  transaction: Transaction,
 ) {
   function nextSequence(taskSessionId: string): number {
     const rows = readAll<{ maxSeq: number | null }>(
@@ -82,7 +82,7 @@ export function buildSessionEntryMethods(
       payload_json: string;
       created_at: string;
     }>(
-      "select id, task_session_id, sequence, kind, role, payload_json, created_at from session_entries where task_session_id = ? and is_superseded = 0 order by created_at asc, sequence asc",
+      "select id, task_session_id, sequence, kind, role, payload_json, created_at from session_entries where task_session_id = ? and is_superseded = 0 order by sequence asc, created_at asc",
       taskSessionId,
     );
     return rows.map((row) => ({
@@ -96,5 +96,52 @@ export function buildSessionEntryMethods(
     }));
   }
 
-  return { append, listActive };
+  function compactWithSummary(input: {
+    taskSessionId: string;
+    supersedeEntryIds: string[];
+    summaryRole: string | null;
+    summaryPayloadJson: string;
+  }): SessionEntryRow {
+    return transaction(() => {
+      const uniqueIds = [...new Set(input.supersedeEntryIds)];
+      if (uniqueIds.length === 0) {
+        throw new Error("session_entries compaction requires at least one entry to supersede.");
+      }
+      const placeholders = uniqueIds.map(() => "?").join(", ");
+      const rows = readAll<{ id: string; sequence: number }>(
+        `select id, sequence from session_entries where task_session_id = ? and is_superseded = 0 and id in (${placeholders}) order by sequence asc`,
+        input.taskSessionId,
+        ...(uniqueIds as SQLInputValue[]),
+      );
+      if (rows.length !== uniqueIds.length) {
+        throw new Error(`session_entries compaction expected ${uniqueIds.length} active row(s), found ${rows.length}.`);
+      }
+      const summarySequence = rows[0]?.sequence;
+      if (summarySequence === undefined) {
+        throw new Error("session_entries compaction could not resolve summary sequence.");
+      }
+      getDb()
+        .prepare(`update session_entries set is_superseded = 1 where task_session_id = ? and id in (${placeholders})`)
+        .run(input.taskSessionId, ...(uniqueIds as SQLInputValue[]));
+
+      const id = randomUUID();
+      const created = nowIso();
+      getDb()
+        .prepare(
+          "insert into session_entries (id, task_session_id, sequence, kind, role, payload_json, is_superseded, created_at) values (?, ?, ?, 'message', ?, ?, 0, ?)",
+        )
+        .run(id, input.taskSessionId, summarySequence, input.summaryRole, input.summaryPayloadJson, created);
+      return {
+        id,
+        taskSessionId: input.taskSessionId,
+        sequence: summarySequence,
+        kind: "message",
+        role: input.summaryRole,
+        payloadJson: input.summaryPayloadJson,
+        createdAt: created,
+      };
+    });
+  }
+
+  return { append, listActive, compactWithSummary };
 }
