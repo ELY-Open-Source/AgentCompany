@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { RuntimeBridge } from "../../src/main/agent-runtime";
 import { AppDatabase } from "../../src/main/database";
 import type { CredentialResolver } from "../../src/main/credentials";
+import { workerRpcMethodSchema } from "../../src/main/worker/entry/types";
 
 const tempDirs: string[] = [];
 
@@ -108,42 +109,8 @@ async function createHarness() {
 }
 
 describe("artifact projection durable ack", () => {
-  it("persists afterToolCall projection outcomes to the run event tail", async () => {
-    const harness = await createHarness();
-    try {
-      await mkdir(join(harness.workspacePath, "reports"), { recursive: true });
-      await writeFile(join(harness.workspacePath, "reports", "hook.md"), "hook artifact", "utf8");
-
-      const response = await harness.bridge.handleRpc({
-        rpcId: "after-tool",
-        method: "afterToolCall",
-        runId: harness.runId,
-        payload: {
-          toolName: "write",
-          toolCallId: "tool-call-hook",
-          args: { path: "reports/hook.md" },
-          resultContent: [],
-          resultDetails: null,
-          isError: false,
-        },
-      });
-
-      expect(response.ok).toBe(true);
-      const event = harness.db.core.runs.listRunEvents(harness.runId, harness.companyId)[0];
-      expect(event).toMatchObject({
-        eventType: "artifact_projection",
-        level: "info",
-      });
-      expect(event?.payload).toMatchObject({
-        phase: "after_tool_call",
-        toolName: "write",
-        toolCallId: "tool-call-hook",
-        workspaceMode: "none",
-        counts: { inserted: 1, updated: 0, retired: 0, skipped: 0 },
-      });
-    } finally {
-      harness.db.close();
-    }
+  it("keeps artifact projection out of the per-tool RPC method surface", () => {
+    expect(workerRpcMethodSchema.safeParse("afterToolCall").success).toBe(false);
   });
 
   it("runs completion reconciliation before resource release for non-exclusive observation workspaces", async () => {
@@ -170,6 +137,8 @@ describe("artifact projection durable ack", () => {
         workspaceMode: "none",
         counts: { inserted: 1, updated: 0, retired: 0, skipped: 0 },
       });
+      expect(events[0]?.payload).not.toHaveProperty("toolName");
+      expect(events[0]?.payload).not.toHaveProperty("toolCallId");
     } finally {
       harness.db.close();
     }

@@ -1,12 +1,5 @@
 import type { Logger } from "./artifact-logging";
 
-export type ArtifactProjectorToolEvent = {
-  toolName: string;
-  args: unknown;
-  result: unknown;
-  isError: boolean;
-};
-
 export type ArtifactProjectorRunContext = {
   runId: string;
   agentId: string;
@@ -18,9 +11,8 @@ export type ArtifactProjectorRunContext = {
   logger?: Logger;
   /**
    * mtime snapshot captured at run start for workspaces that are NOT
-   * a git repo. Diff-against-baseline is how `projectBashArtifacts`
-   * and `reconcileWorkspaceArtifacts` find files the agent wrote
-   * without a `.git` to fall back on.
+   * a git repo. Diff-against-baseline is how completion reconciliation
+   * finds files the agent wrote without a `.git` to fall back on.
    */
   workspaceBaseline: WorkspaceBaseline | null;
 };

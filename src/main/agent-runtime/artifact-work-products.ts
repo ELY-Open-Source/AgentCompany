@@ -1,26 +1,9 @@
 import { statSync } from "node:fs";
-import { isAbsolute, relative, resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import type { AppDatabase } from "@main/database";
 import { logArtifactFsError } from "./artifact-logging";
 import { isRegistrablePath } from "./artifact-path-filter";
 import type { ArtifactProjectorRunContext, ProjectionOutcome } from "./artifact-types";
-
-const MAX_BASH_PROJECTED_FILES = 50;
-
-export function projectSinglePathArtifact(
-  db: AppDatabase,
-  ctx: ArtifactProjectorRunContext,
-  rawPath: string | null,
-): ProjectionOutcome {
-  if (!ctx.workspacePath) return { kind: "skipped", reason: "no_workspace" };
-  if (!rawPath) return { kind: "skipped", reason: "missing_path" };
-
-  const absPath = isAbsolute(rawPath) ? rawPath : resolve(ctx.workspacePath, rawPath);
-  if (!isRegistrablePath(absPath, ctx.workspacePath)) {
-    return { kind: "skipped", reason: "path_ignored" };
-  }
-  return upsertFilesystemArtifact(db, ctx, ctx.workspacePath, absPath);
-}
 
 export function projectChangedPaths(
   db: AppDatabase,
@@ -30,17 +13,13 @@ export function projectChangedPaths(
   const workspacePath = ctx.workspacePath;
   if (!workspacePath) return [{ kind: "skipped", reason: "no_workspace" }];
   const outcomes: ProjectionOutcome[] = [];
-  const budget = changed.slice(0, MAX_BASH_PROJECTED_FILES);
-  for (const rel of budget) {
+  for (const rel of changed) {
     const absPath = resolve(workspacePath, rel);
     if (!isRegistrablePath(absPath, workspacePath)) {
       outcomes.push({ kind: "skipped", reason: "path_ignored" });
       continue;
     }
     outcomes.push(upsertFilesystemArtifact(db, ctx, workspacePath, absPath));
-  }
-  if (changed.length > MAX_BASH_PROJECTED_FILES) {
-    outcomes.push({ kind: "skipped", reason: "bash_scan_cap_exceeded" });
   }
   return outcomes;
 }

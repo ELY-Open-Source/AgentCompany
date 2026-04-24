@@ -24,7 +24,6 @@ export const workerRpcMethodSchema = z.enum([
   "persistMessage",
   "prepareRun",
   "beforeToolCall",
-  "afterToolCall",
   "invokeInternalTool",
 ]);
 

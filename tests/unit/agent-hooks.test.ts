@@ -9,7 +9,7 @@ function createRpc(response: { ok: true; result: unknown } | { ok: false; error:
 }
 
 describe("agent hook RPC policy", () => {
-  it("fails afterToolCall when main cannot acknowledge artifact projection", async () => {
+  it("fails beforeToolCall closed when main cannot answer approval policy", async () => {
     const rpc = createRpc({ ok: false, error: "RuntimeBridge unavailable" });
     const hooks = buildAgentHooks({
       runId: "11111111-1111-4111-8111-111111111111",
@@ -17,12 +17,21 @@ describe("agent hook RPC policy", () => {
     });
 
     await expect(
-      hooks.afterToolCall({
-        toolCall: { name: "write", id: "tool-call-1" },
+      hooks.beforeToolCall({
+        toolCall: { name: "bash", id: "tool-call-1" },
         args: { path: "report.md" },
-        result: { content: [], details: null },
-        isError: false,
-      } as unknown as Parameters<typeof hooks.afterToolCall>[0]),
-    ).rejects.toThrow("afterToolCall RPC failed: RuntimeBridge unavailable");
+      } as unknown as Parameters<typeof hooks.beforeToolCall>[0]),
+    ).rejects.toThrow("beforeToolCall RPC failed: RuntimeBridge unavailable");
+  });
+
+  it("installs no per-tool artifact projection hook", () => {
+    const rpc = createRpc({ ok: true, result: { block: false, reason: null } });
+    const hooks = buildAgentHooks({
+      runId: "11111111-1111-4111-8111-111111111111",
+      rpc,
+    });
+
+    expect(Object.keys(hooks).sort()).toEqual(["beforeToolCall", "transformContext"]);
+    expect("afterToolCall" in hooks).toBe(false);
   });
 });

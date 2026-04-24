@@ -15,14 +15,10 @@ import {
 } from "./runtime-artifact-reconciler";
 import {
   handleBeforeToolCall,
-  handleAfterToolCall,
   type ActiveRunContext,
   type ActiveRunLifecycleState,
 } from "./hook-handlers";
-import type {
-  AfterToolCallRpcPayload,
-  BeforeToolCallRpcPayload,
-} from "./hook-rpc";
+import type { BeforeToolCallRpcPayload } from "./hook-rpc";
 import { routeInternalToolCall } from "./internal-tools/router";
 import type { InvokeInternalToolRpcPayload } from "@main/worker/runtime/internal-tools/internal-tool-rpc";
 import { InboundCorrelationRegistryStore } from "./inbound-correlation-registry";
@@ -81,9 +77,8 @@ type RpcMethod = WorkerRpcMethod;
  * - Forwards `agent-event` from the worker to the renderer (push channel).
  * - Persists each `message_end` message via `SqliteSessionStore`.
  * - Calls `CostWriter` for assistant messages with usage.
- * - Proxies pi's tool-execution hooks (`beforeToolCall` / `afterToolCall`)
- *   into policy handlers: approval-gate checks and filesystem artifact
- *   projection.
+ * - Proxies pi's `beforeToolCall` hook into the approval-gate policy handler.
+ * - Reconciles filesystem artifacts during run resource release.
  *
  * Policy itself lives in `hook-handlers.ts`; this class is a pure IPC
  * router plus an `ActiveRunContext` cache.
@@ -132,11 +127,10 @@ export class RuntimeBridge {
    * `run-finished` worker message so the maps stay bounded by concurrent-
    * run count rather than process lifetime.
    *
-   * Before eviction, sweeps the workspace to register any filesystem
-   * artifacts the per-tool `afterToolCall` hook missed. This is the
-   * backstop that keeps the DocumentCenter consistent with the disk even
-   * when individual projections skipped (bash against a non-git repo,
-   * path-ignore false positives, transient `git status` failures).
+   * Before eviction, sweeps the workspace to register filesystem
+   * artifacts produced during the run. This completion boundary keeps
+   * the DocumentCenter consistent with disk through one durable
+   * reconciliation acknowledgement.
    */
   releaseRunResources(runId: string): RunResourceReleaseResult {
     const ctx = this.activeRuns.get(runId);
@@ -311,8 +305,6 @@ export class RuntimeBridge {
           return await this.handlePrepareRunRpc(request.runId, request.payload);
         case "beforeToolCall":
           return this.handleBeforeToolCallRpc(request.runId, request.payload as BeforeToolCallRpcPayload);
-        case "afterToolCall":
-          return this.handleAfterToolCallRpc(request.runId, request.payload as AfterToolCallRpcPayload);
         case "invokeInternalTool":
           return this.handleInvokeInternalToolRpc(request.runId, request.payload as InvokeInternalToolRpcPayload);
         default: {
@@ -462,18 +454,6 @@ export class RuntimeBridge {
       return { ok: false, error: `beforeToolCall: no active run ${runId}` };
     }
     const result = handleBeforeToolCall(this.deps, ctx, payload);
-    return { ok: true, result };
-  }
-
-  private handleAfterToolCallRpc(
-    runId: string,
-    payload: AfterToolCallRpcPayload,
-  ): { ok: true; result: unknown } | { ok: false; error: string } {
-    const ctx = this.activeRuns.get(runId);
-    if (!ctx) {
-      return { ok: false, error: `afterToolCall: no active run ${runId}` };
-    }
-    const result = handleAfterToolCall(this.deps, ctx, payload);
     return { ok: true, result };
   }
 

@@ -62,8 +62,8 @@ describe("pi runtime integration contract", () => {
     expect(agent.state.tools).toEqual([]);
     expect(agent.state.messages).toEqual([]);
     expect(typeof agent.beforeToolCall).toBe("function");
-    expect(typeof agent.afterToolCall).toBe("function");
     expect(typeof agent.transformContext).toBe("function");
+    expect(agent.afterToolCall).toBeUndefined();
   });
 
   it("keeps the coding-tool surface expected by worker runs", () => {
@@ -133,12 +133,10 @@ describe("pi runtime integration contract", () => {
   it("keeps the aggregated hook bundle assignable to pi Agent options at runtime", () => {
     const hooks = buildAgentHooks({ runId: "run-contract", rpc: createRpc() });
     expect(Object.keys(hooks).sort()).toEqual([
-      "afterToolCall",
       "beforeToolCall",
       "transformContext",
     ]);
     expect(typeof hooks.beforeToolCall).toBe("function");
-    expect(typeof hooks.afterToolCall).toBe("function");
     expect(typeof hooks.transformContext).toBe("function");
   });
 });

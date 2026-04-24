@@ -1,11 +1,11 @@
 /**
- * Aggregated factory for the three pi-agent-core tool-execution hooks
+ * Aggregated factory for the pi-agent-core runtime hooks
  * installed by `pi-agent-factory.createPiAgent`.
  *
- * Before this module the factory wired `beforeToolCall` / `afterToolCall`
- * / `transformContext` as three inline closures, each re-establishing
+ * Before this module the factory wired `beforeToolCall` and
+ * `transformContext` as inline closures, each re-establishing
  * its own RPC envelope shape and its own error policy. A new hook (or
- * a signature change in pi) meant touching the factory in three places,
+ * a signature change in pi) meant touching the factory in multiple places,
  * and the "what does each hook do on failure?" matrix lived only in
  * reader memory.
  *
@@ -17,20 +17,17 @@
  * so the full transcript never crosses the worker-main boundary.
  *
  * The signatures below are pinned to pi via `pi-hook-contract`: any
- * drift in `AgentOptions.beforeToolCall` / `afterToolCall` /
- * `transformContext` breaks the build on the contract file, so the
+ * drift in `AgentOptions.beforeToolCall` / `transformContext` breaks
+ * the build on the contract file, so the
  * aggregation cannot silently drift from upstream.
  */
 
 import type {
-  AfterToolCallResult,
   AgentMessage,
   AgentOptions,
   BeforeToolCallResult,
 } from "@mariozechner/pi-agent-core";
 import type {
-  AfterToolCallRpcPayload,
-  AfterToolCallRpcResult,
   BeforeToolCallRpcPayload,
   BeforeToolCallRpcResult,
 } from "./hook-rpc";
@@ -65,12 +62,11 @@ export interface AgentHooksDeps {
  */
 export interface AgentHookBundle {
   beforeToolCall: NonNullable<AgentOptions["beforeToolCall"]>;
-  afterToolCall: NonNullable<AgentOptions["afterToolCall"]>;
   transformContext: NonNullable<AgentOptions["transformContext"]>;
 }
 
 /**
- * Build the three pi-agent-core hooks as a single bundle.
+ * Build the pi-agent-core hooks as a single bundle.
  *
  * Each hook's behavior matches the pre-aggregation inline closures in
  * `pi-agent-factory`:
@@ -78,8 +74,6 @@ export interface AgentHookBundle {
  *  - `beforeToolCall`: fail-closed RPC. A thrown error travels up into
  *    pi's loop and surfaces as a tool-error result — destructive tools
  *    must never silently bypass main's approval gate.
- *  - `afterToolCall`: fail-closed RPC. The tool has already run, so
- *    main must durably acknowledge the artifact projection result.
  *  - `transformContext`: worker-local compaction. The transcript stays
  *    inside the worker; main receives telemetry only.
  */
@@ -107,28 +101,6 @@ export function buildAgentHooks(deps: AgentHooksDeps): AgentHookBundle {
     return { block: true, reason: result.reason ?? undefined };
   };
 
-  const afterToolCall: AgentHookBundle["afterToolCall"] = async (
-    ctx,
-  ): Promise<AfterToolCallResult | undefined> => {
-    const payload: AfterToolCallRpcPayload = {
-      toolName: ctx.toolCall.name,
-      toolCallId: ctx.toolCall.id,
-      args: ctx.args,
-      resultContent: ctx.result.content,
-      resultDetails: ctx.result.details,
-      isError: ctx.isError,
-    };
-    const response = await rpc.invoke(runId, "afterToolCall", payload);
-    if (!response.ok) {
-      throw new Error(`afterToolCall RPC failed: ${response.error}`);
-    }
-    const result = response.result as AfterToolCallRpcResult;
-    const override: AfterToolCallResult = {};
-    if (result.contentOverride) override.content = result.contentOverride;
-    if (result.isErrorOverride !== null) override.isError = result.isErrorOverride;
-    return Object.keys(override).length === 0 ? undefined : override;
-  };
-
   const transformContext: AgentHookBundle["transformContext"] = async (
     messages,
   ): Promise<AgentMessage[]> => {
@@ -152,5 +124,5 @@ export function buildAgentHooks(deps: AgentHooksDeps): AgentHookBundle {
     }
   };
 
-  return { beforeToolCall, afterToolCall, transformContext };
+  return { beforeToolCall, transformContext };
 }

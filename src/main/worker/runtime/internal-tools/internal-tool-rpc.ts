@@ -8,13 +8,11 @@
  * they need the SQLite connection, approval subsystem, and telemetry —
  * none of which the worker should replicate.
  *
- * This is structurally the same pattern as `beforeToolCall`/
- * `afterToolCall` in `hook-rpc.ts`; what's different
- * is that those are side-effect hooks around pi's own tools, whereas
- * this is a primary-effect tool whose business logic lives entirely in
- * main. Keeping the payload shape minimal (name + JSON args) mirrors
- * pi's `ToolCall` structure so adding a new internal tool requires no
- * new RPC method — only a new handler entry.
+ * This mirrors the `beforeToolCall` RPC envelope in `hook-rpc.ts`:
+ * a minimal tool-call payload crosses the worker boundary and main owns
+ * the business effect. Keeping the payload shape minimal (name + JSON
+ * args) mirrors pi's `ToolCall` structure so adding a new internal tool
+ * requires no new RPC method — only a new handler entry.
  */
 
 export interface InvokeInternalToolRpcPayload {

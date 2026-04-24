@@ -1,32 +1,20 @@
 /**
- * Main-side implementations of pi's tool-execution hooks. Invoked by
- * `RuntimeBridge.handleRpc` when the worker proxies `beforeToolCall`
- * or `afterToolCall`.
+ * Main-side implementation of pi's tool-execution approval hook.
+ * Invoked by `RuntimeBridge.handleRpc` when the worker proxies
+ * `beforeToolCall`.
  *
- * Each handler is deliberately isolated to one concern:
- *  - `beforeToolCall`: operational-approval gate (blocks destructive
- *    tools only while an approval that gates EXECUTION is pending)
- *  - `afterToolCall`: filesystem artifact projection (bash/write/edit
- *    outputs become `work_products`)
+ * The handler is deliberately isolated to the operational-approval
+ * gate: it blocks destructive tools while an approval that gates
+ * EXECUTION is pending.
  *
  * Policy lives here; `RuntimeBridge` stays a pure IPC router.
  */
 
 import type { AppDatabase } from "@main/database";
 import type {
-  AfterToolCallRpcPayload,
-  AfterToolCallRpcResult,
   BeforeToolCallRpcPayload,
   BeforeToolCallRpcResult,
 } from "./hook-rpc";
-import {
-  projectToolExecutionToWorkProduct,
-  type ArtifactProjectorRunContext,
-} from "./artifact-projector";
-import {
-  appendArtifactProjectionEvent,
-  appendArtifactProjectionFailureEvent,
-} from "./artifact-projection-events";
 
 /**
  * Lifecycle phase of an active pi run as seen by main.
@@ -69,11 +57,6 @@ export interface HookHandlerDeps {
     error: (...args: unknown[]) => void;
   };
 }
-
-const NO_OP_AFTER: AfterToolCallRpcResult = {
-  contentOverride: null,
-  isErrorOverride: null,
-};
 
 /**
  * Tools that can mutate the workspace or execute host-level effects.
@@ -131,89 +114,4 @@ function checkOperationalApprovalBlock(
       reason: `Approval lookup failed — ${toolName} is held until the approval subsystem recovers.`,
     };
   }
-}
-
-/**
- * Post-execution projection. Today only filesystem artifacts flow
- * through this hook; as further projections (browser actions, social
- * posts) migrate off the event-observer path they plug in here.
- *
- * Projection is treated as a primary persistence action: the filesystem
- * mutation and its run-event acknowledgement commit together. A failure
- * returns an RPC error to the worker, which lets pi surface the hook
- * failure as a deterministic tool error.
- */
-export function handleAfterToolCall(
-  deps: HookHandlerDeps,
-  ctx: ActiveRunContext,
-  payload: AfterToolCallRpcPayload,
-): AfterToolCallRpcResult {
-  const runCtx: ArtifactProjectorRunContext = {
-    runId: ctx.runId,
-    agentId: ctx.agentId,
-    companyId: ctx.companyId,
-    taskId: ctx.taskId,
-    workspaceId: ctx.workspaceId,
-    workspacePath: ctx.workspacePath,
-    workspaceMode: ctx.workspaceMode,
-    logger: deps.logger,
-    workspaceBaseline: ctx.workspaceBaseline,
-  };
-  try {
-    const outcomes = deps.db.withTransaction(() => {
-      const projectionOutcomes = projectToolExecutionToWorkProduct(
-        deps.db,
-        runCtx,
-        {
-          toolName: payload.toolName,
-          args: payload.args,
-          result: payload.resultContent,
-          isError: payload.isError,
-        },
-      );
-      appendArtifactProjectionEvent(deps.db, {
-        companyId: ctx.companyId,
-        runId: ctx.runId,
-        agentId: ctx.agentId,
-        phase: "after_tool_call",
-        workspaceId: ctx.workspaceId,
-        workspaceMode: ctx.workspaceMode,
-        toolName: payload.toolName,
-        toolCallId: payload.toolCallId,
-        outcomes: projectionOutcomes,
-      });
-      return projectionOutcomes;
-    });
-    const registered = outcomes.filter((o) => o.kind === "inserted" || o.kind === "updated").length;
-    const retired = outcomes.filter((o) => o.kind === "retired").length;
-    if (registered > 0 || retired > 0) {
-      deps.logger.info(
-        `[hook-handlers] projection for run ${ctx.runId} via ${payload.toolName}: ${registered} registered, ${retired} retired`,
-      );
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    try {
-      appendArtifactProjectionFailureEvent(deps.db, {
-        companyId: ctx.companyId,
-        runId: ctx.runId,
-        agentId: ctx.agentId,
-        phase: "after_tool_call",
-        workspaceId: ctx.workspaceId,
-        workspaceMode: ctx.workspaceMode,
-        toolName: payload.toolName,
-        toolCallId: payload.toolCallId,
-        errorMessage,
-      });
-    } catch (ackError) {
-      deps.logger.error(
-        `[hook-handlers] artifact projection failure ack failed for run ${ctx.runId} tool ${payload.toolName}: ${ackError instanceof Error ? ackError.message : String(ackError)}`,
-      );
-    }
-    deps.logger.error(
-      `[hook-handlers] artifact projection threw for run ${ctx.runId} tool ${payload.toolName}: ${errorMessage}`,
-    );
-    throw error;
-  }
-  return NO_OP_AFTER;
 }

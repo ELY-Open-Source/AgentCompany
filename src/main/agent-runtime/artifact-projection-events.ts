@@ -1,7 +1,7 @@
 import type { AppDatabase } from "@main/database";
 import type { ProjectionOutcome } from "./artifact-types";
 
-export type ArtifactProjectionPhase = "after_tool_call" | "completion_reconcile";
+export type ArtifactProjectionPhase = "completion_reconcile";
 
 export interface ArtifactProjectionEventInput {
   companyId: string;
@@ -10,8 +10,6 @@ export interface ArtifactProjectionEventInput {
   phase: ArtifactProjectionPhase;
   workspaceId: string | null;
   workspaceMode: "exclusive" | "shared" | "none";
-  toolName?: string | null;
-  toolCallId?: string | null;
   outcomes: ProjectionOutcome[];
 }
 
@@ -22,8 +20,6 @@ export interface ArtifactProjectionFailureInput {
   phase: ArtifactProjectionPhase;
   workspaceId: string | null;
   workspaceMode: "exclusive" | "shared" | "none";
-  toolName?: string | null;
-  toolCallId?: string | null;
   errorMessage: string;
 }
 
@@ -73,8 +69,6 @@ export function appendArtifactProjectionEvent(
       phase: input.phase,
       workspaceId: input.workspaceId,
       workspaceMode: input.workspaceMode,
-      toolName: input.toolName ?? null,
-      toolCallId: input.toolCallId ?? null,
       counts,
       outcomes: input.outcomes,
     },
@@ -97,8 +91,6 @@ export function appendArtifactProjectionFailureEvent(
       phase: input.phase,
       workspaceId: input.workspaceId,
       workspaceMode: input.workspaceMode,
-      toolName: input.toolName ?? null,
-      toolCallId: input.toolCallId ?? null,
       errorMessage: input.errorMessage,
     },
   });

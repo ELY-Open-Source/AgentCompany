@@ -3,7 +3,7 @@
  * `pi-agent-core` callback signatures.
  *
  * Root `package.json` pins `@mariozechner/pi-agent-core` to 0.67.68
- * while our worker wires local hooks — `beforeToolCall`, `afterToolCall`,
+ * while our worker wires local hooks — `beforeToolCall` and
  * `transformContext` — into the pi Agent constructor. Those hooks carry
  * deep structural coupling: pi decides the context shape passed in and
  * the result shape we return. A silent signature drift on upgrade would
@@ -21,8 +21,6 @@
  */
 
 import type {
-  AfterToolCallContext,
-  AfterToolCallResult,
   AgentMessage,
   AgentOptions,
   BeforeToolCallContext,
@@ -37,7 +35,6 @@ import type {
  * cascades into every `satisfies` check below.
  */
 export type PiBeforeToolCall = NonNullable<AgentOptions["beforeToolCall"]>;
-export type PiAfterToolCall = NonNullable<AgentOptions["afterToolCall"]>;
 export type PiTransformContext = NonNullable<AgentOptions["transformContext"]>;
 
 /**
@@ -47,8 +44,6 @@ export type PiTransformContext = NonNullable<AgentOptions["transformContext"]>;
  */
 export type PiBeforeToolCallContext = BeforeToolCallContext;
 export type PiBeforeToolCallResult = BeforeToolCallResult;
-export type PiAfterToolCallContext = AfterToolCallContext;
-export type PiAfterToolCallResult = AfterToolCallResult;
 export type PiAgentMessage = AgentMessage;
 
 /**
@@ -74,11 +69,6 @@ type LocalBeforeToolCallShape = (
   signal?: AbortSignal,
 ) => Promise<BeforeToolCallResult | undefined>;
 
-type LocalAfterToolCallShape = (
-  ctx: AfterToolCallContext,
-  signal?: AbortSignal,
-) => Promise<AfterToolCallResult | undefined>;
-
 type LocalTransformContextShape = (
   messages: AgentMessage[],
   signal?: AbortSignal,
@@ -92,7 +82,6 @@ type LocalTransformContextShape = (
  * field on either side breaks the build.
  */
 export type BeforeToolCallContract = ExpectHookType<PiBeforeToolCall, LocalBeforeToolCallShape>;
-export type AfterToolCallContract = ExpectHookType<PiAfterToolCall, LocalAfterToolCallShape>;
 export type TransformContextContract = ExpectHookType<PiTransformContext, LocalTransformContextShape>;
 
 /**
@@ -106,11 +95,6 @@ export type TransformContextContract = ExpectHookType<PiTransformContext, LocalT
 export type BeforeToolCallHandlerResult = {
   readonly block: boolean;
   readonly reason: string | null;
-};
-
-export type AfterToolCallHandlerResult = {
-  readonly contentOverride: AfterToolCallResult["content"] | null;
-  readonly isErrorOverride: AfterToolCallResult["isError"] | null;
 };
 
 export type TransformContextHandlerResult = {

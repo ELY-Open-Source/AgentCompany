@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { AppDatabase } from "../../src/main/database";
 import {
-  projectToolExecutionToWorkProduct,
   reconcileWorkspaceArtifacts,
   type ArtifactProjectorRunContext,
 } from "../../src/main/agent-runtime/artifact-projector";
@@ -237,7 +236,7 @@ describe("work_products archived visibility", () => {
 });
 
 describe("work_products bulk retirement", () => {
-  it("registers bash artifacts from non-exclusive observation workspaces", async () => {
+  it("registers changed artifacts from non-exclusive observation workspaces", async () => {
     const harness = await createHarness();
     try {
       const ctx: ArtifactProjectorRunContext = {
@@ -257,12 +256,7 @@ describe("work_products bulk retirement", () => {
       await mkdir(join(harness.workspacePath, "reports"), { recursive: true });
       await writeFile(join(harness.workspacePath, "reports", "non-exclusive.md"), "observed", "utf8");
 
-      const outcomes = projectToolExecutionToWorkProduct(harness.db, ctx, {
-        toolName: "bash",
-        args: { command: "printf observed > reports/non-exclusive.md" },
-        result: null,
-        isError: false,
-      });
+      const outcomes = reconcileWorkspaceArtifacts(harness.db, ctx);
 
       expect(outcomes).toEqual([
         expect.objectContaining({
@@ -275,6 +269,44 @@ describe("work_products bulk retirement", () => {
           (entry) => entry.externalId === "reports/non-exclusive.md",
         ),
       ).toBe(true);
+    } finally {
+      harness.db.close();
+    }
+  });
+
+  it("registers every changed artifact past the previous 50-path budget", async () => {
+    const harness = await createHarness();
+    try {
+      const paths: string[] = [];
+      await mkdir(join(harness.workspacePath, "bulk"), { recursive: true });
+      for (let i = 0; i < 120; i += 1) {
+        const rel = `bulk/new-${i}.md`;
+        paths.push(rel);
+        await writeFile(join(harness.workspacePath, rel), `artifact ${i}`, "utf8");
+      }
+
+      const outcomes = reconcileWorkspaceArtifacts(harness.db, {
+        runId: harness.runId,
+        agentId: harness.agentId,
+        companyId: harness.companyId,
+        taskId: harness.taskId,
+        workspaceId: null,
+        workspacePath: harness.workspacePath,
+        workspaceMode: "none",
+        workspaceBaseline: {
+          mtimeByRelPath: new Map<string, number>(),
+          capturedAt: Date.now(),
+          truncated: false,
+        },
+      });
+
+      expect(outcomes.filter((o) => o.kind === "inserted")).toHaveLength(120);
+      const visible = new Set(
+        harness.db.projection.snapshot.listSnapshot().workProducts.map((entry) => entry.externalId),
+      );
+      for (const path of paths) {
+        expect(visible.has(path)).toBe(true);
+      }
     } finally {
       harness.db.close();
     }

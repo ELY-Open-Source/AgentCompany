@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppDatabase } from "../../src/main/database";
 import {
   captureBaselineIfRequired,
-  projectToolExecutionToWorkProduct,
   reconcileWorkspaceArtifacts,
   type ArtifactProjectorRunContext,
 } from "../../src/main/agent-runtime/artifact-projector";
@@ -46,47 +45,7 @@ describe("artifact projector error taxonomy", () => {
     expect(logger.error).not.toHaveBeenCalled();
   });
 
-  it("classifies missing filesystem artifact projection failures", async () => {
-    const logger = createLogger();
-    const workspacePath = await createTempDir("agentcompany-artifact-errors-");
-    const absPath = join(workspacePath, "missing.md");
-    const ctx: ArtifactProjectorRunContext = {
-      runId: "run-artifact-error",
-      agentId: "agent-artifact-error",
-      companyId: "company-artifact-error",
-      taskId: "task-artifact-error",
-      workspaceId: "workspace-artifact-error",
-      workspacePath,
-      workspaceMode: "exclusive",
-      logger,
-      workspaceBaseline: null,
-    };
-
-    const outcomes = projectToolExecutionToWorkProduct(
-      {} as AppDatabase,
-      ctx,
-      {
-        toolName: "write",
-        args: { path: "missing.md" },
-        result: null,
-        isError: false,
-      },
-    );
-
-    expect(outcomes).toEqual([{ kind: "skipped", reason: "path_missing" }]);
-    expect(logger.warn).toHaveBeenCalledWith(
-      "[artifact.fs.path_stat_failed] Failed to stat filesystem artifact before projection.",
-      {
-        workspacePath,
-        absPath,
-        runId: "run-artifact-error",
-      },
-      expect.stringContaining("cause="),
-    );
-    expect(logger.error).not.toHaveBeenCalled();
-  });
-
-  it("skips broad bash projection when the run has no change source", async () => {
+  it("skips completion reconciliation when the run has no change source", async () => {
     const workspacePath = await createTempDir("agentcompany-shared-artifacts-");
     const ctx: ArtifactProjectorRunContext = {
       runId: "run-shared",
@@ -100,12 +59,6 @@ describe("artifact projector error taxonomy", () => {
       workspaceBaseline: null,
     };
 
-    expect(projectToolExecutionToWorkProduct({} as AppDatabase, ctx, {
-      toolName: "bash",
-      args: { command: "touch report.md" },
-      result: null,
-      isError: false,
-    })).toEqual([{ kind: "skipped", reason: "no_baseline" }]);
     expect(reconcileWorkspaceArtifacts({} as AppDatabase, ctx)).toEqual([
       { kind: "skipped", reason: "no_baseline" },
     ]);

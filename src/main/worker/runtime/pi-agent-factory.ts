@@ -1,15 +1,13 @@
 /**
  * Factory that assembles a `pi-agent-core` Agent from a prepared worker
  * job. Encapsulates the full Pi contract (initial state, sessionId,
- * thinkingLevel, beforeToolCall / afterToolCall / transformContext
+ * thinkingLevel, beforeToolCall / transformContext
  * hooks, streamFn) so `worker-runner` stays focused on run lifecycle.
  *
- * The three tool-execution hooks proxy into main via the worker RPC
- * client; main answers from `RuntimeBridge`. Pi's loop is tolerant of
- * thrown hooks — a thrown `beforeToolCall` produces an error tool
- * result, a thrown `afterToolCall` likewise — so RPC failures degrade
- * to a deterministic tool-error instead of crashing the run. The
- * `transformContext` runs the deterministic compactor in the worker
+ * `beforeToolCall` proxies into main via the worker RPC client; main
+ * answers from `RuntimeBridge`. Pi's loop is tolerant of thrown hooks,
+ * so approval RPC failures degrade to a deterministic tool-error. The
+ * `transformContext` hook runs the deterministic compactor in the worker
  * process and lets compaction failures fail the run explicitly.
  */
 
@@ -84,7 +82,6 @@ export function createPiAgent(input: PiAgentFactoryInput): Agent {
         headers: { ...(options?.headers ?? {}), ...(input.extraHeaders ?? {}) },
       }),
     beforeToolCall: hooks.beforeToolCall,
-    afterToolCall: hooks.afterToolCall,
     transformContext: hooks.transformContext,
     toolExecution: "sequential",
   });
