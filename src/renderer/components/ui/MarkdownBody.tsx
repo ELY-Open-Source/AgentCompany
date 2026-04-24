@@ -1,6 +1,7 @@
 import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { normalizeMarkdownText } from "@shared/markdown-text";
 
 /**
  * Read-only markdown renderer used by message bubbles, comment bodies, and
@@ -21,6 +22,8 @@ import remarkGfm from "remark-gfm";
  * wrapping container.
  */
 export const MarkdownBody = memo(function MarkdownBody({ body }: { body: string }) {
+  const normalizedBody = normalizeMarkdownText(body);
+
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -76,7 +79,7 @@ export const MarkdownBody = memo(function MarkdownBody({ body }: { body: string 
         hr: () => <hr className="my-2 border-border" />,
       }}
     >
-      {body}
+      {normalizedBody}
     </ReactMarkdown>
   );
 });

@@ -1,5 +1,6 @@
 import type { AppDatabase } from "../database";
 import type { AgentMessageRecord, DesktopEvent, MessageChannel, MentionResult, SectionId } from "@shared/types";
+import { normalizeMarkdownText } from "@shared/markdown-text";
 
 /**
  * The board reader / human participant ID.
@@ -120,7 +121,7 @@ export function normalizeAgentMessageInput(input: AgentMessageDispatchInput): No
     channel,
     channelTargetId,
     subject,
-    body: input.body,
+    body: normalizeMarkdownText(input.body),
     priority,
     parentMessageId,
     threadId,

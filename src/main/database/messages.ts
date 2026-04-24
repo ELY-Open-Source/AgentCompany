@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import log from "electron-log/main.js";
 import type { AgentMessageRecord, AgentRecord } from "@shared/types";
+import { normalizeMarkdownText } from "@shared/markdown-text";
 import {
   BOARD_READER_ID,
   type ReadAll,
@@ -66,6 +67,7 @@ export function buildMessageMethods(
       }
       const senderKind = input.senderKind
         ?? (input.fromAgentId === BOARD_READER_ID ? "human" : "agent");
+      const body = normalizeMarkdownText(input.body);
       const id = randomUUID();
       const createdAt = nowIso();
       // Single transaction: the row and its mention fan-out must land
@@ -86,7 +88,7 @@ export function buildMessageMethods(
             channel,
             input.channelTargetId ?? null,
             input.subject,
-            input.body,
+            body,
             input.priority ?? "normal",
             input.parentMessageId ?? null,
             input.attachmentsJson ?? "[]",

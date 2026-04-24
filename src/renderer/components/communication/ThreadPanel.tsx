@@ -14,6 +14,7 @@ import WaitStateIndicator, { type WaitStateInfo } from "./WaitStateIndicator"
 import { MessageComposer } from "./MessageComposer"
 import { formatMessageTime } from "../../lib/formatters"
 import { useT, type TranslationFn } from "../../i18n"
+import { MarkdownBody } from "../ui/MarkdownBody"
 
 interface ThreadPanelProps {
   threadId: string
@@ -51,7 +52,9 @@ function EventItem({ event, agents, t }: { event: ConversationEventRecord; agent
           <span className="text-xs font-medium text-foreground">{actorName}</span>
           <span className="text-xs text-muted-foreground">{time}</span>
         </div>
-        <p className="text-sm text-foreground/80">{event.body}</p>
+        <div className="text-sm text-foreground/80">
+          <MarkdownBody body={event.body} />
+        </div>
       </div>
     </div>
   )

@@ -200,6 +200,40 @@ describe("message dispatch", () => {
     db.close();
   });
 
+  it("normalizes escaped markdown line breaks before persisting messages and comments", async () => {
+    const profileDir = await createTempDir("agentcompany-message-markdown-");
+    const db = new AppDatabase(profileDir);
+    db.init();
+
+    const { companyId, ceoId, ctoId, taskId } = createScaffold(db);
+
+    const result = dispatchAgentMessage({
+      db,
+    }, {
+      companyId,
+      fromAgentId: ctoId,
+      channel: "direct",
+      toAgentId: ceoId,
+      subject: "Markdown update",
+      body: "CEO,\\n\\n## Plan\\n- Confirm scope\\n- Ship cleanly",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("Expected dispatch to succeed.");
+    expect(result.data.message?.body).toBe("CEO,\n\n## Plan\n- Confirm scope\n- Ship cleanly");
+
+    const comment = db.core.activity.addComment({
+      companyId,
+      taskId,
+      authorAgentId: ctoId,
+      authorName: "CTO",
+      body: "Progress:\\n- Scope confirmed\\n- Review queued",
+    });
+    expect(comment.body).toBe("Progress:\n- Scope confirmed\n- Review queued");
+
+    db.close();
+  });
+
   it("redirects a DM's wake to the @mentioned agent instead of the DM recipient (chatroom semantics)", async () => {
     const profileDir = await createTempDir("agentcompany-message-redirect-");
     const db = new AppDatabase(profileDir);

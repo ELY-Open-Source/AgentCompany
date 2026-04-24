@@ -8,6 +8,7 @@ import { formatMessageTime } from "../../lib/formatters"
 import { EmptyState, useReducedMotion } from "../ui"
 import { useRovingTabIndex } from "../../lib/keyboard"
 import { useT } from "../../i18n"
+import { normalizeMarkdownText } from "@shared/markdown-text"
 
 type ChannelConfig = { labelKey: string; icon: React.ElementType; color: string }
 
@@ -121,6 +122,7 @@ export function SearchResults({ results, query, loading, agents, onNavigateToRes
             const message = results[virtualRow.index]
             const agent = agentMap.get(message.fromAgentId)
             const config = channelConfig[message.channel]
+            const normalizedBody = normalizeMarkdownText(message.body)
             const ChannelIcon = config.icon
 
             return (
@@ -175,7 +177,7 @@ export function SearchResults({ results, query, loading, agents, onNavigateToRes
 
                     {/* Row 3: Body snippet */}
                     <div className="mt-0.5 line-clamp-2 break-words text-[13px] leading-relaxed text-muted-foreground">
-                      {highlightMatch(message.body, query)}
+                      {highlightMatch(normalizedBody, query)}
                     </div>
                   </div>
                 </div>

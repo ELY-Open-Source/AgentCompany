@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { CommentRecord } from "@shared/types";
+import { normalizeMarkdownText } from "@shared/markdown-text";
 import type { ReadAll } from "./helpers";
 import { nowIso } from "./helpers";
 
@@ -19,12 +20,13 @@ export function buildActivityMethods(
       const taskRow = getDb().prepare("select company_id from tasks where id = ?").get(input.taskId) as { company_id: string } | undefined;
       if (!taskRow) throw new Error("Task not found.");
       if (taskRow.company_id !== input.companyId) throw new Error("Task does not belong to this company.");
+      const body = normalizeMarkdownText(input.body);
       const id = randomUUID();
       const ts = nowIso();
       getDb().prepare(
         "insert into task_comments (id, company_id, task_id, author_agent_id, author_name, body, created_at) values (?, ?, ?, ?, ?, ?, ?)",
-      ).run(id, input.companyId, input.taskId, input.authorAgentId, input.authorName, input.body, ts);
-      return { id, companyId: input.companyId, taskId: input.taskId, authorAgentId: input.authorAgentId, authorName: input.authorName, body: input.body, createdAt: ts };
+      ).run(id, input.companyId, input.taskId, input.authorAgentId, input.authorName, body, ts);
+      return { id, companyId: input.companyId, taskId: input.taskId, authorAgentId: input.authorAgentId, authorName: input.authorName, body, createdAt: ts };
     },
 
     listComments(taskId: string): CommentRecord[] {
