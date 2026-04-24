@@ -199,6 +199,8 @@ export function parseBaselineIndexName(sql: string): string {
 export function normalizeSchemaSql(sql: string): string {
   return sql
     .replace(/\s+/g, " ")
+    .replace(/\(\s+/g, "(")
+    .replace(/\s+\)/g, ")")
     .replace(/^CREATE TABLE "([^"]+)"/, "CREATE TABLE $1")
     .replace(/^CREATE INDEX "([^"]+)"/, "CREATE INDEX $1")
     .replace(/^CREATE UNIQUE INDEX "([^"]+)"/, "CREATE UNIQUE INDEX $1")

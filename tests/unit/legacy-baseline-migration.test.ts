@@ -32,8 +32,10 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
-function insertLegacyMigrationRows(db: DatabaseSync, maxVersion: number): void {
-  db.exec("create table schema_migrations (version integer primary key, name text not null, applied_at text not null)");
+function insertLegacyMigrationRows(db: DatabaseSync, maxVersion: number, options?: { spacedSchemaTable?: boolean }): void {
+  db.exec(options?.spacedSchemaTable
+    ? "create table schema_migrations ( version integer primary key, name text not null, applied_at text not null )"
+    : "create table schema_migrations (version integer primary key, name text not null, applied_at text not null)");
   for (let version = 1; version <= maxVersion; version += 1) {
     db
       .prepare("insert into schema_migrations (version, name, applied_at) values (?, ?, ?)")
@@ -41,8 +43,8 @@ function insertLegacyMigrationRows(db: DatabaseSync, maxVersion: number): void {
   }
 }
 
-function seedLegacyOperationalProfile(db: DatabaseSync): void {
-  insertLegacyMigrationRows(db, 55);
+function seedLegacyOperationalProfile(db: DatabaseSync, options?: { spacedSchemaTable?: boolean }): void {
+  insertLegacyMigrationRows(db, 55, options);
   db.exec(`
     create table settings (key text primary key, value text not null);
     create table companies (id text primary key, name text not null, description text not null, status text not null, created_at text not null, updated_at text not null);
@@ -209,6 +211,28 @@ describe("legacy to v56 baseline migration", () => {
       ]);
       expect(appDb.queryAll("select id from budget_policies where scope_type = 'agent' and scope_id = 'agent-1'"))
         .toHaveLength(1);
+    } finally {
+      appDb.close();
+    }
+  });
+
+  it("accepts legacy schema_migrations formatting during baseline assertion", async () => {
+    const profileDir = await createTempDir("agentcompany-legacy-schema-format-");
+    const rawDb = new DatabaseSync(join(profileDir, "profile.sqlite"));
+    try {
+      seedLegacyOperationalProfile(rawDb, { spacedSchemaTable: true });
+    } finally {
+      rawDb.close();
+    }
+
+    const appDb = new AppDatabase(profileDir);
+    appDb.init();
+    try {
+      expect(appDb.queryAll("select version, name from schema_migrations")).toEqual([
+        { version: 56, name: "baseline_v56" },
+        { version: 57, name: "task_leases_runtime_ownership" },
+        { version: 58, name: "approval_policy_table" },
+      ]);
     } finally {
       appDb.close();
     }
