@@ -19,6 +19,8 @@ the eval matrix also pins the AI Co-Founder human-review prompt contract.
 | `replay-client.ts` | Swaps in for `pi-ai`'s `streamSimple`; replays recorded assistant turns. |
 | `tool-loop-replay.ts` | Runs a fixture through `pi-agent-core` Agent with recorded tool-result executors. |
 | `scenario-contract.ts` | Validates scenario prompt/user files, prompt hashes, and real prompt-builder SOP coverage. |
+| `task-level-prompt-eval.ts` | Renders task-level prompt scenarios, records section token/byte metrics, and gates prompt section removal. |
+| `task-level-prompt-cases.ts` | Task-level prompt matrix used by the section gate. |
 | `assertion-judge.ts` | Structural assertions over recorded trace. No semantic judgment. |
 | `semantic-rubric-judge.ts` | Semantic rubric dimensions over assistant transcript evidence. |
 | `eval-runner.ts` | Parse fixture → Agent replay → judge assertions → produce `EvalResult`. |
@@ -36,6 +38,25 @@ must be present or absent for that scenario.
 `src/main/prompt-builder/sops/*.en.md` and requires each `SOP-###` heading to be
 claimed by at least one matrix scenario. Adding, deleting, or renaming a SOP
 therefore changes `pnpm test:eval` directly.
+
+## Task-level prompt section gate
+
+`task-level-prompt-eval.ts` adds a task-level prompt matrix above the recorded
+trace replay layer. Each case renders a real `PromptContext` through
+`buildTaskPrompt`, extracts Markdown sections, records token and byte counts,
+and checks required / forbidden headings and fragments.
+
+This gate is the ablation ledger for future prompt cleanup. A prompt section can
+be removed only after the required-heading usage map shows no task-level eval
+case depends on it, or after the case itself is re-recorded and reviewed with a
+new behavioral fixture. The current matrix covers:
+
+| Case | Contract |
+|---|---|
+| `ceo-bootstrap-hiring` | CEO cold start exposes team-building + connectors and suppresses normal operating mode. |
+| `manager-review-handoff` | Manager review work exposes review queue, team workload, and manager SOPs. |
+| `ic-implementation-task` | IC execution exposes checkout, quality, assigned-task, and current-task sections. |
+| `cofounder-plan-review-gate` | AI Co-Founder mode exposes human-review policy and pending approval context. |
 
 ## Running
 
