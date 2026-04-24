@@ -3,32 +3,104 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { _electron as electron, expect, test } from "@playwright/test";
-import { getElectronExecutablePath, getMainEntryPath } from "./launch";
+import type { ElectronApplication, Page } from "@playwright/test";
+import { createElectronLaunchEnv, getElectronExecutablePath, getMainEntryPath } from "./launch";
+import {
+  E2E_READY_CONNECTOR_ID,
+  E2E_READY_CONNECTOR_MODEL_ID,
+  E2E_PROVIDER_API_KEY,
+  readOnboardingProfileState,
+} from "./onboarding-fixture";
 
 function buildLaunchEnv(profileDir: string) {
-  const env: Record<string, string | undefined> = {
-    ...process.env,
+  return createElectronLaunchEnv({
     AGENTCOMPANY_PROFILE_DIR: profileDir,
     AGENTCOMPANY_DISABLE_UPDATES: "true",
     AGENTCOMPANY_DISABLE_SINGLE_INSTANCE: "true",
-  };
-  delete env.NO_COLOR;
-  return Object.fromEntries(
-    Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
-  );
+    AGENTCOMPANY_ALLOW_INSECURE_VAULT: "true",
+  });
 }
 
-async function advanceFromWelcome(page: import("@playwright/test").Page) {
+async function launchDesktopApp(profileDir: string): Promise<ElectronApplication> {
+  return electron.launch({
+    executablePath: getElectronExecutablePath(),
+    args: [getMainEntryPath()],
+    cwd: process.cwd(),
+    env: buildLaunchEnv(profileDir),
+  });
+}
+
+async function advanceFromWelcome(page: Page) {
   await expect(page.getByText("AgentCompany")).toBeVisible();
   await expect(page.getByText("Build your AI company here.")).toBeVisible();
   await page.getByRole("button", { name: /Get Started/i }).click();
 }
 
-async function advancePastNodeCheck(page: import("@playwright/test").Page) {
+async function advancePastNodeCheck(page: Page) {
   const continueButton = page.getByRole("button", { name: /^Continue$/i });
   await expect(page.getByText("Check Node.js")).toBeVisible();
   await expect(continueButton).toBeEnabled({ timeout: 15_000 });
   await continueButton.click();
+}
+
+async function configureReadyProvider(page: Page) {
+  await expect(page.getByText("Anthropic API")).toBeVisible();
+  await page.getByRole("button", { name: /Anthropic API/i }).click();
+  const apiKeyInput = page.locator('input[type="password"]').first();
+  await expect(apiKeyInput).toBeVisible();
+  await apiKeyInput.fill(E2E_PROVIDER_API_KEY);
+  await page.getByRole("button", { name: /^Save$/i }).click();
+  await expect(page.getByText("Saved.")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Connected").first()).toBeVisible({ timeout: 15_000 });
+}
+
+async function completeOnboardingToLaunch(
+  page: Page,
+  input: {
+    companyName: string;
+    workspaceDir: string;
+    goalTitle: string;
+    toggleSecondModel?: boolean;
+  },
+) {
+  await advanceFromWelcome(page);
+  await advancePastNodeCheck(page);
+
+  await expect(page.getByText("Connect a provider")).toBeVisible();
+  await configureReadyProvider(page);
+  const providersContinue = page.getByRole("button", { name: /^Continue$/i });
+  await expect(providersContinue).toBeEnabled({ timeout: 30_000 });
+  await providersContinue.click();
+
+  await expect(page.getByLabel("Company name")).toBeVisible();
+  await page.getByLabel("Company name").fill(input.companyName);
+  await page.getByLabel("Workspace folder").fill(input.workspaceDir);
+  await expect(page.getByLabel("Provider")).toHaveValue(E2E_READY_CONNECTOR_ID);
+  await expect(page.getByLabel("Model")).toHaveValue(E2E_READY_CONNECTOR_MODEL_ID);
+  await page.getByRole("button", { name: /^Continue$/i }).click();
+
+  await expect(page.getByText("Choose team models")).toBeVisible();
+  const enabledCountLabel = page.getByText(/\d+ \/ \d+ models enabled/i).first();
+  await expect(enabledCountLabel).toBeVisible();
+  const initialEnabledCount = await enabledCountLabel.textContent();
+  const switches = page.getByRole("switch");
+  await expect(switches.nth(1)).toBeVisible();
+  if (input.toggleSecondModel) {
+    await switches.nth(1).click();
+    await expect.poll(async () => enabledCountLabel.textContent()).not.toBe(initialEnabledCount);
+  }
+  await page.getByRole("button", { name: /^Continue$/i }).click();
+
+  await expect(page.getByText("How should it run?")).toBeVisible();
+  await page.getByRole("button", { name: /^Continue$/i }).click();
+
+  await expect(page.getByLabel("Goal")).toBeVisible();
+  await page.getByLabel("Goal").fill(input.goalTitle);
+  await page.getByRole("button", { name: /Launch Company/i }).click();
+
+  await expect(page.getByRole("heading", { name: new RegExp(`${input.companyName}.*is live`, "i") })).toBeVisible();
+  await expect(page.getByText("Queued in orchestration")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Open Control Center/i })).toBeVisible();
 }
 
 test("first launch onboarding advances into runtime setup and shell-ready flow", async () => {
@@ -38,44 +110,30 @@ test("first launch onboarding advances into runtime setup and shell-ready flow",
   const profileDir = await mkdtemp(join(tmpdir(), "agentcompany-e2e-"));
   const workspaceDir = await mkdtemp(join(tmpdir(), "agentcompany-workspace-"));
 
-  const app = await electron.launch({
-    executablePath: getElectronExecutablePath(),
-    args: [entry],
-    cwd: process.cwd(),
-    env: buildLaunchEnv(profileDir),
-  });
+  let app: ElectronApplication | null = await launchDesktopApp(profileDir);
 
   try {
     const page = await app.firstWindow();
-    await advanceFromWelcome(page);
-    await advancePastNodeCheck(page);
-
-    await expect(page.getByText("Connect a provider")).toBeVisible();
-
-    const providersContinue = page.getByRole("button", { name: /^Continue$/i });
-    if (!(await providersContinue.isEnabled())) {
-      await expect(page.getByText("Connect at least one provider to continue.", { exact: true })).toBeVisible();
-      await expect(page.getByText(/Ready|Login required|Not installed|Not configured|Checking|Error/i).first()).toBeVisible();
-      test.skip(true, "runtime fixture missing: no enabled provider to continue past runtime setup");
-    }
-
-    await providersContinue.click();
-    await expect(page.getByLabel("Company name")).toBeVisible();
-    await page.getByLabel("Company name").fill("Orbit Foundry");
-    await page.getByLabel("Workspace folder").fill(workspaceDir);
-    await page.getByRole("button", { name: /^Continue$/i }).click();
-
-    await expect(page.getByText("How should your company operate?")).toBeVisible();
-    await page.getByRole("button", { name: /^Continue$/i }).click();
-
-    await expect(page.getByLabel("Goal")).toBeVisible();
-    await page.getByLabel("Goal").fill("Launch the company");
-    await page.getByRole("button", { name: /Launch Company/i }).click();
-
-    await expect(page.getByRole("heading", { name: /Orbit Foundry.*is live/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Open Control Center/i })).toBeVisible();
-  } finally {
+    await completeOnboardingToLaunch(page, {
+      companyName: "Orbit Foundry",
+      workspaceDir,
+      goalTitle: "Launch the company",
+    });
+    await page.getByRole("button", { name: /Open Control Center/i }).click();
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("button", { name: /Orbit Foundry/i })).toBeVisible();
     await app.close();
+    app = null;
+
+    const state = readOnboardingProfileState(profileDir);
+    expect(state.companyCount).toBe(1);
+    expect(state.currentCompanyName).toBe("Orbit Foundry");
+    expect(state.leadAgentConnectorId).toBe(E2E_READY_CONNECTOR_ID);
+    expect(state.leadAgentModel).toBe(E2E_READY_CONNECTOR_MODEL_ID);
+    expect(state.taskCount).toBeGreaterThanOrEqual(1);
+    expect(state.runCount).toBeGreaterThanOrEqual(1);
+  } finally {
+    await app?.close();
     await rm(profileDir, { recursive: true, force: true });
     await rm(workspaceDir, { recursive: true, force: true });
   }
@@ -89,12 +147,7 @@ test("platform launch: app opens, window renders, screenshot captured", async ()
   const screenshotDir = join(process.cwd(), "build", "screenshots");
   await mkdir(screenshotDir, { recursive: true });
 
-  const app = await electron.launch({
-    executablePath: getElectronExecutablePath(),
-    args: [entry],
-    cwd: process.cwd(),
-    env: buildLaunchEnv(profileDir),
-  });
+  const app = await launchDesktopApp(profileDir);
 
   try {
     const page = await app.firstWindow();
@@ -128,69 +181,31 @@ test("onboarding model pool persists across relaunch for a ready connector", asy
   const profileDir = await mkdtemp(join(tmpdir(), "agentcompany-model-pool-"));
   const workspaceDir = await mkdtemp(join(tmpdir(), "agentcompany-model-pool-workspace-"));
 
-  const launchApp = async () => electron.launch({
-    executablePath: getElectronExecutablePath(),
-    args: [entry],
-    cwd: process.cwd(),
-    env: buildLaunchEnv(profileDir),
-  });
-
-  let app = await launchApp();
+  let app: ElectronApplication | null = await launchDesktopApp(profileDir);
 
   try {
     const page = await app.firstWindow();
-    await advanceFromWelcome(page);
-    await advancePastNodeCheck(page);
-
-    await expect(page.getByText("Connect a provider")).toBeVisible();
-    const providersContinue = page.getByRole("button", { name: /^Continue$/i });
-    if (!(await providersContinue.isEnabled())) {
-      await expect(page.getByText("Connect at least one provider to continue.", { exact: true })).toBeVisible();
-      test.skip(true, "runtime fixture missing: no enabled provider to continue past runtime setup");
-    }
-    await providersContinue.click();
-
-    await expect(page.getByLabel("Company name")).toBeVisible();
-    const enabledCountLabel = page.getByText(/Models \(\d+\/\d+ enabled\)/i);
-    await expect(enabledCountLabel).toBeVisible();
-    const initialCount = await enabledCountLabel.textContent();
-
-    const switches = page.getByRole("switch");
-    const switchCount = await switches.count();
-    if (switchCount < 2) {
-      test.skip(true, "model pool fixture missing: need at least 2 model toggles to test persistence");
-    }
-
-    await switches.nth(1).click();
-    const updatedCount = await enabledCountLabel.textContent();
-    expect(updatedCount).not.toBe(initialCount);
-  } finally {
+    await completeOnboardingToLaunch(page, {
+      companyName: "Persisted Model Pool Co",
+      workspaceDir,
+      goalTitle: "Keep model pool choices after relaunch",
+      toggleSecondModel: true,
+    });
+    await page.getByRole("button", { name: /Open Control Center/i }).click();
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({ timeout: 30_000 });
     await app.close();
-  }
+    app = null;
 
-  app = await launchApp();
+    const persistedState = readOnboardingProfileState(profileDir);
+    expect(persistedState.currentCompanyName).toBe("Persisted Model Pool Co");
+    expect(persistedState.disabledModelCount).toBe(1);
 
-  try {
-    const page = await app.firstWindow();
-    await advanceFromWelcome(page);
-    await advancePastNodeCheck(page);
-    const providersContinue = page.getByRole("button", { name: /^Continue$/i });
-    if (!(await providersContinue.isEnabled())) {
-      await expect(page.getByText(/Set up at least one provider to power your agents\./i)).toBeVisible();
-      test.skip(true, "runtime fixture missing: no enabled provider persisted across relaunch");
-    }
-    await providersContinue.click();
-
-    await expect(page.getByLabel("Company name")).toBeVisible();
-    const enabledCountLabel = page.getByText(/Models \(\d+\/\d+ enabled\)/i);
-    await expect(enabledCountLabel).toBeVisible();
-
-    await page.getByLabel("Company name").fill("Persisted Model Pool Co");
-    await page.getByLabel("Workspace folder").fill(workspaceDir);
-    await page.getByRole("button", { name: /^Continue$/i }).click();
-    await expect(page.getByText("How should your company operate?")).toBeVisible();
+    app = await launchDesktopApp(profileDir);
+    const relaunchedPage = await app.firstWindow();
+    await expect(relaunchedPage.getByRole("heading", { name: "Dashboard" })).toBeVisible({ timeout: 30_000 });
+    await expect(relaunchedPage.getByRole("button", { name: /Persisted Model Pool Co/i })).toBeVisible();
   } finally {
-    await app.close();
+    await app?.close();
     await rm(profileDir, { recursive: true, force: true });
     await rm(workspaceDir, { recursive: true, force: true });
   }
