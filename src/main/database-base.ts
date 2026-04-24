@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { buildThreadMethods } from "./database/threads";
@@ -36,6 +36,15 @@ import { STALE_LOCK_TIMEOUT_MS } from "./constants";
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function assertWritableDirectory(dir: string, label: string): void {
+  const probePath = join(dir, `.agentcompany-${label}-write-probe-${process.pid}-${Date.now()}`);
+  try {
+    writeFileSync(probePath, "", { encoding: "utf8", flag: "wx" });
+  } finally {
+    rmSync(probePath, { force: true });
+  }
 }
 
 export interface AppDatabaseCoreModules {
@@ -101,6 +110,7 @@ export class AppDatabaseBase {
     this.appVersion = options.appVersion ?? "unknown";
     mkdirSync(rootDir, { recursive: true });
     mkdirSync(this.logsDir, { recursive: true });
+    assertWritableDirectory(this.logsDir, "logs");
     mkdirSync(this.artifactsDir, { recursive: true });
     mkdirSync(this.backupsDir, { recursive: true });
     this.vault = new SecretVault(rootDir, { isPackaged: options.isPackaged });

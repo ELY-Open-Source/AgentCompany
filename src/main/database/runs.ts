@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import type { ConnectorId, RunRecord, RunUsageStatus } from "@shared/types";
@@ -24,6 +24,14 @@ export function buildRunMethods(
     logsDir: string;
   },
 ) {
+  function createEmptyRunLog(logPath: string): void {
+    writeFileSync(logPath, "", { encoding: "utf8", flag: "wx" });
+  }
+
+  function cleanupEmptyRunLog(logPath: string): void {
+    rmSync(logPath, { force: true });
+  }
+
   function insertRunRow(input: {
     id: string;
     companyId: string;
@@ -85,10 +93,15 @@ export function buildRunMethods(
       const id = input.id ?? randomUUID();
       const ts = nowIso();
       const logPath = join(deps.logsDir, `${id}.log`);
-      transaction(() => {
-        insertRunRow({ ...input, id, logPath, ts });
-      });
-      writeFileSync(logPath, "", "utf8");
+      createEmptyRunLog(logPath);
+      try {
+        transaction(() => {
+          insertRunRow({ ...input, id, logPath, ts });
+        });
+      } catch (error) {
+        cleanupEmptyRunLog(logPath);
+        throw error;
+      }
       return { id, logPath };
     },
 
@@ -103,6 +116,7 @@ export function buildRunMethods(
       const id = input.id ?? randomUUID();
       const ts = nowIso();
       const logPath = join(deps.logsDir, `${id}.log`);
+      createEmptyRunLog(logPath);
       try {
         transaction(() => {
           insertRunRow({ ...input, id, logPath, ts });
@@ -112,12 +126,12 @@ export function buildRunMethods(
           }
         });
       } catch (error) {
+        cleanupEmptyRunLog(logPath);
         if (error instanceof TaskCheckoutConflict) {
           return null;
         }
         throw error;
       }
-      writeFileSync(logPath, "", "utf8");
       return { id, logPath };
     },
 
