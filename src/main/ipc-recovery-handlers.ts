@@ -1,17 +1,5 @@
-import { z } from "zod";
-import { IPC_CHANNELS } from "@shared/contracts";
+import { IPC_CHANNELS, recoveryRetrySchema, recoveryTaskSchema } from "@shared/contracts";
 import { fail, ok, type RegisterDomainHandlersDependencies } from "./ipc-domain-common";
-
-const recoveryRetrySchema = z.object({
-  taskId: z.string(),
-  agentId: z.string(),
-  companyId: z.string(),
-});
-
-const recoveryTaskSchema = z.object({
-  taskId: z.string(),
-  companyId: z.string(),
-});
 
 export function registerRecoveryHandlers({
   registerHandle,

@@ -11,6 +11,17 @@ export const cancelRunSchema = z.object({
   runId: z.string().uuid(),
 });
 
+export const recoveryRetrySchema = z.object({
+  taskId: z.string().uuid(),
+  agentId: z.string().uuid(),
+  companyId: z.string().uuid(),
+});
+
+export const recoveryTaskSchema = z.object({
+  taskId: z.string().uuid(),
+  companyId: z.string().uuid(),
+});
+
 export const runLogSchema = z.object({
   companyId: z.string().uuid(),
   runId: z.string().uuid(),

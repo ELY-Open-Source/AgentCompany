@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { optionalId } from "./helpers";
 
+export const companyIdSchema = z.string().uuid();
+
 export const companyInputSchema = z.object({
   id: optionalId,
   name: z.string().min(2).max(80),

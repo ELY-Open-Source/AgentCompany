@@ -3,19 +3,23 @@ import { IPC_CHANNELS } from "@shared/contracts/channels";
 import type { DesktopApi } from "@shared/contracts/desktop-api";
 import {
   PRELOAD_FORWARDERS,
+  PRELOAD_INPUT_SCHEMAS,
   mapPreloadInvokeArgs,
   type PreloadForwardedApi,
 } from "@shared/contracts/preload-forwarders";
 import type { DesktopEvent } from "@shared/types";
 
 function createForwardedApi(): PreloadForwardedApi {
-  const forwardedEntries = PRELOAD_FORWARDERS.map(({ api, channel, payload }) => [
-    api,
-    (...args: unknown[]) => ipcRenderer.invoke(
-      IPC_CHANNELS[channel],
-      ...mapPreloadInvokeArgs(payload, args),
-    ),
-  ]);
+  const forwardedEntries = PRELOAD_FORWARDERS.map(({ api, channel, payload }) => {
+    const schema = PRELOAD_INPUT_SCHEMAS[api];
+    return [
+      api,
+      (...args: unknown[]) => ipcRenderer.invoke(
+        IPC_CHANNELS[channel],
+        ...mapPreloadInvokeArgs(payload, args, schema),
+      ),
+    ];
+  });
 
   return Object.fromEntries(forwardedEntries) as PreloadForwardedApi;
 }

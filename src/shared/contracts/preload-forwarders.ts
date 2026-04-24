@@ -1,5 +1,80 @@
+import { z } from "zod";
 import { IPC_CHANNELS } from "./channels";
 import type { DesktopApi } from "./desktop-api";
+import {
+  agentInputSchema,
+  heartbeatSettingsSchema,
+  hireRequestSchema,
+  triggerHeartbeatSchema,
+} from "./schemas-agents";
+import {
+  approvalDecisionSchema,
+  approvalInputSchema,
+} from "./schemas-approvals";
+import {
+  automationRuleInputSchema,
+  toggleAutomationRuleSchema,
+} from "./schemas-automation";
+import {
+  deleteEntitySchema,
+  entityGetterSchema,
+} from "./schemas-badges";
+import {
+  budgetPolicyInputSchema,
+  deleteBudgetPolicySchema,
+  resolveBudgetIncidentSchema,
+} from "./schemas-budget";
+import {
+  bootstrapOnboardingSchema,
+  companyIdSchema,
+  companyInputSchema,
+  connectorDisabledModelsSchema,
+  connectorInputSchema,
+  socialAccountInputSchema,
+  settingsSchema,
+  workspaceInputSchema,
+} from "./schemas-company";
+import {
+  removeCredentialInputSchema,
+  saveCredentialInputSchema,
+  testCredentialInputSchema,
+} from "./schemas-credentials";
+import {
+  assignSkillToAgentSchema,
+  cancelBrowserActionSchema,
+  cancelRunSchema,
+  checkSkillUpdateSchema,
+  deleteSkillSchema,
+  importSkillSchema,
+  openTerminalCommandSchema,
+  recoveryRetrySchema,
+  recoveryTaskSchema,
+  removeSkillFromAgentSchema,
+  runWorkflowSchema,
+  startRunSchema,
+  triggerBrowserLoginSchema,
+  workflowInputSchema,
+} from "./schemas-execution";
+import {
+  agentMessageInputSchema,
+  commentInputSchema,
+  documentInputSchema,
+  knowledgeEntryInputSchema,
+  markMessageReadSchema,
+  meetingInputSchema,
+} from "./schemas-messages";
+import {
+  oauthCancelInputSchema,
+  oauthManualCodeResponseSchema,
+  oauthPromptResponseSchema,
+  oauthStartInputSchema,
+} from "./schemas-oauth";
+import {
+  goalInputSchema,
+  projectInputSchema,
+  sprintInputSchema,
+  taskInputSchema,
+} from "./schemas-tasks";
 
 type DesktopFunctionKey = {
   [Key in keyof DesktopApi]: DesktopApi[Key] extends (...args: infer _Args) => unknown ? Key : never;
@@ -138,9 +213,83 @@ export const PRELOAD_FORWARDERS = [
 export type PreloadForwardedMethod = (typeof PRELOAD_FORWARDERS)[number]["api"];
 export type PreloadForwardedApi = Pick<DesktopApi, PreloadForwardedMethod>;
 
+const managedPathSchema = z.string().min(1);
+
+export const PRELOAD_INPUT_SCHEMAS: Partial<Record<PreloadForwardedMethod, z.ZodType<unknown>>> = {
+  openPath: managedPathSchema,
+  openWorkProduct: entityGetterSchema,
+  saveCompany: companyInputSchema,
+  setCurrentCompany: companyIdSchema,
+  saveConnector: connectorInputSchema,
+  testConnector: connectorInputSchema.shape.id,
+  saveWorkspace: workspaceInputSchema,
+  saveAgent: agentInputSchema,
+  requestHire: hireRequestSchema,
+  saveGoal: goalInputSchema,
+  saveProject: projectInputSchema,
+  saveTask: taskInputSchema,
+  requestApproval: approvalInputSchema,
+  decideApproval: approvalDecisionSchema,
+  startTaskRun: startRunSchema,
+  cancelRun: cancelRunSchema,
+  updateSettings: settingsSchema,
+  deleteCompany: companyIdSchema,
+  deleteAgent: deleteEntitySchema,
+  deleteTask: deleteEntitySchema,
+  deleteGoal: deleteEntitySchema,
+  deleteProject: deleteEntitySchema,
+  deleteWorkspace: deleteEntitySchema,
+  deleteApproval: deleteEntitySchema,
+  deleteSecret: deleteEntitySchema,
+  setConnectorDisabledModels: connectorDisabledModelsSchema,
+  addComment: commentInputSchema,
+  setHeartbeat: heartbeatSettingsSchema,
+  triggerHeartbeat: triggerHeartbeatSchema,
+  bootstrapOnboarding: bootstrapOnboardingSchema,
+  openTerminalCommand: openTerminalCommandSchema,
+  saveSocialAccount: socialAccountInputSchema,
+  deleteSocialAccount: deleteEntitySchema,
+  cancelBrowserAction: cancelBrowserActionSchema,
+  triggerBrowserLogin: triggerBrowserLoginSchema,
+  saveMeeting: meetingInputSchema,
+  deleteMeeting: deleteEntitySchema,
+  saveDocument: documentInputSchema,
+  deleteDocument: deleteEntitySchema,
+  saveKnowledgeEntry: knowledgeEntryInputSchema,
+  deleteKnowledgeEntry: deleteEntitySchema,
+  saveSprint: sprintInputSchema,
+  deleteSprint: deleteEntitySchema,
+  saveAutomationRule: automationRuleInputSchema,
+  deleteAutomationRule: deleteEntitySchema,
+  toggleAutomationRule: toggleAutomationRuleSchema,
+  sendAgentMessage: agentMessageInputSchema,
+  markMessageRead: markMessageReadSchema,
+  saveWorkflow: workflowInputSchema,
+  deleteWorkflow: deleteEntitySchema,
+  runWorkflow: runWorkflowSchema,
+  importSkill: importSkillSchema,
+  deleteSkill: deleteSkillSchema,
+  assignSkillToAgent: assignSkillToAgentSchema,
+  removeSkillFromAgent: removeSkillFromAgentSchema,
+  checkSkillUpdate: checkSkillUpdateSchema,
+  saveBudgetPolicy: budgetPolicyInputSchema,
+  deleteBudgetPolicy: deleteBudgetPolicySchema,
+  resolveBudgetIncident: resolveBudgetIncidentSchema,
+  recoveryRetry: recoveryRetrySchema,
+  recoveryFail: recoveryTaskSchema,
+  saveCredential: saveCredentialInputSchema,
+  removeCredential: removeCredentialInputSchema,
+  testCredential: testCredentialInputSchema,
+  startOAuth: oauthStartInputSchema,
+  cancelOAuth: oauthCancelInputSchema,
+  submitOAuthPrompt: oauthPromptResponseSchema,
+  submitOAuthManualCode: oauthManualCodeResponseSchema,
+};
+
 export function mapPreloadInvokeArgs(
   payload: PreloadPayloadSpec,
   args: readonly unknown[],
+  schema?: z.ZodType<unknown>,
 ): readonly unknown[] {
   if (payload.kind === "none") {
     assertArgCount(payload.kind, args.length, 0);
@@ -149,11 +298,12 @@ export function mapPreloadInvokeArgs(
 
   if (payload.kind === "single") {
     assertArgCount(payload.kind, args.length, 1);
-    return [args[0]];
+    return [schema ? schema.parse(args[0]) : args[0]];
   }
 
   assertArgCount(payload.kind, args.length, payload.keys.length);
-  return [Object.fromEntries(payload.keys.map((key, index) => [key, args[index]]))];
+  const objectPayload = Object.fromEntries(payload.keys.map((key, index) => [key, args[index]]));
+  return [schema ? schema.parse(objectPayload) : objectPayload];
 }
 
 function assertArgCount(kind: PreloadPayloadSpec["kind"], actual: number, expected: number): void {

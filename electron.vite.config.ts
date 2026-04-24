@@ -22,7 +22,7 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({ exclude: ["zod"] })],
     resolve: {
       alias: {
         "@shared": resolve("src/shared"),

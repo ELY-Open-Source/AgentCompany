@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import {
   IPC_CHANNELS,
+  companyIdSchema,
   companyInputSchema,
   connectorDisabledModelsSchema,
   connectorInputSchema,
@@ -73,13 +74,11 @@ export function registerCoreAdminHandlers({
   });
 
   registerHandle(IPC_CHANNELS.setCurrentCompany, async (_event, companyId) => {
-    if (typeof companyId !== "string" || !companyId) {
-      return fail("INVALID_COMPANY_ID", "A valid company id is required.");
-    }
-    if (!db.core.settings.hasCompany(companyId)) {
+    const parsed = companyIdSchema.parse(companyId);
+    if (!db.core.settings.hasCompany(parsed)) {
       return fail("COMPANY_NOT_FOUND", "The selected company does not exist.");
     }
-    db.core.settings.setCurrentCompany(companyId);
+    db.core.settings.setCurrentCompany(parsed);
     publishDomainChanged();
     return ok(true);
   });
@@ -153,13 +152,11 @@ export function registerCoreAdminHandlers({
   });
 
   registerHandle(IPC_CHANNELS.deleteCompany, async (_event, companyId) => {
-    if (typeof companyId !== "string" || companyId.length === 0) {
-      return fail("INVALID_INPUT", "Company ID is required.");
-    }
-    if (!db.core.settings.hasCompany(companyId)) {
+    const parsed = companyIdSchema.parse(companyId);
+    if (!db.core.settings.hasCompany(parsed)) {
       return fail("COMPANY_NOT_FOUND", "Company not found.");
     }
-    db.core.company.deleteCompany(companyId);
+    db.core.company.deleteCompany(parsed);
     publishDomainChanged();
     return ok(true);
   });
