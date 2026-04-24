@@ -258,6 +258,17 @@ export function buildRunMethods(
       return { budgetHardStopped };
     },
 
+    markRunCompletionFailure(runId: string, errorMessage: string): void {
+      const ts = nowIso();
+      transaction(() => {
+        getDb()
+          .prepare(
+            "update runs set status = 'failed', summary = ?, error_message = ?, usage_status = 'error_stop', finished_at = coalesce(finished_at, ?), updated_at = ? where id = ?",
+          )
+          .run("Run completion blocked by artifact projection failure.", errorMessage, ts, ts, runId);
+      });
+    },
+
     cancelRunForDeletion(runId: string, taskId: string | null, workspaceId: string | null, summary: string) {
       const ts = nowIso();
       getDb()

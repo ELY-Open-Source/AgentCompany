@@ -8,7 +8,11 @@ import { getConnectorDefinition } from "@main/connectors";
 import { projectInboxMessageToPi } from "./inbox-projection";
 import { projectAgentEventToLogChunk } from "./agent-event-projection";
 import { hasAttributableAssistantUsage } from "../run-usage-status";
-import { captureBaselineIfRequired, reconcileWorkspaceArtifacts } from "./artifact-projector";
+import { captureBaselineIfRequired } from "./artifact-projector";
+import {
+  reconcileArtifactsForActiveRun,
+  type RunResourceReleaseResult,
+} from "./runtime-artifact-reconciler";
 import {
   handleBeforeToolCall,
   handleAfterToolCall,
@@ -134,40 +138,21 @@ export class RuntimeBridge {
    * when individual projections skipped (bash against a non-git repo,
    * path-ignore false positives, transient `git status` failures).
    */
-  releaseRunResources(runId: string): void {
+  releaseRunResources(runId: string): RunResourceReleaseResult {
     const ctx = this.activeRuns.get(runId);
-    if (ctx) this.reconcileArtifactsForRun(ctx);
-    this.activeRuns.delete(runId);
-    this.inboundCorrelations.deleteRun(runId);
-    if (ctx) this.sessionStores.delete(ctx.taskSessionId);
+    let result: RunResourceReleaseResult = { ok: true };
+    try {
+      if (ctx) result = this.reconcileArtifactsForRun(ctx);
+      return result;
+    } finally {
+      this.activeRuns.delete(runId);
+      this.inboundCorrelations.deleteRun(runId);
+      if (ctx) this.sessionStores.delete(ctx.taskSessionId);
+    }
   }
 
-  private reconcileArtifactsForRun(ctx: ActiveRunContext): void {
-    if (!ctx.workspacePath) return;
-    try {
-      const outcomes = reconcileWorkspaceArtifacts(this.deps.db, {
-        runId: ctx.runId,
-        agentId: ctx.agentId,
-        companyId: ctx.companyId,
-        taskId: ctx.taskId,
-        workspaceId: ctx.workspaceId,
-        workspacePath: ctx.workspacePath,
-        workspaceMode: ctx.workspaceMode,
-        logger: this.deps.logger,
-        workspaceBaseline: ctx.workspaceBaseline,
-      });
-      const inserted = outcomes.filter((o) => o.kind === "inserted").length;
-      const retired = outcomes.filter((o) => o.kind === "retired").length;
-      if (inserted > 0 || retired > 0) {
-        this.deps.logger.info(
-          `[runtime-bridge] reconciliation for run ${ctx.runId}: ${inserted} registered, ${retired} retired`,
-        );
-      }
-    } catch (error) {
-      this.deps.logger.error(
-        `[runtime-bridge] artifact reconciliation failed for run ${ctx.runId}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
+  private reconcileArtifactsForRun(ctx: ActiveRunContext): RunResourceReleaseResult {
+    return reconcileArtifactsForActiveRun(this.deps, ctx);
   }
 
   /**
@@ -397,11 +382,7 @@ export class RuntimeBridge {
       workspacePath: string | null;
       workspaceMode: "exclusive" | "shared" | "none";
     };
-    // Baseline scans are safe only while this run owns the workspace lock.
-    const baseline =
-      payload.workspaceMode === "exclusive"
-        ? captureBaselineIfRequired(payload.workspacePath, this.deps.logger)
-        : null;
+    const baseline = captureBaselineIfRequired(payload.workspacePath, this.deps.logger);
     this.registerActiveRun({
       runId,
       agentId: payload.agentId,

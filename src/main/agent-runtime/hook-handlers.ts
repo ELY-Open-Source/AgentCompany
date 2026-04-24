@@ -24,6 +24,10 @@ import {
   type ArtifactProjectorRunContext,
 } from "./artifact-projector";
 import {
+  appendArtifactProjectionEvent,
+  appendArtifactProjectionFailureEvent,
+} from "./artifact-projection-events";
+import {
   isCofounderMandatoryApproval,
   isOperationalApproval,
 } from "../execution-policy";
@@ -144,12 +148,10 @@ function checkOperationalApprovalBlock(
  * through this hook; as further projections (browser actions, social
  * posts) migrate off the event-observer path they plug in here.
  *
- * Projection is treated as a primary persistence action: failures are
- * logged at ERROR so they stay visible in the desktop log tail, and the
- * `run-finished` reconciliation sweep (`RuntimeBridge`) revisits the
- * workspace to register anything the hook missed. Silent swallow was
- * the failure mode that left `work_products` empty while the workspace
- * accumulated files the UI never surfaced.
+ * Projection is treated as a primary persistence action: the filesystem
+ * mutation and its run-event acknowledgement commit together. A failure
+ * returns an RPC error to the worker, which lets pi surface the hook
+ * failure as a deterministic tool error.
  */
 export function handleAfterToolCall(
   deps: HookHandlerDeps,
@@ -168,16 +170,30 @@ export function handleAfterToolCall(
     workspaceBaseline: ctx.workspaceBaseline,
   };
   try {
-    const outcomes = projectToolExecutionToWorkProduct(
-      deps.db,
-      runCtx,
-      {
+    const outcomes = deps.db.withTransaction(() => {
+      const projectionOutcomes = projectToolExecutionToWorkProduct(
+        deps.db,
+        runCtx,
+        {
+          toolName: payload.toolName,
+          args: payload.args,
+          result: payload.resultContent,
+          isError: payload.isError,
+        },
+      );
+      appendArtifactProjectionEvent(deps.db, {
+        companyId: ctx.companyId,
+        runId: ctx.runId,
+        agentId: ctx.agentId,
+        phase: "after_tool_call",
+        workspaceId: ctx.workspaceId,
+        workspaceMode: ctx.workspaceMode,
         toolName: payload.toolName,
-        args: payload.args,
-        result: payload.resultContent,
-        isError: payload.isError,
-      },
-    );
+        toolCallId: payload.toolCallId,
+        outcomes: projectionOutcomes,
+      });
+      return projectionOutcomes;
+    });
     const registered = outcomes.filter((o) => o.kind === "inserted" || o.kind === "updated").length;
     const retired = outcomes.filter((o) => o.kind === "retired").length;
     if (registered > 0 || retired > 0) {
@@ -186,9 +202,28 @@ export function handleAfterToolCall(
       );
     }
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    try {
+      appendArtifactProjectionFailureEvent(deps.db, {
+        companyId: ctx.companyId,
+        runId: ctx.runId,
+        agentId: ctx.agentId,
+        phase: "after_tool_call",
+        workspaceId: ctx.workspaceId,
+        workspaceMode: ctx.workspaceMode,
+        toolName: payload.toolName,
+        toolCallId: payload.toolCallId,
+        errorMessage,
+      });
+    } catch (ackError) {
+      deps.logger.error(
+        `[hook-handlers] artifact projection failure ack failed for run ${ctx.runId} tool ${payload.toolName}: ${ackError instanceof Error ? ackError.message : String(ackError)}`,
+      );
+    }
     deps.logger.error(
-      `[hook-handlers] artifact projection threw for run ${ctx.runId} tool ${payload.toolName}: ${error instanceof Error ? error.message : String(error)}`,
+      `[hook-handlers] artifact projection threw for run ${ctx.runId} tool ${payload.toolName}: ${errorMessage}`,
     );
+    throw error;
   }
   return NO_OP_AFTER;
 }

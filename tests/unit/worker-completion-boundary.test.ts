@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { handleWorkerMessage } from "@main/worker/entry/message-handler";
 import { workerMessageSchema } from "@main/worker/entry/types";
 import type { RunJob } from "@main/worker/runtime/helpers";
+import type { RunResourceReleaseResult } from "@main/agent-runtime/runtime-artifact-reconciler";
 
 const RUN_ID = "00000000-0000-4000-8000-000000000001";
 const NEXT_RUN_ID = "00000000-0000-4000-8000-000000000002";
@@ -31,7 +32,11 @@ function createHandlerDeps(calls: string[]) {
   });
   const rotateSession = vi.fn(() => calls.push("rotateSession"));
   const processRunCompletion = vi.fn(() => calls.push("processRunCompletion"));
-  const releaseRunResources = vi.fn(() => calls.push("releaseRunResources"));
+  const releaseRunResources = vi.fn((): RunResourceReleaseResult => {
+    calls.push("releaseRunResources");
+    return { ok: true as const };
+  });
+  const markRunCompletionFailure = vi.fn(() => calls.push("markRunCompletionFailure"));
 
   const db = {
     core: {
@@ -44,6 +49,7 @@ function createHandlerDeps(calls: string[]) {
           workspaceId: "workspace-1",
         })),
         finishRun,
+        markRunCompletionFailure,
       },
       workspaces: { releaseWorkspaceLock },
       activity: { addActivity: vi.fn(() => calls.push("addActivity")) },
@@ -104,6 +110,7 @@ function createHandlerDeps(calls: string[]) {
     rotateSession,
     processRunCompletion,
     releaseRunResources,
+    markRunCompletionFailure,
   };
 }
 
@@ -137,7 +144,7 @@ describe("worker completion boundary", () => {
     Reflect.deleteProperty(process, "parentPort");
   });
 
-  it("releases the workspace lock after session, automation, and runtime resource release", async () => {
+  it("runs artifact reconciliation before automation and releases the workspace lock last", async () => {
     const calls: string[] = [];
     const {
       deps,
@@ -167,12 +174,57 @@ describe("worker completion boundary", () => {
     expect(releaseWorkspaceLock.mock.invocationCallOrder[0]).toBeGreaterThan(
       rotateSession.mock.invocationCallOrder[0]!,
     );
+    expect(processRunCompletion.mock.invocationCallOrder[0]).toBeGreaterThan(
+      releaseRunResources.mock.invocationCallOrder[0]!,
+    );
     expect(releaseWorkspaceLock.mock.invocationCallOrder[0]).toBeGreaterThan(
       processRunCompletion.mock.invocationCallOrder[0]!,
     );
     expect(releaseWorkspaceLock.mock.invocationCallOrder[0]).toBeGreaterThan(
       releaseRunResources.mock.invocationCallOrder[0]!,
     );
+  });
+
+  it("marks run completion failed and blocks success automation when artifact reconciliation fails", async () => {
+    const calls: string[] = [];
+    const {
+      deps,
+      releaseWorkspaceLock,
+      processRunCompletion,
+      releaseRunResources,
+      markRunCompletionFailure,
+    } = createHandlerDeps(calls);
+    releaseRunResources.mockImplementationOnce(() => {
+      calls.push("releaseRunResources");
+      return { ok: false as const, errorMessage: "completion_reconcile failed" };
+    });
+    const worker = { postMessage: vi.fn(() => calls.push("completionAck")) };
+
+    await handleWorkerMessage(
+      runFinishedMessage(RUN_ID),
+      worker as never,
+      deps as never,
+      workerMessageSchema,
+      false,
+      2,
+      30_000,
+      new Map(),
+      3,
+      new Set(),
+      new Map(),
+    );
+
+    expect(markRunCompletionFailure).toHaveBeenCalledWith(RUN_ID, "completion_reconcile failed");
+    expect(processRunCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({ id: RUN_ID }),
+      expect.objectContaining({
+        status: "failed",
+        errorMessage: "completion_reconcile failed",
+        usageStatus: "error_stop",
+      }),
+    );
+    expect(releaseWorkspaceLock).toHaveBeenCalledWith("workspace-1", RUN_ID);
+    expect(worker.postMessage).toHaveBeenCalledWith({ type: "run-completion-ack", runId: RUN_ID });
   });
 
   it("keeps same-workspace runs queued until parent acknowledges completion", async () => {

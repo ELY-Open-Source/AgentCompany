@@ -7,6 +7,7 @@ import { releaseCompletedRunWorkspaceLock } from "../handlers/run-finished-helpe
 import { handleContextCompaction } from "../handlers/context-compaction-handler";
 import type { HandlerContext, HandlerDeps } from "../handlers/handler-context";
 import type { RunFinishedContext } from "../handlers/run-finished-helpers";
+import type { RunResourceReleaseResult } from "../../agent-runtime/runtime-artifact-reconciler";
 
 export async function handleWorkerMessage(
   message: unknown,
@@ -50,10 +51,21 @@ export async function handleWorkerMessage(
       return;
     case "run-finished": {
       let completion: RunFinishedContext | null = null;
+      let runtimeResourcesReleased = false;
+      let runtimeReleaseResult: RunResourceReleaseResult = { ok: true };
+      const releaseRuntimeResources = (): RunResourceReleaseResult => {
+        if (runtimeResourcesReleased) return runtimeReleaseResult;
+        runtimeResourcesReleased = true;
+        runtimeReleaseResult =
+          deps.getRuntimeBridge?.()?.releaseRunResources(event.runId) ?? { ok: true };
+        return runtimeReleaseResult;
+      };
       try {
-        completion = handleRunFinished(event, deps, context);
+        completion = handleRunFinished(event, deps, context, {
+          beforePostCompletionAutomation: releaseRuntimeResources,
+        });
       } finally {
-        deps.getRuntimeBridge?.()?.releaseRunResources(event.runId);
+        releaseRuntimeResources();
       }
       releaseCompletedRunWorkspaceLock(completion, deps);
       if (!worker) {

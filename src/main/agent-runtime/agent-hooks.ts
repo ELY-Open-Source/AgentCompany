@@ -78,8 +78,8 @@ export interface AgentHookBundle {
  *  - `beforeToolCall`: fail-closed RPC. A thrown error travels up into
  *    pi's loop and surfaces as a tool-error result — destructive tools
  *    must never silently bypass main's approval gate.
- *  - `afterToolCall`: fail-open RPC. Projection is observational; if
- *    main cannot be reached the tool result stands unchanged.
+ *  - `afterToolCall`: fail-closed RPC. The tool has already run, so
+ *    main must durably acknowledge the artifact projection result.
  *  - `transformContext`: worker-local compaction. The transcript stays
  *    inside the worker; main receives telemetry only.
  */
@@ -120,10 +120,7 @@ export function buildAgentHooks(deps: AgentHooksDeps): AgentHookBundle {
     };
     const response = await rpc.invoke(runId, "afterToolCall", payload);
     if (!response.ok) {
-      // After-hook failure is informational: the tool already ran,
-      // projection is a best-effort write. Drop the hook rather than
-      // corrupting the tool result.
-      return undefined;
+      throw new Error(`afterToolCall RPC failed: ${response.error}`);
     }
     const result = response.result as AfterToolCallRpcResult;
     const override: AfterToolCallResult = {};

@@ -51,9 +51,14 @@ export function retireDeletedArtifacts(
   deleted: string[],
 ): ProjectionOutcome[] {
   if (deleted.length === 0) return [];
+  const resolvedWorkspaceId =
+    ctx.workspaceId ??
+    (ctx.workspacePath
+      ? db.core.workspaces.findWorkspaceIdByLocalPath(ctx.companyId, ctx.workspacePath)
+      : null);
   const archived = db.core.documents.archiveWorkProductsByExternalPaths({
     companyId: ctx.companyId,
-    workspaceId: ctx.workspaceId,
+    workspaceId: resolvedWorkspaceId,
     provider: "filesystem",
     paths: deleted,
     lastTouchedByRunId: ctx.runId,

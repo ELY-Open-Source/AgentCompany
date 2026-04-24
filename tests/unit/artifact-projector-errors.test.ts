@@ -86,7 +86,7 @@ describe("artifact projector error taxonomy", () => {
     expect(logger.error).not.toHaveBeenCalled();
   });
 
-  it("skips broad bash projection when the run has no exclusive workspace lock", async () => {
+  it("skips broad bash projection when the run has no change source", async () => {
     const workspacePath = await createTempDir("agentcompany-shared-artifacts-");
     const ctx: ArtifactProjectorRunContext = {
       runId: "run-shared",
@@ -105,9 +105,9 @@ describe("artifact projector error taxonomy", () => {
       args: { command: "touch report.md" },
       result: null,
       isError: false,
-    })).toEqual([{ kind: "skipped", reason: "workspace_not_exclusive" }]);
+    })).toEqual([{ kind: "skipped", reason: "no_baseline" }]);
     expect(reconcileWorkspaceArtifacts({} as AppDatabase, ctx)).toEqual([
-      { kind: "skipped", reason: "workspace_not_exclusive" },
+      { kind: "skipped", reason: "no_baseline" },
     ]);
   });
 });

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { AppDatabase } from "../../src/main/database";
 import {
+  projectToolExecutionToWorkProduct,
   reconcileWorkspaceArtifacts,
   type ArtifactProjectorRunContext,
 } from "../../src/main/agent-runtime/artifact-projector";
@@ -236,6 +237,85 @@ describe("work_products archived visibility", () => {
 });
 
 describe("work_products bulk retirement", () => {
+  it("registers bash artifacts from non-exclusive observation workspaces", async () => {
+    const harness = await createHarness();
+    try {
+      const ctx: ArtifactProjectorRunContext = {
+        runId: harness.runId,
+        agentId: harness.agentId,
+        companyId: harness.companyId,
+        taskId: harness.taskId,
+        workspaceId: null,
+        workspacePath: harness.workspacePath,
+        workspaceMode: "none",
+        workspaceBaseline: {
+          mtimeByRelPath: new Map<string, number>(),
+          capturedAt: Date.now(),
+          truncated: false,
+        },
+      };
+      await mkdir(join(harness.workspacePath, "reports"), { recursive: true });
+      await writeFile(join(harness.workspacePath, "reports", "non-exclusive.md"), "observed", "utf8");
+
+      const outcomes = projectToolExecutionToWorkProduct(harness.db, ctx, {
+        toolName: "bash",
+        args: { command: "printf observed > reports/non-exclusive.md" },
+        result: null,
+        isError: false,
+      });
+
+      expect(outcomes).toEqual([
+        expect.objectContaining({
+          kind: "inserted",
+          relativePath: "reports/non-exclusive.md",
+        }),
+      ]);
+      expect(
+        harness.db.projection.snapshot.listSnapshot().workProducts.some(
+          (entry) => entry.externalId === "reports/non-exclusive.md",
+        ),
+      ).toBe(true);
+    } finally {
+      harness.db.close();
+    }
+  });
+
+  it("retires deleted artifacts from non-exclusive observation workspaces", async () => {
+    const harness = await createHarness();
+    try {
+      const relPath = "reports/non-exclusive-retired.md";
+      const workProductId = registerArtifact(harness, relPath);
+      await unlink(join(harness.workspacePath, relPath));
+
+      const outcomes = reconcileWorkspaceArtifacts(harness.db, {
+        runId: harness.runId,
+        agentId: harness.agentId,
+        companyId: harness.companyId,
+        taskId: harness.taskId,
+        workspaceId: null,
+        workspacePath: harness.workspacePath,
+        workspaceMode: "none",
+        workspaceBaseline: {
+          mtimeByRelPath: new Map<string, number>([[relPath, Date.now()]]),
+          capturedAt: Date.now(),
+          truncated: false,
+        },
+      });
+
+      expect(outcomes).toEqual([
+        expect.objectContaining({
+          kind: "retired",
+          relativePath: relPath,
+        }),
+      ]);
+      expect(
+        harness.db.core.documents.resolveWorkProductTarget(workProductId, harness.companyId),
+      ).toMatchObject({ kind: "error", reason: "archived" });
+    } finally {
+      harness.db.close();
+    }
+  });
+
   it("archives every deletion past the previous 50-path budget", async () => {
     const harness = await createHarness();
     try {
