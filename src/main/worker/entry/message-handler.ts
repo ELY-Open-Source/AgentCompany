@@ -3,8 +3,10 @@ import type { workerMessageSchema } from "./types";
 import { handleRunLog } from "../handlers/run-log-handler";
 import { handleRunStatus } from "../handlers/run-status-handler";
 import { handleRunFinished } from "../handlers/run-finished-handler";
+import { releaseCompletedRunWorkspaceLock } from "../handlers/run-finished-helpers";
 import { handleContextCompaction } from "../handlers/context-compaction-handler";
 import type { HandlerContext, HandlerDeps } from "../handlers/handler-context";
+import type { RunFinishedContext } from "../handlers/run-finished-helpers";
 
 export async function handleWorkerMessage(
   message: unknown,
@@ -47,11 +49,17 @@ export async function handleWorkerMessage(
       handleRunStatus(event, deps, context);
       return;
     case "run-finished": {
+      let completion: RunFinishedContext | null = null;
       try {
-        handleRunFinished(event, deps, context);
+        completion = handleRunFinished(event, deps, context);
       } finally {
         deps.getRuntimeBridge?.()?.releaseRunResources(event.runId);
       }
+      releaseCompletedRunWorkspaceLock(completion, deps);
+      if (!worker) {
+        throw new Error(`run-completion-ack worker missing for run ${event.runId}`);
+      }
+      worker.postMessage({ type: "run-completion-ack", runId: event.runId });
       return;
     }
     case "agent-event": {

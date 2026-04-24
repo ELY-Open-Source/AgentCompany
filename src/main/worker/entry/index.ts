@@ -90,9 +90,12 @@ async function startRun(job: RunJob) {
     await runner.run(job);
   } finally {
     cancelledRuns.delete(job.runId);
-    active.delete(job.runId);
-    tickQueue();
   }
+}
+
+function acknowledgeRunCompletion(runId: string) {
+  const released = active.delete(runId);
+  if (released) tickQueue();
 }
 
 function cancelRun(runId: string) {
@@ -127,6 +130,10 @@ parentPort.on("message", (event) => {
   }
   if (message.type === "cancel-run") {
     cancelRun(message.runId);
+    return;
+  }
+  if (message.type === "run-completion-ack") {
+    acknowledgeRunCompletion(message.runId);
     return;
   }
   if (message.type === "steer-run") {

@@ -47,6 +47,7 @@ export type RunAgentLifecycleState = "agent_active" | "closing";
 export type ParentMessage =
   | { type: "enqueue-run"; payload: RunJob }
   | { type: "cancel-run"; runId: string }
+  | { type: "run-completion-ack"; runId: string }
   | { type: "shutdown" }
   | { type: "steer-run"; runId: string; correlationId: string; message: AgentMessage }
   | { type: "rpc-response"; rpcId: string; response: { ok: true; result: unknown } | { ok: false; error: string } };

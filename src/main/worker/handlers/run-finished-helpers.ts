@@ -71,9 +71,6 @@ export function finalizeRun(
 
   leaseRenewalMap.delete(event.runId);
   const runOutcome = db.core.runs.finishRun({ ...event, unattributedCost });
-  if (run.workspaceId) {
-    db.core.workspaces.releaseWorkspaceLock(run.workspaceId, run.id);
-  }
   db.core.activity.addActivity({
     companyId: run.companyId,
     actor: run.agentId,
@@ -84,6 +81,15 @@ export function finalizeRun(
   });
 
   return { run, task, runOutcome };
+}
+
+export function releaseCompletedRunWorkspaceLock(
+  rfCtx: RunFinishedContext | null,
+  deps: Pick<HandlerDeps, "db">,
+): void {
+  const workspaceId = rfCtx?.run.workspaceId;
+  if (!workspaceId) return;
+  deps.db.core.workspaces.releaseWorkspaceLock(workspaceId, rfCtx.run.id);
 }
 
 export function accumulateAndRotateSession(
