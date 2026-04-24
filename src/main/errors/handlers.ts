@@ -13,6 +13,22 @@ export interface Logger {
   warn?: (...args: unknown[]) => void;
 }
 
+type FatalErrorRoute = (error: AppError) => never;
+
+const defaultFatalErrorRoute: FatalErrorRoute = (error) => {
+  if (process.env.VITEST === "true" || process.env.NODE_ENV === "test") {
+    throw error;
+  }
+  process.stderr.write(`[fatal:${error.code}] ${error.message}\n`);
+  process.abort();
+};
+
+let fatalErrorRoute: FatalErrorRoute = defaultFatalErrorRoute;
+
+export function setFatalErrorRouteForTesting(route: FatalErrorRoute | null): void {
+  fatalErrorRoute = route ?? defaultFatalErrorRoute;
+}
+
 /**
  * Classify an unknown thrown value and emit a single structured log line.
  * Returns the `AppError` so the caller can still branch on `err.kind`
@@ -45,6 +61,9 @@ export function logAppError(
     logger.error(...parts);
   } else if (typeof logger.warn === "function") {
     logger.warn(...parts);
+  }
+  if (err.kind === "fatal") {
+    fatalErrorRoute(err);
   }
   return err;
 }

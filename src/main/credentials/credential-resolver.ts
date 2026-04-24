@@ -1,19 +1,33 @@
 import { getOAuthProvider } from "@mariozechner/pi-ai/oauth";
 import { getEnvApiKey } from "@mariozechner/pi-ai";
 import { getConnectorDefinition, isPiKnownProvider } from "@main/connectors";
+import { UpstreamError } from "../errors/index.js";
 import { CredentialStore } from "./credential-store";
 import type { OAuthCredentialPayload, StoredCredentialPayload } from "./types";
 
 const REFRESH_WINDOW_MS = 60_000;
 
-export class CredentialError extends Error {
+export type CredentialErrorCode =
+  | "CREDENTIAL_MISSING"
+  | "CREDENTIAL_EXPIRED"
+  | "CREDENTIAL_INVALID"
+  | "CREDENTIAL_REFRESH_FAILED";
+
+export class CredentialError extends UpstreamError {
+  readonly connectorId: string;
+
   constructor(
-    public readonly code: "CREDENTIAL_MISSING" | "CREDENTIAL_EXPIRED" | "CREDENTIAL_INVALID" | "CREDENTIAL_REFRESH_FAILED",
-    public readonly connectorId: string,
+    code: CredentialErrorCode,
+    connectorId: string,
     message?: string,
   ) {
-    super(message ?? code);
+    super({
+      code,
+      message: message ?? code,
+      context: { connectorId },
+    });
     this.name = "CredentialError";
+    this.connectorId = connectorId;
   }
 }
 

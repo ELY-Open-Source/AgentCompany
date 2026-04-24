@@ -5,6 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AppDatabase } from "../../src/main/database";
 import { CredentialStore } from "../../src/main/credentials/credential-store";
 import { CredentialResolver, CredentialError } from "../../src/main/credentials/credential-resolver";
+import { AppError } from "../../src/main/errors";
 
 beforeAll(() => {
   process.env.AGENTCOMPANY_ALLOW_INSECURE_VAULT = "true";
@@ -56,7 +57,20 @@ describe("CredentialResolver", () => {
   it("throws CREDENTIAL_MISSING when the env-backed key is unset", async () => {
     delete process.env.XAI_API_KEY;
     store.save("xai", { kind: "api_key", value: { source: "env", value: "XAI_API_KEY" } });
-    await expect(resolver.resolve("xai")).rejects.toBeInstanceOf(CredentialError);
+    let thrown: unknown;
+    try {
+      await resolver.resolve("xai");
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(CredentialError);
+    expect(thrown).toBeInstanceOf(AppError);
+    expect(thrown).toMatchObject({
+      kind: "upstream",
+      code: "CREDENTIAL_MISSING",
+      connectorId: "xai",
+      context: { connectorId: "xai" },
+    });
   });
 
   it("assembles AWS extraEnv for IAM auth mode", async () => {

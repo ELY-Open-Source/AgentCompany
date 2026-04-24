@@ -18,4 +18,4 @@ export {
   type ErrorKind,
 } from "./taxonomy.js";
 
-export { logAppError, type Logger } from "./handlers.js";
+export { logAppError, setFatalErrorRouteForTesting, type Logger } from "./handlers.js";

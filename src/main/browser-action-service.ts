@@ -78,26 +78,6 @@ export function createBrowserActionService({
     });
   }
 
-  /**
-   * Returns the approval record for `approvalId`, or null if the record is
-   * missing. Isolates the "approval row disappeared" case so the caller does
-   * not need to nest a try/catch around the state machine.
-   */
-  function getApprovalOrNull(approvalId: string): ReturnType<typeof db.core.approvals.getApprovalRecord> | null {
-    try {
-      return db.core.approvals.getApprovalRecord(approvalId);
-    } catch (err) {
-      const classified = classifyUnknownError(err, {
-        kind: "recoverable",
-        code: "browser_action.approval.lookup_failed",
-        message: `getApprovalRecord failed for ${approvalId}`,
-        context: { approvalId },
-      });
-      log.warn(`[${classified.code}]`, classified.message, classified.context);
-      return null;
-    }
-  }
-
   async function dispatchBrowserAction(actionId: string, companyId: string) {
     const action = db.core.social.getBrowserAction(actionId, companyId);
     if (!action) {
@@ -107,7 +87,7 @@ export function createBrowserActionService({
       throw new Error(`Browser action ${actionId} is ${action.status} and cannot be dispatched.`);
     }
     if (action.approvalId) {
-      const approval = getApprovalOrNull(action.approvalId);
+      const approval = db.core.approvals.getApprovalRecord(action.approvalId);
       if (!approval || approval.companyId !== companyId) {
         throw new Error(`Browser action approval ${action.approvalId} does not belong to company ${companyId}.`);
       }
