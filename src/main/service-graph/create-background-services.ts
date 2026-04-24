@@ -4,7 +4,7 @@ import type { DesktopEvent } from "@shared/types";
 import { createAutomationService } from "../automation-service";
 import { createBrowserActionService } from "../browser-action-service";
 import { createOnboardingService } from "../onboarding-service";
-import type { createOrchestrationService } from "../orchestration-service";
+import type { createRuntimeOrchestrationService } from "./create-runtime-orchestration-service";
 import type { createSkillService } from "../skill-service";
 import type { NotificationOptions } from "../notification-service";
 
@@ -22,7 +22,7 @@ export interface BackgroundServicesDeps {
   isQuittingRef: { current: boolean };
   browserManagerRef: { current: BrowserManager | null };
   skillService: ReturnType<typeof createSkillService>;
-  orchestrationService: ReturnType<typeof createOrchestrationService>;
+  orchestrationService: ReturnType<typeof createRuntimeOrchestrationService>;
   seedDefaultAutomationRules: (companyId: string) => void;
 }
 

@@ -12,15 +12,12 @@ import type { NotificationOptions } from "./notification-service";
 import type { createAutomationService } from "./automation-service";
 import type { createBrowserActionService } from "./browser-action-service";
 import type { createOnboardingService } from "./onboarding-service";
-import type { createOrchestrationService } from "./orchestration-service";
 import { createUpdaterService } from "./updater-service";
 import { createLeafServices } from "./service-graph/create-leaf-services";
 import { createDesktopShell } from "./service-graph/create-desktop-shell";
-import { buildWorkerService } from "./service-graph/create-worker-service";
-import { buildOrchestrationService } from "./service-graph/create-orchestration-service";
+import { createRuntimeOrchestrationService } from "./service-graph/create-runtime-orchestration-service";
 import { createBackgroundServices } from "./service-graph/create-background-services";
 import { createLifecycle } from "./service-graph/create-lifecycle";
-import { createServiceEventHub } from "./service-graph/service-event-hub";
 
 interface ServiceGraphDependencies {
   db: AppDatabase;
@@ -58,8 +55,9 @@ interface ServiceGraphDependencies {
 
 /**
  * Thin orchestrator: assembles services in a deterministic topological order
- * and exposes them via read-only getters. Cross-service callbacks are routed
- * through a typed event hub so construction order stays explicit.
+ * and exposes them via read-only getters. The hot run path is owned by
+ * runtimeOrchestrationService, which holds worker/orchestration callbacks
+ * together so graph construction stays explicit.
  */
 export function createServiceGraph(deps: ServiceGraphDependencies) {
   const {
@@ -90,8 +88,7 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
   // the lifecycle drain has torn services down.
   let desktopShellService: ReturnType<typeof createDesktopShell> | null = null;
   let connectorHealthService: ReturnType<typeof createConnectorHealthService> | null = null;
-  let workerService: ReturnType<typeof buildWorkerService> | null = null;
-  let orchestrationService: ReturnType<typeof createOrchestrationService> | null = null;
+  let runtimeOrchestrationService: ReturnType<typeof createRuntimeOrchestrationService> | null = null;
   let automationService: ReturnType<typeof createAutomationService> | null = null;
   let browserActionService: ReturnType<typeof createBrowserActionService> | null = null;
   let onboardingService: ReturnType<typeof createOnboardingService> | null = null;
@@ -100,7 +97,6 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
   let leaf: ReturnType<typeof createLeafServices> | null = null;
   let runtimeMessageInjector: RuntimeMessageInjector | null = null;
   const piRuntimeRef: { current: PiRuntimeServices | null } = { current: null };
-  const serviceEvents = createServiceEventHub();
 
   function requireLeaf() {
     if (!leaf) throw new Error("Leaf services are not initialized.");
@@ -152,16 +148,13 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
       credentialStore: piRuntimeRef.current.credentialStore,
     });
 
-    workerService = buildWorkerService({
+    runtimeOrchestrationService = createRuntimeOrchestrationService({
       db,
       logger,
       workerPath,
       isQuittingRef,
       publishDomainChanged,
       emitEvent,
-      wakeAgentIfPossible: serviceEvents.wakeAgentIfPossible,
-      dispatchRunToWorker: serviceEvents.dispatchRunToWorker,
-      processRunCompletion: serviceEvents.processRunCompletion,
       onRunStarted,
       onRunCompleted,
       notify,
@@ -169,40 +162,27 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
       sessionService: leaf.sessionManagementService,
       piRuntimeRef,
       getRuntimeMessageInjector: () => runtimeMessageInjector,
+      createRunToken,
+      getApiPort: () => apiServerRef.current?.port ?? 0,
+      skillService: leaf.skillService,
+      checkpointEngine,
     });
 
     runtimeMessageInjector = new RuntimeMessageInjector({
       db,
       runtimeBridge: piRuntimeRef.current.runtimeBridge,
       postToWorker: (message) => {
-        const worker = workerService?.getWorker();
+        const worker = runtimeOrchestrationService?.getWorker();
         if (!worker) throw new Error("Worker is not initialised — cannot deliver steer message.");
         worker.postMessage(message);
       },
       getWakeAgent: () => {
-        if (!serviceEvents.hasOrchestrationHandlers()) return null;
-        return (agentId, companyId, trigger) => serviceEvents.wakeAgentIfPossible(agentId, companyId, trigger);
+        const runtime = runtimeOrchestrationService;
+        if (!runtime) return null;
+        return (agentId, companyId, trigger) => runtime.wakeAgentIfPossible(agentId, companyId, trigger);
       },
       logger,
     });
-
-    orchestrationService = buildOrchestrationService({
-      db,
-      logger,
-      publishDomainChanged,
-      emitEvent,
-      notify,
-      createRunToken,
-      getApiPort: () => apiServerRef.current?.port ?? 0,
-      isQuittingRef,
-      skillService: leaf.skillService,
-      budgetService: leaf.budgetEnforcementService,
-      sessionService: leaf.sessionManagementService,
-      workerService,
-      dispatchAutomation: serviceEvents.dispatchAutomation,
-      checkpointEngine,
-    });
-    serviceEvents.registerOrchestration(orchestrationService);
 
     const background = createBackgroundServices({
       db,
@@ -213,15 +193,15 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
       isQuittingRef,
       browserManagerRef,
       skillService: leaf.skillService,
-      orchestrationService,
+      orchestrationService: runtimeOrchestrationService,
       seedDefaultAutomationRules,
     });
     automationService = background.automationService;
     browserActionService = background.browserActionService;
     onboardingService = background.onboardingService;
-    serviceEvents.registerAutomation(automationService);
-    serviceEvents.assertReady();
-    workerService.createWorker();
+    runtimeOrchestrationService.bindAutomation(automationService);
+    runtimeOrchestrationService.assertReady();
+    runtimeOrchestrationService.createWorker();
 
     appLifecycleService = createLifecycle({
       db,
@@ -230,23 +210,20 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
       apiServerRef,
       browserManagerRef,
       piRuntimeRef,
-      orchestrationService,
+      runtimeOrchestrationService,
       automationService,
-      workerService,
       desktopShellService,
       clearServiceRefs: () => {
         desktopShellService = null;
-        workerService = null;
+        runtimeOrchestrationService = null;
         browserActionService = null;
         automationService = null;
         connectorHealthService = null;
         onboardingService = null;
-        orchestrationService = null;
         updaterService = null;
         appLifecycleService = null;
         runtimeMessageInjector = null;
         leaf = null;
-        serviceEvents.clear();
       },
     });
   }
@@ -255,9 +232,9 @@ export function createServiceGraph(deps: ServiceGraphDependencies) {
     init,
     getDesktopShellService: () => desktopShellService,
     getConnectorHealthService: () => connectorHealthService,
-    getWorkerService: () => workerService,
+    getWorkerService: () => runtimeOrchestrationService,
     getBrowserActionService: () => browserActionService,
-    getOrchestrationService: () => orchestrationService,
+    getOrchestrationService: () => runtimeOrchestrationService,
     getAutomationService: () => automationService,
     getOnboardingService: () => onboardingService,
     getUpdaterService: () => updaterService,

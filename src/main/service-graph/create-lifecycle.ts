@@ -5,9 +5,8 @@ import { BrowserManager } from "../browser-manager";
 import { createAppLifecycleService } from "../app-lifecycle-service";
 import type { createAutomationService } from "../automation-service";
 import type { createDesktopShellService } from "../desktop-shell-service";
-import type { createOrchestrationService } from "../orchestration-service";
-import type { createWorkerService } from "../worker-service";
 import type { PiRuntimeServices } from "../service-graph-pi-runtime";
+import type { createRuntimeOrchestrationService } from "./create-runtime-orchestration-service";
 
 /** Overall budget for awaited shutdown drain. */
 const SHUTDOWN_BUDGET_MS = 5_000;
@@ -24,9 +23,8 @@ export interface LifecycleDeps {
   apiServerRef: { current: AgentApiServer | null };
   browserManagerRef: { current: BrowserManager | null };
   piRuntimeRef: { current: PiRuntimeServices | null };
-  orchestrationService: ReturnType<typeof createOrchestrationService>;
+  runtimeOrchestrationService: ReturnType<typeof createRuntimeOrchestrationService>;
   automationService: ReturnType<typeof createAutomationService>;
-  workerService: ReturnType<typeof createWorkerService>;
   desktopShellService: ReturnType<typeof createDesktopShellService>;
   /**
    * Clears graph-owned service refs (so getters return null) after the drain
@@ -50,9 +48,8 @@ export function createLifecycle(deps: LifecycleDeps) {
     apiServerRef,
     browserManagerRef,
     piRuntimeRef,
-    orchestrationService,
+    runtimeOrchestrationService,
     automationService,
-    workerService,
     desktopShellService,
     clearServiceRefs,
   } = deps;
@@ -71,7 +68,7 @@ export function createLifecycle(deps: LifecycleDeps) {
   }
 
   async function drain(): Promise<number> {
-    try { orchestrationService.stopAllSchedulers(); } catch (err) { logger.warn("[lifecycle] stopAllSchedulers failed:", err); }
+    try { runtimeOrchestrationService.stopAllSchedulers(); } catch (err) { logger.warn("[lifecycle] stopAllSchedulers failed:", err); }
     try { automationService.destroy(); } catch (err) { logger.warn("[lifecycle] automationService.destroy failed:", err); }
     try { apiServerRef.current?.stop(); } catch (err) { logger.warn("[lifecycle] apiServer.stop failed:", err); }
     apiServerRef.current = null;
@@ -83,7 +80,7 @@ export function createLifecycle(deps: LifecycleDeps) {
       if (typeof handle.unref === "function") handle.unref();
     });
     const outcome = await Promise.race([
-      workerService.shutdown().then(() => "drained" as const),
+      runtimeOrchestrationService.shutdown().then(() => "drained" as const),
       timeout,
     ]);
 
