@@ -238,6 +238,24 @@ describe("buildSystemPrompt leadership classification", () => {
     expect(changedFullPrompt).toContain("1 blocked");
   });
 
+  it("keeps heartbeat skip state out of the task prompt", () => {
+    const ctx = buildCtx() as PromptContext & {
+      heartbeatSkip: { reason: string; streak: number; since: string; lastTickAt: string };
+    };
+    ctx.heartbeatSkip = {
+      reason: "worker_not_ready",
+      streak: 7,
+      since: "2026-04-23T00:00:00.000Z",
+      lastTickAt: "2026-04-23T00:10:00.000Z",
+    };
+
+    const prompt = buildTaskPrompt(ctx);
+
+    expect(prompt).not.toContain("Heartbeat Skip Status");
+    expect(prompt).not.toContain("worker_not_ready");
+    expect(prompt).not.toContain("Consecutive skips");
+  });
+
   it("keeps volatile task context after the cacheable system prefix", () => {
     const ctx = buildCtx({ wakeReason: "timer" });
     const systemPrompt = buildSystemPrompt(ctx);

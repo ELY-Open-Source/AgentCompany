@@ -8,38 +8,36 @@ import { pickModelForAgent } from "../model-dispatch";
 import { HUMAN_SENDER_ID } from "../messaging/dispatch";
 import { decideRunAttempt } from "../run-attempt-policy";
 
-/**
- * Every reason a heartbeat attempt can be rejected before a run is
- * dispatched. The enum is closed so callers (scheduler, UI) can reason
- * about persistence and operator display exhaustively.
- */
-export type HeartbeatSkipReason =
-  | "quitting"
-  | "worker_not_ready"
-  | "company_inactive"
-  | "cross_company"
-  | "agent_not_runnable"
-  | "budget_blocked"
-  | "connector_not_ready"
-  | "connector_model_not_allowed"
-  | "model_pick_failed"
-  | "max_concurrent_runs"
-  | "cooldown"
-  | "wake_on_demand_disabled"
-  | "pending_approval"
-  | "awaiting_user_review"
-  | "pending_deliverable_review"
-  | "checkout_race_lost"
-  | "no_actionable_tasks"
-  | "workspace_unresolved";
+export type HeartbeatBlockReason =
+  | "system_unavailable"
+  | "agent_unavailable"
+  | "policy_blocked"
+  | "human_blocked"
+  | "no_work"
+  | "workspace_unavailable"
+  | "dispatch_race";
+
+export type HeartbeatRunDecision =
+  | { allowed: true; agent: AgentRecord; connector: ConnectorRecord; modelId: string | null; isCommunicationWake: boolean }
+  | { allowed: false; reason: HeartbeatBlockReason; detail: string };
 
 export type HeartbeatStartResult =
   | { status: "started"; runId: string }
-  | { status: "skipped"; reason: HeartbeatSkipReason };
+  | { status: "skipped"; reason: HeartbeatBlockReason; detail: string };
 
-const SKIPPED = (reason: HeartbeatSkipReason): HeartbeatStartResult => ({
-  status: "skipped",
+const BLOCKED = (
+  reason: HeartbeatBlockReason,
+  detail: string,
+): Extract<HeartbeatRunDecision, { allowed: false }> => ({
+  allowed: false,
   reason,
+  detail,
+});
+
+const SKIPPED = (decision: Extract<HeartbeatRunDecision, { allowed: false }>): HeartbeatStartResult => ({
+  status: "skipped",
+  reason: decision.reason,
+  detail: decision.detail,
 });
 
 export function createHeartbeat(
@@ -64,17 +62,17 @@ export function createHeartbeat(
     }
   }
 
-  function startAgentHeartbeatRun(agentId: string, companyId: string, trigger: string): HeartbeatStartResult {
-    if (isQuitting()) return SKIPPED("quitting");
+  function canRunAgent(agentId: string, companyId: string, trigger: string): HeartbeatRunDecision {
+    if (isQuitting()) return BLOCKED("system_unavailable", "quitting");
     const isMessageWake = trigger === "message";
     const isCommunicationWake = isMessageWake || trigger === "peer_request";
-    if (!hasWorkerReady()) return SKIPPED("worker_not_ready");
+    if (!hasWorkerReady()) return BLOCKED("system_unavailable", "worker_not_ready");
     const companyStatus = db.core.company.getCompanyStatus(companyId);
-    if (companyStatus !== "active") return SKIPPED("company_inactive");
+    if (companyStatus !== "active") return BLOCKED("system_unavailable", `company_${companyStatus}`);
     const agent = db.core.entity.getAgent(agentId);
     if (agent.companyId !== companyId) {
       logger.warn(`[heartbeat] Refusing cross-company run for agent ${agentId}: ${agent.companyId} !== ${companyId}`);
-      return SKIPPED("cross_company");
+      return BLOCKED("agent_unavailable", "cross_company");
     }
     const pick = pickModelForAgent(agent, {
       getConnector: (id) => db.core.connectors.getConnector(id),
@@ -92,24 +90,14 @@ export function createHeartbeat(
         entityId: agent.id,
         detail: pick.message,
       });
-      return SKIPPED("model_pick_failed");
+      return BLOCKED("policy_blocked", "model_pick_failed");
     }
     const assignment = pick.assignment;
     const connector = db.core.connectors.getConnector(assignment.connectorId);
     const effectiveAgentForEligibility: AgentRecord = { ...agent, model: assignment.modelId };
     const eligibilityFailure = getRunEligibilityFailure(effectiveAgentForEligibility, connector, null);
     if (eligibilityFailure) {
-      // getRunEligibilityFailure returns one of three string codes; map to
-      // the corresponding skip reason so the caller can surface it.
-      const mapped: HeartbeatSkipReason =
-        eligibilityFailure === "AGENT_NOT_RUNNABLE"
-          ? "agent_not_runnable"
-          : eligibilityFailure === "BUDGET_POLICY_BLOCKED"
-            ? "budget_blocked"
-            : eligibilityFailure === "CONNECTOR_NOT_READY"
-              ? "connector_not_ready"
-              : "connector_model_not_allowed";
-      return SKIPPED(mapped);
+      return BLOCKED("policy_blocked", eligibilityFailure);
     }
     // Extended heartbeat policy checks (Paperclip parity).
     // Let getHeartbeatPolicy throw — a missing row signals data corruption
@@ -129,14 +117,14 @@ export function createHeartbeat(
       bypassCooldown: isMessageWake,
     });
     if (runAttemptDecision.action === "skip") {
-      return SKIPPED(runAttemptDecision.reason);
+      return BLOCKED("policy_blocked", runAttemptDecision.reason);
     }
 
     // wakeOnDemand gate: if disabled, only timer/bootstrap triggers allowed
     if (!heartbeatPolicy.wakeOnDemand && trigger !== "timer" && trigger !== "bootstrap") {
-      return SKIPPED("wake_on_demand_disabled");
+      return BLOCKED("policy_blocked", "wake_on_demand_disabled");
     }
-    if (db.core.agents.isAgentPendingApproval(agentId)) return SKIPPED("pending_approval");
+    if (db.core.agents.isAgentPendingApproval(agentId)) return BLOCKED("human_blocked", "pending_approval");
 
     const companyMode = db.core.company.getCompanyExecutionMode(companyId);
     const approvalSettings = db.core.company.getCompanyApprovalSettings(companyId);
@@ -149,7 +137,7 @@ export function createHeartbeat(
       !isMessageWake &&
       (db.core.tasks.hasAgentPendingDeliverableReview(agentId, companyId) || db.core.tasks.hasAgentTaskAwaitingReview(agentId, companyId))
     ) {
-      return SKIPPED("awaiting_user_review");
+      return BLOCKED("human_blocked", "awaiting_user_review");
     }
 
     // Block CEO heartbeat when company has any pending deliverable reviews
@@ -159,8 +147,22 @@ export function createHeartbeat(
       !agent.reportsTo &&
       db.core.tasks.hasPendingDeliverableReviews(companyId)
     ) {
-      return SKIPPED("pending_deliverable_review");
+      return BLOCKED("human_blocked", "pending_deliverable_review");
     }
+
+    return {
+      allowed: true,
+      agent,
+      connector,
+      modelId: assignment.modelId,
+      isCommunicationWake,
+    };
+  }
+
+  function startAgentHeartbeatRun(agentId: string, companyId: string, trigger: string): HeartbeatStartResult {
+    const decision = canRunAgent(agentId, companyId, trigger);
+    if (!decision.allowed) return SKIPPED(decision);
+    const { agent, connector, modelId, isCommunicationWake } = decision;
 
     const assignedTasks = isCommunicationWake
       ? []
@@ -177,7 +179,7 @@ export function createHeartbeat(
       const hasActiveAssignedRun = candidateTasks.some(
         (entry) => entry.activeRunId && hasActiveRun({ taskId: entry.id, companyId }),
       );
-      if (hasActiveAssignedRun) return SKIPPED("max_concurrent_runs");
+      if (hasActiveAssignedRun) return SKIPPED(BLOCKED("policy_blocked", "max_concurrent_runs"));
 
       const isCeo = !agent.reportsTo;
       const isManager = db.core.agents.getDirectReports(agent.id, companyId).length > 0;
@@ -186,7 +188,7 @@ export function createHeartbeat(
       const companyNeedsBootstrap = goalCount > 0 && taskCount < goalCount;
 
       if (isTimer && !isCeo && !isManager && !companyNeedsBootstrap) {
-        return SKIPPED("no_actionable_tasks");
+        return SKIPPED(BLOCKED("no_work", "no_actionable_tasks"));
       }
 
       // No task — this is a true heartbeat run. The run row carries
@@ -209,7 +211,7 @@ export function createHeartbeat(
           detail: error.message,
         });
         logger.warn(`[heartbeat] Workspace unresolved for ${agent.name}: ${error.message}`);
-        return SKIPPED("workspace_unresolved");
+        return SKIPPED(BLOCKED("workspace_unavailable", "workspace_unresolved"));
       }
       throw error;
     }
@@ -245,7 +247,7 @@ export function createHeartbeat(
         entityId: task.id,
         detail: `Agent ${agent.name} lost checkout race on task "${task.title}"`,
       });
-      return SKIPPED("checkout_race_lost");
+      return SKIPPED(BLOCKED("dispatch_race", "checkout_race_lost"));
     }
 
     const companyBasic = db.core.company.getCompanyBasic(companyId);
@@ -262,7 +264,7 @@ export function createHeartbeat(
       companyDescription: companyBasic?.description ?? "",
       snapshot: db.projection.snapshot.listSnapshot(),
       trigger,
-      resolvedModel: assignment.modelId,
+      resolvedModel: modelId,
     });
 
     db.core.agents.markHeartbeatAt(agentId);
@@ -323,7 +325,13 @@ export function createHeartbeat(
 
     const result = startAgentHeartbeatRun(agentId, companyId, trigger);
     if (result.status === "skipped") {
-      db.automation.wakeup.enqueueWakeupRequest(companyId, agentId, trigger, `Wake for agent (deferred:${result.reason}): ${trigger}`, context);
+      db.automation.wakeup.enqueueWakeupRequest(
+        companyId,
+        agentId,
+        trigger,
+        `Wake for agent (deferred:${result.reason}/${result.detail}): ${trigger}`,
+        context,
+      );
       return null;
     }
     db.automation.wakeup.completePendingWakeupRequests(agentId, companyId, result.runId);
@@ -331,6 +339,7 @@ export function createHeartbeat(
   }
 
   return {
+    canRunAgent,
     ensureAgentHeartbeatEnabled,
     startAgentHeartbeatRun,
     wakeAgentIfPossible,

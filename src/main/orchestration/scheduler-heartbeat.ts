@@ -8,7 +8,7 @@ export function createHeartbeatScheduler(
   hasActiveRun: (filter: { taskId?: string; agentId?: string; companyId: string }) => boolean,
   startAgentHeartbeatRun: (agentId: string, companyId: string, trigger: string) => HeartbeatStartResult,
 ) {
-  const { db, logger, dispatchAutomation, hasWorkerReady, isQuitting } = deps;
+  const { db, logger, dispatchAutomation, isQuitting } = deps;
 
   let timer: ReturnType<typeof setInterval> | null = null;
   const scheduleLastFiredMap = new Map<string, number>();
@@ -22,15 +22,7 @@ export function createHeartbeatScheduler(
    * plus the first skip-and-record cycle re-establish backoff.
    */
   const attemptedAtByAgent = new Map<string, number>();
-  /**
-   * Tracks consecutive skip streak per agent so the per-turn prompt
-   * builder (which reads `runtime_state_json` at dispatch time) can
-   * surface "skipped: worker_not_ready (last N ticks since T)" and stop
-   * being blind to a chain of zero-delivery heartbeats. Keyed by agent
-   * id → { reason, count, since }. Reset when status flips to `started`
-   * or the reason changes.
-   */
-  const skipStreakByAgent = new Map<string, { reason: string; count: number; since: string }>();
+  const skipStreakByAgent = new Map<string, { reason: string; detail: string; count: number; since: string }>();
 
   /**
    * Periodic heartbeat.skip_ongoing emission gate. The activity table
@@ -43,51 +35,6 @@ export function createHeartbeatScheduler(
    */
   const SKIP_ONGOING_EVERY_N = 40;
 
-  function persistSkip(
-    agentId: string,
-    companyId: string,
-    reason: string,
-    streak: { count: number; since: string },
-    lastTickAt: string,
-  ) {
-    try {
-      const existing = db.core.agents.getRuntimeState(agentId) as Record<string, unknown>;
-      db.core.agents.setRuntimeState(agentId, companyId, {
-        ...existing,
-        heartbeatSkip: {
-          reason,
-          streak: streak.count,
-          since: streak.since,
-          lastTickAt,
-        },
-      });
-    } catch (error) {
-      logAppError(logger, error, {
-        kind: "recoverable",
-        code: "scheduler.heartbeat.persist_skip_failed",
-        message: `Failed to persist heartbeat skip reason for agent ${agentId}`,
-        context: { agentId, companyId },
-      }, "warn");
-    }
-  }
-
-  function clearSkip(agentId: string, companyId: string) {
-    try {
-      const existing = db.core.agents.getRuntimeState(agentId) as Record<string, unknown>;
-      if (!("heartbeatSkip" in existing)) return;
-      const next = { ...existing };
-      delete next.heartbeatSkip;
-      db.core.agents.setRuntimeState(agentId, companyId, next);
-    } catch (error) {
-      logAppError(logger, error, {
-        kind: "recoverable",
-        code: "scheduler.heartbeat.clear_skip_failed",
-        message: `Failed to clear heartbeat skip reason for agent ${agentId}`,
-        context: { agentId, companyId },
-      }, "warn");
-    }
-  }
-
   /**
    * Structured skip write to the activity stream. Emits on first skip,
    * on reason change, and every SKIP_ONGOING_EVERY_N consecutive skips
@@ -96,25 +43,23 @@ export function createHeartbeatScheduler(
    * next visible row used to be the flip/resume, which meant long
    * sleep/standby stalls were invisible in the audit feed.
    *
-   * `detail` is emitted as JSON `{reason, streak, since, trigger,
-   * agentName}` so downstream readers parse structured fields instead
-   * of regexing English. The prompt-side consumer reads
-   * `runtime_state_json.heartbeatSkip` (written by `persistSkip`), so
-   * activity here is pure audit.
+   * `detail` is emitted as JSON so downstream readers parse structured
+   * fields instead of regexing English.
    */
   function writeSkipActivity(
     agentId: string,
     companyId: string,
     agentName: string,
     reason: string,
+    detail: string,
     trigger: string,
     tickAt: string,
   ): { count: number; since: string } {
     const previous = skipStreakByAgent.get(agentId);
-    const sameReason = previous && previous.reason === reason;
+    const sameReason = previous && previous.reason === reason && previous.detail === detail;
     const nextStreak = sameReason
-      ? { reason, count: previous.count + 1, since: previous.since }
-      : { reason, count: 1, since: tickAt };
+      ? { reason, detail, count: previous.count + 1, since: previous.since }
+      : { reason, detail, count: 1, since: tickAt };
     skipStreakByAgent.set(agentId, nextStreak);
     const action = !sameReason
       ? "heartbeat.skipped"
@@ -132,6 +77,7 @@ export function createHeartbeatScheduler(
           detail: JSON.stringify({
             agentName,
             reason,
+            detail,
             streak: nextStreak.count,
             since: nextStreak.since,
             trigger,
@@ -163,6 +109,7 @@ export function createHeartbeatScheduler(
         detail: JSON.stringify({
           agentName,
           reason: previous.reason,
+          detail: previous.detail,
           streak: previous.count,
           since: previous.since,
           resumedAt: new Date().toISOString(),
@@ -183,18 +130,16 @@ export function createHeartbeatScheduler(
     attemptedAtByAgent.set(agentId, Date.now());
     const result = startAgentHeartbeatRun(agentId, companyId, trigger);
     if (result.status === "skipped") {
-      const streak = writeSkipActivity(agentId, companyId, agentName, result.reason, trigger, tickAt);
-      persistSkip(agentId, companyId, result.reason, streak, tickAt);
-      logger.info(`[heartbeat] ${agentName} not ready: ${result.reason} (streak=${streak.count})`);
+      const streak = writeSkipActivity(agentId, companyId, agentName, result.reason, result.detail, trigger, tickAt);
+      logger.info(`[heartbeat] ${agentName} not ready: ${result.reason}/${result.detail} (streak=${streak.count})`);
     } else {
-      clearSkip(agentId, companyId);
       clearSkipStreak(agentId, companyId, agentName);
     }
   }
 
   function runTick() {
     try {
-      if (isQuitting() || !hasWorkerReady()) return;
+      if (isQuitting()) return;
 
       const activeCompanies = db.core.company.listActiveCompanyIds();
       const now = Date.now();
