@@ -49,6 +49,7 @@ export type ParentMessage =
   | { type: "cancel-run"; runId: string }
   | { type: "run-completion-ack"; runId: string }
   | { type: "shutdown" }
+  | { type: "shutdown-exit" }
   | { type: "steer-run"; runId: string; correlationId: string; message: AgentMessage }
   | { type: "rpc-response"; rpcId: string; response: { ok: true; result: unknown } | { ok: false; error: string } };
 
@@ -89,7 +90,8 @@ export type ChildMessage =
     }
   | { type: "rpc-request"; rpcId: string; runId: string; method: string; payload: unknown }
   | { type: "run-agent-state"; runId: string; state: RunAgentLifecycleState }
-  | { type: "steer-ack"; runId: string; correlationId: string; accepted: boolean };
+  | { type: "steer-ack"; runId: string; correlationId: string; accepted: boolean }
+  | { type: "shutdown-ready" };
 
 export function buildRedactor(env: Record<string, string>): (text: string) => string {
   const sensitivePatterns: string[] = [];

@@ -32,6 +32,7 @@ export function createWorkerService({
 
   let worker: ReturnType<typeof utilityProcess.fork> | null = null;
   let destroyed = false;
+  let shutdownPromise: Promise<void> | null = null;
   const pendingRetryTimers = new Set<ReturnType<typeof setTimeout>>();
 
   /** Crash-loop backoff state. Resets to 0 whenever a worker lives long enough
@@ -110,6 +111,16 @@ export function createWorkerService({
     });
 
     worker.on("message", async (message) => {
+      if (isShutdownReadyMessage(message)) {
+        try {
+          worker?.postMessage({ type: "shutdown-exit" });
+        } catch (error) {
+          logger.debug(
+            `[worker-service] shutdown-exit postMessage failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+        return;
+      }
       await handleWorkerMessage(
         message,
         worker,
@@ -140,66 +151,58 @@ export function createWorkerService({
     });
   }
 
-  function destroy() {
-    destroyed = true;
-
-    // Clear all pending retry timers so they never fire after quit
-    for (const timer of pendingRetryTimers) {
-      clearTimeout(timer);
-    }
-    pendingRetryTimers.clear();
-
-    if (worker) {
-      // Tell the worker to kill all its child CLI processes and exit.
-      // Previous approach sent individual cancel-run messages then immediately
-      // killed the worker — a race condition that left CLI processes as orphans
-      // because the worker died before it could forward SIGTERM to its children.
-      try {
-        worker.postMessage({ type: "shutdown" });
-      } catch (error) {
-        logger.debug(
-          `[worker-service] shutdown postMessage failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-
-      // Safety net: force-kill worker after 2s if shutdown didn't complete.
-      // Track the timer so we can cancel it the moment the worker cleanly
-      // exits — otherwise the pending timer keeps the event loop alive.
-      const ref = worker;
-      const killTimer = setTimeout(() => {
-        try {
-          ref.kill();
-        } catch (error) {
-          logger.debug(
-            `[worker-service] worker kill() failed (likely already dead): ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-      }, 2000);
-      ref.once("exit", () => clearTimeout(killTimer));
-      worker = null;
-    }
-
-    // Mark all running/queued runs as interrupted so DB state is clean on restart
+  function collectShutdownRuns(): Array<{
+    id: string;
+    taskId: string | null;
+    workspaceId: string | null;
+  }> {
     try {
       const snapshot = db.projection.snapshot.listSnapshot();
-      for (const run of snapshot.runs) {
-        if (run.status === "running" || run.status === "queued") {
-          db.core.runs.finishRun({
-            runId: run.id,
-            status: "interrupted",
-            summary: "Application shut down.",
-            errorMessage: null,
-            exitCode: null,
-            signal: null,
-            model: null,
-            unattributedCost: true,
-          });
-          if (run.workspaceId) {
-            db.core.workspaces.releaseWorkspaceLock(run.workspaceId, run.id);
-          }
-          if (run.taskId) {
-            db.core.tasks.releaseTaskLock(run.taskId, run.id);
-          }
+      return snapshot.runs
+        .filter((run) => run.status === "running" || run.status === "queued")
+        .map((run) => ({ id: run.id, taskId: run.taskId, workspaceId: run.workspaceId }));
+    } catch (error) {
+      logger.warn(
+        `[worker-service] shutdown run collection failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return [];
+    }
+  }
+
+  function interruptShutdownRuns(runs: Array<{
+    id: string;
+    taskId: string | null;
+    workspaceId: string | null;
+  }>): void {
+    try {
+      for (const run of runs) {
+        let status: string;
+        try {
+          status = db.core.runs.getRun(run.id).status;
+        } catch (error) {
+          logger.warn(
+            `[worker-service] shutdown cleanup skipped missing run ${run.id}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          continue;
+        }
+        if (status !== "running" && status !== "queued") {
+          continue;
+        }
+        db.core.runs.finishRun({
+          runId: run.id,
+          status: "interrupted",
+          summary: "Application shut down.",
+          errorMessage: null,
+          exitCode: null,
+          signal: null,
+          model: null,
+          unattributedCost: true,
+        });
+        if (run.workspaceId) {
+          db.core.workspaces.releaseWorkspaceLock(run.workspaceId, run.id);
+        }
+        if (run.taskId) {
+          db.core.tasks.releaseTaskLock(run.taskId, run.id);
         }
       }
     } catch (error) {
@@ -209,9 +212,52 @@ export function createWorkerService({
     }
   }
 
+  function shutdown(): Promise<void> {
+    if (shutdownPromise) return shutdownPromise;
+    destroyed = true;
+    const shutdownRuns = collectShutdownRuns();
+
+    for (const timer of pendingRetryTimers) {
+      clearTimeout(timer);
+    }
+    pendingRetryTimers.clear();
+
+    if (!worker) {
+      interruptShutdownRuns(shutdownRuns);
+      shutdownPromise = Promise.resolve();
+      return shutdownPromise;
+    }
+
+    const ref = worker;
+    shutdownPromise = new Promise<void>((resolve) => {
+      ref.once("exit", () => {
+        if (worker === ref) worker = null;
+        interruptShutdownRuns(shutdownRuns);
+        resolve();
+      });
+      try {
+        ref.postMessage({ type: "shutdown" });
+      } catch (error) {
+        logger.debug(
+          `[worker-service] shutdown postMessage failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    });
+    return shutdownPromise;
+  }
+
+  function destroy() {
+    void shutdown();
+  }
+
   return {
     createWorker,
     getWorker,
+    shutdown,
     destroy,
   };
+}
+
+function isShutdownReadyMessage(message: unknown): message is { type: "shutdown-ready" } {
+  return Boolean(message && typeof message === "object" && (message as { type?: unknown }).type === "shutdown-ready");
 }

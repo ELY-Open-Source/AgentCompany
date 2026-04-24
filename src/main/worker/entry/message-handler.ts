@@ -118,5 +118,7 @@ export async function handleWorkerMessage(
       deps.getRuntimeMessageInjector?.()?.handleSteerAck(event.correlationId, event.accepted);
       return;
     }
+    case "shutdown-ready":
+      return;
   }
 }

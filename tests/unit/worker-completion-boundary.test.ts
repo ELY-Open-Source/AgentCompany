@@ -285,4 +285,62 @@ describe("worker completion boundary", () => {
       expect.objectContaining({ type: "run-finished", runId: NEXT_RUN_ID }),
     );
   });
+
+  it("reports shutdown-ready only after parent acknowledges run completion", async () => {
+    const parentPort = new EventEmitter() as EventEmitter & {
+      postMessage: ReturnType<typeof vi.fn>;
+    };
+    parentPort.postMessage = vi.fn();
+    Object.defineProperty(process, "parentPort", {
+      configurable: true,
+      value: parentPort,
+    });
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
+
+    vi.doMock("@main/worker/runtime", () => ({
+      WorkerRunner: class TestWorkerRunner {
+        constructor(
+          private readonly deps: {
+            post: (message: unknown) => void;
+          },
+        ) {}
+
+        async run(job: RunJob): Promise<void> {
+          this.deps.post(runFinishedMessage(job.runId));
+        }
+
+        cancel(): void {}
+
+        steer(): boolean {
+          return false;
+        }
+
+        async cancelAll(): Promise<void> {}
+      },
+    }));
+
+    await import("@main/worker/entry/index");
+
+    parentPort.emit("message", { data: { type: "enqueue-run", payload: runJob(RUN_ID) } });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    parentPort.emit("message", { data: { type: "shutdown" } });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(parentPort.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "run-finished", runId: RUN_ID }),
+    );
+    expect(parentPort.postMessage).not.toHaveBeenCalledWith({ type: "shutdown-ready" });
+
+    parentPort.emit("message", { data: { type: "run-completion-ack", runId: RUN_ID } });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(parentPort.postMessage).toHaveBeenCalledWith({ type: "shutdown-ready" });
+
+    parentPort.emit("message", { data: { type: "shutdown-exit" } });
+    expect(exitSpy).toHaveBeenCalledWith(0);
+  });
 });

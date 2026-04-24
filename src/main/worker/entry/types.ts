@@ -93,6 +93,9 @@ export const workerMessageSchema = z.union([
     correlationId: z.string(),
     accepted: z.boolean(),
   }),
+  z.object({
+    type: z.literal("shutdown-ready"),
+  }),
 ]);
 
 export interface WorkerServiceDependencies {

@@ -9,7 +9,7 @@ import type { createOrchestrationService } from "../orchestration-service";
 import type { createWorkerService } from "../worker-service";
 import type { PiRuntimeServices } from "../service-graph-pi-runtime";
 
-/** Overall budget for awaited shutdown drain (worker exit + API close). */
+/** Overall budget for awaited shutdown drain. */
 const SHUTDOWN_BUDGET_MS = 5_000;
 
 export interface LifecycleDeps {
@@ -38,10 +38,9 @@ export interface LifecycleDeps {
 
 /**
  * Build the app lifecycle service and wire a deterministic shutdown drain
- * that awaits the utility-process worker's exit (and API server close)
- * before calling app.exit(). On 5s timeout we log the stuck run ids and
- * exit(1) so operators see an unclean shutdown rather than a silent
- * force-kill.
+ * that awaits the utility-process worker's ready-to-exit handshake
+ * before calling app.exit(). On timeout we log the stuck run ids and
+ * exit(1) so operators see an unclean shutdown.
  */
 export function createLifecycle(deps: LifecycleDeps) {
   const {
@@ -72,8 +71,6 @@ export function createLifecycle(deps: LifecycleDeps) {
   }
 
   async function drain(): Promise<number> {
-    // Stop accepting new scheduled work first; cancel in-flight runs in the
-    // worker via the utility-process shutdown postMessage inside destroy().
     try { orchestrationService.stopAllSchedulers(); } catch (err) { logger.warn("[lifecycle] stopAllSchedulers failed:", err); }
     try { automationService.destroy(); } catch (err) { logger.warn("[lifecycle] automationService.destroy failed:", err); }
     try { apiServerRef.current?.stop(); } catch (err) { logger.warn("[lifecycle] apiServer.stop failed:", err); }
@@ -81,22 +78,12 @@ export function createLifecycle(deps: LifecycleDeps) {
     try { browserManagerRef.current?.shutdown(); } catch (err) { logger.warn("[lifecycle] browserManager.shutdown failed:", err); }
     browserManagerRef.current = null;
 
-    // workerService.destroy() sends "shutdown" to the utility process and has
-    // its own 2s SIGKILL safety net. Awaiting the worker's exit event closes
-    // the remaining event-loop holder (the utilityProcess handle).
-    const workerExit = new Promise<void>((resolve) => {
-      const worker = workerService.getWorker();
-      if (!worker) { resolve(); return; }
-      worker.once("exit", () => resolve());
-    });
-    workerService.destroy();
-
     const timeout = new Promise<"timeout">((resolve) => {
       const handle = setTimeout(() => resolve("timeout"), SHUTDOWN_BUDGET_MS);
       if (typeof handle.unref === "function") handle.unref();
     });
     const outcome = await Promise.race([
-      workerExit.then(() => "drained" as const),
+      workerService.shutdown().then(() => "drained" as const),
       timeout,
     ]);
 

@@ -25,6 +25,8 @@ interface ActiveRun {
 const active = new Map<string, ActiveRun>();
 const queue: RunJob[] = [];
 const cancelledRuns = new Set<string>();
+let shuttingDown = false;
+let drainAckResolver: (() => void) | null = null;
 
 function post(message: ChildMessage) {
   parentPort.postMessage(message);
@@ -57,6 +59,7 @@ function isWorkspaceBusy(lockKey: string): boolean {
 }
 
 function enqueue(job: RunJob) {
+  if (shuttingDown) return;
   queue.push(job);
   post({
     type: "run-status",
@@ -73,6 +76,7 @@ function enqueue(job: RunJob) {
  * `startRun`. No async window between claim and dispatch.
  */
 function tickQueue() {
+  if (shuttingDown) return;
   let i = 0;
   while (i < queue.length) {
     const job = queue[i];
@@ -96,6 +100,17 @@ async function startRun(job: RunJob) {
 function acknowledgeRunCompletion(runId: string) {
   const released = active.delete(runId);
   if (released) tickQueue();
+  if (shuttingDown && active.size === 0 && drainAckResolver) {
+    drainAckResolver();
+    drainAckResolver = null;
+  }
+}
+
+function waitForCompletionAcks(): Promise<void> {
+  if (active.size === 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    drainAckResolver = resolve;
+  });
 }
 
 function cancelRun(runId: string) {
@@ -151,17 +166,18 @@ parentPort.on("message", (event) => {
     return;
   }
   if (message.type === "shutdown") {
+    if (shuttingDown) return;
+    shuttingDown = true;
     void (async () => {
-      // Graceful drain: abort every active run and await its promise
-      // settlement so that final `run-finished` messages and
-      // `persistMessage` RPCs reach the parent before we exit. Bounded by
-      // a 5s budget so a stuck run does not wedge the shutdown handshake
-      // (the parent has its own kill-timer as a safety net).
-      const drainBudgetMs = 5_000;
-      const timeout = new Promise<void>((resolve) => setTimeout(resolve, drainBudgetMs));
-      await Promise.race([runner.cancelAll(), timeout]);
+      queue.splice(0);
+      await runner.cancelAll();
+      await waitForCompletionAcks();
       rpc.cancelAll("Worker shutting down.");
-      process.exit(0);
+      post({ type: "shutdown-ready" });
     })();
+    return;
+  }
+  if (message.type === "shutdown-exit") {
+    process.exit(0);
   }
 });
