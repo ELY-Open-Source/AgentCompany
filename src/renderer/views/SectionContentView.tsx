@@ -38,7 +38,7 @@ export function SectionContentView({ section, error, pageTransition }: SectionCo
         ) : null}
 
         <div className={isCommunication ? "flex min-h-0 flex-1 flex-col" : "min-h-0 flex-1"}>
-          <ErrorBoundary>
+          <ErrorBoundary resetKey={section}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={section}

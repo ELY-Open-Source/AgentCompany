@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SectionId } from "@shared/types";
 import {
+  COMMAND_PALETTE_NAV_ITEM_DEFS,
   DASHBOARD_NAV_TARGETS,
   SECTION_NAV_IDS,
   SETTINGS_NAV_ITEM_DEF,
@@ -12,18 +13,34 @@ function sidebarSectionIds(): SectionId[] {
 }
 
 describe("renderer navigation model", () => {
-  it("gives every section a stable visible entry", () => {
-    const visibleIds = [...sidebarSectionIds(), SETTINGS_NAV_ITEM_DEF.id];
-
-    expect(new Set(visibleIds).size).toBe(SECTION_NAV_IDS.length);
-    expect(visibleIds).toEqual(expect.arrayContaining(SECTION_NAV_IDS));
+  it("keeps the sidebar focused on the primary user journey", () => {
+    expect(sidebarSectionIds()).toEqual([
+      "overview",
+      "inbox",
+      "tasks",
+      "approvals",
+      "agents",
+      "communication",
+      "documents",
+    ]);
   });
 
-  it("keeps Dashboard targets reachable from the stable navigation model", () => {
-    const visibleIds = new Set([...sidebarSectionIds(), SETTINGS_NAV_ITEM_DEF.id]);
+  it("keeps every section reachable from command navigation", () => {
+    const commandIds = COMMAND_PALETTE_NAV_ITEM_DEFS.map((item) => item.id);
+
+    expect(new Set(commandIds).size).toBe(SECTION_NAV_IDS.length);
+    expect(commandIds).toEqual(expect.arrayContaining(SECTION_NAV_IDS));
+  });
+
+  it("keeps Dashboard targets reachable from command navigation", () => {
+    const commandIds = new Set(COMMAND_PALETTE_NAV_ITEM_DEFS.map((item) => item.id));
 
     for (const sectionId of DASHBOARD_NAV_TARGETS) {
-      expect(visibleIds.has(sectionId)).toBe(true);
+      expect(commandIds.has(sectionId)).toBe(true);
     }
+  });
+
+  it("keeps settings outside the scrollable sidebar groups", () => {
+    expect(sidebarSectionIds()).not.toContain(SETTINGS_NAV_ITEM_DEF.id);
   });
 });

@@ -60,54 +60,25 @@ export const SECTION_NAV_IDS = Object.keys(SECTION_NAV_ITEM_DEFS) as SectionId[]
 
 export const SIDEBAR_NAV_GROUP_DEFS = [
   {
-    id: "company",
+    id: "primary",
     items: [
       SECTION_NAV_ITEM_DEFS.overview,
       SECTION_NAV_ITEM_DEFS.inbox,
-      SECTION_NAV_ITEM_DEFS.standup,
-      SECTION_NAV_ITEM_DEFS.performance,
-    ],
-  },
-  {
-    id: "organization",
-    items: [
-      SECTION_NAV_ITEM_DEFS.agents,
-      SECTION_NAV_ITEM_DEFS.hiring,
-      SECTION_NAV_ITEM_DEFS.goals,
-      SECTION_NAV_ITEM_DEFS.projects,
-    ],
-  },
-  {
-    id: "execution",
-    items: [
       SECTION_NAV_ITEM_DEFS.tasks,
       SECTION_NAV_ITEM_DEFS.approvals,
-      SECTION_NAV_ITEM_DEFS.runs,
-      SECTION_NAV_ITEM_DEFS.costs,
-      SECTION_NAV_ITEM_DEFS.activity,
     ],
   },
   {
-    id: "operations",
+    id: "company",
     items: [
-      SECTION_NAV_ITEM_DEFS.workspaces,
-      SECTION_NAV_ITEM_DEFS.documents,
-      SECTION_NAV_ITEM_DEFS.knowledge,
-      SECTION_NAV_ITEM_DEFS.automation,
-      SECTION_NAV_ITEM_DEFS.connectors,
-    ],
-  },
-  {
-    id: "collaboration",
-    items: [
+      SECTION_NAV_ITEM_DEFS.agents,
       SECTION_NAV_ITEM_DEFS.communication,
-      SECTION_NAV_ITEM_DEFS.meetings,
-      SECTION_NAV_ITEM_DEFS.sprints,
-      SECTION_NAV_ITEM_DEFS.social,
-      SECTION_NAV_ITEM_DEFS.skills,
+      SECTION_NAV_ITEM_DEFS.documents,
     ],
   },
 ] as const satisfies readonly NavGroupDef[];
+
+export const COMMAND_PALETTE_NAV_ITEM_DEFS = SECTION_NAV_IDS.map((id) => SECTION_NAV_ITEM_DEFS[id]);
 
 export const SETTINGS_NAV_ITEM_DEF = SECTION_NAV_ITEM_DEFS.settings;
 

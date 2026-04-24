@@ -66,11 +66,33 @@ export function useReducedMotion() {
 /*  ErrorBoundary                                                      */
 /* ------------------------------------------------------------------ */
 
-export class ErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNode }, { hasError: boolean; error: Error | null }> {
-  constructor(props: { children: ReactNode; fallback?: ReactNode }) {
+type ErrorBoundaryResetKey = string | number | null | undefined;
+
+interface ErrorBoundaryProps {
+  children: ReactNode;
+  fallback?: ReactNode;
+  resetKey?: ErrorBoundaryResetKey;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+  resetKey: ErrorBoundaryResetKey;
+}
+
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, resetKey: props.resetKey };
   }
+
+  static getDerivedStateFromProps(props: ErrorBoundaryProps, state: ErrorBoundaryState) {
+    if (props.resetKey !== state.resetKey) {
+      return { hasError: false, error: null, resetKey: props.resetKey };
+    }
+    return null;
+  }
+
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
   }

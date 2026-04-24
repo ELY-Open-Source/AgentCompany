@@ -7,7 +7,7 @@ import { useAppStore } from "../state/store";
 import { useFocusTrap, useReducedMotion } from "../components/ui";
 import { SquaresFour } from "../components/ui/icons";
 import {
-  SETTINGS_NAV_ITEM_DEF,
+  COMMAND_PALETTE_NAV_ITEM_DEFS,
   SIDEBAR_NAV_GROUP_DEFS,
   type NavItemDef,
 } from "../navigation";
@@ -44,8 +44,8 @@ export function useUIController() {
     [sidebarGroups],
   );
   const navItems: NavItem[] = useMemo(
-    () => sidebarNav.concat(toNavItem(SETTINGS_NAV_ITEM_DEF, t)),
-    [sidebarNav, t],
+    () => COMMAND_PALETTE_NAV_ITEM_DEFS.map((item) => toNavItem(item, t)),
+    [t],
   );
 
   const {
