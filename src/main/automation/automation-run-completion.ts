@@ -355,7 +355,7 @@ export function processRunCompletion(
         //
         // Park the task as `blocked` rather than leaving it at
         // `in_progress`. finishRun has already cleared the run's
-        // checkout_run_id and active_run_id, so a task still tagged
+        // task_leases, so a task still tagged
         // `in_progress` has no lock, no run, and no path back to
         // `todo` — heartbeat picks it up, checkoutTask rejects it
         // (status ∉ todo/backlog), and the assignee is stuck in a

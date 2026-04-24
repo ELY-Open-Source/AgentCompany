@@ -215,35 +215,26 @@ export function buildRunMethods(
             input.status, input.summary ?? "", input.errorMessage, input.exitCode,
             input.signal, input.model, runCostUsd,
             input.unattributedCost ? 1 : 0, usageStatus, ts, ts, input.runId,
-          );
+        );
         if (run.taskId !== null) {
-          getDb().prepare("update tasks set active_run_id = null, updated_at = ? where id = ?").run(ts, run.taskId);
           getDb()
-            .prepare("UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?")
-            .run(ts, run.taskId, input.runId);
+            .prepare("delete from task_leases where task_id = ? and run_id = ?")
+            .run(run.taskId, input.runId);
           if (runNeverStarted) {
             // Roll the task back to `todo` when no *other* live run claims
             // it. Invariant: `task.status = 'in_progress'` ⇒ a queued or
-            // running run owns it. We drop the previous
-            // `checkout_run_id IS NULL AND active_run_id IS NULL` guard
-            // because the conditional UPDATE two lines up can miss (race:
-            // checkout_run_id already swapped to a newer run id), which
-            // would leave the task silently stuck at in_progress. The
-            // NOT EXISTS clause is the canonical "no live owner" check.
+            // running run owns it through `task_leases`.
             getDb()
               .prepare(
                 `UPDATE tasks
                  SET status = 'todo',
-                     checkout_run_id = NULL,
-                     execution_locked_at = NULL,
                      updated_at = ?
                  WHERE id = ?
                    AND status = 'in_progress'
                    AND NOT EXISTS (
-                     SELECT 1 FROM runs r
-                     WHERE r.task_id = tasks.id
-                       AND r.id != ?
-                       AND r.status IN ('queued', 'running')
+                     SELECT 1 FROM task_leases l
+                     WHERE l.task_id = tasks.id
+                       AND l.run_id != ?
                    )`,
               )
               .run(ts, run.taskId, input.runId);
@@ -291,10 +282,9 @@ export function buildRunMethods(
         )
         .run(summary, "aborted_before_usage", ts, ts, runId);
       if (taskId !== null) {
-        getDb().prepare("update tasks set active_run_id = null, updated_at = ? where id = ?").run(ts, taskId);
         getDb()
-          .prepare("UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?")
-          .run(ts, taskId, runId);
+          .prepare("delete from task_leases where task_id = ? and run_id = ?")
+          .run(taskId, runId);
       }
       if (workspaceId) {
         getDb()
@@ -308,12 +298,29 @@ export function buildRunMethods(
     },
 
     hasActiveRun(filter: { companyId: string; taskId?: string; agentId?: string }) {
+      if (filter.taskId) {
+        const whereClauses = [
+          "l.company_id = ?",
+          "l.task_id = ?",
+          "r.status in ('queued', 'running')",
+        ];
+        const params: SQLInputValue[] = [filter.companyId, filter.taskId];
+        if (filter.agentId) {
+          whereClauses.push("r.agent_id = ?");
+          params.push(filter.agentId);
+        }
+        const row = getDb().prepare(
+          `select 1 as present
+             from task_leases l
+             join runs r on r.id = l.run_id
+            where ${whereClauses.join(" and ")}
+            limit 1`,
+        ).get(...params) as { present: number } | undefined;
+        return Boolean(row?.present);
+      }
+
       const whereClauses = ["company_id = ?", "status in ('queued', 'running')"];
       const params: SQLInputValue[] = [filter.companyId];
-      if (filter.taskId) {
-        whereClauses.push("task_id = ?");
-        params.push(filter.taskId);
-      }
       if (filter.agentId) {
         whereClauses.push("agent_id = ?");
         params.push(filter.agentId);

@@ -37,12 +37,5 @@ export function buildTaskStatusTransition(
   } else {
     sets.push("cancelled_at = NULL");
   }
-  if (newStatus !== "in_progress") {
-    sets.push("checkout_run_id = NULL");
-  }
-  if (newStatus === "todo" || newStatus === "backlog") {
-    sets.push("active_run_id = NULL");
-  }
-
   return { sets, values };
 }

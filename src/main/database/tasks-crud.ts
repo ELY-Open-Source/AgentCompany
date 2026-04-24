@@ -158,13 +158,8 @@ export function buildTaskCrudMethods(
             )
             .run("Task deleted.", "aborted_before_usage", ts, ts, run.id);
           getDb()
-            .prepare("update tasks set active_run_id = null, updated_at = ? where id = ?")
-            .run(ts, run.taskId);
-          getDb()
-            .prepare(
-              "UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?",
-            )
-            .run(ts, run.taskId, run.id);
+            .prepare("delete from task_leases where task_id = ? and run_id = ?")
+            .run(run.taskId, run.id);
           if (run.workspaceId) {
             getDb()
               .prepare(

@@ -115,8 +115,13 @@ describe("legacy to v56 baseline migration", () => {
         { id: "task-cognitive", requiresFilesystem: 0 },
         { id: "task-inflight", requiresFilesystem: 1 },
       ]);
-      const migration = appDb.queryAll<{ version: number }>("select version from schema_migrations where version = 56")[0];
-      expect(migration?.version).toBe(56);
+      const migrations = appDb.queryAll<{ version: number; name: string }>(
+        "select version, name from schema_migrations where version in (56, 57) order by version",
+      );
+      expect(migrations).toEqual([
+        { version: 56, name: "baseline_v56" },
+        { version: 57, name: "task_leases_runtime_ownership" },
+      ]);
     } finally {
       appDb.close();
     }

@@ -31,9 +31,9 @@ function makeStaleRunDb(runningCount: number): StaleRunDb & { calls: string[] } 
     blockInterruptedTasks: vi.fn((_ts: string) => {
       calls.push("blockInterruptedTasks");
     }) as unknown as StaleRunDb["blockInterruptedTasks"],
-    clearActiveRunIds: vi.fn(() => {
-      calls.push("clearActiveRunIds");
-    }) as unknown as StaleRunDb["clearActiveRunIds"],
+    clearInterruptedTaskLeases: vi.fn(() => {
+      calls.push("clearInterruptedTaskLeases");
+    }) as unknown as StaleRunDb["clearInterruptedTaskLeases"],
     resetAgentsToIdle: vi.fn((_ts: string) => {
       calls.push("resetAgentsToIdle");
     }) as unknown as StaleRunDb["resetAgentsToIdle"],
@@ -66,16 +66,16 @@ describe("Crash Recovery Detection", () => {
       expect(db.calls).toContain("blockInterruptedTasks");
     });
 
-    it("does NOT mark tasks as blocked when no runs were interrupted", () => {
+    it("leaves task blocking step idle when no runs were interrupted", () => {
       const db = makeStaleRunDb(0);
       interruptStaleRunsLogic(db, transaction, nowIso);
       expect(db.calls).not.toContain("blockInterruptedTasks");
     });
 
-    it("always clears active_run_id and resets agents to idle", () => {
+    it("always clears interrupted task leases and resets agents to idle", () => {
       const db = makeStaleRunDb(0);
       interruptStaleRunsLogic(db, transaction, nowIso);
-      expect(db.calls).toContain("clearActiveRunIds");
+      expect(db.calls).toContain("clearInterruptedTaskLeases");
       expect(db.calls).toContain("resetAgentsToIdle");
     });
 

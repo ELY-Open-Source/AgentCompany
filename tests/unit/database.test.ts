@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { mkdtemp, rm } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 beforeAll(() => {
@@ -17,6 +18,8 @@ vi.mock("electron", () => ({
 }));
 
 import { AppDatabase } from "../../src/main/database";
+import { installBaselineSchema } from "../../src/main/database/migrations/baseline-v56";
+import { markBaselineSchema } from "../../src/main/database/migrations/legacy-to-v56";
 
 describe("AppDatabase", () => {
   let tempDir: string;
@@ -33,18 +36,25 @@ describe("AppDatabase", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it("keeps task runtime state on the tasks row", () => {
-    const shadowTables = db.queryAll<{ name: string }>(
+  it("keeps task runtime ownership in task_leases", () => {
+    const leaseTables = db.queryAll<{ name: string }>(
       "select name from sqlite_master where type = 'table' and name = 'task_leases'",
     );
-    const phaseColumns = db.queryAll<{ name: string }>("pragma table_info(tasks)")
-      .filter((column) => column.name === "phase");
+    const removedTaskColumns = new Set([
+      "phase",
+      "active_run_id",
+      "checkout_run_id",
+      "execution_locked_at",
+      "active_session_id",
+    ]);
+    const taskColumns = db.queryAll<{ name: string }>("pragma table_info(tasks)")
+      .filter((column) => removedTaskColumns.has(column.name));
     const phaseTriggers = db.queryAll<{ name: string }>(
       "select name from sqlite_master where type = 'trigger' and name like 'trg_tasks_phase_from_status_%'",
     );
 
-    expect(shadowTables).toEqual([]);
-    expect(phaseColumns).toEqual([]);
+    expect(leaseTables).toEqual([{ name: "task_leases" }]);
+    expect(taskColumns).toEqual([]);
     expect(phaseTriggers).toEqual([]);
   });
 
@@ -462,11 +472,14 @@ describe("AppDatabase", () => {
     expect(db.core.agents.isAgentPendingApproval(pendingAgentId)).toBe(true);
   });
 
-  it("installs the v56 baseline once on a fresh profile", () => {
+  it("installs the v56 baseline and v57 task leases once on a fresh profile", () => {
     const migrations = db.queryAll<{ version: number; name: string }>(
       "select version, name from schema_migrations order by version",
     );
-    expect(migrations).toEqual([{ version: 56, name: "baseline_v56" }]);
+    expect(migrations).toEqual([
+      { version: 56, name: "baseline_v56" },
+      { version: 57, name: "task_leases_runtime_ownership" },
+    ]);
 
     db.close();
     db = new AppDatabase(tempDir);
@@ -475,7 +488,51 @@ describe("AppDatabase", () => {
     const migrationsAfterReinit = db.queryAll<{ version: number; name: string }>(
       "select version, name from schema_migrations order by version",
     );
-    expect(migrationsAfterReinit).toEqual([{ version: 56, name: "baseline_v56" }]);
+    expect(migrationsAfterReinit).toEqual([
+      { version: 56, name: "baseline_v56" },
+      { version: 57, name: "task_leases_runtime_ownership" },
+    ]);
+  });
+
+  it("migrates v56 task ownership columns into task_leases", async () => {
+    const legacyDir = await mkdtemp(join(tmpdir(), "agentcompany-v56-lease-"));
+    const rawDb = new DatabaseSync(join(legacyDir, "profile.sqlite"));
+    const ts = "2026-04-24T00:00:00.000Z";
+    try {
+      installBaselineSchema(rawDb);
+      markBaselineSchema(rawDb);
+      rawDb
+        .prepare("insert into companies (id, name, description, status, created_at, updated_at) values (?, ?, ?, ?, ?, ?)")
+        .run("company-1", "Lease Co", "", "active", ts, ts);
+      rawDb
+        .prepare("insert into agents (id, company_id, name, role, title, status, reports_to, connector_id, workspace_id, capabilities, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run("agent-1", "company-1", "Worker", "IC", "Worker", "active", null, "openai-codex", null, "Executes", ts, ts);
+      rawDb
+        .prepare("insert into tasks (id, company_id, title, description, assignee_agent_id, status, priority, active_run_id, checkout_run_id, execution_locked_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run("task-1", "company-1", "Lease task", "", "agent-1", "in_progress", "medium", "run-1", "run-1", ts, ts, ts);
+      rawDb
+        .prepare("insert into runs (id, company_id, task_id, agent_id, connector_id, status, summary, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run("run-1", "company-1", "task-1", "agent-1", "openai-codex", "queued", "", ts, ts);
+    } finally {
+      rawDb.close();
+    }
+
+    const legacyAppDb = new AppDatabase(legacyDir);
+    try {
+      legacyAppDb.init();
+      expect(
+        legacyAppDb.queryAll<{ taskId: string; runId: string; agentId: string }>(
+          "select task_id as taskId, run_id as runId, agent_id as agentId from task_leases",
+        ),
+      ).toEqual([{ taskId: "task-1", runId: "run-1", agentId: "agent-1" }]);
+      const columns = legacyAppDb.queryAll<{ name: string }>("pragma table_info(tasks)").map((column) => column.name);
+      expect(columns).not.toContain("active_run_id");
+      expect(columns).not.toContain("checkout_run_id");
+      expect(columns).not.toContain("execution_locked_at");
+    } finally {
+      legacyAppDb.close();
+      await rm(legacyDir, { recursive: true, force: true });
+    }
   });
 
   it("acquires and releases workspace locks", () => {

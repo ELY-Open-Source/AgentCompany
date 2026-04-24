@@ -10,6 +10,7 @@ import { chooseBestTaskAssignee } from "./task-assignment";
 import { checkoutTaskInTransaction } from "./task-checkout";
 import { guardInReviewHasReviewer } from "./task-review-guard";
 import { assertValidTaskStatus, buildTaskStatusTransition } from "./task-status-rules";
+import { STALE_LOCK_TIMEOUT_MS } from "../constants";
 
 export function buildTaskStatusMethods(
   getDb: () => DatabaseSync,
@@ -52,6 +53,9 @@ export function buildTaskStatusMethods(
             `UPDATE tasks SET ${transition.sets.join(", ")} WHERE id = ?`,
           )
           .run(...transition.values, taskId);
+        if (newStatus !== "in_progress") {
+          getDb().prepare("delete from task_leases where task_id = ?").run(taskId);
+        }
       });
 
       if (comment) {
@@ -77,7 +81,8 @@ export function buildTaskStatusMethods(
         `select t.id, t.company_id as companyId, t.project_id as projectId, t.goal_id as goalId,
               t.parent_id as parentId, t.title, t.description,
               t.assignee_agent_id as assigneeAgentId, t.workspace_id as workspaceId,
-              t.status, t.priority, t.active_run_id as activeRunId,
+              t.status, t.priority,
+              (select l.run_id from task_leases l where l.task_id = t.id) as activeRunId,
               t.cost_usd as costUsd,
               t.created_at as createdAt, t.updated_at as updatedAt
        from tasks t
@@ -94,21 +99,19 @@ export function buildTaskStatusMethods(
     },
 
     releaseTaskLock(taskId: string, runId: string): void {
-      const ts = nowIso();
       getDb()
-        .prepare(
-          "UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, updated_at = ? WHERE id = ? AND checkout_run_id = ?",
-        )
-        .run(ts, taskId, runId);
+        .prepare("delete from task_leases where task_id = ? and run_id = ?")
+        .run(taskId, runId);
     },
 
     renewTaskLease(taskId: string, runId: string): boolean {
       const ts = nowIso();
+      const expiresAt = new Date(Date.now() + STALE_LOCK_TIMEOUT_MS).toISOString();
       const result = getDb()
         .prepare(
-          "UPDATE tasks SET execution_locked_at = ?, updated_at = ? WHERE id = ? AND checkout_run_id = ?",
+          "update task_leases set renewed_at = ?, expires_at = ?, updated_at = ? where task_id = ? and run_id = ?",
         )
-        .run(ts, ts, taskId, runId);
+        .run(ts, expiresAt, ts, taskId, runId);
       return result.changes > 0;
     },
 

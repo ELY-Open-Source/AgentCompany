@@ -23,6 +23,12 @@ type RawDb = {
   };
 };
 
+type TaskLeaseRow = {
+  task_id: string;
+  run_id: string;
+  expires_at: string;
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -81,6 +87,14 @@ function createTestTask(db: AppDatabase, companyId: string, workspaceId: string)
     priority: "medium",
     status: "todo",
   });
+}
+
+function getTaskLease(db: AppDatabase, taskId: string): TaskLeaseRow | null {
+  return (
+    ((db as unknown as RawDb).db
+      .prepare("SELECT task_id, run_id, expires_at FROM task_leases WHERE task_id = ?")
+      .get(taskId) as TaskLeaseRow | undefined) ?? null
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -234,15 +248,10 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     });
     expect(db.core.tasks.checkoutTask(taskId, runIdA)).toBe(true);
 
-    // Release the lock (sets checkout_run_id = NULL)
+    // Release the lease while leaving the task lifecycle unchanged.
     db.core.tasks.releaseTaskLock(taskId, runIdA);
 
-    // Verify lock fields are cleared
-    const row = (db as unknown as RawDb).db
-      .prepare("SELECT checkout_run_id, execution_locked_at FROM tasks WHERE id = ?")
-      .get(taskId) as { checkout_run_id: string | null; execution_locked_at: string | null };
-    expect(row.checkout_run_id).toBeNull();
-    expect(row.execution_locked_at).toBeNull();
+    expect(getTaskLease(db, taskId)).toBeNull();
 
     // Task is still in_progress though, so a new checkout fails
     // (CAS checks status IN ('todo', 'backlog'))
@@ -273,9 +282,9 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     });
     expect(db.core.tasks.checkoutTask(taskId, runIdA)).toBe(true);
 
-    // Backdate execution_locked_at to well past the stale timeout
+    // Backdate the lease expiry past the stale timeout.
     (db as unknown as RawDb).db
-      .prepare("UPDATE tasks SET execution_locked_at = '2020-01-01T00:00:00Z' WHERE id = ?")
+      .prepare("UPDATE task_leases SET expires_at = '2020-01-01T00:00:00Z' WHERE task_id = ?")
       .run(taskId);
 
     const recovered = db.recoverStaleLocks();
@@ -283,12 +292,7 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     expect(recovered[0].taskId).toBe(taskId);
     expect(recovered[0].companyId).toBe(companyId);
 
-    // Checkout fields should be cleared
-    const row = (db as unknown as RawDb).db
-      .prepare("SELECT checkout_run_id, execution_locked_at FROM tasks WHERE id = ?")
-      .get(taskId) as { checkout_run_id: string | null; execution_locked_at: string | null };
-    expect(row.checkout_run_id).toBeNull();
-    expect(row.execution_locked_at).toBeNull();
+    expect(getTaskLease(db, taskId)).toBeNull();
   });
 
   it("after stale recovery, different agent can checkout the recovered task", () => {
@@ -309,9 +313,9 @@ describe("Edge Case: Concurrent Task Checkout (D-05.1)", () => {
     });
     expect(db.core.tasks.checkoutTask(taskId, runIdA)).toBe(true);
 
-    // Backdate to make stale
+    // Backdate the lease to make it stale.
     (db as unknown as RawDb).db
-      .prepare("UPDATE tasks SET execution_locked_at = '2020-01-01T00:00:00Z' WHERE id = ?")
+      .prepare("UPDATE task_leases SET expires_at = '2020-01-01T00:00:00Z' WHERE task_id = ?")
       .run(taskId);
 
     // Recover stale locks (sets status back to "todo")

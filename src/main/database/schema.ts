@@ -10,9 +10,16 @@ import {
   upgradeLegacyProfileToBaselineV56,
 } from "./migrations/legacy-to-v56";
 import {
+  TASK_LEASE_SCHEMA_VERSION,
+  assertTaskLeasesV57,
+  migrateTaskLeasesV57,
+} from "./migrations/v57-task-leases";
+import {
   type ReadAll,
   type Transaction,
 } from "./migrations/types";
+
+const LATEST_SCHEMA_VERSION = TASK_LEASE_SCHEMA_VERSION;
 
 export function initializeDatabase(
   db: DatabaseSync,
@@ -23,8 +30,16 @@ export function initializeDatabase(
   db.exec("create table if not exists schema_migrations (version integer primary key, name text not null, applied_at text not null)");
 
   const currentVersion = currentSchemaVersion(db);
-  if (currentVersion > BASELINE_SCHEMA_VERSION) {
-    throw new Error(`Profile schema version ${currentVersion} is newer than this app baseline ${BASELINE_SCHEMA_VERSION}.`);
+  if (currentVersion > LATEST_SCHEMA_VERSION) {
+    throw new Error(`Profile schema version ${currentVersion} is newer than this app schema ${LATEST_SCHEMA_VERSION}.`);
+  }
+
+  if (currentVersion === LATEST_SCHEMA_VERSION) {
+    tx(() => {
+      seedSettings(db);
+      assertTaskLeasesV57(db);
+    });
+    return;
   }
 
   if (currentVersion === BASELINE_SCHEMA_VERSION) {
@@ -33,6 +48,7 @@ export function initializeDatabase(
       markBaselineSchema(db);
       seedSettings(db);
       assertBaselineSchema(db);
+      migrateTaskLeasesV57(db);
     });
     return;
   }
@@ -44,6 +60,7 @@ export function initializeDatabase(
       upgradeLegacyProfileToBaselineV56({ db, readAll: ra });
       seedSettings(db);
       assertBaselineSchema(db);
+      migrateTaskLeasesV57(db);
     });
     return;
   }
@@ -53,6 +70,7 @@ export function initializeDatabase(
     markBaselineSchema(db);
     seedSettings(db);
     assertBaselineSchema(db);
+    migrateTaskLeasesV57(db);
   });
 }
 

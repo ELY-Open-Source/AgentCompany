@@ -184,12 +184,12 @@ function createAndStartRun(
  * Verifies database consistency after crash recovery:
  * - No runs in "running" status
  * - No agents in "running" status
- * - No orphaned checkout_run_ids pointing to non-existent runs
+ * - No orphaned task leases pointing to non-existent runs
  */
 function verifyDbConsistency(db: AppDatabase): {
   runningRuns: number;
   runningAgents: number;
-  orphanedCheckouts: number;
+  orphanedTaskLeases: number;
 } {
   const runningRuns = (
     (db as unknown as RawDb).db
@@ -203,17 +203,17 @@ function verifyDbConsistency(db: AppDatabase): {
       .get() as { cnt: number }
   ).cnt;
 
-  const orphanedCheckouts = (
+  const orphanedTaskLeases = (
     (db as unknown as RawDb).db
       .prepare(
-        `SELECT count(*) as cnt FROM tasks t
-         LEFT JOIN runs r ON t.checkout_run_id = r.id
-         WHERE t.checkout_run_id IS NOT NULL AND r.id IS NULL`,
+        `SELECT count(*) as cnt FROM task_leases l
+         LEFT JOIN runs r ON l.run_id = r.id
+         WHERE r.id IS NULL`,
       )
       .get() as { cnt: number }
   ).cnt;
 
-  return { runningRuns, runningAgents, orphanedCheckouts };
+  return { runningRuns, runningAgents, orphanedTaskLeases };
 }
 
 // ---------------------------------------------------------------------------
@@ -292,20 +292,20 @@ describe("Process Recovery -- Worker Crash Detection", () => {
     });
 
     // Verify lock is held before crash
-    const taskBefore = (db as unknown as RawDb).db
+    const leaseBefore = (db as unknown as RawDb).db
       .prepare(
-        "SELECT checkout_run_id FROM tasks WHERE id = ?",
+        "SELECT run_id FROM task_leases WHERE task_id = ?",
       )
-      .get(taskId) as { checkout_run_id: string | null };
-    expect(taskBefore.checkout_run_id).toBe(runId);
+      .get(taskId) as { run_id: string | null };
+    expect(leaseBefore.run_id).toBe(runId);
 
     simulateWorkerCrash(db);
 
-    // interruptStaleRuns clears active_run_id but does not directly clear checkout_run_id.
-    // The checkout_run_id is cleared by finishRun or releaseTaskLock.
-    // However, after crash, the task is set to "blocked" and a subsequent
-    // stale lock recovery pass handles the checkout_run_id.
-    // For this test, verify the task status is blocked (the recovery mechanism).
+    const leaseAfter = (db as unknown as RawDb).db
+      .prepare("SELECT run_id FROM task_leases WHERE task_id = ?")
+      .get(taskId);
+    expect(leaseAfter).toBeUndefined();
+
     const task = db.core.entity.getTask(taskId);
     expect(task.status).toBe("blocked");
   });
@@ -483,7 +483,7 @@ describe("Process Recovery -- Context Preservation (D-02)", () => {
     const consistency = verifyDbConsistency(db);
     expect(consistency.runningRuns).toBe(0);
     expect(consistency.runningAgents).toBe(0);
-    expect(consistency.orphanedCheckouts).toBe(0);
+    expect(consistency.orphanedTaskLeases).toBe(0);
   });
 });
 
@@ -579,6 +579,6 @@ describe("Process Recovery -- Multiple Concurrent Runs", () => {
     const consistency = verifyDbConsistency(db);
     expect(consistency.runningRuns).toBe(0);
     expect(consistency.runningAgents).toBe(0);
-    expect(consistency.orphanedCheckouts).toBe(0);
+    expect(consistency.orphanedTaskLeases).toBe(0);
   });
 });

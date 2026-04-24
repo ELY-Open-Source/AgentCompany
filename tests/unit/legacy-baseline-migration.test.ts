@@ -171,6 +171,7 @@ describe("legacy to v56 baseline migration", () => {
     try {
       expect(appDb.queryAll("select version, name from schema_migrations")).toEqual([
         { version: 56, name: "baseline_v56" },
+        { version: 57, name: "task_leases_runtime_ownership" },
       ]);
       expect(appDb.queryAll<{ companyId: string }>("select company_id as companyId from secrets where id = 'secret-1'")[0])
         .toEqual({ companyId: "company-1" });
@@ -202,6 +203,7 @@ describe("legacy to v56 baseline migration", () => {
     try {
       expect(appDb.queryAll("select version, name from schema_migrations")).toEqual([
         { version: 56, name: "baseline_v56" },
+        { version: 57, name: "task_leases_runtime_ownership" },
       ]);
       expect(appDb.queryAll("select id from budget_policies where scope_type = 'agent' and scope_id = 'agent-1'"))
         .toHaveLength(1);
@@ -360,6 +362,7 @@ describe("legacy to v56 baseline migration", () => {
         .toEqual([{ agentId: "agent-1", adapterType: "openai-codex" }]);
       expect(appDb.queryAll("select version, name from schema_migrations")).toEqual([
         { version: 56, name: "baseline_v56" },
+        { version: 57, name: "task_leases_runtime_ownership" },
       ]);
     } finally {
       appDb.close();

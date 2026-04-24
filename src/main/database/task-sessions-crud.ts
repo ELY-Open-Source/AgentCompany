@@ -7,9 +7,9 @@ import { type ReadAll, type Transaction, nowIso } from "./helpers";
  * Agent-scoped session lifecycle. Sessions belong to agents, not
  * tasks — `agents.session_id` is the canonical pointer, and
  * `task_sessions` rows are looked up by their own primary key only.
- * The pre-migration `tasks.active_session_id` / `task_sessions.task_id`
- * columns were dropped by v41; any read that still needs a session
- * given a task id resolves it through the task's assignee agent.
+ * Legacy task/session pointer columns were dropped by v41; any read
+ * that still needs a session given a task id resolves it through the
+ * task's assignee agent.
  */
 export function buildTaskSessionMethods(
   getDb: () => DatabaseSync,

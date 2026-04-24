@@ -32,7 +32,6 @@ import { buildModelCapabilityMethods } from "./database/model-capabilities-crud"
 import { MODEL_CAPABILITY_SEED } from "./model-capability-seed";
 import { initializeDatabase } from "./database/schema";
 import { SecretVault } from "./vault";
-import { STALE_LOCK_TIMEOUT_MS } from "./constants";
 
 function nowIso() {
   return new Date().toISOString();
@@ -307,7 +306,7 @@ export class AppDatabaseBase {
         .run(ts, ...runIds);
       this.db
         .prepare(
-          `update tasks set active_run_id = null where active_run_id in (${placeholders})`,
+          `delete from task_leases where run_id in (${placeholders})`,
         )
         .run(...runIds);
       this.db.prepare("update agents set status = 'idle', updated_at = ? where status = 'running'").run(ts);
@@ -317,16 +316,23 @@ export class AppDatabaseBase {
   }
 
   recoverStaleLocks(): Array<{ taskId: string; companyId: string; title: string }> {
-    const cutoff = new Date(Date.now() - STALE_LOCK_TIMEOUT_MS).toISOString();
+    const now = new Date().toISOString();
     const stale = this.readAll<{ id: string; companyId: string; title: string }>(
-      `SELECT id, company_id AS companyId, title FROM tasks WHERE execution_locked_at IS NOT NULL AND execution_locked_at < ? AND status = 'in_progress' AND checkout_run_id NOT IN (SELECT id FROM runs WHERE status = 'running')`,
-      cutoff,
+      `SELECT t.id, t.company_id AS companyId, t.title
+         FROM task_leases l
+         JOIN tasks t ON t.id = l.task_id
+         LEFT JOIN runs r ON r.id = l.run_id
+        WHERE l.expires_at < ?
+          AND t.status = 'in_progress'
+          AND (r.id IS NULL OR r.status != 'running')`,
+      now,
     );
     const ts = nowIso();
     for (const task of stale) {
+      this.db.prepare("delete from task_leases where task_id = ?").run(task.id);
       this.db
         .prepare(
-          `UPDATE tasks SET checkout_run_id = NULL, execution_locked_at = NULL, status = 'todo', updated_at = ? WHERE id = ?`,
+          `UPDATE tasks SET status = 'todo', updated_at = ? WHERE id = ?`,
         )
         .run(ts, task.id);
     }

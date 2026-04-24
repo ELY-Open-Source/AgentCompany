@@ -15,8 +15,8 @@ export interface StaleRunDb {
   interruptRunningRuns(ts: string): number;
   /** Mark tasks associated with interrupted runs as 'blocked'. */
   blockInterruptedTasks(ts: string): void;
-  /** Clear active_run_id on tasks whose run is now interrupted. */
-  clearActiveRunIds(): void;
+  /** Delete task lease rows whose run is now interrupted. */
+  clearInterruptedTaskLeases(): void;
   /** Reset all running agents to idle. */
   resetAgentsToIdle(ts: string): void;
   /** Release all workspace locks. */
@@ -51,7 +51,7 @@ export function interruptStaleRunsLogic(
     if (interruptedCount > 0) {
       db.blockInterruptedTasks(ts);
     }
-    db.clearActiveRunIds();
+    db.clearInterruptedTaskLeases();
     db.resetAgentsToIdle(ts);
     db.releaseAllWorkspaceLocks();
   });

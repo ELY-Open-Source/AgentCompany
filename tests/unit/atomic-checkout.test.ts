@@ -24,6 +24,12 @@ type RawDb = {
   };
 };
 
+type TaskLeaseRow = {
+  task_id: string;
+  run_id: string;
+  expires_at: string;
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -82,6 +88,14 @@ function createTestTask(db: AppDatabase, companyId: string, agentId: string | nu
     priority: "medium",
     status: "todo",
   });
+}
+
+function getTaskLease(db: AppDatabase, taskId: string): TaskLeaseRow | null {
+  return (
+    ((db as unknown as RawDb).db
+      .prepare("SELECT task_id, run_id, expires_at FROM task_leases WHERE task_id = ?")
+      .get(taskId) as TaskLeaseRow | undefined) ?? null
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -157,11 +171,29 @@ describe("CAS checkout", () => {
     const task = db.core.entity.getTask(taskId);
     expect(task.activeRunId).toBeNull();
     expect(task.status).toBe("todo");
-    const lock = (db as unknown as RawDb).db
-      .prepare("SELECT checkout_run_id, execution_locked_at FROM tasks WHERE id = ?")
-      .get(taskId) as { checkout_run_id: string | null; execution_locked_at: string | null };
-    expect(lock.checkout_run_id).toBeNull();
-    expect(lock.execution_locked_at).toBeNull();
+    expect(getTaskLease(db, taskId)).toBeNull();
+  });
+
+  it("failed checkout keeps a taskless run unbound", () => {
+    const companyId = createTestCompany(db);
+    createTestConnector(db);
+    const workspaceId = createTestWorkspace(db, companyId);
+    const agentId = createTestAgent(db, companyId, workspaceId);
+    const taskId = createTestTask(db, companyId, null, workspaceId);
+
+    (db as unknown as RawDb).db.prepare("UPDATE tasks SET status = 'in_progress' WHERE id = ?").run(taskId);
+    const { id: runId } = db.core.runs.createRun({
+      companyId,
+      taskId: null,
+      agentId,
+      workspaceId,
+      connectorId: "openai-codex",
+    });
+
+    expect(db.core.tasks.checkoutTask(taskId, runId)).toBe(false);
+    expect(db.core.runs.getRun(runId).taskId).toBeNull();
+    expect(getTaskLease(db, taskId)).toBeNull();
+    expect(db.core.runs.hasActiveRun({ companyId, taskId })).toBe(false);
   });
 
   it("createTaskRun atomically creates the run and claims the task row lock", () => {
@@ -183,10 +215,7 @@ describe("CAS checkout", () => {
     const task = db.core.entity.getTask(taskId);
     expect(task.status).toBe("in_progress");
     expect(task.activeRunId).toBe(run?.id);
-    const lock = (db as unknown as RawDb).db
-      .prepare("SELECT checkout_run_id FROM tasks WHERE id = ?")
-      .get(taskId) as { checkout_run_id: string | null };
-    expect(lock.checkout_run_id).toBe(run?.id);
+    expect(getTaskLease(db, taskId)?.run_id).toBe(run?.id);
   });
 
   it("createTaskRun rolls back the run row when checkout loses the race", () => {
@@ -269,7 +298,7 @@ describe("CAS checkout", () => {
     expect(db.core.tasks.checkoutTask(taskId, runId)).toBe(false);
   });
 
-  it("lock release in finishRun clears checkout fields", () => {
+  it("lock release in finishRun clears the task lease", () => {
     const companyId = createTestCompany(db);
     createTestConnector(db);
     const workspaceId = createTestWorkspace(db, companyId);
@@ -297,15 +326,10 @@ describe("CAS checkout", () => {
       unattributedCost: false,
     });
 
-    const row = (db as unknown as RawDb).db
-      .prepare("SELECT checkout_run_id, execution_locked_at FROM tasks WHERE id = ?")
-      .get(taskId) as { checkout_run_id: string | null; execution_locked_at: string | null };
-
-    expect(row.checkout_run_id).toBeNull();
-    expect(row.execution_locked_at).toBeNull();
+    expect(getTaskLease(db, taskId)).toBeNull();
   });
 
-  it("lock release in cancelRunForDeletion clears checkout fields", () => {
+  it("lock release in cancelRunForDeletion clears the task lease", () => {
     const companyId = createTestCompany(db);
     createTestConnector(db);
     const workspaceId = createTestWorkspace(db, companyId);
@@ -326,12 +350,7 @@ describe("CAS checkout", () => {
     // Deleting the agent triggers cancelRunForDeletion for active runs
     db.core.agents.deleteAgent(agentId, companyId);
 
-    const row = (db as unknown as RawDb).db
-      .prepare("SELECT checkout_run_id, execution_locked_at FROM tasks WHERE id = ?")
-      .get(taskId) as { checkout_run_id: string | null; execution_locked_at: string | null };
-
-    expect(row.checkout_run_id).toBeNull();
-    expect(row.execution_locked_at).toBeNull();
+    expect(getTaskLease(db, taskId)).toBeNull();
   });
 
   it("stale lock recovery resets tasks older than 15 minutes", () => {
@@ -351,10 +370,10 @@ describe("CAS checkout", () => {
 
     db.core.tasks.checkoutTask(taskId, runId);
 
-    // Backdate execution_locked_at to 20 minutes ago
+    // Backdate the lease expiry to 20 minutes ago.
     const backdated = new Date(Date.now() - 20 * 60 * 1000).toISOString();
     (db as unknown as RawDb).db
-      .prepare("UPDATE tasks SET execution_locked_at = ? WHERE id = ?")
+      .prepare("UPDATE task_leases SET expires_at = ? WHERE task_id = ?")
       .run(backdated, taskId);
 
     const recovered = db.recoverStaleLocks();
@@ -366,12 +385,7 @@ describe("CAS checkout", () => {
     const task = db.core.entity.getTask(taskId);
     expect(task.status).toBe("todo");
 
-    const row = (db as unknown as RawDb).db
-      .prepare("SELECT checkout_run_id, execution_locked_at FROM tasks WHERE id = ?")
-      .get(taskId) as { checkout_run_id: string | null; execution_locked_at: string | null };
-
-    expect(row.checkout_run_id).toBeNull();
-    expect(row.execution_locked_at).toBeNull();
+    expect(getTaskLease(db, taskId)).toBeNull();
   });
 
   it("stale lock recovery ignores tasks within 15 minute window", () => {
@@ -404,10 +418,8 @@ describe("CAS checkout", () => {
 
   it("failed dispatch (run never started) rolls task back to 'todo' so heartbeat can retry", () => {
     // Regression: workspace-lock contention calls finishRun('failed') on a
-    // run that never reached 'running'. The old code cleared checkout_run_id
-    // but left task.status='in_progress' — the next checkoutTask pass then
-    // refused (WHERE status IN ('todo','backlog')), and the scheduler
-    // deadlocked while logging "lost checkout race" every 15 seconds.
+    // run that never reached 'running'. The lease must clear and the task
+    // status must return to 'todo' so the heartbeat retry path can reclaim it.
     const companyId = createTestCompany(db);
     createTestConnector(db);
     const workspaceId = createTestWorkspace(db, companyId);
