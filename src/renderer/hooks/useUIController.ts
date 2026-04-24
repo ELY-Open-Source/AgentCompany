@@ -5,50 +5,25 @@ import type { AgentRecord, GoalRecord, ProjectRecord, RunRecord, SectionId, Task
 import { createTranslator } from "../i18n";
 import { useAppStore } from "../state/store";
 import { useFocusTrap, useReducedMotion } from "../components/ui";
+import { SquaresFour } from "../components/ui/icons";
 import {
-  BookOpen,
-  Gear,
-  Tray,
-  SquaresFour,
-  UsersThree,
-  ListChecks,
-  ChatCircle,
-  PuzzlePiece,
-  FileText,
-  ShieldCheck,
-  Megaphone,
-  FolderOpen,
-} from "../components/ui/icons";
+  SETTINGS_NAV_ITEM_DEF,
+  SIDEBAR_NAV_GROUP_DEFS,
+  type NavItemDef,
+} from "../navigation";
 import type { AppLocale } from "@shared/locale";
 
-type NavItemDef = { id: SectionId; labelKey: string; icon: typeof SquaresFour };
 export type NavItem = { id: SectionId; label: string; icon: typeof SquaresFour };
 export type NavGroup = { items: NavItem[] };
 export type PaletteAction = { key: string; section: SectionId; entityId?: string };
 
-const sidebarCoreDefs: NavItemDef[] = [
-  { id: "overview", labelKey: "nav.overview", icon: SquaresFour },
-  { id: "inbox", labelKey: "nav.inbox", icon: Tray },
-  { id: "communication", labelKey: "nav.communication", icon: ChatCircle },
-];
-
-const sidebarCollaborateDefs: NavItemDef[] = [
-  { id: "tasks", labelKey: "nav.work", icon: ListChecks },
-  { id: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
-  { id: "agents", labelKey: "nav.agents", icon: UsersThree },
-  { id: "workspaces", labelKey: "nav.workspaces", icon: FolderOpen },
-  { id: "social", labelKey: "nav.social", icon: Megaphone },
-  { id: "documents", labelKey: "nav.documents", icon: FileText },
-];
-
-const paletteOnlyNavDefs: NavItemDef[] = [
-  { id: "skills", labelKey: "nav.skills", icon: PuzzlePiece },
-  { id: "knowledge", labelKey: "nav.knowledge", icon: BookOpen },
-];
-
 const NO_MOTION = { duration: 0 } as const;
 const PAGE_TRANSITION = { duration: 0.32, ease: [0.16, 1, 0.3, 1] as const } as const;
 const PANEL_TRANSITION = { duration: 0.28, ease: [0.16, 1, 0.3, 1] as const } as const;
+
+function toNavItem(item: NavItemDef, t: (key: string) => string): NavItem {
+  return { id: item.id, label: t(item.labelKey), icon: item.icon };
+}
 
 export function useUIController() {
   const reducedMotion = useReducedMotion();
@@ -59,10 +34,9 @@ export function useUIController() {
   const t = useMemo(() => createTranslator(locale), [locale]);
 
   const sidebarGroups: NavGroup[] = useMemo(
-    () => [
-      { items: sidebarCoreDefs.map((item) => ({ id: item.id, label: t(item.labelKey), icon: item.icon })) },
-      { items: sidebarCollaborateDefs.map((item) => ({ id: item.id, label: t(item.labelKey), icon: item.icon })) },
-    ],
+    () => SIDEBAR_NAV_GROUP_DEFS.map((group) => ({
+      items: group.items.map((item) => toNavItem(item, t)),
+    })),
     [t],
   );
   const sidebarNav: NavItem[] = useMemo(
@@ -70,10 +44,7 @@ export function useUIController() {
     [sidebarGroups],
   );
   const navItems: NavItem[] = useMemo(
-    () =>
-      sidebarNav
-        .concat(paletteOnlyNavDefs.map((item) => ({ id: item.id, label: t(item.labelKey), icon: item.icon })))
-        .concat({ id: "settings", label: t("nav.settings"), icon: Gear }),
+    () => sidebarNav.concat(toNavItem(SETTINGS_NAV_ITEM_DEF, t)),
     [sidebarNav, t],
   );
 
