@@ -93,6 +93,46 @@ async function createHarness() {
 }
 
 describe("work product URL API policy", () => {
+  it("rejects JSON bodies that declare a non UTF-8 charset", async () => {
+    const harness = await createHarness();
+    try {
+      const response = await fetch(`${harness.baseUrl}/api/issues/${harness.taskId}/work-products`, {
+        method: "POST",
+        headers: {
+          ...harness.headers,
+          "Content-Type": "application/json; charset=gbk",
+        },
+        body: JSON.stringify({ type: "link", provider: "external", title: "Report" }),
+      });
+
+      expect(response.status).toBe(415);
+      expect(harness.db.queryAll("select id from work_products")).toHaveLength(0);
+    } finally {
+      harness.server.stop();
+      harness.db.close();
+    }
+  });
+
+  it("rejects JSON bodies with duplicate charset declarations", async () => {
+    const harness = await createHarness();
+    try {
+      const response = await fetch(`${harness.baseUrl}/api/issues/${harness.taskId}/work-products`, {
+        method: "POST",
+        headers: {
+          ...harness.headers,
+          "Content-Type": "application/json; charset=gbk; charset=utf-8",
+        },
+        body: JSON.stringify({ type: "link", provider: "external", title: "Report" }),
+      });
+
+      expect(response.status).toBe(415);
+      expect(harness.db.queryAll("select id from work_products")).toHaveLength(0);
+    } finally {
+      harness.server.stop();
+      harness.db.close();
+    }
+  });
+
   it("rejects unknown work product taxonomy during creation", async () => {
     const harness = await createHarness();
     try {

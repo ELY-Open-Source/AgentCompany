@@ -5,27 +5,36 @@ import type { AppDatabase } from "../database";
 import type { AgentMessageRecord, DesktopEvent, SectionId } from "@shared/types";
 import type { DocumentLifecycleInput, DocumentLifecycleOutcome } from "../document-lifecycle";
 
-/**
- * Decode an HTTP request body to a UTF-8 string, handling the common Windows
- * encoding issue where Chinese/CJK characters arrive in GBK (CP936) instead
- * of UTF-8. On Chinese Windows the system ANSI code page is GBK; tools like
- * curl encode command-line arguments using that code page when stdout is piped
- * (chcp 65001 does not help because there is no real console). We try strict
- * UTF-8 first and, only if the bytes are invalid UTF-8, fall back to GBK.
- */
 export function decodeBodyToUtf8(raw: Buffer): string {
   if (raw.length === 0) return "";
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(raw);
-  } catch {
-    // Bytes are not valid UTF-8 — most likely GBK from Chinese Windows.
-    try {
-      return new TextDecoder("gbk").decode(raw);
-    } catch {
-      // Last resort: lossy UTF-8 (replaces invalid bytes with U+FFFD).
-      return raw.toString("utf8");
+  return new TextDecoder("utf-8", { fatal: true }).decode(raw);
+}
+
+function parseContentType(value: string | string[] | undefined): { mediaType: string; charsets: string[] } | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw) return null;
+  const [mediaTypeRaw, ...params] = raw.split(";");
+  const mediaType = mediaTypeRaw?.trim().toLowerCase();
+  if (!mediaType) return null;
+  const charsets: string[] = [];
+  for (const param of params) {
+    const [keyRaw, valueRaw] = param.split("=");
+    if (keyRaw?.trim().toLowerCase() === "charset") {
+      charsets.push(valueRaw?.trim().replace(/^"|"$/g, "").toLowerCase() ?? "");
     }
   }
+  return { mediaType, charsets };
+}
+
+function getJsonContentTypeError(req: IncomingMessage): string | null {
+  const parsed = parseContentType(req.headers["content-type"]);
+  if (!parsed) return null;
+  if (parsed.mediaType !== "application/json") return "Content-Type must be application/json.";
+  if (parsed.charsets.length > 1) return "JSON request bodies must declare one charset.";
+  if (parsed.charsets.some((charset) => charset !== "utf-8" && charset !== "utf8")) {
+    return "JSON request bodies must declare charset=utf-8.";
+  }
+  return null;
 }
 
 /**
@@ -301,6 +310,11 @@ export class AgentApiServer {
 
       let body: unknown = null;
       if (["POST", "PATCH", "PUT"].includes(method)) {
+        const contentTypeError = getJsonContentTypeError(req);
+        if (contentTypeError) {
+          this.json(res, 415, { error: contentTypeError });
+          return;
+        }
         try {
           body = await this.readBody(req);
         } catch (bodyErr) {
