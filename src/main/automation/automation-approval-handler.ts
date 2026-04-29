@@ -83,6 +83,13 @@ export function handleApprovalResolved(
   if (deps.isQuitting()) return;
   const { db, logger, publishDomainChanged, notify, wakeAgentIfPossible, queueBrowserActionExecution } = deps;
   const { dispatchAutomation, handleTaskStatusChange, runWorkflowPipeline, trackTimer } = callbacks;
+  const explicitlyWokenAgentIds = new Set<string>();
+
+  function wakeAgent(agentId: string | null | undefined, trigger: string): void {
+    if (!agentId) return;
+    wakeAgentIfPossible(agentId, companyId, trigger);
+    explicitlyWokenAgentIds.add(agentId);
+  }
 
   const snapshot = db.projection.snapshot.listSnapshot();
   const approval = snapshot.approvals.find((entry) => entry.id === approvalId);
@@ -134,11 +141,11 @@ export function handleApprovalResolved(
         companyId,
         agentId: agent.id,
       });
-      wakeAgentIfPossible(agent.id, companyId, "assignment");
+      wakeAgent(agent.id, "assignment");
 
       const ceo = db.core.agents.getCeoForCompany(companyId);
       if (ceo && ceo.id !== agent.id) {
-        wakeAgentIfPossible(ceo.id, companyId, "assignment");
+        wakeAgent(ceo.id, "assignment");
       }
 
       publishDomainChanged();
@@ -186,20 +193,15 @@ export function handleApprovalResolved(
         db.core.tasks.advanceTaskStatus(task.id, "done", "Board approved deliverable.");
         handleTaskStatusChange(task.id, companyId, task.status, "done");
         db.core.activity.addActivity({ companyId, actor: "board", action: "deliverable.approved", entityType: "task", entityId: task.id, detail: approval.decisionNote || "Deliverable approved by board." });
-      } else if (decision === "rejected") {
+      } else if (decision === "rejected" || decision === "revision_requested") {
+        const previousStatus = task.status;
+        const statusMessage = decision === "rejected"
+          ? `Board rejected deliverable: ${approval.decisionNote || "No reason given."}`
+          : `Board requested revisions: ${approval.decisionNote || "No reason given."}`;
         recordReviewFeedbackKnowledge(db, approval, decision);
-        db.core.tasks.advanceTaskStatus(task.id, "in_progress", `Board rejected deliverable: ${approval.decisionNote || "No reason given."}`);
-        handleTaskStatusChange(task.id, companyId, task.status, "in_progress");
-        if (task.assigneeAgentId) {
-          wakeAgentIfPossible(task.assigneeAgentId, companyId, "revision_needed");
-        }
-      } else if (decision === "revision_requested") {
-        db.core.tasks.advanceTaskStatus(task.id, "in_progress", `Board requested revisions: ${approval.decisionNote || "No reason given."}`);
-        handleTaskStatusChange(task.id, companyId, task.status, "in_progress");
-        recordReviewFeedbackKnowledge(db, approval, decision);
-        if (task.assigneeAgentId) {
-          wakeAgentIfPossible(task.assigneeAgentId, companyId, "revision_needed");
-        }
+        db.core.tasks.advanceTaskStatus(task.id, "todo", statusMessage);
+        handleTaskStatusChange(task.id, companyId, previousStatus, "todo");
+        wakeAgent(task.assigneeAgentId, "revision_needed");
       }
     } else if (approval.requestedByAgentId) {
       const agent = db.core.entity.getAgent(approval.requestedByAgentId);
@@ -208,7 +210,7 @@ export function handleApprovalResolved(
         logger.info(`[deliverable-review] Resumed heartbeat for ${agent.name} after user ${decision}.`);
       }
       if (decision !== "approved") {
-        wakeAgentIfPossible(approval.requestedByAgentId, companyId, "revision_needed");
+        wakeAgent(approval.requestedByAgentId, "revision_needed");
       }
     }
 
@@ -366,6 +368,8 @@ export function handleApprovalResolved(
   }
 
   if (approval.requestedByAgentId) {
-    wakeAgentIfPossible(approval.requestedByAgentId, companyId, "approval_resolved");
+    if (!explicitlyWokenAgentIds.has(approval.requestedByAgentId)) {
+      wakeAgentIfPossible(approval.requestedByAgentId, companyId, "approval_resolved");
+    }
   }
 }
