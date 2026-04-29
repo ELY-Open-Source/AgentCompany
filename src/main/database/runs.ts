@@ -166,20 +166,20 @@ export function buildRunMethods(
       model: string | null;
       unattributedCost: boolean;
       usageStatus?: RunUsageStatus;
+      recoverTaskForRetry?: boolean;
     }) {
       const run = getDb().prepare("select task_id as taskId, agent_id as agentId, company_id as companyId, connector_id as connectorId, started_at as startedAt from runs where id = ?").get(input.runId) as
         | { taskId: string | null; agentId: string; companyId: string; connectorId: ConnectorId; startedAt: string | null }
         | undefined;
       if (!run) return { budgetHardStopped: false };
-      // A run that never transitioned to 'running' (startedAt === null) and
-      // is now terminal with status 'failed' / 'cancelled' must roll the
-      // task back to 'todo'. Otherwise the task is stuck in 'in_progress'
-      // with no owner — checkoutTask refuses (WHERE status IN todo/backlog),
-      // and the scheduler loops forever logging "lost checkout race". The
-      // common trigger is workspace-lock contention: `dispatchRunToWorker`
-      // bails before work starts and calls finishRun('failed').
+      // Recoverable terminal paths must roll the task back to 'todo'.
+      // Otherwise the task is stuck in 'in_progress' with no owner:
+      // checkoutTask refuses (WHERE status IN todo/backlog), and the
+      // scheduler loops forever logging "lost checkout race".
       const runNeverStarted =
         run.startedAt === null && (input.status === "failed" || input.status === "cancelled");
+      const shouldReturnTaskToTodo =
+        run.taskId !== null && (runNeverStarted || input.recoverTaskForRetry === true);
       const ts = nowIso();
       const usageStatus = input.usageStatus ?? deriveLegacyRunUsageStatus({
         runStatus: input.status,
@@ -220,7 +220,7 @@ export function buildRunMethods(
           getDb()
             .prepare("delete from task_leases where task_id = ? and run_id = ?")
             .run(run.taskId, input.runId);
-          if (runNeverStarted) {
+          if (shouldReturnTaskToTodo) {
             // Roll the task back to `todo` when no *other* live run claims
             // it. Invariant: `task.status = 'in_progress'` ⇒ a queued or
             // running run owns it through `task_leases`.
