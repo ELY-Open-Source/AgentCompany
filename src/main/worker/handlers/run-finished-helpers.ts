@@ -16,6 +16,22 @@ export interface RunFinishedContext {
   runOutcome: ReturnType<HandlerDeps["db"]["core"]["runs"]["finishRun"]>;
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function runCompletionSideEffect(
+  logger: HandlerDeps["logger"],
+  label: string,
+  operation: () => void,
+): void {
+  try {
+    operation();
+  } catch (error) {
+    logger.error(`[worker] ${label} failed after run completion: ${errorMessage(error)}`);
+  }
+}
+
 export function finalizeRun(
   event: RunFinishedEvent,
   deps: HandlerDeps,
@@ -71,13 +87,15 @@ export function finalizeRun(
 
   leaseRenewalMap.delete(event.runId);
   const runOutcome = db.core.runs.finishRun({ ...event, unattributedCost });
-  db.core.activity.addActivity({
-    companyId: run.companyId,
-    actor: run.agentId,
-    action: `run.${event.status}`,
-    entityType: "run",
-    entityId: run.id,
-    detail: event.summary ?? event.errorMessage ?? "",
+  runCompletionSideEffect(logger, "run activity logging", () => {
+    db.core.activity.addActivity({
+      companyId: run.companyId,
+      actor: run.agentId,
+      action: `run.${event.status}`,
+      entityType: "run",
+      entityId: run.id,
+      detail: event.summary ?? event.errorMessage ?? "",
+    });
   });
 
   return { run, task, runOutcome };
@@ -85,11 +103,13 @@ export function finalizeRun(
 
 export function releaseCompletedRunWorkspaceLock(
   rfCtx: RunFinishedContext | null,
-  deps: Pick<HandlerDeps, "db">,
+  deps: Pick<HandlerDeps, "db" | "logger">,
 ): void {
   const workspaceId = rfCtx?.run.workspaceId;
   if (!workspaceId) return;
-  deps.db.core.workspaces.releaseWorkspaceLock(workspaceId, rfCtx.run.id);
+  runCompletionSideEffect(deps.logger, "workspace lock release", () => {
+    deps.db.core.workspaces.releaseWorkspaceLock(workspaceId, rfCtx.run.id);
+  });
 }
 
 export function accumulateAndRotateSession(
@@ -120,22 +140,26 @@ export function accumulateAndRotateSession(
   const session = db.core.tasks.getSessionById(agentRecord.sessionId);
   if (!session) return;
 
-  sessionService.accumulateTokenUsage(
-    session.id,
-    event.inputTokens ?? 0,
-    event.outputTokens ?? 0,
-    event.runId,
-  );
-  // Re-read after accumulation: evaluateRotation must see the counts
-  // that include this run, otherwise a run that just crossed the
-  // threshold waits a full additional cycle to rotate — the exact
-  // failure mode that let transcripts balloon past the context window.
-  const updatedSession = db.core.tasks.getSessionById(agentRecord.sessionId);
-  if (!updatedSession) return;
-  const rotationResult = sessionService.evaluateRotation(updatedSession);
-  if (rotationResult.shouldRotate) {
-    sessionService.rotateSession(updatedSession);
-    logger.info(`[session] Rotated session for agent ${run.agentId}: ${rotationResult.reason}`);
+  try {
+    sessionService.accumulateTokenUsage(
+      session.id,
+      event.inputTokens ?? 0,
+      event.outputTokens ?? 0,
+      event.runId,
+    );
+    // Re-read after accumulation: evaluateRotation must see the counts
+    // that include this run, otherwise a run that just crossed the
+    // threshold waits a full additional cycle to rotate — the exact
+    // failure mode that let transcripts balloon past the context window.
+    const updatedSession = db.core.tasks.getSessionById(agentRecord.sessionId);
+    if (!updatedSession) return;
+    const rotationResult = sessionService.evaluateRotation(updatedSession);
+    if (rotationResult.shouldRotate) {
+      sessionService.rotateSession(updatedSession);
+      logger.info(`[session] Rotated session for agent ${run.agentId}: ${rotationResult.reason}`);
+    }
+  } catch (error) {
+    logger.error(`[session] accumulation/rotation failed for run ${run.id}: ${errorMessage(error)}`);
   }
 }
 
@@ -147,20 +171,26 @@ export function emitAndNotifyCompletion(
   const { db, emitEvent, notify, logger } = deps;
   const { run, task, runOutcome } = rfCtx;
 
-  emitEvent({ type: "run-updated", runId: run.id, action: "completed" });
-  emitEvent({
-    type: "run-status",
-    runId: run.id,
-    status: event.status,
-    message: event.summary ?? event.errorMessage ?? event.status,
+  runCompletionSideEffect(logger, "run-updated event emission", () => {
+    emitEvent({ type: "run-updated", runId: run.id, action: "completed" });
+  });
+  runCompletionSideEffect(logger, "run-status event emission", () => {
+    emitEvent({
+      type: "run-status",
+      runId: run.id,
+      status: event.status,
+      message: event.summary ?? event.errorMessage ?? event.status,
+    });
   });
   if ((event.status === "failed" || event.status === "timed_out" || event.status === "interrupted") && task) {
-    notify({
-      title: "Task Failed",
-      body: `${task.title} -- manual intervention needed`,
-      urgency: "informational",
-      navigation: { section: "tasks", entityId: task.id },
-      batchKey: "failed_runs",
+    runCompletionSideEffect(logger, "task failure notification", () => {
+      notify({
+        title: "Task Failed",
+        body: `${task.title} -- manual intervention needed`,
+        urgency: "informational",
+        navigation: { section: "tasks", entityId: task.id },
+        batchKey: "failed_runs",
+      });
     });
   }
 
@@ -175,22 +205,28 @@ export function emitAndNotifyCompletion(
   }
 
   if (updatedAgent && runOutcome.budgetHardStopped) {
-    db.core.activity.addActivity({
-      companyId: updatedAgent.companyId,
-      actor: "system",
-      action: "agent.auto_paused",
-      entityType: "agent",
-      entityId: updatedAgent.id,
-      detail: `Budget exhausted at ${updatedAgent.spentMonthlyUsd.toFixed(2)} / ${updatedAgent.budgetMonthlyUsd.toFixed(2)} USD.`,
+    runCompletionSideEffect(logger, "budget auto-pause activity logging", () => {
+      db.core.activity.addActivity({
+        companyId: updatedAgent.companyId,
+        actor: "system",
+        action: "agent.auto_paused",
+        entityType: "agent",
+        entityId: updatedAgent.id,
+        detail: `Budget exhausted at ${updatedAgent.spentMonthlyUsd.toFixed(2)} / ${updatedAgent.budgetMonthlyUsd.toFixed(2)} USD.`,
+      });
     });
-    notify({
-      title: "Agent Paused",
-      body: `${updatedAgent.name} paused -- budget limit reached`,
-      urgency: "informational",
-      navigation: { section: "agents", entityId: updatedAgent.id },
-      batchKey: "agent_paused",
+    runCompletionSideEffect(logger, "budget auto-pause notification", () => {
+      notify({
+        title: "Agent Paused",
+        body: `${updatedAgent.name} paused -- budget limit reached`,
+        urgency: "informational",
+        navigation: { section: "agents", entityId: updatedAgent.id },
+        batchKey: "agent_paused",
+      });
     });
-    emitEvent({ type: "agent-updated", agentId: updatedAgent.id, action: "paused" });
+    runCompletionSideEffect(logger, "agent-updated event emission", () => {
+      emitEvent({ type: "agent-updated", agentId: updatedAgent.id, action: "paused" });
+    });
   }
 }
 
@@ -203,58 +239,97 @@ export function runPostCompletionAutomation(
   const { db, logger, isQuitting, wakeAgentIfPossible, processRunCompletion, onRunCompleted, notify, budgetService } = deps;
   const { destroyed, MAX_RETRY_ATTEMPTS, RETRY_COOLDOWN_MS, pendingRetryTimers } = context;
   const { run, task } = rfCtx;
+  let housekeepingStatus = event.status;
+  let housekeepingSummary = event.summary ?? null;
+  let housekeepingErrorMessage = event.errorMessage ?? null;
 
   // Policy-based incident check after run completion. Always runs once the
   // run is finalized — cost is read from the cost_entries SUM inside
   // finishRun/checkAndCreateIncidents, not from the worker event.
   if (budgetService && event.status === "succeeded") {
-    budgetService.checkAndCreateIncidents(run.companyId, run.agentId, task?.projectId ?? null);
+    try {
+      budgetService.checkAndCreateIncidents(run.companyId, run.agentId, task?.projectId ?? null);
+    } catch (error) {
+      logger.error(`[worker] budget incident check failed for run ${run.id}: ${errorMessage(error)}`);
+    }
   }
 
   if ((event.status === "failed" || event.status === "timed_out") && !isQuitting() && !destroyed && run.taskId) {
-    handleFailureEscalation(
-      {
-        db,
-        wakeAgentIfPossible,
-        notify: (title, body) =>
-          notify({ title, body, urgency: "critical", navigation: { section: "tasks", entityId: run.taskId ?? "" } }),
-        logger,
-      },
-      { taskId: run.taskId, agentId: run.agentId, companyId: run.companyId },
-      task,
-      event.status,
-      MAX_RETRY_ATTEMPTS,
-      RETRY_COOLDOWN_MS,
-      (fn, delayMs) => {
-        const retryTimer = setTimeout(() => {
-          pendingRetryTimers.delete(retryTimer);
-          if (isQuitting() || destroyed) return;
-          fn();
-        }, delayMs);
-        pendingRetryTimers.add(retryTimer);
-      },
-    );
+    try {
+      handleFailureEscalation(
+        {
+          db,
+          wakeAgentIfPossible,
+          notify: (title, body) =>
+            notify({ title, body, urgency: "critical", navigation: { section: "tasks", entityId: run.taskId ?? "" } }),
+          logger,
+        },
+        { taskId: run.taskId, agentId: run.agentId, companyId: run.companyId },
+        task,
+        event.status,
+        MAX_RETRY_ATTEMPTS,
+        RETRY_COOLDOWN_MS,
+        (fn, delayMs) => {
+          const retryTimer = setTimeout(() => {
+            pendingRetryTimers.delete(retryTimer);
+            if (isQuitting() || destroyed) return;
+            fn();
+          }, delayMs);
+          pendingRetryTimers.add(retryTimer);
+        },
+      );
+    } catch (error) {
+      logger.error(`[worker] failure escalation failed for run ${run.id}: ${errorMessage(error)}`);
+    }
   }
 
   // EXEC-05: Promote deferred wakes after run completion
   let hadDeferredWakes = false;
   if (!isQuitting() && !destroyed) {
-    const promoted = db.automation.wakeup.promoteWakeupRequests(run.agentId, run.companyId);
-    const pendingWakeTrigger = db.automation.wakeup.getPreferredWakeTrigger(run.agentId, run.companyId);
-    if (promoted > 0) {
-      logger.info(`[worker] Promoted ${promoted} deferred wake(s) for agent ${run.agentId}`);
-    }
-    if (pendingWakeTrigger) {
-      hadDeferredWakes = true;
-      logger.info(
-        `[worker] Processing pending wake(s) for agent ${run.agentId} with priority trigger "${pendingWakeTrigger}"`,
-      );
-      wakeAgentIfPossible(run.agentId, run.companyId, pendingWakeTrigger);
+    try {
+      const promoted = db.automation.wakeup.promoteWakeupRequests(run.agentId, run.companyId);
+      const pendingWakeTrigger = db.automation.wakeup.getPreferredWakeTrigger(run.agentId, run.companyId);
+      if (promoted > 0) {
+        logger.info(`[worker] Promoted ${promoted} deferred wake(s) for agent ${run.agentId}`);
+      }
+      if (pendingWakeTrigger) {
+        hadDeferredWakes = true;
+        logger.info(
+          `[worker] Processing pending wake(s) for agent ${run.agentId} with priority trigger "${pendingWakeTrigger}"`,
+        );
+        wakeAgentIfPossible(run.agentId, run.companyId, pendingWakeTrigger);
+      }
+    } catch (error) {
+      logger.error(`[worker] deferred wake processing failed for run ${run.id}: ${errorMessage(error)}`);
     }
   }
 
   if (!isQuitting() && !destroyed) {
-    processRunCompletion(run, event as z.infer<typeof workerMessageSchema> & { type: "run-finished" });
+    try {
+      processRunCompletion(run, event as z.infer<typeof workerMessageSchema> & { type: "run-finished" });
+    } catch (error) {
+      const message = errorMessage(error);
+      logger.error(`[worker] processRunCompletion failed for run ${run.id}: ${message}`);
+      housekeepingStatus = "failed";
+      housekeepingSummary = null;
+      housekeepingErrorMessage = message;
+      try {
+        db.core.runs.markRunCompletionFailure(run.id, message);
+      } catch (markError) {
+        logger.error(`[worker] markRunCompletionFailure failed for run ${run.id}: ${errorMessage(markError)}`);
+      }
+      if (task?.status === "in_progress") {
+        try {
+          db.core.tasks.advanceTaskStatus(
+            task.id,
+            "blocked",
+            `Run completion automation failed: ${message}`,
+          );
+        } catch (statusError) {
+          logger.error(`[worker] failed to block task ${task.id} after completion automation failure: ${errorMessage(statusError)}`);
+        }
+      }
+    }
   }
 
   // Run housekeeping: thread events + knowledge candidates
@@ -265,9 +340,9 @@ export function runPostCompletionAutomation(
         run.taskId,
         run.agentId,
         run.companyId,
-        event.status,
-        event.summary ?? null,
-        event.errorMessage ?? null,
+        housekeepingStatus,
+        housekeepingSummary,
+        housekeepingErrorMessage,
       );
     } catch (err) {
       logger.error(`[worker] onRunCompleted housekeeping failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -275,7 +350,7 @@ export function runPostCompletionAutomation(
   }
 
   // Reset retry count on successful completion
-  if (event.status === "succeeded" && run.taskId) {
+  if (housekeepingStatus === "succeeded" && run.taskId) {
     handleSuccessReset(db, run.taskId, logger);
   }
 
