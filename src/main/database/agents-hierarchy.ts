@@ -203,15 +203,17 @@ export function buildAgentHierarchyMethods(
       id: string;
       name: string;
       department: string | null;
+      heartbeatIntervalSec: number | null;
       lastHeartbeatAt: string | null;
     }> {
       return readAll<{
         id: string;
         name: string;
         department: string | null;
+        heartbeatIntervalSec: number | null;
         lastHeartbeatAt: string | null;
       }>(
-        "select id, name, department, last_heartbeat_at as lastHeartbeatAt from agents where company_id = ? and status not in ('terminated', 'paused', 'pending_approval')",
+        "select id, name, department, heartbeat_interval_sec as heartbeatIntervalSec, last_heartbeat_at as lastHeartbeatAt from agents where company_id = ? and status not in ('terminated', 'paused', 'pending_approval')",
         companyId,
       );
     },

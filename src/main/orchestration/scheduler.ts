@@ -36,6 +36,7 @@ export function createScheduler(
   let unlockListener: (() => void) | null = null;
   const phaseLastRunAt = new Map<SchedulerPhase, number>();
   const scheduleLastFiredByCompany = new Map<string, number>();
+  const taskWakeAttemptByAgent = new Map<string, number>();
   const bootstrapAttemptByAgent = new Map<string, number>();
 
   function phaseIsDue(phase: SchedulerPhase, now: number): boolean {
@@ -231,6 +232,25 @@ export function createScheduler(
     scheduleLastFiredByCompany.set(companyId, now);
   }
 
+  function runAssignedTaskWakeCadence(companyId: string, now: number) {
+    const activeAgents = db.core.agents.listActiveAgentsForCompany(companyId);
+    for (const activeAgent of activeAgents) {
+      if (hasActiveRun({ agentId: activeAgent.id, companyId })) continue;
+      if (deps.checkpointEngine?.shouldPauseHeartbeat(companyId, activeAgent.id)) continue;
+
+      const lastHeartbeat = activeAgent.lastHeartbeatAt ? new Date(activeAgent.lastHeartbeatAt).getTime() : 0;
+      const lastAttempt = taskWakeAttemptByAgent.get(activeAgent.id) ?? 0;
+      const intervalMs = (activeAgent.heartbeatIntervalSec || 120) * 1000;
+      if (now - Math.max(lastHeartbeat, lastAttempt) < intervalMs) continue;
+
+      const actionableTasks = db.core.tasks.listAgentTasks(activeAgent.id, companyId, ["todo"]);
+      if (!actionableTasks.some((task) => !task.activeRunId)) continue;
+
+      taskWakeAttemptByAgent.set(activeAgent.id, now);
+      wakeAgentIfPossible(activeAgent.id, companyId, "timer");
+    }
+  }
+
   function runHeartbeatCadencePhase() {
     const activeCompanies = db.core.company.listActiveCompanyIds();
     const now = Date.now();
@@ -238,6 +258,7 @@ export function createScheduler(
     for (const company of activeCompanies) {
       try {
         runScheduleAutomation(company.id, now);
+        runAssignedTaskWakeCadence(company.id, now);
         runCompanyBootstrap(company, now);
       } catch (error) {
         logAppError(logger, error, {

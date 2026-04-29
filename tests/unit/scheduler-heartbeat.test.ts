@@ -168,6 +168,37 @@ describe("unified scheduler heartbeat cadence", () => {
     expect(wakeAgentIfPossible).not.toHaveBeenCalled();
   });
 
+  it("wakes an agent with assigned todo work on heartbeat cadence", () => {
+    const companyId = createCompany(db);
+    createConnector(db);
+    const workspaceId = createWorkspace(db, companyId, tempDir);
+    const agentId = createAgent(db, companyId, workspaceId);
+    db.core.tasks.saveTask({
+      companyId,
+      title: "Continue operating work",
+      description: "A queued Phase 2 task needs periodic wakeups after the initial event.",
+      assigneeAgentId: agentId,
+      workspaceId,
+      priority: "high",
+      status: "todo",
+    });
+    const wakeAgentIfPossible = vi.fn();
+    const scheduler = createScheduler(
+      createDeps(db),
+      () => false,
+      wakeAgentIfPossible,
+    );
+
+    try {
+      scheduler.startAllSchedulers();
+      vi.advanceTimersByTime(60_000);
+    } finally {
+      scheduler.stopAllSchedulers();
+    }
+
+    expect(wakeAgentIfPossible).toHaveBeenCalledWith(agentId, companyId, "timer");
+  });
+
   it("bootstraps the CEO through the wake pipeline", () => {
     const companyId = createCompany(db);
     createConnector(db);
