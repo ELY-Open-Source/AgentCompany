@@ -24,19 +24,45 @@ function runFinishedMessage(runId: string) {
   };
 }
 
-function createHandlerDeps(calls: string[]) {
-  const releaseWorkspaceLock = vi.fn(() => calls.push("releaseWorkspaceLock"));
+function createHandlerDeps(calls: string[], options: {
+  taskId?: string | null;
+  taskStatus?: string;
+  sessionAccumulateThrows?: boolean;
+  processRunCompletionThrows?: boolean;
+  activityThrows?: boolean;
+  emitEventThrows?: boolean;
+  wakeupThrows?: boolean;
+  releaseWorkspaceThrows?: boolean;
+  markRunCompletionFailureThrows?: boolean;
+} = {}) {
+  const releaseWorkspaceLock = vi.fn(() => {
+    calls.push("releaseWorkspaceLock");
+    if (options.releaseWorkspaceThrows) {
+      throw new Error("workspace release failed");
+    }
+  });
   const finishRun = vi.fn(() => {
     calls.push("finishRun");
     return { budgetHardStopped: false };
   });
   const rotateSession = vi.fn(() => calls.push("rotateSession"));
-  const processRunCompletion = vi.fn(() => calls.push("processRunCompletion"));
+  const processRunCompletion = vi.fn(() => {
+    calls.push("processRunCompletion");
+    if (options.processRunCompletionThrows) {
+      throw new Error("processRunCompletion failed");
+    }
+  });
   const releaseRunResources = vi.fn((): RunResourceReleaseResult => {
     calls.push("releaseRunResources");
     return { ok: true as const };
   });
-  const markRunCompletionFailure = vi.fn(() => calls.push("markRunCompletionFailure"));
+  const markRunCompletionFailure = vi.fn(() => {
+    calls.push("markRunCompletionFailure");
+    if (options.markRunCompletionFailureThrows) {
+      throw new Error("mark completion failed");
+    }
+  });
+  const advanceTaskStatus = vi.fn(() => calls.push("advanceTaskStatus"));
 
   const db = {
     core: {
@@ -45,14 +71,21 @@ function createHandlerDeps(calls: string[]) {
           id: RUN_ID,
           companyId: "company-1",
           agentId: "agent-1",
-          taskId: null,
+          taskId: options.taskId ?? null,
           workspaceId: "workspace-1",
         })),
         finishRun,
         markRunCompletionFailure,
       },
       workspaces: { releaseWorkspaceLock },
-      activity: { addActivity: vi.fn(() => calls.push("addActivity")) },
+      activity: {
+        addActivity: vi.fn(() => {
+          calls.push("addActivity");
+          if (options.activityThrows) {
+            throw new Error("activity write failed");
+          }
+        }),
+      },
       entity: {
         getAgent: vi.fn(() => ({
           id: "agent-1",
@@ -60,11 +93,19 @@ function createHandlerDeps(calls: string[]) {
           reportsTo: "manager-1",
           sessionId: "session-1",
         })),
+        getTask: vi.fn(() => ({
+          id: options.taskId ?? "task-1",
+          companyId: "company-1",
+          agentId: "agent-1",
+          title: "Completion task",
+          status: options.taskStatus ?? "in_progress",
+        })),
         countActiveGoalsForCompany: vi.fn(() => 0),
       },
       tasks: {
         getSessionById: vi.fn(() => ({ id: "session-1" })),
         listAgentTasks: vi.fn(() => []),
+        advanceTaskStatus,
       },
       agents: {
         getDirectReports: vi.fn(() => []),
@@ -76,14 +117,24 @@ function createHandlerDeps(calls: string[]) {
     },
     automation: {
       wakeup: {
-        promoteWakeupRequests: vi.fn(() => 0),
+        promoteWakeupRequests: vi.fn(() => {
+          if (options.wakeupThrows) {
+            throw new Error("wakeup promotion failed");
+          }
+          return 0;
+        }),
         getPreferredWakeTrigger: vi.fn(() => null),
       },
     },
   };
 
   const sessionService = {
-    accumulateTokenUsage: vi.fn(() => calls.push("accumulateTokenUsage")),
+    accumulateTokenUsage: vi.fn(() => {
+      calls.push("accumulateTokenUsage");
+      if (options.sessionAccumulateThrows) {
+        throw new Error("session accumulation failed");
+      }
+    }),
     evaluateRotation: vi.fn(() => ({ shouldRotate: true, reason: "unit-test" })),
     rotateSession,
   };
@@ -98,7 +149,12 @@ function createHandlerDeps(calls: string[]) {
         error: vi.fn(),
       },
       isQuitting: vi.fn(() => false),
-      emitEvent: vi.fn(() => calls.push("emitEvent")),
+      emitEvent: vi.fn(() => {
+        calls.push("emitEvent");
+        if (options.emitEventThrows) {
+          throw new Error("emit failed");
+        }
+      }),
       wakeAgentIfPossible: vi.fn(() => null),
       processRunCompletion,
       notify: vi.fn(),
@@ -111,6 +167,7 @@ function createHandlerDeps(calls: string[]) {
     processRunCompletion,
     releaseRunResources,
     markRunCompletionFailure,
+    advanceTaskStatus,
   };
 }
 
@@ -222,6 +279,265 @@ describe("worker completion boundary", () => {
         errorMessage: "completion_reconcile failed",
         usageStatus: "error_stop",
       }),
+    );
+    expect(releaseWorkspaceLock).toHaveBeenCalledWith("workspace-1", RUN_ID);
+    expect(worker.postMessage).toHaveBeenCalledWith({ type: "run-completion-ack", runId: RUN_ID });
+  });
+
+  it("continues completion when artifact failure marking throws", async () => {
+    const calls: string[] = [];
+    const {
+      deps,
+      releaseWorkspaceLock,
+      processRunCompletion,
+      releaseRunResources,
+      markRunCompletionFailure,
+    } = createHandlerDeps(calls, { markRunCompletionFailureThrows: true });
+    releaseRunResources.mockImplementationOnce(() => {
+      calls.push("releaseRunResources");
+      return { ok: false as const, errorMessage: "completion_reconcile failed" };
+    });
+    const worker = { postMessage: vi.fn(() => calls.push("completionAck")) };
+
+    await handleWorkerMessage(
+      runFinishedMessage(RUN_ID),
+      worker as never,
+      deps as never,
+      workerMessageSchema,
+      false,
+      2,
+      30_000,
+      new Map(),
+      3,
+      new Set(),
+      new Map(),
+    );
+
+    expect(markRunCompletionFailure).toHaveBeenCalledWith(RUN_ID, "completion_reconcile failed");
+    expect(processRunCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({ id: RUN_ID }),
+      expect.objectContaining({
+        status: "failed",
+        errorMessage: "completion_reconcile failed",
+        usageStatus: "error_stop",
+      }),
+    );
+    expect(releaseWorkspaceLock).toHaveBeenCalledWith("workspace-1", RUN_ID);
+    expect(worker.postMessage).toHaveBeenCalledWith({ type: "run-completion-ack", runId: RUN_ID });
+  });
+
+  it("continues completion automation when session accumulation fails", async () => {
+    const calls: string[] = [];
+    const {
+      deps,
+      releaseWorkspaceLock,
+      processRunCompletion,
+    } = createHandlerDeps(calls, { sessionAccumulateThrows: true });
+    const worker = { postMessage: vi.fn(() => calls.push("completionAck")) };
+
+    await handleWorkerMessage(
+      runFinishedMessage(RUN_ID),
+      worker as never,
+      deps as never,
+      workerMessageSchema,
+      false,
+      2,
+      30_000,
+      new Map(),
+      3,
+      new Set(),
+      new Map(),
+    );
+
+    expect(processRunCompletion).toHaveBeenCalled();
+    expect(releaseWorkspaceLock).toHaveBeenCalledWith("workspace-1", RUN_ID);
+    expect(worker.postMessage).toHaveBeenCalledWith({ type: "run-completion-ack", runId: RUN_ID });
+  });
+
+  it("marks completion failed and blocks the task when completion automation throws", async () => {
+    const calls: string[] = [];
+    const {
+      deps,
+      releaseWorkspaceLock,
+      markRunCompletionFailure,
+      advanceTaskStatus,
+    } = createHandlerDeps(calls, {
+      taskId: "task-1",
+      taskStatus: "in_progress",
+      processRunCompletionThrows: true,
+    });
+    const worker = { postMessage: vi.fn(() => calls.push("completionAck")) };
+
+    await handleWorkerMessage(
+      runFinishedMessage(RUN_ID),
+      worker as never,
+      deps as never,
+      workerMessageSchema,
+      false,
+      2,
+      30_000,
+      new Map(),
+      3,
+      new Set(),
+      new Map(),
+    );
+
+    expect(markRunCompletionFailure).toHaveBeenCalledWith(RUN_ID, "processRunCompletion failed");
+    expect(advanceTaskStatus).toHaveBeenCalledWith(
+      "task-1",
+      "blocked",
+      expect.stringContaining("Run completion automation failed: processRunCompletion failed"),
+    );
+    expect(releaseWorkspaceLock).toHaveBeenCalledWith("workspace-1", RUN_ID);
+    expect(worker.postMessage).toHaveBeenCalledWith({ type: "run-completion-ack", runId: RUN_ID });
+  });
+
+  it("releases workspace and acknowledges completion when activity logging fails", async () => {
+    const calls: string[] = [];
+    const {
+      deps,
+      releaseWorkspaceLock,
+      processRunCompletion,
+    } = createHandlerDeps(calls, { activityThrows: true });
+    const worker = { postMessage: vi.fn(() => calls.push("completionAck")) };
+
+    await handleWorkerMessage(
+      runFinishedMessage(RUN_ID),
+      worker as never,
+      deps as never,
+      workerMessageSchema,
+      false,
+      2,
+      30_000,
+      new Map(),
+      3,
+      new Set(),
+      new Map(),
+    );
+
+    expect(processRunCompletion).toHaveBeenCalled();
+    expect(releaseWorkspaceLock).toHaveBeenCalledWith("workspace-1", RUN_ID);
+    expect(worker.postMessage).toHaveBeenCalledWith({ type: "run-completion-ack", runId: RUN_ID });
+  });
+
+  it("releases workspace and acknowledges completion when renderer event emission fails", async () => {
+    const calls: string[] = [];
+    const {
+      deps,
+      releaseWorkspaceLock,
+      processRunCompletion,
+    } = createHandlerDeps(calls, { emitEventThrows: true });
+    const worker = { postMessage: vi.fn(() => calls.push("completionAck")) };
+
+    await handleWorkerMessage(
+      runFinishedMessage(RUN_ID),
+      worker as never,
+      deps as never,
+      workerMessageSchema,
+      false,
+      2,
+      30_000,
+      new Map(),
+      3,
+      new Set(),
+      new Map(),
+    );
+
+    expect(processRunCompletion).toHaveBeenCalled();
+    expect(releaseWorkspaceLock).toHaveBeenCalledWith("workspace-1", RUN_ID);
+    expect(worker.postMessage).toHaveBeenCalledWith({ type: "run-completion-ack", runId: RUN_ID });
+  });
+
+  it("releases workspace and acknowledges completion when deferred wake promotion fails", async () => {
+    const calls: string[] = [];
+    const {
+      deps,
+      releaseWorkspaceLock,
+      processRunCompletion,
+    } = createHandlerDeps(calls, { wakeupThrows: true });
+    const worker = { postMessage: vi.fn(() => calls.push("completionAck")) };
+
+    await handleWorkerMessage(
+      runFinishedMessage(RUN_ID),
+      worker as never,
+      deps as never,
+      workerMessageSchema,
+      false,
+      2,
+      30_000,
+      new Map(),
+      3,
+      new Set(),
+      new Map(),
+    );
+
+    expect(processRunCompletion).toHaveBeenCalled();
+    expect(releaseWorkspaceLock).toHaveBeenCalledWith("workspace-1", RUN_ID);
+    expect(worker.postMessage).toHaveBeenCalledWith({ type: "run-completion-ack", runId: RUN_ID });
+  });
+
+  it("acknowledges completion when workspace release fails", async () => {
+    const calls: string[] = [];
+    const {
+      deps,
+      releaseWorkspaceLock,
+      processRunCompletion,
+    } = createHandlerDeps(calls, { releaseWorkspaceThrows: true });
+    const worker = { postMessage: vi.fn(() => calls.push("completionAck")) };
+
+    await handleWorkerMessage(
+      runFinishedMessage(RUN_ID),
+      worker as never,
+      deps as never,
+      workerMessageSchema,
+      false,
+      2,
+      30_000,
+      new Map(),
+      3,
+      new Set(),
+      new Map(),
+    );
+
+    expect(processRunCompletion).toHaveBeenCalled();
+    expect(releaseWorkspaceLock).toHaveBeenCalledWith("workspace-1", RUN_ID);
+    expect(worker.postMessage).toHaveBeenCalledWith({ type: "run-completion-ack", runId: RUN_ID });
+  });
+
+  it("blocks the task and acknowledges completion when marking completion failure throws", async () => {
+    const calls: string[] = [];
+    const {
+      deps,
+      releaseWorkspaceLock,
+      markRunCompletionFailure,
+      advanceTaskStatus,
+    } = createHandlerDeps(calls, {
+      taskId: "task-1",
+      taskStatus: "in_progress",
+      processRunCompletionThrows: true,
+      markRunCompletionFailureThrows: true,
+    });
+    const worker = { postMessage: vi.fn(() => calls.push("completionAck")) };
+
+    await handleWorkerMessage(
+      runFinishedMessage(RUN_ID),
+      worker as never,
+      deps as never,
+      workerMessageSchema,
+      false,
+      2,
+      30_000,
+      new Map(),
+      3,
+      new Set(),
+      new Map(),
+    );
+
+    expect(markRunCompletionFailure).toHaveBeenCalledWith(RUN_ID, "processRunCompletion failed");
+    expect(advanceTaskStatus).toHaveBeenCalledWith(
+      "task-1",
+      "blocked",
+      expect.stringContaining("Run completion automation failed: processRunCompletion failed"),
     );
     expect(releaseWorkspaceLock).toHaveBeenCalledWith("workspace-1", RUN_ID);
     expect(worker.postMessage).toHaveBeenCalledWith({ type: "run-completion-ack", runId: RUN_ID });
