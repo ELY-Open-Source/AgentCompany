@@ -8,6 +8,7 @@ import type { OrchestrationDependencies } from "./types";
 type SchedulerPhase = "lock_recovery" | "housekeeping" | "idle_automation" | "heartbeat_cadence";
 
 const TICK_INTERVAL_MS = 10_000;
+const PENDING_WAKE_RETRY_INTERVAL_MS = 120_000;
 const PHASE_INTERVAL_MS: Record<SchedulerPhase, number> = {
   lock_recovery: 60_000,
   housekeeping: 300_000,
@@ -36,6 +37,7 @@ export function createScheduler(
   let unlockListener: (() => void) | null = null;
   const phaseLastRunAt = new Map<SchedulerPhase, number>();
   const scheduleLastFiredByCompany = new Map<string, number>();
+  const pendingWakeAttemptByAgent = new Map<string, number>();
   const taskWakeAttemptByAgent = new Map<string, number>();
   const bootstrapAttemptByAgent = new Map<string, number>();
 
@@ -44,6 +46,10 @@ export function createScheduler(
     if (now - lastRunAt < PHASE_INTERVAL_MS[phase]) return false;
     phaseLastRunAt.set(phase, now);
     return true;
+  }
+
+  function agentAttemptKey(companyId: string, agentId: string): string {
+    return `${companyId}:${agentId}`;
   }
 
   function runLockRecoveryPhase() {
@@ -206,13 +212,14 @@ export function createScheduler(
     }
   }
 
-  function runCompanyBootstrap(company: { id: string; name: string }, now: number) {
+  function runCompanyBootstrap(company: { id: string; name: string }, now: number, wokenAgentIds: Set<string>) {
     const goalCount = db.core.entity.countActiveGoalsForCompany(company.id);
     const advancingCount = db.core.tasks.countAdvancingTasksForCompany(company.id);
     if (goalCount === 0 || advancingCount > 0) return;
 
     const ceo = db.core.agents.getCeoForCompany(company.id);
     if (!ceo) return;
+    if (wokenAgentIds.has(ceo.id)) return;
     if (hasActiveRun({ agentId: ceo.id, companyId: company.id })) return;
 
     const lastHeartbeat = ceo.lastHeartbeatAt ? new Date(ceo.lastHeartbeatAt).getTime() : 0;
@@ -232,9 +239,34 @@ export function createScheduler(
     scheduleLastFiredByCompany.set(companyId, now);
   }
 
-  function runAssignedTaskWakeCadence(companyId: string, now: number) {
+  function runPendingWakeupCadence(companyId: string, now: number): Set<string> {
+    const wokenAgentIds = new Set<string>();
+    const pendingWakeupAgents = db.automation.wakeup.listPendingWakeupAgents(companyId);
+    for (const { agentId } of pendingWakeupAgents) {
+      if (hasActiveRun({ agentId, companyId })) continue;
+      if (deps.checkpointEngine?.shouldPauseHeartbeat(companyId, agentId)) continue;
+
+      const attemptKey = agentAttemptKey(companyId, agentId);
+      const lastAttempt = pendingWakeAttemptByAgent.get(attemptKey) ?? 0;
+      if (lastAttempt > 0 && now - lastAttempt < PENDING_WAKE_RETRY_INTERVAL_MS) continue;
+
+      const trigger = db.automation.wakeup.getPreferredWakeTrigger(agentId, companyId);
+      if (!trigger) continue;
+
+      pendingWakeAttemptByAgent.set(attemptKey, now);
+      const runId = wakeAgentIfPossible(agentId, companyId, trigger);
+      if (runId) {
+        pendingWakeAttemptByAgent.delete(attemptKey);
+        wokenAgentIds.add(agentId);
+      }
+    }
+    return wokenAgentIds;
+  }
+
+  function runAssignedTaskWakeCadence(companyId: string, now: number, wokenAgentIds: Set<string>) {
     const activeAgents = db.core.agents.listActiveAgentsForCompany(companyId);
     for (const activeAgent of activeAgents) {
+      if (wokenAgentIds.has(activeAgent.id)) continue;
       if (hasActiveRun({ agentId: activeAgent.id, companyId })) continue;
       if (deps.checkpointEngine?.shouldPauseHeartbeat(companyId, activeAgent.id)) continue;
 
@@ -258,8 +290,9 @@ export function createScheduler(
     for (const company of activeCompanies) {
       try {
         runScheduleAutomation(company.id, now);
-        runAssignedTaskWakeCadence(company.id, now);
-        runCompanyBootstrap(company, now);
+        const wokenAgentIds = runPendingWakeupCadence(company.id, now);
+        runAssignedTaskWakeCadence(company.id, now, wokenAgentIds);
+        runCompanyBootstrap(company, now, wokenAgentIds);
       } catch (error) {
         logAppError(logger, error, {
           kind: "recoverable",

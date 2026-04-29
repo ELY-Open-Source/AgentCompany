@@ -159,6 +159,17 @@ export function buildWakeupMethods(
       return promoted;
     },
 
+    listPendingWakeupAgents(companyId: string): Array<{ agentId: string }> {
+      return readAll(
+        `SELECT agent_id AS agentId
+         FROM wakeup_requests
+         WHERE company_id = ? AND status IN ('queued', 'deferred')
+         GROUP BY agent_id
+         ORDER BY MIN(requested_at) ASC`,
+        companyId,
+      );
+    },
+
     listWakeupRequests(companyId: string, filters?: { status?: string; agentId?: string; limit?: number }): Array<{
       id: string; companyId: string; agentId: string; source: string; triggerDetail: string | null;
       status: string; coalescedCount: number; runId: string | null; requestedAt: string;

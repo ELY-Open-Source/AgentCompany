@@ -199,6 +199,149 @@ describe("unified scheduler heartbeat cadence", () => {
     expect(wakeAgentIfPossible).toHaveBeenCalledWith(agentId, companyId, "timer");
   });
 
+  it("wakes an agent with a queued wakeup request on heartbeat cadence", () => {
+    const companyId = createCompany(db);
+    createConnector(db);
+    const workspaceId = createWorkspace(db, companyId, tempDir);
+    const agentId = createAgent(db, companyId, workspaceId);
+    db.automation.wakeup.enqueueWakeupRequest(
+      companyId,
+      agentId,
+      "subtask_completed",
+      "Queued subtask completion wake",
+    );
+    const wakeAgentIfPossible = vi.fn();
+    const scheduler = createScheduler(
+      createDeps(db),
+      () => false,
+      wakeAgentIfPossible,
+    );
+
+    try {
+      scheduler.startAllSchedulers();
+      vi.advanceTimersByTime(60_000);
+    } finally {
+      scheduler.stopAllSchedulers();
+    }
+
+    expect(wakeAgentIfPossible).toHaveBeenCalledWith(agentId, companyId, "subtask_completed");
+  });
+
+  it("throttles queued wakeup recovery attempts", () => {
+    const companyId = createCompany(db);
+    createConnector(db);
+    const workspaceId = createWorkspace(db, companyId, tempDir);
+    const agentId = createAgent(db, companyId, workspaceId);
+    db.automation.wakeup.enqueueWakeupRequest(
+      companyId,
+      agentId,
+      "subtask_completed",
+      "Queued subtask completion wake",
+    );
+    const wakeAgentIfPossible = vi.fn();
+    const scheduler = createScheduler(
+      createDeps(db),
+      () => false,
+      wakeAgentIfPossible,
+    );
+
+    try {
+      scheduler.startAllSchedulers();
+      vi.advanceTimersByTime(60_000);
+      expect(wakeAgentIfPossible).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(60_000);
+      expect(wakeAgentIfPossible).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(60_000);
+      expect(wakeAgentIfPossible).toHaveBeenCalledTimes(2);
+    } finally {
+      scheduler.stopAllSchedulers();
+    }
+  });
+
+  it("clears queued wakeup throttle after a started run", () => {
+    const companyId = createCompany(db);
+    createConnector(db);
+    const workspaceId = createWorkspace(db, companyId, tempDir);
+    const agentId = createAgent(db, companyId, workspaceId);
+    db.automation.wakeup.enqueueWakeupRequest(
+      companyId,
+      agentId,
+      "subtask_completed",
+      "Queued subtask completion wake",
+    );
+    let runCount = 0;
+    const wakeAgentIfPossible = vi.fn((wokenAgentId: string, wokenCompanyId: string) => {
+      runCount += 1;
+      const runId = `run-${runCount}`;
+      db.automation.wakeup.completePendingWakeupRequests(wokenAgentId, wokenCompanyId, runId);
+      return runId;
+    });
+    const scheduler = createScheduler(
+      createDeps(db),
+      () => false,
+      wakeAgentIfPossible,
+    );
+
+    try {
+      scheduler.startAllSchedulers();
+      vi.advanceTimersByTime(60_000);
+      expect(wakeAgentIfPossible).toHaveBeenCalledTimes(1);
+
+      db.automation.wakeup.enqueueWakeupRequest(
+        companyId,
+        agentId,
+        "approval_resolved",
+        "Queued approval resolution wake",
+      );
+      vi.advanceTimersByTime(60_000);
+    } finally {
+      scheduler.stopAllSchedulers();
+    }
+
+    expect(wakeAgentIfPossible).toHaveBeenCalledTimes(2);
+    expect(wakeAgentIfPossible).toHaveBeenLastCalledWith(agentId, companyId, "approval_resolved");
+  });
+
+  it("lets assigned task wake run after a queued wakeup attempt fails", () => {
+    const companyId = createCompany(db);
+    createConnector(db);
+    const workspaceId = createWorkspace(db, companyId, tempDir);
+    const agentId = createAgent(db, companyId, workspaceId);
+    db.automation.wakeup.enqueueWakeupRequest(
+      companyId,
+      agentId,
+      "subtask_completed",
+      "Queued subtask completion wake",
+    );
+    db.core.tasks.saveTask({
+      companyId,
+      title: "Continue after failed queued wake",
+      description: "The assigned task cadence can recover the agent in the same tick.",
+      assigneeAgentId: agentId,
+      workspaceId,
+      priority: "high",
+      status: "todo",
+    });
+    const wakeAgentIfPossible = vi.fn(() => null);
+    const scheduler = createScheduler(
+      createDeps(db),
+      () => false,
+      wakeAgentIfPossible,
+    );
+
+    try {
+      scheduler.startAllSchedulers();
+      vi.advanceTimersByTime(60_000);
+    } finally {
+      scheduler.stopAllSchedulers();
+    }
+
+    expect(wakeAgentIfPossible).toHaveBeenNthCalledWith(1, agentId, companyId, "subtask_completed");
+    expect(wakeAgentIfPossible).toHaveBeenNthCalledWith(2, agentId, companyId, "timer");
+  });
+
   it("bootstraps the CEO through the wake pipeline", () => {
     const companyId = createCompany(db);
     createConnector(db);
