@@ -5,6 +5,7 @@ import type { NotificationOptions } from "../../notification-service";
 import type { createBudgetEnforcementService } from "../../budget-enforcement-service";
 import type { createSessionManagementService } from "../../session-management-service";
 import type { RuntimeBridge, RuntimeMessageInjector } from "../../agent-runtime";
+import type { RunDispatchParams } from "../../orchestration/turn-context";
 
 const runStatusSchema = z.enum(["queued", "running", "succeeded", "failed", "cancelled", "timed_out", "interrupted"]);
 const runUsageStatusSchema = z.enum(RUN_USAGE_STATUSES);
@@ -110,19 +111,7 @@ export interface WorkerServiceDependencies {
   publishDomainChanged: () => void;
   emitEvent: (event: DesktopEvent) => void;
   wakeAgentIfPossible: (agentId: string | null | undefined, companyId: string, trigger: string) => string | null;
-  dispatchRunToWorker: (params: {
-    runId: string;
-    companyId: string;
-    agent: ReturnType<AppDatabase["core"]["entity"]["getAgent"]>;
-    task: ReturnType<AppDatabase["core"]["entity"]["getTask"]> | null;
-    connector: ReturnType<AppDatabase["core"]["connectors"]["getConnector"]>;
-    workspace: ReturnType<AppDatabase["core"]["workspaces"]["getWorkspace"]>;
-    workspaceMode: "exclusive" | "shared" | "none";
-    companyName: string;
-    companyDescription: string;
-    snapshot: ReturnType<AppDatabase["projection"]["snapshot"]["listSnapshot"]>;
-    trigger: string;
-  }) => void;
+  dispatchRunToWorker: (params: RunDispatchParams) => void;
   processRunCompletion: (run: RunRecord, event: z.infer<typeof workerMessageSchema> & { type: "run-finished" }) => void;
   onRunStarted?: (runId: string, taskId: string | null, agentId: string, companyId: string) => void;
   onRunCompleted?: (runId: string, taskId: string | null, agentId: string, companyId: string, status: string, summary: string | null, errorMessage: string | null) => void;

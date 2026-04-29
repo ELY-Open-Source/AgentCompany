@@ -42,3 +42,12 @@ export function taskPriorityOrderSql(columnName: string): string {
     else 0
   end`;
 }
+
+export function activeRunIdSql(taskTableAlias: string): string {
+  return `(select l.run_id
+           from task_leases l
+           join runs r on r.id = l.run_id
+          where l.task_id = ${taskTableAlias}.id
+            and r.status in ('queued', 'running')
+          limit 1)`;
+}

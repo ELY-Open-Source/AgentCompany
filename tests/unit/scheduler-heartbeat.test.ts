@@ -199,6 +199,38 @@ describe("unified scheduler heartbeat cadence", () => {
     expect(wakeAgentIfPossible).toHaveBeenCalledWith(agentId, companyId, "timer");
   });
 
+  it("does not wake assigned work for an agent with heartbeat disabled", () => {
+    const companyId = createCompany(db);
+    createConnector(db);
+    const workspaceId = createWorkspace(db, companyId, tempDir);
+    const agentId = createAgent(db, companyId, workspaceId);
+    db.core.agents.setHeartbeat(agentId, false, 1);
+    db.core.tasks.saveTask({
+      companyId,
+      title: "Paused operating work",
+      description: "Manual heartbeat disable should pause periodic recovery.",
+      assigneeAgentId: agentId,
+      workspaceId,
+      priority: "high",
+      status: "todo",
+    });
+    const wakeAgentIfPossible = vi.fn();
+    const scheduler = createScheduler(
+      createDeps(db),
+      () => false,
+      wakeAgentIfPossible,
+    );
+
+    try {
+      scheduler.startAllSchedulers();
+      vi.advanceTimersByTime(60_000);
+    } finally {
+      scheduler.stopAllSchedulers();
+    }
+
+    expect(wakeAgentIfPossible).not.toHaveBeenCalled();
+  });
+
   it("wakes an agent with a queued wakeup request on heartbeat cadence", () => {
     const companyId = createCompany(db);
     createConnector(db);
