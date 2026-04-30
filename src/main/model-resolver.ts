@@ -50,7 +50,7 @@ const FIREWORKS_CURATED_MODELS: Array<{
   { id: "accounts/fireworks/models/llama-v3p3-70b-instruct", name: "Llama 3.3 70B Instruct", contextWindow: 131_072, cost: { input: 0.20, output: 0.20 } },
 ];
 
-const FIREWORKS_FIREPASS_COST = { input: 0.50, output: 0.50 };
+const FIREWORKS_FIREPASS_COST = { input: 0, output: 0 };
 const FIREWORKS_FALLBACK_COST = { input: 0.50, output: 0.50 };
 
 function buildFireworksModel(
