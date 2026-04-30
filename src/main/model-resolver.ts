@@ -94,6 +94,49 @@ export function resolveModel(provider: string, modelId: string): Model<Api> | nu
   }
 }
 
+const CROSS_PROVIDER_COST_LOOKUP: Record<string, string[]> = {
+  "github-copilot": ["anthropic", "openai", "google", "xai"],
+  "google-gemini-cli": ["google"],
+};
+
+const PROVIDER_FALLBACK_COST: Record<string, { input: number; output: number }> = {
+  "zai": { input: 1, output: 3.2 },
+  "kimi-coding": { input: 0.6, output: 3 },
+};
+
+function normalizeModelId(id: string): string {
+  return id.replace(/\./g, "-");
+}
+
+export function resolveModelCostFallback(model: Model<Api>, provider: string): Model<Api> {
+  if (model.cost.input > 0 || model.cost.output > 0) return model;
+
+  const crossProviders = CROSS_PROVIDER_COST_LOOKUP[provider];
+  if (crossProviders) {
+    const normalized = normalizeModelId(model.id);
+    for (const cp of crossProviders) {
+      try {
+        const sourceModels = getModels(cp as Parameters<typeof getModels>[0]);
+        const match = sourceModels.find((m) => m.id === model.id)
+          ?? sourceModels.find((m) => normalizeModelId(m.id) === normalized)
+          ?? sourceModels.find((m) => normalized.includes(normalizeModelId(m.id)) || normalizeModelId(m.id).includes(normalized));
+        if (match && (match.cost.input > 0 || match.cost.output > 0)) {
+          return { ...model, cost: { ...match.cost } };
+        }
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  const fallback = PROVIDER_FALLBACK_COST[provider];
+  if (fallback) {
+    return { ...model, cost: { ...model.cost, input: fallback.input, output: fallback.output } };
+  }
+
+  return model;
+}
+
 export function resolveModels(provider: string): Array<{ id: string; name: string }> {
   if (provider === "fireworks-firepass") {
     return [{ id: FIREWORKS_FIREPASS_MODEL_ID, name: FIREWORKS_FIREPASS_MODEL_NAME }];
