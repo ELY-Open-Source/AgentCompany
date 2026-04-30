@@ -270,6 +270,24 @@ export function createTaskRunner(
         const task = run.taskId ? db.core.entity.getTask(run.taskId) : null;
         const agent = db.core.entity.getAgent(run.agentId);
         const connector = db.core.connectors.getConnector(run.connectorId);
+        const blockingApproval = db.core.approvals.getBlockingApproval(run.companyId, agent.id, run.taskId);
+        if (blockingApproval) {
+          finishQueuedRecoveryRun(
+            run,
+            "cancelled",
+            `Queued run blocked by pending approval: ${blockingApproval.type}`,
+            null,
+          );
+          db.core.activity.addActivity({
+            companyId: run.companyId,
+            actor: "system",
+            action: "run.recovery_blocked_approval",
+            entityType: "run",
+            entityId: run.id,
+            detail: `Recovered queued run blocked by ${blockingApproval.type} for task "${task?.title ?? "(heartbeat)"}"`,
+          });
+          continue;
+        }
         const eligibilityFailure = getRunEligibilityFailure(agent, connector, task?.projectId ?? null);
         if (eligibilityFailure) {
           if (eligibilityFailure === "CONNECTOR_MODEL_NOT_ALLOWED") {
