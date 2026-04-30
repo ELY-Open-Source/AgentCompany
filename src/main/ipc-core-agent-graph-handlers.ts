@@ -99,6 +99,14 @@ export function registerCoreAgentGraphHandlers({
     if (!modelSelection.ok) {
       return fail("CONNECTOR_MODEL_NOT_ALLOWED", modelSelection.error);
     }
+    let resolvedStatus = parsed.status;
+    if (resolvedStatus === "paused" && existingAgent.status === "paused" && parsed.budgetMonthlyUsd > 0) {
+      const spent = existingAgent.spentMonthlyUsd ?? 0;
+      if (parsed.budgetMonthlyUsd > spent) {
+        resolvedStatus = "idle";
+      }
+    }
+
     let id: string;
     try {
       id = db.core.agents.saveAgent({
@@ -108,7 +116,7 @@ export function registerCoreAgentGraphHandlers({
         role: parsed.role,
         title: parsed.title,
         department: parsed.department ?? null,
-        status: parsed.status,
+        status: resolvedStatus,
         reportsTo: parsed.reportsTo ?? null,
         connectorId: parsed.connectorId,
         workspaceId: parsed.workspaceId ?? null,
@@ -116,9 +124,6 @@ export function registerCoreAgentGraphHandlers({
         metadataJson: parsed.metadataJson,
         capabilities: parsed.capabilities,
         budgetMonthlyUsd: parsed.budgetMonthlyUsd,
-        // User edited this agent through the form and picked a specific
-        // (connector, model). Respect their intent: pin the strategy to
-        // `explicit` so the dispatcher never overrides their choice.
         modelStrategy: "explicit",
       });
     } catch (error) {

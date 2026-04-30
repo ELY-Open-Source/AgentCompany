@@ -37,15 +37,29 @@ const FIREWORKS_DEFAULT_MAX_TOKENS = 8192;
 export const FIREWORKS_FIREPASS_MODEL_ID = "accounts/fireworks/routers/kimi-k2p5-turbo";
 export const FIREWORKS_FIREPASS_MODEL_NAME = "Kimi K2.5 Turbo (Fire Pass)";
 
-const FIREWORKS_CURATED_MODELS: Array<{ id: string; name: string; contextWindow?: number }> = [
-  { id: "accounts/fireworks/models/kimi-k2-instruct", name: "Kimi K2 Instruct", contextWindow: 131_072 },
-  { id: "accounts/fireworks/models/qwen3-coder-480b-a35b-instruct", name: "Qwen3 Coder 480B A35B Instruct", contextWindow: 262_144 },
-  { id: "accounts/fireworks/models/deepseek-v3p1", name: "DeepSeek V3.1", contextWindow: 163_840 },
-  { id: "accounts/fireworks/models/glm-4p5", name: "GLM 4.5", contextWindow: 131_072 },
-  { id: "accounts/fireworks/models/llama-v3p3-70b-instruct", name: "Llama 3.3 70B Instruct", contextWindow: 131_072 },
+const FIREWORKS_CURATED_MODELS: Array<{
+  id: string;
+  name: string;
+  contextWindow?: number;
+  cost: { input: number; output: number };
+}> = [
+  { id: "accounts/fireworks/models/kimi-k2-instruct", name: "Kimi K2 Instruct", contextWindow: 131_072, cost: { input: 0.50, output: 0.50 } },
+  { id: "accounts/fireworks/models/qwen3-coder-480b-a35b-instruct", name: "Qwen3 Coder 480B A35B Instruct", contextWindow: 262_144, cost: { input: 0.50, output: 0.50 } },
+  { id: "accounts/fireworks/models/deepseek-v3p1", name: "DeepSeek V3.1", contextWindow: 163_840, cost: { input: 0.20, output: 0.20 } },
+  { id: "accounts/fireworks/models/glm-4p5", name: "GLM 4.5", contextWindow: 131_072, cost: { input: 0.30, output: 0.30 } },
+  { id: "accounts/fireworks/models/llama-v3p3-70b-instruct", name: "Llama 3.3 70B Instruct", contextWindow: 131_072, cost: { input: 0.20, output: 0.20 } },
 ];
 
-function buildFireworksModel(modelId: string, name?: string, contextWindow?: number): Model<"openai-completions"> {
+const FIREWORKS_FIREPASS_COST = { input: 0.50, output: 0.50 };
+const FIREWORKS_FALLBACK_COST = { input: 0.50, output: 0.50 };
+
+function buildFireworksModel(
+  modelId: string,
+  name?: string,
+  contextWindow?: number,
+  cost?: { input: number; output: number },
+): Model<"openai-completions"> {
+  const modelCost = cost ?? FIREWORKS_FALLBACK_COST;
   return {
     id: modelId,
     name: name ?? modelId,
@@ -54,7 +68,7 @@ function buildFireworksModel(modelId: string, name?: string, contextWindow?: num
     baseUrl: FIREWORKS_OPENAI_BASE_URL,
     reasoning: false,
     input: ["text"],
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    cost: { input: modelCost.input, output: modelCost.output, cacheRead: 0, cacheWrite: 0 },
     contextWindow: contextWindow ?? FIREWORKS_DEFAULT_CONTEXT,
     maxTokens: FIREWORKS_DEFAULT_MAX_TOKENS,
   };
@@ -62,11 +76,11 @@ function buildFireworksModel(modelId: string, name?: string, contextWindow?: num
 
 export function resolveModel(provider: string, modelId: string): Model<Api> | null {
   if (provider === "fireworks-firepass") {
-    return buildFireworksModel(FIREWORKS_FIREPASS_MODEL_ID, FIREWORKS_FIREPASS_MODEL_NAME, 262_144);
+    return buildFireworksModel(FIREWORKS_FIREPASS_MODEL_ID, FIREWORKS_FIREPASS_MODEL_NAME, 262_144, FIREWORKS_FIREPASS_COST);
   }
   if (provider === "fireworks") {
     const curated = FIREWORKS_CURATED_MODELS.find((entry) => entry.id === modelId);
-    return buildFireworksModel(modelId, curated?.name, curated?.contextWindow);
+    return buildFireworksModel(modelId, curated?.name, curated?.contextWindow, curated?.cost);
   }
   if (!isPiKnownProvider(provider)) {
     log.warn(`[model-resolver] Unknown pi provider: ${provider}`);
