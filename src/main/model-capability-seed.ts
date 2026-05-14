@@ -103,10 +103,10 @@ export const MODEL_CAPABILITY_SEED: Array<Omit<ModelCapability, "updatedAt">> = 
     tier: "standard",
     costPerMtokOut: 3,
   },
-  // Kimi K2.5 Turbo via Fire Pass router — newer, faster, similar quality.
+  // Kimi K2.6 Turbo via Fire Pass router — newer, faster, similar quality.
   {
     provider: "fireworks-firepass",
-    modelId: "accounts/fireworks/routers/kimi-k2p5-turbo",
+    modelId: "accounts/fireworks/routers/kimi-k2p6-turbo",
     reasoning: 4,
     coding: 4,
     writing: 5,

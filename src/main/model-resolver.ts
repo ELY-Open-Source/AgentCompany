@@ -34,8 +34,8 @@ const FIREWORKS_DEFAULT_MAX_TOKENS = 8192;
 // `accounts/fireworks/models/...` id — the subscription entitlement
 // only attaches to the router route, and switching to the model path
 // makes Fireworks bill per-token and reject Fire-Pass-only callers.
-export const FIREWORKS_FIREPASS_MODEL_ID = "accounts/fireworks/routers/kimi-k2p5-turbo";
-export const FIREWORKS_FIREPASS_MODEL_NAME = "Kimi K2.5 Turbo (Fire Pass)";
+export const FIREWORKS_FIREPASS_MODEL_ID = "accounts/fireworks/routers/kimi-k2p6-turbo";
+export const FIREWORKS_FIREPASS_MODEL_NAME = "Kimi K2.6 Turbo (Fire Pass)";
 
 const FIREWORKS_CURATED_MODELS: Array<{
   id: string;

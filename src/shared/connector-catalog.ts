@@ -236,9 +236,9 @@ const API_KEY_ENTRIES: ConnectorCatalogEntry[] = [
     provider: "fireworks-firepass",
     label: "Fireworks Fire Pass",
     description: "Fireworks Fire Pass — subscription bundle. Same FIREWORKS_API_KEY.",
-    defaultModel: "accounts/fireworks/routers/kimi-k2p5-turbo",
+    defaultModel: "accounts/fireworks/routers/kimi-k2p6-turbo",
     auth: { type: "api_key", envKey: "FIREWORKS_API_KEY" },
-    notes: "Fire Pass uses the dedicated router id accounts/fireworks/routers/kimi-k2p5-turbo documented at docs.fireworks.ai/firepass.",
+    notes: "Fire Pass uses the dedicated router id accounts/fireworks/routers/kimi-k2p6-turbo documented at docs.fireworks.ai/firepass.",
   },
 ];
 
