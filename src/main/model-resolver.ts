@@ -53,6 +53,21 @@ const FIREWORKS_CURATED_MODELS: Array<{
 const FIREWORKS_FIREPASS_COST = { input: 0, output: 0 };
 const FIREWORKS_FALLBACK_COST = { input: 0.50, output: 0.50 };
 
+// Local OpenAI-compatible servers (Ollama, LM Studio) bill the user's own
+// hardware, so the surfaced cost is zero. Context window varies wildly
+// across self-hosted models; the configured window is conservative
+// enough to keep pi's compactor honest without rejecting reasonable
+// requests on smaller models.
+const LOCAL_DEFAULT_COST = { input: 0, output: 0 };
+const LOCAL_DEFAULT_CONTEXT = 32_768;
+const LOCAL_DEFAULT_MAX_TOKENS = 8192;
+
+type LocalOpenAiCompatProvider = "ollama" | "lm-studio";
+
+function isLocalOpenAiCompatProvider(provider: string): provider is LocalOpenAiCompatProvider {
+  return provider === "ollama" || provider === "lm-studio";
+}
+
 function buildFireworksModel(
   modelId: string,
   name?: string,
@@ -74,13 +89,43 @@ function buildFireworksModel(
   };
 }
 
-export function resolveModel(provider: string, modelId: string): Model<Api> | null {
+function buildLocalModel(
+  provider: LocalOpenAiCompatProvider,
+  modelId: string,
+  baseUrl: string,
+): Model<"openai-completions"> {
+  return {
+    id: modelId,
+    name: modelId,
+    api: "openai-completions",
+    provider,
+    baseUrl,
+    reasoning: false,
+    input: ["text"],
+    cost: { input: LOCAL_DEFAULT_COST.input, output: LOCAL_DEFAULT_COST.output, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: LOCAL_DEFAULT_CONTEXT,
+    maxTokens: LOCAL_DEFAULT_MAX_TOKENS,
+  };
+}
+
+export function resolveModel(
+  provider: string,
+  modelId: string,
+  options?: { baseUrl?: string },
+): Model<Api> | null {
   if (provider === "fireworks-firepass") {
     return buildFireworksModel(FIREWORKS_FIREPASS_MODEL_ID, FIREWORKS_FIREPASS_MODEL_NAME, 262_144, FIREWORKS_FIREPASS_COST);
   }
   if (provider === "fireworks") {
     const curated = FIREWORKS_CURATED_MODELS.find((entry) => entry.id === modelId);
     return buildFireworksModel(modelId, curated?.name, curated?.contextWindow, curated?.cost);
+  }
+  if (isLocalOpenAiCompatProvider(provider)) {
+    if (!options?.baseUrl) {
+      log.warn(`[model-resolver] ${provider} requires a baseUrl from credentials; none provided.`);
+      return null;
+    }
+    return buildLocalModel(provider, modelId, options.baseUrl);
   }
   if (!isPiKnownProvider(provider)) {
     log.warn(`[model-resolver] Unknown pi provider: ${provider}`);
@@ -144,6 +189,13 @@ export function resolveModels(provider: string): Array<{ id: string; name: strin
   if (provider === "fireworks") {
     return FIREWORKS_CURATED_MODELS.map(({ id, name }) => ({ id, name }));
   }
+  if (isLocalOpenAiCompatProvider(provider)) {
+    // Local-server catalogs depend on what the user has loaded and must be
+    // fetched against the saved baseUrl. The sync resolver returns an
+    // empty list; the renderer reaches the live catalog through
+    // `listLocalConnectorModels` in `main-runtime-support.ts`.
+    return [];
+  }
   if (!isPiKnownProvider(provider)) {
     log.warn(`[model-resolver] Unknown pi provider: ${provider}`);
     return [];
@@ -153,6 +205,37 @@ export function resolveModels(provider: string): Array<{ id: string; name: strin
     return models.map((model: { id: string; name?: string }) => ({ id: model.id, name: model.name ?? model.id }));
   } catch (err) {
     log.warn(`[model-resolver] getModels failed for ${provider}:`, err instanceof Error ? err.message : String(err));
+    return [];
+  }
+}
+
+/**
+ * Fetch the live model list from a local OpenAI-compatible server.
+ *
+ * Both Ollama (`/v1/models`) and LM Studio (`/v1/models`) expose the
+ * standard OpenAI catalog shape — `{ data: [{ id, ...}] }` — so a single
+ * fetch path handles both. Returns an empty list when the server is
+ * unreachable so the renderer can surface a "not running" message
+ * instead of throwing.
+ */
+export async function fetchLocalConnectorModels(
+  baseUrl: string,
+): Promise<Array<{ id: string; name: string }>> {
+  const url = `${baseUrl.replace(/\/$/, "")}/models`;
+  try {
+    const response = await fetch(url, { method: "GET" });
+    if (!response.ok) {
+      log.warn(`[model-resolver] local model list ${url} returned HTTP ${response.status}`);
+      return [];
+    }
+    const body = (await response.json()) as { data?: Array<{ id?: unknown }> };
+    if (!Array.isArray(body.data)) return [];
+    return body.data
+      .map((row) => (typeof row?.id === "string" ? row.id : null))
+      .filter((id): id is string => id !== null)
+      .map((id) => ({ id, name: id }));
+  } catch (err) {
+    log.warn(`[model-resolver] fetch ${url} failed:`, err instanceof Error ? err.message : String(err));
     return [];
   }
 }

@@ -3,6 +3,7 @@ import type {
   AwsCredential,
   AzureCredential,
   GcpAdcCredential,
+  LocalCredential,
 } from "@shared/contracts/schemas-credentials";
 
 /**
@@ -25,6 +26,7 @@ export type StoredCredentialPayload =
   | { kind: "api_key"; value: ApiKeyValue }
   | { kind: "azure"; value: AzureCredential }
   | { kind: "aws"; value: AwsCredential }
-  | { kind: "gcp_adc"; value: GcpAdcCredential };
+  | { kind: "gcp_adc"; value: GcpAdcCredential }
+  | { kind: "local"; value: LocalCredential };
 
 export type CredentialKind = StoredCredentialPayload["kind"];

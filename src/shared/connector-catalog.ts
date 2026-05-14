@@ -16,20 +16,22 @@ export type PiOAuthProviderId =
   | "google-gemini-cli"
   | "google-antigravity";
 
-export type ConnectorAuthKind = "oauth" | "api_key" | "aws" | "azure" | "gcp_adc";
+export type ConnectorAuthKind = "oauth" | "api_key" | "aws" | "azure" | "gcp_adc" | "local";
 
 export interface ConnectorAuthOAuth { type: "oauth"; oauthId: PiOAuthProviderId }
 export interface ConnectorAuthApiKey { type: "api_key"; envKey: string }
 export interface ConnectorAuthAws { type: "aws" }
 export interface ConnectorAuthAzure { type: "azure" }
 export interface ConnectorAuthGcpAdc { type: "gcp_adc" }
+export interface ConnectorAuthLocal { type: "local"; defaultBaseUrl: string }
 
 export type ConnectorAuth =
   | ConnectorAuthOAuth
   | ConnectorAuthApiKey
   | ConnectorAuthAws
   | ConnectorAuthAzure
-  | ConnectorAuthGcpAdc;
+  | ConnectorAuthGcpAdc
+  | ConnectorAuthLocal;
 
 export interface ConnectorCatalogEntry {
   id: ConnectorId;
@@ -242,6 +244,27 @@ const API_KEY_ENTRIES: ConnectorCatalogEntry[] = [
   },
 ];
 
+const LOCAL_ENTRIES: ConnectorCatalogEntry[] = [
+  {
+    id: "ollama",
+    provider: "ollama",
+    label: "Ollama",
+    description: "Local Ollama server — open-weights models on your own machine via the OpenAI-compatible endpoint.",
+    defaultModel: "llama3.2",
+    auth: { type: "local", defaultBaseUrl: "http://localhost:11434/v1" },
+    notes: "Default port 11434. Override if you launched `ollama serve` elsewhere.",
+  },
+  {
+    id: "lm-studio",
+    provider: "lm-studio",
+    label: "LM Studio",
+    description: "Local LM Studio server — host any loaded model via the OpenAI-compatible endpoint.",
+    defaultModel: "local-model",
+    auth: { type: "local", defaultBaseUrl: "http://localhost:1234/v1" },
+    notes: "Enable LM Studio's local server from the Developer tab. Default port 1234.",
+  },
+];
+
 const CLOUD_ENTRIES: ConnectorCatalogEntry[] = [
   {
     id: "amazon-bedrock",
@@ -277,6 +300,7 @@ export const CONNECTOR_CATALOG: ConnectorCatalogEntry[] = [
   ...OAUTH_ENTRIES,
   ...API_KEY_ENTRIES,
   ...CLOUD_ENTRIES,
+  ...LOCAL_ENTRIES,
 ];
 
 export function findConnectorCatalogEntry(id: string): ConnectorCatalogEntry | undefined {

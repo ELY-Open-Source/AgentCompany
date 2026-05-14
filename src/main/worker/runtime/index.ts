@@ -19,6 +19,8 @@ interface PrepareRunResult {
   provider: string;
   apiKey: string;
   extraEnv: Record<string, string>;
+  /** OpenAI-compatible server base URL for local connectors (Ollama, LM Studio). */
+  baseUrl: string | null;
   priorMessages: AgentMessage[];
 }
 
@@ -133,7 +135,9 @@ export class WorkerRunner {
       const runEnv = mergeRunEnvs(job.env, prepared.extraEnv);
       redact = buildRedactor(runEnv);
 
-      const model = resolveModel(prepared.provider, job.model);
+      const model = resolveModel(prepared.provider, job.model, {
+        baseUrl: prepared.baseUrl ?? undefined,
+      });
       if (!model) {
         throw new Error(`Unknown model ${job.model} for provider ${prepared.provider}.`);
       }

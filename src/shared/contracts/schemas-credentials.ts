@@ -6,6 +6,7 @@ export const credentialKindSchema = z.enum([
   "aws",
   "azure",
   "gcp_adc",
+  "local",
 ]);
 
 export const credentialStatusSchema = z.enum([
@@ -49,11 +50,16 @@ export const gcpAdcCredentialSchema = z.object({
   credentialsPath: z.string().optional(),
 });
 
+export const localCredentialSchema = z.object({
+  baseUrl: z.string().url(),
+});
+
 export const credentialPayloadSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("api_key"), value: apiKeyValueSchema }),
   z.object({ kind: z.literal("azure"), value: azureCredentialSchema }),
   z.object({ kind: z.literal("aws"), value: awsCredentialSchema }),
   z.object({ kind: z.literal("gcp_adc"), value: gcpAdcCredentialSchema }),
+  z.object({ kind: z.literal("local"), value: localCredentialSchema }),
 ]);
 
 export const saveCredentialInputSchema = z.object({
@@ -85,4 +91,5 @@ export type SaveCredentialInput = z.infer<typeof saveCredentialInputSchema>;
 export type AwsCredential = z.infer<typeof awsCredentialSchema>;
 export type AzureCredential = z.infer<typeof azureCredentialSchema>;
 export type GcpAdcCredential = z.infer<typeof gcpAdcCredentialSchema>;
+export type LocalCredential = z.infer<typeof localCredentialSchema>;
 export type ApiKeyValue = z.infer<typeof apiKeyValueSchema>;

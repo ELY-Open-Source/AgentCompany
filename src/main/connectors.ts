@@ -21,6 +21,8 @@ const RESERVED_ENV_BINDING_KEYS = new Set([
 const LOCAL_MODEL_RESOLVER_PROVIDERS: ReadonlySet<LocalModelResolverProvider> = new Set([
   "fireworks",
   "fireworks-firepass",
+  "ollama",
+  "lm-studio",
 ]);
 const PI_KNOWN_PROVIDER_IDS: ReadonlySet<string> = new Set(getProviders());
 
@@ -109,6 +111,11 @@ function renderConfigurationDoc(definition: ConnectorDefinition): string {
       return buildCloudDoc(
         definition.label,
         "Uses Google Cloud Application Default Credentials. Run `gcloud auth application-default login` or set GOOGLE_APPLICATION_CREDENTIALS.",
+      );
+    case "local":
+      return buildCloudDoc(
+        definition.label,
+        `OpenAI-compatible local server. Default base URL: ${definition.auth.defaultBaseUrl}. Configure under Onboarding → Providers (Advanced) and pick a model id that your server actually serves.`,
       );
   }
 }

@@ -5,6 +5,7 @@ import { ApiKeyForm } from "../forms/ApiKeyForm";
 import { AzureForm } from "../forms/AzureForm";
 import { AwsForm } from "../forms/AwsForm";
 import { VertexForm } from "../forms/VertexForm";
+import { LocalForm } from "../forms/LocalForm";
 import { ActionButton } from "../../ui";
 import { useT, type TranslationFn } from "../../../i18n";
 
@@ -28,6 +29,8 @@ function kindLabel(
       return t("providers.kindAws");
     case "gcp_adc":
       return t("providers.kindGcp");
+    case "local":
+      return t("providers.kindLocal");
   }
 }
 
@@ -118,6 +121,8 @@ export function ProviderRow({ entry, credential }: Props) {
       return <AwsForm connectorId={entry.id} onSaved={onSaved} />;
     if (entry.auth.type === "gcp_adc")
       return <VertexForm connectorId={entry.id} onSaved={onSaved} />;
+    if (entry.auth.type === "local")
+      return <LocalForm connectorId={entry.id} defaultBaseUrl={entry.auth.defaultBaseUrl} onSaved={onSaved} />;
     return null;
   };
 

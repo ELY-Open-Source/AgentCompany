@@ -49,6 +49,9 @@ export const connectorIdEnum = z.enum([
   "amazon-bedrock",
   "azure-openai",
   "google-vertex",
+  // Local (2)
+  "ollama",
+  "lm-studio",
 ]);
 
 export type ConnectorId = z.infer<typeof connectorIdEnum>;
