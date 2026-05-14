@@ -70,10 +70,13 @@ export function buildMessageMethods(
       const body = normalizeMarkdownText(input.body);
       const id = randomUUID();
       const createdAt = nowIso();
-      // Single transaction: the row and its mention fan-out must land
-      // atomically, otherwise a crash between the two writes leaves a
-      // message visible to its recipient but silently invisible to the
-      // mentioned agents — which is exactly the old bug we're fixing.
+      // Single transaction: the row, its self-read receipt, and its
+      // mention fan-out must land atomically. The self-read receipt
+      // makes "author has read their own message" an invariant in the
+      // join table — without it, every message a sender posts inflates
+      // their own sidebar / inbox / channel unread counts until they
+      // happen to re-open the channel, because `readAt` is derived from
+      // `agent_message_reads` per viewer.
       deps.transaction(() => {
         getDb()
           .prepare(
@@ -94,6 +97,11 @@ export function buildMessageMethods(
             input.attachmentsJson ?? "[]",
             createdAt,
           );
+        getDb()
+          .prepare(
+            "insert into agent_message_reads (message_id, agent_id, read_at) values (?, ?, ?)",
+          )
+          .run(id, input.fromAgentId, createdAt);
         if (input.mentionedAgentIds && input.mentionedAgentIds.length > 0) {
           insertMessageMentions(id, input.companyId, input.fromAgentId, input.mentionedAgentIds, createdAt);
         }
