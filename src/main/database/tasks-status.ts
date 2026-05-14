@@ -3,6 +3,7 @@ import type { TaskRecord } from "@shared/types";
 import {
   type ReadAll,
   type Transaction,
+  activeRunIdSql,
   nowIso,
   taskPriorityOrderSql,
 } from "./helpers";
@@ -82,7 +83,7 @@ export function buildTaskStatusMethods(
               t.parent_id as parentId, t.title, t.description,
               t.assignee_agent_id as assigneeAgentId, t.workspace_id as workspaceId,
               t.status, t.priority,
-              (select l.run_id from task_leases l where l.task_id = t.id) as activeRunId,
+              ${activeRunIdSql("t")} as activeRunId,
               t.cost_usd as costUsd,
               t.created_at as createdAt, t.updated_at as updatedAt
        from tasks t

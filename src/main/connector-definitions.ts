@@ -25,7 +25,7 @@
 
 import type { KnownProvider } from "@mariozechner/pi-ai";
 import type { ConnectorId } from "@shared/types";
-import { OAUTH_CONNECTORS, API_KEY_CONNECTORS, CLOUD_CONNECTORS } from "./connector-definitions/index";
+import { OAUTH_CONNECTORS, API_KEY_CONNECTORS, CLOUD_CONNECTORS, LOCAL_CONNECTORS } from "./connector-definitions/index";
 
 /**
  * OAuth provider id recognised by the AgentCompany credential layer. These
@@ -61,14 +61,21 @@ export interface ConnectorAuthGcpAdc {
   type: "gcp_adc";
 }
 
+export interface ConnectorAuthLocal {
+  type: "local";
+  /** Pre-filled base URL the onboarding card shows on first save. */
+  defaultBaseUrl: string;
+}
+
 export type ConnectorAuth =
   | ConnectorAuthOAuth
   | ConnectorAuthApiKey
   | ConnectorAuthAws
   | ConnectorAuthAzure
-  | ConnectorAuthGcpAdc;
+  | ConnectorAuthGcpAdc
+  | ConnectorAuthLocal;
 
-export type LocalModelResolverProvider = "fireworks" | "fireworks-firepass";
+export type LocalModelResolverProvider = "fireworks" | "fireworks-firepass" | "ollama" | "lm-studio";
 export type ConnectorProvider = KnownProvider | LocalModelResolverProvider;
 
 export interface ConnectorDefinition {
@@ -94,4 +101,5 @@ export const CONNECTORS: ConnectorDefinition[] = [
   ...OAUTH_CONNECTORS,
   ...API_KEY_CONNECTORS,
   ...CLOUD_CONNECTORS,
+  ...LOCAL_CONNECTORS,
 ];

@@ -157,13 +157,11 @@ export function createBudgetEnforcementService({
     const spent = db.core.budget.getSpentInWindow(policy);
     let resolved = false;
 
-    // If spend is below hard-stop threshold, resolve all open incidents
     if (spent < policy.amount) {
       const count = db.core.budget.resolveIncidentsForPolicy(policyId, "auto_resolved_limit_increase");
       if (count > 0) resolved = true;
     }
 
-    // If spend is below warn threshold, resolve warn incidents specifically
     const warnAmount = Math.floor((policy.amount * policy.warnPercent) / 100);
     if (spent < warnAmount) {
       const count = db.core.budget.resolveWarnIncidentsForPolicy(policyId, "auto_resolved_limit_increase");
@@ -171,8 +169,23 @@ export function createBudgetEnforcementService({
     }
 
     if (resolved) {
+      unpauseBudgetBlockedAgents(companyId);
       logger.info(`Budget auto-resolve: policy ${policyId} incidents resolved (spent=${spent}, limit=${policy.amount})`);
       publishDomainChanged();
+    }
+  }
+
+  function unpauseBudgetBlockedAgents(companyId: string): void {
+    const paused = db.queryAll<{ id: string; budgetMonthlyUsd: number; spentMonthlyUsd: number }>(
+      `SELECT id, budget_monthly_usd as budgetMonthlyUsd, spent_monthly_usd as spentMonthlyUsd
+       FROM agents WHERE company_id = ? AND status = 'paused' AND budget_monthly_usd > 0`,
+      companyId,
+    );
+    for (const agent of paused) {
+      if (agent.budgetMonthlyUsd > agent.spentMonthlyUsd) {
+        db.queryAll("UPDATE agents SET status = 'idle', updated_at = ? WHERE id = ?", new Date().toISOString(), agent.id);
+        logger.info(`[budget] Auto-unpaused agent ${agent.id}: budget $${agent.budgetMonthlyUsd} > spent $${agent.spentMonthlyUsd}`);
+      }
     }
   }
 

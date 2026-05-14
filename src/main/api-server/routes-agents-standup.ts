@@ -89,6 +89,7 @@ export function registerAgentStandupRoute(server: AgentApiServer): void {
         id: m.id,
         from: senderNames.get(m.fromAgentId) ?? m.fromAgentId,
         fromAgentId: m.fromAgentId,
+        toAgentId: m.toAgentId,
         channel: m.channel,
         channelTargetId: m.channelTargetId,
         subject: m.subject,

@@ -415,9 +415,10 @@ export function buildApprovalMethods(
         .prepare(
           `SELECT 1 as hit FROM approvals a
            JOIN tasks t ON a.related_task_id = t.id
+           JOIN approval_policies p ON p.approval_type = a.type
            WHERE a.company_id = ? AND a.state = 'pending'
            AND t.assignee_agent_id = ?
-           AND a.type IN ('plan_review','scope_review','draft_review','strategy_review','deliverable_review','exception_review')
+           AND p.blocks_execution = 1
            LIMIT 1`,
         )
         .get(companyId, agentId) as { hit: number } | undefined;

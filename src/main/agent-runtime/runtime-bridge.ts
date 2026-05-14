@@ -440,6 +440,7 @@ export class RuntimeBridge {
         provider: definition.provider,
         apiKey: resolved.apiKey,
         extraEnv: resolved.extraEnv ?? {},
+        baseUrl: resolved.baseUrl ?? null,
         priorMessages,
       },
     };

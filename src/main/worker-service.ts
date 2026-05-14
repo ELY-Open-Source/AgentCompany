@@ -1,6 +1,6 @@
 import { app, utilityProcess } from "electron";
 import { workerMessageSchema, type WorkerServiceDependencies } from "./worker/entry/types";
-import { handleWorkerExit } from "./worker/entry/crash-recovery";
+import { handleWorkerExit, requeueQueuedRunsAfterWorkerRestart } from "./worker/entry/crash-recovery";
 import { handleWorkerMessage } from "./worker/entry/message-handler";
 import { DEFAULT_MAX_CONSECUTIVE_SELF_WAKES } from "./run-attempt-policy";
 
@@ -44,7 +44,7 @@ export function createWorkerService({
   const HEALTHY_UPTIME_MS = 60_000;
   const crashLoopState = { consecutive: 0, halted: false, lastCreatedAt: 0 };
 
-  function scheduleWorkerRespawn() {
+  function scheduleWorkerRespawn(afterRespawn?: () => void) {
     if (crashLoopState.halted || destroyed || isQuitting()) return;
     const uptimeMs = Date.now() - crashLoopState.lastCreatedAt;
     if (uptimeMs >= HEALTHY_UPTIME_MS) {
@@ -70,6 +70,7 @@ export function createWorkerService({
     setTimeout(() => {
       if (destroyed || isQuitting() || crashLoopState.halted) return;
       createWorker();
+      afterRespawn?.();
     }, delay);
   }
 
@@ -91,29 +92,36 @@ export function createWorkerService({
       },
     });
 
-    worker.stdout?.on("data", (chunk) => {
+    const currentWorker = worker;
+
+    currentWorker.stdout?.on("data", (chunk) => {
       const text = String(chunk).trim();
       if (text) logger.debug(`[worker:stdout] ${text}`);
     });
-    worker.stderr?.on("data", (chunk) => {
+    currentWorker.stderr?.on("data", (chunk) => {
       const text = String(chunk).trim();
       if (text) logger.warn(`[worker:stderr] ${text}`);
     });
 
-    worker.on("exit", (code) => {
+    currentWorker.on("exit", (code) => {
+      if (worker === currentWorker) worker = null;
       if (isQuitting() || destroyed) return;
-      handleWorkerExit(
+      const requeueCandidates = handleWorkerExit(
         code,
-        { db, logger, isQuitting, publishDomainChanged, emitEvent, wakeAgentIfPossible, dispatchRunToWorker },
-        scheduleWorkerRespawn,
-        getWorker,
+        { db, logger, isQuitting, publishDomainChanged, emitEvent, wakeAgentIfPossible },
+      );
+      scheduleWorkerRespawn(
+        () => requeueQueuedRunsAfterWorkerRestart(
+          requeueCandidates,
+          { db, logger, dispatchRunToWorker },
+        ),
       );
     });
 
-    worker.on("message", async (message) => {
+    currentWorker.on("message", async (message) => {
       if (isShutdownReadyMessage(message)) {
         try {
-          worker?.postMessage({ type: "shutdown-exit" });
+          currentWorker.postMessage({ type: "shutdown-exit" });
         } catch (error) {
           logger.debug(
             `[worker-service] shutdown-exit postMessage failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -123,7 +131,7 @@ export function createWorkerService({
       }
       await handleWorkerMessage(
         message,
-        worker,
+        currentWorker,
         {
           db,
           logger,

@@ -15,7 +15,7 @@ import type {
   TaskRecord,
   WorkspaceRecord,
 } from "@shared/types";
-import { BOARD_READER_ID, type ReadAll, type SqliteRow, toBoolean } from "./helpers";
+import { activeRunIdSql, BOARD_READER_ID, type ReadAll, type SqliteRow, toBoolean } from "./helpers";
 
 export function buildSnapshotMethods(
   getDb: () => DatabaseSync,
@@ -83,7 +83,7 @@ export function buildSnapshotMethods(
         ...companyArgs,
       ),
       tasks: readAll<TaskRecord>(
-        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, (select l.run_id from task_leases l where l.task_id = tasks.id) as activeRunId, cost_usd as costUsd, task_type as taskType, requires_user_review as requiresUserReview, requires_filesystem as requiresFilesystem, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks${companyWhere} order by created_at desc limit 2000`,
+        `select id, company_id as companyId, project_id as projectId, goal_id as goalId, parent_id as parentId, title, description, assignee_agent_id as assigneeAgentId, workspace_id as workspaceId, status, priority, ${activeRunIdSql("tasks")} as activeRunId, cost_usd as costUsd, task_type as taskType, requires_user_review as requiresUserReview, requires_filesystem as requiresFilesystem, started_at as startedAt, completed_at as completedAt, cancelled_at as cancelledAt, created_at as createdAt, updated_at as updatedAt from tasks${companyWhere} order by created_at desc limit 2000`,
         ...companyArgs,
       ).map((record) => ({ ...record, requiresUserReview: toBoolean(record.requiresUserReview), requiresFilesystem: toBoolean(record.requiresFilesystem), startedAt: record.startedAt ?? null, completedAt: record.completedAt ?? null, cancelledAt: record.cancelledAt ?? null })) as TaskRecord[],
       approvals: readAll<ApprovalRecord>(

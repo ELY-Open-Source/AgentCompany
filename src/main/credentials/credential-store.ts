@@ -39,6 +39,8 @@ export function deriveDisplayHint(payload: StoredCredentialPayload): string {
         : "no-expiry";
       return `oauth:expires=${expiresLabel}`;
     }
+    case "local":
+      return `local:${payload.value.baseUrl}`;
   }
 }
 

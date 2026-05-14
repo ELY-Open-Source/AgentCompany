@@ -184,8 +184,18 @@ export function createMainRuntimeSupport(state: MainRuntimeState) {
         // user has selected a company; the onboarding path uses this
         // catalog directly because no company exists yet.
         const { getConnectorDefinition } = await import("./connectors");
-        const { resolveModels } = await import("./model-resolver");
+        const { resolveModels, fetchLocalConnectorModels } = await import("./model-resolver");
         const definition = getConnectorDefinition(connectorId as ConnectorId);
+        if (definition.auth.type === "local") {
+          // Local servers' catalogs depend on the user's installed/loaded
+          // models. Read the saved baseUrl and ask the server directly.
+          const piRuntime = requireServiceGraph().getPiRuntime();
+          const credentials = piRuntime?.credentialStore.read(connectorId);
+          const baseUrl = credentials?.kind === "local" ? credentials.value.baseUrl : null;
+          if (!baseUrl) return [];
+          const models = await fetchLocalConnectorModels(baseUrl);
+          return models.map((m) => ({ id: m.id, label: m.name }));
+        }
         return resolveModels(definition.provider).map((m) => ({ id: m.id, label: m.name }));
       },
       logger: log,
