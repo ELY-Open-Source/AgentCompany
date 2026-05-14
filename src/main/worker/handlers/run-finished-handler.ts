@@ -15,6 +15,10 @@ export interface RunFinishedHooks {
     | { ok: false; errorMessage: string };
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function handleRunFinished(
   event: Extract<WorkerMessageEvent, { type: "run-finished" }>,
   deps: HandlerDeps,
@@ -37,7 +41,11 @@ export function handleRunFinished(
         }
       : event;
   if (boundaryResult && !boundaryResult.ok) {
-    deps.db.core.runs.markRunCompletionFailure(event.runId, boundaryResult.errorMessage);
+    try {
+      deps.db.core.runs.markRunCompletionFailure(event.runId, boundaryResult.errorMessage);
+    } catch (error) {
+      deps.logger.error(`[worker] markRunCompletionFailure failed for artifact boundary ${event.runId}: ${errorMessage(error)}`);
+    }
   }
   emitAndNotifyCompletion(effectiveEvent, deps, rfCtx);
   const { hadDeferredWakes } = runPostCompletionAutomation(effectiveEvent, deps, context, rfCtx);

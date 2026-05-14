@@ -214,6 +214,31 @@ export function createTaskRunner(
     }
     const snapshot = db.projection.snapshot.listSnapshot();
     const companiesById = new Map(snapshot.companies.map((company) => [company.id, company]));
+    const reservedAgentIds = new Set<string>();
+    const reservedTaskIds = new Set<string>();
+
+    function finishQueuedRecoveryRun(
+      run: ReturnType<typeof db.core.runs.listQueuedRuns>[number],
+      status: "cancelled" | "interrupted",
+      summary: string,
+      errorMessage: string | null,
+    ): void {
+      db.core.runs.finishRun({
+        runId: run.id,
+        status,
+        summary,
+        errorMessage,
+        exitCode: null,
+        signal: null,
+        model: null,
+        unattributedCost: true,
+        recoverTaskForRetry: run.taskId !== null,
+      });
+      if (run.workspaceId) {
+        db.core.workspaces.releaseWorkspaceLock(run.workspaceId, run.id);
+      }
+      emitEvent({ type: "run-updated", runId: run.id, action: "completed" });
+    }
 
     for (const run of db.core.runs.listQueuedRuns()) {
       const company = companiesById.get(run.companyId);
@@ -221,13 +246,23 @@ export function createTaskRunner(
         continue;
       }
 
-      const hasBlockingSiblingRun = snapshot.runs.some((entry) =>
+      const hasRunningSiblingRun = snapshot.runs.some((entry) =>
         entry.id !== run.id &&
         entry.companyId === run.companyId &&
-        ["queued", "running"].includes(entry.status) &&
+        entry.status === "running" &&
         (entry.taskId === run.taskId || entry.agentId === run.agentId),
       );
-      if (hasBlockingSiblingRun) {
+      if (hasRunningSiblingRun) {
+        continue;
+      }
+
+      if (reservedAgentIds.has(run.agentId) || (run.taskId !== null && reservedTaskIds.has(run.taskId))) {
+        finishQueuedRecoveryRun(
+          run,
+          "cancelled",
+          "Queued run superseded during recovery.",
+          null,
+        );
         continue;
       }
 
@@ -235,6 +270,24 @@ export function createTaskRunner(
         const task = run.taskId ? db.core.entity.getTask(run.taskId) : null;
         const agent = db.core.entity.getAgent(run.agentId);
         const connector = db.core.connectors.getConnector(run.connectorId);
+        const blockingApproval = db.core.approvals.getBlockingApproval(run.companyId, agent.id, run.taskId);
+        if (blockingApproval) {
+          finishQueuedRecoveryRun(
+            run,
+            "cancelled",
+            `Queued run blocked by pending approval: ${blockingApproval.type}`,
+            null,
+          );
+          db.core.activity.addActivity({
+            companyId: run.companyId,
+            actor: "system",
+            action: "run.recovery_blocked_approval",
+            entityType: "run",
+            entityId: run.id,
+            detail: `Recovered queued run blocked by ${blockingApproval.type} for task "${task?.title ?? "(heartbeat)"}"`,
+          });
+          continue;
+        }
         const eligibilityFailure = getRunEligibilityFailure(agent, connector, task?.projectId ?? null);
         if (eligibilityFailure) {
           if (eligibilityFailure === "CONNECTOR_MODEL_NOT_ALLOWED") {
@@ -257,6 +310,21 @@ export function createTaskRunner(
               detail: `Recovered queued run blocked by connector/model policy for task "${task?.title ?? "(heartbeat)"}"`,
             });
             emitEvent({ type: "run-updated", runId: run.id, action: "completed" });
+          } else {
+            finishQueuedRecoveryRun(
+              run,
+              "cancelled",
+              "Queued run recovery deferred by eligibility gate.",
+              eligibilityFailure,
+            );
+            db.core.activity.addActivity({
+              companyId: run.companyId,
+              actor: "system",
+              action: "run.recovery_deferred",
+              entityType: "run",
+              entityId: run.id,
+              detail: `Recovered queued run deferred by ${eligibilityFailure} for task "${task?.title ?? "(heartbeat)"}"`,
+            });
           }
           continue;
         }
@@ -275,8 +343,19 @@ export function createTaskRunner(
           snapshot,
           trigger: "recovery",
         });
+        const currentRun = db.core.runs.getRun(run.id);
+        if (currentRun.status === "queued" || currentRun.status === "running") {
+          reservedAgentIds.add(run.agentId);
+          if (run.taskId !== null) reservedTaskIds.add(run.taskId);
+        }
       } catch (error) {
         logger.warn(`[run] Skipped queued run recovery for ${run.id}: ${error instanceof Error ? error.message : String(error)}`);
+        finishQueuedRecoveryRun(
+          run,
+          "interrupted",
+          "Queued run recovery failed.",
+          error instanceof Error ? error.message : String(error),
+        );
       }
     }
   }

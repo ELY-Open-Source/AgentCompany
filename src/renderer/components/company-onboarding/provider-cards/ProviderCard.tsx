@@ -4,6 +4,7 @@ import type { TranslationFn } from "../../../i18n";
 import { OAuthProviderCard } from "./oauth-card";
 import { ApiKeyProviderCard } from "./api-key-card";
 import { CloudProviderCard } from "./cloud-card";
+import { LocalProviderCard } from "./local-card";
 
 export interface ProviderCardProps {
   entry: ConnectorCatalogEntry;
@@ -15,8 +16,8 @@ export interface ProviderCardProps {
 }
 
 /**
- * Dispatch based on the catalog auth descriptor. Five auth kinds live behind
- * three dedicated cards — cloud variants share a card because their onboarding
+ * Dispatch based on the catalog auth descriptor. Six auth kinds live behind
+ * four dedicated cards — cloud variants share a card because their onboarding
  * affordance is identical (deep link to Settings). A universal form generator
  * is intentionally avoided so each auth flow stays legible end-to-end.
  */
@@ -31,5 +32,7 @@ export function OnboardingProviderDispatch(props: ProviderCardProps) {
     case "azure":
     case "gcp_adc":
       return <CloudProviderCard {...props} />;
+    case "local":
+      return <LocalProviderCard {...props} />;
   }
 }

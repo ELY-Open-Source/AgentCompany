@@ -107,12 +107,14 @@ describe("pi-mono migrations 27 + 28", () => {
     db.init();
 
     const rows = db.projection.snapshot.listSnapshot().connectors.map((entry) => entry.id);
-    expect(rows.length).toBe(26);
+    expect(rows.length).toBe(28);
     expect(rows).toContain("claude-pro");
     expect(rows).toContain("amazon-bedrock");
     expect(rows).toContain("google-vertex");
     expect(rows).toContain("fireworks");
     expect(rows).toContain("fireworks-firepass");
+    expect(rows).toContain("ollama");
+    expect(rows).toContain("lm-studio");
     expect(rows.find((id) => (id as string) === "claude_local")).toBeUndefined();
     expect(rows.find((id) => (id as string) === "codex_local")).toBeUndefined();
     expect(rows.find((id) => (id as string) === "claude_compatible")).toBeUndefined();

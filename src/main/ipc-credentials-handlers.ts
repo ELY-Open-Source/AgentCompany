@@ -177,7 +177,7 @@ export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () =
         }
         const provider = definition.provider;
         const defaultModel = definition.defaultModel;
-        const model = resolveModel(provider, defaultModel);
+        const model = resolveModel(provider, defaultModel, { baseUrl: resolved.baseUrl });
         if (!model) return ok({ ok: false, message: `Unknown model ${defaultModel} for provider ${provider}` });
         const extraHeaders = resolveExtraStreamHeaders(provider, resolved.apiKey);
         const options: SimpleStreamOptions = {

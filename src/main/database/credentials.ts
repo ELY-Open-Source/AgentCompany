@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { ReadAll, Transaction } from "./helpers";
 import { nowIso } from "./helpers";
 
-export type CredentialKind = "oauth" | "api_key" | "aws" | "azure" | "gcp_adc";
+export type CredentialKind = "oauth" | "api_key" | "aws" | "azure" | "gcp_adc" | "local";
 export type CredentialStatus = "active" | "expired" | "revoked" | "error";
 export type CredentialBackend = "safe_storage" | "vault";
 

@@ -196,6 +196,8 @@ export function createHeartbeat(
       return BLOCKED("policy_blocked", "wake_on_demand_disabled");
     }
     if (db.core.agents.isAgentPendingApproval(agentId)) return BLOCKED("human_blocked", "pending_approval");
+    const agentLevelBlock = db.core.approvals.getBlockingApproval(companyId, agentId, null);
+    if (agentLevelBlock) return BLOCKED("human_blocked", `approval_gate:${agentLevelBlock.type}`);
 
     const companyMode = db.core.company.getCompanyExecutionMode(companyId);
     const approvalSettings = db.core.company.getCompanyApprovalSettings(companyId);
@@ -266,6 +268,11 @@ export function createHeartbeat(
       // task_id = NULL; workspace falls back to agent/project/company.
       task = null;
       logger.info(`[heartbeat] Starting taskless heartbeat run for ${agent.name}`);
+    }
+
+    if (task) {
+      const taskBlock = db.core.approvals.getBlockingApproval(companyId, agent.id, task.id);
+      if (taskBlock) return SKIPPED(BLOCKED("human_blocked", `approval_gate:${taskBlock.type}`));
     }
 
     let workspaceResolution: ReturnType<typeof resolveWorkspace>;

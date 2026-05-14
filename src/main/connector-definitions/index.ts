@@ -9,3 +9,4 @@
 export { OAUTH_CONNECTORS } from "./oauth";
 export { API_KEY_CONNECTORS } from "./apikey";
 export { CLOUD_CONNECTORS } from "./cloud";
+export { LOCAL_CONNECTORS } from "./local";

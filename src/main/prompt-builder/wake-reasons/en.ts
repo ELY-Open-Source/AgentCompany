@@ -123,13 +123,13 @@ export const WAKE_REASONS: Record<WakeReason, WakeReasonEntry> = {
     ],
   },
   message: {
-    title: "You received a direct message from another agent.",
+    title: "You received a message from another agent or the Board.",
     steps: (v) => [
       `GET /api/companies/${v.companyId}/messages?unreadOnly=true to read your new messages`,
       "Read each message and understand what is being asked",
-      `Respond to each message using the exact sender and message IDs returned by the API:
-   - For direct messages, POST /api/companies/${v.companyId}/messages with channel="direct", toAgentId set to the original message's fromAgentId, and parentMessageId set to that message's id
-   - If the sender is Board, the toAgentId is "__board__"`,
+      `Respond to each message by preserving the original conversation context:
+   - For direct messages (channel="direct"): POST /api/companies/${v.companyId}/messages with channel="direct", toAgentId set to the original message's fromAgentId, and parentMessageId set to that message's id. If the sender is Board, set toAgentId to "__board__"
+   - For group channels (channel="department", "company", "project", or "incident"): POST /api/companies/${v.companyId}/messages with the SAME channel and channelTargetId as the original message, and parentMessageId set to that message's id. Do NOT set toAgentId for group channel replies`,
       `Mark messages as read: POST /api/companies/${v.companyId}/messages/{messageId}/read`,
       "If the message requires you to take action on a task, do so",
     ],

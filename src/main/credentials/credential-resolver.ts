@@ -34,6 +34,8 @@ export class CredentialError extends UpstreamError {
 export interface ResolvedCredential {
   apiKey: string;
   extraEnv?: Record<string, string>;
+  /** Base URL for OpenAI-compatible local servers (Ollama, LM Studio). */
+  baseUrl?: string;
 }
 
 export class CredentialResolver {
@@ -143,6 +145,16 @@ export class CredentialResolver {
         const env: Record<string, string> = { GOOGLE_CLOUD_PROJECT: cfg.project, GOOGLE_CLOUD_LOCATION: cfg.location };
         if (cfg.credentialsPath) env.GOOGLE_APPLICATION_CREDENTIALS = cfg.credentialsPath;
         return { apiKey: "", extraEnv: env };
+      }
+      case "local": {
+        if (stored?.kind !== "local") {
+          throw new CredentialError("CREDENTIAL_MISSING", connectorId);
+        }
+        // Ollama and LM Studio ignore the bearer value but the OpenAI SDK
+        // refuses an empty string, so we hand it the connector id as a
+        // stable non-empty placeholder. The actual transport is keyed off
+        // `baseUrl`, surfaced to the worker through the stream model.
+        return { apiKey: connectorId, baseUrl: stored.value.baseUrl };
       }
       default: {
         const exhaustive: never = auth;

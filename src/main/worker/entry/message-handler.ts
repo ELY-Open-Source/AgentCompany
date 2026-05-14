@@ -60,14 +60,26 @@ export async function handleWorkerMessage(
           deps.getRuntimeBridge?.()?.releaseRunResources(event.runId) ?? { ok: true };
         return runtimeReleaseResult;
       };
+      // The worker's per-run state machine releases `active[runId]` only
+      // after receiving run-completion-ack. Any uncaught throw between
+      // run-finished and posting the ack permanently leaks the agent —
+      // every subsequent wake then enqueues behind a queue whose
+      // `isAgentBusy` check refuses to start it. The ack must therefore
+      // be posted unconditionally.
       try {
-        completion = handleRunFinished(event, deps, context, {
-          beforePostCompletionAutomation: releaseRuntimeResources,
-        });
-      } finally {
-        releaseRuntimeResources();
+        try {
+          completion = handleRunFinished(event, deps, context, {
+            beforePostCompletionAutomation: releaseRuntimeResources,
+          });
+        } finally {
+          releaseRuntimeResources();
+        }
+        releaseCompletedRunWorkspaceLock(completion, deps);
+      } catch (error) {
+        deps.logger.error(
+          `[worker] run-finished post-handling failed for run ${event.runId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
-      releaseCompletedRunWorkspaceLock(completion, deps);
       if (!worker) {
         throw new Error(`run-completion-ack worker missing for run ${event.runId}`);
       }

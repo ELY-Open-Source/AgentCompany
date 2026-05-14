@@ -7,14 +7,16 @@ import { findConnectorDefinition, listFeaturedOnboardingConnectors } from "../..
  * Settings panel) depends on. */
 
 describe("CONNECTORS catalog", () => {
-  it("contains exactly 26 connectors (5 OAuth + 18 API key + 3 Cloud)", () => {
-    expect(CONNECTORS.length).toBe(26);
+  it("contains exactly 28 connectors (5 OAuth + 18 API key + 3 Cloud + 2 Local)", () => {
+    expect(CONNECTORS.length).toBe(28);
     const oauth = CONNECTORS.filter((c) => c.auth?.type === "oauth");
     const apiKey = CONNECTORS.filter((c) => c.auth?.type === "api_key");
     const cloud = CONNECTORS.filter((c) => c.auth ? ["aws", "azure", "gcp_adc"].includes(c.auth.type) : false);
+    const local = CONNECTORS.filter((c) => c.auth?.type === "local");
     expect(oauth.length).toBe(5);
     expect(apiKey.length).toBe(18);
     expect(cloud.length).toBe(3);
+    expect(local.length).toBe(2);
   });
 
   it("uses unique connector ids", () => {
@@ -39,7 +41,7 @@ describe("CONNECTORS catalog", () => {
       "minimax", "minimax-cn", "huggingface", "opencode", "opencode-go", "kimi-coding",
     ]);
     // Providers wired through src/main/model-resolver.ts instead of pi's catalog.
-    const localProviders = new Set(["fireworks", "fireworks-firepass"]);
+    const localProviders = new Set(["fireworks", "fireworks-firepass", "ollama", "lm-studio"]);
     for (const connector of CONNECTORS) {
       const provider = connector.provider ?? "";
       const recognised = knownPiProviders.has(provider) || localProviders.has(provider);

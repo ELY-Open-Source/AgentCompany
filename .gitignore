@@ -59,6 +59,8 @@ oldreference/
 !/docs/architecture/*.md
 !/CLAUDE.md
 !/AGENTS.md
+!/CONTEXT.md
+!/docs/agents/*.md
 !/问题.md
 !/.planning/**/*.md
 !/src/main/prompt-builder/**/*.md

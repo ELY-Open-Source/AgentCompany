@@ -109,6 +109,15 @@ export function createConnectorHealthService({
         }
         return { status: "ready", authState: "ok", lastError: null };
       }
+      case "local": {
+        if (stored?.kind !== "local") {
+          return { status: "auth_required", authState: "required", lastError: "Local server URL not configured." };
+        }
+        if (!stored.value.baseUrl) {
+          return { status: "error", authState: "error", lastError: "Local server URL missing." };
+        }
+        return { status: "ready", authState: "ok", lastError: null };
+      }
     }
   }
 

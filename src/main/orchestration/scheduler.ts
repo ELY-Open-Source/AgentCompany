@@ -223,11 +223,12 @@ export function createScheduler(
     if (hasActiveRun({ agentId: ceo.id, companyId: company.id })) return;
 
     const lastHeartbeat = ceo.lastHeartbeatAt ? new Date(ceo.lastHeartbeatAt).getTime() : 0;
-    const lastAttempt = bootstrapAttemptByAgent.get(ceo.id) ?? 0;
+    const attemptKey = agentAttemptKey(company.id, ceo.id);
+    const lastAttempt = bootstrapAttemptByAgent.get(attemptKey) ?? 0;
     const bootstrapCooldown = 120_000;
     if (now - Math.max(lastHeartbeat, lastAttempt) <= bootstrapCooldown) return;
 
-    bootstrapAttemptByAgent.set(ceo.id, now);
+    bootstrapAttemptByAgent.set(attemptKey, now);
     logger.info(`[scheduler] Company ${company.name} has ${goalCount} goal(s) and no advancing tasks; bootstrapping CEO ${ceo.name}`);
     wakeAgentIfPossible(ceo.id, company.id, "bootstrap");
   }
@@ -243,6 +244,8 @@ export function createScheduler(
     const wokenAgentIds = new Set<string>();
     const pendingWakeupAgents = db.automation.wakeup.listPendingWakeupAgents(companyId);
     for (const { agentId } of pendingWakeupAgents) {
+      // Queued wakeups are explicit durable events; they bypass the periodic
+      // heartbeat_enabled scan and let wakeAgentIfPossible own re-enabling.
       if (hasActiveRun({ agentId, companyId })) continue;
       if (deps.checkpointEngine?.shouldPauseHeartbeat(companyId, agentId)) continue;
 
@@ -264,21 +267,22 @@ export function createScheduler(
   }
 
   function runAssignedTaskWakeCadence(companyId: string, now: number, wokenAgentIds: Set<string>) {
-    const activeAgents = db.core.agents.listActiveAgentsForCompany(companyId);
+    const activeAgents = db.core.agents.listHeartbeatEligibleAgents(companyId);
     for (const activeAgent of activeAgents) {
       if (wokenAgentIds.has(activeAgent.id)) continue;
       if (hasActiveRun({ agentId: activeAgent.id, companyId })) continue;
       if (deps.checkpointEngine?.shouldPauseHeartbeat(companyId, activeAgent.id)) continue;
 
       const lastHeartbeat = activeAgent.lastHeartbeatAt ? new Date(activeAgent.lastHeartbeatAt).getTime() : 0;
-      const lastAttempt = taskWakeAttemptByAgent.get(activeAgent.id) ?? 0;
-      const intervalMs = (activeAgent.heartbeatIntervalSec || 120) * 1000;
+      const attemptKey = agentAttemptKey(companyId, activeAgent.id);
+      const lastAttempt = taskWakeAttemptByAgent.get(attemptKey) ?? 0;
+      const intervalMs = (activeAgent.heartbeatIntervalSec ?? 120) * 1000;
       if (now - Math.max(lastHeartbeat, lastAttempt) < intervalMs) continue;
 
       const actionableTasks = db.core.tasks.listAgentTasks(activeAgent.id, companyId, ["todo"]);
       if (!actionableTasks.some((task) => !task.activeRunId)) continue;
 
-      taskWakeAttemptByAgent.set(activeAgent.id, now);
+      taskWakeAttemptByAgent.set(attemptKey, now);
       wakeAgentIfPossible(activeAgent.id, companyId, "timer");
     }
   }

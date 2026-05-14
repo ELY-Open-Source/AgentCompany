@@ -83,9 +83,12 @@ export function projectInboxMessageToPi(
 ): AgentMessage {
   const senderLabel = resolveSenderLabel(record, directory);
   const channelLabel = formatChannelLabel(record);
+  const replyContext = record.channel === "direct"
+    ? `reply-to: channel=direct, toAgentId=${record.fromAgentId}`
+    : `reply-to: channel=${record.channel}, channelTargetId=${record.channelTargetId ?? ""}`;
   const header = channelLabel
-    ? `[Message from ${senderLabel} · ${channelLabel}]`
-    : `[Message from ${senderLabel}]`;
+    ? `[Message from ${senderLabel} · ${channelLabel} | ${replyContext}]`
+    : `[Message from ${senderLabel} | ${replyContext}]`;
 
   const subject = record.subject ? truncate(cleanText(record.subject), MAX_SUBJECT_LENGTH) : "";
   const body = truncate(cleanText(record.body), MAX_MESSAGE_BODY_LENGTH);

@@ -82,3 +82,17 @@
 2.  **​结论先行​**: 直接给结论和修补方案。解释必须是短小精悍的中文大白话，不显示P0/P1等级。
 3.  **​表格化输出​**: 多数内容（尤其是评审、对比、多项任务）必须以Markdown表格输出。
 4.  **​强制收口​**: 结束对话必须明确告知用到的 skill。
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues（`gh` CLI）。详见 `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+使用默认标签体系。详见 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+Single-context 布局。详见 `docs/agents/domain.md`。
