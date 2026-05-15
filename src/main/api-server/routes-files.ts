@@ -183,7 +183,7 @@ export function registerFileRoutes(server: AgentApiServer) {
 
     // Conflict detection: if baseRevisionId provided, verify it matches current
     if (data.baseRevisionId !== undefined) {
-      const currentRevId = db.core.documents.getDocumentLatestRevisionId(documentId);
+      const currentRevId = db.core.documents.getDocumentLatestRevisionId(documentId, token.companyId);
       if (currentRevId && data.baseRevisionId !== currentRevId) {
         server.json(res, 409, { error: "Document was updated by someone else", currentRevisionId: currentRevId });
         return;
@@ -231,7 +231,7 @@ export function registerFileRoutes(server: AgentApiServer) {
     });
 
     onDomainChanged();
-    server.json(res, 200, { updated: true, latestRevisionId: db.core.documents.getDocumentLatestRevisionId(documentId) });
+    server.json(res, 200, { updated: true, latestRevisionId: db.core.documents.getDocumentLatestRevisionId(documentId, token.companyId) });
   });
 
   server.addRoute("GET", "/api/companies/:companyId/documents/:documentId/revisions", (_req, res, params, token) => {

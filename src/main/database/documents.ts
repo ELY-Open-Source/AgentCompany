@@ -64,11 +64,16 @@ export function buildDocumentMethods(
     }) {
       const id = ensureId(input.id ?? null);
       const ts = nowIso();
-      const existing = getDb().prepare("select id from documents where id = ?").get(id) as { id: string } | undefined;
+      const existing = getDb().prepare(
+        "select company_id as companyId from documents where id = ?",
+      ).get(id) as { companyId: string } | undefined;
+      if (existing && existing.companyId !== input.companyId) {
+        throw new Error(`Document ${id} does not belong to company ${input.companyId}`);
+      }
       if (existing) {
         getDb().prepare(
-          "update documents set type = ?, title = ?, content = ?, author_agent_id = ?, reviewer_agent_id = ?, project_id = ?, goal_id = ?, parent_doc_id = ?, version = ?, status = ?, tags_json = ?, source_run_id = coalesce(?, source_run_id), updated_at = ? where id = ?",
-        ).run(input.type, input.title, input.content ?? "", input.authorAgentId ?? null, input.reviewerAgentId ?? null, input.projectId ?? null, input.goalId ?? null, input.parentDocId ?? null, input.version ?? 1, input.status ?? "draft", input.tagsJson ?? "[]", input.sourceRunId ?? null, ts, id);
+          "update documents set type = ?, title = ?, content = ?, author_agent_id = ?, reviewer_agent_id = ?, project_id = ?, goal_id = ?, parent_doc_id = ?, version = ?, status = ?, tags_json = ?, source_run_id = coalesce(?, source_run_id), updated_at = ? where id = ? and company_id = ?",
+        ).run(input.type, input.title, input.content ?? "", input.authorAgentId ?? null, input.reviewerAgentId ?? null, input.projectId ?? null, input.goalId ?? null, input.parentDocId ?? null, input.version ?? 1, input.status ?? "draft", input.tagsJson ?? "[]", input.sourceRunId ?? null, ts, id, input.companyId);
       } else {
         getDb().prepare(
           "insert into documents (id, company_id, type, title, content, author_agent_id, reviewer_agent_id, project_id, goal_id, parent_doc_id, version, status, tags_json, source_run_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -129,15 +134,15 @@ export function buildDocumentMethods(
         "INSERT INTO document_revisions (id, company_id, document_id, revision_number, body, change_summary, created_by_agent_id, created_by_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ).run(id, input.companyId, input.documentId, revisionNumber, input.body, input.changeSummary ?? null, input.createdByAgentId ?? null, input.createdByUserId ?? null, ts);
       getDb().prepare(
-        "UPDATE documents SET version = ?, latest_revision_id = ?, updated_at = ? WHERE id = ?",
-      ).run(revisionNumber, id, ts, input.documentId);
+        "UPDATE documents SET version = ?, latest_revision_id = ?, updated_at = ? WHERE id = ? AND company_id = ?",
+      ).run(revisionNumber, id, ts, input.documentId, input.companyId);
       return { id, revisionNumber };
     },
 
-    getDocumentLatestRevisionId(documentId: string): string | null {
+    getDocumentLatestRevisionId(documentId: string, companyId: string): string | null {
       const row = getDb().prepare(
-        "SELECT latest_revision_id FROM documents WHERE id = ?",
-      ).get(documentId) as { latest_revision_id: string | null } | undefined;
+        "SELECT latest_revision_id FROM documents WHERE id = ? AND company_id = ?",
+      ).get(documentId, companyId) as { latest_revision_id: string | null } | undefined;
       return row?.latest_revision_id ?? null;
     },
 

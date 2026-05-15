@@ -18,6 +18,9 @@ export function registerDocumentHandlers({
     const parsed = documentInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
+    if (parsed.id && !db.core.settings.belongsToCompany("documents", parsed.id, parsed.companyId)) {
+      return fail("ENTITY_NOT_FOUND", "Document not found in the current company.");
+    }
 
     const invalidReference = findInvalidReference(parsed.companyId, [
       { id: parsed.authorAgentId, table: "agents", label: "document author" },

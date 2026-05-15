@@ -20,11 +20,16 @@ export function buildAutomationMethods(
     }) {
       const id = ensureId(input.id ?? null);
       const ts = nowIso();
-      const existing = getDb().prepare("select id from automation_rules where id = ?").get(id) as { id: string } | undefined;
+      const existing = getDb().prepare(
+        "select company_id as companyId from automation_rules where id = ?",
+      ).get(id) as { companyId: string } | undefined;
+      if (existing && existing.companyId !== input.companyId) {
+        throw new Error(`Automation rule ${id} does not belong to company ${input.companyId}`);
+      }
       if (existing) {
         getDb().prepare(
-          "update automation_rules set name = ?, description = ?, trigger = ?, conditions_json = ?, action = ?, action_config_json = ?, source_department = ?, target_department = ?, priority = ?, status = ?, updated_at = ? where id = ?",
-        ).run(input.name, input.description ?? "", input.trigger, input.conditionsJson ?? "{}", input.action, input.actionConfigJson ?? "{}", input.sourceDepartment ?? null, input.targetDepartment ?? null, input.priority ?? 50, input.status ?? "active", ts, id);
+          "update automation_rules set name = ?, description = ?, trigger = ?, conditions_json = ?, action = ?, action_config_json = ?, source_department = ?, target_department = ?, priority = ?, status = ?, updated_at = ? where id = ? and company_id = ?",
+        ).run(input.name, input.description ?? "", input.trigger, input.conditionsJson ?? "{}", input.action, input.actionConfigJson ?? "{}", input.sourceDepartment ?? null, input.targetDepartment ?? null, input.priority ?? 50, input.status ?? "active", ts, id, input.companyId);
       } else {
         getDb().prepare(
           "insert into automation_rules (id, company_id, name, description, trigger, conditions_json, action, action_config_json, source_department, target_department, priority, status, execution_count, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
@@ -55,7 +60,7 @@ export function buildAutomationMethods(
       const id = randomUUID();
       const ts = nowIso();
       getDb().prepare("insert into automation_log (id, company_id, rule_id, rule_name, trigger, action, detail, executed_at) values (?, ?, ?, ?, ?, ?, ?, ?)").run(id, companyId, ruleId, ruleName, trigger, action, detail, ts);
-      getDb().prepare("update automation_rules set execution_count = execution_count + 1, last_executed_at = ? where id = ?").run(ts, ruleId);
+      getDb().prepare("update automation_rules set execution_count = execution_count + 1, last_executed_at = ? where id = ? and company_id = ?").run(ts, ruleId, companyId);
     },
 
     getAutomationLog(companyId: string) {
@@ -82,11 +87,16 @@ export function buildAutomationMethods(
     }) {
       const id = ensureId(input.id ?? null);
       const ts = nowIso();
-      const existing = getDb().prepare("select id from workflow_pipelines where id = ?").get(id) as { id: string } | undefined;
+      const existing = getDb().prepare(
+        "select company_id as companyId from workflow_pipelines where id = ?",
+      ).get(id) as { companyId: string } | undefined;
+      if (existing && existing.companyId !== input.companyId) {
+        throw new Error(`Workflow ${id} does not belong to company ${input.companyId}`);
+      }
       if (existing) {
         getDb().prepare(
-          "update workflow_pipelines set name = ?, description = ?, steps_json = ?, trigger_type = ?, trigger_config_json = ?, status = ?, updated_at = ? where id = ?",
-        ).run(input.name, input.description ?? "", input.stepsJson ?? "[]", input.triggerType, input.triggerConfigJson ?? "{}", input.status ?? "draft", ts, id);
+          "update workflow_pipelines set name = ?, description = ?, steps_json = ?, trigger_type = ?, trigger_config_json = ?, status = ?, updated_at = ? where id = ? and company_id = ?",
+        ).run(input.name, input.description ?? "", input.stepsJson ?? "[]", input.triggerType, input.triggerConfigJson ?? "{}", input.status ?? "draft", ts, id, input.companyId);
       } else {
         getDb().prepare(
           "insert into workflow_pipelines (id, company_id, name, description, steps_json, trigger_type, trigger_config_json, status, current_step_index, run_count, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)",

@@ -14,6 +14,9 @@ export function registerMeetingHandlers({
     const parsed = meetingInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
+    if (parsed.id && !db.core.settings.belongsToCompany("meetings", parsed.id, parsed.companyId)) {
+      return fail("ENTITY_NOT_FOUND", "Meeting not found in the current company.");
+    }
 
     let participantAgentIds: string[] = [];
     try {

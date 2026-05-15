@@ -14,6 +14,9 @@ export function registerSprintHandlers({
     const parsed = sprintInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
+    if (parsed.id && !db.core.settings.belongsToCompany("sprints", parsed.id, parsed.companyId)) {
+      return fail("ENTITY_NOT_FOUND", "Sprint not found in the current company.");
+    }
 
     let previousSprintStatus: string | null = null;
     if (parsed.id) {

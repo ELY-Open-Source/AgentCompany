@@ -14,6 +14,9 @@ export function registerKnowledgeEntryHandlers({
     const parsed = knowledgeEntryInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
+    if (parsed.id && !db.core.settings.belongsToCompany("knowledge_base", parsed.id, parsed.companyId)) {
+      return fail("ENTITY_NOT_FOUND", "Knowledge entry not found in the current company.");
+    }
 
     const knowledgeReferences = [
       { id: parsed.authorAgentId, table: "agents", label: "knowledge author" },

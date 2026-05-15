@@ -29,6 +29,9 @@ export function registerAutomationOperationsHandlers({
     const parsed = automationRuleInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
+    if (parsed.id && !db.core.settings.belongsToCompany("automation_rules", parsed.id, parsed.companyId)) {
+      return fail("ENTITY_NOT_FOUND", "Automation rule not found in the current company.");
+    }
     const id = db.automation.rules.saveAutomationRule(parsed);
     publishDomainChanged();
     return ok(id);
@@ -69,6 +72,9 @@ export function registerAutomationOperationsHandlers({
     const parsed = workflowInputSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
+    if (parsed.id && !db.core.settings.belongsToCompany("workflow_pipelines", parsed.id, parsed.companyId)) {
+      return fail("ENTITY_NOT_FOUND", "Workflow not found in the current company.");
+    }
     const id = db.automation.rules.saveWorkflow(parsed);
     publishDomainChanged();
     return ok(id);
