@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import { join, basename, dirname } from "node:path";
+import { basename, dirname } from "node:path";
 import type { AppDatabase } from "../database";
 import type { FileInventoryEntry, SkillImportResult, SkillSourceType } from "../skill-types.js";
 import {
@@ -15,9 +14,8 @@ import {
 import {
   resolveGitHubCommitSha,
   fetchGitHubSkills,
-  MAX_SKILL_BYTES,
-  MAX_TOTAL_BYTES,
 } from "../skill-github.js";
+import { materializeSkillFiles, type MaterializedSkillFile } from "./materialize";
 
 interface GitHubImportDeps {
   db: AppDatabase;
@@ -43,23 +41,6 @@ export function createGitHubImporter({ db, logger, skillFilesDir }: GitHubImport
     } catch {
       return null;
     }
-  }
-
-  async function materializeSkillFiles(
-    companyId: string,
-    slug: string,
-    markdown: string,
-    _inventory: FileInventoryEntry[],
-  ): Promise<string> {
-    if (markdown.length * 2 > MAX_SKILL_BYTES) {
-      throw new Error(
-        `SKILL.md exceeds ${MAX_SKILL_BYTES}-byte limit`,
-      );
-    }
-    const dir = skillFilesDir(companyId, slug);
-    await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, "SKILL.md"), markdown, "utf-8");
-    return dir;
   }
 
   async function importFromGitHub(
@@ -90,16 +71,8 @@ export function createGitHubImporter({ db, logger, skillFilesDir }: GitHubImport
     const results: SkillImportResult[] = [];
     const sourceType: SkillSourceType = originalSkillsShUrl ? "skills_sh" : "github";
     const nowTs = new Date().toISOString();
-    let totalMaterializedBytes = 0;
 
     for (const ghSkill of githubSkills) {
-      const skillBytes = Buffer.byteLength(ghSkill.markdown, "utf-8");
-      totalMaterializedBytes += skillBytes;
-      if (totalMaterializedBytes > MAX_TOTAL_BYTES) {
-        throw new Error(
-          `Skill pack exceeded aggregate limit of ${MAX_TOTAL_BYTES} bytes`,
-        );
-      }
       const parsed = parseFrontmatterMarkdown(ghSkill.markdown);
       const rawSlug =
         normalizeSkillSlug(parsed.frontmatter.slug as string | undefined) ??
@@ -115,16 +88,18 @@ export function createGitHubImporter({ db, logger, skillFilesDir }: GitHubImport
           ? ""
           : ghSkill.skillMdPath.slice(0, ghSkill.skillMdPath.lastIndexOf("/"));
       const prefix = skillDir ? `${skillDir}/` : "";
-      const inventory: FileInventoryEntry[] = [
-        { path: "SKILL.md", kind: "skill" as const },
-        ...ghSkill.inventory.map((filePath) => {
-          const relativePath = prefix ? filePath.slice(prefix.length) : filePath;
+      const materializedFiles: MaterializedSkillFile[] = [
+        { path: "SKILL.md", kind: "skill", content: ghSkill.markdown },
+        ...ghSkill.files.map((file) => {
+          const relativePath = prefix ? file.path.slice(prefix.length) : file.path;
           return {
             path: relativePath,
-            kind: classifyInventoryKind(relativePath),
+            kind: file.mode === "100755" ? "script" as const : classifyInventoryKind(relativePath),
+            content: file.content,
           };
         }),
       ];
+      const inventory: FileInventoryEntry[] = materializedFiles.map(({ path, kind }) => ({ path, kind }));
 
       const metadata: Record<string, unknown> = {
         sourceKind: "github",
@@ -153,7 +128,7 @@ export function createGitHubImporter({ db, logger, skillFilesDir }: GitHubImport
 
       const skillId = randomUUID();
 
-      await materializeSkillFiles(companyId, rawSlug, ghSkill.markdown, inventory);
+      await materializeSkillFiles(skillFilesDir(companyId, rawSlug), materializedFiles);
 
       const { isUpdate } = db.core.skills.upsertCompanySkill({
         id: skillId,

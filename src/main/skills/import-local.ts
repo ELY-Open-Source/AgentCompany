@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { resolve, basename, dirname } from "node:path";
+import { resolve, basename, dirname, isAbsolute, relative } from "node:path";
 import type { AppDatabase } from "../database";
 import type { FileInventoryEntry, SkillImportResult } from "../skill-types.js";
 import { parseFrontmatterMarkdown, deriveTrustLevel } from "../skill-format.js";
@@ -14,7 +14,8 @@ import {
   findSkillMdFiles,
   buildLocalInventory,
 } from "./discovery";
-import { materializeSkillFiles } from "./materialize";
+import { materializeSkillFiles, normalizeMaterializedRelativePath, type MaterializedSkillFile } from "./materialize";
+import { MAX_SKILL_BYTES, MAX_SKILL_FILE_BYTES, MAX_TOTAL_BYTES } from "../skill-github.js";
 
 export interface LocalImportContext {
   db: AppDatabase;
@@ -24,6 +25,70 @@ export interface LocalImportContext {
     error: (...args: unknown[]) => void;
   };
   skillFilesDir: (companyId: string, slug: string) => string;
+}
+
+function assertLocalFileSize(filePath: string, size: number, maxBytes: number): void {
+  if (size > maxBytes) {
+    throw new Error(`${filePath} exceeds ${maxBytes}-byte limit`);
+  }
+}
+
+function assertLocalPackageSize(totalBytes: number): void {
+  if (totalBytes > MAX_TOTAL_BYTES) {
+    throw new Error(`Skill package exceeded aggregate limit of ${MAX_TOTAL_BYTES} bytes`);
+  }
+}
+
+function readLocalSkillMarkdown(skillMdPath: string): string {
+  const stat = statSync(skillMdPath);
+  if (!stat.isFile()) {
+    throw new Error(`Local skill path is not a file: ${skillMdPath}`);
+  }
+  assertLocalFileSize(skillMdPath, stat.size, MAX_SKILL_BYTES);
+  return readFileSync(skillMdPath, "utf-8");
+}
+
+function assertPathInsideRoot(rootDir: string, targetPath: string, relativePath: string): void {
+  const relativePathFromRoot = relative(rootDir, targetPath);
+  if (relativePathFromRoot.length === 0 || relativePathFromRoot.startsWith("..") || isAbsolute(relativePathFromRoot)) {
+    throw new Error(`Skill inventory path escapes source directory: ${relativePath}`);
+  }
+}
+
+function buildLocalMaterializedFiles(
+  skillDir: string,
+  markdown: string,
+  markdownBytes: number,
+  inventory: FileInventoryEntry[],
+): MaterializedSkillFile[] {
+  const realSkillDir = realpathSync(skillDir);
+  const files: MaterializedSkillFile[] = [
+    { path: "SKILL.md", kind: "skill", content: markdown },
+  ];
+  let totalBytes = markdownBytes;
+  assertLocalPackageSize(totalBytes);
+
+  for (const entry of inventory) {
+    if (entry.path === "SKILL.md") continue;
+    const relativePath = normalizeMaterializedRelativePath(entry.path);
+    const sourcePath = resolve(realSkillDir, ...relativePath.split("/"));
+    const realSourcePath = realpathSync(sourcePath);
+    assertPathInsideRoot(realSkillDir, realSourcePath, relativePath);
+    const stat = statSync(realSourcePath);
+    if (!stat.isFile()) {
+      throw new Error(`Skill inventory path is not a file: ${relativePath}`);
+    }
+    assertLocalFileSize(relativePath, stat.size, MAX_SKILL_FILE_BYTES);
+    totalBytes += stat.size;
+    assertLocalPackageSize(totalBytes);
+    files.push({
+      path: relativePath,
+      kind: entry.kind,
+      content: readFileSync(realSourcePath),
+    });
+  }
+
+  return files;
 }
 
 export async function importFromLocal(
@@ -47,7 +112,8 @@ export async function importFromLocal(
   const nowTs = new Date().toISOString();
 
   if (stat.isFile()) {
-    const markdown = readFileSync(resolvedPath, "utf-8");
+    const markdown = readLocalSkillMarkdown(resolvedPath);
+    assertLocalPackageSize(Buffer.byteLength(markdown, "utf-8"));
     const parsed = parseFrontmatterMarkdown(markdown);
     const rawSlug =
       normalizeSkillSlug(parsed.frontmatter.slug as string | undefined) ??
@@ -67,7 +133,9 @@ export async function importFromLocal(
     });
 
     const skillId = randomUUID();
-    await materializeSkillFiles(skillFilesDir(companyId, rawSlug), markdown, inventory);
+    await materializeSkillFiles(skillFilesDir(companyId, rawSlug), [
+      { path: "SKILL.md", kind: "skill", content: markdown },
+    ]);
 
     const { isUpdate } = db.core.skills.upsertCompanySkill({
       id: skillId,
@@ -100,7 +168,8 @@ export async function importFromLocal(
 
   for (const skillMdPath of skillMdFiles) {
     const skillDir = dirname(skillMdPath);
-    const markdown = readFileSync(skillMdPath, "utf-8");
+    const markdown = readLocalSkillMarkdown(skillMdPath);
+    const markdownBytes = Buffer.byteLength(markdown, "utf-8");
     const parsed = parseFrontmatterMarkdown(markdown);
     const rawSlug =
       normalizeSkillSlug(parsed.frontmatter.slug as string | undefined) ??
@@ -119,7 +188,10 @@ export async function importFromLocal(
     });
 
     const skillId = randomUUID();
-    await materializeSkillFiles(skillFilesDir(companyId, rawSlug), markdown, inventory);
+    await materializeSkillFiles(
+      skillFilesDir(companyId, rawSlug),
+      buildLocalMaterializedFiles(skillDir, markdown, markdownBytes, inventory),
+    );
 
     const { isUpdate } = db.core.skills.upsertCompanySkill({
       id: skillId,

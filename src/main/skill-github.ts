@@ -1,4 +1,10 @@
-import { readResponseWithLimit } from "./skills/read-response-with-limit.js";
+import { readResponseBytesWithLimit, readResponseWithLimit } from "./skills/read-response-with-limit.js";
+
+export interface GitHubSkillFileData {
+  path: string;
+  content: Uint8Array;
+  mode: string | null;
+}
 
 /**
  * Data returned for each skill found in a GitHub repository.
@@ -6,7 +12,7 @@ import { readResponseWithLimit } from "./skills/read-response-with-limit.js";
 export interface GitHubSkillData {
   skillMdPath: string;
   markdown: string;
-  inventory: string[];
+  files: GitHubSkillFileData[];
   owner: string;
   repo: string;
 }
@@ -20,11 +26,43 @@ interface Logger {
 /** 2 MB — generous upper bound for a single SKILL.md (markdown) file. */
 export const MAX_SKILL_BYTES = 2 * 1024 * 1024;
 
-/** 32 MB — aggregate upper bound for all SKILL.md content from a single skill pack. */
+/** 8 MB — upper bound for a single non-SKILL.md package file. */
+export const MAX_SKILL_FILE_BYTES = 8 * 1024 * 1024;
+
+/** 32 MB — aggregate upper bound for all materialized files from a skill pack. */
 export const MAX_TOTAL_BYTES = 32 * 1024 * 1024;
 
 /** 10 MB — upper bound for the recursive git tree JSON response. */
 const MAX_TREE_BYTES = 10 * 1024 * 1024;
+
+interface GitHubTreeEntry {
+  path: string;
+  type: string;
+  mode?: string;
+}
+
+function encodeGitHubBlobPath(filePath: string): string {
+  if (filePath.includes("\0") || filePath.includes("\\") || filePath.startsWith("/") || /^[A-Za-z]:/.test(filePath)) {
+    throw new Error(`Invalid GitHub skill file path: ${filePath}`);
+  }
+  const parts = filePath.split("/");
+  if (parts.some((part) => part.length === 0 || part === "." || part === "..")) {
+    throw new Error(`Invalid GitHub skill file path: ${filePath}`);
+  }
+  return parts.map((part) => encodeURIComponent(part)).join("/");
+}
+
+function rawGitHubUrl(owner: string, repo: string, ref: string, filePath: string): string {
+  return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${encodeGitHubBlobPath(filePath)}`;
+}
+
+function assertTotalSkillBytes(totalBytes: number): void {
+  if (totalBytes > MAX_TOTAL_BYTES) {
+    throw new Error(
+      `Skill pack exceeded aggregate limit of ${MAX_TOTAL_BYTES} bytes`,
+    );
+  }
+}
 
 /**
  * Resolve the latest commit SHA for a given ref (branch, tag, or HEAD).
@@ -87,7 +125,7 @@ export async function fetchGitHubSkills(
       return { skills: [], commitSha: ref };
     }
     const treeData = JSON.parse(await readResponseWithLimit(treeResponse, MAX_TREE_BYTES)) as {
-      tree?: Array<{ path: string; type: string }>;
+      tree?: GitHubTreeEntry[];
       sha?: string;
     };
     const treeSha = typeof treeData.sha === "string" ? treeData.sha : ref;
@@ -120,14 +158,15 @@ export async function fetchGitHubSkills(
 
     for (const skillMdPath of skillMdPaths) {
       try {
+        let skillBytes = 0;
         // Download content via raw.githubusercontent.com (no API rate limit)
-        const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${skillMdPath}`;
+        const rawUrl = rawGitHubUrl(owner, repo, ref, skillMdPath);
         const contentResponse = await fetch(rawUrl);
         if (!contentResponse.ok) {
           logger?.warn(`Failed to download ${rawUrl}: ${contentResponse.status}`);
           continue;
         }
-        const remainingBudget = MAX_TOTAL_BYTES - totalBytes;
+        const remainingBudget = MAX_TOTAL_BYTES - totalBytes - skillBytes;
         const perFileCap = Math.min(MAX_SKILL_BYTES, Math.max(0, remainingBudget));
         if (perFileCap === 0) {
           throw new Error(
@@ -135,12 +174,8 @@ export async function fetchGitHubSkills(
           );
         }
         const markdown = await readResponseWithLimit(contentResponse, perFileCap);
-        totalBytes += Buffer.byteLength(markdown, "utf-8");
-        if (totalBytes > MAX_TOTAL_BYTES) {
-          throw new Error(
-            `Skill pack exceeded aggregate limit of ${MAX_TOTAL_BYTES} bytes`,
-          );
-        }
+        skillBytes += Buffer.byteLength(markdown, "utf-8");
+        assertTotalSkillBytes(totalBytes + skillBytes);
 
         // Collect sibling files in the same directory (or subdirectories)
         const skillDir =
@@ -148,17 +183,42 @@ export async function fetchGitHubSkills(
             ? ""
             : skillMdPath.slice(0, skillMdPath.lastIndexOf("/"));
         const prefix = skillDir ? `${skillDir}/` : "";
-        const inventory = allPaths.filter(
-          (p) => p !== skillMdPath && (prefix ? p.startsWith(prefix) : !p.includes("/")),
+        const inventoryEntries = allEntries.filter(
+          (entry) => entry.path !== skillMdPath && (prefix ? entry.path.startsWith(prefix) : !entry.path.includes("/")),
         );
+        const files: GitHubSkillFileData[] = [];
+
+        for (const entry of inventoryEntries) {
+          const fileRemainingBudget = MAX_TOTAL_BYTES - totalBytes - skillBytes;
+          const fileCap = Math.min(MAX_SKILL_FILE_BYTES, Math.max(0, fileRemainingBudget));
+          if (fileCap === 0) {
+            throw new Error(
+              `Skill pack exceeded aggregate limit of ${MAX_TOTAL_BYTES} bytes`,
+            );
+          }
+          const fileUrl = rawGitHubUrl(owner, repo, ref, entry.path);
+          const fileResponse = await fetch(fileUrl);
+          if (!fileResponse.ok) {
+            throw new Error(`Failed to download ${fileUrl}: ${fileResponse.status}`);
+          }
+          const content = await readResponseBytesWithLimit(fileResponse, fileCap);
+          skillBytes += content.byteLength;
+          assertTotalSkillBytes(totalBytes + skillBytes);
+          files.push({
+            path: entry.path,
+            content,
+            mode: entry.mode ?? null,
+          });
+        }
 
         skills.push({
           skillMdPath,
           markdown,
-          inventory,
+          files,
           owner,
-          repo,
+            repo,
         });
+        totalBytes += skillBytes;
       } catch (err) {
         logger?.error(`Error downloading skill ${skillMdPath}:`, err);
         continue;

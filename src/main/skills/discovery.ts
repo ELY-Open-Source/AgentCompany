@@ -1,4 +1,4 @@
-import { readdirSync, realpathSync, type Dirent } from "node:fs";
+import { readdirSync, realpathSync, statSync, type Dirent } from "node:fs";
 import { join, resolve, relative } from "node:path";
 import type { FileInventoryEntry } from "../skill-types.js";
 import { classifyInventoryKind } from "../skill-format.js";
@@ -133,10 +133,18 @@ export function buildLocalInventory(
       if (!entry.isFile()) continue;
       const resolvedPath = resolve(fullPath);
       if (resolvedPath === skillMdPath) continue;
+      let fileStat;
+      try {
+        fileStat = statSync(resolvedPath);
+      } catch (err) {
+        logger.warn(`[skill-import] statSync failed for ${resolvedPath}:`, err instanceof Error ? err.message : String(err));
+        continue;
+      }
+      if (!fileStat.isFile()) continue;
       const relativePath = relative(skillDir, resolvedPath).replace(/\\/g, "/");
       inventory.push({
         path: relativePath,
-        kind: classifyInventoryKind(relativePath),
+        kind: (fileStat.mode & 0o111) !== 0 ? "script" : classifyInventoryKind(relativePath),
       });
     }
   }

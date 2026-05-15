@@ -59,7 +59,9 @@ export async function importFromUrl(
   });
 
   const skillId = randomUUID();
-  await materializeSkillFiles(skillFilesDir(companyId, rawSlug), markdown, inventory);
+  await materializeSkillFiles(skillFilesDir(companyId, rawSlug), [
+    { path: "SKILL.md", kind: "skill", content: markdown },
+  ]);
 
   const { isUpdate } = db.core.skills.upsertCompanySkill({
     id: skillId,

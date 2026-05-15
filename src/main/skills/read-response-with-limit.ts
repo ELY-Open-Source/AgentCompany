@@ -1,8 +1,13 @@
-export async function readResponseWithLimit(response: Response, maxBytes: number): Promise<string> {
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+function assertValidByteLimit(maxBytes: number): void {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
     throw new Error(`Invalid response byte limit: ${maxBytes}`);
   }
+}
 
+function validateContentLength(response: Response, maxBytes: number): void {
   const contentLengthHeader = response.headers.get("Content-Length");
   if (contentLengthHeader !== null) {
     const contentLength = Number(contentLengthHeader);
@@ -13,15 +18,29 @@ export async function readResponseWithLimit(response: Response, maxBytes: number
       throw new Error(`Response too large: ${contentLength} bytes (max ${maxBytes})`);
     }
   }
+}
+
+function assertWithinLimit(byteLength: number, maxBytes: number): void {
+  if (byteLength > maxBytes) {
+    throw new Error(`Response body exceeded ${maxBytes} bytes`);
+  }
+}
+
+export async function readResponseBytesWithLimit(response: Response, maxBytes: number): Promise<Uint8Array> {
+  assertValidByteLimit(maxBytes);
+  validateContentLength(response, maxBytes);
 
   const reader = response.body?.getReader();
   if (!reader) {
-    const text = await response.text();
-    const byteLength = new TextEncoder().encode(text).byteLength;
-    if (byteLength > maxBytes) {
-      throw new Error(`Response body exceeded ${maxBytes} bytes`);
+    if (typeof response.arrayBuffer === "function") {
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      assertWithinLimit(bytes.byteLength, maxBytes);
+      return bytes;
     }
-    return text;
+    const text = await response.text();
+    const bytes = encoder.encode(text);
+    assertWithinLimit(bytes.byteLength, maxBytes);
+    return bytes;
   }
 
   const chunks: Uint8Array[] = [];
@@ -33,7 +52,7 @@ export async function readResponseWithLimit(response: Response, maxBytes: number
     totalBytes += value.byteLength;
     if (totalBytes > maxBytes) {
       await reader.cancel();
-      throw new Error(`Response body exceeded ${maxBytes} bytes`);
+      assertWithinLimit(totalBytes, maxBytes);
     }
     chunks.push(value);
   }
@@ -45,5 +64,9 @@ export async function readResponseWithLimit(response: Response, maxBytes: number
     offset += chunk.byteLength;
   }
 
-  return new TextDecoder().decode(body);
+  return body;
+}
+
+export async function readResponseWithLimit(response: Response, maxBytes: number): Promise<string> {
+  return decoder.decode(await readResponseBytesWithLimit(response, maxBytes));
 }
