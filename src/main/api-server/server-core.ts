@@ -37,6 +37,21 @@ function getJsonContentTypeError(req: IncomingMessage): string | null {
   return null;
 }
 
+function firstHeaderValue(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function extractCompanyIdFromUrl(rawUrl: string | undefined): string | null {
+  try {
+    const url = new URL(rawUrl ?? "/", "http://127.0.0.1");
+    const match = /^\/api\/companies\/([^/]+)/.exec(url.pathname);
+    return match ? decodeURIComponent(match[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Extract a required route parameter or throw a 400-level error.
  * The HTTP router guarantees all named params are present when a route
@@ -230,12 +245,16 @@ export class AgentApiServer {
     if (typeof authHeader !== "string" || !authHeader.startsWith("Bearer ")) {
       return { ok: false, status: 401, error: "Missing or invalid Authorization header" };
     }
-    const token = validateAgentToken(authHeader.slice(7));
+    const runHeader = req.headers["x-agent-company-run-id"];
+    const claimedRunId = firstHeaderValue(runHeader);
+    const token = validateAgentToken(authHeader.slice(7), {
+      runId: claimedRunId,
+      companyId: extractCompanyIdFromUrl(req.url),
+      requestId: firstHeaderValue(req.headers["x-request-id"]),
+    });
     if (!token) {
       return { ok: false, status: 401, error: "Invalid or expired token" };
     }
-    const runHeader = req.headers["x-agent-company-run-id"];
-    const claimedRunId = Array.isArray(runHeader) ? runHeader[0] : runHeader;
     if (typeof claimedRunId !== "string" || claimedRunId.trim() !== token.runId) {
       return { ok: false, status: 401, error: "Missing or mismatched X-Agent-Company-Run-Id header" };
     }

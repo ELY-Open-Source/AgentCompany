@@ -8,14 +8,30 @@ const TOKEN_TTL_MS = 48 * 60 * 60 * 1000; // 48 hours
 const SIGNING_KEY_BYTES = 32;
 
 // Once-per-process warning when a malformed token shape is seen. Helps
-// diagnose schema breaks after upgrades — without leaking the full token.
+// diagnose schema breaks after upgrades.
 let loggedMalformedTokenWarning = false;
-function warnMalformedTokenOnce(token: string, reason: string) {
+
+interface TokenValidationLogContext {
+  runId?: string | null;
+  companyId?: string | null;
+  requestId?: string | null;
+}
+
+function safeAuthLogField(value: string | null | undefined): string {
+  return typeof value === "string" && /^[A-Za-z0-9._:-]{1,160}$/.test(value) ? value : "unknown";
+}
+
+function warnMalformedTokenOnce(reason: string, context: TokenValidationLogContext | undefined) {
   if (loggedMalformedTokenWarning) return;
   loggedMalformedTokenWarning = true;
-  const fingerprint = token.slice(0, 8);
 
-  console.warn(`[agent-auth] token shape invalid (${reason}); first8="${fingerprint}..."`);
+  console.warn(
+    "[agent-auth] token shape invalid: " +
+      `reason=${safeAuthLogField(reason)} ` +
+      `runId=${safeAuthLogField(context?.runId)} ` +
+      `companyId=${safeAuthLogField(context?.companyId)} ` +
+      `requestId=${safeAuthLogField(context?.requestId)}`,
+  );
 }
 
 interface TokenPayload {
@@ -36,7 +52,7 @@ function sign(payload: TokenPayload): string {
   return `${header}.${body}.${signature}`;
 }
 
-function verify(token: string): TokenPayload | null {
+function verify(token: string, context?: TokenValidationLogContext): TokenPayload | null {
   const key = getSigningKey();
   const parts = token.split(".");
   if (parts.length !== 3) return null;
@@ -56,9 +72,8 @@ function verify(token: string): TokenPayload | null {
     const payload = JSON.parse(Buffer.from(body, "base64url").toString()) as TokenPayload;
     if (Date.now() > payload.exp) return null;
     return payload;
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    warnMalformedTokenOnce(token, reason);
+  } catch {
+    warnMalformedTokenOnce("payload_json_parse_failed", context);
     return null;
   }
 }
@@ -97,8 +112,8 @@ export function createAgentToken(agentId: string, companyId: string, runId: stri
   return sign({ agentId, companyId, runId, iat: now, exp: now + TOKEN_TTL_MS });
 }
 
-export function validateAgentToken(token: string): TokenPayload | null {
-  return verify(token);
+export function validateAgentToken(token: string, context?: TokenValidationLogContext): TokenPayload | null {
+  return verify(token, context);
 }
 
-export type { TokenPayload };
+export type { TokenPayload, TokenValidationLogContext };
