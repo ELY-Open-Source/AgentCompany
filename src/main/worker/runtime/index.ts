@@ -176,6 +176,7 @@ export class WorkerRunner {
         thinkingLevel: resolveThinkingLevel(job.thinkingEffort),
         apiKey: prepared.apiKey,
         extraHeaders,
+        streamEnv: prepared.extraEnv,
         rpc,
         onContextCompaction: (telemetry) => {
           post({

@@ -1,5 +1,5 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
-import { streamSimple, type SimpleStreamOptions } from "@mariozechner/pi-ai";
+import type { SimpleStreamOptions } from "@mariozechner/pi-ai";
 import type { DesktopResult } from "@shared/contracts";
 import { IPC_CHANNELS } from "@shared/contracts";
 import {
@@ -16,6 +16,7 @@ import type { CredentialStore } from "./credentials/credential-store";
 import type { StoredCredentialPayload } from "./credentials/types";
 import { ok } from "./ipc-core-common";
 import { classifyUnknownError } from "./errors/index.js";
+import { safeStreamSimpleWithEnv } from "./worker/runtime/pi-safe-stream";
 
 /** Strip credential-shaped substrings from an error message before sending it
  * back to the renderer. Matches are anchored to issuer-specific prefixes so
@@ -49,23 +50,6 @@ interface CredentialHandlerDeps {
   ) => void;
   fail: (code: string, message: string) => DesktopResult<never>;
   logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
-}
-
-/** Serializes `credentialsTest` calls that must mutate `process.env` to inject
- * per-provider configuration for pi-ai (Azure / AWS / GCP ADC). pi-ai's
- * `SimpleStreamOptions` has no per-request env escape hatch — its providers
- * read `process.env` directly — so two concurrent tests would clobber each
- * other's env and surface cross-credential failures. A module-level promise
- * chain guarantees at most one `extraEnv`-mutating test runs at a time. */
-let credentialTestChain: Promise<void> = Promise.resolve();
-
-function serializeCredentialTest<T>(task: () => Promise<T>): Promise<T> {
-  const run = credentialTestChain.then(task, task);
-  credentialTestChain = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
 }
 
 export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () => void {
@@ -185,13 +169,14 @@ export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () =
           maxTokens: 1,
           ...(extraHeaders ? { headers: extraHeaders } : {}),
         };
-        const stream = streamSimple(
+        const stream = safeStreamSimpleWithEnv(
           model,
           {
             systemPrompt: "Reply with the single character 'k'.",
             messages: [{ role: "user", content: "ping", timestamp: Date.now() }],
           },
           options,
+          resolved.extraEnv,
         );
         const final = await stream.result();
         if (final.stopReason === "error" || final.stopReason === "aborted") {
@@ -206,28 +191,6 @@ export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () =
         return ok({ ok: false, message: redactSecrets(message) });
       }
     };
-
-    // Providers that require per-request env (Azure/AWS/GCP ADC) must mutate
-    // `process.env` because pi-ai reads it directly. Serialize those tests so
-    // concurrent invocations cannot observe each other's env.
-    if (resolved.extraEnv) {
-      const envPatch = resolved.extraEnv;
-      return serializeCredentialTest(async () => {
-        const saved = new Map<string, string | undefined>();
-        for (const [k, v] of Object.entries(envPatch)) {
-          saved.set(k, process.env[k]);
-          process.env[k] = v;
-        }
-        try {
-          return await runTest();
-        } finally {
-          for (const [k, prev] of saved) {
-            if (prev === undefined) delete process.env[k];
-            else process.env[k] = prev;
-          }
-        }
-      });
-    }
 
     return runTest();
   });

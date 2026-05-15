@@ -28,6 +28,13 @@ type SafePiStreamSource = (
   options?: SimpleStreamOptions,
 ) => AssistantMessageEventStream;
 
+type SafePiStreamSourceWithEnv = (
+  model: Model<Api>,
+  context: Context,
+  options?: SimpleStreamOptions,
+  envPatch?: Readonly<Record<string, string>>,
+) => AssistantMessageEventStream;
+
 type ErrorAssistantMessage = AssistantMessage & {
   stopReason: Extract<StopReason, "error" | "aborted">;
 };
@@ -72,6 +79,61 @@ function pushStreamError(
   stream.end(message);
 }
 
+let scopedEnvChain: Promise<void> = Promise.resolve();
+
+function hasEnvPatch(envPatch: Readonly<Record<string, string>> | undefined): envPatch is Readonly<Record<string, string>> {
+  return !!envPatch && Object.keys(envPatch).length > 0;
+}
+
+async function withProcessEnvPatch(
+  envPatch: Readonly<Record<string, string>>,
+  task: () => Promise<void>,
+): Promise<void> {
+  const saved = new Map<string, string | undefined>();
+  for (const [key, value] of Object.entries(envPatch)) {
+    saved.set(key, process.env[key]);
+    process.env[key] = value;
+  }
+  try {
+    await task();
+  } finally {
+    for (const [key, previous] of saved) {
+      if (previous === undefined) delete process.env[key];
+      else process.env[key] = previous;
+    }
+  }
+}
+
+function runWithScopedEnv(
+  envPatch: Readonly<Record<string, string>> | undefined,
+  task: () => Promise<void>,
+): Promise<void> {
+  if (!hasEnvPatch(envPatch)) return task();
+  const run = scopedEnvChain.then(
+    () => withProcessEnvPatch(envPatch, task),
+    () => withProcessEnvPatch(envPatch, task),
+  );
+  scopedEnvChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+async function pipeSourceStream(
+  source: PiStreamSource,
+  target: AssistantMessageEventStream,
+  model: Model<Api>,
+  context: Context,
+  options?: SimpleStreamOptions,
+): Promise<void> {
+  const sourceStream = await source(model, context, options);
+  for await (const event of sourceStream) {
+    target.push(event);
+  }
+  target.end();
+}
+
 /**
  * Build a safe stream wrapper. When `gate` is provided, every call
  * acquires a slot keyed by `(model.provider, options.apiKey)` before
@@ -84,7 +146,15 @@ export function createSafePiStream(
   source: PiStreamSource,
   gate?: CredentialConcurrencyGate,
 ): SafePiStreamSource {
-  return (model, context, options) => {
+  const scoped = createSafePiStreamWithEnv(source, gate);
+  return (model, context, options) => scoped(model, context, options);
+}
+
+export function createSafePiStreamWithEnv(
+  source: PiStreamSource,
+  gate?: CredentialConcurrencyGate,
+): SafePiStreamSourceWithEnv {
+  return (model, context, options, envPatch) => {
     const target = createAssistantMessageEventStream();
     const apiKey = typeof options?.apiKey === "string" ? options.apiKey : "";
     const acquireSlot = gate && apiKey
@@ -94,11 +164,7 @@ export function createSafePiStream(
       .then(acquireSlot)
       .then(async (release) => {
         try {
-          const sourceStream = await source(model, context, options);
-          for await (const event of sourceStream) {
-            target.push(event);
-          }
-          target.end();
+          await runWithScopedEnv(envPatch, () => pipeSourceStream(source, target, model, context, options));
         } finally {
           release();
         }
@@ -115,3 +181,4 @@ const defaultGate: CredentialConcurrencyGate = new InMemoryCredentialConcurrency
 );
 
 export const safeStreamSimple = createSafePiStream(streamSimple, defaultGate);
+export const safeStreamSimpleWithEnv = createSafePiStreamWithEnv(streamSimple, defaultGate);

@@ -21,7 +21,7 @@ import type { Api, Model } from "@mariozechner/pi-ai";
 import { buildAgentHooks } from "@main/agent-runtime/agent-hooks";
 import type { ContextCompactionTelemetry } from "@main/agent-runtime/agent-hooks";
 import type { WorkerRpcClient } from "../entry/rpc";
-import { safeStreamSimple } from "./pi-safe-stream";
+import { safeStreamSimpleWithEnv } from "./pi-safe-stream";
 // Side-effect import: drags the hook signature contract into the typecheck
 // graph so any drift in pi-agent-core hook shapes breaks the build here.
 import "./pi-hook-contract";
@@ -38,6 +38,7 @@ export interface PiAgentFactoryInput {
   thinkingLevel: ThinkingLevel;
   apiKey: string;
   extraHeaders: Record<string, string> | undefined;
+  streamEnv?: Record<string, string>;
   rpc: WorkerRpcClient;
   onContextCompaction?: (telemetry: ContextCompactionTelemetry) => void;
 }
@@ -76,11 +77,16 @@ export function createPiAgent(input: PiAgentFactoryInput): Agent {
     },
     sessionId: input.taskSessionId,
     streamFn: (model, messages, options) =>
-      safeStreamSimple(model, messages, {
-        ...options,
-        apiKey: input.apiKey,
-        headers: { ...(options?.headers ?? {}), ...(input.extraHeaders ?? {}) },
-      }),
+      safeStreamSimpleWithEnv(
+        model,
+        messages,
+        {
+          ...options,
+          apiKey: input.apiKey,
+          headers: { ...(options?.headers ?? {}), ...(input.extraHeaders ?? {}) },
+        },
+        input.streamEnv,
+      ),
     beforeToolCall: hooks.beforeToolCall,
     transformContext: hooks.transformContext,
     toolExecution: "sequential",

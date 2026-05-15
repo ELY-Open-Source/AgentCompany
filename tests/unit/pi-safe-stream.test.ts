@@ -6,7 +6,7 @@ import {
   type Model,
 } from "@mariozechner/pi-ai";
 import { describe, expect, it } from "vitest";
-import { createSafePiStream } from "../../src/main/worker/runtime/pi-safe-stream";
+import { createSafePiStream, createSafePiStreamWithEnv } from "../../src/main/worker/runtime/pi-safe-stream";
 import { InMemoryCredentialConcurrencyGate } from "../../src/main/worker/runtime/credential-concurrency-gate";
 
 function createModel(): Model<"openai-responses"> {
@@ -187,5 +187,80 @@ describe("pi safe stream", () => {
     });
     expect(result.stopReason).toBe("error");
     expect(result.errorMessage).toBe("stream setup failed");
+  });
+
+  it("keeps scoped provider env active until the stream finishes", async () => {
+    const key = "AGENTCOMPANY_TEST_PROVIDER_ENV";
+    const previous = process.env[key];
+    process.env[key] = "host";
+    const observed: Array<string | undefined> = [];
+    const safeStream = createSafePiStreamWithEnv(() => {
+      observed.push(process.env[key]);
+      const stream = createAssistantMessageEventStream();
+      setTimeout(() => {
+        observed.push(process.env[key]);
+        const message = createAssistantMessage();
+        stream.push({ type: "done", reason: "stop", message });
+        stream.end(message);
+      }, 5);
+      return stream;
+    });
+
+    try {
+      const stream = safeStream(createModel(), emptyContext, undefined, { [key]: "scoped" });
+      for await (const _event of stream) {
+        // drain
+      }
+      await stream.result();
+
+      expect(observed).toEqual(["scoped", "scoped"]);
+      expect(process.env[key]).toBe("host");
+    } finally {
+      if (previous === undefined) delete process.env[key];
+      else process.env[key] = previous;
+    }
+  });
+
+  it("serializes streams that patch process env", async () => {
+    const key = "AGENTCOMPANY_TEST_SERIALIZED_ENV";
+    const previous = process.env[key];
+    delete process.env[key];
+    const observed: Array<string | undefined> = [];
+    let activeCalls = 0;
+    let peakActive = 0;
+    const safeStream = createSafePiStreamWithEnv(() => {
+      activeCalls += 1;
+      peakActive = Math.max(peakActive, activeCalls);
+      observed.push(process.env[key]);
+      const stream = createAssistantMessageEventStream();
+      setTimeout(() => {
+        observed.push(process.env[key]);
+        const message = createAssistantMessage();
+        stream.push({ type: "done", reason: "stop", message });
+        stream.end(message);
+        activeCalls -= 1;
+      }, 5);
+      return stream;
+    });
+    const drain = async (stream: ReturnType<typeof safeStream>) => {
+      for await (const _event of stream) {
+        // drain
+      }
+      await stream.result();
+    };
+
+    try {
+      await Promise.all([
+        drain(safeStream(createModel(), emptyContext, undefined, { [key]: "one" })),
+        drain(safeStream(createModel(), emptyContext, undefined, { [key]: "two" })),
+      ]);
+
+      expect(peakActive).toBe(1);
+      expect(observed).toEqual(["one", "one", "two", "two"]);
+      expect(process.env[key]).toBeUndefined();
+    } finally {
+      if (previous === undefined) delete process.env[key];
+      else process.env[key] = previous;
+    }
   });
 });
