@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { FloppyDisk } from "../../ui/icons";
 import type { ConnectorCatalogEntry } from "@shared/connector-catalog";
-import type { CredentialSummary } from "@shared/contracts/schemas-credentials";
+import { isLocalConnectorBaseUrl, type CredentialSummary } from "@shared/contracts/schemas-credentials";
 import type { TranslationFn } from "../../../i18n";
 import {
   InlineFeedback,
@@ -23,8 +23,8 @@ interface LocalProviderCardProps {
  * Onboarding card for local OpenAI-compatible servers (Ollama, LM Studio).
  *
  * The catalog supplies a sensible default URL per entry; the user can
- * override it to point at a non-default port, a remote machine, or a
- * reverse proxy. The card never asks for an API key — local servers
+ * override it to point at a private LAN server or a non-default port.
+ * The card never asks for an API key — local servers
  * accept any bearer value, so the credential resolver supplies the
  * connector id as a non-empty placeholder for the OpenAI SDK.
  */
@@ -65,9 +65,7 @@ export function LocalProviderCard({
       setFeedback(t("onboarding.providers.baseUrlRequired"));
       return;
     }
-    try {
-      new URL(trimmed);
-    } catch {
+    if (!isLocalConnectorBaseUrl(trimmed)) {
       setFeedback(t("onboarding.providers.baseUrlInvalid"));
       return;
     }

@@ -5,6 +5,8 @@ import {
   azureCredentialSchema,
   credentialPayloadSchema,
   gcpAdcCredentialSchema,
+  isLocalConnectorBaseUrl,
+  localCredentialSchema,
   removeCredentialInputSchema,
   saveCredentialInputSchema,
   testCredentialInputSchema,
@@ -57,6 +59,39 @@ describe("credentials Zod schemas", () => {
   it("gcpAdcCredentialSchema requires project + location", () => {
     expect(gcpAdcCredentialSchema.safeParse({ project: "" }).success).toBe(false);
     expect(gcpAdcCredentialSchema.safeParse({ project: "p", location: "us-central1" }).success).toBe(true);
+  });
+
+  it("localCredentialSchema accepts loopback and private-network baseUrl values", () => {
+    for (const baseUrl of [
+      "http://localhost:11434/v1",
+      "http://127.0.0.1:11434/v1",
+      "http://10.0.0.20:11434/v1",
+      "https://172.16.0.10:11434/v1",
+      "http://172.31.255.255:11434/v1",
+      "http://192.168.1.20:11434/v1",
+      "http://169.254.1.20:11434/v1",
+      "http://[::1]:11434/v1",
+      "http://[fc00::1]:11434/v1",
+      "http://[fd12::1]:11434/v1",
+      "http://[fe80::1]:11434/v1",
+    ]) {
+      expect(localCredentialSchema.safeParse({ baseUrl }).success).toBe(true);
+      expect(isLocalConnectorBaseUrl(baseUrl)).toBe(true);
+    }
+  });
+
+  it("localCredentialSchema rejects remote OpenAI-compatible endpoints", () => {
+    for (const baseUrl of [
+      "https://api.openai.com/v1",
+      "https://example.com/v1",
+      "http://172.32.0.1:11434/v1",
+      "http://100.64.0.1:11434/v1",
+      "ftp://localhost:11434/v1",
+      "http://user:pass@127.0.0.1:11434/v1",
+    ]) {
+      expect(localCredentialSchema.safeParse({ baseUrl }).success).toBe(false);
+      expect(isLocalConnectorBaseUrl(baseUrl)).toBe(false);
+    }
   });
 
   it("credentialPayloadSchema discriminates on kind", () => {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { isLocalConnectorBaseUrl } from "@shared/contracts/schemas-credentials";
 import { ActionButton, Input } from "../../ui";
 import { useT } from "../../../i18n";
 
@@ -22,9 +23,7 @@ export function LocalForm({ connectorId, defaultBaseUrl, onSaved }: Props) {
 
   const handleSubmit = async () => {
     if (!desktop || !canSave) return;
-    try {
-      new URL(trimmed);
-    } catch {
+    if (!isLocalConnectorBaseUrl(trimmed)) {
       setError(t("onboarding.providers.baseUrlInvalid"));
       return;
     }

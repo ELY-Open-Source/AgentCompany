@@ -1,5 +1,6 @@
 import { getOAuthProvider } from "@mariozechner/pi-ai/oauth";
 import { getEnvApiKey } from "@mariozechner/pi-ai";
+import { isLocalConnectorBaseUrl } from "@shared/contracts/schemas-credentials";
 import { getConnectorDefinition, isPiKnownProvider } from "@main/connectors";
 import { UpstreamError } from "../errors/index.js";
 import { CredentialStore } from "./credential-store";
@@ -149,6 +150,13 @@ export class CredentialResolver {
       case "local": {
         if (stored?.kind !== "local") {
           throw new CredentialError("CREDENTIAL_MISSING", connectorId);
+        }
+        if (!isLocalConnectorBaseUrl(stored.value.baseUrl)) {
+          throw new CredentialError(
+            "CREDENTIAL_INVALID",
+            connectorId,
+            "Local connector baseUrl must use localhost, loopback, or a private IP host.",
+          );
         }
         // Ollama and LM Studio ignore the bearer value but the OpenAI SDK
         // refuses an empty string, so we hand it the connector id as a

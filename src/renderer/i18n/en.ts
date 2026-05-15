@@ -191,7 +191,7 @@ export const en: Record<string, string> = {
   "onboarding.providers.apiKeyReplacePlaceholder": "Leave empty to keep the current key",
   "onboarding.providers.baseUrlLabel": "Base URL",
   "onboarding.providers.baseUrlRequired": "Enter the local server URL before saving.",
-  "onboarding.providers.baseUrlInvalid": "Enter a valid HTTP or HTTPS URL.",
+  "onboarding.providers.baseUrlInvalid": "Enter a loopback or private-network HTTP(S) URL.",
   "onboarding.providers.save": "Save",
   "onboarding.providers.saving": "Saving…",
   "onboarding.providers.saved": "Saved.",

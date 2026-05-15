@@ -191,7 +191,7 @@ export const zh: Record<string, string> = {
   "onboarding.providers.apiKeyReplacePlaceholder": "保持现有 Key 请留空",
   "onboarding.providers.baseUrlLabel": "服务地址",
   "onboarding.providers.baseUrlRequired": "请填入本地服务地址后再保存。",
-  "onboarding.providers.baseUrlInvalid": "请输入合法的 HTTP 或 HTTPS 地址。",
+  "onboarding.providers.baseUrlInvalid": "请输入本机或私有网络 HTTP(S) 地址。",
   "onboarding.providers.save": "保存",
   "onboarding.providers.saving": "保存中…",
   "onboarding.providers.saved": "已保存。",

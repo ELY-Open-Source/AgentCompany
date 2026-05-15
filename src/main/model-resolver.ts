@@ -18,6 +18,7 @@
 
 import log from "electron-log/main.js";
 import { getModels, type Api, type Model } from "@mariozechner/pi-ai";
+import { isLocalConnectorBaseUrl } from "@shared/contracts/schemas-credentials";
 import { isPiKnownProvider } from "./connectors";
 
 // Fireworks' OpenAI-compatible root. The OpenAI SDK appends
@@ -125,6 +126,10 @@ export function resolveModel(
       log.warn(`[model-resolver] ${provider} requires a baseUrl from credentials; none provided.`);
       return null;
     }
+    if (!isLocalConnectorBaseUrl(options.baseUrl)) {
+      log.warn(`[model-resolver] ${provider} rejected non-local baseUrl.`);
+      return null;
+    }
     return buildLocalModel(provider, modelId, options.baseUrl);
   }
   if (!isPiKnownProvider(provider)) {
@@ -221,6 +226,10 @@ export function resolveModels(provider: string): Array<{ id: string; name: strin
 export async function fetchLocalConnectorModels(
   baseUrl: string,
 ): Promise<Array<{ id: string; name: string }>> {
+  if (!isLocalConnectorBaseUrl(baseUrl)) {
+    log.warn("[model-resolver] rejected non-local model catalog baseUrl.");
+    return [];
+  }
   const url = `${baseUrl.replace(/\/$/, "")}/models`;
   try {
     const response = await fetch(url, { method: "GET" });

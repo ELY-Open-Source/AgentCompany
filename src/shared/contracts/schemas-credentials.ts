@@ -50,8 +50,65 @@ export const gcpAdcCredentialSchema = z.object({
   credentialsPath: z.string().optional(),
 });
 
+function normalizeUrlHostname(hostname: string): string {
+  const trimmed = hostname.trim().toLowerCase();
+  return trimmed.startsWith("[") && trimmed.endsWith("]")
+    ? trimmed.slice(1, -1)
+    : trimmed;
+}
+
+function parseIpv4(hostname: string): [number, number, number, number] | null {
+  const parts = hostname.split(".");
+  if (parts.length !== 4) return null;
+  const octets = parts.map((part) => {
+    if (!/^\d+$/.test(part)) return null;
+    const value = Number(part);
+    return Number.isInteger(value) && value >= 0 && value <= 255 ? value : null;
+  });
+  if (octets.some((part) => part === null)) return null;
+  return octets as [number, number, number, number];
+}
+
+function isPrivateIpv4(hostname: string): boolean {
+  const octets = parseIpv4(hostname);
+  if (!octets) return false;
+  const [first, second] = octets;
+  return first === 10
+    || first === 127
+    || (first === 172 && second >= 16 && second <= 31)
+    || (first === 192 && second === 168)
+    || (first === 169 && second === 254);
+}
+
+function isPrivateIpv6(hostname: string): boolean {
+  if (hostname === "::1") return true;
+  return /^f[cd][0-9a-f]{2}:/i.test(hostname) || /^fe80:/i.test(hostname);
+}
+
+export function isLocalConnectorBaseUrl(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+  if (url.username || url.password) return false;
+  const hostname = normalizeUrlHostname(url.hostname);
+  if (hostname === "localhost") return true;
+  return isPrivateIpv4(hostname) || isPrivateIpv6(hostname);
+}
+
+export const localBaseUrlSchema = z
+  .string()
+  .url()
+  .refine(
+    isLocalConnectorBaseUrl,
+    "Local connector baseUrl must use HTTP(S) with localhost, loopback, or a private IP host.",
+  );
+
 export const localCredentialSchema = z.object({
-  baseUrl: z.string().url(),
+  baseUrl: localBaseUrlSchema,
 });
 
 export const credentialPayloadSchema = z.discriminatedUnion("kind", [

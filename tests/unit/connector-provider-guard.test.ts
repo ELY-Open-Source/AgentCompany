@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getProviders } from "@mariozechner/pi-ai";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   CONNECTORS,
   getConnectorKnownProvider,
@@ -9,7 +9,7 @@ import {
   isLocalModelResolverProvider,
   isPiKnownProvider,
 } from "../../src/main/connectors";
-import { FIREWORKS_FIREPASS_MODEL_ID, resolveModel, resolveModels } from "../../src/main/model-resolver";
+import { FIREWORKS_FIREPASS_MODEL_ID, fetchLocalConnectorModels, resolveModel, resolveModels } from "../../src/main/model-resolver";
 
 describe("connector provider guard", () => {
   it("classifies catalog providers before they enter pi-ai APIs", () => {
@@ -38,6 +38,18 @@ describe("connector provider guard", () => {
     expect(resolveModels("not-a-pi-provider")).toEqual([]);
     expect(resolveModel("not-a-pi-provider", "model-id")).toBeNull();
     expect(resolveModel("fireworks-firepass", "ignored")?.id).toBe(FIREWORKS_FIREPASS_MODEL_ID);
+    expect(resolveModel("ollama", "llama3.2", { baseUrl: "http://127.0.0.1:11434/v1" })?.baseUrl).toBe("http://127.0.0.1:11434/v1");
+    expect(resolveModel("ollama", "llama3.2", { baseUrl: "https://example.com/v1" })).toBeNull();
+  });
+
+  it("rejects remote URLs before local model catalog fetch", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("fetch should stay unused"));
+    try {
+      await expect(fetchLocalConnectorModels("https://example.com/v1")).resolves.toEqual([]);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it("keeps provider calls free of erased never casts", () => {

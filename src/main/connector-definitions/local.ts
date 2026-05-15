@@ -25,7 +25,7 @@ export const LOCAL_CONNECTORS: ConnectorDefinition[] = [
     defaultModel: "llama3.2",
     auth: { type: "local", defaultBaseUrl: "http://localhost:11434/v1" },
     notes:
-      "Ollama exposes /v1/chat/completions and /v1/models. The default port is 11434; override if you launched `ollama serve` on a different address.",
+      "Ollama exposes /v1/chat/completions and /v1/models. The default port is 11434; override with a loopback or private-network address.",
   },
   {
     id: "lm-studio",
@@ -36,6 +36,6 @@ export const LOCAL_CONNECTORS: ConnectorDefinition[] = [
     defaultModel: "local-model",
     auth: { type: "local", defaultBaseUrl: "http://localhost:1234/v1" },
     notes:
-      "Enable LM Studio's local server from the Developer tab; the default port is 1234. Model ids match whatever you have loaded.",
+      "Enable LM Studio's local server from the Developer tab; the default port is 1234. Use a loopback or private-network address.",
   },
 ];

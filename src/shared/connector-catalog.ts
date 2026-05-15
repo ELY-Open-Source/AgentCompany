@@ -252,7 +252,7 @@ const LOCAL_ENTRIES: ConnectorCatalogEntry[] = [
     description: "Local Ollama server — open-weights models on your own machine via the OpenAI-compatible endpoint.",
     defaultModel: "llama3.2",
     auth: { type: "local", defaultBaseUrl: "http://localhost:11434/v1" },
-    notes: "Default port 11434. Override if you launched `ollama serve` elsewhere.",
+    notes: "Default port 11434. Override with a loopback or private-network address.",
   },
   {
     id: "lm-studio",
@@ -261,7 +261,7 @@ const LOCAL_ENTRIES: ConnectorCatalogEntry[] = [
     description: "Local LM Studio server — host any loaded model via the OpenAI-compatible endpoint.",
     defaultModel: "local-model",
     auth: { type: "local", defaultBaseUrl: "http://localhost:1234/v1" },
-    notes: "Enable LM Studio's local server from the Developer tab. Default port 1234.",
+    notes: "Enable LM Studio's local server from the Developer tab. Use a loopback or private-network address.",
   },
 ];
 

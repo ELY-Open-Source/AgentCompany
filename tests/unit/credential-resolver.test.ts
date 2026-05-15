@@ -157,4 +157,26 @@ describe("CredentialResolver", () => {
       GOOGLE_APPLICATION_CREDENTIALS: "/etc/gcp/service-account.json",
     });
   });
+
+  it("rejects remote baseUrl values for local connectors", async () => {
+    store.save("ollama", {
+      kind: "local",
+      value: { baseUrl: "https://example.com/v1" },
+    });
+
+    let thrown: unknown;
+    try {
+      await resolver.resolve("ollama");
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(CredentialError);
+    expect(thrown).toMatchObject({
+      kind: "upstream",
+      code: "CREDENTIAL_INVALID",
+      connectorId: "ollama",
+      context: { connectorId: "ollama" },
+    });
+  });
 });
