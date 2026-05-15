@@ -3,7 +3,9 @@ import type { AppDatabase } from "../database";
 import type { FileInventoryEntry, SkillImportResult } from "../skill-types.js";
 import { parseFrontmatterMarkdown } from "../skill-format.js";
 import { deriveCanonicalSkillKey, normalizeSkillSlug } from "../skill-keys.js";
+import { MAX_SKILL_BYTES } from "../skill-github.js";
 import { materializeSkillFiles } from "./materialize";
+import { readResponseWithLimit } from "./read-response-with-limit.js";
 
 export interface UrlImportContext {
   db: AppDatabase;
@@ -26,7 +28,7 @@ export async function importFromUrl(
   if (!response.ok) {
     throw new Error(`Failed to fetch skill from URL: ${response.status} ${url}`);
   }
-  const markdown = await response.text();
+  const markdown = await readResponseWithLimit(response, MAX_SKILL_BYTES);
   const parsed = parseFrontmatterMarkdown(markdown);
   const nowTs = new Date().toISOString();
 

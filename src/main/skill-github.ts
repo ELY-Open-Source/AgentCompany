@@ -1,3 +1,5 @@
+import { readResponseWithLimit } from "./skills/read-response-with-limit.js";
+
 /**
  * Data returned for each skill found in a GitHub repository.
  */
@@ -23,44 +25,6 @@ export const MAX_TOTAL_BYTES = 32 * 1024 * 1024;
 
 /** 10 MB — upper bound for the recursive git tree JSON response. */
 const MAX_TREE_BYTES = 10 * 1024 * 1024;
-
-/**
- * Read a fetch Response body with a byte-size ceiling.
- * Throws if the body exceeds `maxBytes`.
- */
-async function readResponseWithLimit(response: Response, maxBytes: number): Promise<string> {
-  const contentLength = response.headers.get("Content-Length");
-  if (contentLength !== null && Number(contentLength) > maxBytes) {
-    throw new Error(`Response too large: ${contentLength} bytes (max ${maxBytes})`);
-  }
-
-  const reader = response.body?.getReader();
-  if (!reader) {
-    // Fallback: body not streamable (e.g. older Node fetch polyfill)
-    const text = await response.text();
-    if (text.length > maxBytes) {
-      throw new Error(`Response body too large: ${text.length} bytes (max ${maxBytes})`);
-    }
-    return text;
-  }
-
-  const decoder = new TextDecoder();
-  let totalBytes = 0;
-  let result = "";
-
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    totalBytes += value.byteLength;
-    if (totalBytes > maxBytes) {
-      await reader.cancel();
-      throw new Error(`Response body exceeded ${maxBytes} bytes`);
-    }
-    result += decoder.decode(value, { stream: true });
-  }
-  result += decoder.decode();
-  return result;
-}
 
 /**
  * Resolve the latest commit SHA for a given ref (branch, tag, or HEAD).
