@@ -127,4 +127,45 @@ describe("skill URL validation", () => {
     expect(requestCalls).toHaveLength(1);
     expect(requestCalls[0]?.url.hostname).toBe("example.com");
   });
+
+  it("rejects redirect loops with a concrete chain", async () => {
+    vi.mocked(resolve4).mockResolvedValue(["93.184.216.34"]);
+    vi.mocked(resolve6).mockResolvedValue([]);
+    mockHttpsResponse({
+      statusCode: 302,
+      headers: { location: "https://loop.example/SKILL.md" },
+    });
+    mockHttpsResponse({
+      statusCode: 302,
+      headers: { location: "https://example.com/skills/SKILL.md" },
+    });
+
+    await expect(fetchWithSsrfProtection("https://example.com/skills/SKILL.md"))
+      .rejects
+      .toThrow("Redirect loop detected while importing skill: https://example.com/skills/SKILL.md -> https://loop.example/SKILL.md -> https://example.com/skills/SKILL.md");
+    expect(requestCalls.map((call) => call.url.hostname)).toEqual(["example.com", "loop.example"]);
+  });
+
+  it("rejects redirect chains beyond the hop limit", async () => {
+    vi.mocked(resolve4).mockResolvedValue(["93.184.216.34"]);
+    vi.mocked(resolve6).mockResolvedValue([]);
+    for (let index = 1; index <= 6; index += 1) {
+      mockHttpsResponse({
+        statusCode: 302,
+        headers: { location: `https://redirect-${index}.example/SKILL.md` },
+      });
+    }
+
+    await expect(fetchWithSsrfProtection("https://origin.example/SKILL.md"))
+      .rejects
+      .toThrow("Too many redirects while importing skill:");
+    expect(requestCalls.map((call) => call.url.hostname)).toEqual([
+      "origin.example",
+      "redirect-1.example",
+      "redirect-2.example",
+      "redirect-3.example",
+      "redirect-4.example",
+      "redirect-5.example",
+    ]);
+  });
 });

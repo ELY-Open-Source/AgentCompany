@@ -8,6 +8,8 @@ interface ResolvedIpRecord {
   family: 4 | 6;
 }
 
+const MAX_REDIRECT_HOPS = 5;
+
 function isPrivateIPv4(ip: string): boolean {
   const parts = ip.split(".").map(Number);
   if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255)) return false;
@@ -154,7 +156,22 @@ async function fetchHttpsWithResolvedIp(url: string, ip: ResolvedIpRecord): Prom
  * the original hostname for Host/SNI while pinning the socket lookup to a
  * validated IP.
  */
-export async function fetchWithSsrfProtection(url: string): Promise<Response> {
+export async function fetchWithSsrfProtection(
+  url: string,
+  state: { visited: Set<string>; hops: number; chain: string[] } = {
+    visited: new Set<string>(),
+    hops: 0,
+    chain: [],
+  },
+): Promise<Response> {
+  if (state.visited.has(url)) {
+    throw new Error(`Redirect loop detected while importing skill: ${[...state.chain, url].join(" -> ")}`);
+  }
+  if (state.hops > MAX_REDIRECT_HOPS) {
+    throw new Error(`Too many redirects while importing skill: ${[...state.chain, url].join(" -> ")}`);
+  }
+  state.visited.add(url);
+  state.chain.push(url);
   const resolvedIps = await resolveAndValidateIpRecords(url);
   if (resolvedIps.length === 0) {
     throw new Error("DNS resolution returned no usable addresses");
@@ -167,8 +184,11 @@ export async function fetchWithSsrfProtection(url: string): Promise<Response> {
       throw new Error(`Redirect ${response.status} with no Location header`);
     }
     const redirectUrl = new URL(location, url).toString();
-    // Recursively validate the redirect target (prevents redirect to private IP)
-    return fetchWithSsrfProtection(redirectUrl);
+    return fetchWithSsrfProtection(redirectUrl, {
+      visited: state.visited,
+      hops: state.hops + 1,
+      chain: state.chain,
+    });
   }
   return response;
 }
