@@ -8,6 +8,7 @@ import {
 } from "@shared/contracts";
 import { requireParam, type AgentApiServer } from "./server-core";
 import { normalizeExternalHttpUrl } from "../external-url-policy";
+import { WorkProductScopeError } from "../database/documents-work-products";
 
 const workProductUrlSchema = z.string().trim().superRefine((value, ctx) => {
   try {
@@ -72,6 +73,30 @@ const updateWorkProductSchema = z.object({
 const linkDocumentSchema = z.object({
   documentId: z.string(),
 });
+
+function writeWorkProductCreateError(
+  server: AgentApiServer,
+  res: Parameters<AgentApiServer["json"]>[0],
+  error: unknown,
+): boolean {
+  if (error instanceof WorkProductScopeError) {
+    server.json(res, 422, { error: error.message });
+    return true;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  if (/UNIQUE constraint failed/i.test(message)) {
+    const conflict = message.includes("work_products.company_id, work_products.task_id, work_products.type")
+      ? "Work product primary selection conflicts with an existing active primary"
+      : "Work product identity conflicts with an existing artifact";
+    server.json(res, 409, { error: conflict });
+    return true;
+  }
+  if (/constraint failed/i.test(message)) {
+    server.json(res, 422, { error: "Work product violates a database constraint" });
+    return true;
+  }
+  return false;
+}
 
 export function registerFileRoutes(server: AgentApiServer) {
   const db = server.db;
@@ -257,16 +282,23 @@ export function registerFileRoutes(server: AgentApiServer) {
   });
 
   server.addRoute("POST", "/api/issues/:issueId/work-products", (_req, res, params, token, body) => {
+    let task: ReturnType<typeof db.core.entity.getTask>;
     try {
-      const task = db.core.entity.getTask(requireParam(params, "issueId"));
-      if (task.companyId !== token.companyId) { server.json(res, 404, { error: "Task not found" }); return; }
-      const parsed = createWorkProductSchema.safeParse(body);
-      if (!parsed.success) { server.json(res, 400, { error: "Invalid input", details: parsed.error.flatten() }); return; }
-      const data = parsed.data;
+      task = db.core.entity.getTask(requireParam(params, "issueId"));
+    } catch (error) {
+      log.warn(`[api/work-products] task lookup failed for issue ${params.issueId}: ${error instanceof Error ? error.message : String(error)}`);
+      server.json(res, 404, { error: "Task not found" });
+      return;
+    }
+    if (task.companyId !== token.companyId) { server.json(res, 404, { error: "Task not found" }); return; }
+    const parsed = createWorkProductSchema.safeParse(body);
+    if (!parsed.success) { server.json(res, 400, { error: "Invalid input", details: parsed.error.flatten() }); return; }
+    const data = parsed.data;
+    try {
       const id = db.core.documents.createWorkProduct({
         companyId: task.companyId,
         taskId: task.id,
-        projectId: data.projectId ?? task.projectId,
+        projectId: data.projectId,
         workspaceId: task.workspaceId ?? null,
         type: data.type,
         provider: data.provider,
@@ -283,8 +315,9 @@ export function registerFileRoutes(server: AgentApiServer) {
       onDomainChanged();
       server.json(res, 201, { id });
     } catch (error) {
+      if (writeWorkProductCreateError(server, res, error)) return;
       log.warn(`[api/work-products] create failed for issue ${params.issueId}: ${error instanceof Error ? error.message : String(error)}`);
-      server.json(res, 404, { error: "Task not found" });
+      server.json(res, 500, { error: "Work product could not be created" });
     }
   });
 
@@ -293,10 +326,16 @@ export function registerFileRoutes(server: AgentApiServer) {
     if (!wpId) { server.json(res, 400, { error: "Missing workProductId" }); return; }
     const parsed = updateWorkProductSchema.safeParse(body);
     if (!parsed.success) { server.json(res, 400, { error: "Invalid input", details: parsed.error.flatten() }); return; }
-    const changes = db.core.documents.updateWorkProduct(wpId, token.companyId, parsed.data);
-    if (changes === 0) { server.json(res, 404, { error: "Work product not found" }); return; }
-    onDomainChanged();
-    server.json(res, 200, { updated: true });
+    try {
+      const changes = db.core.documents.updateWorkProduct(wpId, token.companyId, parsed.data);
+      if (changes === 0) { server.json(res, 404, { error: "Work product not found" }); return; }
+      onDomainChanged();
+      server.json(res, 200, { updated: true });
+    } catch (error) {
+      if (writeWorkProductCreateError(server, res, error)) return;
+      log.warn(`[api/work-products] update failed for work product ${wpId}: ${error instanceof Error ? error.message : String(error)}`);
+      server.json(res, 500, { error: "Work product could not be updated" });
+    }
   });
 
   server.addRoute("DELETE", "/api/work-products/:workProductId", (_req, res, params, token) => {

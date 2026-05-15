@@ -13,7 +13,7 @@ import {
   type WorkProductType,
 } from "@shared/contracts";
 import type { ReadAll, Transaction } from "./helpers";
-import { nowIso } from "./helpers";
+import { normalizeOptionalId, nowIso } from "./helpers";
 
 function resolveWorkspaceRoot(
   getDb: () => DatabaseSync,
@@ -99,6 +99,77 @@ function parseWorkProductReviewState(value: string): WorkProductReviewState {
   return workProductReviewStateEnum.parse(value);
 }
 
+export class WorkProductScopeError extends Error {
+  constructor(
+    public readonly reference: "task" | "project" | "workspace",
+    message: string,
+  ) {
+    super(message);
+    this.name = "WorkProductScopeError";
+  }
+}
+
+function resolveWorkProductScope(
+  getDb: () => DatabaseSync,
+  input: {
+    companyId: string;
+    taskId?: string | null;
+    projectId?: string | null;
+    workspaceId?: string | null;
+  },
+): { taskId: string | null; projectId: string | null; workspaceId: string | null } {
+  const taskId = normalizeOptionalId(input.taskId);
+  let taskProjectId: string | null = null;
+  let taskWorkspaceId: string | null = null;
+  if (taskId) {
+    const task = getDb()
+      .prepare("SELECT project_id AS projectId, workspace_id AS workspaceId FROM tasks WHERE id = ? AND company_id = ? LIMIT 1")
+      .get(taskId, input.companyId) as { projectId: string | null; workspaceId: string | null } | undefined;
+    if (!task) {
+      throw new WorkProductScopeError("task", "Work product task does not belong to the current company");
+    }
+    taskProjectId = task.projectId ?? null;
+    taskWorkspaceId = task.workspaceId ?? null;
+  }
+
+  let projectId = input.projectId === undefined
+    ? taskProjectId
+    : normalizeOptionalId(input.projectId);
+  if (taskId && projectId !== taskProjectId) {
+    throw new WorkProductScopeError("project", "Work product project must match the task project");
+  }
+  if (taskId) {
+    projectId = taskProjectId;
+  }
+  if (projectId) {
+    const project = getDb()
+      .prepare("SELECT id FROM projects WHERE id = ? AND company_id = ? LIMIT 1")
+      .get(projectId, input.companyId) as { id: string } | undefined;
+    if (!project) {
+      throw new WorkProductScopeError("project", "Work product project does not belong to the current company");
+    }
+  }
+
+  const requestedWorkspaceId = normalizeOptionalId(input.workspaceId);
+  if (taskWorkspaceId && requestedWorkspaceId && requestedWorkspaceId !== taskWorkspaceId) {
+    throw new WorkProductScopeError("workspace", "Work product workspace must match the task workspace");
+  }
+  const workspaceId = taskWorkspaceId ?? requestedWorkspaceId;
+  if (workspaceId) {
+    const workspace = getDb()
+      .prepare("SELECT id, project_id AS projectId FROM workspaces WHERE id = ? AND company_id = ? LIMIT 1")
+      .get(workspaceId, input.companyId) as { id: string; projectId: string | null } | undefined;
+    if (!workspace) {
+      throw new WorkProductScopeError("workspace", "Work product workspace does not belong to the current company");
+    }
+    if (projectId && workspace.projectId !== projectId) {
+      throw new WorkProductScopeError("workspace", "Work product workspace project must match the work product project");
+    }
+  }
+
+  return { taskId, projectId, workspaceId };
+}
+
 export function buildWorkProductMethods(
   getDb: () => DatabaseSync,
   readAll: ReadAll,
@@ -116,21 +187,22 @@ export function buildWorkProductMethods(
       return transaction(() => {
         const id = randomUUID();
         const ts = nowIso();
+        const scope = resolveWorkProductScope(getDb, input);
         const type = parseWorkProductType(input.type);
         const provider = parseWorkProductProvider(input.provider);
         const status = input.status !== undefined ? parseWorkProductStatus(input.status) : "active";
         const reviewState = input.reviewState !== undefined ? parseWorkProductReviewState(input.reviewState) : "none";
-        if (input.isPrimary && input.taskId && status !== "archived") {
+        if (input.isPrimary && scope.taskId && status !== "archived") {
           getDb().prepare(
             "UPDATE work_products SET is_primary = 0, updated_at = ? WHERE company_id = ? AND task_id = ? AND type = ? AND status <> 'archived'",
-          ).run(ts, input.companyId, input.taskId, type);
+          ).run(ts, input.companyId, scope.taskId, type);
         }
         getDb().prepare(
           `INSERT INTO work_products (id, company_id, project_id, task_id, workspace_id, type, provider, external_id, title, url, status, review_state, is_primary, summary, metadata_json, created_by_run_id, last_touched_by_run_id, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).run(
-          id, input.companyId, input.projectId ?? null, input.taskId ?? null,
-          input.workspaceId ?? null,
+          id, input.companyId, scope.projectId, scope.taskId,
+          scope.workspaceId,
           type, provider, input.externalId ?? null,
           input.title, input.url ?? null, status,
           reviewState, input.isPrimary ? 1 : 0,
@@ -199,6 +271,13 @@ export function buildWorkProductMethods(
         const nextStatus = patch.status !== undefined ? parseWorkProductStatus(patch.status) : parseWorkProductStatus(current.status);
         const parsedProvider = patch.provider !== undefined ? parseWorkProductProvider(patch.provider) : undefined;
         const parsedReviewState = patch.reviewState !== undefined ? parseWorkProductReviewState(patch.reviewState) : undefined;
+        const parsedWorkspaceId = patch.workspaceId !== undefined
+          ? resolveWorkProductScope(getDb, {
+            companyId,
+            taskId: current.taskId,
+            workspaceId: patch.workspaceId,
+          }).workspaceId
+          : undefined;
         const nextIsPrimary = patch.isPrimary ?? Boolean(current.isPrimary);
         if (nextIsPrimary && current.taskId && nextStatus !== "archived") {
           getDb().prepare(
@@ -212,7 +291,7 @@ export function buildWorkProductMethods(
           ["type", "type", () => nextType],
           ["provider", "provider", () => parsedProvider ?? null],
           ["externalId", "external_id", (v) => (v as string | null) ?? null],
-          ["workspaceId", "workspace_id", (v) => (v as string | null) ?? null],
+          ["workspaceId", "workspace_id", () => parsedWorkspaceId ?? null],
           ["title", "title", (v) => (v as string) ?? null],
           ["url", "url", (v) => (v as string | null) ?? null],
           ["status", "status", () => nextStatus],
