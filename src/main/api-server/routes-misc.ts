@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { requireParam, type AgentApiServer } from "./server-core";
+import { SocialAccountScopeError } from "../database/social";
 
 const socialDraftSchema = z.object({
   socialAccountId: z.string().uuid(),
@@ -8,6 +9,18 @@ const socialDraftSchema = z.object({
   mediaUrls: z.array(z.string()).default([]),
   scheduledAt: z.string().datetime().optional(),
 });
+
+function writeSocialScopeError(
+  server: AgentApiServer,
+  res: Parameters<AgentApiServer["json"]>[0],
+  error: unknown,
+): boolean {
+  if (error instanceof SocialAccountScopeError) {
+    server.json(res, 422, { error: error.message, reference: error.reference });
+    return true;
+  }
+  return false;
+}
 
 export function registerMiscRoutes(server: AgentApiServer) {
   const db = server.db;
@@ -51,15 +64,21 @@ export function registerMiscRoutes(server: AgentApiServer) {
         impactSummary: `Will ${input.actionType} on ${account.displayName || account.accountName}'s ${account.platform} account. Content will be publicly visible.`,
       });
 
-      const actionId = db.core.social.saveBrowserAction({
-        companyId,
-        socialAccountId: input.socialAccountId,
-        agentId: token.agentId,
-        actionType: input.actionType,
-        payloadJson: JSON.stringify(input.payload),
-        status: "approval_required",
-        approvalId,
-      });
+      let actionId: string;
+      try {
+        actionId = db.core.social.saveBrowserAction({
+          companyId,
+          socialAccountId: input.socialAccountId,
+          agentId: token.agentId,
+          actionType: input.actionType,
+          payloadJson: JSON.stringify(input.payload),
+          status: "approval_required",
+          approvalId,
+        });
+      } catch (error) {
+        if (writeSocialScopeError(server, res, error)) return;
+        throw error;
+      }
 
       db.core.activity.addActivity({
         companyId,
@@ -75,14 +94,20 @@ export function registerMiscRoutes(server: AgentApiServer) {
       return;
     }
 
-    const actionId = db.core.social.saveBrowserAction({
-      companyId,
-      socialAccountId: input.socialAccountId,
-      agentId: token.agentId,
-      actionType: input.actionType,
-      payloadJson: JSON.stringify(input.payload),
-      status: "queued",
-    });
+    let actionId: string;
+    try {
+      actionId = db.core.social.saveBrowserAction({
+        companyId,
+        socialAccountId: input.socialAccountId,
+        agentId: token.agentId,
+        actionType: input.actionType,
+        payloadJson: JSON.stringify(input.payload),
+        status: "queued",
+      });
+    } catch (error) {
+      if (writeSocialScopeError(server, res, error)) return;
+      throw error;
+    }
 
     db.core.activity.addActivity({
       companyId,

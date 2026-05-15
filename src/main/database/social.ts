@@ -2,7 +2,17 @@ import { randomUUID } from "node:crypto";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import type { BrowserActionRecord, SocialAccountRecord } from "@shared/types";
 import type { ReadAll, SqliteRow, Transaction } from "./helpers";
-import { ensureId, nowIso, toBoolean } from "./helpers";
+import { ensureId, normalizeOptionalId, nowIso, toBoolean } from "./helpers";
+
+export class SocialAccountScopeError extends Error {
+  constructor(
+    public readonly reference: "social_account" | "credential_secret",
+    message: string,
+  ) {
+    super(message);
+    this.name = "SocialAccountScopeError";
+  }
+}
 
 export function buildSocialMethods(
   getDb: () => DatabaseSync,
@@ -22,33 +32,61 @@ export function buildSocialMethods(
       requireApproval?: boolean;
       metadataJson?: string;
     }): string {
-      const id = ensureId(input.id);
-      const now = nowIso();
-      getDb().prepare(`INSERT INTO social_accounts (id, company_id, platform, account_name, display_name, profile_url, credential_secret_id, status, require_approval, metadata_json, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          platform = excluded.platform,
-          account_name = excluded.account_name,
-          display_name = excluded.display_name,
-          profile_url = excluded.profile_url,
-          credential_secret_id = excluded.credential_secret_id,
-          status = excluded.status,
-          require_approval = excluded.require_approval,
-          metadata_json = excluded.metadata_json,
-          updated_at = excluded.updated_at`).run(
-        id, input.companyId, input.platform, input.accountName,
-        input.displayName ?? "", input.profileUrl ?? "",
-        input.credentialSecretId ?? null, input.status ?? "login_required",
-        input.requireApproval !== false ? 1 : 0,
-        input.metadataJson ?? "{}", now, now,
-      );
-      return id;
+      return transaction(() => {
+        const id = ensureId(input.id);
+        const now = nowIso();
+        const credentialSecretId = normalizeOptionalId(input.credentialSecretId);
+        const existing = getDb()
+          .prepare("SELECT id, company_id AS companyId FROM social_accounts WHERE id = ? LIMIT 1")
+          .get(id) as { id: string; companyId: string } | undefined;
+        if (existing && existing.companyId !== input.companyId) {
+          throw new SocialAccountScopeError("social_account", "Social account does not belong to the current company");
+        }
+        if (credentialSecretId) {
+          const secret = getDb()
+            .prepare("SELECT id FROM secrets WHERE id = ? AND company_id = ? LIMIT 1")
+            .get(credentialSecretId, input.companyId) as { id: string } | undefined;
+          if (!secret) {
+            throw new SocialAccountScopeError("credential_secret", "Credential secret does not belong to the current company");
+          }
+        }
+        if (existing) {
+          getDb().prepare(`UPDATE social_accounts
+            SET platform = ?,
+                account_name = ?,
+                display_name = ?,
+                profile_url = ?,
+                credential_secret_id = ?,
+                status = ?,
+                require_approval = ?,
+                metadata_json = ?,
+                updated_at = ?
+            WHERE id = ? AND company_id = ?`).run(
+            input.platform, input.accountName,
+            input.displayName ?? "", input.profileUrl ?? "",
+            credentialSecretId, input.status ?? "login_required",
+            input.requireApproval !== false ? 1 : 0,
+            input.metadataJson ?? "{}", now,
+            id, input.companyId,
+          );
+        } else {
+          getDb().prepare(`INSERT INTO social_accounts (id, company_id, platform, account_name, display_name, profile_url, credential_secret_id, status, require_approval, metadata_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+            id, input.companyId, input.platform, input.accountName,
+            input.displayName ?? "", input.profileUrl ?? "",
+            credentialSecretId, input.status ?? "login_required",
+            input.requireApproval !== false ? 1 : 0,
+            input.metadataJson ?? "{}", now, now,
+          );
+        }
+        return id;
+      });
     },
 
     deleteSocialAccount(id: string, companyId: string) {
       transaction(() => {
-        getDb().prepare("DELETE FROM social_accounts WHERE id = ? AND company_id = ?").run(id, companyId);
         getDb().prepare("DELETE FROM browser_actions WHERE social_account_id = ? AND company_id = ?").run(id, companyId);
+        getDb().prepare("DELETE FROM social_accounts WHERE id = ? AND company_id = ?").run(id, companyId);
       });
     },
 
@@ -91,6 +129,12 @@ export function buildSocialMethods(
     }): string {
       const id = randomUUID();
       const now = nowIso();
+      const socialAccount = getDb()
+        .prepare("SELECT id FROM social_accounts WHERE id = ? AND company_id = ? LIMIT 1")
+        .get(input.socialAccountId, input.companyId) as { id: string } | undefined;
+      if (!socialAccount) {
+        throw new SocialAccountScopeError("social_account", "Browser action social account does not belong to the current company");
+      }
       getDb().prepare(`INSERT INTO browser_actions (id, company_id, social_account_id, agent_id, task_id, action_type, payload_json, status, approval_id, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         id, input.companyId, input.socialAccountId, input.agentId,

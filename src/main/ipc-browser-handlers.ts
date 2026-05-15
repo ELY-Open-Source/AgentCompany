@@ -7,6 +7,7 @@ import {
   triggerBrowserLoginSchema,
 } from "@shared/contracts";
 import { fail, ok, type RegisterDomainHandlersDependencies } from "./ipc-domain-common";
+import { SocialAccountScopeError } from "./database/social";
 
 const inflightBrowserLogins = new Set<string>();
 
@@ -30,7 +31,15 @@ export function registerBrowserHandlers({
     const input = socialAccountInputSchema.parse(payload);
     const err = ensureCompanyExists(input.companyId);
     if (err) return err;
-    const id = db.core.social.saveSocialAccount(input);
+    let id: string;
+    try {
+      id = db.core.social.saveSocialAccount(input);
+    } catch (error) {
+      if (error instanceof SocialAccountScopeError) {
+        return fail("INVALID_COMPANY_REFERENCE", error.message);
+      }
+      throw error;
+    }
     publishDomainChanged();
     return ok(id);
   });

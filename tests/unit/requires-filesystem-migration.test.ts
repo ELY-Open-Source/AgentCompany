@@ -116,12 +116,13 @@ describe("legacy to v56 baseline migration", () => {
         { id: "task-inflight", requiresFilesystem: 1 },
       ]);
       const migrations = appDb.queryAll<{ version: number; name: string }>(
-        "select version, name from schema_migrations where version in (56, 57, 58) order by version",
+        "select version, name from schema_migrations where version in (56, 57, 58, 59) order by version",
       );
       expect(migrations).toEqual([
         { version: 56, name: "baseline_v56" },
         { version: 57, name: "task_leases_runtime_ownership" },
         { version: 58, name: "approval_policy_table" },
+        { version: 59, name: "social_company_scope" },
       ]);
     } finally {
       appDb.close();

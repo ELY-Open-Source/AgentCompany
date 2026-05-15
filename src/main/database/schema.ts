@@ -20,11 +20,16 @@ import {
   migrateApprovalPoliciesV58,
 } from "./migrations/v58-approval-policies";
 import {
+  SOCIAL_COMPANY_SCOPE_SCHEMA_VERSION,
+  assertSocialCompanyScopeV59,
+  migrateSocialCompanyScopeV59,
+} from "./migrations/v59-social-company-scope";
+import {
   type ReadAll,
   type Transaction,
 } from "./migrations/types";
 
-const LATEST_SCHEMA_VERSION = APPROVAL_POLICY_SCHEMA_VERSION;
+const LATEST_SCHEMA_VERSION = SOCIAL_COMPANY_SCOPE_SCHEMA_VERSION;
 
 export function initializeDatabase(
   db: DatabaseSync,
@@ -44,6 +49,17 @@ export function initializeDatabase(
       seedSettings(db);
       assertTaskLeasesV57(db);
       assertApprovalPoliciesV58(db);
+      assertSocialCompanyScopeV59(db);
+    });
+    return;
+  }
+
+  if (currentVersion === APPROVAL_POLICY_SCHEMA_VERSION) {
+    tx(() => {
+      seedSettings(db);
+      assertTaskLeasesV57(db);
+      assertApprovalPoliciesV58(db);
+      migrateSocialCompanyScopeV59(db);
     });
     return;
   }
@@ -53,6 +69,7 @@ export function initializeDatabase(
       seedSettings(db);
       assertTaskLeasesV57(db);
       migrateApprovalPoliciesV58(db);
+      migrateSocialCompanyScopeV59(db);
     });
     return;
   }
@@ -65,6 +82,7 @@ export function initializeDatabase(
       assertBaselineSchema(db);
       migrateTaskLeasesV57(db);
       migrateApprovalPoliciesV58(db);
+      migrateSocialCompanyScopeV59(db);
     });
     return;
   }
@@ -78,6 +96,7 @@ export function initializeDatabase(
       assertBaselineSchema(db);
       migrateTaskLeasesV57(db);
       migrateApprovalPoliciesV58(db);
+      migrateSocialCompanyScopeV59(db);
     });
     return;
   }
@@ -89,6 +108,7 @@ export function initializeDatabase(
     assertBaselineSchema(db);
     migrateTaskLeasesV57(db);
     migrateApprovalPoliciesV58(db);
+    migrateSocialCompanyScopeV59(db);
   });
 }
 

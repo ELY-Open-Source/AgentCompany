@@ -481,6 +481,7 @@ describe("AppDatabase", () => {
       { version: 56, name: "baseline_v56" },
       { version: 57, name: "task_leases_runtime_ownership" },
       { version: 58, name: "approval_policy_table" },
+      { version: 59, name: "social_company_scope" },
     ]);
 
     db.close();
@@ -494,6 +495,7 @@ describe("AppDatabase", () => {
       { version: 56, name: "baseline_v56" },
       { version: 57, name: "task_leases_runtime_ownership" },
       { version: 58, name: "approval_policy_table" },
+      { version: 59, name: "social_company_scope" },
     ]);
   });
 

@@ -175,6 +175,7 @@ describe("legacy to v56 baseline migration", () => {
         { version: 56, name: "baseline_v56" },
         { version: 57, name: "task_leases_runtime_ownership" },
         { version: 58, name: "approval_policy_table" },
+        { version: 59, name: "social_company_scope" },
       ]);
       expect(appDb.queryAll<{ companyId: string }>("select company_id as companyId from secrets where id = 'secret-1'")[0])
         .toEqual({ companyId: "company-1" });
@@ -208,6 +209,7 @@ describe("legacy to v56 baseline migration", () => {
         { version: 56, name: "baseline_v56" },
         { version: 57, name: "task_leases_runtime_ownership" },
         { version: 58, name: "approval_policy_table" },
+        { version: 59, name: "social_company_scope" },
       ]);
       expect(appDb.queryAll("select id from budget_policies where scope_type = 'agent' and scope_id = 'agent-1'"))
         .toHaveLength(1);
@@ -232,6 +234,7 @@ describe("legacy to v56 baseline migration", () => {
         { version: 56, name: "baseline_v56" },
         { version: 57, name: "task_leases_runtime_ownership" },
         { version: 58, name: "approval_policy_table" },
+        { version: 59, name: "social_company_scope" },
       ]);
     } finally {
       appDb.close();
@@ -390,6 +393,7 @@ describe("legacy to v56 baseline migration", () => {
         { version: 56, name: "baseline_v56" },
         { version: 57, name: "task_leases_runtime_ownership" },
         { version: 58, name: "approval_policy_table" },
+        { version: 59, name: "social_company_scope" },
       ]);
     } finally {
       appDb.close();

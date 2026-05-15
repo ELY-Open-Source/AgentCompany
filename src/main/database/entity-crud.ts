@@ -232,7 +232,12 @@ export function buildEntityCrudMethods(
     },
 
     deleteSecret(id: string, companyId: string) {
-      getDb().prepare("delete from secrets where id = ? and company_id = ?").run(id, companyId);
+      transaction(() => {
+        getDb()
+          .prepare("update social_accounts set credential_secret_id = null, updated_at = ? where credential_secret_id = ? and company_id = ?")
+          .run(nowIso(), id, companyId);
+        getDb().prepare("delete from secrets where id = ? and company_id = ?").run(id, companyId);
+      });
     },
 
     countActiveGoalsForCompany(companyId: string): number {
