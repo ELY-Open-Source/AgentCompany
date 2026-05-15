@@ -179,32 +179,44 @@ export class BrowserManager {
     if (!queue || queue.length === 0) return;
 
     this.processing.add(socialAccountId);
-    while (queue.length > 0) {
-      const item = queue.shift()!;
-      try {
-        const result = await this.runActionWithDeadline(item.action);
-        item.resolve(result);
-      } catch (error) {
-        item.reject(error instanceof Error ? error : new Error(String(error)));
+    try {
+      while (queue.length > 0) {
+        const item = queue.shift()!;
+        try {
+          const result = await this.runActionWithDeadline(item.action);
+          item.resolve(result);
+        } catch (error) {
+          item.reject(error instanceof Error ? error : new Error(String(error)));
+        }
+      }
+    } finally {
+      this.processing.delete(socialAccountId);
+      if ((this.queues.get(socialAccountId)?.length ?? 0) === 0) {
+        this.queues.delete(socialAccountId);
       }
     }
-    this.processing.delete(socialAccountId);
   }
 
   private runActionWithDeadline(action: BrowserAction): Promise<BrowserActionResult> {
-    // cancelAction reuses the same cancelledActionIds set + closes the active
-    // window, which runAction observes to return a cancelled result. Mirror
-    // that path on timeout so queued follow-ups are unblocked.
     return new Promise<BrowserActionResult>((resolve, reject) => {
       let settled = false;
       const timer = setTimeout(() => {
         if (settled) return;
+        settled = true;
         this.cancelledActionIds.add(action.id);
         const activeWindow = this.activeActionWindows.get(action.id);
         if (activeWindow && !activeWindow.isDestroyed()) {
           activeWindow.close();
         }
+        this.activeActionWindows.delete(action.id);
         log.warn(`[browser] action ${action.id} exceeded ${ACTION_TIMEOUT_MS}ms timeout`);
+        resolve({
+          success: false,
+          cancelled: true,
+          summary: "Action timed out and was cancelled.",
+          screenshotPath: null,
+          error: "Action timed out.",
+        });
       }, ACTION_TIMEOUT_MS);
 
       runAction(
