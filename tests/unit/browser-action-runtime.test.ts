@@ -4,6 +4,7 @@ import {
   assertAuthenticatedPage,
   assertAuthenticatedSession,
 } from "../../src/main/browser/browser-action-auth";
+import { shouldCaptureSuccessScreenshot } from "../../src/main/browser/browser-screenshot-policy";
 import { getPlatformSelectors } from "../../src/main/browser/platform-selectors";
 
 function fakeSession(cookiesByOrigin: Record<string, unknown[]>): Pick<Session, "cookies"> {
@@ -61,5 +62,31 @@ describe("browser action runtime guards", () => {
     expect(twitter.submit).toContain("[data-testid='tweetButton']");
     expect(linkedin.composerOpen).toContain("button.share-box-feed-entry__trigger");
     expect(linkedin.editor).toContain(".ql-editor[contenteditable='true']");
+  });
+
+  it("captures successful screenshots only for explicit screenshot requests", () => {
+    expect(shouldCaptureSuccessScreenshot({
+      id: "post-1",
+      socialAccountId: "social-1",
+      platform: "twitter",
+      actionType: "post",
+      payload: { content: "hello" },
+    })).toBe(false);
+
+    expect(shouldCaptureSuccessScreenshot({
+      id: "screenshot-1",
+      socialAccountId: "social-1",
+      platform: "twitter",
+      actionType: "screenshot",
+      payload: {},
+    })).toBe(true);
+
+    expect(shouldCaptureSuccessScreenshot({
+      id: "post-2",
+      socialAccountId: "social-1",
+      platform: "twitter",
+      actionType: "post",
+      payload: { content: "hello", captureSuccessScreenshot: true },
+    })).toBe(true);
   });
 });

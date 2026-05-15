@@ -16,6 +16,7 @@ import { assertAuthenticatedPage, assertAuthenticatedSession } from "./browser-a
 import { getPlatformSelectors } from "./platform-selectors";
 import type { PlatformSelectors } from "./platform-selectors";
 import { browserVerificationFailed } from "./browser-action-errors";
+import { shouldCaptureSuccessScreenshot } from "./browser-screenshot-policy";
 import { isAppError } from "../errors/index.js";
 
 export { getPlatformRules, assertAllowedUrl, attachWindowSecurity } from "./browser-url-helpers";
@@ -226,7 +227,9 @@ export async function runAction(
     }
 
     assertNotCancelled();
-    await captureScreenshot(win, screenshotPath, action.id, "success");
+    const successScreenshotPath = shouldCaptureSuccessScreenshot(action)
+      ? await captureScreenshot(win, screenshotPath, action.id, "success")
+      : null;
     await closeWindow(win);
     logActionTelemetry({
       platform,
@@ -241,13 +244,15 @@ export async function runAction(
       success: true,
       cancelled: false,
       summary,
-      screenshotPath: existsSync(screenshotPath) ? screenshotPath : null,
+      screenshotPath: successScreenshotPath,
       error: null,
     };
   } catch (error) {
     const wasCancelled = cancelledActionIds.has(action.id)
       || (error instanceof Error && error.message === "BROWSER_ACTION_CANCELLED");
-    await captureScreenshot(win, screenshotPath, action.id, "failure");
+    const failureScreenshotPath = wasCancelled
+      ? null
+      : await captureScreenshot(win, screenshotPath, action.id, "failure");
     await closeWindow(win);
 
     const msg = wasCancelled ? "Action cancelled." : describeBrowserActionError(error);
@@ -268,7 +273,7 @@ export async function runAction(
       success: false,
       cancelled: wasCancelled,
       summary: wasCancelled ? "Action cancelled" : "Action failed",
-      screenshotPath: existsSync(screenshotPath) ? screenshotPath : null,
+      screenshotPath: failureScreenshotPath,
       error: msg,
     };
   } finally {
@@ -316,15 +321,17 @@ async function captureScreenshot(
   screenshotPath: string,
   actionId: string,
   phase: "success" | "failure",
-): Promise<void> {
+): Promise<string | null> {
   try {
     const image: NativeImage = await win.webContents.capturePage();
     if (!image.isEmpty()) {
       writeFileSync(screenshotPath, image.toPNG());
+      return existsSync(screenshotPath) ? screenshotPath : null;
     }
   } catch (err) {
     log.warn(`[browser] ${phase} screenshot failed for action ${actionId}: ${err instanceof Error ? err.message : String(err)}`);
   }
+  return null;
 }
 
 async function closeWindow(win: BrowserWindow): Promise<void> {

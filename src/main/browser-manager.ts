@@ -1,6 +1,6 @@
 import { BrowserWindow, session } from "electron";
 import { existsSync, mkdirSync } from "node:fs";
-import { rm } from "node:fs/promises";
+import { readdir, rm, stat } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import log from "electron-log/main.js";
 import type { BrowserAction, BrowserActionResult, QueuedAction } from "./browser/browser-types";
@@ -17,6 +17,7 @@ export type { BrowserAction, BrowserActionResult } from "./browser/browser-types
  * legitimate flow (first-time OAuth with 2FA).
  */
 const ACTION_TIMEOUT_MS = 5 * 60 * 1000;
+const SCREENSHOT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 export class BrowserManager {
   private screenshotDir: string;
@@ -30,6 +31,25 @@ export class BrowserManager {
   constructor(profileDir: string) {
     this.screenshotDir = join(profileDir, "browser-screenshots");
     if (!existsSync(this.screenshotDir)) mkdirSync(this.screenshotDir, { recursive: true });
+    void this.pruneExpiredScreenshots();
+  }
+
+  private async pruneExpiredScreenshots() {
+    const cutoff = Date.now() - SCREENSHOT_RETENTION_MS;
+    try {
+      const entries = await readdir(this.screenshotDir, { withFileTypes: true });
+      await Promise.all(entries
+        .filter((entry) => entry.isFile() && entry.name.endsWith(".png"))
+        .map(async (entry) => {
+          const screenshotPath = join(this.screenshotDir, entry.name);
+          const fileStat = await stat(screenshotPath);
+          if (fileStat.mtimeMs < cutoff) {
+            await rm(screenshotPath, { force: true });
+          }
+        }));
+    } catch (error) {
+      log.warn(`[browser] Failed to prune expired screenshots: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   private getSession(socialAccountId: string): Electron.Session {
