@@ -1,4 +1,5 @@
 import log from "electron-log/main.js";
+import { canonicalJsonString, canonicalOptionalJsonString, jsonArraySchema, jsonStringArraySchema, meetingActionItemArraySchema } from "@shared/contracts";
 import { z } from "zod";
 import { validateTaskCreation } from "../task-quality-gates";
 import { requireParam, type AgentApiServer } from "./server-core";
@@ -17,10 +18,10 @@ export function registerMeetingRoutes(server: AgentApiServer) {
     const meetingCreateSchema = z.object({
       type: z.string().default("department_sync"),
       title: z.string().default("Meeting"),
-      participantAgentIds: z.string().default("[]"),
+      participantAgentIds: canonicalJsonString(jsonStringArraySchema, []),
       scheduledAt: z.string().default(new Date().toISOString()),
       durationMinutes: z.number().default(30),
-      agendaJson: z.string().default("[]"),
+      agendaJson: canonicalJsonString(jsonArraySchema, []),
     });
 
     const parsed = meetingCreateSchema.safeParse(body);
@@ -78,9 +79,9 @@ export function registerMeetingRoutes(server: AgentApiServer) {
     const meetingUpdateSchema = z.object({
       type: z.string().optional(),
       title: z.string().optional(),
-      notesJson: z.string().optional(),
-      decisionsJson: z.string().optional(),
-      actionItemsJson: z.string().optional(),
+      notesJson: canonicalOptionalJsonString(jsonArraySchema).optional(),
+      decisionsJson: canonicalOptionalJsonString(jsonArraySchema).optional(),
+      actionItemsJson: canonicalOptionalJsonString(meetingActionItemArraySchema).optional(),
       status: z.string().optional(),
       scheduledAt: z.string().optional(),
     });

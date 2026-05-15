@@ -1,5 +1,6 @@
 export * from "./contracts/channels";
 export * from "./contracts/helpers";
+export * from "./contracts/json-fields";
 export * from "./contracts/schemas-company";
 export * from "./contracts/schemas-agents";
 export * from "./contracts/schemas-tasks";

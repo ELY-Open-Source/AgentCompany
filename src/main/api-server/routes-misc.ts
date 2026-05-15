@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canonicalJsonString, jsonStringArraySchema } from "@shared/contracts";
 import { requireParam, type AgentApiServer } from "./server-core";
 import { SocialAccountScopeError } from "../database/social";
 
@@ -232,7 +233,7 @@ export function registerMiscRoutes(server: AgentApiServer) {
       topic: z.string().default(""),
       content: z.string().default(""),
       importance: z.string().default("medium"),
-      tagsJson: z.string().default("[]"),
+      tagsJson: canonicalJsonString(jsonStringArraySchema, []),
       referencedEntityType: z.string().nullable().optional(),
       referencedEntityId: z.string().nullable().optional(),
     });

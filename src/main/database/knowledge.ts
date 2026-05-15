@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { canonicalizeJsonString, jsonArraySchema, jsonStringArraySchema, meetingActionItemArraySchema } from "@shared/contracts";
 import type { ReadAll } from "./helpers";
 import { ensureId, nowIso } from "./helpers";
 
@@ -101,14 +102,19 @@ export function buildKnowledgeMethods(
       if (existing && existing.companyId !== input.companyId) {
         throw new Error(`Meeting ${id} does not belong to company ${input.companyId}`);
       }
+      const participantAgentIds = canonicalizeJsonString(input.participantAgentIds, jsonStringArraySchema, []);
+      const agendaJson = canonicalizeJsonString(input.agendaJson, jsonArraySchema, []);
+      const notesJson = canonicalizeJsonString(input.notesJson, jsonArraySchema, []);
+      const decisionsJson = canonicalizeJsonString(input.decisionsJson, jsonArraySchema, []);
+      const actionItemsJson = canonicalizeJsonString(input.actionItemsJson, meetingActionItemArraySchema, []);
       if (existing) {
         getDb().prepare(
           "update meetings set type = ?, title = ?, organizer_agent_id = ?, participant_agent_ids = ?, scheduled_at = ?, duration_minutes = ?, agenda_json = ?, notes_json = ?, decisions_json = ?, action_items_json = ?, status = ?, updated_at = ? where id = ? and company_id = ?",
-        ).run(input.type, input.title, input.organizerAgentId ?? null, input.participantAgentIds ?? "[]", input.scheduledAt, input.durationMinutes ?? 30, input.agendaJson ?? "[]", input.notesJson ?? "[]", input.decisionsJson ?? "[]", input.actionItemsJson ?? "[]", input.status ?? "scheduled", ts, id, input.companyId);
+        ).run(input.type, input.title, input.organizerAgentId ?? null, participantAgentIds, input.scheduledAt, input.durationMinutes ?? 30, agendaJson, notesJson, decisionsJson, actionItemsJson, input.status ?? "scheduled", ts, id, input.companyId);
       } else {
         getDb().prepare(
           "insert into meetings (id, company_id, type, title, organizer_agent_id, participant_agent_ids, scheduled_at, duration_minutes, agenda_json, notes_json, decisions_json, action_items_json, status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ).run(id, input.companyId, input.type, input.title, input.organizerAgentId ?? null, input.participantAgentIds ?? "[]", input.scheduledAt, input.durationMinutes ?? 30, input.agendaJson ?? "[]", input.notesJson ?? "[]", input.decisionsJson ?? "[]", input.actionItemsJson ?? "[]", input.status ?? "scheduled", ts, ts);
+        ).run(id, input.companyId, input.type, input.title, input.organizerAgentId ?? null, participantAgentIds, input.scheduledAt, input.durationMinutes ?? 30, agendaJson, notesJson, decisionsJson, actionItemsJson, input.status ?? "scheduled", ts, ts);
       }
       return id;
     },
@@ -131,14 +137,15 @@ export function buildKnowledgeMethods(
       if (existing && existing.companyId !== input.companyId) {
         throw new Error(`Knowledge entry ${id} does not belong to company ${input.companyId}`);
       }
+      const tagsJson = canonicalizeJsonString(input.tagsJson, jsonStringArraySchema, []);
       if (existing) {
         getDb().prepare(
           "update knowledge_base set category = ?, topic = ?, content = ?, author_agent_id = ?, importance = ?, tags_json = ?, referenced_entity_type = ?, referenced_entity_id = ?, source_run_id = coalesce(?, source_run_id), updated_at = ? where id = ? and company_id = ?",
-        ).run(input.category, input.topic, input.content, input.authorAgentId ?? null, input.importance ?? "medium", input.tagsJson ?? "[]", input.referencedEntityType ?? null, input.referencedEntityId ?? null, input.sourceRunId ?? null, ts, id, input.companyId);
+        ).run(input.category, input.topic, input.content, input.authorAgentId ?? null, input.importance ?? "medium", tagsJson, input.referencedEntityType ?? null, input.referencedEntityId ?? null, input.sourceRunId ?? null, ts, id, input.companyId);
       } else {
         getDb().prepare(
           "insert into knowledge_base (id, company_id, category, topic, content, author_agent_id, importance, tags_json, referenced_entity_type, referenced_entity_id, source_run_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ).run(id, input.companyId, input.category, input.topic, input.content, input.authorAgentId ?? null, input.importance ?? "medium", input.tagsJson ?? "[]", input.referencedEntityType ?? null, input.referencedEntityId ?? null, input.sourceRunId ?? null, ts, ts);
+        ).run(id, input.companyId, input.category, input.topic, input.content, input.authorAgentId ?? null, input.importance ?? "medium", tagsJson, input.referencedEntityType ?? null, input.referencedEntityId ?? null, input.sourceRunId ?? null, ts, ts);
       }
       return id;
     },

@@ -1,6 +1,8 @@
 import log from "electron-log/main.js";
 import { z } from "zod";
 import {
+  canonicalOptionalJsonString,
+  jsonStringArraySchema,
   workProductProviderEnum,
   workProductReviewStateEnum,
   workProductStatusEnum,
@@ -29,7 +31,7 @@ const createDocumentSchema = z.object({
   reviewerAgentId: z.string().optional(),
   projectId: z.string().optional(),
   goalId: z.string().optional(),
-  tagsJson: z.string().optional(),
+  tagsJson: canonicalOptionalJsonString(jsonStringArraySchema).optional(),
 });
 
 const updateDocumentSchema = z.object({
@@ -38,7 +40,7 @@ const updateDocumentSchema = z.object({
   content: z.string().optional(),
   status: z.string().optional(),
   reviewerAgentId: z.union([z.string(), z.null()]).optional(),
-  tagsJson: z.string().optional(),
+  tagsJson: canonicalOptionalJsonString(jsonStringArraySchema).optional(),
   changeSummary: z.string().optional(),
   baseRevisionId: z.string().optional(),
 });

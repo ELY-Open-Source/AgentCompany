@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import { canonicalizeJsonString, jsonStringArraySchema } from "@shared/contracts";
 import type { ReadAll, Transaction } from "./helpers";
 import { ensureId, nowIso } from "./helpers";
 import { buildConfigRevisionMethods } from "./config-revisions";
@@ -70,14 +71,15 @@ export function buildDocumentMethods(
       if (existing && existing.companyId !== input.companyId) {
         throw new Error(`Document ${id} does not belong to company ${input.companyId}`);
       }
+      const tagsJson = canonicalizeJsonString(input.tagsJson, jsonStringArraySchema, []);
       if (existing) {
         getDb().prepare(
           "update documents set type = ?, title = ?, content = ?, author_agent_id = ?, reviewer_agent_id = ?, project_id = ?, goal_id = ?, parent_doc_id = ?, version = ?, status = ?, tags_json = ?, source_run_id = coalesce(?, source_run_id), updated_at = ? where id = ? and company_id = ?",
-        ).run(input.type, input.title, input.content ?? "", input.authorAgentId ?? null, input.reviewerAgentId ?? null, input.projectId ?? null, input.goalId ?? null, input.parentDocId ?? null, input.version ?? 1, input.status ?? "draft", input.tagsJson ?? "[]", input.sourceRunId ?? null, ts, id, input.companyId);
+        ).run(input.type, input.title, input.content ?? "", input.authorAgentId ?? null, input.reviewerAgentId ?? null, input.projectId ?? null, input.goalId ?? null, input.parentDocId ?? null, input.version ?? 1, input.status ?? "draft", tagsJson, input.sourceRunId ?? null, ts, id, input.companyId);
       } else {
         getDb().prepare(
           "insert into documents (id, company_id, type, title, content, author_agent_id, reviewer_agent_id, project_id, goal_id, parent_doc_id, version, status, tags_json, source_run_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ).run(id, input.companyId, input.type, input.title, input.content ?? "", input.authorAgentId ?? null, input.reviewerAgentId ?? null, input.projectId ?? null, input.goalId ?? null, input.parentDocId ?? null, input.version ?? 1, input.status ?? "draft", input.tagsJson ?? "[]", input.sourceRunId ?? null, ts, ts);
+        ).run(id, input.companyId, input.type, input.title, input.content ?? "", input.authorAgentId ?? null, input.reviewerAgentId ?? null, input.projectId ?? null, input.goalId ?? null, input.parentDocId ?? null, input.version ?? 1, input.status ?? "draft", tagsJson, input.sourceRunId ?? null, ts, ts);
       }
       return id;
     },

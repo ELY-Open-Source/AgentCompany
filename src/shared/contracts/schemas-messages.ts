@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canonicalJsonString, jsonArraySchema, jsonStringArraySchema, meetingActionItemArraySchema } from "./json-fields";
 import { MESSAGE_CHANNELS, optionalId } from "./helpers";
 
 export const agentMessageInputSchema = z.object({
@@ -86,7 +87,7 @@ export const documentInputSchema = z.object({
   parentDocId: optionalId,
   version: z.number().int().min(1).default(1),
   status: z.enum(["draft", "in_review", "approved", "archived", "superseded"]).default("draft"),
-  tagsJson: z.string().default("[]"),
+  tagsJson: canonicalJsonString(jsonStringArraySchema, []),
 });
 
 export const knowledgeEntryInputSchema = z.object({
@@ -97,7 +98,7 @@ export const knowledgeEntryInputSchema = z.object({
   content: z.string().min(1),
   authorAgentId: optionalId,
   importance: z.enum(["critical", "high", "medium", "low"]).default("medium"),
-  tagsJson: z.string().default("[]"),
+  tagsJson: canonicalJsonString(jsonStringArraySchema, []),
   referencedEntityType: z.enum([
     "agents",
     "goals",
@@ -122,13 +123,13 @@ export const meetingInputSchema = z.object({
   type: z.enum(["standup", "sprint_planning", "sprint_review", "retrospective", "one_on_one", "all_hands", "department_sync", "incident_review", "hiring_committee", "budget_review", "design_review", "architecture_review"]),
   title: z.string().min(2).max(160),
   organizerAgentId: optionalId,
-  participantAgentIds: z.string().default("[]"),
+  participantAgentIds: canonicalJsonString(jsonStringArraySchema, []),
   scheduledAt: z.string(),
   durationMinutes: z.number().int().min(5).max(480).default(30),
-  agendaJson: z.string().default("[]"),
-  notesJson: z.string().default("[]"),
-  decisionsJson: z.string().default("[]"),
-  actionItemsJson: z.string().default("[]"),
+  agendaJson: canonicalJsonString(jsonArraySchema, []),
+  notesJson: canonicalJsonString(jsonArraySchema, []),
+  decisionsJson: canonicalJsonString(jsonArraySchema, []),
+  actionItemsJson: canonicalJsonString(meetingActionItemArraySchema, []),
   status: z.enum(["scheduled", "in_progress", "completed", "cancelled"]).default("scheduled"),
 });
 
