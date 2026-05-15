@@ -165,7 +165,7 @@ export function buildSettingsMethods(
       return purged;
     },
 
-    canOpenPath(targetPath: string) {
+    canOpenPath(targetPath: string, companyId: string) {
       if (!targetPath || !existsSync(targetPath)) {
         return false;
       }
@@ -184,15 +184,25 @@ export function buildSettingsMethods(
       if (!targetStats.isDirectory() && forbiddenExecutableExtensions.has(targetExtension)) {
         return false;
       }
-      if (managedRoots.some((rootPath) => isWithinOrEqual(resolvedTarget, safeRealpath(rootPath)))) {
-        return true;
-      }
-      const workspaces = readAll<{ localPath: string }>("select local_path as localPath from workspaces");
+      const workspaces = readAll<{ localPath: string }>(
+        "select local_path as localPath from workspaces where company_id = ?",
+        companyId,
+      );
       if (workspaces.some((workspace) => isWithinOrEqual(resolvedTarget, safeRealpath(workspace.localPath)))) {
         return true;
       }
-      const runLogs = readAll<{ logPath: string | null }>("select log_path as logPath from runs where log_path is not null");
-      return runLogs.some((run) => run.logPath ? safeRealpath(run.logPath) === resolvedTarget : false);
+      const runLogs = readAll<{ logPath: string | null }>(
+        "select log_path as logPath from runs where company_id = ? and log_path is not null",
+        companyId,
+      );
+      if (runLogs.some((run) => run.logPath ? safeRealpath(run.logPath) === resolvedTarget : false)) {
+        return true;
+      }
+      const browserScreenshots = readAll<{ screenshotPath: string | null }>(
+        "select screenshot_path as screenshotPath from browser_actions where company_id = ? and screenshot_path is not null",
+        companyId,
+      );
+      return browserScreenshots.some((action) => action.screenshotPath ? safeRealpath(action.screenshotPath) === resolvedTarget : false);
     },
 
     hasCompany(companyId: string) {

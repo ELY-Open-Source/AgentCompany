@@ -33,6 +33,7 @@ function registerOpenWorkProductHandler(url: string) {
       },
       settings: {
         canOpenPath: vi.fn(() => true),
+        getCurrentCompanyId: vi.fn(() => companyId),
       },
     },
     projection: {

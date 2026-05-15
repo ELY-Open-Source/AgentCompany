@@ -30,6 +30,7 @@ import {
   companyInputSchema,
   connectorDisabledModelsSchema,
   connectorInputSchema,
+  managedPathInputSchema,
   socialAccountInputSchema,
   settingsSchema,
   workspaceInputSchema,
@@ -213,10 +214,8 @@ export const PRELOAD_FORWARDERS = [
 export type PreloadForwardedMethod = (typeof PRELOAD_FORWARDERS)[number]["api"];
 export type PreloadForwardedApi = Pick<DesktopApi, PreloadForwardedMethod>;
 
-const managedPathSchema = z.string().min(1);
-
 export const PRELOAD_INPUT_SCHEMAS: Partial<Record<PreloadForwardedMethod, z.ZodType<unknown>>> = {
-  openPath: managedPathSchema,
+  openPath: managedPathInputSchema,
   openWorkProduct: entityGetterSchema,
   saveCompany: companyInputSchema,
   setCurrentCompany: companyIdSchema,

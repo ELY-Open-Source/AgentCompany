@@ -3,6 +3,11 @@ import { optionalId } from "./helpers";
 
 export const companyIdSchema = z.string().uuid();
 
+export const managedPathInputSchema = z.object({
+  companyId: companyIdSchema,
+  path: z.string().min(1),
+});
+
 export const companyInputSchema = z.object({
   id: optionalId,
   name: z.string().min(2).max(80),

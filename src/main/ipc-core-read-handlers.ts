@@ -6,6 +6,7 @@ import {
   connectorInputSchema,
   connectorModelPoolQuerySchema,
   entityGetterSchema,
+  managedPathInputSchema,
   metricsQuerySchema,
   settingsSchema,
 } from "@shared/contracts";
@@ -57,6 +58,21 @@ export function registerCoreReadHandlers({
   | "listConnectorModels"
   | "logger"
 >) {
+  function requireCurrentCompanyScope(requestedCompanyId: string) {
+    const currentCompanyId = db.core.settings.getCurrentCompanyId();
+    if (!currentCompanyId) {
+      return { ok: false as const, error: fail("COMPANY_NOT_SELECTED", "Select a company before opening a managed path.") };
+    }
+    const companyError = ensureCompanyExists(currentCompanyId);
+    if (companyError) {
+      return { ok: false as const, error: companyError };
+    }
+    if (requestedCompanyId !== currentCompanyId) {
+      return { ok: false as const, error: fail("INVALID_COMPANY_REFERENCE", "The requested company must match the current company.") };
+    }
+    return { ok: true as const, companyId: currentCompanyId };
+  }
+
   registerHandle(IPC_CHANNELS.loadSnapshot, () => ok(db.projection.snapshot.listRendererSnapshot()));
 
   registerHandle(IPC_CHANNELS.pickDirectory, async () => {
@@ -66,14 +82,17 @@ export function registerCoreReadHandlers({
     return ok(result.canceled ? null : (result.filePaths[0] ?? null));
   });
 
-  registerHandle(IPC_CHANNELS.openPath, async (_event, targetPath) => {
-    if (typeof targetPath !== "string" || targetPath.length === 0) {
-      return fail("INVALID_PATH", "A valid path is required.");
+  registerHandle(IPC_CHANNELS.openPath, async (_event, payload) => {
+    const parsed = managedPathInputSchema.safeParse(payload);
+    if (!parsed.success) {
+      return fail("INVALID_PAYLOAD", "openPath requires { companyId, path }.");
     }
-    if (!db.core.settings.canOpenPath(targetPath)) {
+    const currentScope = requireCurrentCompanyScope(parsed.data.companyId);
+    if (!currentScope.ok) return currentScope.error;
+    if (!db.core.settings.canOpenPath(parsed.data.path, currentScope.companyId)) {
       return fail("OPEN_PATH_FORBIDDEN", "The requested path is outside the managed desktop workspace.");
     }
-    const error = await shell.openPath(targetPath);
+    const error = await shell.openPath(parsed.data.path);
     return error ? fail("OPEN_PATH_FAILED", error) : ok(true);
   });
 
@@ -91,9 +110,9 @@ export function registerCoreReadHandlers({
   registerHandle(IPC_CHANNELS.openWorkProduct, async (_event, payload) => {
     const parsed = entityGetterSchema.safeParse(payload);
     if (!parsed.success) return fail("INVALID_PAYLOAD", "openWorkProduct requires { companyId, id }.");
-    const companyError = ensureCompanyExists(parsed.data.companyId);
-    if (companyError) return companyError;
-    const target = db.core.documents.resolveWorkProductTarget(parsed.data.id, parsed.data.companyId);
+    const currentScope = requireCurrentCompanyScope(parsed.data.companyId);
+    if (!currentScope.ok) return currentScope.error;
+    const target = db.core.documents.resolveWorkProductTarget(parsed.data.id, currentScope.companyId);
     if (target.kind === "error") {
       const codeByReason = {
         not_found: "WORK_PRODUCT_NOT_FOUND",
@@ -104,7 +123,7 @@ export function registerCoreReadHandlers({
         path_missing: "WORK_PRODUCT_PATH_MISSING",
       } as const;
       if (target.reason === "path_missing") {
-        db.core.documents.updateWorkProduct(parsed.data.id, parsed.data.companyId, { status: "archived" });
+        db.core.documents.updateWorkProduct(parsed.data.id, currentScope.companyId, { status: "archived" });
         publishDomainChanged();
       }
       return fail(codeByReason[target.reason], target.detail);
@@ -112,7 +131,7 @@ export function registerCoreReadHandlers({
     if (target.kind === "url") {
       return openExternalUrlWithTrustPolicy(target.value);
     }
-    if (!db.core.settings.canOpenPath(target.value)) {
+    if (!db.core.settings.canOpenPath(target.value, currentScope.companyId)) {
       return fail("OPEN_PATH_FORBIDDEN", "The requested path is outside the managed desktop workspace.");
     }
     const error = await shell.openPath(target.value);

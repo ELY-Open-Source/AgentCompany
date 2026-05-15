@@ -105,7 +105,9 @@ describe("preload forwarders", () => {
     expect(objectArg).toBeDefined();
 
     expect(mapPreloadInvokeArgs(noArgs!.payload, [])).toEqual([]);
-    expect(mapPreloadInvokeArgs(singleArg!.payload, ["/tmp/output"])).toEqual(["/tmp/output"]);
+    expect(mapPreloadInvokeArgs(singleArg!.payload, [{ companyId: "2f88b7d1-dafb-42f1-ac75-34fc2de3b0f4", path: "/tmp/output" }])).toEqual([
+      { companyId: "2f88b7d1-dafb-42f1-ac75-34fc2de3b0f4", path: "/tmp/output" },
+    ]);
     expect(mapPreloadInvokeArgs(objectArg!.payload, ["company-1", "/skills/local"])).toEqual([
       { companyId: "company-1", source: "/skills/local" },
     ]);

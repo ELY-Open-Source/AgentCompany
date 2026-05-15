@@ -135,7 +135,12 @@ export function useCompanyController() {
 
   const openPathWithFeedback = useCallback(async (path: string) => {
     const store = useAppStore.getState();
-    try { unwrap(await window.agentCompany.openPath(path)); store.setError(null); }
+    const companyId = store.snapshot?.currentCompanyId;
+    if (!companyId) {
+      store.setError("Select a company before opening a managed path.");
+      return;
+    }
+    try { unwrap(await window.agentCompany.openPath({ companyId, path })); store.setError(null); }
     catch (err) { store.setError(describeDesktopError(err)); }
   }, []);
 

@@ -159,12 +159,7 @@ export function OperationsSections({ section }: OperationsSectionsProps) {
             }
           }}
           onOpenPath={async (path) => {
-            try {
-              unwrap(await window.agentCompany.openPath(path));
-              setError(null);
-            } catch (error) {
-              setError(describeDesktopError(error));
-            }
+            await openPathWithFeedback(path);
           }}
           onCancelAction={async (actionId) => {
             if (!snapshot?.currentCompanyId) return;
