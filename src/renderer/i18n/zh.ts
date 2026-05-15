@@ -1181,6 +1181,7 @@ export const zh: Record<string, string> = {
   "form.aws.errProfileRequired": "请填写 AWS Profile 名称。",
   "form.aws.errIamRequired": "IAM 认证需要 Access Key ID 和 Secret Access Key。",
   "form.aws.errBearerRequired": "请填写 Bearer Token。",
+  "form.aws.errEndpointUrlInvalid": "Endpoint URL 必须是 HTTPS AWS Bedrock Runtime endpoint 或私有 endpoint。",
   "form.azure.apiKey": "API Key",
   "form.azure.baseUrl": "Base URL（可选）",
   "form.azure.resourceName": "资源名称（可选）",

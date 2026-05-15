@@ -102,7 +102,7 @@ describe("CredentialResolver", () => {
         region: "eu-west-1",
         awsProfile: "production",
         forceCache: true,
-        endpointUrl: "https://bedrock-runtime.example.com",
+        endpointUrl: "https://bedrock-runtime.eu-west-1.amazonaws.com",
         skipAuth: true,
         forceHttp1: true,
       },
@@ -112,9 +112,36 @@ describe("CredentialResolver", () => {
       AWS_REGION: "eu-west-1",
       AWS_PROFILE: "production",
       AWS_BEDROCK_FORCE_CACHE: "1",
-      AWS_ENDPOINT_URL_BEDROCK_RUNTIME: "https://bedrock-runtime.example.com",
+      AWS_ENDPOINT_URL_BEDROCK_RUNTIME: "https://bedrock-runtime.eu-west-1.amazonaws.com",
       AWS_BEDROCK_SKIP_AUTH: "1",
       AWS_BEDROCK_FORCE_HTTP1: "1",
+    });
+  });
+
+  it("rejects unsafe AWS endpointUrl values from stored credentials", async () => {
+    store.save("amazon-bedrock", {
+      kind: "aws",
+      value: {
+        authMode: "profile",
+        region: "us-east-1",
+        awsProfile: "default",
+        endpointUrl: "https://example.com",
+      },
+    });
+
+    let thrown: unknown;
+    try {
+      await resolver.resolve("amazon-bedrock");
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(CredentialError);
+    expect(thrown).toMatchObject({
+      kind: "upstream",
+      code: "CREDENTIAL_INVALID",
+      connectorId: "amazon-bedrock",
+      context: { connectorId: "amazon-bedrock" },
     });
   });
 

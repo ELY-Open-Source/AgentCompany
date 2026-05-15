@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { isAwsBedrockEndpointUrl } from "@shared/contracts/schemas-credentials";
 import { ActionButton, Input, Select } from "../../ui";
 import { useT } from "../../../i18n";
 
@@ -43,6 +44,11 @@ export function AwsForm({ connectorId, onSaved }: Props) {
       setError(t("form.aws.errBearerRequired"));
       return;
     }
+    const trimmedEndpointUrl = endpointUrl.trim();
+    if (trimmedEndpointUrl && !isAwsBedrockEndpointUrl(trimmedEndpointUrl)) {
+      setError(t("form.aws.errEndpointUrlInvalid"));
+      return;
+    }
     setBusy(true);
     setError(null);
     const result = await desktop.saveCredential({
@@ -59,7 +65,7 @@ export function AwsForm({ connectorId, onSaved }: Props) {
             authMode === "iam" && sessionToken.trim() ? sessionToken.trim() : undefined,
           bearerToken: authMode === "bearer" ? bearerToken.trim() : undefined,
           forceCache,
-          endpointUrl: endpointUrl.trim() || undefined,
+          endpointUrl: trimmedEndpointUrl || undefined,
           skipAuth,
           forceHttp1,
         },

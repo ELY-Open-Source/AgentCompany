@@ -1,6 +1,6 @@
 import { getOAuthProvider } from "@mariozechner/pi-ai/oauth";
 import { getEnvApiKey } from "@mariozechner/pi-ai";
-import { isLocalConnectorBaseUrl } from "@shared/contracts/schemas-credentials";
+import { isAwsBedrockEndpointUrl, isLocalConnectorBaseUrl } from "@shared/contracts/schemas-credentials";
 import { getConnectorDefinition, isPiKnownProvider } from "@main/connectors";
 import { UpstreamError } from "../errors/index.js";
 import { CredentialStore } from "./credential-store";
@@ -133,7 +133,16 @@ export class CredentialResolver {
           env.AWS_BEARER_TOKEN_BEDROCK = cfg.bearerToken;
         }
         if (cfg.forceCache) env.AWS_BEDROCK_FORCE_CACHE = "1";
-        if (cfg.endpointUrl) env.AWS_ENDPOINT_URL_BEDROCK_RUNTIME = cfg.endpointUrl;
+        if (cfg.endpointUrl) {
+          if (!isAwsBedrockEndpointUrl(cfg.endpointUrl)) {
+            throw new CredentialError(
+              "CREDENTIAL_INVALID",
+              connectorId,
+              "AWS Bedrock endpointUrl must be an HTTPS AWS Bedrock runtime endpoint or a private endpoint.",
+            );
+          }
+          env.AWS_ENDPOINT_URL_BEDROCK_RUNTIME = cfg.endpointUrl;
+        }
         if (cfg.skipAuth) env.AWS_BEDROCK_SKIP_AUTH = "1";
         if (cfg.forceHttp1) env.AWS_BEDROCK_FORCE_HTTP1 = "1";
         return { apiKey: "", extraEnv: env };

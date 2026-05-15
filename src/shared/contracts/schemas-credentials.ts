@@ -22,6 +22,14 @@ export const apiKeyValueSchema = z.object({
   value: z.string().min(1),
 });
 
+const AWS_REGION_SEGMENT = "[a-z]{2}(?:-gov)?-[a-z]+-\\d";
+const AWS_BEDROCK_RUNTIME_HOSTNAME = new RegExp(
+  `^bedrock-runtime(?:-fips)?\\.${AWS_REGION_SEGMENT}\\.amazonaws\\.com(?:\\.cn)?$`,
+);
+const AWS_BEDROCK_VPCE_HOSTNAME = new RegExp(
+  `^vpce-[a-z0-9-]+\\.bedrock-runtime(?:-fips)?\\.${AWS_REGION_SEGMENT}\\.vpce\\.amazonaws\\.com(?:\\.cn)?$`,
+);
+
 export const azureCredentialSchema = z.object({
   apiKey: z.string().min(1),
   baseUrl: z.string().url().optional().or(z.literal("")),
@@ -29,6 +37,14 @@ export const azureCredentialSchema = z.object({
   apiVersion: z.string().optional().or(z.literal("")),
   deploymentMap: z.record(z.string(), z.string()).optional(),
 });
+
+export const awsEndpointUrlSchema = z
+  .string()
+  .url()
+  .refine(
+    isAwsBedrockEndpointUrl,
+    "AWS Bedrock endpointUrl must be an HTTPS AWS Bedrock runtime endpoint or a private endpoint.",
+  );
 
 export const awsCredentialSchema = z.object({
   authMode: z.enum(["profile", "iam", "bearer"]),
@@ -39,7 +55,7 @@ export const awsCredentialSchema = z.object({
   sessionToken: z.string().optional(),
   bearerToken: z.string().optional(),
   forceCache: z.boolean().optional(),
-  endpointUrl: z.string().optional(),
+  endpointUrl: awsEndpointUrlSchema.optional(),
   skipAuth: z.boolean().optional(),
   forceHttp1: z.boolean().optional(),
 });
@@ -85,6 +101,21 @@ function isPrivateIpv6(hostname: string): boolean {
   return /^f[cd][0-9a-f]{2}:/i.test(hostname) || /^fe80:/i.test(hostname);
 }
 
+function isPrivateNetworkHostname(hostname: string): boolean {
+  return hostname === "localhost" || isPrivateIpv4(hostname) || isPrivateIpv6(hostname);
+}
+
+function hasOnlyRootUrlPath(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.includes("?") || trimmed.includes("#")) return false;
+  const schemeSeparator = trimmed.indexOf("://");
+  if (schemeSeparator < 0) return false;
+  const authorityAndPath = trimmed.slice(schemeSeparator + 3);
+  const pathStart = authorityAndPath.indexOf("/");
+  if (pathStart < 0) return true;
+  return authorityAndPath.slice(pathStart) === "/";
+}
+
 export function isLocalConnectorBaseUrl(value: string): boolean {
   let url: URL;
   try {
@@ -95,8 +126,7 @@ export function isLocalConnectorBaseUrl(value: string): boolean {
   if (url.protocol !== "http:" && url.protocol !== "https:") return false;
   if (url.username || url.password) return false;
   const hostname = normalizeUrlHostname(url.hostname);
-  if (hostname === "localhost") return true;
-  return isPrivateIpv4(hostname) || isPrivateIpv6(hostname);
+  return isPrivateNetworkHostname(hostname);
 }
 
 export const localBaseUrlSchema = z
@@ -110,6 +140,24 @@ export const localBaseUrlSchema = z
 export const localCredentialSchema = z.object({
   baseUrl: localBaseUrlSchema,
 });
+
+function isAwsBedrockHostname(hostname: string): boolean {
+  return AWS_BEDROCK_RUNTIME_HOSTNAME.test(hostname) || AWS_BEDROCK_VPCE_HOSTNAME.test(hostname);
+}
+
+export function isAwsBedrockEndpointUrl(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:") return false;
+  if (url.username || url.password) return false;
+  if (!hasOnlyRootUrlPath(value)) return false;
+  const hostname = normalizeUrlHostname(url.hostname);
+  return isAwsBedrockHostname(hostname) || isPrivateNetworkHostname(hostname);
+}
 
 export const credentialPayloadSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("api_key"), value: apiKeyValueSchema }),

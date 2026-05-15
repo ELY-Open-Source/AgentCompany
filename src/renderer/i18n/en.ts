@@ -1181,6 +1181,7 @@ export const en: Record<string, string> = {
   "form.aws.errProfileRequired": "AWS profile name required.",
   "form.aws.errIamRequired": "Access key id and secret access key required for IAM auth.",
   "form.aws.errBearerRequired": "Bearer token required.",
+  "form.aws.errEndpointUrlInvalid": "Endpoint URL must be an HTTPS AWS Bedrock runtime endpoint or a private endpoint.",
   "form.azure.apiKey": "API key",
   "form.azure.baseUrl": "Base URL (optional)",
   "form.azure.resourceName": "Resource name (optional)",

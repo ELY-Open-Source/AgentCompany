@@ -5,6 +5,7 @@ import {
   azureCredentialSchema,
   credentialPayloadSchema,
   gcpAdcCredentialSchema,
+  isAwsBedrockEndpointUrl,
   isLocalConnectorBaseUrl,
   localCredentialSchema,
   removeCredentialInputSchema,
@@ -48,6 +49,46 @@ describe("credentials Zod schemas", () => {
     for (const authMode of ["profile", "iam", "bearer"] as const) {
       const result = awsCredentialSchema.safeParse({ authMode, region: "us-east-1" });
       expect(result.success).toBe(true);
+    }
+  });
+
+  it("awsCredentialSchema accepts AWS Bedrock and private HTTPS endpointUrl values", () => {
+    for (const endpointUrl of [
+      "https://bedrock-runtime.us-east-1.amazonaws.com",
+      "https://bedrock-runtime.us-east-1.amazonaws.com/",
+      "https://bedrock-runtime-fips.us-gov-west-1.amazonaws.com",
+      "https://bedrock-runtime.cn-north-1.amazonaws.com.cn",
+      "https://vpce-123abc.bedrock-runtime.us-east-1.vpce.amazonaws.com",
+      "https://vpce-123abc-us-east-1a.bedrock-runtime.us-east-1.vpce.amazonaws.com",
+      "https://10.0.0.20",
+      "https://192.168.1.20",
+      "https://[fd12::1]",
+    ]) {
+      const result = awsCredentialSchema.safeParse({ authMode: "profile", region: "us-east-1", awsProfile: "default", endpointUrl });
+      expect(result.success).toBe(true);
+      expect(isAwsBedrockEndpointUrl(endpointUrl)).toBe(true);
+    }
+  });
+
+  it("awsCredentialSchema rejects unsafe endpointUrl values", () => {
+    for (const endpointUrl of [
+      "http://bedrock-runtime.us-east-1.amazonaws.com",
+      "https://api.openai.com/v1",
+      "https://bedrock-runtime.example.com",
+      "https://user:pass@bedrock-runtime.us-east-1.amazonaws.com",
+      "https://bedrock-runtime.us-east-1.amazonaws.com/model/test",
+      "https://bedrock-runtime.us-east-1.amazonaws.com?proxy=1",
+      "ftp://bedrock-runtime.us-east-1.amazonaws.com",
+      "https://bedrock-runtime.us-east-1.amazonaws.com?",
+      "https://bedrock-runtime.us-east-1.amazonaws.com#",
+      "https://bedrock-runtime.us-east-1.amazonaws.com/%2e%2e",
+      "https://bedrock-runtime.us-east-1.amazonaws.com/a/..",
+      "https://bedrock-runtime.us-east-1.vpce.amazonaws.com",
+      "https://foo.bar.bedrock-runtime.us-east-1.vpce.amazonaws.com",
+    ]) {
+      const result = awsCredentialSchema.safeParse({ authMode: "profile", region: "us-east-1", awsProfile: "default", endpointUrl });
+      expect(result.success).toBe(false);
+      expect(isAwsBedrockEndpointUrl(endpointUrl)).toBe(false);
     }
   });
 
