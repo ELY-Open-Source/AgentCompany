@@ -25,11 +25,16 @@ import {
   migrateSocialCompanyScopeV59,
 } from "./migrations/v59-social-company-scope";
 import {
+  FILESYSTEM_TASK_WORKSPACES_SCHEMA_VERSION,
+  assertFilesystemTaskWorkspacesV60,
+  migrateFilesystemTaskWorkspacesV60,
+} from "./migrations/v60-filesystem-task-workspaces";
+import {
   type ReadAll,
   type Transaction,
 } from "./migrations/types";
 
-const LATEST_SCHEMA_VERSION = SOCIAL_COMPANY_SCOPE_SCHEMA_VERSION;
+const LATEST_SCHEMA_VERSION = FILESYSTEM_TASK_WORKSPACES_SCHEMA_VERSION;
 
 export function initializeDatabase(
   db: DatabaseSync,
@@ -50,6 +55,18 @@ export function initializeDatabase(
       assertTaskLeasesV57(db);
       assertApprovalPoliciesV58(db);
       assertSocialCompanyScopeV59(db);
+      assertFilesystemTaskWorkspacesV60(db);
+    });
+    return;
+  }
+
+  if (currentVersion === SOCIAL_COMPANY_SCOPE_SCHEMA_VERSION) {
+    tx(() => {
+      seedSettings(db);
+      assertTaskLeasesV57(db);
+      assertApprovalPoliciesV58(db);
+      assertSocialCompanyScopeV59(db);
+      migrateFilesystemTaskWorkspacesV60(db);
     });
     return;
   }
@@ -60,6 +77,7 @@ export function initializeDatabase(
       assertTaskLeasesV57(db);
       assertApprovalPoliciesV58(db);
       migrateSocialCompanyScopeV59(db);
+      migrateFilesystemTaskWorkspacesV60(db);
     });
     return;
   }
@@ -70,6 +88,7 @@ export function initializeDatabase(
       assertTaskLeasesV57(db);
       migrateApprovalPoliciesV58(db);
       migrateSocialCompanyScopeV59(db);
+      migrateFilesystemTaskWorkspacesV60(db);
     });
     return;
   }
@@ -83,6 +102,7 @@ export function initializeDatabase(
       migrateTaskLeasesV57(db);
       migrateApprovalPoliciesV58(db);
       migrateSocialCompanyScopeV59(db);
+      migrateFilesystemTaskWorkspacesV60(db);
     });
     return;
   }
@@ -97,6 +117,7 @@ export function initializeDatabase(
       migrateTaskLeasesV57(db);
       migrateApprovalPoliciesV58(db);
       migrateSocialCompanyScopeV59(db);
+      migrateFilesystemTaskWorkspacesV60(db);
     });
     return;
   }
@@ -109,6 +130,7 @@ export function initializeDatabase(
     migrateTaskLeasesV57(db);
     migrateApprovalPoliciesV58(db);
     migrateSocialCompanyScopeV59(db);
+    migrateFilesystemTaskWorkspacesV60(db);
   });
 }
 

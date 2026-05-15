@@ -15,7 +15,7 @@ export function buildCapabilityRegistrySection(ctx: Pick<PromptContext,
   if (ctx.companyWorkspaces && ctx.companyWorkspaces.length > 0) {
     const workspaces = ctx.companyWorkspaces
       .slice(0, 6)
-      .map((workspace) => `- ${workspace.name}: ${workspace.localPath}`);
+      .map((workspace) => `- ${workspace.name} (\`${workspace.id}\`): ${workspace.localPath}`);
     parts.push(`## Workspaces\n${workspaces.join("\n")}`);
   }
 

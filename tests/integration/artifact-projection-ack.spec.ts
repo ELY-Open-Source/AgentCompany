@@ -66,14 +66,15 @@ async function createHarness() {
     workspaceId: null,
     connectorId: "openai-codex",
   });
+  const logger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  };
   const bridge = new RuntimeBridge({
     db,
     emitEvent: vi.fn(),
-    logger: {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    },
+    logger,
     credentialResolver: {
       resolve: vi.fn(async () => ({ apiKey: "test-api-key", extraEnv: {} })),
     } as unknown as CredentialResolver,
@@ -105,6 +106,7 @@ async function createHarness() {
     agentId,
     taskId,
     runId: run.id,
+    logger,
   };
 }
 
@@ -139,6 +141,45 @@ describe("artifact projection durable ack", () => {
       });
       expect(events[0]?.payload).not.toHaveProperty("toolName");
       expect(events[0]?.payload).not.toHaveProperty("toolCallId");
+    } finally {
+      harness.db.close();
+    }
+  });
+
+  it("evicts deleted run contexts without writing artifact projection events", async () => {
+    const harness = await createHarness();
+    try {
+      harness.db.core.company.deleteCompany(harness.companyId);
+
+      const result = harness.bridge.releaseRunResources(harness.runId);
+
+      expect(result).toEqual({ ok: true });
+    } finally {
+      harness.db.close();
+    }
+  });
+
+  it("rejects destructive tool hooks from deleted run contexts before approval lookup", async () => {
+    const harness = await createHarness();
+    try {
+      harness.db.core.company.deleteCompany(harness.companyId);
+
+      const response = await harness.bridge.handleRpc({
+        rpcId: "before-tool-call",
+        method: "beforeToolCall",
+        runId: harness.runId,
+        payload: {
+          toolName: "bash",
+          toolCallId: "tool-1",
+          args: {},
+        },
+      });
+
+      expect(response).toEqual({
+        ok: false,
+        error: expect.stringContaining("stale run"),
+      });
+      expect(harness.logger.error).not.toHaveBeenCalled();
     } finally {
       harness.db.close();
     }

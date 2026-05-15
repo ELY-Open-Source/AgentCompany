@@ -7,6 +7,7 @@ import {
 } from "@shared/contracts";
 import { fail, ok, type RegisterCoreHandlersDependencies } from "./ipc-core-common";
 import { validateTaskCreation, checkCapabilityMatch } from "./task-quality-gates";
+import { resolveTaskWorkspaceBinding } from "./task-workspace-binding";
 
 export function registerCoreTaskGraphHandlers({
   registerHandle,
@@ -109,6 +110,7 @@ export function registerCoreTaskGraphHandlers({
     }
     let previousStatus: string | null = null;
     let previousAssigneeAgentId: string | null = null;
+    let existingWorkspaceId: string | null = null;
     if (!isNew) {
       const taskId = parsed.id;
       if (!taskId) return fail("INVALID_TASK_STATE", "Task ID required for updates.");
@@ -116,15 +118,30 @@ export function registerCoreTaskGraphHandlers({
         const existingTask = db.core.entity.getTask(taskId);
         previousStatus = existingTask.status;
         previousAssigneeAgentId = existingTask.assigneeAgentId;
+        existingWorkspaceId = existingTask.workspaceId;
       } catch (err) {
         logger.warn(`[ipc/task-graph] getTask failed for ${taskId}; treating as new task:`, err instanceof Error ? err.message : String(err));
         previousStatus = null;
         previousAssigneeAgentId = null;
+        existingWorkspaceId = null;
       }
     }
     let id: string;
     try {
-      id = db.core.tasks.saveTask(parsed);
+      const workspaceBinding = resolveTaskWorkspaceBinding(db, {
+        companyId: parsed.companyId,
+        requiresFilesystem: parsed.requiresFilesystem,
+        explicitWorkspaceId: parsed.workspaceId ?? (parsed.requiresFilesystem ? existingWorkspaceId : null),
+        projectId: parsed.projectId ?? null,
+        assigneeAgentId: parsed.assigneeAgentId ?? null,
+      });
+      if (!workspaceBinding.ok) {
+        return fail("INVALID_TASK_STATE", workspaceBinding.error);
+      }
+      id = db.core.tasks.saveTask({
+        ...parsed,
+        workspaceId: workspaceBinding.workspaceId,
+      });
     } catch (error) {
       return fail("INVALID_TASK_STATE", error instanceof Error ? error.message : "Task could not be saved.");
     }

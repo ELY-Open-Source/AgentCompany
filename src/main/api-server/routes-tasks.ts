@@ -5,6 +5,7 @@ import { IMPORTANT_DOC_TYPES } from "@shared/document-categories";
 import { canAssignTask, canUpdateTask } from "../agent-permissions";
 import { inferTaskType } from "../connector-matching";
 import { validateTaskCreation } from "../task-quality-gates";
+import { resolveTaskWorkspaceBinding } from "../task-workspace-binding";
 import { requireParam, type AgentApiServer } from "./server-core";
 
 const taskUpdateSchema = z.object({
@@ -146,6 +147,21 @@ export function registerTaskRoutes(server: AgentApiServer) {
         reviewRequest = { reviewerAgentName: actorAgent.name, documents: docs };
       }
 
+      const nextRequiresFilesystem = update.requiresFilesystem ?? task.requiresFilesystem;
+      const workspaceBinding = resolveTaskWorkspaceBinding(db, {
+        companyId: task.companyId,
+        requiresFilesystem: nextRequiresFilesystem,
+        explicitWorkspaceId: task.workspaceId,
+        projectId: task.projectId,
+        assigneeAgentId: newAssignee,
+        creatorAgentId: token.agentId,
+        currentRunId: token.runId ?? null,
+      });
+      if (!workspaceBinding.ok) {
+        server.json(res, 422, { error: workspaceBinding.error });
+        return;
+      }
+
       const updateResult = db.core.tasks.updateTaskWithReviewSideEffects({
         taskId: task.id,
         companyId: task.companyId,
@@ -160,8 +176,8 @@ export function registerTaskRoutes(server: AgentApiServer) {
           goalId: task.goalId,
           parentId: task.parentId,
           assigneeAgentId: newAssignee,
-          workspaceId: task.workspaceId,
-          requiresFilesystem: update.requiresFilesystem ?? task.requiresFilesystem,
+          workspaceId: workspaceBinding.workspaceId,
+          requiresFilesystem: nextRequiresFilesystem,
         },
         comment: update.comment,
         reviewRequest,
@@ -297,6 +313,19 @@ export function registerTaskRoutes(server: AgentApiServer) {
 
     let id: string;
     try {
+      const workspaceBinding = resolveTaskWorkspaceBinding(db, {
+        companyId,
+        requiresFilesystem: input.requiresFilesystem,
+        explicitWorkspaceId: input.workspaceId ?? null,
+        projectId: input.projectId ?? null,
+        assigneeAgentId: input.assigneeAgentId ?? null,
+        creatorAgentId: token.agentId,
+        currentRunId: token.runId ?? null,
+      });
+      if (!workspaceBinding.ok) {
+        server.json(res, 422, { error: workspaceBinding.error });
+        return;
+      }
       id = db.core.tasks.saveTask({
         companyId,
         title: input.title,
@@ -307,7 +336,7 @@ export function registerTaskRoutes(server: AgentApiServer) {
         goalId: input.goalId ?? null,
         priority: input.priority,
         status: input.status,
-        workspaceId: input.workspaceId ?? null,
+        workspaceId: workspaceBinding.workspaceId,
         requiresFilesystem: input.requiresFilesystem,
       });
     } catch (error) {

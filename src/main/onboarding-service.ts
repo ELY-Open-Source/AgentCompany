@@ -127,6 +127,22 @@ export function createOnboardingService({
     });
   }
 
+  function bindWorkspaceToProject(workspaceId: string | null, projectId: string) {
+    if (!workspaceId) return;
+    const workspace = db.core.workspaces.getWorkspace(workspaceId);
+    if (!workspace || workspace.projectId === projectId) return;
+    db.core.workspaces.saveWorkspace({
+      id: workspace.id,
+      companyId: workspace.companyId,
+      name: workspace.name,
+      localPath: workspace.localPath,
+      repoUrl: workspace.repoUrl,
+      repoRef: workspace.repoRef,
+      projectId,
+      isPrimary: workspace.isPrimary,
+    });
+  }
+
   function createInitialExecutionLoop(companyId: string, workspaceId: string | null): InitialExecutionLoopResult {
     const companyRows = db.queryAll<{ id: string; name: string; description: string }>(
       "select id, name, description from companies where id = ? limit 1",
@@ -171,6 +187,7 @@ export function createOnboardingService({
       targetDate: null,
       status: "in_progress",
     });
+    bindWorkspaceToProject(workspaceId, projectId);
 
     const kickoffLocale = getLocale();
     const kickoffTaskTitle = activeGoal

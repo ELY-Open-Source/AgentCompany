@@ -18,6 +18,7 @@ vi.mock("electron", () => ({
 }));
 
 import { AppDatabase } from "../../src/main/database";
+import { migrateFilesystemTaskWorkspacesV60 } from "../../src/main/database/migrations/v60-filesystem-task-workspaces";
 
 const tempDirs: string[] = [];
 
@@ -116,16 +117,74 @@ describe("legacy to v56 baseline migration", () => {
         { id: "task-inflight", requiresFilesystem: 1 },
       ]);
       const migrations = appDb.queryAll<{ version: number; name: string }>(
-        "select version, name from schema_migrations where version in (56, 57, 58, 59) order by version",
+        "select version, name from schema_migrations where version in (56, 57, 58, 59, 60) order by version",
       );
       expect(migrations).toEqual([
         { version: 56, name: "baseline_v56" },
         { version: 57, name: "task_leases_runtime_ownership" },
         { version: 58, name: "approval_policy_table" },
         { version: 59, name: "social_company_scope" },
+        { version: 60, name: "filesystem_task_workspaces" },
       ]);
     } finally {
       appDb.close();
+    }
+  });
+
+  it("backfills active filesystem tasks in single-workspace companies", async () => {
+    const profileDir = await createTempDir("agentcompany-fs-workspace-v60-");
+    const rawDb = new DatabaseSync(join(profileDir, "profile.sqlite"));
+    const ts = "2026-05-15T00:00:00.000Z";
+    try {
+      rawDb.exec(`
+        create table schema_migrations (version integer primary key, name text not null, applied_at text not null);
+        create table workspaces (
+          id text primary key,
+          company_id text not null,
+          project_id text,
+          is_primary integer not null,
+          created_at text not null
+        );
+        create table agents (
+          id text primary key,
+          company_id text not null,
+          workspace_id text
+        );
+        create table tasks (
+          id text primary key,
+          company_id text not null,
+          project_id text,
+          assignee_agent_id text,
+          workspace_id text,
+          status text not null,
+          requires_filesystem integer not null,
+          updated_at text not null
+        );
+      `);
+      rawDb
+        .prepare("insert into workspaces (id, company_id, project_id, is_primary, created_at) values (?, ?, ?, ?, ?)")
+        .run("workspace-1", "company-1", null, 1, ts);
+      rawDb
+        .prepare("insert into agents (id, company_id, workspace_id) values (?, ?, ?)")
+        .run("agent-1", "company-1", null);
+      rawDb
+        .prepare("insert into tasks (id, company_id, project_id, assignee_agent_id, workspace_id, status, requires_filesystem, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)")
+        .run("task-stuck", "company-1", "project-1", "agent-1", null, "todo", 1, ts);
+      rawDb
+        .prepare("insert into tasks (id, company_id, project_id, assignee_agent_id, workspace_id, status, requires_filesystem, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)")
+        .run("task-cognitive", "company-1", "project-1", "agent-1", null, "todo", 0, ts);
+
+      migrateFilesystemTaskWorkspacesV60(rawDb);
+
+      const rows = rawDb
+        .prepare("select id, workspace_id as workspaceId from tasks order by id")
+        .all() as Array<{ id: string; workspaceId: string | null }>;
+      expect(rows).toEqual([
+        { id: "task-cognitive", workspaceId: null },
+        { id: "task-stuck", workspaceId: "workspace-1" },
+      ]);
+    } finally {
+      rawDb.close();
     }
   });
 });

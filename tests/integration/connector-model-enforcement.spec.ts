@@ -6,6 +6,7 @@ import { AppDatabase } from "../../src/main/database";
 import { createBudgetEnforcementService } from "../../src/main/budget-enforcement-service";
 import { createRunDispatch } from "../../src/main/orchestration/run-dispatch";
 import { createTaskRunner } from "../../src/main/orchestration/task-runner";
+import { resolveModels } from "../../src/main/model-resolver";
 
 const tempDirs: string[] = [];
 
@@ -64,6 +65,93 @@ function createOrchestrationHarness(db: AppDatabase) {
 }
 
 describe("connector model enforcement", () => {
+  it("auto picker excludes disabled connector models before run eligibility validation", async () => {
+    const profileDir = await createTempDir("agentcompany-auto-model-pool-");
+    const db = new AppDatabase(profileDir);
+    db.init();
+
+    db.core.connectors.updateConnectorHealth({
+      id: "openai-codex",
+      status: "ready",
+      authState: "authenticated",
+      version: "test",
+      lastError: null,
+    });
+    db.core.connectors.updateConnectorHealth({
+      id: "zai",
+      status: "ready",
+      authState: "authenticated",
+      version: "test",
+      lastError: null,
+    });
+
+    const companyId = db.core.company.saveCompany({
+      name: "Auto Model Pool Co",
+      description: "Routes around disabled connector model pools",
+      status: "active",
+    });
+    const workspaceId = db.core.workspaces.saveWorkspace({
+      companyId,
+      name: "Primary",
+      localPath: profileDir,
+      repoUrl: "",
+      repoRef: "",
+      isPrimary: true,
+    });
+    const ceoId = db.core.agents.saveAgent({
+      companyId,
+      name: "CEO",
+      role: "CEO",
+      title: "Chief Executive Officer",
+      status: "idle",
+      reportsTo: null,
+      connectorId: "zai",
+      workspaceId,
+      model: "glm-5.1",
+      capabilities: "Lead the company",
+      budgetMonthlyUsd: 250,
+    });
+    const architectId = db.core.agents.saveAgent({
+      companyId,
+      name: "Architect",
+      role: "Architect",
+      title: "Principal Architect",
+      status: "idle",
+      reportsTo: ceoId,
+      connectorId: "openai-codex",
+      workspaceId,
+      model: "gpt-5.4",
+      modelStrategy: "auto",
+      capabilities: "Plan technical architecture",
+      budgetMonthlyUsd: 250,
+    });
+    const taskId = db.core.tasks.saveTask({
+      companyId,
+      title: "Plan architecture",
+      description: "Needs a hard reasoning model.",
+      assigneeAgentId: architectId,
+      workspaceId,
+      priority: "high",
+      status: "todo",
+    });
+
+    db.core.settings.setDisabledModels(
+      companyId,
+      "openai-codex",
+      resolveModels("openai-codex").map((model) => ({ id: model.id, label: model.name })),
+    );
+
+    const { deps, taskRunner } = createOrchestrationHarness(db);
+    const result = taskRunner.queueTaskRun(taskId, "manual", "board");
+
+    expect(result.ok).toBe(true);
+    expect(deps.enqueueWorkerRun).toHaveBeenCalledTimes(1);
+    expect(deps.enqueueWorkerRun.mock.calls[0]?.[0]?.connectorId).toBe("zai");
+    expect(deps.enqueueWorkerRun.mock.calls[0]?.[0]?.model).toMatch(/^glm-/);
+
+    db.close();
+  });
+
   it("blocks queueTaskRun when an agent keeps a disabled explicit model", async () => {
     const profileDir = await createTempDir("agentcompany-model-enforcement-");
     const db = new AppDatabase(profileDir);

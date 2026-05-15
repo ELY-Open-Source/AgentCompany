@@ -482,6 +482,7 @@ describe("AppDatabase", () => {
       { version: 57, name: "task_leases_runtime_ownership" },
       { version: 58, name: "approval_policy_table" },
       { version: 59, name: "social_company_scope" },
+      { version: 60, name: "filesystem_task_workspaces" },
     ]);
 
     db.close();
@@ -496,6 +497,7 @@ describe("AppDatabase", () => {
       { version: 57, name: "task_leases_runtime_ownership" },
       { version: 58, name: "approval_policy_table" },
       { version: 59, name: "social_company_scope" },
+      { version: 60, name: "filesystem_task_workspaces" },
     ]);
   });
 

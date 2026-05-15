@@ -351,7 +351,7 @@ export function buildRunPayload(params: RunDispatchParams, deps: TurnContextDeps
     })),
     companyWorkspaces: snapshot.workspaces
       .filter((workspace) => workspace.companyId === companyId)
-      .map((workspace) => ({ name: workspace.name, localPath: workspace.localPath })),
+      .map((workspace) => ({ id: workspace.id, name: workspace.name, localPath: workspace.localPath })),
     companyDocuments: snapshot.documents.filter((d) => d.companyId === companyId),
   }) : null;
 

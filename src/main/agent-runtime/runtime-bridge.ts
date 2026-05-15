@@ -121,6 +121,34 @@ export class RuntimeBridge {
     this.getOrCreateStore(context.taskSessionId);
   }
 
+  private evictActiveRun(runId: string): ActiveRunContext | null {
+    const ctx = this.activeRuns.get(runId) ?? null;
+    this.activeRuns.delete(runId);
+    this.inboundCorrelations.deleteRun(runId);
+    if (ctx) this.sessionStores.delete(ctx.taskSessionId);
+    return ctx;
+  }
+
+  private assertRunContextCurrent(
+    ctx: ActiveRunContext,
+    operation: string,
+  ): { ok: true } | { ok: false; error: string } {
+    const runState = this.deps.db.core.runs.getRunAuthState(ctx.runId);
+    if (!runState) {
+      this.evictActiveRun(ctx.runId);
+      const error = `${operation}: stale run ${ctx.runId} no longer exists.`;
+      this.deps.logger.warn(`[runtime-bridge] ${error}`);
+      return { ok: false, error };
+    }
+    if (runState.companyId !== ctx.companyId || runState.agentId !== ctx.agentId) {
+      this.evictActiveRun(ctx.runId);
+      const error = `${operation}: stale run ${ctx.runId} context does not match the persisted run.`;
+      this.deps.logger.warn(`[runtime-bridge] ${error}`);
+      return { ok: false, error };
+    }
+    return { ok: true };
+  }
+
   /**
    * Evicts the per-run `activeRuns` context, the per-session store cache,
    * and the inbound-correlation log. Callers must invoke after a
@@ -136,12 +164,14 @@ export class RuntimeBridge {
     const ctx = this.activeRuns.get(runId);
     let result: RunResourceReleaseResult = { ok: true };
     try {
-      if (ctx) result = this.reconcileArtifactsForRun(ctx);
+      if (ctx) {
+        const current = this.assertRunContextCurrent(ctx, "releaseRunResources");
+        if (!current.ok) return { ok: true };
+        result = this.reconcileArtifactsForRun(ctx);
+      }
       return result;
     } finally {
-      this.activeRuns.delete(runId);
-      this.inboundCorrelations.deleteRun(runId);
-      if (ctx) this.sessionStores.delete(ctx.taskSessionId);
+      this.evictActiveRun(runId);
     }
   }
 
@@ -256,6 +286,10 @@ export class RuntimeBridge {
 
     if (envelope.event.type === "message_end") {
       const ctx = this.activeRuns.get(envelope.runId);
+      if (ctx) {
+        const current = this.assertRunContextCurrent(ctx, "agent-event");
+        if (!current.ok) return;
+      }
       const messageRaw = envelope.event.message as
         | {
             role?: string;
@@ -330,6 +364,8 @@ export class RuntimeBridge {
     if (!ctx) {
       return { ok: false, error: `invokeInternalTool: no active run ${runId}` };
     }
+    const current = this.assertRunContextCurrent(ctx, "invokeInternalTool");
+    if (!current.ok) return { ok: false, error: current.error };
     const callbacks = this.internalToolCallbacks;
     if (!callbacks) {
       return {
@@ -374,6 +410,13 @@ export class RuntimeBridge {
       workspacePath: string | null;
       workspaceMode: "exclusive" | "shared" | "none";
     };
+    const runState = this.deps.db.core.runs.getRunAuthState(runId);
+    if (!runState) {
+      return { ok: false, error: `prepareRun: stale run ${runId} no longer exists.` };
+    }
+    if (runState.companyId !== payload.companyId || runState.agentId !== payload.agentId) {
+      return { ok: false, error: `prepareRun: run ${runId} context does not match the persisted run.` };
+    }
     const baseline = captureBaselineIfRequired(payload.workspacePath, this.deps.logger);
     this.registerActiveRun({
       runId,
@@ -454,6 +497,8 @@ export class RuntimeBridge {
     if (!ctx) {
       return { ok: false, error: `beforeToolCall: no active run ${runId}` };
     }
+    const current = this.assertRunContextCurrent(ctx, "beforeToolCall");
+    if (!current.ok) return { ok: false, error: current.error };
     const result = handleBeforeToolCall(this.deps, ctx, payload);
     return { ok: true, result };
   }

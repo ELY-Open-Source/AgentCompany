@@ -44,7 +44,7 @@ export interface PromptContext {
   /** Company-wide skill catalog for capability-aware delegation. */
   companySkillCatalog?: Array<{ name: string; slug: string; description: string | null }>;
   /** Company workspaces visible to the current run. */
-  companyWorkspaces?: Array<{ name: string; localPath: string }>;
+  companyWorkspaces?: Array<{ id: string; name: string; localPath: string }>;
 }
 
 export function buildTaskPrompt(ctx: PromptContext): string {

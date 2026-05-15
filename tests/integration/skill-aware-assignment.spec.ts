@@ -200,7 +200,7 @@ describe("skill-aware capability registry", () => {
       })),
       companyWorkspaces: snapshot.workspaces
         .filter((workspace) => workspace.companyId === companyId)
-        .map((workspace) => ({ name: workspace.name, localPath: workspace.localPath })),
+        .map((workspace) => ({ id: workspace.id, name: workspace.name, localPath: workspace.localPath })),
       companyDocuments: [],
       skills: [
         {
@@ -214,7 +214,7 @@ describe("skill-aware capability registry", () => {
 
     expect(prompt).toContain("# Company Capability Registry");
     expect(prompt).toContain("React UI (`react-ui`)");
-    expect(prompt).toContain("Primary:");
+    expect(prompt).toMatch(/Primary \(`[0-9a-f-]+`\):/);
     expect(prompt).toContain("Ready Connectors");
     expect(prompt).toContain("<available_skills>");
     expect(prompt).toContain("<name>react-standards</name>");

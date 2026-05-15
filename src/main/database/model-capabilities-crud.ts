@@ -92,12 +92,27 @@ export function buildModelCapabilityMethods(
    */
   function seedModelCapabilities(rows: Array<Omit<ModelCapability, "updatedAt">>): number {
     return transaction(() => {
-      const existing = readAll<{ cnt: number }>(
-        "SELECT COUNT(*) AS cnt FROM model_capabilities",
-      )[0]?.cnt ?? 0;
-      if (existing > 0) return 0;
-      for (const row of rows) upsertModelCapability(row);
-      return rows.length;
+      let inserted = 0;
+      const ts = nowIso();
+      const stmt = getDb().prepare(
+        `INSERT OR IGNORE INTO model_capabilities (
+          provider, model_id, reasoning, coding, writing, tier, cost_per_mtok_out, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      for (const row of rows) {
+        const result = stmt.run(
+          row.provider,
+          row.modelId,
+          row.reasoning,
+          row.coding,
+          row.writing,
+          row.tier,
+          row.costPerMtokOut,
+          ts,
+        );
+        inserted += Number(result.changes ?? 0);
+      }
+      return inserted;
     });
   }
 

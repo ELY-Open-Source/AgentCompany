@@ -1,6 +1,7 @@
 import type { AutomationAction } from "@shared/types";
 import { dispatchAgentMessage } from "../messaging/dispatch";
 import { validateTaskCreation } from "../task-quality-gates";
+import { resolveTaskWorkspaceBinding } from "../task-workspace-binding";
 import {
   createAutomationActionHandler,
   type AutomationActionHandler,
@@ -106,12 +107,26 @@ function handleCreateTask({ deps, callbacks, ctx, config }: TypedAutomationActio
     return;
   }
 
+  const workspaceBinding = resolveTaskWorkspaceBinding(db, {
+    companyId: ctx.companyId,
+    requiresFilesystem: config.requiresFilesystem,
+    explicitWorkspaceId: config.workspaceId ?? null,
+    projectId: ctx.projectId ?? config.projectId ?? null,
+    assigneeAgentId,
+    creatorAgentId: ctx.agentId ?? null,
+  });
+  if (!workspaceBinding.ok) {
+    logger.warn(`[automation] Skipping create_task - ${workspaceBinding.error}`);
+    return;
+  }
+
   const taskId = db.core.tasks.saveTask({
     companyId: ctx.companyId,
     projectId: ctx.projectId ?? config.projectId ?? null,
     title,
     description,
     assigneeAgentId,
+    workspaceId: workspaceBinding.workspaceId,
     priority,
     status: assigneeAgentId ? "todo" : "backlog",
     requiresFilesystem: config.requiresFilesystem,

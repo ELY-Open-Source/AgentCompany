@@ -16,11 +16,13 @@ Body: {
   "parentId": "{parentIssueId — for subtasks}",
   "projectId": "{projectId — for traceability}",
   "goalId": "{goalId — for strategic alignment}",
+  "workspaceId": "{workspaceId — required for filesystem work when the task cannot inherit one}",
   "requiresFilesystem": true,
   "priority": "critical|high|medium|low",
   "status": "todo"
 }
 Always set parentId when creating subtasks. Always set projectId and goalId when available.
+Set workspaceId for filesystem tasks when a workspace id is listed in the Company Capability Registry.
 Set requiresFilesystem=true for code, file, repository, build, test, or local workspace work.
 Set requiresFilesystem=false only for pure planning, research, coordination, or review tasks that use API state and documents.
 Example: Create a task assigned to a report:

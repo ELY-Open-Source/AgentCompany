@@ -147,7 +147,7 @@ export function createHeartbeat(
     }
     const pick = pickModelForAgent(agent, {
       getConnector: (id) => db.core.connectors.getConnector(id),
-      getDisabledModels: (id) => db.core.settings.getDisabledModels(agent.companyId, id),
+      getDisabledModels: (companyId, connectorId) => db.core.settings.getDisabledModels(companyId, connectorId),
       listModelCapabilities: () => db.core.modelCapabilities.listModelCapabilities(),
       readConnectors: () => db.core.connectors.readConnectors(),
     });
