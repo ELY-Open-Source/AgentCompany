@@ -10,6 +10,11 @@ import {
   type StopReason,
   type Usage,
 } from "@mariozechner/pi-ai";
+import {
+  InMemoryCredentialConcurrencyGate,
+  type CredentialConcurrencyGate,
+} from "./credential-concurrency-gate";
+import { getProviderConcurrencyLimit } from "./provider-rate-limits";
 
 type PiStreamSource = (
   model: Model<Api>,
@@ -67,16 +72,36 @@ function pushStreamError(
   stream.end(message);
 }
 
-export function createSafePiStream(source: PiStreamSource): SafePiStreamSource {
+/**
+ * Build a safe stream wrapper. When `gate` is provided, every call
+ * acquires a slot keyed by `(model.provider, options.apiKey)` before
+ * the underlying source is invoked, and releases the slot once the
+ * stream finishes (success, error, or abort). Calls without an
+ * `apiKey` skip the gate — they target keyless transports such as
+ * local Ollama / LM Studio.
+ */
+export function createSafePiStream(
+  source: PiStreamSource,
+  gate?: CredentialConcurrencyGate,
+): SafePiStreamSource {
   return (model, context, options) => {
     const target = createAssistantMessageEventStream();
+    const apiKey = typeof options?.apiKey === "string" ? options.apiKey : "";
+    const acquireSlot = gate && apiKey
+      ? () => gate.acquire(model.provider, apiKey, options?.signal)
+      : () => Promise.resolve<() => void>(() => undefined);
     void Promise.resolve()
-      .then(() => source(model, context, options))
-      .then(async (sourceStream) => {
-        for await (const event of sourceStream) {
-          target.push(event);
+      .then(acquireSlot)
+      .then(async (release) => {
+        try {
+          const sourceStream = await source(model, context, options);
+          for await (const event of sourceStream) {
+            target.push(event);
+          }
+          target.end();
+        } finally {
+          release();
         }
-        target.end();
       })
       .catch((error) => {
         pushStreamError(target, model, error, options?.signal);
@@ -85,4 +110,8 @@ export function createSafePiStream(source: PiStreamSource): SafePiStreamSource {
   };
 }
 
-export const safeStreamSimple = createSafePiStream(streamSimple);
+const defaultGate: CredentialConcurrencyGate = new InMemoryCredentialConcurrencyGate(
+  getProviderConcurrencyLimit,
+);
+
+export const safeStreamSimple = createSafePiStream(streamSimple, defaultGate);
