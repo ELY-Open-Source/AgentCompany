@@ -47,7 +47,7 @@ export function classifyExternalUrl(rawUrl: string): ExternalUrlDecision {
   }
   const parsed = new URL(normalized);
   const host = parsed.hostname.toLowerCase();
-  if (TRUSTED_EXTERNAL_HOSTS.has(host)) {
+  if (parsed.protocol === "https:" && TRUSTED_EXTERNAL_HOSTS.has(host)) {
     return { kind: "trusted", url: normalized, host };
   }
   return { kind: "confirm", url: normalized, host };

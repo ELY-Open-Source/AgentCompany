@@ -17,6 +17,7 @@ describe("external URL policy", () => {
 
   it("separates trusted hosts from confirmation hosts", () => {
     expect(classifyExternalUrl("https://github.com/acme/repo")).toMatchObject({ kind: "trusted", host: "github.com" });
+    expect(classifyExternalUrl("http://github.com/acme/repo")).toMatchObject({ kind: "confirm", host: "github.com" });
     expect(classifyExternalUrl("https://example.com/report")).toMatchObject({ kind: "confirm", host: "example.com" });
   });
 });

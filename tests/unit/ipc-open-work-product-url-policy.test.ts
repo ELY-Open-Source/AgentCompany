@@ -87,7 +87,19 @@ describe("openWorkProduct external URL policy", () => {
     expect(electron.openExternal).toHaveBeenCalledWith("https://github.com/acme/repo");
   });
 
-  it("asks before opening untrusted http hosts", async () => {
+  it("asks before opening trusted hosts over http", async () => {
+    electron.openExternal.mockClear();
+    electron.showMessageBox.mockClear();
+    electron.showMessageBox.mockResolvedValueOnce({ response: 0 });
+
+    const result = await openUrl("http://github.com/acme/repo");
+
+    expect(result).toEqual({ ok: true, data: true });
+    expect(electron.showMessageBox).toHaveBeenCalledTimes(1);
+    expect(electron.openExternal).toHaveBeenCalledWith("http://github.com/acme/repo");
+  });
+
+  it("asks before opening untrusted hosts", async () => {
     electron.openExternal.mockClear();
     electron.showMessageBox.mockClear();
     electron.showMessageBox.mockResolvedValueOnce({ response: 0 });
