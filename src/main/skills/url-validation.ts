@@ -1,4 +1,12 @@
 import { resolve4, resolve6 } from "node:dns/promises";
+import { request, type RequestOptions } from "node:https";
+import type { IncomingHttpHeaders, IncomingMessage } from "node:http";
+import type { LookupFunction } from "node:net";
+
+interface ResolvedIpRecord {
+  address: string;
+  family: 4 | 6;
+}
 
 function isPrivateIPv4(ip: string): boolean {
   const parts = ip.split(".").map(Number);
@@ -62,6 +70,12 @@ export function validateSkillUrl(url: string): void {
  * Resolve DNS and validate that all IPs are public. Returns the resolved IPv4 addresses.
  */
 export async function resolveAndValidateIps(url: string): Promise<string[]> {
+  return (await resolveAndValidateIpRecords(url))
+    .filter((record) => record.family === 4)
+    .map((record) => record.address);
+}
+
+async function resolveAndValidateIpRecords(url: string): Promise<ResolvedIpRecord[]> {
   validateSkillUrl(url);
   const { hostname } = new URL(url);
   const v4: string[] = [];
@@ -69,25 +83,83 @@ export async function resolveAndValidateIps(url: string): Promise<string[]> {
   try { v4.push(...(await resolve4(hostname))); } catch { /* no A records */ }
   try { v6.push(...(await resolve6(hostname))); } catch { /* no AAAA records */ }
   assertPublicIps([...v4, ...v6]);
-  return v4;
+  return [
+    ...v4.map((address): ResolvedIpRecord => ({ address, family: 4 })),
+    ...v6.map((address): ResolvedIpRecord => ({ address, family: 6 })),
+  ];
+}
+
+function buildHeaders(headers: IncomingHttpHeaders): Headers {
+  const out = new Headers();
+  for (const [key, value] of Object.entries(headers)) {
+    if (Array.isArray(value)) {
+      for (const entry of value) out.append(key, entry);
+    } else if (value !== undefined) {
+      out.set(key, value);
+    }
+  }
+  return out;
+}
+
+function readBody(response: IncomingMessage): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    response.on("data", (chunk: Buffer | string) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+    response.on("end", () => resolve(Buffer.concat(chunks)));
+    response.on("error", reject);
+  });
+}
+
+export function buildPinnedHttpsRequestOptions(
+  parsed: URL,
+  ip: ResolvedIpRecord,
+): RequestOptions {
+  const lookup: LookupFunction = (_hostname, _options, callback) => {
+    callback(null, ip.address, ip.family);
+  };
+  return {
+    method: "GET",
+    headers: { Host: parsed.host },
+    servername: parsed.hostname,
+    lookup,
+  };
+}
+
+async function fetchHttpsWithResolvedIp(url: string, ip: ResolvedIpRecord): Promise<Response> {
+  const parsed = new URL(url);
+  return new Promise((resolve, reject) => {
+    const req = request(parsed, buildPinnedHttpsRequestOptions(parsed, ip), async (res) => {
+      try {
+        const body = await readBody(res);
+        const arrayBuffer = new ArrayBuffer(body.byteLength);
+        new Uint8Array(arrayBuffer).set(body);
+        resolve(new Response(arrayBuffer, {
+          status: res.statusCode ?? 500,
+          statusText: res.statusMessage,
+          headers: buildHeaders(res.headers),
+        }));
+      } catch (error) {
+        reject(error);
+      }
+    });
+    req.on("error", reject);
+    req.end();
+  });
 }
 
 /**
- * Fetch a URL with SSRF protection: resolve DNS once, validate IPs, then fetch
- * using a resolved IP to prevent DNS rebinding between validation and fetch.
+ * Fetch a URL with SSRF protection: resolve DNS once, validate IPs, then keep
+ * the original hostname for Host/SNI while pinning the socket lookup to a
+ * validated IP.
  */
 export async function fetchWithSsrfProtection(url: string): Promise<Response> {
-  const resolvedIps = await resolveAndValidateIps(url);
+  const resolvedIps = await resolveAndValidateIpRecords(url);
   if (resolvedIps.length === 0) {
-    throw new Error("DNS resolution returned no usable IPv4 addresses");
+    throw new Error("DNS resolution returned no usable addresses");
   }
-  const parsed = new URL(url);
-  const resolvedUrl = new URL(url);
-  resolvedUrl.hostname = resolvedIps[0]!;
-  const response = await fetch(resolvedUrl.toString(), {
-    headers: { Host: parsed.host },
-    redirect: "manual",
-  });
+  const response = await fetchHttpsWithResolvedIp(url, resolvedIps[0]!);
   // Follow redirects manually to prevent redirect-to-private-IP attacks
   if (response.status >= 300 && response.status < 400) {
     const location = response.headers.get("location");
