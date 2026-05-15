@@ -25,6 +25,7 @@
     "release:website": "node scripts/release-website.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "audit:deps": "pnpm audit && npm --prefix landing audit --omit=dev",
     "test": "node --disable-warning=ExperimentalWarning ./node_modules/vitest/vitest.mjs run",
     "typecheck": "tsc --noEmit",
     "test:unit": "node --disable-warning=ExperimentalWarning ./node_modules/vitest/vitest.mjs run --config vitest.config.ts tests/unit",
@@ -34,7 +35,7 @@
     "test:e2e": "node --no-warnings ./node_modules/@playwright/test/cli.js test -c tests/e2e/playwright.config.ts",
     "test:run": "pnpm test:unit && pnpm test:integration && pnpm test:eval && pnpm test:e2e",
     "verify": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:integration && pnpm test:eval && pnpm test:e2e",
-    "verify:release": "pnpm verify && pnpm build:dir",
+    "verify:release": "pnpm audit:deps && pnpm verify && pnpm build:dir",
     "postinstall": "node scripts/postinstall.mjs"
   },
   "dependencies": {

@@ -140,6 +140,7 @@ async function main() {
   if (nextVersion !== pkgVersion) {
     console.log(`[release-local-winlinux] version override: ${pkgVersion} -> ${nextVersion}`);
   }
+  await run("pnpm", ["audit:deps"]);
 
   await rm(localReleaseDir, { recursive: true, force: true });
   await rm(buildReleaseDir, { recursive: true, force: true });

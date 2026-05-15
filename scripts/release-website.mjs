@@ -103,6 +103,7 @@ async function main() {
   await loadEnvFile(join(rootDir, ".env.release"));
 
   await prepareR2ReleaseHost({ rootDir });
+  await runPlain("pnpm", ["audit:deps"]);
 
   const version = (await readPackageJson()).version;
   console.log(`[release-website] regenerating landing for version ${version}`);

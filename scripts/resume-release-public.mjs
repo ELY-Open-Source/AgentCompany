@@ -83,6 +83,7 @@ async function main() {
   await loadEnvFile(join(rootDir, ".env.release"));
 
   const repo = await getRepoInfo();
+  await run("pnpm", ["audit:deps"]);
 
   await uploadWinAndLinuxToR2();
   await run("node", ["scripts/generate-landing-release-links.mjs"]);

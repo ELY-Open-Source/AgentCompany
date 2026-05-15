@@ -51,7 +51,7 @@ function printHelp() {
 
 Options:
   --platforms=mac,win,linux   Comma-separated platform list (default: all)
-  --skip-verify               Skip pnpm verify before release builds
+  --skip-verify               Skip dependency audit and pnpm verify before release builds
   --no-upload                 Build artifacts locally without publishing
   --help                      Show this help
 
@@ -251,6 +251,7 @@ async function main() {
 
   await rm(localReleaseDir, { recursive: true, force: true });
   if (!options.skipVerify) {
+    await run("pnpm", ["audit:deps"]);
     await run("pnpm", ["verify"]);
   }
   if (options.platforms.includes("mac")) {

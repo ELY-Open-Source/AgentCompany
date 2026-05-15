@@ -40,6 +40,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm audit:deps
       - name: Build Boss edition
         run: node boss-build/build-boss-edition.mjs --platform=win --version=${{ inputs.version }}
         shell: bash

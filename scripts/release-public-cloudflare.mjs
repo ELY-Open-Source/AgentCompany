@@ -95,7 +95,7 @@ function printHelp() {
 
 Options:
   --version=x.y.z          Explicit version. Defaults to current patch + 1.
-  --skip-verify            Skip local pnpm verify before packaging.
+  --skip-verify            Skip local dependency audit and pnpm verify before packaging.
   --delete-remote-branch   Delete the GitHub snapshot branch after success.
   --keep-transport-release Keep the temporary draft GitHub release after success.
   --help                   Show this help.
@@ -280,6 +280,7 @@ async function main() {
   await resetReleaseStaging();
 
   if (!options.skipVerify) {
+    await run("pnpm", ["audit:deps"]);
     await run("pnpm", ["verify"]);
   }
 

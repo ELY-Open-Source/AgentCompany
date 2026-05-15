@@ -181,6 +181,7 @@ async function main() {
 
   const repo = await getRepoInfo();
   await ensureRemoteBuildPrerequisites(repo);
+  await run("pnpm", ["audit:deps"]);
 
   const currentVersion = (await readPackageJson()).version;
   const nextVersion = options.version ?? currentVersion;

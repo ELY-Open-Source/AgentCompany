@@ -138,6 +138,7 @@ async function main() {
   process.env.AGENTCOMPANY_ELECTRON_PUBLISH = "never";
 
   validatePreflight();
+  await run("pnpm", ["audit:deps"]);
 
   const currentVersion = (await readPackageJson()).version;
   const nextVersion = options.version ?? (options.bump ? bumpPatchVersion(currentVersion) : currentVersion);

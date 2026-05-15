@@ -40,6 +40,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm audit:deps
       - run: pnpm typecheck
       - run: pnpm lint
 
