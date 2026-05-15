@@ -199,9 +199,9 @@ export function registerCoreReadHandlers({
   });
 
   registerHandle(IPC_CHANNELS.getConnectorDisabledModels, (_event, payload) => {
+    let parsed: z.infer<typeof connectorModelPoolQuerySchema>;
     try {
-      const parsed = connectorModelPoolQuerySchema.parse(payload);
-      return ok(db.core.settings.getDisabledModels(parsed.companyId, parsed.connectorId));
+      parsed = connectorModelPoolQuerySchema.parse(payload);
     } catch (err) {
       logAppError(logger, err, {
         kind: "user_input",
@@ -210,6 +210,9 @@ export function registerCoreReadHandlers({
       }, "warn");
       return ok([]);
     }
+    const companyError = ensureCompanyExists(parsed.companyId);
+    if (companyError) return companyError;
+    return ok(db.core.settings.getDisabledModels(parsed.companyId, parsed.connectorId));
   });
 
   registerHandle(IPC_CHANNELS.getCompanyMetrics, (_event, payload) => {
