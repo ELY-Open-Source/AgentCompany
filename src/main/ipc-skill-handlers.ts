@@ -168,7 +168,10 @@ export function registerSkillHandlers({
     const parsed = listSkillAgentsSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    return ok(db.core.skills.listSkillAgentAssignments(parsed.skillId));
+    if (!db.core.skills.getCompanySkill(parsed.companyId, parsed.skillId)) {
+      return fail("not_found", `Skill ${parsed.skillId} not found`);
+    }
+    return ok(db.core.skills.listSkillAgentAssignments(parsed.companyId, parsed.skillId));
   });
 
   // ---- List skill IDs assigned to an agent ----
@@ -176,6 +179,9 @@ export function registerSkillHandlers({
     const parsed = listAgentSkillsSchema.parse(payload);
     const companyError = ensureCompanyExists(parsed.companyId);
     if (companyError) return companyError;
-    return ok(db.core.skills.listAgentSkillAssignments(parsed.agentId));
+    if (!db.core.settings.belongsToCompany("agents", parsed.agentId, parsed.companyId)) {
+      return fail("not_found", `Agent ${parsed.agentId} not found`);
+    }
+    return ok(db.core.skills.listAgentSkillAssignments(parsed.companyId, parsed.agentId));
   });
 }

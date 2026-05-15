@@ -58,16 +58,20 @@ export function createSkillCrud({ db, logger, cleanupSkillFiles, parseGitHubUrl 
   ): DesktopResult<void> {
     const skill = db.core.skills.getCompanySkill(companyId, skillId);
     if (!skill) return fail("not_found", `Skill ${skillId} not found for company`);
-    db.core.skills.assignSkillToAgent(agentId, skillId);
+    if (!db.core.skills.assignSkillToAgent(companyId, agentId, skillId)) {
+      return fail("not_found", `Agent ${agentId} not found for company`);
+    }
     return ok(undefined);
   }
 
   function removeFromAgent(
-    _companyId: string,
+    companyId: string,
     agentId: string,
     skillId: string,
   ): DesktopResult<void> {
-    db.core.skills.removeSkillFromAgent(agentId, skillId);
+    if (!db.core.skills.removeSkillFromAgent(companyId, agentId, skillId)) {
+      return fail("not_found", `Skill assignment not found for company`);
+    }
     return ok(undefined);
   }
 

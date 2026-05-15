@@ -7,6 +7,21 @@ export function buildSkillMethods(
   getDb: () => DatabaseSync,
   readAll: ReadAll,
 ) {
+  function assignmentTargetsBelongToCompany(companyId: string, agentId: string, skillId: string): boolean {
+    const row = getDb()
+      .prepare(`
+        SELECT 1 AS present
+          FROM agents a
+          JOIN company_skills cs ON cs.id = ?
+         WHERE a.id = ?
+           AND a.company_id = ?
+           AND cs.company_id = ?
+         LIMIT 1
+      `)
+      .get(skillId, agentId, companyId, companyId) as { present: number } | undefined;
+    return Boolean(row?.present);
+  }
+
   function mapSkillRow(row: SqliteRow): SkillRecord {
     return {
       id: row.id,
@@ -88,29 +103,55 @@ export function buildSkillMethods(
       return result.changes > 0;
     },
 
-    assignSkillToAgent(agentId: string, skillId: string): void {
+    assignSkillToAgent(companyId: string, agentId: string, skillId: string): boolean {
+      if (!assignmentTargetsBelongToCompany(companyId, agentId, skillId)) {
+        return false;
+      }
       getDb()
         .prepare("INSERT OR IGNORE INTO agent_skill_assignments (agent_id, skill_id, created_at) VALUES (?, ?, ?)")
         .run(agentId, skillId, nowIso());
+      return true;
     },
 
-    removeSkillFromAgent(agentId: string, skillId: string): void {
-      getDb()
+    removeSkillFromAgent(companyId: string, agentId: string, skillId: string): boolean {
+      if (!assignmentTargetsBelongToCompany(companyId, agentId, skillId)) {
+        return false;
+      }
+      const result = getDb()
         .prepare("DELETE FROM agent_skill_assignments WHERE agent_id = ? AND skill_id = ?")
         .run(agentId, skillId);
+      return result.changes > 0;
     },
 
-    listAgentSkillAssignments(agentId: string): string[] {
+    listAgentSkillAssignments(companyId: string, agentId: string): string[] {
       return readAll<{ skill_id: string }>(
-        "SELECT skill_id FROM agent_skill_assignments WHERE agent_id = ?",
+        `SELECT asa.skill_id
+           FROM agent_skill_assignments asa
+           JOIN agents a ON a.id = asa.agent_id
+           JOIN company_skills cs ON cs.id = asa.skill_id
+          WHERE asa.agent_id = ?
+            AND a.company_id = ?
+            AND cs.company_id = ?
+          ORDER BY cs.created_at ASC`,
         agentId,
+        companyId,
+        companyId,
       ).map((row) => row.skill_id);
     },
 
-    listSkillAgentAssignments(skillId: string): string[] {
+    listSkillAgentAssignments(companyId: string, skillId: string): string[] {
       return readAll<{ agent_id: string }>(
-        "SELECT agent_id FROM agent_skill_assignments WHERE skill_id = ?",
+        `SELECT asa.agent_id
+           FROM agent_skill_assignments asa
+           JOIN agents a ON a.id = asa.agent_id
+           JOIN company_skills cs ON cs.id = asa.skill_id
+          WHERE asa.skill_id = ?
+            AND a.company_id = ?
+            AND cs.company_id = ?
+          ORDER BY a.created_at ASC`,
         skillId,
+        companyId,
+        companyId,
       ).map((row) => row.agent_id);
     },
 

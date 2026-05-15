@@ -92,7 +92,7 @@ describe("skill-aware capability registry", () => {
       createdAt: now,
       updatedAt: now,
     });
-    db.core.skills.assignSkillToAgent(styledEngineerId, skillId);
+    db.core.skills.assignSkillToAgent(companyId, styledEngineerId, skillId);
 
     const taskId = db.core.tasks.saveTask({
       companyId,

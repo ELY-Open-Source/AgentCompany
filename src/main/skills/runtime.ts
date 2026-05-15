@@ -35,7 +35,7 @@ export function createSkillRuntime({ db, logger, skillsRoot, skillFilesDir, impo
     agentId: string,
     _connectorId: string,
   ): ProjectedSkill[] {
-    const assignedIds = new Set(db.core.skills.listAgentSkillAssignments(agentId));
+    const assignedIds = new Set(db.core.skills.listAgentSkillAssignments(companyId, agentId));
     if (assignedIds.size === 0) return [];
     const companySkills = db.core.skills.listCompanySkills(companyId);
     const skillPaths = companySkills

@@ -30,7 +30,7 @@ interface CapabilityMatchDb {
       getAgent(id: string): { name: string; capabilities: string };
     };
     skills: {
-      listAgentSkillAssignments(id: string): string[];
+      listAgentSkillAssignments(companyId: string, agentId: string): string[];
       getCompanySkill(companyId: string, skillId: string): { name: string; description: string | null; slug: string } | null;
     };
   };
@@ -139,7 +139,7 @@ export function checkCapabilityMatch(
   const capabilityOverlap = taskWords.filter((w) => capWords.includes(w)).length;
 
   let skillOverlap = 0;
-  const skillIds = db.core.skills.listAgentSkillAssignments(agentId);
+  const skillIds = db.core.skills.listAgentSkillAssignments(companyId, agentId);
   for (const skillId of skillIds) {
     const skill = db.core.skills.getCompanySkill(companyId, skillId);
     if (skill) {
