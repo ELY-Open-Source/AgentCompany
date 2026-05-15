@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AppDatabase } from "../../src/main/database";
-import { CredentialStore } from "../../src/main/credentials/credential-store";
+import { CredentialStore, CredentialStoreReadError } from "../../src/main/credentials/credential-store";
 
 beforeAll(() => {
   // SecretVault throws unless safeStorage is available or this gate is set.
@@ -60,6 +60,78 @@ describe("CredentialStore", () => {
       expect(decrypted.value.region).toBe("us-east-2");
       expect(decrypted.value.bearerToken).toBe("bedrock-bearer-xyz");
     }
+  });
+
+  it("round-trips an oauth credential through the read schema", () => {
+    store.save("claude-pro", {
+      kind: "oauth",
+      value: {
+        refresh: "refresh-token",
+        access: "access-token",
+        expires: Date.now() + 60_000,
+        domain: "anthropic.com",
+      },
+    });
+
+    const decrypted = store.read("claude-pro");
+    expect(decrypted?.kind).toBe("oauth");
+    if (decrypted?.kind === "oauth") {
+      expect(decrypted.value.refresh).toBe("refresh-token");
+      expect(decrypted.value.access).toBe("access-token");
+      expect(decrypted.value.domain).toBe("anthropic.com");
+    }
+  });
+
+  it("rejects stored credentials whose decrypted payload does not match the row kind", () => {
+    const encrypted = db.vault.encrypt(JSON.stringify({ source: "literal", value: "sk-test-abcdefghij" }));
+    db.core.credentials.upsert({
+      connectorId: "amazon-bedrock",
+      kind: "aws",
+      backend: encrypted.backend,
+      ciphertext: encrypted.payload,
+      displayHint: "bad",
+      status: "active",
+    });
+
+    let thrown: unknown;
+    try {
+      store.read("amazon-bedrock");
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(CredentialStoreReadError);
+    expect(thrown).toMatchObject({
+      code: "CREDENTIAL_INVALID",
+      context: { connectorId: "amazon-bedrock" },
+    });
+    expect(thrown).toHaveProperty("message", expect.stringContaining("failed schema validation"));
+  });
+
+  it("rejects stored credentials whose ciphertext is not valid JSON", () => {
+    const encrypted = db.vault.encrypt("{not-json");
+    db.core.credentials.upsert({
+      connectorId: "anthropic",
+      kind: "api_key",
+      backend: encrypted.backend,
+      ciphertext: encrypted.payload,
+      displayHint: "bad",
+      status: "active",
+    });
+
+    let thrown: unknown;
+    try {
+      store.read("anthropic");
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(CredentialStoreReadError);
+    expect(thrown).toMatchObject({
+      code: "CREDENTIAL_INVALID",
+      context: { connectorId: "anthropic" },
+    });
+    expect(thrown).toHaveProperty("message", "Stored credential payload is not valid JSON.");
   });
 
   it("removes a credential", () => {

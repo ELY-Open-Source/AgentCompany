@@ -1,11 +1,38 @@
 import type { AppDatabase } from "@main/database";
 import type { CredentialBackend, CredentialKind } from "@main/database/credentials";
 import type { CredentialStatus } from "@main/database/credentials";
-import type { CredentialSummary } from "@shared/contracts/schemas-credentials";
+import { credentialPayloadSchema, type CredentialSummary } from "@shared/contracts/schemas-credentials";
+import { z } from "zod";
+import { UpstreamError } from "../errors/index.js";
 import type { StoredCredentialPayload } from "./types";
 
 const HINT_SUFFIX_LEN = 4;
 const HINT_PREFIX_LEN = 6;
+
+const oauthCredentialPayloadSchema = z.object({
+  refresh: z.string().min(1),
+  access: z.string().min(1),
+  expires: z.number().finite(),
+}).passthrough();
+
+const storedCredentialPayloadSchema = z.union([
+  credentialPayloadSchema,
+  z.object({ kind: z.literal("oauth"), value: oauthCredentialPayloadSchema }),
+]);
+
+export class CredentialStoreReadError extends UpstreamError {
+  readonly connectorId: string;
+
+  constructor(connectorId: string, message: string) {
+    super({
+      code: "CREDENTIAL_INVALID",
+      message,
+      context: { connectorId },
+    });
+    this.name = "CredentialStoreReadError";
+    this.connectorId = connectorId;
+  }
+}
 
 function maskApiKey(value: string): string {
   if (value.length <= HINT_PREFIX_LEN + HINT_SUFFIX_LEN) {
@@ -46,6 +73,36 @@ export function deriveDisplayHint(payload: StoredCredentialPayload): string {
 
 export interface CredentialStoreDeps {
   db: AppDatabase;
+}
+
+function formatCredentialPayloadError(error: z.ZodError): string {
+  return error.issues
+    .map((issue) => {
+      const path = issue.path.length > 0 ? issue.path.join(".") : "payload";
+      return `${path}: ${issue.message}`;
+    })
+    .join("; ");
+}
+
+function parseStoredCredentialPayload(
+  connectorId: string,
+  kind: CredentialKind,
+  json: string,
+): StoredCredentialPayload {
+  let value: unknown;
+  try {
+    value = JSON.parse(json);
+  } catch {
+    throw new CredentialStoreReadError(connectorId, "Stored credential payload is not valid JSON.");
+  }
+  const parsed = storedCredentialPayloadSchema.safeParse({ kind, value });
+  if (!parsed.success) {
+    throw new CredentialStoreReadError(
+      connectorId,
+      `Stored credential payload failed schema validation: ${formatCredentialPayloadError(parsed.error)}`,
+    );
+  }
+  return parsed.data as StoredCredentialPayload;
 }
 
 export class CredentialStore {
@@ -99,8 +156,7 @@ export class CredentialStore {
       row.backend,
       Buffer.isBuffer(row.ciphertext) ? row.ciphertext : Buffer.from(row.ciphertext),
     );
-    const value = JSON.parse(json);
-    return { kind: row.kind, value } as StoredCredentialPayload;
+    return parseStoredCredentialPayload(connectorId, row.kind, json);
   }
 
   remove(connectorId: string): void {

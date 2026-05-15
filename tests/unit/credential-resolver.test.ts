@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AppDatabase } from "../../src/main/database";
 import { CredentialStore } from "../../src/main/credentials/credential-store";
+import { CredentialStoreReadError } from "../../src/main/credentials/credential-store";
 import { CredentialResolver, CredentialError } from "../../src/main/credentials/credential-resolver";
 import { AppError } from "../../src/main/errors";
 
@@ -136,7 +137,7 @@ describe("CredentialResolver", () => {
       thrown = error;
     }
 
-    expect(thrown).toBeInstanceOf(CredentialError);
+    expect(thrown).toBeInstanceOf(CredentialStoreReadError);
     expect(thrown).toMatchObject({
       kind: "upstream",
       code: "CREDENTIAL_INVALID",
@@ -198,7 +199,7 @@ describe("CredentialResolver", () => {
       thrown = error;
     }
 
-    expect(thrown).toBeInstanceOf(CredentialError);
+    expect(thrown).toBeInstanceOf(CredentialStoreReadError);
     expect(thrown).toMatchObject({
       kind: "upstream",
       code: "CREDENTIAL_INVALID",
