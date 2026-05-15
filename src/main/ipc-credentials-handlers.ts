@@ -36,6 +36,87 @@ function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function isSafeLogToken(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Za-z0-9._:-]{1,160}$/.test(value);
+}
+
+function safeLogToken(value: unknown, fallback: string): string {
+  return isSafeLogToken(value) ? value : fallback;
+}
+
+function extractHeader(headers: unknown, name: string): unknown {
+  if (!headers) return undefined;
+  if (typeof (headers as { get?: unknown }).get === "function") {
+    return (headers as { get: (key: string) => unknown }).get(name);
+  }
+  if (typeof headers === "object") {
+    const record = headers as Record<string, unknown>;
+    return record[name] ?? record[name.toLowerCase()] ?? record[name.toUpperCase()];
+  }
+  return undefined;
+}
+
+function readObjectField(source: unknown, field: string): unknown {
+  if (!source || typeof source !== "object") return undefined;
+  return (source as Record<string, unknown>)[field];
+}
+
+function extractCredentialErrorCode(error: unknown, fallback: string): string {
+  const candidates = [
+    readObjectField(error, "code"),
+    readObjectField(error, "errorCode"),
+    readObjectField(error, "status"),
+    readObjectField(error, "statusCode"),
+    error instanceof Error ? error.name : undefined,
+  ];
+  for (const value of candidates) {
+    if (isSafeLogToken(value)) return value;
+    if (typeof value === "number" && Number.isInteger(value)) return String(value);
+  }
+  return fallback;
+}
+
+function extractCredentialRequestId(error: unknown): string | null {
+  const response = readObjectField(error, "response");
+  const metadata = readObjectField(error, "$metadata");
+  const candidates = [
+    readObjectField(error, "requestId"),
+    readObjectField(error, "request_id"),
+    readObjectField(error, "x-request-id"),
+    readObjectField(metadata, "requestId"),
+    extractHeader(readObjectField(error, "headers"), "x-request-id"),
+    extractHeader(readObjectField(response, "headers"), "x-request-id"),
+    extractHeader(readObjectField(response, "headers"), "x-amzn-requestid"),
+  ];
+  for (const value of candidates) {
+    if (isSafeLogToken(value)) return value;
+  }
+  return null;
+}
+
+function credentialLogLine(action: string, input: {
+  connectorId: string;
+  provider: string | undefined;
+  code: string;
+  requestId: string | null;
+}): string {
+  const fields = [
+    `connector=${safeLogToken(input.connectorId, "invalid")}`,
+    `provider=${safeLogToken(input.provider, "unknown")}`,
+    `code=${safeLogToken(input.code, "unknown")}`,
+  ];
+  if (input.requestId) fields.push(`requestId=${safeLogToken(input.requestId, "invalid")}`);
+  return `[credentials] ${action}: ${fields.join(" ")}`;
+}
+
+function getConnectorProviderForLog(connectorId: string): string | undefined {
+  try {
+    return getConnectorDefinition(connectorId).provider;
+  } catch {
+    return undefined;
+  }
+}
+
 interface CredentialHandlerDeps {
   store: CredentialStore;
   resolver: CredentialResolver;
@@ -95,7 +176,12 @@ export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () =
         message: `save failed for ${parsed.data.connectorId}`,
         context: { connectorId: parsed.data.connectorId },
       });
-      deps.logger.error(`[${err.code}] ${err.message}: ${describeError(error)}`);
+      deps.logger.error(credentialLogLine("save failed", {
+        connectorId: parsed.data.connectorId,
+        provider: definition.provider,
+        code: err.code,
+        requestId: extractCredentialRequestId(error),
+      }));
       return deps.fail("SAVE_FAILED", "Could not save credential. Check application logs for details.");
     }
   });
@@ -115,7 +201,12 @@ export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () =
         message: `remove failed for ${parsed.data.connectorId}`,
         context: { connectorId: parsed.data.connectorId },
       });
-      deps.logger.error(`[${err.code}] ${err.message}: ${describeError(error)}`);
+      deps.logger.error(credentialLogLine("remove failed", {
+        connectorId: parsed.data.connectorId,
+        provider: getConnectorProviderForLog(parsed.data.connectorId),
+        code: err.code,
+        requestId: extractCredentialRequestId(error),
+      }));
       return deps.fail("REMOVE_FAILED", "Could not remove credential. Check application logs for details.");
     }
   });
@@ -133,7 +224,12 @@ export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () =
         message: `test failed lookup for ${parsed.data.connectorId}`,
         context: { connectorId: parsed.data.connectorId },
       });
-      deps.logger.error(`[${err.code}] ${err.message}: ${describeError(error)}`);
+      deps.logger.error(credentialLogLine("test failed", {
+        connectorId: parsed.data.connectorId,
+        provider: undefined,
+        code: err.code,
+        requestId: extractCredentialRequestId(error),
+      }));
       return deps.fail("UNKNOWN_CONNECTOR", "Unknown connector.");
     }
     let resolved;
@@ -147,7 +243,12 @@ export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () =
         context: { connectorId: parsed.data.connectorId },
       });
       const message = describeError(error);
-      deps.logger.error(`[${err.code}] ${err.message}: ${message}`);
+      deps.logger.error(credentialLogLine("test failed", {
+        connectorId: parsed.data.connectorId,
+        provider: definition.provider,
+        code: extractCredentialErrorCode(error, err.code),
+        requestId: extractCredentialRequestId(error),
+      }));
       return ok({ ok: false, message: redactSecrets(message) });
     }
 
@@ -181,13 +282,23 @@ export function registerCredentialIpcHandlers(deps: CredentialHandlerDeps): () =
         const final = await stream.result();
         if (final.stopReason === "error" || final.stopReason === "aborted") {
           const message = final.errorMessage ?? `Provider returned ${final.stopReason}.`;
-          deps.logger.warn(`[credentials] test failed for ${parsed.data.connectorId}: ${message}`);
+          deps.logger.warn(credentialLogLine("test failed", {
+            connectorId: parsed.data.connectorId,
+            provider,
+            code: final.stopReason === "error" ? "stream_error" : "stream_aborted",
+            requestId: null,
+          }));
           return ok({ ok: false, message: redactSecrets(message) });
         }
         return ok({ ok: true, message: `OK (${model.id})` });
       } catch (error) {
         const message = describeError(error);
-        deps.logger.error(`[credentials] test threw for ${parsed.data.connectorId}: ${message}`);
+        deps.logger.error(credentialLogLine("test failed", {
+          connectorId: parsed.data.connectorId,
+          provider: definition.provider,
+          code: extractCredentialErrorCode(error, "stream_exception"),
+          requestId: extractCredentialRequestId(error),
+        }));
         return ok({ ok: false, message: redactSecrets(message) });
       }
     };
