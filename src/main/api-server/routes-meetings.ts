@@ -111,13 +111,17 @@ export function registerMeetingRoutes(server: AgentApiServer) {
     db.core.knowledge.saveMeeting({
       id: meetingId,
       companyId: token.companyId,
-      type: data.type ?? "department_sync",
-      title: data.title ?? "Meeting",
-      notesJson: data.notesJson,
-      decisionsJson: data.decisionsJson,
-      actionItemsJson: data.actionItemsJson,
-      status: data.status,
-      scheduledAt: data.scheduledAt ?? new Date().toISOString(),
+      type: data.type ?? existing.type,
+      title: data.title ?? existing.title,
+      organizerAgentId: existing.organizerAgentId,
+      participantAgentIds: existing.participantAgentIds,
+      durationMinutes: existing.durationMinutes,
+      agendaJson: existing.agendaJson,
+      notesJson: data.notesJson ?? existing.notesJson ?? "[]",
+      decisionsJson: data.decisionsJson ?? existing.decisionsJson ?? "[]",
+      actionItemsJson: data.actionItemsJson ?? existing.actionItemsJson ?? "[]",
+      status: data.status ?? existing.status,
+      scheduledAt: data.scheduledAt ?? existing.scheduledAt,
     });
     onDomainChanged();
     // When action items are added, create tasks for them automatically
