@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import type { BindSkillInput, ImportSkillDirectoryInput } from "../../shared/commands";
+import type { BindSkillInput, ImportSkillDirectoryInput, ResolveAgentSkillsInput } from "../../shared/commands";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 
@@ -127,4 +127,71 @@ export class SkillService {
     });
     return id;
   }
+
+  resolveRuntimeSnapshot(input: ResolveAgentSkillsInput): string {
+    const agent = this.db.prepare("select id from agents where id = ? and org_id = ?")
+      .get(input.agentId, input.orgId) as { id: string } | undefined;
+    if (!agent) throw new Error("Agent was not found.");
+    const rows = this.db.prepare(`
+      select
+        sr.id as revision_id,
+        sr.version_semver,
+        sr.manifest_json,
+        sa.object_key
+      from skill_bindings sb
+      join skill_revisions sr on sr.id = sb.pinned_revision_id
+      join skill_artifacts sa on sa.revision_id = sr.id and sa.artifact_type = 'markdown'
+      where sb.org_id = ? and sb.agent_id = ? and sb.enabled = 1
+      order by sb.priority asc, sr.published_at asc
+    `).all(input.orgId, input.agentId) as unknown as RuntimeSkillRow[];
+    if (rows.length === 0) throw new Error("Agent has no enabled skills.");
+
+    const compiledParts: string[] = [];
+    const tools = new Set<string>();
+    const revisionIds: string[] = [];
+    for (const row of rows) {
+      if (!existsSync(row.object_key)) throw new Error(`Skill artifact is missing: ${row.object_key}`);
+      const manifest = JSON.parse(row.manifest_json) as SkillManifest;
+      for (const tool of manifest.requiredTools) tools.add(tool);
+      revisionIds.push(row.revision_id);
+      compiledParts.push([
+        `# Skill: ${manifest.name}`,
+        `Version: ${row.version_semver}`,
+        readFileSync(row.object_key, "utf8").trim(),
+      ].join("\n\n"));
+    }
+
+    const snapshotId = createId("srs");
+    this.db.prepare(`
+      insert into skill_runtime_snapshots(
+        id, agent_id, run_id, compiled_prompt, tools_manifest, source_revision_ids, created_at
+      )
+      values (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      snapshotId,
+      input.agentId,
+      input.runId,
+      compiledParts.join("\n\n---\n\n"),
+      JSON.stringify({ requiredTools: [...tools].sort() }),
+      JSON.stringify(revisionIds),
+      new Date().toISOString(),
+    );
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "skill_runtime_snapshot",
+      entityId: snapshotId,
+      actorType: "system",
+      actorId: null,
+      action: "resolved",
+      payload: { agentId: input.agentId, runId: input.runId, revisionIds },
+    });
+    return snapshotId;
+  }
+}
+
+interface RuntimeSkillRow {
+  revision_id: string;
+  version_semver: string;
+  manifest_json: string;
+  object_key: string;
 }

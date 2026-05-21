@@ -12,6 +12,7 @@ import type {
   ImportFileInput,
   ImportSkillDirectoryInput,
   LaunchSocialLoginInput,
+  ResolveAgentSkillsInput,
   SaveProviderCredentialInput,
   SendMessageInput,
   UpdateTaskStatusInput,
@@ -34,6 +35,7 @@ export interface DesktopApi {
   createProviderResponse(input: CreateProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
   importSkillDirectory(input: ImportSkillDirectoryInput): Promise<DesktopResult<AppSnapshot>>;
   bindSkill(input: BindSkillInput): Promise<DesktopResult<AppSnapshot>>;
+  resolveAgentSkills(input: ResolveAgentSkillsInput): Promise<DesktopResult<AppSnapshot>>;
   createSocialAccount(input: CreateSocialAccountInput): Promise<DesktopResult<AppSnapshot>>;
   launchSocialLogin(input: LaunchSocialLoginInput): Promise<DesktopResult<null>>;
   importFile(input: ImportFileInput): Promise<DesktopResult<AppSnapshot>>;

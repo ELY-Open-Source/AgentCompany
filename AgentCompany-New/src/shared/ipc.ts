@@ -11,6 +11,7 @@ export const IPC_CHANNELS = {
   createProviderResponse: "agentcompany:create-provider-response",
   importSkillDirectory: "agentcompany:import-skill-directory",
   bindSkill: "agentcompany:bind-skill",
+  resolveAgentSkills: "agentcompany:resolve-agent-skills",
   createSocialAccount: "agentcompany:create-social-account",
   launchSocialLogin: "agentcompany:launch-social-login",
   importFile: "agentcompany:import-file",

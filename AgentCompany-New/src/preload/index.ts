@@ -19,6 +19,7 @@ const api: DesktopApi = {
   createProviderResponse: (input) => invoke(IPC_CHANNELS.createProviderResponse, input),
   importSkillDirectory: (input) => invoke(IPC_CHANNELS.importSkillDirectory, input),
   bindSkill: (input) => invoke(IPC_CHANNELS.bindSkill, input),
+  resolveAgentSkills: (input) => invoke(IPC_CHANNELS.resolveAgentSkills, input),
   createSocialAccount: (input) => invoke(IPC_CHANNELS.createSocialAccount, input),
   launchSocialLogin: (input) => invoke(IPC_CHANNELS.launchSocialLogin, input),
   importFile: (input) => invoke(IPC_CHANNELS.importFile, input),

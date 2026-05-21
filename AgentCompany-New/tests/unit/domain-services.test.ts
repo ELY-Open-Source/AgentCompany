@@ -76,6 +76,8 @@ describe("domain services", () => {
     mkdirSync(skillDir, { recursive: true });
     writeFileSync(join(skillDir, "SKILL.md"), "---\nname: review-routes\n---\n# Review Routes\n");
     let orgId = "";
+    let agentId = "";
+    let revisionId = "";
 
     connection.transaction(() => {
       orgId = organization.createOrganization({
@@ -84,13 +86,29 @@ describe("domain services", () => {
         mission: "Coordinate agents with auditable approvals.",
         goal: "Ship a verified control plane.",
       });
-      skills.importDirectory({ orgId, directoryPath: skillDir, versionSemver: "1.0.0" });
+      agentId = organization.createAgent({
+        orgId,
+        name: "Ada",
+        role: "Architecture reviewer",
+        department: "Engineering",
+        modelProviderId: null,
+        modelId: null,
+        budgetCents: 10000,
+        managerAgentId: null,
+      });
+      revisionId = skills.importDirectory({ orgId, directoryPath: skillDir, versionSemver: "1.0.0" });
+      const skill = connection.db.prepare("select id from skill_definitions where org_id = ? and slug = ?")
+        .get(orgId, "review-routes") as { id: string };
+      skills.bind({ orgId, agentId, skillId: skill.id, revisionId });
+      skills.resolveRuntimeSnapshot({ orgId, agentId, runId: "run-review-1" });
     });
 
     const state = snapshot.load();
     expect(state.skillDefinitions[0]?.slug).toBe("review-routes");
     expect(state.skillRevisions[0]?.versionSemver).toBe("1.0.0");
     expect(state.skillRevisions[0]?.immutableChecksum).toHaveLength(64);
+    expect(state.skillRuntimeSnapshots[0]?.sourceRevisionIds).toContain(revisionId);
+    expect(state.skillRuntimeSnapshots[0]?.compiledPrompt).toContain("# Review Routes");
     connection.close();
   });
 

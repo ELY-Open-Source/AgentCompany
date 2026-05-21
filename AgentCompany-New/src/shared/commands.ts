@@ -92,6 +92,12 @@ export interface BindSkillInput {
   revisionId: string;
 }
 
+export interface ResolveAgentSkillsInput {
+  orgId: string;
+  agentId: string;
+  runId: string;
+}
+
 export interface CreateSocialAccountInput {
   orgId: string;
   platform: SocialPlatform;
