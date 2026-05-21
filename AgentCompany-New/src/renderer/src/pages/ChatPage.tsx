@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Avatar, Button, Field, Icon, IconButton } from "../shared/ui";
 import { Dialog } from "../shared/Dialog";
-import type { ChatSpaceRecord } from "../../../shared/domain";
+import type { ChatAttachmentRecord, ChatSpaceRecord, FileObjectRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
 
@@ -18,10 +18,12 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   const spaces = snapshot.chatSpaces.filter((item) => item.orgId === orgId);
   const employees = snapshot.employees.filter((item) => item.orgId === orgId);
   const agents = snapshot.agents.filter((item) => item.orgId === orgId);
+  const files = snapshot.files.filter((item) => item.orgId === orgId);
   const [spaceId, setSpaceId] = useState(spaces[0]?.id ?? "");
   const [spaceOpen, setSpaceOpen] = useState(false);
   const activeSpace = spaces.find((space) => space.id === spaceId) ?? spaces[0];
-  const messages = snapshot.chatMessages.filter((item) => item.orgId === orgId && item.spaceId === activeSpace?.id);
+  if (!activeSpace) throw new Error("At least one chat space is required.");
+  const messages = snapshot.chatMessages.filter((item) => item.orgId === orgId && item.spaceId === activeSpace.id);
   const sender = employees[0];
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -31,6 +33,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     const bodyMd = messageBody(form);
     if (!bodyMd) return;
     event.currentTarget.reset();
+    const attachmentFileId = value(form, "attachmentFileId");
     void actions.run(() => window.agentCompany.sendMessage({
       orgId,
       spaceId: activeSpace.id,
@@ -38,6 +41,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       senderType: "employee",
       senderId: sender.id,
       bodyMd,
+      attachmentFileIds: attachmentFileId ? [attachmentFileId] : [],
     }));
   };
 
@@ -82,10 +86,10 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       </aside>
       <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "var(--panel)" }}>
         <header className="row" style={{ height: 52, padding: "0 24px", borderBottom: "1px solid var(--border-soft)" }}>
-          <Icon name={activeSpace?.visibility === "restricted" ? "lock" : "hash"} />
-          <div style={{ fontSize: 14, fontWeight: 600 }}>{activeSpace?.name ?? "Messages"}</div>
+          <Icon name={activeSpace.visibility === "restricted" ? "lock" : "hash"} />
+          <div style={{ fontSize: 14, fontWeight: 600 }}>{activeSpace.name}</div>
           <div style={{ color: "var(--text-3)", borderLeft: "1px solid var(--border)", paddingLeft: 10 }}>
-            {activeSpace?.topic ?? ""}
+            {activeSpace.topic}
           </div>
           <div style={{ marginLeft: "auto" }}><Icon name="search" /></div>
         </header>
@@ -99,6 +103,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
               time={new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               name={displayName(message.senderType, message.senderId, employees, agents)}
               bot={message.senderType === "agent"}
+              files={messageFiles(message.id, snapshot.chatAttachments, files)}
             />
           ))}
         </div>
@@ -107,7 +112,10 @@ export function ChatPage({ snapshot, actions }: PageProps) {
             <textarea className="input" name="message" rows={2} aria-label="Message" />
             <div className="row" style={{ paddingTop: 8, borderTop: "1px solid var(--border-soft)" }}>
               <Icon name="attach" />
-              <Icon name="social" />
+              <select className="input" name="attachmentFileId" aria-label="File attachment" style={{ maxWidth: 220 }}>
+                <option value="">File</option>
+                {files.map((file) => <option key={file.id} value={file.id}>{file.name}</option>)}
+              </select>
               <div style={{ marginLeft: "auto" }}>
                 <Button tone="primary" size="small" type="submit" disabled={!activeSpace || !sender}><Icon name="send" /> Send</Button>
               </div>
@@ -158,7 +166,7 @@ function SpaceItem({
   onClick: () => void;
 }) {
   return (
-    <button type="button" className={`nav-item ${active ? "active" : ""}`} onClick={onClick}>
+    <button type="button" aria-label={space.name} className={`nav-item ${active ? "active" : ""}`} onClick={onClick}>
       <Icon name={space.visibility === "restricted" ? "lock" : "hash"} />
       <span>{space.name}</span>
       {count > 0 && <span className="nav-badge">{count}</span>}
@@ -166,7 +174,19 @@ function SpaceItem({
   );
 }
 
-function MessageRow({ name, body, time, bot }: { name: string; body: string; time: string; bot: boolean }) {
+function MessageRow({
+  name,
+  body,
+  time,
+  bot,
+  files,
+}: {
+  name: string;
+  body: string;
+  time: string;
+  bot: boolean;
+  files: FileObjectRecord[];
+}) {
   return (
     <div style={{ display: "flex", gap: 12, marginBottom: 18 }}>
       <Avatar name={name} bot={bot} />
@@ -176,9 +196,32 @@ function MessageRow({ name, body, time, bot }: { name: string; body: string; tim
           <span className="num" style={{ color: "var(--text-3)", fontSize: 11 }}>{time}</span>
         </div>
         <div style={{ lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{body}</div>
+        {files.length > 0 && (
+          <div className="row" style={{ marginTop: 8, flexWrap: "wrap" }}>
+            {files.map((file) => (
+              <span key={file.id} className="attachment-pill">
+                <Icon name="file" size={13} /> {file.name}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+function messageFiles(
+  messageId: string,
+  attachments: ChatAttachmentRecord[],
+  files: FileObjectRecord[],
+): FileObjectRecord[] {
+  return attachments
+    .filter((attachment) => attachment.messageId === messageId)
+    .map((attachment) => {
+      const file = files.find((item) => item.id === attachment.fileId);
+      if (!file) throw new Error("Chat attachment file is missing.");
+      return file;
+    });
 }
 
 function displayName(

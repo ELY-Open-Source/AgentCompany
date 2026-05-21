@@ -1,7 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { Avatar, Button, Field, Icon } from "../shared/ui";
 import { Dialog } from "../shared/Dialog";
-import { SOCIAL_PLATFORM, type SocialAccountRecord, type SocialPlatform } from "../../../shared/domain";
+import {
+  SOCIAL_PLATFORM,
+  type SocialAccountGrantRecord,
+  type SocialAccountRecord,
+  type SocialPlatform,
+} from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
 
@@ -13,6 +18,8 @@ export function SocialPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const [open, setOpen] = useState(false);
   const accounts = snapshot.socialAccounts.filter((item) => item.orgId === orgId);
+  const grants = snapshot.socialAccountGrants.filter((item) => item.orgId === orgId);
+  const actionsByAccount = snapshot.browserActions.filter((item) => item.orgId === orgId);
   const employees = snapshot.employees.filter((item) => item.orgId === orgId);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -47,6 +54,8 @@ export function SocialPage({ snapshot, actions }: PageProps) {
             key={account.id}
             account={account}
             employeeName={authorizedEmployeeName(account.authorizedEmployeeId, employees)}
+            grants={grants.filter((grant) => grant.socialAccountId === account.id)}
+            actionCount={actionsByAccount.filter((action) => action.socialAccountId === account.id).length}
             onLogin={() => void actions.run(() => window.agentCompany.launchSocialLogin({ socialAccountId: account.id }))}
           />
         ))}
@@ -76,10 +85,14 @@ export function SocialPage({ snapshot, actions }: PageProps) {
 function AccountCard({
   account,
   employeeName,
+  grants,
+  actionCount,
   onLogin,
 }: {
   account: SocialAccountRecord;
   employeeName: string | null;
+  grants: SocialAccountGrantRecord[];
+  actionCount: number;
   onLogin: () => void;
 }) {
   return (
@@ -97,6 +110,10 @@ function AccountCard({
           <span>{employeeName}</span>
         </div>
       )}
+      <div className="row" style={{ color: "var(--text-3)", fontSize: 11 }}>
+        <span>{grants.length} grants</span>
+        <span>{actionCount} actions</span>
+      </div>
       <Button size="small" onClick={onLogin}>Sign in</Button>
     </div>
   );

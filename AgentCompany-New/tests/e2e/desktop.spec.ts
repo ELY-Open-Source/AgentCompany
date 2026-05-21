@@ -1,4 +1,4 @@
-import { _electron as electron, expect, test } from "@playwright/test";
+import { _electron as electron, expect, test, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -50,7 +50,45 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
 
     await page.getByRole("button", { name: "Approvals" }).click();
     await expect(page.getByText("Production deploy").first()).toBeVisible();
+
+    await page.getByRole("button", { name: "Messages" }).click();
+    await page.getByRole("button", { name: "New space" }).click();
+    await page.getByLabel("Name").fill("release");
+    await page.getByLabel("Topic").fill("Release coordination");
+    await page.locator(".modal").getByRole("button", { name: "Create" }).click();
+    await expect(page.getByText("release").first()).toBeVisible();
+    await page.getByRole("textbox", { name: "Message" }).fill("Release channel opened.");
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(page.getByText("Release channel opened.")).toBeVisible();
+
+    await verifyPagesDoNotOverflow(page);
   } finally {
     await app.close();
   }
 });
+
+async function verifyPagesDoNotOverflow(page: Page): Promise<void> {
+  for (const size of [{ width: 1280, height: 860 }, { width: 980, height: 700 }]) {
+    await page.setViewportSize(size);
+    for (const nav of ["Home", "Team", "Work", "Messages", "Files", "Approvals", "Social", "Settings"]) {
+      await page.getByRole("button", { name: nav }).click();
+      await expectPageToFit(page);
+    }
+    for (const tab of ["Providers", "Skills", "Policies", "Migration"]) {
+      await page.getByRole("button", { name: "Settings" }).click();
+      await page.getByRole("button", { name: tab }).click();
+      await expectPageToFit(page);
+    }
+  }
+}
+
+async function expectPageToFit(page: Page): Promise<void> {
+  const dimensions = await page.evaluate(() => ({
+    documentScrollWidth: document.documentElement.scrollWidth,
+    documentClientWidth: document.documentElement.clientWidth,
+    bodyScrollWidth: document.body.scrollWidth,
+    bodyClientWidth: document.body.clientWidth,
+  }));
+  expect(dimensions.documentScrollWidth).toBeLessThanOrEqual(dimensions.documentClientWidth + 1);
+  expect(dimensions.bodyScrollWidth).toBeLessThanOrEqual(dimensions.bodyClientWidth + 1);
+}

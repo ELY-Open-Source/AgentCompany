@@ -198,6 +198,16 @@ describe("domain services", () => {
     const state = snapshot.load();
     expect(state.migrationReports).toHaveLength(1);
     expect(state.migrationReports[0]?.reportJson).toContain("\"agents\":1");
+    const report = JSON.parse(state.migrationReports[0]!.reportJson) as {
+      tableChecksums: Record<string, string>;
+      idMaps: Record<string, string[]>;
+      failures: Array<{ table: string; reason: string }>;
+      rollbackPack: { sourceDatabasePath: string };
+    };
+    expect(report.tableChecksums.agents).toHaveLength(64);
+    expect(report.idMaps.agents).toEqual(["agent-1"]);
+    expect(report.failures.some((failure) => failure.reason === "missing_table")).toBe(true);
+    expect(report.rollbackPack.sourceDatabasePath).toBe(legacyPath);
     connection.close();
   });
 

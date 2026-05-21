@@ -177,6 +177,20 @@ button { cursor: pointer; }
 .pill.amber { background: var(--amber-soft); color: var(--amber); border-color: transparent; }
 .pill.green { background: var(--green-soft); color: var(--green); border-color: transparent; }
 .pill.violet { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.attachment-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .avatar {
   width: 28px;

@@ -324,6 +324,26 @@ export interface SocialAccountRecord {
   createdAt: string;
 }
 
+export interface SocialAccountGrantRecord {
+  id: string;
+  orgId: string;
+  socialAccountId: string;
+  employeeId: string;
+  role: string;
+  scopeJson: string;
+  createdAt: string;
+}
+
+export interface BrowserActionRecord {
+  id: string;
+  orgId: string;
+  socialAccountId: string;
+  actionType: string;
+  policyDecision: string;
+  evidenceFileId: string | null;
+  createdAt: string;
+}
+
 export interface AuditEventRecord {
   id: string;
   orgId: string;
@@ -380,6 +400,8 @@ export interface AppSnapshot {
   skillBindings: SkillBindingRecord[];
   skillRuntimeSnapshots: SkillRuntimeSnapshotRecord[];
   socialAccounts: SocialAccountRecord[];
+  socialAccountGrants: SocialAccountGrantRecord[];
+  browserActions: BrowserActionRecord[];
   policyRules: PolicyRuleRecord[];
   migrationReports: MigrationReportRecord[];
   auditEvents: AuditEventRecord[];

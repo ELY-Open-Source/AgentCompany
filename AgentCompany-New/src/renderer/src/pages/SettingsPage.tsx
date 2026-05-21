@@ -102,7 +102,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
 }
 
 function SettingsNav({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return <button type="button" className={`nav-item ${active ? "active" : ""}`} onClick={onClick}>{label}</button>;
+  return <button type="button" aria-label={label} className={`nav-item ${active ? "active" : ""}`} onClick={onClick}>{label}</button>;
 }
 
 function ProvidersPanel({ providers, onManage }: { providers: ProviderRecord[]; onManage: (provider: ProviderRecord) => void }) {
@@ -231,8 +231,9 @@ function MigrationPanel({ reports, onCreate }: { reports: MigrationReportRecord[
 
 function MigrationReportRow({ report }: { report: MigrationReportRecord }) {
   const body = parseMigrationReport(report.reportJson);
+  const idCount = Object.values(body.idMaps).reduce((sum, ids) => sum + ids.length, 0);
   return (
-    <div className="table-row" style={{ gridTemplateColumns: "1.4fr 1fr 1fr" }}>
+    <div className="table-row" style={{ gridTemplateColumns: "1.4fr 1fr 1fr 1fr" }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={report.sourceRef}>{report.sourceRef}</div>
         <div style={{ color: "var(--text-3)", fontSize: 11 }}>{new Date(report.createdAt).toLocaleString()}</div>
@@ -240,15 +241,36 @@ function MigrationReportRow({ report }: { report: MigrationReportRecord }) {
       <div className="row" style={{ flexWrap: "wrap" }}>
         {Object.entries(body.tableCounts).map(([table, count]) => <Pill key={table}>{table}: {count}</Pill>)}
       </div>
-      <Pill>{body.missingTables.length} missing</Pill>
+      <Pill>{Object.keys(body.tableChecksums).length} checksums</Pill>
+      <div className="row" style={{ flexWrap: "wrap" }}>
+        <Pill>{idCount} ids</Pill>
+        <Pill>{body.failures.length} failures</Pill>
+      </div>
     </div>
   );
 }
 
-function parseMigrationReport(reportJson: string): { tableCounts: Record<string, number>; missingTables: string[] } {
-  const parsed = JSON.parse(reportJson) as { tableCounts?: Record<string, number>; missingTables?: string[] };
-  if (!parsed.tableCounts || !Array.isArray(parsed.missingTables)) throw new Error("Migration report is invalid.");
-  return { tableCounts: parsed.tableCounts, missingTables: parsed.missingTables };
+function parseMigrationReport(reportJson: string): {
+  tableCounts: Record<string, number>;
+  tableChecksums: Record<string, string>;
+  idMaps: Record<string, string[]>;
+  failures: Array<{ table: string; reason: string }>;
+} {
+  const parsed = JSON.parse(reportJson) as {
+    tableCounts?: Record<string, number>;
+    tableChecksums?: Record<string, string>;
+    idMaps?: Record<string, string[]>;
+    failures?: Array<{ table: string; reason: string }>;
+  };
+  if (!parsed.tableCounts || !parsed.tableChecksums || !parsed.idMaps || !Array.isArray(parsed.failures)) {
+    throw new Error("Migration report is invalid.");
+  }
+  return {
+    tableCounts: parsed.tableCounts,
+    tableChecksums: parsed.tableChecksums,
+    idMaps: parsed.idMaps,
+    failures: parsed.failures,
+  };
 }
 
 function requireRevision(

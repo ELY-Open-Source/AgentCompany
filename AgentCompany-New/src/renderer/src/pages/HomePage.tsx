@@ -4,7 +4,8 @@ import { activeOrgId, money } from "./types";
 
 export function HomePage({ snapshot }: PageProps) {
   const orgId = activeOrgId(snapshot);
-  const organization = snapshot.organizations.find((item) => item.id === orgId)!;
+  const organization = snapshot.organizations.find((item) => item.id === orgId);
+  if (!organization) throw new Error("Active organization is missing.");
   const tasks = snapshot.tasks.filter((item) => item.orgId === orgId);
   const approvals = snapshot.approvals.filter((item) => item.orgId === orgId);
   const agents = snapshot.agents.filter((item) => item.orgId === orgId);

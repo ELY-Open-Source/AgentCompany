@@ -30,6 +30,10 @@ export function Shell({
 }) {
   const organization = snapshot.organizations.find((item) => item.id === snapshot.activeOrgId);
   const employee = snapshot.employees.find((item) => item.orgId === snapshot.activeOrgId);
+  const activeRoute = navItems.find((item) => item.id === route);
+  if (!organization) throw new Error("Active organization is missing.");
+  if (!employee) throw new Error("Active employee is missing.");
+  if (!activeRoute) throw new Error("Active route is missing.");
   const badges = {
     work: snapshot.tasks.filter((item) => item.orgId === snapshot.activeOrgId && item.status !== "done").length,
     chat: snapshot.chatMessages.filter((item) => item.orgId === snapshot.activeOrgId).length,
@@ -41,7 +45,7 @@ export function Shell({
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">A</div>
-          <div className="brand-name">{organization?.name ?? "AgentCompany"}</div>
+          <div className="brand-name">{organization.name}</div>
           <Icon name="chevronDown" size={12} />
         </div>
         <nav className="nav">
@@ -49,6 +53,7 @@ export function Shell({
             <button
               key={item.id}
               type="button"
+              aria-label={item.label}
               className={`nav-item ${route === item.id ? "active" : ""}`}
               onClick={() => setRoute(item.id)}
             >
@@ -59,16 +64,16 @@ export function Shell({
           ))}
         </nav>
         <div className="sidebar-foot">
-          <Avatar name={employee?.displayName ?? "User"} size="sm" />
-          <div style={{ flex: 1, minWidth: 0 }}>{employee?.displayName ?? "User"}</div>
+          <Avatar name={employee.displayName} size="sm" />
+          <div style={{ flex: 1, minWidth: 0 }}>{employee.displayName}</div>
           <Icon name="bell" />
         </div>
       </aside>
       <main className="main">
         <header className="topbar">
-          <span className="crumb-sub">{organization?.name ?? "Workspace"}</span>
+          <span className="crumb-sub">{organization.name}</span>
           <span style={{ color: "var(--text-4)" }}>/</span>
-          <span className="crumb">{navItems.find((item) => item.id === route)?.label}</span>
+          <span className="crumb">{activeRoute.label}</span>
           <div className="topbar-actions">
             {actions}
             {window.agentCompany.platform !== "darwin" && (

@@ -67,7 +67,7 @@ function TreeItem({
   active?: boolean;
 }) {
   return (
-    <button type="button" className={`nav-item ${active ? "active" : ""}`} onClick={onClick}>
+    <button type="button" aria-label={label} className={`nav-item ${active ? "active" : ""}`} onClick={onClick}>
       <Icon name={icon} />
       <span>{label}</span>
       {typeof count === "number" && <span className="nav-badge">{count}</span>}
