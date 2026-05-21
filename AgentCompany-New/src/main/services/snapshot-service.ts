@@ -57,6 +57,7 @@ export class SnapshotService {
       skillRuntimeSnapshots: list(this.db, "skill_runtime_snapshots", "created_at desc"),
       socialAccounts: list(this.db, "social_accounts", "created_at asc"),
       policyRules: list(this.db, "policy_rules", "created_at asc"),
+      migrationReports: list(this.db, "migration_reports", "created_at desc"),
       auditEvents: list<AppSnapshot["auditEvents"][number]>(this.db, "audit_events", "created_at desc").slice(0, 200),
     };
   }

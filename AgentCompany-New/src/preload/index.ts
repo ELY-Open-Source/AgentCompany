@@ -23,6 +23,7 @@ const api: DesktopApi = {
   createSocialAccount: (input) => invoke(IPC_CHANNELS.createSocialAccount, input),
   launchSocialLogin: (input) => invoke(IPC_CHANNELS.launchSocialLogin, input),
   importFile: (input) => invoke(IPC_CHANNELS.importFile, input),
+  createMigrationReport: (input) => invoke(IPC_CHANNELS.createMigrationReport, input),
   subscribe: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: RendererEvent) => callback(payload);
     ipcRenderer.on(IPC_CHANNELS.rendererEvent, listener);

@@ -2,12 +2,14 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { SkillService } from "../../src/main/services/skill-service";
 import { ChatService } from "../../src/main/services/chat-service";
+import { MigrationService } from "../../src/main/services/migration-service";
 import { RISK_LEVEL, TASK_STATUS } from "../../src/shared/domain";
 import { createId } from "../../src/shared/ids";
 
@@ -157,6 +159,33 @@ describe("domain services", () => {
     const mention = connection.db.prepare("select target_id from chat_mentions").get() as { target_id: string };
     expect(slash.command).toBe("handoff");
     expect(mention.target_id).toBe("Board");
+    connection.close();
+  });
+
+  test("creates a read-only migration report from a legacy database", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const migrations = new MigrationService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    const legacyPath = join(tmpdir(), `agentcompany-legacy-${randomUUID()}.db`);
+    const legacy = new DatabaseSync(legacyPath);
+    legacy.exec("create table agents(id text primary key); insert into agents(id) values ('agent-1');");
+    legacy.close();
+    let orgId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      migrations.createReport({ orgId, sourceDatabasePath: legacyPath });
+    });
+
+    const state = snapshot.load();
+    expect(state.migrationReports).toHaveLength(1);
+    expect(state.migrationReports[0]?.reportJson).toContain("\"agents\":1");
     connection.close();
   });
 });

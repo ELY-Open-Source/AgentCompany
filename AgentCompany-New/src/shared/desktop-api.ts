@@ -4,6 +4,7 @@ import type {
   BindSkillInput,
   CreateAgentInput,
   CreateApprovalInput,
+  CreateMigrationReportInput,
   CreateOrganizationInput,
   CreateProviderResponseInput,
   CreateSocialAccountInput,
@@ -39,6 +40,7 @@ export interface DesktopApi {
   createSocialAccount(input: CreateSocialAccountInput): Promise<DesktopResult<AppSnapshot>>;
   launchSocialLogin(input: LaunchSocialLoginInput): Promise<DesktopResult<null>>;
   importFile(input: ImportFileInput): Promise<DesktopResult<AppSnapshot>>;
+  createMigrationReport(input: CreateMigrationReportInput): Promise<DesktopResult<AppSnapshot>>;
   subscribe(callback: (event: RendererEvent) => void): () => void;
   platform: "win32" | "darwin" | "linux";
   windowMinimize(): Promise<void>;

@@ -11,6 +11,7 @@ import { ProviderService } from "../services/provider-service";
 import { SkillService } from "../services/skill-service";
 import { SocialService } from "../services/social-service";
 import { FileService } from "../services/file-service";
+import { MigrationService } from "../services/migration-service";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -27,6 +28,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const skills = new SkillService(deps.connection.db);
   const social = new SocialService(deps.connection.db);
   const files = new FileService(deps.connection.db, deps.artifactRoot);
+  const migrations = new MigrationService(deps.connection.db);
 
   const mutate = <T>(operation: () => T): DesktopResult<AppSnapshot> => {
     try {
@@ -86,6 +88,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("file_import_failed", error instanceof Error ? error.message : String(error));
     }
   });
+
+  ipcMain.handle(IPC_CHANNELS.createMigrationReport, (_event, input) => mutate(() => migrations.createReport(input)));
 
   ipcMain.handle(IPC_CHANNELS.windowMinimize, () => deps.mainWindow.minimize());
   ipcMain.handle(IPC_CHANNELS.windowMaximize, () => deps.mainWindow.isMaximized() ? deps.mainWindow.unmaximize() : deps.mainWindow.maximize());

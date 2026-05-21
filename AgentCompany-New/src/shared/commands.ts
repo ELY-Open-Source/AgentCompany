@@ -114,6 +114,11 @@ export interface ImportFileInput {
   orgId: string;
 }
 
+export interface CreateMigrationReportInput {
+  orgId: string;
+  sourceDatabasePath: string;
+}
+
 export interface NativeDialogResult {
   canceled: boolean;
   filePaths: string[];

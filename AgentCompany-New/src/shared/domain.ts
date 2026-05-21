@@ -275,6 +275,14 @@ export interface PolicyRuleRecord {
   createdAt: string;
 }
 
+export interface MigrationReportRecord {
+  id: string;
+  orgId: string;
+  sourceRef: string;
+  reportJson: string;
+  createdAt: string;
+}
+
 export interface AppSnapshot {
   activeOrgId: string | null;
   organizations: OrganizationRecord[];
@@ -297,5 +305,6 @@ export interface AppSnapshot {
   skillRuntimeSnapshots: SkillRuntimeSnapshotRecord[];
   socialAccounts: SocialAccountRecord[];
   policyRules: PolicyRuleRecord[];
+  migrationReports: MigrationReportRecord[];
   auditEvents: AuditEventRecord[];
 }

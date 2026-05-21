@@ -15,6 +15,7 @@ export const IPC_CHANNELS = {
   createSocialAccount: "agentcompany:create-social-account",
   launchSocialLogin: "agentcompany:launch-social-login",
   importFile: "agentcompany:import-file",
+  createMigrationReport: "agentcompany:create-migration-report",
   rendererEvent: "agentcompany:renderer-event",
   windowMinimize: "agentcompany:window-minimize",
   windowMaximize: "agentcompany:window-maximize",
