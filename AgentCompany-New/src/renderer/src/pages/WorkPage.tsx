@@ -1,65 +1,48 @@
-import { useState, type FormEvent } from "react";
-import { Avatar, Button, Field, Icon, IconButton, Pill } from "../shared/ui";
-import { Dialog } from "../shared/Dialog";
+import { useMemo, useState } from "react";
+import { Avatar, Button, Icon, IconButton, Pill, Segmented } from "../shared/ui";
 import {
-  RISK_LEVEL,
-  TASK_PRIORITY,
   TASK_STATUS,
   type AgentRecord,
   type GoalRecord,
   type ProjectRecord,
-  type TaskPriority,
   type TaskRecord,
   type TaskStatus,
   type WorkspaceRecord,
 } from "../../../shared/domain";
+import { NewTaskDialog } from "./NewTaskDialog";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
 
-const columns: Array<{ id: TaskStatus; label: string }> = [
-  { id: TASK_STATUS.BACKLOG, label: "Backlog" },
-  { id: TASK_STATUS.IN_PROGRESS, label: "In progress" },
-  { id: TASK_STATUS.REVIEW, label: "In review" },
-  { id: TASK_STATUS.DONE, label: "Done" },
+type View = "board" | "list" | "timeline";
+
+const COLUMNS: ReadonlyArray<{ id: TaskStatus; label: string; tone: string }> = [
+  { id: TASK_STATUS.BACKLOG, label: "Backlog", tone: "var(--text-4)" },
+  { id: TASK_STATUS.IN_PROGRESS, label: "In progress", tone: "var(--accent)" },
+  { id: TASK_STATUS.REVIEW, label: "In review", tone: "var(--amber)" },
+  { id: TASK_STATUS.DONE, label: "Done", tone: "var(--green)" },
 ];
 
-function value(form: FormData, key: string): string {
-  return String(form.get(key) ?? "").trim();
-}
-
-function optionalValue(form: FormData, key: string): string | null {
-  const text = value(form, key);
-  return text ? text : null;
-}
-
-type ViewMode = "board" | "list";
+const VIEW_OPTIONS: ReadonlyArray<{ id: View; label: string }> = [
+  { id: "board", label: "Board" },
+  { id: "list", label: "List" },
+  { id: "timeline", label: "Timeline" },
+];
 
 export function WorkPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
-  const [open, setOpen] = useState(false);
-  const [view, setView] = useState<ViewMode>("board");
-  const tasks = snapshot.tasks.filter((item) => item.orgId === orgId);
-  const agents = snapshot.agents.filter((item) => item.orgId === orgId);
-  const projects = snapshot.projects.filter((item) => item.orgId === orgId);
-  const goals = snapshot.goals.filter((item) => item.orgId === orgId);
-  const workspaces = snapshot.workspaces.filter((item) => item.orgId === orgId);
+  const [view, setView] = useState<View>("board");
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    void actions.run(() => window.agentCompany.createTask({
-      orgId,
-      title: value(form, "title"),
-      description: value(form, "description"),
-      status: TASK_STATUS.BACKLOG,
-      assigneeAgentId: optionalValue(form, "assigneeAgentId"),
-      risk: value(form, "risk") as "low" | "medium" | "high",
-      projectId: optionalValue(form, "projectId"),
-      goalId: optionalValue(form, "goalId"),
-      workspaceId: optionalValue(form, "workspaceId"),
-      priority: value(form, "priority") as TaskPriority,
-      requiresFilesystem: form.get("requiresFilesystem") === "on",
-    })).then(() => setOpen(false));
+  const tasks = useMemo(() => snapshot.tasks.filter((task) => task.orgId === orgId), [snapshot.tasks, orgId]);
+  const agents = useMemo(() => snapshot.agents.filter((agent) => agent.orgId === orgId), [snapshot.agents, orgId]);
+  const projects = useMemo(() => snapshot.projects.filter((project) => project.orgId === orgId), [snapshot.projects, orgId]);
+  const goals = useMemo(() => snapshot.goals.filter((goal) => goal.orgId === orgId), [snapshot.goals, orgId]);
+  const workspaces = useMemo(() => snapshot.workspaces.filter((workspace) => workspace.orgId === orgId), [snapshot.workspaces, orgId]);
+
+  const advance = (task: TaskRecord) => {
+    const next = nextStatus(task.status);
+    if (!next) return;
+    void actions.run(() => window.agentCompany.updateTaskStatus({ orgId, taskId: task.id, status: next }));
   };
 
   return (
@@ -67,125 +50,156 @@ export function WorkPage({ snapshot, actions }: PageProps) {
       <div className="row" style={{ marginBottom: 24 }}>
         <div>
           <h1 className="page-h1">Work</h1>
-          <p className="page-sub" style={{ marginBottom: 0 }}>{tasks.length} tasks · {agents.length} assignees</p>
+          <p className="page-sub" style={{ marginBottom: 0 }}>
+            {tasks.length} {tasks.length === 1 ? "task" : "tasks"} · {agents.length} {agents.length === 1 ? "assignee" : "assignees"}
+          </p>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
-          <div style={{ display: "flex", gap: 2, padding: 2, border: "1px solid var(--border)", borderRadius: 8 }}>
-            <button
-              type="button"
-              className="button small"
-              style={{ borderColor: "transparent", background: view === "board" ? "var(--panel-3)" : "transparent" }}
-              onClick={() => setView("board")}
-            >
-              Board
-            </button>
-            <button
-              type="button"
-              className="button small"
-              style={{ borderColor: "transparent", background: view === "list" ? "var(--panel-3)" : "transparent" }}
-              onClick={() => setView("list")}
-            >
-              List
-            </button>
-          </div>
-          <button type="button" className="button"><Icon name="filter" size={13} /> Filter</button>
-          <Button tone="primary" onClick={() => setOpen(true)}><Icon name="plus" /> New task</Button>
+          <Segmented value={view} onChange={setView} options={VIEW_OPTIONS} />
+          <Button tone="ghost"><Icon name="filter" size={13} /></Button>
+          <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={13} /> New task</Button>
         </div>
       </div>
-      {view === "board" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-          {columns.map((column) => {
-            const columnTasks = tasks.filter((task) => task.status === column.id);
-            return (
-              <div key={column.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div className="row" style={{ padding: "4px 6px 8px" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: columnColor(column.id) }} />
-                  <span style={{ fontSize: 12.5, fontWeight: 540 }}>{column.label}</span>
-                  <span className="num" style={{ color: "var(--text-3)" }}>{columnTasks.length}</span>
-                </div>
-                {columnTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    assignee={optionalRecordName(task.assigneeAgentId, agents, (agent) => agent.name, "Agent")}
-                    project={optionalRecordName(task.projectId, projects, (project) => project.name, "Project")}
-                    goal={optionalRecordName(task.goalId, goals, (goal) => goal.title, "Goal")}
-                    workspace={optionalRecordName(task.workspaceId, workspaces, (workspace) => workspace.name, "Workspace")}
-                    onMove={(status) => void actions.run(() => window.agentCompany.updateTaskStatus({ orgId, taskId: task.id, status }))}
-                  />
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <div className="table-row" style={{ gridTemplateColumns: "3fr 1fr 1fr 1fr", background: "var(--panel-2)", color: "var(--text-3)", fontSize: 11 }}>
-            <div>Title</div><div>Status</div><div>Priority</div><div>Assignee</div>
-          </div>
-          {tasks.length === 0 ? (
-            <div style={{ padding: 18, color: "var(--text-3)" }}>No tasks</div>
-          ) : tasks.map((task) => {
-            const assigneeName = optionalRecordName(task.assigneeAgentId, agents, (a) => a.name, "Agent");
-            return (
-              <div key={task.id} className="table-row" style={{ gridTemplateColumns: "3fr 1fr 1fr 1fr" }}>
-                <div className="row">
-                  {task.risk === "high" && <span style={{ width: 3, height: 12, background: "var(--red)", borderRadius: 2, flexShrink: 0 }} />}
-                  <span style={{ fontWeight: 480 }}>{task.title}</span>
-                </div>
-                <Pill>{task.status.replaceAll("_", " ")}</Pill>
-                <Pill tone={task.priority === "high" ? "amber" : undefined}>{task.priority}</Pill>
-                <div>{assigneeName ? <div className="row"><Avatar name={assigneeName} size="sm" bot /><span style={{ color: "var(--text-2)" }}>{assigneeName}</span></div> : <span style={{ color: "var(--text-4)" }}>—</span>}</div>
-              </div>
-            );
-          })}
-        </div>
+
+      {view === "board" && (
+        <BoardView
+          tasks={tasks}
+          agents={agents}
+          projects={projects}
+          goals={goals}
+          workspaces={workspaces}
+          onAdvance={advance}
+          onCreate={() => setNewTaskOpen(true)}
+        />
       )}
-      <Dialog title="New task" open={open} submitLabel="Create" onClose={() => setOpen(false)} onSubmit={submit}>
-        <Field label="Title"><input className="input" name="title" required /></Field>
-        <Field label="Description"><textarea className="input" name="description" required /></Field>
-        <Field label="Assignee">
-          <select className="input" name="assigneeAgentId">
-            <option value="">Unassigned</option>
-            {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Project">
-          <select className="input" name="projectId">
-            <option value="">Unassigned</option>
-            {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Goal">
-          <select className="input" name="goalId">
-            <option value="">Unassigned</option>
-            {goals.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}
-          </select>
-        </Field>
-        <Field label="Workspace">
-          <select className="input" name="workspaceId">
-            <option value="">Unassigned</option>
-            {workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Risk">
-          <select className="input" name="risk" defaultValue={RISK_LEVEL.LOW}>
-            <option value={RISK_LEVEL.LOW}>Low</option>
-            <option value={RISK_LEVEL.MEDIUM}>Medium</option>
-            <option value={RISK_LEVEL.HIGH}>High</option>
-          </select>
-        </Field>
-        <Field label="Priority">
-          <select className="input" name="priority" defaultValue={TASK_PRIORITY.NORMAL}>
-            <option value={TASK_PRIORITY.LOW}>Low</option>
-            <option value={TASK_PRIORITY.NORMAL}>Normal</option>
-            <option value={TASK_PRIORITY.HIGH}>High</option>
-          </select>
-        </Field>
-        <Field label="Filesystem">
-          <label className="checkbox-row"><input type="checkbox" name="requiresFilesystem" /> Requires workspace access</label>
-        </Field>
-      </Dialog>
+      {view === "list" && <ListView tasks={tasks} agents={agents} projects={projects} />}
+      {view === "timeline" && <TimelineView tasks={tasks} goals={goals} />}
+
+      <NewTaskDialog open={newTaskOpen} orgId={orgId} snapshot={snapshot} actions={actions} onClose={() => setNewTaskOpen(false)} />
+    </div>
+  );
+}
+
+function BoardView({
+  tasks,
+  agents,
+  projects,
+  goals,
+  workspaces,
+  onAdvance,
+  onCreate,
+}: {
+  tasks: TaskRecord[];
+  agents: AgentRecord[];
+  projects: ProjectRecord[];
+  goals: GoalRecord[];
+  workspaces: WorkspaceRecord[];
+  onAdvance: (task: TaskRecord) => void;
+  onCreate: () => void;
+}) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, minWidth: 0 }}>
+      {COLUMNS.map((column) => {
+        const columnTasks = tasks.filter((task) => task.status === column.id);
+        return (
+          <div key={column.id} style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+            <div className="row" style={{ padding: "4px 6px 8px" }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: column.tone, flexShrink: 0 }} />
+              <span style={{ fontSize: 12.5, fontWeight: 540 }}>{column.label}</span>
+              <span className="num" style={{ fontSize: 12, color: "var(--text-3)" }}>{columnTasks.length}</span>
+              <IconButton icon="plus" label="Add task" onClick={onCreate} />
+            </div>
+            {columnTasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                assignee={agents.find((agent) => agent.id === task.assigneeAgentId) ?? null}
+                project={projects.find((project) => project.id === task.projectId) ?? null}
+                goal={goals.find((goal) => goal.id === task.goalId) ?? null}
+                workspace={workspaces.find((workspace) => workspace.id === task.workspaceId) ?? null}
+                onAdvance={() => onAdvance(task)}
+              />
+            ))}
+            {columnTasks.length === 0 && (
+              <div style={{ color: "var(--text-3)", fontSize: 12, padding: "12px 6px" }}>Empty.</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ListView({ tasks, agents, projects }: { tasks: TaskRecord[]; agents: AgentRecord[]; projects: ProjectRecord[] }) {
+  return (
+    <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+      <div
+        className="table-row head"
+        style={{ gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) 60px" }}
+      >
+        <div>Title</div><div>Status</div><div>Priority</div><div>Assignee</div><div />
+      </div>
+      {tasks.length === 0 ? (
+        <div style={{ padding: 18, color: "var(--text-3)" }}>No tasks.</div>
+      ) : tasks.map((task, index) => {
+        const assignee = agents.find((agent) => agent.id === task.assigneeAgentId) ?? null;
+        const project = projects.find((p) => p.id === task.projectId) ?? null;
+        const last = index === tasks.length - 1;
+        return (
+          <div
+            key={task.id}
+            className="table-row"
+            style={{ gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) 60px", borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
+          >
+            <div className="row" style={{ gap: 8, minWidth: 0 }}>
+              {task.risk === "high" && <span style={{ width: 3, height: 12, background: "var(--red)", borderRadius: 2, flexShrink: 0 }} />}
+              <span style={{ fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.title}</span>
+              {project && <Pill>{project.name}</Pill>}
+            </div>
+            <div><Pill>{prettyStatus(task.status)}</Pill></div>
+            <div><Pill tone={task.priority === "high" ? "amber" : undefined}>{task.priority}</Pill></div>
+            <div>
+              {assignee ? (
+                <div className="row" style={{ gap: 8 }}>
+                  <Avatar name={assignee.name} size="sm" bot />
+                  <span style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{assignee.name}</span>
+                </div>
+              ) : (
+                <span style={{ color: "var(--text-4)" }}>—</span>
+              )}
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <IconButton icon="more" label="More" />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TimelineView({ tasks, goals }: { tasks: TaskRecord[]; goals: GoalRecord[] }) {
+  return (
+    <div className="card" style={{ padding: 18 }}>
+      <div className="section-label">By goal</div>
+      {goals.length === 0 ? (
+        <div style={{ color: "var(--text-3)" }}>No goals defined.</div>
+      ) : goals.map((goal) => {
+        const linked = tasks.filter((task) => task.goalId === goal.id);
+        const done = linked.filter((task) => task.status === TASK_STATUS.DONE).length;
+        const pct = linked.length === 0 ? 0 : Math.round((done / linked.length) * 100);
+        return (
+          <div key={goal.id} style={{ padding: "12px 0", borderBottom: "1px solid var(--border-soft)" }}>
+            <div className="row">
+              <span style={{ fontWeight: 540 }}>{goal.title}</span>
+              <span className="num" style={{ marginLeft: "auto", color: "var(--text-3)" }}>{done} / {linked.length}</span>
+            </div>
+            <div style={{ marginTop: 8, height: 3, background: "var(--panel-3)", borderRadius: 2, overflow: "hidden" }}>
+              <div style={{ width: `${pct}%`, height: "100%", background: "var(--text-1)" }} />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -196,42 +210,56 @@ function TaskCard({
   project,
   goal,
   workspace,
-  onMove,
+  onAdvance,
 }: {
   task: TaskRecord;
-  assignee: string | null;
-  project: string | null;
-  goal: string | null;
-  workspace: string | null;
-  onMove: (status: TaskStatus) => void;
+  assignee: AgentRecord | null;
+  project: ProjectRecord | null;
+  goal: GoalRecord | null;
+  workspace: WorkspaceRecord | null;
+  onAdvance: () => void;
 }) {
   return (
-    <div className="card" style={{ display: "flex", flexDirection: "column", gap: 10, opacity: task.status === "done" ? 0.7 : 1 }}>
+    <div
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: 10,
+        padding: 12,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        opacity: task.status === "done" ? 0.7 : 1,
+      }}
+    >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-        {task.risk === "high" && <span style={{ width: 3, height: 14, background: "var(--red)", borderRadius: 2, marginTop: 2 }} />}
-        <div style={{ fontWeight: 480, lineHeight: 1.35 }}>{task.title}</div>
+        {task.priority === "high" && <span style={{ width: 3, height: 14, background: "var(--red)", borderRadius: 2, marginTop: 2, flexShrink: 0 }} />}
+        <div
+          style={{
+            flex: 1,
+            fontSize: 13,
+            fontWeight: 480,
+            lineHeight: 1.35,
+            letterSpacing: "-0.005em",
+            textDecoration: task.status === "done" ? "line-through" : "none",
+            color: task.status === "done" ? "var(--text-3)" : "var(--text-1)",
+          }}
+        >
+          {task.title}
+        </div>
       </div>
-      <div className="row" style={{ flexWrap: "wrap" }}>
-        <Pill tone={task.risk === "high" ? "amber" : undefined}>{task.risk}</Pill>
-        <Pill>{task.priority}</Pill>
-        {project && <Pill>{project}</Pill>}
-        {goal && <Pill>{goal}</Pill>}
-        {workspace && <Pill>{workspace}</Pill>}
-        {task.requiresFilesystem && <Pill>filesystem</Pill>}
-        {assignee && <Avatar name={assignee} size="sm" bot />}
-        <div style={{ marginLeft: "auto" }}>
-          {nextStatus(task.status) && <IconButton icon="check" label="Move" onClick={() => onMove(nextStatus(task.status)!)} />}
+      <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>
+        {project ? <Pill>{project.name}</Pill> : <Pill>{capitalize(task.risk)}</Pill>}
+        {goal && <Pill tone="violet">{truncate(goal.title, 20)}</Pill>}
+        {workspace && <Pill>{workspace.name}</Pill>}
+        {task.requiresFilesystem && <Pill>workspace</Pill>}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+          {assignee && <Avatar name={assignee.name} size="sm" bot />}
+          {nextStatus(task.status) && <IconButton icon="check" label="Advance" onClick={onAdvance} />}
         </div>
       </div>
     </div>
   );
-}
-
-function columnColor(status: TaskStatus): string {
-  if (status === TASK_STATUS.IN_PROGRESS) return "var(--accent)";
-  if (status === TASK_STATUS.REVIEW) return "var(--amber)";
-  if (status === TASK_STATUS.DONE) return "var(--green)";
-  return "var(--text-4)";
 }
 
 function nextStatus(status: TaskStatus): TaskStatus | null {
@@ -241,14 +269,15 @@ function nextStatus(status: TaskStatus): TaskStatus | null {
   return null;
 }
 
-function optionalRecordName<T extends AgentRecord | ProjectRecord | GoalRecord | WorkspaceRecord>(
-  id: string | null,
-  records: T[],
-  getName: (record: T) => string,
-  label: string,
-): string | null {
-  if (!id) return null;
-  const record = records.find((item) => item.id === id);
-  if (!record) throw new Error(`${label} reference is missing.`);
-  return getName(record);
+function prettyStatus(status: TaskStatus): string {
+  return status.replaceAll("_", " ");
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function truncate(value: string, max: number): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 1)}…`;
 }

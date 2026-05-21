@@ -1,0 +1,124 @@
+import type { FormEvent, MutableRefObject, ReactNode } from "react";
+import { AvatarStack, Icon, IconButton } from "../../shared/ui";
+import type {
+  ApprovalRecord,
+  ChatAttachmentRecord,
+  ChatMessageRecord,
+  ChatSpaceRecord,
+  ChatThreadRecord,
+  FileObjectRecord,
+} from "../../../../shared/domain";
+import { ChatComposer } from "./ChatComposer";
+import { ChatTimeline } from "./ChatTimeline";
+import type { MessageContext } from "./chat-helpers";
+
+export function ChatConversation({
+  space,
+  participants,
+  rootMessages,
+  messagesInSpace,
+  threadsInSpace,
+  pendingApprovals,
+  attachments,
+  files,
+  context,
+  attachmentFileId,
+  onAttachmentChange,
+  onOpenThread,
+  onApprove,
+  onDecline,
+  onSubmit,
+  composerRef,
+}: {
+  space: ChatSpaceRecord | null;
+  participants: string[];
+  rootMessages: ChatMessageRecord[];
+  messagesInSpace: ChatMessageRecord[];
+  threadsInSpace: ChatThreadRecord[];
+  pendingApprovals: ApprovalRecord[];
+  attachments: ChatAttachmentRecord[];
+  files: FileObjectRecord[];
+  context: MessageContext;
+  attachmentFileId: string;
+  onAttachmentChange: (next: string) => void;
+  onOpenThread: (threadId: string) => void;
+  onApprove: (approvalId: string) => void;
+  onDecline: (approvalId: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  composerRef: MutableRefObject<HTMLTextAreaElement | null>;
+}) {
+  return (
+    <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "var(--panel)" }}>
+      {space && <ConversationHeader space={space} participants={participants} />}
+      <div style={{ flex: 1, overflow: "auto", padding: "20px 24px 8px" }}>
+        {!space ? (
+          <Empty>Select a channel to start.</Empty>
+        ) : rootMessages.length === 0 && pendingApprovals.length === 0 ? (
+          <Empty>No messages in {space.name} yet.</Empty>
+        ) : (
+          <ChatTimeline
+            rootMessages={rootMessages}
+            messagesInSpace={messagesInSpace}
+            threadsInSpace={threadsInSpace}
+            pendingApprovals={pendingApprovals}
+            attachments={attachments}
+            files={files}
+            context={context}
+            onOpenThread={onOpenThread}
+            onApprove={onApprove}
+            onDecline={onDecline}
+          />
+        )}
+      </div>
+      <ChatComposer
+        spaceName={space?.name ?? ""}
+        disabled={!space}
+        files={files}
+        attachmentFileId={attachmentFileId}
+        onAttachmentChange={onAttachmentChange}
+        onSubmit={onSubmit}
+        composerRef={composerRef}
+      />
+    </section>
+  );
+}
+
+function ConversationHeader({
+  space,
+  participants,
+}: {
+  space: ChatSpaceRecord;
+  participants: string[];
+}) {
+  return (
+    <header className="row" style={{ height: 52, padding: "0 24px", borderBottom: "1px solid var(--border-soft)", flexShrink: 0 }}>
+      <Icon name={space.visibility === "restricted" ? "lock" : "hash"} size={15} color="var(--text-3)" />
+      <span style={{ fontSize: 14, fontWeight: 600 }}>{space.name}</span>
+      <span
+        style={{
+          fontSize: 12,
+          color: "var(--text-3)",
+          borderLeft: "1px solid var(--border)",
+          paddingLeft: 10,
+          marginLeft: 4,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          flex: 1,
+          minWidth: 0,
+        }}
+      >
+        {space.topic}
+      </span>
+      <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+        {participants.length > 0 && <AvatarStack names={participants.slice(0, 5)} bot />}
+        <IconButton icon="search" label="Search" />
+        <IconButton icon="more" label="More" />
+      </div>
+    </header>
+  );
+}
+
+function Empty({ children }: { children: ReactNode }) {
+  return <div style={{ color: "var(--text-3)", padding: 12 }}>{children}</div>;
+}

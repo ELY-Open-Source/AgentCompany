@@ -1,10 +1,13 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { PROVIDER_AUTH_TYPE } from "../../../shared/domain";
+import {
+  PROVIDER_AUTH_TYPE,
+  type AppSnapshot,
+  type ProviderCatalogEntry,
+} from "../../../shared/domain";
 import { Button, Field, Icon, Pill } from "../shared/ui";
 import type { SnapshotActions } from "./useSnapshot";
-import type { AppSnapshot, ProviderCatalogEntry } from "../../../shared/domain";
 
-type Step = "welcome" | "provider" | "company" | "mode" | "mission" | "launch";
+type Step = "welcome" | "provider" | "company" | "mode" | "mission";
 
 interface Draft {
   companyName: string;
@@ -19,54 +22,62 @@ interface Draft {
   goalDescription: string;
 }
 
-const steps: Array<{ id: Step; label: string }> = [
+const STEPS: Array<{ id: Step; label: string }> = [
   { id: "welcome", label: "Start" },
   { id: "provider", label: "Provider" },
   { id: "company", label: "Company" },
   { id: "mode", label: "Mode" },
   { id: "mission", label: "Goal" },
-  { id: "launch", label: "Launch" },
 ];
-
-const initialDraft: Draft = {
-  companyName: "",
-  companyDescription: "",
-  employeeName: "",
-  workspacePath: "",
-  executionMode: "ai_ceo",
-  providerKey: "",
-  providerSecret: "",
-  providerModel: "",
-  goalTitle: "",
-  goalDescription: "",
-};
 
 export function Onboarding({ snapshot, actions }: { snapshot: AppSnapshot; actions: SnapshotActions }) {
   const apiProviders = useMemo(
     () => snapshot.providerCatalog.filter((entry) => entry.authType === PROVIDER_AUTH_TYPE.API_KEY),
     [snapshot.providerCatalog],
   );
+  const firstProvider = apiProviders[0];
+  if (!firstProvider) throw new Error("Provider catalog must include at least one API-key provider.");
+  if (!firstProvider.defaultModel) throw new Error("Default API provider needs a default model.");
+
   const [step, setStep] = useState<Step>("welcome");
-  const [draft, setDraft] = useState<Draft>(() => {
-    const firstProvider = apiProviders[0];
-    if (!firstProvider?.defaultModel) throw new Error("Provider catalog requires a default API model.");
-    return { ...initialDraft, providerKey: firstProvider.key, providerModel: firstProvider.defaultModel };
+  const [draft, setDraft] = useState<Draft>({
+    companyName: "",
+    companyDescription: "",
+    employeeName: "",
+    workspacePath: "",
+    executionMode: "ai_ceo",
+    providerKey: firstProvider.key,
+    providerSecret: "",
+    providerModel: firstProvider.defaultModel,
+    goalTitle: "",
+    goalDescription: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const selectedProvider = requireProvider(apiProviders, draft.providerKey);
 
+  const selectedProvider = requireProvider(apiProviders, draft.providerKey);
   const update = (patch: Partial<Draft>) => setDraft((current) => ({ ...current, ...patch }));
-  const go = (next: Step) => {
+
+  const guard = (validator: () => string | null, next: Step) => () => {
+    const message = validator();
+    if (message) {
+      setError(message);
+      return;
+    }
     setError(null);
     setStep(next);
   };
 
-  const launch = async (event: FormEvent<HTMLFormElement>) => {
+  const back = (target: Step) => () => {
+    setError(null);
+    setStep(target);
+  };
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const validation = validateDraft(draft);
-    if (validation) {
-      setError(validation);
+    const message = validateAll(draft);
+    if (message) {
+      setError(message);
       return;
     }
     setSubmitting(true);
@@ -97,72 +108,96 @@ export function Onboarding({ snapshot, actions }: { snapshot: AppSnapshot; actio
     <main className="onboarding-shell">
       <section className="onboarding-hero">
         <div>
-          <div className="brand" style={{ padding: 0 }}>
+          <div className="row" style={{ gap: 8 }}>
             <div className="brand-mark">A</div>
-            <div className="brand-name">AgentCompany</div>
+            <div style={{ fontWeight: 540 }}>AgentCompany</div>
           </div>
-          <h1 className="page-h1" style={{ fontSize: 34, marginTop: 34 }}>Start your AI company.</h1>
-          <p className="page-sub" style={{ maxWidth: 420 }}>
-            Create the company, bind the CEO runtime, and queue the first operating loop.
+          <h1 className="page-h1" style={{ fontSize: 34, marginTop: 32, letterSpacing: "-0.02em" }}>Start your AI company.</h1>
+          <p className="page-sub" style={{ maxWidth: 460, fontSize: 14, lineHeight: 1.55 }}>
+            Stand up the workspace, bind a runtime, and queue the first operating loop. Real data
+            from your provider, hairline UI, zero placeholder noise.
           </p>
           <div className="onboarding-steps">
-            {steps.map((item) => (
-              <span key={item.id} className={`step-chip ${item.id === step ? "active" : ""}`}>{item.label}</span>
+            {STEPS.map((entry) => (
+              <span key={entry.id} className={`step-chip ${entry.id === step ? "active" : ""}`}>{entry.label}</span>
             ))}
           </div>
         </div>
-        <div className="card" style={{ maxWidth: 440 }}>
-          <div className="card-label">Selected runtime</div>
-          <div className="row" style={{ marginTop: 12 }}>
-            <Icon name="bot" />
-            <strong>{selectedProvider.label}</strong>
+        <div className="card" style={{ maxWidth: 460 }}>
+          <div className="card-label" style={{ marginBottom: 10 }}>Runtime selected</div>
+          <div className="row" style={{ gap: 10 }}>
+            <Icon name="bot" size={16} />
+            <strong style={{ fontSize: 13 }}>{selectedProvider.label}</strong>
             <Pill tone="violet">{draft.providerModel}</Pill>
+          </div>
+          <div style={{ marginTop: 10, fontSize: 12, color: "var(--text-3)" }}>
+            We never embed the key in the build. Credentials encrypt locally via OS-protected storage.
           </div>
         </div>
       </section>
 
-      <form className="onboarding-panel" onSubmit={launch}>
-        {step === "welcome" && <WelcomeStep onNext={() => go("provider")} />}
+      <form className="onboarding-panel" onSubmit={submit} noValidate>
+        {step === "welcome" && (
+          <WelcomeStep onNext={() => setStep("provider")} />
+        )}
         {step === "provider" && (
           <ProviderStep
             providers={apiProviders}
             draft={draft}
             onChange={update}
-            onBack={() => go("welcome")}
-            onNext={() => validateProvider(draft) ? setError(validateProvider(draft)) : go("company")}
+            onBack={back("welcome")}
+            onNext={guard(() => validateProvider(draft), "company")}
           />
         )}
         {step === "company" && (
           <CompanyStep
             draft={draft}
             onChange={update}
-            onBack={() => go("provider")}
-            onNext={() => validateCompany(draft) ? setError(validateCompany(draft)) : go("mode")}
+            onBack={back("provider")}
+            onNext={guard(() => validateCompany(draft), "mode")}
           />
         )}
         {step === "mode" && (
-          <ModeStep draft={draft} onChange={update} onBack={() => go("company")} onNext={() => go("mission")} />
+          <ModeStep draft={draft} onChange={update} onBack={back("company")} onNext={() => setStep("mission")} />
         )}
         {step === "mission" && (
           <MissionStep
             draft={draft}
             submitting={submitting}
             onChange={update}
-            onBack={() => go("mode")}
+            onBack={back("mode")}
           />
         )}
-        {step === "launch" && null}
-        {error && <div style={{ color: "var(--red)", marginTop: 12 }}>{error}</div>}
+        {error && <div style={{ color: "var(--red)", marginTop: 14, fontSize: 12.5 }}>{error}</div>}
       </form>
     </main>
   );
+}
+
+interface StepProps {
+  draft: Draft;
+  onChange: (patch: Partial<Draft>) => void;
+  onBack: () => void;
+  onNext: () => void;
 }
 
 function WelcomeStep({ onNext }: { onNext: () => void }) {
   return (
     <div className="form-grid">
       <h2 className="page-h1">Welcome</h2>
-      <Button tone="primary" onClick={onNext}>Get started</Button>
+      <p style={{ color: "var(--text-2)", fontSize: 14, lineHeight: 1.55 }}>
+        AgentCompany sets up your operating loop in five steps. Bring an API key, pick a runtime
+        for the founding CEO, and we'll wire up the first goal, project, and task.
+      </p>
+      <ul style={{ paddingLeft: 18, color: "var(--text-2)", lineHeight: 1.8, margin: 0 }}>
+        <li>Connect one model provider (OpenAI, Anthropic, xAI, or Groq).</li>
+        <li>Name the company and the human board chair.</li>
+        <li>Pick execution mode and bind the workspace path.</li>
+        <li>State the first goal — we kick off the rest.</li>
+      </ul>
+      <div className="modal-actions" style={{ marginTop: 4 }}>
+        <Button tone="primary" onClick={onNext}>Get started</Button>
+      </div>
     </div>
   );
 }
@@ -183,28 +218,41 @@ function ProviderStep({
   return (
     <div className="form-grid">
       <h2 className="page-h1">Provider</h2>
+      <p style={{ color: "var(--text-3)", fontSize: 13 }}>
+        Pick the runtime for the founding CEO. You can attach more providers in Settings later.
+      </p>
       <div className="option-grid">
         {providers.map((provider) => (
           <button
             key={provider.key}
             type="button"
-            className={`option-card ${draft.providerKey === provider.key ? "active" : ""}`}
-            onClick={() => onChange({ providerKey: provider.key, providerModel: provider.defaultModel ?? "" })}
+            className={`option-card ${draft.providerKey === provider.key ? "active" : ""}`.trim()}
+            onClick={() => onChange({
+              providerKey: provider.key,
+              providerModel: provider.defaultModel ?? draft.providerModel,
+            })}
           >
             <div className="row">
-              <strong>{provider.label}</strong>
-              <Pill>{provider.authType}</Pill>
+              <div className="opt-title" style={{ flex: 1 }}>{provider.label}</div>
+              <Pill tone="violet">{provider.defaultModel ?? "model"}</Pill>
             </div>
+            <div className="opt-sub">{provider.capabilityTags.join(" · ") || "API key"}</div>
           </button>
         ))}
       </div>
       <Field label="API key">
-        <input className="input" type="password" value={draft.providerSecret} onChange={(event) => onChange({ providerSecret: event.target.value })} />
+        <input
+          className="input"
+          type="password"
+          autoComplete="off"
+          value={draft.providerSecret}
+          onChange={(event) => onChange({ providerSecret: event.target.value })}
+        />
       </Field>
       <Field label="Model">
         <input className="input" value={draft.providerModel} onChange={(event) => onChange({ providerModel: event.target.value })} />
       </Field>
-      <FormActions onBack={onBack} onNext={onNext} />
+      <Actions onBack={onBack} onNext={onNext} />
     </div>
   );
 }
@@ -214,18 +262,18 @@ function CompanyStep({ draft, onChange, onBack, onNext }: StepProps) {
     <div className="form-grid">
       <h2 className="page-h1">Company</h2>
       <Field label="Company name">
-        <input className="input" value={draft.companyName} onChange={(event) => onChange({ companyName: event.target.value })} autoFocus />
+        <input className="input" value={draft.companyName} onChange={(event) => onChange({ companyName: event.target.value })} autoFocus required />
       </Field>
       <Field label="Your name">
-        <input className="input" value={draft.employeeName} onChange={(event) => onChange({ employeeName: event.target.value })} />
+        <input className="input" value={draft.employeeName} onChange={(event) => onChange({ employeeName: event.target.value })} required />
       </Field>
       <Field label="Description">
-        <textarea className="input" value={draft.companyDescription} onChange={(event) => onChange({ companyDescription: event.target.value })} />
+        <textarea className="input" value={draft.companyDescription} onChange={(event) => onChange({ companyDescription: event.target.value })} required />
       </Field>
-      <Field label="Workspace path">
-        <input className="input" value={draft.workspacePath} onChange={(event) => onChange({ workspacePath: event.target.value })} />
+      <Field label="Workspace path (optional)">
+        <input className="input" value={draft.workspacePath} onChange={(event) => onChange({ workspacePath: event.target.value })} placeholder="/Users/yu/Projects/orbitops" />
       </Field>
-      <FormActions onBack={onBack} onNext={onNext} />
+      <Actions onBack={onBack} onNext={onNext} />
     </div>
   );
 }
@@ -234,53 +282,73 @@ function ModeStep({ draft, onChange, onBack, onNext }: StepProps) {
   return (
     <div className="form-grid">
       <h2 className="page-h1">Mode</h2>
-      {(["ai_ceo", "ai_cofounder"] as const).map((mode) => (
-        <button
-          key={mode}
-          type="button"
-          className={`option-card ${draft.executionMode === mode ? "active" : ""}`}
-          onClick={() => onChange({ executionMode: mode })}
-        >
-          <strong>{mode === "ai_ceo" ? "AI CEO" : "AI Co-Founder"}</strong>
-        </button>
-      ))}
-      <FormActions onBack={onBack} onNext={onNext} />
+      <p style={{ color: "var(--text-3)", fontSize: 13 }}>How autonomous should the CEO be?</p>
+      <ModeCard
+        title="AI CEO"
+        description="Agents auto-approve hires up to the budget envelope and ship work that clears policy."
+        active={draft.executionMode === "ai_ceo"}
+        onClick={() => onChange({ executionMode: "ai_ceo" })}
+      />
+      <ModeCard
+        title="AI Co-Founder"
+        description="Hires need your stamp; deliverables route through review before shipping."
+        active={draft.executionMode === "ai_cofounder"}
+        onClick={() => onChange({ executionMode: "ai_cofounder" })}
+      />
+      <Actions onBack={onBack} onNext={onNext} />
     </div>
   );
 }
 
-function MissionStep({ draft, submitting, onChange, onBack }: Omit<StepProps, "onNext"> & { submitting: boolean }) {
+function MissionStep({
+  draft,
+  submitting,
+  onChange,
+  onBack,
+}: Omit<StepProps, "onNext"> & { submitting: boolean }) {
   return (
     <div className="form-grid">
       <h2 className="page-h1">Goal</h2>
       <Field label="Goal">
-        <input className="input" value={draft.goalTitle} onChange={(event) => onChange({ goalTitle: event.target.value })} />
+        <input className="input" value={draft.goalTitle} onChange={(event) => onChange({ goalTitle: event.target.value })} required />
       </Field>
       <Field label="Acceptance criteria">
-        <textarea className="input" value={draft.goalDescription} onChange={(event) => onChange({ goalDescription: event.target.value })} />
+        <textarea className="input" value={draft.goalDescription} onChange={(event) => onChange({ goalDescription: event.target.value })} required />
       </Field>
       <div className="modal-actions" style={{ marginTop: 4 }}>
         <Button onClick={onBack}>Back</Button>
-        <Button tone="primary" type="submit" disabled={submitting}>Launch</Button>
+        <Button tone="primary" type="submit" disabled={submitting}>{submitting ? "Launching…" : "Launch"}</Button>
       </div>
     </div>
   );
 }
 
-function FormActions({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
+function ModeCard({
+  title,
+  description,
+  active,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" className={`option-card ${active ? "active" : ""}`.trim()} onClick={onClick}>
+      <div className="opt-title">{title}</div>
+      <div className="opt-sub">{description}</div>
+    </button>
+  );
+}
+
+function Actions({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
   return (
     <div className="modal-actions" style={{ marginTop: 4 }}>
       <Button onClick={onBack}>Back</Button>
       <Button tone="primary" onClick={onNext}>Continue</Button>
     </div>
   );
-}
-
-interface StepProps {
-  draft: Draft;
-  onChange: (patch: Partial<Draft>) => void;
-  onBack: () => void;
-  onNext: () => void;
 }
 
 function requireProvider(providers: ProviderCatalogEntry[], key: string): ProviderCatalogEntry {
@@ -290,7 +358,7 @@ function requireProvider(providers: ProviderCatalogEntry[], key: string): Provid
 }
 
 function validateProvider(draft: Draft): string | null {
-  if (!draft.providerKey) return "Select a provider.";
+  if (!draft.providerKey) return "Pick a provider.";
   if (!draft.providerSecret.trim()) return "API key is required.";
   if (!draft.providerModel.trim()) return "Model is required.";
   return null;
@@ -299,9 +367,10 @@ function validateProvider(draft: Draft): string | null {
 function validateCompany(draft: Draft): string | null {
   if (!draft.companyName.trim()) return "Company name is required.";
   if (!draft.employeeName.trim()) return "Your name is required.";
+  if (!draft.companyDescription.trim()) return "Description is required.";
   return null;
 }
 
-function validateDraft(draft: Draft): string | null {
+function validateAll(draft: Draft): string | null {
   return validateProvider(draft) ?? validateCompany(draft) ?? (!draft.goalTitle.trim() ? "Goal is required." : null);
 }

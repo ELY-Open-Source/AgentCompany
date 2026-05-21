@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
+import { FileService } from "../../src/main/services/file-service";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { SkillService } from "../../src/main/services/skill-service";
@@ -241,6 +242,59 @@ describe("domain services", () => {
     const state = snapshot.load();
     expect(state.socialAccounts).toHaveLength(1);
     expect(state.socialAccountGrants[0]?.employeeId).toBe(employeeId);
+    connection.close();
+  });
+
+  test("pins files and schedules social posts", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const social = new SocialService(connection.db);
+    const files = new FileService(connection.db, join(tmpdir(), `artifacts-${randomUUID()}`));
+    const snapshot = new SnapshotService(connection.db);
+    let orgId = "";
+    let socialAccountId = "";
+    let fileId = "";
+    let employeeId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      socialAccountId = social.createAccount({
+        orgId,
+        platform: SOCIAL_PLATFORM.X,
+        handle: "@acme",
+        displayName: "Acme",
+        authorizedEmployeeId: employeeId,
+      });
+      fileId = createId("fil");
+      connection.db.prepare(`
+        insert into file_objects(
+          id, org_id, name, kind, size_bytes, sha256, storage_path,
+          owner_type, owner_id, space_id, pinned, created_at, updated_at
+        )
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(fileId, orgId, "launch-thread.md", "md", 256, "abc", "artifacts/launch-thread.md", "employee", employeeId, null, 0, new Date().toISOString(), new Date().toISOString());
+      files.setPinned(orgId, fileId, true);
+      social.createScheduledPost({
+        orgId,
+        socialAccountId,
+        bodyMd: "Pilot starts Friday.",
+        scheduledFor: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        state: "scheduled",
+        createdByEmployeeId: employeeId,
+      });
+    });
+
+    const state = snapshot.load();
+    expect(state.files[0]?.pinned).toBe(true);
+    expect(state.scheduledPosts).toHaveLength(1);
+    expect(state.scheduledPosts[0]?.state).toBe("scheduled");
+    expect(state.scheduledPosts[0]?.socialAccountId).toBe(socialAccountId);
     connection.close();
   });
 

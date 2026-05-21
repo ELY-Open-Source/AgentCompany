@@ -88,6 +88,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.bindSkill, (_event, input) => mutate(() => skills.bind(input)));
   ipcMain.handle(IPC_CHANNELS.resolveAgentSkills, (_event, input) => mutate(() => skills.resolveRuntimeSnapshot(input)));
   ipcMain.handle(IPC_CHANNELS.createSocialAccount, (_event, input) => mutate(() => social.createAccount(input)));
+  ipcMain.handle(IPC_CHANNELS.createScheduledPost, (_event, input) => mutate(() => social.createScheduledPost(input)));
+  ipcMain.handle(IPC_CHANNELS.setScheduledPostState, (_event, input) => mutate(() => social.setScheduledPostState(input)));
+  ipcMain.handle(IPC_CHANNELS.setFilePinned, (_event, input) => mutate(() => files.setPinned(input.orgId, input.fileId, input.pinned)));
 
   ipcMain.handle(IPC_CHANNELS.launchSocialLogin, (_event, input) => {
     try {

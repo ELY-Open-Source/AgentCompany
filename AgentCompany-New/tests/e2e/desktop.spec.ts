@@ -30,7 +30,7 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByLabel("Acceptance criteria").fill("The CEO creates the kickoff operating loop.");
     await page.getByRole("button", { name: "Launch" }).click();
 
-    await expect(page.getByRole("heading", { name: "Acme Operations" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Acme Operations/ })).toBeVisible();
     await page.getByRole("button", { name: "Team" }).click();
     await page.getByRole("button", { name: "Hire" }).click();
     await page.getByLabel("Name").fill("Alex Chen");
@@ -74,7 +74,7 @@ async function verifyPagesDoNotOverflow(page: Page): Promise<void> {
       await page.getByRole("button", { name: nav }).click();
       await expectPageToFit(page);
     }
-    for (const tab of ["Providers", "Skills", "Policies", "Migration"]) {
+    for (const tab of ["Workspace", "Members", "Billing", "Models", "Providers", "Skills", "Policies", "Migration", "Profile", "Notifications", "Security"]) {
       await page.getByRole("button", { name: "Settings" }).click();
       await page.getByRole("button", { name: tab }).click();
       await expectPageToFit(page);

@@ -234,7 +234,23 @@ export interface FileObjectRecord {
   storagePath: string;
   ownerType: "employee" | "agent" | "system";
   ownerId: string | null;
+  spaceId: string | null;
+  pinned: boolean;
   createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface ScheduledPostRecord {
+  id: string;
+  orgId: string;
+  socialAccountId: string;
+  bodyMd: string;
+  scheduledFor: string;
+  state: "draft" | "scheduled" | "published" | "cancelled";
+  approvalId: string | null;
+  createdByEmployeeId: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ProviderRecord {
@@ -392,6 +408,7 @@ export interface AppSnapshot {
   chatAttachments: ChatAttachmentRecord[];
   chatPresence: ChatPresenceRecord[];
   files: FileObjectRecord[];
+  scheduledPosts: ScheduledPostRecord[];
   providers: ProviderRecord[];
   providerCatalog: ProviderCatalogEntry[];
   providerRequests: ProviderRequestRecord[];

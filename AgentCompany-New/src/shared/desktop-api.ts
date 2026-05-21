@@ -10,6 +10,7 @@ import type {
   CreateMigrationReportInput,
   CreateOrganizationInput,
   CreateProviderResponseInput,
+  CreateScheduledPostInput,
   CreateSocialAccountInput,
   CreateTaskInput,
   DecideApprovalInput,
@@ -19,6 +20,8 @@ import type {
   ResolveAgentSkillsInput,
   SaveProviderCredentialInput,
   SendMessageInput,
+  SetFilePinnedInput,
+  SetScheduledPostStateInput,
   UpdateTaskStatusInput,
 } from "./commands";
 
@@ -44,7 +47,10 @@ export interface DesktopApi {
   resolveAgentSkills(input: ResolveAgentSkillsInput): Promise<DesktopResult<AppSnapshot>>;
   createSocialAccount(input: CreateSocialAccountInput): Promise<DesktopResult<AppSnapshot>>;
   launchSocialLogin(input: LaunchSocialLoginInput): Promise<DesktopResult<null>>;
+  createScheduledPost(input: CreateScheduledPostInput): Promise<DesktopResult<AppSnapshot>>;
+  setScheduledPostState(input: SetScheduledPostStateInput): Promise<DesktopResult<AppSnapshot>>;
   importFile(input: ImportFileInput): Promise<DesktopResult<AppSnapshot>>;
+  setFilePinned(input: SetFilePinnedInput): Promise<DesktopResult<AppSnapshot>>;
   createMigrationReport(input: CreateMigrationReportInput): Promise<DesktopResult<AppSnapshot>>;
   subscribe(callback: (event: RendererEvent) => void): () => void;
   platform: "win32" | "darwin" | "linux";

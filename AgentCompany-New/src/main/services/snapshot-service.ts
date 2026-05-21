@@ -45,6 +45,8 @@ export class SnapshotService {
       .map((provider) => ({ ...provider, enabled: toBool(provider.enabled) }));
     const skillBindings = list<AppSnapshot["skillBindings"][number]>(this.db, "skill_bindings", "priority asc")
       .map((binding) => ({ ...binding, enabled: toBool(binding.enabled) }));
+    const files = list<AppSnapshot["files"][number]>(this.db, "file_objects", "created_at desc")
+      .map((file) => ({ ...file, pinned: toBool(file.pinned) }));
 
     return {
       activeOrgId,
@@ -62,7 +64,8 @@ export class SnapshotService {
       chatThreads: list(this.db, "chat_threads", "updated_at desc"),
       chatAttachments: list(this.db, "chat_attachments", "message_id asc"),
       chatPresence: list(this.db, "chat_presence", "last_seen_at desc"),
-      files: list(this.db, "file_objects", "created_at desc"),
+      files,
+      scheduledPosts: list(this.db, "scheduled_posts", "scheduled_for asc"),
       providers,
       providerCatalog: PROVIDER_CATALOG,
       providerRequests: list(this.db, "provider_requests", "created_at desc"),

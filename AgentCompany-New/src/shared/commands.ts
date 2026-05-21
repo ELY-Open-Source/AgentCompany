@@ -143,6 +143,27 @@ export interface CreateMigrationReportInput {
   sourceDatabasePath: string;
 }
 
+export interface CreateScheduledPostInput {
+  orgId: string;
+  socialAccountId: string;
+  bodyMd: string;
+  scheduledFor: string;
+  state: "draft" | "scheduled";
+  createdByEmployeeId: string | null;
+}
+
+export interface SetScheduledPostStateInput {
+  orgId: string;
+  scheduledPostId: string;
+  state: "draft" | "scheduled" | "published" | "cancelled";
+}
+
+export interface SetFilePinnedInput {
+  orgId: string;
+  fileId: string;
+  pinned: boolean;
+}
+
 export interface BootstrapOnboardingInput {
   companyName: string;
   companyDescription: string;

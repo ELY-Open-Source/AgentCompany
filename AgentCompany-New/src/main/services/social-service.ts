@@ -1,6 +1,10 @@
 import type { DatabaseSync } from "node:sqlite";
 import { BrowserWindow, session } from "electron";
-import type { CreateSocialAccountInput } from "../../shared/commands";
+import type {
+  CreateScheduledPostInput,
+  CreateSocialAccountInput,
+  SetScheduledPostStateInput,
+} from "../../shared/commands";
 import { SOCIAL_PLATFORM, type SocialPlatform } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
@@ -24,6 +28,63 @@ export class SocialService {
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
+  }
+
+  createScheduledPost(input: CreateScheduledPostInput): string {
+    const account = this.db.prepare("select id from social_accounts where id = ? and org_id = ?")
+      .get(input.socialAccountId, input.orgId) as { id: string } | undefined;
+    if (!account) throw new Error("Social account was not found.");
+    const body = input.bodyMd.trim();
+    if (!body) throw new Error("Post body is required.");
+    const scheduledFor = input.scheduledFor.trim();
+    if (!scheduledFor) throw new Error("Scheduled date is required.");
+    const id = createId("spost");
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      insert into scheduled_posts(
+        id, org_id, social_account_id, body_md, scheduled_for,
+        state, approval_id, created_by_employee_id, created_at, updated_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      input.orgId,
+      input.socialAccountId,
+      body,
+      scheduledFor,
+      input.state,
+      null,
+      input.createdByEmployeeId,
+      now,
+      now,
+    );
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "scheduled_post",
+      entityId: id,
+      actorType: input.createdByEmployeeId ? "employee" : "system",
+      actorId: input.createdByEmployeeId,
+      action: "scheduled",
+      payload: { socialAccountId: input.socialAccountId, scheduledFor, state: input.state },
+    });
+    return id;
+  }
+
+  setScheduledPostState(input: SetScheduledPostStateInput): void {
+    const now = new Date().toISOString();
+    const result = this.db.prepare(`
+      update scheduled_posts set state = ?, updated_at = ?
+      where id = ? and org_id = ?
+    `).run(input.state, now, input.scheduledPostId, input.orgId);
+    if (result.changes === 0) throw new Error("Scheduled post was not found.");
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "scheduled_post",
+      entityId: input.scheduledPostId,
+      actorType: "employee",
+      actorId: null,
+      action: `state_${input.state}`,
+      payload: { state: input.state },
+    });
   }
 
   createAccount(input: CreateSocialAccountInput): string {

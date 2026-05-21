@@ -1,13 +1,19 @@
-import { useState, type FormEvent, type ReactNode } from "react";
-import { Avatar, Button, Field, Icon, IconButton } from "../shared/ui";
+import { useMemo, useRef, useState, type FormEvent } from "react";
+import { Field } from "../shared/ui";
 import { Dialog } from "../shared/Dialog";
-import type { ChatAttachmentRecord, ChatSpaceRecord, FileObjectRecord } from "../../../shared/domain";
+import { ChatSidebar } from "./chat/ChatSidebar";
+import { ChatConversation } from "./chat/ChatConversation";
+import { ChatThreadPanel } from "./chat/ChatThreadPanel";
+import {
+  collectParticipants,
+  filterApprovalsForSpace,
+  isRootMessage,
+} from "./chat/chat-helpers";
 import type { PageProps } from "./types";
-import { activeOrgId } from "./types";
+import { activeOrgId, requireActiveEmployee } from "./types";
 
-function messageBody(form: FormData): string {
-  return String(form.get("message") ?? "").trim();
-}
+type SpaceType = "company" | "department" | "project" | "direct";
+type Visibility = "workspace" | "restricted";
 
 function value(form: FormData, key: string): string {
   return String(form.get(key) ?? "").trim();
@@ -15,55 +21,83 @@ function value(form: FormData, key: string): string {
 
 export function ChatPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
-  const spaces = snapshot.chatSpaces.filter((item) => item.orgId === orgId);
-  const employees = snapshot.employees.filter((item) => item.orgId === orgId);
-  const agents = snapshot.agents.filter((item) => item.orgId === orgId);
-  const files = snapshot.files.filter((item) => item.orgId === orgId);
-  const [spaceId, setSpaceId] = useState(spaces[0]?.id ?? "");
-  const [spaceOpen, setSpaceOpen] = useState(false);
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
-  const activeSpace = spaces.find((space) => space.id === spaceId) ?? spaces[0];
-  if (!activeSpace) throw new Error("At least one chat space is required.");
-  const messages = snapshot.chatMessages.filter((item) => item.orgId === orgId && item.spaceId === activeSpace.id);
-  const rootMessages = messages.filter((m) => m.threadId === null);
-  const threads = snapshot.chatThreads.filter((t) => t.spaceId === activeSpace.id);
-  const selectedThread = threads.find((t) => t.id === selectedThreadId) ?? null;
-  const threadMessages = selectedThread ? messages.filter((m) => m.threadId === selectedThread.id) : [];
-  const sender = employees[0];
+  const employee = requireActiveEmployee(snapshot);
+  const spaces = useMemo(() => snapshot.chatSpaces.filter((space) => space.orgId === orgId), [snapshot.chatSpaces, orgId]);
+  const employees = useMemo(() => snapshot.employees.filter((item) => item.orgId === orgId), [snapshot.employees, orgId]);
+  const agents = useMemo(() => snapshot.agents.filter((item) => item.orgId === orgId), [snapshot.agents, orgId]);
+  const files = useMemo(() => snapshot.files.filter((item) => item.orgId === orgId), [snapshot.files, orgId]);
+  const messagesAll = useMemo(() => snapshot.chatMessages.filter((m) => m.orgId === orgId), [snapshot.chatMessages, orgId]);
+  const threadsAll = useMemo(() => snapshot.chatThreads.filter((t) => t.orgId === orgId), [snapshot.chatThreads, orgId]);
+  const approvalsAll = useMemo(
+    () => snapshot.approvals.filter((a) => a.orgId === orgId && a.state === "pending"),
+    [snapshot.approvals, orgId],
+  );
+  const channels = useMemo(() => spaces.filter((space) => space.spaceType !== "direct"), [spaces]);
+  const directs = useMemo(() => spaces.filter((space) => space.spaceType === "direct"), [spaces]);
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [openThreadId, setOpenThreadId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [attachmentFileId, setAttachmentFileId] = useState<string>("");
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const fallbackSpaceId = channels[0]?.id ?? directs[0]?.id ?? null;
+  const activeSpaceId = selectedSpaceId && spaces.some((space) => space.id === selectedSpaceId)
+    ? selectedSpaceId
+    : fallbackSpaceId;
+  const activeSpace = spaces.find((space) => space.id === activeSpaceId) ?? null;
+  const messagesInSpace = useMemo(
+    () => (activeSpace ? messagesAll.filter((m) => m.spaceId === activeSpace.id) : []),
+    [messagesAll, activeSpace],
+  );
+  const threadsInSpace = useMemo(
+    () => (activeSpace ? threadsAll.filter((t) => t.spaceId === activeSpace.id) : []),
+    [threadsAll, activeSpace],
+  );
+  const rootMessages = messagesInSpace.filter((message) => isRootMessage(message, threadsInSpace));
+  const selectedThread = threadsInSpace.find((t) => t.id === openThreadId) ?? null;
+  const threadMessages = selectedThread
+    ? messagesInSpace.filter((m) => m.threadId === selectedThread.id && m.id !== selectedThread.rootMessageId)
+    : [];
+  const participants = useMemo(
+    () => collectParticipants(messagesInSpace, employees, agents),
+    [messagesInSpace, employees, agents],
+  );
+  const pendingApprovalsInSpace = filterApprovalsForSpace(approvalsAll, activeSpace);
+
+  const sendInChannel = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!activeSpace || !sender) return;
+    if (!activeSpace) return;
     const form = new FormData(event.currentTarget);
-    const bodyMd = messageBody(form);
-    if (!bodyMd) return;
+    const body = value(form, "message");
+    if (!body) return;
     event.currentTarget.reset();
-    const attachmentFileId = value(form, "attachmentFileId");
+    setAttachmentFileId("");
     void actions.run(() => window.agentCompany.sendMessage({
       orgId,
       spaceId: activeSpace.id,
       threadId: null,
       senderType: "employee",
-      senderId: sender.id,
-      bodyMd,
+      senderId: employee.id,
+      bodyMd: body,
       attachmentFileIds: attachmentFileId ? [attachmentFileId] : [],
     }));
   };
 
-  const submitReply = (event: FormEvent<HTMLFormElement>) => {
+  const sendInThread = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedThread || !sender) return;
+    if (!activeSpace || !selectedThread) return;
     const form = new FormData(event.currentTarget);
-    const bodyMd = messageBody(form);
-    if (!bodyMd) return;
+    const body = value(form, "message");
+    if (!body) return;
     event.currentTarget.reset();
     void actions.run(() => window.agentCompany.sendMessage({
       orgId,
       spaceId: activeSpace.id,
       threadId: selectedThread.id,
       senderType: "employee",
-      senderId: sender.id,
-      bodyMd,
+      senderId: employee.id,
+      bodyMd: body,
       attachmentFileIds: [],
     }));
   };
@@ -73,102 +107,75 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     const form = new FormData(event.currentTarget);
     void actions.run(() => window.agentCompany.createChatSpace({
       orgId,
-      spaceType: value(form, "spaceType") as "company" | "department" | "project" | "direct",
+      spaceType: value(form, "spaceType") as SpaceType,
       name: value(form, "name"),
       topic: value(form, "topic"),
-      visibility: value(form, "visibility") as "workspace" | "restricted",
-    })).then(() => setSpaceOpen(false));
+      visibility: value(form, "visibility") as Visibility,
+    })).then((result) => { if (result) setCreateOpen(false); });
   };
 
-  return (
-    <div className="split-main" style={{ height: "calc(100vh - 112px)", margin: "-28px -32px -40px" }}>
-      <aside className="secondary-pane">
-        <div className="row" style={{ padding: "4px 8px 12px" }}>
-          <div style={{ fontWeight: 600 }}>Messages</div>
-          <IconButton icon="plus" label="New space" onClick={() => setSpaceOpen(true)} />
-        </div>
-        <NavGroup label="Channels">
-          {spaces.length === 0 ? <div className="nav-item">No channels</div> : spaces.map((space) => (
-            <SpaceItem
-              key={space.id}
-              space={space}
-              active={activeSpace?.id === space.id}
-              count={snapshot.chatMessages.filter((message) => message.spaceId === space.id).length}
-              onClick={() => setSpaceId(space.id)}
-            />
-          ))}
-        </NavGroup>
-        <NavGroup label="Agents">
-          {agents.map((agent) => (
-            <div key={agent.id} className="nav-item">
-              <Avatar name={agent.name} size="sm" bot />
-              <span>{agent.name}</span>
-            </div>
-          ))}
-        </NavGroup>
-      </aside>
+  const decideApproval = (approvalId: string, state: "approved" | "declined") =>
+    void actions.run(() => window.agentCompany.decideApproval({
+      orgId,
+      approvalId,
+      state,
+      decidedByEmployeeId: employee.id,
+    }));
 
-      <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "var(--panel)" }}>
-        <header className="row" style={{ height: 52, padding: "0 24px", borderBottom: "1px solid var(--border-soft)", flexShrink: 0 }}>
-          <Icon name={activeSpace.visibility === "restricted" ? "lock" : "hash"} />
-          <div style={{ fontSize: 14, fontWeight: 600 }}>{activeSpace.name}</div>
-          <div style={{ color: "var(--text-3)", borderLeft: "1px solid var(--border)", paddingLeft: 10 }}>
-            {activeSpace.topic}
-          </div>
-          <div style={{ marginLeft: "auto" }}><Icon name="search" /></div>
-        </header>
-        <div style={{ flex: 1, overflow: "auto", padding: "20px 24px 8px" }}>
-          {rootMessages.length === 0 ? (
-            <div style={{ color: "var(--text-3)" }}>No messages</div>
-          ) : rootMessages.map((message) => {
-            const thread = threads.find((t) => t.rootMessageId === message.id) ?? null;
-            const replyCount = thread ? messages.filter((m) => m.threadId === thread.id).length : 0;
-            return (
-              <MessageRow
-                key={message.id}
-                body={message.bodyMd}
-                time={new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                name={displayName(message.senderType, message.senderId, employees, agents)}
-                bot={message.senderType === "agent"}
-                files={messageFiles(message.id, snapshot.chatAttachments, files)}
-                threadReplyCount={replyCount}
-                onOpenThread={thread ? () => setSelectedThreadId(thread.id) : null}
-              />
-            );
-          })}
-        </div>
-        <form onSubmit={submit} style={{ padding: 14, paddingTop: 4, flexShrink: 0 }}>
-          <div className="card" style={{ padding: "10px 12px" }}>
-            <textarea className="input" name="message" rows={2} aria-label="Message" />
-            <div className="row" style={{ paddingTop: 8, borderTop: "1px solid var(--border-soft)" }}>
-              <Icon name="attach" />
-              <select className="input" name="attachmentFileId" aria-label="File attachment" style={{ maxWidth: 220 }}>
-                <option value="">File</option>
-                {files.map((file) => <option key={file.id} value={file.id}>{file.name}</option>)}
-              </select>
-              <div style={{ marginLeft: "auto" }}>
-                <Button tone="primary" size="small" type="submit" disabled={!activeSpace || !sender}><Icon name="send" /> Send</Button>
-              </div>
-            </div>
-          </div>
-        </form>
-      </section>
+  return (
+    <div className="split-main" style={{ height: "calc(100vh - 44px)", margin: "-28px -32px -40px" }}>
+      <ChatSidebar
+        channels={channels}
+        directs={directs}
+        agents={agents}
+        messages={messagesAll}
+        activeSpaceId={activeSpaceId}
+        onSelect={(spaceId) => {
+          setSelectedSpaceId(spaceId);
+          setOpenThreadId(null);
+        }}
+        onCreateSpace={() => setCreateOpen(true)}
+      />
+
+      <ChatConversation
+        space={activeSpace}
+        participants={participants}
+        rootMessages={rootMessages}
+        messagesInSpace={messagesInSpace}
+        threadsInSpace={threadsInSpace}
+        pendingApprovals={pendingApprovalsInSpace}
+        attachments={snapshot.chatAttachments}
+        files={files}
+        context={{ employees, agents }}
+        attachmentFileId={attachmentFileId}
+        onAttachmentChange={setAttachmentFileId}
+        onOpenThread={setOpenThreadId}
+        onApprove={(approvalId) => decideApproval(approvalId, "approved")}
+        onDecline={(approvalId) => decideApproval(approvalId, "declined")}
+        onSubmit={sendInChannel}
+        composerRef={composerRef}
+      />
 
       {selectedThread && (
-        <ThreadPanel
-          threadMessages={threadMessages}
-          rootMessage={messages.find((m) => m.id === selectedThread.rootMessageId) ?? null}
-          employees={employees}
-          agents={agents}
-          files={files}
+        <ChatThreadPanel
+          thread={selectedThread}
+          rootMessage={messagesInSpace.find((m) => m.id === selectedThread.rootMessageId) ?? null}
+          messages={threadMessages}
           attachments={snapshot.chatAttachments}
-          senderDisabled={!sender}
-          onClose={() => setSelectedThreadId(null)}
-          onSubmit={submitReply}
+          files={files}
+          context={{ employees, agents }}
+          onClose={() => setOpenThreadId(null)}
+          onSubmit={sendInThread}
         />
       )}
 
-      <Dialog title="New space" open={spaceOpen} submitLabel="Create" onClose={() => setSpaceOpen(false)} onSubmit={createSpace}>
+      <Dialog
+        title="New space"
+        open={createOpen}
+        submitLabel="Create"
+        onClose={() => setCreateOpen(false)}
+        onSubmit={createSpace}
+      >
         <Field label="Name"><input className="input" name="name" required /></Field>
         <Field label="Topic"><input className="input" name="topic" required /></Field>
         <Field label="Type">
@@ -188,189 +195,4 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       </Dialog>
     </div>
   );
-}
-
-function ThreadPanel({
-  threadMessages,
-  rootMessage,
-  employees,
-  agents,
-  files,
-  attachments,
-  senderDisabled,
-  onClose,
-  onSubmit,
-}: {
-  threadMessages: Array<{ id: string; bodyMd: string; createdAt: string; senderType: string; senderId: string | null; threadId: string | null }>;
-  rootMessage: { id: string; bodyMd: string; createdAt: string; senderType: string; senderId: string | null } | null;
-  employees: Array<{ id: string; displayName: string }>;
-  agents: Array<{ id: string; name: string }>;
-  files: FileObjectRecord[];
-  attachments: ChatAttachmentRecord[];
-  senderDisabled: boolean;
-  onClose: () => void;
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
-}) {
-  return (
-    <aside style={{ width: 320, flexShrink: 0, borderLeft: "1px solid var(--border-soft)", background: "var(--bg)", display: "flex", flexDirection: "column" }}>
-      <div className="row" style={{ padding: "14px 16px", borderBottom: "1px solid var(--border-soft)", flexShrink: 0 }}>
-        <span style={{ fontWeight: 600 }}>Thread</span>
-        <div style={{ marginLeft: "auto" }}>
-          <IconButton icon="x" label="Close thread" onClick={onClose} />
-        </div>
-      </div>
-      <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
-        {rootMessage && (
-          <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12, marginBottom: 16, background: "var(--panel)" }}>
-            <MessageRow
-              body={rootMessage.bodyMd}
-              time={new Date(rootMessage.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-              name={displayName(rootMessage.senderType, rootMessage.senderId, employees, agents)}
-              bot={rootMessage.senderType === "agent"}
-              files={messageFiles(rootMessage.id, attachments, files)}
-              compact
-            />
-          </div>
-        )}
-        {threadMessages.map((message) => (
-          <MessageRow
-            key={message.id}
-            body={message.bodyMd}
-            time={new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-            name={displayName(message.senderType, message.senderId, employees, agents)}
-            bot={message.senderType === "agent"}
-            files={messageFiles(message.id, attachments, files)}
-            compact
-          />
-        ))}
-      </div>
-      <form onSubmit={onSubmit} style={{ padding: 12, flexShrink: 0 }}>
-        <div className="card" style={{ padding: "8px 10px" }}>
-          <textarea className="input" name="message" rows={2} aria-label="Thread reply" />
-          <div style={{ paddingTop: 6, display: "flex", justifyContent: "flex-end" }}>
-            <Button tone="primary" size="small" type="submit" disabled={senderDisabled}><Icon name="send" /> Reply</Button>
-          </div>
-        </div>
-      </form>
-    </aside>
-  );
-}
-
-function NavGroup({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div style={{ marginTop: 10 }}>
-      <div className="section-label" style={{ padding: "0 8px", marginBottom: 6 }}>{label}</div>
-      {children}
-    </div>
-  );
-}
-
-function SpaceItem({
-  space,
-  active,
-  count,
-  onClick,
-}: {
-  space: ChatSpaceRecord;
-  active: boolean;
-  count: number;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" aria-label={space.name} className={`nav-item ${active ? "active" : ""}`} onClick={onClick}>
-      <Icon name={space.visibility === "restricted" ? "lock" : "hash"} />
-      <span>{space.name}</span>
-      {count > 0 && <span className="nav-badge">{count}</span>}
-    </button>
-  );
-}
-
-function MessageRow({
-  name,
-  body,
-  time,
-  bot,
-  files,
-  threadReplyCount = 0,
-  onOpenThread,
-  compact = false,
-}: {
-  name: string;
-  body: string;
-  time: string;
-  bot: boolean;
-  files: FileObjectRecord[];
-  threadReplyCount?: number;
-  onOpenThread?: (() => void) | null;
-  compact?: boolean;
-}) {
-  return (
-    <div style={{ display: "flex", gap: compact ? 10 : 12, marginBottom: compact ? 12 : 18 }}>
-      <Avatar name={name} bot={bot} size={compact ? "sm" : ""} />
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div className="row" style={{ alignItems: "baseline", marginBottom: 2 }}>
-          <span style={{ fontWeight: 540 }}>{name}</span>
-          <span className="num" style={{ color: "var(--text-3)", fontSize: 11 }}>{time}</span>
-        </div>
-        <div style={{ lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{body}</div>
-        {files.length > 0 && (
-          <div className="row" style={{ marginTop: 8, flexWrap: "wrap" }}>
-            {files.map((file) => (
-              <span key={file.id} className="attachment-pill">
-                <Icon name="file" size={13} /> {file.name}
-              </span>
-            ))}
-          </div>
-        )}
-        {threadReplyCount > 0 && onOpenThread && (
-          <button
-            type="button"
-            onClick={onOpenThread}
-            style={{
-              marginTop: 8, display: "inline-flex", alignItems: "center", gap: 6,
-              fontSize: 11.5, color: "var(--accent)", cursor: "pointer",
-              padding: "3px 8px", borderRadius: 6, background: "var(--accent-soft)",
-              border: 0,
-            }}
-          >
-            <Icon name="chat" size={11} /> {threadReplyCount} {threadReplyCount === 1 ? "reply" : "replies"} →
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function messageFiles(
-  messageId: string,
-  attachments: ChatAttachmentRecord[],
-  files: FileObjectRecord[],
-): FileObjectRecord[] {
-  return attachments
-    .filter((attachment) => attachment.messageId === messageId)
-    .map((attachment) => {
-      const file = files.find((item) => item.id === attachment.fileId);
-      if (!file) throw new Error("Chat attachment file is missing.");
-      return file;
-    });
-}
-
-function displayName(
-  senderType: string,
-  senderId: string | null,
-  employees: Array<{ id: string; displayName: string }>,
-  agents: Array<{ id: string; name: string }>,
-): string {
-  if (senderType === "employee") {
-    const employee = employees.find((item) => item.id === senderId);
-    if (!employee) throw new Error("Message employee sender is missing.");
-    return employee.displayName;
-  }
-  if (senderType === "agent") {
-    const agent = agents.find((item) => item.id === senderId);
-    if (!agent) throw new Error("Message agent sender is missing.");
-    return agent.name;
-  }
-  if (senderType === "board") return "Board";
-  return "System";
 }

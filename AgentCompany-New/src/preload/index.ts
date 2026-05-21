@@ -24,7 +24,10 @@ const api: DesktopApi = {
   resolveAgentSkills: (input) => invoke(IPC_CHANNELS.resolveAgentSkills, input),
   createSocialAccount: (input) => invoke(IPC_CHANNELS.createSocialAccount, input),
   launchSocialLogin: (input) => invoke(IPC_CHANNELS.launchSocialLogin, input),
+  createScheduledPost: (input) => invoke(IPC_CHANNELS.createScheduledPost, input),
+  setScheduledPostState: (input) => invoke(IPC_CHANNELS.setScheduledPostState, input),
   importFile: (input) => invoke(IPC_CHANNELS.importFile, input),
+  setFilePinned: (input) => invoke(IPC_CHANNELS.setFilePinned, input),
   createMigrationReport: (input) => invoke(IPC_CHANNELS.createMigrationReport, input),
   subscribe: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: RendererEvent) => callback(payload);

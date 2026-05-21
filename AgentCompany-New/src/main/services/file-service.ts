@@ -49,8 +49,11 @@ export class FileService {
     const target = join(orgDir, `${id}-${basename(sourcePath)}`);
     copyFileSync(sourcePath, target);
     this.db.prepare(`
-      insert into file_objects(id, org_id, name, kind, size_bytes, sha256, storage_path, owner_type, owner_id, created_at)
-      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      insert into file_objects(
+        id, org_id, name, kind, size_bytes, sha256, storage_path,
+        owner_type, owner_id, space_id, pinned, created_at, updated_at
+      )
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       orgId,
@@ -61,6 +64,9 @@ export class FileService {
       target,
       "system",
       null,
+      null,
+      0,
+      now,
       now,
     );
     this.audit.record({
@@ -73,5 +79,21 @@ export class FileService {
       payload: { sha256: hash, sizeBytes: stats.size },
     });
     return id;
+  }
+
+  setPinned(orgId: string, fileId: string, pinned: boolean): void {
+    const result = this.db.prepare(
+      "update file_objects set pinned = ?, updated_at = ? where id = ? and org_id = ?",
+    ).run(pinned ? 1 : 0, new Date().toISOString(), fileId, orgId);
+    if (result.changes === 0) throw new Error("File was not found.");
+    this.audit.record({
+      orgId,
+      entityType: "file_object",
+      entityId: fileId,
+      actorType: "employee",
+      actorId: null,
+      action: pinned ? "pinned" : "unpinned",
+      payload: { fileId },
+    });
   }
 }
