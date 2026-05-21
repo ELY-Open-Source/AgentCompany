@@ -1,13 +1,51 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { SendMessageInput } from "../../shared/commands";
+import type { CreateChatSpaceInput, SendMessageInput } from "../../shared/commands";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
+
+const SPACE_TYPES = new Set<CreateChatSpaceInput["spaceType"]>(["company", "department", "project", "direct"]);
+const SPACE_VISIBILITIES = new Set<CreateChatSpaceInput["visibility"]>(["workspace", "restricted"]);
 
 export class ChatService {
   private readonly audit: AuditService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
+  }
+
+  createSpace(input: CreateChatSpaceInput): string {
+    const name = input.name.trim();
+    const topic = input.topic.trim();
+    if (!name) throw new Error("Chat space name is required.");
+    if (!topic) throw new Error("Chat space topic is required.");
+    if (!SPACE_TYPES.has(input.spaceType)) throw new Error(`Unsupported chat space type: ${input.spaceType}`);
+    if (!SPACE_VISIBILITIES.has(input.visibility)) throw new Error(`Unsupported chat space visibility: ${input.visibility}`);
+
+    const id = createId("spc");
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      insert into chat_spaces(id, org_id, space_type, name, topic, visibility, created_at)
+      values (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, input.orgId, input.spaceType, name, topic, input.visibility, now);
+
+    const employees = this.db.prepare("select id from employees where org_id = ?").all(input.orgId) as Array<{ id: string }>;
+    for (const employee of employees) {
+      this.db.prepare(`
+        insert into chat_memberships(space_id, principal_type, principal_id, role, mute_state)
+        values (?, ?, ?, ?, ?)
+      `).run(id, "employee", employee.id, input.visibility === "restricted" ? "approver" : "member", "unmuted");
+    }
+
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "chat_space",
+      entityId: id,
+      actorType: "system",
+      actorId: null,
+      action: "created",
+      payload: { spaceType: input.spaceType, visibility: input.visibility },
+    });
+    return id;
   }
 
   sendMessage(input: SendMessageInput): string {

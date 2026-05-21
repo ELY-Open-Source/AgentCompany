@@ -129,6 +129,11 @@ export class OrganizationService {
   createTask(input: CreateTaskInput): string {
     const id = createId("tsk");
     const now = new Date().toISOString();
+    this.verifyOptionalOrgEntity("agents", input.assigneeAgentId, input.orgId, "Assignee agent");
+    this.verifyOptionalOrgEntity("goals", input.goalId, input.orgId, "Goal");
+    this.verifyOptionalOrgEntity("workspaces", input.workspaceId, input.orgId, "Workspace");
+    this.verifyProject(input.projectId, input.goalId, input.orgId);
+
     this.db.prepare(`
       insert into tasks(
         id, org_id, title, description, status, assignee_agent_id, risk,
@@ -143,11 +148,11 @@ export class OrganizationService {
       input.status,
       input.assigneeAgentId,
       input.risk,
-      null,
-      null,
-      null,
-      "normal",
-      0,
+      input.projectId,
+      input.goalId,
+      input.workspaceId,
+      input.priority,
+      input.requiresFilesystem ? 1 : 0,
       now,
       now,
     );
@@ -183,6 +188,20 @@ export class OrganizationService {
       payload: { status: TASK_STATUS.BACKLOG, policyRuleId: policy.matchedRuleId },
     });
     return id;
+  }
+
+  private verifyOptionalOrgEntity(table: "agents" | "goals" | "workspaces", id: string | null, orgId: string, label: string): void {
+    if (!id) return;
+    const row = this.db.prepare(`select id from ${table} where id = ? and org_id = ?`).get(id, orgId);
+    if (!row) throw new Error(`${label} was not found.`);
+  }
+
+  private verifyProject(projectId: string | null, goalId: string | null, orgId: string): void {
+    if (!projectId) return;
+    const project = this.db.prepare("select goal_id from projects where id = ? and org_id = ?")
+      .get(projectId, orgId) as { goal_id: string | null } | undefined;
+    if (!project) throw new Error("Project was not found.");
+    if (goalId && project.goal_id !== goalId) throw new Error("Project is linked to a different goal.");
   }
 
   updateTaskStatus(orgId: string, taskId: string, status: string): void {

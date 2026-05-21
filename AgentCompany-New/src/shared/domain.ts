@@ -17,6 +17,12 @@ export const RISK_LEVEL = {
   HIGH: "high",
 } as const;
 
+export const TASK_PRIORITY = {
+  LOW: "low",
+  NORMAL: "normal",
+  HIGH: "high",
+} as const;
+
 export const PROVIDER_AUTH_TYPE = {
   API_KEY: "api_key",
   OAUTH_PKCE: "oauth_pkce",
@@ -41,6 +47,7 @@ export type ValueOf<T> = T[keyof T];
 export type TaskStatus = ValueOf<typeof TASK_STATUS>;
 export type ApprovalState = ValueOf<typeof APPROVAL_STATE>;
 export type RiskLevel = ValueOf<typeof RISK_LEVEL>;
+export type TaskPriority = ValueOf<typeof TASK_PRIORITY>;
 export type ProviderAuthType = ValueOf<typeof PROVIDER_AUTH_TYPE>;
 export type SocialPlatform = ValueOf<typeof SOCIAL_PLATFORM>;
 export type ProviderRequestState = ValueOf<typeof PROVIDER_REQUEST_STATE>;
@@ -96,7 +103,7 @@ export interface TaskRecord {
   projectId: string | null;
   goalId: string | null;
   workspaceId: string | null;
-  priority: string;
+  priority: TaskPriority;
   requiresFilesystem: boolean;
   createdAt: string;
   updatedAt: string;

@@ -2,6 +2,7 @@ import type {
   ApprovalState,
   RiskLevel,
   SocialPlatform,
+  TaskPriority,
   TaskStatus,
 } from "./domain";
 
@@ -40,6 +41,11 @@ export interface CreateTaskInput {
   status: TaskStatus;
   assigneeAgentId: string | null;
   risk: RiskLevel;
+  projectId: string | null;
+  goalId: string | null;
+  workspaceId: string | null;
+  priority: TaskPriority;
+  requiresFilesystem: boolean;
 }
 
 export interface UpdateTaskStatusInput {
@@ -73,6 +79,14 @@ export interface SendMessageInput {
   senderId: string | null;
   bodyMd: string;
   attachmentFileIds?: string[];
+}
+
+export interface CreateChatSpaceInput {
+  orgId: string;
+  spaceType: "company" | "department" | "project" | "direct";
+  name: string;
+  topic: string;
+  visibility: "workspace" | "restricted";
 }
 
 export interface SaveProviderCredentialInput {

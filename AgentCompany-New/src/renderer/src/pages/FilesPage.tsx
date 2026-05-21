@@ -1,25 +1,37 @@
-import { Button, Icon, IconButton } from "../shared/ui";
+import { useState } from "react";
+import { Button, Icon } from "../shared/ui";
 import type { FileObjectRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
 
 export function FilesPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
+  const [selectedKind, setSelectedKind] = useState("all");
   const files = snapshot.files.filter((item) => item.orgId === orgId);
+  const kinds = Array.from(new Set(files.map((file) => file.kind))).sort((a, b) => a.localeCompare(b));
+  const visibleFiles = selectedKind === "all" ? files : files.filter((file) => file.kind === selectedKind);
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "200px minmax(0, 1fr)", gap: 24 }}>
       <aside>
         <div className="section-label">Library</div>
-        <TreeItem icon="folder" label="All files" count={files.length} active />
-        <TreeItem icon="social" label="Recent" />
-        <TreeItem icon="check" label="Pinned" />
+        <TreeItem icon="folder" label="All files" count={files.length} active={selectedKind === "all"} onClick={() => setSelectedKind("all")} />
+        {kinds.map((kind) => (
+          <TreeItem
+            key={kind}
+            icon="file"
+            label={formatKind(kind)}
+            count={files.filter((file) => file.kind === kind).length}
+            active={selectedKind === kind}
+            onClick={() => setSelectedKind(kind)}
+          />
+        ))}
       </aside>
       <div className="page">
         <div className="row" style={{ marginBottom: 24 }}>
           <div>
             <h1 className="page-h1">Files</h1>
-            <p className="page-sub" style={{ marginBottom: 0 }}>{files.length} files · {formatBytes(files.reduce((sum, file) => sum + file.sizeBytes, 0))}</p>
+            <p className="page-sub" style={{ marginBottom: 0 }}>{visibleFiles.length} files · {formatBytes(visibleFiles.reduce((sum, file) => sum + file.sizeBytes, 0))}</p>
           </div>
           <div style={{ marginLeft: "auto" }}>
             <Button tone="primary" onClick={() => void actions.run(() => window.agentCompany.importFile({ orgId }))}>
@@ -27,14 +39,14 @@ export function FilesPage({ snapshot, actions }: PageProps) {
             </Button>
           </div>
         </div>
-        <div className="section-label">All files</div>
+        <div className="section-label">{selectedKind === "all" ? "All files" : formatKind(selectedKind)}</div>
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <div className="table-row" style={{ gridTemplateColumns: "3fr 1fr 1.4fr 1fr 40px", background: "var(--panel-2)", color: "var(--text-3)", fontSize: 11 }}>
-            <div>Name</div><div>Size</div><div>Checksum</div><div>Added</div><div />
+          <div className="table-row" style={{ gridTemplateColumns: "3fr 1fr 1.4fr 1fr", background: "var(--panel-2)", color: "var(--text-3)", fontSize: 11 }}>
+            <div>Name</div><div>Size</div><div>Checksum</div><div>Added</div>
           </div>
-          {files.length === 0 ? (
+          {visibleFiles.length === 0 ? (
             <div style={{ padding: 18, color: "var(--text-3)" }}>No files</div>
-          ) : files.map((file) => <FileRow key={file.id} file={file} />)}
+          ) : visibleFiles.map((file) => <FileRow key={file.id} file={file} />)}
         </div>
       </div>
     </div>
@@ -45,25 +57,27 @@ function TreeItem({
   icon,
   label,
   count,
+  onClick,
   active = false,
 }: {
   icon: string;
   label: string;
   count?: number;
+  onClick: () => void;
   active?: boolean;
 }) {
   return (
-    <div className={`nav-item ${active ? "active" : ""}`}>
+    <button type="button" className={`nav-item ${active ? "active" : ""}`} onClick={onClick}>
       <Icon name={icon} />
       <span>{label}</span>
       {typeof count === "number" && <span className="nav-badge">{count}</span>}
-    </div>
+    </button>
   );
 }
 
 function FileRow({ file }: { file: FileObjectRecord }) {
   return (
-    <div className="table-row" style={{ gridTemplateColumns: "3fr 1fr 1.4fr 1fr 40px" }}>
+    <div className="table-row" style={{ gridTemplateColumns: "3fr 1fr 1.4fr 1fr" }}>
       <div className="row">
         <FileIcon kind={file.kind} />
         <span style={{ fontWeight: 480 }}>{file.name}</span>
@@ -71,7 +85,6 @@ function FileRow({ file }: { file: FileObjectRecord }) {
       <div className="num" style={{ color: "var(--text-3)", fontSize: 12 }}>{formatBytes(file.sizeBytes)}</div>
       <div className="num" style={{ color: "var(--text-3)", fontSize: 12 }}>{file.sha256.slice(0, 12)}</div>
       <div style={{ color: "var(--text-3)", fontSize: 12 }}>{new Date(file.createdAt).toLocaleDateString()}</div>
-      <IconButton icon="more" label="More" />
     </div>
   );
 }
@@ -102,6 +115,10 @@ function FileIcon({ kind }: { kind: string }) {
       {kind.slice(0, 3).toUpperCase()}
     </span>
   );
+}
+
+function formatKind(kind: string): string {
+  return kind.toUpperCase();
 }
 
 function formatBytes(bytes: number): string {

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Avatar, Button, Field, Icon, Pill } from "../shared/ui";
+import { Avatar, Button, Field, Icon } from "../shared/ui";
 import { Dialog } from "../shared/Dialog";
 import { SOCIAL_PLATFORM, type SocialAccountRecord, type SocialPlatform } from "../../../shared/domain";
 import type { PageProps } from "./types";
@@ -46,16 +46,10 @@ export function SocialPage({ snapshot, actions }: PageProps) {
           <AccountCard
             key={account.id}
             account={account}
-            employeeName={employees.find((employee) => employee.id === account.authorizedEmployeeId)?.displayName ?? null}
+            employeeName={authorizedEmployeeName(account.authorizedEmployeeId, employees)}
             onLogin={() => void actions.run(() => window.agentCompany.launchSocialLogin({ socialAccountId: account.id }))}
           />
         ))}
-      </div>
-      <div className="section-label">Governance</div>
-      <div className="card" style={{ display: "grid", gap: 10 }}>
-        <PolicyRow label="Session isolation" value="Per account partition" />
-        <PolicyRow label="Permissions" value="Camera, microphone, downloads denied" />
-        <PolicyRow label="Navigation" value="Platform host allowlist" />
       </div>
       <Dialog title="Connect social account" open={open} submitLabel="Connect" onClose={() => setOpen(false)} onSubmit={submit}>
         <Field label="Platform">
@@ -108,15 +102,6 @@ function AccountCard({
   );
 }
 
-function PolicyRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="row" style={{ justifyContent: "space-between" }}>
-      <span>{label}</span>
-      <Pill>{value}</Pill>
-    </div>
-  );
-}
-
 function PlatformIcon({ platform }: { platform: SocialPlatform }) {
   const labels: Record<SocialPlatform, string> = {
     x: "X",
@@ -135,4 +120,14 @@ function PlatformIcon({ platform }: { platform: SocialPlatform }) {
       {labels[platform]}
     </div>
   );
+}
+
+function authorizedEmployeeName(
+  employeeId: string | null,
+  employees: Array<{ id: string; displayName: string }>,
+): string | null {
+  if (!employeeId) return null;
+  const employee = employees.find((item) => item.id === employeeId);
+  if (!employee) throw new Error("Authorized employee is missing.");
+  return employee.displayName;
 }

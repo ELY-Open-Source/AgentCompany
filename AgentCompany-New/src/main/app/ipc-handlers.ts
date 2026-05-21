@@ -72,6 +72,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.updateTaskStatus, (_event, input) => mutate(() => organization.updateTaskStatus(input.orgId, input.taskId, input.status)));
   ipcMain.handle(IPC_CHANNELS.createApproval, (_event, input) => mutate(() => approvals.create(input)));
   ipcMain.handle(IPC_CHANNELS.decideApproval, (_event, input) => mutate(() => approvals.decide(input)));
+  ipcMain.handle(IPC_CHANNELS.createChatSpace, (_event, input) => mutate(() => chat.createSpace(input)));
   ipcMain.handle(IPC_CHANNELS.sendMessage, (_event, input) => mutate(() => chat.sendMessage(input)));
   ipcMain.handle(IPC_CHANNELS.saveProviderCredential, (_event, input) => mutate(() => providers.saveCredential(input)));
   ipcMain.handle(IPC_CHANNELS.createProviderResponse, async (_event, input) => {

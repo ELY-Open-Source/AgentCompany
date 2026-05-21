@@ -61,6 +61,11 @@ describe("domain services", () => {
         status: TASK_STATUS.BACKLOG,
         assigneeAgentId: null,
         risk: RISK_LEVEL.HIGH,
+        projectId: null,
+        goalId: null,
+        workspaceId: null,
+        priority: "normal",
+        requiresFilesystem: false,
       });
     });
 
@@ -130,8 +135,13 @@ describe("domain services", () => {
         mission: "Coordinate agents with auditable approvals.",
         goal: "Ship a verified control plane.",
       });
-      const space = connection.db.prepare("select id from chat_spaces where org_id = ? and name = ?")
-        .get(orgId, "engineering") as { id: string };
+      const spaceId = chat.createSpace({
+        orgId,
+        spaceType: "project",
+        name: "release",
+        topic: "Release coordination",
+        visibility: "workspace",
+      });
       const employee = connection.db.prepare("select id from employees where org_id = ?")
         .get(orgId) as { id: string };
       const fileId = createId("file");
@@ -142,7 +152,7 @@ describe("domain services", () => {
 
       chat.sendMessage({
         orgId,
-        spaceId: space.id,
+        spaceId,
         threadId: null,
         senderType: "employee",
         senderId: employee.id,
@@ -152,6 +162,7 @@ describe("domain services", () => {
     });
 
     const state = snapshot.load();
+    expect(state.chatSpaces.map((space) => space.name)).toContain("release");
     expect(state.chatMessages).toHaveLength(1);
     expect(state.chatThreads).toHaveLength(1);
     expect(state.chatAttachments).toHaveLength(1);

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Button, Field, Icon, Pill } from "../shared/ui";
 import { Dialog } from "../shared/Dialog";
-import type { ProviderRecord, SkillDefinitionRecord } from "../../../shared/domain";
+import type { MigrationReportRecord, PolicyRuleRecord, ProviderRecord, SkillDefinitionRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
 
@@ -16,10 +16,13 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
   const [tab, setTab] = useState<SettingsTab>("providers");
   const [providerDialog, setProviderDialog] = useState<ProviderRecord | null>(null);
   const [skillOpen, setSkillOpen] = useState(false);
+  const [migrationOpen, setMigrationOpen] = useState(false);
   const providers = snapshot.providers.filter((item) => item.orgId === orgId);
   const skills = snapshot.skillDefinitions.filter((item) => item.orgId === orgId);
   const agents = snapshot.agents.filter((item) => item.orgId === orgId);
   const revisions = snapshot.skillRevisions;
+  const policies = snapshot.policyRules.filter((item) => item.orgId === orgId);
+  const reports = snapshot.migrationReports.filter((item) => item.orgId === orgId);
 
   const saveProvider = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -39,8 +42,17 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
     void actions.run(() => window.agentCompany.importSkillDirectory({
       orgId,
       directoryPath: value(form, "directoryPath"),
-      versionSemver: value(form, "versionSemver") || "1.0.0",
+      versionSemver: value(form, "versionSemver"),
     })).then(() => setSkillOpen(false));
+  };
+
+  const createMigrationReport = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    void actions.run(() => window.agentCompany.createMigrationReport({
+      orgId,
+      sourceDatabasePath: value(form, "sourceDatabasePath"),
+    })).then(() => setMigrationOpen(false));
   };
 
   return (
@@ -70,8 +82,8 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
             }))}
           />
         )}
-        {tab === "policies" && <PolicyPanel />}
-        {tab === "migration" && <MigrationPanel />}
+        {tab === "policies" && <PolicyPanel policies={policies} />}
+        {tab === "migration" && <MigrationPanel reports={reports} onCreate={() => setMigrationOpen(true)} />}
       </div>
       <Dialog title="Provider credential" open={Boolean(providerDialog)} submitLabel="Save" onClose={() => setProviderDialog(null)} onSubmit={saveProvider}>
         <Field label="Provider"><input className="input" value={providerDialog?.label ?? ""} readOnly /></Field>
@@ -80,7 +92,10 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
       </Dialog>
       <Dialog title="Import skill" open={skillOpen} submitLabel="Import" onClose={() => setSkillOpen(false)} onSubmit={importSkill}>
         <Field label="Directory path"><input className="input" name="directoryPath" required /></Field>
-        <Field label="Version"><input className="input" name="versionSemver" defaultValue="1.0.0" required /></Field>
+        <Field label="Version"><input className="input" name="versionSemver" required /></Field>
+      </Dialog>
+      <Dialog title="Migration report" open={migrationOpen} submitLabel="Create" onClose={() => setMigrationOpen(false)} onSubmit={createMigrationReport}>
+        <Field label="Source database path"><input className="input" name="sourceDatabasePath" required /></Field>
       </Dialog>
     </div>
   );
@@ -94,7 +109,6 @@ function ProvidersPanel({ providers, onManage }: { providers: ProviderRecord[]; 
   return (
     <div className="page">
       <h1 className="page-h1">Providers</h1>
-      <p className="page-sub">Keys, account grants, OAuth profiles.</p>
       <div className="section-label">Configured providers</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {providers.map((provider) => (
@@ -141,25 +155,29 @@ function SkillsPanel({
         {skills.length === 0 ? (
           <div style={{ padding: 18, color: "var(--text-3)" }}>No skills</div>
         ) : skills.map((skill) => {
-          const revision = revisions.find((item) => item.skillId === skill.id);
+          const revision = requireRevision(skill, revisions);
           return (
             <div key={skill.id} className="table-row" style={{ gridTemplateColumns: "1.6fr 1fr 1.6fr" }}>
               <div>
                 <div style={{ fontWeight: 540 }}>{skill.name}</div>
                 <div style={{ color: "var(--text-3)", fontSize: 11 }}>{skill.slug}</div>
               </div>
-              <Pill>{revision?.versionSemver ?? "No revision"}</Pill>
-              <select
-                className="input"
-                defaultValue=""
-                onChange={(event) => {
-                  if (event.target.value && revision) onBind(event.target.value, skill, revision.id);
-                  event.target.value = "";
-                }}
-              >
-                <option value="">Bind to agent</option>
-                {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
-              </select>
+              <Pill>{revision.versionSemver}</Pill>
+              {agents.length === 0 ? (
+                <Pill>No agents</Pill>
+              ) : (
+                <select
+                  className="input"
+                  defaultValue=""
+                  onChange={(event) => {
+                    if (event.target.value) onBind(event.target.value, skill, revision.id);
+                    event.target.value = "";
+                  }}
+                >
+                  <option value="">Agent</option>
+                  {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+                </select>
+              )}
             </div>
           );
         })}
@@ -168,42 +186,78 @@ function SkillsPanel({
   );
 }
 
-function PolicyPanel() {
+function PolicyPanel({ policies }: { policies: PolicyRuleRecord[] }) {
   return (
     <div className="page">
       <h1 className="page-h1">Policies</h1>
-      <p className="page-sub">Approval, risk, provider, browser boundaries.</p>
-      <div className="card" style={{ display: "grid", gap: 10 }}>
-        <PolicyRow label="High-risk task" value="Board approval" />
-        <PolicyRow label="Social publish" value="Human approval" />
-        <PolicyRow label="Browser permissions" value="Deny by default" />
-        <PolicyRow label="Provider secrets" value="OS encrypted" />
+      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="table-row" style={{ gridTemplateColumns: "1.2fr 1.2fr 1fr", background: "var(--panel-2)", color: "var(--text-3)", fontSize: 11 }}>
+          <div>Action</div><div>Effect</div><div>Risk ceiling</div>
+        </div>
+        {policies.length === 0 ? (
+          <div style={{ padding: 18, color: "var(--text-3)" }}>No policies</div>
+        ) : policies.map((policy) => (
+          <div key={policy.id} className="table-row" style={{ gridTemplateColumns: "1.2fr 1.2fr 1fr" }}>
+            <span>{policy.action}</span>
+            <Pill>{policy.effect}</Pill>
+            <Pill tone={policy.riskCeiling === "high" ? "amber" : undefined}>{policy.riskCeiling}</Pill>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-function MigrationPanel() {
+function MigrationPanel({ reports, onCreate }: { reports: MigrationReportRecord[]; onCreate: () => void }) {
   return (
     <div className="page">
-      <h1 className="page-h1">Migration</h1>
-      <p className="page-sub">Legacy import, id maps, checksum validation.</p>
-      <div className="card" style={{ display: "grid", gap: 10 }}>
-        <PolicyRow label="Legacy snapshot" value="Immutable" />
-        <PolicyRow label="Entity checksums" value="Required" />
-        <PolicyRow label="Delta journal" value="Recorded" />
+      <div className="row" style={{ marginBottom: 24 }}>
+        <div>
+          <h1 className="page-h1">Migration</h1>
+          <p className="page-sub" style={{ marginBottom: 0 }}>{reports.length} reports</p>
+        </div>
+        <div style={{ marginLeft: "auto" }}>
+          <Button tone="primary" onClick={onCreate}><Icon name="plus" /> Report</Button>
+        </div>
+      </div>
+      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        {reports.length === 0 ? (
+          <div style={{ padding: 18, color: "var(--text-3)" }}>No reports</div>
+        ) : reports.map((report) => <MigrationReportRow key={report.id} report={report} />)}
       </div>
     </div>
   );
 }
 
-function PolicyRow({ label, value }: { label: string; value: string }) {
+function MigrationReportRow({ report }: { report: MigrationReportRecord }) {
+  const body = parseMigrationReport(report.reportJson);
   return (
-    <div className="row" style={{ justifyContent: "space-between" }}>
-      <span>{label}</span>
-      <Pill>{value}</Pill>
+    <div className="table-row" style={{ gridTemplateColumns: "1.4fr 1fr 1fr" }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={report.sourceRef}>{report.sourceRef}</div>
+        <div style={{ color: "var(--text-3)", fontSize: 11 }}>{new Date(report.createdAt).toLocaleString()}</div>
+      </div>
+      <div className="row" style={{ flexWrap: "wrap" }}>
+        {Object.entries(body.tableCounts).map(([table, count]) => <Pill key={table}>{table}: {count}</Pill>)}
+      </div>
+      <Pill>{body.missingTables.length} missing</Pill>
     </div>
   );
+}
+
+function parseMigrationReport(reportJson: string): { tableCounts: Record<string, number>; missingTables: string[] } {
+  const parsed = JSON.parse(reportJson) as { tableCounts?: Record<string, number>; missingTables?: string[] };
+  if (!parsed.tableCounts || !Array.isArray(parsed.missingTables)) throw new Error("Migration report is invalid.");
+  return { tableCounts: parsed.tableCounts, missingTables: parsed.missingTables };
+}
+
+function requireRevision(
+  skill: SkillDefinitionRecord,
+  revisions: Array<{ id: string; skillId: string; versionSemver: string }>,
+): { id: string; versionSemver: string } {
+  const revision = revisions.find((item) => item.skillId === skill.id);
+  if (!revision) throw new Error(`Skill revision is missing for ${skill.slug}.`);
+  return revision;
 }
 
 function ProviderLogo({ label }: { label: string }) {

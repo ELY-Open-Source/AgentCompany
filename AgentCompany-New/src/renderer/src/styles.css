@@ -220,6 +220,12 @@ button { cursor: pointer; }
   outline: none;
 }
 textarea.input { min-height: 84px; resize: vertical; }
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+}
 .onboarding-shell {
   width: 100%;
   min-height: 100%;

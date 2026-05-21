@@ -15,6 +15,7 @@ const api: DesktopApi = {
   updateTaskStatus: (input) => invoke(IPC_CHANNELS.updateTaskStatus, input),
   createApproval: (input) => invoke(IPC_CHANNELS.createApproval, input),
   decideApproval: (input) => invoke(IPC_CHANNELS.decideApproval, input),
+  createChatSpace: (input) => invoke(IPC_CHANNELS.createChatSpace, input),
   sendMessage: (input) => invoke(IPC_CHANNELS.sendMessage, input),
   saveProviderCredential: (input) => invoke(IPC_CHANNELS.saveProviderCredential, input),
   createProviderResponse: (input) => invoke(IPC_CHANNELS.createProviderResponse, input),

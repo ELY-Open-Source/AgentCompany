@@ -7,6 +7,7 @@ export const IPC_CHANNELS = {
   updateTaskStatus: "agentcompany:update-task-status",
   createApproval: "agentcompany:create-approval",
   decideApproval: "agentcompany:decide-approval",
+  createChatSpace: "agentcompany:create-chat-space",
   sendMessage: "agentcompany:send-message",
   saveProviderCredential: "agentcompany:save-provider-credential",
   createProviderResponse: "agentcompany:create-provider-response",

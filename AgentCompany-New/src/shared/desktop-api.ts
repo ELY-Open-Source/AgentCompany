@@ -6,6 +6,7 @@ import type {
   BootstrapOnboardingSummary,
   CreateAgentInput,
   CreateApprovalInput,
+  CreateChatSpaceInput,
   CreateMigrationReportInput,
   CreateOrganizationInput,
   CreateProviderResponseInput,
@@ -34,6 +35,7 @@ export interface DesktopApi {
   updateTaskStatus(input: UpdateTaskStatusInput): Promise<DesktopResult<AppSnapshot>>;
   createApproval(input: CreateApprovalInput): Promise<DesktopResult<AppSnapshot>>;
   decideApproval(input: DecideApprovalInput): Promise<DesktopResult<AppSnapshot>>;
+  createChatSpace(input: CreateChatSpaceInput): Promise<DesktopResult<AppSnapshot>>;
   sendMessage(input: SendMessageInput): Promise<DesktopResult<AppSnapshot>>;
   saveProviderCredential(input: SaveProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;
   createProviderResponse(input: CreateProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;

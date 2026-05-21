@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { Avatar, Button, Icon, IconButton } from "../shared/ui";
+import { Avatar, Button, Field, Icon, IconButton } from "../shared/ui";
+import { Dialog } from "../shared/Dialog";
 import type { ChatSpaceRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
@@ -8,12 +9,17 @@ function messageBody(form: FormData): string {
   return String(form.get("message") ?? "").trim();
 }
 
+function value(form: FormData, key: string): string {
+  return String(form.get(key) ?? "").trim();
+}
+
 export function ChatPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const spaces = snapshot.chatSpaces.filter((item) => item.orgId === orgId);
   const employees = snapshot.employees.filter((item) => item.orgId === orgId);
   const agents = snapshot.agents.filter((item) => item.orgId === orgId);
   const [spaceId, setSpaceId] = useState(spaces[0]?.id ?? "");
+  const [spaceOpen, setSpaceOpen] = useState(false);
   const activeSpace = spaces.find((space) => space.id === spaceId) ?? spaces[0];
   const messages = snapshot.chatMessages.filter((item) => item.orgId === orgId && item.spaceId === activeSpace?.id);
   const sender = employees[0];
@@ -35,15 +41,27 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     }));
   };
 
+  const createSpace = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    void actions.run(() => window.agentCompany.createChatSpace({
+      orgId,
+      spaceType: value(form, "spaceType") as "company" | "department" | "project" | "direct",
+      name: value(form, "name"),
+      topic: value(form, "topic"),
+      visibility: value(form, "visibility") as "workspace" | "restricted",
+    })).then(() => setSpaceOpen(false));
+  };
+
   return (
     <div className="split-main" style={{ height: "calc(100vh - 112px)", margin: "-28px -32px -40px" }}>
       <aside className="secondary-pane">
         <div className="row" style={{ padding: "4px 8px 12px" }}>
           <div style={{ fontWeight: 600 }}>Messages</div>
-          <IconButton icon="plus" label="New space" />
+          <IconButton icon="plus" label="New space" onClick={() => setSpaceOpen(true)} />
         </div>
         <NavGroup label="Channels">
-          {spaces.map((space) => (
+          {spaces.length === 0 ? <div className="nav-item">No channels</div> : spaces.map((space) => (
             <SpaceItem
               key={space.id}
               space={space}
@@ -86,17 +104,35 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         </div>
         <form onSubmit={submit} style={{ padding: 14, paddingTop: 4 }}>
           <div className="card" style={{ padding: "10px 12px" }}>
-            <textarea className="input" name="message" rows={2} placeholder={activeSpace ? `Message #${activeSpace.name}` : "Message"} />
+            <textarea className="input" name="message" rows={2} aria-label="Message" />
             <div className="row" style={{ paddingTop: 8, borderTop: "1px solid var(--border-soft)" }}>
               <Icon name="attach" />
               <Icon name="social" />
               <div style={{ marginLeft: "auto" }}>
-                <Button tone="primary" size="small" type="submit"><Icon name="send" /> Send</Button>
+                <Button tone="primary" size="small" type="submit" disabled={!activeSpace || !sender}><Icon name="send" /> Send</Button>
               </div>
             </div>
           </div>
         </form>
       </section>
+      <Dialog title="New space" open={spaceOpen} submitLabel="Create" onClose={() => setSpaceOpen(false)} onSubmit={createSpace}>
+        <Field label="Name"><input className="input" name="name" required /></Field>
+        <Field label="Topic"><input className="input" name="topic" required /></Field>
+        <Field label="Type">
+          <select className="input" name="spaceType" defaultValue="project">
+            <option value="company">Company</option>
+            <option value="department">Department</option>
+            <option value="project">Project</option>
+            <option value="direct">Direct</option>
+          </select>
+        </Field>
+        <Field label="Visibility">
+          <select className="input" name="visibility" defaultValue="workspace">
+            <option value="workspace">Workspace</option>
+            <option value="restricted">Restricted</option>
+          </select>
+        </Field>
+      </Dialog>
     </div>
   );
 }
@@ -151,8 +187,16 @@ function displayName(
   employees: Array<{ id: string; displayName: string }>,
   agents: Array<{ id: string; name: string }>,
 ): string {
-  if (senderType === "employee") return employees.find((item) => item.id === senderId)?.displayName ?? "Employee";
-  if (senderType === "agent") return agents.find((item) => item.id === senderId)?.name ?? "Agent";
+  if (senderType === "employee") {
+    const employee = employees.find((item) => item.id === senderId);
+    if (!employee) throw new Error("Message employee sender is missing.");
+    return employee.displayName;
+  }
+  if (senderType === "agent") {
+    const agent = agents.find((item) => item.id === senderId);
+    if (!agent) throw new Error("Message agent sender is missing.");
+    return agent.name;
+  }
   if (senderType === "board") return "Board";
   return "System";
 }

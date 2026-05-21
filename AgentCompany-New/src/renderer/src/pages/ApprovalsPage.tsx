@@ -1,17 +1,19 @@
 import { Avatar, Button, Icon, Pill } from "../shared/ui";
-import type { ApprovalRecord } from "../../../shared/domain";
+import type { AgentRecord, ApprovalRecord, EmployeeRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
 
 export function ApprovalsPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const employee = snapshot.employees.find((item) => item.orgId === orgId);
+  const employees = snapshot.employees.filter((item) => item.orgId === orgId);
+  const agents = snapshot.agents.filter((item) => item.orgId === orgId);
   const approvals = snapshot.approvals.filter((item) => item.orgId === orgId);
   const pending = approvals.filter((item) => item.state === "pending");
   const decided = approvals.filter((item) => item.state !== "pending");
 
   const decide = (approvalId: string, state: "approved" | "declined") => {
-    if (!employee) return;
+    if (!employee) throw new Error("Employee is required for approval decisions.");
     void actions.run(() => window.agentCompany.decideApproval({
       orgId,
       approvalId,
@@ -34,7 +36,13 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
       {pending.length === 0 ? (
         <div className="card" style={{ color: "var(--text-3)" }}>No pending approvals</div>
       ) : pending.map((approval) => (
-        <ApprovalRow key={approval.id} approval={approval} onApprove={() => decide(approval.id, "approved")} onDecline={() => decide(approval.id, "declined")} />
+        <ApprovalRow
+          key={approval.id}
+          approval={approval}
+          requester={requesterName(approval, employees, agents)}
+          onApprove={() => decide(approval.id, "approved")}
+          onDecline={() => decide(approval.id, "declined")}
+        />
       ))}
       <div className="section-label" style={{ marginTop: 32 }}>Decided</div>
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -63,10 +71,12 @@ function StatTile({ label, value, tone }: { label: string; value: string; tone?:
 
 function ApprovalRow({
   approval,
+  requester,
   onApprove,
   onDecline,
 }: {
   approval: ApprovalRecord;
+  requester: string;
   onApprove: () => void;
   onDecline: () => void;
 }) {
@@ -82,7 +92,8 @@ function ApprovalRow({
         <div style={{ fontSize: 15, fontWeight: 540, marginBottom: 4 }}>{approval.title}</div>
         <div style={{ color: "var(--text-2)", lineHeight: 1.5, marginBottom: 12 }}>{approval.details}</div>
         <div className="row">
-          <Avatar name={approval.requestedByType} size="sm" bot={approval.requestedByType !== "employee"} />
+          <Avatar name={requester} size="sm" bot={approval.requestedByType !== "employee"} />
+          <span style={{ color: "var(--text-3)", fontSize: 12 }}>{requester}</span>
           <span style={{ color: "var(--text-3)", fontSize: 12 }}>{new Date(approval.createdAt).toLocaleString()}</span>
         </div>
       </div>
@@ -92,4 +103,22 @@ function ApprovalRow({
       </div>
     </div>
   );
+}
+
+function requesterName(
+  approval: ApprovalRecord,
+  employees: EmployeeRecord[],
+  agents: AgentRecord[],
+): string {
+  if (approval.requestedByType === "employee") {
+    const employee = employees.find((item) => item.id === approval.requestedById);
+    if (!employee) throw new Error("Approval employee requester is missing.");
+    return employee.displayName;
+  }
+  if (approval.requestedByType === "agent") {
+    const agent = agents.find((item) => item.id === approval.requestedById);
+    if (!agent) throw new Error("Approval agent requester is missing.");
+    return agent.name;
+  }
+  return "System";
 }
