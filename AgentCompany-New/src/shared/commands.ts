@@ -7,9 +7,13 @@ import type {
 
 export interface CreateOrganizationInput {
   organizationName: string;
+  description?: string;
   mission: string;
   goal: string;
   employeeName: string;
+  executionMode?: "ai_ceo" | "ai_cofounder";
+  autoApproveHires?: boolean;
+  reviewDeliverables?: boolean;
 }
 
 export interface CreateAgentInput {
@@ -21,6 +25,12 @@ export interface CreateAgentInput {
   modelId: string | null;
   budgetCents: number;
   managerAgentId: string | null;
+  title?: string;
+  roleLevel?: string;
+  modelStrategy?: string;
+  workspaceId?: string | null;
+  heartbeatEnabled?: boolean;
+  heartbeatIntervalSec?: number;
 }
 
 export interface CreateTaskInput {
@@ -117,6 +127,33 @@ export interface ImportFileInput {
 export interface CreateMigrationReportInput {
   orgId: string;
   sourceDatabasePath: string;
+}
+
+export interface BootstrapOnboardingInput {
+  companyName: string;
+  companyDescription: string;
+  employeeName: string;
+  workspacePath: string;
+  executionMode: "ai_ceo" | "ai_cofounder";
+  autoApproveHires: boolean;
+  reviewDeliverables: boolean;
+  goalTitle: string;
+  goalDescription: string;
+  providerKey: string;
+  providerSecret: string;
+  providerModel: string;
+}
+
+export interface BootstrapOnboardingSummary {
+  orgId: string;
+  employeeId: string;
+  ceoAgentId: string;
+  workspaceId: string | null;
+  goalId: string;
+  projectId: string;
+  taskId: string;
+  runId: string;
+  providerId: string;
 }
 
 export interface NativeDialogResult {

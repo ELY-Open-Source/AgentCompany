@@ -20,8 +20,22 @@ export class OrganizationService {
     const employeeId = createId("emp");
     const now = new Date().toISOString();
 
-    this.db.prepare("insert into organizations(id, name, mission, goal, created_at) values (?, ?, ?, ?, ?)")
-      .run(orgId, input.organizationName.trim(), input.mission.trim(), input.goal.trim(), now);
+    this.db.prepare(`
+      insert into organizations(
+        id, name, mission, goal, description, execution_mode, auto_approve_hires, review_deliverables, created_at
+      )
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      orgId,
+      input.organizationName.trim(),
+      input.mission.trim(),
+      input.goal.trim(),
+      input.description?.trim() ?? "",
+      input.executionMode ?? "ai_ceo",
+      input.autoApproveHires === false ? 0 : 1,
+      input.reviewDeliverables === true ? 1 : 0,
+      now,
+    );
     this.db.prepare("insert into employees(id, org_id, display_name, role, created_at) values (?, ?, ?, ?, ?)")
       .run(employeeId, orgId, input.employeeName.trim(), "Board Chair", now);
 
@@ -78,8 +92,9 @@ export class OrganizationService {
     this.db.prepare(`
       insert into agents(
         id, org_id, name, role, department, model_provider_id, model_id,
-        budget_cents, manager_agent_id, lifecycle, created_at
-      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        budget_cents, manager_agent_id, title, role_level, model_strategy,
+        workspace_id, heartbeat_enabled, heartbeat_interval_sec, lifecycle, created_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       input.orgId,
@@ -90,6 +105,12 @@ export class OrganizationService {
       input.modelId,
       input.budgetCents,
       input.managerAgentId,
+      input.title?.trim() || input.role.trim(),
+      input.roleLevel ?? "staff",
+      input.modelStrategy ?? "pooled",
+      input.workspaceId ?? null,
+      input.heartbeatEnabled === true ? 1 : 0,
+      input.heartbeatIntervalSec ?? 0,
       "active",
       now,
     );
@@ -109,8 +130,11 @@ export class OrganizationService {
     const id = createId("tsk");
     const now = new Date().toISOString();
     this.db.prepare(`
-      insert into tasks(id, org_id, title, description, status, assignee_agent_id, risk, created_at, updated_at)
-      values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      insert into tasks(
+        id, org_id, title, description, status, assignee_agent_id, risk,
+        project_id, goal_id, workspace_id, priority, requires_filesystem, created_at, updated_at
+      )
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       input.orgId,
@@ -119,6 +143,11 @@ export class OrganizationService {
       input.status,
       input.assigneeAgentId,
       input.risk,
+      null,
+      null,
+      null,
+      "normal",
+      0,
       now,
       now,
     );

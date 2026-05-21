@@ -149,6 +149,7 @@ button { cursor: pointer; }
 .button.primary { background: var(--text-1); color: white; border-color: var(--text-1); }
 .button.ghost { border-color: transparent; background: transparent; color: var(--text-2); }
 .button.small { height: 24px; padding: 0 8px; font-size: 12px; }
+.button:disabled { opacity: 0.45; cursor: default; }
 .icon-button {
   width: 28px;
   height: 28px;
@@ -219,6 +220,52 @@ button { cursor: pointer; }
   outline: none;
 }
 textarea.input { min-height: 84px; resize: vertical; }
+.onboarding-shell {
+  width: 100%;
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 520px;
+  background: var(--bg);
+}
+.onboarding-hero {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 58px;
+  border-right: 1px solid var(--border-soft);
+}
+.onboarding-panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 42px;
+  background: var(--panel);
+}
+.onboarding-steps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 28px; }
+.step-chip {
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-3);
+  background: var(--panel);
+  font-size: 11px;
+}
+.step-chip.active { color: var(--text-1); border-color: var(--text-1); }
+.option-grid { display: grid; gap: 8px; }
+.option-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  padding: 12px;
+  text-align: left;
+}
+.option-card.active { border-color: var(--text-1); box-shadow: inset 0 0 0 1px var(--text-1); }
+.form-grid { display: grid; gap: 12px; }
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -258,4 +305,7 @@ textarea.input { min-height: 84px; resize: vertical; }
   .grid-3, .grid-4 { grid-template-columns: 1fr; }
   .page-wide { min-width: 0; }
   .secondary-pane { width: 180px; }
+  .onboarding-shell { grid-template-columns: 1fr; }
+  .onboarding-hero { padding: 28px; border-right: 0; border-bottom: 1px solid var(--border-soft); }
+  .onboarding-panel { padding: 24px; justify-content: flex-start; }
 }

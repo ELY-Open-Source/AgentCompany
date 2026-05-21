@@ -8,6 +8,7 @@ function invoke<T>(channel: string, payload?: unknown): Promise<T> {
 
 const api: DesktopApi = {
   loadSnapshot: () => invoke(IPC_CHANNELS.loadSnapshot),
+  bootstrapOnboarding: (input) => invoke(IPC_CHANNELS.bootstrapOnboarding, input),
   createOrganization: (input) => invoke(IPC_CHANNELS.createOrganization, input),
   createAgent: (input) => invoke(IPC_CHANNELS.createAgent, input),
   createTask: (input) => invoke(IPC_CHANNELS.createTask, input),

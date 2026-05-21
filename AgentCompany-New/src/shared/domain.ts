@@ -50,6 +50,10 @@ export interface OrganizationRecord {
   name: string;
   mission: string;
   goal: string;
+  description: string;
+  executionMode: string;
+  autoApproveHires: boolean;
+  reviewDeliverables: boolean;
   createdAt: string;
 }
 
@@ -71,6 +75,12 @@ export interface AgentRecord {
   modelId: string | null;
   budgetCents: number;
   managerAgentId: string | null;
+  title: string;
+  roleLevel: string;
+  modelStrategy: string;
+  workspaceId: string | null;
+  heartbeatEnabled: boolean;
+  heartbeatIntervalSec: number;
   lifecycle: string;
   createdAt: string;
 }
@@ -83,8 +93,63 @@ export interface TaskRecord {
   status: TaskStatus;
   assigneeAgentId: string | null;
   risk: RiskLevel;
+  projectId: string | null;
+  goalId: string | null;
+  workspaceId: string | null;
+  priority: string;
+  requiresFilesystem: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface WorkspaceRecord {
+  id: string;
+  orgId: string;
+  name: string;
+  localPath: string;
+  repoUrl: string;
+  repoRef: string;
+  projectId: string | null;
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GoalRecord {
+  id: string;
+  orgId: string;
+  title: string;
+  description: string;
+  status: string;
+  ownerAgentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectRecord {
+  id: string;
+  orgId: string;
+  goalId: string | null;
+  name: string;
+  description: string;
+  leadAgentId: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskRunRecord {
+  id: string;
+  orgId: string;
+  taskId: string;
+  agentId: string | null;
+  providerId: string | null;
+  trigger: string;
+  state: string;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  errorMessage: string | null;
 }
 
 export interface ApprovalRecord {
@@ -289,6 +354,10 @@ export interface AppSnapshot {
   employees: EmployeeRecord[];
   agents: AgentRecord[];
   tasks: TaskRecord[];
+  workspaces: WorkspaceRecord[];
+  goals: GoalRecord[];
+  projects: ProjectRecord[];
+  taskRuns: TaskRunRecord[];
   approvals: ApprovalRecord[];
   chatSpaces: ChatSpaceRecord[];
   chatMessages: ChatMessageRecord[];

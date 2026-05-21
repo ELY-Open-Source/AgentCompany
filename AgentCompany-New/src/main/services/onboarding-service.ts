@@ -1,0 +1,215 @@
+import type { DatabaseSync } from "node:sqlite";
+import type {
+  BootstrapOnboardingInput,
+  BootstrapOnboardingSummary,
+  SaveProviderCredentialInput,
+} from "../../shared/commands";
+import { PROVIDER_AUTH_TYPE, RISK_LEVEL, TASK_STATUS } from "../../shared/domain";
+import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
+import { createId } from "../../shared/ids";
+import { AuditService } from "./audit-service";
+import { OrganizationService } from "./organization-service";
+
+interface OnboardingServiceDeps {
+  db: DatabaseSync;
+  saveProviderCredential(input: SaveProviderCredentialInput): void;
+}
+
+export class OnboardingService {
+  private readonly audit: AuditService;
+  private readonly organization: OrganizationService;
+
+  constructor(private readonly deps: OnboardingServiceDeps) {
+    this.audit = new AuditService(deps.db);
+    this.organization = new OrganizationService(deps.db);
+  }
+
+  bootstrap(input: BootstrapOnboardingInput): BootstrapOnboardingSummary {
+    const provider = this.resolveProvider(input.providerKey);
+    const orgId = this.organization.createOrganization({
+      organizationName: input.companyName,
+      description: input.companyDescription,
+      mission: input.companyDescription,
+      goal: input.goalTitle,
+      employeeName: input.employeeName,
+      executionMode: input.executionMode,
+      autoApproveHires: input.autoApproveHires,
+      reviewDeliverables: input.reviewDeliverables,
+    });
+    const employeeId = this.requirePrimaryEmployee(orgId);
+    const providerId = this.requireProvider(orgId, provider.key);
+    this.deps.saveProviderCredential({
+      orgId,
+      providerId,
+      secret: input.providerSecret,
+      model: input.providerModel,
+    });
+
+    const now = new Date().toISOString();
+    const workspaceId = this.createWorkspace(orgId, input.workspacePath.trim(), now);
+    const ceoAgentId = this.organization.createAgent({
+      orgId,
+      name: "CEO",
+      role: "CEO",
+      title: "Chief Executive Officer",
+      department: "Executive",
+      modelProviderId: providerId,
+      modelId: input.providerModel.trim(),
+      budgetCents: 25000,
+      managerAgentId: null,
+      roleLevel: "c_suite",
+      modelStrategy: "explicit",
+      workspaceId,
+      heartbeatEnabled: true,
+      heartbeatIntervalSec: 120,
+    });
+    const goalId = this.createGoal(orgId, ceoAgentId, input, now);
+    const projectId = this.createProject(orgId, goalId, ceoAgentId, input, now);
+    if (workspaceId) this.bindWorkspaceToProject(workspaceId, projectId, now);
+    const taskId = this.createKickoffTask(orgId, goalId, projectId, workspaceId, ceoAgentId, input, now);
+    const runId = this.createTaskRun(orgId, taskId, ceoAgentId, providerId, now);
+
+    this.audit.record({
+      orgId,
+      entityType: "organization",
+      entityId: orgId,
+      actorType: "employee",
+      actorId: employeeId,
+      action: "bootstrapped",
+      payload: { providerKey: provider.key, goalId, projectId, taskId, runId },
+    });
+
+    return { orgId, employeeId, ceoAgentId, workspaceId, goalId, projectId, taskId, runId, providerId };
+  }
+
+  private resolveProvider(providerKey: string) {
+    const provider = PROVIDER_CATALOG.find((entry) => entry.key === providerKey);
+    if (!provider) throw new Error(`Provider ${providerKey} is unavailable.`);
+    if (provider.authType !== PROVIDER_AUTH_TYPE.API_KEY) {
+      throw new Error("Onboarding requires an API key provider.");
+    }
+    return provider;
+  }
+
+  private requirePrimaryEmployee(orgId: string): string {
+    const row = this.deps.db.prepare("select id from employees where org_id = ? order by created_at asc limit 1")
+      .get(orgId) as { id: string } | undefined;
+    if (!row) throw new Error("Primary employee was not created.");
+    return row.id;
+  }
+
+  private requireProvider(orgId: string, providerKey: string): string {
+    const row = this.deps.db.prepare("select id from providers where org_id = ? and provider_key = ?")
+      .get(orgId, providerKey) as { id: string } | undefined;
+    if (!row) throw new Error(`Provider ${providerKey} was not created.`);
+    return row.id;
+  }
+
+  private createWorkspace(orgId: string, workspacePath: string, now: string): string | null {
+    if (!workspacePath) return null;
+    const workspaceId = createId("wsp");
+    this.deps.db.prepare(`
+      insert into workspaces(
+        id, org_id, name, local_path, repo_url, repo_ref, project_id, is_primary, created_at, updated_at
+      )
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(workspaceId, orgId, "Default Workspace", workspacePath, "", "", null, 1, now, now);
+    return workspaceId;
+  }
+
+  private createGoal(orgId: string, ceoAgentId: string, input: BootstrapOnboardingInput, now: string): string {
+    const goalTitle = input.goalTitle.trim();
+    if (!goalTitle) throw new Error("Goal title is required.");
+    const goalId = createId("gol");
+    this.deps.db.prepare(`
+      insert into goals(id, org_id, title, description, status, owner_agent_id, created_at, updated_at)
+      values (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(goalId, orgId, goalTitle, input.goalDescription.trim(), "active", ceoAgentId, now, now);
+    return goalId;
+  }
+
+  private createProject(
+    orgId: string,
+    goalId: string,
+    ceoAgentId: string,
+    input: BootstrapOnboardingInput,
+    now: string,
+  ): string {
+    const projectId = createId("prj");
+    this.deps.db.prepare(`
+      insert into projects(id, org_id, goal_id, name, description, lead_agent_id, status, created_at, updated_at)
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      projectId,
+      orgId,
+      goalId,
+      `Execution plan: ${input.goalTitle.trim()}`,
+      input.companyDescription.trim(),
+      ceoAgentId,
+      "in_progress",
+      now,
+      now,
+    );
+    return projectId;
+  }
+
+  private bindWorkspaceToProject(workspaceId: string, projectId: string, now: string): void {
+    this.deps.db.prepare("update workspaces set project_id = ?, updated_at = ? where id = ?")
+      .run(projectId, now, workspaceId);
+  }
+
+  private createKickoffTask(
+    orgId: string,
+    goalId: string,
+    projectId: string,
+    workspaceId: string | null,
+    ceoAgentId: string,
+    input: BootstrapOnboardingInput,
+    now: string,
+  ): string {
+    const taskId = createId("tsk");
+    this.deps.db.prepare(`
+      insert into tasks(
+        id, org_id, title, description, status, assignee_agent_id, risk,
+        project_id, goal_id, workspace_id, priority, requires_filesystem, created_at, updated_at
+      )
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      taskId,
+      orgId,
+      `Operationalize goal: ${input.goalTitle.trim()}`,
+      this.createKickoffTaskDescription(input),
+      TASK_STATUS.BACKLOG,
+      ceoAgentId,
+      RISK_LEVEL.MEDIUM,
+      projectId,
+      goalId,
+      workspaceId,
+      "high",
+      workspaceId ? 1 : 0,
+      now,
+      now,
+    );
+    return taskId;
+  }
+
+  private createTaskRun(orgId: string, taskId: string, ceoAgentId: string, providerId: string, now: string): string {
+    const runId = createId("run");
+    this.deps.db.prepare(`
+      insert into task_runs(
+        id, org_id, task_id, agent_id, provider_id, trigger, state, created_at, started_at, completed_at, error_message
+      )
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(runId, orgId, taskId, ceoAgentId, providerId, "bootstrap", "queued", now, null, null, null);
+    return runId;
+  }
+
+  private createKickoffTaskDescription(input: BootstrapOnboardingInput): string {
+    return [
+      `Company: ${input.companyName.trim()}`,
+      `Goal: ${input.goalTitle.trim()}`,
+      input.goalDescription.trim(),
+      "Read the bound workspace, create the first operating plan, delegate work, and route decisions through approvals and messages.",
+    ].filter((line) => line.length > 0).join("\n\n");
+  }
+}

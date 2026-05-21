@@ -19,7 +19,7 @@ export function App() {
     return <div className="app-shell" style={{ display: "grid", placeItems: "center" }} />;
   }
   if (snapshot.organizations.length === 0) {
-    return <Onboarding actions={actions} />;
+    return <Onboarding snapshot={snapshot} actions={actions} />;
   }
 
   const pageProps = { snapshot, actions };

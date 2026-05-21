@@ -1,5 +1,6 @@
 export const IPC_CHANNELS = {
   loadSnapshot: "agentcompany:load-snapshot",
+  bootstrapOnboarding: "agentcompany:bootstrap-onboarding",
   createOrganization: "agentcompany:create-organization",
   createAgent: "agentcompany:create-agent",
   createTask: "agentcompany:create-task",

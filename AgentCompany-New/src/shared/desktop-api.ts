@@ -2,6 +2,8 @@ import type { DesktopResult } from "./result";
 import type { AppSnapshot } from "./domain";
 import type {
   BindSkillInput,
+  BootstrapOnboardingInput,
+  BootstrapOnboardingSummary,
   CreateAgentInput,
   CreateApprovalInput,
   CreateMigrationReportInput,
@@ -25,6 +27,7 @@ export interface RendererEvent {
 
 export interface DesktopApi {
   loadSnapshot(): Promise<DesktopResult<AppSnapshot>>;
+  bootstrapOnboarding(input: BootstrapOnboardingInput): Promise<DesktopResult<BootstrapOnboardingSummary>>;
   createOrganization(input: CreateOrganizationInput): Promise<DesktopResult<AppSnapshot>>;
   createAgent(input: CreateAgentInput): Promise<DesktopResult<AppSnapshot>>;
   createTask(input: CreateTaskInput): Promise<DesktopResult<AppSnapshot>>;

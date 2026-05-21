@@ -17,12 +17,18 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
 
   try {
     const page = await app.firstWindow();
-    await expect(page.getByRole("heading", { name: "AgentCompany" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
+    await page.getByRole("button", { name: "Get started" }).click();
+    await page.getByLabel("API key").fill("e2e-secret");
+    await page.getByRole("button", { name: "Continue" }).click();
     await page.getByLabel("Company name").fill("Acme Operations");
     await page.getByLabel("Your name").fill("Dana Lee");
-    await page.getByLabel("Mission").fill("Coordinate agents with auditable approvals.");
-    await page.getByLabel("First goal").fill("Ship a verified control plane.");
-    await page.getByRole("button", { name: "Create" }).click();
+    await page.getByLabel("Description").fill("Coordinate agents with auditable approvals.");
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByLabel("Goal").fill("Ship a verified control plane.");
+    await page.getByLabel("Acceptance criteria").fill("The CEO creates the kickoff operating loop.");
+    await page.getByRole("button", { name: "Launch" }).click();
 
     await expect(page.getByRole("heading", { name: "Acme Operations" })).toBeVisible();
     await page.getByRole("button", { name: "Team" }).click();

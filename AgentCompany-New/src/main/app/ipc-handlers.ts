@@ -12,6 +12,7 @@ import { SkillService } from "../services/skill-service";
 import { SocialService } from "../services/social-service";
 import { FileService } from "../services/file-service";
 import { MigrationService } from "../services/migration-service";
+import { OnboardingService } from "../services/onboarding-service";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -29,6 +30,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const social = new SocialService(deps.connection.db);
   const files = new FileService(deps.connection.db, deps.artifactRoot);
   const migrations = new MigrationService(deps.connection.db);
+  const onboarding = new OnboardingService({
+    db: deps.connection.db,
+    saveProviderCredential: (input) => providers.saveCredential(input),
+  });
 
   const mutate = <T>(operation: () => T): DesktopResult<AppSnapshot> => {
     try {
@@ -45,6 +50,19 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return ok(snapshot.load());
     } catch (error) {
       return fail("snapshot_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.bootstrapOnboarding, (_event, input) => {
+    try {
+      let summary;
+      deps.connection.transaction(() => {
+        summary = onboarding.bootstrap(input);
+      });
+      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      return ok(summary);
+    } catch (error) {
+      return fail("onboarding_failed", error instanceof Error ? error.message : String(error));
     }
   });
 

@@ -10,6 +10,7 @@ import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { SkillService } from "../../src/main/services/skill-service";
 import { ChatService } from "../../src/main/services/chat-service";
 import { MigrationService } from "../../src/main/services/migration-service";
+import { OnboardingService } from "../../src/main/services/onboarding-service";
 import { RISK_LEVEL, TASK_STATUS } from "../../src/shared/domain";
 import { createId } from "../../src/shared/ids";
 
@@ -186,6 +187,44 @@ describe("domain services", () => {
     const state = snapshot.load();
     expect(state.migrationReports).toHaveLength(1);
     expect(state.migrationReports[0]?.reportJson).toContain("\"agents\":1");
+    connection.close();
+  });
+
+  test("bootstraps the original onboarding chain with company, CEO, goal, project, task, and run", () => {
+    const connection = createConnection();
+    const onboarding = new OnboardingService({
+      db: connection.db,
+      saveProviderCredential: ({ orgId, providerId, model }) => {
+        connection.db.prepare("update providers set credential_id = ?, model = ?, enabled = 1 where id = ? and org_id = ?")
+          .run("cred_test", model, providerId, orgId);
+      },
+    });
+    const snapshot = new SnapshotService(connection.db);
+
+    connection.transaction(() => onboarding.bootstrap({
+      companyName: "Acme Operations",
+      companyDescription: "Coordinate agents with auditable approvals.",
+      employeeName: "Dana Lee",
+      workspacePath: join(tmpdir(), `agentcompany-workspace-${randomUUID()}`),
+      executionMode: "ai_ceo",
+      autoApproveHires: true,
+      reviewDeliverables: false,
+      goalTitle: "Ship a verified control plane",
+      goalDescription: "Bring the desktop operating loop online.",
+      providerKey: "openai",
+      providerSecret: "test-secret",
+      providerModel: "gpt-5.1",
+    }));
+
+    const state = snapshot.load();
+    expect(state.organizations[0]?.executionMode).toBe("ai_ceo");
+    expect(state.agents[0]?.roleLevel).toBe("c_suite");
+    expect(state.agents[0]?.modelStrategy).toBe("explicit");
+    expect(state.workspaces).toHaveLength(1);
+    expect(state.goals[0]?.status).toBe("active");
+    expect(state.projects[0]?.leadAgentId).toBe(state.agents[0]?.id);
+    expect(state.tasks[0]?.assigneeAgentId).toBe(state.agents[0]?.id);
+    expect(state.taskRuns[0]?.trigger).toBe("bootstrap");
     connection.close();
   });
 });

@@ -28,8 +28,19 @@ export class SnapshotService {
   constructor(private readonly db: DatabaseSync) {}
 
   load(): AppSnapshot {
-    const organizations = list<AppSnapshot["organizations"][number]>(this.db, "organizations", "created_at asc");
+    const organizations = list<AppSnapshot["organizations"][number]>(this.db, "organizations", "created_at asc")
+      .map((org) => ({
+        ...org,
+        autoApproveHires: toBool(org.autoApproveHires),
+        reviewDeliverables: toBool(org.reviewDeliverables),
+      }));
     const activeOrgId = organizations[0]?.id ?? null;
+    const agents = list<AppSnapshot["agents"][number]>(this.db, "agents", "created_at asc")
+      .map((agent) => ({ ...agent, heartbeatEnabled: toBool(agent.heartbeatEnabled) }));
+    const tasks = list<AppSnapshot["tasks"][number]>(this.db, "tasks", "created_at asc")
+      .map((task) => ({ ...task, requiresFilesystem: toBool(task.requiresFilesystem) }));
+    const workspaces = list<AppSnapshot["workspaces"][number]>(this.db, "workspaces", "created_at asc")
+      .map((workspace) => ({ ...workspace, isPrimary: toBool(workspace.isPrimary) }));
     const providers = list<AppSnapshot["providers"][number]>(this.db, "providers", "label asc")
       .map((provider) => ({ ...provider, enabled: toBool(provider.enabled) }));
     const skillBindings = list<AppSnapshot["skillBindings"][number]>(this.db, "skill_bindings", "priority asc")
@@ -39,8 +50,12 @@ export class SnapshotService {
       activeOrgId,
       organizations,
       employees: list(this.db, "employees", "created_at asc"),
-      agents: list(this.db, "agents", "created_at asc"),
-      tasks: list(this.db, "tasks", "created_at asc"),
+      agents,
+      tasks,
+      workspaces,
+      goals: list(this.db, "goals", "created_at asc"),
+      projects: list(this.db, "projects", "created_at asc"),
+      taskRuns: list(this.db, "task_runs", "created_at asc"),
       approvals: list(this.db, "approvals", "created_at desc"),
       chatSpaces: list(this.db, "chat_spaces", "created_at asc"),
       chatMessages: list(this.db, "chat_messages", "created_at asc"),
