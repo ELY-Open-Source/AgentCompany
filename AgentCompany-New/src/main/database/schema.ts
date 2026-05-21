@@ -357,6 +357,21 @@ export function installSchema(db: DatabaseSync): void {
 
       create index if not exists idx_provider_requests_org_created on provider_requests(org_id, created_at);
       create index if not exists idx_chat_threads_space_updated on chat_threads(space_id, updated_at);
+      insert into policy_rules(id, org_id, subject_type, subject_id, action, effect, risk_ceiling, created_at)
+      select
+        'pol_' || lower(hex(randomblob(16))),
+        id,
+        'organization',
+        id,
+        'task_create',
+        'require_approval',
+        'medium',
+        datetime('now')
+      from organizations
+      where not exists (
+        select 1 from policy_rules
+        where policy_rules.org_id = organizations.id and policy_rules.action = 'task_create'
+      );
       insert into schema_migrations(version, name, applied_at)
       values (2, 'collaboration_provider_policy_schema', datetime('now'));
     `);

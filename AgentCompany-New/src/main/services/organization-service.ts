@@ -4,12 +4,15 @@ import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
 import type { CreateAgentInput, CreateOrganizationInput, CreateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
+import { PolicyService } from "./policy-service";
 
 export class OrganizationService {
   private readonly audit: AuditService;
+  private readonly policy: PolicyService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
+    this.policy = new PolicyService(db);
   }
 
   createOrganization(input: CreateOrganizationInput): string {
@@ -56,6 +59,7 @@ export class OrganizationService {
       );
     }
 
+    this.policy.seedOrganizationPolicies(orgId, now);
     this.audit.record({
       orgId,
       entityType: "organization",
@@ -118,7 +122,8 @@ export class OrganizationService {
       now,
       now,
     );
-    if (input.risk === RISK_LEVEL.HIGH) {
+    const policy = this.policy.evaluateTaskCreation(input.orgId, input.risk);
+    if (policy.approvalRequired) {
       this.db.prepare(`
         insert into approvals(
           id, org_id, kind, title, details, risk, requested_by_type,
@@ -146,7 +151,7 @@ export class OrganizationService {
       actorType: "system",
       actorId: null,
       action: "created",
-      payload: { status: TASK_STATUS.BACKLOG },
+      payload: { status: TASK_STATUS.BACKLOG, policyRuleId: policy.matchedRuleId },
     });
     return id;
   }

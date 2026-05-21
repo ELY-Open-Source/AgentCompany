@@ -33,6 +33,7 @@ describe("domain services", () => {
     expect(state.employees[0]?.displayName).toBe("Dana Lee");
     expect(state.providers.length).toBeGreaterThanOrEqual(6);
     expect(state.chatSpaces.map((space) => space.name)).toContain("board");
+    expect(state.policyRules[0]?.action).toBe("task_create");
     expect(state.auditEvents[0]?.action).toBe("created");
     connection.close();
   });
