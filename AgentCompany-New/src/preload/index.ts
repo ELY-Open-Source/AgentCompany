@@ -1,0 +1,35 @@
+import { contextBridge, ipcRenderer } from "electron";
+import { IPC_CHANNELS } from "../shared/ipc";
+import type { DesktopApi, RendererEvent } from "../shared/desktop-api";
+
+function invoke<T>(channel: string, payload?: unknown): Promise<T> {
+  return ipcRenderer.invoke(channel, payload) as Promise<T>;
+}
+
+const api: DesktopApi = {
+  loadSnapshot: () => invoke(IPC_CHANNELS.loadSnapshot),
+  createOrganization: (input) => invoke(IPC_CHANNELS.createOrganization, input),
+  createAgent: (input) => invoke(IPC_CHANNELS.createAgent, input),
+  createTask: (input) => invoke(IPC_CHANNELS.createTask, input),
+  updateTaskStatus: (input) => invoke(IPC_CHANNELS.updateTaskStatus, input),
+  createApproval: (input) => invoke(IPC_CHANNELS.createApproval, input),
+  decideApproval: (input) => invoke(IPC_CHANNELS.decideApproval, input),
+  sendMessage: (input) => invoke(IPC_CHANNELS.sendMessage, input),
+  saveProviderCredential: (input) => invoke(IPC_CHANNELS.saveProviderCredential, input),
+  importSkillDirectory: (input) => invoke(IPC_CHANNELS.importSkillDirectory, input),
+  bindSkill: (input) => invoke(IPC_CHANNELS.bindSkill, input),
+  createSocialAccount: (input) => invoke(IPC_CHANNELS.createSocialAccount, input),
+  launchSocialLogin: (input) => invoke(IPC_CHANNELS.launchSocialLogin, input),
+  importFile: (input) => invoke(IPC_CHANNELS.importFile, input),
+  subscribe: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: RendererEvent) => callback(payload);
+    ipcRenderer.on(IPC_CHANNELS.rendererEvent, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.rendererEvent, listener);
+  },
+  platform: process.platform as DesktopApi["platform"],
+  windowMinimize: () => invoke<void>(IPC_CHANNELS.windowMinimize),
+  windowMaximize: () => invoke<void>(IPC_CHANNELS.windowMaximize),
+  windowClose: () => invoke<void>(IPC_CHANNELS.windowClose),
+};
+
+contextBridge.exposeInMainWorld("agentCompany", api);

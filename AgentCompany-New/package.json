@@ -1,0 +1,63 @@
+{
+  "name": "agentcompany-new",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Enterprise Electron control plane for AI agent companies.",
+  "author": {
+    "name": "AgentCompany",
+    "email": "dev@agentcompany.ai"
+  },
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:e2e": "pnpm build && playwright test -c tests/e2e/playwright.config.ts",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "package:dir": "pnpm build && electron-builder --dir --publish never",
+    "package:win": "pnpm build && electron-builder --win nsis --x64 --publish never",
+    "package:mac:arm": "pnpm build && electron-builder --mac dmg --arm64 --publish never",
+    "package:mac:x64": "pnpm build && electron-builder --mac dmg --x64 --publish never",
+    "package:linux": "pnpm build && electron-builder --linux AppImage deb --x64 --publish never"
+  },
+  "dependencies": {
+    "lucide-react": "0.468.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.38.0",
+    "@playwright/test": "1.58.2",
+    "@types/node": "25.2.3",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "@vitejs/plugin-react": "5.0.0",
+    "electron": "39.8.5",
+    "electron-builder": "26.8.1",
+    "electron-vite": "5.0.0",
+    "eslint": "9.38.0",
+    "eslint-plugin-react-hooks": "7.0.0",
+    "eslint-plugin-react-refresh": "0.4.24",
+    "globals": "16.4.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.46.1",
+    "vite": "7.3.2",
+    "vitest": "4.1.0"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "packageManager": "pnpm@10.24.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller",
+      "esbuild"
+    ]
+  }
+}
