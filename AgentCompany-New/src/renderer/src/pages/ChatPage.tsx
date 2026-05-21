@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Avatar, Button, Field, Icon, IconButton } from "../shared/ui";
 import { Dialog } from "../shared/Dialog";
-import type { ChatAttachmentRecord, ChatSpaceRecord, FileObjectRecord } from "../../../shared/domain";
+import type { ChatAttachmentRecord, ChatSpaceRecord, ChatThreadRecord, FileObjectRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
 
@@ -21,9 +21,14 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   const files = snapshot.files.filter((item) => item.orgId === orgId);
   const [spaceId, setSpaceId] = useState(spaces[0]?.id ?? "");
   const [spaceOpen, setSpaceOpen] = useState(false);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const activeSpace = spaces.find((space) => space.id === spaceId) ?? spaces[0];
   if (!activeSpace) throw new Error("At least one chat space is required.");
   const messages = snapshot.chatMessages.filter((item) => item.orgId === orgId && item.spaceId === activeSpace.id);
+  const rootMessages = messages.filter((m) => m.threadId === null);
+  const threads = snapshot.chatThreads.filter((t) => t.spaceId === activeSpace.id);
+  const selectedThread = threads.find((t) => t.id === selectedThreadId) ?? null;
+  const threadMessages = selectedThread ? messages.filter((m) => m.threadId === selectedThread.id) : [];
   const sender = employees[0];
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -42,6 +47,24 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       senderId: sender.id,
       bodyMd,
       attachmentFileIds: attachmentFileId ? [attachmentFileId] : [],
+    }));
+  };
+
+  const submitReply = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedThread || !sender) return;
+    const form = new FormData(event.currentTarget);
+    const bodyMd = messageBody(form);
+    if (!bodyMd) return;
+    event.currentTarget.reset();
+    void actions.run(() => window.agentCompany.sendMessage({
+      orgId,
+      spaceId: activeSpace.id,
+      threadId: selectedThread.id,
+      senderType: "employee",
+      senderId: sender.id,
+      bodyMd,
+      attachmentFileIds: [],
     }));
   };
 
@@ -84,8 +107,9 @@ export function ChatPage({ snapshot, actions }: PageProps) {
           ))}
         </NavGroup>
       </aside>
+
       <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "var(--panel)" }}>
-        <header className="row" style={{ height: 52, padding: "0 24px", borderBottom: "1px solid var(--border-soft)" }}>
+        <header className="row" style={{ height: 52, padding: "0 24px", borderBottom: "1px solid var(--border-soft)", flexShrink: 0 }}>
           <Icon name={activeSpace.visibility === "restricted" ? "lock" : "hash"} />
           <div style={{ fontSize: 14, fontWeight: 600 }}>{activeSpace.name}</div>
           <div style={{ color: "var(--text-3)", borderLeft: "1px solid var(--border)", paddingLeft: 10 }}>
@@ -94,20 +118,26 @@ export function ChatPage({ snapshot, actions }: PageProps) {
           <div style={{ marginLeft: "auto" }}><Icon name="search" /></div>
         </header>
         <div style={{ flex: 1, overflow: "auto", padding: "20px 24px 8px" }}>
-          {messages.length === 0 ? (
+          {rootMessages.length === 0 ? (
             <div style={{ color: "var(--text-3)" }}>No messages</div>
-          ) : messages.map((message) => (
-            <MessageRow
-              key={message.id}
-              body={message.bodyMd}
-              time={new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-              name={displayName(message.senderType, message.senderId, employees, agents)}
-              bot={message.senderType === "agent"}
-              files={messageFiles(message.id, snapshot.chatAttachments, files)}
-            />
-          ))}
+          ) : rootMessages.map((message) => {
+            const thread = threads.find((t) => t.rootMessageId === message.id) ?? null;
+            const replyCount = thread ? messages.filter((m) => m.threadId === thread.id).length : 0;
+            return (
+              <MessageRow
+                key={message.id}
+                body={message.bodyMd}
+                time={new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                name={displayName(message.senderType, message.senderId, employees, agents)}
+                bot={message.senderType === "agent"}
+                files={messageFiles(message.id, snapshot.chatAttachments, files)}
+                threadReplyCount={replyCount}
+                onOpenThread={thread ? () => setSelectedThreadId(thread.id) : null}
+              />
+            );
+          })}
         </div>
-        <form onSubmit={submit} style={{ padding: 14, paddingTop: 4 }}>
+        <form onSubmit={submit} style={{ padding: 14, paddingTop: 4, flexShrink: 0 }}>
           <div className="card" style={{ padding: "10px 12px" }}>
             <textarea className="input" name="message" rows={2} aria-label="Message" />
             <div className="row" style={{ paddingTop: 8, borderTop: "1px solid var(--border-soft)" }}>
@@ -123,6 +153,22 @@ export function ChatPage({ snapshot, actions }: PageProps) {
           </div>
         </form>
       </section>
+
+      {selectedThread && (
+        <ThreadPanel
+          thread={selectedThread}
+          threadMessages={threadMessages}
+          rootMessage={messages.find((m) => m.id === selectedThread.rootMessageId) ?? null}
+          employees={employees}
+          agents={agents}
+          files={files}
+          attachments={snapshot.chatAttachments}
+          senderDisabled={!sender}
+          onClose={() => setSelectedThreadId(null)}
+          onSubmit={submitReply}
+        />
+      )}
+
       <Dialog title="New space" open={spaceOpen} submitLabel="Create" onClose={() => setSpaceOpen(false)} onSubmit={createSpace}>
         <Field label="Name"><input className="input" name="name" required /></Field>
         <Field label="Topic"><input className="input" name="topic" required /></Field>
@@ -142,6 +188,74 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         </Field>
       </Dialog>
     </div>
+  );
+}
+
+function ThreadPanel({
+  thread,
+  threadMessages,
+  rootMessage,
+  employees,
+  agents,
+  files,
+  attachments,
+  senderDisabled,
+  onClose,
+  onSubmit,
+}: {
+  thread: ChatThreadRecord;
+  threadMessages: Array<{ id: string; bodyMd: string; createdAt: string; senderType: string; senderId: string | null; threadId: string | null }>;
+  rootMessage: { id: string; bodyMd: string; createdAt: string; senderType: string; senderId: string | null } | null;
+  employees: Array<{ id: string; displayName: string }>;
+  agents: Array<{ id: string; name: string }>;
+  files: FileObjectRecord[];
+  attachments: ChatAttachmentRecord[];
+  senderDisabled: boolean;
+  onClose: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <aside style={{ width: 320, flexShrink: 0, borderLeft: "1px solid var(--border-soft)", background: "var(--bg)", display: "flex", flexDirection: "column" }}>
+      <div className="row" style={{ padding: "14px 16px", borderBottom: "1px solid var(--border-soft)", flexShrink: 0 }}>
+        <span style={{ fontWeight: 600 }}>Thread</span>
+        <div style={{ marginLeft: "auto" }}>
+          <IconButton icon="x" label="Close thread" onClick={onClose} />
+        </div>
+      </div>
+      <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
+        {rootMessage && (
+          <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12, marginBottom: 16, background: "var(--panel)" }}>
+            <MessageRow
+              body={rootMessage.bodyMd}
+              time={new Date(rootMessage.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              name={displayName(rootMessage.senderType, rootMessage.senderId, employees, agents)}
+              bot={rootMessage.senderType === "agent"}
+              files={messageFiles(rootMessage.id, attachments, files)}
+              compact
+            />
+          </div>
+        )}
+        {threadMessages.map((message) => (
+          <MessageRow
+            key={message.id}
+            body={message.bodyMd}
+            time={new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            name={displayName(message.senderType, message.senderId, employees, agents)}
+            bot={message.senderType === "agent"}
+            files={messageFiles(message.id, attachments, files)}
+            compact
+          />
+        ))}
+      </div>
+      <form onSubmit={onSubmit} style={{ padding: 12, flexShrink: 0 }}>
+        <div className="card" style={{ padding: "8px 10px" }}>
+          <textarea className="input" name="message" rows={2} aria-label="Thread reply" />
+          <div style={{ paddingTop: 6, display: "flex", justifyContent: "flex-end" }}>
+            <Button tone="primary" size="small" type="submit" disabled={senderDisabled}><Icon name="send" /> Reply</Button>
+          </div>
+        </div>
+      </form>
+    </aside>
   );
 }
 
@@ -180,16 +294,22 @@ function MessageRow({
   time,
   bot,
   files,
+  threadReplyCount = 0,
+  onOpenThread,
+  compact = false,
 }: {
   name: string;
   body: string;
   time: string;
   bot: boolean;
   files: FileObjectRecord[];
+  threadReplyCount?: number;
+  onOpenThread?: (() => void) | null;
+  compact?: boolean;
 }) {
   return (
-    <div style={{ display: "flex", gap: 12, marginBottom: 18 }}>
-      <Avatar name={name} bot={bot} />
+    <div style={{ display: "flex", gap: compact ? 10 : 12, marginBottom: compact ? 12 : 18 }}>
+      <Avatar name={name} bot={bot} size={compact ? "sm" : ""} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div className="row" style={{ alignItems: "baseline", marginBottom: 2 }}>
           <span style={{ fontWeight: 540 }}>{name}</span>
@@ -204,6 +324,20 @@ function MessageRow({
               </span>
             ))}
           </div>
+        )}
+        {threadReplyCount > 0 && onOpenThread && (
+          <button
+            type="button"
+            onClick={onOpenThread}
+            style={{
+              marginTop: 8, display: "inline-flex", alignItems: "center", gap: 6,
+              fontSize: 11.5, color: "var(--accent)", cursor: "pointer",
+              padding: "3px 8px", borderRadius: 6, background: "var(--accent-soft)",
+              border: 0,
+            }}
+          >
+            <Icon name="chat" size={11} /> {threadReplyCount} {threadReplyCount === 1 ? "reply" : "replies"} →
+          </button>
         )}
       </div>
     </div>

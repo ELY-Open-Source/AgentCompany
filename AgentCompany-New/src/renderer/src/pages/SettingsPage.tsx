@@ -59,6 +59,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
     <div className="split-main" style={{ height: "calc(100vh - 112px)", margin: "-28px -32px -40px" }}>
       <aside className="secondary-pane">
         <div style={{ fontWeight: 600, padding: "4px 8px 14px" }}>Settings</div>
+        <div className="section-label" style={{ padding: "0 8px", marginBottom: 4, marginTop: 8 }}>Agents</div>
         <SettingsNav label="Providers" active={tab === "providers"} onClick={() => setTab("providers")} />
         <SettingsNav label="Skills" active={tab === "skills"} onClick={() => setTab("skills")} />
         <SettingsNav label="Policies" active={tab === "policies"} onClick={() => setTab("policies")} />
@@ -106,23 +107,58 @@ function SettingsNav({ label, active, onClick }: { label: string; active: boolea
 }
 
 function ProvidersPanel({ providers, onManage }: { providers: ProviderRecord[]; onManage: (provider: ProviderRecord) => void }) {
+  const connected = providers.filter((p) => p.enabled);
+  const available = providers.filter((p) => !p.enabled);
   return (
     <div className="page">
       <h1 className="page-h1">Providers</h1>
-      <div className="section-label">Configured providers</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {providers.map((provider) => (
-          <div key={provider.id} className="card row">
-            <ProviderLogo label={provider.label} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 540 }}>{provider.label}</div>
-              <div style={{ fontSize: 12, color: "var(--text-3)" }}>{provider.authType.replaceAll("_", " ")}</div>
-            </div>
-            <Pill tone={provider.enabled ? "green" : undefined}>{provider.enabled ? "Enabled" : "Unconfigured"}</Pill>
-            <Button onClick={() => onManage(provider)}>Manage</Button>
+      <p className="page-sub" style={{ marginBottom: 0 }}>Connect model providers — keys, accounts, OAuth.</p>
+      {connected.length > 0 && (
+        <>
+          <div className="section-label" style={{ marginTop: 24, marginBottom: 10 }}>Connected</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 28 }}>
+            {connected.map((provider) => (
+              <ProviderConnectedRow key={provider.id} provider={provider} onManage={() => onManage(provider)} />
+            ))}
           </div>
-        ))}
+        </>
+      )}
+      {available.length > 0 && (
+        <>
+          <div className="section-label" style={{ marginTop: connected.length > 0 ? 0 : 24, marginBottom: 10 }}>Available</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+            {available.map((provider) => (
+              <ProviderAvailableCard key={provider.id} provider={provider} onConnect={() => onManage(provider)} />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ProviderConnectedRow({ provider, onManage }: { provider: ProviderRecord; onManage: () => void }) {
+  return (
+    <div className="card row">
+      <ProviderLogo label={provider.label} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 540 }}>{provider.label}</div>
+        <div style={{ fontSize: 12, color: "var(--text-3)" }}>{provider.authType.replaceAll("_", " ")}</div>
       </div>
+      <Button onClick={onManage}>Manage</Button>
+    </div>
+  );
+}
+
+function ProviderAvailableCard({ provider, onConnect }: { provider: ProviderRecord; onConnect: () => void }) {
+  return (
+    <div className="card row">
+      <ProviderLogo label={provider.label} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
+        <div style={{ fontSize: 12, color: "var(--text-3)" }}>{provider.authType.replaceAll("_", " ")}</div>
+      </div>
+      <Button size="small" onClick={onConnect}>Connect</Button>
     </div>
   );
 }
@@ -282,10 +318,24 @@ function requireRevision(
   return revision;
 }
 
+const PROVIDER_BRAND: Record<string, [string, string]> = {
+  "Anthropic": ["#cb9a5b", "A"],
+  "OpenAI": ["#0a0a0b", "O"],
+  "xAI Grok": ["#0a0a0b", "X"],
+  "GitHub Copilot": ["#2da44e", "G"],
+  "Google Antigravity": ["#3a7bd5", "G"],
+  "GPT account": ["#10a37f", "G"],
+  "Azure OpenAI": ["#0078d4", "Az"],
+  "AWS Bedrock": ["#e87722", "A"],
+  "Vertex AI": ["#4285f4", "V"],
+  "Groq": ["#f55036", "Q"],
+};
+
 function ProviderLogo({ label }: { label: string }) {
+  const [bg, ch] = PROVIDER_BRAND[label] ?? ["#a1a1aa", label.slice(0, 2)];
   return (
-    <div style={{ width: 30, height: 30, borderRadius: 7, display: "grid", placeItems: "center", background: "var(--text-1)", color: "#fff", fontWeight: 700 }}>
-      {label.slice(0, 2)}
+    <div style={{ width: 30, height: 30, borderRadius: 7, display: "grid", placeItems: "center", background: bg, color: "#fff", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
+      {ch}
     </div>
   );
 }
