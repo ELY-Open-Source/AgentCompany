@@ -29,6 +29,11 @@ export class SocialService {
   createAccount(input: CreateSocialAccountInput): string {
     const id = createId("soc");
     const now = new Date().toISOString();
+    if (input.authorizedEmployeeId) {
+      const employee = this.db.prepare("select id from employees where id = ? and org_id = ?")
+        .get(input.authorizedEmployeeId, input.orgId);
+      if (!employee) throw new Error("Authorized employee was not found.");
+    }
     this.db.prepare(`
       insert into social_accounts(id, org_id, platform, handle, display_name, authorized_employee_id, created_at)
       values (?, ?, ?, ?, ?, ?, ?)
@@ -89,6 +94,10 @@ export class SocialService {
     });
     this.attachNavigationPolicy(win, account.platform);
     win.loadURL(PLATFORM_LOGIN_URL[account.platform]);
+    this.db.prepare(`
+      insert into browser_actions(id, org_id, social_account_id, action_type, policy_decision, evidence_file_id, created_at)
+      values (?, ?, ?, ?, ?, ?, ?)
+    `).run(createId("bact"), account.org_id, account.id, "login_window_opened", "allowed_human_login", null, new Date().toISOString());
     this.audit.record({
       orgId: account.org_id,
       entityType: "social_account",

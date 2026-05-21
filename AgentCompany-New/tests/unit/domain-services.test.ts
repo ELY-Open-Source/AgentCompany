@@ -11,7 +11,8 @@ import { SkillService } from "../../src/main/services/skill-service";
 import { ChatService } from "../../src/main/services/chat-service";
 import { MigrationService } from "../../src/main/services/migration-service";
 import { OnboardingService } from "../../src/main/services/onboarding-service";
-import { RISK_LEVEL, TASK_STATUS } from "../../src/shared/domain";
+import { SocialService } from "../../src/main/services/social-service";
+import { RISK_LEVEL, SOCIAL_PLATFORM, TASK_STATUS } from "../../src/shared/domain";
 import { createId } from "../../src/shared/ids";
 
 function createConnection(): DatabaseConnection {
@@ -208,6 +209,38 @@ describe("domain services", () => {
     expect(report.idMaps.agents).toEqual(["agent-1"]);
     expect(report.failures.some((failure) => failure.reason === "missing_table")).toBe(true);
     expect(report.rollbackPack.sourceDatabasePath).toBe(legacyPath);
+    connection.close();
+  });
+
+  test("creates social accounts with employee grants", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const social = new SocialService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    let orgId = "";
+    let employeeId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?")
+        .get(orgId) as { id: string }).id;
+      social.createAccount({
+        orgId,
+        platform: SOCIAL_PLATFORM.X,
+        handle: "@acme",
+        displayName: "Acme",
+        authorizedEmployeeId: employeeId,
+      });
+    });
+
+    const state = snapshot.load();
+    expect(state.socialAccounts).toHaveLength(1);
+    expect(state.socialAccountGrants[0]?.employeeId).toBe(employeeId);
     connection.close();
   });
 
