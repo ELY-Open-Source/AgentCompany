@@ -68,6 +68,8 @@ oldreference/
 !/scripts/codemod/README.md
 !/CONTRIBUTING.md
 !/build-guide.md
+!/AgentCompany-New/NewPRD.md
+!/AgentCompany-New/agentcompanydesign.zip
 # Bundled Agent Skills ship their SKILL.md / README.md as source of truth.
 # The Pi skills loader rejects entries whose frontmatter `name` diverges from
 # the parent directory; losing SKILL.md to the blanket *.md ignore meant a
