@@ -10,10 +10,10 @@ import {
   Grid2X2,
   Hash,
   Home,
-  Inbox,
   List,
   Lock,
   MessageCircle,
+  Minus,
   MoreHorizontal,
   Paperclip,
   Plus,
@@ -21,7 +21,6 @@ import {
   Send,
   Settings,
   ShieldCheck,
-  Sparkles,
   Upload,
   Users,
   X,
@@ -43,19 +42,36 @@ const icons: Record<string, LucideIcon> = {
   grid: Grid2X2,
   hash: Hash,
   home: Home,
-  inbox: Inbox,
   list: List,
   lock: Lock,
+  minus: Minus,
   more: MoreHorizontal,
   plus: Plus,
   search: Search,
   send: Send,
   settings: Settings,
-  social: Sparkles,
   team: Users,
   upload: Upload,
-  work: Inbox,
   x: X,
+};
+
+const customIcons: Record<string, (size: number) => ReactNode> = {
+  work: (size) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2"/>
+      <path d="M8 4v16M16 4v16"/>
+    </svg>
+  ),
+  social: (size) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 11a8 8 0 0 1 8-8"/>
+      <path d="M4 11v4a4 4 0 0 0 4 4h1"/>
+      <circle cx="18" cy="6" r="2"/>
+      <circle cx="6" cy="18" r="2"/>
+      <circle cx="18" cy="18" r="2"/>
+      <path d="M8 17l8-9M18 8v8"/>
+    </svg>
+  ),
 };
 
 const palette = [
@@ -76,6 +92,7 @@ function hashName(value: string): number {
 }
 
 export function Icon({ name, size = 14 }: { name: string; size?: number }) {
+  if (customIcons[name]) return <>{customIcons[name](size)}</>;
   const Component = icons[name] ?? FileText;
   return <Component size={size} strokeWidth={1.7} />;
 }

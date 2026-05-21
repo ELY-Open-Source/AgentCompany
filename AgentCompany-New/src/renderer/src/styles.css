@@ -21,7 +21,9 @@
   --r-sm: 6px;
   --r-md: 8px;
   --r-lg: 12px;
+  --r-xl: 16px;
   --shadow-sm: 0 1px 0 rgba(9, 9, 11, 0.04), 0 1px 2px rgba(9, 9, 11, 0.04);
+  --shadow-md: 0 1px 3px rgba(9, 9, 11, 0.06), 0 6px 24px rgba(9, 9, 11, 0.04);
   --font-sans: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
 }
@@ -30,10 +32,11 @@
 html, body, #root { width: 100%; height: 100%; margin: 0; }
 body {
   font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11", "cv02";
   color: var(--text-1);
   background: var(--bg);
   font-size: 13px;
-  letter-spacing: 0;
+  letter-spacing: -0.005em;
   -webkit-font-smoothing: antialiased;
 }
 button, input, textarea, select { font: inherit; }
@@ -74,6 +77,24 @@ button { cursor: pointer; }
   font-weight: 600;
 }
 .brand-name { flex: 1; font-weight: 540; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: var(--r-md);
+  background: var(--panel-2);
+  color: var(--text-3);
+  margin-bottom: 16px;
+  font-size: 12.5px;
+  cursor: text;
+}
+.search-kbd {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
 .nav { display: flex; flex-direction: column; gap: 1px; }
 .nav-item {
   display: flex;
@@ -91,7 +112,6 @@ button { cursor: pointer; }
 .nav-item.active { background: var(--panel-3); color: var(--text-1); font-weight: 540; }
 .nav-badge { margin-left: auto; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .sidebar-foot {
-  margin-top: auto;
   padding: 10px 8px 4px;
   border-top: 1px solid var(--border-soft);
   display: flex;

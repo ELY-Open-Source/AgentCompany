@@ -4,7 +4,7 @@ import { Avatar, Icon, IconButton } from "./ui";
 
 export type RouteId = "home" | "team" | "work" | "chat" | "files" | "approvals" | "social" | "settings";
 
-const navItems: Array<{ id: RouteId; label: string; icon: string }> = [
+const mainNavItems: Array<{ id: RouteId; label: string; icon: string }> = [
   { id: "home", label: "Home", icon: "home" },
   { id: "team", label: "Team", icon: "team" },
   { id: "work", label: "Work", icon: "work" },
@@ -12,8 +12,9 @@ const navItems: Array<{ id: RouteId; label: string; icon: string }> = [
   { id: "files", label: "Files", icon: "docs" },
   { id: "approvals", label: "Approvals", icon: "approve" },
   { id: "social", label: "Social", icon: "social" },
-  { id: "settings", label: "Settings", icon: "settings" },
 ];
+
+const navItems = [...mainNavItems, { id: "settings" as RouteId, label: "Settings", icon: "settings" }];
 
 export function Shell({
   snapshot,
@@ -48,8 +49,13 @@ export function Shell({
           <div className="brand-name">{organization.name}</div>
           <Icon name="chevronDown" size={12} />
         </div>
+        <div className="search-bar">
+          <Icon name="search" size={13} />
+          <span>Search</span>
+          <span className="search-kbd">⌘K</span>
+        </div>
         <nav className="nav">
-          {navItems.map((item) => (
+          {mainNavItems.map((item) => (
             <button
               key={item.id}
               type="button"
@@ -63,10 +69,23 @@ export function Shell({
             </button>
           ))}
         </nav>
-        <div className="sidebar-foot">
-          <Avatar name={employee.displayName} size="sm" />
-          <div style={{ flex: 1, minWidth: 0 }}>{employee.displayName}</div>
-          <Icon name="bell" />
+        <div style={{ marginTop: "auto" }}>
+          <nav className="nav" style={{ marginBottom: 4 }}>
+            <button
+              type="button"
+              aria-label="Settings"
+              className={`nav-item ${route === "settings" ? "active" : ""}`}
+              onClick={() => setRoute("settings")}
+            >
+              <Icon name="settings" size={15} />
+              <span>Settings</span>
+            </button>
+          </nav>
+          <div className="sidebar-foot">
+            <Avatar name={employee.displayName} size="sm" />
+            <div style={{ flex: 1, minWidth: 0 }}>{employee.displayName}</div>
+            <Icon name="bell" />
+          </div>
         </div>
       </aside>
       <main className="main">
@@ -78,7 +97,7 @@ export function Shell({
             {actions}
             {window.agentCompany.platform !== "darwin" && (
               <>
-                <IconButton icon="more" label="Minimize" onClick={() => void window.agentCompany.windowMinimize()} />
+                <IconButton icon="minus" label="Minimize" onClick={() => void window.agentCompany.windowMinimize()} />
                 <IconButton icon="x" label="Close" onClick={() => void window.agentCompany.windowClose()} />
               </>
             )}
