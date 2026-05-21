@@ -32,9 +32,12 @@ function optionalValue(form: FormData, key: string): string | null {
   return text ? text : null;
 }
 
+type ViewMode = "board" | "list";
+
 export function WorkPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const [open, setOpen] = useState(false);
+  const [view, setView] = useState<ViewMode>("board");
   const tasks = snapshot.tasks.filter((item) => item.orgId === orgId);
   const agents = snapshot.agents.filter((item) => item.orgId === orgId);
   const projects = snapshot.projects.filter((item) => item.orgId === orgId);
@@ -66,35 +69,78 @@ export function WorkPage({ snapshot, actions }: PageProps) {
           <h1 className="page-h1">Work</h1>
           <p className="page-sub" style={{ marginBottom: 0 }}>{tasks.length} tasks · {agents.length} assignees</p>
         </div>
-        <div style={{ marginLeft: "auto" }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 2, padding: 2, border: "1px solid var(--border)", borderRadius: 8 }}>
+            <button
+              type="button"
+              className="button small"
+              style={{ borderColor: "transparent", background: view === "board" ? "var(--panel-3)" : "transparent" }}
+              onClick={() => setView("board")}
+            >
+              Board
+            </button>
+            <button
+              type="button"
+              className="button small"
+              style={{ borderColor: "transparent", background: view === "list" ? "var(--panel-3)" : "transparent" }}
+              onClick={() => setView("list")}
+            >
+              List
+            </button>
+          </div>
+          <button type="button" className="button"><Icon name="filter" size={13} /> Filter</button>
           <Button tone="primary" onClick={() => setOpen(true)}><Icon name="plus" /> New task</Button>
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-        {columns.map((column) => {
-          const columnTasks = tasks.filter((task) => task.status === column.id);
-          return (
-            <div key={column.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <div className="row" style={{ padding: "4px 6px 8px" }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, background: columnColor(column.id) }} />
-                <span style={{ fontSize: 12.5, fontWeight: 540 }}>{column.label}</span>
-                <span className="num" style={{ color: "var(--text-3)" }}>{columnTasks.length}</span>
+      {view === "board" ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+          {columns.map((column) => {
+            const columnTasks = tasks.filter((task) => task.status === column.id);
+            return (
+              <div key={column.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div className="row" style={{ padding: "4px 6px 8px" }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: columnColor(column.id) }} />
+                  <span style={{ fontSize: 12.5, fontWeight: 540 }}>{column.label}</span>
+                  <span className="num" style={{ color: "var(--text-3)" }}>{columnTasks.length}</span>
+                </div>
+                {columnTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    assignee={optionalRecordName(task.assigneeAgentId, agents, (agent) => agent.name, "Agent")}
+                    project={optionalRecordName(task.projectId, projects, (project) => project.name, "Project")}
+                    goal={optionalRecordName(task.goalId, goals, (goal) => goal.title, "Goal")}
+                    workspace={optionalRecordName(task.workspaceId, workspaces, (workspace) => workspace.name, "Workspace")}
+                    onMove={(status) => void actions.run(() => window.agentCompany.updateTaskStatus({ orgId, taskId: task.id, status }))}
+                  />
+                ))}
               </div>
-              {columnTasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  assignee={optionalRecordName(task.assigneeAgentId, agents, (agent) => agent.name, "Agent")}
-                  project={optionalRecordName(task.projectId, projects, (project) => project.name, "Project")}
-                  goal={optionalRecordName(task.goalId, goals, (goal) => goal.title, "Goal")}
-                  workspace={optionalRecordName(task.workspaceId, workspaces, (workspace) => workspace.name, "Workspace")}
-                  onMove={(status) => void actions.run(() => window.agentCompany.updateTaskStatus({ orgId, taskId: task.id, status }))}
-                />
-              ))}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          <div className="table-row" style={{ gridTemplateColumns: "3fr 1fr 1fr 1fr", background: "var(--panel-2)", color: "var(--text-3)", fontSize: 11 }}>
+            <div>Title</div><div>Status</div><div>Priority</div><div>Assignee</div>
+          </div>
+          {tasks.length === 0 ? (
+            <div style={{ padding: 18, color: "var(--text-3)" }}>No tasks</div>
+          ) : tasks.map((task) => {
+            const assigneeName = optionalRecordName(task.assigneeAgentId, agents, (a) => a.name, "Agent");
+            return (
+              <div key={task.id} className="table-row" style={{ gridTemplateColumns: "3fr 1fr 1fr 1fr" }}>
+                <div className="row">
+                  {task.risk === "high" && <span style={{ width: 3, height: 12, background: "var(--red)", borderRadius: 2, flexShrink: 0 }} />}
+                  <span style={{ fontWeight: 480 }}>{task.title}</span>
+                </div>
+                <Pill>{task.status.replaceAll("_", " ")}</Pill>
+                <Pill tone={task.priority === "high" ? "amber" : undefined}>{task.priority}</Pill>
+                <div>{assigneeName ? <div className="row"><Avatar name={assigneeName} size="sm" bot /><span style={{ color: "var(--text-2)" }}>{assigneeName}</span></div> : <span style={{ color: "var(--text-4)" }}>—</span>}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <Dialog title="New task" open={open} submitLabel="Create" onClose={() => setOpen(false)} onSubmit={submit}>
         <Field label="Title"><input className="input" name="title" required /></Field>
         <Field label="Description"><textarea className="input" name="description" required /></Field>

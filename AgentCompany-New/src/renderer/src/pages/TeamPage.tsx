@@ -43,10 +43,11 @@ export function TeamPage({ snapshot, actions }: PageProps) {
       </div>
       <div className="card" style={{ padding: 32, marginBottom: 28 }}>
         <div className="section-label">Org</div>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 18, marginBottom: 12 }}>
           {employees[0] && <OrgCard name={employees[0].displayName} role={employees[0].role} human />}
         </div>
-        <div className="grid-4">
+        {agents.length > 0 && <OrgConnector count={agents.length} />}
+        <div className="grid-4" style={{ marginTop: 18 }}>
           {agents.map((agent) => (
             <OrgCard key={agent.id} name={agent.name} role={agent.role} />
           ))}
@@ -85,6 +86,24 @@ export function TeamPage({ snapshot, actions }: PageProps) {
         <Field label="Monthly budget"><input className="input" name="budget" type="number" min="0" step="1" defaultValue="0" /></Field>
       </Dialog>
     </div>
+  );
+}
+
+function OrgConnector({ count }: { count: number }) {
+  const positions = Array.from({ length: count }, (_, i) => {
+    const left = count === 1 ? 50 : ((i / (count - 1)) * 100);
+    return left;
+  });
+  return (
+    <svg width="100%" height="36" style={{ display: "block" }}>
+      <line x1="50%" x2="50%" y1="0" y2="14" stroke="var(--border-strong)" strokeWidth="1" />
+      {count > 1 && (
+        <line x1={`${positions[0]}%`} x2={`${positions[positions.length - 1]}%`} y1="14" y2="14" stroke="var(--border-strong)" strokeWidth="1" />
+      )}
+      {positions.map((pos, i) => (
+        <line key={i} x1={`${pos}%`} x2={`${pos}%`} y1="14" y2="36" stroke="var(--border-strong)" strokeWidth="1" />
+      ))}
+    </svg>
   );
 }
 
