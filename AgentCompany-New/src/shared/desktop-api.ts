@@ -5,6 +5,7 @@ import type {
   CreateAgentInput,
   CreateApprovalInput,
   CreateOrganizationInput,
+  CreateProviderResponseInput,
   CreateSocialAccountInput,
   CreateTaskInput,
   DecideApprovalInput,
@@ -30,6 +31,7 @@ export interface DesktopApi {
   decideApproval(input: DecideApprovalInput): Promise<DesktopResult<AppSnapshot>>;
   sendMessage(input: SendMessageInput): Promise<DesktopResult<AppSnapshot>>;
   saveProviderCredential(input: SaveProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;
+  createProviderResponse(input: CreateProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
   importSkillDirectory(input: ImportSkillDirectoryInput): Promise<DesktopResult<AppSnapshot>>;
   bindSkill(input: BindSkillInput): Promise<DesktopResult<AppSnapshot>>;
   createSocialAccount(input: CreateSocialAccountInput): Promise<DesktopResult<AppSnapshot>>;

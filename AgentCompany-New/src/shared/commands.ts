@@ -62,6 +62,7 @@ export interface SendMessageInput {
   senderType: "employee" | "agent" | "board" | "system";
   senderId: string | null;
   bodyMd: string;
+  attachmentFileIds?: string[];
 }
 
 export interface SaveProviderCredentialInput {
@@ -69,6 +70,13 @@ export interface SaveProviderCredentialInput {
   providerId: string;
   secret: string;
   model: string | null;
+}
+
+export interface CreateProviderResponseInput {
+  orgId: string;
+  providerId: string;
+  prompt: string;
+  instructions: string | null;
 }
 
 export interface ImportSkillDirectoryInput {

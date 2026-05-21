@@ -8,6 +8,7 @@ export const IPC_CHANNELS = {
   decideApproval: "agentcompany:decide-approval",
   sendMessage: "agentcompany:send-message",
   saveProviderCredential: "agentcompany:save-provider-credential",
+  createProviderResponse: "agentcompany:create-provider-response",
   importSkillDirectory: "agentcompany:import-skill-directory",
   bindSkill: "agentcompany:bind-skill",
   createSocialAccount: "agentcompany:create-social-account",

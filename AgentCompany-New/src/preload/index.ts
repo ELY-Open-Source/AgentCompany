@@ -16,6 +16,7 @@ const api: DesktopApi = {
   decideApproval: (input) => invoke(IPC_CHANNELS.decideApproval, input),
   sendMessage: (input) => invoke(IPC_CHANNELS.sendMessage, input),
   saveProviderCredential: (input) => invoke(IPC_CHANNELS.saveProviderCredential, input),
+  createProviderResponse: (input) => invoke(IPC_CHANNELS.createProviderResponse, input),
   importSkillDirectory: (input) => invoke(IPC_CHANNELS.importSkillDirectory, input),
   bindSkill: (input) => invoke(IPC_CHANNELS.bindSkill, input),
   createSocialAccount: (input) => invoke(IPC_CHANNELS.createSocialAccount, input),

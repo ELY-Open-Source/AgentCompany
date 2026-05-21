@@ -54,6 +54,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.decideApproval, (_event, input) => mutate(() => approvals.decide(input)));
   ipcMain.handle(IPC_CHANNELS.sendMessage, (_event, input) => mutate(() => chat.sendMessage(input)));
   ipcMain.handle(IPC_CHANNELS.saveProviderCredential, (_event, input) => mutate(() => providers.saveCredential(input)));
+  ipcMain.handle(IPC_CHANNELS.createProviderResponse, async (_event, input) => {
+    try {
+      await providers.createResponse(input);
+      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      return ok(snapshot.load());
+    } catch (error) {
+      return fail("provider_response_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
   ipcMain.handle(IPC_CHANNELS.importSkillDirectory, (_event, input) => mutate(() => skills.importDirectory(input)));
   ipcMain.handle(IPC_CHANNELS.bindSkill, (_event, input) => mutate(() => skills.bind(input)));
   ipcMain.handle(IPC_CHANNELS.createSocialAccount, (_event, input) => mutate(() => social.createAccount(input)));

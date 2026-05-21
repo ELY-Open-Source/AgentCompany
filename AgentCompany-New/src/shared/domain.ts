@@ -31,12 +31,19 @@ export const SOCIAL_PLATFORM = {
   INSTAGRAM: "instagram",
 } as const;
 
+export const PROVIDER_REQUEST_STATE = {
+  PENDING: "pending",
+  SUCCEEDED: "succeeded",
+  FAILED: "failed",
+} as const;
+
 export type ValueOf<T> = T[keyof T];
 export type TaskStatus = ValueOf<typeof TASK_STATUS>;
 export type ApprovalState = ValueOf<typeof APPROVAL_STATE>;
 export type RiskLevel = ValueOf<typeof RISK_LEVEL>;
 export type ProviderAuthType = ValueOf<typeof PROVIDER_AUTH_TYPE>;
 export type SocialPlatform = ValueOf<typeof SOCIAL_PLATFORM>;
+export type ProviderRequestState = ValueOf<typeof PROVIDER_REQUEST_STATE>;
 
 export interface OrganizationRecord {
   id: string;
@@ -118,6 +125,33 @@ export interface ChatMessageRecord {
   deletedAt: string | null;
 }
 
+export interface ChatThreadRecord {
+  id: string;
+  orgId: string;
+  spaceId: string;
+  rootMessageId: string | null;
+  title: string;
+  state: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatAttachmentRecord {
+  messageId: string;
+  fileId: string;
+  transferType: string;
+  checksum: string;
+  previewKey: string | null;
+}
+
+export interface ChatPresenceRecord {
+  principalType: string;
+  principalId: string;
+  status: string;
+  statusText: string;
+  lastSeenAt: string;
+}
+
 export interface FileObjectRecord {
   id: string;
   orgId: string;
@@ -149,6 +183,21 @@ export interface ProviderCatalogEntry {
   authType: ProviderAuthType;
   defaultModel: string | null;
   capabilityTags: string[];
+}
+
+export interface ProviderRequestRecord {
+  id: string;
+  orgId: string;
+  providerId: string;
+  providerKey: string;
+  model: string;
+  promptSha256: string;
+  responseText: string | null;
+  rawResponseJson: string | null;
+  state: ProviderRequestState;
+  errorMessage: string | null;
+  createdAt: string;
+  completedAt: string | null;
 }
 
 export interface SkillDefinitionRecord {
@@ -183,6 +232,16 @@ export interface SkillBindingRecord {
   enabled: boolean;
 }
 
+export interface SkillRuntimeSnapshotRecord {
+  id: string;
+  agentId: string;
+  runId: string;
+  compiledPrompt: string;
+  toolsManifest: string;
+  sourceRevisionIds: string;
+  createdAt: string;
+}
+
 export interface SocialAccountRecord {
   id: string;
   orgId: string;
@@ -205,6 +264,17 @@ export interface AuditEventRecord {
   createdAt: string;
 }
 
+export interface PolicyRuleRecord {
+  id: string;
+  orgId: string;
+  subjectType: string;
+  subjectId: string | null;
+  action: string;
+  effect: string;
+  riskCeiling: RiskLevel;
+  createdAt: string;
+}
+
 export interface AppSnapshot {
   activeOrgId: string | null;
   organizations: OrganizationRecord[];
@@ -214,12 +284,18 @@ export interface AppSnapshot {
   approvals: ApprovalRecord[];
   chatSpaces: ChatSpaceRecord[];
   chatMessages: ChatMessageRecord[];
+  chatThreads: ChatThreadRecord[];
+  chatAttachments: ChatAttachmentRecord[];
+  chatPresence: ChatPresenceRecord[];
   files: FileObjectRecord[];
   providers: ProviderRecord[];
   providerCatalog: ProviderCatalogEntry[];
+  providerRequests: ProviderRequestRecord[];
   skillDefinitions: SkillDefinitionRecord[];
   skillRevisions: SkillRevisionRecord[];
   skillBindings: SkillBindingRecord[];
+  skillRuntimeSnapshots: SkillRuntimeSnapshotRecord[];
   socialAccounts: SocialAccountRecord[];
+  policyRules: PolicyRuleRecord[];
   auditEvents: AuditEventRecord[];
 }
