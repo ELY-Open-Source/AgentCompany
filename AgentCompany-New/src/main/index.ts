@@ -1,4 +1,4 @@
-import { app, session } from "electron";
+import { app } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseConnection } from "./database/connection";
@@ -13,22 +13,6 @@ if (!hasSingleInstanceLock) {
 }
 
 app.whenReady().then(() => {
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        "Content-Security-Policy": [
-          "default-src 'self'",
-          "script-src 'self'",
-          "style-src 'self' 'unsafe-inline'",
-          "img-src 'self' data:",
-          "connect-src 'self' http://localhost:* ws://localhost:*",
-          "font-src 'self' data:",
-        ].join("; "),
-      },
-    });
-  });
-
   const profileDir = process.env.AGENTCOMPANY_NEW_PROFILE_DIR ?? join(app.getPath("userData"), "profile");
   const connection = new DatabaseConnection(join(profileDir, "agentcompany.db"));
   const win = createMainWindow({
