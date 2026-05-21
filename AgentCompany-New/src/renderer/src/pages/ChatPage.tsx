@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Avatar, Button, Field, Icon, IconButton } from "../shared/ui";
 import { Dialog } from "../shared/Dialog";
-import type { ChatAttachmentRecord, ChatSpaceRecord, ChatThreadRecord, FileObjectRecord } from "../../../shared/domain";
+import type { ChatAttachmentRecord, ChatSpaceRecord, FileObjectRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId } from "./types";
 
@@ -156,7 +156,6 @@ export function ChatPage({ snapshot, actions }: PageProps) {
 
       {selectedThread && (
         <ThreadPanel
-          thread={selectedThread}
           threadMessages={threadMessages}
           rootMessage={messages.find((m) => m.id === selectedThread.rootMessageId) ?? null}
           employees={employees}
@@ -192,7 +191,6 @@ export function ChatPage({ snapshot, actions }: PageProps) {
 }
 
 function ThreadPanel({
-  thread,
   threadMessages,
   rootMessage,
   employees,
@@ -203,7 +201,6 @@ function ThreadPanel({
   onClose,
   onSubmit,
 }: {
-  thread: ChatThreadRecord;
   threadMessages: Array<{ id: string; bodyMd: string; createdAt: string; senderType: string; senderId: string | null; threadId: string | null }>;
   rootMessage: { id: string; bodyMd: string; createdAt: string; senderType: string; senderId: string | null } | null;
   employees: Array<{ id: string; displayName: string }>;
