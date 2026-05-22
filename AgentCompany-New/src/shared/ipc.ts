@@ -9,6 +9,7 @@ export const IPC_CHANNELS = {
   decideApproval: "agentcompany:decide-approval",
   createChatSpace: "agentcompany:create-chat-space",
   sendMessage: "agentcompany:send-message",
+  markChatSpaceRead: "agentcompany:mark-chat-space-read",
   saveProviderCredential: "agentcompany:save-provider-credential",
   createProviderResponse: "agentcompany:create-provider-response",
   importSkillDirectory: "agentcompany:import-skill-directory",

@@ -89,6 +89,12 @@ export interface CreateChatSpaceInput {
   visibility: "workspace" | "restricted";
 }
 
+export interface MarkChatSpaceReadInput {
+  orgId: string;
+  employeeId: string;
+  spaceId: string;
+}
+
 export interface SaveProviderCredentialInput {
   orgId: string;
   providerId: string;

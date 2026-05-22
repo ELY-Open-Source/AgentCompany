@@ -224,6 +224,14 @@ export interface ChatPresenceRecord {
   lastSeenAt: string;
 }
 
+export interface ChatReadStateRecord {
+  orgId: string;
+  employeeId: string;
+  spaceId: string;
+  lastReadMessageId: string | null;
+  lastReadAt: string;
+}
+
 export interface FileObjectRecord {
   id: string;
   orgId: string;
@@ -407,6 +415,7 @@ export interface AppSnapshot {
   chatThreads: ChatThreadRecord[];
   chatAttachments: ChatAttachmentRecord[];
   chatPresence: ChatPresenceRecord[];
+  chatReadStates: ChatReadStateRecord[];
   files: FileObjectRecord[];
   scheduledPosts: ScheduledPostRecord[];
   providers: ProviderRecord[];

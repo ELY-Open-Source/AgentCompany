@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Field } from "../shared/ui";
 import { Dialog } from "../shared/Dialog";
 import { ChatSidebar } from "./chat/ChatSidebar";
@@ -46,6 +46,22 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     ? selectedSpaceId
     : fallbackSpaceId;
   const activeSpace = spaces.find((space) => space.id === activeSpaceId) ?? null;
+  const latestActiveMessageId = useMemo(() => {
+    if (!activeSpace) return null;
+    const inSpace = messagesAll.filter((message) => message.spaceId === activeSpace.id);
+    if (inSpace.length === 0) return null;
+    return inSpace[inSpace.length - 1].id;
+  }, [messagesAll, activeSpace]);
+
+  useEffect(() => {
+    if (!activeSpace || !latestActiveMessageId) return;
+    void actions.run(() => window.agentCompany.markChatSpaceRead({
+      orgId,
+      employeeId: employee.id,
+      spaceId: activeSpace.id,
+    }));
+  }, [activeSpace, latestActiveMessageId, orgId, employee.id, actions]);
+
   const messagesInSpace = useMemo(
     () => (activeSpace ? messagesAll.filter((m) => m.spaceId === activeSpace.id) : []),
     [messagesAll, activeSpace],

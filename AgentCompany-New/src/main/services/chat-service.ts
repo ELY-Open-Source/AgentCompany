@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { CreateChatSpaceInput, SendMessageInput } from "../../shared/commands";
+import type { CreateChatSpaceInput, MarkChatSpaceReadInput, SendMessageInput } from "../../shared/commands";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 
@@ -99,6 +99,28 @@ export class ChatService {
       payload: { spaceId: input.spaceId, threadId, attachmentCount: input.attachmentFileIds?.length ?? 0 },
     });
     return id;
+  }
+
+  markSpaceRead(input: MarkChatSpaceReadInput): void {
+    const space = this.db.prepare("select id from chat_spaces where id = ? and org_id = ?")
+      .get(input.spaceId, input.orgId) as { id: string } | undefined;
+    if (!space) throw new Error("Chat space was not found.");
+    const employee = this.db.prepare("select id from employees where id = ? and org_id = ?")
+      .get(input.employeeId, input.orgId) as { id: string } | undefined;
+    if (!employee) throw new Error("Employee was not found.");
+    const latest = this.db.prepare(`
+      select id from chat_messages
+      where space_id = ? and org_id = ?
+      order by created_at desc
+      limit 1
+    `).get(input.spaceId, input.orgId) as { id: string } | undefined;
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      insert into chat_read_state(org_id, employee_id, space_id, last_read_message_id, last_read_at)
+      values (?, ?, ?, ?, ?)
+      on conflict(employee_id, space_id)
+      do update set last_read_message_id = excluded.last_read_message_id, last_read_at = excluded.last_read_at
+    `).run(input.orgId, input.employeeId, input.spaceId, latest?.id ?? null, now);
   }
 
   private recordMentions(messageId: string, body: string): void {

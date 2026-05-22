@@ -136,10 +136,29 @@ function renderBadge(value: number | undefined): ReactNode {
 }
 
 function computeBadges(snapshot: AppSnapshot, orgId: string): Partial<Record<RouteId, number>> {
+  const employee = snapshot.employees.find((item) => item.orgId === orgId);
   const tasks = snapshot.tasks.filter((item) => item.orgId === orgId);
   const approvals = snapshot.approvals.filter((item) => item.orgId === orgId);
   return {
     work: tasks.filter((task) => task.status !== "done").length,
+    chat: employee ? countUnreadMessages(snapshot, orgId, employee.id) : 0,
     approvals: approvals.filter((approval) => approval.state === "pending").length,
   };
+}
+
+function countUnreadMessages(snapshot: AppSnapshot, orgId: string, employeeId: string): number {
+  const readByspace = new Map<string, string>();
+  for (const state of snapshot.chatReadStates) {
+    if (state.orgId !== orgId || state.employeeId !== employeeId) continue;
+    readByspace.set(state.spaceId, state.lastReadAt);
+  }
+  let unread = 0;
+  for (const message of snapshot.chatMessages) {
+    if (message.orgId !== orgId) continue;
+    if (message.senderType === "employee" && message.senderId === employeeId) continue;
+    const lastRead = readByspace.get(message.spaceId);
+    if (lastRead && message.createdAt <= lastRead) continue;
+    unread += 1;
+  }
+  return unread;
 }
