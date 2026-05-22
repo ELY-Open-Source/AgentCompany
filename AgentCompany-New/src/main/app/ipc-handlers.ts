@@ -1,4 +1,4 @@
-import { ipcMain, type BrowserWindow } from "electron";
+import { ipcMain, shell, type BrowserWindow } from "electron";
 import type { DatabaseConnection } from "../database/connection";
 import { IPC_CHANNELS } from "../../shared/ipc";
 import { fail, ok, type DesktopResult } from "../../shared/result";
@@ -84,6 +84,18 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return ok(null);
     } catch (error) {
       return fail("provider_sign_in_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+  ipcMain.handle(IPC_CHANNELS.openExternalUrl, async (_event, url: string) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+        return fail("external_url_blocked", "Only http(s) URLs may be opened externally.");
+      }
+      await shell.openExternal(parsed.toString());
+      return ok(null);
+    } catch (error) {
+      return fail("external_url_failed", error instanceof Error ? error.message : String(error));
     }
   });
   ipcMain.handle(IPC_CHANNELS.createProviderResponse, async (_event, input) => {

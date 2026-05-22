@@ -85,8 +85,8 @@ export class OnboardingService {
   private resolveProvider(providerKey: string) {
     const provider = PROVIDER_CATALOG.find((entry) => entry.key === providerKey);
     if (!provider) throw new Error(`Provider ${providerKey} is unavailable.`);
-    if (provider.authType !== PROVIDER_AUTH_TYPE.API_KEY) {
-      throw new Error("Onboarding requires an API key provider.");
+    if (provider.authType === PROVIDER_AUTH_TYPE.CLOUD) {
+      throw new Error("Cloud providers need extended configuration — connect them from Settings after the company is created.");
     }
     return provider;
   }

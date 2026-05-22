@@ -41,13 +41,12 @@ export function Onboarding({
   onCancel: (() => void) | null;
   onCompleted: () => void;
 }) {
-  const apiProviders = useMemo(
-    () => snapshot.providerCatalog.filter((entry) => entry.authType === PROVIDER_AUTH_TYPE.API_KEY),
+  const availableProviders = useMemo(
+    () => snapshot.providerCatalog.filter((entry) => entry.authType !== PROVIDER_AUTH_TYPE.CLOUD),
     [snapshot.providerCatalog],
   );
-  const firstProvider = apiProviders[0];
-  if (!firstProvider) throw new Error("Provider catalog must include at least one API-key provider.");
-  if (!firstProvider.defaultModel) throw new Error("Default API provider needs a default model.");
+  const firstProvider = availableProviders[0];
+  if (!firstProvider) throw new Error("Provider catalog must include at least one non-cloud provider.");
 
   const [step, setStep] = useState<Step>("welcome");
   const [draft, setDraft] = useState<Draft>({
@@ -58,14 +57,14 @@ export function Onboarding({
     executionMode: "ai_ceo",
     providerKey: firstProvider.key,
     providerSecret: "",
-    providerModel: firstProvider.defaultModel,
+    providerModel: firstProvider.defaultModel ?? firstProvider.models[0]?.id ?? "",
     goalTitle: "",
     goalDescription: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const selectedProvider = requireProvider(apiProviders, draft.providerKey);
+  const selectedProvider = requireProvider(availableProviders, draft.providerKey);
   const update = (patch: Partial<Draft>) => setDraft((current) => ({ ...current, ...patch }));
 
   const guard = (validator: () => string | null, next: Step) => () => {
@@ -85,7 +84,7 @@ export function Onboarding({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const message = validateAll(draft);
+    const message = validateAll(draft, availableProviders);
     if (message) {
       setError(message);
       return;
@@ -158,11 +157,11 @@ export function Onboarding({
         )}
         {step === "provider" && (
           <ProviderStep
-            providers={apiProviders}
+            providers={availableProviders}
             draft={draft}
             onChange={update}
             onBack={back("welcome")}
-            onNext={guard(() => validateProvider(draft), "company")}
+            onNext={guard(() => validateProvider(draft, availableProviders), "company")}
           />
         )}
         {step === "company" && (
@@ -231,6 +230,11 @@ function ProviderStep({
   onBack: () => void;
   onNext: () => void;
 }) {
+  const selected = providers.find((entry) => entry.key === draft.providerKey) ?? providers[0];
+  if (!selected) throw new Error("No provider available for onboarding.");
+  const isOAuthLike = selected.authType === "oauth_pkce" || selected.authType === "account_subscription";
+  const secretLabel = isOAuthLike ? "Access token" : "API key";
+
   return (
     <div className="form-grid">
       <h2 className="page-h1">Provider</h2>
@@ -245,18 +249,33 @@ function ProviderStep({
             className={`option-card ${draft.providerKey === provider.key ? "active" : ""}`.trim()}
             onClick={() => onChange({
               providerKey: provider.key,
-              providerModel: provider.defaultModel ?? draft.providerModel,
+              providerModel: provider.defaultModel ?? provider.models[0]?.id ?? "",
+              providerSecret: "",
             })}
           >
             <div className="row">
               <div className="opt-title" style={{ flex: 1 }}>{provider.label}</div>
-              <Pill tone="violet">{provider.defaultModel ?? "model"}</Pill>
+              <Pill tone="violet">{authBadge(provider.authType)}</Pill>
             </div>
-            <div className="opt-sub">{provider.capabilityTags.join(" · ") || "API key"}</div>
+            <div className="opt-sub">{provider.capabilityTags.join(" · ") || authBadge(provider.authType)}</div>
           </button>
         ))}
       </div>
-      <Field label="API key">
+      {selected.credentialHelp && (
+        <div style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5 }}>{selected.credentialHelp}</div>
+      )}
+      {isOAuthLike && selected.signInUrl && (
+        <div className="row" style={{ gap: 8 }}>
+          <Button
+            tone="primary"
+            onClick={() => void window.agentCompany.openExternalUrl(selected.signInUrl ?? "")}
+          >
+            Open {selected.label} sign-in
+          </Button>
+          <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>{selected.signInUrl}</span>
+        </div>
+      )}
+      <Field label={secretLabel}>
         <input
           className="input"
           type="password"
@@ -266,13 +285,13 @@ function ProviderStep({
         />
       </Field>
       <Field label="Model">
-        {providers.find((entry) => entry.key === draft.providerKey)?.models.length ? (
+        {selected.models.length ? (
           <select
             className="input"
             value={draft.providerModel}
             onChange={(event) => onChange({ providerModel: event.target.value })}
           >
-            {providers.find((entry) => entry.key === draft.providerKey)?.models.map((model) => (
+            {selected.models.map((model) => (
               <option key={model.id} value={model.id}>{model.name}</option>
             ))}
           </select>
@@ -283,6 +302,14 @@ function ProviderStep({
       <Actions onBack={onBack} onNext={onNext} />
     </div>
   );
+}
+
+function authBadge(authType: string): string {
+  if (authType === "api_key") return "API key";
+  if (authType === "oauth_pkce") return "OAuth";
+  if (authType === "account_subscription") return "Account";
+  if (authType === "cloud") return "Cloud";
+  return authType;
 }
 
 function CompanyStep({ draft, onChange, onBack, onNext }: StepProps) {
@@ -385,9 +412,13 @@ function requireProvider(providers: ProviderCatalogEntry[], key: string): Provid
   return provider;
 }
 
-function validateProvider(draft: Draft): string | null {
+function validateProvider(draft: Draft, providers: ProviderCatalogEntry[]): string | null {
   if (!draft.providerKey) return "Pick a provider.";
-  if (!draft.providerSecret.trim()) return "API key is required.";
+  const selected = providers.find((entry) => entry.key === draft.providerKey);
+  if (!selected) return "Provider is no longer available.";
+  if (!draft.providerSecret.trim()) {
+    return selected.authType === "api_key" ? "API key is required." : "Access token is required.";
+  }
   if (!draft.providerModel.trim()) return "Model is required.";
   return null;
 }
@@ -399,6 +430,6 @@ function validateCompany(draft: Draft): string | null {
   return null;
 }
 
-function validateAll(draft: Draft): string | null {
-  return validateProvider(draft) ?? validateCompany(draft) ?? (!draft.goalTitle.trim() ? "Goal is required." : null);
+function validateAll(draft: Draft, providers: ProviderCatalogEntry[]): string | null {
+  return validateProvider(draft, providers) ?? validateCompany(draft) ?? (!draft.goalTitle.trim() ? "Goal is required." : null);
 }

@@ -22,6 +22,7 @@ const api: DesktopApi = {
   markChatSpaceRead: (input) => invoke(IPC_CHANNELS.markChatSpaceRead, input),
   saveProviderCredential: (input) => invoke(IPC_CHANNELS.saveProviderCredential, input),
   launchProviderSignIn: (input) => invoke(IPC_CHANNELS.launchProviderSignIn, input),
+  openExternalUrl: (url) => invoke(IPC_CHANNELS.openExternalUrl, url),
   createProviderResponse: (input) => invoke(IPC_CHANNELS.createProviderResponse, input),
   importSkillDirectory: (input) => invoke(IPC_CHANNELS.importSkillDirectory, input),
   bindSkill: (input) => invoke(IPC_CHANNELS.bindSkill, input),
