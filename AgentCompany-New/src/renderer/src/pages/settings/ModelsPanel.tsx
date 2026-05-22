@@ -59,15 +59,17 @@ function collectModels(providers: ProviderRecord[], agents: AgentRecord[]): Mode
       providerLabel: provider.label,
       authType: humanAuth(provider.authType),
       model: provider.model,
-      agentCount: agents.filter((agent) => agent.modelProviderId === provider.id && (agent.modelId === provider.model || !agent.modelId)).length,
+      agentCount: 0,
       source: "default",
     });
   }
   for (const agent of agents) {
-    if (!agent.modelProviderId || !agent.modelId) continue;
+    if (!agent.modelProviderId) continue;
     const provider = providers.find((item) => item.id === agent.modelProviderId);
     if (!provider) continue;
-    const key = `${provider.id}::${agent.modelId}`;
+    const effectiveModel = agent.modelId ?? provider.model;
+    if (!effectiveModel) continue;
+    const key = `${provider.id}::${effectiveModel}`;
     const existing = map.get(key);
     if (existing) {
       existing.agentCount += 1;
@@ -77,7 +79,7 @@ function collectModels(providers: ProviderRecord[], agents: AgentRecord[]): Mode
       providerId: provider.id,
       providerLabel: provider.label,
       authType: humanAuth(provider.authType),
-      model: agent.modelId,
+      model: effectiveModel,
       agentCount: 1,
       source: "agent",
     });
