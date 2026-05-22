@@ -266,7 +266,19 @@ function ProviderStep({
         />
       </Field>
       <Field label="Model">
-        <input className="input" value={draft.providerModel} onChange={(event) => onChange({ providerModel: event.target.value })} />
+        {providers.find((entry) => entry.key === draft.providerKey)?.models.length ? (
+          <select
+            className="input"
+            value={draft.providerModel}
+            onChange={(event) => onChange({ providerModel: event.target.value })}
+          >
+            {providers.find((entry) => entry.key === draft.providerKey)?.models.map((model) => (
+              <option key={model.id} value={model.id}>{model.name}</option>
+            ))}
+          </select>
+        ) : (
+          <input className="input" value={draft.providerModel} onChange={(event) => onChange({ providerModel: event.target.value })} />
+        )}
       </Field>
       <Actions onBack={onBack} onNext={onNext} />
     </div>

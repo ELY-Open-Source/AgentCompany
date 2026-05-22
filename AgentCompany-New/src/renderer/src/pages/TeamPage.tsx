@@ -113,7 +113,21 @@ export function TeamPage({ snapshot, actions }: PageProps) {
             {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
           </select>
         </Field>
-        <Field label="Model"><input className="input" name="modelId" /></Field>
+        <Field label="Model">
+          <input
+            className="input"
+            name="modelId"
+            list="agent-model-suggestions"
+            placeholder="Leave blank to inherit provider default"
+          />
+        </Field>
+        <datalist id="agent-model-suggestions">
+          {snapshot.providerCatalog.flatMap((entry) =>
+            entry.models.map((model) => (
+              <option key={`${entry.key}-${model.id}`} value={model.id}>{entry.label} · {model.name}</option>
+            )),
+          )}
+        </datalist>
         <Field label="Monthly budget"><input className="input" name="budget" type="number" min="0" step="1" defaultValue="250" /></Field>
         <Field label="Seniority">
           <select className="input" name="roleLevel" defaultValue="staff">

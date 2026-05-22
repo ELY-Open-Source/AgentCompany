@@ -273,6 +273,11 @@ export interface ProviderRecord {
   createdAt: string;
 }
 
+export interface ProviderCatalogModel {
+  id: string;
+  name: string;
+}
+
 export interface ProviderCatalogEntry {
   key: string;
   label: string;
@@ -281,6 +286,7 @@ export interface ProviderCatalogEntry {
   capabilityTags: string[];
   signInUrl: string | null;
   credentialHelp: string;
+  models: ProviderCatalogModel[];
 }
 
 export interface ProviderRequestRecord {

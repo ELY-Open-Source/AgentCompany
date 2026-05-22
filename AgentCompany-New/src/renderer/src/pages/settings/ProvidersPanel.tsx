@@ -125,7 +125,7 @@ function ProviderConnectFields({
       <>
         <p style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
         <Field label="API key"><input className="input" name="secret" type="password" required autoFocus /></Field>
-        <Field label="Default model"><input className="input" name="model" defaultValue={provider.model ?? entry.defaultModel ?? ""} /></Field>
+        <ModelPicker entry={entry} provider={provider} />
       </>
     );
   }
@@ -140,11 +140,31 @@ function ProviderConnectFields({
           {entry.signInUrl && <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>{entry.signInUrl}</span>}
         </div>
         <Field label="Access token"><input className="input" name="secret" type="password" required /></Field>
-        <Field label="Default model"><input className="input" name="model" defaultValue={provider.model ?? entry.defaultModel ?? ""} /></Field>
+        <ModelPicker entry={entry} provider={provider} />
       </>
     );
   }
   return <CloudFieldsForm entry={entry} provider={provider} />;
+}
+
+function ModelPicker({ entry, provider }: { entry: ProviderCatalogEntry; provider: ProviderRecord }) {
+  const defaultValue = provider.model ?? entry.defaultModel ?? entry.models[0]?.id ?? "";
+  if (entry.models.length === 0) {
+    return (
+      <Field label="Default model">
+        <input className="input" name="model" defaultValue={defaultValue} />
+      </Field>
+    );
+  }
+  return (
+    <Field label="Default model">
+      <select className="input" name="model" defaultValue={defaultValue}>
+        {entry.models.map((model) => (
+          <option key={model.id} value={model.id}>{model.name}</option>
+        ))}
+      </select>
+    </Field>
+  );
 }
 
 function CloudFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; provider: ProviderRecord }) {

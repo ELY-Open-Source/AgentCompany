@@ -1,11 +1,12 @@
 import { PROVIDER_AUTH_TYPE, type ProviderCatalogEntry } from "./domain";
+import { listProviderModels } from "./provider-models";
 
-export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
+const RAW_CATALOG: Omit<ProviderCatalogEntry, "models">[] = [
   {
     key: "openai",
     label: "OpenAI",
     authType: PROVIDER_AUTH_TYPE.API_KEY,
-    defaultModel: "gpt-5.1",
+    defaultModel: "gpt-5.4",
     capabilityTags: ["responses", "tools", "background"],
     signInUrl: null,
     credentialHelp: "Generate an API key at platform.openai.com → API keys.",
@@ -92,3 +93,8 @@ export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
     credentialHelp: "Provide GCP project id, region, and a service-account JSON key with aiplatform.user role.",
   },
 ];
+
+export const PROVIDER_CATALOG: ProviderCatalogEntry[] = RAW_CATALOG.map((entry) => ({
+  ...entry,
+  models: listProviderModels(entry.key),
+}));
