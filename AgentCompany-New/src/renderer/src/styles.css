@@ -486,12 +486,12 @@ textarea.input { min-height: 84px; resize: vertical; line-height: 1.5; }
 }
 @media (max-width: 980px) {
   .sidebar { width: 64px; }
-  .brand-name,
-  .nav-item span:not(.nav-badge),
+  .sidebar .brand-name,
+  .sidebar .nav-item span:not(.nav-badge),
   .sidebar-foot-name,
-  .search-bar > span:not(.search-kbd) { display: none; }
-  .search-bar { justify-content: center; padding: 6px; }
-  .search-kbd { display: none; }
+  .sidebar .search-bar > span:not(.search-kbd) { display: none; }
+  .sidebar .search-bar { justify-content: center; padding: 6px; }
+  .sidebar .search-kbd { display: none; }
   .content { padding: 20px 18px 32px; }
   .secondary-pane { width: 180px; }
   .onboarding-shell { grid-template-columns: 1fr; }
