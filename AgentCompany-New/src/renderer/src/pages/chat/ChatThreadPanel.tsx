@@ -3,7 +3,6 @@ import { Button, Icon, IconButton } from "../../shared/ui";
 import type {
   ChatAttachmentRecord,
   ChatMessageRecord,
-  ChatThreadRecord,
   FileObjectRecord,
 } from "../../../../shared/domain";
 import { formatTime } from "../types";
@@ -11,7 +10,6 @@ import { ChatMessageRow } from "./ChatMessageRow";
 import { senderName, type MessageContext } from "./chat-helpers";
 
 export function ChatThreadPanel({
-  thread,
   rootMessage,
   messages,
   attachments,
@@ -20,7 +18,6 @@ export function ChatThreadPanel({
   onClose,
   onSubmit,
 }: {
-  thread: ChatThreadRecord;
   rootMessage: ChatMessageRecord | null;
   messages: ChatMessageRecord[];
   attachments: ChatAttachmentRecord[];
@@ -78,11 +75,6 @@ export function ChatThreadPanel({
             compact
           />
         ))}
-        {messages.length === 0 && (
-          <div style={{ marginTop: 14, fontSize: 11, color: "var(--text-3)", textAlign: "center" }}>
-            {thread.state === "open" ? "No replies yet." : `Thread ${thread.state}`}
-          </div>
-        )}
       </div>
       <form onSubmit={onSubmit} style={{ padding: 12, flexShrink: 0 }}>
         <div style={{ border: "1px solid var(--border-strong)", borderRadius: 10, background: "var(--panel)", padding: "8px 10px" }}>

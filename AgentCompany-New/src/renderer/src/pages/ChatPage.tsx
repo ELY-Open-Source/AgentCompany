@@ -174,7 +174,6 @@ export function ChatPage({ snapshot, actions }: PageProps) {
 
       {selectedThread && (
         <ChatThreadPanel
-          thread={selectedThread}
           rootMessage={messagesInSpace.find((m) => m.id === selectedThread.rootMessageId) ?? null}
           messages={threadMessages}
           attachments={snapshot.chatAttachments}
