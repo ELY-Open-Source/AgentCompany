@@ -30,7 +30,17 @@ const STEPS: Array<{ id: Step; label: string }> = [
   { id: "mission", label: "Goal" },
 ];
 
-export function Onboarding({ snapshot, actions }: { snapshot: AppSnapshot; actions: SnapshotActions }) {
+export function Onboarding({
+  snapshot,
+  actions,
+  onCancel,
+  onCompleted,
+}: {
+  snapshot: AppSnapshot;
+  actions: SnapshotActions;
+  onCancel: (() => void) | null;
+  onCompleted: () => void;
+}) {
   const apiProviders = useMemo(
     () => snapshot.providerCatalog.filter((entry) => entry.authType === PROVIDER_AUTH_TYPE.API_KEY),
     [snapshot.providerCatalog],
@@ -102,6 +112,7 @@ export function Onboarding({ snapshot, actions }: { snapshot: AppSnapshot; actio
       return;
     }
     await actions.reload();
+    onCompleted();
   };
 
   return (
@@ -111,6 +122,11 @@ export function Onboarding({ snapshot, actions }: { snapshot: AppSnapshot; actio
           <div className="row" style={{ gap: 8 }}>
             <div className="brand-mark">A</div>
             <div style={{ fontWeight: 540 }}>AgentCompany</div>
+            {onCancel && (
+              <button type="button" className="button ghost" style={{ marginLeft: "auto" }} onClick={onCancel}>
+                Cancel
+              </button>
+            )}
           </div>
           <h1 className="page-h1" style={{ fontSize: 34, marginTop: 32, letterSpacing: "-0.02em" }}>Start your AI company.</h1>
           <p className="page-sub" style={{ maxWidth: 460, fontSize: 14, lineHeight: 1.55 }}>

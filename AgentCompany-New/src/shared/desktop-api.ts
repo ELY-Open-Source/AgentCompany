@@ -15,12 +15,14 @@ import type {
   CreateSocialAccountInput,
   CreateTaskInput,
   DecideApprovalInput,
+  DeleteOrganizationInput,
   ImportFileInput,
   ImportSkillDirectoryInput,
   LaunchSocialLoginInput,
   ResolveAgentSkillsInput,
   SaveProviderCredentialInput,
   SendMessageInput,
+  SetActiveOrganizationInput,
   SetFilePinnedInput,
   SetScheduledPostStateInput,
   UpdateTaskStatusInput,
@@ -33,6 +35,8 @@ export interface RendererEvent {
 export interface DesktopApi {
   loadSnapshot(): Promise<DesktopResult<AppSnapshot>>;
   bootstrapOnboarding(input: BootstrapOnboardingInput): Promise<DesktopResult<BootstrapOnboardingSummary>>;
+  setActiveOrganization(input: SetActiveOrganizationInput): Promise<DesktopResult<AppSnapshot>>;
+  deleteOrganization(input: DeleteOrganizationInput): Promise<DesktopResult<AppSnapshot>>;
   createOrganization(input: CreateOrganizationInput): Promise<DesktopResult<AppSnapshot>>;
   createAgent(input: CreateAgentInput): Promise<DesktopResult<AppSnapshot>>;
   createTask(input: CreateTaskInput): Promise<DesktopResult<AppSnapshot>>;

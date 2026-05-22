@@ -14,12 +14,20 @@ import { SettingsPage } from "../pages/SettingsPage";
 export function App() {
   const { snapshot, actions } = useSnapshot();
   const [route, setRoute] = useState<RouteId>("home");
+  const [creatingOrg, setCreatingOrg] = useState(false);
 
   if (!snapshot) {
     return <div className="app-shell" style={{ display: "grid", placeItems: "center" }} />;
   }
-  if (snapshot.organizations.length === 0) {
-    return <Onboarding snapshot={snapshot} actions={actions} />;
+  if (snapshot.organizations.length === 0 || creatingOrg) {
+    return (
+      <Onboarding
+        snapshot={snapshot}
+        actions={actions}
+        onCancel={creatingOrg ? () => setCreatingOrg(false) : null}
+        onCompleted={() => setCreatingOrg(false)}
+      />
+    );
   }
 
   const pageProps = { snapshot, actions };
@@ -35,7 +43,14 @@ export function App() {
   }[route];
 
   return (
-    <Shell snapshot={snapshot} route={route} setRoute={setRoute}>
+    <Shell
+      snapshot={snapshot}
+      route={route}
+      setRoute={setRoute}
+      onSwitchOrg={(orgId) => void actions.run(() => window.agentCompany.setActiveOrganization({ orgId }))}
+      onDeleteOrg={(orgId) => void actions.run(() => window.agentCompany.deleteOrganization({ orgId }))}
+      onNewOrg={() => setCreatingOrg(true)}
+    >
       {page}
     </Shell>
   );

@@ -74,6 +74,11 @@ export class OrganizationService {
     }
 
     this.policy.seedOrganizationPolicies(orgId, now);
+    this.db.prepare(`
+      insert into app_state(id, active_org_id, updated_at)
+      values (1, ?, ?)
+      on conflict(id) do update set active_org_id = excluded.active_org_id, updated_at = excluded.updated_at
+    `).run(orgId, now);
     this.audit.record({
       orgId,
       entityType: "organization",
@@ -84,6 +89,41 @@ export class OrganizationService {
       payload: { name: input.organizationName.trim() },
     });
     return orgId;
+  }
+
+  setActiveOrganization(orgId: string): void {
+    const row = this.db.prepare("select id from organizations where id = ?").get(orgId) as { id: string } | undefined;
+    if (!row) throw new Error("Organization was not found.");
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      insert into app_state(id, active_org_id, updated_at)
+      values (1, ?, ?)
+      on conflict(id) do update set active_org_id = excluded.active_org_id, updated_at = excluded.updated_at
+    `).run(orgId, now);
+    this.audit.record({
+      orgId,
+      entityType: "app_state",
+      entityId: "active_org",
+      actorType: "employee",
+      actorId: null,
+      action: "switched",
+      payload: { orgId },
+    });
+  }
+
+  deleteOrganization(orgId: string): void {
+    const row = this.db.prepare("select id from organizations where id = ?")
+      .get(orgId) as { id: string } | undefined;
+    if (!row) throw new Error("Organization was not found.");
+    this.db.prepare("delete from organizations where id = ?").run(orgId);
+    const fallback = this.db.prepare("select id from organizations order by created_at asc limit 1")
+      .get() as { id: string } | undefined;
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      insert into app_state(id, active_org_id, updated_at)
+      values (1, ?, ?)
+      on conflict(id) do update set active_org_id = excluded.active_org_id, updated_at = excluded.updated_at
+    `).run(fallback?.id ?? null, now);
   }
 
   createAgent(input: CreateAgentInput): string {

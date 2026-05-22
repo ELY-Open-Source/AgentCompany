@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { AppSnapshot } from "../../../shared/domain";
 import { Avatar, Icon, IconButton } from "./ui";
 import type { IconName } from "./Icon";
+import { OrgSwitcher } from "./OrgSwitcher";
 
 export type RouteId =
   | "home"
@@ -34,12 +35,18 @@ export function Shell({
   route,
   setRoute,
   actions,
+  onSwitchOrg,
+  onDeleteOrg,
+  onNewOrg,
   children,
 }: {
   snapshot: AppSnapshot;
   route: RouteId;
   setRoute: (route: RouteId) => void;
   actions?: ReactNode;
+  onSwitchOrg: (orgId: string) => void;
+  onDeleteOrg: (orgId: string) => void;
+  onNewOrg: () => void;
   children: ReactNode;
 }) {
   const organization = snapshot.organizations.find((item) => item.id === snapshot.activeOrgId);
@@ -48,21 +55,17 @@ export function Shell({
   if (!employee) throw new Error("Active employee is missing.");
   const badges = computeBadges(snapshot, organization.id);
   const activeLabel = labelFor(route);
-  const orgInitial = organization.name.trim().charAt(0).toUpperCase() || "A";
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <button
-          type="button"
-          className="sidebar-org"
-          aria-label={`${organization.name} — switch organization`}
-          title={organization.name}
-        >
-          <span className="brand-mark">{orgInitial}</span>
-          <span className="brand-name">{organization.name}</span>
-          <Icon name="chevronDown" size={12} color="var(--text-3)" />
-        </button>
+        <OrgSwitcher
+          snapshot={snapshot}
+          activeOrgId={organization.id}
+          onSelect={onSwitchOrg}
+          onNew={onNewOrg}
+          onDelete={onDeleteOrg}
+        />
         <button type="button" className="search-bar" aria-label="Search">
           <Icon name="search" size={13} />
           <span>Search</span>

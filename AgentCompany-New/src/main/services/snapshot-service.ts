@@ -34,7 +34,7 @@ export class SnapshotService {
         autoApproveHires: toBool(org.autoApproveHires),
         reviewDeliverables: toBool(org.reviewDeliverables),
       }));
-    const activeOrgId = organizations[0]?.id ?? null;
+    const activeOrgId = this.resolveActiveOrgId(organizations.map((org) => org.id));
     const agents = list<AppSnapshot["agents"][number]>(this.db, "agents", "created_at asc")
       .map((agent) => ({ ...agent, heartbeatEnabled: toBool(agent.heartbeatEnabled) }));
     const tasks = list<AppSnapshot["tasks"][number]>(this.db, "tasks", "created_at asc")
@@ -81,5 +81,13 @@ export class SnapshotService {
       migrationReports: list(this.db, "migration_reports", "created_at desc"),
       auditEvents: list<AppSnapshot["auditEvents"][number]>(this.db, "audit_events", "created_at desc").slice(0, 200),
     };
+  }
+
+  private resolveActiveOrgId(known: string[]): string | null {
+    const row = this.db.prepare("select active_org_id from app_state where id = 1")
+      .get() as { active_org_id: string | null } | undefined;
+    const stored = row?.active_org_id ?? null;
+    if (stored && known.includes(stored)) return stored;
+    return known[0] ?? null;
   }
 }

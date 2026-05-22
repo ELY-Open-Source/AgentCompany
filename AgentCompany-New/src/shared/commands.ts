@@ -6,6 +6,14 @@ import type {
   TaskStatus,
 } from "./domain";
 
+export interface SetActiveOrganizationInput {
+  orgId: string;
+}
+
+export interface DeleteOrganizationInput {
+  orgId: string;
+}
+
 export interface CreateOrganizationInput {
   organizationName: string;
   description?: string;
