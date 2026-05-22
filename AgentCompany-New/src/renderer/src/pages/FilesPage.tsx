@@ -230,9 +230,7 @@ function FilesTable({
       >
         <div>Name</div><div>Size</div><div>Owner</div><div>Modified</div><div />
       </div>
-      {files.length === 0 ? (
-        <div style={{ padding: 18, color: "var(--text-3)" }}>No files here yet.</div>
-      ) : files.map((file, index) => (
+      {files.map((file, index) => (
         <FileRow
           key={file.id}
           file={file}
@@ -256,9 +254,6 @@ function FilesGrid({
   agents: AgentRecord[];
   onTogglePin: (file: FileObjectRecord) => void;
 }) {
-  if (files.length === 0) {
-    return <div className="card" style={{ color: "var(--text-3)" }}>No files here yet.</div>;
-  }
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
       {files.map((file) => (

@@ -34,21 +34,21 @@ export function NotificationsPanel({ events, employee }: { events: AuditEventRec
     <div className="page">
       <h1 className="page-h1">Notifications</h1>
       <p className="page-sub">Real audit events flagged for you.</p>
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {visible.length === 0 ? (
-          <div style={{ padding: 18, color: "var(--text-3)" }}>Quiet inbox.</div>
-        ) : visible.map((event, index) => (
-          <div
-            key={event.id}
-            className="row"
-            style={{ padding: "12px 18px", borderBottom: index === visible.length - 1 ? "none" : "1px solid var(--border-soft)" }}
-          >
-            <Pill>{event.entityType.replaceAll("_", " ")}</Pill>
-            <span style={{ flex: 1, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.action}</span>
-            <span style={{ color: "var(--text-3)", fontSize: 12 }}>{formatRelative(event.createdAt)}</span>
-          </div>
-        ))}
-      </div>
+      {visible.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          {visible.map((event, index) => (
+            <div
+              key={event.id}
+              className="row"
+              style={{ padding: "12px 18px", borderBottom: index === visible.length - 1 ? "none" : "1px solid var(--border-soft)" }}
+            >
+              <Pill>{event.entityType.replaceAll("_", " ")}</Pill>
+              <span style={{ flex: 1, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.action}</span>
+              <span style={{ color: "var(--text-3)", fontSize: 12 }}>{formatRelative(event.createdAt)}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -59,21 +59,21 @@ export function SecurityPanel({ events }: { events: AuditEventRecord[] }) {
     <div className="page">
       <h1 className="page-h1">Security</h1>
       <p className="page-sub">Recent security-relevant audit events.</p>
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {security.length === 0 ? (
-          <div style={{ padding: 18, color: "var(--text-3)" }}>No security events recorded.</div>
-        ) : security.map((event, index) => (
-          <div
-            key={event.id}
-            className="row"
-            style={{ padding: "12px 18px", borderBottom: index === security.length - 1 ? "none" : "1px solid var(--border-soft)" }}
-          >
-            <Pill tone="amber">{event.entityType.replaceAll("_", " ")}</Pill>
-            <span style={{ flex: 1, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.action}</span>
-            <span style={{ color: "var(--text-3)", fontSize: 12 }}>{formatRelative(event.createdAt)}</span>
-          </div>
-        ))}
-      </div>
+      {security.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          {security.map((event, index) => (
+            <div
+              key={event.id}
+              className="row"
+              style={{ padding: "12px 18px", borderBottom: index === security.length - 1 ? "none" : "1px solid var(--border-soft)" }}
+            >
+              <Pill tone="amber">{event.entityType.replaceAll("_", " ")}</Pill>
+              <span style={{ flex: 1, fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.action}</span>
+              <span style={{ color: "var(--text-3)", fontSize: 12 }}>{formatRelative(event.createdAt)}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

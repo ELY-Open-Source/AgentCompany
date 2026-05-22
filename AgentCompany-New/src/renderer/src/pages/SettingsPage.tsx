@@ -47,20 +47,6 @@ const ACCOUNT_GROUP: NavSpec[] = [
   { id: "security", label: "Security" },
 ];
 
-const TAB_TITLES: Record<SettingsTab, string> = {
-  workspace: "Workspace",
-  members: "Members",
-  billing: "Billing",
-  models: "Models",
-  providers: "Providers",
-  skills: "Skills",
-  policies: "Policies",
-  migration: "Migration",
-  profile: "Profile",
-  notifications: "Notifications",
-  security: "Security",
-};
-
 export function SettingsPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const organization = requireActiveOrganization(snapshot);
@@ -93,11 +79,6 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
         <NavGroup items={ACCOUNT_GROUP} active={tab} onChange={setTab} />
       </aside>
       <div className="main" style={{ flex: 1, minWidth: 0 }}>
-        <header className="topbar" style={{ borderBottom: "1px solid var(--border-soft)" }}>
-          <span className="crumb-sub">Settings</span>
-          <span className="crumb-sep">/</span>
-          <span className="crumb">{TAB_TITLES[tab]}</span>
-        </header>
         <div className="content">
           {tab === "workspace" && <WorkspacePanel organization={organization} workspaces={workspaces} />}
           {tab === "members" && <MembersPanel employees={employees} agents={agents} />}

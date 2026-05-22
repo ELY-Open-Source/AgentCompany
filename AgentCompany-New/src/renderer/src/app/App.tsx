@@ -12,7 +12,7 @@ import { SocialPage } from "../pages/SocialPage";
 import { SettingsPage } from "../pages/SettingsPage";
 
 export function App() {
-  const { snapshot, error, actions } = useSnapshot();
+  const { snapshot, actions } = useSnapshot();
   const [route, setRoute] = useState<RouteId>("home");
 
   if (!snapshot) {
@@ -36,11 +36,6 @@ export function App() {
 
   return (
     <Shell snapshot={snapshot} route={route} setRoute={setRoute}>
-      {error && (
-        <div className="card" style={{ marginBottom: 16, color: "var(--red)" }}>
-          {error}
-        </div>
-      )}
       {page}
     </Shell>
   );

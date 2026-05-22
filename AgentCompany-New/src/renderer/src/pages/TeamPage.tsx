@@ -74,16 +74,19 @@ export function TeamPage({ snapshot, actions }: PageProps) {
           </div>
         ) : null}
         {agents.length > 0 && <OrgConnector slots={agents.length} />}
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(1, Math.min(4, agents.length))}, 1fr)`, gap: 14, marginTop: 18 }}>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 14,
+            marginTop: 18,
+            justifyContent: "center",
+          }}
+        >
           {agents.slice(0, 4).map((agent) => (
             <OrgCard key={agent.id} name={agent.name} role={agent.role} />
           ))}
         </div>
-        {agents.length > 4 && (
-          <div style={{ marginTop: 16, color: "var(--text-3)", fontSize: 12, textAlign: "center" }}>
-            + {agents.length - 4} more agents in the roster below
-          </div>
-        )}
       </section>
 
       <div className="section-label" style={{ marginBottom: 10 }}>Roster</div>
@@ -94,9 +97,7 @@ export function TeamPage({ snapshot, actions }: PageProps) {
         >
           <div>Member</div><div>Department</div><div>Model</div><div>Budget</div><div />
         </div>
-        {rosterRows.length === 0 ? (
-          <div style={{ padding: 18, color: "var(--text-3)" }}>No members for this filter.</div>
-        ) : rosterRows.map((row, index) => (
+        {rosterRows.map((row, index) => (
           <RosterRow key={row.id} row={row} last={index === rosterRows.length - 1} />
         ))}
       </div>
@@ -156,15 +157,22 @@ function OrgCard({ name, role, human = false }: { name: string; role: string; hu
 }
 
 function OrgConnector({ slots }: { slots: number }) {
-  const count = Math.max(1, Math.min(4, slots));
+  if (slots <= 1) {
+    return (
+      <svg width="100%" height="36" style={{ display: "block", marginTop: 18 }} aria-hidden="true">
+        <line x1="50%" x2="50%" y1="0" y2="36" stroke="var(--border-strong)" strokeWidth="1" />
+      </svg>
+    );
+  }
+  const count = Math.min(4, slots);
   const step = 100 / (count * 2);
   const positions = Array.from({ length: count }, (_, i) => step * (2 * i + 1));
+  const left = positions[0];
+  const right = positions[positions.length - 1];
   return (
     <svg width="100%" height="36" style={{ display: "block", marginTop: 18 }} aria-hidden="true">
       <line x1="50%" x2="50%" y1="0" y2="14" stroke="var(--border-strong)" strokeWidth="1" />
-      {count > 1 && (
-        <line x1={`${positions[0]}%`} x2={`${positions[positions.length - 1]}%`} y1="14" y2="14" stroke="var(--border-strong)" strokeWidth="1" />
-      )}
+      <line x1={`${left}%`} x2={`${right}%`} y1="14" y2="14" stroke="var(--border-strong)" strokeWidth="1" />
       {positions.map((pos) => (
         <line key={pos} x1={`${pos}%`} x2={`${pos}%`} y1="14" y2="36" stroke="var(--border-strong)" strokeWidth="1" />
       ))}

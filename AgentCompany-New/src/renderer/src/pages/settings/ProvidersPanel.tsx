@@ -50,15 +50,15 @@ export function ProvidersPanel({ orgId, providers, agents, actions }: ProvidersP
         </>
       )}
 
-      <div className="section-label" style={{ marginBottom: 10 }}>Available</div>
-      {available.length === 0 ? (
-        <div className="card" style={{ color: "var(--text-3)" }}>All providers connected.</div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 10 }}>
-          {available.map((provider) => (
-            <ProviderCard key={provider.id} provider={provider} onConnect={() => setActive(provider)} />
-          ))}
-        </div>
+      {available.length > 0 && (
+        <>
+          <div className="section-label" style={{ marginBottom: 10 }}>Available</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+            {available.map((provider) => (
+              <ProviderCard key={provider.id} provider={provider} onConnect={() => setActive(provider)} />
+            ))}
+          </div>
+        </>
       )}
 
       <Dialog title="Provider credential" open={Boolean(active)} submitLabel="Save" onClose={() => setActive(null)} onSubmit={save}>

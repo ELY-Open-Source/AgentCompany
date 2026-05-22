@@ -82,26 +82,26 @@ export function SocialPage({ snapshot, actions }: PageProps) {
         </div>
       </div>
 
-      <div className="section-label" style={{ marginBottom: 10 }}>Accounts</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 28 }}>
-        {accounts.length === 0 ? (
-          <div className="card" style={{ color: "var(--text-3)" }}>No social accounts connected.</div>
-        ) : accounts.map((account) => (
-          <AccountCard
-            key={account.id}
-            account={account}
-            authorizedName={account.authorizedEmployeeId ? employees.find((item) => item.id === account.authorizedEmployeeId)?.displayName ?? null : null}
-            onSignIn={() => void actions.run(() => window.agentCompany.launchSocialLogin({ socialAccountId: account.id }))}
-          />
-        ))}
-      </div>
+      {accounts.length > 0 && (
+        <>
+          <div className="section-label" style={{ marginBottom: 10 }}>Accounts</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 28 }}>
+            {accounts.map((account) => (
+              <AccountCard
+                key={account.id}
+                account={account}
+                authorizedName={account.authorizedEmployeeId ? employees.find((item) => item.id === account.authorizedEmployeeId)?.displayName ?? null : null}
+                onSignIn={() => void actions.run(() => window.agentCompany.launchSocialLogin({ socialAccountId: account.id }))}
+              />
+            ))}
+          </div>
+        </>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: 12, alignItems: "start" }}>
         <div>
-          <div className="section-label" style={{ marginBottom: 10 }}>Scheduled</div>
-          {scheduled.length === 0 ? (
-            <div className="card" style={{ color: "var(--text-3)", marginBottom: 24 }}>No posts scheduled.</div>
-          ) : scheduled.map((post) => (
+          {scheduled.length > 0 && <div className="section-label" style={{ marginBottom: 10 }}>Scheduled</div>}
+          {scheduled.map((post) => (
             <PostRow
               key={post.id}
               post={post}
@@ -111,11 +111,8 @@ export function SocialPage({ snapshot, actions }: PageProps) {
               onPublish={() => updatePostState(post, "published")}
             />
           ))}
-
-          <div className="section-label" style={{ margin: "24px 0 10px" }}>Drafts</div>
-          {drafts.length === 0 ? (
-            <div className="card" style={{ color: "var(--text-3)" }}>No drafts.</div>
-          ) : drafts.map((post) => (
+          {drafts.length > 0 && <div className="section-label" style={{ margin: "24px 0 10px" }}>Drafts</div>}
+          {drafts.map((post) => (
             <PostRow
               key={post.id}
               post={post}

@@ -44,13 +44,13 @@ export function MigrationPanel({
           <Button tone="primary" onClick={() => setOpen(true)}><Icon name="plus" size={13} /> Report</Button>
         </div>
       </div>
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {reports.length === 0 ? (
-          <div style={{ padding: 18, color: "var(--text-3)" }}>No migration reports yet.</div>
-        ) : reports.map((report, index) => (
-          <ReportRow key={report.id} report={report} last={index === reports.length - 1} />
-        ))}
-      </div>
+      {reports.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          {reports.map((report, index) => (
+            <ReportRow key={report.id} report={report} last={index === reports.length - 1} />
+          ))}
+        </div>
+      )}
       <Dialog title="Migration report" open={open} submitLabel="Create" onClose={() => setOpen(false)} onSubmit={submit}>
         <Field label="Source database path"><input className="input" name="sourceDatabasePath" required /></Field>
       </Dialog>

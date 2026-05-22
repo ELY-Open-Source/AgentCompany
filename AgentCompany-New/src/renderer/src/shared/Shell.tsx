@@ -122,6 +122,7 @@ export function Shell({
   );
 }
 
+
 function labelFor(route: RouteId): string {
   const spec = primaryNav.find((item) => item.id === route);
   if (spec) return spec.label;
@@ -136,11 +137,9 @@ function renderBadge(value: number | undefined): ReactNode {
 
 function computeBadges(snapshot: AppSnapshot, orgId: string): Partial<Record<RouteId, number>> {
   const tasks = snapshot.tasks.filter((item) => item.orgId === orgId);
-  const messages = snapshot.chatMessages.filter((item) => item.orgId === orgId);
   const approvals = snapshot.approvals.filter((item) => item.orgId === orgId);
   return {
     work: tasks.filter((task) => task.status !== "done").length,
-    chat: messages.length,
     approvals: approvals.filter((approval) => approval.state === "pending").length,
   };
 }

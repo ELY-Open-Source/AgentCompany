@@ -20,9 +20,7 @@ export function ModelsPanel({
         >
           <div>Provider</div><div>Model</div><div>Agents</div><div>Source</div>
         </div>
-        {rows.length === 0 ? (
-          <div style={{ padding: 18, color: "var(--text-3)" }}>No models configured.</div>
-        ) : rows.map((row, index) => (
+        {rows.map((row, index) => (
           <div
             key={`${row.providerId}-${row.model}`}
             className="table-row"

@@ -13,9 +13,7 @@ export function PoliciesPanel({ policies }: { policies: PolicyRuleRecord[] }) {
         >
           <div>Action</div><div>Effect</div><div>Risk ceiling</div><div>Subject</div>
         </div>
-        {policies.length === 0 ? (
-          <div style={{ padding: 18, color: "var(--text-3)" }}>No policies.</div>
-        ) : policies.map((policy, index) => (
+        {policies.map((policy, index) => (
           <div
             key={policy.id}
             className="table-row"

@@ -1,4 +1,4 @@
-import type { FormEvent, MutableRefObject, ReactNode } from "react";
+import type { FormEvent, MutableRefObject } from "react";
 import { AvatarStack, Icon, IconButton } from "../../shared/ui";
 import type {
   ApprovalRecord,
@@ -51,11 +51,7 @@ export function ChatConversation({
     <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "var(--panel)" }}>
       {space && <ConversationHeader space={space} participants={participants} />}
       <div style={{ flex: 1, overflow: "auto", padding: "20px 24px 8px" }}>
-        {!space ? (
-          <Empty>Select a channel to start.</Empty>
-        ) : rootMessages.length === 0 && pendingApprovals.length === 0 ? (
-          <Empty>No messages in {space.name} yet.</Empty>
-        ) : (
+        {space && (
           <ChatTimeline
             rootMessages={rootMessages}
             messagesInSpace={messagesInSpace}
@@ -119,6 +115,3 @@ function ConversationHeader({
   );
 }
 
-function Empty({ children }: { children: ReactNode }) {
-  return <div style={{ color: "var(--text-3)", padding: 12 }}>{children}</div>;
-}

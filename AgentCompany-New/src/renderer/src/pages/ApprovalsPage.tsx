@@ -77,10 +77,8 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
         <StatTile label="Declined (7d)" value={String(declined7d)} />
       </div>
 
-      <div className="section-label" style={{ marginBottom: 10 }}>Pending</div>
-      {filteredPending.length === 0 ? (
-        <div className="card" style={{ color: "var(--text-3)" }}>Nothing in the queue.</div>
-      ) : filteredPending.map((approval) => (
+      {filteredPending.length > 0 && <div className="section-label" style={{ marginBottom: 10 }}>Pending</div>}
+      {filteredPending.map((approval) => (
         <ApprovalRow
           key={approval.id}
           approval={approval}
@@ -91,20 +89,22 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
         />
       ))}
 
-      <div className="section-label" style={{ margin: "32px 0 10px" }}>Recently decided</div>
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {decided.length === 0 ? (
-          <div style={{ padding: 18, color: "var(--text-3)" }}>No decisions yet.</div>
-        ) : decided.slice(0, 24).map((approval, index) => (
-          <DecidedRow
-            key={approval.id}
-            approval={approval}
-            requester={resolveRequester(approval, employees, agents)}
-            decider={resolveDecider(approval, employees)}
-            last={index === Math.min(decided.length, 24) - 1}
-          />
-        ))}
-      </div>
+      {decided.length > 0 && (
+        <>
+          <div className="section-label" style={{ margin: "32px 0 10px" }}>Recently decided</div>
+          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+            {decided.slice(0, 24).map((approval, index) => (
+              <DecidedRow
+                key={approval.id}
+                approval={approval}
+                requester={resolveRequester(approval, employees, agents)}
+                decider={resolveDecider(approval, employees)}
+                last={index === Math.min(decided.length, 24) - 1}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

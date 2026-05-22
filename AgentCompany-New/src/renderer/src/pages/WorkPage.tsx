@@ -120,9 +120,6 @@ function BoardView({
                 onAdvance={() => onAdvance(task)}
               />
             ))}
-            {columnTasks.length === 0 && (
-              <div style={{ color: "var(--text-3)", fontSize: 12, padding: "12px 6px" }}>Empty.</div>
-            )}
           </div>
         );
       })}
@@ -139,9 +136,7 @@ function ListView({ tasks, agents, projects }: { tasks: TaskRecord[]; agents: Ag
       >
         <div>Title</div><div>Status</div><div>Priority</div><div>Assignee</div><div />
       </div>
-      {tasks.length === 0 ? (
-        <div style={{ padding: 18, color: "var(--text-3)" }}>No tasks.</div>
-      ) : tasks.map((task, index) => {
+      {tasks.map((task, index) => {
         const assignee = agents.find((agent) => agent.id === task.assigneeAgentId) ?? null;
         const project = projects.find((p) => p.id === task.projectId) ?? null;
         const last = index === tasks.length - 1;
@@ -182,9 +177,7 @@ function TimelineView({ tasks, goals }: { tasks: TaskRecord[]; goals: GoalRecord
   return (
     <div className="card" style={{ padding: 18 }}>
       <div className="section-label">By goal</div>
-      {goals.length === 0 ? (
-        <div style={{ color: "var(--text-3)" }}>No goals defined.</div>
-      ) : goals.map((goal) => {
+      {goals.map((goal) => {
         const linked = tasks.filter((task) => task.goalId === goal.id);
         const done = linked.filter((task) => task.status === TASK_STATUS.DONE).length;
         const pct = linked.length === 0 ? 0 : Math.round((done / linked.length) * 100);

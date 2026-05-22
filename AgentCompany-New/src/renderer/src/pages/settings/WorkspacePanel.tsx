@@ -30,22 +30,22 @@ export function WorkspacePanel({
         </div>
       </div>
 
-      <div className="card" style={{ padding: 18 }}>
-        <div className="section-label" style={{ marginBottom: 12 }}>Workspaces</div>
-        {workspaces.length === 0 ? (
-          <div style={{ color: "var(--text-3)" }}>No workspaces.</div>
-        ) : workspaces.map((workspace) => (
-          <div key={workspace.id} className="row" style={{ padding: "8px 0", borderBottom: "1px solid var(--border-soft)" }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 540 }}>{workspace.name}</div>
-              <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspace.localPath}</div>
+      {workspaces.length > 0 && (
+        <div className="card" style={{ padding: 18 }}>
+          <div className="section-label" style={{ marginBottom: 12 }}>Workspaces</div>
+          {workspaces.map((workspace) => (
+            <div key={workspace.id} className="row" style={{ padding: "8px 0", borderBottom: "1px solid var(--border-soft)" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 540 }}>{workspace.name}</div>
+                <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspace.localPath}</div>
+              </div>
+              <div style={{ marginLeft: "auto" }}>
+                {workspace.isPrimary ? <Pill tone="violet">Primary</Pill> : <Pill>Secondary</Pill>}
+              </div>
             </div>
-            <div style={{ marginLeft: "auto" }}>
-              {workspace.isPrimary ? <Pill tone="violet">Primary</Pill> : <Pill>Secondary</Pill>}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -31,9 +31,7 @@ export function BillingPanel({
         >
           <div>Provider</div><div>Requests</div><div>Errors</div><div>Agents</div>
         </div>
-        {providers.length === 0 ? (
-          <div style={{ padding: 18, color: "var(--text-3)" }}>No providers configured.</div>
-        ) : providers.map((provider, index) => {
+        {providers.map((provider, index) => {
           const requests = monthRequests.filter((request) => request.providerId === provider.id);
           const errors = requests.filter((request) => request.state === "failed").length;
           const boundAgents = agents.filter((agent) => agent.modelProviderId === provider.id).length;
@@ -46,7 +44,9 @@ export function BillingPanel({
             >
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 540 }}>{provider.label}</div>
-                <div style={{ fontSize: 11, color: "var(--text-3)" }}>{provider.model ?? "no default model"}</div>
+                {provider.model && (
+                  <div style={{ fontSize: 11, color: "var(--text-3)" }}>{provider.model}</div>
+                )}
               </div>
               <div className="num mono">{requests.length}</div>
               <div>{errors > 0 ? <Pill tone="amber">{errors}</Pill> : <span className="num mono" style={{ color: "var(--text-3)" }}>0</span>}</div>

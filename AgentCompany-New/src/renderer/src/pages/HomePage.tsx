@@ -98,28 +98,24 @@ function TodayCard({
         <span className="card-label">Today</span>
         <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-3)" }}>{formatted}</span>
       </div>
-      {rows.length === 0 ? (
-        <EmptyLine>No items on today's agenda.</EmptyLine>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {rows.map((task) => {
-            const owner = agents.find((agent) => agent.id === task.assigneeAgentId);
-            const ownerName = owner?.name ?? employee.displayName;
-            const time = formatTime(task.updatedAt);
-            const requiresApproval = approvals.some((approval) => approval.title === task.title);
-            return (
-              <div key={task.id} className="row" style={{ gap: 12 }}>
-                <span className="num mono" style={{ width: 36, fontSize: 12, color: "var(--text-3)" }}>{time}</span>
-                <div style={{ flex: 1, minWidth: 0, fontSize: 13 }}>
-                  <span style={{ fontWeight: 500 }}>{task.title}</span>
-                  <span style={{ color: "var(--text-3)", marginLeft: 6 }}>· {ownerName}</span>
-                </div>
-                {requiresApproval && <Pill tone="amber">You</Pill>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {rows.map((task) => {
+          const owner = agents.find((agent) => agent.id === task.assigneeAgentId);
+          const ownerName = owner?.name ?? employee.displayName;
+          const time = formatTime(task.updatedAt);
+          const requiresApproval = approvals.some((approval) => approval.title === task.title);
+          return (
+            <div key={task.id} className="row" style={{ gap: 12 }}>
+              <span className="num mono" style={{ width: 36, fontSize: 12, color: "var(--text-3)" }}>{time}</span>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 13 }}>
+                <span style={{ fontWeight: 500 }}>{task.title}</span>
+                <span style={{ color: "var(--text-3)", marginLeft: 6 }}>· {ownerName}</span>
               </div>
-            );
-          })}
-        </div>
-      )}
+              {requiresApproval && <Pill tone="amber">You</Pill>}
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -141,27 +137,23 @@ function WaitingCard({
         <span className="card-label">Waiting on you</span>
         {approvals.length > 0 && <span style={{ marginLeft: "auto" }}><Pill tone="amber">{approvals.length}</Pill></span>}
       </div>
-      {approvals.length === 0 ? (
-        <EmptyLine>Nothing pending.</EmptyLine>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {approvals.slice(0, 2).map((approval) => {
-            const from = resolveRequester(approval, employees, agents);
-            return (
-              <div key={approval.id} style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 8 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>{approval.title}</div>
-                <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 10 }}>
-                  {approval.kind} · {approval.risk} risk · from {from}
-                </div>
-                <div className="row" style={{ gap: 6 }}>
-                  <Button tone="primary" size="small" onClick={() => onApprove(approval.id)}>Approve</Button>
-                  <Button size="small">Open</Button>
-                </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {approvals.slice(0, 2).map((approval) => {
+          const from = resolveRequester(approval, employees, agents);
+          return (
+            <div key={approval.id} style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>{approval.title}</div>
+              <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 10 }}>
+                {approval.kind} · {approval.risk} risk · from {from}
               </div>
-            );
-          })}
-        </div>
-      )}
+              <div className="row" style={{ gap: 6 }}>
+                <Button tone="primary" size="small" onClick={() => onApprove(approval.id)}>Approve</Button>
+                <Button size="small">Open</Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -188,23 +180,19 @@ function SpendCard({
       <div style={{ marginTop: 14, height: 4, background: "var(--panel-3)", borderRadius: 2, overflow: "hidden" }}>
         <div style={{ width: `${fillPct}%`, height: "100%", background: "var(--text-1)" }} />
       </div>
-      {connected.length === 0 ? (
-        <EmptyLine style={{ marginTop: 14 }}>No providers connected.</EmptyLine>
-      ) : (
-        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-          {connected.slice(0, 3).map((provider) => {
-            const usingAgents = agents.filter((agent) => agent.modelProviderId === provider.id).length;
-            return (
-              <div key={provider.id} className="row" style={{ fontSize: 12 }}>
-                <span style={{ color: "var(--text-2)" }}>{provider.label}</span>
-                <span className="num mono" style={{ marginLeft: "auto", color: "var(--text-1)", fontWeight: 500 }}>
-                  {usingAgents} {usingAgents === 1 ? "agent" : "agents"}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+        {connected.slice(0, 3).map((provider) => {
+          const usingAgents = agents.filter((agent) => agent.modelProviderId === provider.id).length;
+          return (
+            <div key={provider.id} className="row" style={{ fontSize: 12 }}>
+              <span style={{ color: "var(--text-2)" }}>{provider.label}</span>
+              <span className="num mono" style={{ marginLeft: "auto", color: "var(--text-1)", fontWeight: 500 }}>
+                {usingAgents} {usingAgents === 1 ? "agent" : "agents"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -217,9 +205,7 @@ function InProgressCard({ tasks, agents }: { tasks: TaskRecord[]; agents: AgentR
         <span className="card-label">In progress</span>
         <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-3)" }}>{tasks.length} active</span>
       </div>
-      {rows.length === 0 ? (
-        <EmptyLine>No tasks in progress.</EmptyLine>
-      ) : rows.map((task, index) => {
+      {rows.map((task, index) => {
         const owner = agents.find((agent) => agent.id === task.assigneeAgentId);
         const last = index === rows.length - 1;
         return (
@@ -290,12 +276,6 @@ function GoalCard({
         <div style={{ width: `${progress?.percent ?? 0}%`, height: "100%", background: "#fff" }} />
       </div>
     </section>
-  );
-}
-
-function EmptyLine({ children, style }: { children: string; style?: React.CSSProperties }) {
-  return (
-    <div style={{ color: "var(--text-3)", fontSize: 12.5, padding: "4px 0", ...style }}>{children}</div>
   );
 }
 

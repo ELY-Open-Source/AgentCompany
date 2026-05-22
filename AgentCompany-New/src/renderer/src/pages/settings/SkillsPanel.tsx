@@ -58,9 +58,7 @@ export function SkillsPanel({ orgId, skills, revisions, bindings, agents, action
         >
           <div>Skill</div><div>Version</div><div>Bindings</div><div>Bind to agent</div>
         </div>
-        {skills.length === 0 ? (
-          <div style={{ padding: 18, color: "var(--text-3)" }}>No skills imported yet.</div>
-        ) : skills.map((skill, index) => {
+        {skills.map((skill, index) => {
           const last = index === skills.length - 1;
           const latest = revisions.find((revision) => revision.skillId === skill.id);
           const skillBindings = bindings.filter((binding) => binding.skillId === skill.id && binding.enabled);
@@ -76,9 +74,7 @@ export function SkillsPanel({ orgId, skills, revisions, bindings, agents, action
               </div>
               <Pill>{latest ? latest.versionSemver : "—"}</Pill>
               <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-                {skillBindings.length === 0 ? (
-                  <span style={{ color: "var(--text-3)", fontSize: 12 }}>Not bound</span>
-                ) : skillBindings.map((binding) => (
+                {skillBindings.map((binding) => (
                   <Pill key={binding.id}>{agentName(binding.agentId, agents)}</Pill>
                 ))}
               </div>
@@ -107,7 +103,7 @@ function BindAgent({
   onBind: (agentId: string) => void;
   disabled: boolean;
 }) {
-  if (agents.length === 0) return <span style={{ color: "var(--text-3)", fontSize: 12 }}>No agents available</span>;
+  if (agents.length === 0) return null;
   return (
     <select
       className="input"

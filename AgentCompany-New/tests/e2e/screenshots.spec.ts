@@ -1,0 +1,74 @@
+import { _electron as electron, expect, test, type Page } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
+
+test("captures every page for visual review", async () => {
+  const profileDir = join(tmpdir(), `agentcompany-new-shots-${randomUUID()}`);
+  mkdirSync(profileDir, { recursive: true });
+  const app = await electron.launch({
+    args: [resolve("out/main/index.js")],
+    env: { ...process.env, AGENTCOMPANY_NEW_PROFILE_DIR: profileDir },
+  });
+  const outDir = resolve("test-results/screenshots");
+  mkdirSync(outDir, { recursive: true });
+  try {
+    const page = await app.firstWindow();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.screenshot({ path: join(outDir, "00-onboarding-welcome.png"), fullPage: false });
+
+    await page.getByRole("button", { name: "Get started" }).click();
+    await page.screenshot({ path: join(outDir, "01-onboarding-provider.png"), fullPage: false });
+    await page.getByLabel("API key").fill("local-dev-key");
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    await page.getByLabel("Company name").fill("OrbitOps");
+    await page.getByLabel("Your name").fill("Yu Chen");
+    await page.getByLabel("Description").fill("Multi-agent operations platform.");
+    await page.screenshot({ path: join(outDir, "02-onboarding-company.png"), fullPage: false });
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    await page.screenshot({ path: join(outDir, "03-onboarding-mode.png"), fullPage: false });
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    await page.getByLabel("Goal").fill("Ship the v1 launch by July.");
+    await page.getByLabel("Acceptance criteria").fill("Pricing model + landing page + 3 pilot signups.");
+    await page.screenshot({ path: join(outDir, "04-onboarding-goal.png"), fullPage: false });
+    await page.getByRole("button", { name: "Launch" }).click();
+
+    await expect(page.getByRole("button", { name: /OrbitOps/ })).toBeVisible();
+    await snap(page, outDir, "10-home");
+
+    await go(page, "Team", outDir, "11-team");
+    await go(page, "Work", outDir, "12-work");
+    await go(page, "Messages", outDir, "13-messages");
+    await go(page, "Files", outDir, "14-files");
+    await go(page, "Approvals", outDir, "15-approvals");
+    await go(page, "Social", outDir, "16-social");
+    await go(page, "Settings", outDir, "17-settings");
+
+    for (const tab of ["Workspace", "Members", "Billing", "Models", "Skills", "Policies", "Migration", "Profile", "Notifications", "Security"]) {
+      await page.getByRole("button", { name: "Settings" }).click();
+      await page.getByRole("button", { name: tab }).first().click();
+      await snap(page, outDir, `settings-${tab.toLowerCase()}`);
+    }
+
+    await page.setViewportSize({ width: 980, height: 700 });
+    await go(page, "Home", outDir, "20-narrow-home");
+    await go(page, "Messages", outDir, "21-narrow-messages");
+    await go(page, "Files", outDir, "22-narrow-files");
+  } finally {
+    await app.close();
+  }
+});
+
+async function go(page: Page, nav: string, dir: string, name: string): Promise<void> {
+  await page.getByRole("button", { name: nav }).click();
+  await snap(page, dir, name);
+}
+
+async function snap(page: Page, dir: string, name: string): Promise<void> {
+  await page.waitForTimeout(120);
+  await page.screenshot({ path: join(dir, `${name}.png`), fullPage: false });
+}
