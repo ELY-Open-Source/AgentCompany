@@ -1,7 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
+import { BrowserWindow, session } from "electron";
 import type { CreateProviderResponseInput, SaveProviderCredentialInput } from "../../shared/commands";
 import { PROVIDER_AUTH_TYPE, PROVIDER_REQUEST_STATE } from "../../shared/domain";
+import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { SecretVault } from "./secret-vault";
@@ -50,6 +52,48 @@ export class ProviderService {
       actorType: "system",
       actorId: null,
       action: "credential_saved",
+      payload: { providerKey: provider.provider_key, authType: provider.auth_type },
+    });
+  }
+
+  launchSignInWindow(orgId: string, providerId: string): void {
+    const provider = this.db.prepare(`
+      select id, provider_key, label, auth_type
+      from providers
+      where id = ? and org_id = ?
+    `).get(providerId, orgId) as { id: string; provider_key: string; label: string; auth_type: string } | undefined;
+    if (!provider) throw new Error("Provider was not found.");
+    const catalogEntry = PROVIDER_CATALOG.find((entry) => entry.key === provider.provider_key);
+    if (!catalogEntry) throw new Error(`Provider catalog entry missing for ${provider.provider_key}.`);
+    if (!catalogEntry.signInUrl) throw new Error(`${provider.label} does not support browser sign-in.`);
+
+    const partition = `persist:agentcompany-provider-${provider.id}`;
+    const providerSession = session.fromPartition(partition);
+    providerSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+    providerSession.setPermissionCheckHandler(() => false);
+
+    const win = new BrowserWindow({
+      width: 1100,
+      height: 760,
+      title: provider.label,
+      webPreferences: {
+        session: providerSession,
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true,
+        webSecurity: true,
+      },
+    });
+    win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    win.loadURL(catalogEntry.signInUrl);
+
+    this.audit.record({
+      orgId,
+      entityType: "provider",
+      entityId: provider.id,
+      actorType: "employee",
+      actorId: null,
+      action: "sign_in_window_opened",
       payload: { providerKey: provider.provider_key, authType: provider.auth_type },
     });
   }

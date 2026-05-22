@@ -13,6 +13,7 @@ export const IPC_CHANNELS = {
   sendMessage: "agentcompany:send-message",
   markChatSpaceRead: "agentcompany:mark-chat-space-read",
   saveProviderCredential: "agentcompany:save-provider-credential",
+  launchProviderSignIn: "agentcompany:launch-provider-sign-in",
   createProviderResponse: "agentcompany:create-provider-response",
   importSkillDirectory: "agentcompany:import-skill-directory",
   bindSkill: "agentcompany:bind-skill",

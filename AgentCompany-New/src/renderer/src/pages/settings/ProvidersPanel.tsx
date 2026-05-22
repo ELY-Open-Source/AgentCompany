@@ -1,32 +1,60 @@
 import { useState, type FormEvent } from "react";
 import { Button, Field, Pill } from "../../shared/ui";
 import { Dialog } from "../../shared/Dialog";
-import type { AgentRecord, ProviderRecord } from "../../../../shared/domain";
+import type {
+  AgentRecord,
+  ProviderCatalogEntry,
+  ProviderRecord,
+} from "../../../../shared/domain";
 import { ProviderLogo } from "./ProviderLogo";
 import type { SnapshotActions } from "../../app/useSnapshot";
 
 interface ProvidersPanelProps {
   orgId: string;
   providers: ProviderRecord[];
+  catalog: ProviderCatalogEntry[];
   agents: AgentRecord[];
   actions: SnapshotActions;
 }
 
-export function ProvidersPanel({ orgId, providers, agents, actions }: ProvidersPanelProps) {
+interface CloudFields {
+  baseUrl: string;
+  region: string;
+  projectId: string;
+  deployment: string;
+}
+
+const CLOUD_DEFAULTS: CloudFields = { baseUrl: "", region: "", projectId: "", deployment: "" };
+
+export function ProvidersPanel({ orgId, providers, catalog, agents, actions }: ProvidersPanelProps) {
   const [active, setActive] = useState<ProviderRecord | null>(null);
+  const [signInLaunched, setSignInLaunched] = useState(false);
   const connected = providers.filter((provider) => provider.enabled);
   const available = providers.filter((provider) => !provider.enabled);
+  const activeCatalogEntry = active ? catalog.find((entry) => entry.key === active.providerKey) ?? null : null;
+
+  const close = () => {
+    setActive(null);
+    setSignInLaunched(false);
+  };
 
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!active) return;
+    if (!active || !activeCatalogEntry) return;
     const form = new FormData(event.currentTarget);
+    const secret = composeSecret(activeCatalogEntry, form);
     void actions.run(() => window.agentCompany.saveProviderCredential({
       orgId,
       providerId: active.id,
-      secret: String(form.get("secret") ?? "").trim(),
+      secret,
       model: String(form.get("model") ?? "").trim() || null,
-    })).then((result) => { if (result) setActive(null); });
+    })).then((result) => { if (result) close(); });
+  };
+
+  const launchSignIn = () => {
+    if (!active) return;
+    setSignInLaunched(true);
+    void actions.run(() => window.agentCompany.launchProviderSignIn({ orgId, providerId: active.id }));
   };
 
   return (
@@ -61,14 +89,124 @@ export function ProvidersPanel({ orgId, providers, agents, actions }: ProvidersP
         </>
       )}
 
-      <Dialog title="Provider credential" open={Boolean(active)} submitLabel="Save" onClose={() => setActive(null)} onSubmit={save}>
-        <Field label="Provider"><input className="input" value={active?.label ?? ""} readOnly /></Field>
-        <Field label="Auth type"><input className="input" value={active ? readableAuth(active.authType) : ""} readOnly /></Field>
-        <Field label="Secret"><input className="input" name="secret" type="password" required autoFocus /></Field>
-        <Field label="Default model"><input className="input" name="model" defaultValue={active?.model ?? ""} placeholder="Optional" /></Field>
+      <Dialog
+        title={active ? `Connect ${active.label}` : "Connect provider"}
+        open={Boolean(active)}
+        submitLabel="Save"
+        onClose={close}
+        onSubmit={save}
+      >
+        {active && activeCatalogEntry && (
+          <ProviderConnectFields
+            provider={active}
+            entry={activeCatalogEntry}
+            signInLaunched={signInLaunched}
+            onLaunchSignIn={launchSignIn}
+          />
+        )}
       </Dialog>
     </div>
   );
+}
+
+function ProviderConnectFields({
+  provider,
+  entry,
+  signInLaunched,
+  onLaunchSignIn,
+}: {
+  provider: ProviderRecord;
+  entry: ProviderCatalogEntry;
+  signInLaunched: boolean;
+  onLaunchSignIn: () => void;
+}) {
+  if (entry.authType === "api_key") {
+    return (
+      <>
+        <p style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
+        <Field label="API key"><input className="input" name="secret" type="password" required autoFocus /></Field>
+        <Field label="Default model"><input className="input" name="model" defaultValue={provider.model ?? entry.defaultModel ?? ""} /></Field>
+      </>
+    );
+  }
+  if (entry.authType === "oauth_pkce" || entry.authType === "account_subscription") {
+    return (
+      <>
+        <p style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
+        <div className="row" style={{ gap: 8 }}>
+          <Button tone={signInLaunched ? "ghost" : "primary"} onClick={onLaunchSignIn}>
+            {signInLaunched ? "Re-open sign-in window" : `Open ${entry.label} sign-in`}
+          </Button>
+          {entry.signInUrl && <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>{entry.signInUrl}</span>}
+        </div>
+        <Field label="Access token"><input className="input" name="secret" type="password" required /></Field>
+        <Field label="Default model"><input className="input" name="model" defaultValue={provider.model ?? entry.defaultModel ?? ""} /></Field>
+      </>
+    );
+  }
+  return <CloudFieldsForm entry={entry} provider={provider} />;
+}
+
+function CloudFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; provider: ProviderRecord }) {
+  const [state, setState] = useState<CloudFields>(CLOUD_DEFAULTS);
+  const update = (patch: Partial<CloudFields>) => setState((current) => ({ ...current, ...patch }));
+  return (
+    <>
+      <p style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>{entry.credentialHelp}</p>
+      <Field label="Base URL">
+        <input
+          className="input"
+          name="cloudBaseUrl"
+          value={state.baseUrl}
+          onChange={(event) => update({ baseUrl: event.target.value })}
+          placeholder="https://"
+        />
+      </Field>
+      <Field label="Region">
+        <input
+          className="input"
+          name="cloudRegion"
+          value={state.region}
+          onChange={(event) => update({ region: event.target.value })}
+        />
+      </Field>
+      <Field label="Project / resource">
+        <input
+          className="input"
+          name="cloudProject"
+          value={state.projectId}
+          onChange={(event) => update({ projectId: event.target.value })}
+        />
+      </Field>
+      <Field label="Deployment / model id">
+        <input
+          className="input"
+          name="cloudDeployment"
+          value={state.deployment}
+          onChange={(event) => update({ deployment: event.target.value })}
+        />
+      </Field>
+      <Field label="Credential">
+        <input className="input" name="secret" type="password" required autoFocus />
+      </Field>
+      <Field label="Default model">
+        <input className="input" name="model" defaultValue={provider.model ?? entry.defaultModel ?? ""} />
+      </Field>
+    </>
+  );
+}
+
+function composeSecret(entry: ProviderCatalogEntry, form: FormData): string {
+  const raw = String(form.get("secret") ?? "").trim();
+  if (entry.authType !== "cloud") return raw;
+  const payload = {
+    baseUrl: String(form.get("cloudBaseUrl") ?? "").trim(),
+    region: String(form.get("cloudRegion") ?? "").trim(),
+    projectId: String(form.get("cloudProject") ?? "").trim(),
+    deployment: String(form.get("cloudDeployment") ?? "").trim(),
+    secret: raw,
+  };
+  return JSON.stringify(payload);
 }
 
 function ProviderRow({

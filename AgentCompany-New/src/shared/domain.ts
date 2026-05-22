@@ -279,6 +279,8 @@ export interface ProviderCatalogEntry {
   authType: ProviderAuthType;
   defaultModel: string | null;
   capabilityTags: string[];
+  signInUrl: string | null;
+  credentialHelp: string;
 }
 
 export interface ProviderRequestRecord {

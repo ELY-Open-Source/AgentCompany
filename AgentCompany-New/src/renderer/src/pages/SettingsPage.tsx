@@ -84,7 +84,15 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
           {tab === "members" && <MembersPanel employees={employees} agents={agents} />}
           {tab === "billing" && <BillingPanel agents={agents} providers={providers} providerRequests={providerRequests} />}
           {tab === "models" && <ModelsPanel providers={providers} agents={agents} />}
-          {tab === "providers" && <ProvidersPanel orgId={orgId} providers={providers} agents={agents} actions={actions} />}
+          {tab === "providers" && (
+            <ProvidersPanel
+              orgId={orgId}
+              providers={providers}
+              catalog={snapshot.providerCatalog}
+              agents={agents}
+              actions={actions}
+            />
+          )}
           {tab === "skills" && (
             <SkillsPanel
               orgId={orgId}

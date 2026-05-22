@@ -18,6 +18,7 @@ import type {
   DeleteOrganizationInput,
   ImportFileInput,
   ImportSkillDirectoryInput,
+  LaunchProviderSignInInput,
   LaunchSocialLoginInput,
   ResolveAgentSkillsInput,
   SaveProviderCredentialInput,
@@ -47,6 +48,7 @@ export interface DesktopApi {
   sendMessage(input: SendMessageInput): Promise<DesktopResult<AppSnapshot>>;
   markChatSpaceRead(input: MarkChatSpaceReadInput): Promise<DesktopResult<AppSnapshot>>;
   saveProviderCredential(input: SaveProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;
+  launchProviderSignIn(input: LaunchProviderSignInInput): Promise<DesktopResult<null>>;
   createProviderResponse(input: CreateProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
   importSkillDirectory(input: ImportSkillDirectoryInput): Promise<DesktopResult<AppSnapshot>>;
   bindSkill(input: BindSkillInput): Promise<DesktopResult<AppSnapshot>>;
