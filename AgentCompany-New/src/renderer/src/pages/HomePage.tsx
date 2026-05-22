@@ -102,7 +102,7 @@ function TodayCard({
         {rows.map((task) => {
           const owner = agents.find((agent) => agent.id === task.assigneeAgentId);
           const ownerName = owner?.name ?? employee.displayName;
-          const time = formatTime(task.updatedAt);
+          const time = agendaTime(task, date);
           const requiresApproval = approvals.some((approval) => approval.title === task.title);
           return (
             <div key={task.id} className="row" style={{ gap: 12 }}>
@@ -277,6 +277,17 @@ function GoalCard({
       </div>
     </section>
   );
+}
+
+function agendaTime(task: TaskRecord, reference: Date): string {
+  const updated = new Date(task.updatedAt);
+  if (Number.isNaN(updated.getTime())) return "—";
+  const sameDay =
+    updated.getFullYear() === reference.getFullYear() &&
+    updated.getMonth() === reference.getMonth() &&
+    updated.getDate() === reference.getDate();
+  if (!sameDay) return "—";
+  return formatTime(task.updatedAt);
 }
 
 function collectAgendaTasks(tasks: TaskRecord[], reference: Date): TaskRecord[] {

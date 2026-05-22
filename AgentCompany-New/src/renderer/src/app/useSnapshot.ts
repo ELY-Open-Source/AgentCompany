@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AppSnapshot } from "../../../shared/domain";
 import type { DesktopResult } from "../../../shared/result";
 
@@ -35,5 +35,6 @@ export function useSnapshot(): {
     });
   }, [load]);
 
-  return { snapshot, actions: { run, reload: load } };
+  const actions = useMemo<SnapshotActions>(() => ({ run, reload: load }), [run, load]);
+  return { snapshot, actions };
 }

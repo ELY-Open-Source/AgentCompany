@@ -47,20 +47,20 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     : fallbackSpaceId;
   const activeSpace = spaces.find((space) => space.id === activeSpaceId) ?? null;
   const latestActiveMessageId = useMemo(() => {
-    if (!activeSpace) return null;
-    const inSpace = messagesAll.filter((message) => message.spaceId === activeSpace.id);
+    if (!activeSpaceId) return null;
+    const inSpace = messagesAll.filter((message) => message.spaceId === activeSpaceId);
     if (inSpace.length === 0) return null;
     return inSpace[inSpace.length - 1].id;
-  }, [messagesAll, activeSpace]);
+  }, [messagesAll, activeSpaceId]);
 
   useEffect(() => {
-    if (!activeSpace || !latestActiveMessageId) return;
+    if (!activeSpaceId || !latestActiveMessageId) return;
     void actions.run(() => window.agentCompany.markChatSpaceRead({
       orgId,
       employeeId: employee.id,
-      spaceId: activeSpace.id,
+      spaceId: activeSpaceId,
     }));
-  }, [activeSpace, latestActiveMessageId, orgId, employee.id, actions]);
+  }, [activeSpaceId, latestActiveMessageId, orgId, employee.id, actions]);
 
   const messagesInSpace = useMemo(
     () => (activeSpace ? messagesAll.filter((m) => m.spaceId === activeSpace.id) : []),
