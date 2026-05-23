@@ -211,6 +211,19 @@ export interface CreateMigrationReportInput {
   sourceDatabasePath: string;
 }
 
+export interface CreateRollbackSnapshotInput {
+  orgId: string;
+  migrationReportId: string;
+  createdByEmployeeId: string;
+}
+
+export interface SetRollbackSnapshotActiveInput {
+  orgId: string;
+  snapshotId: string;
+  active: boolean;
+  employeeId: string;
+}
+
 export interface SearchInput {
   orgId: string;
   employeeId: string;

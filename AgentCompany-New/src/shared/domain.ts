@@ -5,6 +5,7 @@ import type { AccessDecisionRecord, EmployeeIdentityRecord, RoleGrantRecord, Ser
 import type { ApprovalAssignmentRecord, ApprovalRoutingRuleRecord, HiringPolicyRecord, OrgDepartmentRecord } from "./org-governance-domain";
 import type { ChaosDrillRecord, ChaosDrillRunRecord, FeatureFlagRecord, OperationalEventRecord, SloTargetRecord } from "./operations-domain";
 import type { ProviderDataPolicy, ProviderExecutionMode } from "./provider-policy-domain";
+import type { RollbackSnapshotRecord } from "./rollback-domain";
 import type { EvalCaseRecord, EvalRunRecord, EvalSuiteRecord, PrBotGateRecord, SdlcReviewAgentRecord, SdlcReviewRunRecord } from "./sdlc-domain";
 export { BOARD_INTERVENTION_ACTION, BOARD_INTERVENTION_MODE, CHAT_THREAD_BOARD_STATE, type BoardInterventionAction, type BoardInterventionMode, type BoardInterventionRecord, type ChatThreadBoardState } from "./board-domain";
 export type { AuditReplayRunRecord } from "./audit-domain";
@@ -13,6 +14,7 @@ export { ACCESS_DECISION, IDENTITY_SOURCE, ROLE_KEY, type AccessDecision, type A
 export { ROUTE_TO_TYPE, type ApprovalAssignmentRecord, type ApprovalRoutingRuleRecord, type HiringPolicyRecord, type OrgDepartmentRecord, type RouteToType } from "./org-governance-domain";
 export { CHAOS_DRILL_SCENARIO, CHAOS_DRILL_STATE, FEATURE_FLAG_KEY, SLO_SIGNAL_KEY, type ChaosDrillRecord, type ChaosDrillRunRecord, type ChaosDrillScenario, type ChaosDrillState, type FeatureFlagKey, type FeatureFlagRecord, type OperationalEventRecord, type SloSignalKey, type SloTargetRecord } from "./operations-domain";
 export { PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, type ProviderDataPolicy, type ProviderExecutionMode } from "./provider-policy-domain";
+export type { RollbackSnapshotRecord } from "./rollback-domain";
 export { EVAL_SUITE_KEY, PR_BOT_GATE_KEY, SDLC_REVIEW_AGENT_KEY, SDLC_REVIEW_TARGET_TYPE, SDLC_RUN_STATE, type EvalCaseRecord, type EvalRunRecord, type EvalSuiteKey, type EvalSuiteRecord, type PrBotGateKey, type PrBotGateRecord, type SdlcReviewAgentKey, type SdlcReviewAgentRecord, type SdlcReviewRunRecord, type SdlcReviewTargetType, type SdlcRunState } from "./sdlc-domain";
 export { SEARCH_ENTITY_TYPES, type SearchEntityType, type SearchResultRecord } from "./search-domain";
 export const TASK_STATUS = { BACKLOG: "backlog", IN_PROGRESS: "in_progress", REVIEW: "review", DONE: "done" } as const;
@@ -474,6 +476,7 @@ export interface AppSnapshot {
   browserActions: BrowserActionRecord[];
   policyRules: PolicyRuleRecord[];
   migrationReports: MigrationReportRecord[];
+  rollbackSnapshots: RollbackSnapshotRecord[];
   complianceExports: ComplianceExportRecord[]; legalHolds: LegalHoldRecord[]; retentionFreezes: RetentionFreezeRecord[];
   employeeIdentities: EmployeeIdentityRecord[]; serviceIdentities: ServiceIdentityRecord[]; roleGrants: RoleGrantRecord[]; accessDecisions: AccessDecisionRecord[];
   orgDepartments: OrgDepartmentRecord[]; hiringPolicies: HiringPolicyRecord[]; approvalRoutingRules: ApprovalRoutingRuleRecord[]; approvalAssignments: ApprovalAssignmentRecord[];

@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 
 test("onboards, hires, and creates work in the Electron shell", async () => {
   const profileDir = join(tmpdir(), `agentcompany-new-e2e-${randomUUID()}`);
@@ -133,11 +134,31 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await expect(page.getByText("Replay runs", { exact: true })).toBeVisible();
     await expect(page.getByText(/\d+ events ·/).first()).toBeVisible();
 
+    const legacyPath = createLegacyDatabase();
+    await page.getByRole("button", { name: "Migration" }).click();
+    await page.getByRole("button", { name: "Report" }).click();
+    await page.getByLabel("Source database path").fill(legacyPath);
+    await page.locator(".modal").getByRole("button", { name: "Create" }).click();
+    await expect(page.getByText("organizations: 1").first()).toBeVisible();
+    await page.getByRole("button", { name: "Snapshot" }).click();
+    await expect(page.getByText("Rollback snapshots", { exact: true })).toBeVisible();
+    await expect(page.getByText(/\d+ workspaces/).first()).toBeVisible();
+    await page.getByRole("button", { name: "Set", exact: true }).click();
+    await expect(page.getByRole("button", { name: "active", exact: true })).toBeDisabled();
+
     await verifyPagesDoNotOverflow(page);
   } finally {
     await app.close();
   }
 });
+
+function createLegacyDatabase(): string {
+  const legacyPath = join(tmpdir(), `agentcompany-legacy-${randomUUID()}.db`);
+  const legacy = new DatabaseSync(legacyPath);
+  legacy.exec("create table organizations(id text primary key); insert into organizations(id) values ('legacy-org');");
+  legacy.close();
+  return legacyPath;
+}
 
 async function verifyPagesDoNotOverflow(page: Page): Promise<void> {
   for (const size of [{ width: 1280, height: 860 }, { width: 980, height: 700 }]) {

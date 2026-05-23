@@ -19,6 +19,7 @@ import { IdentityAccessService } from "../services/identity-access-service";
 import { OperationsService } from "../services/operations-service";
 import { SdlcService } from "../services/sdlc-service";
 import { AuditService } from "../services/audit-service";
+import { RollbackService } from "../services/rollback-service";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -42,6 +43,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const operations = new OperationsService(deps.connection.db);
   const sdlc = new SdlcService(deps.connection.db);
   const audit = new AuditService(deps.connection.db);
+  const rollback = new RollbackService(deps.connection.db);
   const onboarding = new OnboardingService({
     db: deps.connection.db,
     saveProviderCredential: (input) => providers.saveCredential(input),
@@ -159,6 +161,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.createMigrationReport, (_event, input) => mutate(() => migrations.createReport(input)));
+  ipcMain.handle(IPC_CHANNELS.createRollbackSnapshot, (_event, input) => mutate(() => rollback.createSnapshot(input)));
+  ipcMain.handle(IPC_CHANNELS.setRollbackSnapshotActive, (_event, input) => mutate(() => rollback.setActive(input)));
   ipcMain.handle(IPC_CHANNELS.setFeatureFlag, (_event, input) => mutate(() => operations.setFeatureFlag(input)));
   ipcMain.handle(IPC_CHANNELS.runChaosDrill, (_event, input) => mutate(() => operations.runChaosDrill(input)));
   ipcMain.handle(IPC_CHANNELS.runSdlcReview, (_event, input) => mutate(() => sdlc.runReview(input)));

@@ -153,6 +153,7 @@ describe("migration service", () => {
       create table retention_freezes(id text primary key, org_id text, created_by_employee_id text);
       create table search_documents(entity_id text);
       create table audit_replay_runs(id text primary key, org_id text, thread_id text, created_by_employee_id text);
+      create table rollback_snapshots(id text primary key, org_id text, migration_report_id text, created_by_employee_id text);
       create table audit_events(id text primary key, org_id text);
       insert into organizations(id) values ('org-1');
       insert into employees(id, org_id) values ('emp-1', 'org-1');
@@ -216,6 +217,7 @@ describe("migration service", () => {
       insert into retention_freezes(id, org_id, created_by_employee_id) values ('freeze-1', 'org-1', 'emp-1');
       insert into search_documents(entity_id) values ('task-1');
       insert into audit_replay_runs(id, org_id, thread_id, created_by_employee_id) values ('replay-1', 'org-1', 'thread-1', 'emp-1');
+      insert into rollback_snapshots(id, org_id, migration_report_id, created_by_employee_id) values ('rollback-1', 'org-1', 'migration-1', 'emp-1');
       insert into audit_events(id, org_id) values ('audit-1', 'org-1');
     `);
     let orgId = "";
@@ -244,6 +246,7 @@ describe("migration service", () => {
     expect(body.tableCounts.provider_usage_windows).toBe(1);
     expect(body.tableCounts.compliance_exports).toBe(1);
     expect(body.tableCounts.audit_replay_runs).toBe(1);
+    expect(body.tableCounts.rollback_snapshots).toBe(1);
     expect(body.tableCounts.search_documents).toBe(1);
     expect(body.tableChecksums.audit_events).toHaveLength(64);
     expect(body.idMaps.skill_runtime_snapshots).toEqual(["snapshot-1"]);
@@ -257,6 +260,7 @@ describe("migration service", () => {
     expect(body.idMaps.board_interventions).toEqual(["bdi-1"]);
     expect(body.idMaps.retention_freezes).toEqual(["freeze-1"]);
     expect(body.idMaps.audit_replay_runs).toEqual(["replay-1"]);
+    expect(body.idMaps.rollback_snapshots).toEqual(["rollback-1"]);
     expect(body.idMaps.provider_usage_windows).toEqual(["usage-1"]);
     connection.close();
   });

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Button, Field, Icon, Pill } from "../../shared/ui";
 import { Dialog } from "../../shared/Dialog";
-import type { MigrationReportRecord } from "../../../../shared/domain";
+import type { MigrationReportRecord, RollbackSnapshotRecord } from "../../../../shared/domain";
 import type { SnapshotActions } from "../../app/useSnapshot";
 import { formatRelative } from "../types";
 
@@ -15,11 +15,15 @@ interface ParsedReport {
 
 export function MigrationPanel({
   orgId,
+  employeeId,
   reports,
+  rollbackSnapshots,
   actions,
 }: {
   orgId: string;
+  employeeId: string;
   reports: MigrationReportRecord[];
+  rollbackSnapshots: RollbackSnapshotRecord[];
   actions: SnapshotActions;
 }) {
   const [open, setOpen] = useState(false);
@@ -47,10 +51,33 @@ export function MigrationPanel({
       {reports.length > 0 && (
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
           {reports.map((report, index) => (
-            <ReportRow key={report.id} report={report} last={index === reports.length - 1} />
+            <ReportRow
+              key={report.id}
+              orgId={orgId}
+              employeeId={employeeId}
+              report={report}
+              actions={actions}
+              last={index === reports.length - 1}
+            />
           ))}
         </div>
       )}
+      <section className="card" style={{ marginTop: 16, padding: 0, overflow: "hidden" }}>
+        <div className="row" style={{ padding: "14px 16px", borderBottom: "1px solid var(--border-soft)" }}>
+          <Icon name="refresh" size={14} color="var(--text-3)" />
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Rollback snapshots</div>
+        </div>
+        {rollbackSnapshots.length > 0 ? rollbackSnapshots.map((snapshot, index) => (
+          <RollbackRow
+            key={snapshot.id}
+            orgId={orgId}
+            employeeId={employeeId}
+            snapshot={snapshot}
+            actions={actions}
+            last={index === rollbackSnapshots.length - 1}
+          />
+        )) : <div style={{ padding: 16 }}><Pill>0 rollback snapshots</Pill></div>}
+      </section>
       <Dialog title="Migration report" open={open} submitLabel="Create" onClose={() => setOpen(false)} onSubmit={submit}>
         <Field label="Source database path"><input className="input" name="sourceDatabasePath" required /></Field>
       </Dialog>
@@ -58,13 +85,25 @@ export function MigrationPanel({
   );
 }
 
-function ReportRow({ report, last }: { report: MigrationReportRecord; last: boolean }) {
+function ReportRow({
+  orgId,
+  employeeId,
+  report,
+  actions,
+  last,
+}: {
+  orgId: string;
+  employeeId: string;
+  report: MigrationReportRecord;
+  actions: SnapshotActions;
+  last: boolean;
+}) {
   const body = parseReport(report.reportJson);
   const idCount = Object.values(body.idMaps).reduce((sum, ids) => sum + ids.length, 0);
   return (
     <div
       className="table-row"
-      style={{ gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)", borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
+      style={{ gridTemplateColumns: "minmax(0, 1.35fr) minmax(0, 1fr) 120px 88px 96px", borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
     >
       <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={report.sourceRef}>{report.sourceRef}</div>
@@ -80,6 +119,50 @@ function ReportRow({ report, last }: { report: MigrationReportRecord; last: bool
         <Pill>{idCount} ids</Pill>
         {body.failures.length > 0 ? <Pill tone="amber">{body.failures.length} failures</Pill> : null}
       </div>
+      <Button
+        size="small"
+        disabled={!body.rollbackPack}
+        onClick={() => void actions.run(() => window.agentCompany.createRollbackSnapshot({ orgId, migrationReportId: report.id, createdByEmployeeId: employeeId }))}
+      >
+        Snapshot
+      </Button>
+    </div>
+  );
+}
+
+function RollbackRow({
+  orgId,
+  employeeId,
+  snapshot,
+  actions,
+  last,
+}: {
+  orgId: string;
+  employeeId: string;
+  snapshot: RollbackSnapshotRecord;
+  actions: SnapshotActions;
+  last: boolean;
+}) {
+  const manifest = JSON.parse(snapshot.workspaceManifestJson) as { workspaces: unknown[]; files: unknown[] };
+  return (
+    <div
+      className="table-row"
+      style={{ gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, .8fr) 96px 96px 72px", borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={snapshot.sourceDatabasePath}>{snapshot.sourceDatabasePath}</div>
+        <div style={{ fontSize: 11, color: "var(--text-3)" }}>{formatRelative(snapshot.createdAt)}</div>
+      </div>
+      <Pill>{snapshot.sourceDatabaseSha256.slice(0, 12)}</Pill>
+      <Pill>{manifest.workspaces.length} workspaces</Pill>
+      <Pill>{manifest.files.length} files</Pill>
+      <Button
+        size="small"
+        disabled={snapshot.active}
+        onClick={() => void actions.run(() => window.agentCompany.setRollbackSnapshotActive({ orgId, snapshotId: snapshot.id, active: true, employeeId }))}
+      >
+        {snapshot.active ? "active" : "Set"}
+      </Button>
     </div>
   );
 }

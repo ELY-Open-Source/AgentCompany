@@ -101,6 +101,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
   const evalRuns = useMemo(() => snapshot.evalRuns.filter((item) => item.orgId === orgId), [snapshot.evalRuns, orgId]);
   const prBotGates = useMemo(() => snapshot.prBotGates.filter((item) => item.orgId === orgId), [snapshot.prBotGates, orgId]);
   const auditReplayRuns = useMemo(() => snapshot.auditReplayRuns.filter((item) => item.orgId === orgId), [snapshot.auditReplayRuns, orgId]);
+  const rollbackSnapshots = useMemo(() => snapshot.rollbackSnapshots.filter((item) => item.orgId === orgId), [snapshot.rollbackSnapshots, orgId]);
 
   return (
     <div className="split-main" style={{ height: "calc(100vh - 44px)", margin: "-28px -32px -40px" }}>
@@ -198,7 +199,15 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               actions={actions}
             />
           )}
-          {tab === "migration" && <MigrationPanel orgId={orgId} reports={migrationReports} actions={actions} />}
+          {tab === "migration" && (
+            <MigrationPanel
+              orgId={orgId}
+              employeeId={employee.id}
+              reports={migrationReports}
+              rollbackSnapshots={rollbackSnapshots}
+              actions={actions}
+            />
+          )}
           {tab === "profile" && <ProfilePanel employee={employee} />}
           {tab === "notifications" && <NotificationsPanel events={auditEvents} employee={employee} />}
           {tab === "security" && <SecurityPanel events={auditEvents} />}

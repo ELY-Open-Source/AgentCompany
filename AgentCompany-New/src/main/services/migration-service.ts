@@ -71,6 +71,7 @@ const LEGACY_TABLES = [
   "retention_freezes",
   "search_documents",
   "audit_replay_runs",
+  "rollback_snapshots",
   "audit_events",
 ];
 
@@ -226,6 +227,9 @@ const RELATION_CHECKS: RelationCheck[] = [
   { table: "audit_replay_runs", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
   { table: "audit_replay_runs", column: "thread_id", referencedTable: "chat_threads", referencedColumn: "id", reason: "dangling_thread_id" },
   { table: "audit_replay_runs", column: "created_by_employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_creator_employee_id" },
+  { table: "rollback_snapshots", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "rollback_snapshots", column: "migration_report_id", referencedTable: "migration_reports", referencedColumn: "id", reason: "dangling_migration_report_id" },
+  { table: "rollback_snapshots", column: "created_by_employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_creator_employee_id" },
   { table: "audit_events", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
 ];
 

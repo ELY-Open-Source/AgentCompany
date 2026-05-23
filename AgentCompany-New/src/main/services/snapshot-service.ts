@@ -63,6 +63,8 @@ export class SnapshotService {
       .map((agent) => ({ ...agent, enabled: toBool(agent.enabled) }));
     const prBotGates = list<AppSnapshot["prBotGates"][number]>(this.db, "pr_bot_gates", "key asc")
       .map((gate) => ({ ...gate, enabled: toBool(gate.enabled) }));
+    const rollbackSnapshots = list<AppSnapshot["rollbackSnapshots"][number]>(this.db, "rollback_snapshots", "created_at desc")
+      .map((snapshot) => ({ ...snapshot, active: toBool(snapshot.active) }));
 
     return {
       activeOrgId,
@@ -99,6 +101,7 @@ export class SnapshotService {
       browserActions: list(this.db, "browser_actions", "created_at desc"),
       policyRules: list(this.db, "policy_rules", "created_at asc"),
       migrationReports: list(this.db, "migration_reports", "created_at desc"),
+      rollbackSnapshots,
       complianceExports: list(this.db, "compliance_exports", "created_at desc"),
       legalHolds,
       retentionFreezes,

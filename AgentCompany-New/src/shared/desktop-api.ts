@@ -16,6 +16,7 @@ import type {
   CreateOrganizationInput,
   CreateProviderResponseInput,
   CreateRetentionFreezeInput,
+  CreateRollbackSnapshotInput,
   CreateScheduledPostInput,
   CreateSocialAccountInput,
   CreateTaskInput,
@@ -38,6 +39,7 @@ import type {
   SetFeatureFlagInput,
   SetLegalHoldStateInput,
   SetPrBotGateInput,
+  SetRollbackSnapshotActiveInput,
   SetRetentionFreezeStateInput,
   SetScheduledPostStateInput,
   SyncEmployeeIdentityInput,
@@ -81,6 +83,8 @@ export interface DesktopApi {
   importFile(input: ImportFileInput): Promise<DesktopResult<AppSnapshot>>;
   setFilePinned(input: SetFilePinnedInput): Promise<DesktopResult<AppSnapshot>>;
   createMigrationReport(input: CreateMigrationReportInput): Promise<DesktopResult<AppSnapshot>>;
+  createRollbackSnapshot(input: CreateRollbackSnapshotInput): Promise<DesktopResult<AppSnapshot>>;
+  setRollbackSnapshotActive(input: SetRollbackSnapshotActiveInput): Promise<DesktopResult<AppSnapshot>>;
   setFeatureFlag(input: SetFeatureFlagInput): Promise<DesktopResult<AppSnapshot>>;
   runChaosDrill(input: RunChaosDrillInput): Promise<DesktopResult<AppSnapshot>>;
   runSdlcReview(input: RunSdlcReviewInput): Promise<DesktopResult<AppSnapshot>>;
