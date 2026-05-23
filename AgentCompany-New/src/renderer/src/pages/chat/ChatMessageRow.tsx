@@ -57,9 +57,10 @@ export function ChatMessageRow({
             {messageFiles.map((file) => <AttachmentCard key={file.id} file={file} />)}
           </div>
         )}
-        {replyCount > 0 && onOpenThread && (
+        {onOpenThread && (
           <button
             type="button"
+            aria-label="Open thread"
             onClick={onOpenThread}
             style={{
               marginTop: 8,
@@ -75,7 +76,7 @@ export function ChatMessageRow({
               border: 0,
             }}
           >
-            <Icon name="chat" size={11} /> {replyCount} {replyCount === 1 ? "reply" : "replies"} →
+            <Icon name="chat" size={11} /> {replyCount > 0 ? `${replyCount} ${replyCount === 1 ? "reply" : "replies"}` : "Thread"} →
           </button>
         )}
       </div>
