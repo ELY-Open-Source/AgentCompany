@@ -23,10 +23,11 @@
     "verify": "pnpm verify:ci",
     "verify:ci": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:contract && pnpm test:integration && pnpm test:replay-eval && pnpm test:e2e",
     "package:dir": "pnpm build && electron-builder --dir --publish never",
-    "package:win": "pnpm build && electron-builder --win nsis --x64 --publish never",
-    "package:mac:arm": "pnpm build && electron-builder --mac dmg --arm64 --publish never",
-    "package:mac:x64": "pnpm build && electron-builder --mac dmg --x64 --publish never",
-    "package:linux": "pnpm build && electron-builder --linux AppImage deb --x64 --publish never"
+    "package:win": "pnpm build && electron-builder --win --x64 --publish never",
+    "package:mac:arm": "pnpm build && electron-builder --mac --arm64 --publish never",
+    "package:mac:x64": "pnpm build && electron-builder --mac --x64 --publish never",
+    "package:mac": "pnpm build && electron-builder --mac --x64 --arm64 --publish never",
+    "package:linux": "pnpm build && electron-builder --linux --x64 --publish never"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
