@@ -244,7 +244,11 @@ export class SdlcService {
     const missing = catalogKeys.filter((key) => !adapterKeys.includes(key));
     const runtimeContractReady = PROVIDER_CATALOG.every((provider) => {
       const adapter = providerAdapters[provider.key];
-      return typeof adapter.listModels === "function" && typeof adapter.getRateLimitState === "function";
+      return typeof adapter.authorize === "function"
+        && typeof adapter.refresh === "function"
+        && typeof adapter.revoke === "function"
+        && typeof adapter.listModels === "function"
+        && typeof adapter.getRateLimitState === "function";
     });
     const schemaVersion = count(this.db, "select coalesce(max(version), 0) as count from schema_migrations");
     const rateLimitRegistry = count(this.db, `

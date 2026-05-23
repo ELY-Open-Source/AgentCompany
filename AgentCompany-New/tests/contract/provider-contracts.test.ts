@@ -90,6 +90,17 @@ describe("provider contracts", () => {
     }
   });
 
+  test("exposes auth lifecycle adapter contracts", async () => {
+    for (const provider of PROVIDER_CATALOG) {
+      const adapter = providerAdapters[provider.key];
+      const secret = PROVIDER_SECRET_SAMPLES[provider.key];
+      const profile = adapter.parseAuthProfile(secret);
+      await expect(adapter.authorize({ secret })).resolves.toEqual({ authProfile: profile });
+      await expect(adapter.revoke({ authProfile: profile })).resolves.toBeUndefined();
+      await expect(adapter.refresh({ authProfile: profile })).rejects.toThrow("does not support token refresh");
+    }
+  });
+
   test("runs the seeded contract eval suite", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);

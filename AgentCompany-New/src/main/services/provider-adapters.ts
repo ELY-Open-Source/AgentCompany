@@ -1,6 +1,14 @@
 import { PROVIDER_AUTH_TYPE, type ProviderAuthType } from "../../shared/domain";
 import { listProviderModels, type ProviderModelEntry } from "../../shared/provider-models";
 import type { ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
+import {
+  authorizeWithParser,
+  refreshUnsupported,
+  revokeLocalProfile,
+  type ProviderAuthorizeHandler,
+  type ProviderRefreshHandler,
+  type ProviderRevokeHandler,
+} from "./provider-auth-lifecycle";
 import { parseProviderRateLimitHeaders } from "./provider-rate-limit-registry";
 
 export interface ProviderExecutionInput {
@@ -42,6 +50,9 @@ export interface ProviderRateLimitState {
 export interface ProviderAdapter {
   providerKey: string;
   authType: ProviderAuthType;
+  authorize: ProviderAuthorizeHandler;
+  refresh: ProviderRefreshHandler;
+  revoke: ProviderRevokeHandler;
   parseAuthProfile(secret: string): ProviderAuthProfile;
   listModels(ctx: ProviderContext): Promise<ProviderModelEntry[]>;
   getRateLimitState(ctx: ProviderContext): Promise<ProviderRateLimitState | null>;
@@ -86,6 +97,9 @@ export const providerAdapters: ProviderAdapterRegistry = {
   openai: {
     providerKey: "openai",
     authType: PROVIDER_AUTH_TYPE.API_KEY,
+    authorize: authorizeWithParser(parseApiKey),
+    refresh: refreshUnsupported("OpenAI API key"),
+    revoke: revokeLocalProfile((profile) => { requireApiKeyProfile(profile, "OpenAI"); }),
     parseAuthProfile: parseApiKey,
     listModels: () => listStaticModels("openai"),
     getRateLimitState: providerRateLimitUnknown,
@@ -107,6 +121,9 @@ export const providerAdapters: ProviderAdapterRegistry = {
   anthropic: {
     providerKey: "anthropic",
     authType: PROVIDER_AUTH_TYPE.API_KEY,
+    authorize: authorizeWithParser(parseApiKey),
+    refresh: refreshUnsupported("Anthropic API key"),
+    revoke: revokeLocalProfile((profile) => { requireApiKeyProfile(profile, "Anthropic"); }),
     parseAuthProfile: parseApiKey,
     listModels: () => listStaticModels("anthropic"),
     getRateLimitState: providerRateLimitUnknown,
@@ -152,6 +169,9 @@ export const providerAdapters: ProviderAdapterRegistry = {
   "azure-openai": {
     providerKey: "azure-openai",
     authType: PROVIDER_AUTH_TYPE.CLOUD,
+    authorize: authorizeWithParser(parseAzureProfile),
+    refresh: refreshUnsupported("Azure OpenAI cloud credential"),
+    revoke: revokeLocalProfile((profile) => { requireAzureProfile(profile); }),
     parseAuthProfile: parseAzureProfile,
     listModels: () => listStaticModels("azure-openai"),
     getRateLimitState: providerRateLimitUnknown,
@@ -164,6 +184,9 @@ export const providerAdapters: ProviderAdapterRegistry = {
   "aws-bedrock": {
     providerKey: "aws-bedrock",
     authType: PROVIDER_AUTH_TYPE.CLOUD,
+    authorize: authorizeWithParser(parseBedrockProfile),
+    refresh: refreshUnsupported("AWS Bedrock cloud credential"),
+    revoke: revokeLocalProfile((profile) => { requireBedrockProfile(profile); }),
     parseAuthProfile: parseBedrockProfile,
     listModels: () => listStaticModels("aws-bedrock"),
     getRateLimitState: providerRateLimitUnknown,
@@ -175,6 +198,9 @@ export const providerAdapters: ProviderAdapterRegistry = {
   "vertex-ai": {
     providerKey: "vertex-ai",
     authType: PROVIDER_AUTH_TYPE.CLOUD,
+    authorize: authorizeWithParser(parseVertexProfile),
+    refresh: refreshUnsupported("Vertex AI cloud credential"),
+    revoke: revokeLocalProfile((profile) => { requireVertexProfile(profile); }),
     parseAuthProfile: parseVertexProfile,
     listModels: () => listStaticModels("vertex-ai"),
     getRateLimitState: providerRateLimitUnknown,
@@ -271,6 +297,9 @@ function openAiCompatibleAdapter({
   return {
     providerKey,
     authType: PROVIDER_AUTH_TYPE.API_KEY,
+    authorize: authorizeWithParser(parseApiKey),
+    refresh: refreshUnsupported(`${label} API key`),
+    revoke: revokeLocalProfile((profile) => { requireApiKeyProfile(profile, label); }),
     parseAuthProfile: parseApiKey,
     listModels: () => listStaticModels(providerKey),
     getRateLimitState: providerRateLimitUnknown,
@@ -301,10 +330,15 @@ async function checkOpenAiHealth(authProfile: ProviderAuthProfile, healthUrl: st
 }
 
 function browserTokenAdapter(providerKey: string, authType: ProviderAuthType): ProviderAdapter {
+  const parseAuthProfile = authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION ? parseAccountToken : parseAccessToken;
+  const assertProfile = authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION ? requireAccountTokenProfile : requireAccessTokenProfile;
   return {
     providerKey,
     authType,
-    parseAuthProfile: authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION ? parseAccountToken : parseAccessToken,
+    authorize: authorizeWithParser(parseAuthProfile),
+    refresh: refreshUnsupported(`${providerKey} token`),
+    revoke: revokeLocalProfile((profile) => { assertProfile(profile); }),
+    parseAuthProfile,
     listModels: () => listStaticModels(providerKey),
     getRateLimitState: providerRateLimitUnknown,
     checkHealth: async (input) => {
