@@ -4,6 +4,7 @@ import { BrowserWindow, session } from "electron";
 import type { CreateProviderResponseInput, SaveProviderCredentialInput, UpdateProviderPolicyInput } from "../../shared/commands";
 import { FEATURE_FLAG_KEY, PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, SLO_SIGNAL_KEY, type ProviderAuthType, type ProviderExecutionMode } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
+import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { AuthBrokerService, type ProviderSecretVault } from "./auth-broker-service";
@@ -271,7 +272,7 @@ export class ProviderService {
     if (executionMode === PROVIDER_EXECUTION_MODE.BACKGROUND && provider.background_enabled !== 1) {
       throw new Error("Background execution is disabled for this provider policy.");
     }
-    const window = currentMonthlyWindow();
+    const window = currentProviderUsageWindow();
     const usage = this.db.prepare(`
       select request_count
       from provider_usage_windows
@@ -341,7 +342,7 @@ export class ProviderService {
   }
 
   private recordUsage(orgId: string, providerId: string, inputCharCount: number, outputCharCount: number): void {
-    const window = currentMonthlyWindow();
+    const window = currentProviderUsageWindow();
     const now = new Date().toISOString();
     this.db.prepare(`
       insert into provider_usage_windows(
@@ -373,11 +374,4 @@ interface ProviderRow {
 
 function hashPrompt(prompt: string): string {
   return createHash("sha256").update(prompt).digest("hex");
-}
-
-function currentMonthlyWindow(): { start: string; end: string } {
-  const now = new Date();
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-  return { start: start.toISOString(), end: end.toISOString() };
 }

@@ -4,8 +4,8 @@ import { Dialog } from "../../shared/Dialog";
 import type {
   AgentRecord,
   ProviderCatalogEntry,
+  ProviderRateLimitStateRecord,
   ProviderRecord,
-  ProviderRequestRecord,
 } from "../../../../shared/domain";
 import { PROVIDER_DATA_POLICY } from "../../../../shared/domain";
 import { ProviderLogo } from "./ProviderLogo";
@@ -16,7 +16,7 @@ interface ProvidersPanelProps {
   providers: ProviderRecord[];
   catalog: ProviderCatalogEntry[];
   agents: AgentRecord[];
-  providerRequests: ProviderRequestRecord[];
+  providerRateLimits: ProviderRateLimitStateRecord[];
   actions: SnapshotActions;
 }
 
@@ -29,7 +29,7 @@ interface CloudFields {
 
 const CLOUD_DEFAULTS: CloudFields = { baseUrl: "", region: "", projectId: "", deployment: "" };
 
-export function ProvidersPanel({ orgId, providers, catalog, agents, providerRequests, actions }: ProvidersPanelProps) {
+export function ProvidersPanel({ orgId, providers, catalog, agents, providerRateLimits, actions }: ProvidersPanelProps) {
   const [active, setActive] = useState<ProviderRecord | null>(null);
   const [signInLaunched, setSignInLaunched] = useState(false);
   const connected = providers.filter((provider) => provider.enabled);
@@ -82,7 +82,7 @@ export function ProvidersPanel({ orgId, providers, catalog, agents, providerRequ
           <ProviderPolicyTable
             orgId={orgId}
             providers={connected}
-            providerRequests={providerRequests}
+            providerRateLimits={providerRateLimits}
             actions={actions}
           />
         </>
@@ -122,12 +122,12 @@ export function ProvidersPanel({ orgId, providers, catalog, agents, providerRequ
 function ProviderPolicyTable({
   orgId,
   providers,
-  providerRequests,
+  providerRateLimits,
   actions,
 }: {
   orgId: string;
   providers: ProviderRecord[];
-  providerRequests: ProviderRequestRecord[];
+  providerRateLimits: ProviderRateLimitStateRecord[];
   actions: SnapshotActions;
 }) {
   return (
@@ -140,16 +140,19 @@ function ProviderPolicyTable({
         >
           <div>Provider</div><div>Data policy</div><div>Background</div><div>Monthly limit</div><div>Usage</div>
         </div>
-        {providers.map((provider, index) => (
-          <ProviderPolicyRow
-            key={`${provider.id}:${provider.dataPolicy}:${provider.backgroundEnabled}:${provider.monthlyRequestLimit}`}
-            orgId={orgId}
-            provider={provider}
-            requests={providerRequests.filter((request) => request.providerId === provider.id && inCurrentUtcMonth(request.createdAt))}
-            last={index === providers.length - 1}
-            actions={actions}
-          />
-        ))}
+        {providers.map((provider, index) => {
+          const rateLimit = requireProviderRateLimit(provider, providerRateLimits);
+          return (
+            <ProviderPolicyRow
+              key={`${provider.id}:${provider.dataPolicy}:${provider.backgroundEnabled}:${provider.monthlyRequestLimit}`}
+              orgId={orgId}
+              provider={provider}
+              rateLimit={rateLimit}
+              last={index === providers.length - 1}
+              actions={actions}
+            />
+          );
+        })}
       </div>
     </>
   );
@@ -158,13 +161,13 @@ function ProviderPolicyTable({
 function ProviderPolicyRow({
   orgId,
   provider,
-  requests,
+  rateLimit,
   last,
   actions,
 }: {
   orgId: string;
   provider: ProviderRecord;
-  requests: ProviderRequestRecord[];
+  rateLimit: ProviderRateLimitStateRecord;
   last: boolean;
   actions: SnapshotActions;
 }) {
@@ -228,7 +231,7 @@ function ProviderPolicyRow({
         onChange={(event) => setMonthlyRequestLimit(event.target.value)}
       />
       <div>
-        <div className="num mono">{requests.length} / {provider.monthlyRequestLimit}</div>
+        <div className="num mono">{rateLimit.requestCount} / {rateLimit.monthlyRequestLimit}</div>
         <button type="button" className="button small" aria-label={`Save ${provider.label} policy`} onClick={savePolicy}>
           Save
         </button>
@@ -439,8 +442,11 @@ function readableAuth(authType: ProviderRecord["authType"]): string {
   return authType;
 }
 
-function inCurrentUtcMonth(iso: string): boolean {
-  const value = new Date(iso);
-  const now = new Date();
-  return value.getUTCFullYear() === now.getUTCFullYear() && value.getUTCMonth() === now.getUTCMonth();
+function requireProviderRateLimit(
+  provider: ProviderRecord,
+  rateLimits: ProviderRateLimitStateRecord[],
+): ProviderRateLimitStateRecord {
+  const rateLimit = rateLimits.find((item) => item.providerId === provider.id);
+  if (!rateLimit) throw new Error(`Provider rate limit state missing for ${provider.id}.`);
+  return rateLimit;
 }

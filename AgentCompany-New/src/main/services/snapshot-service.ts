@@ -1,8 +1,13 @@
 import type { DatabaseSync, StatementSync } from "node:sqlite";
 import type { AppSnapshot } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
+import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
 
 type Row = Record<string, unknown>;
+type ProviderUsageWindowRow = Pick<
+  AppSnapshot["providerRateLimits"][number],
+  "orgId" | "providerId" | "windowStart" | "windowEnd" | "requestCount" | "inputCharCount" | "outputCharCount"
+>;
 
 function all<T>(statement: StatementSync): T[] {
   return statement.all() as T[];
@@ -45,6 +50,8 @@ export class SnapshotService {
       .map((provider) => ({ ...provider, enabled: toBool(provider.enabled), backgroundEnabled: toBool(provider.backgroundEnabled) }));
     const providerAuthProfiles = list<AppSnapshot["providerAuthProfiles"][number]>(this.db, "provider_auth_profiles", "created_at desc")
       .map((profile) => ({ ...profile, active: toBool(profile.active) }));
+    const providerUsageWindows = list<ProviderUsageWindowRow>(this.db, "provider_usage_windows", "window_start desc");
+    const providerRateLimits = buildProviderRateLimits(providers, providerUsageWindows);
     const skillBindings = list<AppSnapshot["skillBindings"][number]>(this.db, "skill_bindings", "priority asc")
       .map((binding) => ({ ...binding, enabled: toBool(binding.enabled) }));
     const files = list<AppSnapshot["files"][number]>(this.db, "file_objects", "created_at desc")
@@ -95,6 +102,7 @@ export class SnapshotService {
       providerAuthProfiles,
       providerCatalog: PROVIDER_CATALOG,
       providerRequests: list(this.db, "provider_requests", "created_at desc"),
+      providerRateLimits,
       skillDefinitions: list(this.db, "skill_definitions", "created_at asc"),
       skillRevisions: list(this.db, "skill_revisions", "published_at desc"),
       skillBindings,
@@ -139,4 +147,31 @@ export class SnapshotService {
     if (stored && known.includes(stored)) return stored;
     return known[0] ?? null;
   }
+}
+
+function buildProviderRateLimits(
+  providers: AppSnapshot["providers"],
+  providerUsageWindows: ProviderUsageWindowRow[],
+): AppSnapshot["providerRateLimits"] {
+  const window = currentProviderUsageWindow();
+  return providers.map((provider) => {
+    const usage = providerUsageWindows.find((item) => item.providerId === provider.id && item.windowStart === window.start);
+    const requestCount = usage?.requestCount ?? 0;
+    const inputCharCount = usage?.inputCharCount ?? 0;
+    const outputCharCount = usage?.outputCharCount ?? 0;
+    const remainingRequestCount = Math.max(0, provider.monthlyRequestLimit - requestCount);
+    return {
+      orgId: provider.orgId,
+      providerId: provider.id,
+      providerKey: provider.providerKey,
+      windowStart: usage?.windowStart ?? window.start,
+      windowEnd: usage?.windowEnd ?? window.end,
+      monthlyRequestLimit: provider.monthlyRequestLimit,
+      requestCount,
+      inputCharCount,
+      outputCharCount,
+      remainingRequestCount,
+      exhausted: remainingRequestCount === 0,
+    };
+  });
 }

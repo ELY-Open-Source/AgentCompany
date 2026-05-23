@@ -65,6 +65,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
   const employees = useMemo(() => snapshot.employees.filter((item) => item.orgId === orgId), [snapshot.employees, orgId]);
   const agents = useMemo(() => snapshot.agents.filter((item) => item.orgId === orgId), [snapshot.agents, orgId]);
   const providers = useMemo(() => snapshot.providers.filter((item) => item.orgId === orgId), [snapshot.providers, orgId]);
+  const providerRateLimits = useMemo(() => snapshot.providerRateLimits.filter((item) => item.orgId === orgId), [snapshot.providerRateLimits, orgId]);
   const skills = useMemo(() => snapshot.skillDefinitions.filter((item) => item.orgId === orgId), [snapshot.skillDefinitions, orgId]);
   const skillRevisions = useMemo(() => {
     const skillIds = new Set(skills.map((skill) => skill.id));
@@ -133,7 +134,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               providers={providers}
               catalog={snapshot.providerCatalog}
               agents={agents}
-              providerRequests={providerRequests}
+              providerRateLimits={providerRateLimits}
               actions={actions}
             />
           )}

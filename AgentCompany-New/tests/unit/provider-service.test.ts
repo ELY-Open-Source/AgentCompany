@@ -212,12 +212,22 @@ describe("provider service", () => {
       where org_id = ? and provider_id = ?
     `).get(orgId, openAiProviderId) as { request_count: number; input_char_count: number; output_char_count: number };
     expect(usage).toEqual({ request_count: 1, input_char_count: 16, output_char_count: 25 });
-    expect(snapshot.load().providerRequests[0]).toMatchObject({
+    const state = snapshot.load();
+    expect(state.providerRequests[0]).toMatchObject({
       providerId: openAiProviderId,
       inputCharCount: 16,
       outputCharCount: 25,
       executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND,
       policyDecision: "allowed:standard",
+    });
+    expect(state.providerRateLimits.find((item) => item.providerId === openAiProviderId)).toMatchObject({
+      providerId: openAiProviderId,
+      monthlyRequestLimit: 1,
+      requestCount: 1,
+      inputCharCount: 16,
+      outputCharCount: 25,
+      remainingRequestCount: 0,
+      exhausted: true,
     });
     connection.close();
   });
