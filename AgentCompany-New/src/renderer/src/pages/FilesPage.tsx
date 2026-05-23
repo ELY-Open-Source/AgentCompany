@@ -3,6 +3,7 @@ import { Avatar, Button, Icon, IconButton, Pill, Segmented } from "../shared/ui"
 import type {
   AgentRecord,
   EmployeeRecord,
+  FileAccessGrantRecord,
   FileObjectRecord,
 } from "../../../shared/domain";
 import type { PageProps } from "./types";
@@ -30,6 +31,10 @@ export function FilesPage({ snapshot, actions }: PageProps) {
   const employees = snapshot.employees.filter((employee) => employee.orgId === orgId);
   const agents = snapshot.agents.filter((agent) => agent.orgId === orgId);
   const files = useMemo(() => snapshot.files.filter((file) => file.orgId === orgId), [snapshot.files, orgId]);
+  const fileAccessGrants = useMemo(
+    () => snapshot.fileAccessGrants.filter((grant) => grant.orgId === orgId),
+    [snapshot.fileAccessGrants, orgId],
+  );
   const [section, setSection] = useState<Section>({ kind: "all" });
   const [view, setView] = useState<ViewMode>("list");
 
@@ -83,6 +88,7 @@ export function FilesPage({ snapshot, actions }: PageProps) {
                   key={file.id}
                   file={file}
                   ownerName={resolveOwnerName(file, employees, agents)}
+                  grantCount={fileGrantCount(file.id, fileAccessGrants)}
                   onUnpin={() => void actions.run(() => window.agentCompany.setFilePinned({ orgId, fileId: file.id, pinned: false }))}
                 />
               ))}
@@ -98,6 +104,7 @@ export function FilesPage({ snapshot, actions }: PageProps) {
         {view === "list" ? (
           <FilesTable
             files={visibleFiles}
+            grants={fileAccessGrants}
             employees={employees}
             agents={agents}
             onTogglePin={(file) => void actions.run(() => window.agentCompany.setFilePinned({ orgId, fileId: file.id, pinned: !file.pinned }))}
@@ -105,6 +112,7 @@ export function FilesPage({ snapshot, actions }: PageProps) {
         ) : (
           <FilesGrid
             files={visibleFiles}
+            grants={fileAccessGrants}
             employees={employees}
             agents={agents}
             onTogglePin={(file) => void actions.run(() => window.agentCompany.setFilePinned({ orgId, fileId: file.id, pinned: !file.pinned }))}
@@ -213,11 +221,13 @@ function TreeItem({
 
 function FilesTable({
   files,
+  grants,
   employees,
   agents,
   onTogglePin,
 }: {
   files: FileObjectRecord[];
+  grants: FileAccessGrantRecord[];
   employees: EmployeeRecord[];
   agents: AgentRecord[];
   onTogglePin: (file: FileObjectRecord) => void;
@@ -226,15 +236,16 @@ function FilesTable({
     <div className="card" style={{ padding: 0, overflow: "hidden" }}>
       <div
         className="table-row head"
-        style={{ gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr) 60px" }}
+        style={{ gridTemplateColumns: "minmax(0, 2.7fr) minmax(70px, 0.7fr) minmax(0, 1.2fr) minmax(94px, 0.8fr) minmax(88px, 0.8fr) 56px" }}
       >
-        <div>Name</div><div>Size</div><div>Owner</div><div>Modified</div><div />
+        <div>Name</div><div>Size</div><div>Owner</div><div>Access</div><div>Modified</div><div />
       </div>
       {files.map((file, index) => (
         <FileRow
           key={file.id}
           file={file}
           owner={resolveOwnerName(file, employees, agents)}
+          grantCount={fileGrantCount(file.id, grants)}
           last={index === files.length - 1}
           onTogglePin={() => onTogglePin(file)}
         />
@@ -245,11 +256,13 @@ function FilesTable({
 
 function FilesGrid({
   files,
+  grants,
   employees,
   agents,
   onTogglePin,
 }: {
   files: FileObjectRecord[];
+  grants: FileAccessGrantRecord[];
   employees: EmployeeRecord[];
   agents: AgentRecord[];
   onTogglePin: (file: FileObjectRecord) => void;
@@ -261,6 +274,7 @@ function FilesGrid({
           key={file.id}
           file={file}
           ownerName={resolveOwnerName(file, employees, agents)}
+          grantCount={fileGrantCount(file.id, grants)}
           onUnpin={() => onTogglePin(file)}
         />
       ))}
@@ -271,11 +285,13 @@ function FilesGrid({
 function FileRow({
   file,
   owner,
+  grantCount,
   last,
   onTogglePin,
 }: {
   file: FileObjectRecord;
   owner: string;
+  grantCount: number;
   last: boolean;
   onTogglePin: () => void;
 }) {
@@ -283,7 +299,7 @@ function FileRow({
     <div
       className="table-row"
       style={{
-        gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr) 60px",
+        gridTemplateColumns: "minmax(0, 2.7fr) minmax(70px, 0.7fr) minmax(0, 1.2fr) minmax(94px, 0.8fr) minmax(88px, 0.8fr) 56px",
         borderBottom: last ? "none" : "1px solid var(--border-soft)",
       }}
     >
@@ -297,6 +313,10 @@ function FileRow({
         <Avatar name={owner} size="sm" bot={isAgentOwner(file)} />
         <span style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{owner}</span>
       </div>
+      <div className="row" style={{ gap: 6, minWidth: 0 }}>
+        <Pill tone={file.scanState === "approved" ? "green" : "red"}>{file.scanState === "approved" ? "Clean" : "Blocked"}</Pill>
+        <span className="mono" style={{ color: "var(--text-3)", fontSize: 11 }}>{grantCount}</span>
+      </div>
       <div style={{ color: "var(--text-3)", fontSize: 12 }}>{formatRelative(file.updatedAt ?? file.createdAt)}</div>
       <div style={{ textAlign: "right" }}>
         <IconButton icon={file.pinned ? "pin" : "more"} label={file.pinned ? "Unpin" : "More"} onClick={onTogglePin} />
@@ -308,10 +328,12 @@ function FileRow({
 function PinnedCard({
   file,
   ownerName,
+  grantCount,
   onUnpin,
 }: {
   file: FileObjectRecord;
   ownerName: string;
+  grantCount: number;
   onUnpin: () => void;
 }) {
   return (
@@ -340,6 +362,10 @@ function PinnedCard({
       </div>
       <div style={{ fontSize: 13, fontWeight: 540, letterSpacing: "-0.005em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {file.name}
+      </div>
+      <div className="row" style={{ gap: 6 }}>
+        <Pill tone={file.scanState === "approved" ? "green" : "red"}>{file.scanState === "approved" ? "Clean" : "Blocked"}</Pill>
+        <span className="mono" style={{ color: "var(--text-3)", fontSize: 11 }}>{grantCount}</span>
       </div>
       <div className="row" style={{ gap: 8, marginTop: "auto", minWidth: 0 }}>
         <Avatar name={ownerName} size="sm" bot={isAgentOwner(file)} />
@@ -411,6 +437,10 @@ function filterFiles(files: FileObjectRecord[], section: Section, agents: AgentR
     return files.filter((file) => file.ownerType === "agent" && file.ownerId !== null && departmentAgents.has(file.ownerId));
   }
   return files;
+}
+
+function fileGrantCount(fileId: string, grants: FileAccessGrantRecord[]): number {
+  return grants.filter((grant) => grant.fileId === fileId).length;
 }
 
 function isRecent(iso: string): boolean {

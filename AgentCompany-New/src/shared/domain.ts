@@ -43,6 +43,11 @@ export const PROVIDER_REQUEST_STATE = {
   FAILED: "failed",
 } as const;
 
+export const FILE_SCAN_STATE = {
+  APPROVED: "approved",
+  BLOCKED: "blocked",
+} as const;
+
 export type ValueOf<T> = T[keyof T];
 export type TaskStatus = ValueOf<typeof TASK_STATUS>;
 export type ApprovalState = ValueOf<typeof APPROVAL_STATE>;
@@ -51,6 +56,7 @@ export type TaskPriority = ValueOf<typeof TASK_PRIORITY>;
 export type ProviderAuthType = ValueOf<typeof PROVIDER_AUTH_TYPE>;
 export type SocialPlatform = ValueOf<typeof SOCIAL_PLATFORM>;
 export type ProviderRequestState = ValueOf<typeof PROVIDER_REQUEST_STATE>;
+export type FileScanState = ValueOf<typeof FILE_SCAN_STATE>;
 
 export interface OrganizationRecord {
   id: string;
@@ -261,8 +267,25 @@ export interface FileObjectRecord {
   ownerId: string | null;
   spaceId: string | null;
   pinned: boolean;
+  scanState: FileScanState;
+  scanLabelsJson: string;
+  scannedAt: string | null;
   createdAt: string;
   updatedAt: string | null;
+}
+
+export interface FileAccessGrantRecord {
+  id: string;
+  orgId: string;
+  fileId: string;
+  grantedToType: "employee" | "agent" | "board" | "org_group";
+  grantedToId: string;
+  grantedByType: "employee" | "agent" | "board" | "system";
+  grantedById: string | null;
+  sourceMessageId: string | null;
+  sourceThreadId: string | null;
+  accessLevel: "read" | "manage";
+  createdAt: string;
 }
 
 export interface ScheduledPostRecord {
@@ -448,6 +471,7 @@ export interface AppSnapshot {
   chatPresence: ChatPresenceRecord[];
   chatReadStates: ChatReadStateRecord[];
   files: FileObjectRecord[];
+  fileAccessGrants: FileAccessGrantRecord[];
   scheduledPosts: ScheduledPostRecord[];
   providers: ProviderRecord[];
   providerCatalog: ProviderCatalogEntry[];

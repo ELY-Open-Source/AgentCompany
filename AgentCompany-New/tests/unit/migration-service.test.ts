@@ -121,6 +121,7 @@ describe("migration service", () => {
       create table skill_runtime_snapshots(id text primary key, agent_id text, run_id text);
       create table skill_catalog_tags(skill_id text, tag text, tag_type text);
       create table file_objects(id text primary key, org_id text, space_id text);
+      create table file_access_grants(id text primary key, org_id text, file_id text, source_message_id text, source_thread_id text);
       create table social_accounts(id text primary key, org_id text, authorized_employee_id text);
       create table social_account_grants(id text primary key, org_id text, social_account_id text, employee_id text);
       create table browser_actions(id text primary key, org_id text, social_account_id text, evidence_file_id text);
@@ -144,6 +145,7 @@ describe("migration service", () => {
       insert into chat_messages(id, org_id, space_id, thread_id) values ('msg-1', 'org-1', 'space-1', 'thread-1');
       insert into chat_memberships(space_id, principal_type, principal_id) values ('space-1', 'employee', 'emp-1');
       insert into chat_attachments(message_id, file_id) values ('msg-1', 'file-1');
+      insert into file_access_grants(id, org_id, file_id, source_message_id, source_thread_id) values ('file-grant-1', 'org-1', 'file-1', 'msg-1', 'thread-1');
       insert into chat_mentions(message_id, target_type, target_id) values ('msg-1', 'agent', 'agent-1');
       insert into chat_slash_invocations(id, message_id) values ('slash-1', 'msg-1');
       insert into chat_presence(principal_type, principal_id) values ('agent', 'agent-1');
@@ -176,6 +178,7 @@ describe("migration service", () => {
     expect(body.tableCounts.credentials).toBe(1);
     expect(body.tableCounts.skill_artifacts).toBe(1);
     expect(body.tableCounts.chat_read_state).toBe(1);
+    expect(body.tableCounts.file_access_grants).toBe(1);
     expect(body.tableCounts.provider_requests).toBe(1);
     expect(body.tableChecksums.audit_events).toHaveLength(64);
     expect(body.idMaps.skill_runtime_snapshots).toEqual(["snapshot-1"]);

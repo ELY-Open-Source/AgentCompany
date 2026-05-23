@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { CreateChatSpaceInput, MarkChatSpaceReadInput, SendMessageInput } from "../../shared/commands";
-import { RISK_LEVEL } from "../../shared/domain";
+import { FILE_SCAN_STATE, RISK_LEVEL } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { ApprovalService } from "./approval-service";
 import { AuditService } from "./audit-service";
@@ -12,6 +12,14 @@ const SPACE_VISIBILITIES = new Set<CreateChatSpaceInput["visibility"]>(["workspa
 interface AttachmentCandidate {
   fileId: string;
   checksum: string;
+}
+
+interface FileAttachmentRow {
+  id: string;
+  sha256: string;
+  scan_state: string;
+  owner_type: string;
+  owner_id: string | null;
 }
 
 interface SpaceRow {
@@ -93,7 +101,7 @@ export class ChatService {
     const slash = parseSlashInvocation(body);
     if (slash && !ALLOWED_SLASH_COMMANDS.has(slash.command)) throw new Error(`Slash command /${slash.command} is unavailable.`);
     if (slash) validateSlashInvocation(slash);
-    const attachments = this.requireAttachments(input.orgId, input.attachmentFileIds ?? []);
+    const attachments = this.requireAttachments(input.orgId, input.attachmentFileIds ?? [], sender);
     const mentions = this.resolveMentions(input.orgId, input.spaceId, body);
 
     const id = createId("msg");
@@ -127,6 +135,7 @@ export class ChatService {
     const slashResultRef = slash ? this.executeSlashCommand(input, space, sender, slash, id, threadId) : null;
     if (slash) this.recordSlashInvocation(id, slash, slashResultRef, now);
     this.recordAttachments(id, attachments);
+    this.recordAttachmentGrants(input, id, threadId, attachments, mentions, now);
     if (input.senderId) {
       const presenceStatus = slash?.command === "escalate" ? "waiting_approval" : "active";
       this.db.prepare(`
@@ -244,6 +253,53 @@ export class ChatService {
     }
   }
 
+  private recordAttachmentGrants(
+    input: SendMessageInput,
+    messageId: string,
+    threadId: string,
+    attachments: AttachmentCandidate[],
+    mentions: ResolvedMention[],
+    now: string,
+  ): void {
+    if (attachments.length === 0) return;
+    const recipients = this.attachmentGrantRecipients(input.orgId, input.spaceId, mentions);
+    const statement = this.db.prepare(`
+      insert or ignore into file_access_grants(
+        id, org_id, file_id, granted_to_type, granted_to_id, granted_by_type, granted_by_id,
+        source_message_id, source_thread_id, access_level, created_at
+      )
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const attachment of attachments) {
+      for (const recipient of recipients) {
+        const result = statement.run(
+          createId("fgr"),
+          input.orgId,
+          attachment.fileId,
+          recipient.type,
+          recipient.id,
+          input.senderType,
+          input.senderId,
+          messageId,
+          threadId,
+          "read",
+          now,
+        );
+        if (result.changes > 0) {
+          this.audit.record({
+            orgId: input.orgId,
+            entityType: "file_object",
+            entityId: attachment.fileId,
+            actorType: input.senderType,
+            actorId: input.senderId,
+            action: "access_granted",
+            payload: { messageId, threadId, grantedToType: recipient.type, grantedToId: recipient.id },
+          });
+        }
+      }
+    }
+  }
+
   private requireSpace(orgId: string, spaceId: string): SpaceRow {
     const space = this.db.prepare("select id, org_id, visibility, space_type from chat_spaces where id = ? and org_id = ?")
       .get(spaceId, orgId) as SpaceRow | undefined;
@@ -274,12 +330,65 @@ export class ChatService {
     if (!thread) throw new Error("Chat thread was not found in this space.");
   }
 
-  private requireAttachments(orgId: string, fileIds: string[]): AttachmentCandidate[] {
+  private requireAttachments(orgId: string, fileIds: string[], sender: PrincipalRef | null): AttachmentCandidate[] {
+    if (new Set(fileIds).size !== fileIds.length) throw new Error("Attachment file ids must be unique.");
     return fileIds.map((fileId) => {
-      const file = this.db.prepare("select sha256 from file_objects where id = ? and org_id = ?")
-        .get(fileId, orgId) as { sha256: string } | undefined;
+      const file = this.db.prepare(`
+        select id, sha256, scan_state, owner_type, owner_id
+        from file_objects
+        where id = ? and org_id = ?
+      `).get(fileId, orgId) as FileAttachmentRow | undefined;
       if (!file) throw new Error("Attachment file was not found.");
+      if (file.scan_state !== FILE_SCAN_STATE.APPROVED) throw new Error("Attachment file is not approved for handoff.");
+      if (!this.senderCanReadFile(orgId, file, sender)) throw new Error("Attachment file access is required.");
       return { fileId, checksum: file.sha256 };
+    });
+  }
+
+  private senderCanReadFile(orgId: string, file: FileAttachmentRow, sender: PrincipalRef | null): boolean {
+    if (!sender) return true;
+    if (file.owner_type === sender.type && file.owner_id === sender.id) return true;
+    const workspaceGroupId = `${orgId}:workspace`;
+    const grant = this.db.prepare(`
+      select id from file_access_grants
+      where org_id = ?
+        and file_id = ?
+        and access_level in ('read', 'manage')
+        and (
+          (granted_to_type = ? and granted_to_id = ?)
+          or (granted_to_type = 'org_group' and granted_to_id = ?)
+        )
+      limit 1
+    `).get(orgId, file.id, sender.type, sender.id, workspaceGroupId) as { id: string } | undefined;
+    return Boolean(grant);
+  }
+
+  private attachmentGrantRecipients(orgId: string, spaceId: string, mentions: ResolvedMention[]): MentionTarget[] {
+    const source = mentions.length > 0 ? mentions.map((mention) => mention.target) : this.spaceRecipients(spaceId);
+    const seen = new Set<string>();
+    const recipients: MentionTarget[] = [];
+    for (const target of source) {
+      const key = `${target.type}:${target.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      recipients.push(target);
+    }
+    if (recipients.length === 0) throw new Error("Attachment grant recipient is required.");
+    return recipients;
+  }
+
+  private spaceRecipients(spaceId: string): MentionTarget[] {
+    const rows = this.db.prepare(`
+      select principal_type, principal_id
+      from chat_memberships
+      where space_id = ?
+      order by principal_type asc, principal_id asc
+    `).all(spaceId) as Array<{ principal_type: string; principal_id: string }>;
+    return rows.map((row) => {
+      if (row.principal_type === "employee" || row.principal_type === "agent") {
+        return { type: row.principal_type, id: row.principal_id };
+      }
+      throw new Error("Chat membership principal type is unsupported.");
     });
   }
 

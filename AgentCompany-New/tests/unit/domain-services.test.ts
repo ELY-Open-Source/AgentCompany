@@ -23,7 +23,7 @@ describe("domain services", () => {
     const connection = createConnection();
 
     const rows = connection.db.prepare("select version from schema_migrations order by version asc").all() as Array<{ version: number }>;
-    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     connection.close();
   });
 
@@ -235,6 +235,8 @@ describe("domain services", () => {
     expect(state.chatMessages).toHaveLength(1);
     expect(state.chatThreads).toHaveLength(1);
     expect(state.chatAttachments).toHaveLength(1);
+    expect(state.files[0]?.scanState).toBe("approved");
+    expect(state.fileAccessGrants[0]).toMatchObject({ grantedToType: "board", grantedToId: orgId, accessLevel: "read" });
     expect(state.chatMentions[0]).toMatchObject({ targetType: "board", targetId: orgId });
     expect(state.chatSlashInvocations[0]).toMatchObject({ command: "handoff" });
     expect(state.chatPresence).toHaveLength(1);
@@ -243,6 +245,114 @@ describe("domain services", () => {
     expect(slash.command).toBe("handoff");
     expect(mention.target_type).toBe("board");
     expect(mention.target_id).toBe(orgId);
+    connection.close();
+  });
+
+  test("enforces scanned file grants for agent handoff", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const chat = new ChatService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    let orgId = "";
+    let spaceId = "";
+    let adaId = "";
+    let benId = "";
+    let approvedFileId = "";
+    let blockedFileId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      adaId = organization.createAgent({
+        orgId,
+        name: "Ada",
+        role: "Release reviewer",
+        department: "Engineering",
+        modelProviderId: null,
+        modelId: null,
+        budgetCents: 10000,
+        managerAgentId: null,
+      });
+      benId = organization.createAgent({
+        orgId,
+        name: "Ben",
+        role: "Runtime owner",
+        department: "Engineering",
+        modelProviderId: null,
+        modelId: null,
+        budgetCents: 10000,
+        managerAgentId: null,
+      });
+      spaceId = chat.createSpace({ orgId, spaceType: "project", name: "release", topic: "Release coordination", visibility: "workspace" });
+      approvedFileId = createId("fil");
+      blockedFileId = createId("fil");
+      const now = new Date().toISOString();
+      connection.db.prepare(`
+        insert into file_objects(
+          id, org_id, name, kind, size_bytes, sha256, storage_path,
+          owner_type, owner_id, space_id, pinned, scan_state, scan_labels_json, scanned_at, created_at, updated_at
+        )
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(approvedFileId, orgId, "release-notes.md", "md", 24, "sha-approved", "artifacts/release-notes.md", "agent", adaId, null, 0, "approved", "[]", now, now, now);
+      connection.db.prepare(`
+        insert into file_objects(
+          id, org_id, name, kind, size_bytes, sha256, storage_path,
+          owner_type, owner_id, space_id, pinned, scan_state, scan_labels_json, scanned_at, created_at, updated_at
+        )
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(blockedFileId, orgId, "quarantine.bin", "file", 8, "sha-blocked", "artifacts/quarantine.bin", "agent", adaId, null, 0, "blocked", "[\"signature\"]", now, now, now);
+    });
+
+    expect(() => connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId,
+      threadId: null,
+      senderType: "agent",
+      senderId: benId,
+      bodyMd: "Attach release notes",
+      attachmentFileIds: [approvedFileId],
+    }))).toThrow("Attachment file access is required.");
+
+    connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId,
+      threadId: null,
+      senderType: "agent",
+      senderId: adaId,
+      bodyMd: "/handoff @Ben release notes",
+      attachmentFileIds: [approvedFileId],
+    }));
+
+    expect(() => connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId,
+      threadId: null,
+      senderType: "agent",
+      senderId: adaId,
+      bodyMd: "/handoff @Ben blocked payload",
+      attachmentFileIds: [blockedFileId],
+    }))).toThrow("Attachment file is not approved for handoff.");
+
+    connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId,
+      threadId: null,
+      senderType: "agent",
+      senderId: benId,
+      bodyMd: "Received release notes",
+      attachmentFileIds: [approvedFileId],
+    }));
+
+    const state = snapshot.load();
+    const benGrant = state.fileAccessGrants.find((grant) => grant.fileId === approvedFileId && grant.grantedToId === benId);
+    if (!benGrant) throw new Error("Agent handoff grant was not created.");
+    expect(benGrant).toMatchObject({ grantedToType: "agent", accessLevel: "read" });
+    expect(state.chatMessages).toHaveLength(2);
+    expect(state.auditEvents.some((event) => event.entityType === "file_object" && event.action === "access_granted")).toBe(true);
     connection.close();
   });
 

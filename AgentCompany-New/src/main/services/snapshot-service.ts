@@ -68,6 +68,7 @@ export class SnapshotService {
       chatPresence: list(this.db, "chat_presence", "last_seen_at desc"),
       chatReadStates: list(this.db, "chat_read_state", "last_read_at desc"),
       files,
+      fileAccessGrants: list(this.db, "file_access_grants", "created_at desc"),
       scheduledPosts: list(this.db, "scheduled_posts", "scheduled_for asc"),
       providers,
       providerCatalog: PROVIDER_CATALOG,
