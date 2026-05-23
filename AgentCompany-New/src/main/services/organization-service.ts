@@ -5,6 +5,7 @@ import { createId } from "../../shared/ids";
 import type { CreateAgentInput, CreateOrganizationInput, CreateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
 import { PolicyService } from "./policy-service";
+import { assertUsableMentionName } from "./mention-handles";
 
 export class OrganizationService {
   private readonly audit: AuditService;
@@ -16,6 +17,7 @@ export class OrganizationService {
   }
 
   createOrganization(input: CreateOrganizationInput): string {
+    assertUsableMentionName(input.employeeName);
     const orgId = createId("org");
     const employeeId = createId("emp");
     const now = new Date().toISOString();
@@ -127,6 +129,7 @@ export class OrganizationService {
   }
 
   createAgent(input: CreateAgentInput): string {
+    assertUsableMentionName(input.name);
     const id = createId("agt");
     const now = new Date().toISOString();
     this.db.prepare(`

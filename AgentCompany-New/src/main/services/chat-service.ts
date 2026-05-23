@@ -2,6 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { CreateChatSpaceInput, MarkChatSpaceReadInput, SendMessageInput } from "../../shared/commands";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
+import { canonicalMentionHandle } from "./mention-handles";
 
 const SPACE_TYPES = new Set<CreateChatSpaceInput["spaceType"]>(["company", "department", "project", "direct"]);
 const SPACE_VISIBILITIES = new Set<CreateChatSpaceInput["visibility"]>(["workspace", "restricted"]);
@@ -21,6 +22,21 @@ interface SpaceRow {
 interface PrincipalRef {
   type: "employee" | "agent";
   id: string;
+}
+
+interface MentionTarget {
+  type: "employee" | "agent" | "board" | "org_group";
+  id: string;
+}
+
+interface MentionCandidate extends MentionTarget {
+  handle: string;
+}
+
+interface ResolvedMention {
+  target: MentionTarget;
+  offsetStart: number;
+  offsetEnd: number;
 }
 
 export class ChatService {
@@ -73,6 +89,7 @@ export class ChatService {
     const slash = parseSlashInvocation(body);
     if (slash && !ALLOWED_SLASH_COMMANDS.has(slash.command)) throw new Error(`Slash command /${slash.command} is unavailable.`);
     const attachments = this.requireAttachments(input.orgId, input.attachmentFileIds ?? []);
+    const mentions = this.resolveMentions(input.orgId, input.spaceId, body);
 
     const id = createId("msg");
     const threadId = input.threadId ?? createId("thread");
@@ -101,7 +118,7 @@ export class ChatService {
     } else {
       this.db.prepare("update chat_threads set updated_at = ? where id = ? and org_id = ?").run(now, input.threadId, input.orgId);
     }
-    this.recordMentions(id, body);
+    this.recordMentions(id, mentions);
     if (slash) this.recordSlashInvocation(id, slash, now);
     this.recordAttachments(id, attachments);
     if (input.senderId) {
@@ -147,19 +164,40 @@ export class ChatService {
     `).run(input.orgId, input.employeeId, input.spaceId, latest?.id ?? null, now);
   }
 
-  private recordMentions(messageId: string, body: string): void {
+  private resolveMentions(orgId: string, spaceId: string, body: string): ResolvedMention[] {
+    const mentions: ResolvedMention[] = [];
     const seen = new Set<string>();
     for (const match of body.matchAll(/(^|\s)@([A-Za-z][A-Za-z0-9_-]{1,63})/g)) {
-      const target = match[2];
+      const token = match[2];
+      const target = this.resolveMention(orgId, spaceId, token);
       const offsetStart = match.index + match[1].length;
-      const key = `${target}:${offsetStart}`;
+      const key = `${target.type}:${target.id}:${offsetStart}`;
       if (seen.has(key)) continue;
       seen.add(key);
+      mentions.push({ target, offsetStart, offsetEnd: offsetStart + token.length + 1 });
+    }
+    return mentions;
+  }
+
+  private recordMentions(messageId: string, mentions: ResolvedMention[]): void {
+    for (const mention of mentions) {
       this.db.prepare(`
         insert into chat_mentions(message_id, target_type, target_id, offset_start, offset_end)
         values (?, ?, ?, ?, ?)
-      `).run(messageId, "alias", target, offsetStart, offsetStart + target.length + 1);
+      `).run(messageId, mention.target.type, mention.target.id, mention.offsetStart, mention.offsetEnd);
     }
+  }
+
+  private resolveMention(orgId: string, spaceId: string, token: string): MentionTarget {
+    const handles = mentionLookupHandles(token);
+    if (handles.has("board")) return { type: "board", id: orgId };
+    if (handles.has("oncall")) return { type: "org_group", id: `${orgId}:oncall` };
+    const candidates = mentionCandidates(this.db, orgId, spaceId).filter((candidate) => handles.has(candidate.handle));
+    const unique = new Map(candidates.map((candidate) => [`${candidate.type}:${candidate.id}`, candidate]));
+    if (unique.size === 0) throw new Error(`Mention @${token} could not be resolved.`);
+    if (unique.size > 1) throw new Error(`Mention @${token} is ambiguous.`);
+    const target = [...unique.values()][0];
+    return { type: target.type, id: target.id };
   }
 
   private recordSlashInvocation(messageId: string, slash: SlashInvocation, now: string): void {
@@ -283,4 +321,38 @@ function parseSlashInvocation(body: string): SlashInvocation | null {
 function createThreadTitle(body: string): string {
   const firstLine = body.split(/\r?\n/, 1)[0].trim();
   return firstLine.length > 80 ? `${firstLine.slice(0, 77)}...` : firstLine;
+}
+
+function mentionCandidates(db: DatabaseSync, orgId: string, spaceId: string): MentionCandidate[] {
+  const employees = db.prepare(`
+    select employees.id, employees.display_name
+    from employees
+    join chat_memberships memberships
+      on memberships.principal_type = 'employee'
+      and memberships.principal_id = employees.id
+      and memberships.space_id = ?
+    where employees.org_id = ?
+  `).all(spaceId, orgId) as Array<{ id: string; display_name: string }>;
+  const agents = db.prepare(`
+    select agents.id, agents.name
+    from agents
+    join chat_memberships memberships
+      on memberships.principal_type = 'agent'
+      and memberships.principal_id = agents.id
+      and memberships.space_id = ?
+    where agents.org_id = ?
+  `).all(spaceId, orgId) as Array<{ id: string; name: string }>;
+  return [
+    ...employees.flatMap((employee) => principalMentionHandles("employee", employee.id, employee.display_name)),
+    ...agents.flatMap((agent) => principalMentionHandles("agent", agent.id, agent.name)),
+  ];
+}
+
+function principalMentionHandles(type: "employee" | "agent", id: string, name: string): MentionCandidate[] {
+  const handles = new Set([canonicalMentionHandle(name), id.toLowerCase()].filter((handle) => handle.length > 0));
+  return [...handles].map((handle) => ({ type, id, handle }));
+}
+
+function mentionLookupHandles(token: string): Set<string> {
+  return new Set([token.toLowerCase(), canonicalMentionHandle(token)].filter((handle) => handle.length > 0));
 }

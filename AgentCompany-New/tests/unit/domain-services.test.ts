@@ -237,9 +237,10 @@ describe("domain services", () => {
     expect(state.chatAttachments).toHaveLength(1);
     expect(state.chatPresence).toHaveLength(1);
     const slash = connection.db.prepare("select command from chat_slash_invocations").get() as { command: string };
-    const mention = connection.db.prepare("select target_id from chat_mentions").get() as { target_id: string };
+    const mention = connection.db.prepare("select target_type, target_id from chat_mentions").get() as { target_type: string; target_id: string };
     expect(slash.command).toBe("handoff");
-    expect(mention.target_id).toBe("Board");
+    expect(mention.target_type).toBe("board");
+    expect(mention.target_id).toBe(orgId);
     connection.close();
   });
 
@@ -299,6 +300,15 @@ describe("domain services", () => {
     }))).toThrow("Chat membership is required.");
     expect(() => connection.transaction(() => chat.sendMessage({
       orgId,
+      spaceId: restrictedSpaceId,
+      threadId: null,
+      senderType: "employee",
+      senderId: employeeId,
+      bodyMd: "Restricted ping @Ada",
+      attachmentFileIds: [],
+    }))).toThrow("Mention @Ada could not be resolved.");
+    expect(() => connection.transaction(() => chat.sendMessage({
+      orgId,
       spaceId: workspaceSpaceId,
       threadId: null,
       senderType: "employee",
@@ -315,9 +325,140 @@ describe("domain services", () => {
       bodyMd: "Missing file",
       attachmentFileIds: ["file_missing"],
     }))).toThrow("Attachment file was not found.");
+    expect(() => connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId: workspaceSpaceId,
+      threadId: null,
+      senderType: "employee",
+      senderId: employeeId,
+      bodyMd: "Unknown @Nobody",
+      attachmentFileIds: [],
+    }))).toThrow("Mention @Nobody could not be resolved.");
 
     const count = connection.db.prepare("select count(*) as count from chat_messages").get() as { count: number };
     expect(count.count).toBe(0);
+    connection.close();
+  });
+
+  test("rejects reserved mention handles for employees and agents", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    let orgId = "";
+
+    expect(() => connection.transaction(() => organization.createOrganization({
+      organizationName: "Acme Operations",
+      employeeName: "Board",
+      mission: "Coordinate agents with auditable approvals.",
+      goal: "Ship a verified control plane.",
+    }))).toThrow("Mention handle is reserved.");
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+    });
+    expect(() => connection.transaction(() => organization.createAgent({
+      orgId,
+      name: "On Call",
+      role: "Escalation lead",
+      department: "Operations",
+      modelProviderId: null,
+      modelId: null,
+      budgetCents: 10000,
+      managerAgentId: null,
+    }))).toThrow("Mention handle is reserved.");
+    connection.close();
+  });
+
+  test("rejects ambiguous chat mentions", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const chat = new ChatService(connection.db);
+    let orgId = "";
+    let employeeId = "";
+    let spaceId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      organization.createAgent({ orgId, name: "Ada", role: "Reviewer", department: "Engineering", modelProviderId: null, modelId: null, budgetCents: 10000, managerAgentId: null });
+      organization.createAgent({ orgId, name: "Ada", role: "Release lead", department: "Engineering", modelProviderId: null, modelId: null, budgetCents: 10000, managerAgentId: null });
+      spaceId = chat.createSpace({ orgId, spaceType: "project", name: "release", topic: "Release coordination", visibility: "workspace" });
+    });
+
+    expect(() => connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId,
+      threadId: null,
+      senderType: "employee",
+      senderId: employeeId,
+      bodyMd: "Please review @Ada",
+      attachmentFileIds: [],
+    }))).toThrow("Mention @Ada is ambiguous.");
+    const count = connection.db.prepare("select count(*) as count from chat_messages").get() as { count: number };
+    expect(count.count).toBe(0);
+    connection.close();
+  });
+
+  test("resolves chat mentions by display handle and principal id", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const chat = new ChatService(connection.db);
+    let orgId = "";
+    let employeeId = "";
+    let agentId = "";
+    let spaceId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      agentId = organization.createAgent({
+        orgId,
+        name: "Ada Lovelace",
+        role: "Reviewer",
+        department: "Engineering",
+        modelProviderId: null,
+        modelId: null,
+        budgetCents: 10000,
+        managerAgentId: null,
+      });
+      spaceId = chat.createSpace({ orgId, spaceType: "project", name: "release", topic: "Release coordination", visibility: "workspace" });
+    });
+
+    connection.transaction(() => {
+      chat.sendMessage({
+        orgId,
+        spaceId,
+        threadId: null,
+        senderType: "employee",
+        senderId: employeeId,
+        bodyMd: `Review @Ada-Lovelace and @${agentId}`,
+        attachmentFileIds: [],
+      });
+    });
+
+    const mentions = connection.db.prepare(`
+      select target_type, target_id
+      from chat_mentions
+      order by offset_start asc
+    `).all() as Array<{ target_type: string; target_id: string }>;
+    expect(mentions).toEqual([
+      { target_type: "agent", target_id: agentId },
+      { target_type: "agent", target_id: agentId },
+    ]);
     connection.close();
   });
 
