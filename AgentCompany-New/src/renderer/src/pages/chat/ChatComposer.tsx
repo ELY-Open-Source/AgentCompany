@@ -4,7 +4,6 @@ import type { FileObjectRecord } from "../../../../shared/domain";
 import { SLASH_COMMANDS } from "./chat-helpers";
 
 export function ChatComposer({
-  spaceName,
   disabled,
   files,
   attachmentFileId,
@@ -12,7 +11,6 @@ export function ChatComposer({
   onSubmit,
   composerRef,
 }: {
-  spaceName: string;
   disabled: boolean;
   files: FileObjectRecord[];
   attachmentFileId: string;
@@ -42,7 +40,6 @@ export function ChatComposer({
           ref={composerRef}
           name="message"
           rows={2}
-          placeholder={spaceName ? `Message #${spaceName}…` : "Select a channel"}
           disabled={disabled}
           aria-label="Message"
           style={{
@@ -77,7 +74,6 @@ export function ChatComposer({
             {files.map((file) => <option key={file.id} value={file.id}>{file.name}</option>)}
           </select>
           <IconButton icon="sparkle" label="Commands" onClick={() => setSlashOpen((open) => !open)} />
-          <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: 6 }}>/ to invoke a command</span>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
             <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>⌘↵</span>
             <Button tone="primary" size="small" type="submit" disabled={disabled}><Icon name="send" size={12} /> Send</Button>

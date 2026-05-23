@@ -3,7 +3,9 @@ import { Button, Icon, Pill } from "../../shared/ui";
 import type {
   ApprovalRecord,
   ChatAttachmentRecord,
+  ChatMentionRecord,
   ChatMessageRecord,
+  ChatSlashInvocationRecord,
   ChatThreadRecord,
   FileObjectRecord,
 } from "../../../../shared/domain";
@@ -16,6 +18,8 @@ export function ChatTimeline({
   threadsInSpace,
   pendingApprovals,
   attachments,
+  mentions,
+  slashInvocations,
   files,
   context,
   onOpenThread,
@@ -27,6 +31,8 @@ export function ChatTimeline({
   threadsInSpace: ChatThreadRecord[];
   pendingApprovals: ApprovalRecord[];
   attachments: ChatAttachmentRecord[];
+  mentions: ChatMentionRecord[];
+  slashInvocations: ChatSlashInvocationRecord[];
   files: FileObjectRecord[];
   context: MessageContext;
   onOpenThread: (threadId: string) => void;
@@ -50,6 +56,8 @@ export function ChatTimeline({
         key={message.id}
         message={message}
         attachments={attachments}
+        mentions={mentions}
+        slashInvocations={slashInvocations}
         files={files}
         replyCount={replyCount}
         onOpenThread={thread ? () => onOpenThread(thread.id) : null}

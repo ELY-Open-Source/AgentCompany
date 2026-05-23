@@ -28,6 +28,15 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   const files = useMemo(() => snapshot.files.filter((item) => item.orgId === orgId), [snapshot.files, orgId]);
   const messagesAll = useMemo(() => snapshot.chatMessages.filter((m) => m.orgId === orgId), [snapshot.chatMessages, orgId]);
   const threadsAll = useMemo(() => snapshot.chatThreads.filter((t) => t.orgId === orgId), [snapshot.chatThreads, orgId]);
+  const messageIds = useMemo(() => new Set(messagesAll.map((message) => message.id)), [messagesAll]);
+  const mentionsAll = useMemo(
+    () => snapshot.chatMentions.filter((mention) => messageIds.has(mention.messageId)),
+    [snapshot.chatMentions, messageIds],
+  );
+  const slashInvocationsAll = useMemo(
+    () => snapshot.chatSlashInvocations.filter((invocation) => messageIds.has(invocation.messageId)),
+    [snapshot.chatSlashInvocations, messageIds],
+  );
   const approvalsAll = useMemo(
     () => snapshot.approvals.filter((a) => a.orgId === orgId && a.state === "pending"),
     [snapshot.approvals, orgId],
@@ -163,6 +172,8 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         threadsInSpace={threadsInSpace}
         pendingApprovals={pendingApprovalsInSpace}
         attachments={snapshot.chatAttachments}
+        mentions={mentionsAll}
+        slashInvocations={slashInvocationsAll}
         files={files}
         context={{ employees, agents }}
         attachmentFileId={attachmentFileId}
@@ -179,6 +190,8 @@ export function ChatPage({ snapshot, actions }: PageProps) {
           rootMessage={messagesInSpace.find((m) => m.id === selectedThread.rootMessageId) ?? null}
           messages={threadMessages}
           attachments={snapshot.chatAttachments}
+          mentions={mentionsAll}
+          slashInvocations={slashInvocationsAll}
           files={files}
           context={{ employees, agents }}
           onClose={() => setOpenThreadId(null)}

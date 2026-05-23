@@ -179,7 +179,6 @@ function CloudFieldsForm({ entry, provider }: { entry: ProviderCatalogEntry; pro
           name="cloudBaseUrl"
           value={state.baseUrl}
           onChange={(event) => update({ baseUrl: event.target.value })}
-          placeholder="https://"
         />
       </Field>
       <Field label="Region">

@@ -2,7 +2,9 @@ import type { ReactNode } from "react";
 import { Avatar, Icon, IconButton } from "../../shared/ui";
 import type {
   ChatAttachmentRecord,
+  ChatMentionRecord,
   ChatMessageRecord,
+  ChatSlashInvocationRecord,
   FileObjectRecord,
 } from "../../../../shared/domain";
 import { formatTime } from "../types";
@@ -11,6 +13,8 @@ import { messageAttachments, senderName, type MessageContext } from "./chat-help
 export function ChatMessageRow({
   message,
   attachments,
+  mentions,
+  slashInvocations,
   files,
   replyCount,
   onOpenThread,
@@ -19,6 +23,8 @@ export function ChatMessageRow({
 }: {
   message: ChatMessageRecord;
   attachments: ChatAttachmentRecord[];
+  mentions: ChatMentionRecord[];
+  slashInvocations: ChatSlashInvocationRecord[];
   files: FileObjectRecord[];
   replyCount: number;
   onOpenThread: (() => void) | null;
@@ -28,6 +34,8 @@ export function ChatMessageRow({
   const name = senderName(message, context);
   const bot = message.senderType === "agent";
   const messageFiles = messageAttachments(message.id, attachments, files);
+  const messageMentions = mentions.filter((mention) => mention.messageId === message.id);
+  const slashInvocation = slashInvocations.find((invocation) => invocation.messageId === message.id) ?? null;
   return (
     <div style={{ display: "flex", gap: compact ? 10 : 12, marginBottom: compact ? 12 : 18 }}>
       <Avatar name={name} size={compact ? "sm" : ""} bot={bot} />
@@ -36,8 +44,13 @@ export function ChatMessageRow({
           <span style={{ fontSize: 13, fontWeight: 540 }}>{name}</span>
           <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>{formatTime(message.createdAt)}</span>
         </div>
+        {slashInvocation && (
+          <div className="pill mono" style={{ marginBottom: 6, width: "fit-content" }}>
+            /{slashInvocation.command}
+          </div>
+        )}
         <div style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-          {renderBody(message.bodyMd)}
+          {renderBody(message.bodyMd, messageMentions, context)}
         </div>
         {messageFiles.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
@@ -70,25 +83,48 @@ export function ChatMessageRow({
   );
 }
 
-function renderBody(body: string): ReactNode {
+function renderBody(body: string, mentions: ChatMentionRecord[], context: MessageContext): ReactNode {
+  if (mentions.length === 0) return body;
   const parts: ReactNode[] = [];
-  const regex = /@([A-Za-z][A-Za-z0-9_-]{1,63})/g;
+  const ordered = [...mentions].sort((a, b) => a.offsetStart - b.offsetStart);
   let lastIndex = 0;
-  let match;
-  while ((match = regex.exec(body)) !== null) {
-    if (match.index > lastIndex) parts.push(body.slice(lastIndex, match.index));
+  for (const mention of ordered) {
+    if (mention.offsetStart < lastIndex) throw new Error("Message mention offsets overlap.");
+    if (mention.offsetStart < 0 || mention.offsetEnd > body.length || mention.offsetStart >= mention.offsetEnd) {
+      throw new Error("Message mention offset is invalid.");
+    }
+    const token = body.slice(mention.offsetStart, mention.offsetEnd);
+    if (!token.startsWith("@")) throw new Error("Message mention token is invalid.");
+    if (mention.offsetStart > lastIndex) parts.push(body.slice(lastIndex, mention.offsetStart));
+    const label = mentionLabel(mention, context);
     parts.push(
       <span
-        key={`m-${match.index}`}
+        key={`m-${mention.messageId}-${mention.offsetStart}`}
         style={{ background: "var(--accent-soft)", color: "var(--accent)", padding: "1px 5px", borderRadius: 4, fontWeight: 500 }}
       >
-        @{match[1]}
+        @{label}
       </span>,
     );
-    lastIndex = match.index + match[0].length;
+    lastIndex = mention.offsetEnd;
   }
   if (lastIndex < body.length) parts.push(body.slice(lastIndex));
   return parts;
+}
+
+function mentionLabel(mention: ChatMentionRecord, context: MessageContext): string {
+  if (mention.targetType === "employee") {
+    const employee = context.employees.find((item) => item.id === mention.targetId);
+    if (!employee) throw new Error("Message mention employee target is missing.");
+    return employee.displayName;
+  }
+  if (mention.targetType === "agent") {
+    const agent = context.agents.find((item) => item.id === mention.targetId);
+    if (!agent) throw new Error("Message mention agent target is missing.");
+    return agent.name;
+  }
+  if (mention.targetType === "board") return "Board";
+  if (mention.targetType === "org_group" && mention.targetId.endsWith(":oncall")) return "OnCall";
+  throw new Error("Message mention target type is unsupported.");
 }
 
 function AttachmentCard({ file }: { file: FileObjectRecord }) {

@@ -235,6 +235,8 @@ describe("domain services", () => {
     expect(state.chatMessages).toHaveLength(1);
     expect(state.chatThreads).toHaveLength(1);
     expect(state.chatAttachments).toHaveLength(1);
+    expect(state.chatMentions[0]).toMatchObject({ targetType: "board", targetId: orgId });
+    expect(state.chatSlashInvocations[0]).toMatchObject({ command: "handoff" });
     expect(state.chatPresence).toHaveLength(1);
     const slash = connection.db.prepare("select command from chat_slash_invocations").get() as { command: string };
     const mention = connection.db.prepare("select target_type, target_id from chat_mentions").get() as { target_type: string; target_id: string };

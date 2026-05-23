@@ -2,7 +2,9 @@ import type { FormEvent } from "react";
 import { Button, Icon, IconButton } from "../../shared/ui";
 import type {
   ChatAttachmentRecord,
+  ChatMentionRecord,
   ChatMessageRecord,
+  ChatSlashInvocationRecord,
   FileObjectRecord,
 } from "../../../../shared/domain";
 import { formatTime } from "../types";
@@ -13,6 +15,8 @@ export function ChatThreadPanel({
   rootMessage,
   messages,
   attachments,
+  mentions,
+  slashInvocations,
   files,
   context,
   onClose,
@@ -21,6 +25,8 @@ export function ChatThreadPanel({
   rootMessage: ChatMessageRecord | null;
   messages: ChatMessageRecord[];
   attachments: ChatAttachmentRecord[];
+  mentions: ChatMentionRecord[];
+  slashInvocations: ChatSlashInvocationRecord[];
   files: FileObjectRecord[];
   context: MessageContext;
   onClose: () => void;
@@ -54,6 +60,8 @@ export function ChatThreadPanel({
               <ChatMessageRow
                 message={rootMessage}
                 attachments={attachments}
+                mentions={mentions}
+                slashInvocations={slashInvocations}
                 files={files}
                 replyCount={0}
                 onOpenThread={null}
@@ -68,6 +76,8 @@ export function ChatThreadPanel({
             key={message.id}
             message={message}
             attachments={attachments}
+            mentions={mentions}
+            slashInvocations={slashInvocations}
             files={files}
             replyCount={0}
             onOpenThread={null}
@@ -81,7 +91,6 @@ export function ChatThreadPanel({
           <textarea
             name="message"
             rows={2}
-            placeholder="Reply in thread…"
             aria-label="Thread reply"
             style={{ width: "100%", border: 0, resize: "none", outline: "none", fontSize: 13, background: "transparent", padding: 0, minHeight: 36 }}
             onKeyDown={(event) => {

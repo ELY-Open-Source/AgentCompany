@@ -216,6 +216,23 @@ export interface ChatAttachmentRecord {
   previewKey: string | null;
 }
 
+export interface ChatMentionRecord {
+  messageId: string;
+  targetType: "employee" | "agent" | "board" | "org_group";
+  targetId: string;
+  offsetStart: number;
+  offsetEnd: number;
+}
+
+export interface ChatSlashInvocationRecord {
+  id: string;
+  messageId: string;
+  command: string;
+  argsJson: string;
+  resultRef: string | null;
+  createdAt: string;
+}
+
 export interface ChatPresenceRecord {
   principalType: string;
   principalId: string;
@@ -426,6 +443,8 @@ export interface AppSnapshot {
   chatMessages: ChatMessageRecord[];
   chatThreads: ChatThreadRecord[];
   chatAttachments: ChatAttachmentRecord[];
+  chatMentions: ChatMentionRecord[];
+  chatSlashInvocations: ChatSlashInvocationRecord[];
   chatPresence: ChatPresenceRecord[];
   chatReadStates: ChatReadStateRecord[];
   files: FileObjectRecord[];

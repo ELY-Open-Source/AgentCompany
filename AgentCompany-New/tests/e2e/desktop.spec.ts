@@ -57,9 +57,10 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByLabel("Topic").fill("Release coordination");
     await page.locator(".modal").getByRole("button", { name: "Create" }).click();
     await expect(page.getByText("release").first()).toBeVisible();
-    await page.getByRole("textbox", { name: "Message" }).fill("Release channel opened.");
+    await page.getByRole("textbox", { name: "Message" }).fill("/handoff @Board review release plan");
     await page.getByRole("button", { name: "Send" }).click();
-    await expect(page.getByText("Release channel opened.")).toBeVisible();
+    await expect(page.getByText("@Board").first()).toBeVisible();
+    await expect(page.getByText("/handoff").first()).toBeVisible();
 
     await page.getByRole("button", { name: "Social" }).click();
     await page.getByRole("button", { name: "Connect account" }).click();

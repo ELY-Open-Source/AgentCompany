@@ -105,7 +105,7 @@ export function TeamPage({ snapshot, actions }: PageProps) {
       <Dialog title="Hire agent" open={hireOpen} submitLabel="Hire" onClose={() => setHireOpen(false)} onSubmit={submit}>
         <Field label="Name"><input className="input" name="name" required /></Field>
         <Field label="Role"><input className="input" name="role" required /></Field>
-        <Field label="Title"><input className="input" name="title" placeholder="Optional" /></Field>
+        <Field label="Title"><input className="input" name="title" /></Field>
         <Field label="Department"><input className="input" name="department" required /></Field>
         <Field label="Provider">
           <select className="input" name="modelProviderId">
@@ -118,7 +118,6 @@ export function TeamPage({ snapshot, actions }: PageProps) {
             className="input"
             name="modelId"
             list="agent-model-suggestions"
-            placeholder="Leave blank to inherit provider default"
           />
         </Field>
         <datalist id="agent-model-suggestions">

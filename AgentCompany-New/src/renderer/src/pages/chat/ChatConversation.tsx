@@ -3,8 +3,10 @@ import { AvatarStack, Icon, IconButton } from "../../shared/ui";
 import type {
   ApprovalRecord,
   ChatAttachmentRecord,
+  ChatMentionRecord,
   ChatMessageRecord,
   ChatSpaceRecord,
+  ChatSlashInvocationRecord,
   ChatThreadRecord,
   FileObjectRecord,
 } from "../../../../shared/domain";
@@ -20,6 +22,8 @@ export function ChatConversation({
   threadsInSpace,
   pendingApprovals,
   attachments,
+  mentions,
+  slashInvocations,
   files,
   context,
   attachmentFileId,
@@ -37,6 +41,8 @@ export function ChatConversation({
   threadsInSpace: ChatThreadRecord[];
   pendingApprovals: ApprovalRecord[];
   attachments: ChatAttachmentRecord[];
+  mentions: ChatMentionRecord[];
+  slashInvocations: ChatSlashInvocationRecord[];
   files: FileObjectRecord[];
   context: MessageContext;
   attachmentFileId: string;
@@ -58,6 +64,8 @@ export function ChatConversation({
             threadsInSpace={threadsInSpace}
             pendingApprovals={pendingApprovals}
             attachments={attachments}
+            mentions={mentions}
+            slashInvocations={slashInvocations}
             files={files}
             context={context}
             onOpenThread={onOpenThread}
@@ -67,7 +75,6 @@ export function ChatConversation({
         )}
       </div>
       <ChatComposer
-        spaceName={space?.name ?? ""}
         disabled={!space}
         files={files}
         attachmentFileId={attachmentFileId}
@@ -114,4 +121,3 @@ function ConversationHeader({
     </header>
   );
 }
-

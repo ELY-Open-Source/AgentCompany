@@ -129,8 +129,7 @@ export function Onboarding({
           </div>
           <h1 className="page-h1" style={{ fontSize: 34, marginTop: 32, letterSpacing: "-0.02em" }}>Start your AI company.</h1>
           <p className="page-sub" style={{ maxWidth: 460, fontSize: 14, lineHeight: 1.55 }}>
-            Stand up the workspace, bind a runtime, and queue the first operating loop. Real data
-            from your provider, hairline UI, zero placeholder noise.
+            Stand up the workspace, bind the provider, and queue the first operating loop.
           </p>
           <div className="onboarding-steps">
             {STEPS.map((entry) => (
@@ -326,7 +325,7 @@ function CompanyStep({ draft, onChange, onBack, onNext }: StepProps) {
         <textarea className="input" value={draft.companyDescription} onChange={(event) => onChange({ companyDescription: event.target.value })} required />
       </Field>
       <Field label="Workspace path (optional)">
-        <input className="input" value={draft.workspacePath} onChange={(event) => onChange({ workspacePath: event.target.value })} placeholder="/Users/yu/Projects/orbitops" />
+        <input className="input" value={draft.workspacePath} onChange={(event) => onChange({ workspacePath: event.target.value })} />
       </Field>
       <Actions onBack={onBack} onNext={onNext} />
     </div>
