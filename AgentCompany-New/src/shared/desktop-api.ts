@@ -7,11 +7,14 @@ import type {
   CreateAgentInput,
   CreateApprovalInput,
   CreateChatSpaceInput,
+  CreateComplianceExportInput,
+  CreateLegalHoldInput,
   CreateMigrationReportInput,
   CheckProviderHealthInput,
   MarkChatSpaceReadInput,
   CreateOrganizationInput,
   CreateProviderResponseInput,
+  CreateRetentionFreezeInput,
   CreateScheduledPostInput,
   CreateSocialAccountInput,
   CreateTaskInput,
@@ -26,6 +29,8 @@ import type {
   SendMessageInput,
   SetActiveOrganizationInput,
   SetFilePinnedInput,
+  SetLegalHoldStateInput,
+  SetRetentionFreezeStateInput,
   SetScheduledPostStateInput,
   UpdateTaskStatusInput,
 } from "./commands";
@@ -63,6 +68,11 @@ export interface DesktopApi {
   importFile(input: ImportFileInput): Promise<DesktopResult<AppSnapshot>>;
   setFilePinned(input: SetFilePinnedInput): Promise<DesktopResult<AppSnapshot>>;
   createMigrationReport(input: CreateMigrationReportInput): Promise<DesktopResult<AppSnapshot>>;
+  createComplianceExport(input: CreateComplianceExportInput): Promise<DesktopResult<AppSnapshot>>;
+  createLegalHold(input: CreateLegalHoldInput): Promise<DesktopResult<AppSnapshot>>;
+  setLegalHoldState(input: SetLegalHoldStateInput): Promise<DesktopResult<AppSnapshot>>;
+  createRetentionFreeze(input: CreateRetentionFreezeInput): Promise<DesktopResult<AppSnapshot>>;
+  setRetentionFreezeState(input: SetRetentionFreezeStateInput): Promise<DesktopResult<AppSnapshot>>;
   subscribe(callback: (event: RendererEvent) => void): () => void;
   platform: "win32" | "darwin" | "linux";
   windowMinimize(): Promise<void>;

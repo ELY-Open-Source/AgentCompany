@@ -92,6 +92,11 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Publish" }).click();
     await expect(page.getByText("Published").first()).toBeVisible();
 
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "Compliance" }).click();
+    await page.getByRole("button", { name: "Create" }).click();
+    await expect(page.getByText("gdpr export · employee").first()).toBeVisible();
+
     await verifyPagesDoNotOverflow(page);
   } finally {
     await app.close();
@@ -105,7 +110,7 @@ async function verifyPagesDoNotOverflow(page: Page): Promise<void> {
       await page.getByRole("button", { name: nav }).click();
       await expectPageToFit(page);
     }
-    for (const tab of ["Workspace", "Members", "Billing", "Models", "Providers", "Skills", "Policies", "Migration", "Profile", "Notifications", "Security"]) {
+    for (const tab of ["Workspace", "Members", "Billing", "Models", "Providers", "Skills", "Policies", "Compliance", "Migration", "Profile", "Notifications", "Security"]) {
       await page.getByRole("button", { name: "Settings" }).click();
       await page.getByRole("button", { name: tab }).click();
       await expectPageToFit(page);

@@ -44,6 +44,9 @@ const LEGACY_TABLES = [
   "browser_actions",
   "scheduled_posts",
   "policy_rules",
+  "compliance_exports",
+  "legal_holds",
+  "retention_freezes",
   "audit_events",
 ];
 
@@ -159,6 +162,12 @@ const RELATION_CHECKS: RelationCheck[] = [
   { table: "scheduled_posts", column: "approval_id", referencedTable: "approvals", referencedColumn: "id", reason: "dangling_approval_id" },
   { table: "scheduled_posts", column: "created_by_employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_creator_employee_id" },
   { table: "policy_rules", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "compliance_exports", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "compliance_exports", column: "requested_by_employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_requester_employee_id" },
+  { table: "legal_holds", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "legal_holds", column: "created_by_employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_creator_employee_id" },
+  { table: "retention_freezes", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "retention_freezes", column: "created_by_employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_creator_employee_id" },
   { table: "audit_events", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
 ];
 

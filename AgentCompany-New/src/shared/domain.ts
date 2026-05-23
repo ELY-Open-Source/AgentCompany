@@ -1,8 +1,7 @@
 import type { BoardInterventionRecord as BoardInterventionRecordModel, ChatThreadBoardState as ChatThreadBoardStateModel } from "./board-domain";
-
-export { BOARD_INTERVENTION_ACTION, BOARD_INTERVENTION_MODE, CHAT_THREAD_BOARD_STATE } from "./board-domain";
-export type { BoardInterventionAction, BoardInterventionMode, BoardInterventionRecord, ChatThreadBoardState } from "./board-domain";
-
+import type { ComplianceExportRecord, LegalHoldRecord, RetentionFreezeRecord } from "./compliance-domain";
+export { BOARD_INTERVENTION_ACTION, BOARD_INTERVENTION_MODE, CHAT_THREAD_BOARD_STATE, type BoardInterventionAction, type BoardInterventionMode, type BoardInterventionRecord, type ChatThreadBoardState } from "./board-domain";
+export { COMPLIANCE_EXPORT_STATE, COMPLIANCE_EXPORT_TYPE, type ComplianceExportRecord, type ComplianceExportState, type ComplianceExportType, type ComplianceSubjectType, type LegalHoldEntityType, type LegalHoldRecord, type RetentionFreezeRecord, type RetentionFreezeScopeType } from "./compliance-domain";
 export const TASK_STATUS = {
   BACKLOG: "backlog",
   IN_PROGRESS: "in_progress",
@@ -192,6 +191,7 @@ export interface ChatSpaceRecord {
   name: string;
   topic: string;
   visibility: string;
+  retentionPolicy: string;
   createdAt: string;
 }
 
@@ -494,5 +494,6 @@ export interface AppSnapshot {
   browserActions: BrowserActionRecord[];
   policyRules: PolicyRuleRecord[];
   migrationReports: MigrationReportRecord[];
+  complianceExports: ComplianceExportRecord[]; legalHolds: LegalHoldRecord[]; retentionFreezes: RetentionFreezeRecord[];
   auditEvents: AuditEventRecord[];
 }

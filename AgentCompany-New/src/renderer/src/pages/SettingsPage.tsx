@@ -7,6 +7,7 @@ import { BillingPanel } from "./settings/BillingPanel";
 import { ModelsPanel } from "./settings/ModelsPanel";
 import { PoliciesPanel } from "./settings/PoliciesPanel";
 import { MigrationPanel } from "./settings/MigrationPanel";
+import { CompliancePanel } from "./settings/CompliancePanel";
 import { NotificationsPanel, ProfilePanel, SecurityPanel } from "./settings/AccountPanels";
 import type { PageProps } from "./types";
 import { activeOrgId, requireActiveEmployee, requireActiveOrganization } from "./types";
@@ -19,6 +20,7 @@ type SettingsTab =
   | "providers"
   | "skills"
   | "policies"
+  | "compliance"
   | "migration"
   | "profile"
   | "notifications"
@@ -39,6 +41,7 @@ const AGENTS_GROUP: NavSpec[] = [
   { id: "providers", label: "Providers" },
   { id: "skills", label: "Skills" },
   { id: "policies", label: "Policies" },
+  { id: "compliance", label: "Compliance" },
   { id: "migration", label: "Migration" },
 ];
 const ACCOUNT_GROUP: NavSpec[] = [
@@ -64,9 +67,15 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
   const skillBindings = useMemo(() => snapshot.skillBindings.filter((item) => item.orgId === orgId), [snapshot.skillBindings, orgId]);
   const policies = useMemo(() => snapshot.policyRules.filter((item) => item.orgId === orgId), [snapshot.policyRules, orgId]);
   const workspaces = useMemo(() => snapshot.workspaces.filter((item) => item.orgId === orgId), [snapshot.workspaces, orgId]);
+  const chatSpaces = useMemo(() => snapshot.chatSpaces.filter((item) => item.orgId === orgId), [snapshot.chatSpaces, orgId]);
+  const chatThreads = useMemo(() => snapshot.chatThreads.filter((item) => item.orgId === orgId), [snapshot.chatThreads, orgId]);
+  const files = useMemo(() => snapshot.files.filter((item) => item.orgId === orgId), [snapshot.files, orgId]);
   const providerRequests = useMemo(() => snapshot.providerRequests.filter((item) => item.orgId === orgId), [snapshot.providerRequests, orgId]);
   const auditEvents = useMemo(() => snapshot.auditEvents.filter((event) => event.orgId === orgId), [snapshot.auditEvents, orgId]);
   const migrationReports = useMemo(() => snapshot.migrationReports.filter((report) => report.orgId === orgId), [snapshot.migrationReports, orgId]);
+  const complianceExports = useMemo(() => snapshot.complianceExports.filter((item) => item.orgId === orgId), [snapshot.complianceExports, orgId]);
+  const legalHolds = useMemo(() => snapshot.legalHolds.filter((item) => item.orgId === orgId), [snapshot.legalHolds, orgId]);
+  const retentionFreezes = useMemo(() => snapshot.retentionFreezes.filter((item) => item.orgId === orgId), [snapshot.retentionFreezes, orgId]);
 
   return (
     <div className="split-main" style={{ height: "calc(100vh - 44px)", margin: "-28px -32px -40px" }}>
@@ -104,6 +113,21 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
             />
           )}
           {tab === "policies" && <PoliciesPanel policies={policies} />}
+          {tab === "compliance" && (
+            <CompliancePanel
+              orgId={orgId}
+              employeeId={employee.id}
+              employees={employees}
+              agents={agents}
+              chatSpaces={chatSpaces}
+              chatThreads={chatThreads}
+              files={files}
+              exports={complianceExports}
+              legalHolds={legalHolds}
+              retentionFreezes={retentionFreezes}
+              actions={actions}
+            />
+          )}
           {tab === "migration" && <MigrationPanel orgId={orgId} reports={migrationReports} actions={actions} />}
           {tab === "profile" && <ProfilePanel employee={employee} />}
           {tab === "notifications" && <NotificationsPanel events={auditEvents} employee={employee} />}

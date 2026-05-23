@@ -128,6 +128,9 @@ describe("migration service", () => {
       create table browser_actions(id text primary key, org_id text, social_account_id text, evidence_file_id text);
       create table scheduled_posts(id text primary key, org_id text, social_account_id text, approval_id text, created_by_employee_id text);
       create table policy_rules(id text primary key, org_id text);
+      create table compliance_exports(id text primary key, org_id text, requested_by_employee_id text);
+      create table legal_holds(id text primary key, org_id text, created_by_employee_id text);
+      create table retention_freezes(id text primary key, org_id text, created_by_employee_id text);
       create table audit_events(id text primary key, org_id text);
       insert into organizations(id) values ('org-1');
       insert into employees(id, org_id) values ('emp-1', 'org-1');
@@ -166,6 +169,9 @@ describe("migration service", () => {
       insert into browser_actions(id, org_id, social_account_id, evidence_file_id) values ('browser-1', 'org-1', 'social-1', 'file-1');
       insert into scheduled_posts(id, org_id, social_account_id, approval_id, created_by_employee_id) values ('post-1', 'org-1', 'social-1', 'approval-1', 'emp-1');
       insert into policy_rules(id, org_id) values ('policy-1', 'org-1');
+      insert into compliance_exports(id, org_id, requested_by_employee_id) values ('cmp-1', 'org-1', 'emp-1');
+      insert into legal_holds(id, org_id, created_by_employee_id) values ('hold-1', 'org-1', 'emp-1');
+      insert into retention_freezes(id, org_id, created_by_employee_id) values ('freeze-1', 'org-1', 'emp-1');
       insert into audit_events(id, org_id) values ('audit-1', 'org-1');
     `);
     let orgId = "";
@@ -183,9 +189,11 @@ describe("migration service", () => {
     expect(body.tableCounts.board_interventions).toBe(1);
     expect(body.tableCounts.file_access_grants).toBe(1);
     expect(body.tableCounts.provider_requests).toBe(1);
+    expect(body.tableCounts.compliance_exports).toBe(1);
     expect(body.tableChecksums.audit_events).toHaveLength(64);
     expect(body.idMaps.skill_runtime_snapshots).toEqual(["snapshot-1"]);
     expect(body.idMaps.board_interventions).toEqual(["bdi-1"]);
+    expect(body.idMaps.retention_freezes).toEqual(["freeze-1"]);
     connection.close();
   });
 

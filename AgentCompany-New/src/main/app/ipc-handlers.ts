@@ -13,6 +13,7 @@ import { SocialService } from "../services/social-service";
 import { FileService } from "../services/file-service";
 import { MigrationService } from "../services/migration-service";
 import { OnboardingService } from "../services/onboarding-service";
+import { ComplianceService } from "../services/compliance-service";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -30,6 +31,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const social = new SocialService(deps.connection.db);
   const files = new FileService(deps.connection.db, deps.artifactRoot);
   const migrations = new MigrationService(deps.connection.db);
+  const compliance = new ComplianceService(deps.connection.db);
   const onboarding = new OnboardingService({
     db: deps.connection.db,
     saveProviderCredential: (input) => providers.saveCredential(input),
@@ -144,6 +146,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.createMigrationReport, (_event, input) => mutate(() => migrations.createReport(input)));
+  ipcMain.handle(IPC_CHANNELS.createComplianceExport, (_event, input) => mutate(() => compliance.createExport(input)));
+  ipcMain.handle(IPC_CHANNELS.createLegalHold, (_event, input) => mutate(() => compliance.createLegalHold(input)));
+  ipcMain.handle(IPC_CHANNELS.setLegalHoldState, (_event, input) => mutate(() => compliance.setLegalHoldState(input)));
+  ipcMain.handle(IPC_CHANNELS.createRetentionFreeze, (_event, input) => mutate(() => compliance.createRetentionFreeze(input)));
+  ipcMain.handle(IPC_CHANNELS.setRetentionFreezeState, (_event, input) => mutate(() => compliance.setRetentionFreezeState(input)));
 
   ipcMain.handle(IPC_CHANNELS.windowMinimize, () => deps.mainWindow.minimize());
   ipcMain.handle(IPC_CHANNELS.windowMaximize, () => deps.mainWindow.isMaximized() ? deps.mainWindow.unmaximize() : deps.mainWindow.maximize());

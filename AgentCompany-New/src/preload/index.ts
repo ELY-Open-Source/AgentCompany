@@ -35,6 +35,11 @@ const api: DesktopApi = {
   importFile: (input) => invoke(IPC_CHANNELS.importFile, input),
   setFilePinned: (input) => invoke(IPC_CHANNELS.setFilePinned, input),
   createMigrationReport: (input) => invoke(IPC_CHANNELS.createMigrationReport, input),
+  createComplianceExport: (input) => invoke(IPC_CHANNELS.createComplianceExport, input),
+  createLegalHold: (input) => invoke(IPC_CHANNELS.createLegalHold, input),
+  setLegalHoldState: (input) => invoke(IPC_CHANNELS.setLegalHoldState, input),
+  createRetentionFreeze: (input) => invoke(IPC_CHANNELS.createRetentionFreeze, input),
+  setRetentionFreezeState: (input) => invoke(IPC_CHANNELS.setRetentionFreezeState, input),
   subscribe: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: RendererEvent) => callback(payload);
     ipcRenderer.on(IPC_CHANNELS.rendererEvent, listener);

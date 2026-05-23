@@ -47,6 +47,10 @@ export class SnapshotService {
       .map((binding) => ({ ...binding, enabled: toBool(binding.enabled) }));
     const files = list<AppSnapshot["files"][number]>(this.db, "file_objects", "created_at desc")
       .map((file) => ({ ...file, pinned: toBool(file.pinned) }));
+    const legalHolds = list<AppSnapshot["legalHolds"][number]>(this.db, "legal_holds", "created_at desc")
+      .map((hold) => ({ ...hold, active: toBool(hold.active) }));
+    const retentionFreezes = list<AppSnapshot["retentionFreezes"][number]>(this.db, "retention_freezes", "created_at desc")
+      .map((freeze) => ({ ...freeze, active: toBool(freeze.active) }));
 
     return {
       activeOrgId,
@@ -83,6 +87,9 @@ export class SnapshotService {
       browserActions: list(this.db, "browser_actions", "created_at desc"),
       policyRules: list(this.db, "policy_rules", "created_at asc"),
       migrationReports: list(this.db, "migration_reports", "created_at desc"),
+      complianceExports: list(this.db, "compliance_exports", "created_at desc"),
+      legalHolds,
+      retentionFreezes,
       auditEvents: list<AppSnapshot["auditEvents"][number]>(this.db, "audit_events", "created_at desc").slice(0, 200),
     };
   }
