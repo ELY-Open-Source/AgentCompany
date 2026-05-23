@@ -27,6 +27,8 @@ import type {
   LaunchSocialLoginInput,
   ResolveAgentSkillsInput,
   RunChaosDrillInput,
+  RunEvalSuiteInput,
+  RunSdlcReviewInput,
   SaveProviderCredentialInput,
   SearchInput,
   SendMessageInput,
@@ -34,6 +36,7 @@ import type {
   SetFilePinnedInput,
   SetFeatureFlagInput,
   SetLegalHoldStateInput,
+  SetPrBotGateInput,
   SetRetentionFreezeStateInput,
   SetScheduledPostStateInput,
   SyncEmployeeIdentityInput,
@@ -79,6 +82,9 @@ export interface DesktopApi {
   createMigrationReport(input: CreateMigrationReportInput): Promise<DesktopResult<AppSnapshot>>;
   setFeatureFlag(input: SetFeatureFlagInput): Promise<DesktopResult<AppSnapshot>>;
   runChaosDrill(input: RunChaosDrillInput): Promise<DesktopResult<AppSnapshot>>;
+  runSdlcReview(input: RunSdlcReviewInput): Promise<DesktopResult<AppSnapshot>>;
+  runEvalSuite(input: RunEvalSuiteInput): Promise<DesktopResult<AppSnapshot>>;
+  setPrBotGate(input: SetPrBotGateInput): Promise<DesktopResult<AppSnapshot>>;
   createComplianceExport(input: CreateComplianceExportInput): Promise<DesktopResult<AppSnapshot>>;
   createLegalHold(input: CreateLegalHoldInput): Promise<DesktopResult<AppSnapshot>>;
   setLegalHoldState(input: SetLegalHoldStateInput): Promise<DesktopResult<AppSnapshot>>;

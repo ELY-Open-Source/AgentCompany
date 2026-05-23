@@ -7,6 +7,7 @@ import { BillingPanel } from "./settings/BillingPanel";
 import { ModelsPanel } from "./settings/ModelsPanel";
 import { PoliciesPanel } from "./settings/PoliciesPanel";
 import { OperationsPanel } from "./settings/OperationsPanel";
+import { SdlcPanel } from "./settings/SdlcPanel";
 import { MigrationPanel } from "./settings/MigrationPanel";
 import { CompliancePanel } from "./settings/CompliancePanel";
 import { NotificationsPanel, ProfilePanel, SecurityPanel } from "./settings/AccountPanels";
@@ -22,6 +23,7 @@ type SettingsTab =
   | "skills"
   | "policies"
   | "operations"
+  | "sdlc"
   | "compliance"
   | "migration"
   | "profile"
@@ -44,6 +46,7 @@ const AGENTS_GROUP: NavSpec[] = [
   { id: "skills", label: "Skills" },
   { id: "policies", label: "Policies" },
   { id: "operations", label: "Operations" },
+  { id: "sdlc", label: "SDLC" },
   { id: "compliance", label: "Compliance" },
   { id: "migration", label: "Migration" },
 ];
@@ -91,6 +94,12 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
   const operationalEvents = useMemo(() => snapshot.operationalEvents.filter((item) => item.orgId === orgId), [snapshot.operationalEvents, orgId]);
   const chaosDrills = useMemo(() => snapshot.chaosDrills.filter((item) => item.orgId === orgId), [snapshot.chaosDrills, orgId]);
   const chaosDrillRuns = useMemo(() => snapshot.chaosDrillRuns.filter((item) => item.orgId === orgId), [snapshot.chaosDrillRuns, orgId]);
+  const sdlcReviewAgents = useMemo(() => snapshot.sdlcReviewAgents.filter((item) => item.orgId === orgId), [snapshot.sdlcReviewAgents, orgId]);
+  const sdlcReviewRuns = useMemo(() => snapshot.sdlcReviewRuns.filter((item) => item.orgId === orgId), [snapshot.sdlcReviewRuns, orgId]);
+  const evalSuites = useMemo(() => snapshot.evalSuites.filter((item) => item.orgId === orgId), [snapshot.evalSuites, orgId]);
+  const evalCases = useMemo(() => snapshot.evalCases.filter((item) => item.orgId === orgId), [snapshot.evalCases, orgId]);
+  const evalRuns = useMemo(() => snapshot.evalRuns.filter((item) => item.orgId === orgId), [snapshot.evalRuns, orgId]);
+  const prBotGates = useMemo(() => snapshot.prBotGates.filter((item) => item.orgId === orgId), [snapshot.prBotGates, orgId]);
 
   return (
     <div className="split-main" style={{ height: "calc(100vh - 44px)", margin: "-28px -32px -40px" }}>
@@ -155,6 +164,20 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               operationalEvents={operationalEvents}
               chaosDrills={chaosDrills}
               chaosDrillRuns={chaosDrillRuns}
+              actions={actions}
+            />
+          )}
+          {tab === "sdlc" && (
+            <SdlcPanel
+              orgId={orgId}
+              reviewAgents={sdlcReviewAgents}
+              reviewRuns={sdlcReviewRuns}
+              evalSuites={evalSuites}
+              evalCases={evalCases}
+              evalRuns={evalRuns}
+              prBotGates={prBotGates}
+              migrationReports={migrationReports}
+              policies={policies}
               actions={actions}
             />
           )}

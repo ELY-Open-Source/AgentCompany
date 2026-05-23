@@ -53,6 +53,14 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await expect(page.getByText("Chaos drills").first()).toBeVisible();
     await page.getByRole("button", { name: "Run" }).first().click();
     await expect(page.getByText("passed").first()).toBeVisible();
+    await page.getByRole("button", { name: "SDLC", exact: true }).click();
+    await expect(page.getByText("Review agents", { exact: true })).toBeVisible();
+    await expect(page.getByText("Eval suites", { exact: true })).toBeVisible();
+    await expect(page.getByText("PR bot gates", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Run" }).first().click();
+    await expect(page.getByText("passed").first()).toBeVisible();
+    await page.getByRole("button", { name: "Run" }).nth(3).click();
+    await expect(page.getByText(/passed ·/).first()).toBeVisible();
 
     await page.getByRole("button", { name: "Work", exact: true }).click();
     await page.getByRole("button", { name: "New task" }).click();
@@ -134,7 +142,7 @@ async function verifyPagesDoNotOverflow(page: Page): Promise<void> {
       await page.getByRole("button", { name: nav, exact: true }).click();
       await expectPageToFit(page);
     }
-    for (const tab of ["Workspace", "Members", "Billing", "Models", "Providers", "Skills", "Policies", "Operations", "Compliance", "Migration", "Profile", "Notifications", "Security"]) {
+    for (const tab of ["Workspace", "Members", "Billing", "Models", "Providers", "Skills", "Policies", "Operations", "SDLC", "Compliance", "Migration", "Profile", "Notifications", "Security"]) {
       await page.getByRole("button", { name: "Settings" }).click();
       await page.getByRole("button", { name: tab, exact: true }).click();
       await expectPageToFit(page);

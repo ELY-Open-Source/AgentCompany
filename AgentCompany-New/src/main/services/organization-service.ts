@@ -8,6 +8,7 @@ import { PolicyService } from "./policy-service";
 import { IdentityAccessService } from "./identity-access-service";
 import { OrgGovernanceService } from "./org-governance-service";
 import { OperationsService } from "./operations-service";
+import { SdlcService } from "./sdlc-service";
 import { assertUsableMentionName } from "./mention-handles";
 
 export class OrganizationService {
@@ -16,6 +17,7 @@ export class OrganizationService {
   private readonly identityAccess: IdentityAccessService;
   private readonly governance: OrgGovernanceService;
   private readonly operations: OperationsService;
+  private readonly sdlc: SdlcService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
@@ -23,6 +25,7 @@ export class OrganizationService {
     this.identityAccess = new IdentityAccessService(db);
     this.governance = new OrgGovernanceService(db);
     this.operations = new OperationsService(db);
+    this.sdlc = new SdlcService(db);
   }
 
   createOrganization(input: CreateOrganizationInput): string {
@@ -52,6 +55,7 @@ export class OrganizationService {
     this.identityAccess.seedEmployeeAccess(orgId, employeeId, now);
     this.governance.seedOrganizationGovernance(orgId, employeeId, now);
     this.operations.seedOrganizationOperations(orgId, now);
+    this.sdlc.seedOrganizationSdlc(orgId, now);
 
     for (const space of [
       ["company", "general", "Company coordination", "workspace"],

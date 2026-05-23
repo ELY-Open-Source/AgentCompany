@@ -11,6 +11,7 @@ import type {
   RiskLevel,
   RoleKey,
   SearchEntityType,
+  SdlcReviewTargetType,
   SocialPlatform,
   TaskPriority,
   TaskStatus,
@@ -286,6 +287,24 @@ export interface SetFeatureFlagInput {
 export interface RunChaosDrillInput {
   orgId: string;
   drillId: string;
+}
+
+export interface RunSdlcReviewInput {
+  orgId: string;
+  reviewAgentId: string;
+  targetType: SdlcReviewTargetType;
+  targetRef: string;
+}
+
+export interface RunEvalSuiteInput {
+  orgId: string;
+  suiteId: string;
+}
+
+export interface SetPrBotGateInput {
+  orgId: string;
+  gateId: string;
+  enabled: boolean;
 }
 
 export interface BootstrapOnboardingInput {

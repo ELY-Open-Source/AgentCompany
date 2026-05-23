@@ -23,7 +23,7 @@ describe("domain services", () => {
     const connection = createConnection();
 
     const rows = connection.db.prepare("select version from schema_migrations order by version asc").all() as Array<{ version: number }>;
-    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
+    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
     connection.close();
   });
 
@@ -51,6 +51,9 @@ describe("domain services", () => {
     expect(state.featureFlags.map((flag) => flag.key)).toContain("chaos_drills");
     expect(state.sloTargets.map((target) => target.signalKey)).toContain("provider_request_success");
     expect(state.chaosDrills.map((drill) => drill.scenarioKey)).toContain("approval_backlog_gate");
+    expect(state.sdlcReviewAgents.map((agent) => agent.key)).toContain("code_reviewer");
+    expect(state.evalSuites.map((suite) => suite.key)).toContain("contract");
+    expect(state.prBotGates.map((gate) => gate.key)).toContain("static_checks");
     expect(state.chatSpaces.map((space) => space.name)).toContain("board");
     expect(state.policyRules[0]?.action).toBe("task_create");
     expect(state.auditEvents[0]?.action).toBe("created");
