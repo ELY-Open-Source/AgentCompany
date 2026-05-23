@@ -148,11 +148,14 @@ export interface CreateSocialAccountInput {
   platform: SocialPlatform;
   handle: string;
   displayName: string;
+  createdByEmployeeId: string;
   authorizedEmployeeId: string | null;
 }
 
 export interface LaunchSocialLoginInput {
+  orgId: string;
   socialAccountId: string;
+  employeeId: string;
 }
 
 export interface ImportFileInput {
@@ -169,14 +172,14 @@ export interface CreateScheduledPostInput {
   socialAccountId: string;
   bodyMd: string;
   scheduledFor: string;
-  state: "draft" | "scheduled";
-  createdByEmployeeId: string | null;
+  createdByEmployeeId: string;
 }
 
 export interface SetScheduledPostStateInput {
   orgId: string;
   scheduledPostId: string;
   state: "draft" | "scheduled" | "published" | "cancelled";
+  employeeId: string;
 }
 
 export interface SetFilePinnedInput {

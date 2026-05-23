@@ -7,6 +7,7 @@ import { chatReadState } from "./migrations/005-chat-read-state";
 import { appStateSchema } from "./migrations/006-app-state";
 import { skillHardeningSchema } from "./migrations/007-skill-hardening";
 import { providerHealthSchema } from "./migrations/008-provider-health";
+import { socialGovernanceSchema } from "./migrations/009-social-governance";
 
 const MIGRATIONS: Array<{ version: number; sql: string }> = [
   { version: 1, sql: initialEnterpriseSchema },
@@ -17,6 +18,7 @@ const MIGRATIONS: Array<{ version: number; sql: string }> = [
   { version: 6, sql: appStateSchema },
   { version: 7, sql: skillHardeningSchema },
   { version: 8, sql: providerHealthSchema },
+  { version: 9, sql: socialGovernanceSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

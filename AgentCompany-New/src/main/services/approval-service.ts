@@ -12,6 +12,7 @@ export class ApprovalService {
   }
 
   create(input: CreateApprovalInput): string {
+    this.assertRequesterBelongsToOrg(input);
     const id = createId("app");
     const now = new Date().toISOString();
     this.db.prepare(`
@@ -46,6 +47,7 @@ export class ApprovalService {
   }
 
   decide(input: DecideApprovalInput): void {
+    this.assertEmployee(input.orgId, input.decidedByEmployeeId, "Deciding employee was not found.");
     const now = new Date().toISOString();
     const result = this.db.prepare(`
       update approvals
@@ -62,5 +64,27 @@ export class ApprovalService {
       action: input.state,
       payload: { decidedAt: now },
     });
+  }
+
+  private assertRequesterBelongsToOrg(input: CreateApprovalInput): void {
+    if (input.requestedByType === "employee") {
+      if (!input.requestedById) throw new Error("Requesting employee is required.");
+      this.assertEmployee(input.orgId, input.requestedById, "Requesting employee was not found.");
+      return;
+    }
+    if (input.requestedByType === "agent") {
+      if (!input.requestedById) throw new Error("Requesting agent is required.");
+      const agent = this.db.prepare("select id from agents where id = ? and org_id = ?").get(input.requestedById, input.orgId);
+      if (!agent) throw new Error("Requesting agent was not found.");
+      return;
+    }
+    if (input.requestedByType === "system" && input.requestedById) {
+      throw new Error("System approvals cannot include a requester id.");
+    }
+  }
+
+  private assertEmployee(orgId: string, employeeId: string, message: string): void {
+    const employee = this.db.prepare("select id from employees where id = ? and org_id = ?").get(employeeId, orgId);
+    if (!employee) throw new Error(message);
   }
 }

@@ -117,7 +117,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   ipcMain.handle(IPC_CHANNELS.launchSocialLogin, (_event, input) => {
     try {
-      social.launchLoginWindow(input.socialAccountId);
+      social.launchLoginWindow(input);
       return ok(null);
     } catch (error) {
       return fail("social_login_failed", error instanceof Error ? error.message : String(error));

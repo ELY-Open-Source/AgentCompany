@@ -4,10 +4,12 @@ import { Dialog } from "../shared/Dialog";
 import {
   SOCIAL_PLATFORM,
   type EmployeeRecord,
+  type ApprovalState,
   type ScheduledPostRecord,
   type SocialAccountRecord,
   type SocialPlatform,
 } from "../../../shared/domain";
+import { APPROVAL_STATE } from "../../../shared/domain";
 import { SocialCalendar } from "./social/SocialCalendar";
 import { PlatformIcon } from "./social/PlatformIcon";
 import type { PageProps } from "./types";
@@ -26,6 +28,13 @@ export function SocialPage({ snapshot, actions }: PageProps) {
   const employee = requireActiveEmployee(snapshot);
   const accounts = useMemo(() => snapshot.socialAccounts.filter((account) => account.orgId === orgId), [snapshot.socialAccounts, orgId]);
   const scheduledPosts = useMemo(() => snapshot.scheduledPosts.filter((post) => post.orgId === orgId), [snapshot.scheduledPosts, orgId]);
+  const approvalStateById = useMemo(() => {
+    const states = new Map<string, ApprovalState>();
+    for (const approval of snapshot.approvals) {
+      if (approval.orgId === orgId) states.set(approval.id, approval.state);
+    }
+    return states;
+  }, [snapshot.approvals, orgId]);
   const employees = snapshot.employees.filter((item) => item.orgId === orgId);
 
   const [connectOpen, setConnectOpen] = useState(false);
@@ -33,6 +42,7 @@ export function SocialPage({ snapshot, actions }: PageProps) {
 
   const scheduled = scheduledPosts.filter((post) => post.state === "scheduled");
   const drafts = scheduledPosts.filter((post) => post.state === "draft");
+  const history = scheduledPosts.filter((post) => post.state === "published" || post.state === "cancelled");
   const operator = accounts.find((account) => account.authorizedEmployeeId)?.authorizedEmployeeId ?? null;
   const operatorName = operator ? employees.find((item) => item.id === operator)?.displayName ?? null : null;
 
@@ -44,6 +54,7 @@ export function SocialPage({ snapshot, actions }: PageProps) {
       platform: value(form, "platform") as SocialPlatform,
       handle: value(form, "handle"),
       displayName: value(form, "displayName"),
+      createdByEmployeeId: employee.id,
       authorizedEmployeeId: optional(form, "authorizedEmployeeId"),
     })).then((result) => { if (result) setConnectOpen(false); });
   };
@@ -56,13 +67,12 @@ export function SocialPage({ snapshot, actions }: PageProps) {
       socialAccountId: value(form, "socialAccountId"),
       bodyMd: value(form, "bodyMd"),
       scheduledFor: value(form, "scheduledFor"),
-      state: value(form, "state") === "scheduled" ? "scheduled" : "draft",
       createdByEmployeeId: employee.id,
     })).then((result) => { if (result) setDraftOpen(false); });
   };
 
   const updatePostState = (post: ScheduledPostRecord, state: "draft" | "scheduled" | "published" | "cancelled") =>
-    void actions.run(() => window.agentCompany.setScheduledPostState({ orgId, scheduledPostId: post.id, state }));
+    void actions.run(() => window.agentCompany.setScheduledPostState({ orgId, scheduledPostId: post.id, state, employeeId: employee.id }));
 
   return (
     <div className="page">
@@ -91,7 +101,8 @@ export function SocialPage({ snapshot, actions }: PageProps) {
                 key={account.id}
                 account={account}
                 authorizedName={account.authorizedEmployeeId ? employees.find((item) => item.id === account.authorizedEmployeeId)?.displayName ?? null : null}
-                onSignIn={() => void actions.run(() => window.agentCompany.launchSocialLogin({ socialAccountId: account.id }))}
+                canSignIn={account.authorizedEmployeeId === employee.id}
+                onSignIn={() => void actions.run(() => window.agentCompany.launchSocialLogin({ orgId, socialAccountId: account.id, employeeId: employee.id }))}
               />
             ))}
           </div>
@@ -107,6 +118,7 @@ export function SocialPage({ snapshot, actions }: PageProps) {
               post={post}
               account={requireAccount(accounts, post.socialAccountId)}
               authorName={authorName(post, employees)}
+              approvalState={approvalState(post, approvalStateById)}
               onCancel={() => updatePostState(post, "cancelled")}
               onPublish={() => updatePostState(post, "published")}
             />
@@ -118,8 +130,21 @@ export function SocialPage({ snapshot, actions }: PageProps) {
               post={post}
               account={requireAccount(accounts, post.socialAccountId)}
               authorName={authorName(post, employees)}
+              approvalState={approvalState(post, approvalStateById)}
               onCancel={() => updatePostState(post, "cancelled")}
               onPublish={() => updatePostState(post, "scheduled")}
+            />
+          ))}
+          {history.length > 0 && <div className="section-label" style={{ margin: "24px 0 10px" }}>History</div>}
+          {history.map((post) => (
+            <PostRow
+              key={post.id}
+              post={post}
+              account={requireAccount(accounts, post.socialAccountId)}
+              authorName={authorName(post, employees)}
+              approvalState={approvalState(post, approvalStateById)}
+              onCancel={() => updatePostState(post, "cancelled")}
+              onPublish={() => updatePostState(post, "published")}
             />
           ))}
         </div>
@@ -156,12 +181,6 @@ export function SocialPage({ snapshot, actions }: PageProps) {
         </Field>
         <Field label="Body"><textarea className="input" name="bodyMd" required /></Field>
         <Field label="Scheduled for"><input className="input" name="scheduledFor" type="datetime-local" required /></Field>
-        <Field label="State">
-          <select className="input" name="state" defaultValue="scheduled">
-            <option value="draft">Draft</option>
-            <option value="scheduled">Scheduled</option>
-          </select>
-        </Field>
       </Dialog>
     </div>
   );
@@ -170,10 +189,12 @@ export function SocialPage({ snapshot, actions }: PageProps) {
 function AccountCard({
   account,
   authorizedName,
+  canSignIn,
   onSignIn,
 }: {
   account: SocialAccountRecord;
   authorizedName: string | null;
+  canSignIn: boolean;
   onSignIn: () => void;
 }) {
   return (
@@ -196,11 +217,12 @@ function AccountCard({
           <div style={{ fontSize: 11, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{account.displayName}</div>
         </div>
       </div>
-      {authorizedName ? (
+      {authorizedName && (
         <div className="row" style={{ fontSize: 11, color: "var(--text-3)", gap: 6 }}>
           <span style={{ width: 6, height: 6, borderRadius: 3, background: "var(--green)" }} /> Authorized to {authorizedName}
         </div>
-      ) : (
+      )}
+      {canSignIn && (
         <Button size="small" onClick={onSignIn}>Sign in</Button>
       )}
     </div>
@@ -211,16 +233,19 @@ function PostRow({
   post,
   account,
   authorName,
+  approvalState,
   onCancel,
   onPublish,
 }: {
   post: ScheduledPostRecord;
   account: SocialAccountRecord;
   authorName: string;
+  approvalState: ApprovalState | null;
   onCancel: () => void;
   onPublish: () => void;
 }) {
   const isDraft = post.state === "draft";
+  const canPublish = post.state === "scheduled" && approvalState === APPROVAL_STATE.APPROVED;
   return (
     <div
       style={{
@@ -244,7 +269,9 @@ function PostRow({
               {formatSchedule(post.scheduledFor)}
             </span>
           )}
-          {post.approvalId && <Pill tone="amber" dot>Awaiting approval</Pill>}
+          {approvalState === APPROVAL_STATE.PENDING && <Pill tone="amber" dot>Awaiting approval</Pill>}
+          {approvalState === APPROVAL_STATE.APPROVED && <Pill tone="green" dot>Approved</Pill>}
+          {approvalState === APPROVAL_STATE.DECLINED && <Pill tone="red">Declined</Pill>}
           {post.state === "published" && <Pill tone="green" dot>Published</Pill>}
           {post.state === "cancelled" && <Pill tone="red">Cancelled</Pill>}
         </div>
@@ -255,7 +282,7 @@ function PostRow({
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {post.state === "scheduled" && <Button size="small" tone="primary" onClick={onPublish}>Publish</Button>}
+        {post.state === "scheduled" && <Button size="small" tone="primary" disabled={!canPublish} onClick={onPublish}>Publish</Button>}
         {post.state === "draft" && <Button size="small" tone="primary" onClick={onPublish}>Schedule</Button>}
         {post.state !== "cancelled" && post.state !== "published" && (
           <Button size="small" tone="ghost" onClick={onCancel}>Cancel</Button>
@@ -264,6 +291,13 @@ function PostRow({
       </div>
     </div>
   );
+}
+
+function approvalState(post: ScheduledPostRecord, states: Map<string, ApprovalState>): ApprovalState | null {
+  if (!post.approvalId) return null;
+  const state = states.get(post.approvalId);
+  if (!state) throw new Error("Scheduled post references missing approval.");
+  return state;
 }
 
 function requireAccount(accounts: SocialAccountRecord[], id: string): SocialAccountRecord {
