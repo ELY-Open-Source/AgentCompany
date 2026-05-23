@@ -23,6 +23,7 @@ const api: DesktopApi = {
   saveProviderCredential: (input) => invoke(IPC_CHANNELS.saveProviderCredential, input),
   launchProviderSignIn: (input) => invoke(IPC_CHANNELS.launchProviderSignIn, input),
   checkProviderHealth: (input) => invoke(IPC_CHANNELS.checkProviderHealth, input),
+  updateProviderPolicy: (input) => invoke(IPC_CHANNELS.updateProviderPolicy, input),
   openExternalUrl: (url) => invoke(IPC_CHANNELS.openExternalUrl, url),
   createProviderResponse: (input) => invoke(IPC_CHANNELS.createProviderResponse, input),
   importSkillDirectory: (input) => invoke(IPC_CHANNELS.importSkillDirectory, input),

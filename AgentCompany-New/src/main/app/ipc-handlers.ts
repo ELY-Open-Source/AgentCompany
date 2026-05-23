@@ -82,6 +82,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.sendMessage, (_event, input) => mutate(() => chat.sendMessage(input)));
   ipcMain.handle(IPC_CHANNELS.markChatSpaceRead, (_event, input) => mutate(() => chat.markSpaceRead(input)));
   ipcMain.handle(IPC_CHANNELS.saveProviderCredential, (_event, input) => mutate(() => providers.saveCredential(input)));
+  ipcMain.handle(IPC_CHANNELS.updateProviderPolicy, (_event, input) => mutate(() => providers.updatePolicy(input)));
   ipcMain.handle(IPC_CHANNELS.checkProviderHealth, async (_event, input) => {
     try {
       await providers.checkHealth(input.orgId, input.providerId);

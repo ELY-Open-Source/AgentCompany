@@ -99,6 +99,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               providers={providers}
               catalog={snapshot.providerCatalog}
               agents={agents}
+              providerRequests={providerRequests}
               actions={actions}
             />
           )}

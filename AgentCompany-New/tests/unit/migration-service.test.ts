@@ -112,6 +112,7 @@ describe("migration service", () => {
       create table chat_read_state(org_id text, employee_id text, space_id text, last_read_message_id text);
       create table providers(id text primary key, org_id text, credential_id text);
       create table provider_requests(id text primary key, org_id text, provider_id text);
+      create table provider_usage_windows(id text primary key, org_id text, provider_id text);
       create table credentials(id text primary key, org_id text);
       create table skill_definitions(id text primary key, org_id text);
       create table skill_revisions(id text primary key, skill_id text);
@@ -157,6 +158,7 @@ describe("migration service", () => {
       insert into chat_presence(principal_type, principal_id) values ('agent', 'agent-1');
       insert into chat_read_state(org_id, employee_id, space_id, last_read_message_id) values ('org-1', 'emp-1', 'space-1', 'msg-1');
       insert into provider_requests(id, org_id, provider_id) values ('req-1', 'org-1', 'prov-1');
+      insert into provider_usage_windows(id, org_id, provider_id) values ('usage-1', 'org-1', 'prov-1');
       insert into skill_definitions(id, org_id) values ('skill-1', 'org-1');
       insert into skill_revisions(id, skill_id) values ('rev-1', 'skill-1'), ('rev-2', 'skill-1');
       insert into skill_artifacts(id, revision_id) values ('artifact-1', 'rev-1');
@@ -191,12 +193,14 @@ describe("migration service", () => {
     expect(body.tableCounts.board_interventions).toBe(1);
     expect(body.tableCounts.file_access_grants).toBe(1);
     expect(body.tableCounts.provider_requests).toBe(1);
+    expect(body.tableCounts.provider_usage_windows).toBe(1);
     expect(body.tableCounts.compliance_exports).toBe(1);
     expect(body.tableCounts.search_documents).toBe(1);
     expect(body.tableChecksums.audit_events).toHaveLength(64);
     expect(body.idMaps.skill_runtime_snapshots).toEqual(["snapshot-1"]);
     expect(body.idMaps.board_interventions).toEqual(["bdi-1"]);
     expect(body.idMaps.retention_freezes).toEqual(["freeze-1"]);
+    expect(body.idMaps.provider_usage_windows).toEqual(["usage-1"]);
     connection.close();
   });
 

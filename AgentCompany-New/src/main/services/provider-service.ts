@@ -1,8 +1,8 @@
 import type { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
 import { BrowserWindow, session } from "electron";
-import type { CreateProviderResponseInput, SaveProviderCredentialInput } from "../../shared/commands";
-import { PROVIDER_AUTH_TYPE, PROVIDER_REQUEST_STATE } from "../../shared/domain";
+import type { CreateProviderResponseInput, SaveProviderCredentialInput, UpdateProviderPolicyInput } from "../../shared/commands";
+import { PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderExecutionMode } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
@@ -13,6 +13,7 @@ const AUTH_STATE_CONFIGURED = "configured";
 const HEALTH_STATE_HEALTHY = "healthy";
 const HEALTH_STATE_FAILED = "failed";
 const HEALTH_STATE_UNCHECKED = "unchecked";
+const WORKSPACE_SCOPES = new Set(["organization", "workspace"]);
 
 function displayHint(secret: string): string {
   const clean = secret.trim();
@@ -136,10 +137,46 @@ export class ProviderService {
     });
   }
 
+  updatePolicy(input: UpdateProviderPolicyInput): void {
+    const monthlyRequestLimit = Math.trunc(input.monthlyRequestLimit);
+    if (monthlyRequestLimit < 1) throw new Error("Monthly request limit must be at least 1.");
+    if (!Object.values(PROVIDER_DATA_POLICY).includes(input.dataPolicy)) throw new Error("Provider data policy is invalid.");
+    if (!WORKSPACE_SCOPES.has(input.workspaceScope)) throw new Error("Provider workspace scope is invalid.");
+    if (input.dataPolicy === PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION && input.backgroundEnabled) {
+      throw new Error("Zero data retention policy requires foreground execution.");
+    }
+    const provider = this.db.prepare("select id, provider_key from providers where id = ? and org_id = ?")
+      .get(input.providerId, input.orgId) as { id: string; provider_key: string } | undefined;
+    if (!provider) throw new Error("Provider was not found.");
+
+    this.db.prepare(`
+      update providers
+      set data_policy = ?, background_enabled = ?, monthly_request_limit = ?, workspace_scope = ?
+      where id = ? and org_id = ?
+    `).run(input.dataPolicy, input.backgroundEnabled ? 1 : 0, monthlyRequestLimit, input.workspaceScope, input.providerId, input.orgId);
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "provider",
+      entityId: input.providerId,
+      actorType: "system",
+      actorId: null,
+      action: "policy_updated",
+      payload: {
+        providerKey: provider.provider_key,
+        dataPolicy: input.dataPolicy,
+        backgroundEnabled: input.backgroundEnabled,
+        monthlyRequestLimit,
+        workspaceScope: input.workspaceScope,
+      },
+    });
+  }
+
   async createResponse(input: CreateProviderResponseInput): Promise<void> {
     const prompt = input.prompt.trim();
     if (!prompt) throw new Error("Prompt is required.");
     const provider = this.loadConfiguredProvider(input.orgId, input.providerId);
+    const executionMode = input.executionMode ?? PROVIDER_EXECUTION_MODE.FOREGROUND;
+    this.enforcePolicy(input.orgId, provider, executionMode);
     if (provider.auth_type !== PROVIDER_AUTH_TYPE.API_KEY) {
       throw new Error("Provider response execution requires an API key adapter.");
     }
@@ -153,9 +190,10 @@ export class ProviderService {
     this.db.prepare(`
       insert into provider_requests(
         id, org_id, provider_id, provider_key, model, prompt_sha256,
-        response_text, raw_response_json, state, error_message, created_at, completed_at
+        response_text, raw_response_json, state, error_message, input_char_count,
+        output_char_count, execution_mode, policy_decision, created_at, completed_at
       )
-      values (?, ?, ?, ?, ?, ?, null, null, ?, null, ?, null)
+      values (?, ?, ?, ?, ?, ?, null, null, ?, null, ?, 0, ?, ?, ?, null)
     `).run(
       requestId,
       input.orgId,
@@ -164,6 +202,9 @@ export class ProviderService {
       provider.model,
       hashPrompt(prompt),
       PROVIDER_REQUEST_STATE.PENDING,
+      prompt.length,
+      executionMode,
+      `allowed:${provider.data_policy}`,
       now,
     );
 
@@ -177,9 +218,10 @@ export class ProviderService {
       });
       this.db.prepare(`
         update provider_requests
-        set state = ?, response_text = ?, raw_response_json = ?, completed_at = ?
+        set state = ?, response_text = ?, raw_response_json = ?, output_char_count = ?, completed_at = ?
         where id = ? and org_id = ?
-      `).run(PROVIDER_REQUEST_STATE.SUCCEEDED, result.text, result.rawResponseJson, new Date().toISOString(), requestId, input.orgId);
+      `).run(PROVIDER_REQUEST_STATE.SUCCEEDED, result.text, result.rawResponseJson, result.text.length, new Date().toISOString(), requestId, input.orgId);
+      this.recordUsage(input.orgId, provider.id, prompt.length, result.text.length);
       this.recordProviderHealth(provider.id, input.orgId, HEALTH_STATE_HEALTHY, null);
       this.audit.record({
         orgId: input.orgId,
@@ -197,14 +239,34 @@ export class ProviderService {
         set state = ?, error_message = ?, completed_at = ?
         where id = ? and org_id = ?
       `).run(PROVIDER_REQUEST_STATE.FAILED, message, new Date().toISOString(), requestId, input.orgId);
+      this.recordUsage(input.orgId, provider.id, prompt.length, 0);
       this.recordProviderHealth(provider.id, input.orgId, HEALTH_STATE_FAILED, message);
       throw error;
     }
   }
 
+  private enforcePolicy(orgId: string, provider: ProviderRow, executionMode: ProviderExecutionMode): void {
+    if (!Object.values(PROVIDER_EXECUTION_MODE).includes(executionMode)) throw new Error("Provider execution mode is invalid.");
+    if (executionMode === PROVIDER_EXECUTION_MODE.BACKGROUND && provider.data_policy === PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION) {
+      throw new Error("Background execution conflicts with zero data retention policy.");
+    }
+    if (executionMode === PROVIDER_EXECUTION_MODE.BACKGROUND && provider.background_enabled !== 1) {
+      throw new Error("Background execution is disabled for this provider policy.");
+    }
+    const window = currentMonthlyWindow();
+    const usage = this.db.prepare(`
+      select request_count
+      from provider_usage_windows
+      where org_id = ? and provider_id = ? and window_start = ?
+    `).get(orgId, provider.id, window.start) as { request_count: number } | undefined;
+    const requestCount = usage?.request_count ?? 0;
+    if (requestCount >= provider.monthly_request_limit) throw new Error("Provider monthly request limit has been reached.");
+  }
+
   private loadConfiguredProvider(orgId: string, providerId: string): ProviderRow {
     const provider = this.db.prepare(`
-      select id, provider_key, auth_type, model, credential_id, enabled, auth_state
+      select id, provider_key, auth_type, model, credential_id, enabled, auth_state,
+        data_policy, background_enabled, monthly_request_limit, workspace_scope
       from providers
       where id = ? and org_id = ?
     `).get(providerId, orgId) as ProviderRow | undefined;
@@ -252,6 +314,22 @@ export class ProviderService {
       where id = ? and org_id = ?
     `).run(healthState, error, new Date().toISOString(), providerId, orgId);
   }
+
+  private recordUsage(orgId: string, providerId: string, inputCharCount: number, outputCharCount: number): void {
+    const window = currentMonthlyWindow();
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      insert into provider_usage_windows(
+        id, org_id, provider_id, window_start, window_end, request_count,
+        input_char_count, output_char_count, created_at, updated_at
+      ) values (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+      on conflict(provider_id, window_start) do update set
+        request_count = request_count + 1,
+        input_char_count = input_char_count + excluded.input_char_count,
+        output_char_count = output_char_count + excluded.output_char_count,
+        updated_at = excluded.updated_at
+    `).run(createId("puw"), orgId, providerId, window.start, window.end, inputCharCount, outputCharCount, now, now);
+  }
 }
 
 interface ProviderRow {
@@ -262,8 +340,19 @@ interface ProviderRow {
   credential_id: string | null;
   enabled: number;
   auth_state: string;
+  data_policy: string;
+  background_enabled: number;
+  monthly_request_limit: number;
+  workspace_scope: string;
 }
 
 function hashPrompt(prompt: string): string {
   return createHash("sha256").update(prompt).digest("hex");
+}
+
+function currentMonthlyWindow(): { start: string; end: string } {
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  return { start: start.toISOString(), end: end.toISOString() };
 }

@@ -3,6 +3,8 @@ import type {
   ComplianceExportType,
   ComplianceSubjectType,
   LegalHoldEntityType,
+  ProviderDataPolicy,
+  ProviderExecutionMode,
   RetentionFreezeScopeType,
   RiskLevel,
   SearchEntityType,
@@ -127,11 +129,21 @@ export interface CheckProviderHealthInput {
   providerId: string;
 }
 
+export interface UpdateProviderPolicyInput {
+  orgId: string;
+  providerId: string;
+  dataPolicy: ProviderDataPolicy;
+  backgroundEnabled: boolean;
+  monthlyRequestLimit: number;
+  workspaceScope: "organization" | "workspace";
+}
+
 export interface CreateProviderResponseInput {
   orgId: string;
   providerId: string;
   prompt: string;
   instructions: string | null;
+  executionMode?: ProviderExecutionMode;
 }
 
 export interface ImportSkillDirectoryInput {

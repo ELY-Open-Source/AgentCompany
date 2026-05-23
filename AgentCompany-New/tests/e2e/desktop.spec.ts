@@ -97,6 +97,12 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await expect(page.getByText("Published").first()).toBeVisible();
 
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "Providers" }).click();
+    await page.getByLabel("OpenAI data policy").selectOption("zero_data_retention");
+    await expect(page.getByLabel("OpenAI background execution")).not.toBeChecked();
+    await page.getByLabel("OpenAI monthly request limit").fill("25");
+    await page.getByRole("button", { name: "Save OpenAI policy" }).click();
+    await expect(page.getByText("0 / 25").first()).toBeVisible();
     await page.getByRole("button", { name: "Compliance" }).click();
     await page.getByRole("button", { name: "Create" }).click();
     await expect(page.getByText("gdpr export · employee").first()).toBeVisible();

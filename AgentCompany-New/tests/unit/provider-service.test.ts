@@ -7,6 +7,7 @@ import { OrganizationService } from "../../src/main/services/organization-servic
 import { ProviderService } from "../../src/main/services/provider-service";
 import { providerAdapters, type ProviderAdapterRegistry, type ProviderAuthProfile } from "../../src/main/services/provider-adapters";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
+import { PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE } from "../../src/shared/domain";
 import { PROVIDER_CATALOG } from "../../src/shared/provider-catalog";
 
 function createConnection(): DatabaseConnection {
@@ -118,6 +119,111 @@ describe("provider service", () => {
       state: "succeeded",
     });
     expect(state.providers.find((provider) => provider.id === openAiProviderId)?.healthState).toBe("healthy");
+    connection.close();
+  });
+
+  test("tracks provider usage windows and enforces monthly request limits", async () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    const adapters: ProviderAdapterRegistry = {
+      ...providerAdapters,
+      openai: {
+        ...providerAdapters.openai,
+        parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
+        checkHealth: async () => ({ checkedAt: new Date().toISOString() }),
+        createResponse: async ({ prompt }) => ({ text: `accepted:${prompt}`, rawResponseJson: "{}" }),
+      },
+    };
+    const providers = new ProviderService(connection.db, adapters, testVault);
+    let orgId = "";
+    let openAiProviderId = "";
+
+    connection.transaction(() => {
+      orgId = createOrganization(organization);
+      openAiProviderId = providerId(connection, orgId, "openai");
+      providers.saveCredential({ orgId, providerId: openAiProviderId, secret: "sk-live-provider", model: "gpt-5.4" });
+      providers.updatePolicy({
+        orgId,
+        providerId: openAiProviderId,
+        dataPolicy: PROVIDER_DATA_POLICY.STANDARD,
+        backgroundEnabled: false,
+        monthlyRequestLimit: 1,
+        workspaceScope: "organization",
+      });
+    });
+    await providers.createResponse({
+      orgId,
+      providerId: openAiProviderId,
+      prompt: "Draft board memo",
+      instructions: null,
+    });
+    await expect(providers.createResponse({
+      orgId,
+      providerId: openAiProviderId,
+      prompt: "Second board memo",
+      instructions: null,
+    })).rejects.toThrow("Provider monthly request limit has been reached.");
+
+    const usage = connection.db.prepare(`
+      select request_count, input_char_count, output_char_count
+      from provider_usage_windows
+      where org_id = ? and provider_id = ?
+    `).get(orgId, openAiProviderId) as { request_count: number; input_char_count: number; output_char_count: number };
+    expect(usage).toEqual({ request_count: 1, input_char_count: 16, output_char_count: 25 });
+    expect(snapshot.load().providerRequests[0]).toMatchObject({
+      providerId: openAiProviderId,
+      inputCharCount: 16,
+      outputCharCount: 25,
+      executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND,
+      policyDecision: "allowed:standard",
+    });
+    connection.close();
+  });
+
+  test("blocks background execution under zero data retention policy", async () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    let adapterCalled = false;
+    const adapters: ProviderAdapterRegistry = {
+      ...providerAdapters,
+      openai: {
+        ...providerAdapters.openai,
+        parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
+        checkHealth: async () => ({ checkedAt: new Date().toISOString() }),
+        createResponse: async () => {
+          adapterCalled = true;
+          return { text: "blocked", rawResponseJson: "{}" };
+        },
+      },
+    };
+    const providers = new ProviderService(connection.db, adapters, testVault);
+    let orgId = "";
+    let openAiProviderId = "";
+
+    connection.transaction(() => {
+      orgId = createOrganization(organization);
+      openAiProviderId = providerId(connection, orgId, "openai");
+      providers.saveCredential({ orgId, providerId: openAiProviderId, secret: "sk-live-provider", model: "gpt-5.4" });
+      providers.updatePolicy({
+        orgId,
+        providerId: openAiProviderId,
+        dataPolicy: PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION,
+        backgroundEnabled: false,
+        monthlyRequestLimit: 10,
+        workspaceScope: "organization",
+      });
+    });
+
+    await expect(providers.createResponse({
+      orgId,
+      providerId: openAiProviderId,
+      prompt: "Run background analysis",
+      instructions: null,
+      executionMode: PROVIDER_EXECUTION_MODE.BACKGROUND,
+    })).rejects.toThrow("Background execution conflicts with zero data retention policy.");
+    expect(adapterCalled).toBe(false);
+    expect(connection.db.prepare("select count(*) as count from provider_requests").get()).toEqual({ count: 0 });
     connection.close();
   });
 

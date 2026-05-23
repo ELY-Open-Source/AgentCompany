@@ -42,7 +42,7 @@ export class SnapshotService {
     const workspaces = list<AppSnapshot["workspaces"][number]>(this.db, "workspaces", "created_at asc")
       .map((workspace) => ({ ...workspace, isPrimary: toBool(workspace.isPrimary) }));
     const providers = list<AppSnapshot["providers"][number]>(this.db, "providers", "label asc")
-      .map((provider) => ({ ...provider, enabled: toBool(provider.enabled) }));
+      .map((provider) => ({ ...provider, enabled: toBool(provider.enabled), backgroundEnabled: toBool(provider.backgroundEnabled) }));
     const skillBindings = list<AppSnapshot["skillBindings"][number]>(this.db, "skill_bindings", "priority asc")
       .map((binding) => ({ ...binding, enabled: toBool(binding.enabled) }));
     const files = list<AppSnapshot["files"][number]>(this.db, "file_objects", "created_at desc")

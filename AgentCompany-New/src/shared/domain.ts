@@ -1,57 +1,18 @@
 import type { BoardInterventionRecord as BoardInterventionRecordModel, ChatThreadBoardState as ChatThreadBoardStateModel } from "./board-domain";
 import type { ComplianceExportRecord, LegalHoldRecord, RetentionFreezeRecord } from "./compliance-domain";
+import type { ProviderDataPolicy, ProviderExecutionMode } from "./provider-policy-domain";
 export { BOARD_INTERVENTION_ACTION, BOARD_INTERVENTION_MODE, CHAT_THREAD_BOARD_STATE, type BoardInterventionAction, type BoardInterventionMode, type BoardInterventionRecord, type ChatThreadBoardState } from "./board-domain";
 export { COMPLIANCE_EXPORT_STATE, COMPLIANCE_EXPORT_TYPE, type ComplianceExportRecord, type ComplianceExportState, type ComplianceExportType, type ComplianceSubjectType, type LegalHoldEntityType, type LegalHoldRecord, type RetentionFreezeRecord, type RetentionFreezeScopeType } from "./compliance-domain";
+export { PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, type ProviderDataPolicy, type ProviderExecutionMode } from "./provider-policy-domain";
 export { SEARCH_ENTITY_TYPES, type SearchEntityType, type SearchResultRecord } from "./search-domain";
-export const TASK_STATUS = {
-  BACKLOG: "backlog",
-  IN_PROGRESS: "in_progress",
-  REVIEW: "review",
-  DONE: "done",
-} as const;
-
-export const APPROVAL_STATE = {
-  PENDING: "pending",
-  APPROVED: "approved",
-  DECLINED: "declined",
-} as const;
-
-export const RISK_LEVEL = {
-  LOW: "low",
-  MEDIUM: "medium",
-  HIGH: "high",
-} as const;
-
-export const TASK_PRIORITY = {
-  LOW: "low",
-  NORMAL: "normal",
-  HIGH: "high",
-} as const;
-
-export const PROVIDER_AUTH_TYPE = {
-  API_KEY: "api_key",
-  OAUTH_PKCE: "oauth_pkce",
-  ACCOUNT_SUBSCRIPTION: "account_subscription",
-  CLOUD: "cloud",
-} as const;
-
-export const SOCIAL_PLATFORM = {
-  X: "x",
-  LINKEDIN: "linkedin",
-  YOUTUBE: "youtube",
-  INSTAGRAM: "instagram",
-} as const;
-
-export const PROVIDER_REQUEST_STATE = {
-  PENDING: "pending",
-  SUCCEEDED: "succeeded",
-  FAILED: "failed",
-} as const;
-
-export const FILE_SCAN_STATE = {
-  APPROVED: "approved",
-  BLOCKED: "blocked",
-} as const;
+export const TASK_STATUS = { BACKLOG: "backlog", IN_PROGRESS: "in_progress", REVIEW: "review", DONE: "done" } as const;
+export const APPROVAL_STATE = { PENDING: "pending", APPROVED: "approved", DECLINED: "declined" } as const;
+export const RISK_LEVEL = { LOW: "low", MEDIUM: "medium", HIGH: "high" } as const;
+export const TASK_PRIORITY = { LOW: "low", NORMAL: "normal", HIGH: "high" } as const;
+export const PROVIDER_AUTH_TYPE = { API_KEY: "api_key", OAUTH_PKCE: "oauth_pkce", ACCOUNT_SUBSCRIPTION: "account_subscription", CLOUD: "cloud" } as const;
+export const SOCIAL_PLATFORM = { X: "x", LINKEDIN: "linkedin", YOUTUBE: "youtube", INSTAGRAM: "instagram" } as const;
+export const PROVIDER_REQUEST_STATE = { PENDING: "pending", SUCCEEDED: "succeeded", FAILED: "failed" } as const;
+export const FILE_SCAN_STATE = { APPROVED: "approved", BLOCKED: "blocked" } as const;
 
 export type ValueOf<T> = T[keyof T];
 export type TaskStatus = ValueOf<typeof TASK_STATUS>;
@@ -323,6 +284,10 @@ export interface ProviderRecord {
   healthState: string;
   lastCheckedAt: string | null;
   lastError: string | null;
+  dataPolicy: ProviderDataPolicy;
+  backgroundEnabled: boolean;
+  monthlyRequestLimit: number;
+  workspaceScope: string;
   createdAt: string;
 }
 
@@ -353,6 +318,10 @@ export interface ProviderRequestRecord {
   rawResponseJson: string | null;
   state: ProviderRequestState;
   errorMessage: string | null;
+  inputCharCount: number;
+  outputCharCount: number;
+  executionMode: ProviderExecutionMode;
+  policyDecision: string;
   createdAt: string;
   completedAt: string | null;
 }

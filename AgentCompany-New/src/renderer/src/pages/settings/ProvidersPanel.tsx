@@ -5,7 +5,9 @@ import type {
   AgentRecord,
   ProviderCatalogEntry,
   ProviderRecord,
+  ProviderRequestRecord,
 } from "../../../../shared/domain";
+import { PROVIDER_DATA_POLICY } from "../../../../shared/domain";
 import { ProviderLogo } from "./ProviderLogo";
 import type { SnapshotActions } from "../../app/useSnapshot";
 
@@ -14,6 +16,7 @@ interface ProvidersPanelProps {
   providers: ProviderRecord[];
   catalog: ProviderCatalogEntry[];
   agents: AgentRecord[];
+  providerRequests: ProviderRequestRecord[];
   actions: SnapshotActions;
 }
 
@@ -26,7 +29,7 @@ interface CloudFields {
 
 const CLOUD_DEFAULTS: CloudFields = { baseUrl: "", region: "", projectId: "", deployment: "" };
 
-export function ProvidersPanel({ orgId, providers, catalog, agents, actions }: ProvidersPanelProps) {
+export function ProvidersPanel({ orgId, providers, catalog, agents, providerRequests, actions }: ProvidersPanelProps) {
   const [active, setActive] = useState<ProviderRecord | null>(null);
   const [signInLaunched, setSignInLaunched] = useState(false);
   const connected = providers.filter((provider) => provider.enabled);
@@ -76,6 +79,12 @@ export function ProvidersPanel({ orgId, providers, catalog, agents, actions }: P
               />
             ))}
           </div>
+          <ProviderPolicyTable
+            orgId={orgId}
+            providers={connected}
+            providerRequests={providerRequests}
+            actions={actions}
+          />
         </>
       )}
 
@@ -106,6 +115,124 @@ export function ProvidersPanel({ orgId, providers, catalog, agents, actions }: P
           />
         )}
       </Dialog>
+    </div>
+  );
+}
+
+function ProviderPolicyTable({
+  orgId,
+  providers,
+  providerRequests,
+  actions,
+}: {
+  orgId: string;
+  providers: ProviderRecord[];
+  providerRequests: ProviderRequestRecord[];
+  actions: SnapshotActions;
+}) {
+  return (
+    <>
+      <div className="section-label" style={{ marginBottom: 10 }}>Runtime policy</div>
+      <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 28 }}>
+        <div
+          className="table-row head"
+          style={{ gridTemplateColumns: "minmax(0, 1.4fr) minmax(140px, 1fr) 120px 132px 96px" }}
+        >
+          <div>Provider</div><div>Data policy</div><div>Background</div><div>Monthly limit</div><div>Usage</div>
+        </div>
+        {providers.map((provider, index) => (
+          <ProviderPolicyRow
+            key={`${provider.id}:${provider.dataPolicy}:${provider.backgroundEnabled}:${provider.monthlyRequestLimit}`}
+            orgId={orgId}
+            provider={provider}
+            requests={providerRequests.filter((request) => request.providerId === provider.id && inCurrentUtcMonth(request.createdAt))}
+            last={index === providers.length - 1}
+            actions={actions}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function ProviderPolicyRow({
+  orgId,
+  provider,
+  requests,
+  last,
+  actions,
+}: {
+  orgId: string;
+  provider: ProviderRecord;
+  requests: ProviderRequestRecord[];
+  last: boolean;
+  actions: SnapshotActions;
+}) {
+  const [dataPolicy, setDataPolicy] = useState(provider.dataPolicy);
+  const [backgroundEnabled, setBackgroundEnabled] = useState(provider.backgroundEnabled);
+  const [monthlyRequestLimit, setMonthlyRequestLimit] = useState(String(provider.monthlyRequestLimit));
+
+  const savePolicy = () => {
+    void actions.run(() => window.agentCompany.updateProviderPolicy({
+      orgId,
+      providerId: provider.id,
+      dataPolicy,
+      backgroundEnabled,
+      monthlyRequestLimit: Number(monthlyRequestLimit),
+      workspaceScope: provider.workspaceScope === "workspace" ? "workspace" : "organization",
+    }));
+  };
+
+  const updateDataPolicy = (value: ProviderRecord["dataPolicy"]) => {
+    setDataPolicy(value);
+    if (value === PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION) setBackgroundEnabled(false);
+  };
+
+  return (
+    <div
+      className="table-row"
+      style={{
+        gridTemplateColumns: "minmax(0, 1.4fr) minmax(140px, 1fr) 120px 132px 96px",
+        borderBottom: last ? "none" : "1px solid var(--border-soft)",
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
+        <div className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>{provider.workspaceScope} scope</div>
+      </div>
+      <select
+        className="input"
+        aria-label={`${provider.label} data policy`}
+        value={dataPolicy}
+        onChange={(event) => updateDataPolicy(event.target.value as ProviderRecord["dataPolicy"])}
+      >
+        <option value={PROVIDER_DATA_POLICY.STANDARD}>Standard retention</option>
+        <option value={PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION}>Zero data retention</option>
+      </select>
+      <label className="row" style={{ gap: 8, fontSize: 12, color: "var(--text-2)" }}>
+        <input
+          aria-label={`${provider.label} background execution`}
+          type="checkbox"
+          checked={backgroundEnabled}
+          disabled={dataPolicy === PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION}
+          onChange={(event) => setBackgroundEnabled(event.target.checked)}
+        />
+        Allow
+      </label>
+      <input
+        className="input"
+        aria-label={`${provider.label} monthly request limit`}
+        type="number"
+        min={1}
+        value={monthlyRequestLimit}
+        onChange={(event) => setMonthlyRequestLimit(event.target.value)}
+      />
+      <div>
+        <div className="num mono">{requests.length} / {provider.monthlyRequestLimit}</div>
+        <button type="button" className="button small" aria-label={`Save ${provider.label} policy`} onClick={savePolicy}>
+          Save
+        </button>
+      </div>
     </div>
   );
 }
@@ -310,4 +437,10 @@ function readableAuth(authType: ProviderRecord["authType"]): string {
   if (authType === "account_subscription") return "Account";
   if (authType === "cloud") return "Cloud";
   return authType;
+}
+
+function inCurrentUtcMonth(iso: string): boolean {
+  const value = new Date(iso);
+  const now = new Date();
+  return value.getUTCFullYear() === now.getUTCFullYear() && value.getUTCMonth() === now.getUTCMonth();
 }

@@ -33,6 +33,7 @@ import type {
   SetLegalHoldStateInput,
   SetRetentionFreezeStateInput,
   SetScheduledPostStateInput,
+  UpdateProviderPolicyInput,
   UpdateTaskStatusInput,
 } from "./commands";
 
@@ -57,6 +58,7 @@ export interface DesktopApi {
   saveProviderCredential(input: SaveProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;
   launchProviderSignIn(input: LaunchProviderSignInInput): Promise<DesktopResult<null>>;
   checkProviderHealth(input: CheckProviderHealthInput): Promise<DesktopResult<AppSnapshot>>;
+  updateProviderPolicy(input: UpdateProviderPolicyInput): Promise<DesktopResult<AppSnapshot>>;
   openExternalUrl(url: string): Promise<DesktopResult<null>>;
   createProviderResponse(input: CreateProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
   importSkillDirectory(input: ImportSkillDirectoryInput): Promise<DesktopResult<AppSnapshot>>;
