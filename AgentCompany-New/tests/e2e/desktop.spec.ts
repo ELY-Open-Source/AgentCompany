@@ -128,6 +128,10 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByRole("button", { name: "Compliance" }).click();
     await page.getByRole("button", { name: "Create" }).click();
     await expect(page.getByText("gdpr export · employee").first()).toBeVisible();
+    await expect(page.getByText("Thread replay")).toBeVisible();
+    await page.getByRole("button", { name: "Run" }).click();
+    await expect(page.getByText("Replay runs", { exact: true })).toBeVisible();
+    await expect(page.getByText(/\d+ events ·/).first()).toBeVisible();
 
     await verifyPagesDoNotOverflow(page);
   } finally {

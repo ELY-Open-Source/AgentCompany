@@ -44,6 +44,7 @@ const api: DesktopApi = {
   runEvalSuite: (input) => invoke(IPC_CHANNELS.runEvalSuite, input),
   setPrBotGate: (input) => invoke(IPC_CHANNELS.setPrBotGate, input),
   createComplianceExport: (input) => invoke(IPC_CHANNELS.createComplianceExport, input),
+  createAuditReplay: (input) => invoke(IPC_CHANNELS.createAuditReplay, input),
   createLegalHold: (input) => invoke(IPC_CHANNELS.createLegalHold, input),
   setLegalHoldState: (input) => invoke(IPC_CHANNELS.setLegalHoldState, input),
   createRetentionFreeze: (input) => invoke(IPC_CHANNELS.createRetentionFreeze, input),

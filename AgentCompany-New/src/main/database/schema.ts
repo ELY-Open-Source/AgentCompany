@@ -17,6 +17,7 @@ import { identityAccessSchema } from "./migrations/015-identity-access";
 import { orgGovernanceSchema } from "./migrations/016-org-governance";
 import { operationsControlsSchema } from "./migrations/017-operations-controls";
 import { sdlcControlsSchema } from "./migrations/018-sdlc-controls";
+import { auditReplaySchema } from "./migrations/019-audit-replay";
 
 interface Migration {
   version: number;
@@ -43,6 +44,7 @@ const MIGRATIONS: Migration[] = [
   { version: 16, name: "org_governance", sql: orgGovernanceSchema },
   { version: 17, name: "operations_controls", sql: operationsControlsSchema },
   { version: 18, name: "sdlc_controls", sql: sdlcControlsSchema },
+  { version: 19, name: "audit_replay", sql: auditReplaySchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

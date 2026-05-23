@@ -245,7 +245,7 @@ export class SdlcService {
     const schemaVersion = count(this.db, "select coalesce(max(version), 0) as count from schema_migrations");
     return [
       { key: "provider_adapter_coverage", passed: missing.length === 0, value: `${adapterKeys.length}/${catalogKeys.length}` },
-      { key: "schema_version", passed: schemaVersion >= 18, value: schemaVersion },
+      { key: "schema_version", passed: schemaVersion >= 19, value: schemaVersion },
     ];
   }
 

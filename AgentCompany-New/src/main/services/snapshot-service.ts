@@ -121,6 +121,7 @@ export class SnapshotService {
       evalCases: list(this.db, "eval_cases", "title asc"),
       evalRuns: list(this.db, "eval_runs", "created_at desc"),
       prBotGates,
+      auditReplayRuns: list(this.db, "audit_replay_runs", "created_at desc"),
       auditEvents: list<AppSnapshot["auditEvents"][number]>(this.db, "audit_events", "created_at desc").slice(0, 200),
     };
   }

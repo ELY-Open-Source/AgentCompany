@@ -6,6 +6,7 @@ import type {
   BootstrapOnboardingSummary,
   CreateAgentInput,
   CreateApprovalInput,
+  CreateAuditReplayInput,
   CreateChatSpaceInput,
   CreateComplianceExportInput,
   CreateLegalHoldInput,
@@ -86,6 +87,7 @@ export interface DesktopApi {
   runEvalSuite(input: RunEvalSuiteInput): Promise<DesktopResult<AppSnapshot>>;
   setPrBotGate(input: SetPrBotGateInput): Promise<DesktopResult<AppSnapshot>>;
   createComplianceExport(input: CreateComplianceExportInput): Promise<DesktopResult<AppSnapshot>>;
+  createAuditReplay(input: CreateAuditReplayInput): Promise<DesktopResult<AppSnapshot>>;
   createLegalHold(input: CreateLegalHoldInput): Promise<DesktopResult<AppSnapshot>>;
   setLegalHoldState(input: SetLegalHoldStateInput): Promise<DesktopResult<AppSnapshot>>;
   createRetentionFreeze(input: CreateRetentionFreezeInput): Promise<DesktopResult<AppSnapshot>>;

@@ -100,6 +100,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
   const evalCases = useMemo(() => snapshot.evalCases.filter((item) => item.orgId === orgId), [snapshot.evalCases, orgId]);
   const evalRuns = useMemo(() => snapshot.evalRuns.filter((item) => item.orgId === orgId), [snapshot.evalRuns, orgId]);
   const prBotGates = useMemo(() => snapshot.prBotGates.filter((item) => item.orgId === orgId), [snapshot.prBotGates, orgId]);
+  const auditReplayRuns = useMemo(() => snapshot.auditReplayRuns.filter((item) => item.orgId === orgId), [snapshot.auditReplayRuns, orgId]);
 
   return (
     <div className="split-main" style={{ height: "calc(100vh - 44px)", margin: "-28px -32px -40px" }}>
@@ -193,6 +194,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               exports={complianceExports}
               legalHolds={legalHolds}
               retentionFreezes={retentionFreezes}
+              auditReplayRuns={auditReplayRuns}
               actions={actions}
             />
           )}

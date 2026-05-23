@@ -36,6 +36,7 @@ export const IPC_CHANNELS = {
   runEvalSuite: "agentcompany:run-eval-suite",
   setPrBotGate: "agentcompany:set-pr-bot-gate",
   createComplianceExport: "agentcompany:create-compliance-export",
+  createAuditReplay: "agentcompany:create-audit-replay",
   createLegalHold: "agentcompany:create-legal-hold",
   setLegalHoldState: "agentcompany:set-legal-hold-state",
   createRetentionFreeze: "agentcompany:create-retention-freeze",

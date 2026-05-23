@@ -2,6 +2,7 @@ import { Children, type FormEvent, type ReactNode } from "react";
 import { Button, Icon, Pill } from "../../shared/ui";
 import type {
   AgentRecord,
+  AuditReplayRunRecord,
   ChatSpaceRecord,
   ChatThreadRecord,
   ComplianceExportRecord,
@@ -24,6 +25,7 @@ export function CompliancePanel({
   exports,
   legalHolds,
   retentionFreezes,
+  auditReplayRuns,
   actions,
 }: {
   orgId: string;
@@ -36,6 +38,7 @@ export function CompliancePanel({
   exports: ComplianceExportRecord[];
   legalHolds: LegalHoldRecord[];
   retentionFreezes: RetentionFreezeRecord[];
+  auditReplayRuns: AuditReplayRunRecord[];
   actions: SnapshotActions;
 }) {
   const submitExport = (event: FormEvent<HTMLFormElement>) => {
@@ -77,6 +80,16 @@ export function CompliancePanel({
       reason,
       createdByEmployeeId: employeeId,
     })).then((result) => { if (result) event.currentTarget.reset(); });
+  };
+
+  const submitReplay = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    void actions.run(() => window.agentCompany.createAuditReplay({
+      orgId,
+      threadId: String(form.get("threadId") ?? ""),
+      createdByEmployeeId: employeeId,
+    }));
   };
 
   return (
@@ -134,6 +147,18 @@ export function CompliancePanel({
         </section>
 
         <section className="card">
+          <SectionTitle icon="refresh" title="Thread replay" />
+          <form onSubmit={submitReplay} style={{ display: "grid", gap: 10 }}>
+            <LabeledSelect label="Thread" name="threadId">
+              {chatThreads.map((thread) => <option key={thread.id} value={thread.id}>{thread.title}</option>)}
+            </LabeledSelect>
+            <div className="row" style={{ justifyContent: "flex-end" }}>
+              <Button tone="primary" size="small" type="submit" disabled={chatThreads.length === 0}><Icon name="refresh" size={12} /> Run</Button>
+            </div>
+          </form>
+        </section>
+
+        <section className="card">
           <SectionTitle icon="inbox" title="Export history" />
           <RecordList emptyLabel="0 exports">
             {exports.map((item) => (
@@ -146,6 +171,19 @@ export function CompliancePanel({
           </RecordList>
         </section>
       </div>
+
+      <section className="card" style={{ marginTop: 16 }}>
+        <SectionTitle icon="list" title="Replay runs" />
+        <RecordList emptyLabel="0 replay runs">
+          {auditReplayRuns.map((run) => (
+            <RecordRow
+              key={run.id}
+              title={threadTitle(chatThreads, run.threadId)}
+              meta={`${run.eventCount} events · ${run.eventDigest.slice(0, 12)} · ${formatRelative(run.createdAt)}`}
+            />
+          ))}
+        </RecordList>
+      </section>
 
       <section className="card" style={{ marginTop: 16 }}>
         <SectionTitle icon="approve" title="Active controls" />
@@ -176,7 +214,7 @@ export function CompliancePanel({
   );
 }
 
-function SectionTitle({ icon, title }: { icon: "approve" | "docs" | "inbox" | "pause" | "shield"; title: string }) {
+function SectionTitle({ icon, title }: { icon: "approve" | "docs" | "inbox" | "list" | "pause" | "refresh" | "shield"; title: string }) {
   return (
     <div className="row" style={{ marginBottom: 12 }}>
       <Icon name={icon} size={14} color="var(--text-3)" />
@@ -237,4 +275,10 @@ function splitPair(value: string): [string, string] {
   const index = value.indexOf(":");
   if (index < 1) throw new Error("Compliance selector value is invalid.");
   return [value.slice(0, index), value.slice(index + 1)];
+}
+
+function threadTitle(threads: ChatThreadRecord[], threadId: string): string {
+  const thread = threads.find((item) => item.id === threadId);
+  if (!thread) throw new Error("Audit replay thread is missing from snapshot.");
+  return thread.title;
 }

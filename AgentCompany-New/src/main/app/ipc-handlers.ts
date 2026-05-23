@@ -18,6 +18,7 @@ import { SearchService } from "../services/search-service";
 import { IdentityAccessService } from "../services/identity-access-service";
 import { OperationsService } from "../services/operations-service";
 import { SdlcService } from "../services/sdlc-service";
+import { AuditService } from "../services/audit-service";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -40,6 +41,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const identityAccess = new IdentityAccessService(deps.connection.db);
   const operations = new OperationsService(deps.connection.db);
   const sdlc = new SdlcService(deps.connection.db);
+  const audit = new AuditService(deps.connection.db);
   const onboarding = new OnboardingService({
     db: deps.connection.db,
     saveProviderCredential: (input) => providers.saveCredential(input),
@@ -163,6 +165,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.runEvalSuite, (_event, input) => mutate(() => sdlc.runEvalSuite(input)));
   ipcMain.handle(IPC_CHANNELS.setPrBotGate, (_event, input) => mutate(() => sdlc.setPrBotGate(input)));
   ipcMain.handle(IPC_CHANNELS.createComplianceExport, (_event, input) => mutate(() => compliance.createExport(input)));
+  ipcMain.handle(IPC_CHANNELS.createAuditReplay, (_event, input) => mutate(() => audit.createThreadReplay(input)));
   ipcMain.handle(IPC_CHANNELS.createLegalHold, (_event, input) => mutate(() => compliance.createLegalHold(input)));
   ipcMain.handle(IPC_CHANNELS.setLegalHoldState, (_event, input) => mutate(() => compliance.setLegalHoldState(input)));
   ipcMain.handle(IPC_CHANNELS.createRetentionFreeze, (_event, input) => mutate(() => compliance.createRetentionFreeze(input)));

@@ -227,6 +227,12 @@ export interface CreateComplianceExportInput {
   requestedByEmployeeId: string;
 }
 
+export interface CreateAuditReplayInput {
+  orgId: string;
+  threadId: string;
+  createdByEmployeeId: string;
+}
+
 export interface CreateLegalHoldInput {
   orgId: string;
   entityType: LegalHoldEntityType;
