@@ -242,10 +242,15 @@ export class SdlcService {
     const catalogKeys = PROVIDER_CATALOG.map((provider) => provider.key);
     const adapterKeys = Object.keys(providerAdapters);
     const missing = catalogKeys.filter((key) => !adapterKeys.includes(key));
+    const runtimeContractReady = PROVIDER_CATALOG.every((provider) => {
+      const adapter = providerAdapters[provider.key];
+      return typeof adapter.listModels === "function" && typeof adapter.getRateLimitState === "function";
+    });
     const schemaVersion = count(this.db, "select coalesce(max(version), 0) as count from schema_migrations");
     return [
       { key: "provider_adapter_coverage", passed: missing.length === 0, value: `${adapterKeys.length}/${catalogKeys.length}` },
-      { key: "schema_version", passed: schemaVersion >= 20, value: schemaVersion },
+      { key: "provider_runtime_contract", passed: runtimeContractReady, value: runtimeContractReady },
+      { key: "schema_version", passed: schemaVersion >= 21, value: schemaVersion },
     ];
   }
 

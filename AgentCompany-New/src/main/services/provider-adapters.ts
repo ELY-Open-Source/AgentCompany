@@ -1,4 +1,5 @@
 import { PROVIDER_AUTH_TYPE, type ProviderAuthType } from "../../shared/domain";
+import { listProviderModels, type ProviderModelEntry } from "../../shared/provider-models";
 
 export interface ProviderExecutionInput {
   authProfile: ProviderAuthProfile;
@@ -21,10 +22,24 @@ export interface ProviderHealthResult {
   checkedAt: string;
 }
 
+export interface ProviderContext {
+  authProfile: ProviderAuthProfile;
+  model: string | null;
+}
+
+export interface ProviderRateLimitState {
+  requestLimit: number | null;
+  remainingRequests: number | null;
+  resetAt: string | null;
+  rawStateJson: string;
+}
+
 export interface ProviderAdapter {
   providerKey: string;
   authType: ProviderAuthType;
   parseAuthProfile(secret: string): ProviderAuthProfile;
+  listModels(ctx: ProviderContext): Promise<ProviderModelEntry[]>;
+  getRateLimitState(ctx: ProviderContext): Promise<ProviderRateLimitState | null>;
   checkHealth(input: ProviderHealthInput): Promise<ProviderHealthResult>;
   createResponse?: (input: ProviderExecutionInput) => Promise<ProviderExecutionResult>;
 }
@@ -48,6 +63,8 @@ export const providerAdapters: ProviderAdapterRegistry = {
     providerKey: "openai",
     authType: PROVIDER_AUTH_TYPE.API_KEY,
     parseAuthProfile: parseApiKey,
+    listModels: () => listStaticModels("openai"),
+    getRateLimitState: providerRateLimitUnknown,
     checkHealth: (input) => checkOpenAiHealth(input.authProfile, "https://api.openai.com/v1/models"),
     async createResponse(input) {
       const profile = requireApiKeyProfile(input.authProfile, "OpenAI");
@@ -66,6 +83,8 @@ export const providerAdapters: ProviderAdapterRegistry = {
     providerKey: "anthropic",
     authType: PROVIDER_AUTH_TYPE.API_KEY,
     parseAuthProfile: parseApiKey,
+    listModels: () => listStaticModels("anthropic"),
+    getRateLimitState: providerRateLimitUnknown,
     async checkHealth(input) {
       const profile = requireApiKeyProfile(input.authProfile, "Anthropic");
       await getJson("https://api.anthropic.com/v1/models", {
@@ -108,6 +127,8 @@ export const providerAdapters: ProviderAdapterRegistry = {
     providerKey: "azure-openai",
     authType: PROVIDER_AUTH_TYPE.CLOUD,
     parseAuthProfile: parseAzureProfile,
+    listModels: () => listStaticModels("azure-openai"),
+    getRateLimitState: providerRateLimitUnknown,
     async checkHealth(input) {
       const profile = requireAzureProfile(input.authProfile);
       await getJson(`${profile.baseUrl}/openai/deployments?api-version=2024-10-21`, { "api-key": profile.apiKey });
@@ -118,6 +139,8 @@ export const providerAdapters: ProviderAdapterRegistry = {
     providerKey: "aws-bedrock",
     authType: PROVIDER_AUTH_TYPE.CLOUD,
     parseAuthProfile: parseBedrockProfile,
+    listModels: () => listStaticModels("aws-bedrock"),
+    getRateLimitState: providerRateLimitUnknown,
     checkHealth: async (input) => {
       requireBedrockProfile(input.authProfile);
       return healthy();
@@ -127,6 +150,8 @@ export const providerAdapters: ProviderAdapterRegistry = {
     providerKey: "vertex-ai",
     authType: PROVIDER_AUTH_TYPE.CLOUD,
     parseAuthProfile: parseVertexProfile,
+    listModels: () => listStaticModels("vertex-ai"),
+    getRateLimitState: providerRateLimitUnknown,
     checkHealth: async (input) => {
       requireVertexProfile(input.authProfile);
       return healthy();
@@ -220,6 +245,8 @@ function openAiCompatibleAdapter({
     providerKey,
     authType: PROVIDER_AUTH_TYPE.API_KEY,
     parseAuthProfile: parseApiKey,
+    listModels: () => listStaticModels(providerKey),
+    getRateLimitState: providerRateLimitUnknown,
     checkHealth: (input) => checkOpenAiHealth(input.authProfile, healthUrl),
     async createResponse(input) {
       const profile = requireApiKeyProfile(input.authProfile, label);
@@ -250,6 +277,8 @@ function browserTokenAdapter(providerKey: string, authType: ProviderAuthType): P
     providerKey,
     authType,
     parseAuthProfile: authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION ? parseAccountToken : parseAccessToken,
+    listModels: () => listStaticModels(providerKey),
+    getRateLimitState: providerRateLimitUnknown,
     checkHealth: async (input) => {
       if (authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION) requireAccountTokenProfile(input.authProfile);
       else requireAccessTokenProfile(input.authProfile);
@@ -372,4 +401,12 @@ function requireVertexProfile(profile: ProviderAuthProfile): Extract<ProviderAut
 
 function healthy(): ProviderHealthResult {
   return { checkedAt: new Date().toISOString() };
+}
+
+function listStaticModels(providerKey: string): Promise<ProviderModelEntry[]> {
+  return Promise.resolve(listProviderModels(providerKey));
+}
+
+async function providerRateLimitUnknown(): Promise<ProviderRateLimitState | null> {
+  return null;
 }
