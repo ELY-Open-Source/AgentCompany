@@ -4,6 +4,7 @@ import type { ComplianceExportRecord, LegalHoldRecord, RetentionFreezeRecord } f
 import type { AccessDecisionRecord, EmployeeIdentityRecord, RoleGrantRecord, ServiceIdentityRecord } from "./identity-domain";
 import type { ApprovalAssignmentRecord, ApprovalRoutingRuleRecord, HiringPolicyRecord, OrgDepartmentRecord } from "./org-governance-domain";
 import type { ChaosDrillRecord, ChaosDrillRunRecord, FeatureFlagRecord, OperationalEventRecord, SloTargetRecord } from "./operations-domain";
+import type { ProviderAuthProfileRecord } from "./provider-auth-domain";
 import type { ProviderDataPolicy, ProviderExecutionMode } from "./provider-policy-domain";
 import type { RollbackSnapshotRecord } from "./rollback-domain";
 import type { EvalCaseRecord, EvalRunRecord, EvalSuiteRecord, PrBotGateRecord, SdlcReviewAgentRecord, SdlcReviewRunRecord } from "./sdlc-domain";
@@ -13,6 +14,7 @@ export { COMPLIANCE_EXPORT_STATE, COMPLIANCE_EXPORT_TYPE, type ComplianceExportR
 export { ACCESS_DECISION, IDENTITY_SOURCE, ROLE_KEY, type AccessDecision, type AccessDecisionRecord, type EmployeeIdentityRecord, type IdentitySource, type PrincipalType, type RoleGrantRecord, type RoleKey, type ServiceIdentityRecord } from "./identity-domain";
 export { ROUTE_TO_TYPE, type ApprovalAssignmentRecord, type ApprovalRoutingRuleRecord, type HiringPolicyRecord, type OrgDepartmentRecord, type RouteToType } from "./org-governance-domain";
 export { CHAOS_DRILL_SCENARIO, CHAOS_DRILL_STATE, FEATURE_FLAG_KEY, SLO_SIGNAL_KEY, type ChaosDrillRecord, type ChaosDrillRunRecord, type ChaosDrillScenario, type ChaosDrillState, type FeatureFlagKey, type FeatureFlagRecord, type OperationalEventRecord, type SloSignalKey, type SloTargetRecord } from "./operations-domain";
+export type { ProviderAuthProfileRecord } from "./provider-auth-domain";
 export { PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, type ProviderDataPolicy, type ProviderExecutionMode } from "./provider-policy-domain";
 export type { RollbackSnapshotRecord } from "./rollback-domain";
 export { EVAL_SUITE_KEY, PR_BOT_GATE_KEY, SDLC_REVIEW_AGENT_KEY, SDLC_REVIEW_TARGET_TYPE, SDLC_RUN_STATE, type EvalCaseRecord, type EvalRunRecord, type EvalSuiteKey, type EvalSuiteRecord, type PrBotGateKey, type PrBotGateRecord, type SdlcReviewAgentKey, type SdlcReviewAgentRecord, type SdlcReviewRunRecord, type SdlcReviewTargetType, type SdlcRunState } from "./sdlc-domain";
@@ -465,6 +467,7 @@ export interface AppSnapshot {
   fileAccessGrants: FileAccessGrantRecord[];
   scheduledPosts: ScheduledPostRecord[];
   providers: ProviderRecord[];
+  providerAuthProfiles: ProviderAuthProfileRecord[];
   providerCatalog: ProviderCatalogEntry[];
   providerRequests: ProviderRequestRecord[];
   skillDefinitions: SkillDefinitionRecord[];

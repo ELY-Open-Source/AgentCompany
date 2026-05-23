@@ -2,10 +2,11 @@ import type { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
 import { BrowserWindow, session } from "electron";
 import type { CreateProviderResponseInput, SaveProviderCredentialInput, UpdateProviderPolicyInput } from "../../shared/commands";
-import { FEATURE_FLAG_KEY, PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, SLO_SIGNAL_KEY, type ProviderExecutionMode } from "../../shared/domain";
+import { FEATURE_FLAG_KEY, PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, SLO_SIGNAL_KEY, type ProviderAuthType, type ProviderExecutionMode } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
+import { AuthBrokerService, type ProviderSecretVault } from "./auth-broker-service";
 import { OperationsService } from "./operations-service";
 import { SecretVault } from "./secret-vault";
 import { providerAdapters, type ProviderAdapterRegistry } from "./provider-adapters";
@@ -16,52 +17,46 @@ const HEALTH_STATE_FAILED = "failed";
 const HEALTH_STATE_UNCHECKED = "unchecked";
 const WORKSPACE_SCOPES = new Set(["organization", "workspace"]);
 
-function displayHint(secret: string): string {
-  const clean = secret.trim();
-  if (clean.length <= 10) return `${clean.slice(0, 2)}...`;
-  return `${clean.slice(0, 6)}...${clean.slice(-4)}`;
-}
-
 export class ProviderService {
   private readonly audit: AuditService;
+  private readonly authBroker: AuthBrokerService;
   private readonly operations: OperationsService;
 
   constructor(
     private readonly db: DatabaseSync,
     private readonly adapters: ProviderAdapterRegistry = providerAdapters,
-    private readonly vault: SecretVault = new SecretVault(),
+    vault: ProviderSecretVault = new SecretVault(),
   ) {
     this.audit = new AuditService(db);
+    this.authBroker = new AuthBrokerService(db, vault);
     this.operations = new OperationsService(db);
   }
 
   saveCredential(input: SaveProviderCredentialInput): void {
     const provider = this.db.prepare("select * from providers where id = ? and org_id = ?")
-      .get(input.providerId, input.orgId) as { provider_key: string; auth_type: string } | undefined;
+      .get(input.providerId, input.orgId) as { provider_key: string; auth_type: ProviderAuthType } | undefined;
     if (!provider) throw new Error("Provider was not found.");
     const secret = input.secret.trim();
     if (!secret) throw new Error("Credential is required.");
     const adapter = this.requireAdapter(provider.provider_key, provider.auth_type);
     adapter.parseAuthProfile(secret);
-    const credentialId = createId("cred");
-    const now = new Date().toISOString();
-    this.db.prepare(`
-      insert into credentials(id, org_id, provider_key, kind, ciphertext, display_hint, created_at)
-      values (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      credentialId,
-      input.orgId,
-      provider.provider_key,
-      provider.auth_type,
-      this.vault.encryptSecret(secret),
-      displayHint(secret),
-      now,
-    );
+    const catalogEntry = this.requireCatalogEntry(provider.provider_key);
+    const authProfile = this.authBroker.createProviderProfile({
+      orgId: input.orgId,
+      providerId: input.providerId,
+      providerKey: provider.provider_key,
+      authType: provider.auth_type,
+      secret,
+      profileKind: provider.auth_type,
+      sourceType: "manual_secret",
+      sourceRef: null,
+      capabilityTags: catalogEntry.capabilityTags,
+    });
     this.db.prepare(`
       update providers
       set credential_id = ?, model = ?, enabled = 1, auth_state = ?, health_state = ?, last_error = null, last_checked_at = null
       where id = ? and org_id = ?
-    `).run(credentialId, input.model, AUTH_STATE_CONFIGURED, HEALTH_STATE_UNCHECKED, input.providerId, input.orgId);
+    `).run(authProfile.credentialId, input.model, AUTH_STATE_CONFIGURED, HEALTH_STATE_UNCHECKED, input.providerId, input.orgId);
     this.audit.record({
       orgId: input.orgId,
       entityType: "provider",
@@ -69,7 +64,7 @@ export class ProviderService {
       actorType: "system",
       actorId: null,
       action: "credential_saved",
-      payload: { providerKey: provider.provider_key, authType: provider.auth_type },
+      payload: { providerKey: provider.provider_key, authType: provider.auth_type, authProfileId: authProfile.authProfileId },
     });
   }
 
@@ -78,7 +73,7 @@ export class ProviderService {
     const adapter = this.requireAdapter(provider.provider_key, provider.auth_type);
     const credential = this.loadCredential(orgId, provider);
     try {
-      const profile = adapter.parseAuthProfile(this.vault.decryptSecret(Buffer.from(credential.ciphertext)));
+      const profile = adapter.parseAuthProfile(credential.secret);
       await adapter.checkHealth({ authProfile: profile, model: provider.model });
       this.recordProviderHealth(provider.id, orgId, HEALTH_STATE_HEALTHY, null);
       this.audit.record({
@@ -213,7 +208,7 @@ export class ProviderService {
     );
 
     try {
-      const authProfile = adapter.parseAuthProfile(this.vault.decryptSecret(Buffer.from(credential.ciphertext)));
+      const authProfile = adapter.parseAuthProfile(credential.secret);
       const result = await adapter.createResponse({
         authProfile,
         model: provider.model,
@@ -299,15 +294,16 @@ export class ProviderService {
     return provider;
   }
 
-  private loadCredential(orgId: string, provider: ProviderRow): { ciphertext: Uint8Array } {
+  private loadCredential(orgId: string, provider: ProviderRow): { secret: string } {
     if (!provider.credential_id) throw new Error("Provider credential is required.");
-    const credential = this.db.prepare(`
-      select ciphertext
-      from credentials
-      where id = ? and org_id = ? and provider_key = ?
-    `).get(provider.credential_id, orgId, provider.provider_key) as { ciphertext: Uint8Array } | undefined;
-    if (!credential) throw new Error("Provider credential was not found.");
-    return credential;
+    return {
+      secret: this.authBroker.loadProviderSecret({
+        orgId,
+        providerId: provider.id,
+        providerKey: provider.provider_key,
+        credentialId: provider.credential_id,
+      }),
+    };
   }
 
   private requireAdapter(providerKey: string, authType: string): ProviderAdapterRegistry[string] {
@@ -315,6 +311,12 @@ export class ProviderService {
     if (!adapter) throw new Error(`Provider adapter is unavailable for ${providerKey}.`);
     if (adapter.authType !== authType) throw new Error(`Provider adapter auth type mismatch for ${providerKey}.`);
     return adapter;
+  }
+
+  private requireCatalogEntry(providerKey: string): (typeof PROVIDER_CATALOG)[number] {
+    const entry = PROVIDER_CATALOG.find((item) => item.key === providerKey);
+    if (!entry) throw new Error(`Provider catalog entry missing for ${providerKey}.`);
+    return entry;
   }
 
   private attachNavigationPolicy(win: BrowserWindow, signInUrl: string): void {
@@ -358,7 +360,7 @@ export class ProviderService {
 interface ProviderRow {
   id: string;
   provider_key: string;
-  auth_type: string;
+  auth_type: ProviderAuthType;
   model: string | null;
   credential_id: string | null;
   enabled: number;

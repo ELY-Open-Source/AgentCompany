@@ -41,6 +41,46 @@ describe("provider service", () => {
     }
   });
 
+  test("creates active auth broker profiles during credential rotation", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault);
+    let orgId = "";
+    let openAiProviderId = "";
+
+    connection.transaction(() => {
+      orgId = createOrganization(organization);
+      openAiProviderId = providerId(connection, orgId, "openai");
+      providers.saveCredential({ orgId, providerId: openAiProviderId, secret: "sk-live-provider-one", model: "gpt-5.4" });
+      providers.saveCredential({ orgId, providerId: openAiProviderId, secret: "sk-live-provider-two", model: "gpt-5.4" });
+    });
+
+    const rows = connection.db.prepare(`
+      select credential_id, display_hint, source_type, capability_json, active
+      from provider_auth_profiles
+      where org_id = ? and provider_id = ?
+      order by active desc, created_at desc
+    `).all(orgId, openAiProviderId) as Array<{
+      credential_id: string;
+      display_hint: string;
+      source_type: string;
+      capability_json: string;
+      active: number;
+    }>;
+    const state = snapshot.load();
+    const activeProfile = state.providerAuthProfiles.find((profile) => profile.providerId === openAiProviderId && profile.active);
+    const provider = state.providers.find((item) => item.id === openAiProviderId);
+
+    expect(rows.map((row) => row.active)).toEqual([1, 0]);
+    expect(rows[0]).toMatchObject({ display_hint: "sk-liv...-two", source_type: "manual_secret" });
+    expect(JSON.parse(rows[0].capability_json)).toMatchObject({ providerKey: "openai", capabilityTags: ["responses", "tools", "background"] });
+    expect(provider?.credentialId).toBe(rows[0].credential_id);
+    expect(activeProfile?.credentialId).toBe(rows[0].credential_id);
+    expect(state.auditEvents.some((event) => event.entityType === "provider_auth_profile" && event.action === "created")).toBe(true);
+    connection.close();
+  });
+
   test("checks provider health through its adapter", async () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
