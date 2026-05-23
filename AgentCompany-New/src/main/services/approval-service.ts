@@ -4,6 +4,7 @@ import { APPROVAL_STATE, ROLE_KEY } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { IdentityAccessService } from "./identity-access-service";
+import { OrgGovernanceService } from "./org-governance-service";
 
 interface ApprovalAuditContext {
   sourceMessageId?: string;
@@ -13,10 +14,12 @@ interface ApprovalAuditContext {
 export class ApprovalService {
   private readonly audit: AuditService;
   private readonly identityAccess: IdentityAccessService;
+  private readonly governance: OrgGovernanceService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
     this.identityAccess = new IdentityAccessService(db);
+    this.governance = new OrgGovernanceService(db);
   }
 
   create(input: CreateApprovalInput, context: ApprovalAuditContext = {}): string {
@@ -57,6 +60,7 @@ export class ApprovalService {
       action: "requested",
       payload: { kind, risk: input.risk, ...context },
     });
+    this.governance.routeApproval({ orgId: input.orgId, approvalId: id, kind, risk: input.risk });
     return id;
   }
 

@@ -79,6 +79,10 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
   const employeeIdentities = useMemo(() => snapshot.employeeIdentities.filter((item) => item.orgId === orgId), [snapshot.employeeIdentities, orgId]);
   const serviceIdentities = useMemo(() => snapshot.serviceIdentities.filter((item) => item.orgId === orgId), [snapshot.serviceIdentities, orgId]);
   const roleGrants = useMemo(() => snapshot.roleGrants.filter((item) => item.orgId === orgId), [snapshot.roleGrants, orgId]);
+  const orgDepartments = useMemo(() => snapshot.orgDepartments.filter((item) => item.orgId === orgId), [snapshot.orgDepartments, orgId]);
+  const hiringPolicies = useMemo(() => snapshot.hiringPolicies.filter((item) => item.orgId === orgId), [snapshot.hiringPolicies, orgId]);
+  const approvalRoutingRules = useMemo(() => snapshot.approvalRoutingRules.filter((item) => item.orgId === orgId), [snapshot.approvalRoutingRules, orgId]);
+  const approvalAssignments = useMemo(() => snapshot.approvalAssignments.filter((item) => item.orgId === orgId), [snapshot.approvalAssignments, orgId]);
 
   return (
     <div className="split-main" style={{ height: "calc(100vh - 44px)", margin: "-28px -32px -40px" }}>
@@ -124,7 +128,17 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               actions={actions}
             />
           )}
-          {tab === "policies" && <PoliciesPanel policies={policies} />}
+          {tab === "policies" && (
+            <PoliciesPanel
+              policies={policies}
+              agents={agents}
+              employees={employees}
+              orgDepartments={orgDepartments}
+              hiringPolicies={hiringPolicies}
+              approvalRoutingRules={approvalRoutingRules}
+              approvalAssignments={approvalAssignments}
+            />
+          )}
           {tab === "compliance" && (
             <CompliancePanel
               orgId={orgId}

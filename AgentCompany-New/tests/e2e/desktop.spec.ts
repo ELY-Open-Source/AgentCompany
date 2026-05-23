@@ -44,6 +44,9 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await expect(page.getByText("Identity & Access")).toBeVisible();
     await expect(page.getByText("org admin").first()).toBeVisible();
     await expect(page.getByText("scoped agent").first()).toBeVisible();
+    await page.getByRole("button", { name: "Policies" }).click();
+    await expect(page.getByText("Hiring policies")).toBeVisible();
+    await expect(page.getByText("Review routing")).toBeVisible();
 
     await page.getByRole("button", { name: "Work", exact: true }).click();
     await page.getByRole("button", { name: "New task" }).click();

@@ -92,6 +92,8 @@ describe("migration service", () => {
     const snapshot = new SnapshotService(connection.db);
     const legacyPath = createLegacyDatabase(`
       create table organizations(id text primary key);
+      create table org_departments(id text primary key, org_id text, lead_agent_id text);
+      create table hiring_policies(id text primary key, org_id text);
       create table employees(id text primary key, org_id text);
       create table employee_identities(id text primary key, org_id text, employee_id text);
       create table service_identities(id text primary key, org_id text, agent_id text);
@@ -104,6 +106,8 @@ describe("migration service", () => {
       create table projects(id text primary key, org_id text, goal_id text, lead_agent_id text);
       create table task_runs(id text primary key, org_id text, task_id text, agent_id text, provider_id text);
       create table approvals(id text primary key, org_id text, decided_by_employee_id text);
+      create table approval_routing_rules(id text primary key, org_id text);
+      create table approval_assignments(id text primary key, org_id text, approval_id text, routing_rule_id text);
       create table chat_spaces(id text primary key, org_id text);
       create table chat_messages(id text primary key, org_id text, space_id text, thread_id text);
       create table chat_threads(id text primary key, org_id text, space_id text, root_message_id text);
@@ -147,6 +151,8 @@ describe("migration service", () => {
       insert into file_objects(id, org_id, space_id) values ('file-1', 'org-1', 'space-1');
       insert into workspaces(id, org_id, project_id) values ('wsp-1', 'org-1', 'prj-1');
       insert into agents(id, org_id, model_provider_id, manager_agent_id, workspace_id) values ('agent-1', 'org-1', 'prov-1', null, 'wsp-1');
+      insert into org_departments(id, org_id, lead_agent_id) values ('dep-1', 'org-1', 'agent-1');
+      insert into hiring_policies(id, org_id) values ('hpl-1', 'org-1');
       insert into service_identities(id, org_id, agent_id) values ('sid-1', 'org-1', 'agent-1');
       insert into role_grants(id, org_id, granted_by_employee_id) values ('role-1', 'org-1', 'emp-1');
       insert into access_decisions(id, org_id) values ('access-1', 'org-1');
@@ -155,6 +161,8 @@ describe("migration service", () => {
       insert into tasks(id, org_id, assignee_agent_id, project_id, goal_id, workspace_id) values ('task-1', 'org-1', 'agent-1', 'prj-1', 'goal-1', 'wsp-1');
       insert into task_runs(id, org_id, task_id, agent_id, provider_id) values ('run-1', 'org-1', 'task-1', 'agent-1', 'prov-1');
       insert into approvals(id, org_id, decided_by_employee_id) values ('approval-1', 'org-1', 'emp-1');
+      insert into approval_routing_rules(id, org_id) values ('route-1', 'org-1');
+      insert into approval_assignments(id, org_id, approval_id, routing_rule_id) values ('assign-1', 'org-1', 'approval-1', 'route-1');
       insert into chat_threads(id, org_id, space_id, root_message_id) values ('thread-1', 'org-1', 'space-1', null);
       insert into chat_messages(id, org_id, space_id, thread_id) values ('msg-1', 'org-1', 'space-1', 'thread-1');
       insert into chat_memberships(space_id, principal_type, principal_id) values ('space-1', 'employee', 'emp-1');
@@ -197,6 +205,8 @@ describe("migration service", () => {
     expect(body.failures).toEqual([]);
     expect(body.tableCounts.credentials).toBe(1);
     expect(body.tableCounts.employee_identities).toBe(1);
+    expect(body.tableCounts.org_departments).toBe(1);
+    expect(body.tableCounts.hiring_policies).toBe(1);
     expect(body.tableCounts.role_grants).toBe(1);
     expect(body.tableCounts.skill_artifacts).toBe(1);
     expect(body.tableCounts.chat_read_state).toBe(1);
@@ -210,6 +220,7 @@ describe("migration service", () => {
     expect(body.idMaps.skill_runtime_snapshots).toEqual(["snapshot-1"]);
     expect(body.idMaps.service_identities).toEqual(["sid-1"]);
     expect(body.idMaps.access_decisions).toEqual(["access-1"]);
+    expect(body.idMaps.approval_assignments).toEqual(["assign-1"]);
     expect(body.idMaps.board_interventions).toEqual(["bdi-1"]);
     expect(body.idMaps.retention_freezes).toEqual(["freeze-1"]);
     expect(body.idMaps.provider_usage_windows).toEqual(["usage-1"]);

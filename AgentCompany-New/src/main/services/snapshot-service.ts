@@ -96,6 +96,10 @@ export class SnapshotService {
       serviceIdentities: list(this.db, "service_identities", "created_at desc"),
       roleGrants: list(this.db, "role_grants", "created_at desc"),
       accessDecisions: list<AppSnapshot["accessDecisions"][number]>(this.db, "access_decisions", "created_at desc").slice(0, 200),
+      orgDepartments: list(this.db, "org_departments", "name asc"),
+      hiringPolicies: list(this.db, "hiring_policies", "department_name asc"),
+      approvalRoutingRules: list(this.db, "approval_routing_rules", "created_at asc"),
+      approvalAssignments: list(this.db, "approval_assignments", "created_at desc"),
       auditEvents: list<AppSnapshot["auditEvents"][number]>(this.db, "audit_events", "created_at desc").slice(0, 200),
     };
   }

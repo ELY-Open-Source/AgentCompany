@@ -8,6 +8,8 @@ import { AuditService } from "./audit-service";
 
 const LEGACY_TABLES = [
   "organizations",
+  "org_departments",
+  "hiring_policies",
   "employees",
   "employee_identities",
   "service_identities",
@@ -20,6 +22,8 @@ const LEGACY_TABLES = [
   "projects",
   "task_runs",
   "approvals",
+  "approval_routing_rules",
+  "approval_assignments",
   "chat_spaces",
   "chat_messages",
   "chat_threads",
@@ -88,6 +92,9 @@ interface MigrationReportBody {
 }
 
 const RELATION_CHECKS: RelationCheck[] = [
+  { table: "org_departments", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "org_departments", column: "lead_agent_id", referencedTable: "agents", referencedColumn: "id", reason: "dangling_lead_agent_id" },
+  { table: "hiring_policies", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
   { table: "employees", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
   { table: "employee_identities", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
   { table: "employee_identities", column: "employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_employee_id" },
@@ -118,6 +125,10 @@ const RELATION_CHECKS: RelationCheck[] = [
   { table: "task_runs", column: "provider_id", referencedTable: "providers", referencedColumn: "id", reason: "dangling_provider_id" },
   { table: "approvals", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
   { table: "approvals", column: "decided_by_employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_decider_id" },
+  { table: "approval_routing_rules", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "approval_assignments", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "approval_assignments", column: "approval_id", referencedTable: "approvals", referencedColumn: "id", reason: "dangling_approval_id" },
+  { table: "approval_assignments", column: "routing_rule_id", referencedTable: "approval_routing_rules", referencedColumn: "id", reason: "dangling_routing_rule_id" },
   { table: "chat_spaces", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
   { table: "chat_messages", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
   { table: "chat_messages", column: "space_id", referencedTable: "chat_spaces", referencedColumn: "id", reason: "dangling_space_id" },

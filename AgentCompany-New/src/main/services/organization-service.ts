@@ -6,17 +6,20 @@ import type { CreateAgentInput, CreateOrganizationInput, CreateTaskInput } from 
 import { AuditService } from "./audit-service";
 import { PolicyService } from "./policy-service";
 import { IdentityAccessService } from "./identity-access-service";
+import { OrgGovernanceService } from "./org-governance-service";
 import { assertUsableMentionName } from "./mention-handles";
 
 export class OrganizationService {
   private readonly audit: AuditService;
   private readonly policy: PolicyService;
   private readonly identityAccess: IdentityAccessService;
+  private readonly governance: OrgGovernanceService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
     this.policy = new PolicyService(db);
     this.identityAccess = new IdentityAccessService(db);
+    this.governance = new OrgGovernanceService(db);
   }
 
   createOrganization(input: CreateOrganizationInput): string {
@@ -44,6 +47,7 @@ export class OrganizationService {
     this.db.prepare("insert into employees(id, org_id, display_name, role, created_at) values (?, ?, ?, ?, ?)")
       .run(employeeId, orgId, input.employeeName.trim(), "Board Chair", now);
     this.identityAccess.seedEmployeeAccess(orgId, employeeId, now);
+    this.governance.seedOrganizationGovernance(orgId, employeeId, now);
 
     for (const space of [
       ["company", "general", "Company coordination", "workspace"],
@@ -134,6 +138,7 @@ export class OrganizationService {
 
   createAgent(input: CreateAgentInput): string {
     assertUsableMentionName(input.name);
+    const hiringPolicy = this.governance.enforceHiringPolicy(input);
     const id = createId("agt");
     const now = new Date().toISOString();
     this.db.prepare(`
@@ -172,6 +177,29 @@ export class OrganizationService {
     });
     this.addAgentToWorkspaceSpaces(input.orgId, id);
     this.identityAccess.createAgentServiceIdentity(input.orgId, id, input.name, now);
+    if (hiringPolicy.reviewRequired) {
+      const approvalId = createId("app");
+      this.db.prepare(`
+        insert into approvals(
+          id, org_id, kind, title, details, risk, requested_by_type,
+          requested_by_id, state, decided_by_employee_id, created_at, decided_at
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        approvalId,
+        input.orgId,
+        "agent_hire",
+        `Review hire: ${input.name.trim()}`,
+        `Department: ${input.department.trim()}\nRole: ${input.role.trim()}\nBudget: ${input.budgetCents}`,
+        RISK_LEVEL.MEDIUM,
+        "system",
+        null,
+        APPROVAL_STATE.PENDING,
+        null,
+        now,
+        null,
+      );
+      this.governance.routeApproval({ orgId: input.orgId, approvalId, kind: "agent_hire", risk: RISK_LEVEL.MEDIUM });
+    }
     return id;
   }
 
@@ -207,13 +235,14 @@ export class OrganizationService {
     );
     const policy = this.policy.evaluateTaskCreation(input.orgId, input.risk);
     if (policy.approvalRequired) {
+      const approvalId = createId("app");
       this.db.prepare(`
         insert into approvals(
           id, org_id, kind, title, details, risk, requested_by_type,
           requested_by_id, state, decided_by_employee_id, created_at, decided_at
         ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        createId("app"),
+        approvalId,
         input.orgId,
         "task_risk",
         input.title.trim(),
@@ -226,6 +255,7 @@ export class OrganizationService {
         now,
         null,
       );
+      this.governance.routeApproval({ orgId: input.orgId, approvalId, kind: "task_risk", risk: RISK_LEVEL.HIGH });
     }
     this.audit.record({
       orgId: input.orgId,
