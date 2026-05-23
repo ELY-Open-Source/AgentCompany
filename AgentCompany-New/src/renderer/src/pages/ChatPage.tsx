@@ -127,6 +127,8 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       name: value(form, "name"),
       topic: value(form, "topic"),
       visibility: value(form, "visibility") as Visibility,
+      memberEmployeeIds: [employee.id, ...form.getAll("memberEmployeeIds").map(String)].filter(Boolean),
+      memberAgentIds: form.getAll("memberAgentIds").map(String).filter(Boolean),
     })).then((result) => { if (result) setCreateOpen(false); });
   };
 
@@ -205,6 +207,18 @@ export function ChatPage({ snapshot, actions }: PageProps) {
           <select className="input" name="visibility" defaultValue="workspace">
             <option value="workspace">Workspace</option>
             <option value="restricted">Restricted</option>
+          </select>
+        </Field>
+        <Field label="Employees">
+          <select className="input" name="memberEmployeeIds" multiple size={Math.max(1, Math.min(4, employees.length))}>
+            {employees.filter((item) => item.id !== employee.id).map((item) => (
+              <option key={item.id} value={item.id}>{item.displayName}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Agents">
+          <select className="input" name="memberAgentIds" multiple size={Math.max(1, Math.min(4, agents.length))}>
+            {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
           </select>
         </Field>
       </Dialog>

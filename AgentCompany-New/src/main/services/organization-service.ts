@@ -163,6 +163,7 @@ export class OrganizationService {
       action: "created",
       payload: { role: input.role, department: input.department },
     });
+    this.addAgentToWorkspaceSpaces(input.orgId, id);
     return id;
   }
 
@@ -242,6 +243,18 @@ export class OrganizationService {
       .get(projectId, orgId) as { goal_id: string | null } | undefined;
     if (!project) throw new Error("Project was not found.");
     if (goalId && project.goal_id !== goalId) throw new Error("Project is linked to a different goal.");
+  }
+
+  private addAgentToWorkspaceSpaces(orgId: string, agentId: string): void {
+    const spaces = this.db.prepare("select id from chat_spaces where org_id = ? and visibility = ? and space_type <> ?")
+      .all(orgId, "workspace", "direct") as Array<{ id: string }>;
+    for (const space of spaces) {
+      this.db.prepare(`
+        insert into chat_memberships(space_id, principal_type, principal_id, role, mute_state)
+        values (?, ?, ?, ?, ?)
+        on conflict(space_id, principal_type, principal_id) do nothing
+      `).run(space.id, "agent", agentId, "member", "unmuted");
+    }
   }
 
   updateTaskStatus(orgId: string, taskId: string, status: string): void {

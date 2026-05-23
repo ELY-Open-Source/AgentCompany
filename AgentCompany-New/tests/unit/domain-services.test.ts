@@ -237,6 +237,130 @@ describe("domain services", () => {
     connection.close();
   });
 
+  test("rejects chat writes outside membership and prevents partial invalid messages", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const chat = new ChatService(connection.db);
+    let orgId = "";
+    let employeeId = "";
+    let agentId = "";
+    let restrictedSpaceId = "";
+    let workspaceSpaceId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      agentId = organization.createAgent({
+        orgId,
+        name: "Ada",
+        role: "Release reviewer",
+        department: "Engineering",
+        modelProviderId: null,
+        modelId: null,
+        budgetCents: 10000,
+        managerAgentId: null,
+      });
+      restrictedSpaceId = chat.createSpace({
+        orgId,
+        spaceType: "project",
+        name: "board-review",
+        topic: "Restricted release review",
+        visibility: "restricted",
+        memberEmployeeIds: [employeeId],
+      });
+      workspaceSpaceId = chat.createSpace({
+        orgId,
+        spaceType: "project",
+        name: "release",
+        topic: "Release coordination",
+        visibility: "workspace",
+      });
+    });
+
+    expect(() => connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId: restrictedSpaceId,
+      threadId: null,
+      senderType: "agent",
+      senderId: agentId,
+      bodyMd: "I should not be here.",
+      attachmentFileIds: [],
+    }))).toThrow("Chat membership is required.");
+    expect(() => connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId: workspaceSpaceId,
+      threadId: null,
+      senderType: "employee",
+      senderId: employeeId,
+      bodyMd: "/unknown command",
+      attachmentFileIds: [],
+    }))).toThrow("Slash command /unknown is unavailable.");
+    expect(() => connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId: workspaceSpaceId,
+      threadId: null,
+      senderType: "employee",
+      senderId: employeeId,
+      bodyMd: "Missing file",
+      attachmentFileIds: ["file_missing"],
+    }))).toThrow("Attachment file was not found.");
+
+    const count = connection.db.prepare("select count(*) as count from chat_messages").get() as { count: number };
+    expect(count.count).toBe(0);
+    connection.close();
+  });
+
+  test("rejects replies to threads from another chat space", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const chat = new ChatService(connection.db);
+    let orgId = "";
+    let employeeId = "";
+    let firstSpaceId = "";
+    let secondSpaceId = "";
+    let threadId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      firstSpaceId = chat.createSpace({ orgId, spaceType: "project", name: "release-a", topic: "A", visibility: "workspace" });
+      secondSpaceId = chat.createSpace({ orgId, spaceType: "project", name: "release-b", topic: "B", visibility: "workspace" });
+      chat.sendMessage({
+        orgId,
+        spaceId: firstSpaceId,
+        threadId: null,
+        senderType: "employee",
+        senderId: employeeId,
+        bodyMd: "Root",
+        attachmentFileIds: [],
+      });
+      threadId = (connection.db.prepare("select id from chat_threads where space_id = ?").get(firstSpaceId) as { id: string }).id;
+    });
+
+    expect(() => connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId: secondSpaceId,
+      threadId,
+      senderType: "employee",
+      senderId: employeeId,
+      bodyMd: "Wrong thread",
+      attachmentFileIds: [],
+    }))).toThrow("Chat thread was not found in this space.");
+    const count = connection.db.prepare("select count(*) as count from chat_messages").get() as { count: number };
+    expect(count.count).toBe(1);
+    connection.close();
+  });
+
   test("creates a read-only migration report from a legacy database", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);

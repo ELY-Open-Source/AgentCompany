@@ -95,6 +95,8 @@ export interface CreateChatSpaceInput {
   name: string;
   topic: string;
   visibility: "workspace" | "restricted";
+  memberEmployeeIds?: string[];
+  memberAgentIds?: string[];
 }
 
 export interface MarkChatSpaceReadInput {
