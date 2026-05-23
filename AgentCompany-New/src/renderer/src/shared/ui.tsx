@@ -19,9 +19,10 @@ function hashName(value: string): number {
 }
 
 function paletteFor(name: string): readonly [string, string] {
-  const fallback = palette[0];
-  if (!fallback) throw new Error("Avatar palette is empty.");
-  return palette[hashName(name) % palette.length] ?? fallback;
+  if (palette.length === 0) throw new Error("Avatar palette is empty.");
+  const selected = palette[hashName(name) % palette.length];
+  if (!selected) throw new Error("Avatar palette selection failed.");
+  return selected;
 }
 
 function initials(name: string): string {

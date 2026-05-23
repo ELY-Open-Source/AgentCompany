@@ -41,10 +41,10 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   const [attachmentFileId, setAttachmentFileId] = useState<string>("");
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const fallbackSpaceId = channels[0]?.id ?? directs[0]?.id ?? null;
+  const firstAvailableSpaceId = channels[0]?.id ?? directs[0]?.id ?? null;
   const activeSpaceId = selectedSpaceId && spaces.some((space) => space.id === selectedSpaceId)
     ? selectedSpaceId
-    : fallbackSpaceId;
+    : firstAvailableSpaceId;
   const activeSpace = spaces.find((space) => space.id === activeSpaceId) ?? null;
   const latestActiveMessageId = useMemo(() => {
     if (!activeSpaceId) return null;

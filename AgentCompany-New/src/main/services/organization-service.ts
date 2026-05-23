@@ -116,14 +116,14 @@ export class OrganizationService {
       .get(orgId) as { id: string } | undefined;
     if (!row) throw new Error("Organization was not found.");
     this.db.prepare("delete from organizations where id = ?").run(orgId);
-    const fallback = this.db.prepare("select id from organizations order by created_at asc limit 1")
+    const nextActive = this.db.prepare("select id from organizations order by created_at asc limit 1")
       .get() as { id: string } | undefined;
     const now = new Date().toISOString();
     this.db.prepare(`
       insert into app_state(id, active_org_id, updated_at)
       values (1, ?, ?)
       on conflict(id) do update set active_org_id = excluded.active_org_id, updated_at = excluded.updated_at
-    `).run(fallback?.id ?? null, now);
+    `).run(nextActive?.id ?? null, now);
   }
 
   createAgent(input: CreateAgentInput): string {
