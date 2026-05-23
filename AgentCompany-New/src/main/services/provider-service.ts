@@ -9,6 +9,11 @@ import { AuditService } from "./audit-service";
 import { SecretVault } from "./secret-vault";
 import { providerAdapters } from "./provider-adapters";
 
+const AUTH_STATE_CONFIGURED = "configured";
+const HEALTH_STATE_HEALTHY = "healthy";
+const HEALTH_STATE_FAILED = "failed";
+const HEALTH_STATE_UNCHECKED = "unchecked";
+
 function displayHint(secret: string): string {
   const clean = secret.trim();
   if (clean.length <= 10) return `${clean.slice(0, 2)}...`;
@@ -43,8 +48,11 @@ export class ProviderService {
       displayHint(secret),
       now,
     );
-    this.db.prepare("update providers set credential_id = ?, model = ?, enabled = 1 where id = ? and org_id = ?")
-      .run(credentialId, input.model, input.providerId, input.orgId);
+    this.db.prepare(`
+      update providers
+      set credential_id = ?, model = ?, enabled = 1, auth_state = ?, health_state = ?, last_error = null, last_checked_at = null
+      where id = ? and org_id = ?
+    `).run(credentialId, input.model, AUTH_STATE_CONFIGURED, HEALTH_STATE_UNCHECKED, input.providerId, input.orgId);
     this.audit.record({
       orgId: input.orgId,
       entityType: "provider",
@@ -85,6 +93,7 @@ export class ProviderService {
       },
     });
     win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    this.attachNavigationPolicy(win, catalogEntry.signInUrl);
     win.loadURL(catalogEntry.signInUrl);
 
     this.audit.record({
@@ -103,11 +112,12 @@ export class ProviderService {
     if (!prompt) throw new Error("Prompt is required.");
     const provider = this.db.prepare(`
       select id, provider_key, auth_type, model, credential_id, enabled
+        , auth_state
       from providers
       where id = ? and org_id = ?
     `).get(input.providerId, input.orgId) as ProviderRow | undefined;
     if (!provider) throw new Error("Provider was not found.");
-    if (provider.enabled !== 1) throw new Error("Provider credential is required.");
+    if (provider.enabled !== 1 || provider.auth_state !== AUTH_STATE_CONFIGURED) throw new Error("Provider credential is required.");
     if (provider.auth_type !== PROVIDER_AUTH_TYPE.API_KEY) {
       throw new Error("Provider response execution requires an API key adapter.");
     }
@@ -155,6 +165,7 @@ export class ProviderService {
         set state = ?, response_text = ?, raw_response_json = ?, completed_at = ?
         where id = ? and org_id = ?
       `).run(PROVIDER_REQUEST_STATE.SUCCEEDED, result.text, result.rawResponseJson, new Date().toISOString(), requestId, input.orgId);
+      this.recordProviderHealth(provider.id, input.orgId, HEALTH_STATE_HEALTHY, null);
       this.audit.record({
         orgId: input.orgId,
         entityType: "provider_request",
@@ -171,8 +182,30 @@ export class ProviderService {
         set state = ?, error_message = ?, completed_at = ?
         where id = ? and org_id = ?
       `).run(PROVIDER_REQUEST_STATE.FAILED, message, new Date().toISOString(), requestId, input.orgId);
+      this.recordProviderHealth(provider.id, input.orgId, HEALTH_STATE_FAILED, message);
       throw error;
     }
+  }
+
+  private attachNavigationPolicy(win: BrowserWindow, signInUrl: string): void {
+    const allowedHost = new URL(signInUrl).hostname.toLowerCase();
+    const allow = (url: string) => {
+      const host = new URL(url).hostname.toLowerCase();
+      return host === allowedHost || host.endsWith(`.${allowedHost}`);
+    };
+    const blockOffHost = (event: Electron.Event, url: string) => {
+      if (!allow(url)) event.preventDefault();
+    };
+    win.webContents.on("will-navigate", blockOffHost);
+    win.webContents.on("will-redirect", blockOffHost);
+  }
+
+  private recordProviderHealth(providerId: string, orgId: string, healthState: string, error: string | null): void {
+    this.db.prepare(`
+      update providers
+      set health_state = ?, last_error = ?, last_checked_at = ?
+      where id = ? and org_id = ?
+    `).run(healthState, error, new Date().toISOString(), providerId, orgId);
   }
 }
 
@@ -183,6 +216,7 @@ interface ProviderRow {
   model: string | null;
   credential_id: string | null;
   enabled: number;
+  auth_state: string;
 }
 
 function hashPrompt(prompt: string): string {

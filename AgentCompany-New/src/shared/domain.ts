@@ -270,6 +270,10 @@ export interface ProviderRecord {
   model: string | null;
   credentialId: string | null;
   enabled: boolean;
+  authState: string;
+  healthState: string;
+  lastCheckedAt: string | null;
+  lastError: string | null;
   createdAt: string;
 }
 

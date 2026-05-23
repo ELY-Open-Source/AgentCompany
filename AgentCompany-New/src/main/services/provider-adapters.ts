@@ -15,22 +15,45 @@ export interface ProviderAdapter {
 }
 
 type JsonRecord = Record<string, unknown>;
+const PROVIDER_REQUEST_TIMEOUT_MS = 60_000;
 
 async function postJson(endpoint: string, headers: Record<string, string>, body: JsonRecord): Promise<JsonRecord> {
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...headers,
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await response.json() as JsonRecord;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PROVIDER_REQUEST_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...headers,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+  const raw = await response.text();
+  const data = parseProviderJson(raw, response.ok);
   if (!response.ok) {
-    const message = readProviderError(data) ?? `Provider request failed with HTTP ${response.status}.`;
+    const message = readProviderError(data) ?? (raw.trim() || `Provider request failed with HTTP ${response.status}.`);
     throw new Error(message);
   }
   return data;
+}
+
+function parseProviderJson(raw: string, requireJson: boolean): JsonRecord {
+  if (!raw.trim()) return {};
+  let value: unknown;
+  try {
+    value = JSON.parse(raw) as unknown;
+  } catch (error) {
+    if (!requireJson) return {};
+    throw error;
+  }
+  if (!isRecord(value)) throw new Error("Provider returned invalid JSON.");
+  return value;
 }
 
 function readProviderError(data: JsonRecord): string | null {
