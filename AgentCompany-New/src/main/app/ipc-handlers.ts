@@ -15,6 +15,7 @@ import { MigrationService } from "../services/migration-service";
 import { OnboardingService } from "../services/onboarding-service";
 import { ComplianceService } from "../services/compliance-service";
 import { SearchService } from "../services/search-service";
+import { IdentityAccessService } from "../services/identity-access-service";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -34,6 +35,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const migrations = new MigrationService(deps.connection.db);
   const compliance = new ComplianceService(deps.connection.db);
   const search = new SearchService(deps.connection.db);
+  const identityAccess = new IdentityAccessService(deps.connection.db);
   const onboarding = new OnboardingService({
     db: deps.connection.db,
     saveProviderCredential: (input) => providers.saveCredential(input),
@@ -78,6 +80,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.updateTaskStatus, (_event, input) => mutate(() => organization.updateTaskStatus(input.orgId, input.taskId, input.status)));
   ipcMain.handle(IPC_CHANNELS.createApproval, (_event, input) => mutate(() => approvals.create(input)));
   ipcMain.handle(IPC_CHANNELS.decideApproval, (_event, input) => mutate(() => approvals.decide(input)));
+  ipcMain.handle(IPC_CHANNELS.syncEmployeeIdentity, (_event, input) => mutate(() => identityAccess.syncEmployeeIdentity(input)));
+  ipcMain.handle(IPC_CHANNELS.grantRole, (_event, input) => mutate(() => identityAccess.grantRole(input)));
   ipcMain.handle(IPC_CHANNELS.createChatSpace, (_event, input) => mutate(() => chat.createSpace(input)));
   ipcMain.handle(IPC_CHANNELS.sendMessage, (_event, input) => mutate(() => chat.sendMessage(input)));
   ipcMain.handle(IPC_CHANNELS.markChatSpaceRead, (_event, input) => mutate(() => chat.markSpaceRead(input)));

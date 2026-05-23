@@ -23,7 +23,7 @@ describe("domain services", () => {
     const connection = createConnection();
 
     const rows = connection.db.prepare("select version from schema_migrations order by version asc").all() as Array<{ version: number }>;
-    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
     connection.close();
   });
 
@@ -43,6 +43,8 @@ describe("domain services", () => {
     expect(state.organizations).toHaveLength(1);
     expect(state.employees[0]?.displayName).toBe("Dana Lee");
     expect(state.providers.length).toBeGreaterThanOrEqual(6);
+    expect(state.employeeIdentities).toHaveLength(1);
+    expect(state.roleGrants.map((grant) => grant.roleKey).sort()).toEqual(["approval_decider", "hiring_manager", "org_admin"]);
     expect(state.chatSpaces.map((space) => space.name)).toContain("board");
     expect(state.policyRules[0]?.action).toBe("task_create");
     expect(state.auditEvents[0]?.action).toBe("created");

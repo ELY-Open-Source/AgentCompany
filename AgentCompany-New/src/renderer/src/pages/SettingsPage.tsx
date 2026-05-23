@@ -76,6 +76,9 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
   const complianceExports = useMemo(() => snapshot.complianceExports.filter((item) => item.orgId === orgId), [snapshot.complianceExports, orgId]);
   const legalHolds = useMemo(() => snapshot.legalHolds.filter((item) => item.orgId === orgId), [snapshot.legalHolds, orgId]);
   const retentionFreezes = useMemo(() => snapshot.retentionFreezes.filter((item) => item.orgId === orgId), [snapshot.retentionFreezes, orgId]);
+  const employeeIdentities = useMemo(() => snapshot.employeeIdentities.filter((item) => item.orgId === orgId), [snapshot.employeeIdentities, orgId]);
+  const serviceIdentities = useMemo(() => snapshot.serviceIdentities.filter((item) => item.orgId === orgId), [snapshot.serviceIdentities, orgId]);
+  const roleGrants = useMemo(() => snapshot.roleGrants.filter((item) => item.orgId === orgId), [snapshot.roleGrants, orgId]);
 
   return (
     <div className="split-main" style={{ height: "calc(100vh - 44px)", margin: "-28px -32px -40px" }}>
@@ -90,7 +93,15 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
       <div className="main" style={{ flex: 1, minWidth: 0 }}>
         <div className="content">
           {tab === "workspace" && <WorkspacePanel organization={organization} workspaces={workspaces} />}
-          {tab === "members" && <MembersPanel employees={employees} agents={agents} />}
+          {tab === "members" && (
+            <MembersPanel
+              employees={employees}
+              agents={agents}
+              employeeIdentities={employeeIdentities}
+              serviceIdentities={serviceIdentities}
+              roleGrants={roleGrants}
+            />
+          )}
           {tab === "billing" && <BillingPanel agents={agents} providers={providers} providerRequests={providerRequests} />}
           {tab === "models" && <ModelsPanel providers={providers} agents={agents} />}
           {tab === "providers" && (

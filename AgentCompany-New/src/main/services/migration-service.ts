@@ -9,6 +9,10 @@ import { AuditService } from "./audit-service";
 const LEGACY_TABLES = [
   "organizations",
   "employees",
+  "employee_identities",
+  "service_identities",
+  "role_grants",
+  "access_decisions",
   "agents",
   "tasks",
   "workspaces",
@@ -85,6 +89,13 @@ interface MigrationReportBody {
 
 const RELATION_CHECKS: RelationCheck[] = [
   { table: "employees", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "employee_identities", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "employee_identities", column: "employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_employee_id" },
+  { table: "service_identities", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "service_identities", column: "agent_id", referencedTable: "agents", referencedColumn: "id", reason: "dangling_agent_id" },
+  { table: "role_grants", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "role_grants", column: "granted_by_employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_grantor_employee_id" },
+  { table: "access_decisions", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
   { table: "agents", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
   { table: "agents", column: "model_provider_id", referencedTable: "providers", referencedColumn: "id", reason: "dangling_model_provider_id" },
   { table: "agents", column: "manager_agent_id", referencedTable: "agents", referencedColumn: "id", reason: "dangling_manager_agent_id" },

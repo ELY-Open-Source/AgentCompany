@@ -5,15 +5,18 @@ import { createId } from "../../shared/ids";
 import type { CreateAgentInput, CreateOrganizationInput, CreateTaskInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
 import { PolicyService } from "./policy-service";
+import { IdentityAccessService } from "./identity-access-service";
 import { assertUsableMentionName } from "./mention-handles";
 
 export class OrganizationService {
   private readonly audit: AuditService;
   private readonly policy: PolicyService;
+  private readonly identityAccess: IdentityAccessService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
     this.policy = new PolicyService(db);
+    this.identityAccess = new IdentityAccessService(db);
   }
 
   createOrganization(input: CreateOrganizationInput): string {
@@ -40,6 +43,7 @@ export class OrganizationService {
     );
     this.db.prepare("insert into employees(id, org_id, display_name, role, created_at) values (?, ?, ?, ?, ?)")
       .run(employeeId, orgId, input.employeeName.trim(), "Board Chair", now);
+    this.identityAccess.seedEmployeeAccess(orgId, employeeId, now);
 
     for (const space of [
       ["company", "general", "Company coordination", "workspace"],
@@ -167,6 +171,7 @@ export class OrganizationService {
       payload: { role: input.role, department: input.department },
     });
     this.addAgentToWorkspaceSpaces(input.orgId, id);
+    this.identityAccess.createAgentServiceIdentity(input.orgId, id, input.name, now);
     return id;
   }
 

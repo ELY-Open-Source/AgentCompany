@@ -3,10 +3,13 @@ import type {
   ComplianceExportType,
   ComplianceSubjectType,
   LegalHoldEntityType,
+  IdentitySource,
+  PrincipalType,
   ProviderDataPolicy,
   ProviderExecutionMode,
   RetentionFreezeScopeType,
   RiskLevel,
+  RoleKey,
   SearchEntityType,
   SocialPlatform,
   TaskPriority,
@@ -84,6 +87,24 @@ export interface DecideApprovalInput {
   approvalId: string;
   state: Extract<ApprovalState, "approved" | "declined">;
   decidedByEmployeeId: string;
+}
+
+export interface SyncEmployeeIdentityInput {
+  orgId: string;
+  employeeId: string;
+  source: IdentitySource;
+  externalSubject: string;
+  email: string | null;
+}
+
+export interface GrantRoleInput {
+  orgId: string;
+  principalType: PrincipalType;
+  principalId: string;
+  roleKey: RoleKey;
+  scopeType: "organization" | "workspace" | "project" | "department";
+  scopeId: string;
+  grantedByEmployeeId: string;
 }
 
 export interface SendMessageInput {

@@ -22,6 +22,7 @@ import type {
   DeleteOrganizationInput,
   ImportFileInput,
   ImportSkillDirectoryInput,
+  GrantRoleInput,
   LaunchProviderSignInInput,
   LaunchSocialLoginInput,
   ResolveAgentSkillsInput,
@@ -33,6 +34,7 @@ import type {
   SetLegalHoldStateInput,
   SetRetentionFreezeStateInput,
   SetScheduledPostStateInput,
+  SyncEmployeeIdentityInput,
   UpdateProviderPolicyInput,
   UpdateTaskStatusInput,
 } from "./commands";
@@ -52,6 +54,8 @@ export interface DesktopApi {
   updateTaskStatus(input: UpdateTaskStatusInput): Promise<DesktopResult<AppSnapshot>>;
   createApproval(input: CreateApprovalInput): Promise<DesktopResult<AppSnapshot>>;
   decideApproval(input: DecideApprovalInput): Promise<DesktopResult<AppSnapshot>>;
+  syncEmployeeIdentity(input: SyncEmployeeIdentityInput): Promise<DesktopResult<AppSnapshot>>;
+  grantRole(input: GrantRoleInput): Promise<DesktopResult<AppSnapshot>>;
   createChatSpace(input: CreateChatSpaceInput): Promise<DesktopResult<AppSnapshot>>;
   sendMessage(input: SendMessageInput): Promise<DesktopResult<AppSnapshot>>;
   markChatSpaceRead(input: MarkChatSpaceReadInput): Promise<DesktopResult<AppSnapshot>>;

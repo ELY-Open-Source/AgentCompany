@@ -9,6 +9,8 @@ export const IPC_CHANNELS = {
   updateTaskStatus: "agentcompany:update-task-status",
   createApproval: "agentcompany:create-approval",
   decideApproval: "agentcompany:decide-approval",
+  syncEmployeeIdentity: "agentcompany:sync-employee-identity",
+  grantRole: "agentcompany:grant-role",
   createChatSpace: "agentcompany:create-chat-space",
   sendMessage: "agentcompany:send-message",
   markChatSpaceRead: "agentcompany:mark-chat-space-read",

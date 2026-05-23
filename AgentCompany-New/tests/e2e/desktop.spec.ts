@@ -39,8 +39,13 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByLabel("Monthly budget").fill("250");
     await page.locator(".modal").getByRole("button", { name: "Hire" }).click();
     await expect(page.getByText("Alex Chen").first()).toBeVisible();
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "Members" }).click();
+    await expect(page.getByText("Identity & Access")).toBeVisible();
+    await expect(page.getByText("org admin").first()).toBeVisible();
+    await expect(page.getByText("scoped agent").first()).toBeVisible();
 
-    await page.getByRole("button", { name: "Work" }).click();
+    await page.getByRole("button", { name: "Work", exact: true }).click();
     await page.getByRole("button", { name: "New task" }).click();
     await page.getByLabel("Title").fill("Production deploy");
     await page.getByLabel("Description").fill("Deploy a high-risk change.");
@@ -117,7 +122,7 @@ async function verifyPagesDoNotOverflow(page: Page): Promise<void> {
   for (const size of [{ width: 1280, height: 860 }, { width: 980, height: 700 }]) {
     await page.setViewportSize(size);
     for (const nav of ["Home", "Team", "Work", "Messages", "Files", "Approvals", "Social", "Settings"]) {
-      await page.getByRole("button", { name: nav }).click();
+      await page.getByRole("button", { name: nav, exact: true }).click();
       await expectPageToFit(page);
     }
     for (const tab of ["Workspace", "Members", "Billing", "Models", "Providers", "Skills", "Policies", "Compliance", "Migration", "Profile", "Notifications", "Security"]) {

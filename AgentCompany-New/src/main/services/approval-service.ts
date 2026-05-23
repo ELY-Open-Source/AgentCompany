@@ -1,8 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { CreateApprovalInput, DecideApprovalInput } from "../../shared/commands";
-import { APPROVAL_STATE } from "../../shared/domain";
+import { APPROVAL_STATE, ROLE_KEY } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
+import { IdentityAccessService } from "./identity-access-service";
 
 interface ApprovalAuditContext {
   sourceMessageId?: string;
@@ -11,9 +12,11 @@ interface ApprovalAuditContext {
 
 export class ApprovalService {
   private readonly audit: AuditService;
+  private readonly identityAccess: IdentityAccessService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
+    this.identityAccess = new IdentityAccessService(db);
   }
 
   create(input: CreateApprovalInput, context: ApprovalAuditContext = {}): string {
@@ -58,7 +61,15 @@ export class ApprovalService {
   }
 
   decide(input: DecideApprovalInput): void {
-    this.assertEmployee(input.orgId, input.decidedByEmployeeId, "Deciding employee was not found.");
+    this.identityAccess.assertEmployeeRole(
+      input.orgId,
+      input.decidedByEmployeeId,
+      ROLE_KEY.APPROVAL_DECIDER,
+      "approval_decide",
+      "approval",
+      input.approvalId,
+      "Deciding employee was not found.",
+    );
     const now = new Date().toISOString();
     const result = this.db.prepare(`
       update approvals

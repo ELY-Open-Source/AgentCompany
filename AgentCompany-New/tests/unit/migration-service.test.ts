@@ -93,6 +93,10 @@ describe("migration service", () => {
     const legacyPath = createLegacyDatabase(`
       create table organizations(id text primary key);
       create table employees(id text primary key, org_id text);
+      create table employee_identities(id text primary key, org_id text, employee_id text);
+      create table service_identities(id text primary key, org_id text, agent_id text);
+      create table role_grants(id text primary key, org_id text, granted_by_employee_id text);
+      create table access_decisions(id text primary key, org_id text);
       create table agents(id text primary key, org_id text, model_provider_id text, manager_agent_id text, workspace_id text);
       create table tasks(id text primary key, org_id text, assignee_agent_id text, project_id text, goal_id text, workspace_id text);
       create table workspaces(id text primary key, org_id text, project_id text);
@@ -136,12 +140,16 @@ describe("migration service", () => {
       create table audit_events(id text primary key, org_id text);
       insert into organizations(id) values ('org-1');
       insert into employees(id, org_id) values ('emp-1', 'org-1');
+      insert into employee_identities(id, org_id, employee_id) values ('eid-1', 'org-1', 'emp-1');
       insert into credentials(id, org_id) values ('cred-1', 'org-1');
       insert into providers(id, org_id, credential_id) values ('prov-1', 'org-1', 'cred-1');
       insert into chat_spaces(id, org_id) values ('space-1', 'org-1');
       insert into file_objects(id, org_id, space_id) values ('file-1', 'org-1', 'space-1');
       insert into workspaces(id, org_id, project_id) values ('wsp-1', 'org-1', 'prj-1');
       insert into agents(id, org_id, model_provider_id, manager_agent_id, workspace_id) values ('agent-1', 'org-1', 'prov-1', null, 'wsp-1');
+      insert into service_identities(id, org_id, agent_id) values ('sid-1', 'org-1', 'agent-1');
+      insert into role_grants(id, org_id, granted_by_employee_id) values ('role-1', 'org-1', 'emp-1');
+      insert into access_decisions(id, org_id) values ('access-1', 'org-1');
       insert into goals(id, org_id, owner_agent_id) values ('goal-1', 'org-1', 'agent-1');
       insert into projects(id, org_id, goal_id, lead_agent_id) values ('prj-1', 'org-1', 'goal-1', 'agent-1');
       insert into tasks(id, org_id, assignee_agent_id, project_id, goal_id, workspace_id) values ('task-1', 'org-1', 'agent-1', 'prj-1', 'goal-1', 'wsp-1');
@@ -188,6 +196,8 @@ describe("migration service", () => {
     const body = JSON.parse(snapshot.load().migrationReports[0]!.reportJson) as MigrationReportBody;
     expect(body.failures).toEqual([]);
     expect(body.tableCounts.credentials).toBe(1);
+    expect(body.tableCounts.employee_identities).toBe(1);
+    expect(body.tableCounts.role_grants).toBe(1);
     expect(body.tableCounts.skill_artifacts).toBe(1);
     expect(body.tableCounts.chat_read_state).toBe(1);
     expect(body.tableCounts.board_interventions).toBe(1);
@@ -198,6 +208,8 @@ describe("migration service", () => {
     expect(body.tableCounts.search_documents).toBe(1);
     expect(body.tableChecksums.audit_events).toHaveLength(64);
     expect(body.idMaps.skill_runtime_snapshots).toEqual(["snapshot-1"]);
+    expect(body.idMaps.service_identities).toEqual(["sid-1"]);
+    expect(body.idMaps.access_decisions).toEqual(["access-1"]);
     expect(body.idMaps.board_interventions).toEqual(["bdi-1"]);
     expect(body.idMaps.retention_freezes).toEqual(["freeze-1"]);
     expect(body.idMaps.provider_usage_windows).toEqual(["usage-1"]);

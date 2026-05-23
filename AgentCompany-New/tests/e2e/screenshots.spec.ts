@@ -64,7 +64,7 @@ test("captures every page for visual review", async () => {
 });
 
 async function go(page: Page, nav: string, dir: string, name: string): Promise<void> {
-  await page.getByRole("button", { name: nav }).click();
+  await page.getByRole("button", { name: nav, exact: true }).click();
   await snap(page, dir, name);
 }
 

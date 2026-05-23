@@ -51,6 +51,8 @@ export class SnapshotService {
       .map((hold) => ({ ...hold, active: toBool(hold.active) }));
     const retentionFreezes = list<AppSnapshot["retentionFreezes"][number]>(this.db, "retention_freezes", "created_at desc")
       .map((freeze) => ({ ...freeze, active: toBool(freeze.active) }));
+    const employeeIdentities = list<AppSnapshot["employeeIdentities"][number]>(this.db, "employee_identities", "created_at desc")
+      .map((identity) => ({ ...identity, active: toBool(identity.active) }));
 
     return {
       activeOrgId,
@@ -90,6 +92,10 @@ export class SnapshotService {
       complianceExports: list(this.db, "compliance_exports", "created_at desc"),
       legalHolds,
       retentionFreezes,
+      employeeIdentities,
+      serviceIdentities: list(this.db, "service_identities", "created_at desc"),
+      roleGrants: list(this.db, "role_grants", "created_at desc"),
+      accessDecisions: list<AppSnapshot["accessDecisions"][number]>(this.db, "access_decisions", "created_at desc").slice(0, 200),
       auditEvents: list<AppSnapshot["auditEvents"][number]>(this.db, "audit_events", "created_at desc").slice(0, 200),
     };
   }
