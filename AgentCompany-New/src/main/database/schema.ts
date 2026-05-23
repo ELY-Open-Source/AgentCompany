@@ -20,6 +20,7 @@ import { sdlcControlsSchema } from "./migrations/018-sdlc-controls";
 import { auditReplaySchema } from "./migrations/019-audit-replay";
 import { rollbackSnapshotsSchema } from "./migrations/020-rollback-snapshots";
 import { providerAuthBrokerSchema } from "./migrations/021-provider-auth-broker";
+import { providerRateLimitObservationSchema } from "./migrations/022-provider-rate-limit-observations";
 
 interface Migration {
   version: number;
@@ -49,6 +50,7 @@ const MIGRATIONS: Migration[] = [
   { version: 19, name: "audit_replay", sql: auditReplaySchema },
   { version: 20, name: "rollback_snapshots", sql: rollbackSnapshotsSchema },
   { version: 21, name: "provider_auth_broker", sql: providerAuthBrokerSchema },
+  { version: 22, name: "provider_rate_limit_observations", sql: providerRateLimitObservationSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

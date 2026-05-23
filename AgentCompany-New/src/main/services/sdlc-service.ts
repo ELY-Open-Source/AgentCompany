@@ -247,10 +247,16 @@ export class SdlcService {
       return typeof adapter.listModels === "function" && typeof adapter.getRateLimitState === "function";
     });
     const schemaVersion = count(this.db, "select coalesce(max(version), 0) as count from schema_migrations");
+    const rateLimitRegistry = count(this.db, `
+      select count(*) as count
+      from sqlite_master
+      where type = 'table' and name = 'provider_rate_limit_observations'
+    `);
     return [
       { key: "provider_adapter_coverage", passed: missing.length === 0, value: `${adapterKeys.length}/${catalogKeys.length}` },
+      { key: "provider_rate_limit_registry", passed: rateLimitRegistry === 1, value: rateLimitRegistry },
       { key: "provider_runtime_contract", passed: runtimeContractReady, value: runtimeContractReady },
-      { key: "schema_version", passed: schemaVersion >= 21, value: schemaVersion },
+      { key: "schema_version", passed: schemaVersion >= 22, value: schemaVersion },
     ];
   }
 

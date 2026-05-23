@@ -10,7 +10,9 @@ import { AuditService } from "./audit-service";
 import { AuthBrokerService, type ProviderSecretVault } from "./auth-broker-service";
 import { OperationsService } from "./operations-service";
 import { SecretVault } from "./secret-vault";
-import { providerAdapters, type ProviderAdapterRegistry } from "./provider-adapters";
+import { providerAdapters, providerRateLimitStateFromError, type ProviderAdapterRegistry } from "./provider-adapters";
+import { ProviderRateLimitRegistry } from "./provider-rate-limit-registry";
+import type { ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
 
 const AUTH_STATE_CONFIGURED = "configured";
 const AUTH_STATE_REVOKED = "revoked";
@@ -23,6 +25,7 @@ export class ProviderService {
   private readonly audit: AuditService;
   private readonly authBroker: AuthBrokerService;
   private readonly operations: OperationsService;
+  private readonly rateLimitRegistry: ProviderRateLimitRegistry;
 
   constructor(
     private readonly db: DatabaseSync,
@@ -32,6 +35,7 @@ export class ProviderService {
     this.audit = new AuditService(db);
     this.authBroker = new AuthBrokerService(db, vault);
     this.operations = new OperationsService(db);
+    this.rateLimitRegistry = new ProviderRateLimitRegistry(db);
   }
 
   saveCredential(input: SaveProviderCredentialInput): void {
@@ -104,7 +108,8 @@ export class ProviderService {
     const credential = this.loadCredential(orgId, provider);
     try {
       const profile = adapter.parseAuthProfile(credential.secret);
-      await adapter.checkHealth({ authProfile: profile, model: provider.model });
+      const result = await adapter.checkHealth({ authProfile: profile, model: provider.model });
+      this.recordObservedRateLimit(orgId, provider, provider.model, result.rateLimitState);
       this.recordProviderHealth(provider.id, orgId, HEALTH_STATE_HEALTHY, null);
       this.audit.record({
         orgId,
@@ -117,6 +122,7 @@ export class ProviderService {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      this.recordObservedRateLimit(orgId, provider, provider.model, providerRateLimitStateFromError(error));
       this.recordProviderHealth(provider.id, orgId, HEALTH_STATE_FAILED, message);
       throw error;
     }
@@ -245,6 +251,7 @@ export class ProviderService {
         prompt,
         instructions: input.instructions?.trim() || null,
       });
+      this.recordObservedRateLimit(input.orgId, provider, provider.model, result.rateLimitState);
       this.db.prepare(`
         update provider_requests
         set state = ?, response_text = ?, raw_response_json = ?, output_char_count = ?, completed_at = ?
@@ -271,6 +278,7 @@ export class ProviderService {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      this.recordObservedRateLimit(input.orgId, provider, provider.model, providerRateLimitStateFromError(error));
       this.db.prepare(`
         update provider_requests
         set state = ?, error_message = ?, completed_at = ?
@@ -384,6 +392,22 @@ export class ProviderService {
         output_char_count = output_char_count + excluded.output_char_count,
         updated_at = excluded.updated_at
     `).run(createId("puw"), orgId, providerId, window.start, window.end, inputCharCount, outputCharCount, now, now);
+  }
+
+  private recordObservedRateLimit(
+    orgId: string,
+    provider: Pick<ProviderRow, "id" | "provider_key">,
+    model: string | null,
+    state: ProviderObservedRateLimitState | null,
+  ): void {
+    if (!state) return;
+    this.rateLimitRegistry.recordObservation({
+      orgId,
+      providerId: provider.id,
+      providerKey: provider.provider_key,
+      model,
+      state,
+    });
   }
 }
 

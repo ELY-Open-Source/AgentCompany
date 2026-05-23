@@ -1,5 +1,7 @@
 import { PROVIDER_AUTH_TYPE, type ProviderAuthType } from "../../shared/domain";
 import { listProviderModels, type ProviderModelEntry } from "../../shared/provider-models";
+import type { ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
+import { parseProviderRateLimitHeaders } from "./provider-rate-limit-registry";
 
 export interface ProviderExecutionInput {
   authProfile: ProviderAuthProfile;
@@ -11,6 +13,7 @@ export interface ProviderExecutionInput {
 export interface ProviderExecutionResult {
   text: string;
   rawResponseJson: string;
+  rateLimitState: ProviderObservedRateLimitState | null;
 }
 
 export interface ProviderHealthInput {
@@ -20,6 +23,7 @@ export interface ProviderHealthInput {
 
 export interface ProviderHealthResult {
   checkedAt: string;
+  rateLimitState: ProviderObservedRateLimitState | null;
 }
 
 export interface ProviderContext {
@@ -31,6 +35,7 @@ export interface ProviderRateLimitState {
   requestLimit: number | null;
   remainingRequests: number | null;
   resetAt: string | null;
+  retryAfterMs: number | null;
   rawStateJson: string;
 }
 
@@ -58,6 +63,25 @@ type JsonRecord = Record<string, unknown>;
 
 const PROVIDER_REQUEST_TIMEOUT_MS = 60_000;
 
+interface ProviderJsonResponse {
+  data: JsonRecord;
+  rateLimitState: ProviderObservedRateLimitState | null;
+}
+
+export class ProviderHttpError extends Error {
+  constructor(
+    message: string,
+    readonly rateLimitState: ProviderObservedRateLimitState | null,
+  ) {
+    super(message);
+    this.name = "ProviderHttpError";
+  }
+}
+
+export function providerRateLimitStateFromError(error: unknown): ProviderObservedRateLimitState | null {
+  return error instanceof ProviderHttpError ? error.rateLimitState : null;
+}
+
 export const providerAdapters: ProviderAdapterRegistry = {
   openai: {
     providerKey: "openai",
@@ -68,15 +92,16 @@ export const providerAdapters: ProviderAdapterRegistry = {
     checkHealth: (input) => checkOpenAiHealth(input.authProfile, "https://api.openai.com/v1/models"),
     async createResponse(input) {
       const profile = requireApiKeyProfile(input.authProfile, "OpenAI");
-      const data = await postJson("https://api.openai.com/v1/responses", {
+      const response = await postJson("https://api.openai.com/v1/responses", {
         authorization: `Bearer ${profile.apiKey}`,
       }, {
         model: input.model,
         input: input.prompt,
         ...(input.instructions ? { instructions: input.instructions } : {}),
       });
+      const data = response.data;
       const text = requireText(collectText(data.output_text ?? data.output), "OpenAI");
-      return { text, rawResponseJson: JSON.stringify(data) };
+      return { text, rawResponseJson: JSON.stringify(data), rateLimitState: response.rateLimitState };
     },
   },
   anthropic: {
@@ -87,15 +112,15 @@ export const providerAdapters: ProviderAdapterRegistry = {
     getRateLimitState: providerRateLimitUnknown,
     async checkHealth(input) {
       const profile = requireApiKeyProfile(input.authProfile, "Anthropic");
-      await getJson("https://api.anthropic.com/v1/models", {
+      const response = await getJson("https://api.anthropic.com/v1/models", {
         "x-api-key": profile.apiKey,
         "anthropic-version": "2023-06-01",
       });
-      return healthy();
+      return healthy(response.rateLimitState);
     },
     async createResponse(input) {
       const profile = requireApiKeyProfile(input.authProfile, "Anthropic");
-      const data = await postJson("https://api.anthropic.com/v1/messages", {
+      const response = await postJson("https://api.anthropic.com/v1/messages", {
         "x-api-key": profile.apiKey,
         "anthropic-version": "2023-06-01",
       }, {
@@ -104,8 +129,9 @@ export const providerAdapters: ProviderAdapterRegistry = {
         ...(input.instructions ? { system: input.instructions } : {}),
         messages: [{ role: "user", content: input.prompt }],
       });
+      const data = response.data;
       const text = requireText(collectText(data.content), "Anthropic");
-      return { text, rawResponseJson: JSON.stringify(data) };
+      return { text, rawResponseJson: JSON.stringify(data), rateLimitState: response.rateLimitState };
     },
   },
   xai: openAiCompatibleAdapter({
@@ -131,8 +157,8 @@ export const providerAdapters: ProviderAdapterRegistry = {
     getRateLimitState: providerRateLimitUnknown,
     async checkHealth(input) {
       const profile = requireAzureProfile(input.authProfile);
-      await getJson(`${profile.baseUrl}/openai/deployments?api-version=2024-10-21`, { "api-key": profile.apiKey });
-      return healthy();
+      const response = await getJson(`${profile.baseUrl}/openai/deployments?api-version=2024-10-21`, { "api-key": profile.apiKey });
+      return healthy(response.rateLimitState);
     },
   },
   "aws-bedrock": {
@@ -143,7 +169,7 @@ export const providerAdapters: ProviderAdapterRegistry = {
     getRateLimitState: providerRateLimitUnknown,
     checkHealth: async (input) => {
       requireBedrockProfile(input.authProfile);
-      return healthy();
+      return healthy(null);
     },
   },
   "vertex-ai": {
@@ -154,12 +180,12 @@ export const providerAdapters: ProviderAdapterRegistry = {
     getRateLimitState: providerRateLimitUnknown,
     checkHealth: async (input) => {
       requireVertexProfile(input.authProfile);
-      return healthy();
+      return healthy(null);
     },
   },
 };
 
-async function postJson(endpoint: string, headers: Record<string, string>, body: JsonRecord): Promise<JsonRecord> {
+async function postJson(endpoint: string, headers: Record<string, string>, body: JsonRecord): Promise<ProviderJsonResponse> {
   return requestJson(endpoint, {
     method: "POST",
     headers: {
@@ -170,11 +196,11 @@ async function postJson(endpoint: string, headers: Record<string, string>, body:
   });
 }
 
-async function getJson(endpoint: string, headers: Record<string, string>): Promise<JsonRecord> {
+async function getJson(endpoint: string, headers: Record<string, string>): Promise<ProviderJsonResponse> {
   return requestJson(endpoint, { method: "GET", headers });
 }
 
-async function requestJson(endpoint: string, init: RequestInit): Promise<JsonRecord> {
+async function requestJson(endpoint: string, init: RequestInit): Promise<ProviderJsonResponse> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PROVIDER_REQUEST_TIMEOUT_MS);
   let response: Response;
@@ -183,13 +209,14 @@ async function requestJson(endpoint: string, init: RequestInit): Promise<JsonRec
   } finally {
     clearTimeout(timeout);
   }
+  const rateLimitState = parseProviderRateLimitHeaders(response.headers);
   const raw = await response.text();
   const data = parseProviderJson(raw, response.ok);
   if (!response.ok) {
     const message = readProviderError(data) ?? (raw.trim() || `Provider request failed with HTTP ${response.status}.`);
-    throw new Error(message);
+    throw new ProviderHttpError(message, rateLimitState);
   }
-  return data;
+  return { data, rateLimitState };
 }
 
 function parseProviderJson(raw: string, requireJson: boolean): JsonRecord {
@@ -254,22 +281,23 @@ function openAiCompatibleAdapter({
         ...(input.instructions ? [{ role: "system", content: input.instructions }] : []),
         { role: "user", content: input.prompt },
       ];
-      const data = await postJson(endpoint, {
+      const response = await postJson(endpoint, {
         authorization: `Bearer ${profile.apiKey}`,
       }, {
         model: input.model,
         messages,
       });
+      const data = response.data;
       const text = requireText(collectText(data.choices), label);
-      return { text, rawResponseJson: JSON.stringify(data) };
+      return { text, rawResponseJson: JSON.stringify(data), rateLimitState: response.rateLimitState };
     },
   };
 }
 
 async function checkOpenAiHealth(authProfile: ProviderAuthProfile, healthUrl: string): Promise<ProviderHealthResult> {
   const profile = requireApiKeyProfile(authProfile, "OpenAI-compatible provider");
-  await getJson(healthUrl, { authorization: `Bearer ${profile.apiKey}` });
-  return healthy();
+  const response = await getJson(healthUrl, { authorization: `Bearer ${profile.apiKey}` });
+  return healthy(response.rateLimitState);
 }
 
 function browserTokenAdapter(providerKey: string, authType: ProviderAuthType): ProviderAdapter {
@@ -282,7 +310,7 @@ function browserTokenAdapter(providerKey: string, authType: ProviderAuthType): P
     checkHealth: async (input) => {
       if (authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION) requireAccountTokenProfile(input.authProfile);
       else requireAccessTokenProfile(input.authProfile);
-      return healthy();
+      return healthy(null);
     },
   };
 }
@@ -399,8 +427,8 @@ function requireVertexProfile(profile: ProviderAuthProfile): Extract<ProviderAut
   return profile;
 }
 
-function healthy(): ProviderHealthResult {
-  return { checkedAt: new Date().toISOString() };
+function healthy(rateLimitState: ProviderObservedRateLimitState | null): ProviderHealthResult {
+  return { checkedAt: new Date().toISOString(), rateLimitState };
 }
 
 function listStaticModels(providerKey: string): Promise<ProviderModelEntry[]> {

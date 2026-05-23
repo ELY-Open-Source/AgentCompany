@@ -132,6 +132,7 @@ describe("migration service", () => {
       create table providers(id text primary key, org_id text, credential_id text);
       create table provider_requests(id text primary key, org_id text, provider_id text);
       create table provider_usage_windows(id text primary key, org_id text, provider_id text);
+      create table provider_rate_limit_observations(id text primary key, org_id text, provider_id text);
       create table credentials(id text primary key, org_id text);
       create table skill_definitions(id text primary key, org_id text);
       create table skill_revisions(id text primary key, skill_id text);
@@ -199,6 +200,7 @@ describe("migration service", () => {
       insert into chat_read_state(org_id, employee_id, space_id, last_read_message_id) values ('org-1', 'emp-1', 'space-1', 'msg-1');
       insert into provider_requests(id, org_id, provider_id) values ('req-1', 'org-1', 'prov-1');
       insert into provider_usage_windows(id, org_id, provider_id) values ('usage-1', 'org-1', 'prov-1');
+      insert into provider_rate_limit_observations(id, org_id, provider_id) values ('quota-1', 'org-1', 'prov-1');
       insert into skill_definitions(id, org_id) values ('skill-1', 'org-1');
       insert into skill_revisions(id, skill_id) values ('rev-1', 'skill-1'), ('rev-2', 'skill-1');
       insert into skill_artifacts(id, revision_id) values ('artifact-1', 'rev-1');
@@ -244,6 +246,7 @@ describe("migration service", () => {
     expect(body.tableCounts.file_access_grants).toBe(1);
     expect(body.tableCounts.provider_requests).toBe(1);
     expect(body.tableCounts.provider_usage_windows).toBe(1);
+    expect(body.tableCounts.provider_rate_limit_observations).toBe(1);
     expect(body.tableCounts.compliance_exports).toBe(1);
     expect(body.tableCounts.audit_replay_runs).toBe(1);
     expect(body.tableCounts.rollback_snapshots).toBe(1);
@@ -262,6 +265,7 @@ describe("migration service", () => {
     expect(body.idMaps.audit_replay_runs).toEqual(["replay-1"]);
     expect(body.idMaps.rollback_snapshots).toEqual(["rollback-1"]);
     expect(body.idMaps.provider_usage_windows).toEqual(["usage-1"]);
+    expect(body.idMaps.provider_rate_limit_observations).toEqual(["quota-1"]);
     connection.close();
   });
 

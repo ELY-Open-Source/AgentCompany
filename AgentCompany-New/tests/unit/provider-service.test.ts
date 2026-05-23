@@ -5,7 +5,7 @@ import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ProviderService } from "../../src/main/services/provider-service";
-import { providerAdapters, type ProviderAdapterRegistry, type ProviderAuthProfile } from "../../src/main/services/provider-adapters";
+import { ProviderHttpError, providerAdapters, type ProviderAdapterRegistry, type ProviderAuthProfile } from "../../src/main/services/provider-adapters";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE } from "../../src/shared/domain";
 import { PROVIDER_CATALOG } from "../../src/shared/provider-catalog";
@@ -144,7 +144,7 @@ describe("provider service", () => {
         parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
         checkHealth: async ({ authProfile }) => {
           checkedProfile = authProfile;
-          return { checkedAt: new Date().toISOString() };
+          return { checkedAt: new Date().toISOString(), rateLimitState: null };
         },
       },
     };
@@ -178,10 +178,11 @@ describe("provider service", () => {
       openai: {
         ...providerAdapters.openai,
         parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
-        checkHealth: async () => ({ checkedAt: new Date().toISOString() }),
+        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
         createResponse: async ({ authProfile, model, prompt }) => ({
           text: `${authProfile.type}:${model}:${prompt}`,
           rawResponseJson: JSON.stringify({ provider: "openai" }),
+          rateLimitState: null,
         }),
       },
     };
@@ -214,6 +215,116 @@ describe("provider service", () => {
     connection.close();
   });
 
+  test("records provider response rate limit observations", async () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    const adapters: ProviderAdapterRegistry = {
+      ...providerAdapters,
+      openai: {
+        ...providerAdapters.openai,
+        parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
+        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
+        createResponse: async () => ({
+          text: "accepted",
+          rawResponseJson: "{}",
+          rateLimitState: {
+            requestLimit: 120,
+            remainingRequests: 119,
+            resetAt: "2026-05-23T12:00:00.000Z",
+            retryAfterMs: null,
+            rawStateJson: JSON.stringify({ "x-ratelimit-remaining-requests": "119" }),
+          },
+        }),
+      },
+    };
+    const providers = new ProviderService(connection.db, adapters, testVault);
+    let orgId = "";
+    let openAiProviderId = "";
+
+    connection.transaction(() => {
+      orgId = createOrganization(organization);
+      openAiProviderId = providerId(connection, orgId, "openai");
+      providers.saveCredential({ orgId, providerId: openAiProviderId, secret: "sk-live-provider", model: "gpt-5.4" });
+    });
+    await providers.createResponse({
+      orgId,
+      providerId: openAiProviderId,
+      prompt: "Draft board memo",
+      instructions: null,
+    });
+
+    expect(snapshot.load().providerRateLimitObservations[0]).toMatchObject({
+      orgId,
+      providerId: openAiProviderId,
+      providerKey: "openai",
+      model: "gpt-5.4",
+      requestLimit: 120,
+      remainingRequests: 119,
+      resetAt: "2026-05-23T12:00:00.000Z",
+      retryAfterMs: null,
+      rawStateJson: JSON.stringify({ "x-ratelimit-remaining-requests": "119" }),
+    });
+    connection.close();
+  });
+
+  test("records failed provider response rate limit observations", async () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    const adapters: ProviderAdapterRegistry = {
+      ...providerAdapters,
+      openai: {
+        ...providerAdapters.openai,
+        parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
+        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
+        createResponse: async () => {
+          throw new ProviderHttpError("rate limited", {
+            requestLimit: 120,
+            remainingRequests: 0,
+            resetAt: "2026-05-23T12:00:00.000Z",
+            retryAfterMs: 2000,
+            rawStateJson: JSON.stringify({ "retry-after": "2" }),
+          });
+        },
+      },
+    };
+    const providers = new ProviderService(connection.db, adapters, testVault);
+    let orgId = "";
+    let openAiProviderId = "";
+
+    connection.transaction(() => {
+      orgId = createOrganization(organization);
+      openAiProviderId = providerId(connection, orgId, "openai");
+      providers.saveCredential({ orgId, providerId: openAiProviderId, secret: "sk-live-provider", model: "gpt-5.4" });
+    });
+    await expect(providers.createResponse({
+      orgId,
+      providerId: openAiProviderId,
+      prompt: "Draft board memo",
+      instructions: null,
+    })).rejects.toThrow("rate limited");
+
+    const state = snapshot.load();
+    expect(state.providerRequests[0]).toMatchObject({
+      providerId: openAiProviderId,
+      state: "failed",
+      errorMessage: "rate limited",
+    });
+    expect(state.providerRateLimitObservations[0]).toMatchObject({
+      orgId,
+      providerId: openAiProviderId,
+      providerKey: "openai",
+      model: "gpt-5.4",
+      requestLimit: 120,
+      remainingRequests: 0,
+      resetAt: "2026-05-23T12:00:00.000Z",
+      retryAfterMs: 2000,
+      rawStateJson: JSON.stringify({ "retry-after": "2" }),
+    });
+    connection.close();
+  });
+
   test("tracks provider usage windows and enforces monthly request limits", async () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
@@ -223,8 +334,8 @@ describe("provider service", () => {
       openai: {
         ...providerAdapters.openai,
         parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
-        checkHealth: async () => ({ checkedAt: new Date().toISOString() }),
-        createResponse: async ({ prompt }) => ({ text: `accepted:${prompt}`, rawResponseJson: "{}" }),
+        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
+        createResponse: async ({ prompt }) => ({ text: `accepted:${prompt}`, rawResponseJson: "{}", rateLimitState: null }),
       },
     };
     const providers = new ProviderService(connection.db, adapters, testVault);
@@ -292,10 +403,10 @@ describe("provider service", () => {
       openai: {
         ...providerAdapters.openai,
         parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
-        checkHealth: async () => ({ checkedAt: new Date().toISOString() }),
+        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
         createResponse: async () => {
           adapterCalled = true;
-          return { text: "blocked", rawResponseJson: "{}" };
+          return { text: "blocked", rawResponseJson: "{}", rateLimitState: null };
         },
       },
     };

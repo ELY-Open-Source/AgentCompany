@@ -50,6 +50,11 @@ export class SnapshotService {
       .map((provider) => ({ ...provider, enabled: toBool(provider.enabled), backgroundEnabled: toBool(provider.backgroundEnabled) }));
     const providerAuthProfiles = list<AppSnapshot["providerAuthProfiles"][number]>(this.db, "provider_auth_profiles", "created_at desc")
       .map((profile) => ({ ...profile, active: toBool(profile.active) }));
+    const providerRateLimitObservations = list<AppSnapshot["providerRateLimitObservations"][number]>(
+      this.db,
+      "provider_rate_limit_observations",
+      "observed_at desc",
+    );
     const providerUsageWindows = list<ProviderUsageWindowRow>(this.db, "provider_usage_windows", "window_start desc");
     const providerRateLimits = buildProviderRateLimits(providers, providerUsageWindows);
     const skillBindings = list<AppSnapshot["skillBindings"][number]>(this.db, "skill_bindings", "priority asc")
@@ -103,6 +108,7 @@ export class SnapshotService {
       providerCatalog: PROVIDER_CATALOG,
       providerRequests: list(this.db, "provider_requests", "created_at desc"),
       providerRateLimits,
+      providerRateLimitObservations,
       skillDefinitions: list(this.db, "skill_definitions", "created_at asc"),
       skillRevisions: list(this.db, "skill_revisions", "published_at desc"),
       skillBindings,

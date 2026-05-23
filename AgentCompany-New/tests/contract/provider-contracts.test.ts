@@ -109,7 +109,12 @@ describe("provider contracts", () => {
       .get(runId) as { state: string; failed_count: number; result_json: string };
     const result = JSON.parse(run.result_json) as { checks: Array<{ key: string; passed: boolean }> };
     expect(run).toMatchObject({ state: SDLC_RUN_STATE.PASSED, failed_count: 0 });
-    expect(result.checks.map((check) => check.key).sort()).toEqual(["provider_adapter_coverage", "provider_runtime_contract", "schema_version"]);
+    expect(result.checks.map((check) => check.key).sort()).toEqual([
+      "provider_adapter_coverage",
+      "provider_rate_limit_registry",
+      "provider_runtime_contract",
+      "schema_version",
+    ]);
     expect(result.checks.every((check) => check.passed)).toBe(true);
     connection.close();
   });
