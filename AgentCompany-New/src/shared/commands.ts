@@ -117,6 +117,11 @@ export interface LaunchProviderSignInInput {
   providerId: string;
 }
 
+export interface CheckProviderHealthInput {
+  orgId: string;
+  providerId: string;
+}
+
 export interface CreateProviderResponseInput {
   orgId: string;
   providerId: string;

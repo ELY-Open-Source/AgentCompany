@@ -71,6 +71,7 @@ export function ProvidersPanel({ orgId, providers, catalog, agents, actions }: P
                 key={provider.id}
                 provider={provider}
                 agents={agents}
+                onCheck={() => void actions.run(() => window.agentCompany.checkProviderHealth({ orgId, providerId: provider.id }))}
                 onManage={() => setActive(provider)}
               />
             ))}
@@ -231,10 +232,12 @@ function composeSecret(entry: ProviderCatalogEntry, form: FormData): string {
 function ProviderRow({
   provider,
   agents,
+  onCheck,
   onManage,
 }: {
   provider: ProviderRecord;
   agents: AgentRecord[];
+  onCheck: () => void;
   onManage: () => void;
 }) {
   const boundCount = agents.filter((agent) => agent.modelProviderId === provider.id).length;
@@ -257,13 +260,21 @@ function ProviderRow({
           {provider.model ? `${provider.model} · ` : ""}{readableAuth(provider.authType)}
         </div>
       </div>
+      <ProviderHealth provider={provider} />
       <div style={{ textAlign: "right", minWidth: 120 }}>
         <div className="num mono" style={{ fontSize: 13, fontWeight: 540 }}>{boundCount} {boundCount === 1 ? "agent" : "agents"}</div>
         <div className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>bound</div>
       </div>
+      <Button onClick={onCheck}>Check</Button>
       <Button onClick={onManage}>Manage</Button>
     </div>
   );
+}
+
+function ProviderHealth({ provider }: { provider: ProviderRecord }) {
+  if (provider.healthState === "healthy") return <Pill tone="green">Healthy</Pill>;
+  if (provider.healthState === "failed") return <Pill tone="red">Failed</Pill>;
+  return <Pill>Unchecked</Pill>;
 }
 
 function ProviderCard({ provider, onConnect }: { provider: ProviderRecord; onConnect: () => void }) {

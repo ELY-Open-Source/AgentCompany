@@ -8,6 +8,7 @@ import type {
   CreateApprovalInput,
   CreateChatSpaceInput,
   CreateMigrationReportInput,
+  CheckProviderHealthInput,
   MarkChatSpaceReadInput,
   CreateOrganizationInput,
   CreateProviderResponseInput,
@@ -49,6 +50,7 @@ export interface DesktopApi {
   markChatSpaceRead(input: MarkChatSpaceReadInput): Promise<DesktopResult<AppSnapshot>>;
   saveProviderCredential(input: SaveProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;
   launchProviderSignIn(input: LaunchProviderSignInInput): Promise<DesktopResult<null>>;
+  checkProviderHealth(input: CheckProviderHealthInput): Promise<DesktopResult<AppSnapshot>>;
   openExternalUrl(url: string): Promise<DesktopResult<null>>;
   createProviderResponse(input: CreateProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
   importSkillDirectory(input: ImportSkillDirectoryInput): Promise<DesktopResult<AppSnapshot>>;

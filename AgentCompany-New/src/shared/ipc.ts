@@ -14,6 +14,7 @@ export const IPC_CHANNELS = {
   markChatSpaceRead: "agentcompany:mark-chat-space-read",
   saveProviderCredential: "agentcompany:save-provider-credential",
   launchProviderSignIn: "agentcompany:launch-provider-sign-in",
+  checkProviderHealth: "agentcompany:check-provider-health",
   openExternalUrl: "agentcompany:open-external-url",
   createProviderResponse: "agentcompany:create-provider-response",
   importSkillDirectory: "agentcompany:import-skill-directory",

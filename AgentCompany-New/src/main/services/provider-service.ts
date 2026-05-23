@@ -7,7 +7,7 @@ import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { SecretVault } from "./secret-vault";
-import { providerAdapters } from "./provider-adapters";
+import { providerAdapters, type ProviderAdapterRegistry } from "./provider-adapters";
 
 const AUTH_STATE_CONFIGURED = "configured";
 const HEALTH_STATE_HEALTHY = "healthy";
@@ -22,9 +22,12 @@ function displayHint(secret: string): string {
 
 export class ProviderService {
   private readonly audit: AuditService;
-  private readonly vault = new SecretVault();
 
-  constructor(private readonly db: DatabaseSync) {
+  constructor(
+    private readonly db: DatabaseSync,
+    private readonly adapters: ProviderAdapterRegistry = providerAdapters,
+    private readonly vault: SecretVault = new SecretVault(),
+  ) {
     this.audit = new AuditService(db);
   }
 
@@ -34,6 +37,8 @@ export class ProviderService {
     if (!provider) throw new Error("Provider was not found.");
     const secret = input.secret.trim();
     if (!secret) throw new Error("Credential is required.");
+    const adapter = this.requireAdapter(provider.provider_key, provider.auth_type);
+    adapter.parseAuthProfile(secret);
     const credentialId = createId("cred");
     const now = new Date().toISOString();
     this.db.prepare(`
@@ -62,6 +67,30 @@ export class ProviderService {
       action: "credential_saved",
       payload: { providerKey: provider.provider_key, authType: provider.auth_type },
     });
+  }
+
+  async checkHealth(orgId: string, providerId: string): Promise<void> {
+    const provider = this.loadConfiguredProvider(orgId, providerId);
+    const adapter = this.requireAdapter(provider.provider_key, provider.auth_type);
+    const credential = this.loadCredential(orgId, provider);
+    try {
+      const profile = adapter.parseAuthProfile(this.vault.decryptSecret(Buffer.from(credential.ciphertext)));
+      await adapter.checkHealth({ authProfile: profile, model: provider.model });
+      this.recordProviderHealth(provider.id, orgId, HEALTH_STATE_HEALTHY, null);
+      this.audit.record({
+        orgId,
+        entityType: "provider",
+        entityId: provider.id,
+        actorType: "system",
+        actorId: null,
+        action: "health_checked",
+        payload: { providerKey: provider.provider_key, healthState: HEALTH_STATE_HEALTHY },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.recordProviderHealth(provider.id, orgId, HEALTH_STATE_FAILED, message);
+      throw error;
+    }
   }
 
   launchSignInWindow(orgId: string, providerId: string): void {
@@ -110,28 +139,14 @@ export class ProviderService {
   async createResponse(input: CreateProviderResponseInput): Promise<void> {
     const prompt = input.prompt.trim();
     if (!prompt) throw new Error("Prompt is required.");
-    const provider = this.db.prepare(`
-      select id, provider_key, auth_type, model, credential_id, enabled
-        , auth_state
-      from providers
-      where id = ? and org_id = ?
-    `).get(input.providerId, input.orgId) as ProviderRow | undefined;
-    if (!provider) throw new Error("Provider was not found.");
-    if (provider.enabled !== 1 || provider.auth_state !== AUTH_STATE_CONFIGURED) throw new Error("Provider credential is required.");
+    const provider = this.loadConfiguredProvider(input.orgId, input.providerId);
     if (provider.auth_type !== PROVIDER_AUTH_TYPE.API_KEY) {
       throw new Error("Provider response execution requires an API key adapter.");
     }
-    if (!provider.credential_id) throw new Error("Provider credential is required.");
     if (!provider.model) throw new Error("Provider model is required.");
-    const adapter = providerAdapters[provider.provider_key];
-    if (!adapter) throw new Error(`Provider adapter is unavailable for ${provider.provider_key}.`);
-
-    const credential = this.db.prepare(`
-      select ciphertext
-      from credentials
-      where id = ? and org_id = ? and provider_key = ?
-    `).get(provider.credential_id, input.orgId, provider.provider_key) as { ciphertext: Uint8Array } | undefined;
-    if (!credential) throw new Error("Provider credential was not found.");
+    const adapter = this.requireAdapter(provider.provider_key, provider.auth_type);
+    if (!adapter.createResponse) throw new Error(`Provider response execution is unavailable for ${provider.provider_key}.`);
+    const credential = this.loadCredential(input.orgId, provider);
 
     const requestId = createId("preq");
     const now = new Date().toISOString();
@@ -153,9 +168,9 @@ export class ProviderService {
     );
 
     try {
-      const apiKey = this.vault.decryptSecret(Buffer.from(credential.ciphertext));
+      const authProfile = adapter.parseAuthProfile(this.vault.decryptSecret(Buffer.from(credential.ciphertext)));
       const result = await adapter.createResponse({
-        apiKey,
+        authProfile,
         model: provider.model,
         prompt,
         instructions: input.instructions?.trim() || null,
@@ -185,6 +200,36 @@ export class ProviderService {
       this.recordProviderHealth(provider.id, input.orgId, HEALTH_STATE_FAILED, message);
       throw error;
     }
+  }
+
+  private loadConfiguredProvider(orgId: string, providerId: string): ProviderRow {
+    const provider = this.db.prepare(`
+      select id, provider_key, auth_type, model, credential_id, enabled, auth_state
+      from providers
+      where id = ? and org_id = ?
+    `).get(providerId, orgId) as ProviderRow | undefined;
+    if (!provider) throw new Error("Provider was not found.");
+    if (provider.enabled !== 1 || provider.auth_state !== AUTH_STATE_CONFIGURED) throw new Error("Provider credential is required.");
+    if (!provider.credential_id) throw new Error("Provider credential is required.");
+    return provider;
+  }
+
+  private loadCredential(orgId: string, provider: ProviderRow): { ciphertext: Uint8Array } {
+    if (!provider.credential_id) throw new Error("Provider credential is required.");
+    const credential = this.db.prepare(`
+      select ciphertext
+      from credentials
+      where id = ? and org_id = ? and provider_key = ?
+    `).get(provider.credential_id, orgId, provider.provider_key) as { ciphertext: Uint8Array } | undefined;
+    if (!credential) throw new Error("Provider credential was not found.");
+    return credential;
+  }
+
+  private requireAdapter(providerKey: string, authType: string): ProviderAdapterRegistry[string] {
+    const adapter = this.adapters[providerKey];
+    if (!adapter) throw new Error(`Provider adapter is unavailable for ${providerKey}.`);
+    if (adapter.authType !== authType) throw new Error(`Provider adapter auth type mismatch for ${providerKey}.`);
+    return adapter;
   }
 
   private attachNavigationPolicy(win: BrowserWindow, signInUrl: string): void {
