@@ -5,6 +5,7 @@ import { onboardingExecutionSchema } from "./migrations/003-onboarding";
 import { filesPinnedAndScheduledPosts } from "./migrations/004-files-posts";
 import { chatReadState } from "./migrations/005-chat-read-state";
 import { appStateSchema } from "./migrations/006-app-state";
+import { skillHardeningSchema } from "./migrations/007-skill-hardening";
 
 const MIGRATIONS: Array<{ version: number; sql: string }> = [
   { version: 1, sql: initialEnterpriseSchema },
@@ -13,6 +14,7 @@ const MIGRATIONS: Array<{ version: number; sql: string }> = [
   { version: 4, sql: filesPinnedAndScheduledPosts },
   { version: 5, sql: chatReadState },
   { version: 6, sql: appStateSchema },
+  { version: 7, sql: skillHardeningSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

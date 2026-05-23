@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -81,11 +81,25 @@ describe("domain services", () => {
   test("imports a versioned skill revision from a local directory", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
-    const skills = new SkillService(connection.db);
+    const skills = new SkillService(connection.db, join(tmpdir(), `agentcompany-skill-artifacts-${randomUUID()}`));
     const snapshot = new SnapshotService(connection.db);
     const skillDir = join(tmpdir(), `agentcompany-skill-${randomUUID()}`);
     mkdirSync(skillDir, { recursive: true });
-    writeFileSync(join(skillDir, "SKILL.md"), "---\nname: review-routes\n---\n# Review Routes\n");
+    mkdirSync(join(skillDir, "tests"), { recursive: true });
+    writeFileSync(join(skillDir, "SKILL.md"), "# Review Routes\n");
+    writeFileSync(join(skillDir, "tests", "happy_path.yaml"), "input: review\n");
+    writeFileSync(join(skillDir, "skill.manifest.json"), JSON.stringify({
+      name: "review-routes",
+      version: "1.0.0",
+      entrypoint: "SKILL.md",
+      capabilities: ["architecture-review"],
+      required_tools: ["file_search"],
+      compatible_models: ["openai/*", "anthropic/*"],
+      risk_level: "medium",
+      inputs: { diff: "markdown" },
+      outputs: { recommendation: "markdown" },
+      tests: ["tests/happy_path.yaml"],
+    }));
     let orgId = "";
     let agentId = "";
     let revisionId = "";
@@ -111,6 +125,7 @@ describe("domain services", () => {
       const skill = connection.db.prepare("select id from skill_definitions where org_id = ? and slug = ?")
         .get(orgId, "review-routes") as { id: string };
       skills.bind({ orgId, agentId, skillId: skill.id, revisionId });
+      rmSync(skillDir, { recursive: true, force: true });
       skills.resolveRuntimeSnapshot({ orgId, agentId, runId: "run-review-1" });
     });
 
@@ -118,8 +133,54 @@ describe("domain services", () => {
     expect(state.skillDefinitions[0]?.slug).toBe("review-routes");
     expect(state.skillRevisions[0]?.versionSemver).toBe("1.0.0");
     expect(state.skillRevisions[0]?.immutableChecksum).toHaveLength(64);
+    expect(state.skillRevisions[0]?.manifestJson).toContain("architecture-review");
     expect(state.skillRuntimeSnapshots[0]?.sourceRevisionIds).toContain(revisionId);
     expect(state.skillRuntimeSnapshots[0]?.compiledPrompt).toContain("# Review Routes");
+    connection.close();
+  });
+
+  test("rejects cross-organization skill binding and duplicate runtime snapshots", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const skills = new SkillService(connection.db, join(tmpdir(), `agentcompany-skill-artifacts-${randomUUID()}`));
+    const skillDir = join(tmpdir(), `agentcompany-skill-${randomUUID()}`);
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(join(skillDir, "SKILL.md"), "# Review Routes\n");
+    writeFileSync(join(skillDir, "skill.manifest.json"), JSON.stringify({
+      name: "review-routes",
+      version: "1.0.0",
+      entrypoint: "SKILL.md",
+      capabilities: [],
+      required_tools: [],
+      compatible_models: ["openai/*"],
+      risk_level: "low",
+      inputs: {},
+      outputs: {},
+      tests: [],
+    }));
+    let orgA = "";
+    let orgB = "";
+    let agentA = "";
+    let agentB = "";
+    let skillId = "";
+    let revisionId = "";
+
+    connection.transaction(() => {
+      orgA = organization.createOrganization({ organizationName: "Acme A", employeeName: "Dana Lee", mission: "A", goal: "A" });
+      orgB = organization.createOrganization({ organizationName: "Acme B", employeeName: "Riley Chen", mission: "B", goal: "B" });
+      agentA = organization.createAgent({ orgId: orgA, name: "Ada", role: "Reviewer", department: "Engineering", modelProviderId: null, modelId: null, budgetCents: 10000, managerAgentId: null });
+      agentB = organization.createAgent({ orgId: orgB, name: "Ben", role: "Reviewer", department: "Engineering", modelProviderId: null, modelId: null, budgetCents: 10000, managerAgentId: null });
+      revisionId = skills.importDirectory({ orgId: orgA, directoryPath: skillDir, versionSemver: "1.0.0" });
+      skillId = (connection.db.prepare("select id from skill_definitions where org_id = ? and slug = ?")
+        .get(orgA, "review-routes") as { id: string }).id;
+      expect(() => skills.bind({ orgId: orgA, agentId: agentB, skillId, revisionId })).toThrow("Agent was not found.");
+      skills.bind({ orgId: orgA, agentId: agentA, skillId, revisionId });
+      skills.resolveRuntimeSnapshot({ orgId: orgA, agentId: agentA, runId: "run-review-1" });
+      expect(() => skills.resolveRuntimeSnapshot({ orgId: orgA, agentId: agentA, runId: "run-review-1" }))
+        .toThrow("Skill runtime snapshot already exists for this run.");
+    });
+
+    expect(agentA).not.toBe(agentB);
     connection.close();
   });
 
