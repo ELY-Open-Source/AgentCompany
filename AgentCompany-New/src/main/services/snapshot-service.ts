@@ -53,6 +53,12 @@ export class SnapshotService {
       .map((freeze) => ({ ...freeze, active: toBool(freeze.active) }));
     const employeeIdentities = list<AppSnapshot["employeeIdentities"][number]>(this.db, "employee_identities", "created_at desc")
       .map((identity) => ({ ...identity, active: toBool(identity.active) }));
+    const featureFlags = list<AppSnapshot["featureFlags"][number]>(this.db, "feature_flags", "key asc")
+      .map((flag) => ({ ...flag, enabled: toBool(flag.enabled) }));
+    const operationalEvents = list<AppSnapshot["operationalEvents"][number]>(this.db, "operational_events", "created_at desc")
+      .map((event) => ({ ...event, success: toBool(event.success) }));
+    const chaosDrills = list<AppSnapshot["chaosDrills"][number]>(this.db, "chaos_drills", "key asc")
+      .map((drill) => ({ ...drill, enabled: toBool(drill.enabled) }));
 
     return {
       activeOrgId,
@@ -100,6 +106,11 @@ export class SnapshotService {
       hiringPolicies: list(this.db, "hiring_policies", "department_name asc"),
       approvalRoutingRules: list(this.db, "approval_routing_rules", "created_at asc"),
       approvalAssignments: list(this.db, "approval_assignments", "created_at desc"),
+      featureFlags,
+      sloTargets: list(this.db, "slo_targets", "signal_key asc"),
+      operationalEvents,
+      chaosDrills,
+      chaosDrillRuns: list(this.db, "chaos_drill_runs", "started_at desc"),
       auditEvents: list<AppSnapshot["auditEvents"][number]>(this.db, "audit_events", "created_at desc").slice(0, 200),
     };
   }

@@ -118,6 +118,7 @@ describe("provider service", () => {
       responseText: "api_key:gpt-5.4:Draft board memo",
       state: "succeeded",
     });
+    expect(state.operationalEvents[0]).toMatchObject({ signalKey: "provider_request_success", source: "provider_gateway", success: true });
     expect(state.providers.find((provider) => provider.id === openAiProviderId)?.healthState).toBe("healthy");
     connection.close();
   });

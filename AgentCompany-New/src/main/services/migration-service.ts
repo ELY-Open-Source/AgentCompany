@@ -3,8 +3,10 @@ import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 import type { CreateMigrationReportInput } from "../../shared/commands";
+import { SLO_SIGNAL_KEY } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
+import { OperationsService } from "./operations-service";
 
 const LEGACY_TABLES = [
   "organizations",
@@ -24,6 +26,11 @@ const LEGACY_TABLES = [
   "approvals",
   "approval_routing_rules",
   "approval_assignments",
+  "feature_flags",
+  "slo_targets",
+  "operational_events",
+  "chaos_drills",
+  "chaos_drill_runs",
   "chat_spaces",
   "chat_messages",
   "chat_threads",
@@ -129,6 +136,12 @@ const RELATION_CHECKS: RelationCheck[] = [
   { table: "approval_assignments", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
   { table: "approval_assignments", column: "approval_id", referencedTable: "approvals", referencedColumn: "id", reason: "dangling_approval_id" },
   { table: "approval_assignments", column: "routing_rule_id", referencedTable: "approval_routing_rules", referencedColumn: "id", reason: "dangling_routing_rule_id" },
+  { table: "feature_flags", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "slo_targets", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "operational_events", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "chaos_drills", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "chaos_drill_runs", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "chaos_drill_runs", column: "drill_id", referencedTable: "chaos_drills", referencedColumn: "id", reason: "dangling_drill_id" },
   { table: "chat_spaces", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
   { table: "chat_messages", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
   { table: "chat_messages", column: "space_id", referencedTable: "chat_spaces", referencedColumn: "id", reason: "dangling_space_id" },
@@ -199,9 +212,11 @@ const RELATION_CHECKS: RelationCheck[] = [
 
 export class MigrationService {
   private readonly audit: AuditService;
+  private readonly operations: OperationsService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
+    this.operations = new OperationsService(db);
   }
 
   createReport(input: CreateMigrationReportInput): string {
@@ -269,6 +284,14 @@ export class MigrationService {
         actorId: null,
         action: "created",
         payload: { sourceRef: sourceDatabasePath, tableCount: Object.keys(tableCounts).length, sourceFingerprint },
+      });
+      this.operations.recordSignal({
+        orgId: input.orgId,
+        signalKey: SLO_SIGNAL_KEY.MIGRATION_VALIDATION_SUCCESS,
+        source: "migration_validation",
+        success: failures.length === 0,
+        durationMs: null,
+        detail: { reportId, sourceFingerprint, failureCount: failures.length },
       });
       return reportId;
     } finally {

@@ -1,8 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import type { BindSkillInput, ImportSkillDirectoryInput, ResolveAgentSkillsInput } from "../../shared/commands";
+import { SLO_SIGNAL_KEY } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
+import { OperationsService } from "./operations-service";
 import { copySkillRevision, recursiveSkillChecksum } from "./skill-artifacts";
 import { loadSkillManifest, type SkillManifest } from "./skill-manifest";
 
@@ -12,9 +14,11 @@ function slugify(value: string): string {
 
 export class SkillService {
   private readonly audit: AuditService;
+  private readonly operations: OperationsService;
 
   constructor(private readonly db: DatabaseSync, private readonly artifactRoot: string) {
     this.audit = new AuditService(db);
+    this.operations = new OperationsService(db);
   }
 
   importDirectory(input: ImportSkillDirectoryInput): string {
@@ -165,6 +169,14 @@ export class SkillService {
       actorId: null,
       action: "resolved",
       payload: { agentId: input.agentId, runId: input.runId, revisionIds },
+    });
+    this.operations.recordSignal({
+      orgId: input.orgId,
+      signalKey: SLO_SIGNAL_KEY.SKILL_RESOLVE_SUCCESS,
+      source: "skill_resolver",
+      success: true,
+      durationMs: null,
+      detail: { agentId: input.agentId, runId: input.runId, revisionIds },
     });
     return snapshotId;
   }

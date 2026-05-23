@@ -277,6 +277,17 @@ export interface SetFilePinnedInput {
   pinned: boolean;
 }
 
+export interface SetFeatureFlagInput {
+  orgId: string;
+  flagId: string;
+  enabled: boolean;
+}
+
+export interface RunChaosDrillInput {
+  orgId: string;
+  drillId: string;
+}
+
 export interface BootstrapOnboardingInput {
   companyName: string;
   companyDescription: string;

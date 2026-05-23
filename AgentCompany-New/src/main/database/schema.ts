@@ -15,6 +15,7 @@ import { searchDocumentsSchema } from "./migrations/013-search-documents";
 import { providerPolicyUsageSchema } from "./migrations/014-provider-policy-usage";
 import { identityAccessSchema } from "./migrations/015-identity-access";
 import { orgGovernanceSchema } from "./migrations/016-org-governance";
+import { operationsControlsSchema } from "./migrations/017-operations-controls";
 
 interface Migration {
   version: number;
@@ -39,6 +40,7 @@ const MIGRATIONS: Migration[] = [
   { version: 14, name: "provider_policy_usage", sql: providerPolicyUsageSchema },
   { version: 15, name: "identity_access", sql: identityAccessSchema },
   { version: 16, name: "org_governance", sql: orgGovernanceSchema },
+  { version: 17, name: "operations_controls", sql: operationsControlsSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

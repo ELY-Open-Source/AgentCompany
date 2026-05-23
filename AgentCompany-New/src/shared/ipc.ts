@@ -30,6 +30,8 @@ export const IPC_CHANNELS = {
   importFile: "agentcompany:import-file",
   setFilePinned: "agentcompany:set-file-pinned",
   createMigrationReport: "agentcompany:create-migration-report",
+  setFeatureFlag: "agentcompany:set-feature-flag",
+  runChaosDrill: "agentcompany:run-chaos-drill",
   createComplianceExport: "agentcompany:create-compliance-export",
   createLegalHold: "agentcompany:create-legal-hold",
   setLegalHoldState: "agentcompany:set-legal-hold-state",

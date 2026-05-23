@@ -2,10 +2,11 @@ import type { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
 import { BrowserWindow, session } from "electron";
 import type { CreateProviderResponseInput, SaveProviderCredentialInput, UpdateProviderPolicyInput } from "../../shared/commands";
-import { PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderExecutionMode } from "../../shared/domain";
+import { FEATURE_FLAG_KEY, PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, SLO_SIGNAL_KEY, type ProviderExecutionMode } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
+import { OperationsService } from "./operations-service";
 import { SecretVault } from "./secret-vault";
 import { providerAdapters, type ProviderAdapterRegistry } from "./provider-adapters";
 
@@ -23,6 +24,7 @@ function displayHint(secret: string): string {
 
 export class ProviderService {
   private readonly audit: AuditService;
+  private readonly operations: OperationsService;
 
   constructor(
     private readonly db: DatabaseSync,
@@ -30,6 +32,7 @@ export class ProviderService {
     private readonly vault: SecretVault = new SecretVault(),
   ) {
     this.audit = new AuditService(db);
+    this.operations = new OperationsService(db);
   }
 
   saveCredential(input: SaveProviderCredentialInput): void {
@@ -187,6 +190,7 @@ export class ProviderService {
 
     const requestId = createId("preq");
     const now = new Date().toISOString();
+    const startedAt = Date.now();
     this.db.prepare(`
       insert into provider_requests(
         id, org_id, provider_id, provider_key, model, prompt_sha256,
@@ -232,6 +236,14 @@ export class ProviderService {
         action: "response_created",
         payload: { providerKey: provider.provider_key, model: provider.model },
       });
+      this.operations.recordSignal({
+        orgId: input.orgId,
+        signalKey: SLO_SIGNAL_KEY.PROVIDER_REQUEST_SUCCESS,
+        source: "provider_gateway",
+        success: true,
+        durationMs: Date.now() - startedAt,
+        detail: { requestId, providerKey: provider.provider_key, executionMode },
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.db.prepare(`
@@ -241,6 +253,14 @@ export class ProviderService {
       `).run(PROVIDER_REQUEST_STATE.FAILED, message, new Date().toISOString(), requestId, input.orgId);
       this.recordUsage(input.orgId, provider.id, prompt.length, 0);
       this.recordProviderHealth(provider.id, input.orgId, HEALTH_STATE_FAILED, message);
+      this.operations.recordSignal({
+        orgId: input.orgId,
+        signalKey: SLO_SIGNAL_KEY.PROVIDER_REQUEST_SUCCESS,
+        source: "provider_gateway",
+        success: false,
+        durationMs: Date.now() - startedAt,
+        detail: { requestId, providerKey: provider.provider_key, executionMode },
+      });
       throw error;
     }
   }
@@ -249,6 +269,9 @@ export class ProviderService {
     if (!Object.values(PROVIDER_EXECUTION_MODE).includes(executionMode)) throw new Error("Provider execution mode is invalid.");
     if (executionMode === PROVIDER_EXECUTION_MODE.BACKGROUND && provider.data_policy === PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION) {
       throw new Error("Background execution conflicts with zero data retention policy.");
+    }
+    if (executionMode === PROVIDER_EXECUTION_MODE.BACKGROUND && !this.operations.isFeatureEnabled(orgId, FEATURE_FLAG_KEY.PROVIDER_BACKGROUND_EXECUTION)) {
+      throw new Error("Provider background execution is disabled by feature flag.");
     }
     if (executionMode === PROVIDER_EXECUTION_MODE.BACKGROUND && provider.background_enabled !== 1) {
       throw new Error("Background execution is disabled for this provider policy.");

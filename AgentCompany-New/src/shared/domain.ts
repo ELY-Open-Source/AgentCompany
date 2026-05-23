@@ -2,11 +2,13 @@ import type { BoardInterventionRecord as BoardInterventionRecordModel, ChatThrea
 import type { ComplianceExportRecord, LegalHoldRecord, RetentionFreezeRecord } from "./compliance-domain";
 import type { AccessDecisionRecord, EmployeeIdentityRecord, RoleGrantRecord, ServiceIdentityRecord } from "./identity-domain";
 import type { ApprovalAssignmentRecord, ApprovalRoutingRuleRecord, HiringPolicyRecord, OrgDepartmentRecord } from "./org-governance-domain";
+import type { ChaosDrillRecord, ChaosDrillRunRecord, FeatureFlagRecord, OperationalEventRecord, SloTargetRecord } from "./operations-domain";
 import type { ProviderDataPolicy, ProviderExecutionMode } from "./provider-policy-domain";
 export { BOARD_INTERVENTION_ACTION, BOARD_INTERVENTION_MODE, CHAT_THREAD_BOARD_STATE, type BoardInterventionAction, type BoardInterventionMode, type BoardInterventionRecord, type ChatThreadBoardState } from "./board-domain";
 export { COMPLIANCE_EXPORT_STATE, COMPLIANCE_EXPORT_TYPE, type ComplianceExportRecord, type ComplianceExportState, type ComplianceExportType, type ComplianceSubjectType, type LegalHoldEntityType, type LegalHoldRecord, type RetentionFreezeRecord, type RetentionFreezeScopeType } from "./compliance-domain";
 export { ACCESS_DECISION, IDENTITY_SOURCE, ROLE_KEY, type AccessDecision, type AccessDecisionRecord, type EmployeeIdentityRecord, type IdentitySource, type PrincipalType, type RoleGrantRecord, type RoleKey, type ServiceIdentityRecord } from "./identity-domain";
 export { ROUTE_TO_TYPE, type ApprovalAssignmentRecord, type ApprovalRoutingRuleRecord, type HiringPolicyRecord, type OrgDepartmentRecord, type RouteToType } from "./org-governance-domain";
+export { CHAOS_DRILL_SCENARIO, CHAOS_DRILL_STATE, FEATURE_FLAG_KEY, SLO_SIGNAL_KEY, type ChaosDrillRecord, type ChaosDrillRunRecord, type ChaosDrillScenario, type ChaosDrillState, type FeatureFlagKey, type FeatureFlagRecord, type OperationalEventRecord, type SloSignalKey, type SloTargetRecord } from "./operations-domain";
 export { PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, type ProviderDataPolicy, type ProviderExecutionMode } from "./provider-policy-domain";
 export { SEARCH_ENTITY_TYPES, type SearchEntityType, type SearchResultRecord } from "./search-domain";
 export const TASK_STATUS = { BACKLOG: "backlog", IN_PROGRESS: "in_progress", REVIEW: "review", DONE: "done" } as const;
@@ -471,5 +473,6 @@ export interface AppSnapshot {
   complianceExports: ComplianceExportRecord[]; legalHolds: LegalHoldRecord[]; retentionFreezes: RetentionFreezeRecord[];
   employeeIdentities: EmployeeIdentityRecord[]; serviceIdentities: ServiceIdentityRecord[]; roleGrants: RoleGrantRecord[]; accessDecisions: AccessDecisionRecord[];
   orgDepartments: OrgDepartmentRecord[]; hiringPolicies: HiringPolicyRecord[]; approvalRoutingRules: ApprovalRoutingRuleRecord[]; approvalAssignments: ApprovalAssignmentRecord[];
+  featureFlags: FeatureFlagRecord[]; sloTargets: SloTargetRecord[]; operationalEvents: OperationalEventRecord[]; chaosDrills: ChaosDrillRecord[]; chaosDrillRuns: ChaosDrillRunRecord[];
   auditEvents: AuditEventRecord[];
 }

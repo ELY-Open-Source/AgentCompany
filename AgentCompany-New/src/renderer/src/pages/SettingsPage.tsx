@@ -6,6 +6,7 @@ import { MembersPanel } from "./settings/MembersPanel";
 import { BillingPanel } from "./settings/BillingPanel";
 import { ModelsPanel } from "./settings/ModelsPanel";
 import { PoliciesPanel } from "./settings/PoliciesPanel";
+import { OperationsPanel } from "./settings/OperationsPanel";
 import { MigrationPanel } from "./settings/MigrationPanel";
 import { CompliancePanel } from "./settings/CompliancePanel";
 import { NotificationsPanel, ProfilePanel, SecurityPanel } from "./settings/AccountPanels";
@@ -20,6 +21,7 @@ type SettingsTab =
   | "providers"
   | "skills"
   | "policies"
+  | "operations"
   | "compliance"
   | "migration"
   | "profile"
@@ -41,6 +43,7 @@ const AGENTS_GROUP: NavSpec[] = [
   { id: "providers", label: "Providers" },
   { id: "skills", label: "Skills" },
   { id: "policies", label: "Policies" },
+  { id: "operations", label: "Operations" },
   { id: "compliance", label: "Compliance" },
   { id: "migration", label: "Migration" },
 ];
@@ -83,6 +86,11 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
   const hiringPolicies = useMemo(() => snapshot.hiringPolicies.filter((item) => item.orgId === orgId), [snapshot.hiringPolicies, orgId]);
   const approvalRoutingRules = useMemo(() => snapshot.approvalRoutingRules.filter((item) => item.orgId === orgId), [snapshot.approvalRoutingRules, orgId]);
   const approvalAssignments = useMemo(() => snapshot.approvalAssignments.filter((item) => item.orgId === orgId), [snapshot.approvalAssignments, orgId]);
+  const featureFlags = useMemo(() => snapshot.featureFlags.filter((item) => item.orgId === orgId), [snapshot.featureFlags, orgId]);
+  const sloTargets = useMemo(() => snapshot.sloTargets.filter((item) => item.orgId === orgId), [snapshot.sloTargets, orgId]);
+  const operationalEvents = useMemo(() => snapshot.operationalEvents.filter((item) => item.orgId === orgId), [snapshot.operationalEvents, orgId]);
+  const chaosDrills = useMemo(() => snapshot.chaosDrills.filter((item) => item.orgId === orgId), [snapshot.chaosDrills, orgId]);
+  const chaosDrillRuns = useMemo(() => snapshot.chaosDrillRuns.filter((item) => item.orgId === orgId), [snapshot.chaosDrillRuns, orgId]);
 
   return (
     <div className="split-main" style={{ height: "calc(100vh - 44px)", margin: "-28px -32px -40px" }}>
@@ -137,6 +145,17 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               hiringPolicies={hiringPolicies}
               approvalRoutingRules={approvalRoutingRules}
               approvalAssignments={approvalAssignments}
+            />
+          )}
+          {tab === "operations" && (
+            <OperationsPanel
+              orgId={orgId}
+              featureFlags={featureFlags}
+              sloTargets={sloTargets}
+              operationalEvents={operationalEvents}
+              chaosDrills={chaosDrills}
+              chaosDrillRuns={chaosDrillRuns}
+              actions={actions}
             />
           )}
           {tab === "compliance" && (

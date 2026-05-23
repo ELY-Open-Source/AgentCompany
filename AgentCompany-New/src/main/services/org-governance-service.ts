@@ -1,17 +1,20 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { CreateAgentInput } from "../../shared/commands";
-import { RISK_LEVEL, ROUTE_TO_TYPE, type RiskLevel } from "../../shared/domain";
+import { RISK_LEVEL, ROUTE_TO_TYPE, SLO_SIGNAL_KEY, type RiskLevel } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
+import { OperationsService } from "./operations-service";
 
 const DEFAULT_DEPARTMENTS = ["Executive", "Engineering", "Product", "Design", "Marketing", "Operations", "Support"] as const;
 const RISK_RANK: Record<RiskLevel, number> = { low: 0, medium: 1, high: 2 };
 
 export class OrgGovernanceService {
   private readonly audit: AuditService;
+  private readonly operations: OperationsService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
+    this.operations = new OperationsService(db);
   }
 
   seedOrganizationGovernance(orgId: string, boardEmployeeId: string, now: string): void {
@@ -60,6 +63,14 @@ export class OrgGovernanceService {
       actorId: null,
       action: "routed",
       payload: { routingRuleId: rule.id, routeToType: rule.route_to_type, routeToId: rule.route_to_id },
+    });
+    this.operations.recordSignal({
+      orgId: input.orgId,
+      signalKey: SLO_SIGNAL_KEY.APPROVAL_ROUTE_COVERAGE,
+      source: "approval_routing",
+      success: true,
+      durationMs: null,
+      detail: { approvalId: input.approvalId, routingRuleId: rule.id },
     });
   }
 

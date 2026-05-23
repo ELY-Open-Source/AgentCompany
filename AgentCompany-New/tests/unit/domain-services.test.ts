@@ -23,7 +23,7 @@ describe("domain services", () => {
     const connection = createConnection();
 
     const rows = connection.db.prepare("select version from schema_migrations order by version asc").all() as Array<{ version: number }>;
-    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
     connection.close();
   });
 
@@ -48,6 +48,9 @@ describe("domain services", () => {
     expect(state.orgDepartments.map((department) => department.name)).toContain("Engineering");
     expect(state.hiringPolicies.some((policy) => policy.departmentName === "Engineering")).toBe(true);
     expect(state.approvalRoutingRules[0]).toMatchObject({ kind: "*", minimumRisk: "low", routeToType: "employee" });
+    expect(state.featureFlags.map((flag) => flag.key)).toContain("chaos_drills");
+    expect(state.sloTargets.map((target) => target.signalKey)).toContain("provider_request_success");
+    expect(state.chaosDrills.map((drill) => drill.scenarioKey)).toContain("approval_backlog_gate");
     expect(state.chatSpaces.map((space) => space.name)).toContain("board");
     expect(state.policyRules[0]?.action).toBe("task_create");
     expect(state.auditEvents[0]?.action).toBe("created");
