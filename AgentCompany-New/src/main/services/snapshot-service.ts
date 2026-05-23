@@ -65,6 +65,7 @@ export class SnapshotService {
       chatAttachments: list(this.db, "chat_attachments", "message_id asc"),
       chatMentions: list(this.db, "chat_mentions", "message_id asc, offset_start asc"),
       chatSlashInvocations: list(this.db, "chat_slash_invocations", "created_at asc"),
+      boardInterventions: list(this.db, "board_interventions", "created_at asc"),
       chatPresence: list(this.db, "chat_presence", "last_seen_at desc"),
       chatReadStates: list(this.db, "chat_read_state", "last_read_at desc"),
       files,

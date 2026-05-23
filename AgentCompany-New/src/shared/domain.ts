@@ -1,3 +1,8 @@
+import type { BoardInterventionRecord as BoardInterventionRecordModel, ChatThreadBoardState as ChatThreadBoardStateModel } from "./board-domain";
+
+export { BOARD_INTERVENTION_ACTION, BOARD_INTERVENTION_MODE, CHAT_THREAD_BOARD_STATE } from "./board-domain";
+export type { BoardInterventionAction, BoardInterventionMode, BoardInterventionRecord, ChatThreadBoardState } from "./board-domain";
+
 export const TASK_STATUS = {
   BACKLOG: "backlog",
   IN_PROGRESS: "in_progress",
@@ -210,6 +215,9 @@ export interface ChatThreadRecord {
   rootMessageId: string | null;
   title: string;
   state: string;
+  boardState: ChatThreadBoardStateModel;
+  controlledByType: "employee" | "agent" | "board" | null;
+  controlledById: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -468,6 +476,7 @@ export interface AppSnapshot {
   chatAttachments: ChatAttachmentRecord[];
   chatMentions: ChatMentionRecord[];
   chatSlashInvocations: ChatSlashInvocationRecord[];
+  boardInterventions: BoardInterventionRecordModel[];
   chatPresence: ChatPresenceRecord[];
   chatReadStates: ChatReadStateRecord[];
   files: FileObjectRecord[];

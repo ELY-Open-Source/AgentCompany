@@ -9,6 +9,7 @@ import { skillHardeningSchema } from "./migrations/007-skill-hardening";
 import { providerHealthSchema } from "./migrations/008-provider-health";
 import { socialGovernanceSchema } from "./migrations/009-social-governance";
 import { fileHandoffSecuritySchema } from "./migrations/010-file-handoff-security";
+import { boardInterventionSchema } from "./migrations/011-board-interventions";
 
 interface Migration {
   version: number;
@@ -27,6 +28,7 @@ const MIGRATIONS: Migration[] = [
   { version: 8, name: "provider_health", sql: providerHealthSchema },
   { version: 9, name: "social_governance", sql: socialGovernanceSchema },
   { version: 10, name: "file_handoff_security", sql: fileHandoffSecuritySchema },
+  { version: 11, name: "board_interventions", sql: boardInterventionSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

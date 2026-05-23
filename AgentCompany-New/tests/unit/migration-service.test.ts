@@ -107,6 +107,7 @@ describe("migration service", () => {
       create table chat_attachments(message_id text, file_id text);
       create table chat_mentions(message_id text, target_type text, target_id text);
       create table chat_slash_invocations(id text primary key, message_id text);
+      create table board_interventions(id text primary key, org_id text, thread_id text, message_id text, approval_id text);
       create table chat_presence(principal_type text, principal_id text);
       create table chat_read_state(org_id text, employee_id text, space_id text, last_read_message_id text);
       create table providers(id text primary key, org_id text, credential_id text);
@@ -148,6 +149,7 @@ describe("migration service", () => {
       insert into file_access_grants(id, org_id, file_id, source_message_id, source_thread_id) values ('file-grant-1', 'org-1', 'file-1', 'msg-1', 'thread-1');
       insert into chat_mentions(message_id, target_type, target_id) values ('msg-1', 'agent', 'agent-1');
       insert into chat_slash_invocations(id, message_id) values ('slash-1', 'msg-1');
+      insert into board_interventions(id, org_id, thread_id, message_id, approval_id) values ('bdi-1', 'org-1', 'thread-1', 'msg-1', 'approval-1');
       insert into chat_presence(principal_type, principal_id) values ('agent', 'agent-1');
       insert into chat_read_state(org_id, employee_id, space_id, last_read_message_id) values ('org-1', 'emp-1', 'space-1', 'msg-1');
       insert into provider_requests(id, org_id, provider_id) values ('req-1', 'org-1', 'prov-1');
@@ -178,10 +180,12 @@ describe("migration service", () => {
     expect(body.tableCounts.credentials).toBe(1);
     expect(body.tableCounts.skill_artifacts).toBe(1);
     expect(body.tableCounts.chat_read_state).toBe(1);
+    expect(body.tableCounts.board_interventions).toBe(1);
     expect(body.tableCounts.file_access_grants).toBe(1);
     expect(body.tableCounts.provider_requests).toBe(1);
     expect(body.tableChecksums.audit_events).toHaveLength(64);
     expect(body.idMaps.skill_runtime_snapshots).toEqual(["snapshot-1"]);
+    expect(body.idMaps.board_interventions).toEqual(["bdi-1"]);
     connection.close();
   });
 

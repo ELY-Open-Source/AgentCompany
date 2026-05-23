@@ -38,6 +38,10 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     () => snapshot.chatSlashInvocations.filter((invocation) => messageIds.has(invocation.messageId)),
     [snapshot.chatSlashInvocations, messageIds],
   );
+  const boardInterventionsAll = useMemo(
+    () => snapshot.boardInterventions.filter((item) => item.orgId === orgId),
+    [snapshot.boardInterventions, orgId],
+  );
   const approvalsAll = useMemo(
     () => snapshot.approvals.filter((a) => a.orgId === orgId && a.state === "pending"),
     [snapshot.approvals, orgId],
@@ -93,6 +97,10 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     () => (selectedThread ? replayEventsForThread(auditEventsAll, selectedThread, messagesInSpace) : []),
     [auditEventsAll, selectedThread, messagesInSpace],
   );
+  const selectedBoardInterventions = useMemo(
+    () => (selectedThread ? boardInterventionsAll.filter((item) => item.threadId === selectedThread.id) : []),
+    [boardInterventionsAll, selectedThread],
+  );
   const participants = useMemo(
     () => collectParticipants(messagesInSpace, employees, agents),
     [messagesInSpace, employees, agents],
@@ -132,6 +140,27 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       senderType: "employee",
       senderId: employee.id,
       bodyMd: body,
+      attachmentFileIds: [],
+    }));
+  };
+
+  const sendBoardIntervention = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeSpace || !selectedThread) return;
+    const form = new FormData(event.currentTarget);
+    const action = value(form, "action");
+    const target = value(form, "target");
+    const details = value(form, "details");
+    if (!action || !details) return;
+    event.currentTarget.reset();
+    const targetMention = action === "takeover" && target && target !== "board" ? ` @${target}` : "";
+    void actions.run(() => window.agentCompany.sendMessage({
+      orgId,
+      spaceId: activeSpace.id,
+      threadId: selectedThread.id,
+      senderType: "board",
+      senderId: employee.id,
+      bodyMd: `/board ${action}${targetMention} ${details}`,
       attachmentFileIds: [],
     }));
   };
@@ -204,16 +233,19 @@ export function ChatPage({ snapshot, actions }: PageProps) {
 
       {selectedThread && (
         <ChatThreadPanel
+          thread={selectedThread}
           rootMessage={messagesInSpace.find((m) => m.id === selectedThread.rootMessageId) ?? null}
           messages={threadMessages}
           attachments={snapshot.chatAttachments}
           mentions={mentionsAll}
           slashInvocations={slashInvocationsAll}
+          boardInterventions={selectedBoardInterventions}
           files={files}
           auditEvents={threadAuditEvents}
           context={{ employees, agents }}
           onClose={() => setOpenThreadId(null)}
           onSubmit={sendInThread}
+          onBoardSubmit={sendBoardIntervention}
         />
       )}
 
