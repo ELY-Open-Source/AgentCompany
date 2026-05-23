@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
 import { BrowserWindow, session } from "electron";
-import type { CreateProviderResponseInput, SaveProviderCredentialInput, UpdateProviderPolicyInput } from "../../shared/commands";
+import type { CreateProviderResponseInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, UpdateProviderPolicyInput } from "../../shared/commands";
 import { FEATURE_FLAG_KEY, PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, SLO_SIGNAL_KEY, type ProviderAuthType, type ProviderExecutionMode } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
@@ -13,6 +13,7 @@ import { SecretVault } from "./secret-vault";
 import { providerAdapters, type ProviderAdapterRegistry } from "./provider-adapters";
 
 const AUTH_STATE_CONFIGURED = "configured";
+const AUTH_STATE_REVOKED = "revoked";
 const HEALTH_STATE_HEALTHY = "healthy";
 const HEALTH_STATE_FAILED = "failed";
 const HEALTH_STATE_UNCHECKED = "unchecked";
@@ -66,6 +67,34 @@ export class ProviderService {
       actorId: null,
       action: "credential_saved",
       payload: { providerKey: provider.provider_key, authType: provider.auth_type, authProfileId: authProfile.authProfileId },
+    });
+  }
+
+  revokeCredential(input: RevokeProviderCredentialInput): void {
+    const provider = this.db.prepare(`
+      select id, provider_key
+      from providers
+      where id = ? and org_id = ?
+    `).get(input.providerId, input.orgId) as { id: string; provider_key: string } | undefined;
+    if (!provider) throw new Error("Provider was not found.");
+    this.authBroker.revokeProviderProfile({
+      orgId: input.orgId,
+      providerId: input.providerId,
+      providerKey: provider.provider_key,
+    });
+    this.db.prepare(`
+      update providers
+      set credential_id = null, enabled = 0, auth_state = ?, health_state = ?, last_error = null, last_checked_at = null
+      where id = ? and org_id = ?
+    `).run(AUTH_STATE_REVOKED, HEALTH_STATE_UNCHECKED, input.providerId, input.orgId);
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "provider",
+      entityId: input.providerId,
+      actorType: "system",
+      actorId: null,
+      action: "credential_revoked",
+      payload: { providerKey: provider.provider_key },
     });
   }
 

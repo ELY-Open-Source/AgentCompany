@@ -81,6 +81,57 @@ describe("provider service", () => {
     connection.close();
   });
 
+  test("revokes active auth broker profiles and disables provider credentials", async () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault);
+    let orgId = "";
+    let openAiProviderId = "";
+
+    connection.transaction(() => {
+      orgId = createOrganization(organization);
+      openAiProviderId = providerId(connection, orgId, "openai");
+      providers.saveCredential({ orgId, providerId: openAiProviderId, secret: "sk-live-provider", model: "gpt-5.4" });
+      providers.revokeCredential({ orgId, providerId: openAiProviderId });
+    });
+
+    await expect(providers.createResponse({
+      orgId,
+      providerId: openAiProviderId,
+      prompt: "Draft board memo",
+      instructions: null,
+    })).rejects.toThrow("Provider credential is required.");
+
+    const profileRows = connection.db.prepare(`
+      select active
+      from provider_auth_profiles
+      where org_id = ? and provider_id = ?
+    `).all(orgId, openAiProviderId) as Array<{ active: number }>;
+    const credentialCount = connection.db.prepare(`
+      select count(*) as count
+      from credentials
+      where org_id = ? and provider_key = 'openai'
+    `).get(orgId) as { count: number };
+    const state = snapshot.load();
+    const provider = state.providers.find((item) => item.id === openAiProviderId);
+
+    expect(profileRows).toEqual([{ active: 0 }]);
+    expect(credentialCount.count).toBe(1);
+    expect(provider).toMatchObject({
+      credentialId: null,
+      enabled: false,
+      authState: "revoked",
+      healthState: "unchecked",
+      lastError: null,
+      lastCheckedAt: null,
+    });
+    expect(state.providerAuthProfiles.find((profile) => profile.providerId === openAiProviderId)?.active).toBe(false);
+    expect(state.auditEvents.some((event) => event.entityType === "provider_auth_profile" && event.action === "revoked")).toBe(true);
+    expect(state.auditEvents.some((event) => event.entityType === "provider" && event.action === "credential_revoked")).toBe(true);
+    connection.close();
+  });
+
   test("checks provider health through its adapter", async () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);

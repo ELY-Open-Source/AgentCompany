@@ -141,6 +141,11 @@ export interface SaveProviderCredentialInput {
   model: string | null;
 }
 
+export interface RevokeProviderCredentialInput {
+  orgId: string;
+  providerId: string;
+}
+
 export interface LaunchProviderSignInInput {
   orgId: string;
   providerId: string;

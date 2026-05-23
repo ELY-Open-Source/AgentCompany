@@ -76,6 +76,7 @@ export function ProvidersPanel({ orgId, providers, catalog, agents, providerRate
                 agents={agents}
                 onCheck={() => void actions.run(() => window.agentCompany.checkProviderHealth({ orgId, providerId: provider.id }))}
                 onManage={() => setActive(provider)}
+                onRevoke={() => void actions.run(() => window.agentCompany.revokeProviderCredential({ orgId, providerId: provider.id }))}
               />
             ))}
           </div>
@@ -364,11 +365,13 @@ function ProviderRow({
   agents,
   onCheck,
   onManage,
+  onRevoke,
 }: {
   provider: ProviderRecord;
   agents: AgentRecord[];
   onCheck: () => void;
   onManage: () => void;
+  onRevoke: () => void;
 }) {
   const boundCount = agents.filter((agent) => agent.modelProviderId === provider.id).length;
   return (
@@ -397,6 +400,7 @@ function ProviderRow({
       </div>
       <Button onClick={onCheck}>Check</Button>
       <Button onClick={onManage}>Manage</Button>
+      <Button tone="ghost" onClick={onRevoke}>Revoke</Button>
     </div>
   );
 }

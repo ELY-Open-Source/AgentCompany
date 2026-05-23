@@ -28,6 +28,12 @@ export interface ProviderAuthProfileRef {
   displayHint: string;
 }
 
+export interface RevokeProviderAuthProfileInput {
+  orgId: string;
+  providerId: string;
+  providerKey: string;
+}
+
 export class AuthBrokerService {
   private readonly audit: AuditService;
 
@@ -117,6 +123,33 @@ export class AuthBrokerService {
     `).get(input.orgId, input.providerId, input.providerKey, input.credentialId) as { ciphertext: Uint8Array } | undefined;
     if (!row) throw new Error("Provider credential was not found.");
     return this.vault.decryptSecret(Buffer.from(row.ciphertext));
+  }
+
+  revokeProviderProfile(input: RevokeProviderAuthProfileInput): void {
+    const row = this.db.prepare(`
+      select id, credential_id
+      from provider_auth_profiles
+      where org_id = ?
+        and provider_id = ?
+        and provider_key = ?
+        and active = 1
+    `).get(input.orgId, input.providerId, input.providerKey) as { id: string; credential_id: string } | undefined;
+    if (!row) throw new Error("Provider credential was not found.");
+    this.db.prepare("update provider_auth_profiles set active = 0 where id = ? and org_id = ?")
+      .run(row.id, input.orgId);
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "provider_auth_profile",
+      entityId: row.id,
+      actorType: "system",
+      actorId: null,
+      action: "revoked",
+      payload: {
+        providerId: input.providerId,
+        providerKey: input.providerKey,
+        credentialId: row.credential_id,
+      },
+    });
   }
 }
 
