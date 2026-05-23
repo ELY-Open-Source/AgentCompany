@@ -11,6 +11,7 @@ import { socialGovernanceSchema } from "./migrations/009-social-governance";
 import { fileHandoffSecuritySchema } from "./migrations/010-file-handoff-security";
 import { boardInterventionSchema } from "./migrations/011-board-interventions";
 import { complianceControlsSchema } from "./migrations/012-compliance-controls";
+import { searchDocumentsSchema } from "./migrations/013-search-documents";
 
 interface Migration {
   version: number;
@@ -31,6 +32,7 @@ const MIGRATIONS: Migration[] = [
   { version: 10, name: "file_handoff_security", sql: fileHandoffSecuritySchema },
   { version: 11, name: "board_interventions", sql: boardInterventionSchema },
   { version: 12, name: "compliance_controls", sql: complianceControlsSchema },
+  { version: 13, name: "search_documents", sql: searchDocumentsSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

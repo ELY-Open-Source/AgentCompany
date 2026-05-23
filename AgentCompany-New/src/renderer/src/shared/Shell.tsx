@@ -1,8 +1,9 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { AppSnapshot } from "../../../shared/domain";
 import { Avatar, Icon, IconButton } from "./ui";
 import type { IconName } from "./Icon";
 import { OrgSwitcher } from "./OrgSwitcher";
+import { SearchDialog } from "./SearchDialog";
 
 export type RouteId =
   | "home"
@@ -49,6 +50,18 @@ export function Shell({
   onNewOrg: () => void;
   children: ReactNode;
 }) {
+  const [searchOpen, setSearchOpen] = useState(false);
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   const organization = snapshot.organizations.find((item) => item.id === snapshot.activeOrgId);
   const employee = snapshot.employees.find((item) => item.orgId === snapshot.activeOrgId);
   if (!organization) throw new Error("Active organization is missing.");
@@ -66,7 +79,7 @@ export function Shell({
           onNew={onNewOrg}
           onDelete={onDeleteOrg}
         />
-        <button type="button" className="search-bar" aria-label="Search">
+        <button type="button" className="search-bar" aria-label="Search" onClick={() => setSearchOpen(true)}>
           <Icon name="search" size={13} />
           <span>Search</span>
           <span className="search-kbd">⌘K</span>
@@ -121,6 +134,12 @@ export function Shell({
         </header>
         <div className="content">{children}</div>
       </main>
+      <SearchDialog
+        snapshot={snapshot}
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onNavigate={setRoute}
+      />
     </div>
   );
 }

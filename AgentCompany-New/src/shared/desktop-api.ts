@@ -1,5 +1,5 @@
 import type { DesktopResult } from "./result";
-import type { AppSnapshot } from "./domain";
+import type { AppSnapshot, SearchResultRecord } from "./domain";
 import type {
   BindSkillInput,
   BootstrapOnboardingInput,
@@ -26,6 +26,7 @@ import type {
   LaunchSocialLoginInput,
   ResolveAgentSkillsInput,
   SaveProviderCredentialInput,
+  SearchInput,
   SendMessageInput,
   SetActiveOrganizationInput,
   SetFilePinnedInput,
@@ -73,6 +74,7 @@ export interface DesktopApi {
   setLegalHoldState(input: SetLegalHoldStateInput): Promise<DesktopResult<AppSnapshot>>;
   createRetentionFreeze(input: CreateRetentionFreezeInput): Promise<DesktopResult<AppSnapshot>>;
   setRetentionFreezeState(input: SetRetentionFreezeStateInput): Promise<DesktopResult<AppSnapshot>>;
+  search(input: SearchInput): Promise<DesktopResult<SearchResultRecord[]>>;
   subscribe(callback: (event: RendererEvent) => void): () => void;
   platform: "win32" | "darwin" | "linux";
   windowMinimize(): Promise<void>;

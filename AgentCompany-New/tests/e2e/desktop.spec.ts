@@ -47,6 +47,10 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByLabel("Risk").selectOption("high");
     await page.locator(".modal").getByRole("button", { name: "Create" }).click();
     await expect(page.getByText("Production deploy").first()).toBeVisible();
+    await page.getByRole("button", { name: "Search" }).click();
+    await page.getByRole("textbox", { name: "Search query" }).fill("production");
+    await expect(page.getByText("Production deploy").first()).toBeVisible();
+    await page.getByRole("dialog", { name: "Search" }).getByRole("button").filter({ hasText: "Production deploy" }).first().click();
 
     await page.getByRole("button", { name: "Approvals" }).click();
     await expect(page.getByText("Production deploy").first()).toBeVisible();

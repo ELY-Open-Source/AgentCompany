@@ -47,6 +47,7 @@ const LEGACY_TABLES = [
   "compliance_exports",
   "legal_holds",
   "retention_freezes",
+  "search_documents",
   "audit_events",
 ];
 

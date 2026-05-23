@@ -5,6 +5,7 @@ import type {
   LegalHoldEntityType,
   RetentionFreezeScopeType,
   RiskLevel,
+  SearchEntityType,
   SocialPlatform,
   TaskPriority,
   TaskStatus,
@@ -174,6 +175,14 @@ export interface ImportFileInput {
 export interface CreateMigrationReportInput {
   orgId: string;
   sourceDatabasePath: string;
+}
+
+export interface SearchInput {
+  orgId: string;
+  employeeId: string;
+  query: string;
+  entityTypes?: SearchEntityType[];
+  limit?: number;
 }
 
 export interface CreateComplianceExportInput {

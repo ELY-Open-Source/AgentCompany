@@ -14,6 +14,7 @@ import { FileService } from "../services/file-service";
 import { MigrationService } from "../services/migration-service";
 import { OnboardingService } from "../services/onboarding-service";
 import { ComplianceService } from "../services/compliance-service";
+import { SearchService } from "../services/search-service";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -32,6 +33,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const files = new FileService(deps.connection.db, deps.artifactRoot);
   const migrations = new MigrationService(deps.connection.db);
   const compliance = new ComplianceService(deps.connection.db);
+  const search = new SearchService(deps.connection.db);
   const onboarding = new OnboardingService({
     db: deps.connection.db,
     saveProviderCredential: (input) => providers.saveCredential(input),
@@ -151,6 +153,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.setLegalHoldState, (_event, input) => mutate(() => compliance.setLegalHoldState(input)));
   ipcMain.handle(IPC_CHANNELS.createRetentionFreeze, (_event, input) => mutate(() => compliance.createRetentionFreeze(input)));
   ipcMain.handle(IPC_CHANNELS.setRetentionFreezeState, (_event, input) => mutate(() => compliance.setRetentionFreezeState(input)));
+  ipcMain.handle(IPC_CHANNELS.search, (_event, input) => {
+    try {
+      return ok(search.search(input));
+    } catch (error) {
+      return fail("search_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
 
   ipcMain.handle(IPC_CHANNELS.windowMinimize, () => deps.mainWindow.minimize());
   ipcMain.handle(IPC_CHANNELS.windowMaximize, () => deps.mainWindow.isMaximized() ? deps.mainWindow.unmaximize() : deps.mainWindow.maximize());

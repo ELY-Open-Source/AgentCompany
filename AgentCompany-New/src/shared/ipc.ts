@@ -32,6 +32,7 @@ export const IPC_CHANNELS = {
   setLegalHoldState: "agentcompany:set-legal-hold-state",
   createRetentionFreeze: "agentcompany:create-retention-freeze",
   setRetentionFreezeState: "agentcompany:set-retention-freeze-state",
+  search: "agentcompany:search",
   rendererEvent: "agentcompany:renderer-event",
   windowMinimize: "agentcompany:window-minimize",
   windowMaximize: "agentcompany:window-maximize",

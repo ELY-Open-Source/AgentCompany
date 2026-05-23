@@ -40,6 +40,7 @@ const api: DesktopApi = {
   setLegalHoldState: (input) => invoke(IPC_CHANNELS.setLegalHoldState, input),
   createRetentionFreeze: (input) => invoke(IPC_CHANNELS.createRetentionFreeze, input),
   setRetentionFreezeState: (input) => invoke(IPC_CHANNELS.setRetentionFreezeState, input),
+  search: (input) => invoke(IPC_CHANNELS.search, input),
   subscribe: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: RendererEvent) => callback(payload);
     ipcRenderer.on(IPC_CHANNELS.rendererEvent, listener);
