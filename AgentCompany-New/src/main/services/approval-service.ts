@@ -4,6 +4,11 @@ import { APPROVAL_STATE } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 
+interface ApprovalAuditContext {
+  sourceMessageId?: string;
+  sourceThreadId?: string;
+}
+
 export class ApprovalService {
   private readonly audit: AuditService;
 
@@ -11,8 +16,14 @@ export class ApprovalService {
     this.audit = new AuditService(db);
   }
 
-  create(input: CreateApprovalInput): string {
+  create(input: CreateApprovalInput, context: ApprovalAuditContext = {}): string {
     this.assertRequesterBelongsToOrg(input);
+    const kind = input.kind.trim();
+    const title = input.title.trim();
+    const details = input.details.trim();
+    if (!kind) throw new Error("Approval kind is required.");
+    if (!title) throw new Error("Approval title is required.");
+    if (!details) throw new Error("Approval details are required.");
     const id = createId("app");
     const now = new Date().toISOString();
     this.db.prepare(`
@@ -23,9 +34,9 @@ export class ApprovalService {
     `).run(
       id,
       input.orgId,
-      input.kind.trim(),
-      input.title.trim(),
-      input.details.trim(),
+      kind,
+      title,
+      details,
       input.risk,
       input.requestedByType,
       input.requestedById,
@@ -41,7 +52,7 @@ export class ApprovalService {
       actorType: input.requestedByType,
       actorId: input.requestedById,
       action: "requested",
-      payload: { kind: input.kind, risk: input.risk },
+      payload: { kind, risk: input.risk, ...context },
     });
     return id;
   }

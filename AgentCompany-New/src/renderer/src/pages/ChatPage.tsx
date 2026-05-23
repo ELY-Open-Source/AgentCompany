@@ -130,6 +130,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   const createSpace = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const existingSpaceIds = new Set(spaces.map((space) => space.id));
     void actions.run(() => window.agentCompany.createChatSpace({
       orgId,
       spaceType: value(form, "spaceType") as SpaceType,
@@ -138,7 +139,14 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       visibility: value(form, "visibility") as Visibility,
       memberEmployeeIds: [employee.id, ...form.getAll("memberEmployeeIds").map(String)].filter(Boolean),
       memberAgentIds: form.getAll("memberAgentIds").map(String).filter(Boolean),
-    })).then((result) => { if (result) setCreateOpen(false); });
+    })).then((result) => {
+      if (!result) throw new Error("Chat space creation returned no snapshot.");
+      const created = result.chatSpaces.find((space) => space.orgId === orgId && !existingSpaceIds.has(space.id));
+      if (!created) throw new Error("Created chat space is missing from snapshot.");
+      setSelectedSpaceId(created.id);
+      setOpenThreadId(null);
+      setCreateOpen(false);
+    });
   };
 
   const decideApproval = (approvalId: string, state: "approved" | "declined") =>

@@ -246,6 +246,55 @@ describe("domain services", () => {
     connection.close();
   });
 
+  test("creates approval and waiting presence from chat escalation", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const chat = new ChatService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    let orgId = "";
+    let employeeId = "";
+    let spaceId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      spaceId = chat.createSpace({
+        orgId,
+        spaceType: "project",
+        name: "release",
+        topic: "Release coordination",
+        visibility: "workspace",
+      });
+      chat.sendMessage({
+        orgId,
+        spaceId,
+        threadId: null,
+        senderType: "employee",
+        senderId: employeeId,
+        bodyMd: "/escalate @Board freeze deployment",
+        attachmentFileIds: [],
+      });
+    });
+
+    const state = snapshot.load();
+    const approval = state.approvals.find((item) => item.kind === "chat_escalation");
+    if (!approval) throw new Error("Chat escalation approval was not created.");
+    expect(approval.title).toBe("Escalate release");
+    expect(approval.details).toBe("@Board freeze deployment");
+    expect(approval.risk).toBe("high");
+    expect(state.chatSlashInvocations[0]?.resultRef).toBe(approval.id);
+    expect(state.chatPresence[0]).toMatchObject({ principalId: employeeId, status: "waiting_approval" });
+    const audit = state.auditEvents.find((event) => event.entityId === approval.id && event.action === "requested");
+    if (!audit) throw new Error("Chat escalation audit event was not created.");
+    expect(audit.payloadJson).toContain(state.chatMessages[0]!.id);
+    connection.close();
+  });
+
   test("rejects chat writes outside membership and prevents partial invalid messages", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
@@ -327,6 +376,15 @@ describe("domain services", () => {
       bodyMd: "Missing file",
       attachmentFileIds: ["file_missing"],
     }))).toThrow("Attachment file was not found.");
+    expect(() => connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId: workspaceSpaceId,
+      threadId: null,
+      senderType: "employee",
+      senderId: employeeId,
+      bodyMd: "/escalate",
+      attachmentFileIds: [],
+    }))).toThrow("Slash command /escalate requires details.");
     expect(() => connection.transaction(() => chat.sendMessage({
       orgId,
       spaceId: workspaceSpaceId,

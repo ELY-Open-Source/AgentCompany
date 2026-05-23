@@ -1,6 +1,8 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { CreateChatSpaceInput, MarkChatSpaceReadInput, SendMessageInput } from "../../shared/commands";
+import { RISK_LEVEL } from "../../shared/domain";
 import { createId } from "../../shared/ids";
+import { ApprovalService } from "./approval-service";
 import { AuditService } from "./audit-service";
 import { canonicalMentionHandle } from "./mention-handles";
 
@@ -41,9 +43,11 @@ interface ResolvedMention {
 
 export class ChatService {
   private readonly audit: AuditService;
+  private readonly approvals: ApprovalService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
+    this.approvals = new ApprovalService(db);
   }
 
   createSpace(input: CreateChatSpaceInput): string {
@@ -88,6 +92,7 @@ export class ChatService {
     if (input.threadId) this.requireThread(input.orgId, input.spaceId, input.threadId);
     const slash = parseSlashInvocation(body);
     if (slash && !ALLOWED_SLASH_COMMANDS.has(slash.command)) throw new Error(`Slash command /${slash.command} is unavailable.`);
+    if (slash) validateSlashInvocation(slash);
     const attachments = this.requireAttachments(input.orgId, input.attachmentFileIds ?? []);
     const mentions = this.resolveMentions(input.orgId, input.spaceId, body);
 
@@ -119,15 +124,17 @@ export class ChatService {
       this.db.prepare("update chat_threads set updated_at = ? where id = ? and org_id = ?").run(now, input.threadId, input.orgId);
     }
     this.recordMentions(id, mentions);
-    if (slash) this.recordSlashInvocation(id, slash, now);
+    const slashResultRef = slash ? this.executeSlashCommand(input, space, sender, slash, id, threadId) : null;
+    if (slash) this.recordSlashInvocation(id, slash, slashResultRef, now);
     this.recordAttachments(id, attachments);
     if (input.senderId) {
+      const presenceStatus = slash?.command === "escalate" ? "waiting_approval" : "active";
       this.db.prepare(`
         insert into chat_presence(principal_type, principal_id, status, status_text, last_seen_at)
         values (?, ?, ?, ?, ?)
         on conflict(principal_type, principal_id)
         do update set status = excluded.status, status_text = excluded.status_text, last_seen_at = excluded.last_seen_at
-      `).run(input.senderType, input.senderId, "active", "", now);
+      `).run(input.senderType, input.senderId, presenceStatus, "", now);
     }
     this.audit.record({
       orgId: input.orgId,
@@ -200,11 +207,32 @@ export class ChatService {
     return { type: target.type, id: target.id };
   }
 
-  private recordSlashInvocation(messageId: string, slash: SlashInvocation, now: string): void {
+  private executeSlashCommand(
+    input: SendMessageInput,
+    space: SpaceRow,
+    sender: PrincipalRef | null,
+    slash: SlashInvocation,
+    messageId: string,
+    threadId: string,
+  ): string | null {
+    if (slash.command !== "escalate") return null;
+    const requester = approvalRequester(input.senderType, sender);
+    return this.approvals.create({
+      orgId: input.orgId,
+      kind: "chat_escalation",
+      title: `Escalate ${spaceName(this.db, space.id)}`,
+      details: slash.args.trim(),
+      risk: RISK_LEVEL.HIGH,
+      requestedByType: requester.type,
+      requestedById: requester.id,
+    }, { sourceMessageId: messageId, sourceThreadId: threadId });
+  }
+
+  private recordSlashInvocation(messageId: string, slash: SlashInvocation, resultRef: string | null, now: string): void {
     this.db.prepare(`
       insert into chat_slash_invocations(id, message_id, command, args_json, result_ref, created_at)
       values (?, ?, ?, ?, ?, ?)
-    `).run(createId("slash"), messageId, slash.command, JSON.stringify({ raw: slash.args }), null, now);
+    `).run(createId("slash"), messageId, slash.command, JSON.stringify({ raw: slash.args }), resultRef, now);
   }
 
   private recordAttachments(messageId: string, attachments: AttachmentCandidate[]): void {
@@ -301,6 +329,11 @@ interface SlashInvocation {
   args: string;
 }
 
+interface ApprovalRequester {
+  type: "employee" | "agent" | "system";
+  id: string | null;
+}
+
 const ALLOWED_SLASH_COMMANDS = new Set([
   "agent",
   "handoff",
@@ -316,6 +349,25 @@ function parseSlashInvocation(body: string): SlashInvocation | null {
   const match = body.match(/^\/([a-z][a-z0-9_-]*)(?:\s+([\s\S]*))?$/i);
   if (!match) return null;
   return { command: match[1].toLowerCase(), args: match[2] ?? "" };
+}
+
+function validateSlashInvocation(slash: SlashInvocation): void {
+  if (slash.command === "escalate" && slash.args.trim().length === 0) {
+    throw new Error("Slash command /escalate requires details.");
+  }
+}
+
+function approvalRequester(senderType: SendMessageInput["senderType"], sender: PrincipalRef | null): ApprovalRequester {
+  if (senderType === "system") return { type: "system", id: null };
+  if (!sender) throw new Error("Approval requester is missing.");
+  if (senderType === "agent") return { type: "agent", id: sender.id };
+  return { type: "employee", id: sender.id };
+}
+
+function spaceName(db: DatabaseSync, spaceId: string): string {
+  const row = db.prepare("select name from chat_spaces where id = ?").get(spaceId) as { name: string } | undefined;
+  if (!row) throw new Error("Chat space was not found.");
+  return row.name;
 }
 
 function createThreadTitle(body: string): string {
