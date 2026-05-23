@@ -9,16 +9,22 @@ import { skillHardeningSchema } from "./migrations/007-skill-hardening";
 import { providerHealthSchema } from "./migrations/008-provider-health";
 import { socialGovernanceSchema } from "./migrations/009-social-governance";
 
-const MIGRATIONS: Array<{ version: number; sql: string }> = [
-  { version: 1, sql: initialEnterpriseSchema },
-  { version: 2, sql: collaborationProviderPolicySchema },
-  { version: 3, sql: onboardingExecutionSchema },
-  { version: 4, sql: filesPinnedAndScheduledPosts },
-  { version: 5, sql: chatReadState },
-  { version: 6, sql: appStateSchema },
-  { version: 7, sql: skillHardeningSchema },
-  { version: 8, sql: providerHealthSchema },
-  { version: 9, sql: socialGovernanceSchema },
+interface Migration {
+  version: number;
+  name: string;
+  sql: string;
+}
+
+const MIGRATIONS: Migration[] = [
+  { version: 1, name: "initial_enterprise_schema", sql: initialEnterpriseSchema },
+  { version: 2, name: "collaboration_provider_policy_schema", sql: collaborationProviderPolicySchema },
+  { version: 3, name: "onboarding_execution_schema", sql: onboardingExecutionSchema },
+  { version: 4, name: "files_pinned_and_scheduled_posts", sql: filesPinnedAndScheduledPosts },
+  { version: 5, name: "chat_read_state", sql: chatReadState },
+  { version: 6, name: "app_state", sql: appStateSchema },
+  { version: 7, name: "skill_hardening", sql: skillHardeningSchema },
+  { version: 8, name: "provider_health", sql: providerHealthSchema },
+  { version: 9, name: "social_governance", sql: socialGovernanceSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
@@ -37,10 +43,35 @@ export function installSchema(db: DatabaseSync): void {
   if (currentVersion > SCHEMA_VERSION) {
     throw new Error(`Database schema ${currentVersion} is newer than supported schema ${SCHEMA_VERSION}.`);
   }
+  backfillMigrationLedger(db, currentVersion);
 
   for (const migration of MIGRATIONS) {
     if (currentVersion >= migration.version) continue;
-    db.exec(migration.sql);
+    applyMigration(db, migration);
     currentVersion = migration.version;
   }
+}
+
+function applyMigration(db: DatabaseSync, migration: Migration): void {
+  db.exec("begin immediate");
+  try {
+    db.exec(migration.sql);
+    recordMigration(db, migration);
+    db.exec("commit");
+  } catch (error) {
+    db.exec("rollback");
+    throw error;
+  }
+}
+
+function backfillMigrationLedger(db: DatabaseSync, currentVersion: number): void {
+  for (const migration of MIGRATIONS) {
+    if (migration.version > currentVersion) return;
+    recordMigration(db, migration);
+  }
+}
+
+function recordMigration(db: DatabaseSync, migration: Migration): void {
+  db.prepare("insert or ignore into schema_migrations(version, name, applied_at) values (?, ?, datetime('now'))")
+    .run(migration.version, migration.name);
 }

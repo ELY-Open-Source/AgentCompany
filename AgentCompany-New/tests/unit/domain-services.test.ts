@@ -19,6 +19,14 @@ function createConnection(): DatabaseConnection {
 }
 
 describe("domain services", () => {
+  test("records every applied schema migration version", () => {
+    const connection = createConnection();
+
+    const rows = connection.db.prepare("select version from schema_migrations order by version asc").all() as Array<{ version: number }>;
+    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    connection.close();
+  });
+
   test("creates an organization with providers, chat spaces, employee, and audit", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
