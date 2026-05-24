@@ -116,6 +116,11 @@ export class SnapshotService {
       skillRuntimeSnapshots: list(this.db, "skill_runtime_snapshots", "created_at desc"),
       socialAccounts: list(this.db, "social_accounts", "created_at asc"),
       socialAccountGrants: list(this.db, "social_account_grants", "created_at asc"),
+      browserSessionContainers: list<AppSnapshot["browserSessionContainers"][number]>(this.db, "browser_session_containers", "created_at asc")
+        .map((container) => ({ ...container, sandboxEnabled: toBool(container.sandboxEnabled) })),
+      browserActionPolicies: list<AppSnapshot["browserActionPolicies"][number]>(this.db, "browser_action_policies", "created_at asc")
+        .map((policy) => ({ ...policy, approvalRequired: toBool(policy.approvalRequired) })),
+      socialApprovalRoutes: list(this.db, "social_approval_routes", "created_at asc"),
       browserActions: list(this.db, "browser_actions", "created_at desc"),
       policyRules: list(this.db, "policy_rules", "created_at asc"),
       migrationReports: list(this.db, "migration_reports", "created_at desc"),

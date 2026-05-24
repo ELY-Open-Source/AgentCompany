@@ -146,6 +146,9 @@ describe("migration service", () => {
       create table file_access_grants(id text primary key, org_id text, file_id text, source_message_id text, source_thread_id text);
       create table social_accounts(id text primary key, org_id text, authorized_employee_id text);
       create table social_account_grants(id text primary key, org_id text, social_account_id text, employee_id text);
+      create table browser_session_containers(id text primary key, org_id text, social_account_id text);
+      create table browser_action_policies(id text primary key, org_id text, social_account_id text);
+      create table social_approval_routes(id text primary key, org_id text, social_account_id text, route_to_id text);
       create table browser_actions(id text primary key, org_id text, social_account_id text, evidence_file_id text);
       create table scheduled_posts(id text primary key, org_id text, social_account_id text, approval_id text, created_by_employee_id text);
       create table policy_rules(id text primary key, org_id text);
@@ -211,6 +214,9 @@ describe("migration service", () => {
       insert into skill_catalog_tags(skill_id, tag, tag_type) values ('skill-1', 'engineering', 'department');
       insert into social_accounts(id, org_id, authorized_employee_id) values ('social-1', 'org-1', 'emp-1');
       insert into social_account_grants(id, org_id, social_account_id, employee_id) values ('grant-1', 'org-1', 'social-1', 'emp-1');
+      insert into browser_session_containers(id, org_id, social_account_id) values ('container-1', 'org-1', 'social-1');
+      insert into browser_action_policies(id, org_id, social_account_id) values ('browser-policy-1', 'org-1', 'social-1');
+      insert into social_approval_routes(id, org_id, social_account_id, route_to_id) values ('social-route-1', 'org-1', 'social-1', 'emp-1');
       insert into browser_actions(id, org_id, social_account_id, evidence_file_id) values ('browser-1', 'org-1', 'social-1', 'file-1');
       insert into scheduled_posts(id, org_id, social_account_id, approval_id, created_by_employee_id) values ('post-1', 'org-1', 'social-1', 'approval-1', 'emp-1');
       insert into policy_rules(id, org_id) values ('policy-1', 'org-1');
@@ -247,6 +253,9 @@ describe("migration service", () => {
     expect(body.tableCounts.provider_requests).toBe(1);
     expect(body.tableCounts.provider_usage_windows).toBe(1);
     expect(body.tableCounts.provider_rate_limit_observations).toBe(1);
+    expect(body.tableCounts.browser_session_containers).toBe(1);
+    expect(body.tableCounts.browser_action_policies).toBe(1);
+    expect(body.tableCounts.social_approval_routes).toBe(1);
     expect(body.tableCounts.compliance_exports).toBe(1);
     expect(body.tableCounts.audit_replay_runs).toBe(1);
     expect(body.tableCounts.rollback_snapshots).toBe(1);
@@ -266,6 +275,9 @@ describe("migration service", () => {
     expect(body.idMaps.rollback_snapshots).toEqual(["rollback-1"]);
     expect(body.idMaps.provider_usage_windows).toEqual(["usage-1"]);
     expect(body.idMaps.provider_rate_limit_observations).toEqual(["quota-1"]);
+    expect(body.idMaps.browser_session_containers).toEqual(["container-1"]);
+    expect(body.idMaps.browser_action_policies).toEqual(["browser-policy-1"]);
+    expect(body.idMaps.social_approval_routes).toEqual(["social-route-1"]);
     connection.close();
   });
 

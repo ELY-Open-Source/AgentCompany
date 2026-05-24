@@ -10,6 +10,7 @@ import type { ProviderRequestRecord } from "./provider-request-domain";
 import type { ProviderRateLimitObservationRecord, ProviderRateLimitStateRecord } from "./provider-runtime-domain";
 import type { RollbackSnapshotRecord } from "./rollback-domain";
 import type { EvalCaseRecord, EvalRunRecord, EvalSuiteRecord, PrBotGateRecord, SdlcReviewAgentRecord, SdlcReviewRunRecord } from "./sdlc-domain";
+import type { BrowserActionPolicyRecord, BrowserActionRecord, BrowserSessionContainerRecord, SocialAccountGrantRecord, SocialAccountRecord, SocialApprovalRouteRecord } from "./social-domain";
 export { BOARD_INTERVENTION_ACTION, BOARD_INTERVENTION_MODE, CHAT_THREAD_BOARD_STATE, type BoardInterventionAction, type BoardInterventionMode, type BoardInterventionRecord, type ChatThreadBoardState } from "./board-domain";
 export type { AuditReplayRunRecord } from "./audit-domain";
 export { COMPLIANCE_EXPORT_STATE, COMPLIANCE_EXPORT_TYPE, type ComplianceExportRecord, type ComplianceExportState, type ComplianceExportType, type ComplianceSubjectType, type LegalHoldEntityType, type LegalHoldRecord, type RetentionFreezeRecord, type RetentionFreezeScopeType } from "./compliance-domain";
@@ -23,6 +24,7 @@ export type { ProviderRateLimitObservationRecord, ProviderRateLimitStateRecord }
 export type { RollbackSnapshotRecord } from "./rollback-domain";
 export { EVAL_SUITE_KEY, PR_BOT_GATE_KEY, SDLC_REVIEW_AGENT_KEY, SDLC_REVIEW_TARGET_TYPE, SDLC_RUN_STATE, type EvalCaseRecord, type EvalRunRecord, type EvalSuiteKey, type EvalSuiteRecord, type PrBotGateKey, type PrBotGateRecord, type SdlcReviewAgentKey, type SdlcReviewAgentRecord, type SdlcReviewRunRecord, type SdlcReviewTargetType, type SdlcRunState } from "./sdlc-domain";
 export { SEARCH_ENTITY_TYPES, type SearchEntityType, type SearchResultRecord } from "./search-domain";
+export type { BrowserActionPolicyRecord, BrowserActionRecord, BrowserSessionContainerRecord, SocialAccountGrantRecord, SocialAccountRecord, SocialApprovalRouteRecord } from "./social-domain";
 export const TASK_STATUS = { BACKLOG: "backlog", IN_PROGRESS: "in_progress", REVIEW: "review", DONE: "done" } as const;
 export const APPROVAL_STATE = { PENDING: "pending", APPROVED: "approved", DECLINED: "declined" } as const;
 export const RISK_LEVEL = { LOW: "low", MEDIUM: "medium", HIGH: "high" } as const;
@@ -376,36 +378,6 @@ export interface SkillRuntimeSnapshotRecord {
   createdAt: string;
 }
 
-export interface SocialAccountRecord {
-  id: string;
-  orgId: string;
-  platform: SocialPlatform;
-  handle: string;
-  displayName: string;
-  authorizedEmployeeId: string | null;
-  createdAt: string;
-}
-
-export interface SocialAccountGrantRecord {
-  id: string;
-  orgId: string;
-  socialAccountId: string;
-  employeeId: string;
-  role: string;
-  scopeJson: string;
-  createdAt: string;
-}
-
-export interface BrowserActionRecord {
-  id: string;
-  orgId: string;
-  socialAccountId: string;
-  actionType: string;
-  policyDecision: string;
-  evidenceFileId: string | null;
-  createdAt: string;
-}
-
 export interface AuditEventRecord {
   id: string;
   orgId: string;
@@ -473,6 +445,9 @@ export interface AppSnapshot {
   skillRuntimeSnapshots: SkillRuntimeSnapshotRecord[];
   socialAccounts: SocialAccountRecord[];
   socialAccountGrants: SocialAccountGrantRecord[];
+  browserSessionContainers: BrowserSessionContainerRecord[];
+  browserActionPolicies: BrowserActionPolicyRecord[];
+  socialApprovalRoutes: SocialApprovalRouteRecord[];
   browserActions: BrowserActionRecord[];
   policyRules: PolicyRuleRecord[];
   migrationReports: MigrationReportRecord[];

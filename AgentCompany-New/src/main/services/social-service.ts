@@ -6,10 +6,17 @@ import type {
   LaunchSocialLoginInput,
   SetScheduledPostStateInput,
 } from "../../shared/commands";
-import { APPROVAL_STATE, RISK_LEVEL, SOCIAL_PLATFORM, type RiskLevel, type SocialPlatform } from "../../shared/domain";
+import { APPROVAL_STATE, RISK_LEVEL, ROUTE_TO_TYPE, SOCIAL_PLATFORM, type RiskLevel, type SocialPlatform } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { ApprovalService } from "./approval-service";
 import { AuditService } from "./audit-service";
+import {
+  SOCIAL_BROWSER_ACTION,
+  SocialBrowserPolicyService,
+  type BrowserActionPolicyRow,
+  type SocialApprovalRouteRow,
+  type SocialBrowserAction,
+} from "./social-browser-policy-service";
 
 const PLATFORM_LOGIN_URL: Record<SocialPlatform, string> = {
   [SOCIAL_PLATFORM.X]: "https://x.com/i/flow/login",
@@ -18,34 +25,19 @@ const PLATFORM_LOGIN_URL: Record<SocialPlatform, string> = {
   [SOCIAL_PLATFORM.INSTAGRAM]: "https://www.instagram.com/accounts/login/",
 };
 
-const ALLOWED_HOSTS: Record<SocialPlatform, string[]> = {
-  [SOCIAL_PLATFORM.X]: ["x.com", "twitter.com"],
-  [SOCIAL_PLATFORM.LINKEDIN]: ["linkedin.com", "www.linkedin.com"],
-  [SOCIAL_PLATFORM.YOUTUBE]: ["accounts.google.com", "youtube.com", "www.youtube.com"],
-  [SOCIAL_PLATFORM.INSTAGRAM]: ["instagram.com", "www.instagram.com"],
-};
-
-const SOCIAL_GRANT_ACTION = {
-  LOGIN: "login",
-  DRAFT: "draft",
-  APPROVE: "approve",
-} as const;
-
-type SocialGrantAction = typeof SOCIAL_GRANT_ACTION[keyof typeof SOCIAL_GRANT_ACTION];
-
-const STATE_GRANT_ACTION: Record<SetScheduledPostStateInput["state"], SocialGrantAction> = {
-  draft: SOCIAL_GRANT_ACTION.DRAFT,
-  scheduled: SOCIAL_GRANT_ACTION.APPROVE,
-  published: SOCIAL_GRANT_ACTION.APPROVE,
-  cancelled: SOCIAL_GRANT_ACTION.APPROVE,
+const STATE_GRANT_ACTION: Record<SetScheduledPostStateInput["state"], SocialBrowserAction> = {
+  draft: SOCIAL_BROWSER_ACTION.DRAFT,
+  scheduled: SOCIAL_BROWSER_ACTION.APPROVE,
+  published: SOCIAL_BROWSER_ACTION.APPROVE,
+  cancelled: SOCIAL_BROWSER_ACTION.APPROVE,
 };
 
 const GRANT_SCOPE = {
-  actions: [SOCIAL_GRANT_ACTION.LOGIN, SOCIAL_GRANT_ACTION.DRAFT, SOCIAL_GRANT_ACTION.APPROVE],
+  actions: [SOCIAL_BROWSER_ACTION.LOGIN, SOCIAL_BROWSER_ACTION.DRAFT, SOCIAL_BROWSER_ACTION.APPROVE],
   riskCeiling: RISK_LEVEL.MEDIUM,
 } as const;
 
-const ACTION_REQUIRED_RISK: Record<SocialGrantAction, RiskLevel> = {
+const ACTION_REQUIRED_RISK: Record<SocialBrowserAction, RiskLevel> = {
   login: RISK_LEVEL.LOW,
   draft: RISK_LEVEL.LOW,
   approve: RISK_LEVEL.MEDIUM,
@@ -83,15 +75,18 @@ interface GrantScope {
 export class SocialService {
   private readonly audit: AuditService;
   private readonly approvals: ApprovalService;
+  private readonly browserPolicy: SocialBrowserPolicyService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
     this.approvals = new ApprovalService(db);
+    this.browserPolicy = new SocialBrowserPolicyService(db);
   }
 
   createScheduledPost(input: CreateScheduledPostInput): string {
     this.requireAccount(input.orgId, input.socialAccountId);
-    this.requireGrant(input.orgId, input.socialAccountId, input.createdByEmployeeId, SOCIAL_GRANT_ACTION.DRAFT);
+    this.browserPolicy.requireActionPolicy(input.orgId, input.socialAccountId, SOCIAL_BROWSER_ACTION.DRAFT);
+    this.requireGrant(input.orgId, input.socialAccountId, input.createdByEmployeeId, SOCIAL_BROWSER_ACTION.DRAFT);
     const body = this.requireText(input.bodyMd, "Post body is required.");
     const scheduledFor = this.requireSchedule(input.scheduledFor);
     const id = createId("spost");
@@ -127,9 +122,11 @@ export class SocialService {
 
   setScheduledPostState(input: SetScheduledPostStateInput): void {
     const post = this.requireScheduledPost(input.orgId, input.scheduledPostId);
-    this.requireGrant(input.orgId, post.social_account_id, input.employeeId, STATE_GRANT_ACTION[input.state]);
+    const action = STATE_GRANT_ACTION[input.state];
+    const policy = this.browserPolicy.requireActionPolicy(input.orgId, post.social_account_id, action);
+    this.requireGrant(input.orgId, post.social_account_id, input.employeeId, action);
     this.assertStateTransition(post, input.state);
-    const approvalId = this.resolveApprovalForState(input, post);
+    const approvalId = this.resolveApprovalForState(input, post, policy);
     const now = new Date().toISOString();
     const result = this.db.prepare(`
       update scheduled_posts set state = ?, approval_id = ?, updated_at = ?
@@ -171,6 +168,13 @@ export class SocialService {
       input.authorizedEmployeeId,
       now,
     );
+    this.browserPolicy.seedAccountControls({
+      orgId: input.orgId,
+      socialAccountId: id,
+      platform: input.platform,
+      authorizedEmployeeId: input.authorizedEmployeeId ?? null,
+      createdAt: now,
+    });
     if (input.authorizedEmployeeId) {
       this.db.prepare(`
         insert into social_account_grants(id, org_id, social_account_id, employee_id, role, scope_json, created_at)
@@ -199,9 +203,10 @@ export class SocialService {
 
   launchLoginWindow(input: LaunchSocialLoginInput): void {
     const account = this.requireAccount(input.orgId, input.socialAccountId);
-    this.requireGrant(input.orgId, input.socialAccountId, input.employeeId, SOCIAL_GRANT_ACTION.LOGIN);
-    const partition = `persist:agentcompany-social-${account.id}`;
-    const socialSession = session.fromPartition(partition);
+    const container = this.browserPolicy.requireSessionContainer(input.orgId, input.socialAccountId);
+    this.browserPolicy.requireActionPolicy(input.orgId, input.socialAccountId, SOCIAL_BROWSER_ACTION.LOGIN);
+    this.requireGrant(input.orgId, input.socialAccountId, input.employeeId, SOCIAL_BROWSER_ACTION.LOGIN);
+    const socialSession = session.fromPartition(container.partition_key);
     socialSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
     socialSession.setPermissionCheckHandler(() => false);
 
@@ -213,15 +218,17 @@ export class SocialService {
         session: socialSession,
         nodeIntegration: false,
         contextIsolation: true,
-        sandbox: true,
+        sandbox: container.sandbox_enabled === 1,
       },
     });
-    this.attachNavigationPolicy(win, account.platform);
+    this.attachNavigationPolicy(win, this.browserPolicy.allowedHosts(container));
     win.loadURL(PLATFORM_LOGIN_URL[account.platform]);
+    const now = new Date().toISOString();
+    this.browserPolicy.markSessionUsed(container.id, now);
     this.db.prepare(`
       insert into browser_actions(id, org_id, social_account_id, action_type, policy_decision, evidence_file_id, created_at)
       values (?, ?, ?, ?, ?, ?, ?)
-    `).run(createId("bact"), account.org_id, account.id, "login_window_opened", "allowed_human_login", null, new Date().toISOString());
+    `).run(createId("bact"), account.org_id, account.id, "login_window_opened", "allowed_human_login", null, now);
     this.audit.record({
       orgId: account.org_id,
       entityType: "social_account",
@@ -233,10 +240,10 @@ export class SocialService {
     });
   }
 
-  private attachNavigationPolicy(win: BrowserWindow, platform: SocialPlatform): void {
+  private attachNavigationPolicy(win: BrowserWindow, allowedHosts: string[]): void {
     win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     const guard = (event: Electron.Event, url: string) => {
-      if (!this.isAllowedNavigation(platform, url)) event.preventDefault();
+      if (!this.isAllowedNavigation(allowedHosts, url)) event.preventDefault();
     };
     win.webContents.on("will-navigate", guard);
     win.webContents.on("will-redirect", guard);
@@ -256,7 +263,7 @@ export class SocialService {
     return post;
   }
 
-  private requireGrant(orgId: string, socialAccountId: string, employeeId: string, action: SocialGrantAction): void {
+  private requireGrant(orgId: string, socialAccountId: string, employeeId: string, action: SocialBrowserAction): void {
     this.assertEmployee(orgId, employeeId, "Social account grant is required.");
     const row = this.db.prepare(`
       select scope_json from social_account_grants
@@ -270,26 +277,51 @@ export class SocialService {
     }
   }
 
-  private resolveApprovalForState(input: SetScheduledPostStateInput, post: ScheduledPostRow): string | null {
+  private resolveApprovalForState(input: SetScheduledPostStateInput, post: ScheduledPostRow, policy: BrowserActionPolicyRow): string | null {
     if (input.state === "scheduled") {
-      return post.approval_id ?? this.createPublishApproval(input.orgId, input.employeeId, post.body_md);
+      return policy.approval_required === 1
+        ? post.approval_id ?? this.createPublishApproval(input.orgId, input.employeeId, post, policy)
+        : post.approval_id;
     }
     if (input.state === "published") {
-      this.assertApprovalApproved(input.orgId, post.approval_id);
+      if (policy.approval_required === 1) this.assertApprovalApproved(input.orgId, post.approval_id);
       return post.approval_id;
     }
     return post.approval_id;
   }
 
-  private createPublishApproval(orgId: string, employeeId: string, body: string): string {
-    return this.approvals.create({
+  private createPublishApproval(orgId: string, employeeId: string, post: ScheduledPostRow, policy: BrowserActionPolicyRow): string {
+    const route = this.browserPolicy.requireApprovalRoute(orgId, post.social_account_id, policy.action_type, policy.risk_level);
+    const approvalId = this.approvals.create({
       orgId,
-      kind: "social_publish",
+      kind: route.approval_kind,
       title: "Approve social post",
-      details: body,
-      risk: RISK_LEVEL.MEDIUM,
+      details: post.body_md,
+      risk: policy.risk_level,
       requestedByType: "employee",
       requestedById: employeeId,
+    });
+    this.assignSocialApprovalRoute(orgId, approvalId, route);
+    return approvalId;
+  }
+
+  private assignSocialApprovalRoute(orgId: string, approvalId: string, route: SocialApprovalRouteRow): void {
+    if (route.route_to_type !== "authorized_employee") throw new Error("Social approval route target type is invalid.");
+    if (!route.route_to_id) throw new Error("Social approval route target is required.");
+    this.assertEmployee(orgId, route.route_to_id, "Social approval route employee was not found.");
+    this.db.prepare(`
+      insert into approval_assignments(id, org_id, approval_id, assignee_type, assignee_id, routing_rule_id, created_at)
+      values (?, ?, ?, ?, ?, null, ?)
+      on conflict(approval_id, assignee_type, assignee_id) do nothing
+    `).run(createId("aas"), orgId, approvalId, ROUTE_TO_TYPE.EMPLOYEE, route.route_to_id, new Date().toISOString());
+    this.audit.record({
+      orgId,
+      entityType: "approval",
+      entityId: approvalId,
+      actorType: "system",
+      actorId: null,
+      action: "social_route_assigned",
+      payload: { routeId: route.id, routeToType: route.route_to_type, routeToId: route.route_to_id },
     });
   }
 
@@ -345,11 +377,11 @@ export class SocialService {
     return scheduledFor;
   }
 
-  private isAllowedNavigation(platform: SocialPlatform, url: string): boolean {
+  private isAllowedNavigation(allowedHosts: string[], url: string): boolean {
     const parsed = new URL(url);
     if (parsed.protocol !== "https:") return false;
     const host = parsed.hostname.toLowerCase();
-    return ALLOWED_HOSTS[platform].some((entry) => host === entry || host.endsWith(`.${entry}`));
+    return allowedHosts.some((entry) => host === entry || host.endsWith(`.${entry}`));
   }
 }
 

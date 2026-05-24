@@ -24,6 +24,7 @@ import { providerRateLimitObservationSchema } from "./migrations/022-provider-ra
 import { providerRequestRuntimeSchema } from "./migrations/023-provider-request-runtime";
 import { taskRunProviderRequestSchema } from "./migrations/024-task-run-provider-request";
 import { chatMessageDeliverySchema } from "./migrations/025-chat-message-delivery";
+import { browserPlatformGovernanceSchema } from "./migrations/026-browser-platform-governance";
 
 interface Migration {
   version: number;
@@ -57,6 +58,7 @@ const MIGRATIONS: Migration[] = [
   { version: 23, name: "provider_request_runtime", sql: providerRequestRuntimeSchema },
   { version: 24, name: "task_run_provider_request", sql: taskRunProviderRequestSchema },
   { version: 25, name: "chat_message_delivery", sql: chatMessageDeliverySchema },
+  { version: 26, name: "browser_platform_governance", sql: browserPlatformGovernanceSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

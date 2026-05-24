@@ -8,7 +8,7 @@ import { FileService } from "../../src/main/services/file-service";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { SocialService } from "../../src/main/services/social-service";
-import { APPROVAL_STATE, SOCIAL_PLATFORM } from "../../src/shared/domain";
+import { APPROVAL_STATE, ROUTE_TO_TYPE, SOCIAL_PLATFORM } from "../../src/shared/domain";
 import { createId } from "../../src/shared/ids";
 
 function createConnection(): DatabaseConnection {
@@ -62,6 +62,25 @@ describe("social service", () => {
     const grantScope = JSON.parse(state.socialAccountGrants[0]!.scopeJson) as { actions: string[]; riskCeiling: string };
     expect(state.socialAccounts).toHaveLength(1);
     expect(state.socialAccountGrants[0]?.employeeId).toBe(employeeId);
+    expect(state.browserSessionContainers[0]).toMatchObject({
+      socialAccountId: state.socialAccounts[0]?.id,
+      platform: SOCIAL_PLATFORM.X,
+      permissionPolicy: "deny_all",
+      sandboxEnabled: true,
+    });
+    expect(JSON.parse(state.browserSessionContainers[0]!.hostAllowlistJson)).toEqual(["x.com", "twitter.com"]);
+    expect(state.browserActionPolicies.map((policy) => policy.actionType).sort()).toEqual(["approve", "draft", "login"]);
+    expect(state.browserActionPolicies.find((policy) => policy.actionType === "approve")).toMatchObject({
+      approvalRequired: true,
+      approvalKind: "social_publish",
+      riskLevel: "medium",
+    });
+    expect(state.socialApprovalRoutes[0]).toMatchObject({
+      socialAccountId: state.socialAccounts[0]?.id,
+      actionType: "approve",
+      approvalKind: "social_publish",
+      routeToId: employeeId,
+    });
     expect(state.auditEvents.find((event) => event.entityType === "social_account")?.actorId).toBe(employeeId);
     expect(grantScope.actions).toEqual(["login", "draft", "approve"]);
     expect(grantScope.riskCeiling).toBe("medium");
@@ -134,6 +153,49 @@ describe("social service", () => {
     expect(state.scheduledPosts[0]?.state).toBe("published");
     expect(state.scheduledPosts[0]?.socialAccountId).toBe(socialAccountId);
     expect(state.scheduledPosts[0]?.approvalId).toBe(state.approvals[0]?.id);
+    connection.close();
+  });
+
+  test("assigns social publish approvals to the account authorizer", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const social = new SocialService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    let orgId = "";
+    let authorizerId = "";
+    let approvalId = "";
+
+    connection.transaction(() => {
+      orgId = createOrganization(organization);
+      const creatorId = firstEmployeeId(connection, orgId);
+      authorizerId = createEmployee(connection, orgId, "Riley Chen");
+      const socialAccountId = social.createAccount({
+        orgId,
+        platform: SOCIAL_PLATFORM.INSTAGRAM,
+        handle: "acme",
+        displayName: "Acme",
+        createdByEmployeeId: creatorId,
+        authorizedEmployeeId: authorizerId,
+      });
+      const postId = social.createScheduledPost({
+        orgId,
+        socialAccountId,
+        bodyMd: "Launch update.",
+        scheduledFor: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+        createdByEmployeeId: authorizerId,
+      });
+      social.setScheduledPostState({ orgId, scheduledPostId: postId, state: "scheduled", employeeId: authorizerId });
+      approvalId = (connection.db.prepare("select approval_id from scheduled_posts where id = ?")
+        .get(postId) as { approval_id: string }).approval_id;
+    });
+
+    const state = snapshot.load();
+    expect(state.approvalAssignments).toContainEqual(expect.objectContaining({
+      approvalId,
+      assigneeType: ROUTE_TO_TYPE.EMPLOYEE,
+      assigneeId: authorizerId,
+      routingRuleId: null,
+    }));
     connection.close();
   });
 
