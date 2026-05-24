@@ -126,11 +126,17 @@ describe("task execution service", () => {
     expect(run).toMatchObject({ taskId, agentId: expect.any(String), providerId, state: "completed", errorMessage: null });
     expect(request).toMatchObject({ providerId, workspaceId, state: "succeeded", responseText: "executed:gpt-5.4" });
     expect(skillRuntimeSnapshot).toMatchObject({ agentId, runId });
+    expect(run?.executionContextId).toMatch(/^ctx_/);
+    expect(run?.serviceIdentityId).toMatch(/^sid_/);
+    expect(JSON.parse(run?.workspaceMountJson ?? "[]")).toEqual([expect.objectContaining({ workspaceId, mode: "read_only" })]);
+    expect(JSON.parse(run?.secretScopeJson ?? "{}")).toMatchObject({ providerIds: [providerId], credentialAccess: "provider_runtime_only" });
     expect(skillRuntimeSnapshot?.compiledPrompt).toContain("Verify release readiness");
     expect(skillRuntimeSnapshot?.sourceRevisionIds).toContain(revisionId);
     expect(capturedPrompt).toContain("Task: Draft launch checklist");
     expect(capturedPrompt).toContain("Assignee: Ada (Execution lead)");
     expect(capturedPrompt).toContain("Workspace: Task Workspace");
+    expect(capturedPrompt).toContain("Execution context:");
+    expect(capturedPrompt).toContain("Secret scope:");
     expect(capturedPrompt).toContain("Skill runtime:");
     expect(capturedPrompt).toContain("Tool allowlist:");
     expect(state.auditEvents.some((event) => event.entityType === "task_run" && event.action === "completed")).toBe(true);
@@ -160,6 +166,7 @@ describe("task execution service", () => {
     let employeeId = "";
     let taskId = "";
     let approvalId = "";
+    let workspaceId = "";
 
     connection.transaction(() => {
       orgId = organization.createOrganization({
@@ -171,6 +178,12 @@ describe("task execution service", () => {
       employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
       const providerId = openAiProviderId(connection, orgId);
       providers.saveCredential({ orgId, providerId, secret: "sk-live-provider", model: "gpt-5.4" });
+      workspaceId = "wsp_production";
+      const now = new Date().toISOString();
+      connection.db.prepare(`
+        insert into workspaces(id, org_id, name, local_path, repo_url, repo_ref, project_id, is_primary, created_at, updated_at)
+        values (?, ?, ?, ?, ?, ?, null, ?, ?, ?)
+      `).run(workspaceId, orgId, "Production", "C:/work/production", "https://example.com/production.git", "main", 1, now, now);
       const agentId = organization.createAgent({
         orgId,
         name: "Ada",
@@ -190,7 +203,7 @@ describe("task execution service", () => {
         risk: RISK_LEVEL.HIGH,
         projectId: null,
         goalId: null,
-        workspaceId: null,
+        workspaceId,
         priority: TASK_PRIORITY.HIGH,
         requiresFilesystem: true,
       });
@@ -209,6 +222,8 @@ describe("task execution service", () => {
 
     expect(state.approvals.find((approval) => approval.id === approvalId)).toMatchObject({ state: APPROVAL_STATE.APPROVED });
     expect(state.taskRuns.find((run) => run.id === runId)).toMatchObject({ taskId, state: "completed" });
+    expect(JSON.parse(state.taskRuns.find((run) => run.id === runId)?.workspaceMountJson ?? "[]"))
+      .toEqual([expect.objectContaining({ workspaceId, mode: "read_write" })]);
     connection.close();
   });
 

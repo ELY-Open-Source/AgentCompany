@@ -23,7 +23,7 @@ describe("domain services", () => {
     const connection = createConnection();
 
     const rows = connection.db.prepare("select version from schema_migrations order by version asc").all() as Array<{ version: number }>;
-    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34]);
+    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35]);
     connection.close();
   });
 
@@ -520,6 +520,8 @@ describe("domain services", () => {
     expect(state.projects[0]?.leadAgentId).toBe(state.agents[0]?.id);
     expect(state.tasks[0]?.assigneeAgentId).toBe(state.agents[0]?.id);
     expect(state.taskRuns[0]?.trigger).toBe("bootstrap");
+    expect(state.taskRuns[0]?.executionContextId).toMatch(/^ctx_/);
+    expect(state.taskRuns[0]?.serviceIdentityId).toMatch(/^sid_/);
     connection.close();
   });
 });

@@ -142,6 +142,10 @@ export interface TaskRunRecord {
   agentId: string | null;
   providerId: string | null;
   providerRequestId: string | null;
+  executionContextId: string | null;
+  serviceIdentityId: string | null;
+  workspaceMountJson: string;
+  secretScopeJson: string;
   trigger: string;
   state: string;
   createdAt: string;

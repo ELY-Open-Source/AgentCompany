@@ -123,7 +123,7 @@ describe("migration service", () => {
       create table workspaces(id text primary key, org_id text, project_id text);
       create table goals(id text primary key, org_id text, owner_agent_id text);
       create table projects(id text primary key, org_id text, goal_id text, lead_agent_id text);
-      create table task_runs(id text primary key, org_id text, task_id text, agent_id text, provider_id text, provider_request_id text);
+      create table task_runs(id text primary key, org_id text, task_id text, agent_id text, provider_id text, provider_request_id text, service_identity_id text);
       create table approvals(id text primary key, org_id text, decided_by_employee_id text);
       create table approval_routing_rules(id text primary key, org_id text);
       create table approval_assignments(id text primary key, org_id text, approval_id text, routing_rule_id text);
@@ -201,7 +201,7 @@ describe("migration service", () => {
       insert into goals(id, org_id, owner_agent_id) values ('goal-1', 'org-1', 'agent-1');
       insert into projects(id, org_id, goal_id, lead_agent_id) values ('prj-1', 'org-1', 'goal-1', 'agent-1');
       insert into tasks(id, org_id, assignee_agent_id, project_id, goal_id, workspace_id) values ('task-1', 'org-1', 'agent-1', 'prj-1', 'goal-1', 'wsp-1');
-      insert into task_runs(id, org_id, task_id, agent_id, provider_id, provider_request_id) values ('run-1', 'org-1', 'task-1', 'agent-1', 'prov-1', 'req-1');
+      insert into task_runs(id, org_id, task_id, agent_id, provider_id, provider_request_id, service_identity_id) values ('run-1', 'org-1', 'task-1', 'agent-1', 'prov-1', 'req-1', 'sid-1');
       insert into approvals(id, org_id, decided_by_employee_id) values ('approval-1', 'org-1', 'emp-1');
       insert into approval_routing_rules(id, org_id) values ('route-1', 'org-1');
       insert into approval_assignments(id, org_id, approval_id, routing_rule_id) values ('assign-1', 'org-1', 'approval-1', 'route-1');

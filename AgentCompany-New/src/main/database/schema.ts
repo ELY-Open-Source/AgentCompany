@@ -33,6 +33,7 @@ import { providerRequestWorkspaceSchema } from "./migrations/031-provider-reques
 import { browserActionMetadataSchema } from "./migrations/032-browser-action-metadata";
 import { auditEventImmutabilitySchema } from "./migrations/033-audit-event-immutability";
 import { providerAuthSessionsSchema } from "./migrations/034-provider-auth-sessions";
+import { taskRunIsolationSchema } from "./migrations/035-task-run-isolation";
 
 interface Migration {
   version: number;
@@ -75,6 +76,7 @@ const MIGRATIONS: Migration[] = [
   { version: 32, name: "browser_action_metadata", sql: browserActionMetadataSchema },
   { version: 33, name: "audit_event_immutability", sql: auditEventImmutabilitySchema },
   { version: 34, name: "provider_auth_sessions", sql: providerAuthSessionsSchema },
+  { version: 35, name: "task_run_isolation", sql: taskRunIsolationSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

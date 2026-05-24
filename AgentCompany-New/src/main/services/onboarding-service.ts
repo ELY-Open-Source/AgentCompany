@@ -67,7 +67,7 @@ export class OnboardingService {
     const projectId = this.createProject(orgId, goalId, ceoAgentId, input, now);
     if (workspaceId) this.bindWorkspaceToProject(workspaceId, projectId, now);
     const taskId = this.createKickoffTask(orgId, goalId, projectId, workspaceId, ceoAgentId, input, now);
-    const runId = this.createTaskRun(orgId, taskId, ceoAgentId, providerId, now);
+    const runId = this.createTaskRun(orgId, taskId, ceoAgentId, providerId, workspaceId, now);
 
     this.audit.record({
       orgId,
@@ -193,15 +193,52 @@ export class OnboardingService {
     return taskId;
   }
 
-  private createTaskRun(orgId: string, taskId: string, ceoAgentId: string, providerId: string, now: string): string {
+  private createTaskRun(orgId: string, taskId: string, ceoAgentId: string, providerId: string, workspaceId: string | null, now: string): string {
     const runId = createId("run");
+    const executionContextId = createId("ctx");
+    const serviceIdentityId = this.requireServiceIdentity(orgId, ceoAgentId);
+    const workspaceMountJson = JSON.stringify(workspaceId ? [{
+      workspaceId,
+      mode: "read_write",
+    }] : []);
+    const secretScopeJson = JSON.stringify({
+      serviceIdentityId,
+      providerIds: [providerId],
+      scope: "bootstrap",
+      credentialAccess: "provider_runtime_only",
+    });
     this.deps.db.prepare(`
       insert into task_runs(
-        id, org_id, task_id, agent_id, provider_id, trigger, state, created_at, started_at, completed_at, error_message
+        id, org_id, task_id, agent_id, provider_id, provider_request_id,
+        execution_context_id, service_identity_id, workspace_mount_json, secret_scope_json,
+        trigger, state, created_at, started_at, completed_at, error_message
       )
-      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(runId, orgId, taskId, ceoAgentId, providerId, "bootstrap", "queued", now, null, null, null);
+      values (?, ?, ?, ?, ?, null, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      runId,
+      orgId,
+      taskId,
+      ceoAgentId,
+      providerId,
+      executionContextId,
+      serviceIdentityId,
+      workspaceMountJson,
+      secretScopeJson,
+      "bootstrap",
+      "queued",
+      now,
+      null,
+      null,
+      null,
+    );
     return runId;
+  }
+
+  private requireServiceIdentity(orgId: string, agentId: string): string {
+    const row = this.deps.db.prepare("select id from service_identities where org_id = ? and agent_id = ?")
+      .get(orgId, agentId) as { id: string } | undefined;
+    if (!row) throw new Error("Agent service identity was not found.");
+    return row.id;
   }
 
   private createKickoffTaskDescription(input: BootstrapOnboardingInput): string {

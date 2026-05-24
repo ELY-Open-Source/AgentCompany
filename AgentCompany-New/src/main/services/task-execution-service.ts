@@ -56,6 +56,7 @@ interface GoalRow {
 }
 
 interface WorkspaceRow {
+  id: string;
   name: string;
   local_path: string;
   repo_url: string;
@@ -74,6 +75,13 @@ interface SkillRuntimeSnapshotRow {
   source_revision_ids: string;
 }
 
+interface TaskRunIsolation {
+  executionContextId: string;
+  serviceIdentityId: string;
+  workspaceMountJson: string;
+  secretScopeJson: string;
+}
+
 export class TaskExecutionService {
   private readonly audit: AuditService;
 
@@ -90,7 +98,9 @@ export class TaskExecutionService {
     this.assertExecutionApproval(input.orgId, task);
     const agent = this.requireAssignedAgent(input.orgId, task);
     const provider = this.requireAgentProvider(input.orgId, agent);
-    const runId = this.createRun(input.orgId, task.id, agent.id, provider.id);
+    const workspace = this.workspace(task.workspace_id);
+    const isolation = this.createIsolationContext(input.orgId, task, agent, provider, workspace);
+    const runId = this.createRun(input.orgId, task.id, agent.id, provider.id, isolation);
     let providerRequestId: string | null = null;
     let skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null = null;
 
@@ -106,7 +116,8 @@ export class TaskExecutionService {
           provider,
           project: this.project(task.project_id),
           goal: this.goal(task.goal_id),
-          workspace: this.workspace(task.workspace_id),
+          workspace,
+          isolation,
           skillRuntimeSnapshot,
         }),
         instructions: buildAgentInstructions(agent),
@@ -129,6 +140,8 @@ export class TaskExecutionService {
           agentId: agent.id,
           providerId: provider.id,
           providerRequestId: requestId,
+          executionContextId: isolation.executionContextId,
+          serviceIdentityId: isolation.serviceIdentityId,
           skillRuntimeSnapshotId: skillRuntimeSnapshot?.id ?? null,
         },
       });
@@ -148,6 +161,8 @@ export class TaskExecutionService {
           agentId: agent.id,
           providerId: provider.id,
           providerRequestId,
+          executionContextId: isolation.executionContextId,
+          serviceIdentityId: isolation.serviceIdentityId,
           skillRuntimeSnapshotId: skillRuntimeSnapshot?.id ?? null,
           errorMessage: message,
         },
@@ -201,15 +216,30 @@ export class TaskExecutionService {
     return provider;
   }
 
-  private createRun(orgId: string, taskId: string, agentId: string, providerId: string): string {
+  private createRun(orgId: string, taskId: string, agentId: string, providerId: string, isolation: TaskRunIsolation): string {
     const runId = createId("run");
     const now = new Date().toISOString();
     this.db.prepare(`
       insert into task_runs(
         id, org_id, task_id, agent_id, provider_id, provider_request_id,
+        execution_context_id, service_identity_id, workspace_mount_json, secret_scope_json,
         trigger, state, created_at, started_at, completed_at, error_message
-      ) values (?, ?, ?, ?, ?, null, ?, ?, ?, ?, null, null)
-    `).run(runId, orgId, taskId, agentId, providerId, "manual", TASK_RUN_STATE.RUNNING, now, now);
+      ) values (?, ?, ?, ?, ?, null, ?, ?, ?, ?, ?, ?, ?, ?, null, null)
+    `).run(
+      runId,
+      orgId,
+      taskId,
+      agentId,
+      providerId,
+      isolation.executionContextId,
+      isolation.serviceIdentityId,
+      isolation.workspaceMountJson,
+      isolation.secretScopeJson,
+      "manual",
+      TASK_RUN_STATE.RUNNING,
+      now,
+      now,
+    );
     this.audit.record({
       orgId,
       entityType: "task_run",
@@ -217,7 +247,7 @@ export class TaskExecutionService {
       actorType: "system",
       actorId: null,
       action: "started",
-      payload: { taskId, agentId, providerId, trigger: "manual" },
+      payload: { taskId, agentId, providerId, trigger: "manual", executionContextId: isolation.executionContextId, serviceIdentityId: isolation.serviceIdentityId },
     });
     return runId;
   }
@@ -272,7 +302,44 @@ export class TaskExecutionService {
 
   private workspace(workspaceId: string | null): WorkspaceRow | null {
     if (!workspaceId) return null;
-    return (this.db.prepare("select name, local_path, repo_url, repo_ref from workspaces where id = ?").get(workspaceId) as unknown as WorkspaceRow | undefined) ?? null;
+    return (this.db.prepare("select id, name, local_path, repo_url, repo_ref from workspaces where id = ?").get(workspaceId) as unknown as WorkspaceRow | undefined) ?? null;
+  }
+
+  private createIsolationContext(
+    orgId: string,
+    task: TaskExecutionTaskRow,
+    agent: TaskExecutionAgentRow,
+    provider: TaskExecutionProviderRow,
+    workspace: WorkspaceRow | null,
+  ): TaskRunIsolation {
+    if (task.requires_filesystem === 1 && !workspace) throw new Error("Filesystem tasks require a workspace.");
+    const serviceIdentityId = this.requireServiceIdentity(orgId, agent.id);
+    const executionContextId = createId("ctx");
+    const workspaceMounts = workspace ? [{
+      workspaceId: workspace.id,
+      name: workspace.name,
+      localPath: workspace.local_path,
+      repoRef: workspace.repo_ref,
+      mode: task.requires_filesystem === 1 ? "read_write" : "read_only",
+    }] : [];
+    return {
+      executionContextId,
+      serviceIdentityId,
+      workspaceMountJson: JSON.stringify(workspaceMounts),
+      secretScopeJson: JSON.stringify({
+        serviceIdentityId,
+        providerIds: [provider.id],
+        scope: "task_run",
+        credentialAccess: "provider_runtime_only",
+      }),
+    };
+  }
+
+  private requireServiceIdentity(orgId: string, agentId: string): string {
+    const row = this.db.prepare("select id from service_identities where org_id = ? and agent_id = ?")
+      .get(orgId, agentId) as { id: string } | undefined;
+    if (!row) throw new Error("Agent service identity was not found.");
+    return row.id;
   }
 }
 
@@ -292,6 +359,7 @@ function buildTaskPrompt(input: {
   project: ProjectRow | null;
   goal: GoalRow | null;
   workspace: WorkspaceRow | null;
+  isolation: TaskRunIsolation;
   skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null;
 }): string {
   const lines = [
@@ -305,6 +373,8 @@ function buildTaskPrompt(input: {
     `Requires filesystem: ${input.task.requires_filesystem === 1 ? "yes" : "no"}`,
     `Assignee: ${input.agent.name} (${input.agent.role})`,
     `Provider: ${input.provider.label} ${input.provider.model ?? input.agent.model_id ?? ""}`.trim(),
+    `Execution context: ${input.isolation.executionContextId}`,
+    `Service identity: ${input.isolation.serviceIdentityId}`,
   ];
   if (input.goal) lines.push("", `Goal: ${input.goal.title}`, `Goal detail: ${input.goal.description}`);
   if (input.project) lines.push("", `Project: ${input.project.name}`, `Project detail: ${input.project.description}`);
@@ -315,8 +385,10 @@ function buildTaskPrompt(input: {
       `Local path: ${input.workspace.local_path}`,
       `Repo: ${input.workspace.repo_url}`,
       `Ref: ${input.workspace.repo_ref}`,
+      `Mounts: ${input.isolation.workspaceMountJson}`,
     );
   }
+  lines.push("", `Secret scope: ${input.isolation.secretScopeJson}`);
   if (input.skillRuntimeSnapshot) {
     lines.push(
       "",

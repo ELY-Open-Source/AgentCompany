@@ -151,6 +151,7 @@ const RELATION_CHECKS: RelationCheck[] = [
   { table: "task_runs", column: "agent_id", referencedTable: "agents", referencedColumn: "id", reason: "dangling_agent_id" },
   { table: "task_runs", column: "provider_id", referencedTable: "providers", referencedColumn: "id", reason: "dangling_provider_id" },
   { table: "task_runs", column: "provider_request_id", referencedTable: "provider_requests", referencedColumn: "id", reason: "dangling_provider_request_id" },
+  { table: "task_runs", column: "service_identity_id", referencedTable: "service_identities", referencedColumn: "id", reason: "dangling_service_identity_id" },
   { table: "approvals", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
   { table: "approvals", column: "decided_by_employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_decider_id" },
   { table: "approval_routing_rules", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
