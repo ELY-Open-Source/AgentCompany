@@ -3,10 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
+import { ApprovalService } from "../../src/main/services/approval-service";
 import { ChatService } from "../../src/main/services/chat-service";
 import { ComplianceService } from "../../src/main/services/compliance-service";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
+import { SocialService } from "../../src/main/services/social-service";
+import { APPROVAL_STATE, SOCIAL_PLATFORM } from "../../src/shared/domain";
 
 function createConnection(): DatabaseConnection {
   return new DatabaseConnection(join(tmpdir(), `agentcompany-new-compliance-${randomUUID()}.db`));
@@ -64,13 +67,17 @@ describe("compliance service", () => {
   test("blocks GDPR delete under holds and redacts after release", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
+    const approvals = new ApprovalService(connection.db);
     const chat = new ChatService(connection.db);
     const compliance = new ComplianceService(connection.db);
+    const social = new SocialService(connection.db);
     const snapshot = new SnapshotService(connection.db);
     let orgId = "";
     let employeeId = "";
     let spaceId = "";
     let holdId = "";
+    let approvalId = "";
+    let socialAccountId = "";
 
     connection.transaction(() => {
       orgId = organization.createOrganization({
@@ -82,6 +89,24 @@ describe("compliance service", () => {
       employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
       spaceId = chat.createSpace({ orgId, spaceType: "project", name: "release", topic: "Release coordination", visibility: "workspace" });
       chat.sendMessage({ orgId, spaceId, threadId: null, senderType: "employee", senderId: employeeId, bodyMd: "Delete me", attachmentFileIds: [] });
+      approvalId = approvals.create({
+        orgId,
+        kind: "security_review",
+        title: "Security review",
+        details: "Employee requested and decided.",
+        risk: "low",
+        requestedByType: "employee",
+        requestedById: employeeId,
+      });
+      approvals.decide({ orgId, approvalId, state: APPROVAL_STATE.APPROVED, decidedByEmployeeId: employeeId });
+      socialAccountId = social.createAccount({
+        orgId,
+        platform: SOCIAL_PLATFORM.X,
+        handle: "@acme",
+        displayName: "Acme",
+        createdByEmployeeId: employeeId,
+        authorizedEmployeeId: employeeId,
+      });
       holdId = compliance.createLegalHold({
         orgId,
         entityType: "employee",
@@ -111,9 +136,16 @@ describe("compliance service", () => {
     });
 
     const state = snapshot.load();
+    const redactedApproval = state.approvals.find((approval) => approval.id === approvalId);
+    const redactedSocialAccount = state.socialAccounts.find((account) => account.id === socialAccountId);
     expect(state.employees[0]?.displayName).toBe("Deleted employee");
     expect(state.chatMessages[0]?.senderId).toBeNull();
+    expect(redactedApproval?.requestedById).toBeNull();
+    expect(redactedApproval?.decidedByEmployeeId).toBeNull();
+    expect(redactedSocialAccount?.authorizedEmployeeId).toBeNull();
+    expect(state.socialAccountGrants).toHaveLength(0);
     expect(state.complianceExports[0]?.exportType).toBe("gdpr_delete");
+    expect(state.complianceExports[0]?.requestedByEmployeeId).toBeNull();
     expect(state.auditEvents.some((event) => event.entityType === "compliance_export" && event.action === "gdpr_deleted")).toBe(true);
     connection.close();
   });

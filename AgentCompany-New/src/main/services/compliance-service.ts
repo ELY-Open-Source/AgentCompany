@@ -26,6 +26,7 @@ export class ComplianceService {
     if (input.exportType === COMPLIANCE_EXPORT_TYPE.GDPR_DELETE) this.assertDeleteAllowed(input);
     const payload = this.subjectPayload(input.orgId, input.subjectType, input.subjectId);
     if (input.exportType === COMPLIANCE_EXPORT_TYPE.GDPR_DELETE) this.applyGdprDelete(input.orgId, input.subjectType, input.subjectId);
+    const requestedByEmployeeId = deletedEmployeeRequestor(input) ? null : input.requestedByEmployeeId;
     const id = createId("cmp");
     const now = new Date().toISOString();
     this.db.prepare(`
@@ -41,7 +42,7 @@ export class ComplianceService {
       input.exportType,
       COMPLIANCE_EXPORT_STATE.COMPLETED,
       JSON.stringify(payload),
-      input.requestedByEmployeeId,
+      requestedByEmployeeId,
       now,
       now,
     );
@@ -152,6 +153,12 @@ export class ComplianceService {
         chatMessages: this.db.prepare("select * from chat_messages where org_id = ? and sender_type = 'employee' and sender_id = ? order by created_at").all(orgId, subjectId),
         approvalsRequested: this.db.prepare("select * from approvals where org_id = ? and requested_by_type = 'employee' and requested_by_id = ? order by created_at").all(orgId, subjectId),
         approvalsDecided: this.db.prepare("select * from approvals where org_id = ? and decided_by_employee_id = ? order by created_at").all(orgId, subjectId),
+        employeeIdentities: this.db.prepare("select * from employee_identities where org_id = ? and employee_id = ? order by created_at").all(orgId, subjectId),
+        roleGrants: this.db.prepare("select * from role_grants where org_id = ? and principal_type = 'employee' and principal_id = ? order by created_at").all(orgId, subjectId),
+        socialAccountsAuthorized: this.db.prepare("select * from social_accounts where org_id = ? and authorized_employee_id = ? order by created_at").all(orgId, subjectId),
+        socialAccountGrants: this.db.prepare("select * from social_account_grants where org_id = ? and employee_id = ? order by created_at").all(orgId, subjectId),
+        scheduledPostsCreated: this.db.prepare("select * from scheduled_posts where org_id = ? and created_by_employee_id = ? order by created_at").all(orgId, subjectId),
+        complianceExportsRequested: this.db.prepare("select * from compliance_exports where org_id = ? and requested_by_employee_id = ? order by created_at").all(orgId, subjectId),
         auditEventsAsActor: this.db.prepare("select * from audit_events where org_id = ? and actor_type = 'employee' and actor_id = ? order by created_at").all(orgId, subjectId),
       };
     }
@@ -171,6 +178,35 @@ export class ComplianceService {
       this.db.prepare("update chat_messages set sender_id = null where org_id = ? and sender_type = 'employee' and sender_id = ?")
         .run(orgId, subjectId);
       this.db.prepare("update approvals set requested_by_id = null where org_id = ? and requested_by_type = 'employee' and requested_by_id = ?")
+        .run(orgId, subjectId);
+      this.db.prepare("update approvals set decided_by_employee_id = null where org_id = ? and decided_by_employee_id = ?")
+        .run(orgId, subjectId);
+      this.db.prepare("delete from employee_identities where org_id = ? and employee_id = ?").run(orgId, subjectId);
+      this.db.prepare("delete from chat_read_state where org_id = ? and employee_id = ?").run(orgId, subjectId);
+      this.db.prepare("delete from social_account_grants where org_id = ? and employee_id = ?").run(orgId, subjectId);
+      this.db.prepare("update social_accounts set authorized_employee_id = null where org_id = ? and authorized_employee_id = ?")
+        .run(orgId, subjectId);
+      this.db.prepare("update social_approval_routes set route_to_id = null where org_id = ? and route_to_type = 'authorized_employee' and route_to_id = ?")
+        .run(orgId, subjectId);
+      this.db.prepare("update scheduled_posts set created_by_employee_id = null where org_id = ? and created_by_employee_id = ?")
+        .run(orgId, subjectId);
+      this.db.prepare("update compliance_exports set requested_by_employee_id = null where org_id = ? and requested_by_employee_id = ?")
+        .run(orgId, subjectId);
+      this.db.prepare("update legal_holds set created_by_employee_id = null where org_id = ? and created_by_employee_id = ?")
+        .run(orgId, subjectId);
+      this.db.prepare("update retention_freezes set created_by_employee_id = null where org_id = ? and created_by_employee_id = ?")
+        .run(orgId, subjectId);
+      this.db.prepare("update audit_replay_runs set created_by_employee_id = null where org_id = ? and created_by_employee_id = ?")
+        .run(orgId, subjectId);
+      this.db.prepare("update rollback_snapshots set created_by_employee_id = null where org_id = ? and created_by_employee_id = ?")
+        .run(orgId, subjectId);
+      this.db.prepare("update migration_reconciliation_items set resolved_by_employee_id = null where org_id = ? and resolved_by_employee_id = ?")
+        .run(orgId, subjectId);
+      this.db.prepare("delete from approval_assignments where org_id = ? and assignee_type = 'employee' and assignee_id = ?")
+        .run(orgId, subjectId);
+      this.db.prepare("delete from role_grants where org_id = ? and principal_type = 'employee' and principal_id = ?")
+        .run(orgId, subjectId);
+      this.db.prepare("update role_grants set granted_by_employee_id = null where org_id = ? and granted_by_employee_id = ?")
         .run(orgId, subjectId);
       return;
     }
@@ -308,4 +344,10 @@ export class ComplianceService {
     const row = this.db.prepare(`select id from ${table} where id = ? and org_id = ?`).get(id, orgId);
     if (!row) throw new Error(message);
   }
+}
+
+function deletedEmployeeRequestor(input: CreateComplianceExportInput): boolean {
+  return input.exportType === COMPLIANCE_EXPORT_TYPE.GDPR_DELETE
+    && input.subjectType === "employee"
+    && input.subjectId === input.requestedByEmployeeId;
 }
