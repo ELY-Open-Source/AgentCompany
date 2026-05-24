@@ -6,9 +6,11 @@ import type {
   ProviderCatalogEntry,
   ProviderRateLimitStateRecord,
   ProviderRecord,
+  ProviderRequestRecord,
 } from "../../../../shared/domain";
 import { PROVIDER_DATA_POLICY } from "../../../../shared/domain";
 import { ProviderLogo } from "./ProviderLogo";
+import { ProviderRequestPanel } from "./ProviderRequestPanel";
 import type { SnapshotActions } from "../../app/useSnapshot";
 
 interface ProvidersPanelProps {
@@ -17,6 +19,7 @@ interface ProvidersPanelProps {
   catalog: ProviderCatalogEntry[];
   agents: AgentRecord[];
   providerRateLimits: ProviderRateLimitStateRecord[];
+  providerRequests: ProviderRequestRecord[];
   actions: SnapshotActions;
 }
 
@@ -29,7 +32,7 @@ interface CloudFields {
 
 const CLOUD_DEFAULTS: CloudFields = { baseUrl: "", region: "", projectId: "", deployment: "" };
 
-export function ProvidersPanel({ orgId, providers, catalog, agents, providerRateLimits, actions }: ProvidersPanelProps) {
+export function ProvidersPanel({ orgId, providers, catalog, agents, providerRateLimits, providerRequests, actions }: ProvidersPanelProps) {
   const [active, setActive] = useState<ProviderRecord | null>(null);
   const [signInLaunched, setSignInLaunched] = useState(false);
   const connected = providers.filter((provider) => provider.enabled);
@@ -84,6 +87,13 @@ export function ProvidersPanel({ orgId, providers, catalog, agents, providerRate
             orgId={orgId}
             providers={connected}
             providerRateLimits={providerRateLimits}
+            actions={actions}
+          />
+          <ProviderRequestPanel
+            orgId={orgId}
+            providers={connected}
+            catalog={catalog}
+            providerRequests={providerRequests}
             actions={actions}
           />
         </>

@@ -121,6 +121,13 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
 
     await page.getByRole("button", { name: "Settings" }).click();
     await page.getByRole("button", { name: "Providers" }).click();
+    await page.getByLabel("OpenAI background execution").check();
+    await page.getByRole("button", { name: "Save OpenAI policy" }).click();
+    await expect(page.getByText("Requests", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Request provider")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Background" })).toBeVisible();
+    await page.getByLabel("Request prompt").fill("Draft a provider control memo.");
+    await page.getByLabel("Request instructions").fill("Use direct language.");
     await page.getByLabel("OpenAI data policy").selectOption("zero_data_retention");
     await expect(page.getByLabel("OpenAI background execution")).not.toBeChecked();
     await page.getByLabel("OpenAI monthly request limit").fill("25");
