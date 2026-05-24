@@ -248,7 +248,9 @@ export class SdlcService {
         && typeof adapter.refresh === "function"
         && typeof adapter.revoke === "function"
         && typeof adapter.listModels === "function"
-        && typeof adapter.getRateLimitState === "function";
+        && typeof adapter.getRateLimitState === "function"
+        && typeof adapter.streamResponse === "function"
+        && typeof adapter.cancelResponse === "function";
     });
     const schemaVersion = count(this.db, "select coalesce(max(version), 0) as count from schema_migrations");
     const rateLimitRegistry = count(this.db, `

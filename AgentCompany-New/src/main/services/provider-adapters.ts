@@ -9,7 +9,18 @@ import {
   type ProviderRefreshHandler,
   type ProviderRevokeHandler,
 } from "./provider-auth-lifecycle";
-import { parseProviderRateLimitHeaders } from "./provider-rate-limit-registry";
+import { getJson, postEventStream, postJson, type JsonRecord } from "./provider-http";
+import {
+  cancelUnsupported,
+  mapAnthropicMessageStream,
+  mapOpenAiChatCompletionStream,
+  mapOpenAiResponseStream,
+  streamUnsupported,
+  type ProviderCancelResult,
+  type ProviderStreamResult,
+} from "./provider-streaming";
+
+export { ProviderHttpError, providerRateLimitStateFromError } from "./provider-http";
 
 export interface ProviderExecutionInput {
   authProfile: ProviderAuthProfile;
@@ -22,6 +33,13 @@ export interface ProviderExecutionResult {
   text: string;
   rawResponseJson: string;
   rateLimitState: ProviderObservedRateLimitState | null;
+}
+
+export type ProviderStreamInput = ProviderExecutionInput;
+
+export interface ProviderCancelInput {
+  authProfile: ProviderAuthProfile;
+  responseId: string;
 }
 
 export interface ProviderHealthInput {
@@ -57,6 +75,8 @@ export interface ProviderAdapter {
   listModels(ctx: ProviderContext): Promise<ProviderModelEntry[]>;
   getRateLimitState(ctx: ProviderContext): Promise<ProviderRateLimitState | null>;
   checkHealth(input: ProviderHealthInput): Promise<ProviderHealthResult>;
+  streamResponse(input: ProviderStreamInput): Promise<ProviderStreamResult>;
+  cancelResponse(input: ProviderCancelInput): Promise<ProviderCancelResult>;
   createResponse?: (input: ProviderExecutionInput) => Promise<ProviderExecutionResult>;
 }
 
@@ -70,29 +90,6 @@ export type ProviderAuthProfile =
   | { type: "aws_bedrock"; region: string; accessKeyId: string; secretAccessKey: string; sessionToken: string | null }
   | { type: "vertex_ai"; projectId: string; region: string; serviceAccountJson: string };
 
-type JsonRecord = Record<string, unknown>;
-
-const PROVIDER_REQUEST_TIMEOUT_MS = 60_000;
-
-interface ProviderJsonResponse {
-  data: JsonRecord;
-  rateLimitState: ProviderObservedRateLimitState | null;
-}
-
-export class ProviderHttpError extends Error {
-  constructor(
-    message: string,
-    readonly rateLimitState: ProviderObservedRateLimitState | null,
-  ) {
-    super(message);
-    this.name = "ProviderHttpError";
-  }
-}
-
-export function providerRateLimitStateFromError(error: unknown): ProviderObservedRateLimitState | null {
-  return error instanceof ProviderHttpError ? error.rateLimitState : null;
-}
-
 export const providerAdapters: ProviderAdapterRegistry = {
   openai: {
     providerKey: "openai",
@@ -104,6 +101,26 @@ export const providerAdapters: ProviderAdapterRegistry = {
     listModels: () => listStaticModels("openai"),
     getRateLimitState: providerRateLimitUnknown,
     checkHealth: (input) => checkOpenAiHealth(input.authProfile, "https://api.openai.com/v1/models"),
+    async streamResponse(input) {
+      const profile = requireApiKeyProfile(input.authProfile, "OpenAI");
+      const response = await postEventStream("https://api.openai.com/v1/responses", {
+        authorization: `Bearer ${profile.apiKey}`,
+      }, {
+        model: input.model,
+        input: input.prompt,
+        stream: true,
+        ...(input.instructions ? { instructions: input.instructions } : {}),
+      });
+      return { events: mapOpenAiResponseStream(response.messages), rateLimitState: response.rateLimitState };
+    },
+    async cancelResponse(input) {
+      const profile = requireApiKeyProfile(input.authProfile, "OpenAI");
+      const responseId = requireResponseId(input.responseId);
+      const response = await postJson(`https://api.openai.com/v1/responses/${encodeURIComponent(responseId)}/cancel`, {
+        authorization: `Bearer ${profile.apiKey}`,
+      }, {});
+      return { responseId, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
+    },
     async createResponse(input) {
       const profile = requireApiKeyProfile(input.authProfile, "OpenAI");
       const response = await postJson("https://api.openai.com/v1/responses", {
@@ -135,6 +152,21 @@ export const providerAdapters: ProviderAdapterRegistry = {
       });
       return healthy(response.rateLimitState);
     },
+    async streamResponse(input) {
+      const profile = requireApiKeyProfile(input.authProfile, "Anthropic");
+      const response = await postEventStream("https://api.anthropic.com/v1/messages", {
+        "x-api-key": profile.apiKey,
+        "anthropic-version": "2023-06-01",
+      }, {
+        model: input.model,
+        max_tokens: 4096,
+        stream: true,
+        ...(input.instructions ? { system: input.instructions } : {}),
+        messages: [{ role: "user", content: input.prompt }],
+      });
+      return { events: mapAnthropicMessageStream(response.messages), rateLimitState: response.rateLimitState };
+    },
+    cancelResponse: cancelUnsupported("Anthropic"),
     async createResponse(input) {
       const profile = requireApiKeyProfile(input.authProfile, "Anthropic");
       const response = await postJson("https://api.anthropic.com/v1/messages", {
@@ -175,6 +207,8 @@ export const providerAdapters: ProviderAdapterRegistry = {
     parseAuthProfile: parseAzureProfile,
     listModels: () => listStaticModels("azure-openai"),
     getRateLimitState: providerRateLimitUnknown,
+    streamResponse: streamUnsupported("Azure OpenAI"),
+    cancelResponse: cancelUnsupported("Azure OpenAI"),
     async checkHealth(input) {
       const profile = requireAzureProfile(input.authProfile);
       const response = await getJson(`${profile.baseUrl}/openai/deployments?api-version=2024-10-21`, { "api-key": profile.apiKey });
@@ -190,6 +224,8 @@ export const providerAdapters: ProviderAdapterRegistry = {
     parseAuthProfile: parseBedrockProfile,
     listModels: () => listStaticModels("aws-bedrock"),
     getRateLimitState: providerRateLimitUnknown,
+    streamResponse: streamUnsupported("AWS Bedrock"),
+    cancelResponse: cancelUnsupported("AWS Bedrock"),
     checkHealth: async (input) => {
       requireBedrockProfile(input.authProfile);
       return healthy(null);
@@ -204,6 +240,8 @@ export const providerAdapters: ProviderAdapterRegistry = {
     parseAuthProfile: parseVertexProfile,
     listModels: () => listStaticModels("vertex-ai"),
     getRateLimitState: providerRateLimitUnknown,
+    streamResponse: streamUnsupported("Vertex AI"),
+    cancelResponse: cancelUnsupported("Vertex AI"),
     checkHealth: async (input) => {
       requireVertexProfile(input.authProfile);
       return healthy(null);
@@ -211,70 +249,16 @@ export const providerAdapters: ProviderAdapterRegistry = {
   },
 };
 
-async function postJson(endpoint: string, headers: Record<string, string>, body: JsonRecord): Promise<ProviderJsonResponse> {
-  return requestJson(endpoint, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...headers,
-    },
-    body: JSON.stringify(body),
-  });
-}
-
-async function getJson(endpoint: string, headers: Record<string, string>): Promise<ProviderJsonResponse> {
-  return requestJson(endpoint, { method: "GET", headers });
-}
-
-async function requestJson(endpoint: string, init: RequestInit): Promise<ProviderJsonResponse> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PROVIDER_REQUEST_TIMEOUT_MS);
-  let response: Response;
-  try {
-    response = await fetch(endpoint, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(timeout);
-  }
-  const rateLimitState = parseProviderRateLimitHeaders(response.headers);
-  const raw = await response.text();
-  const data = parseProviderJson(raw, response.ok);
-  if (!response.ok) {
-    const message = readProviderError(data) ?? (raw.trim() || `Provider request failed with HTTP ${response.status}.`);
-    throw new ProviderHttpError(message, rateLimitState);
-  }
-  return { data, rateLimitState };
-}
-
-function parseProviderJson(raw: string, requireJson: boolean): JsonRecord {
-  if (!raw.trim()) return {};
-  let value: unknown;
-  try {
-    value = JSON.parse(raw) as unknown;
-  } catch (error) {
-    if (!requireJson) return {};
-    throw error;
-  }
-  if (!isRecord(value)) throw new Error("Provider returned invalid JSON.");
-  return value;
-}
-
-function readProviderError(data: JsonRecord): string | null {
-  const error = data.error;
-  if (typeof error === "string") return error;
-  if (isRecord(error) && typeof error.message === "string") return error.message;
-  return null;
-}
-
-function isRecord(value: unknown): value is JsonRecord {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function collectText(value: unknown): string[] {
   if (typeof value === "string") return [value];
   if (Array.isArray(value)) return value.flatMap((item) => collectText(item));
   if (!isRecord(value)) return [];
   const direct = ["text", "output_text", "content"].flatMap((key) => collectText(value[key]));
   return direct.length > 0 ? direct : Object.values(value).flatMap((item) => collectText(item));
+}
+
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function requireText(parts: string[], providerKey: string): string {
@@ -304,12 +288,22 @@ function openAiCompatibleAdapter({
     listModels: () => listStaticModels(providerKey),
     getRateLimitState: providerRateLimitUnknown,
     checkHealth: (input) => checkOpenAiHealth(input.authProfile, healthUrl),
+    async streamResponse(input) {
+      const profile = requireApiKeyProfile(input.authProfile, label);
+      const messages = responseMessages(input.instructions, input.prompt);
+      const response = await postEventStream(endpoint, {
+        authorization: `Bearer ${profile.apiKey}`,
+      }, {
+        model: input.model,
+        messages,
+        stream: true,
+      });
+      return { events: mapOpenAiChatCompletionStream(response.messages), rateLimitState: response.rateLimitState };
+    },
+    cancelResponse: cancelUnsupported(label),
     async createResponse(input) {
       const profile = requireApiKeyProfile(input.authProfile, label);
-      const messages = [
-        ...(input.instructions ? [{ role: "system", content: input.instructions }] : []),
-        { role: "user", content: input.prompt },
-      ];
+      const messages = responseMessages(input.instructions, input.prompt);
       const response = await postJson(endpoint, {
         authorization: `Bearer ${profile.apiKey}`,
       }, {
@@ -321,6 +315,13 @@ function openAiCompatibleAdapter({
       return { text, rawResponseJson: JSON.stringify(data), rateLimitState: response.rateLimitState };
     },
   };
+}
+
+function responseMessages(instructions: string | null, prompt: string): Array<{ role: "system" | "user"; content: string }> {
+  return [
+    ...(instructions ? [{ role: "system" as const, content: instructions }] : []),
+    { role: "user", content: prompt },
+  ];
 }
 
 async function checkOpenAiHealth(authProfile: ProviderAuthProfile, healthUrl: string): Promise<ProviderHealthResult> {
@@ -341,6 +342,8 @@ function browserTokenAdapter(providerKey: string, authType: ProviderAuthType): P
     parseAuthProfile,
     listModels: () => listStaticModels(providerKey),
     getRateLimitState: providerRateLimitUnknown,
+    streamResponse: streamUnsupported(providerKey),
+    cancelResponse: cancelUnsupported(providerKey),
     checkHealth: async (input) => {
       if (authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION) requireAccountTokenProfile(input.authProfile);
       else requireAccessTokenProfile(input.authProfile);
@@ -459,6 +462,12 @@ function requireBedrockProfile(profile: ProviderAuthProfile): Extract<ProviderAu
 function requireVertexProfile(profile: ProviderAuthProfile): Extract<ProviderAuthProfile, { type: "vertex_ai" }> {
   if (profile.type !== "vertex_ai") throw new Error("Vertex AI profile is required.");
   return profile;
+}
+
+function requireResponseId(value: string): string {
+  const responseId = value.trim();
+  if (!responseId) throw new Error("Provider response id is required.");
+  return responseId;
 }
 
 function healthy(rateLimitState: ProviderObservedRateLimitState | null): ProviderHealthResult {

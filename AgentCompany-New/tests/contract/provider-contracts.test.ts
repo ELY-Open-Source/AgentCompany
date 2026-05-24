@@ -87,6 +87,8 @@ describe("provider contracts", () => {
       const authProfile = adapter.parseAuthProfile(PROVIDER_SECRET_SAMPLES[provider.key]);
       await expect(adapter.listModels({ authProfile, model: provider.defaultModel })).resolves.toEqual(provider.models);
       await expect(adapter.getRateLimitState({ authProfile, model: provider.defaultModel })).resolves.toBeNull();
+      expect(typeof adapter.streamResponse).toBe("function");
+      expect(typeof adapter.cancelResponse).toBe("function");
     }
   });
 
