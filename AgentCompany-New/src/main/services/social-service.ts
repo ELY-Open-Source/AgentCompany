@@ -352,7 +352,7 @@ export class SocialService {
       risk: policy.risk_level,
       requestedByType: "employee",
       requestedById: employeeId,
-    });
+    }, { sourceEntityType: "scheduled_post", sourceEntityId: post.id });
     this.assignSocialApprovalRoute(orgId, approvalId, route);
     return approvalId;
   }

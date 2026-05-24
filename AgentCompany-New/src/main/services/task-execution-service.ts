@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { RunTaskInput } from "../../shared/commands";
-import { PROVIDER_EXECUTION_MODE } from "../../shared/domain";
+import { APPROVAL_STATE, PROVIDER_EXECUTION_MODE, RISK_LEVEL } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { ProviderService } from "./provider-service";
@@ -61,6 +61,11 @@ interface WorkspaceRow {
   repo_ref: string;
 }
 
+interface TaskApprovalRow {
+  id: string;
+  state: string;
+}
+
 export class TaskExecutionService {
   private readonly audit: AuditService;
 
@@ -73,6 +78,7 @@ export class TaskExecutionService {
 
   async runTask(input: RunTaskInput): Promise<string> {
     const task = this.requireTask(input.orgId, input.taskId);
+    this.assertExecutionApproval(input.orgId, task);
     const agent = this.requireAssignedAgent(input.orgId, task);
     const provider = this.requireAgentProvider(input.orgId, agent);
     const runId = this.createRun(input.orgId, task.id, agent.id, provider.id);
@@ -139,6 +145,23 @@ export class TaskExecutionService {
     `).get(task.assignee_agent_id, orgId) as TaskExecutionAgentRow | undefined;
     if (!agent) throw new Error("Task assignee was not found.");
     return agent;
+  }
+
+  private assertExecutionApproval(orgId: string, task: TaskExecutionTaskRow): void {
+    if (task.risk !== RISK_LEVEL.HIGH && task.requires_filesystem !== 1) return;
+    const approval = this.db.prepare(`
+      select id, state
+      from approvals
+      where org_id = ?
+        and source_entity_type = 'task'
+        and source_entity_id = ?
+        and kind in ('task_risk', 'task_execution')
+      order by created_at desc
+      limit 1
+    `).get(orgId, task.id) as TaskApprovalRow | undefined;
+    if (!approval || approval.state !== APPROVAL_STATE.APPROVED) {
+      throw new Error("Approved task execution approval is required.");
+    }
   }
 
   private requireAgentProvider(orgId: string, agent: TaskExecutionAgentRow): TaskExecutionProviderRow {

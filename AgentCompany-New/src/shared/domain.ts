@@ -159,6 +159,8 @@ export interface ApprovalRecord {
   risk: RiskLevel;
   requestedByType: "employee" | "agent" | "system";
   requestedById: string | null;
+  sourceEntityType: string | null;
+  sourceEntityId: string | null;
   state: ApprovalState;
   decidedByEmployeeId: string | null;
   createdAt: string;

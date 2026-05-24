@@ -190,8 +190,8 @@ export class OrganizationService {
       this.db.prepare(`
         insert into approvals(
           id, org_id, kind, title, details, risk, requested_by_type,
-          requested_by_id, state, decided_by_employee_id, created_at, decided_at
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          requested_by_id, source_entity_type, source_entity_id, state, decided_by_employee_id, created_at, decided_at
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         approvalId,
         input.orgId,
@@ -201,6 +201,8 @@ export class OrganizationService {
         RISK_LEVEL.MEDIUM,
         "system",
         null,
+        "agent",
+        id,
         APPROVAL_STATE.PENDING,
         null,
         now,
@@ -242,28 +244,32 @@ export class OrganizationService {
       now,
     );
     const policy = this.policy.evaluateTaskCreation(input.orgId, input.risk);
-    if (policy.approvalRequired) {
+    const approvalRequired = policy.approvalRequired || input.requiresFilesystem;
+    if (approvalRequired) {
       const approvalId = createId("app");
+      const approvalKind = policy.approvalRequired ? "task_risk" : "task_execution";
       this.db.prepare(`
         insert into approvals(
           id, org_id, kind, title, details, risk, requested_by_type,
-          requested_by_id, state, decided_by_employee_id, created_at, decided_at
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          requested_by_id, source_entity_type, source_entity_id, state, decided_by_employee_id, created_at, decided_at
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         approvalId,
         input.orgId,
-        "task_risk",
+        approvalKind,
         input.title.trim(),
         input.description.trim(),
         RISK_LEVEL.HIGH,
         "system",
         null,
+        "task",
+        id,
         APPROVAL_STATE.PENDING,
         null,
         now,
         null,
       );
-      this.governance.routeApproval({ orgId: input.orgId, approvalId, kind: "task_risk", risk: RISK_LEVEL.HIGH });
+      this.governance.routeApproval({ orgId: input.orgId, approvalId, kind: approvalKind, risk: RISK_LEVEL.HIGH });
     }
     this.audit.record({
       orgId: input.orgId,

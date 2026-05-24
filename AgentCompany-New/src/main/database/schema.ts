@@ -28,6 +28,7 @@ import { browserPlatformGovernanceSchema } from "./migrations/026-browser-platfo
 import { socialAuditRecordsSchema } from "./migrations/027-social-audit-records";
 import { migrationCutoverJournalSchema } from "./migrations/028-migration-cutover-journal";
 import { fileHandoffRecordsSchema } from "./migrations/029-file-handoff-records";
+import { approvalSourceRefsSchema } from "./migrations/030-approval-source-refs";
 
 interface Migration {
   version: number;
@@ -65,6 +66,7 @@ const MIGRATIONS: Migration[] = [
   { version: 27, name: "social_audit_records", sql: socialAuditRecordsSchema },
   { version: 28, name: "migration_cutover_journal", sql: migrationCutoverJournalSchema },
   { version: 29, name: "file_handoff_records", sql: fileHandoffRecordsSchema },
+  { version: 30, name: "approval_source_refs", sql: approvalSourceRefsSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

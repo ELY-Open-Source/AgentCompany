@@ -113,7 +113,12 @@ export class BoardInterventionService {
       risk: RISK_LEVEL.HIGH,
       requestedByType: requester.type,
       requestedById: requester.id,
-    }, { sourceMessageId: input.messageId, sourceThreadId: input.threadId });
+    }, {
+      sourceMessageId: input.messageId,
+      sourceThreadId: input.threadId,
+      sourceEntityType: "chat_message",
+      sourceEntityId: input.messageId,
+    });
   }
 
   private applyBoardThreadState(input: RecordBoardInterventionInput, command: BoardCommand, target: BoardTarget): void {

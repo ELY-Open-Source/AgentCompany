@@ -9,6 +9,8 @@ import { OrgGovernanceService } from "./org-governance-service";
 interface ApprovalAuditContext {
   sourceMessageId?: string;
   sourceThreadId?: string;
+  sourceEntityType?: string;
+  sourceEntityId?: string;
 }
 
 export class ApprovalService {
@@ -35,8 +37,8 @@ export class ApprovalService {
     this.db.prepare(`
       insert into approvals(
         id, org_id, kind, title, details, risk, requested_by_type, requested_by_id,
-        state, decided_by_employee_id, created_at, decided_at
-      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        source_entity_type, source_entity_id, state, decided_by_employee_id, created_at, decided_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       input.orgId,
@@ -46,6 +48,8 @@ export class ApprovalService {
       input.risk,
       input.requestedByType,
       input.requestedById,
+      context.sourceEntityType ?? null,
+      context.sourceEntityId ?? null,
       APPROVAL_STATE.PENDING,
       null,
       now,

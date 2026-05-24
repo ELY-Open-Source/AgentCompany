@@ -229,7 +229,7 @@ export class ChatService {
       risk: RISK_LEVEL.HIGH,
       requestedByType: requester.type,
       requestedById: requester.id,
-    }, { sourceMessageId: messageId, sourceThreadId: threadId });
+    }, { sourceMessageId: messageId, sourceThreadId: threadId, sourceEntityType: "chat_message", sourceEntityId: messageId });
   }
 
   private recordSlashInvocation(messageId: string, slash: SlashInvocation, resultRef: string | null, now: string): void {
