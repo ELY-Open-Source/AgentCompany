@@ -88,6 +88,7 @@ export class TaskExecutionService {
       const requestId = await this.providers.createResponse({
         orgId: input.orgId,
         providerId: provider.id,
+        workspaceId: task.workspace_id,
         prompt: buildTaskPrompt({
           task,
           agent,

@@ -380,7 +380,7 @@ describe("provider service", () => {
       inputCharCount: 16,
       outputCharCount: 25,
       executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND,
-      policyDecision: "allowed:standard",
+      policyDecision: "allowed:standard:organization",
     });
     expect(state.providerRateLimits.find((item) => item.providerId === openAiProviderId)).toMatchObject({
       providerId: openAiProviderId,
@@ -390,6 +390,68 @@ describe("provider service", () => {
       outputCharCount: 25,
       remainingRequestCount: 0,
       exhausted: true,
+    });
+    connection.close();
+  });
+
+  test("requires workspace context for workspace-scoped provider execution", async () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    const adapters: ProviderAdapterRegistry = {
+      ...providerAdapters,
+      openai: {
+        ...providerAdapters.openai,
+        parseAuthProfile: (secret) => ({ type: "api_key", apiKey: secret.trim() }),
+        checkHealth: async () => ({ checkedAt: new Date().toISOString(), rateLimitState: null }),
+        createResponse: async ({ prompt }) => ({ text: `accepted:${prompt}`, rawResponseJson: "{}", rateLimitState: null }),
+      },
+    };
+    const providers = new ProviderService(connection.db, adapters, testVault);
+    let orgId = "";
+    let openAiProviderId = "";
+    let workspaceId = "";
+
+    connection.transaction(() => {
+      orgId = createOrganization(organization);
+      openAiProviderId = providerId(connection, orgId, "openai");
+      workspaceId = "wsp_release";
+      const now = new Date().toISOString();
+      connection.db.prepare(`
+        insert into workspaces(id, org_id, name, local_path, repo_url, repo_ref, project_id, is_primary, created_at, updated_at)
+        values (?, ?, ?, ?, ?, ?, null, ?, ?, ?)
+      `).run(workspaceId, orgId, "Release", "C:/work/release", "https://example.com/release.git", "main", 1, now, now);
+      providers.saveCredential({ orgId, providerId: openAiProviderId, secret: "sk-live-provider", model: "gpt-5.4" });
+      providers.updatePolicy({
+        orgId,
+        providerId: openAiProviderId,
+        dataPolicy: PROVIDER_DATA_POLICY.STANDARD,
+        backgroundEnabled: false,
+        monthlyRequestLimit: 10,
+        workspaceScope: "workspace",
+      });
+    });
+
+    await expect(providers.createResponse({
+      orgId,
+      providerId: openAiProviderId,
+      prompt: "Draft workspace memo",
+      instructions: null,
+    })).rejects.toThrow("Provider workspace scope requires a workspace context.");
+    expect(connection.db.prepare("select count(*) as count from provider_requests").get()).toEqual({ count: 0 });
+
+    await providers.createResponse({
+      orgId,
+      providerId: openAiProviderId,
+      workspaceId,
+      prompt: "Draft workspace memo",
+      instructions: null,
+    });
+
+    expect(snapshot.load().providerRequests[0]).toMatchObject({
+      providerId: openAiProviderId,
+      workspaceId,
+      policyDecision: `allowed:standard:workspace:${workspaceId}`,
     });
     connection.close();
   });

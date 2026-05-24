@@ -50,6 +50,7 @@ describe("task execution service", () => {
     let orgId = "";
     let providerId = "";
     let taskId = "";
+    let workspaceId = "";
 
     connection.transaction(() => {
       orgId = organization.createOrganization({
@@ -60,6 +61,12 @@ describe("task execution service", () => {
       });
       providerId = openAiProviderId(connection, orgId);
       providers.saveCredential({ orgId, providerId, secret: "sk-live-provider", model: "gpt-5.4" });
+      workspaceId = "wsp_task_execution";
+      const now = new Date().toISOString();
+      connection.db.prepare(`
+        insert into workspaces(id, org_id, name, local_path, repo_url, repo_ref, project_id, is_primary, created_at, updated_at)
+        values (?, ?, ?, ?, ?, ?, null, ?, ?, ?)
+      `).run(workspaceId, orgId, "Task Workspace", "C:/work/task", "https://example.com/task.git", "main", 1, now, now);
       const agentId = organization.createAgent({
         orgId,
         name: "Ada",
@@ -79,7 +86,7 @@ describe("task execution service", () => {
         risk: RISK_LEVEL.MEDIUM,
         projectId: null,
         goalId: null,
-        workspaceId: null,
+        workspaceId,
         priority: TASK_PRIORITY.HIGH,
         requiresFilesystem: false,
       });
@@ -91,9 +98,10 @@ describe("task execution service", () => {
     const request = state.providerRequests.find((item) => item.id === run?.providerRequestId);
 
     expect(run).toMatchObject({ taskId, agentId: expect.any(String), providerId, state: "completed", errorMessage: null });
-    expect(request).toMatchObject({ providerId, state: "succeeded", responseText: "executed:gpt-5.4" });
+    expect(request).toMatchObject({ providerId, workspaceId, state: "succeeded", responseText: "executed:gpt-5.4" });
     expect(capturedPrompt).toContain("Task: Draft launch checklist");
     expect(capturedPrompt).toContain("Assignee: Ada (Execution lead)");
+    expect(capturedPrompt).toContain("Workspace: Task Workspace");
     expect(state.auditEvents.some((event) => event.entityType === "task_run" && event.action === "completed")).toBe(true);
     connection.close();
   });

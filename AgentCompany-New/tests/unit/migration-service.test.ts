@@ -149,7 +149,7 @@ describe("migration service", () => {
       create table chat_presence(principal_type text, principal_id text);
       create table chat_read_state(org_id text, employee_id text, space_id text, last_read_message_id text);
       create table providers(id text primary key, org_id text, credential_id text);
-      create table provider_requests(id text primary key, org_id text, provider_id text);
+      create table provider_requests(id text primary key, org_id text, provider_id text, workspace_id text);
       create table provider_usage_windows(id text primary key, org_id text, provider_id text);
       create table provider_rate_limit_observations(id text primary key, org_id text, provider_id text);
       create table credentials(id text primary key, org_id text);
@@ -225,7 +225,7 @@ describe("migration service", () => {
       insert into board_interventions(id, org_id, thread_id, message_id, approval_id) values ('bdi-1', 'org-1', 'thread-1', 'msg-1', 'approval-1');
       insert into chat_presence(principal_type, principal_id) values ('agent', 'agent-1');
       insert into chat_read_state(org_id, employee_id, space_id, last_read_message_id) values ('org-1', 'emp-1', 'space-1', 'msg-1');
-      insert into provider_requests(id, org_id, provider_id) values ('req-1', 'org-1', 'prov-1');
+      insert into provider_requests(id, org_id, provider_id, workspace_id) values ('req-1', 'org-1', 'prov-1', 'wsp-1');
       insert into provider_usage_windows(id, org_id, provider_id) values ('usage-1', 'org-1', 'prov-1');
       insert into provider_rate_limit_observations(id, org_id, provider_id) values ('quota-1', 'org-1', 'prov-1');
       insert into skill_definitions(id, org_id) values ('skill-1', 'org-1');

@@ -57,6 +57,7 @@ export class ProviderBackgroundService {
       orgId: input.orgId,
       provider: execution.provider,
       model: execution.provider.model,
+      workspaceId: execution.workspaceId,
       promptSha256: hashPrompt(execution.prompt),
       inputCharCount: execution.prompt.length,
       executionMode: PROVIDER_EXECUTION_MODE.BACKGROUND,
@@ -201,12 +202,14 @@ export class ProviderBackgroundService {
     const prompt = input.prompt.trim();
     if (!prompt) throw new Error("Prompt is required.");
     const provider = this.loadConfiguredProvider(input.orgId, input.providerId);
-    this.enforcePolicy(input.orgId, provider, input.executionMode ?? PROVIDER_EXECUTION_MODE.BACKGROUND);
+    const workspaceId = this.normalizeWorkspaceId(input.orgId, input.workspaceId ?? null);
+    this.enforcePolicy(input.orgId, provider, input.executionMode ?? PROVIDER_EXECUTION_MODE.BACKGROUND, workspaceId);
     if (provider.auth_type !== PROVIDER_AUTH_TYPE.API_KEY) {
       throw new Error("Provider background execution requires an API key adapter.");
     }
     if (!provider.model) throw new Error("Provider model is required.");
     return {
+      workspaceId,
       prompt,
       instructions: input.instructions?.trim() || null,
       provider: { ...provider, model: provider.model },
@@ -215,8 +218,12 @@ export class ProviderBackgroundService {
     };
   }
 
-  private enforcePolicy(orgId: string, provider: ProviderRow, executionMode: ProviderExecutionMode): void {
+  private enforcePolicy(orgId: string, provider: ProviderRow, executionMode: ProviderExecutionMode, workspaceId: string | null): void {
     if (executionMode !== PROVIDER_EXECUTION_MODE.BACKGROUND) throw new Error("Provider background execution mode is required.");
+    if (provider.workspace_scope !== "organization" && provider.workspace_scope !== "workspace") throw new Error("Provider workspace scope is invalid.");
+    if (provider.workspace_scope === "workspace" && !workspaceId) {
+      throw new Error("Provider workspace scope requires a workspace context.");
+    }
     if (provider.data_policy === PROVIDER_DATA_POLICY.ZERO_DATA_RETENTION) {
       throw new Error("Background execution conflicts with zero data retention policy.");
     }
@@ -232,6 +239,15 @@ export class ProviderBackgroundService {
     `).get(orgId, provider.id, window.start) as { request_count: number } | undefined;
     const requestCount = usage?.request_count ?? 0;
     if (requestCount >= provider.monthly_request_limit) throw new Error("Provider monthly request limit has been reached.");
+  }
+
+  private normalizeWorkspaceId(orgId: string, workspaceId: string | null): string | null {
+    const normalized = workspaceId?.trim() || null;
+    if (!normalized) return null;
+    const workspace = this.db.prepare("select id from workspaces where id = ? and org_id = ?")
+      .get(normalized, orgId) as { id: string } | undefined;
+    if (!workspace) throw new Error("Provider workspace context was not found.");
+    return normalized;
   }
 
   private loadConfiguredProvider(orgId: string, providerId: string): ProviderRow {
@@ -292,6 +308,7 @@ export class ProviderBackgroundService {
 }
 
 interface PreparedBackgroundExecution {
+  workspaceId: string | null;
   prompt: string;
   instructions: string | null;
   provider: ProviderRow & { model: string };

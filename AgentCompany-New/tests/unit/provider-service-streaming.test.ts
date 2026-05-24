@@ -142,11 +142,11 @@ describe("provider service streaming", () => {
       providers.saveCredential({ orgId, providerId: openAiProviderId, secret: "sk-live-provider", model: "gpt-5.4" });
       connection.db.prepare(`
         insert into provider_requests(
-          id, org_id, provider_id, provider_key, model, prompt_sha256,
+          id, org_id, provider_id, provider_key, workspace_id, model, prompt_sha256,
           response_text, raw_response_json, state, error_message, input_char_count,
           output_char_count, execution_mode, policy_decision, external_response_id,
           stream_event_count, cancelled_at, created_at, completed_at
-        ) values (?, ?, ?, 'openai', 'gpt-5.4', ?, 'partial', '[]', ?, null, 6, 7, ?, 'allowed:standard', ?, 2, null, ?, null)
+        ) values (?, ?, ?, 'openai', null, 'gpt-5.4', ?, 'partial', '[]', ?, null, 6, 7, ?, 'allowed:standard:organization', ?, 2, null, ?, null)
       `).run(
         requestId,
         orgId,

@@ -189,6 +189,7 @@ export interface UpdateProviderPolicyInput {
 export interface CreateProviderResponseInput {
   orgId: string;
   providerId: string;
+  workspaceId?: string | null;
   prompt: string;
   instructions: string | null;
   executionMode?: ProviderExecutionMode;

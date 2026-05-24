@@ -7,12 +7,14 @@ export interface ProviderRequestOwner {
   id: string;
   provider_key: string;
   data_policy: string;
+  workspace_scope: string;
 }
 
 export interface CreateProviderRequestInput {
   orgId: string;
   provider: ProviderRequestOwner;
   model: string;
+  workspaceId: string | null;
   promptSha256: string;
   inputCharCount: number;
   executionMode: ProviderExecutionMode;
@@ -99,23 +101,24 @@ export class ProviderRequestStore {
     const requestId = createId("preq");
     this.db.prepare(`
       insert into provider_requests(
-        id, org_id, provider_id, provider_key, model, prompt_sha256,
+        id, org_id, provider_id, provider_key, workspace_id, model, prompt_sha256,
         response_text, raw_response_json, state, error_message, input_char_count,
         output_char_count, execution_mode, policy_decision, external_response_id,
         stream_event_count, cancelled_at, created_at, completed_at
       )
-      values (?, ?, ?, ?, ?, ?, null, null, ?, null, ?, 0, ?, ?, null, 0, null, ?, null)
+      values (?, ?, ?, ?, ?, ?, ?, null, null, ?, null, ?, 0, ?, ?, null, 0, null, ?, null)
     `).run(
       requestId,
       input.orgId,
       input.provider.id,
       input.provider.provider_key,
+      input.workspaceId,
       input.model,
       input.promptSha256,
       PROVIDER_REQUEST_STATE.PENDING,
       input.inputCharCount,
       input.executionMode,
-      `allowed:${input.provider.data_policy}`,
+      policyDecision(input.provider, input.workspaceId),
       input.createdAt,
     );
     return requestId;
@@ -253,4 +256,9 @@ export class ProviderRequestStore {
         updated_at = excluded.updated_at
     `).run(createId("puw"), orgId, providerId, window.start, window.end, inputCharCount, outputCharCount, now, now);
   }
+}
+
+function policyDecision(provider: ProviderRequestOwner, workspaceId: string | null): string {
+  if (provider.workspace_scope === "workspace") return `allowed:${provider.data_policy}:workspace:${workspaceId}`;
+  return `allowed:${provider.data_policy}:organization`;
 }

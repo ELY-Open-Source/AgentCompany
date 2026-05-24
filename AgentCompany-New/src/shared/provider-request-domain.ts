@@ -15,6 +15,7 @@ export interface ProviderRequestRecord {
   orgId: string;
   providerId: string;
   providerKey: string;
+  workspaceId: string | null;
   model: string;
   promptSha256: string;
   responseText: string | null;

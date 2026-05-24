@@ -29,6 +29,7 @@ import { socialAuditRecordsSchema } from "./migrations/027-social-audit-records"
 import { migrationCutoverJournalSchema } from "./migrations/028-migration-cutover-journal";
 import { fileHandoffRecordsSchema } from "./migrations/029-file-handoff-records";
 import { approvalSourceRefsSchema } from "./migrations/030-approval-source-refs";
+import { providerRequestWorkspaceSchema } from "./migrations/031-provider-request-workspace";
 
 interface Migration {
   version: number;
@@ -67,6 +68,7 @@ const MIGRATIONS: Migration[] = [
   { version: 28, name: "migration_cutover_journal", sql: migrationCutoverJournalSchema },
   { version: 29, name: "file_handoff_records", sql: fileHandoffRecordsSchema },
   { version: 30, name: "approval_source_refs", sql: approvalSourceRefsSchema },
+  { version: 31, name: "provider_request_workspace", sql: providerRequestWorkspaceSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
