@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { PROVIDER_REQUEST_STATE, type ProviderExecutionMode } from "../../shared/domain";
+import { PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderExecutionMode } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
 
@@ -29,6 +29,21 @@ export interface ProviderRequestProgressInput {
   externalResponseId: string | null;
 }
 
+export interface ProviderBackgroundAcceptedInput {
+  orgId: string;
+  requestId: string;
+  rawResponseJson: string;
+  externalResponseId: string;
+}
+
+export interface ProviderBackgroundProgressInput {
+  orgId: string;
+  requestId: string;
+  rawResponseJson: string;
+  externalResponseId: string;
+  state: typeof PROVIDER_REQUEST_STATE.PENDING | typeof PROVIDER_REQUEST_STATE.STREAMING;
+}
+
 export interface ProviderRequestResultInput {
   orgId: string;
   requestId: string;
@@ -44,6 +59,7 @@ export interface ProviderRequestFailureInput {
   requestId: string;
   errorMessage: string;
   completedAt: string;
+  rawResponseJson?: string | null;
 }
 
 export interface ProviderRequestCancellationInput {
@@ -62,6 +78,18 @@ export interface ProviderCancellationRow {
   model: string;
   state: string;
   external_response_id: string | null;
+}
+
+export interface ProviderBackgroundRequestRow {
+  id: string;
+  org_id: string;
+  provider_id: string;
+  provider_key: string;
+  model: string;
+  state: string;
+  external_response_id: string;
+  input_char_count: number;
+  execution_mode: ProviderExecutionMode;
 }
 
 export class ProviderRequestStore {
@@ -111,6 +139,28 @@ export class ProviderRequestStore {
     );
   }
 
+  markBackgroundAccepted(input: ProviderBackgroundAcceptedInput): void {
+    this.db.prepare(`
+      update provider_requests
+      set state = ?, raw_response_json = ?, external_response_id = ?
+      where id = ? and org_id = ?
+    `).run(
+      PROVIDER_REQUEST_STATE.PENDING,
+      input.rawResponseJson,
+      input.externalResponseId,
+      input.requestId,
+      input.orgId,
+    );
+  }
+
+  markBackgroundProgress(input: ProviderBackgroundProgressInput): void {
+    this.db.prepare(`
+      update provider_requests
+      set state = ?, raw_response_json = ?, external_response_id = ?
+      where id = ? and org_id = ?
+    `).run(input.state, input.rawResponseJson, input.externalResponseId, input.requestId, input.orgId);
+  }
+
   markSucceeded(input: ProviderRequestResultInput): void {
     this.db.prepare(`
       update provider_requests
@@ -132,9 +182,9 @@ export class ProviderRequestStore {
   markFailed(input: ProviderRequestFailureInput): void {
     this.db.prepare(`
       update provider_requests
-      set state = ?, error_message = ?, completed_at = ?
+      set state = ?, error_message = ?, raw_response_json = coalesce(?, raw_response_json), completed_at = ?
       where id = ? and org_id = ?
-    `).run(PROVIDER_REQUEST_STATE.FAILED, input.errorMessage, input.completedAt, input.requestId, input.orgId);
+    `).run(PROVIDER_REQUEST_STATE.FAILED, input.errorMessage, input.rawResponseJson ?? null, input.completedAt, input.requestId, input.orgId);
   }
 
   markCancelled(input: ProviderRequestCancellationInput): void {
@@ -160,6 +210,31 @@ export class ProviderRequestStore {
       where id = ? and org_id = ?
     `).get(requestId, orgId) as ProviderCancellationRow | undefined;
     if (!request) throw new Error("Provider request was not found.");
+    return request;
+  }
+
+  listRecoverableBackgroundRequests(orgId?: string): ProviderBackgroundRequestRow[] {
+    const sql = `
+      select id, org_id, provider_id, provider_key, model, state, external_response_id, input_char_count, execution_mode
+      from provider_requests
+      where execution_mode = ?
+        and state in (?, ?)
+        and external_response_id is not null
+        ${orgId ? "and org_id = ?" : ""}
+      order by created_at asc
+    `;
+    return orgId
+      ? this.db.prepare(sql).all(PROVIDER_EXECUTION_MODE.BACKGROUND, PROVIDER_REQUEST_STATE.PENDING, PROVIDER_REQUEST_STATE.STREAMING, orgId) as unknown as ProviderBackgroundRequestRow[]
+      : this.db.prepare(sql).all(PROVIDER_EXECUTION_MODE.BACKGROUND, PROVIDER_REQUEST_STATE.PENDING, PROVIDER_REQUEST_STATE.STREAMING) as unknown as ProviderBackgroundRequestRow[];
+  }
+
+  loadBackgroundRequest(orgId: string, requestId: string): ProviderBackgroundRequestRow {
+    const request = this.db.prepare(`
+      select id, org_id, provider_id, provider_key, model, state, external_response_id, input_char_count, execution_mode
+      from provider_requests
+      where id = ? and org_id = ? and execution_mode = ? and external_response_id is not null
+    `).get(requestId, orgId, PROVIDER_EXECUTION_MODE.BACKGROUND) as ProviderBackgroundRequestRow | undefined;
+    if (!request) throw new Error("Provider background request was not found.");
     return request;
   }
 

@@ -89,6 +89,8 @@ describe("provider contracts", () => {
       await expect(adapter.getRateLimitState({ authProfile, model: provider.defaultModel })).resolves.toBeNull();
       expect(typeof adapter.streamResponse).toBe("function");
       expect(typeof adapter.cancelResponse).toBe("function");
+      expect(typeof adapter.createBackgroundResponse).toBe("function");
+      expect(typeof adapter.retrieveResponse).toBe("function");
     }
   });
 

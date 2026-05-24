@@ -1,5 +1,4 @@
 import type { DatabaseSync } from "node:sqlite";
-import { createHash } from "node:crypto";
 import type { CancelProviderResponseInput, CreateProviderResponseInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, StreamProviderResponseInput, UpdateProviderPolicyInput } from "../../shared/commands";
 import { FEATURE_FLAG_KEY, PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderAuthType, type ProviderExecutionMode } from "../../shared/domain";
 import type { ProviderStreamRendererEvent } from "../../shared/provider-request-domain";
@@ -10,9 +9,10 @@ import { AuthBrokerService, type ProviderSecretVault } from "./auth-broker-servi
 import { OperationsService } from "./operations-service";
 import { SecretVault } from "./secret-vault";
 import { providerAdapters, providerRateLimitStateFromError, type ProviderAdapterRegistry } from "./provider-adapters";
+import { ProviderBackgroundService } from "./provider-background-service";
 import { ProviderRateLimitRegistry } from "./provider-rate-limit-registry";
 import { ProviderResponseObserver } from "./provider-response-observer";
-import { readProviderResponseId, requireStreamText } from "./provider-response-utils";
+import { hashPrompt, readProviderResponseId, requireStreamText } from "./provider-response-utils";
 import { ProviderRequestStore } from "./provider-request-store";
 import { launchProviderSignInWindow } from "./provider-sign-in-window";
 import type { ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
@@ -31,6 +31,7 @@ export class ProviderService {
   private readonly rateLimitRegistry: ProviderRateLimitRegistry;
   private readonly responseObserver: ProviderResponseObserver;
   private readonly requestStore: ProviderRequestStore;
+  private readonly background: ProviderBackgroundService;
 
   constructor(
     private readonly db: DatabaseSync,
@@ -43,6 +44,7 @@ export class ProviderService {
     this.rateLimitRegistry = new ProviderRateLimitRegistry(db);
     this.requestStore = new ProviderRequestStore(db);
     this.responseObserver = new ProviderResponseObserver(db, this.audit, this.operations, this.requestStore, this.rateLimitRegistry);
+    this.background = new ProviderBackgroundService(db, adapters, vault);
   }
 
   saveCredential(input: SaveProviderCredentialInput): void {
@@ -192,6 +194,7 @@ export class ProviderService {
   }
 
   async createResponse(input: CreateProviderResponseInput): Promise<string> {
+    if (input.executionMode === PROVIDER_EXECUTION_MODE.BACKGROUND) return this.background.create(input);
     const execution = this.prepareExecution(input);
     if (!execution.adapter.createResponse) throw new Error(`Provider response execution is unavailable for ${execution.provider.provider_key}.`);
     const requestId = this.createRequestRecord(execution);
@@ -488,8 +491,4 @@ interface ProviderRow {
   background_enabled: number;
   monthly_request_limit: number;
   workspace_scope: string;
-}
-
-function hashPrompt(prompt: string): string {
-  return createHash("sha256").update(prompt).digest("hex");
 }

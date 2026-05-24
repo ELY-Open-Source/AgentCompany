@@ -2,6 +2,27 @@ import { PROVIDER_AUTH_TYPE, type ProviderAuthType } from "../../shared/domain";
 import { listProviderModels, type ProviderModelEntry } from "../../shared/provider-models";
 import type { ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
 import {
+  parseAccessToken,
+  parseAccountToken,
+  parseApiKey,
+  parseAzureProfile,
+  parseBedrockProfile,
+  parseVertexProfile,
+  requireAccessTokenProfile,
+  requireAccountTokenProfile,
+  requireApiKeyProfile,
+  requireAzureProfile,
+  requireBedrockProfile,
+  requireVertexProfile,
+  type ProviderAuthProfile,
+} from "./provider-auth-profiles";
+import {
+  backgroundUnsupported,
+  retrieveUnsupported,
+  type ProviderBackgroundCreateResult,
+  type ProviderBackgroundRetrieveResult,
+} from "./provider-background";
+import {
   authorizeWithParser,
   refreshUnsupported,
   revokeLocalProfile,
@@ -21,6 +42,7 @@ import {
 } from "./provider-streaming";
 
 export { ProviderHttpError, providerRateLimitStateFromError } from "./provider-http";
+export type { ProviderAuthProfile } from "./provider-auth-profiles";
 
 export interface ProviderExecutionInput {
   authProfile: ProviderAuthProfile;
@@ -36,8 +58,14 @@ export interface ProviderExecutionResult {
 }
 
 export type ProviderStreamInput = ProviderExecutionInput;
+export type ProviderBackgroundCreateInput = ProviderExecutionInput;
 
 export interface ProviderCancelInput {
+  authProfile: ProviderAuthProfile;
+  responseId: string;
+}
+
+export interface ProviderBackgroundRetrieveInput {
   authProfile: ProviderAuthProfile;
   responseId: string;
 }
@@ -77,18 +105,12 @@ export interface ProviderAdapter {
   checkHealth(input: ProviderHealthInput): Promise<ProviderHealthResult>;
   streamResponse(input: ProviderStreamInput): Promise<ProviderStreamResult>;
   cancelResponse(input: ProviderCancelInput): Promise<ProviderCancelResult>;
+  createBackgroundResponse(input: ProviderBackgroundCreateInput): Promise<ProviderBackgroundCreateResult>;
+  retrieveResponse(input: ProviderBackgroundRetrieveInput): Promise<ProviderBackgroundRetrieveResult>;
   createResponse?: (input: ProviderExecutionInput) => Promise<ProviderExecutionResult>;
 }
 
 export type ProviderAdapterRegistry = Record<string, ProviderAdapter>;
-
-export type ProviderAuthProfile =
-  | { type: "api_key"; apiKey: string }
-  | { type: "access_token"; accessToken: string }
-  | { type: "account_token"; accessToken: string }
-  | { type: "azure_openai"; baseUrl: string; deployment: string; apiKey: string }
-  | { type: "aws_bedrock"; region: string; accessKeyId: string; secretAccessKey: string; sessionToken: string | null }
-  | { type: "vertex_ai"; projectId: string; region: string; serviceAccountJson: string };
 
 export const providerAdapters: ProviderAdapterRegistry = {
   openai: {
@@ -120,6 +142,40 @@ export const providerAdapters: ProviderAdapterRegistry = {
         authorization: `Bearer ${profile.apiKey}`,
       }, {});
       return { responseId, rawResponseJson: JSON.stringify(response.data), rateLimitState: response.rateLimitState };
+    },
+    async createBackgroundResponse(input) {
+      const profile = requireApiKeyProfile(input.authProfile, "OpenAI");
+      const response = await postJson("https://api.openai.com/v1/responses", {
+        authorization: `Bearer ${profile.apiKey}`,
+      }, {
+        model: input.model,
+        input: input.prompt,
+        background: true,
+        store: true,
+        ...(input.instructions ? { instructions: input.instructions } : {}),
+      });
+      const data = response.data;
+      return {
+        responseId: requireStringField(data, "id", "OpenAI response id"),
+        status: requireStringField(data, "status", "OpenAI response status"),
+        rawResponseJson: JSON.stringify(data),
+        rateLimitState: response.rateLimitState,
+      };
+    },
+    async retrieveResponse(input) {
+      const profile = requireApiKeyProfile(input.authProfile, "OpenAI");
+      const responseId = requireResponseId(input.responseId);
+      const response = await getJson(`https://api.openai.com/v1/responses/${encodeURIComponent(responseId)}`, {
+        authorization: `Bearer ${profile.apiKey}`,
+      });
+      const data = response.data;
+      return {
+        responseId: requireStringField(data, "id", "OpenAI response id"),
+        status: requireStringField(data, "status", "OpenAI response status"),
+        text: optionalText(collectText(data.output_text ?? data.output)),
+        rawResponseJson: JSON.stringify(data),
+        rateLimitState: response.rateLimitState,
+      };
     },
     async createResponse(input) {
       const profile = requireApiKeyProfile(input.authProfile, "OpenAI");
@@ -167,6 +223,8 @@ export const providerAdapters: ProviderAdapterRegistry = {
       return { events: mapAnthropicMessageStream(response.messages), rateLimitState: response.rateLimitState };
     },
     cancelResponse: cancelUnsupported("Anthropic"),
+    createBackgroundResponse: backgroundUnsupported("Anthropic"),
+    retrieveResponse: retrieveUnsupported("Anthropic"),
     async createResponse(input) {
       const profile = requireApiKeyProfile(input.authProfile, "Anthropic");
       const response = await postJson("https://api.anthropic.com/v1/messages", {
@@ -209,6 +267,8 @@ export const providerAdapters: ProviderAdapterRegistry = {
     getRateLimitState: providerRateLimitUnknown,
     streamResponse: streamUnsupported("Azure OpenAI"),
     cancelResponse: cancelUnsupported("Azure OpenAI"),
+    createBackgroundResponse: backgroundUnsupported("Azure OpenAI"),
+    retrieveResponse: retrieveUnsupported("Azure OpenAI"),
     async checkHealth(input) {
       const profile = requireAzureProfile(input.authProfile);
       const response = await getJson(`${profile.baseUrl}/openai/deployments?api-version=2024-10-21`, { "api-key": profile.apiKey });
@@ -226,6 +286,8 @@ export const providerAdapters: ProviderAdapterRegistry = {
     getRateLimitState: providerRateLimitUnknown,
     streamResponse: streamUnsupported("AWS Bedrock"),
     cancelResponse: cancelUnsupported("AWS Bedrock"),
+    createBackgroundResponse: backgroundUnsupported("AWS Bedrock"),
+    retrieveResponse: retrieveUnsupported("AWS Bedrock"),
     checkHealth: async (input) => {
       requireBedrockProfile(input.authProfile);
       return healthy(null);
@@ -242,6 +304,8 @@ export const providerAdapters: ProviderAdapterRegistry = {
     getRateLimitState: providerRateLimitUnknown,
     streamResponse: streamUnsupported("Vertex AI"),
     cancelResponse: cancelUnsupported("Vertex AI"),
+    createBackgroundResponse: backgroundUnsupported("Vertex AI"),
+    retrieveResponse: retrieveUnsupported("Vertex AI"),
     checkHealth: async (input) => {
       requireVertexProfile(input.authProfile);
       return healthy(null);
@@ -265,6 +329,17 @@ function requireText(parts: string[], providerKey: string): string {
   const text = parts.map((part) => part.trim()).filter(Boolean).join("\n");
   if (!text) throw new Error(`${providerKey} returned no text content.`);
   return text;
+}
+
+function optionalText(parts: string[]): string | null {
+  const text = parts.map((part) => part.trim()).filter(Boolean).join("\n");
+  return text || null;
+}
+
+function requireStringField(record: JsonRecord, key: string, label: string): string {
+  const value = record[key];
+  if (typeof value !== "string" || !value.trim()) throw new Error(`${label} is required.`);
+  return value.trim();
 }
 
 function openAiCompatibleAdapter({
@@ -301,6 +376,8 @@ function openAiCompatibleAdapter({
       return { events: mapOpenAiChatCompletionStream(response.messages), rateLimitState: response.rateLimitState };
     },
     cancelResponse: cancelUnsupported(label),
+    createBackgroundResponse: backgroundUnsupported(label),
+    retrieveResponse: retrieveUnsupported(label),
     async createResponse(input) {
       const profile = requireApiKeyProfile(input.authProfile, label);
       const messages = responseMessages(input.instructions, input.prompt);
@@ -344,124 +421,14 @@ function browserTokenAdapter(providerKey: string, authType: ProviderAuthType): P
     getRateLimitState: providerRateLimitUnknown,
     streamResponse: streamUnsupported(providerKey),
     cancelResponse: cancelUnsupported(providerKey),
+    createBackgroundResponse: backgroundUnsupported(providerKey),
+    retrieveResponse: retrieveUnsupported(providerKey),
     checkHealth: async (input) => {
       if (authType === PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION) requireAccountTokenProfile(input.authProfile);
       else requireAccessTokenProfile(input.authProfile);
       return healthy(null);
     },
   };
-}
-
-function parseApiKey(secret: string): ProviderAuthProfile {
-  return { type: "api_key", apiKey: nonEmptySecret(secret, "API key") };
-}
-
-function parseAccessToken(secret: string): ProviderAuthProfile {
-  return { type: "access_token", accessToken: nonEmptySecret(secret, "Access token") };
-}
-
-function parseAccountToken(secret: string): ProviderAuthProfile {
-  return { type: "account_token", accessToken: nonEmptySecret(secret, "Account token") };
-}
-
-function parseAzureProfile(secret: string): ProviderAuthProfile {
-  const parsed = parseCloudSecret(secret);
-  const baseUrl = requiredString(parsed.baseUrl, "Azure base URL").replace(/\/+$/, "");
-  const deployment = requiredString(parsed.deployment, "Azure deployment");
-  return { type: "azure_openai", baseUrl: normalizedHttpsUrl(baseUrl, "Azure base URL"), deployment, apiKey: requiredString(parsed.secret, "Azure API key") };
-}
-
-function parseBedrockProfile(secret: string): ProviderAuthProfile {
-  const parsed = parseCloudSecret(secret);
-  const credential = parseCredentialJson(requiredString(parsed.secret, "AWS credential"));
-  return {
-    type: "aws_bedrock",
-    region: requiredString(parsed.region, "AWS region"),
-    accessKeyId: requiredString(credential.accessKeyId, "AWS access key id"),
-    secretAccessKey: requiredString(credential.secretAccessKey, "AWS secret access key"),
-    sessionToken: typeof credential.sessionToken === "string" && credential.sessionToken.trim() ? credential.sessionToken.trim() : null,
-  };
-}
-
-function parseVertexProfile(secret: string): ProviderAuthProfile {
-  const parsed = parseCloudSecret(secret);
-  const serviceAccountJson = requiredString(parsed.secret, "Vertex service account JSON");
-  parseCredentialJson(serviceAccountJson);
-  return {
-    type: "vertex_ai",
-    projectId: requiredString(parsed.projectId, "Vertex project id"),
-    region: requiredString(parsed.region, "Vertex region"),
-    serviceAccountJson,
-  };
-}
-
-function parseCloudSecret(secret: string): JsonRecord {
-  try {
-    const parsed = JSON.parse(secret) as unknown;
-    if (!isRecord(parsed)) throw new Error("Cloud credential profile is invalid.");
-    return parsed;
-  } catch (error) {
-    if (error instanceof SyntaxError) throw new Error("Cloud credential profile must be JSON.");
-    throw error;
-  }
-}
-
-function parseCredentialJson(value: string): JsonRecord {
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (!isRecord(parsed)) throw new Error("Credential JSON is invalid.");
-    return parsed;
-  } catch (error) {
-    if (error instanceof SyntaxError) throw new Error("Credential must be JSON.");
-    throw error;
-  }
-}
-
-function requiredString(value: unknown, label: string): string {
-  if (typeof value !== "string" || !value.trim()) throw new Error(`${label} is required.`);
-  return value.trim();
-}
-
-function nonEmptySecret(secret: string, label: string): string {
-  const value = secret.trim();
-  if (!value) throw new Error(`${label} is required.`);
-  return value;
-}
-
-function normalizedHttpsUrl(value: string, label: string): string {
-  const url = new URL(value);
-  if (url.protocol !== "https:") throw new Error(`${label} must use HTTPS.`);
-  return url.toString().replace(/\/+$/, "");
-}
-
-function requireApiKeyProfile(profile: ProviderAuthProfile, label: string): Extract<ProviderAuthProfile, { type: "api_key" }> {
-  if (profile.type !== "api_key") throw new Error(`${label} API key profile is required.`);
-  return profile;
-}
-
-function requireAccessTokenProfile(profile: ProviderAuthProfile): Extract<ProviderAuthProfile, { type: "access_token" }> {
-  if (profile.type !== "access_token") throw new Error("Access token profile is required.");
-  return profile;
-}
-
-function requireAccountTokenProfile(profile: ProviderAuthProfile): Extract<ProviderAuthProfile, { type: "account_token" }> {
-  if (profile.type !== "account_token") throw new Error("Account token profile is required.");
-  return profile;
-}
-
-function requireAzureProfile(profile: ProviderAuthProfile): Extract<ProviderAuthProfile, { type: "azure_openai" }> {
-  if (profile.type !== "azure_openai") throw new Error("Azure OpenAI profile is required.");
-  return profile;
-}
-
-function requireBedrockProfile(profile: ProviderAuthProfile): Extract<ProviderAuthProfile, { type: "aws_bedrock" }> {
-  if (profile.type !== "aws_bedrock") throw new Error("AWS Bedrock profile is required.");
-  return profile;
-}
-
-function requireVertexProfile(profile: ProviderAuthProfile): Extract<ProviderAuthProfile, { type: "vertex_ai" }> {
-  if (profile.type !== "vertex_ai") throw new Error("Vertex AI profile is required.");
-  return profile;
 }
 
 function requireResponseId(value: string): string {

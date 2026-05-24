@@ -22,7 +22,7 @@ export interface ProviderResponseSuccessInput {
   requestId: string;
   executionMode: ProviderExecutionMode;
   startedAt: number;
-  action: "response_created" | "response_streamed";
+  action: "response_created" | "response_streamed" | "background_response_completed";
 }
 
 export interface ProviderResponseFailureInput {
@@ -33,6 +33,7 @@ export interface ProviderResponseFailureInput {
   startedAt: number;
   inputCharCount: number;
   error: unknown;
+  rawResponseJson?: string | null;
 }
 
 export class ProviderResponseObserver {
@@ -73,6 +74,7 @@ export class ProviderResponseObserver {
       requestId: input.requestId,
       errorMessage: message,
       completedAt: new Date().toISOString(),
+      rawResponseJson: input.rawResponseJson,
     });
     this.requestStore.recordUsage(input.orgId, input.provider.id, input.inputCharCount, 0);
     this.recordProviderHealth(input.provider.id, input.orgId, HEALTH_STATE_FAILED, message);
