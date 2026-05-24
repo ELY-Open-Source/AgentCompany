@@ -14,6 +14,8 @@ export const IPC_CHANNELS = {
   grantRole: "agentcompany:grant-role",
   createChatSpace: "agentcompany:create-chat-space",
   sendMessage: "agentcompany:send-message",
+  editMessage: "agentcompany:edit-message",
+  deleteMessage: "agentcompany:delete-message",
   markChatSpaceRead: "agentcompany:mark-chat-space-read",
   saveProviderCredential: "agentcompany:save-provider-credential",
   revokeProviderCredential: "agentcompany:revoke-provider-credential",

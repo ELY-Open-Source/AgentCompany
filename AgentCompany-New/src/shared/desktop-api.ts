@@ -22,7 +22,9 @@ import type {
   CreateSocialAccountInput,
   CreateTaskInput,
   DecideApprovalInput,
+  DeleteMessageInput,
   DeleteOrganizationInput,
+  EditMessageInput,
   ImportFileInput,
   ImportSkillDirectoryInput,
   GrantRoleInput,
@@ -72,6 +74,8 @@ export interface DesktopApi {
   grantRole(input: GrantRoleInput): Promise<DesktopResult<AppSnapshot>>;
   createChatSpace(input: CreateChatSpaceInput): Promise<DesktopResult<AppSnapshot>>;
   sendMessage(input: SendMessageInput): Promise<DesktopResult<AppSnapshot>>;
+  editMessage(input: EditMessageInput): Promise<DesktopResult<AppSnapshot>>;
+  deleteMessage(input: DeleteMessageInput): Promise<DesktopResult<AppSnapshot>>;
   markChatSpaceRead(input: MarkChatSpaceReadInput): Promise<DesktopResult<AppSnapshot>>;
   saveProviderCredential(input: SaveProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;
   revokeProviderCredential(input: RevokeProviderCredentialInput): Promise<DesktopResult<AppSnapshot>>;

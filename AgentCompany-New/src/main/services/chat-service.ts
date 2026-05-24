@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { CreateChatSpaceInput, MarkChatSpaceReadInput, SendMessageInput } from "../../shared/commands";
+import type { CreateChatSpaceInput, DeleteMessageInput, EditMessageInput, MarkChatSpaceReadInput, SendMessageInput } from "../../shared/commands";
 import {
   CHAT_THREAD_BOARD_STATE,
   FILE_SCAN_STATE,
@@ -11,6 +11,7 @@ import { ApprovalService } from "./approval-service";
 import { AuditService } from "./audit-service";
 import { BoardInterventionService, parseBoardCommand } from "./board-intervention-service";
 import { buildChatMessageStructure } from "./chat-message-structure";
+import { ChatMessageMutationService } from "./chat-message-mutation-service";
 import { recordChatMentions, resolveChatMentions, type ResolvedMention } from "./chat-mentions";
 import { FileHandoffService, type FileHandoffAttachment } from "./file-handoff-service";
 
@@ -52,12 +53,14 @@ export class ChatService {
   private readonly approvals: ApprovalService;
   private readonly boardInterventions: BoardInterventionService;
   private readonly handoffs: FileHandoffService;
+  private readonly messageMutations: ChatMessageMutationService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
     this.approvals = new ApprovalService(db);
     this.boardInterventions = new BoardInterventionService(db);
     this.handoffs = new FileHandoffService(db);
+    this.messageMutations = new ChatMessageMutationService(db);
   }
 
   createSpace(input: CreateChatSpaceInput): string {
@@ -195,6 +198,14 @@ export class ChatService {
       on conflict(employee_id, space_id)
       do update set last_read_message_id = excluded.last_read_message_id, last_read_at = excluded.last_read_at
     `).run(input.orgId, input.employeeId, input.spaceId, latest?.id ?? null, now);
+  }
+
+  editMessage(input: EditMessageInput): void {
+    this.messageMutations.editMessage(input);
+  }
+
+  deleteMessage(input: DeleteMessageInput): void {
+    this.messageMutations.deleteMessage(input);
   }
 
   private executeSlashCommand(

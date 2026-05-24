@@ -104,6 +104,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.grantRole, (_event, input) => mutate(() => identityAccess.grantRole(input)));
   ipcMain.handle(IPC_CHANNELS.createChatSpace, (_event, input) => mutate(() => chat.createSpace(input)));
   ipcMain.handle(IPC_CHANNELS.sendMessage, (_event, input) => mutate(() => chat.sendMessage(input)));
+  ipcMain.handle(IPC_CHANNELS.editMessage, (_event, input) => mutate(() => chat.editMessage(input)));
+  ipcMain.handle(IPC_CHANNELS.deleteMessage, (_event, input) => mutate(() => chat.deleteMessage(input)));
   ipcMain.handle(IPC_CHANNELS.markChatSpaceRead, (_event, input) => mutate(() => chat.markSpaceRead(input)));
   ipcMain.handle(IPC_CHANNELS.saveProviderCredential, (_event, input) => mutate(() => providers.saveCredential(input)));
   ipcMain.handle(IPC_CHANNELS.revokeProviderCredential, (_event, input) => mutate(() => providers.revokeCredential(input)));

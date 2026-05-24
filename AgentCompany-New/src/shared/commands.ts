@@ -123,6 +123,21 @@ export interface SendMessageInput {
   attachmentFileIds?: string[];
 }
 
+export interface EditMessageInput {
+  orgId: string;
+  messageId: string;
+  actorType: SendMessageInput["senderType"];
+  actorId: string | null;
+  bodyMd: string;
+}
+
+export interface DeleteMessageInput {
+  orgId: string;
+  messageId: string;
+  actorType: SendMessageInput["senderType"];
+  actorId: string | null;
+}
+
 export interface CreateChatSpaceInput {
   orgId: string;
   spaceType: "company" | "department" | "project" | "direct";

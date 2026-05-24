@@ -78,6 +78,68 @@ describe("chat governance", () => {
     connection.close();
   });
 
+  test("audits chat message edits and deletes", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const chat = new ChatService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    let orgId = "";
+    let employeeId = "";
+    let agentId = "";
+    let spaceId = "";
+    let messageId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      agentId = organization.createAgent({
+        orgId,
+        name: "Ada Lovelace",
+        role: "Reviewer",
+        department: "Engineering",
+        modelProviderId: null,
+        modelId: null,
+        budgetCents: 10000,
+        managerAgentId: null,
+      });
+      spaceId = chat.createSpace({ orgId, spaceType: "project", name: "release", topic: "Release coordination", visibility: "workspace" });
+      messageId = chat.sendMessage({
+        orgId,
+        spaceId,
+        threadId: null,
+        senderType: "employee",
+        senderId: employeeId,
+        bodyMd: "Initial launch note @Ada-Lovelace",
+        attachmentFileIds: [],
+      });
+      chat.editMessage({
+        orgId,
+        messageId,
+        actorType: "employee",
+        actorId: employeeId,
+        bodyMd: `Updated launch note @${agentId}`,
+      });
+      chat.deleteMessage({ orgId, messageId, actorType: "employee", actorId: employeeId });
+    });
+
+    const state = snapshot.load();
+    const message = state.chatMessages.find((item) => item.id === messageId);
+    expect(message).toMatchObject({ bodyMd: `Updated launch note @${agentId}` });
+    expect(message?.editedAt).toBeTruthy();
+    expect(message?.deletedAt).toBeTruthy();
+    expect(state.chatMentions).toEqual([expect.objectContaining({ messageId, targetType: "agent", targetId: agentId })]);
+    expect(state.auditEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({ entityType: "chat_message", entityId: messageId, action: "edited" }),
+      expect.objectContaining({ entityType: "chat_message", entityId: messageId, action: "deleted" }),
+    ]));
+    connection.close();
+  });
+
   test("records board interventions and enforces thread control", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
