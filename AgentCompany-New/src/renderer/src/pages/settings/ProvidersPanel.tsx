@@ -32,6 +32,8 @@ interface CloudFields {
 }
 
 const CLOUD_DEFAULTS: CloudFields = { baseUrl: "", region: "", projectId: "", deployment: "" };
+const POLICY_GRID = "minmax(150px, 1.2fr) minmax(118px, 0.8fr) minmax(140px, 1fr) 112px 124px 92px";
+type WorkspaceScope = "organization" | "workspace";
 
 export function ProvidersPanel({ orgId, employeeId, providers, catalog, agents, providerRateLimits, providerRequests, actions }: ProvidersPanelProps) {
   const [active, setActive] = useState<ProviderRecord | null>(null);
@@ -145,12 +147,12 @@ function ProviderPolicyTable({
   return (
     <>
       <div className="section-label" style={{ marginBottom: 10 }}>Runtime policy</div>
-      <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 28 }}>
+      <div className="card" style={{ padding: 0, overflowX: "auto", marginBottom: 28 }}>
         <div
           className="table-row head"
-          style={{ gridTemplateColumns: "minmax(0, 1.4fr) minmax(140px, 1fr) 120px 132px 96px" }}
+          style={{ gridTemplateColumns: POLICY_GRID, minWidth: 780 }}
         >
-          <div>Provider</div><div>Data policy</div><div>Background</div><div>Monthly limit</div><div>Usage</div>
+          <div>Provider</div><div>Scope</div><div>Data policy</div><div>Background</div><div>Monthly limit</div><div>Usage</div>
         </div>
         {providers.map((provider, index) => {
           const rateLimit = requireProviderRateLimit(provider, providerRateLimits);
@@ -186,6 +188,7 @@ function ProviderPolicyRow({
   const [dataPolicy, setDataPolicy] = useState(provider.dataPolicy);
   const [backgroundEnabled, setBackgroundEnabled] = useState(provider.backgroundEnabled);
   const [monthlyRequestLimit, setMonthlyRequestLimit] = useState(String(provider.monthlyRequestLimit));
+  const [workspaceScope, setWorkspaceScope] = useState<WorkspaceScope>(provider.workspaceScope === "workspace" ? "workspace" : "organization");
 
   const savePolicy = () => {
     void actions.run(() => window.agentCompany.updateProviderPolicy({
@@ -194,7 +197,7 @@ function ProviderPolicyRow({
       dataPolicy,
       backgroundEnabled,
       monthlyRequestLimit: Number(monthlyRequestLimit),
-      workspaceScope: provider.workspaceScope === "workspace" ? "workspace" : "organization",
+      workspaceScope,
     }));
   };
 
@@ -207,14 +210,23 @@ function ProviderPolicyRow({
     <div
       className="table-row"
       style={{
-        gridTemplateColumns: "minmax(0, 1.4fr) minmax(140px, 1fr) 120px 132px 96px",
+        gridTemplateColumns: POLICY_GRID,
+        minWidth: 780,
         borderBottom: last ? "none" : "1px solid var(--border-soft)",
       }}
     >
       <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
-        <div className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>{provider.workspaceScope} scope</div>
       </div>
+      <select
+        className="input"
+        aria-label={`${provider.label} workspace scope`}
+        value={workspaceScope}
+        onChange={(event) => setWorkspaceScope(event.target.value === "workspace" ? "workspace" : "organization")}
+      >
+        <option value="organization">Organization</option>
+        <option value="workspace">Workspace</option>
+      </select>
       <select
         className="input"
         aria-label={`${provider.label} data policy`}
