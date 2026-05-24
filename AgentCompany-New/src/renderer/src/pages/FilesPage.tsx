@@ -305,7 +305,12 @@ function FileRow({
     >
       <div className="row" style={{ gap: 10, minWidth: 0 }}>
         <FileIcon kind={file.kind} />
-        <span style={{ fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
+        <div style={{ display: "grid", gap: 3, minWidth: 0 }}>
+          <span style={{ fontWeight: 480, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
+          <span className="mono" style={{ color: "var(--text-3)", fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            sha:{shortChecksum(file.sha256)} · obj:{shortObjectRef(file.storagePath)}
+          </span>
+        </div>
         {file.pinned && <Pill tone="violet" dot>Pinned</Pill>}
       </div>
       <div className="num mono" style={{ color: "var(--text-3)", fontSize: 12 }}>{formatBytes(file.sizeBytes)}</div>
@@ -340,7 +345,7 @@ function PinnedCard({
     <div
       style={{
         border: "1px solid var(--border)",
-        borderRadius: 10,
+        borderRadius: 8,
         background: "var(--panel)",
         padding: 14,
         display: "flex",
@@ -363,16 +368,32 @@ function PinnedCard({
       <div style={{ fontSize: 13, fontWeight: 540, letterSpacing: "-0.005em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {file.name}
       </div>
+      <div className="mono" style={{ color: "var(--text-3)", fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        sha:{shortChecksum(file.sha256)} · obj:{shortObjectRef(file.storagePath)}
+      </div>
       <div className="row" style={{ gap: 6 }}>
         <Pill tone={file.scanState === "approved" ? "green" : "red"}>{file.scanState === "approved" ? "Clean" : "Blocked"}</Pill>
         <span className="mono" style={{ color: "var(--text-3)", fontSize: 11 }}>{grantCount}</span>
       </div>
+      <ScanLabelStrip file={file} />
       <div className="row" style={{ gap: 8, marginTop: "auto", minWidth: 0 }}>
         <Avatar name={ownerName} size="sm" bot={isAgentOwner(file)} />
         <span style={{ fontSize: 11, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {formatRelative(file.updatedAt ?? file.createdAt)} · {ownerName.split(" ")[0]}
         </span>
       </div>
+    </div>
+  );
+}
+
+function ScanLabelStrip({ file }: { file: FileObjectRecord }) {
+  const labels = parseScanLabels(file).slice(0, 2);
+  if (labels.length === 0) return null;
+  return (
+    <div className="row" style={{ gap: 5, minWidth: 0, flexWrap: "wrap" }}>
+      {labels.map((label) => (
+        <Pill key={label}>{label}</Pill>
+      ))}
     </div>
   );
 }
@@ -441,6 +462,25 @@ function filterFiles(files: FileObjectRecord[], section: Section, agents: AgentR
 
 function fileGrantCount(fileId: string, grants: FileAccessGrantRecord[]): number {
   return grants.filter((grant) => grant.fileId === fileId).length;
+}
+
+function parseScanLabels(file: FileObjectRecord): string[] {
+  const parsed: unknown = JSON.parse(file.scanLabelsJson);
+  if (!Array.isArray(parsed) || parsed.some((label) => typeof label !== "string")) {
+    throw new Error("File scan labels are invalid.");
+  }
+  return parsed;
+}
+
+function shortChecksum(value: string): string {
+  if (!/^[a-f0-9]{8,}$/i.test(value)) throw new Error("File checksum is invalid.");
+  return value.slice(0, 8);
+}
+
+function shortObjectRef(value: string): string {
+  const parts = value.split(/[\\/]/).filter(Boolean);
+  if (parts.length === 0) throw new Error("File object reference is invalid.");
+  return parts.slice(-2).join("/");
 }
 
 function isRecent(iso: string): boolean {

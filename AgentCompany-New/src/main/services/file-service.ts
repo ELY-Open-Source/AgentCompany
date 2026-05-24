@@ -4,15 +4,31 @@ import { basename, extname, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { dialog } from "electron";
 import type { ImportFileInput } from "../../shared/commands";
-import { FILE_SCAN_STATE } from "../../shared/domain";
+import { FILE_SCAN_STATE, type FileScanState } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 
 interface FileScanResult {
-  state: typeof FILE_SCAN_STATE.APPROVED;
+  state: FileScanState;
   labels: string[];
   scannedAt: string;
 }
+
+interface TextScanPattern {
+  label: string;
+  pattern: RegExp;
+  block: boolean;
+}
+
+const TEXT_SCAN_PATTERNS: TextScanPattern[] = [
+  { label: "dlp:private-key", pattern: /-----BEGIN (?:RSA |DSA |EC |OPENSSH |PRIVATE )?PRIVATE KEY-----/i, block: true },
+  { label: "dlp:aws-access-key", pattern: /\bAKIA[0-9A-Z]{16}\b/, block: true },
+  { label: "dlp:github-token", pattern: /\bgh[pousr]_[A-Za-z0-9_]{30,}\b/, block: true },
+  { label: "dlp:provider-secret", pattern: /\bsk-[A-Za-z0-9]{32,}\b/, block: true },
+  { label: "dlp:credential", pattern: /\b(?:api[_-]?key|secret|token|password)\s*[:=]\s*["']?[A-Za-z0-9_\-./+=]{20,}/i, block: true },
+  { label: "dlp:ssn", pattern: /\b\d{3}-\d{2}-\d{4}\b/, block: true },
+  { label: "dlp:email", pattern: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i, block: false },
+];
 
 function fileKind(path: string): string {
   const ext = extname(path).toLowerCase().replace(".", "");
@@ -91,7 +107,7 @@ export class FileService {
         actorType: "system",
         actorId: null,
         action: "imported",
-        payload: { sha256: hash, sizeBytes: stats.size, scanState: scan.state },
+        payload: { sha256: hash, sizeBytes: stats.size, scanState: scan.state, scanLabels: scan.labels, objectRef: target },
       });
       this.db.exec("commit");
     } catch (error) {
@@ -141,13 +157,26 @@ export class FileService {
 }
 
 function scanFile(sourcePath: string, bytes: Buffer): FileScanResult {
-  const sample = bytes.subarray(0, Math.min(bytes.length, 1024 * 1024)).toString("latin1");
-  if (sample.includes("EICAR-STANDARD-ANTIVIRUS-TEST-FILE")) {
-    throw new Error("File scan blocked a known malware signature.");
+  const textSample = sampleText(bytes);
+  const labels = new Set(scanLabels(sourcePath, bytes.length));
+  let blocked = false;
+  if (bytes.subarray(0, Math.min(bytes.length, 1024 * 1024)).toString("latin1").includes("EICAR-STANDARD-ANTIVIRUS-TEST-FILE")) {
+    labels.add("av:eicar");
+    blocked = true;
   }
+  for (const scan of TEXT_SCAN_PATTERNS) {
+    if (!scan.pattern.test(textSample)) continue;
+    labels.add(scan.label);
+    if (scan.block) blocked = true;
+  }
+  if (containsPaymentCard(textSample)) {
+    labels.add("dlp:payment-card");
+    blocked = true;
+  }
+  labels.add(blocked ? "classification:restricted" : labels.has("dlp:email") ? "classification:confidential" : "classification:internal");
   return {
-    state: FILE_SCAN_STATE.APPROVED,
-    labels: scanLabels(sourcePath, bytes.length),
+    state: blocked ? FILE_SCAN_STATE.BLOCKED : FILE_SCAN_STATE.APPROVED,
+    labels: [...labels].sort(),
     scannedAt: new Date().toISOString(),
   };
 }
@@ -157,4 +186,29 @@ function scanLabels(sourcePath: string, sizeBytes: number): string[] {
   if (sizeBytes === 0) labels.add("empty");
   if (sizeBytes > 100 * 1024 * 1024) labels.add("large");
   return [...labels].sort();
+}
+
+function sampleText(bytes: Buffer): string {
+  return bytes.subarray(0, Math.min(bytes.length, 1024 * 1024)).toString("utf8");
+}
+
+function containsPaymentCard(text: string): boolean {
+  const matches = text.match(/\b(?:\d[ -]?){13,19}\b/g) ?? [];
+  return matches.some((match) => luhnValid(match.replace(/[ -]/g, "")));
+}
+
+function luhnValid(value: string): boolean {
+  if (!/^\d{13,19}$/.test(value)) return false;
+  let sum = 0;
+  let doubleDigit = false;
+  for (let index = value.length - 1; index >= 0; index -= 1) {
+    let digit = Number(value[index]);
+    if (doubleDigit) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    doubleDigit = !doubleDigit;
+  }
+  return sum % 10 === 0;
 }

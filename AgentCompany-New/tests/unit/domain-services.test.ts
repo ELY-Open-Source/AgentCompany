@@ -1,10 +1,11 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
+import { FileService } from "../../src/main/services/file-service";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { SkillService } from "../../src/main/services/skill-service";
@@ -393,6 +394,65 @@ describe("domain services", () => {
     });
     expect(state.chatMessages).toHaveLength(2);
     expect(state.auditEvents.some((event) => event.entityType === "file_object" && event.action === "access_granted")).toBe(true);
+    connection.close();
+  });
+
+  test("imports files with checksum, scan labels, object refs, and workspace grants", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    const artifactRoot = join(tmpdir(), `agentcompany-file-artifacts-${randomUUID()}`);
+    const fileService = new FileService(connection.db, artifactRoot);
+    const sourceDir = join(tmpdir(), `agentcompany-file-sources-${randomUUID()}`);
+    mkdirSync(sourceDir, { recursive: true });
+    const cleanBody = "Release checklist for dana@example.com\n";
+    const secretBody = "-----BEGIN OPENSSH PRIVATE KEY-----\nabc123\n-----END OPENSSH PRIVATE KEY-----\n";
+    const cleanPath = join(sourceDir, "release-notes.md");
+    const secretPath = join(sourceDir, "deploy.env");
+    writeFileSync(cleanPath, cleanBody);
+    writeFileSync(secretPath, secretBody);
+    let orgId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+    });
+    const cleanFileId = fileService.importPath(orgId, cleanPath);
+    const blockedFileId = fileService.importPath(orgId, secretPath);
+
+    const state = snapshot.load();
+    const cleanFile = state.files.find((file) => file.id === cleanFileId);
+    const blockedFile = state.files.find((file) => file.id === blockedFileId);
+    if (!cleanFile || !blockedFile) throw new Error("Imported files were not recorded.");
+    expect(cleanFile.sha256).toBe(createHash("sha256").update(cleanBody).digest("hex"));
+    expect(cleanFile.storagePath).toContain(cleanFileId);
+    expect(cleanFile.scanState).toBe("approved");
+    expect(JSON.parse(cleanFile.scanLabelsJson)).toEqual(expect.arrayContaining(["classification:confidential", "dlp:email", "kind:md"]));
+    expect(blockedFile.scanState).toBe("blocked");
+    expect(JSON.parse(blockedFile.scanLabelsJson)).toEqual(expect.arrayContaining(["classification:restricted", "dlp:private-key", "kind:env"]));
+    expect(state.fileAccessGrants).toContainEqual(expect.objectContaining({
+      fileId: cleanFileId,
+      grantedToType: "org_group",
+      grantedToId: `${orgId}:workspace`,
+      accessLevel: "manage",
+    }));
+    expect(state.fileAccessGrants).toContainEqual(expect.objectContaining({
+      fileId: blockedFileId,
+      grantedToType: "org_group",
+      grantedToId: `${orgId}:workspace`,
+      accessLevel: "manage",
+    }));
+    const importAudit = state.auditEvents.find((event) => event.entityId === blockedFileId && event.action === "imported");
+    if (!importAudit) throw new Error("File import audit event was not recorded.");
+    expect(importAudit.payloadJson).toContain("\"scanState\":\"blocked\"");
+    expect(importAudit.payloadJson).toContain("dlp:private-key");
+    expect(importAudit.payloadJson).toContain("objectRef");
+    rmSync(sourceDir, { recursive: true, force: true });
+    rmSync(artifactRoot, { recursive: true, force: true });
     connection.close();
   });
 
