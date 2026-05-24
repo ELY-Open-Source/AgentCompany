@@ -4,6 +4,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { CreateRollbackSnapshotInput, SetRollbackSnapshotActiveInput } from "../../shared/commands";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
+import { MigrationCutoverJournalService, type CutoverDeltaEvent } from "./migration-cutover-journal-service";
 
 interface MigrationReportRow {
   id: string;
@@ -31,6 +32,13 @@ interface WorkspaceRow {
   updated_at: string;
 }
 
+interface RollbackSnapshotRow {
+  id: string;
+  migration_report_id: string;
+  source_fingerprint: string;
+  delta_journal_json: string;
+}
+
 interface FileRow {
   id: string;
   name: string;
@@ -54,9 +62,11 @@ interface AuditRow {
 
 export class RollbackService {
   private readonly audit: AuditService;
+  private readonly cutoverJournal: MigrationCutoverJournalService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
+    this.cutoverJournal = new MigrationCutoverJournalService(db);
   }
 
   createSnapshot(input: CreateRollbackSnapshotInput): string {
@@ -109,13 +119,26 @@ export class RollbackService {
       action: "created",
       payload: { migrationReportId: report.id, sourceFingerprint: body.sourceFingerprint },
     });
+    this.cutoverJournal.recordEvent({
+      orgId: input.orgId,
+      migrationReportId: report.id,
+      rollbackSnapshotId: id,
+      eventType: "rollback_snapshot_created",
+      actorType: "employee",
+      actorId: input.createdByEmployeeId,
+      payload: { sourceFingerprint: body.sourceFingerprint, sourceDatabaseSha256, workspaceManifestSha256 },
+      createdAt: now,
+    });
     return id;
   }
 
   setActive(input: SetRollbackSnapshotActiveInput): void {
     this.requireEmployee(input.orgId, input.employeeId);
-    const snapshot = this.db.prepare("select id from rollback_snapshots where id = ? and org_id = ?")
-      .get(input.snapshotId, input.orgId) as { id: string } | undefined;
+    const snapshot = this.db.prepare(`
+      select id, migration_report_id, source_fingerprint, delta_journal_json
+      from rollback_snapshots
+      where id = ? and org_id = ?
+    `).get(input.snapshotId, input.orgId) as RollbackSnapshotRow | undefined;
     if (!snapshot) throw new Error("Rollback snapshot was not found.");
     const now = new Date().toISOString();
     if (input.active) this.db.prepare("update rollback_snapshots set active = 0, activated_at = null where org_id = ?").run(input.orgId);
@@ -130,6 +153,25 @@ export class RollbackService {
       actorId: input.employeeId,
       action: input.active ? "activated" : "deactivated",
       payload: { active: input.active },
+    });
+    const queuedReconciliationItems = input.active
+      ? this.cutoverJournal.queueReconciliation({
+        orgId: input.orgId,
+        migrationReportId: snapshot.migration_report_id,
+        rollbackSnapshotId: snapshot.id,
+        events: parseDeltaJournal(snapshot.delta_journal_json),
+        createdAt: now,
+      })
+      : 0;
+    this.cutoverJournal.recordEvent({
+      orgId: input.orgId,
+      migrationReportId: snapshot.migration_report_id,
+      rollbackSnapshotId: snapshot.id,
+      eventType: input.active ? "rollback_snapshot_activated" : "rollback_snapshot_deactivated",
+      actorType: "employee",
+      actorId: input.employeeId,
+      payload: { active: input.active, sourceFingerprint: snapshot.source_fingerprint, queuedReconciliationItems },
+      createdAt: now,
     });
   }
 
@@ -247,4 +289,35 @@ function parseRecord(json: string): Record<string, unknown> {
   const parsed = JSON.parse(json) as unknown;
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("JSON record is invalid.");
   return parsed as Record<string, unknown>;
+}
+
+function parseDeltaJournal(json: string): CutoverDeltaEvent[] {
+  const parsed = JSON.parse(json) as unknown;
+  if (!Array.isArray(parsed)) throw new Error("Rollback delta journal is invalid.");
+  return parsed.map((item) => {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) throw new Error("Rollback delta journal entry is invalid.");
+    const record = item as Record<string, unknown>;
+    if (
+      typeof record.id !== "string"
+      || typeof record.entityType !== "string"
+      || typeof record.entityId !== "string"
+      || typeof record.actorType !== "string"
+      || typeof record.action !== "string"
+      || typeof record.createdAt !== "string"
+    ) {
+      throw new Error("Rollback delta journal entry is invalid.");
+    }
+    const payload = record.payload;
+    if (typeof payload !== "object" || payload === null || Array.isArray(payload)) throw new Error("Rollback delta journal entry is invalid.");
+    return {
+      id: record.id,
+      entityType: record.entityType,
+      entityId: record.entityId,
+      actorType: record.actorType,
+      actorId: typeof record.actorId === "string" ? record.actorId : null,
+      action: record.action,
+      payload: payload as Record<string, unknown>,
+      createdAt: record.createdAt,
+    };
+  });
 }

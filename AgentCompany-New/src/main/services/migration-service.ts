@@ -77,6 +77,8 @@ const LEGACY_TABLES = [
   "search_documents",
   "audit_replay_runs",
   "rollback_snapshots",
+  "migration_cutover_events",
+  "migration_reconciliation_items",
   "audit_events",
 ];
 
@@ -248,6 +250,13 @@ const RELATION_CHECKS: RelationCheck[] = [
   { table: "rollback_snapshots", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
   { table: "rollback_snapshots", column: "migration_report_id", referencedTable: "migration_reports", referencedColumn: "id", reason: "dangling_migration_report_id" },
   { table: "rollback_snapshots", column: "created_by_employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_creator_employee_id" },
+  { table: "migration_cutover_events", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "migration_cutover_events", column: "migration_report_id", referencedTable: "migration_reports", referencedColumn: "id", reason: "dangling_migration_report_id" },
+  { table: "migration_cutover_events", column: "rollback_snapshot_id", referencedTable: "rollback_snapshots", referencedColumn: "id", reason: "dangling_rollback_snapshot_id" },
+  { table: "migration_reconciliation_items", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
+  { table: "migration_reconciliation_items", column: "migration_report_id", referencedTable: "migration_reports", referencedColumn: "id", reason: "dangling_migration_report_id" },
+  { table: "migration_reconciliation_items", column: "rollback_snapshot_id", referencedTable: "rollback_snapshots", referencedColumn: "id", reason: "dangling_rollback_snapshot_id" },
+  { table: "migration_reconciliation_items", column: "resolved_by_employee_id", referencedTable: "employees", referencedColumn: "id", reason: "dangling_resolver_employee_id" },
   { table: "audit_events", column: "org_id", referencedTable: "organizations", referencedColumn: "id", reason: "dangling_org_id" },
 ];
 

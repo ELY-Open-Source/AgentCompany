@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
+import { AuditService } from "../../src/main/services/audit-service";
 import { MigrationService } from "../../src/main/services/migration-service";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { RollbackService } from "../../src/main/services/rollback-service";
@@ -31,6 +32,7 @@ describe("rollback service", () => {
     const migrations = new MigrationService(connection.db);
     const rollback = new RollbackService(connection.db);
     const snapshot = new SnapshotService(connection.db);
+    const audit = new AuditService(connection.db);
     const legacyPath = createLegacyDatabase();
     let orgId = "";
     let employeeId = "";
@@ -47,6 +49,15 @@ describe("rollback service", () => {
       employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
       seedWorkspace(connection.db, orgId);
       reportId = migrations.createReport({ orgId, sourceDatabasePath: legacyPath });
+      audit.record({
+        orgId,
+        entityType: "task",
+        entityId: "task-cutover",
+        actorType: "employee",
+        actorId: employeeId,
+        action: "created",
+        payload: { title: "Reconcile release delta" },
+      });
       rollbackId = rollback.createSnapshot({ orgId, migrationReportId: reportId, createdByEmployeeId: employeeId });
       rollback.setActive({ orgId, snapshotId: rollbackId, active: true, employeeId });
     });
@@ -64,6 +75,19 @@ describe("rollback service", () => {
     expect(workspaceManifest.files).toHaveLength(1);
     expect(deltaJournal.length).toBeGreaterThan(0);
     expect(restorePlan).toMatchObject({ migrationReportId: reportId, restoreStrategy: "legacy_snapshot_restore" });
+    expect(state.migrationCutoverEvents.map((event) => event.eventType).sort()).toEqual([
+      "rollback_snapshot_activated",
+      "rollback_snapshot_created",
+    ]);
+    expect(state.migrationReconciliationItems).toContainEqual(expect.objectContaining({
+      orgId,
+      migrationReportId: reportId,
+      rollbackSnapshotId: rollbackId,
+      targetType: "task",
+      targetId: "task-cutover",
+      reason: "manual_delta_replay",
+      state: "open",
+    }));
     expect(state.auditEvents.some((event) => event.entityType === "rollback_snapshot" && event.action === "activated")).toBe(true);
     connection.close();
   });

@@ -126,6 +126,8 @@ export class SnapshotService {
       policyRules: list(this.db, "policy_rules", "created_at asc"),
       migrationReports: list(this.db, "migration_reports", "created_at desc"),
       rollbackSnapshots,
+      migrationCutoverEvents: list(this.db, "migration_cutover_events", "created_at desc"),
+      migrationReconciliationItems: list(this.db, "migration_reconciliation_items", "created_at desc"),
       complianceExports: list(this.db, "compliance_exports", "created_at desc"),
       legalHolds,
       retentionFreezes,
