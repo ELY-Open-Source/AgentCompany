@@ -35,6 +35,16 @@ interface MigrationReportBody {
   tableChecksums: Record<string, string>;
   idMaps: Record<string, string[]>;
   failures: Array<{ table: string; reason: string; detail: string }>;
+  validationSummary: {
+    missingTableCount: number;
+    totalSourceRows: number;
+    rowsWithIntegrityFailures: number;
+    rowCoverageBasisPoints: number;
+    checksumCoverageBasisPoints: number;
+    idMapCoverageBasisPoints: number;
+    relationFailureCount: number;
+    passed: boolean;
+  };
   rollbackPack: {
     sourceDatabasePath: string;
     sourceFingerprint: string;
@@ -82,6 +92,15 @@ describe("migration service", () => {
     expect(body.rollbackPack.idMaps.tasks).toEqual(["task-1"]);
     expect(body.failures).toContainEqual({ table: "agents", reason: "dangling_org_id", detail: "agent-1 -> org-missing" });
     expect(body.failures).toContainEqual({ table: "tasks", reason: "dangling_assignee_agent_id", detail: "task-1 -> agent-missing" });
+    expect(body.validationSummary).toMatchObject({
+      totalSourceRows: 4,
+      rowsWithIntegrityFailures: 2,
+      rowCoverageBasisPoints: 5000,
+      checksumCoverageBasisPoints: 10000,
+      idMapCoverageBasisPoints: 10000,
+      relationFailureCount: 3,
+      passed: false,
+    });
     connection.close();
   });
 
@@ -243,6 +262,14 @@ describe("migration service", () => {
 
     const body = JSON.parse(snapshot.load().migrationReports[0]!.reportJson) as MigrationReportBody;
     expect(body.failures).toEqual([]);
+    expect(body.validationSummary).toMatchObject({
+      missingTableCount: 0,
+      rowCoverageBasisPoints: 10000,
+      checksumCoverageBasisPoints: 10000,
+      idMapCoverageBasisPoints: 10000,
+      relationFailureCount: 0,
+      passed: true,
+    });
     expect(body.tableCounts.credentials).toBe(1);
     expect(body.tableCounts.employee_identities).toBe(1);
     expect(body.tableCounts.org_departments).toBe(1);

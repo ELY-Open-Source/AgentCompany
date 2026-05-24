@@ -445,11 +445,14 @@ describe("domain services", () => {
       tableChecksums: Record<string, string>;
       idMaps: Record<string, string[]>;
       failures: Array<{ table: string; reason: string }>;
+      validationSummary: { missingTableCount: number; passed: boolean };
       rollbackPack: { sourceDatabasePath: string };
     };
     expect(report.tableChecksums.agents).toHaveLength(64);
     expect(report.idMaps.agents).toEqual(["agent-1"]);
     expect(report.failures.some((failure) => failure.reason === "missing_table")).toBe(true);
+    expect(report.validationSummary.missingTableCount).toBeGreaterThan(0);
+    expect(report.validationSummary.passed).toBe(false);
     expect(report.rollbackPack.sourceDatabasePath).toBe(legacyPath);
     connection.close();
   });

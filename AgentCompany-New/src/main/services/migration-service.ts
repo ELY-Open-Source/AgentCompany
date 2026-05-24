@@ -6,6 +6,7 @@ import type { CreateMigrationReportInput } from "../../shared/commands";
 import { SLO_SIGNAL_KEY } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
+import { buildMigrationValidationSummary, type MigrationValidationSummary } from "./migration-validation-summary";
 import { OperationsService } from "./operations-service";
 
 const LEGACY_TABLES = [
@@ -103,6 +104,7 @@ interface MigrationReportBody {
   idMaps: Record<string, string[]>;
   missingTables: string[];
   failures: MigrationFailure[];
+  validationSummary: MigrationValidationSummary;
   rollbackPack: {
     sourceDatabasePath: string;
     capturedAt: string;
@@ -296,11 +298,20 @@ export class MigrationService {
           .filter((table) => availableTables.has(table))
           .map((table) => [table, tableIds(source, table)]),
       );
+      const idMappedTables = LEGACY_TABLES.filter((table) => availableTables.has(table) && hasColumn(source, table, "id"));
       const missingTables = LEGACY_TABLES.filter((table) => !availableTables.has(table));
       const failures = [
         ...missingTables.map((table) => ({ table, reason: "missing_table", detail: "Required table is absent." })),
         ...validateRelations(source, availableTables),
       ];
+      const validationSummary = buildMigrationValidationSummary({
+        requiredTables: LEGACY_TABLES,
+        tableCounts,
+        tableChecksums,
+        idMaps,
+        idMappedTables,
+        failures,
+      });
       const sourceFingerprint = fingerprintSource({ tableCounts, tableChecksums, idMaps, failures });
       const existingReportId = this.findExistingReport(input.orgId, sourceDatabasePath, sourceFingerprint);
       if (existingReportId) return existingReportId;
@@ -313,6 +324,7 @@ export class MigrationService {
         idMaps,
         missingTables,
         failures,
+        validationSummary,
         rollbackPack: {
           sourceDatabasePath,
           capturedAt: now,
@@ -339,9 +351,9 @@ export class MigrationService {
         orgId: input.orgId,
         signalKey: SLO_SIGNAL_KEY.MIGRATION_VALIDATION_SUCCESS,
         source: "migration_validation",
-        success: failures.length === 0,
+        success: validationSummary.passed,
         durationMs: null,
-        detail: { reportId, sourceFingerprint, failureCount: failures.length },
+        detail: { reportId, sourceFingerprint, validationSummary },
       });
       return reportId;
     } finally {
@@ -446,7 +458,7 @@ function quoteIdentifier(identifier: string): string {
   return `"${identifier.replaceAll('"', '""')}"`;
 }
 
-function fingerprintSource(body: Omit<MigrationReportBody, "sourceFingerprint" | "missingTables" | "rollbackPack">): string {
+function fingerprintSource(body: Omit<MigrationReportBody, "sourceFingerprint" | "missingTables" | "rollbackPack" | "validationSummary">): string {
   return createHash("sha256").update(JSON.stringify(body)).digest("hex");
 }
 
