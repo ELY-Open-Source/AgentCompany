@@ -215,6 +215,119 @@ describe("chat governance", () => {
     connection.close();
   });
 
+  test("routes collaboration slash commands to concrete domain targets", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const chat = new ChatService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    let orgId = "";
+    let employeeId = "";
+    let agentId = "";
+    let spaceId = "";
+    let skillId = "";
+    let fileId = "";
+    let agentMessageId = "";
+    let skillMessageId = "";
+    let fileMessageId = "";
+    let runbookMessageId = "";
+    let handoffMessageId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      agentId = organization.createAgent({
+        orgId,
+        name: "Ada",
+        role: "Release reviewer",
+        department: "Engineering",
+        modelProviderId: null,
+        modelId: null,
+        budgetCents: 10000,
+        managerAgentId: null,
+      });
+      spaceId = chat.createSpace({ orgId, spaceType: "project", name: "release", topic: "Release coordination", visibility: "workspace" });
+      skillId = "skd_release_gate";
+      fileId = "fil_release_notes";
+      const now = new Date().toISOString();
+      connection.db.prepare(`
+        insert into skill_definitions(id, org_id, slug, name, owner_type, status, created_at)
+        values (?, ?, ?, ?, ?, ?, ?)
+      `).run(skillId, orgId, "release-gate", "Release Gate", "system", "active", now);
+      connection.db.prepare(`
+        insert into file_objects(id, org_id, name, kind, size_bytes, sha256, storage_path, owner_type, owner_id, created_at)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(fileId, orgId, "release-notes.md", "md", 24, "8f3a", "artifacts/release-notes.md", "employee", employeeId, now);
+      agentMessageId = chat.sendMessage({
+        orgId,
+        spaceId,
+        threadId: null,
+        senderType: "employee",
+        senderId: employeeId,
+        bodyMd: "/agent @Ada review the gate",
+        attachmentFileIds: [],
+      });
+      skillMessageId = chat.sendMessage({
+        orgId,
+        spaceId,
+        threadId: null,
+        senderType: "employee",
+        senderId: employeeId,
+        bodyMd: "/skill release-gate apply release checks",
+        attachmentFileIds: [],
+      });
+      fileMessageId = chat.sendMessage({
+        orgId,
+        spaceId,
+        threadId: null,
+        senderType: "employee",
+        senderId: employeeId,
+        bodyMd: "/file release-notes.md",
+        attachmentFileIds: [],
+      });
+      runbookMessageId = chat.sendMessage({
+        orgId,
+        spaceId,
+        threadId: null,
+        senderType: "employee",
+        senderId: employeeId,
+        bodyMd: "/runbook release rollback steps",
+        attachmentFileIds: [],
+      });
+      handoffMessageId = chat.sendMessage({
+        orgId,
+        spaceId,
+        threadId: null,
+        senderType: "employee",
+        senderId: employeeId,
+        bodyMd: "/handoff @Ada release notes",
+        attachmentFileIds: [fileId],
+      });
+    });
+
+    const state = snapshot.load();
+    const slashByMessage = new Map(state.chatSlashInvocations.map((item) => [item.messageId, item]));
+    expect(slashByMessage.get(agentMessageId)).toMatchObject({ command: "agent", resultRef: agentId });
+    expect(slashByMessage.get(skillMessageId)).toMatchObject({ command: "skill", resultRef: skillId });
+    expect(slashByMessage.get(fileMessageId)).toMatchObject({ command: "file", resultRef: fileId });
+    expect(slashByMessage.get(runbookMessageId)).toMatchObject({ command: "runbook", resultRef: runbookMessageId });
+    expect(slashByMessage.get(handoffMessageId)).toMatchObject({ command: "handoff", resultRef: fileId });
+    expect(state.chatPresence).toContainEqual(expect.objectContaining({ principalType: "agent", principalId: agentId, status: "thinking" }));
+    expect(state.fileHandoffRecords).toContainEqual(expect.objectContaining({
+      messageId: handoffMessageId,
+      fileId,
+      targetPrincipalType: "agent",
+      targetPrincipalId: agentId,
+      policyDecision: "approved_for_handoff",
+    }));
+    expect(state.auditEvents.filter((event) => event.action === "slash_routed")).toHaveLength(5);
+    connection.close();
+  });
+
   test("records board interventions and enforces thread control", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
@@ -441,6 +554,42 @@ describe("chat governance", () => {
       bodyMd: "/approve",
       attachmentFileIds: [],
     }))).toThrow("Slash command /approve requires an approval id.");
+    expect(() => connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId: workspaceSpaceId,
+      threadId: null,
+      senderType: "employee",
+      senderId: employeeId,
+      bodyMd: "/agent wake release checks",
+      attachmentFileIds: [],
+    }))).toThrow("Slash command /agent requires an agent mention.");
+    expect(() => connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId: workspaceSpaceId,
+      threadId: null,
+      senderType: "employee",
+      senderId: employeeId,
+      bodyMd: "/handoff @Ada release notes",
+      attachmentFileIds: [],
+    }))).toThrow("Slash command /handoff requires a file attachment.");
+    expect(() => connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId: workspaceSpaceId,
+      threadId: null,
+      senderType: "employee",
+      senderId: employeeId,
+      bodyMd: "/file missing.md",
+      attachmentFileIds: [],
+    }))).toThrow("Slash command /file target was not found.");
+    expect(() => connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId: workspaceSpaceId,
+      threadId: null,
+      senderType: "employee",
+      senderId: employeeId,
+      bodyMd: "/skill missing-skill",
+      attachmentFileIds: [],
+    }))).toThrow("Slash command /skill target was not found.");
     expect(() => connection.transaction(() => chat.sendMessage({
       orgId,
       spaceId: workspaceSpaceId,

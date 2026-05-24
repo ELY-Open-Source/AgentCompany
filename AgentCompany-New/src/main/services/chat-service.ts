@@ -144,7 +144,7 @@ export class ChatService {
       this.db.prepare("update chat_threads set updated_at = ? where id = ? and org_id = ?").run(now, input.threadId, input.orgId);
     }
     recordChatMentions(this.db, id, mentions);
-    const slashResultRef = slash ? this.executeSlashCommand(input, space, sender, mentions, slash, id, threadId, now) : null;
+    const slashResultRef = slash ? this.executeSlashCommand(input, space, sender, mentions, attachments, slash, id, threadId, now) : null;
     if (slash) this.recordSlashInvocation(id, slash, slashResultRef, now);
     this.handoffs.record({
       orgId: input.orgId,
@@ -214,6 +214,7 @@ export class ChatService {
     space: SpaceRow,
     sender: PrincipalRef | null,
     mentions: ResolvedMention[],
+    attachments: FileHandoffAttachment[],
     slash: SlashInvocation,
     messageId: string,
     threadId: string,
@@ -234,6 +235,11 @@ export class ChatService {
     if (slash.command === "approve" || slash.command === "deny") {
       return this.decideApprovalFromSlash(input, sender, slash);
     }
+    if (slash.command === "agent") return this.routeAgentSlash(input, mentions, slash, messageId, now);
+    if (slash.command === "skill") return this.routeSkillSlash(input, slash, messageId);
+    if (slash.command === "file") return this.routeFileSlash(input, attachments, slash, messageId);
+    if (slash.command === "runbook") return this.routeRunbookSlash(input, attachments, slash, messageId);
+    if (slash.command === "handoff") return this.routeHandoffSlash(input, attachments, messageId);
     if (slash.command !== "escalate") return null;
     const requester = approvalRequester(input.senderType, sender);
     return this.approvals.create({
@@ -245,6 +251,101 @@ export class ChatService {
       requestedByType: requester.type,
       requestedById: requester.id,
     }, { sourceMessageId: messageId, sourceThreadId: threadId, sourceEntityType: "chat_message", sourceEntityId: messageId });
+  }
+
+  private routeAgentSlash(
+    input: SendMessageInput,
+    mentions: ResolvedMention[],
+    slash: SlashInvocation,
+    messageId: string,
+    now: string,
+  ): string {
+    const target = mentions.find((mention) => mention.target.type === "agent")?.target;
+    if (!target || target.type !== "agent") throw new Error("Slash command /agent requires an agent mention.");
+    this.db.prepare(`
+      insert into chat_presence(principal_type, principal_id, status, status_text, last_seen_at)
+      values (?, ?, ?, ?, ?)
+      on conflict(principal_type, principal_id)
+      do update set status = excluded.status, status_text = excluded.status_text, last_seen_at = excluded.last_seen_at
+    `).run("agent", target.id, "thinking", slash.args.trim().slice(0, 160), now);
+    this.recordSlashRoute(input, messageId, slash.command, target.id, { targetType: "agent", targetId: target.id });
+    return target.id;
+  }
+
+  private routeSkillSlash(input: SendMessageInput, slash: SlashInvocation, messageId: string): string {
+    const target = firstToken(slash.args);
+    if (!target) throw new Error("Slash command /skill requires a skill slug.");
+    const row = this.db.prepare(`
+      select id from skill_definitions
+      where org_id = ?
+        and (lower(slug) = lower(?) or lower(name) = lower(?))
+      limit 1
+    `).get(input.orgId, target, target.replace(/-/g, " ")) as { id: string } | undefined;
+    if (!row) throw new Error("Slash command /skill target was not found.");
+    this.recordSlashRoute(input, messageId, slash.command, row.id, { skillId: row.id, target });
+    return row.id;
+  }
+
+  private routeFileSlash(
+    input: SendMessageInput,
+    attachments: FileHandoffAttachment[],
+    slash: SlashInvocation,
+    messageId: string,
+  ): string {
+    const fileId = attachments[0]?.fileId ?? this.resolveFileSlashTarget(input.orgId, slash);
+    this.recordSlashRoute(input, messageId, slash.command, fileId, { fileId });
+    return fileId;
+  }
+
+  private routeRunbookSlash(
+    input: SendMessageInput,
+    attachments: FileHandoffAttachment[],
+    slash: SlashInvocation,
+    messageId: string,
+  ): string {
+    if (!slash.args.trim() && attachments.length === 0) throw new Error("Slash command /runbook requires details or a file attachment.");
+    const resultRef = attachments[0]?.fileId ?? messageId;
+    this.recordSlashRoute(input, messageId, slash.command, resultRef, { resultRef, attachmentCount: attachments.length });
+    return resultRef;
+  }
+
+  private routeHandoffSlash(input: SendMessageInput, attachments: FileHandoffAttachment[], messageId: string): string {
+    const fileId = attachments[0]?.fileId;
+    if (!fileId) throw new Error("Slash command /handoff requires a file attachment.");
+    this.recordSlashRoute(input, messageId, "handoff", fileId, { fileId, attachmentCount: attachments.length });
+    return fileId;
+  }
+
+  private resolveFileSlashTarget(orgId: string, slash: SlashInvocation): string {
+    const target = firstToken(slash.args);
+    if (!target) throw new Error("Slash command /file requires a file attachment or file reference.");
+    const row = this.db.prepare(`
+      select id from file_objects
+      where org_id = ?
+        and (id = ? or name = ?)
+      order by created_at desc
+      limit 1
+    `).get(orgId, target, target) as { id: string } | undefined;
+    if (!row) throw new Error("Slash command /file target was not found.");
+    return row.id;
+  }
+
+  private recordSlashRoute(
+    input: SendMessageInput,
+    messageId: string,
+    command: string,
+    resultRef: string,
+    route: Record<string, unknown>,
+  ): void {
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "chat_message",
+      entityId: messageId,
+      actorType: input.senderType,
+      actorId: input.senderId,
+      action: "slash_routed",
+      payload: { command, resultRef, route },
+    });
   }
 
   private decideApprovalFromSlash(input: SendMessageInput, sender: PrincipalRef | null, slash: SlashInvocation): string {
@@ -432,6 +533,10 @@ function parseApprovalDecisionTarget(slash: SlashInvocation): string {
   const approvalId = slash.args.trim().split(/\s+/, 1)[0] ?? "";
   if (!approvalId) throw new Error(`Slash command /${slash.command} requires an approval id.`);
   return approvalId;
+}
+
+function firstToken(value: string): string {
+  return value.trim().split(/\s+/, 1)[0] ?? "";
 }
 
 function approvalRequester(senderType: SendMessageInput["senderType"], sender: PrincipalRef | null): ApprovalRequester {
