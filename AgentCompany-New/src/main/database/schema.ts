@@ -32,6 +32,7 @@ import { approvalSourceRefsSchema } from "./migrations/030-approval-source-refs"
 import { providerRequestWorkspaceSchema } from "./migrations/031-provider-request-workspace";
 import { browserActionMetadataSchema } from "./migrations/032-browser-action-metadata";
 import { auditEventImmutabilitySchema } from "./migrations/033-audit-event-immutability";
+import { providerAuthSessionsSchema } from "./migrations/034-provider-auth-sessions";
 
 interface Migration {
   version: number;
@@ -73,6 +74,7 @@ const MIGRATIONS: Migration[] = [
   { version: 31, name: "provider_request_workspace", sql: providerRequestWorkspaceSchema },
   { version: 32, name: "browser_action_metadata", sql: browserActionMetadataSchema },
   { version: 33, name: "audit_event_immutability", sql: auditEventImmutabilitySchema },
+  { version: 34, name: "provider_auth_sessions", sql: providerAuthSessionsSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

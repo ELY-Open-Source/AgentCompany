@@ -4,6 +4,7 @@ import { Dialog } from "../../shared/Dialog";
 import type {
   AgentRecord,
   ProviderCatalogEntry,
+  ProviderAuthProfileRecord,
   ProviderRateLimitStateRecord,
   ProviderRecord,
   ProviderRequestRecord,
@@ -18,6 +19,7 @@ interface ProvidersPanelProps {
   orgId: string;
   employeeId: string;
   providers: ProviderRecord[];
+  authProfiles: ProviderAuthProfileRecord[];
   catalog: ProviderCatalogEntry[];
   agents: AgentRecord[];
   workspaces: WorkspaceRecord[];
@@ -37,7 +39,7 @@ const CLOUD_DEFAULTS: CloudFields = { baseUrl: "", region: "", projectId: "", de
 const POLICY_GRID = "minmax(150px, 1.2fr) minmax(118px, 0.8fr) minmax(140px, 1fr) 112px 124px 92px";
 type WorkspaceScope = "organization" | "workspace";
 
-export function ProvidersPanel({ orgId, employeeId, providers, catalog, agents, workspaces, providerRateLimits, providerRequests, actions }: ProvidersPanelProps) {
+export function ProvidersPanel({ orgId, employeeId, providers, authProfiles, catalog, agents, workspaces, providerRateLimits, providerRequests, actions }: ProvidersPanelProps) {
   const [active, setActive] = useState<ProviderRecord | null>(null);
   const [signInLaunched, setSignInLaunched] = useState(false);
   const connected = providers.filter((provider) => provider.enabled);
@@ -59,6 +61,7 @@ export function ProvidersPanel({ orgId, employeeId, providers, catalog, agents, 
       providerId: active.id,
       secret,
       model: String(form.get("model") ?? "").trim() || null,
+      employeeId,
     })).then((result) => { if (result) close(); });
   };
 
@@ -81,6 +84,7 @@ export function ProvidersPanel({ orgId, employeeId, providers, catalog, agents, 
               <ProviderRow
                 key={provider.id}
                 provider={provider}
+                authProfile={authProfiles.find((profile) => profile.providerId === provider.id && profile.active) ?? null}
                 agents={agents}
                 onCheck={() => void actions.run(() => window.agentCompany.checkProviderHealth({ orgId, providerId: provider.id }))}
                 onManage={() => setActive(provider)}
@@ -388,12 +392,14 @@ function composeSecret(entry: ProviderCatalogEntry, form: FormData): string {
 
 function ProviderRow({
   provider,
+  authProfile,
   agents,
   onCheck,
   onManage,
   onRevoke,
 }: {
   provider: ProviderRecord;
+  authProfile: ProviderAuthProfileRecord | null;
   agents: AgentRecord[];
   onCheck: () => void;
   onManage: () => void;
@@ -415,8 +421,8 @@ function ProviderRow({
       <ProviderLogo label={provider.label} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
-        <div style={{ fontSize: 12, color: "var(--text-3)" }}>
-          {provider.model ? `${provider.model} · ` : ""}{readableAuth(provider.authType)}
+        <div style={{ fontSize: 12, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {provider.model ? `${provider.model} · ` : ""}{readableAuth(provider.authType)}{authProfile ? ` · ${authProfile.sourceType}` : ""}
         </div>
       </div>
       <ProviderHealth provider={provider} />

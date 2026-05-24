@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { createHash, randomBytes } from "node:crypto";
 import type { CancelProviderResponseInput, CreateProviderResponseInput, LaunchProviderSignInInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, StreamProviderResponseInput, UpdateProviderPolicyInput } from "../../shared/commands";
 import { FEATURE_FLAG_KEY, PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderAuthType, type ProviderExecutionMode } from "../../shared/domain";
 import type { ProviderStreamRendererEvent } from "../../shared/provider-request-domain";
@@ -23,6 +24,7 @@ const HEALTH_STATE_HEALTHY = "healthy";
 const HEALTH_STATE_FAILED = "failed";
 const HEALTH_STATE_UNCHECKED = "unchecked";
 const WORKSPACE_SCOPES = new Set(["organization", "workspace"]);
+const AUTH_SESSION_TTL_MS = 15 * 60 * 1000;
 
 export type ProviderResponseCreateInput = CreateProviderResponseInput & {
   onRequestCreated?: (requestId: string) => void;
@@ -61,6 +63,13 @@ export class ProviderService {
     const adapter = this.requireAdapter(provider.provider_key, provider.auth_type);
     adapter.parseAuthProfile(secret);
     const catalogEntry = this.requireCatalogEntry(provider.provider_key);
+    const source = this.resolveCredentialSource({
+      orgId: input.orgId,
+      providerId: input.providerId,
+      providerKey: provider.provider_key,
+      authType: provider.auth_type,
+      employeeId: input.employeeId ?? null,
+    });
     const authProfile = this.authBroker.createProviderProfile({
       orgId: input.orgId,
       providerId: input.providerId,
@@ -68,8 +77,8 @@ export class ProviderService {
       authType: provider.auth_type,
       secret,
       profileKind: provider.auth_type,
-      sourceType: "manual_secret",
-      sourceRef: null,
+      sourceType: source.sourceType,
+      sourceRef: source.sourceRef,
       capabilityTags: catalogEntry.capabilityTags,
     });
     this.db.prepare(`
@@ -84,7 +93,7 @@ export class ProviderService {
       actorType: "system",
       actorId: null,
       action: "credential_saved",
-      payload: { providerKey: provider.provider_key, authType: provider.auth_type, authProfileId: authProfile.authProfileId },
+      payload: { providerKey: provider.provider_key, authType: provider.auth_type, authProfileId: authProfile.authProfileId, sourceType: source.sourceType, sourceRef: source.sourceRef },
     });
   }
 
@@ -152,7 +161,14 @@ export class ProviderService {
     if (!provider) throw new Error("Provider was not found.");
     const catalogEntry = this.requireCatalogEntry(provider.provider_key);
     if (!catalogEntry.signInUrl) throw new Error(`${provider.label} does not support browser sign-in.`);
-    this.launchSignIn({ providerId: provider.id, label: provider.label, signInUrl: catalogEntry.signInUrl });
+    const session = this.createAuthSession({
+      orgId: input.orgId,
+      providerId: provider.id,
+      providerKey: provider.provider_key,
+      employeeId: input.employeeId,
+      signInUrl: catalogEntry.signInUrl,
+    });
+    this.launchSignIn({ providerId: provider.id, label: provider.label, signInUrl: catalogEntry.signInUrl, partition: session.partition });
 
     this.audit.record({
       orgId: input.orgId,
@@ -161,7 +177,16 @@ export class ProviderService {
       actorType: "employee",
       actorId: input.employeeId,
       action: "sign_in_window_opened",
-      payload: { providerKey: provider.provider_key, authType: provider.auth_type },
+      payload: {
+        providerKey: provider.provider_key,
+        authType: provider.auth_type,
+        authSessionId: session.id,
+        state: session.state,
+        nonce: session.nonce,
+        codeVerifierSha256: session.codeVerifierSha256,
+        redirectUri: session.redirectUri,
+        partition: session.partition,
+      },
     });
   }
 
@@ -473,6 +498,75 @@ export class ProviderService {
     if (!employee) throw new Error("Provider sign-in employee was not found.");
   }
 
+  private resolveCredentialSource(input: {
+    orgId: string;
+    providerId: string;
+    providerKey: string;
+    authType: ProviderAuthType;
+    employeeId: string | null;
+  }): { sourceType: string; sourceRef: string | null } {
+    if (input.authType !== PROVIDER_AUTH_TYPE.OAUTH_PKCE && input.authType !== PROVIDER_AUTH_TYPE.ACCOUNT_SUBSCRIPTION) {
+      return { sourceType: "manual_secret", sourceRef: null };
+    }
+    if (!input.employeeId) throw new Error("Provider sign-in employee is required.");
+    const session = this.db.prepare(`
+      select id
+      from provider_auth_sessions
+      where org_id = ?
+        and provider_id = ?
+        and provider_key = ?
+        and employee_id = ?
+        and completed_at is null
+        and expires_at > ?
+      order by created_at desc
+      limit 1
+    `).get(input.orgId, input.providerId, input.providerKey, input.employeeId, new Date().toISOString()) as { id: string } | undefined;
+    if (!session) throw new Error("Provider sign-in session is required.");
+    this.db.prepare("update provider_auth_sessions set completed_at = ? where id = ? and org_id = ?")
+      .run(new Date().toISOString(), session.id, input.orgId);
+    return { sourceType: "provider_sign_in_session", sourceRef: session.id };
+  }
+
+  private createAuthSession(input: {
+    orgId: string;
+    providerId: string;
+    providerKey: string;
+    employeeId: string;
+    signInUrl: string;
+  }): ProviderAuthSessionDraft {
+    const id = createProviderAuthSessionId();
+    const state = randomToken();
+    const nonce = randomToken();
+    const codeVerifier = randomToken();
+    const codeVerifierSha256 = createHash("sha256").update(codeVerifier).digest("hex");
+    const redirectUri = `agentcompany://provider-auth/${input.providerId}`;
+    const partition = `persist:agentcompany-provider-${input.providerId}`;
+    const createdAt = new Date();
+    const expiresAt = new Date(createdAt.getTime() + AUTH_SESSION_TTL_MS);
+    this.db.prepare(`
+      insert into provider_auth_sessions(
+        id, org_id, provider_id, provider_key, employee_id, state, nonce,
+        code_verifier_sha256, redirect_uri, sign_in_url, partition,
+        created_at, expires_at, completed_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null)
+    `).run(
+      id,
+      input.orgId,
+      input.providerId,
+      input.providerKey,
+      input.employeeId,
+      state,
+      nonce,
+      codeVerifierSha256,
+      redirectUri,
+      input.signInUrl,
+      partition,
+      createdAt.toISOString(),
+      expiresAt.toISOString(),
+    );
+    return { id, state, nonce, codeVerifierSha256, redirectUri, partition };
+  }
+
   private recordProviderHealth(providerId: string, orgId: string, healthState: string, error: string | null): void {
     this.db.prepare(`
       update providers
@@ -521,4 +615,21 @@ interface ProviderRow {
   background_enabled: number;
   monthly_request_limit: number;
   workspace_scope: string;
+}
+
+interface ProviderAuthSessionDraft {
+  id: string;
+  state: string;
+  nonce: string;
+  codeVerifierSha256: string;
+  redirectUri: string;
+  partition: string;
+}
+
+function createProviderAuthSessionId(): string {
+  return `auths_${randomToken()}`;
+}
+
+function randomToken(): string {
+  return randomBytes(24).toString("base64url");
 }

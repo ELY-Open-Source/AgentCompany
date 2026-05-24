@@ -160,6 +160,7 @@ export interface SaveProviderCredentialInput {
   providerId: string;
   secret: string;
   model: string | null;
+  employeeId?: string | null;
 }
 
 export interface RevokeProviderCredentialInput {

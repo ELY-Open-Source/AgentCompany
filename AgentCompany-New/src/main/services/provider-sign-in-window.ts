@@ -4,11 +4,11 @@ export interface LaunchProviderSignInWindowInput {
   providerId: string;
   label: string;
   signInUrl: string;
+  partition: string;
 }
 
 export function launchProviderSignInWindow(input: LaunchProviderSignInWindowInput): void {
-  const partition = `persist:agentcompany-provider-${input.providerId}`;
-  const providerSession = session.fromPartition(partition);
+  const providerSession = session.fromPartition(input.partition);
   providerSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   providerSession.setPermissionCheckHandler(() => false);
 

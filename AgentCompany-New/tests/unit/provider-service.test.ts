@@ -173,7 +173,7 @@ describe("provider service", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);
     const snapshot = new SnapshotService(connection.db);
-    let launched: { providerId: string; label: string; signInUrl: string } | null = null;
+    let launched: { providerId: string; label: string; signInUrl: string; partition: string } | null = null;
     const providers = new ProviderService(connection.db, providerAdapters, testVault, (input) => { launched = input; });
     let orgId = "";
     let employeeId = "";
@@ -198,7 +198,19 @@ describe("provider service", () => {
       providerId: copilotProviderId,
       label: "GitHub Copilot",
       signInUrl: "https://github.com/login",
+      partition: `persist:agentcompany-provider-${copilotProviderId}`,
     });
+    expect(state.providerAuthSessions[0]).toMatchObject({
+      orgId,
+      providerId: copilotProviderId,
+      providerKey: "github-copilot",
+      employeeId,
+      partition: `persist:agentcompany-provider-${copilotProviderId}`,
+      completedAt: null,
+    });
+    expect(state.providerAuthSessions[0]?.state).toHaveLength(32);
+    expect(state.providerAuthSessions[0]?.nonce).toHaveLength(32);
+    expect(state.providerAuthSessions[0]?.codeVerifierSha256).toHaveLength(64);
     expect(state.auditEvents).toContainEqual(expect.objectContaining({
       entityType: "provider",
       entityId: copilotProviderId,
@@ -206,6 +218,50 @@ describe("provider service", () => {
       actorId: employeeId,
       action: "sign_in_window_opened",
     }));
+    connection.close();
+  });
+
+  test("binds OAuth credentials to a sign-in session source", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, () => {});
+    let orgId = "";
+    let employeeId = "";
+    let copilotProviderId = "";
+
+    connection.transaction(() => {
+      orgId = createOrganization(organization);
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      copilotProviderId = providerId(connection, orgId, "github-copilot");
+    });
+
+    expect(() => connection.transaction(() => providers.saveCredential({
+      orgId,
+      providerId: copilotProviderId,
+      secret: "ghu_live_provider",
+      model: "claude-opus-4-5",
+      employeeId,
+    }))).toThrow("Provider sign-in session is required.");
+
+    connection.transaction(() => {
+      providers.launchSignInWindow({ orgId, providerId: copilotProviderId, employeeId });
+      providers.saveCredential({
+        orgId,
+        providerId: copilotProviderId,
+        secret: "ghu_live_provider",
+        model: "claude-opus-4-5",
+        employeeId,
+      });
+    });
+
+    const state = snapshot.load();
+    const profile = state.providerAuthProfiles.find((item) => item.providerId === copilotProviderId && item.active);
+    const session = state.providerAuthSessions.find((item) => item.providerId === copilotProviderId);
+    if (!profile || !session) throw new Error("Provider auth evidence was not created.");
+    expect(profile).toMatchObject({ sourceType: "provider_sign_in_session", sourceRef: session.id });
+    expect(session.completedAt).toBeTruthy();
+    expect(state.providers.find((item) => item.id === copilotProviderId)?.enabled).toBe(true);
     connection.close();
   });
 

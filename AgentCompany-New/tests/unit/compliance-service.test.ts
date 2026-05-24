@@ -107,6 +107,28 @@ describe("compliance service", () => {
         createdByEmployeeId: employeeId,
         authorizedEmployeeId: employeeId,
       });
+      const providerId = (connection.db.prepare("select id from providers where org_id = ? and provider_key = 'github-copilot'")
+        .get(orgId) as { id: string }).id;
+      connection.db.prepare(`
+        insert into provider_auth_sessions(
+          id, org_id, provider_id, provider_key, employee_id, state, nonce, code_verifier_sha256,
+          redirect_uri, sign_in_url, partition, created_at, expires_at, completed_at
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null)
+      `).run(
+        "auths-test",
+        orgId,
+        providerId,
+        "github-copilot",
+        employeeId,
+        "state",
+        "nonce",
+        "a".repeat(64),
+        `agentcompany://provider-auth/${providerId}`,
+        "https://github.com/login",
+        `persist:agentcompany-provider-${providerId}`,
+        new Date().toISOString(),
+        new Date(Date.now() + 60000).toISOString(),
+      );
       holdId = compliance.createLegalHold({
         orgId,
         entityType: "employee",
@@ -144,6 +166,7 @@ describe("compliance service", () => {
     expect(redactedApproval?.decidedByEmployeeId).toBeNull();
     expect(redactedSocialAccount?.authorizedEmployeeId).toBeNull();
     expect(state.socialAccountGrants).toHaveLength(0);
+    expect(state.providerAuthSessions).toHaveLength(0);
     expect(state.complianceExports[0]?.exportType).toBe("gdpr_delete");
     expect(state.complianceExports[0]?.requestedByEmployeeId).toBeNull();
     expect(state.auditEvents.some((event) => event.entityType === "compliance_export" && event.action === "gdpr_deleted")).toBe(true);

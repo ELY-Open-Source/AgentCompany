@@ -152,6 +152,8 @@ describe("migration service", () => {
       create table provider_requests(id text primary key, org_id text, provider_id text, workspace_id text);
       create table provider_usage_windows(id text primary key, org_id text, provider_id text);
       create table provider_rate_limit_observations(id text primary key, org_id text, provider_id text);
+      create table provider_auth_profiles(id text primary key, org_id text, provider_id text, credential_id text);
+      create table provider_auth_sessions(id text primary key, org_id text, provider_id text, employee_id text);
       create table credentials(id text primary key, org_id text);
       create table skill_definitions(id text primary key, org_id text);
       create table skill_revisions(id text primary key, skill_id text);
@@ -228,6 +230,8 @@ describe("migration service", () => {
       insert into provider_requests(id, org_id, provider_id, workspace_id) values ('req-1', 'org-1', 'prov-1', 'wsp-1');
       insert into provider_usage_windows(id, org_id, provider_id) values ('usage-1', 'org-1', 'prov-1');
       insert into provider_rate_limit_observations(id, org_id, provider_id) values ('quota-1', 'org-1', 'prov-1');
+      insert into provider_auth_profiles(id, org_id, provider_id, credential_id) values ('authp-1', 'org-1', 'prov-1', 'cred-1');
+      insert into provider_auth_sessions(id, org_id, provider_id, employee_id) values ('auths-1', 'org-1', 'prov-1', 'emp-1');
       insert into skill_definitions(id, org_id) values ('skill-1', 'org-1');
       insert into skill_revisions(id, skill_id) values ('rev-1', 'skill-1'), ('rev-2', 'skill-1');
       insert into skill_artifacts(id, revision_id) values ('artifact-1', 'rev-1');
@@ -289,6 +293,8 @@ describe("migration service", () => {
     expect(body.tableCounts.provider_requests).toBe(1);
     expect(body.tableCounts.provider_usage_windows).toBe(1);
     expect(body.tableCounts.provider_rate_limit_observations).toBe(1);
+    expect(body.tableCounts.provider_auth_profiles).toBe(1);
+    expect(body.tableCounts.provider_auth_sessions).toBe(1);
     expect(body.tableCounts.browser_session_containers).toBe(1);
     expect(body.tableCounts.browser_action_policies).toBe(1);
     expect(body.tableCounts.social_approval_routes).toBe(1);
@@ -317,6 +323,8 @@ describe("migration service", () => {
     expect(body.idMaps.migration_reconciliation_items).toEqual(["reconcile-1"]);
     expect(body.idMaps.provider_usage_windows).toEqual(["usage-1"]);
     expect(body.idMaps.provider_rate_limit_observations).toEqual(["quota-1"]);
+    expect(body.idMaps.provider_auth_profiles).toEqual(["authp-1"]);
+    expect(body.idMaps.provider_auth_sessions).toEqual(["auths-1"]);
     expect(body.idMaps.browser_session_containers).toEqual(["container-1"]);
     expect(body.idMaps.browser_action_policies).toEqual(["browser-policy-1"]);
     expect(body.idMaps.social_approval_routes).toEqual(["social-route-1"]);

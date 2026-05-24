@@ -157,6 +157,7 @@ export class ComplianceService {
         roleGrants: this.db.prepare("select * from role_grants where org_id = ? and principal_type = 'employee' and principal_id = ? order by created_at").all(orgId, subjectId),
         socialAccountsAuthorized: this.db.prepare("select * from social_accounts where org_id = ? and authorized_employee_id = ? order by created_at").all(orgId, subjectId),
         socialAccountGrants: this.db.prepare("select * from social_account_grants where org_id = ? and employee_id = ? order by created_at").all(orgId, subjectId),
+        providerAuthSessions: this.db.prepare("select * from provider_auth_sessions where org_id = ? and employee_id = ? order by created_at").all(orgId, subjectId),
         scheduledPostsCreated: this.db.prepare("select * from scheduled_posts where org_id = ? and created_by_employee_id = ? order by created_at").all(orgId, subjectId),
         complianceExportsRequested: this.db.prepare("select * from compliance_exports where org_id = ? and requested_by_employee_id = ? order by created_at").all(orgId, subjectId),
         auditEventsAsActor: this.db.prepare("select * from audit_events where org_id = ? and actor_type = 'employee' and actor_id = ? order by created_at").all(orgId, subjectId),
@@ -184,6 +185,7 @@ export class ComplianceService {
       this.db.prepare("delete from employee_identities where org_id = ? and employee_id = ?").run(orgId, subjectId);
       this.db.prepare("delete from chat_read_state where org_id = ? and employee_id = ?").run(orgId, subjectId);
       this.db.prepare("delete from social_account_grants where org_id = ? and employee_id = ?").run(orgId, subjectId);
+      this.db.prepare("delete from provider_auth_sessions where org_id = ? and employee_id = ?").run(orgId, subjectId);
       this.db.prepare("update social_accounts set authorized_employee_id = null where org_id = ? and authorized_employee_id = ?")
         .run(orgId, subjectId);
       this.db.prepare("update social_approval_routes set route_to_id = null where org_id = ? and route_to_type = 'authorized_employee' and route_to_id = ?")
