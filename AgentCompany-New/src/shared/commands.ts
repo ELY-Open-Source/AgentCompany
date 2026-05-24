@@ -223,6 +223,11 @@ export interface ResolveAgentSkillsInput {
   runId: string;
 }
 
+export interface RunSkillTestsInput {
+  orgId: string;
+  revisionId: string;
+}
+
 export interface CreateSocialAccountInput {
   orgId: string;
   platform: SocialPlatform;

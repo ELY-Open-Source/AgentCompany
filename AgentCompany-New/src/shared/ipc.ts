@@ -29,6 +29,7 @@ export const IPC_CHANNELS = {
   importSkillDirectory: "agentcompany:import-skill-directory",
   bindSkill: "agentcompany:bind-skill",
   resolveAgentSkills: "agentcompany:resolve-agent-skills",
+  runSkillTests: "agentcompany:run-skill-tests",
   createSocialAccount: "agentcompany:create-social-account",
   launchSocialLogin: "agentcompany:launch-social-login",
   createScheduledPost: "agentcompany:create-scheduled-post",

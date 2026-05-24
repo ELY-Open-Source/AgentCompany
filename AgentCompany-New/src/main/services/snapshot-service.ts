@@ -115,6 +115,7 @@ export class SnapshotService {
       skillRevisions: list(this.db, "skill_revisions", "published_at desc"),
       skillBindings,
       skillRuntimeSnapshots: list(this.db, "skill_runtime_snapshots", "created_at desc"),
+      skillTests: list(this.db, "skill_tests", "last_run_at desc, id asc"),
       socialAccounts: list(this.db, "social_accounts", "created_at asc"),
       socialAccountGrants: list(this.db, "social_account_grants", "created_at asc"),
       browserSessionContainers: list<AppSnapshot["browserSessionContainers"][number]>(this.db, "browser_session_containers", "created_at asc")

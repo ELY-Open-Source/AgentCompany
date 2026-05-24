@@ -1,5 +1,5 @@
 import { _electron as electron, expect, test, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -133,6 +133,14 @@ test("onboards, hires, and creates work in the Electron shell", async () => {
     await page.getByLabel("OpenAI monthly request limit").fill("25");
     await page.getByRole("button", { name: "Save OpenAI policy" }).click();
     await expect(page.getByText("0 / 25").first()).toBeVisible();
+    await page.getByRole("button", { name: "Skills" }).click();
+    await page.getByRole("button", { name: "Import" }).click();
+    await page.getByLabel("Directory path").fill(createSkillDirectory());
+    await page.locator(".modal").getByRole("button", { name: "Import" }).click();
+    await expect(page.getByText("Release Gate").first()).toBeVisible();
+    await expect(page.getByText("Never run").first()).toBeVisible();
+    await page.getByRole("button", { name: "Run tests" }).click();
+    await expect(page.getByText("1/1 passed").first()).toBeVisible();
     await page.getByRole("button", { name: "Compliance" }).click();
     await page.getByRole("button", { name: "Create" }).click();
     await expect(page.getByText("gdpr export · employee").first()).toBeVisible();
@@ -165,6 +173,26 @@ function createLegacyDatabase(): string {
   legacy.exec("create table organizations(id text primary key); insert into organizations(id) values ('legacy-org');");
   legacy.close();
   return legacyPath;
+}
+
+function createSkillDirectory(): string {
+  const root = join(tmpdir(), `agentcompany-skill-${randomUUID()}`);
+  mkdirSync(join(root, "checks"), { recursive: true });
+  writeFileSync(join(root, "SKILL.md"), "Review release evidence and produce a concise gate decision.\n", "utf8");
+  writeFileSync(join(root, "checks", "acceptance.txt"), "release evidence accepted\n", "utf8");
+  writeFileSync(join(root, "skill.manifest.json"), JSON.stringify({
+    name: "Release Gate",
+    version: "1.0.0",
+    entrypoint: "SKILL.md",
+    capabilities: ["release-review"],
+    required_tools: ["git"],
+    compatible_models: ["gpt-5.4"],
+    risk_level: "low",
+    tests: ["checks/acceptance.txt"],
+    inputs: {},
+    outputs: {},
+  }, null, 2), "utf8");
+  return root;
 }
 
 async function verifyPagesDoNotOverflow(page: Page): Promise<void> {

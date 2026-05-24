@@ -145,6 +145,7 @@ describe("domain services", () => {
         .get(orgId, "review-routes") as { id: string };
       skills.bind({ orgId, agentId, skillId: skill.id, revisionId });
       rmSync(skillDir, { recursive: true, force: true });
+      skills.runTests({ orgId, revisionId });
       skills.resolveRuntimeSnapshot({ orgId, agentId, runId: "run-review-1" });
     });
 
@@ -153,8 +154,11 @@ describe("domain services", () => {
     expect(state.skillRevisions[0]?.versionSemver).toBe("1.0.0");
     expect(state.skillRevisions[0]?.immutableChecksum).toHaveLength(64);
     expect(state.skillRevisions[0]?.manifestJson).toContain("architecture-review");
+    expect(state.skillTests[0]?.lastResult).toContain("\"status\":\"passed\"");
+    expect(state.skillTests[0]?.lastRunAt).toBeTruthy();
     expect(state.skillRuntimeSnapshots[0]?.sourceRevisionIds).toContain(revisionId);
     expect(state.skillRuntimeSnapshots[0]?.compiledPrompt).toContain("# Review Routes");
+    expect(state.auditEvents.some((event) => event.entityType === "skill_revision" && event.action === "tests_run")).toBe(true);
     connection.close();
   });
 

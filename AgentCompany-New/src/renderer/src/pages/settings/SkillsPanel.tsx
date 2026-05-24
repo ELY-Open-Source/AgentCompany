@@ -6,6 +6,7 @@ import type {
   SkillBindingRecord,
   SkillDefinitionRecord,
   SkillRevisionRecord,
+  SkillTestRecord,
 } from "../../../../shared/domain";
 import type { SnapshotActions } from "../../app/useSnapshot";
 
@@ -14,11 +15,12 @@ interface SkillsPanelProps {
   skills: SkillDefinitionRecord[];
   revisions: SkillRevisionRecord[];
   bindings: SkillBindingRecord[];
+  tests: SkillTestRecord[];
   agents: AgentRecord[];
   actions: SnapshotActions;
 }
 
-export function SkillsPanel({ orgId, skills, revisions, bindings, agents, actions }: SkillsPanelProps) {
+export function SkillsPanel({ orgId, skills, revisions, bindings, tests, agents, actions }: SkillsPanelProps) {
   const [importOpen, setImportOpen] = useState(false);
 
   const importSkill = (event: FormEvent<HTMLFormElement>) => {
@@ -35,6 +37,10 @@ export function SkillsPanel({ orgId, skills, revisions, bindings, agents, action
     const latest = revisions.find((revision) => revision.skillId === skill.id);
     if (!latest) return;
     void actions.run(() => window.agentCompany.bindSkill({ orgId, agentId, skillId: skill.id, revisionId: latest.id }));
+  };
+
+  const runTests = (revisionId: string) => {
+    void actions.run(() => window.agentCompany.runSkillTests({ orgId, revisionId }));
   };
 
   return (
@@ -54,31 +60,36 @@ export function SkillsPanel({ orgId, skills, revisions, bindings, agents, action
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div
           className="table-row head"
-          style={{ gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.6fr)" }}
+          style={{ gridTemplateColumns: "minmax(0, 1.4fr) 92px 132px minmax(0, 1.2fr) minmax(220px, 1.4fr)" }}
         >
-          <div>Skill</div><div>Version</div><div>Bindings</div><div>Bind to agent</div>
+          <div>Skill</div><div>Version</div><div>Tests</div><div>Bindings</div><div>Actions</div>
         </div>
         {skills.map((skill, index) => {
           const last = index === skills.length - 1;
           const latest = revisions.find((revision) => revision.skillId === skill.id);
           const skillBindings = bindings.filter((binding) => binding.skillId === skill.id && binding.enabled);
+          const revisionTests = latest ? tests.filter((test) => test.revisionId === latest.id) : [];
           return (
             <div
               key={skill.id}
               className="table-row"
-              style={{ gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.6fr)", borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
+              style={{ gridTemplateColumns: "minmax(0, 1.4fr) 92px 132px minmax(0, 1.2fr) minmax(220px, 1.4fr)", borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
             >
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{skill.name}</div>
                 <div style={{ color: "var(--text-3)", fontSize: 11 }}>{skill.slug}</div>
               </div>
               <Pill>{latest ? latest.versionSemver : "—"}</Pill>
+              <Pill>{testSummary(revisionTests)}</Pill>
               <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
                 {skillBindings.map((binding) => (
                   <Pill key={binding.id}>{agentName(binding.agentId, agents)}</Pill>
                 ))}
               </div>
-              <BindAgent skill={skill} agents={agents} onBind={(agentId) => bind(skill, agentId)} disabled={!latest} />
+              <div className="row" style={{ gap: 8, minWidth: 0 }}>
+                <Button size="small" onClick={() => { if (latest && revisionTests.length > 0) runTests(latest.id); }} disabled={!latest || revisionTests.length === 0}>Run tests</Button>
+                <BindAgent skill={skill} agents={agents} onBind={(agentId) => bind(skill, agentId)} disabled={!latest} />
+              </div>
             </div>
           );
         })}
@@ -123,4 +134,24 @@ function BindAgent({
 
 function agentName(agentId: string, agents: AgentRecord[]): string {
   return agents.find((agent) => agent.id === agentId)?.name ?? agentId;
+}
+
+function testSummary(tests: SkillTestRecord[]): string {
+  if (tests.length === 0) return "No tests";
+  const completed = tests.filter((test) => test.lastResult);
+  if (completed.length === 0) return "Never run";
+  const passed = completed.filter((test) => testStatus(test) === "passed").length;
+  const failed = completed.length - passed;
+  if (failed > 0) return `${failed} failed`;
+  return `${passed}/${tests.length} passed`;
+}
+
+function testStatus(test: SkillTestRecord): "passed" | "failed" {
+  if (!test.lastResult) return "failed";
+  try {
+    const result = JSON.parse(test.lastResult) as { status?: unknown };
+    return result.status === "passed" ? "passed" : "failed";
+  } catch {
+    return "failed";
+  }
 }

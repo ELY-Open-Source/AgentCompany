@@ -71,6 +71,10 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
     const skillIds = new Set(skills.map((skill) => skill.id));
     return snapshot.skillRevisions.filter((revision) => skillIds.has(revision.skillId));
   }, [snapshot.skillRevisions, skills]);
+  const skillTests = useMemo(() => {
+    const revisionIds = new Set(skillRevisions.map((revision) => revision.id));
+    return snapshot.skillTests.filter((test) => revisionIds.has(test.revisionId));
+  }, [snapshot.skillTests, skillRevisions]);
   const skillBindings = useMemo(() => snapshot.skillBindings.filter((item) => item.orgId === orgId), [snapshot.skillBindings, orgId]);
   const policies = useMemo(() => snapshot.policyRules.filter((item) => item.orgId === orgId), [snapshot.policyRules, orgId]);
   const workspaces = useMemo(() => snapshot.workspaces.filter((item) => item.orgId === orgId), [snapshot.workspaces, orgId]);
@@ -147,6 +151,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               skills={skills}
               revisions={skillRevisions}
               bindings={skillBindings}
+              tests={skillTests}
               agents={agents}
               actions={actions}
             />

@@ -35,6 +35,7 @@ import type {
   RunChaosDrillInput,
   RunEvalSuiteInput,
   RunSdlcReviewInput,
+  RunSkillTestsInput,
   RunTaskInput,
   RevokeProviderCredentialInput,
   SaveProviderCredentialInput,
@@ -90,6 +91,7 @@ export interface DesktopApi {
   importSkillDirectory(input: ImportSkillDirectoryInput): Promise<DesktopResult<AppSnapshot>>;
   bindSkill(input: BindSkillInput): Promise<DesktopResult<AppSnapshot>>;
   resolveAgentSkills(input: ResolveAgentSkillsInput): Promise<DesktopResult<AppSnapshot>>;
+  runSkillTests(input: RunSkillTestsInput): Promise<DesktopResult<AppSnapshot>>;
   createSocialAccount(input: CreateSocialAccountInput): Promise<DesktopResult<AppSnapshot>>;
   launchSocialLogin(input: LaunchSocialLoginInput): Promise<DesktopResult<null>>;
   createScheduledPost(input: CreateScheduledPostInput): Promise<DesktopResult<AppSnapshot>>;

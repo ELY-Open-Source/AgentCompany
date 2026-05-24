@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { normalize } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import type { BindSkillInput, ImportSkillDirectoryInput, ResolveAgentSkillsInput } from "../../shared/commands";
+import type { BindSkillInput, ImportSkillDirectoryInput, ResolveAgentSkillsInput, RunSkillTestsInput } from "../../shared/commands";
 import { SLO_SIGNAL_KEY } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
@@ -181,6 +183,53 @@ export class SkillService {
     return snapshotId;
   }
 
+  runTests(input: RunSkillTestsInput): string {
+    const revision = this.db.prepare(`
+      select sr.id, sr.version_semver, sd.slug
+      from skill_revisions sr
+      join skill_definitions sd on sd.id = sr.skill_id
+      where sr.id = ? and sd.org_id = ?
+    `).get(input.revisionId, input.orgId) as SkillRevisionTestRow | undefined;
+    if (!revision) throw new Error("Skill revision was not found.");
+
+    const tests = this.db.prepare(`
+      select id, test_type, expected_output_ref
+      from skill_tests
+      where revision_id = ?
+      order by expected_output_ref asc
+    `).all(input.revisionId) as unknown as SkillTestRow[];
+    const artifacts = this.db.prepare(`
+      select artifact_type, object_key, sha256, size_bytes
+      from skill_artifacts
+      where revision_id = ?
+      order by artifact_type asc, object_key asc
+    `).all(input.revisionId) as unknown as SkillArtifactRow[];
+    const structureFailure = verifyRevisionStructure(artifacts);
+    if (structureFailure && tests.length === 0) throw new Error(structureFailure.failure ?? "Skill revision structure check failed.");
+    const now = new Date().toISOString();
+    let passed = 0;
+    let failed = 0;
+
+    for (const test of tests) {
+      const result = structureFailure ?? runManifestArtifactTest(test, artifacts);
+      if (result.status === "passed") passed += 1;
+      if (result.status === "failed") failed += 1;
+      this.db.prepare("update skill_tests set last_result = ?, last_run_at = ? where id = ?")
+        .run(JSON.stringify(result), now, test.id);
+    }
+
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "skill_revision",
+      entityId: revision.id,
+      actorType: "system",
+      actorId: null,
+      action: "tests_run",
+      payload: { slug: revision.slug, version: revision.version_semver, total: tests.length, passed, failed },
+    });
+    return revision.id;
+  }
+
   private verifyBindingTargets(input: BindSkillInput): void {
     const agent = this.db.prepare("select id from agents where id = ? and org_id = ?")
       .get(input.agentId, input.orgId) as { id: string } | undefined;
@@ -206,4 +255,104 @@ interface RuntimeSkillRow {
   version_semver: string;
   manifest_json: string;
   object_key: string;
+}
+
+interface SkillRevisionTestRow {
+  id: string;
+  version_semver: string;
+  slug: string;
+}
+
+interface SkillTestRow {
+  id: string;
+  test_type: string;
+  expected_output_ref: string;
+}
+
+interface SkillArtifactRow {
+  artifact_type: string;
+  object_key: string;
+  sha256: string;
+  size_bytes: number;
+}
+
+interface SkillTestResult {
+  status: "passed" | "failed";
+  testType: string;
+  expectedOutputRef: string;
+  checks: Array<{ name: string; status: "passed" | "failed"; detail: string }>;
+  artifactSha256?: string;
+  failure?: string;
+}
+
+function verifyRevisionStructure(artifacts: SkillArtifactRow[]): SkillTestResult | null {
+  const requiredTypes = ["manifest", "entrypoint"];
+  for (const type of requiredTypes) {
+    if (!artifacts.some((artifact) => artifact.artifact_type === type)) {
+      return failedSkillTest("revision_structure", type, `Skill revision artifact is missing: ${type}`);
+    }
+  }
+  for (const artifact of artifacts) {
+    try {
+      verifyArtifactIntegrity(artifact);
+    } catch (error) {
+      return failedSkillTest("artifact_integrity", artifact.object_key, error instanceof Error ? error.message : String(error));
+    }
+  }
+  return null;
+}
+
+function runManifestArtifactTest(test: SkillTestRow, artifacts: SkillArtifactRow[]): SkillTestResult {
+  if (test.test_type !== "manifest") {
+    return failedSkillTest(test.test_type, test.expected_output_ref, `Unsupported skill test type: ${test.test_type}`);
+  }
+  const testArtifact = artifacts.find((artifact) => (
+    artifact.artifact_type === "test" && artifactMatchesExpectedRef(artifact.object_key, test.expected_output_ref)
+  ));
+  if (!testArtifact) return failedSkillTest(test.test_type, test.expected_output_ref, "Skill test artifact was not found.");
+
+  try {
+    const content = verifyArtifactIntegrity(testArtifact).toString("utf8");
+    if (!content.trim()) throw new Error("Skill test artifact is empty.");
+    return {
+      status: "passed",
+      testType: test.test_type,
+      expectedOutputRef: test.expected_output_ref,
+      artifactSha256: testArtifact.sha256,
+      checks: [
+        { name: "manifest_test_artifact", status: "passed", detail: "Artifact exists, checksum matches, and content is non-empty." },
+      ],
+    };
+  } catch (error) {
+    return failedSkillTest(test.test_type, test.expected_output_ref, error instanceof Error ? error.message : String(error));
+  }
+}
+
+function verifyArtifactIntegrity(artifact: SkillArtifactRow): Buffer {
+  if (!existsSync(artifact.object_key)) throw new Error(`Skill artifact is missing: ${artifact.object_key}`);
+  const body = readFileSync(artifact.object_key);
+  const sha256 = createHash("sha256").update(body).digest("hex");
+  if (sha256 !== artifact.sha256) throw new Error(`Skill artifact checksum mismatch: ${artifact.object_key}`);
+  if (body.byteLength !== artifact.size_bytes) throw new Error(`Skill artifact size mismatch: ${artifact.object_key}`);
+  return body;
+}
+
+function artifactMatchesExpectedRef(objectKey: string, expectedRef: string): boolean {
+  const expected = normalizeSkillPath(expectedRef);
+  const actual = normalizeSkillPath(objectKey);
+  return actual === expected || actual.endsWith(`/${expected}`);
+}
+
+function normalizeSkillPath(value: string): string {
+  return normalize(value).replaceAll("\\", "/");
+}
+
+function failedSkillTest(testType: string, expectedOutputRef: string, failure: string): SkillTestResult {
+  return {
+    status: "failed",
+    testType,
+    expectedOutputRef,
+    checks: [{ name: "skill_test", status: "failed", detail: failure }],
+    failure,
+  };
 }

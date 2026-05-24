@@ -398,6 +398,15 @@ export interface SkillRuntimeSnapshotRecord {
   createdAt: string;
 }
 
+export interface SkillTestRecord {
+  id: string;
+  revisionId: string;
+  testType: string;
+  expectedOutputRef: string;
+  lastResult: string | null;
+  lastRunAt: string | null;
+}
+
 export interface AuditEventRecord {
   id: string;
   orgId: string;
@@ -464,6 +473,7 @@ export interface AppSnapshot {
   skillRevisions: SkillRevisionRecord[];
   skillBindings: SkillBindingRecord[];
   skillRuntimeSnapshots: SkillRuntimeSnapshotRecord[];
+  skillTests: SkillTestRecord[];
   socialAccounts: SocialAccountRecord[];
   socialAccountGrants: SocialAccountGrantRecord[];
   browserSessionContainers: BrowserSessionContainerRecord[];
