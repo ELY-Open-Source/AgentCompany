@@ -23,7 +23,7 @@ describe("domain services", () => {
     const connection = createConnection();
 
     const rows = connection.db.prepare("select version from schema_migrations order by version asc").all() as Array<{ version: number }>;
-    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]);
+    expect(rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]);
     connection.close();
   });
 
@@ -208,6 +208,7 @@ describe("domain services", () => {
     const chat = new ChatService(connection.db);
     const snapshot = new SnapshotService(connection.db);
     let orgId = "";
+    let fileId = "";
 
     connection.transaction(() => {
       orgId = organization.createOrganization({
@@ -225,7 +226,7 @@ describe("domain services", () => {
       });
       const employee = connection.db.prepare("select id from employees where org_id = ?")
         .get(orgId) as { id: string };
-      const fileId = createId("file");
+      fileId = createId("file");
       connection.db.prepare(`
         insert into file_objects(id, org_id, name, kind, size_bytes, sha256, storage_path, owner_type, owner_id, created_at)
         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -249,6 +250,15 @@ describe("domain services", () => {
     expect(state.chatAttachments).toHaveLength(1);
     expect(state.files[0]?.scanState).toBe("approved");
     expect(state.fileAccessGrants[0]).toMatchObject({ grantedToType: "board", grantedToId: orgId, accessLevel: "read" });
+    expect(state.fileHandoffRecords[0]).toMatchObject({
+      fileId,
+      targetPrincipalType: "board",
+      targetPrincipalId: orgId,
+      checksum: "8f3a",
+      scanState: "approved",
+      policyDecision: "approved_for_handoff",
+      objectRef: "artifacts/runbook.md",
+    });
     expect(state.chatMentions[0]).toMatchObject({ targetType: "board", targetId: orgId });
     expect(state.chatSlashInvocations[0]).toMatchObject({ command: "handoff" });
     expect(state.chatPresence).toHaveLength(1);
@@ -362,7 +372,20 @@ describe("domain services", () => {
     const state = snapshot.load();
     const benGrant = state.fileAccessGrants.find((grant) => grant.fileId === approvedFileId && grant.grantedToId === benId);
     if (!benGrant) throw new Error("Agent handoff grant was not created.");
+    const benHandoff = state.fileHandoffRecords.find((record) => (
+      record.fileId === approvedFileId && record.sourcePrincipalId === adaId && record.targetPrincipalId === benId
+    ));
+    if (!benHandoff) throw new Error("Agent handoff record was not created.");
     expect(benGrant).toMatchObject({ grantedToType: "agent", accessLevel: "read" });
+    expect(benHandoff).toMatchObject({
+      sourcePrincipalType: "agent",
+      sourcePrincipalId: adaId,
+      targetPrincipalType: "agent",
+      checksum: "sha-approved",
+      objectRef: "artifacts/release-notes.md",
+      scanState: "approved",
+      policyDecision: "approved_for_handoff",
+    });
     expect(state.chatMessages).toHaveLength(2);
     expect(state.auditEvents.some((event) => event.entityType === "file_object" && event.action === "access_granted")).toBe(true);
     connection.close();

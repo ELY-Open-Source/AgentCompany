@@ -287,6 +287,24 @@ export interface FileAccessGrantRecord {
   createdAt: string;
 }
 
+export interface FileHandoffRecord {
+  id: string;
+  orgId: string;
+  messageId: string;
+  fileId: string;
+  sourcePrincipalType: "employee" | "agent" | "board" | "system";
+  sourcePrincipalId: string | null;
+  targetPrincipalType: "employee" | "agent" | "board" | "org_group";
+  targetPrincipalId: string;
+  transferType: string;
+  checksum: string;
+  scanState: FileScanState;
+  scanLabelsJson: string;
+  policyDecision: "approved_for_handoff" | "blocked_by_scan";
+  objectRef: string;
+  createdAt: string;
+}
+
 export interface ScheduledPostRecord {
   id: string;
   orgId: string;
@@ -432,6 +450,7 @@ export interface AppSnapshot {
   chatReadStates: ChatReadStateRecord[];
   files: FileObjectRecord[];
   fileAccessGrants: FileAccessGrantRecord[];
+  fileHandoffRecords: FileHandoffRecord[];
   scheduledPosts: ScheduledPostRecord[];
   providers: ProviderRecord[];
   providerAuthProfiles: ProviderAuthProfileRecord[];

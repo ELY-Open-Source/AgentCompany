@@ -103,6 +103,7 @@ export class SnapshotService {
       chatReadStates: list(this.db, "chat_read_state", "last_read_at desc"),
       files,
       fileAccessGrants: list(this.db, "file_access_grants", "created_at desc"),
+      fileHandoffRecords: list(this.db, "file_handoff_records", "created_at desc"),
       scheduledPosts: list(this.db, "scheduled_posts", "scheduled_for asc"),
       providers,
       providerAuthProfiles,

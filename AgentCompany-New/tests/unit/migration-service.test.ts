@@ -163,6 +163,7 @@ describe("migration service", () => {
       create table skill_catalog_tags(skill_id text, tag text, tag_type text);
       create table file_objects(id text primary key, org_id text, space_id text);
       create table file_access_grants(id text primary key, org_id text, file_id text, source_message_id text, source_thread_id text);
+      create table file_handoff_records(id text primary key, org_id text, message_id text, file_id text);
       create table social_accounts(id text primary key, org_id text, authorized_employee_id text);
       create table social_account_grants(id text primary key, org_id text, social_account_id text, employee_id text);
       create table browser_session_containers(id text primary key, org_id text, social_account_id text);
@@ -218,6 +219,7 @@ describe("migration service", () => {
       insert into chat_memberships(space_id, principal_type, principal_id) values ('space-1', 'employee', 'emp-1');
       insert into chat_attachments(message_id, file_id) values ('msg-1', 'file-1');
       insert into file_access_grants(id, org_id, file_id, source_message_id, source_thread_id) values ('file-grant-1', 'org-1', 'file-1', 'msg-1', 'thread-1');
+      insert into file_handoff_records(id, org_id, message_id, file_id) values ('handoff-1', 'org-1', 'msg-1', 'file-1');
       insert into chat_mentions(message_id, target_type, target_id) values ('msg-1', 'agent', 'agent-1');
       insert into chat_slash_invocations(id, message_id) values ('slash-1', 'msg-1');
       insert into board_interventions(id, org_id, thread_id, message_id, approval_id) values ('bdi-1', 'org-1', 'thread-1', 'msg-1', 'approval-1');
@@ -283,6 +285,7 @@ describe("migration service", () => {
     expect(body.tableCounts.chat_read_state).toBe(1);
     expect(body.tableCounts.board_interventions).toBe(1);
     expect(body.tableCounts.file_access_grants).toBe(1);
+    expect(body.tableCounts.file_handoff_records).toBe(1);
     expect(body.tableCounts.provider_requests).toBe(1);
     expect(body.tableCounts.provider_usage_windows).toBe(1);
     expect(body.tableCounts.provider_rate_limit_observations).toBe(1);
@@ -306,6 +309,7 @@ describe("migration service", () => {
     expect(body.idMaps.sdlc_review_runs).toEqual(["review-run-1"]);
     expect(body.idMaps.eval_runs).toEqual(["eval-run-1"]);
     expect(body.idMaps.board_interventions).toEqual(["bdi-1"]);
+    expect(body.idMaps.file_handoff_records).toEqual(["handoff-1"]);
     expect(body.idMaps.retention_freezes).toEqual(["freeze-1"]);
     expect(body.idMaps.audit_replay_runs).toEqual(["replay-1"]);
     expect(body.idMaps.rollback_snapshots).toEqual(["rollback-1"]);

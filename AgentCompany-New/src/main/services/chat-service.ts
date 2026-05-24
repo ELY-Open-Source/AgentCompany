@@ -4,27 +4,26 @@ import {
   CHAT_THREAD_BOARD_STATE,
   FILE_SCAN_STATE,
   RISK_LEVEL,
+  type FileScanState,
 } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { ApprovalService } from "./approval-service";
 import { AuditService } from "./audit-service";
 import { BoardInterventionService, parseBoardCommand } from "./board-intervention-service";
 import { buildChatMessageStructure } from "./chat-message-structure";
-import { recordChatMentions, resolveChatMentions, type MentionTarget, type ResolvedMention } from "./chat-mentions";
+import { recordChatMentions, resolveChatMentions, type ResolvedMention } from "./chat-mentions";
+import { FileHandoffService, type FileHandoffAttachment } from "./file-handoff-service";
 
 const SPACE_TYPES = new Set<CreateChatSpaceInput["spaceType"]>(["company", "department", "project", "direct"]);
 const SPACE_VISIBILITIES = new Set<CreateChatSpaceInput["visibility"]>(["workspace", "restricted"]);
 const RETENTION_POLICIES = new Set(["standard_365d", "restricted_365d"]);
 
-interface AttachmentCandidate {
-  fileId: string;
-  checksum: string;
-}
-
 interface FileAttachmentRow {
   id: string;
   sha256: string;
-  scan_state: string;
+  scan_state: FileScanState;
+  scan_labels_json: string;
+  storage_path: string;
   owner_type: string;
   owner_id: string | null;
 }
@@ -52,11 +51,13 @@ export class ChatService {
   private readonly audit: AuditService;
   private readonly approvals: ApprovalService;
   private readonly boardInterventions: BoardInterventionService;
+  private readonly handoffs: FileHandoffService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
     this.approvals = new ApprovalService(db);
     this.boardInterventions = new BoardInterventionService(db);
+    this.handoffs = new FileHandoffService(db);
   }
 
   createSpace(input: CreateChatSpaceInput): string {
@@ -141,8 +142,17 @@ export class ChatService {
     recordChatMentions(this.db, id, mentions);
     const slashResultRef = slash ? this.executeSlashCommand(input, space, sender, mentions, slash, id, threadId, now) : null;
     if (slash) this.recordSlashInvocation(id, slash, slashResultRef, now);
-    this.recordAttachments(id, attachments);
-    this.recordAttachmentGrants(input, id, threadId, attachments, mentions, now);
+    this.handoffs.record({
+      orgId: input.orgId,
+      spaceId: input.spaceId,
+      messageId: id,
+      threadId,
+      senderType: input.senderType,
+      senderId: input.senderId,
+      attachments,
+      mentions,
+      now,
+    });
     if (input.senderId) {
       const presenceStatus = slash?.command === "escalate" ? "waiting_approval" : "active";
       this.db.prepare(`
@@ -229,62 +239,6 @@ export class ChatService {
     `).run(createId("slash"), messageId, slash.command, JSON.stringify({ raw: slash.args }), resultRef, now);
   }
 
-  private recordAttachments(messageId: string, attachments: AttachmentCandidate[]): void {
-    for (const file of attachments) {
-      this.db.prepare(`
-        insert into chat_attachments(message_id, file_id, transfer_type, checksum, preview_key)
-        values (?, ?, ?, ?, ?)
-      `).run(messageId, file.fileId, "handoff", file.checksum, null);
-    }
-  }
-
-  private recordAttachmentGrants(
-    input: SendMessageInput,
-    messageId: string,
-    threadId: string,
-    attachments: AttachmentCandidate[],
-    mentions: ResolvedMention[],
-    now: string,
-  ): void {
-    if (attachments.length === 0) return;
-    const recipients = this.attachmentGrantRecipients(input.orgId, input.spaceId, mentions);
-    const statement = this.db.prepare(`
-      insert or ignore into file_access_grants(
-        id, org_id, file_id, granted_to_type, granted_to_id, granted_by_type, granted_by_id,
-        source_message_id, source_thread_id, access_level, created_at
-      )
-      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    for (const attachment of attachments) {
-      for (const recipient of recipients) {
-        const result = statement.run(
-          createId("fgr"),
-          input.orgId,
-          attachment.fileId,
-          recipient.type,
-          recipient.id,
-          input.senderType,
-          input.senderId,
-          messageId,
-          threadId,
-          "read",
-          now,
-        );
-        if (result.changes > 0) {
-          this.audit.record({
-            orgId: input.orgId,
-            entityType: "file_object",
-            entityId: attachment.fileId,
-            actorType: input.senderType,
-            actorId: input.senderId,
-            action: "access_granted",
-            payload: { messageId, threadId, grantedToType: recipient.type, grantedToId: recipient.id },
-          });
-        }
-      }
-    }
-  }
-
   private requireSpace(orgId: string, spaceId: string): SpaceRow {
     const space = this.db.prepare("select id, org_id, visibility, space_type from chat_spaces where id = ? and org_id = ?")
       .get(spaceId, orgId) as SpaceRow | undefined;
@@ -331,18 +285,24 @@ export class ChatService {
     return thread;
   }
 
-  private requireAttachments(orgId: string, fileIds: string[], sender: PrincipalRef | null): AttachmentCandidate[] {
+  private requireAttachments(orgId: string, fileIds: string[], sender: PrincipalRef | null): FileHandoffAttachment[] {
     if (new Set(fileIds).size !== fileIds.length) throw new Error("Attachment file ids must be unique.");
     return fileIds.map((fileId) => {
       const file = this.db.prepare(`
-        select id, sha256, scan_state, owner_type, owner_id
+        select id, sha256, scan_state, scan_labels_json, storage_path, owner_type, owner_id
         from file_objects
         where id = ? and org_id = ?
       `).get(fileId, orgId) as FileAttachmentRow | undefined;
       if (!file) throw new Error("Attachment file was not found.");
       if (file.scan_state !== FILE_SCAN_STATE.APPROVED) throw new Error("Attachment file is not approved for handoff.");
       if (!this.senderCanReadFile(orgId, file, sender)) throw new Error("Attachment file access is required.");
-      return { fileId, checksum: file.sha256 };
+      return {
+        fileId,
+        checksum: file.sha256,
+        scanState: file.scan_state,
+        scanLabelsJson: file.scan_labels_json,
+        objectRef: file.storage_path,
+      };
     });
   }
 
@@ -362,35 +322,6 @@ export class ChatService {
       limit 1
     `).get(orgId, file.id, sender.type, sender.id, workspaceGroupId) as { id: string } | undefined;
     return Boolean(grant);
-  }
-
-  private attachmentGrantRecipients(orgId: string, spaceId: string, mentions: ResolvedMention[]): MentionTarget[] {
-    const source = mentions.length > 0 ? mentions.map((mention) => mention.target) : this.spaceRecipients(spaceId);
-    const seen = new Set<string>();
-    const recipients: MentionTarget[] = [];
-    for (const target of source) {
-      const key = `${target.type}:${target.id}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      recipients.push(target);
-    }
-    if (recipients.length === 0) throw new Error("Attachment grant recipient is required.");
-    return recipients;
-  }
-
-  private spaceRecipients(spaceId: string): MentionTarget[] {
-    const rows = this.db.prepare(`
-      select principal_type, principal_id
-      from chat_memberships
-      where space_id = ?
-      order by principal_type asc, principal_id asc
-    `).all(spaceId) as Array<{ principal_type: string; principal_id: string }>;
-    return rows.map((row) => {
-      if (row.principal_type === "employee" || row.principal_type === "agent") {
-        return { type: row.principal_type, id: row.principal_id };
-      }
-      throw new Error("Chat membership principal type is unsupported.");
-    });
   }
 
   private requireMembership(spaceId: string, principal: PrincipalRef): void {

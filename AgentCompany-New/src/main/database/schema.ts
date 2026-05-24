@@ -27,6 +27,7 @@ import { chatMessageDeliverySchema } from "./migrations/025-chat-message-deliver
 import { browserPlatformGovernanceSchema } from "./migrations/026-browser-platform-governance";
 import { socialAuditRecordsSchema } from "./migrations/027-social-audit-records";
 import { migrationCutoverJournalSchema } from "./migrations/028-migration-cutover-journal";
+import { fileHandoffRecordsSchema } from "./migrations/029-file-handoff-records";
 
 interface Migration {
   version: number;
@@ -63,6 +64,7 @@ const MIGRATIONS: Migration[] = [
   { version: 26, name: "browser_platform_governance", sql: browserPlatformGovernanceSchema },
   { version: 27, name: "social_audit_records", sql: socialAuditRecordsSchema },
   { version: 28, name: "migration_cutover_journal", sql: migrationCutoverJournalSchema },
+  { version: 29, name: "file_handoff_records", sql: fileHandoffRecordsSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
