@@ -81,6 +81,14 @@ describe("social service", () => {
       approvalKind: "social_publish",
       routeToId: employeeId,
     });
+    expect(state.socialAuditRecords[0]).toMatchObject({
+      socialAccountId: state.socialAccounts[0]?.id,
+      sourceType: "social_account",
+      eventType: "account_created",
+      actorType: "employee",
+      actorId: employeeId,
+      policyDecision: "allowed_employee_authorization",
+    });
     expect(state.auditEvents.find((event) => event.entityType === "social_account")?.actorId).toBe(employeeId);
     expect(grantScope.actions).toEqual(["login", "draft", "approve"]);
     expect(grantScope.riskCeiling).toBe("medium");
@@ -153,6 +161,47 @@ describe("social service", () => {
     expect(state.scheduledPosts[0]?.state).toBe("published");
     expect(state.scheduledPosts[0]?.socialAccountId).toBe(socialAccountId);
     expect(state.scheduledPosts[0]?.approvalId).toBe(state.approvals[0]?.id);
+    expect(state.socialAuditRecords.map((record) => record.eventType).sort()).toEqual([
+      "account_created",
+      "draft_created",
+      "state_published",
+      "state_scheduled",
+    ]);
+    expect(state.socialAuditRecords.find((record) => record.eventType === "state_scheduled")).toMatchObject({
+      sourceId: postId,
+      policyDecision: "approval_requested",
+    });
+    expect(state.socialAuditRecords.find((record) => record.eventType === "state_published")).toMatchObject({
+      sourceId: postId,
+      policyDecision: "allowed_after_approval",
+    });
+    connection.close();
+  });
+
+  test("keeps social audit records immutable", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const social = new SocialService(connection.db);
+    let auditId = "";
+
+    connection.transaction(() => {
+      const orgId = createOrganization(organization);
+      const employeeId = firstEmployeeId(connection, orgId);
+      social.createAccount({
+        orgId,
+        platform: SOCIAL_PLATFORM.X,
+        handle: "@acme",
+        displayName: "Acme",
+        createdByEmployeeId: employeeId,
+        authorizedEmployeeId: employeeId,
+      });
+      auditId = (connection.db.prepare("select id from social_audit_records limit 1").get() as { id: string }).id;
+    });
+
+    expect(() => connection.db.prepare("update social_audit_records set policy_decision = ? where id = ?")
+      .run("changed", auditId)).toThrow("Social audit records are immutable.");
+    expect(() => connection.db.prepare("delete from social_audit_records where id = ?")
+      .run(auditId)).toThrow("Social audit records are immutable.");
     connection.close();
   });
 

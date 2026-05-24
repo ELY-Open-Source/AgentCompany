@@ -262,7 +262,7 @@ export class SdlcService {
       { key: "provider_adapter_coverage", passed: missing.length === 0, value: `${adapterKeys.length}/${catalogKeys.length}` },
       { key: "provider_rate_limit_registry", passed: rateLimitRegistry === 1, value: rateLimitRegistry },
       { key: "provider_runtime_contract", passed: runtimeContractReady, value: runtimeContractReady },
-      { key: "schema_version", passed: schemaVersion >= 26, value: schemaVersion },
+      { key: "schema_version", passed: schemaVersion >= 27, value: schemaVersion },
     ];
   }
 

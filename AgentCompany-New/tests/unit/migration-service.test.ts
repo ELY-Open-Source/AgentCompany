@@ -150,6 +150,7 @@ describe("migration service", () => {
       create table browser_action_policies(id text primary key, org_id text, social_account_id text);
       create table social_approval_routes(id text primary key, org_id text, social_account_id text, route_to_id text);
       create table browser_actions(id text primary key, org_id text, social_account_id text, evidence_file_id text);
+      create table social_audit_records(id text primary key, org_id text, social_account_id text, evidence_file_id text);
       create table scheduled_posts(id text primary key, org_id text, social_account_id text, approval_id text, created_by_employee_id text);
       create table policy_rules(id text primary key, org_id text);
       create table compliance_exports(id text primary key, org_id text, requested_by_employee_id text);
@@ -218,6 +219,7 @@ describe("migration service", () => {
       insert into browser_action_policies(id, org_id, social_account_id) values ('browser-policy-1', 'org-1', 'social-1');
       insert into social_approval_routes(id, org_id, social_account_id, route_to_id) values ('social-route-1', 'org-1', 'social-1', 'emp-1');
       insert into browser_actions(id, org_id, social_account_id, evidence_file_id) values ('browser-1', 'org-1', 'social-1', 'file-1');
+      insert into social_audit_records(id, org_id, social_account_id, evidence_file_id) values ('social-audit-1', 'org-1', 'social-1', 'file-1');
       insert into scheduled_posts(id, org_id, social_account_id, approval_id, created_by_employee_id) values ('post-1', 'org-1', 'social-1', 'approval-1', 'emp-1');
       insert into policy_rules(id, org_id) values ('policy-1', 'org-1');
       insert into compliance_exports(id, org_id, requested_by_employee_id) values ('cmp-1', 'org-1', 'emp-1');
@@ -256,6 +258,7 @@ describe("migration service", () => {
     expect(body.tableCounts.browser_session_containers).toBe(1);
     expect(body.tableCounts.browser_action_policies).toBe(1);
     expect(body.tableCounts.social_approval_routes).toBe(1);
+    expect(body.tableCounts.social_audit_records).toBe(1);
     expect(body.tableCounts.compliance_exports).toBe(1);
     expect(body.tableCounts.audit_replay_runs).toBe(1);
     expect(body.tableCounts.rollback_snapshots).toBe(1);
@@ -278,6 +281,7 @@ describe("migration service", () => {
     expect(body.idMaps.browser_session_containers).toEqual(["container-1"]);
     expect(body.idMaps.browser_action_policies).toEqual(["browser-policy-1"]);
     expect(body.idMaps.social_approval_routes).toEqual(["social-route-1"]);
+    expect(body.idMaps.social_audit_records).toEqual(["social-audit-1"]);
     connection.close();
   });
 

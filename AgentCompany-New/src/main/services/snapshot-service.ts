@@ -122,6 +122,7 @@ export class SnapshotService {
         .map((policy) => ({ ...policy, approvalRequired: toBool(policy.approvalRequired) })),
       socialApprovalRoutes: list(this.db, "social_approval_routes", "created_at asc"),
       browserActions: list(this.db, "browser_actions", "created_at desc"),
+      socialAuditRecords: list(this.db, "social_audit_records", "created_at desc"),
       policyRules: list(this.db, "policy_rules", "created_at asc"),
       migrationReports: list(this.db, "migration_reports", "created_at desc"),
       rollbackSnapshots,

@@ -25,6 +25,7 @@ import { providerRequestRuntimeSchema } from "./migrations/023-provider-request-
 import { taskRunProviderRequestSchema } from "./migrations/024-task-run-provider-request";
 import { chatMessageDeliverySchema } from "./migrations/025-chat-message-delivery";
 import { browserPlatformGovernanceSchema } from "./migrations/026-browser-platform-governance";
+import { socialAuditRecordsSchema } from "./migrations/027-social-audit-records";
 
 interface Migration {
   version: number;
@@ -59,6 +60,7 @@ const MIGRATIONS: Migration[] = [
   { version: 24, name: "task_run_provider_request", sql: taskRunProviderRequestSchema },
   { version: 25, name: "chat_message_delivery", sql: chatMessageDeliverySchema },
   { version: 26, name: "browser_platform_governance", sql: browserPlatformGovernanceSchema },
+  { version: 27, name: "social_audit_records", sql: socialAuditRecordsSchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

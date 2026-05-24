@@ -66,3 +66,18 @@ export interface BrowserActionRecord {
   evidenceFileId: string | null;
   createdAt: string;
 }
+
+export interface SocialAuditRecord {
+  id: string;
+  orgId: string;
+  socialAccountId: string | null;
+  sourceType: string;
+  sourceId: string | null;
+  eventType: string;
+  actorType: string;
+  actorId: string | null;
+  policyDecision: string;
+  evidenceFileId: string | null;
+  metadataJson: string;
+  createdAt: string;
+}

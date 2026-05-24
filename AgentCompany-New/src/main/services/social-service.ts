@@ -10,6 +10,7 @@ import { APPROVAL_STATE, RISK_LEVEL, ROUTE_TO_TYPE, SOCIAL_PLATFORM, type RiskLe
 import { createId } from "../../shared/ids";
 import { ApprovalService } from "./approval-service";
 import { AuditService } from "./audit-service";
+import { SocialAuditService } from "./social-audit-service";
 import {
   SOCIAL_BROWSER_ACTION,
   SocialBrowserPolicyService,
@@ -75,17 +76,19 @@ interface GrantScope {
 export class SocialService {
   private readonly audit: AuditService;
   private readonly approvals: ApprovalService;
+  private readonly socialAudit: SocialAuditService;
   private readonly browserPolicy: SocialBrowserPolicyService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
     this.approvals = new ApprovalService(db);
+    this.socialAudit = new SocialAuditService(db);
     this.browserPolicy = new SocialBrowserPolicyService(db);
   }
 
   createScheduledPost(input: CreateScheduledPostInput): string {
     this.requireAccount(input.orgId, input.socialAccountId);
-    this.browserPolicy.requireActionPolicy(input.orgId, input.socialAccountId, SOCIAL_BROWSER_ACTION.DRAFT);
+    const policy = this.browserPolicy.requireActionPolicy(input.orgId, input.socialAccountId, SOCIAL_BROWSER_ACTION.DRAFT);
     this.requireGrant(input.orgId, input.socialAccountId, input.createdByEmployeeId, SOCIAL_BROWSER_ACTION.DRAFT);
     const body = this.requireText(input.bodyMd, "Post body is required.");
     const scheduledFor = this.requireSchedule(input.scheduledFor);
@@ -117,6 +120,18 @@ export class SocialService {
       action: "drafted",
       payload: { socialAccountId: input.socialAccountId, scheduledFor, state: "draft" },
     });
+    this.socialAudit.record({
+      orgId: input.orgId,
+      socialAccountId: input.socialAccountId,
+      sourceType: "scheduled_post",
+      sourceId: id,
+      eventType: "draft_created",
+      actorType: "employee",
+      actorId: input.createdByEmployeeId,
+      policyDecision: "allowed_by_policy",
+      metadata: { scheduledFor, actionType: policy.action_type, riskLevel: policy.risk_level },
+      createdAt: now,
+    });
     return id;
   }
 
@@ -141,6 +156,18 @@ export class SocialService {
       actorId: input.employeeId,
       action: `state_${input.state}`,
       payload: { state: input.state, approvalId },
+    });
+    this.socialAudit.record({
+      orgId: input.orgId,
+      socialAccountId: post.social_account_id,
+      sourceType: "scheduled_post",
+      sourceId: input.scheduledPostId,
+      eventType: `state_${input.state}`,
+      actorType: "employee",
+      actorId: input.employeeId,
+      policyDecision: policyDecisionForState(input.state, policy.approval_required === 1),
+      metadata: { state: input.state, approvalId, actionType: policy.action_type, riskLevel: policy.risk_level },
+      createdAt: now,
     });
   }
 
@@ -198,6 +225,18 @@ export class SocialService {
       action: "created",
       payload: { platform: input.platform, handle },
     });
+    this.socialAudit.record({
+      orgId: input.orgId,
+      socialAccountId: id,
+      sourceType: "social_account",
+      sourceId: id,
+      eventType: "account_created",
+      actorType: "employee",
+      actorId: input.createdByEmployeeId,
+      policyDecision: "allowed_employee_authorization",
+      metadata: { platform: input.platform, handle, authorizedEmployeeId: input.authorizedEmployeeId ?? null },
+      createdAt: now,
+    });
     return id;
   }
 
@@ -225,10 +264,11 @@ export class SocialService {
     win.loadURL(PLATFORM_LOGIN_URL[account.platform]);
     const now = new Date().toISOString();
     this.browserPolicy.markSessionUsed(container.id, now);
+    const browserActionId = createId("bact");
     this.db.prepare(`
       insert into browser_actions(id, org_id, social_account_id, action_type, policy_decision, evidence_file_id, created_at)
       values (?, ?, ?, ?, ?, ?, ?)
-    `).run(createId("bact"), account.org_id, account.id, "login_window_opened", "allowed_human_login", null, now);
+    `).run(browserActionId, account.org_id, account.id, "login_window_opened", "allowed_human_login", null, now);
     this.audit.record({
       orgId: account.org_id,
       entityType: "social_account",
@@ -237,6 +277,18 @@ export class SocialService {
       actorId: input.employeeId,
       action: "login_window_opened",
       payload: { platform: account.platform },
+    });
+    this.socialAudit.record({
+      orgId: account.org_id,
+      socialAccountId: account.id,
+      sourceType: "browser_action",
+      sourceId: browserActionId,
+      eventType: "login_window_opened",
+      actorType: "employee",
+      actorId: input.employeeId,
+      policyDecision: "allowed_human_login",
+      metadata: { platform: account.platform, containerId: container.id },
+      createdAt: now,
     });
   }
 
@@ -405,4 +457,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isRiskLevel(value: unknown): value is RiskLevel {
   return Object.values(RISK_LEVEL).includes(value as RiskLevel);
+}
+
+function policyDecisionForState(state: SetScheduledPostStateInput["state"], approvalRequired: boolean): string {
+  if (state === "scheduled" && approvalRequired) return "approval_requested";
+  if (state === "published" && approvalRequired) return "allowed_after_approval";
+  return "allowed_by_policy";
 }
