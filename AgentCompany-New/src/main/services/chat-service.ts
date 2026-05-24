@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { CreateChatSpaceInput, DeleteMessageInput, EditMessageInput, MarkChatSpaceReadInput, SendMessageInput } from "../../shared/commands";
 import {
+  APPROVAL_STATE,
   CHAT_THREAD_BOARD_STATE,
   FILE_SCAN_STATE,
   RISK_LEVEL,
@@ -230,6 +231,9 @@ export class ChatService {
         now,
       });
     }
+    if (slash.command === "approve" || slash.command === "deny") {
+      return this.decideApprovalFromSlash(input, sender, slash);
+    }
     if (slash.command !== "escalate") return null;
     const requester = approvalRequester(input.senderType, sender);
     return this.approvals.create({
@@ -241,6 +245,18 @@ export class ChatService {
       requestedByType: requester.type,
       requestedById: requester.id,
     }, { sourceMessageId: messageId, sourceThreadId: threadId, sourceEntityType: "chat_message", sourceEntityId: messageId });
+  }
+
+  private decideApprovalFromSlash(input: SendMessageInput, sender: PrincipalRef | null, slash: SlashInvocation): string {
+    if (!sender || sender.type !== "employee") throw new Error("Approval decision requires employee sender.");
+    const approvalId = parseApprovalDecisionTarget(slash);
+    this.approvals.decide({
+      orgId: input.orgId,
+      approvalId,
+      state: slash.command === "approve" ? APPROVAL_STATE.APPROVED : APPROVAL_STATE.DECLINED,
+      decidedByEmployeeId: sender.id,
+    });
+    return approvalId;
   }
 
   private recordSlashInvocation(messageId: string, slash: SlashInvocation, resultRef: string | null, now: string): void {
@@ -408,7 +424,14 @@ function validateSlashInvocation(slash: SlashInvocation): void {
   if (slash.command === "escalate" && slash.args.trim().length === 0) {
     throw new Error("Slash command /escalate requires details.");
   }
+  if (slash.command === "approve" || slash.command === "deny") parseApprovalDecisionTarget(slash);
   if (slash.command === "board") parseBoardCommand(slash.args);
+}
+
+function parseApprovalDecisionTarget(slash: SlashInvocation): string {
+  const approvalId = slash.args.trim().split(/\s+/, 1)[0] ?? "";
+  if (!approvalId) throw new Error(`Slash command /${slash.command} requires an approval id.`);
+  return approvalId;
 }
 
 function approvalRequester(senderType: SendMessageInput["senderType"], sender: PrincipalRef | null): ApprovalRequester {

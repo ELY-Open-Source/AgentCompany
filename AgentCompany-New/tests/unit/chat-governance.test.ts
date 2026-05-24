@@ -3,9 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { DatabaseConnection } from "../../src/main/database/connection";
+import { ApprovalService } from "../../src/main/services/approval-service";
 import { ChatService } from "../../src/main/services/chat-service";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
+import { RISK_LEVEL } from "../../src/shared/domain";
 
 function createConnection(): DatabaseConnection {
   return new DatabaseConnection(join(tmpdir(), `agentcompany-new-chat-${randomUUID()}.db`));
@@ -136,6 +138,79 @@ describe("chat governance", () => {
     expect(state.auditEvents).toEqual(expect.arrayContaining([
       expect.objectContaining({ entityType: "chat_message", entityId: messageId, action: "edited" }),
       expect.objectContaining({ entityType: "chat_message", entityId: messageId, action: "deleted" }),
+    ]));
+    connection.close();
+  });
+
+  test("decides approvals from chat slash commands", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const approvals = new ApprovalService(connection.db);
+    const chat = new ChatService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    let orgId = "";
+    let employeeId = "";
+    let spaceId = "";
+    let approvalId = "";
+    let declinedApprovalId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      spaceId = chat.createSpace({ orgId, spaceType: "project", name: "release", topic: "Release coordination", visibility: "workspace" });
+      approvalId = approvals.create({
+        orgId,
+        kind: "release_gate",
+        title: "Release gate",
+        details: "Review the release window.",
+        risk: RISK_LEVEL.HIGH,
+        requestedByType: "employee",
+        requestedById: employeeId,
+      });
+      declinedApprovalId = approvals.create({
+        orgId,
+        kind: "release_gate",
+        title: "Rollback gate",
+        details: "Review rollback window.",
+        risk: RISK_LEVEL.HIGH,
+        requestedByType: "employee",
+        requestedById: employeeId,
+      });
+      chat.sendMessage({
+        orgId,
+        spaceId,
+        threadId: null,
+        senderType: "employee",
+        senderId: employeeId,
+        bodyMd: `/approve ${approvalId} release window cleared`,
+        attachmentFileIds: [],
+      });
+      chat.sendMessage({
+        orgId,
+        spaceId,
+        threadId: null,
+        senderType: "employee",
+        senderId: employeeId,
+        bodyMd: `/deny ${declinedApprovalId} rollback window blocked`,
+        attachmentFileIds: [],
+      });
+    });
+
+    const state = snapshot.load();
+    expect(state.approvals.find((item) => item.id === approvalId)?.state).toBe("approved");
+    expect(state.approvals.find((item) => item.id === declinedApprovalId)?.state).toBe("declined");
+    expect(state.chatSlashInvocations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ command: "approve", resultRef: approvalId }),
+      expect.objectContaining({ command: "deny", resultRef: declinedApprovalId }),
+    ]));
+    expect(state.auditEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({ entityType: "approval", entityId: approvalId, action: "approved" }),
+      expect.objectContaining({ entityType: "approval", entityId: declinedApprovalId, action: "declined" }),
     ]));
     connection.close();
   });
@@ -357,6 +432,15 @@ describe("chat governance", () => {
       bodyMd: "/escalate",
       attachmentFileIds: [],
     }))).toThrow("Slash command /escalate requires details.");
+    expect(() => connection.transaction(() => chat.sendMessage({
+      orgId,
+      spaceId: workspaceSpaceId,
+      threadId: null,
+      senderType: "employee",
+      senderId: employeeId,
+      bodyMd: "/approve",
+      attachmentFileIds: [],
+    }))).toThrow("Slash command /approve requires an approval id.");
     expect(() => connection.transaction(() => chat.sendMessage({
       orgId,
       spaceId: workspaceSpaceId,
