@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import type { ProviderCatalogEntry, ProviderRecord, ProviderRequestRecord } from "../../../../shared/domain";
+import type { ProviderCatalogEntry, ProviderRecord, ProviderRequestRecord, WorkspaceRecord } from "../../../../shared/domain";
 import { PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderExecutionMode } from "../../../../shared/domain";
 import type { SnapshotActions } from "../../app/useSnapshot";
 import { Button, Field, Icon, Pill, Segmented } from "../../shared/ui";
@@ -8,6 +8,7 @@ interface ProviderRequestPanelProps {
   orgId: string;
   providers: ProviderRecord[];
   catalog: ProviderCatalogEntry[];
+  workspaces: WorkspaceRecord[];
   providerRequests: ProviderRequestRecord[];
   actions: SnapshotActions;
 }
@@ -26,15 +27,18 @@ export function ProviderRequestPanel({
   orgId,
   providers,
   catalog,
+  workspaces,
   providerRequests,
   actions,
 }: ProviderRequestPanelProps) {
   const executableProviders = providers.filter((provider) => provider.enabled && provider.authType === "api_key");
   const [providerId, setProviderId] = useState(executableProviders[0]?.id ?? "");
+  const [workspaceId, setWorkspaceId] = useState(workspaces[0]?.id ?? "");
   const [mode, setMode] = useState<ProviderExecutionMode>(PROVIDER_EXECUTION_MODE.FOREGROUND);
   const selectedProvider = resolveSelectedProvider(executableProviders, providerId);
   const canRunBackground = selectedProvider ? isBackgroundReady(selectedProvider, catalog) : false;
   const selectedMode = canRunBackground ? mode : PROVIDER_EXECUTION_MODE.FOREGROUND;
+  const effectiveWorkspaceId = selectedWorkspaceValue(workspaces, workspaceId);
   const recentRequests = providerRequests
     .filter((request) => executableProviders.some((provider) => provider.id === request.providerId))
     .slice(0, 8);
@@ -51,6 +55,7 @@ export function ProviderRequestPanel({
     void actions.run(() => window.agentCompany.createProviderResponse({
       orgId,
       providerId: requireProviderId(selectedProvider),
+      workspaceId: selectedWorkspaceId(workspaces, effectiveWorkspaceId),
       prompt,
       instructions: instructions || null,
       executionMode: selectedMode,
@@ -61,7 +66,7 @@ export function ProviderRequestPanel({
     <>
       <div className="section-label" style={{ marginBottom: 10 }}>Requests</div>
       <form className="card" style={{ marginBottom: 10 }} onSubmit={submit}>
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(150px, 1fr) minmax(200px, 1fr) auto", gap: 10, alignItems: "end" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(150px, 1fr) minmax(150px, 1fr) minmax(200px, 1fr) auto", gap: 10, alignItems: "end" }}>
           <Field label="Provider">
             <select
               className="input"
@@ -71,6 +76,20 @@ export function ProviderRequestPanel({
             >
               {executableProviders.map((provider) => (
                 <option key={provider.id} value={provider.id}>{provider.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Workspace">
+            <select
+              className="input"
+              aria-label="Request workspace"
+              value={effectiveWorkspaceId}
+              disabled={workspaces.length === 0}
+              onChange={(event) => setWorkspaceId(event.target.value)}
+            >
+              {workspaces.length === 0 && <option value="">Organization</option>}
+              {workspaces.map((workspace) => (
+                <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
               ))}
             </select>
           </Field>
@@ -99,9 +118,9 @@ export function ProviderRequestPanel({
         </Field>
       </form>
       {recentRequests.length > 0 && (
-        <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 28 }}>
-          <div className="table-row head" style={{ gridTemplateColumns: "minmax(120px, 1fr) 92px 100px minmax(120px, 1fr) 86px" }}>
-            <div>Provider</div><div>Mode</div><div>State</div><div>Output</div><div>Action</div>
+        <div className="card" style={{ padding: 0, overflowX: "auto", marginBottom: 28 }}>
+          <div className="table-row head" style={{ gridTemplateColumns: "minmax(120px, 1fr) minmax(120px, 1fr) 92px 100px minmax(120px, 1fr) 86px", minWidth: 760 }}>
+            <div>Provider</div><div>Workspace</div><div>Mode</div><div>State</div><div>Output</div><div>Action</div>
           </div>
           {recentRequests.map((request, index) => (
             <ProviderRequestRow
@@ -109,6 +128,7 @@ export function ProviderRequestPanel({
               orgId={orgId}
               request={request}
               provider={requireRequestProvider(providers, request)}
+              workspace={resolveRequestWorkspace(workspaces, request)}
               last={index === recentRequests.length - 1}
               actions={actions}
             />
@@ -123,12 +143,14 @@ function ProviderRequestRow({
   orgId,
   request,
   provider,
+  workspace,
   last,
   actions,
 }: {
   orgId: string;
   request: ProviderRequestRecord;
   provider: ProviderRecord;
+  workspace: WorkspaceRecord | null;
   last: boolean;
   actions: SnapshotActions;
 }) {
@@ -140,7 +162,8 @@ function ProviderRequestRow({
     <div
       className="table-row"
       style={{
-        gridTemplateColumns: "minmax(120px, 1fr) 92px 100px minmax(120px, 1fr) 86px",
+        gridTemplateColumns: "minmax(120px, 1fr) minmax(120px, 1fr) 92px 100px minmax(120px, 1fr) 86px",
+        minWidth: 760,
         borderBottom: last ? "none" : "1px solid var(--border-soft)",
       }}
     >
@@ -148,6 +171,7 @@ function ProviderRequestRow({
         <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.label}</div>
         <div className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>{request.model}</div>
       </div>
+      <div className="mono" style={{ color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workspace?.name ?? "Organization"}</div>
       <div className="mono" style={{ color: "var(--text-2)" }}>{request.executionMode}</div>
       <div><Pill tone={stateTone(request.state)}>{request.state}</Pill></div>
       <div className="mono" style={{ color: "var(--text-2)" }}>{request.outputCharCount} chars</div>
@@ -177,6 +201,20 @@ function resolveSelectedProvider(providers: ProviderRecord[], providerId: string
   if (providers.length === 0) return null;
   const provider = providers.find((item) => item.id === providerId);
   return provider ?? providers[0] ?? null;
+}
+
+function selectedWorkspaceId(workspaces: WorkspaceRecord[], workspaceId: string): string | null {
+  return workspaces.some((workspace) => workspace.id === workspaceId) ? workspaceId : null;
+}
+
+function selectedWorkspaceValue(workspaces: WorkspaceRecord[], workspaceId: string): string {
+  if (workspaces.some((workspace) => workspace.id === workspaceId)) return workspaceId;
+  return workspaces[0]?.id ?? "";
+}
+
+function resolveRequestWorkspace(workspaces: WorkspaceRecord[], request: ProviderRequestRecord): WorkspaceRecord | null {
+  if (!request.workspaceId) return null;
+  return workspaces.find((workspace) => workspace.id === request.workspaceId) ?? null;
 }
 
 function requireProviderId(provider: ProviderRecord | null): string {

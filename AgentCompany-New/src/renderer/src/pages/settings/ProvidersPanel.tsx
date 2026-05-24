@@ -7,6 +7,7 @@ import type {
   ProviderRateLimitStateRecord,
   ProviderRecord,
   ProviderRequestRecord,
+  WorkspaceRecord,
 } from "../../../../shared/domain";
 import { PROVIDER_DATA_POLICY } from "../../../../shared/domain";
 import { ProviderLogo } from "./ProviderLogo";
@@ -19,6 +20,7 @@ interface ProvidersPanelProps {
   providers: ProviderRecord[];
   catalog: ProviderCatalogEntry[];
   agents: AgentRecord[];
+  workspaces: WorkspaceRecord[];
   providerRateLimits: ProviderRateLimitStateRecord[];
   providerRequests: ProviderRequestRecord[];
   actions: SnapshotActions;
@@ -35,7 +37,7 @@ const CLOUD_DEFAULTS: CloudFields = { baseUrl: "", region: "", projectId: "", de
 const POLICY_GRID = "minmax(150px, 1.2fr) minmax(118px, 0.8fr) minmax(140px, 1fr) 112px 124px 92px";
 type WorkspaceScope = "organization" | "workspace";
 
-export function ProvidersPanel({ orgId, employeeId, providers, catalog, agents, providerRateLimits, providerRequests, actions }: ProvidersPanelProps) {
+export function ProvidersPanel({ orgId, employeeId, providers, catalog, agents, workspaces, providerRateLimits, providerRequests, actions }: ProvidersPanelProps) {
   const [active, setActive] = useState<ProviderRecord | null>(null);
   const [signInLaunched, setSignInLaunched] = useState(false);
   const connected = providers.filter((provider) => provider.enabled);
@@ -96,6 +98,7 @@ export function ProvidersPanel({ orgId, employeeId, providers, catalog, agents, 
             orgId={orgId}
             providers={connected}
             catalog={catalog}
+            workspaces={workspaces}
             providerRequests={providerRequests}
             actions={actions}
           />
