@@ -13,6 +13,28 @@ function createConnection(): DatabaseConnection {
 }
 
 describe("audit service", () => {
+  test("keeps core audit events immutable", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    let auditId = "";
+
+    connection.transaction(() => {
+      const orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      auditId = (connection.db.prepare("select id from audit_events where org_id = ? limit 1").get(orgId) as { id: string }).id;
+    });
+
+    expect(() => connection.db.prepare("update audit_events set action = ? where id = ?")
+      .run("changed", auditId)).toThrow("Audit events are immutable.");
+    expect(() => connection.db.prepare("delete from audit_events where id = ?")
+      .run(auditId)).toThrow("Audit events are immutable.");
+    connection.close();
+  });
+
   test("creates thread scoped replay runs from immutable audit events", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);

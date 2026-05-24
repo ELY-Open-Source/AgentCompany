@@ -31,6 +31,7 @@ import { fileHandoffRecordsSchema } from "./migrations/029-file-handoff-records"
 import { approvalSourceRefsSchema } from "./migrations/030-approval-source-refs";
 import { providerRequestWorkspaceSchema } from "./migrations/031-provider-request-workspace";
 import { browserActionMetadataSchema } from "./migrations/032-browser-action-metadata";
+import { auditEventImmutabilitySchema } from "./migrations/033-audit-event-immutability";
 
 interface Migration {
   version: number;
@@ -71,6 +72,7 @@ const MIGRATIONS: Migration[] = [
   { version: 30, name: "approval_source_refs", sql: approvalSourceRefsSchema },
   { version: 31, name: "provider_request_workspace", sql: providerRequestWorkspaceSchema },
   { version: 32, name: "browser_action_metadata", sql: browserActionMetadataSchema },
+  { version: 33, name: "audit_event_immutability", sql: auditEventImmutabilitySchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
