@@ -20,6 +20,7 @@ import { OperationsService } from "../services/operations-service";
 import { SdlcService } from "../services/sdlc-service";
 import { AuditService } from "../services/audit-service";
 import { RollbackService } from "../services/rollback-service";
+import { TaskExecutionService } from "../services/task-execution-service";
 
 export interface IpcDeps {
   connection: DatabaseConnection;
@@ -33,6 +34,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const approvals = new ApprovalService(deps.connection.db);
   const chat = new ChatService(deps.connection.db);
   const providers = new ProviderService(deps.connection.db);
+  const taskExecution = new TaskExecutionService(deps.connection.db, providers);
   const skills = new SkillService(deps.connection.db, deps.artifactRoot);
   const social = new SocialService(deps.connection.db);
   const files = new FileService(deps.connection.db, deps.artifactRoot);
@@ -86,6 +88,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.createAgent, (_event, input) => mutate(() => organization.createAgent(input)));
   ipcMain.handle(IPC_CHANNELS.createTask, (_event, input) => mutate(() => organization.createTask(input)));
   ipcMain.handle(IPC_CHANNELS.updateTaskStatus, (_event, input) => mutate(() => organization.updateTaskStatus(input.orgId, input.taskId, input.status)));
+  ipcMain.handle(IPC_CHANNELS.runTask, async (_event, input) => {
+    try {
+      await taskExecution.runTask(input);
+      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      return ok(snapshot.load());
+    } catch (error) {
+      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      return fail("task_run_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
   ipcMain.handle(IPC_CHANNELS.createApproval, (_event, input) => mutate(() => approvals.create(input)));
   ipcMain.handle(IPC_CHANNELS.decideApproval, (_event, input) => mutate(() => approvals.decide(input)));
   ipcMain.handle(IPC_CHANNELS.syncEmployeeIdentity, (_event, input) => mutate(() => identityAccess.syncEmployeeIdentity(input)));

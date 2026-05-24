@@ -7,6 +7,7 @@ export const IPC_CHANNELS = {
   createAgent: "agentcompany:create-agent",
   createTask: "agentcompany:create-task",
   updateTaskStatus: "agentcompany:update-task-status",
+  runTask: "agentcompany:run-task",
   createApproval: "agentcompany:create-approval",
   decideApproval: "agentcompany:decide-approval",
   syncEmployeeIdentity: "agentcompany:sync-employee-identity",

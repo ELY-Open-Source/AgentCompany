@@ -15,6 +15,7 @@ const api: DesktopApi = {
   createAgent: (input) => invoke(IPC_CHANNELS.createAgent, input),
   createTask: (input) => invoke(IPC_CHANNELS.createTask, input),
   updateTaskStatus: (input) => invoke(IPC_CHANNELS.updateTaskStatus, input),
+  runTask: (input) => invoke(IPC_CHANNELS.runTask, input),
   createApproval: (input) => invoke(IPC_CHANNELS.createApproval, input),
   decideApproval: (input) => invoke(IPC_CHANNELS.decideApproval, input),
   syncEmployeeIdentity: (input) => invoke(IPC_CHANNELS.syncEmployeeIdentity, input),

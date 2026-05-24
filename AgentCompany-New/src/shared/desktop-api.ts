@@ -32,6 +32,7 @@ import type {
   RunChaosDrillInput,
   RunEvalSuiteInput,
   RunSdlcReviewInput,
+  RunTaskInput,
   RevokeProviderCredentialInput,
   SaveProviderCredentialInput,
   SearchInput,
@@ -64,6 +65,7 @@ export interface DesktopApi {
   createAgent(input: CreateAgentInput): Promise<DesktopResult<AppSnapshot>>;
   createTask(input: CreateTaskInput): Promise<DesktopResult<AppSnapshot>>;
   updateTaskStatus(input: UpdateTaskStatusInput): Promise<DesktopResult<AppSnapshot>>;
+  runTask(input: RunTaskInput): Promise<DesktopResult<AppSnapshot>>;
   createApproval(input: CreateApprovalInput): Promise<DesktopResult<AppSnapshot>>;
   decideApproval(input: DecideApprovalInput): Promise<DesktopResult<AppSnapshot>>;
   syncEmployeeIdentity(input: SyncEmployeeIdentityInput): Promise<DesktopResult<AppSnapshot>>;

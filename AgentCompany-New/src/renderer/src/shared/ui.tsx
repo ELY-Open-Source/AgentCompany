@@ -114,12 +114,14 @@ export function IconButton({
   label,
   variant = "ghost",
   size = 14,
+  disabled = false,
 }: {
   icon: IconName;
   onClick?: () => void;
   label: string;
   variant?: "ghost" | "solid";
   size?: number;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -128,6 +130,7 @@ export function IconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
+      disabled={disabled}
     >
       <Icon name={icon} size={size} />
     </button>

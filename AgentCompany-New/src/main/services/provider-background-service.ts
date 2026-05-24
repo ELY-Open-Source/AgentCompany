@@ -26,6 +26,10 @@ const ACTIVE_BACKGROUND_STATUSES = new Set(["queued", "in_progress"]);
 const FAILED_BACKGROUND_STATUSES = new Set(["failed", "incomplete"]);
 const CANCELLED_BACKGROUND_STATUSES = new Set(["cancelled"]);
 
+type BackgroundCreateInput = CreateProviderResponseInput & {
+  onRequestCreated?: (requestId: string) => void;
+};
+
 export class ProviderBackgroundService {
   private readonly audit: AuditService;
   private readonly authBroker: AuthBrokerService;
@@ -47,7 +51,7 @@ export class ProviderBackgroundService {
     this.responseObserver = new ProviderResponseObserver(db, this.audit, this.operations, this.requestStore, this.rateLimitRegistry);
   }
 
-  async create(input: CreateProviderResponseInput): Promise<string> {
+  async create(input: BackgroundCreateInput): Promise<string> {
     const execution = this.prepareExecution(input);
     const requestId = this.requestStore.create({
       orgId: input.orgId,
@@ -58,6 +62,7 @@ export class ProviderBackgroundService {
       executionMode: PROVIDER_EXECUTION_MODE.BACKGROUND,
       createdAt: new Date().toISOString(),
     });
+    input.onRequestCreated?.(requestId);
     const startedAt = Date.now();
     try {
       const authProfile = execution.adapter.parseAuthProfile(execution.credential.secret);

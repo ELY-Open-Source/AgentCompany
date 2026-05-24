@@ -4,8 +4,10 @@ import {
   TASK_STATUS,
   type AgentRecord,
   type GoalRecord,
+  type ProviderRecord,
   type ProjectRecord,
   type TaskRecord,
+  type TaskRunRecord,
   type TaskStatus,
   type WorkspaceRecord,
 } from "../../../shared/domain";
@@ -38,11 +40,16 @@ export function WorkPage({ snapshot, actions }: PageProps) {
   const projects = useMemo(() => snapshot.projects.filter((project) => project.orgId === orgId), [snapshot.projects, orgId]);
   const goals = useMemo(() => snapshot.goals.filter((goal) => goal.orgId === orgId), [snapshot.goals, orgId]);
   const workspaces = useMemo(() => snapshot.workspaces.filter((workspace) => workspace.orgId === orgId), [snapshot.workspaces, orgId]);
+  const providers = useMemo(() => snapshot.providers.filter((provider) => provider.orgId === orgId), [snapshot.providers, orgId]);
+  const taskRuns = useMemo(() => snapshot.taskRuns.filter((run) => run.orgId === orgId), [snapshot.taskRuns, orgId]);
 
   const advance = (task: TaskRecord) => {
     const next = nextStatus(task.status);
     if (!next) return;
     void actions.run(() => window.agentCompany.updateTaskStatus({ orgId, taskId: task.id, status: next }));
+  };
+  const runTask = (task: TaskRecord) => {
+    void actions.run(() => window.agentCompany.runTask({ orgId, taskId: task.id }));
   };
 
   return (
@@ -68,11 +75,14 @@ export function WorkPage({ snapshot, actions }: PageProps) {
           projects={projects}
           goals={goals}
           workspaces={workspaces}
+          providers={providers}
+          taskRuns={taskRuns}
           onAdvance={advance}
+          onRun={runTask}
           onCreate={() => setNewTaskOpen(true)}
         />
       )}
-      {view === "list" && <ListView tasks={tasks} agents={agents} projects={projects} />}
+      {view === "list" && <ListView tasks={tasks} agents={agents} projects={projects} providers={providers} onRun={runTask} />}
       {view === "timeline" && <TimelineView tasks={tasks} goals={goals} />}
 
       <NewTaskDialog open={newTaskOpen} orgId={orgId} snapshot={snapshot} actions={actions} onClose={() => setNewTaskOpen(false)} />
@@ -86,7 +96,10 @@ function BoardView({
   projects,
   goals,
   workspaces,
+  providers,
+  taskRuns,
   onAdvance,
+  onRun,
   onCreate,
 }: {
   tasks: TaskRecord[];
@@ -94,7 +107,10 @@ function BoardView({
   projects: ProjectRecord[];
   goals: GoalRecord[];
   workspaces: WorkspaceRecord[];
+  providers: ProviderRecord[];
+  taskRuns: TaskRunRecord[];
   onAdvance: (task: TaskRecord) => void;
+  onRun: (task: TaskRecord) => void;
   onCreate: () => void;
 }) {
   return (
@@ -117,7 +133,10 @@ function BoardView({
                 project={projects.find((project) => project.id === task.projectId) ?? null}
                 goal={goals.find((goal) => goal.id === task.goalId) ?? null}
                 workspace={workspaces.find((workspace) => workspace.id === task.workspaceId) ?? null}
+                provider={providerFor(agents.find((agent) => agent.id === task.assigneeAgentId) ?? null, providers)}
+                latestRun={latestTaskRun(task.id, taskRuns)}
                 onAdvance={() => onAdvance(task)}
+                onRun={() => onRun(task)}
               />
             ))}
           </div>
@@ -127,24 +146,37 @@ function BoardView({
   );
 }
 
-function ListView({ tasks, agents, projects }: { tasks: TaskRecord[]; agents: AgentRecord[]; projects: ProjectRecord[] }) {
+function ListView({
+  tasks,
+  agents,
+  projects,
+  providers,
+  onRun,
+}: {
+  tasks: TaskRecord[];
+  agents: AgentRecord[];
+  projects: ProjectRecord[];
+  providers: ProviderRecord[];
+  onRun: (task: TaskRecord) => void;
+}) {
   return (
     <div className="card" style={{ padding: 0, overflow: "hidden" }}>
       <div
         className="table-row head"
-        style={{ gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) 60px" }}
+        style={{ gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) 88px" }}
       >
         <div>Title</div><div>Status</div><div>Priority</div><div>Assignee</div><div />
       </div>
       {tasks.map((task, index) => {
         const assignee = agents.find((agent) => agent.id === task.assigneeAgentId) ?? null;
+        const provider = providerFor(assignee, providers);
         const project = projects.find((p) => p.id === task.projectId) ?? null;
         const last = index === tasks.length - 1;
         return (
           <div
             key={task.id}
             className="table-row"
-            style={{ gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) 60px", borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
+            style={{ gridTemplateColumns: "minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) 88px", borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
           >
             <div className="row" style={{ gap: 8, minWidth: 0 }}>
               {task.risk === "high" && <span style={{ width: 3, height: 12, background: "var(--red)", borderRadius: 2, flexShrink: 0 }} />}
@@ -163,7 +195,8 @@ function ListView({ tasks, agents, projects }: { tasks: TaskRecord[]; agents: Ag
                 <span style={{ color: "var(--text-4)" }}>—</span>
               )}
             </div>
-            <div style={{ textAlign: "right" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
+              {assignee && <IconButton icon="send" label={`Run ${task.title}`} onClick={() => onRun(task)} disabled={!canRun(provider)} />}
               <IconButton icon="more" label="More" />
             </div>
           </div>
@@ -203,14 +236,20 @@ function TaskCard({
   project,
   goal,
   workspace,
+  provider,
+  latestRun,
   onAdvance,
+  onRun,
 }: {
   task: TaskRecord;
   assignee: AgentRecord | null;
   project: ProjectRecord | null;
   goal: GoalRecord | null;
   workspace: WorkspaceRecord | null;
+  provider: ProviderRecord | null;
+  latestRun: TaskRunRecord | null;
   onAdvance: () => void;
+  onRun: () => void;
 }) {
   return (
     <div
@@ -246,8 +285,10 @@ function TaskCard({
         {goal && <Pill tone="violet">{truncate(goal.title, 20)}</Pill>}
         {workspace && <Pill>{workspace.name}</Pill>}
         {task.requiresFilesystem && <Pill>workspace</Pill>}
+        {latestRun && <Pill tone={runTone(latestRun.state)}>{prettyRunState(latestRun.state)}</Pill>}
         <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
           {assignee && <Avatar name={assignee.name} size="sm" bot />}
+          {assignee && <IconButton icon="send" label={`Run ${task.title}`} onClick={onRun} disabled={!canRun(provider)} />}
           {nextStatus(task.status) && <IconButton icon="check" label="Advance" onClick={onAdvance} />}
         </div>
       </div>
@@ -264,6 +305,34 @@ function nextStatus(status: TaskStatus): TaskStatus | null {
 
 function prettyStatus(status: TaskStatus): string {
   return status.replaceAll("_", " ");
+}
+
+function prettyRunState(state: string): string {
+  return state.replaceAll("_", " ");
+}
+
+function providerFor(assignee: AgentRecord | null, providers: ProviderRecord[]): ProviderRecord | null {
+  if (!assignee?.modelProviderId) return null;
+  return providers.find((provider) => provider.id === assignee.modelProviderId) ?? null;
+}
+
+function canRun(provider: ProviderRecord | null): boolean {
+  return provider?.enabled === true && provider.authState === "configured";
+}
+
+function latestTaskRun(taskId: string, taskRuns: TaskRunRecord[]): TaskRunRecord | null {
+  for (let index = taskRuns.length - 1; index >= 0; index -= 1) {
+    const run = taskRuns[index];
+    if (run?.taskId === taskId) return run;
+  }
+  return null;
+}
+
+function runTone(state: string): "amber" | "green" | "red" | undefined {
+  if (state === "running" || state === "queued") return "amber";
+  if (state === "completed") return "green";
+  if (state === "failed") return "red";
+  return undefined;
 }
 
 function capitalize(value: string): string {

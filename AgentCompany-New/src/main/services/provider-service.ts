@@ -24,6 +24,10 @@ const HEALTH_STATE_FAILED = "failed";
 const HEALTH_STATE_UNCHECKED = "unchecked";
 const WORKSPACE_SCOPES = new Set(["organization", "workspace"]);
 
+export type ProviderResponseCreateInput = CreateProviderResponseInput & {
+  onRequestCreated?: (requestId: string) => void;
+};
+
 export class ProviderService {
   private readonly audit: AuditService;
   private readonly authBroker: AuthBrokerService;
@@ -193,11 +197,12 @@ export class ProviderService {
     });
   }
 
-  async createResponse(input: CreateProviderResponseInput): Promise<string> {
+  async createResponse(input: ProviderResponseCreateInput): Promise<string> {
     if (input.executionMode === PROVIDER_EXECUTION_MODE.BACKGROUND) return this.background.create(input);
     const execution = this.prepareExecution(input);
     if (!execution.adapter.createResponse) throw new Error(`Provider response execution is unavailable for ${execution.provider.provider_key}.`);
     const requestId = this.createRequestRecord(execution);
+    input.onRequestCreated?.(requestId);
     const startedAt = Date.now();
     try {
       const authProfile = execution.adapter.parseAuthProfile(execution.credential.secret);

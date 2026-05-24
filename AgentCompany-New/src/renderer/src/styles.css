@@ -370,6 +370,8 @@ a { color: inherit; }
 .icon-button:hover { background: var(--panel-2); color: var(--text-1); }
 .icon-button.ghost { border-color: transparent; background: transparent; }
 .icon-button.ghost:hover { background: var(--hover); color: var(--text-1); }
+.icon-button:disabled { opacity: 0.4; cursor: default; }
+.icon-button:disabled:hover { background: transparent; color: var(--text-2); }
 
 .segmented {
   display: inline-flex;

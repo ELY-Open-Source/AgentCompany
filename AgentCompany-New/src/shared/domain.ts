@@ -139,6 +139,7 @@ export interface TaskRunRecord {
   taskId: string;
   agentId: string | null;
   providerId: string | null;
+  providerRequestId: string | null;
   trigger: string;
   state: string;
   createdAt: string;

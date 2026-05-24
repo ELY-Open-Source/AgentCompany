@@ -73,6 +73,11 @@ export interface UpdateTaskStatusInput {
   status: TaskStatus;
 }
 
+export interface RunTaskInput {
+  orgId: string;
+  taskId: string;
+}
+
 export interface CreateApprovalInput {
   orgId: string;
   kind: string;
