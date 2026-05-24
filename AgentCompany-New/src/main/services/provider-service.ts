@@ -1,17 +1,20 @@
 import type { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
-import { BrowserWindow, session } from "electron";
-import type { CreateProviderResponseInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, UpdateProviderPolicyInput } from "../../shared/commands";
-import { FEATURE_FLAG_KEY, PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, SLO_SIGNAL_KEY, type ProviderAuthType, type ProviderExecutionMode } from "../../shared/domain";
+import type { CancelProviderResponseInput, CreateProviderResponseInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, StreamProviderResponseInput, UpdateProviderPolicyInput } from "../../shared/commands";
+import { FEATURE_FLAG_KEY, PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderAuthType, type ProviderExecutionMode } from "../../shared/domain";
+import type { ProviderStreamRendererEvent } from "../../shared/provider-request-domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { currentProviderUsageWindow } from "../../shared/provider-runtime-domain";
-import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { AuthBrokerService, type ProviderSecretVault } from "./auth-broker-service";
 import { OperationsService } from "./operations-service";
 import { SecretVault } from "./secret-vault";
 import { providerAdapters, providerRateLimitStateFromError, type ProviderAdapterRegistry } from "./provider-adapters";
 import { ProviderRateLimitRegistry } from "./provider-rate-limit-registry";
+import { ProviderResponseObserver } from "./provider-response-observer";
+import { readProviderResponseId, requireStreamText } from "./provider-response-utils";
+import { ProviderRequestStore } from "./provider-request-store";
+import { launchProviderSignInWindow } from "./provider-sign-in-window";
 import type { ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
 
 const AUTH_STATE_CONFIGURED = "configured";
@@ -26,6 +29,8 @@ export class ProviderService {
   private readonly authBroker: AuthBrokerService;
   private readonly operations: OperationsService;
   private readonly rateLimitRegistry: ProviderRateLimitRegistry;
+  private readonly responseObserver: ProviderResponseObserver;
+  private readonly requestStore: ProviderRequestStore;
 
   constructor(
     private readonly db: DatabaseSync,
@@ -36,6 +41,8 @@ export class ProviderService {
     this.authBroker = new AuthBrokerService(db, vault);
     this.operations = new OperationsService(db);
     this.rateLimitRegistry = new ProviderRateLimitRegistry(db);
+    this.requestStore = new ProviderRequestStore(db);
+    this.responseObserver = new ProviderResponseObserver(db, this.audit, this.operations, this.requestStore, this.rateLimitRegistry);
   }
 
   saveCredential(input: SaveProviderCredentialInput): void {
@@ -135,30 +142,9 @@ export class ProviderService {
       where id = ? and org_id = ?
     `).get(providerId, orgId) as { id: string; provider_key: string; label: string; auth_type: string } | undefined;
     if (!provider) throw new Error("Provider was not found.");
-    const catalogEntry = PROVIDER_CATALOG.find((entry) => entry.key === provider.provider_key);
-    if (!catalogEntry) throw new Error(`Provider catalog entry missing for ${provider.provider_key}.`);
+    const catalogEntry = this.requireCatalogEntry(provider.provider_key);
     if (!catalogEntry.signInUrl) throw new Error(`${provider.label} does not support browser sign-in.`);
-
-    const partition = `persist:agentcompany-provider-${provider.id}`;
-    const providerSession = session.fromPartition(partition);
-    providerSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
-    providerSession.setPermissionCheckHandler(() => false);
-
-    const win = new BrowserWindow({
-      width: 1100,
-      height: 760,
-      title: provider.label,
-      webPreferences: {
-        session: providerSession,
-        nodeIntegration: false,
-        contextIsolation: true,
-        sandbox: true,
-        webSecurity: true,
-      },
-    });
-    win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-    this.attachNavigationPolicy(win, catalogEntry.signInUrl);
-    win.loadURL(catalogEntry.signInUrl);
+    launchProviderSignInWindow({ providerId: provider.id, label: provider.label, signInUrl: catalogEntry.signInUrl });
 
     this.audit.record({
       orgId,
@@ -205,7 +191,165 @@ export class ProviderService {
     });
   }
 
-  async createResponse(input: CreateProviderResponseInput): Promise<void> {
+  async createResponse(input: CreateProviderResponseInput): Promise<string> {
+    const execution = this.prepareExecution(input);
+    if (!execution.adapter.createResponse) throw new Error(`Provider response execution is unavailable for ${execution.provider.provider_key}.`);
+    const requestId = this.createRequestRecord(execution);
+    const startedAt = Date.now();
+    try {
+      const authProfile = execution.adapter.parseAuthProfile(execution.credential.secret);
+      const result = await execution.adapter.createResponse({
+        authProfile,
+        model: execution.provider.model,
+        prompt: execution.prompt,
+        instructions: execution.instructions,
+      });
+      this.recordObservedRateLimit(input.orgId, execution.provider, execution.provider.model, result.rateLimitState);
+      this.requestStore.markSucceeded({
+        orgId: input.orgId,
+        requestId,
+        responseText: result.text,
+        rawResponseJson: result.rawResponseJson,
+        outputCharCount: result.text.length,
+        externalResponseId: readProviderResponseId(result.rawResponseJson),
+        completedAt: new Date().toISOString(),
+      });
+      this.responseObserver.recordSuccess({
+        orgId: input.orgId,
+        provider: execution.provider,
+        requestId,
+        executionMode: execution.executionMode,
+        startedAt,
+        action: "response_created",
+      });
+      this.requestStore.recordUsage(input.orgId, execution.provider.id, execution.prompt.length, result.text.length);
+      return requestId;
+    } catch (error) {
+      this.responseObserver.recordFailure({
+        orgId: input.orgId,
+        provider: execution.provider,
+        requestId,
+        executionMode: execution.executionMode,
+        startedAt,
+        inputCharCount: execution.prompt.length,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  async streamResponse(input: StreamProviderResponseInput, onEvent: (event: ProviderStreamRendererEvent) => void): Promise<string> {
+    const execution = this.prepareExecution(input);
+    const requestId = this.createRequestRecord(execution);
+    const startedAt = Date.now();
+    const rawEvents: string[] = [];
+    const textParts: string[] = [];
+    let providerResponseId: string | null = null;
+    try {
+      const authProfile = execution.adapter.parseAuthProfile(execution.credential.secret);
+      const result = await execution.adapter.streamResponse({
+        authProfile,
+        model: execution.provider.model,
+        prompt: execution.prompt,
+        instructions: execution.instructions,
+      });
+      this.recordObservedRateLimit(input.orgId, execution.provider, execution.provider.model, result.rateLimitState);
+      for await (const event of result.events) {
+        if (event.type === "error") throw new Error(event.textDelta ?? "Provider stream failed.");
+        rawEvents.push(event.rawEventJson);
+        if (event.providerResponseId) providerResponseId = event.providerResponseId;
+        if (event.textDelta) textParts.push(event.textDelta);
+        const responseText = textParts.join("");
+        const streamEventCount = rawEvents.length;
+        this.requestStore.markStreaming({
+          orgId: input.orgId,
+          requestId,
+          responseText,
+          rawResponseJson: JSON.stringify(rawEvents),
+          outputCharCount: responseText.length,
+          streamEventCount,
+          externalResponseId: providerResponseId,
+        });
+        onEvent({
+          requestId,
+          providerId: execution.provider.id,
+          providerKey: execution.provider.provider_key,
+          model: execution.provider.model,
+          streamEventType: event.type,
+          textDelta: event.textDelta,
+          responseText,
+          providerResponseId,
+          rawEventJson: event.rawEventJson,
+          streamEventCount,
+        });
+      }
+      const responseText = requireStreamText(textParts);
+      this.requestStore.markSucceeded({
+        orgId: input.orgId,
+        requestId,
+        responseText,
+        rawResponseJson: JSON.stringify(rawEvents),
+        outputCharCount: responseText.length,
+        externalResponseId: providerResponseId,
+        completedAt: new Date().toISOString(),
+      });
+      this.responseObserver.recordSuccess({
+        orgId: input.orgId,
+        provider: execution.provider,
+        requestId,
+        executionMode: execution.executionMode,
+        startedAt,
+        action: "response_streamed",
+      });
+      this.requestStore.recordUsage(input.orgId, execution.provider.id, execution.prompt.length, responseText.length);
+      return requestId;
+    } catch (error) {
+      this.responseObserver.recordFailure({
+        orgId: input.orgId,
+        provider: execution.provider,
+        requestId,
+        executionMode: execution.executionMode,
+        startedAt,
+        inputCharCount: execution.prompt.length,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  async cancelResponse(input: CancelProviderResponseInput): Promise<void> {
+    const request = this.requestStore.loadCancellationRow(input.orgId, input.requestId);
+    if (request.state !== PROVIDER_REQUEST_STATE.PENDING && request.state !== PROVIDER_REQUEST_STATE.STREAMING) {
+      throw new Error(`Provider request cannot be cancelled from state ${request.state}.`);
+    }
+    const providerResponseId = input.providerResponseId?.trim() || request.external_response_id;
+    if (!providerResponseId) throw new Error("Provider response id is required.");
+    const provider = this.loadConfiguredProvider(input.orgId, request.provider_id);
+    const adapter = this.requireAdapter(provider.provider_key, provider.auth_type);
+    const credential = this.loadCredential(input.orgId, provider);
+    const authProfile = adapter.parseAuthProfile(credential.secret);
+    const result = await adapter.cancelResponse({ authProfile, responseId: providerResponseId });
+    this.recordObservedRateLimit(input.orgId, provider, provider.model, result.rateLimitState);
+    this.requestStore.markCancelled({
+      orgId: input.orgId,
+      requestId: input.requestId,
+      rawResponseJson: result.rawResponseJson,
+      externalResponseId: providerResponseId,
+      cancelledAt: new Date().toISOString(),
+    });
+    this.recordProviderHealth(provider.id, input.orgId, HEALTH_STATE_HEALTHY, null);
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "provider_request",
+      entityId: input.requestId,
+      actorType: "system",
+      actorId: null,
+      action: "response_cancelled",
+      payload: { providerKey: provider.provider_key, model: provider.model },
+    });
+  }
+
+  private prepareExecution(input: CreateProviderResponseInput | StreamProviderResponseInput): PreparedProviderExecution {
     const prompt = input.prompt.trim();
     if (!prompt) throw new Error("Prompt is required.");
     const provider = this.loadConfiguredProvider(input.orgId, input.providerId);
@@ -215,87 +359,27 @@ export class ProviderService {
       throw new Error("Provider response execution requires an API key adapter.");
     }
     if (!provider.model) throw new Error("Provider model is required.");
-    const adapter = this.requireAdapter(provider.provider_key, provider.auth_type);
-    if (!adapter.createResponse) throw new Error(`Provider response execution is unavailable for ${provider.provider_key}.`);
-    const credential = this.loadCredential(input.orgId, provider);
-
-    const requestId = createId("preq");
-    const now = new Date().toISOString();
-    const startedAt = Date.now();
-    this.db.prepare(`
-      insert into provider_requests(
-        id, org_id, provider_id, provider_key, model, prompt_sha256,
-        response_text, raw_response_json, state, error_message, input_char_count,
-        output_char_count, execution_mode, policy_decision, created_at, completed_at
-      )
-      values (?, ?, ?, ?, ?, ?, null, null, ?, null, ?, 0, ?, ?, ?, null)
-    `).run(
-      requestId,
-      input.orgId,
-      provider.id,
-      provider.provider_key,
-      provider.model,
-      hashPrompt(prompt),
-      PROVIDER_REQUEST_STATE.PENDING,
-      prompt.length,
+    return {
+      orgId: input.orgId,
+      prompt,
+      instructions: input.instructions?.trim() || null,
       executionMode,
-      `allowed:${provider.data_policy}`,
-      now,
-    );
+      provider: { ...provider, model: provider.model },
+      adapter: this.requireAdapter(provider.provider_key, provider.auth_type),
+      credential: this.loadCredential(input.orgId, provider),
+    };
+  }
 
-    try {
-      const authProfile = adapter.parseAuthProfile(credential.secret);
-      const result = await adapter.createResponse({
-        authProfile,
-        model: provider.model,
-        prompt,
-        instructions: input.instructions?.trim() || null,
-      });
-      this.recordObservedRateLimit(input.orgId, provider, provider.model, result.rateLimitState);
-      this.db.prepare(`
-        update provider_requests
-        set state = ?, response_text = ?, raw_response_json = ?, output_char_count = ?, completed_at = ?
-        where id = ? and org_id = ?
-      `).run(PROVIDER_REQUEST_STATE.SUCCEEDED, result.text, result.rawResponseJson, result.text.length, new Date().toISOString(), requestId, input.orgId);
-      this.recordUsage(input.orgId, provider.id, prompt.length, result.text.length);
-      this.recordProviderHealth(provider.id, input.orgId, HEALTH_STATE_HEALTHY, null);
-      this.audit.record({
-        orgId: input.orgId,
-        entityType: "provider_request",
-        entityId: requestId,
-        actorType: "system",
-        actorId: null,
-        action: "response_created",
-        payload: { providerKey: provider.provider_key, model: provider.model },
-      });
-      this.operations.recordSignal({
-        orgId: input.orgId,
-        signalKey: SLO_SIGNAL_KEY.PROVIDER_REQUEST_SUCCESS,
-        source: "provider_gateway",
-        success: true,
-        durationMs: Date.now() - startedAt,
-        detail: { requestId, providerKey: provider.provider_key, executionMode },
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.recordObservedRateLimit(input.orgId, provider, provider.model, providerRateLimitStateFromError(error));
-      this.db.prepare(`
-        update provider_requests
-        set state = ?, error_message = ?, completed_at = ?
-        where id = ? and org_id = ?
-      `).run(PROVIDER_REQUEST_STATE.FAILED, message, new Date().toISOString(), requestId, input.orgId);
-      this.recordUsage(input.orgId, provider.id, prompt.length, 0);
-      this.recordProviderHealth(provider.id, input.orgId, HEALTH_STATE_FAILED, message);
-      this.operations.recordSignal({
-        orgId: input.orgId,
-        signalKey: SLO_SIGNAL_KEY.PROVIDER_REQUEST_SUCCESS,
-        source: "provider_gateway",
-        success: false,
-        durationMs: Date.now() - startedAt,
-        detail: { requestId, providerKey: provider.provider_key, executionMode },
-      });
-      throw error;
-    }
+  private createRequestRecord(execution: PreparedProviderExecution): string {
+    return this.requestStore.create({
+      orgId: execution.orgId,
+      provider: execution.provider,
+      model: execution.provider.model,
+      promptSha256: hashPrompt(execution.prompt),
+      inputCharCount: execution.prompt.length,
+      executionMode: execution.executionMode,
+      createdAt: new Date().toISOString(),
+    });
   }
 
   private enforcePolicy(orgId: string, provider: ProviderRow, executionMode: ProviderExecutionMode): void {
@@ -357,41 +441,12 @@ export class ProviderService {
     return entry;
   }
 
-  private attachNavigationPolicy(win: BrowserWindow, signInUrl: string): void {
-    const allowedHost = new URL(signInUrl).hostname.toLowerCase();
-    const allow = (url: string) => {
-      const host = new URL(url).hostname.toLowerCase();
-      return host === allowedHost || host.endsWith(`.${allowedHost}`);
-    };
-    const blockOffHost = (event: Electron.Event, url: string) => {
-      if (!allow(url)) event.preventDefault();
-    };
-    win.webContents.on("will-navigate", blockOffHost);
-    win.webContents.on("will-redirect", blockOffHost);
-  }
-
   private recordProviderHealth(providerId: string, orgId: string, healthState: string, error: string | null): void {
     this.db.prepare(`
       update providers
       set health_state = ?, last_error = ?, last_checked_at = ?
       where id = ? and org_id = ?
     `).run(healthState, error, new Date().toISOString(), providerId, orgId);
-  }
-
-  private recordUsage(orgId: string, providerId: string, inputCharCount: number, outputCharCount: number): void {
-    const window = currentProviderUsageWindow();
-    const now = new Date().toISOString();
-    this.db.prepare(`
-      insert into provider_usage_windows(
-        id, org_id, provider_id, window_start, window_end, request_count,
-        input_char_count, output_char_count, created_at, updated_at
-      ) values (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-      on conflict(provider_id, window_start) do update set
-        request_count = request_count + 1,
-        input_char_count = input_char_count + excluded.input_char_count,
-        output_char_count = output_char_count + excluded.output_char_count,
-        updated_at = excluded.updated_at
-    `).run(createId("puw"), orgId, providerId, window.start, window.end, inputCharCount, outputCharCount, now, now);
   }
 
   private recordObservedRateLimit(
@@ -409,6 +464,16 @@ export class ProviderService {
       state,
     });
   }
+}
+
+interface PreparedProviderExecution {
+  orgId: string;
+  prompt: string;
+  instructions: string | null;
+  executionMode: ProviderExecutionMode;
+  provider: ProviderRow & { model: string };
+  adapter: ProviderAdapterRegistry[string];
+  credential: { secret: string };
 }
 
 interface ProviderRow {

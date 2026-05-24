@@ -5,6 +5,7 @@ import { isRecord } from "./provider-http";
 export interface ProviderStreamEvent {
   type: "message_start" | "text_delta" | "message_stop" | "error";
   textDelta: string | null;
+  providerResponseId: string | null;
   rawEventJson: string;
 }
 
@@ -119,7 +120,7 @@ export function cancelUnsupported(providerLabel: string): () => Promise<Provider
 }
 
 function streamEvent(type: ProviderStreamEvent["type"], textDelta: string | null, message: ProviderEventStreamMessage): ProviderStreamEvent {
-  return { type, textDelta, rawEventJson: message.rawData };
+  return { type, textDelta, providerResponseId: readProviderResponseId(message.data), rawEventJson: message.rawData };
 }
 
 function eventType(message: ProviderEventStreamMessage): string | null {
@@ -151,6 +152,13 @@ function readErrorText(data: JsonRecord): string | null {
   if (typeof error === "string") return error;
   if (isRecord(error) && typeof error.message === "string") return error.message;
   return null;
+}
+
+function readProviderResponseId(data: JsonRecord): string | null {
+  const direct = stringField(data, "id") ?? stringField(data, "response_id");
+  if (direct) return direct;
+  const response = recordField(data, "response");
+  return response ? stringField(response, "id") : null;
 }
 
 function stringField(record: JsonRecord, key: string): string | null {

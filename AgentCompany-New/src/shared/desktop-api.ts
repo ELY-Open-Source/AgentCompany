@@ -4,6 +4,7 @@ import type {
   BindSkillInput,
   BootstrapOnboardingInput,
   BootstrapOnboardingSummary,
+  CancelProviderResponseInput,
   CreateAgentInput,
   CreateApprovalInput,
   CreateAuditReplayInput,
@@ -43,14 +44,16 @@ import type {
   SetRollbackSnapshotActiveInput,
   SetRetentionFreezeStateInput,
   SetScheduledPostStateInput,
+  StreamProviderResponseInput,
   SyncEmployeeIdentityInput,
   UpdateProviderPolicyInput,
   UpdateTaskStatusInput,
 } from "./commands";
+import type { ProviderStreamRendererEvent } from "./provider-request-domain";
 
-export interface RendererEvent {
-  type: "snapshot-changed";
-}
+export type RendererEvent =
+  | { type: "snapshot-changed" }
+  | { type: "provider-response-stream"; event: ProviderStreamRendererEvent };
 
 export interface DesktopApi {
   loadSnapshot(): Promise<DesktopResult<AppSnapshot>>;
@@ -75,6 +78,8 @@ export interface DesktopApi {
   updateProviderPolicy(input: UpdateProviderPolicyInput): Promise<DesktopResult<AppSnapshot>>;
   openExternalUrl(url: string): Promise<DesktopResult<null>>;
   createProviderResponse(input: CreateProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
+  streamProviderResponse(input: StreamProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
+  cancelProviderResponse(input: CancelProviderResponseInput): Promise<DesktopResult<AppSnapshot>>;
   importSkillDirectory(input: ImportSkillDirectoryInput): Promise<DesktopResult<AppSnapshot>>;
   bindSkill(input: BindSkillInput): Promise<DesktopResult<AppSnapshot>>;
   resolveAgentSkills(input: ResolveAgentSkillsInput): Promise<DesktopResult<AppSnapshot>>;

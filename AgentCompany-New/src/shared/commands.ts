@@ -173,6 +173,14 @@ export interface CreateProviderResponseInput {
   executionMode?: ProviderExecutionMode;
 }
 
+export type StreamProviderResponseInput = CreateProviderResponseInput;
+
+export interface CancelProviderResponseInput {
+  orgId: string;
+  requestId: string;
+  providerResponseId?: string;
+}
+
 export interface ImportSkillDirectoryInput {
   orgId: string;
   directoryPath: string;

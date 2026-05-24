@@ -134,6 +134,26 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return fail("provider_response_failed", error instanceof Error ? error.message : String(error));
     }
   });
+  ipcMain.handle(IPC_CHANNELS.streamProviderResponse, async (_event, input) => {
+    try {
+      await providers.streamResponse(input, (streamEvent) => {
+        deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "provider-response-stream", event: streamEvent });
+      });
+      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      return ok(snapshot.load());
+    } catch (error) {
+      return fail("provider_stream_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+  ipcMain.handle(IPC_CHANNELS.cancelProviderResponse, async (_event, input) => {
+    try {
+      await providers.cancelResponse(input);
+      deps.mainWindow.webContents.send(IPC_CHANNELS.rendererEvent, { type: "snapshot-changed" });
+      return ok(snapshot.load());
+    } catch (error) {
+      return fail("provider_cancel_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
   ipcMain.handle(IPC_CHANNELS.importSkillDirectory, (_event, input) => mutate(() => skills.importDirectory(input)));
   ipcMain.handle(IPC_CHANNELS.bindSkill, (_event, input) => mutate(() => skills.bind(input)));
   ipcMain.handle(IPC_CHANNELS.resolveAgentSkills, (_event, input) => mutate(() => skills.resolveRuntimeSnapshot(input)));
