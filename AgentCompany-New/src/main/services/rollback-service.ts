@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { closeSync, existsSync, openSync, readSync, realpathSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
-import type { CreateRollbackSnapshotInput, SetRollbackSnapshotActiveInput } from "../../shared/commands";
+import type { CreateRollbackSnapshotInput, ResolveMigrationReconciliationInput, SetRollbackSnapshotActiveInput } from "../../shared/commands";
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { MigrationCutoverJournalService, type CutoverDeltaEvent } from "./migration-cutover-journal-service";
@@ -37,6 +37,15 @@ interface RollbackSnapshotRow {
   migration_report_id: string;
   source_fingerprint: string;
   delta_journal_json: string;
+}
+
+interface MigrationReconciliationItemRow {
+  id: string;
+  migration_report_id: string;
+  rollback_snapshot_id: string | null;
+  target_type: string;
+  target_id: string;
+  state: string;
 }
 
 interface FileRow {
@@ -171,6 +180,43 @@ export class RollbackService {
       actorType: "employee",
       actorId: input.employeeId,
       payload: { active: input.active, sourceFingerprint: snapshot.source_fingerprint, queuedReconciliationItems },
+      createdAt: now,
+    });
+  }
+
+  resolveReconciliationItem(input: ResolveMigrationReconciliationInput): void {
+    this.requireEmployee(input.orgId, input.employeeId);
+    const item = this.db.prepare(`
+      select id, migration_report_id, rollback_snapshot_id, target_type, target_id, state
+      from migration_reconciliation_items
+      where id = ? and org_id = ?
+    `).get(input.reconciliationItemId, input.orgId) as MigrationReconciliationItemRow | undefined;
+    if (!item) throw new Error("Migration reconciliation item was not found.");
+    if (item.state === "resolved") throw new Error("Migration reconciliation item is already resolved.");
+    const now = new Date().toISOString();
+    const result = this.db.prepare(`
+      update migration_reconciliation_items
+      set state = ?, resolved_at = ?, resolved_by_employee_id = ?
+      where id = ? and org_id = ? and state = ?
+    `).run("resolved", now, input.employeeId, item.id, input.orgId, "open");
+    if (result.changes === 0) throw new Error("Migration reconciliation item could not be resolved.");
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "migration_reconciliation_item",
+      entityId: item.id,
+      actorType: "employee",
+      actorId: input.employeeId,
+      action: "resolved",
+      payload: { targetType: item.target_type, targetId: item.target_id, rollbackSnapshotId: item.rollback_snapshot_id },
+    });
+    this.cutoverJournal.recordEvent({
+      orgId: input.orgId,
+      migrationReportId: item.migration_report_id,
+      rollbackSnapshotId: item.rollback_snapshot_id,
+      eventType: "migration_reconciliation_resolved",
+      actorType: "employee",
+      actorId: input.employeeId,
+      payload: { reconciliationItemId: item.id, targetType: item.target_type, targetId: item.target_id },
       createdAt: now,
     });
   }

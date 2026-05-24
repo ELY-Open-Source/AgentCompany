@@ -38,6 +38,7 @@ describe("rollback service", () => {
     let employeeId = "";
     let reportId = "";
     let rollbackId = "";
+    let reconciliationId = "";
 
     connection.transaction(() => {
       orgId = organization.createOrganization({
@@ -60,6 +61,9 @@ describe("rollback service", () => {
       });
       rollbackId = rollback.createSnapshot({ orgId, migrationReportId: reportId, createdByEmployeeId: employeeId });
       rollback.setActive({ orgId, snapshotId: rollbackId, active: true, employeeId });
+      reconciliationId = (connection.db.prepare("select id from migration_reconciliation_items where org_id = ? limit 1")
+        .get(orgId) as { id: string }).id;
+      rollback.resolveReconciliationItem({ orgId, reconciliationItemId: reconciliationId, employeeId });
     });
 
     const state = snapshot.load();
@@ -76,6 +80,7 @@ describe("rollback service", () => {
     expect(deltaJournal.length).toBeGreaterThan(0);
     expect(restorePlan).toMatchObject({ migrationReportId: reportId, restoreStrategy: "legacy_snapshot_restore" });
     expect(state.migrationCutoverEvents.map((event) => event.eventType).sort()).toEqual([
+      "migration_reconciliation_resolved",
       "rollback_snapshot_activated",
       "rollback_snapshot_created",
     ]);
@@ -86,9 +91,13 @@ describe("rollback service", () => {
       targetType: "task",
       targetId: "task-cutover",
       reason: "manual_delta_replay",
-      state: "open",
+      state: "resolved",
+      resolvedByEmployeeId: employeeId,
     }));
+    expect(() => connection.transaction(() => rollback.resolveReconciliationItem({ orgId, reconciliationItemId: reconciliationId, employeeId })))
+      .toThrow("Migration reconciliation item is already resolved.");
     expect(state.auditEvents.some((event) => event.entityType === "rollback_snapshot" && event.action === "activated")).toBe(true);
+    expect(state.auditEvents.some((event) => event.entityType === "migration_reconciliation_item" && event.action === "resolved")).toBe(true);
     connection.close();
   });
 });

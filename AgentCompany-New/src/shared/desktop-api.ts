@@ -31,6 +31,7 @@ import type {
   LaunchProviderSignInInput,
   LaunchSocialLoginInput,
   ResolveAgentSkillsInput,
+  ResolveMigrationReconciliationInput,
   RunChaosDrillInput,
   RunEvalSuiteInput,
   RunSdlcReviewInput,
@@ -98,6 +99,7 @@ export interface DesktopApi {
   createMigrationReport(input: CreateMigrationReportInput): Promise<DesktopResult<AppSnapshot>>;
   createRollbackSnapshot(input: CreateRollbackSnapshotInput): Promise<DesktopResult<AppSnapshot>>;
   setRollbackSnapshotActive(input: SetRollbackSnapshotActiveInput): Promise<DesktopResult<AppSnapshot>>;
+  resolveMigrationReconciliation(input: ResolveMigrationReconciliationInput): Promise<DesktopResult<AppSnapshot>>;
   setFeatureFlag(input: SetFeatureFlagInput): Promise<DesktopResult<AppSnapshot>>;
   runChaosDrill(input: RunChaosDrillInput): Promise<DesktopResult<AppSnapshot>>;
   runSdlcReview(input: RunSdlcReviewInput): Promise<DesktopResult<AppSnapshot>>;

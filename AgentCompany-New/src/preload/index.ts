@@ -46,6 +46,7 @@ const api: DesktopApi = {
   createMigrationReport: (input) => invoke(IPC_CHANNELS.createMigrationReport, input),
   createRollbackSnapshot: (input) => invoke(IPC_CHANNELS.createRollbackSnapshot, input),
   setRollbackSnapshotActive: (input) => invoke(IPC_CHANNELS.setRollbackSnapshotActive, input),
+  resolveMigrationReconciliation: (input) => invoke(IPC_CHANNELS.resolveMigrationReconciliation, input),
   setFeatureFlag: (input) => invoke(IPC_CHANNELS.setFeatureFlag, input),
   runChaosDrill: (input) => invoke(IPC_CHANNELS.runChaosDrill, input),
   runSdlcReview: (input) => invoke(IPC_CHANNELS.runSdlcReview, input),

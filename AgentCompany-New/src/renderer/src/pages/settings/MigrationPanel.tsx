@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Button, Field, Icon, Pill } from "../../shared/ui";
 import { Dialog } from "../../shared/Dialog";
-import type { MigrationReportRecord, RollbackSnapshotRecord } from "../../../../shared/domain";
+import type { MigrationReconciliationItemRecord, MigrationReportRecord, RollbackSnapshotRecord } from "../../../../shared/domain";
 import type { SnapshotActions } from "../../app/useSnapshot";
 import { formatRelative } from "../types";
 
@@ -18,12 +18,14 @@ export function MigrationPanel({
   employeeId,
   reports,
   rollbackSnapshots,
+  reconciliationItems,
   actions,
 }: {
   orgId: string;
   employeeId: string;
   reports: MigrationReportRecord[];
   rollbackSnapshots: RollbackSnapshotRecord[];
+  reconciliationItems: MigrationReconciliationItemRecord[];
   actions: SnapshotActions;
 }) {
   const [open, setOpen] = useState(false);
@@ -77,6 +79,22 @@ export function MigrationPanel({
             last={index === rollbackSnapshots.length - 1}
           />
         )) : <div style={{ padding: 16 }}><Pill>0 rollback snapshots</Pill></div>}
+      </section>
+      <section className="card" style={{ marginTop: 16, padding: 0, overflow: "hidden" }}>
+        <div className="row" style={{ padding: "14px 16px", borderBottom: "1px solid var(--border-soft)" }}>
+          <Icon name="list" size={14} color="var(--text-3)" />
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Reconciliation</div>
+        </div>
+        {reconciliationItems.length > 0 ? reconciliationItems.map((item, index) => (
+          <ReconciliationRow
+            key={item.id}
+            orgId={orgId}
+            employeeId={employeeId}
+            item={item}
+            actions={actions}
+            last={index === reconciliationItems.length - 1}
+          />
+        )) : <div style={{ padding: 16 }}><Pill>0 reconciliation items</Pill></div>}
       </section>
       <Dialog title="Migration report" open={open} submitLabel="Create" onClose={() => setOpen(false)} onSubmit={submit}>
         <Field label="Source database path"><input className="input" name="sourceDatabasePath" required /></Field>
@@ -162,6 +180,43 @@ function RollbackRow({
         onClick={() => void actions.run(() => window.agentCompany.setRollbackSnapshotActive({ orgId, snapshotId: snapshot.id, active: true, employeeId }))}
       >
         {snapshot.active ? "active" : "Set"}
+      </Button>
+    </div>
+  );
+}
+
+function ReconciliationRow({
+  orgId,
+  employeeId,
+  item,
+  actions,
+  last,
+}: {
+  orgId: string;
+  employeeId: string;
+  item: MigrationReconciliationItemRecord;
+  actions: SnapshotActions;
+  last: boolean;
+}) {
+  const resolved = item.state === "resolved";
+  return (
+    <div
+      className="table-row"
+      style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 86px 112px 84px", borderBottom: last ? "none" : "1px solid var(--border-soft)" }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.targetType} · {item.targetId}</div>
+        <div style={{ fontSize: 11, color: "var(--text-3)" }}>{formatRelative(item.createdAt)}</div>
+      </div>
+      <div style={{ fontSize: 12, color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.reason}</div>
+      <Pill tone={resolved ? "green" : "amber"}>{item.state}</Pill>
+      <Pill>{item.sourceEventId.slice(0, 12)}</Pill>
+      <Button
+        size="small"
+        disabled={resolved}
+        onClick={() => void actions.run(() => window.agentCompany.resolveMigrationReconciliation({ orgId, reconciliationItemId: item.id, employeeId }))}
+      >
+        {resolved ? "Resolved" : "Resolve"}
       </Button>
     </div>
   );

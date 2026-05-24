@@ -260,6 +260,12 @@ export interface SetRollbackSnapshotActiveInput {
   employeeId: string;
 }
 
+export interface ResolveMigrationReconciliationInput {
+  orgId: string;
+  reconciliationItemId: string;
+  employeeId: string;
+}
+
 export interface SearchInput {
   orgId: string;
   employeeId: string;

@@ -198,6 +198,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IPC_CHANNELS.createMigrationReport, (_event, input) => mutate(() => migrations.createReport(input)));
   ipcMain.handle(IPC_CHANNELS.createRollbackSnapshot, (_event, input) => mutate(() => rollback.createSnapshot(input)));
   ipcMain.handle(IPC_CHANNELS.setRollbackSnapshotActive, (_event, input) => mutate(() => rollback.setActive(input)));
+  ipcMain.handle(IPC_CHANNELS.resolveMigrationReconciliation, (_event, input) => mutate(() => rollback.resolveReconciliationItem(input)));
   ipcMain.handle(IPC_CHANNELS.setFeatureFlag, (_event, input) => mutate(() => operations.setFeatureFlag(input)));
   ipcMain.handle(IPC_CHANNELS.runChaosDrill, (_event, input) => mutate(() => operations.runChaosDrill(input)));
   ipcMain.handle(IPC_CHANNELS.runSdlcReview, (_event, input) => mutate(() => sdlc.runReview(input)));

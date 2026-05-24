@@ -209,6 +209,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
               employeeId={employee.id}
               reports={migrationReports}
               rollbackSnapshots={rollbackSnapshots}
+              reconciliationItems={snapshot.migrationReconciliationItems.filter((item) => item.orgId === orgId)}
               actions={actions}
             />
           )}
