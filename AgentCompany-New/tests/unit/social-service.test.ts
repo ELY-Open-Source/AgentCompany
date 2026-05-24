@@ -7,7 +7,7 @@ import { ApprovalService } from "../../src/main/services/approval-service";
 import { FileService } from "../../src/main/services/file-service";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
-import { SocialService } from "../../src/main/services/social-service";
+import { SocialService, type SocialLoginWindowInput } from "../../src/main/services/social-service";
 import { APPROVAL_STATE, ROUTE_TO_TYPE, SOCIAL_PLATFORM } from "../../src/shared/domain";
 import { createId } from "../../src/shared/ids";
 
@@ -92,6 +92,71 @@ describe("social service", () => {
     expect(state.auditEvents.find((event) => event.entityType === "social_account")?.actorId).toBe(employeeId);
     expect(grantScope.actions).toEqual(["login", "draft", "approve"]);
     expect(grantScope.riskCeiling).toBe("medium");
+    connection.close();
+  });
+
+  test("records browser login evidence metadata", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const launched: SocialLoginWindowInput[] = [];
+    const social = new SocialService(connection.db, (input) => { launched.push(input); });
+    const snapshot = new SnapshotService(connection.db);
+    let orgId = "";
+    let employeeId = "";
+    let socialAccountId = "";
+
+    connection.transaction(() => {
+      orgId = createOrganization(organization);
+      employeeId = firstEmployeeId(connection, orgId);
+      socialAccountId = social.createAccount({
+        orgId,
+        platform: SOCIAL_PLATFORM.LINKEDIN,
+        handle: "acme",
+        displayName: "Acme",
+        createdByEmployeeId: employeeId,
+        authorizedEmployeeId: employeeId,
+      });
+      social.launchLoginWindow({ orgId, socialAccountId, employeeId });
+    });
+
+    const state = snapshot.load();
+    const action = state.browserActions[0]!;
+    const actionMetadata = JSON.parse(action.metadataJson) as { hostAllowlist: string[] };
+    const audit = state.socialAuditRecords.find((record) => record.eventType === "login_window_opened");
+    const auditMetadata = JSON.parse(audit!.metadataJson) as { hostAllowlist: string[] };
+
+    expect(launched).toHaveLength(1);
+    expect(launched[0]).toMatchObject({
+      title: "acme",
+      loginUrl: "https://www.linkedin.com/login",
+      partitionKey: `persist:agentcompany-social-${socialAccountId}`,
+      sandboxEnabled: true,
+    });
+    expect(launched[0]?.allowedHosts).toEqual(["linkedin.com", "www.linkedin.com"]);
+    expect(action).toMatchObject({
+      socialAccountId,
+      actionType: "login_window_opened",
+      policyDecision: "allowed_human_login",
+      evidenceFileId: null,
+    });
+    expect(actionMetadata).toMatchObject({
+      platform: SOCIAL_PLATFORM.LINKEDIN,
+      loginUrl: "https://www.linkedin.com/login",
+      permissionPolicy: "deny_all",
+      sandboxEnabled: true,
+      actorType: "employee",
+      actorId: employeeId,
+    });
+    expect(actionMetadata.hostAllowlist).toEqual(["linkedin.com", "www.linkedin.com"]);
+    expect(audit).toMatchObject({
+      sourceType: "browser_action",
+      sourceId: action.id,
+      eventType: "login_window_opened",
+      actorType: "employee",
+      actorId: employeeId,
+      policyDecision: "allowed_human_login",
+    });
+    expect(auditMetadata.hostAllowlist).toEqual(["linkedin.com", "www.linkedin.com"]);
     connection.close();
   });
 

@@ -73,13 +73,26 @@ interface GrantScope {
   riskCeiling: RiskLevel;
 }
 
+export interface SocialLoginWindowInput {
+  title: string;
+  loginUrl: string;
+  partitionKey: string;
+  allowedHosts: string[];
+  sandboxEnabled: boolean;
+}
+
+export type SocialLoginWindowLauncher = (input: SocialLoginWindowInput) => void;
+
 export class SocialService {
   private readonly audit: AuditService;
   private readonly approvals: ApprovalService;
   private readonly socialAudit: SocialAuditService;
   private readonly browserPolicy: SocialBrowserPolicyService;
 
-  constructor(private readonly db: DatabaseSync) {
+  constructor(
+    private readonly db: DatabaseSync,
+    private readonly launchSocialLoginWindow: SocialLoginWindowLauncher = openSocialLoginWindow,
+  ) {
     this.audit = new AuditService(db);
     this.approvals = new ApprovalService(db);
     this.socialAudit = new SocialAuditService(db);
@@ -245,30 +258,34 @@ export class SocialService {
     const container = this.browserPolicy.requireSessionContainer(input.orgId, input.socialAccountId);
     this.browserPolicy.requireActionPolicy(input.orgId, input.socialAccountId, SOCIAL_BROWSER_ACTION.LOGIN);
     this.requireGrant(input.orgId, input.socialAccountId, input.employeeId, SOCIAL_BROWSER_ACTION.LOGIN);
-    const socialSession = session.fromPartition(container.partition_key);
-    socialSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
-    socialSession.setPermissionCheckHandler(() => false);
-
-    const win = new BrowserWindow({
-      width: 1280,
-      height: 860,
-      title: `${account.handle}`,
-      webPreferences: {
-        session: socialSession,
-        nodeIntegration: false,
-        contextIsolation: true,
-        sandbox: container.sandbox_enabled === 1,
-      },
+    const allowedHosts = this.browserPolicy.allowedHosts(container);
+    const loginUrl = PLATFORM_LOGIN_URL[account.platform];
+    this.launchSocialLoginWindow({
+      title: account.handle,
+      loginUrl,
+      partitionKey: container.partition_key,
+      allowedHosts,
+      sandboxEnabled: container.sandbox_enabled === 1,
     });
-    this.attachNavigationPolicy(win, this.browserPolicy.allowedHosts(container));
-    win.loadURL(PLATFORM_LOGIN_URL[account.platform]);
     const now = new Date().toISOString();
     this.browserPolicy.markSessionUsed(container.id, now);
     const browserActionId = createId("bact");
+    const metadata = loginEvidenceMetadata({
+      platform: account.platform,
+      loginUrl,
+      containerId: container.id,
+      partitionKey: container.partition_key,
+      hostAllowlist: allowedHosts,
+      permissionPolicy: container.permission_policy,
+      sandboxEnabled: container.sandbox_enabled === 1,
+      actorId: input.employeeId,
+    });
     this.db.prepare(`
-      insert into browser_actions(id, org_id, social_account_id, action_type, policy_decision, evidence_file_id, created_at)
-      values (?, ?, ?, ?, ?, ?, ?)
-    `).run(browserActionId, account.org_id, account.id, "login_window_opened", "allowed_human_login", null, now);
+      insert into browser_actions(
+        id, org_id, social_account_id, action_type, policy_decision,
+        evidence_file_id, metadata_json, created_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(browserActionId, account.org_id, account.id, "login_window_opened", "allowed_human_login", null, JSON.stringify(metadata), now);
     this.audit.record({
       orgId: account.org_id,
       entityType: "social_account",
@@ -287,18 +304,9 @@ export class SocialService {
       actorType: "employee",
       actorId: input.employeeId,
       policyDecision: "allowed_human_login",
-      metadata: { platform: account.platform, containerId: container.id },
+      metadata,
       createdAt: now,
     });
-  }
-
-  private attachNavigationPolicy(win: BrowserWindow, allowedHosts: string[]): void {
-    win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-    const guard = (event: Electron.Event, url: string) => {
-      if (!this.isAllowedNavigation(allowedHosts, url)) event.preventDefault();
-    };
-    win.webContents.on("will-navigate", guard);
-    win.webContents.on("will-redirect", guard);
   }
 
   private requireAccount(orgId: string, accountId: string): SocialAccountRow {
@@ -429,12 +437,6 @@ export class SocialService {
     return scheduledFor;
   }
 
-  private isAllowedNavigation(allowedHosts: string[], url: string): boolean {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "https:") return false;
-    const host = parsed.hostname.toLowerCase();
-    return allowedHosts.some((entry) => host === entry || host.endsWith(`.${entry}`));
-  }
 }
 
 function parseGrantScope(raw: string): GrantScope {
@@ -463,4 +465,63 @@ function policyDecisionForState(state: SetScheduledPostStateInput["state"], appr
   if (state === "scheduled" && approvalRequired) return "approval_requested";
   if (state === "published" && approvalRequired) return "allowed_after_approval";
   return "allowed_by_policy";
+}
+
+function loginEvidenceMetadata(input: {
+  platform: SocialPlatform;
+  loginUrl: string;
+  containerId: string;
+  partitionKey: string;
+  hostAllowlist: string[];
+  permissionPolicy: string;
+  sandboxEnabled: boolean;
+  actorId: string;
+}): Record<string, unknown> {
+  return {
+    platform: input.platform,
+    loginUrl: input.loginUrl,
+    containerId: input.containerId,
+    partitionKey: input.partitionKey,
+    hostAllowlist: input.hostAllowlist,
+    permissionPolicy: input.permissionPolicy,
+    sandboxEnabled: input.sandboxEnabled,
+    actorType: "employee",
+    actorId: input.actorId,
+  };
+}
+
+function openSocialLoginWindow(input: SocialLoginWindowInput): void {
+  const socialSession = session.fromPartition(input.partitionKey);
+  socialSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+  socialSession.setPermissionCheckHandler(() => false);
+
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 860,
+    title: input.title,
+    webPreferences: {
+      session: socialSession,
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: input.sandboxEnabled,
+    },
+  });
+  attachNavigationPolicy(win, input.allowedHosts);
+  win.loadURL(input.loginUrl);
+}
+
+function attachNavigationPolicy(win: BrowserWindow, allowedHosts: string[]): void {
+  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  const guard = (event: Electron.Event, url: string) => {
+    if (!isAllowedNavigation(allowedHosts, url)) event.preventDefault();
+  };
+  win.webContents.on("will-navigate", guard);
+  win.webContents.on("will-redirect", guard);
+}
+
+function isAllowedNavigation(allowedHosts: string[], url: string): boolean {
+  const parsed = new URL(url);
+  if (parsed.protocol !== "https:") return false;
+  const host = parsed.hostname.toLowerCase();
+  return allowedHosts.some((entry) => host === entry || host.endsWith(`.${entry}`));
 }

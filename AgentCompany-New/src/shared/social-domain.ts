@@ -64,6 +64,7 @@ export interface BrowserActionRecord {
   actionType: string;
   policyDecision: string;
   evidenceFileId: string | null;
+  metadataJson: string;
   createdAt: string;
 }
 
