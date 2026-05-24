@@ -169,6 +169,46 @@ describe("provider service", () => {
     connection.close();
   });
 
+  test("audits provider sign-in launches with the employee actor", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    let launched: { providerId: string; label: string; signInUrl: string } | null = null;
+    const providers = new ProviderService(connection.db, providerAdapters, testVault, (input) => { launched = input; });
+    let orgId = "";
+    let employeeId = "";
+    let copilotProviderId = "";
+
+    connection.transaction(() => {
+      orgId = createOrganization(organization);
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      copilotProviderId = providerId(connection, orgId, "github-copilot");
+    });
+
+    expect(() => providers.launchSignInWindow({
+      orgId,
+      providerId: copilotProviderId,
+      employeeId: "emp_missing",
+    })).toThrow("Provider sign-in employee was not found.");
+
+    connection.transaction(() => providers.launchSignInWindow({ orgId, providerId: copilotProviderId, employeeId }));
+
+    const state = snapshot.load();
+    expect(launched).toMatchObject({
+      providerId: copilotProviderId,
+      label: "GitHub Copilot",
+      signInUrl: "https://github.com/login",
+    });
+    expect(state.auditEvents).toContainEqual(expect.objectContaining({
+      entityType: "provider",
+      entityId: copilotProviderId,
+      actorType: "employee",
+      actorId: employeeId,
+      action: "sign_in_window_opened",
+    }));
+    connection.close();
+  });
+
   test("records provider request results through direct execution adapters", async () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);

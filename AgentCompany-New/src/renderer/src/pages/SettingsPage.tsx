@@ -131,6 +131,7 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
           {tab === "providers" && (
             <ProvidersPanel
               orgId={orgId}
+              employeeId={employee.id}
               providers={providers}
               catalog={snapshot.providerCatalog}
               agents={agents}

@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { CancelProviderResponseInput, CreateProviderResponseInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, StreamProviderResponseInput, UpdateProviderPolicyInput } from "../../shared/commands";
+import type { CancelProviderResponseInput, CreateProviderResponseInput, LaunchProviderSignInInput, RevokeProviderCredentialInput, SaveProviderCredentialInput, StreamProviderResponseInput, UpdateProviderPolicyInput } from "../../shared/commands";
 import { FEATURE_FLAG_KEY, PROVIDER_AUTH_TYPE, PROVIDER_DATA_POLICY, PROVIDER_EXECUTION_MODE, PROVIDER_REQUEST_STATE, type ProviderAuthType, type ProviderExecutionMode } from "../../shared/domain";
 import type { ProviderStreamRendererEvent } from "../../shared/provider-request-domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
@@ -14,7 +14,7 @@ import { ProviderRateLimitRegistry } from "./provider-rate-limit-registry";
 import { ProviderResponseObserver } from "./provider-response-observer";
 import { hashPrompt, readProviderResponseId, requireStreamText } from "./provider-response-utils";
 import { ProviderRequestStore } from "./provider-request-store";
-import { launchProviderSignInWindow } from "./provider-sign-in-window";
+import { launchProviderSignInWindow, type LaunchProviderSignInWindowInput } from "./provider-sign-in-window";
 import type { ProviderObservedRateLimitState } from "../../shared/provider-runtime-domain";
 
 const AUTH_STATE_CONFIGURED = "configured";
@@ -41,6 +41,7 @@ export class ProviderService {
     private readonly db: DatabaseSync,
     private readonly adapters: ProviderAdapterRegistry = providerAdapters,
     vault: ProviderSecretVault = new SecretVault(),
+    private readonly launchSignIn: (input: LaunchProviderSignInWindowInput) => void = launchProviderSignInWindow,
   ) {
     this.audit = new AuditService(db);
     this.authBroker = new AuthBrokerService(db, vault);
@@ -141,23 +142,24 @@ export class ProviderService {
     }
   }
 
-  launchSignInWindow(orgId: string, providerId: string): void {
+  launchSignInWindow(input: LaunchProviderSignInInput): void {
+    this.assertEmployee(input.orgId, input.employeeId);
     const provider = this.db.prepare(`
       select id, provider_key, label, auth_type
       from providers
       where id = ? and org_id = ?
-    `).get(providerId, orgId) as { id: string; provider_key: string; label: string; auth_type: string } | undefined;
+    `).get(input.providerId, input.orgId) as { id: string; provider_key: string; label: string; auth_type: string } | undefined;
     if (!provider) throw new Error("Provider was not found.");
     const catalogEntry = this.requireCatalogEntry(provider.provider_key);
     if (!catalogEntry.signInUrl) throw new Error(`${provider.label} does not support browser sign-in.`);
-    launchProviderSignInWindow({ providerId: provider.id, label: provider.label, signInUrl: catalogEntry.signInUrl });
+    this.launchSignIn({ providerId: provider.id, label: provider.label, signInUrl: catalogEntry.signInUrl });
 
     this.audit.record({
-      orgId,
+      orgId: input.orgId,
       entityType: "provider",
       entityId: provider.id,
       actorType: "employee",
-      actorId: null,
+      actorId: input.employeeId,
       action: "sign_in_window_opened",
       payload: { providerKey: provider.provider_key, authType: provider.auth_type },
     });
@@ -463,6 +465,12 @@ export class ProviderService {
     const entry = PROVIDER_CATALOG.find((item) => item.key === providerKey);
     if (!entry) throw new Error(`Provider catalog entry missing for ${providerKey}.`);
     return entry;
+  }
+
+  private assertEmployee(orgId: string, employeeId: string): void {
+    const employee = this.db.prepare("select id from employees where id = ? and org_id = ?")
+      .get(employeeId, orgId) as { id: string } | undefined;
+    if (!employee) throw new Error("Provider sign-in employee was not found.");
   }
 
   private recordProviderHealth(providerId: string, orgId: string, healthState: string, error: string | null): void {

@@ -15,6 +15,7 @@ import type { SnapshotActions } from "../../app/useSnapshot";
 
 interface ProvidersPanelProps {
   orgId: string;
+  employeeId: string;
   providers: ProviderRecord[];
   catalog: ProviderCatalogEntry[];
   agents: AgentRecord[];
@@ -32,7 +33,7 @@ interface CloudFields {
 
 const CLOUD_DEFAULTS: CloudFields = { baseUrl: "", region: "", projectId: "", deployment: "" };
 
-export function ProvidersPanel({ orgId, providers, catalog, agents, providerRateLimits, providerRequests, actions }: ProvidersPanelProps) {
+export function ProvidersPanel({ orgId, employeeId, providers, catalog, agents, providerRateLimits, providerRequests, actions }: ProvidersPanelProps) {
   const [active, setActive] = useState<ProviderRecord | null>(null);
   const [signInLaunched, setSignInLaunched] = useState(false);
   const connected = providers.filter((provider) => provider.enabled);
@@ -60,7 +61,7 @@ export function ProvidersPanel({ orgId, providers, catalog, agents, providerRate
   const launchSignIn = () => {
     if (!active) return;
     setSignInLaunched(true);
-    void actions.run(() => window.agentCompany.launchProviderSignIn({ orgId, providerId: active.id }));
+    void actions.run(() => window.agentCompany.launchProviderSignIn({ orgId, providerId: active.id, employeeId }));
   };
 
   return (

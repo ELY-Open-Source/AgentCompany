@@ -121,7 +121,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   });
   ipcMain.handle(IPC_CHANNELS.launchProviderSignIn, (_event, input) => {
     try {
-      providers.launchSignInWindow(input.orgId, input.providerId);
+      providers.launchSignInWindow(input);
       return ok(null);
     } catch (error) {
       return fail("provider_sign_in_failed", error instanceof Error ? error.message : String(error));

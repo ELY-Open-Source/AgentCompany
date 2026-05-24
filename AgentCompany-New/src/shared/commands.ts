@@ -170,6 +170,7 @@ export interface RevokeProviderCredentialInput {
 export interface LaunchProviderSignInInput {
   orgId: string;
   providerId: string;
+  employeeId: string;
 }
 
 export interface CheckProviderHealthInput {
