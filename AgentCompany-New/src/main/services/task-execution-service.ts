@@ -4,6 +4,7 @@ import { APPROVAL_STATE, PROVIDER_EXECUTION_MODE, RISK_LEVEL } from "../../share
 import { createId } from "../../shared/ids";
 import { AuditService } from "./audit-service";
 import { ProviderService } from "./provider-service";
+import { SkillService } from "./skill-service";
 
 const TASK_RUN_STATE = {
   RUNNING: "running",
@@ -66,12 +67,20 @@ interface TaskApprovalRow {
   state: string;
 }
 
+interface SkillRuntimeSnapshotRow {
+  id: string;
+  compiled_prompt: string;
+  tools_manifest: string;
+  source_revision_ids: string;
+}
+
 export class TaskExecutionService {
   private readonly audit: AuditService;
 
   constructor(
     private readonly db: DatabaseSync,
     private readonly providers: ProviderService = new ProviderService(db),
+    private readonly skills: SkillService = new SkillService(db, ""),
   ) {
     this.audit = new AuditService(db);
   }
@@ -83,8 +92,10 @@ export class TaskExecutionService {
     const provider = this.requireAgentProvider(input.orgId, agent);
     const runId = this.createRun(input.orgId, task.id, agent.id, provider.id);
     let providerRequestId: string | null = null;
+    let skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null = null;
 
     try {
+      skillRuntimeSnapshot = this.resolveSkillRuntimeSnapshot(input.orgId, agent.id, runId);
       const requestId = await this.providers.createResponse({
         orgId: input.orgId,
         providerId: provider.id,
@@ -96,6 +107,7 @@ export class TaskExecutionService {
           project: this.project(task.project_id),
           goal: this.goal(task.goal_id),
           workspace: this.workspace(task.workspace_id),
+          skillRuntimeSnapshot,
         }),
         instructions: buildAgentInstructions(agent),
         executionMode: PROVIDER_EXECUTION_MODE.FOREGROUND,
@@ -112,7 +124,13 @@ export class TaskExecutionService {
         actorType: "system",
         actorId: null,
         action: "completed",
-        payload: { taskId: task.id, agentId: agent.id, providerId: provider.id, providerRequestId: requestId },
+        payload: {
+          taskId: task.id,
+          agentId: agent.id,
+          providerId: provider.id,
+          providerRequestId: requestId,
+          skillRuntimeSnapshotId: skillRuntimeSnapshot?.id ?? null,
+        },
       });
       return runId;
     } catch (error) {
@@ -125,7 +143,14 @@ export class TaskExecutionService {
         actorType: "system",
         actorId: null,
         action: "failed",
-        payload: { taskId: task.id, agentId: agent.id, providerId: provider.id, providerRequestId, errorMessage: message },
+        payload: {
+          taskId: task.id,
+          agentId: agent.id,
+          providerId: provider.id,
+          providerRequestId,
+          skillRuntimeSnapshotId: skillRuntimeSnapshot?.id ?? null,
+          errorMessage: message,
+        },
       });
       throw error;
     }
@@ -218,6 +243,23 @@ export class TaskExecutionService {
     `).run(TASK_RUN_STATE.FAILED, providerRequestId, new Date().toISOString(), errorMessage, runId, orgId);
   }
 
+  private resolveSkillRuntimeSnapshot(orgId: string, agentId: string, runId: string): SkillRuntimeSnapshotRow | null {
+    const hasEnabledSkill = this.db.prepare(`
+      select id from skill_bindings
+      where org_id = ? and agent_id = ? and enabled = 1
+      limit 1
+    `).get(orgId, agentId);
+    if (!hasEnabledSkill) return null;
+    const snapshotId = this.skills.resolveRuntimeSnapshot({ orgId, agentId, runId });
+    const snapshot = this.db.prepare(`
+      select id, compiled_prompt, tools_manifest, source_revision_ids
+      from skill_runtime_snapshots
+      where id = ? and agent_id = ? and run_id = ?
+    `).get(snapshotId, agentId, runId) as SkillRuntimeSnapshotRow | undefined;
+    if (!snapshot) throw new Error("Skill runtime snapshot was not found.");
+    return snapshot;
+  }
+
   private project(projectId: string | null): ProjectRow | null {
     if (!projectId) return null;
     return (this.db.prepare("select name, description from projects where id = ?").get(projectId) as unknown as ProjectRow | undefined) ?? null;
@@ -250,6 +292,7 @@ function buildTaskPrompt(input: {
   project: ProjectRow | null;
   goal: GoalRow | null;
   workspace: WorkspaceRow | null;
+  skillRuntimeSnapshot: SkillRuntimeSnapshotRow | null;
 }): string {
   const lines = [
     "Execute this AgentCompany task.",
@@ -272,6 +315,16 @@ function buildTaskPrompt(input: {
       `Local path: ${input.workspace.local_path}`,
       `Repo: ${input.workspace.repo_url}`,
       `Ref: ${input.workspace.repo_ref}`,
+    );
+  }
+  if (input.skillRuntimeSnapshot) {
+    lines.push(
+      "",
+      "Skill runtime:",
+      input.skillRuntimeSnapshot.compiled_prompt,
+      "",
+      `Tool allowlist: ${input.skillRuntimeSnapshot.tools_manifest}`,
+      `Skill revisions: ${input.skillRuntimeSnapshot.source_revision_ids}`,
     );
   }
   lines.push("", "Deliverable: completed work, decisions made, evidence needed, and next action.");

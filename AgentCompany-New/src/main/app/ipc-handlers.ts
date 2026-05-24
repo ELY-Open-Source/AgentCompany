@@ -34,8 +34,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const approvals = new ApprovalService(deps.connection.db);
   const chat = new ChatService(deps.connection.db);
   const providers = new ProviderService(deps.connection.db);
-  const taskExecution = new TaskExecutionService(deps.connection.db, providers);
   const skills = new SkillService(deps.connection.db, deps.artifactRoot);
+  const taskExecution = new TaskExecutionService(deps.connection.db, providers, skills);
   const social = new SocialService(deps.connection.db);
   const files = new FileService(deps.connection.db, deps.artifactRoot);
   const migrations = new MigrationService(deps.connection.db);

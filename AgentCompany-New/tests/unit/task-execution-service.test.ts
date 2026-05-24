@@ -1,3 +1,4 @@
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,7 @@ import { ApprovalService } from "../../src/main/services/approval-service";
 import { OrganizationService } from "../../src/main/services/organization-service";
 import { ProviderService } from "../../src/main/services/provider-service";
 import { providerAdapters, type ProviderAdapterRegistry } from "../../src/main/services/provider-adapters";
+import { SkillService } from "../../src/main/services/skill-service";
 import { SnapshotService } from "../../src/main/services/snapshot-service";
 import { TaskExecutionService } from "../../src/main/services/task-execution-service";
 import { APPROVAL_STATE, RISK_LEVEL, TASK_PRIORITY, TASK_STATUS } from "../../src/shared/domain";
@@ -46,11 +48,30 @@ describe("task execution service", () => {
       },
     };
     const providers = new ProviderService(connection.db, adapters, testVault);
+    const skills = new SkillService(connection.db, join(tmpdir(), `agentcompany-task-skills-${randomUUID()}`));
     const execution = new TaskExecutionService(connection.db, providers);
+    const skillDir = join(tmpdir(), `agentcompany-task-skill-${randomUUID()}`);
     let orgId = "";
+    let agentId = "";
     let providerId = "";
     let taskId = "";
     let workspaceId = "";
+    let revisionId = "";
+
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(join(skillDir, "SKILL.md"), "# Release Execution\n\nVerify release readiness and list concrete evidence.\n");
+    writeFileSync(join(skillDir, "skill.manifest.json"), JSON.stringify({
+      name: "release-execution",
+      version: "1.0.0",
+      entrypoint: "SKILL.md",
+      capabilities: ["release-readiness"],
+      required_tools: ["file_search"],
+      compatible_models: ["openai/*"],
+      risk_level: "medium",
+      inputs: { task: "markdown" },
+      outputs: { result: "markdown" },
+      tests: [],
+    }));
 
     connection.transaction(() => {
       orgId = organization.createOrganization({
@@ -67,7 +88,7 @@ describe("task execution service", () => {
         insert into workspaces(id, org_id, name, local_path, repo_url, repo_ref, project_id, is_primary, created_at, updated_at)
         values (?, ?, ?, ?, ?, ?, null, ?, ?, ?)
       `).run(workspaceId, orgId, "Task Workspace", "C:/work/task", "https://example.com/task.git", "main", 1, now, now);
-      const agentId = organization.createAgent({
+      agentId = organization.createAgent({
         orgId,
         name: "Ada",
         role: "Execution lead",
@@ -77,6 +98,10 @@ describe("task execution service", () => {
         budgetCents: 10000,
         managerAgentId: null,
       });
+      revisionId = skills.importDirectory({ orgId, directoryPath: skillDir, versionSemver: "1.0.0" });
+      const skill = connection.db.prepare("select id from skill_definitions where org_id = ? and slug = ?")
+        .get(orgId, "release-execution") as { id: string };
+      skills.bind({ orgId, agentId, skillId: skill.id, revisionId });
       taskId = organization.createTask({
         orgId,
         title: "Draft launch checklist",
@@ -96,13 +121,20 @@ describe("task execution service", () => {
     const state = snapshot.load();
     const run = state.taskRuns.find((item) => item.id === runId);
     const request = state.providerRequests.find((item) => item.id === run?.providerRequestId);
+    const skillRuntimeSnapshot = state.skillRuntimeSnapshots.find((item) => item.runId === runId);
 
     expect(run).toMatchObject({ taskId, agentId: expect.any(String), providerId, state: "completed", errorMessage: null });
     expect(request).toMatchObject({ providerId, workspaceId, state: "succeeded", responseText: "executed:gpt-5.4" });
+    expect(skillRuntimeSnapshot).toMatchObject({ agentId, runId });
+    expect(skillRuntimeSnapshot?.compiledPrompt).toContain("Verify release readiness");
+    expect(skillRuntimeSnapshot?.sourceRevisionIds).toContain(revisionId);
     expect(capturedPrompt).toContain("Task: Draft launch checklist");
     expect(capturedPrompt).toContain("Assignee: Ada (Execution lead)");
     expect(capturedPrompt).toContain("Workspace: Task Workspace");
+    expect(capturedPrompt).toContain("Skill runtime:");
+    expect(capturedPrompt).toContain("Tool allowlist:");
     expect(state.auditEvents.some((event) => event.entityType === "task_run" && event.action === "completed")).toBe(true);
+    rmSync(skillDir, { recursive: true, force: true });
     connection.close();
   });
 
