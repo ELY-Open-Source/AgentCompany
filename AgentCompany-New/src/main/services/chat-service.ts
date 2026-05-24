@@ -9,10 +9,12 @@ import { createId } from "../../shared/ids";
 import { ApprovalService } from "./approval-service";
 import { AuditService } from "./audit-service";
 import { BoardInterventionService, parseBoardCommand } from "./board-intervention-service";
+import { buildChatMessageStructure } from "./chat-message-structure";
 import { recordChatMentions, resolveChatMentions, type MentionTarget, type ResolvedMention } from "./chat-mentions";
 
 const SPACE_TYPES = new Set<CreateChatSpaceInput["spaceType"]>(["company", "department", "project", "direct"]);
 const SPACE_VISIBILITIES = new Set<CreateChatSpaceInput["visibility"]>(["workspace", "restricted"]);
+const RETENTION_POLICIES = new Set(["standard_365d", "restricted_365d"]);
 
 interface AttachmentCandidate {
   fileId: string;
@@ -71,9 +73,9 @@ export class ChatService {
     const id = createId("spc");
     const now = new Date().toISOString();
     this.db.prepare(`
-      insert into chat_spaces(id, org_id, space_type, name, topic, visibility, created_at)
-      values (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, input.orgId, input.spaceType, name, topic, input.visibility, now);
+      insert into chat_spaces(id, org_id, space_type, name, topic, visibility, retention_policy, created_at)
+      values (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, input.orgId, input.spaceType, name, topic, input.visibility, retentionPolicy(input.retentionPolicy, input.visibility), now);
 
     const members = broadSpace ? this.resolveWorkspaceMembers(input.orgId) : explicitMembers;
     for (const member of members) this.addMembership(id, member, input.visibility === "restricted" ? "approver" : "member");
@@ -101,16 +103,19 @@ export class ChatService {
     const slash = parseSlashInvocation(body);
     if (slash && !ALLOWED_SLASH_COMMANDS.has(slash.command)) throw new Error(`Slash command /${slash.command} is unavailable.`);
     if (slash) validateSlashInvocation(slash);
-    const attachments = this.requireAttachments(input.orgId, input.attachmentFileIds ?? [], sender);
+    const attachmentFileIds = input.attachmentFileIds ?? [];
+    const attachments = this.requireAttachments(input.orgId, attachmentFileIds, sender);
     const mentions = resolveChatMentions(this.db, input.orgId, input.spaceId, body);
+    const structuredBody = buildChatMessageStructure({ slash, mentions, attachmentFileIds });
 
     const id = createId("msg");
     const threadId = input.threadId ?? createId("thread");
     const now = new Date().toISOString();
     this.db.prepare(`
       insert into chat_messages(
-        id, org_id, space_id, thread_id, sender_type, sender_id, body_md, created_at, edited_at, deleted_at
-      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, org_id, space_id, thread_id, sender_type, sender_id, body_md, body_structured_json,
+        delivery_state, created_at, edited_at, deleted_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       input.orgId,
@@ -119,6 +124,8 @@ export class ChatService {
       input.senderType,
       input.senderId,
       body,
+      structuredBody,
+      "sent",
       now,
       null,
       null,
@@ -478,4 +485,10 @@ function spaceName(db: DatabaseSync, spaceId: string): string {
 function createThreadTitle(body: string): string {
   const firstLine = body.split(/\r?\n/, 1)[0].trim();
   return firstLine.length > 80 ? `${firstLine.slice(0, 77)}...` : firstLine;
+}
+
+function retentionPolicy(value: string | undefined, visibility: CreateChatSpaceInput["visibility"]): string {
+  const policy = value ?? (visibility === "restricted" ? "restricted_365d" : "standard_365d");
+  if (!RETENTION_POLICIES.has(policy)) throw new Error("Chat retention policy is invalid.");
+  return policy;
 }

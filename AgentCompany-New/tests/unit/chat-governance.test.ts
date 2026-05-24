@@ -12,6 +12,72 @@ function createConnection(): DatabaseConnection {
 }
 
 describe("chat governance", () => {
+  test("persists memberships, retention policy, and structured delivery metadata", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const chat = new ChatService(connection.db);
+    const snapshot = new SnapshotService(connection.db);
+    let orgId = "";
+    let employeeId = "";
+    let agentId = "";
+    let spaceId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      agentId = organization.createAgent({
+        orgId,
+        name: "Ada Lovelace",
+        role: "Release reviewer",
+        department: "Engineering",
+        modelProviderId: null,
+        modelId: null,
+        budgetCents: 10000,
+        managerAgentId: null,
+      });
+      spaceId = chat.createSpace({
+        orgId,
+        spaceType: "project",
+        name: "release-review",
+        topic: "Release review",
+        visibility: "restricted",
+        memberEmployeeIds: [employeeId],
+        memberAgentIds: [agentId],
+      });
+      chat.sendMessage({
+        orgId,
+        spaceId,
+        threadId: null,
+        senderType: "employee",
+        senderId: employeeId,
+        bodyMd: "/escalate review @Ada-Lovelace release gate",
+        attachmentFileIds: [],
+      });
+    });
+
+    const state = snapshot.load();
+    const message = state.chatMessages[0];
+    const structure = JSON.parse(message!.bodyStructuredJson) as {
+      slashInvocation: { command: string };
+      mentions: Array<{ targetType: string; targetId: string }>;
+    };
+    expect(state.chatSpaces.find((space) => space.id === spaceId)?.retentionPolicy).toBe("restricted_365d");
+    expect(state.chatMemberships
+      .filter((membership) => membership.spaceId === spaceId)
+      .map((membership) => `${membership.principalType}:${membership.principalId}`)
+      .sort())
+      .toEqual([`agent:${agentId}`, `employee:${employeeId}`]);
+    expect(message).toMatchObject({ deliveryState: "sent" });
+    expect(structure.slashInvocation.command).toBe("escalate");
+    expect(structure.mentions[0]).toMatchObject({ targetType: "agent", targetId: agentId });
+    connection.close();
+  });
+
   test("records board interventions and enforces thread control", () => {
     const connection = createConnection();
     const organization = new OrganizationService(connection.db);

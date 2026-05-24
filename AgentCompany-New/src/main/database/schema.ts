@@ -23,6 +23,7 @@ import { providerAuthBrokerSchema } from "./migrations/021-provider-auth-broker"
 import { providerRateLimitObservationSchema } from "./migrations/022-provider-rate-limit-observations";
 import { providerRequestRuntimeSchema } from "./migrations/023-provider-request-runtime";
 import { taskRunProviderRequestSchema } from "./migrations/024-task-run-provider-request";
+import { chatMessageDeliverySchema } from "./migrations/025-chat-message-delivery";
 
 interface Migration {
   version: number;
@@ -55,6 +56,7 @@ const MIGRATIONS: Migration[] = [
   { version: 22, name: "provider_rate_limit_observations", sql: providerRateLimitObservationSchema },
   { version: 23, name: "provider_request_runtime", sql: providerRequestRuntimeSchema },
   { version: 24, name: "task_run_provider_request", sql: taskRunProviderRequestSchema },
+  { version: 25, name: "chat_message_delivery", sql: chatMessageDeliverySchema },
 ];
 
 const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

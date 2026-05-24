@@ -92,6 +92,7 @@ export class SnapshotService {
       taskRuns: list(this.db, "task_runs", "created_at asc"),
       approvals: list(this.db, "approvals", "created_at desc"),
       chatSpaces: list(this.db, "chat_spaces", "created_at asc"),
+      chatMemberships: list(this.db, "chat_memberships", "space_id asc, principal_type asc, principal_id asc"),
       chatMessages: list(this.db, "chat_messages", "created_at asc"),
       chatThreads: list(this.db, "chat_threads", "updated_at desc"),
       chatAttachments: list(this.db, "chat_attachments", "message_id asc"),

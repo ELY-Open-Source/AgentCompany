@@ -182,9 +182,19 @@ export interface ChatMessageRecord {
   senderType: "employee" | "agent" | "board" | "system";
   senderId: string | null;
   bodyMd: string;
+  bodyStructuredJson: string;
+  deliveryState: string;
   createdAt: string;
   editedAt: string | null;
   deletedAt: string | null;
+}
+
+export interface ChatMembershipRecord {
+  spaceId: string;
+  principalType: "employee" | "agent";
+  principalId: string;
+  role: string;
+  muteState: string;
 }
 
 export interface ChatThreadRecord {
@@ -439,6 +449,7 @@ export interface AppSnapshot {
   taskRuns: TaskRunRecord[];
   approvals: ApprovalRecord[];
   chatSpaces: ChatSpaceRecord[];
+  chatMemberships: ChatMembershipRecord[];
   chatMessages: ChatMessageRecord[];
   chatThreads: ChatThreadRecord[];
   chatAttachments: ChatAttachmentRecord[];

@@ -129,6 +129,7 @@ export interface CreateChatSpaceInput {
   name: string;
   topic: string;
   visibility: "workspace" | "restricted";
+  retentionPolicy?: "standard_365d" | "restricted_365d";
   memberEmployeeIds?: string[];
   memberAgentIds?: string[];
 }
