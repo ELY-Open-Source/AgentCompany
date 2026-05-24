@@ -162,4 +162,88 @@ describe("compliance service", () => {
     }))).toThrow("Active compliance hold prevents GDPR delete.");
     connection.close();
   });
+
+  test("blocks GDPR delete under related chat and file holds", () => {
+    const connection = createConnection();
+    const organization = new OrganizationService(connection.db);
+    const chat = new ChatService(connection.db);
+    const compliance = new ComplianceService(connection.db);
+    let orgId = "";
+    let employeeId = "";
+    let spaceId = "";
+    let threadId = "";
+    let fileId = "";
+    let holdId = "";
+    let freezeId = "";
+
+    connection.transaction(() => {
+      orgId = organization.createOrganization({
+        organizationName: "Acme Operations",
+        employeeName: "Dana Lee",
+        mission: "Coordinate agents with auditable approvals.",
+        goal: "Ship a verified control plane.",
+      });
+      employeeId = (connection.db.prepare("select id from employees where org_id = ?").get(orgId) as { id: string }).id;
+      spaceId = chat.createSpace({ orgId, spaceType: "project", name: "release", topic: "Release coordination", visibility: "workspace" });
+      chat.sendMessage({ orgId, spaceId, threadId: null, senderType: "employee", senderId: employeeId, bodyMd: "Held chat", attachmentFileIds: [] });
+      threadId = (connection.db.prepare("select thread_id from chat_messages where org_id = ?").get(orgId) as { thread_id: string }).thread_id;
+      fileId = "file-held";
+      connection.db.prepare(`
+        insert into file_objects(id, org_id, name, kind, size_bytes, sha256, storage_path, owner_type, owner_id, created_at)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(fileId, orgId, "held.txt", "text/plain", 4, "a".repeat(64), "artifacts/held.txt", "employee", employeeId, new Date().toISOString());
+      holdId = compliance.createLegalHold({
+        orgId,
+        entityType: "chat_thread",
+        entityId: threadId,
+        reason: "Thread discovery",
+        createdByEmployeeId: employeeId,
+      });
+    });
+
+    expect(() => connection.transaction(() => compliance.createExport({
+      orgId,
+      subjectType: "employee",
+      subjectId: employeeId,
+      exportType: "gdpr_delete",
+      requestedByEmployeeId: employeeId,
+    }))).toThrow("Active compliance hold prevents GDPR delete.");
+
+    connection.transaction(() => {
+      compliance.setLegalHoldState({ orgId, legalHoldId: holdId, active: false, employeeId });
+      freezeId = compliance.createRetentionFreeze({
+        orgId,
+        scopeType: "chat_space",
+        scopeId: spaceId,
+        reason: "Space retention",
+        createdByEmployeeId: employeeId,
+      });
+    });
+    expect(() => connection.transaction(() => compliance.createExport({
+      orgId,
+      subjectType: "employee",
+      subjectId: employeeId,
+      exportType: "gdpr_delete",
+      requestedByEmployeeId: employeeId,
+    }))).toThrow("Active compliance hold prevents GDPR delete.");
+
+    connection.transaction(() => {
+      compliance.setRetentionFreezeState({ orgId, retentionFreezeId: freezeId, active: false, employeeId });
+      compliance.createLegalHold({
+        orgId,
+        entityType: "file_object",
+        entityId: fileId,
+        reason: "File discovery",
+        createdByEmployeeId: employeeId,
+      });
+    });
+    expect(() => connection.transaction(() => compliance.createExport({
+      orgId,
+      subjectType: "employee",
+      subjectId: employeeId,
+      exportType: "gdpr_delete",
+      requestedByEmployeeId: employeeId,
+    }))).toThrow("Active compliance hold prevents GDPR delete.");
+    connection.close();
+  });
 });

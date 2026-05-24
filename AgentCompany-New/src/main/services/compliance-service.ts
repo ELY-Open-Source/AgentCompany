@@ -186,14 +186,80 @@ export class ComplianceService {
     const legalHold = this.db.prepare(`
       select id from legal_holds
       where org_id = ? and active = 1
-        and ((entity_type = ? and entity_id = ?) or (entity_type = 'organization' and entity_id = ?))
+        and (
+          (entity_type = ? and entity_id = ?)
+          or (entity_type = 'organization' and entity_id = ?)
+          or (
+            entity_type = 'chat_thread'
+            and exists (
+              select 1 from chat_messages
+              where org_id = ?
+                and thread_id = legal_holds.entity_id
+                and sender_type = ?
+                and sender_id = ?
+            )
+          )
+          or (
+            entity_type = 'file_object'
+            and exists (
+              select 1 from file_objects
+              where org_id = ?
+                and id = legal_holds.entity_id
+                and owner_type = ?
+                and owner_id = ?
+            )
+          )
+        )
       limit 1
-    `).get(input.orgId, input.subjectType, input.subjectId, input.orgId);
+    `).get(
+      input.orgId,
+      input.subjectType,
+      input.subjectId,
+      input.orgId,
+      input.orgId,
+      input.subjectType,
+      input.subjectId,
+      input.orgId,
+      input.subjectType,
+      input.subjectId,
+    );
     const retentionFreeze = this.db.prepare(`
       select id from retention_freezes
-      where org_id = ? and active = 1 and scope_type = 'organization' and scope_id = ?
+      where org_id = ? and active = 1
+        and (
+          (scope_type = 'organization' and scope_id = ?)
+          or (
+            scope_type = 'chat_space'
+            and exists (
+              select 1 from chat_messages
+              where org_id = ?
+                and space_id = retention_freezes.scope_id
+                and sender_type = ?
+                and sender_id = ?
+            )
+          )
+          or (
+            scope_type = 'file_object'
+            and exists (
+              select 1 from file_objects
+              where org_id = ?
+                and id = retention_freezes.scope_id
+                and owner_type = ?
+                and owner_id = ?
+            )
+          )
+        )
       limit 1
-    `).get(input.orgId, input.orgId);
+    `).get(
+      input.orgId,
+      input.orgId,
+      input.orgId,
+      input.subjectType,
+      input.subjectId,
+      input.orgId,
+      input.subjectType,
+      input.subjectId,
+    );
     if (legalHold || retentionFreeze) throw new Error("Active compliance hold prevents GDPR delete.");
   }
 
