@@ -214,6 +214,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         directs={directs}
         agents={agents}
         messages={messagesAll}
+        presence={snapshot.chatPresence}
         activeSpaceId={activeSpaceId}
         onSelect={(spaceId) => {
           setSelectedSpaceId(spaceId);

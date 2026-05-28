@@ -311,6 +311,20 @@ a { color: inherit; }
   min-height: 0;
   overflow-y: auto;
 }
+.presence {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.presence-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--bg);
+}
 .page { max-width: 1100px; }
 .page-wide { width: 100%; }
 .page-h1 {

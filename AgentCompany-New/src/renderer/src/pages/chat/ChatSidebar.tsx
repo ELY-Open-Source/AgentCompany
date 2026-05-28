@@ -1,13 +1,29 @@
 import type { ReactNode } from "react";
 import { Avatar, Icon, IconButton } from "../../shared/ui";
-import type { AgentRecord, ChatMessageRecord, ChatSpaceRecord } from "../../../../shared/domain";
+import type { AgentRecord, ChatMessageRecord, ChatPresenceRecord, ChatSpaceRecord } from "../../../../shared/domain";
 import { countMessagesIn } from "./chat-helpers";
+
+function presenceColor(status: string | undefined): string | null {
+  switch (status) {
+    case "active":
+    case "online":
+      return "var(--green)";
+    case "waiting_approval":
+    case "busy":
+      return "var(--amber)";
+    case "thinking":
+      return "var(--accent)";
+    default:
+      return null;
+  }
+}
 
 export function ChatSidebar({
   channels,
   directs,
   agents,
   messages,
+  presence,
   activeSpaceId,
   onSelect,
   onCreateSpace,
@@ -16,10 +32,12 @@ export function ChatSidebar({
   directs: ChatSpaceRecord[];
   agents: AgentRecord[];
   messages: ChatMessageRecord[];
+  presence: ChatPresenceRecord[];
   activeSpaceId: string | null;
   onSelect: (spaceId: string) => void;
   onCreateSpace: () => void;
 }) {
+  const presenceByPrincipal = new Map(presence.map((entry) => [entry.principalId, entry.status]));
   return (
     <aside className="secondary-pane">
       <div className="row" style={{ padding: "4px 8px 12px" }}>
@@ -47,6 +65,7 @@ export function ChatSidebar({
                 key={space.id}
                 space={space}
                 agents={agents}
+                presenceByPrincipal={presenceByPrincipal}
                 active={space.id === activeSpaceId}
                 count={countMessagesIn(space.id, messages)}
                 onClick={() => onSelect(space.id)}
@@ -95,20 +114,30 @@ function ChannelItem({
 function DirectItem({
   space,
   agents,
+  presenceByPrincipal,
   active,
   count,
   onClick,
 }: {
   space: ChatSpaceRecord;
   agents: AgentRecord[];
+  presenceByPrincipal: Map<string, string>;
   active: boolean;
   count: number;
   onClick: () => void;
 }) {
   const counterpart = agents.find((agent) => space.name.includes(agent.name));
+  const dotColor = counterpart ? presenceColor(presenceByPrincipal.get(counterpart.id)) : null;
   return (
     <button type="button" className={`nav-item ${active ? "active" : ""}`.trim()} onClick={onClick}>
-      {counterpart ? <Avatar name={counterpart.name} size="sm" bot /> : <Icon name="user" size={13} />}
+      {counterpart ? (
+        <span className="presence">
+          <Avatar name={counterpart.name} size="sm" bot />
+          {dotColor && <span className="presence-dot" style={{ background: dotColor }} />}
+        </span>
+      ) : (
+        <Icon name="user" size={13} />
+      )}
       <span>{space.name}</span>
       {count > 0 && <span className="nav-badge">{count}</span>}
     </button>
