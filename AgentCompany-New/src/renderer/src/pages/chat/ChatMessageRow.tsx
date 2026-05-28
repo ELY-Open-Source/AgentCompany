@@ -54,7 +54,11 @@ export function ChatMessageRow({
         </div>
         {messageFiles.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
-            {messageFiles.map((file) => <AttachmentCard key={file.id} file={file} />)}
+            {messageFiles.map((file) => {
+              const attachment = attachments.find((item) => item.messageId === message.id && item.fileId === file.id);
+              const handoff = bot && attachment?.transferType === "handoff";
+              return <AttachmentCard key={file.id} file={file} handoff={handoff} />;
+            })}
           </div>
         )}
         {onOpenThread && (
@@ -128,7 +132,7 @@ function mentionLabel(mention: ChatMentionRecord, context: MessageContext): stri
   throw new Error("Message mention target type is unsupported.");
 }
 
-function AttachmentCard({ file }: { file: FileObjectRecord }) {
+function AttachmentCard({ file, handoff = false }: { file: FileObjectRecord; handoff?: boolean }) {
   return (
     <div
       style={{
@@ -156,7 +160,14 @@ function AttachmentCard({ file }: { file: FileObjectRecord }) {
         <Icon name={file.kind === "folder" ? "folder" : "file"} size={16} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</div>
+        <div className="row" style={{ gap: 6, minWidth: 0 }}>
+          <span style={{ fontSize: 12.5, fontWeight: 540, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
+          {handoff && (
+            <span className="pill violet" style={{ flexShrink: 0 }}>
+              <Icon name="bot" size={10} /> AI → AI
+            </span>
+          )}
+        </div>
         <div style={{ fontSize: 11, color: "var(--text-3)" }}>{file.kind.toUpperCase()} · {file.sha256.slice(0, 8)}</div>
       </div>
       <IconButton icon="arrowUpRight" label="Open" />
