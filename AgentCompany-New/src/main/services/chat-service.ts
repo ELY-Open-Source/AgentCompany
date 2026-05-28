@@ -5,12 +5,14 @@ import {
   CHAT_THREAD_BOARD_STATE,
   FILE_SCAN_STATE,
   RISK_LEVEL,
+  ROLE_KEY,
   type FileScanState,
 } from "../../shared/domain";
 import { createId } from "../../shared/ids";
 import { ApprovalService } from "./approval-service";
 import { AuditService } from "./audit-service";
 import { BoardInterventionService, parseBoardCommand } from "./board-intervention-service";
+import { IdentityAccessService } from "./identity-access-service";
 import { buildChatMessageStructure } from "./chat-message-structure";
 import { ChatMessageMutationService } from "./chat-message-mutation-service";
 import { recordChatMentions, resolveChatMentions, type ResolvedMention } from "./chat-mentions";
@@ -55,6 +57,7 @@ export class ChatService {
   private readonly boardInterventions: BoardInterventionService;
   private readonly handoffs: FileHandoffService;
   private readonly messageMutations: ChatMessageMutationService;
+  private readonly identity: IdentityAccessService;
 
   constructor(private readonly db: DatabaseSync) {
     this.audit = new AuditService(db);
@@ -62,6 +65,7 @@ export class ChatService {
     this.boardInterventions = new BoardInterventionService(db);
     this.handoffs = new FileHandoffService(db);
     this.messageMutations = new ChatMessageMutationService(db);
+    this.identity = new IdentityAccessService(db);
   }
 
   createSpace(input: CreateChatSpaceInput): string {
@@ -400,6 +404,14 @@ export class ChatService {
     }
     if (!senderId) throw new Error("Board sender is required.");
     this.requireOrgEntity("employees", senderId, orgId, "Board sender");
+    this.identity.assertEmployeeRole(
+      orgId,
+      senderId,
+      ROLE_KEY.APPROVAL_DECIDER,
+      "chat_board_intervention",
+      "organization",
+      orgId,
+    );
     return { type: "employee", id: senderId };
   }
 

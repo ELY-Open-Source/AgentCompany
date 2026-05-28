@@ -10,6 +10,7 @@ import {
   isRootMessage,
   replayEventsForThread,
 } from "./chat/chat-helpers";
+import { ROLE_KEY } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId, requireActiveEmployee } from "./types";
 
@@ -52,6 +53,17 @@ export function ChatPage({ snapshot, actions }: PageProps) {
   );
   const channels = useMemo(() => spaces.filter((space) => space.spaceType !== "direct"), [spaces]);
   const directs = useMemo(() => spaces.filter((space) => space.spaceType === "direct"), [spaces]);
+  const canBoardIntervene = useMemo(
+    () =>
+      snapshot.roleGrants.some(
+        (grant) =>
+          grant.orgId === orgId &&
+          grant.principalType === "employee" &&
+          grant.principalId === employee.id &&
+          (grant.roleKey === ROLE_KEY.APPROVAL_DECIDER || grant.roleKey === ROLE_KEY.ORG_ADMIN),
+      ),
+    [snapshot.roleGrants, orgId, employee.id],
+  );
 
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [openThreadId, setOpenThreadId] = useState<string | null>(null);
@@ -243,6 +255,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
           files={files}
           auditEvents={threadAuditEvents}
           context={{ employees, agents }}
+          canIntervene={canBoardIntervene}
           onClose={() => setOpenThreadId(null)}
           onSubmit={sendInThread}
           onBoardSubmit={sendBoardIntervention}

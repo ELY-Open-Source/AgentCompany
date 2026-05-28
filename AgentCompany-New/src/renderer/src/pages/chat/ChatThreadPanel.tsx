@@ -25,6 +25,7 @@ export function ChatThreadPanel({
   files,
   auditEvents,
   context,
+  canIntervene,
   onClose,
   onSubmit,
   onBoardSubmit,
@@ -39,6 +40,7 @@ export function ChatThreadPanel({
   files: FileObjectRecord[];
   auditEvents: AuditEventRecord[];
   context: MessageContext;
+  canIntervene: boolean;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onBoardSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -67,6 +69,7 @@ export function ChatThreadPanel({
           thread={thread}
           interventions={boardInterventions}
           context={context}
+          canIntervene={canIntervene}
           onSubmit={onBoardSubmit}
         />
         {rootMessage && (
@@ -132,20 +135,24 @@ function BoardControl({
   thread,
   interventions,
   context,
+  canIntervene,
   onSubmit,
 }: {
   thread: ChatThreadRecord;
   interventions: BoardInterventionRecord[];
   context: MessageContext;
+  canIntervene: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const [action, setAction] = useState("decision");
+  if (!canIntervene && interventions.length === 0) return null;
   return (
     <section style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 10, background: "var(--panel)", marginBottom: 16 }}>
       <div className="row" style={{ marginBottom: 8 }}>
         <div className="section-label">Board</div>
         <Pill tone={boardStateTone(thread.boardState)}>{boardStateLabel(thread.boardState)}</Pill>
       </div>
+      {canIntervene && (
       <form onSubmit={onSubmit} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         <label className="field" style={{ margin: 0 }}>
           <span>Action</span>
@@ -177,6 +184,7 @@ function BoardControl({
           <Button tone="primary" size="small" type="submit"><Icon name="shield" size={12} /> Board</Button>
         </div>
       </form>
+      )}
       {interventions.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 10 }}>
           {interventions.map((intervention) => (
