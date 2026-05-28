@@ -25,6 +25,13 @@ export function HomePage({ snapshot, actions }: PageProps) {
     () => snapshot.providers.filter((provider) => provider.orgId === orgId),
     [snapshot.providers, orgId],
   );
+  const budgetCapCents = useMemo(
+    () =>
+      snapshot.hiringPolicies
+        .filter((policy) => policy.orgId === orgId)
+        .reduce((sum, policy) => sum + policy.monthlyBudgetLimitCents, 0),
+    [snapshot.hiringPolicies, orgId],
+  );
   const [newTaskOpen, setNewTaskOpen] = useState(false);
 
   const pendingApprovals = approvals.filter((approval) => approval.state === "pending");
@@ -60,7 +67,7 @@ export function HomePage({ snapshot, actions }: PageProps) {
             decidedByEmployeeId: employee.id,
           }))}
         />
-        <SpendCard providers={providers} totalBudgetCents={totalBudgetCents} agents={agents} />
+        <SpendCard providers={providers} totalBudgetCents={totalBudgetCents} capCents={budgetCapCents} agents={agents} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr)", gap: 12 }}>
@@ -158,33 +165,36 @@ function WaitingCard({
 function SpendCard({
   providers,
   totalBudgetCents,
+  capCents,
   agents,
 }: {
   providers: ProviderRecord[];
   totalBudgetCents: number;
+  capCents: number;
   agents: AgentRecord[];
 }) {
   const connected = providers.filter((provider) => provider.enabled);
-  const cap = totalBudgetCents > 0 ? totalBudgetCents * 4 : 0;
-  const fillPct = cap > 0 ? Math.min(100, Math.round((totalBudgetCents / cap) * 100)) : 0;
+  const fillPct = capCents > 0 ? Math.min(100, Math.round((totalBudgetCents / capCents) * 100)) : 0;
   return (
     <section className="card" style={{ padding: 18 }}>
-      <div className="card-label" style={{ marginBottom: 14 }}>This month</div>
+      <div className="card-label" style={{ marginBottom: 14 }}>Monthly budget</div>
       <div className="row" style={{ alignItems: "baseline", gap: 6 }}>
         <span className="num" style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-0.02em" }}>{money(totalBudgetCents)}</span>
-        <span style={{ fontSize: 12, color: "var(--text-3)" }}>{cap > 0 ? `/ ${money(cap)}` : "allocated"}</span>
+        <span style={{ fontSize: 12, color: "var(--text-3)" }}>{capCents > 0 ? `/ ${money(capCents)}` : "allocated"}</span>
       </div>
       <div style={{ marginTop: 14, height: 4, background: "var(--panel-3)", borderRadius: 2, overflow: "hidden" }}>
         <div style={{ width: `${fillPct}%`, height: "100%", background: "var(--text-1)" }} />
       </div>
       <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
         {connected.slice(0, 3).map((provider) => {
-          const usingAgents = agents.filter((agent) => agent.modelProviderId === provider.id).length;
+          const allocatedCents = agents
+            .filter((agent) => agent.modelProviderId === provider.id)
+            .reduce((sum, agent) => sum + agent.budgetCents, 0);
           return (
             <div key={provider.id} className="row" style={{ fontSize: 12 }}>
               <span style={{ color: "var(--text-2)" }}>{provider.label}</span>
               <span className="num mono" style={{ marginLeft: "auto", color: "var(--text-1)", fontWeight: 500 }}>
-                {usingAgents} {usingAgents === 1 ? "agent" : "agents"}
+                {money(allocatedCents)}
               </span>
             </div>
           );

@@ -43,7 +43,7 @@ export function MembersPanel({
               </div>
             </div>
             <div><Pill>Human</Pill></div>
-            <div style={{ color: "var(--text-2)" }}>Executive</div>
+            <div style={{ color: "var(--text-4)" }}>—</div>
             <div style={{ color: "var(--text-4)" }}>—</div>
           </div>
         ))}
