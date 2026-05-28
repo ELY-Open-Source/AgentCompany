@@ -140,7 +140,7 @@ export interface DeleteMessageInput {
 
 export interface CreateChatSpaceInput {
   orgId: string;
-  spaceType: "company" | "department" | "project" | "direct";
+  spaceType: "company" | "division" | "department" | "project" | "pod" | "ad_hoc" | "direct";
   name: string;
   topic: string;
   visibility: "workspace" | "restricted";

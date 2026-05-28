@@ -14,7 +14,7 @@ import { ROLE_KEY } from "../../../shared/domain";
 import type { PageProps } from "./types";
 import { activeOrgId, requireActiveEmployee } from "./types";
 
-type SpaceType = "company" | "department" | "project" | "direct";
+type SpaceType = "company" | "division" | "department" | "project" | "pod" | "ad_hoc" | "direct";
 type Visibility = "workspace" | "restricted";
 
 function value(form: FormData, key: string): string {
@@ -274,8 +274,11 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         <Field label="Type">
           <select className="input" name="spaceType" defaultValue="project">
             <option value="company">Company</option>
+            <option value="division">Division</option>
             <option value="department">Department</option>
             <option value="project">Project</option>
+            <option value="pod">Pod</option>
+            <option value="ad_hoc">Ad-hoc</option>
             <option value="direct">Direct</option>
           </select>
         </Field>

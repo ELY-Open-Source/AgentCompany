@@ -18,7 +18,15 @@ import { ChatMessageMutationService } from "./chat-message-mutation-service";
 import { recordChatMentions, resolveChatMentions, type ResolvedMention } from "./chat-mentions";
 import { FileHandoffService, type FileHandoffAttachment } from "./file-handoff-service";
 
-const SPACE_TYPES = new Set<CreateChatSpaceInput["spaceType"]>(["company", "department", "project", "direct"]);
+const SPACE_TYPES = new Set<CreateChatSpaceInput["spaceType"]>([
+  "company",
+  "division",
+  "department",
+  "project",
+  "pod",
+  "ad_hoc",
+  "direct",
+]);
 const SPACE_VISIBILITIES = new Set<CreateChatSpaceInput["visibility"]>(["workspace", "restricted"]);
 const RETENTION_POLICIES = new Set(["standard_365d", "restricted_365d"]);
 
