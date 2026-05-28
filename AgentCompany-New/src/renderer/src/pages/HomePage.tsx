@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Avatar, Button, Icon, Pill } from "../shared/ui";
+import { TopbarActions } from "../shared/TopbarActions";
 import type {
   AgentRecord,
   ApprovalRecord,
@@ -39,16 +40,12 @@ export function HomePage({ snapshot, actions }: PageProps) {
 
   return (
     <div className="page">
-      <div className="row" style={{ marginBottom: 24 }}>
-        <div>
-          <h1 className="page-h1">{greeting}, {firstName}</h1>
-          <p className="page-sub" style={{ marginBottom: 0 }}>{summaryText}</p>
-        </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-          <Button tone="ghost" onClick={() => void actions.reload()} title="Refresh"><Icon name="refresh" size={13} /></Button>
-          <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={13} /> New task</Button>
-        </div>
-      </div>
+      <TopbarActions>
+        <Button tone="ghost" onClick={() => void actions.reload()} title="Refresh"><Icon name="refresh" size={13} /></Button>
+        <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={13} /> New task</Button>
+      </TopbarActions>
+      <h1 className="page-h1">{greeting}, {firstName}</h1>
+      <p className="page-sub">{summaryText}</p>
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr)", gap: 12, marginBottom: 12 }}>
         <TodayCard date={today} tasks={agendaTasks} agents={agents} employee={employee} approvals={pendingApprovals} />

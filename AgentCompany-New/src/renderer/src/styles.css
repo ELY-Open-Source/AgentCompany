@@ -291,6 +291,7 @@ a { color: inherit; }
 .crumb-sub { font-size: 13px; color: var(--text-3); }
 .crumb-sep { color: var(--text-4); }
 .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.topbar-actions-slot { display: flex; align-items: center; gap: 6px; }
 
 .content {
   flex: 1;

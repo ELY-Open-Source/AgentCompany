@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { Avatar, Button, Field, Icon, IconButton, Pill } from "../shared/ui";
+import { TopbarActions } from "../shared/TopbarActions";
 import { Dialog } from "../shared/Dialog";
 import {
   SOCIAL_PLATFORM,
@@ -76,21 +77,17 @@ export function SocialPage({ snapshot, actions }: PageProps) {
 
   return (
     <div className="page">
-      <div className="row" style={{ marginBottom: 24 }}>
-        <div>
-          <h1 className="page-h1">Social</h1>
-          <p className="page-sub" style={{ marginBottom: 0 }}>
-            {accounts.length} {accounts.length === 1 ? "account" : "accounts"} · {scheduled.length} scheduled
-            {operatorName ? ` · managed by ${operatorName}` : ""}
-          </p>
-        </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-          <Button onClick={() => setConnectOpen(true)}><Icon name="plus" size={13} /> Connect account</Button>
-          <Button tone="primary" onClick={() => setDraftOpen(true)} disabled={accounts.length === 0}>
-            <Icon name="sparkle" size={13} /> Draft post
-          </Button>
-        </div>
-      </div>
+      <TopbarActions>
+        <Button onClick={() => setConnectOpen(true)}><Icon name="plus" size={13} /> Connect account</Button>
+        <Button tone="primary" onClick={() => setDraftOpen(true)} disabled={accounts.length === 0}>
+          <Icon name="sparkle" size={13} /> Draft post
+        </Button>
+      </TopbarActions>
+      <h1 className="page-h1">Social</h1>
+      <p className="page-sub">
+        {accounts.length} {accounts.length === 1 ? "account" : "accounts"} · {scheduled.length} scheduled
+        {operatorName ? ` · managed by ${operatorName}` : ""}
+      </p>
 
       {accounts.length > 0 && (
         <>

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Avatar, Button, Icon, IconButton, Pill, Segmented } from "../shared/ui";
+import { TopbarActions } from "../shared/TopbarActions";
 import {
   TASK_STATUS,
   type AgentRecord,
@@ -54,19 +55,15 @@ export function WorkPage({ snapshot, actions }: PageProps) {
 
   return (
     <div className="page-wide">
-      <div className="row" style={{ marginBottom: 24 }}>
-        <div>
-          <h1 className="page-h1">Work</h1>
-          <p className="page-sub" style={{ marginBottom: 0 }}>
-            {tasks.length} {tasks.length === 1 ? "task" : "tasks"} · {agents.length} {agents.length === 1 ? "assignee" : "assignees"}
-          </p>
-        </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
-          <Segmented value={view} onChange={setView} options={VIEW_OPTIONS} />
-          <Button tone="ghost"><Icon name="filter" size={13} /></Button>
-          <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={13} /> New task</Button>
-        </div>
-      </div>
+      <TopbarActions>
+        <Segmented value={view} onChange={setView} options={VIEW_OPTIONS} />
+        <Button tone="ghost"><Icon name="filter" size={13} /></Button>
+        <Button tone="primary" onClick={() => setNewTaskOpen(true)}><Icon name="plus" size={13} /> New task</Button>
+      </TopbarActions>
+      <h1 className="page-h1">Work</h1>
+      <p className="page-sub">
+        {tasks.length} {tasks.length === 1 ? "task" : "tasks"} · {agents.length} {agents.length === 1 ? "assignee" : "assignees"}
+      </p>
 
       {view === "board" && (
         <BoardView

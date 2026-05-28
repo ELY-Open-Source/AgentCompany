@@ -4,6 +4,7 @@ import { Avatar, Icon, IconButton } from "./ui";
 import type { IconName } from "./Icon";
 import { OrgSwitcher } from "./OrgSwitcher";
 import { SearchDialog } from "./SearchDialog";
+import { TopbarSlotContext } from "./topbar-context";
 
 export type RouteId =
   | "home"
@@ -35,7 +36,6 @@ export function Shell({
   snapshot,
   route,
   setRoute,
-  actions,
   onSwitchOrg,
   onDeleteOrg,
   onNewOrg,
@@ -44,13 +44,13 @@ export function Shell({
   snapshot: AppSnapshot;
   route: RouteId;
   setRoute: (route: RouteId) => void;
-  actions?: ReactNode;
   onSwitchOrg: (orgId: string) => void;
   onDeleteOrg: (orgId: string) => void;
   onNewOrg: () => void;
   children: ReactNode;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
+  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -123,7 +123,7 @@ export function Shell({
           <span className="crumb-sep">/</span>
           <span className="crumb">{activeLabel}</span>
           <div className="topbar-actions">
-            {actions}
+            <span className="topbar-actions-slot" ref={setActionsSlot} />
             {window.agentCompany.platform !== "darwin" && (
               <>
                 <IconButton icon="minus" label="Minimize" onClick={() => void window.agentCompany.windowMinimize()} />
@@ -132,7 +132,9 @@ export function Shell({
             )}
           </div>
         </header>
-        <div className="content">{children}</div>
+        <div className="content">
+          <TopbarSlotContext.Provider value={actionsSlot}>{children}</TopbarSlotContext.Provider>
+        </div>
       </main>
       <SearchDialog
         snapshot={snapshot}

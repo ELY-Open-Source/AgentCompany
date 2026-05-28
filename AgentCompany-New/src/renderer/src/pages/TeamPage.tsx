@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { Avatar, Button, Field, Icon, IconButton, Pill } from "../shared/ui";
+import { TopbarActions } from "../shared/TopbarActions";
 import { Dialog } from "../shared/Dialog";
 import type { AgentRecord, EmployeeRecord, ProviderRecord } from "../../../shared/domain";
 import type { PageProps } from "./types";
@@ -49,22 +50,18 @@ export function TeamPage({ snapshot, actions }: PageProps) {
 
   return (
     <div className="page">
-      <div className="row" style={{ marginBottom: 24 }}>
-        <div>
-          <h1 className="page-h1">Team</h1>
-          <p className="page-sub" style={{ marginBottom: 0 }}>
-            {employees.length + agents.length} {employees.length + agents.length === 1 ? "member" : "members"} ·
-            {" "}{employees.length} {employees.length === 1 ? "human" : "humans"} ·
-            {" "}{agents.length} {agents.length === 1 ? "agent" : "agents"}
-          </p>
-        </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-          <Button tone="ghost" onClick={() => cycleFilter(filter, setFilter)} title="Filter">
-            <Icon name="filter" size={13} /> {filterLabel(filter)}
-          </Button>
-          <Button tone="primary" onClick={() => setHireOpen(true)}><Icon name="plus" size={13} /> Hire</Button>
-        </div>
-      </div>
+      <TopbarActions>
+        <Button tone="ghost" onClick={() => cycleFilter(filter, setFilter)} title="Filter">
+          <Icon name="filter" size={13} /> {filterLabel(filter)}
+        </Button>
+        <Button tone="primary" onClick={() => setHireOpen(true)}><Icon name="plus" size={13} /> Hire</Button>
+      </TopbarActions>
+      <h1 className="page-h1">Team</h1>
+      <p className="page-sub">
+        {employees.length + agents.length} {employees.length + agents.length === 1 ? "member" : "members"} ·
+        {" "}{employees.length} {employees.length === 1 ? "human" : "humans"} ·
+        {" "}{agents.length} {agents.length === 1 ? "agent" : "agents"}
+      </p>
 
       <section className="card" style={{ padding: 32, marginBottom: 28 }}>
         <div className="section-label">Org</div>

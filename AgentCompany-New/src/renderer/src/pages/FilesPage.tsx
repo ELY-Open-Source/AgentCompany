@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Avatar, Button, Icon, IconButton, Pill, Segmented } from "../shared/ui";
+import { TopbarActions } from "../shared/TopbarActions";
 import type {
   AgentRecord,
   EmployeeRecord,
@@ -56,28 +57,24 @@ export function FilesPage({ snapshot, actions }: PageProps) {
       />
 
       <div style={{ minWidth: 0 }}>
-        <div className="row" style={{ marginBottom: 24 }}>
-          <div>
-            <h1 className="page-h1">Files</h1>
-            <p className="page-sub" style={{ marginBottom: 0 }}>
-              {visibleFiles.length} {visibleFiles.length === 1 ? "file" : "files"} · {formatBytes(totalBytes)}
-            </p>
-          </div>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
-            <Button tone="ghost"><Icon name="filter" size={13} /></Button>
-            <Segmented<ViewMode>
-              value={view}
-              onChange={setView}
-              options={[
-                { id: "grid", label: "Grid" },
-                { id: "list", label: "List" },
-              ]}
-            />
-            <Button tone="primary" onClick={() => void actions.run(() => window.agentCompany.importFile({ orgId }))}>
-              <Icon name="upload" size={13} /> Upload
-            </Button>
-          </div>
-        </div>
+        <TopbarActions>
+          <Button tone="ghost"><Icon name="filter" size={13} /></Button>
+          <Segmented<ViewMode>
+            value={view}
+            onChange={setView}
+            options={[
+              { id: "grid", label: "Grid" },
+              { id: "list", label: "List" },
+            ]}
+          />
+          <Button tone="primary" onClick={() => void actions.run(() => window.agentCompany.importFile({ orgId }))}>
+            <Icon name="upload" size={13} /> Upload
+          </Button>
+        </TopbarActions>
+        <h1 className="page-h1">Files</h1>
+        <p className="page-sub">
+          {visibleFiles.length} {visibleFiles.length === 1 ? "file" : "files"} · {formatBytes(totalBytes)}
+        </p>
 
         {pinnedFiles.length > 0 && section.kind === "all" && (
           <>

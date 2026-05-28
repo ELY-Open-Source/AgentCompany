@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Avatar, Button, Icon, Pill } from "../shared/ui";
+import { TopbarActions } from "../shared/TopbarActions";
 import type {
   AgentRecord,
   ApprovalRecord,
@@ -57,18 +58,14 @@ export function ApprovalsPage({ snapshot, actions }: PageProps) {
 
   return (
     <div className="page">
-      <div className="row" style={{ marginBottom: 24 }}>
-        <div>
-          <h1 className="page-h1">Approvals</h1>
-          <p className="page-sub" style={{ marginBottom: 0 }}>
-            {pending.length} pending · {approved7d} approved this week
-          </p>
-        </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-          <RiskMenu filter={filter} onChange={setFilter} />
-          <Button tone="primary" onClick={approveAllLowRisk}>Approve all low risk</Button>
-        </div>
-      </div>
+      <TopbarActions>
+        <RiskMenu filter={filter} onChange={setFilter} />
+        <Button tone="primary" onClick={approveAllLowRisk}>Approve all low risk</Button>
+      </TopbarActions>
+      <h1 className="page-h1">Approvals</h1>
+      <p className="page-sub">
+        {pending.length} pending · {approved7d} approved this week
+      </p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
         <StatTile label="Pending" value={String(pending.length)} tone="amber" />
