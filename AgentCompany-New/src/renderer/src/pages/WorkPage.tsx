@@ -111,7 +111,7 @@ function BoardView({
   onCreate: () => void;
 }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, minWidth: 0 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, minWidth: 0 }}>
       {COLUMNS.map((column) => {
         const columnTasks = tasks.filter((task) => task.status === column.id);
         return (

@@ -148,7 +148,7 @@ function WaitingCard({
             <div key={approval.id} style={{ padding: 12, border: "1px solid var(--border)", borderRadius: 8 }}>
               <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>{approval.title}</div>
               <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 10 }}>
-                {approval.kind} · {approval.risk} risk · from {from}
+                {humanizeLabel(approval.kind)} · {humanizeLabel(approval.risk)} risk · from {from}
               </div>
               <div className="row" style={{ gap: 6 }}>
                 <Button tone="primary" size="small" onClick={() => onApprove(approval.id)}>Approve</Button>
@@ -335,6 +335,12 @@ function renderSummary(pending: number, agents: number): string {
   const things = `${pending} ${pending === 1 ? "thing" : "things"} waiting on you`;
   const onDeck = `${agents} ${agents === 1 ? "agent" : "agents"} on deck`;
   return `${things} · ${onDeck}`;
+}
+
+function humanizeLabel(value: string): string {
+  if (!value) return value;
+  const spaced = value.replace(/_/g, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 function resolveRequester(approval: ApprovalRecord, employees: EmployeeRecord[], agents: AgentRecord[]): string {
