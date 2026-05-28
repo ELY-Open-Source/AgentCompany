@@ -196,7 +196,7 @@ export function ChatPage({ snapshot, actions }: PageProps) {
     }));
 
   return (
-    <div className="split-main" style={{ height: "calc(100vh - 44px)", margin: "-28px -32px -40px" }}>
+    <div className="split-main">
       <ChatSidebar
         channels={channels}
         directs={directs}

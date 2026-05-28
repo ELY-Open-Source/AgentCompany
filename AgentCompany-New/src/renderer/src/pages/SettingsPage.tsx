@@ -110,14 +110,16 @@ export function SettingsPage({ snapshot, actions }: PageProps) {
   const rollbackSnapshots = useMemo(() => snapshot.rollbackSnapshots.filter((item) => item.orgId === orgId), [snapshot.rollbackSnapshots, orgId]);
 
   return (
-    <div className="split-main" style={{ height: "calc(100vh - 44px)", margin: "-28px -32px -40px" }}>
+    <div className="split-main">
       <aside className="secondary-pane">
         <div style={{ fontSize: 13, fontWeight: 600, padding: "4px 8px 14px" }}>Settings</div>
-        <NavGroup items={WORKSPACE_GROUP} active={tab} onChange={setTab} />
-        <NavGroupLabel>Agents</NavGroupLabel>
-        <NavGroup items={AGENTS_GROUP} active={tab} onChange={setTab} />
-        <NavGroupLabel>Account</NavGroupLabel>
-        <NavGroup items={ACCOUNT_GROUP} active={tab} onChange={setTab} />
+        <div className="pane-scroll">
+          <NavGroup items={WORKSPACE_GROUP} active={tab} onChange={setTab} />
+          <NavGroupLabel>Agents</NavGroupLabel>
+          <NavGroup items={AGENTS_GROUP} active={tab} onChange={setTab} />
+          <NavGroupLabel>Account</NavGroupLabel>
+          <NavGroup items={ACCOUNT_GROUP} active={tab} onChange={setTab} />
+        </div>
       </aside>
       <div className="main" style={{ flex: 1, minWidth: 0 }}>
         <div className="content">

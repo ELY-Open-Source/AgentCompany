@@ -298,6 +298,19 @@ a { color: inherit; }
   overflow: auto;
   padding: 28px 32px 40px;
 }
+/* Split-layout routes fill the content area and let their panes scroll
+   independently instead of scrolling the whole page. */
+.content.flush {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+.pane-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
 .page { max-width: 1100px; }
 .page-wide { width: 100%; }
 .page-h1 {

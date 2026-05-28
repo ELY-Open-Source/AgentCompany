@@ -22,6 +22,10 @@ interface NavSpec {
   icon: IconName;
 }
 
+/** Routes whose pages own a full-height, multi-pane layout with their own
+ * internal scroll regions, so the content area must not scroll as one block. */
+const FLUSH_ROUTES = new Set<RouteId>(["chat", "settings", "files", "social"]);
+
 const primaryNav: NavSpec[] = [
   { id: "home", label: "Home", icon: "home" },
   { id: "team", label: "Team", icon: "team" },
@@ -132,7 +136,7 @@ export function Shell({
             )}
           </div>
         </header>
-        <div className="content">
+        <div className={FLUSH_ROUTES.has(route) ? "content flush" : "content"}>
           <TopbarSlotContext.Provider value={actionsSlot}>{children}</TopbarSlotContext.Provider>
         </div>
       </main>

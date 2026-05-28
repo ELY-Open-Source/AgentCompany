@@ -76,7 +76,7 @@ export function SocialPage({ snapshot, actions }: PageProps) {
     void actions.run(() => window.agentCompany.setScheduledPostState({ orgId, scheduledPostId: post.id, state, employeeId: employee.id }));
 
   return (
-    <div className="page">
+    <div className="page" style={{ display: "flex", flexDirection: "column", minHeight: 0, height: "100%", padding: "28px 32px 0" }}>
       <TopbarActions>
         <Button onClick={() => setConnectOpen(true)}><Icon name="plus" size={13} /> Connect account</Button>
         <Button tone="primary" onClick={() => setDraftOpen(true)} disabled={accounts.length === 0}>
@@ -89,6 +89,7 @@ export function SocialPage({ snapshot, actions }: PageProps) {
         {operatorName ? ` · managed by ${operatorName}` : ""}
       </p>
 
+      <div className="pane-scroll" style={{ paddingBottom: 40 }}>
       {accounts.length > 0 && (
         <>
           <div className="section-label" style={{ marginBottom: 10 }}>Accounts</div>
@@ -147,6 +148,7 @@ export function SocialPage({ snapshot, actions }: PageProps) {
         </div>
 
         <SocialCalendar posts={scheduledPosts} accounts={accounts} />
+      </div>
       </div>
 
       <Dialog title="Connect social account" open={connectOpen} submitLabel="Connect" onClose={() => setConnectOpen(false)} onSubmit={connect}>

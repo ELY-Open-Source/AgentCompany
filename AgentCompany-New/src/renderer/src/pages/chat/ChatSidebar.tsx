@@ -26,33 +26,35 @@ export function ChatSidebar({
         <div style={{ fontSize: 13, fontWeight: 600 }}>Messages</div>
         <IconButton icon="plus" label="New space" onClick={onCreateSpace} />
       </div>
-      <NavGroup label="Channels">
-        {channels.length === 0 ? (
-          <Empty>No channels.</Empty>
-        ) : channels.map((space) => (
-          <ChannelItem
-            key={space.id}
-            space={space}
-            active={space.id === activeSpaceId}
-            count={countMessagesIn(space.id, messages)}
-            onClick={() => onSelect(space.id)}
-          />
-        ))}
-      </NavGroup>
-      {directs.length > 0 && (
-        <NavGroup label="Direct">
-          {directs.map((space) => (
-            <DirectItem
+      <div className="pane-scroll">
+        <NavGroup label="Channels">
+          {channels.length === 0 ? (
+            <Empty>No channels.</Empty>
+          ) : channels.map((space) => (
+            <ChannelItem
               key={space.id}
               space={space}
-              agents={agents}
               active={space.id === activeSpaceId}
               count={countMessagesIn(space.id, messages)}
               onClick={() => onSelect(space.id)}
             />
           ))}
         </NavGroup>
-      )}
+        {directs.length > 0 && (
+          <NavGroup label="Direct">
+            {directs.map((space) => (
+              <DirectItem
+                key={space.id}
+                space={space}
+                agents={agents}
+                active={space.id === activeSpaceId}
+                count={countMessagesIn(space.id, messages)}
+                onClick={() => onSelect(space.id)}
+              />
+            ))}
+          </NavGroup>
+        )}
+      </div>
     </aside>
   );
 }

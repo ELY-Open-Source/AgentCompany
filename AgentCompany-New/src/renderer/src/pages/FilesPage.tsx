@@ -46,7 +46,7 @@ export function FilesPage({ snapshot, actions }: PageProps) {
   const totalBytes = visibleFiles.reduce((sum, file) => sum + file.sizeBytes, 0);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(160px, 200px) minmax(0, 1fr)", gap: 24 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(160px, 200px) minmax(0, 1fr)", gap: 24, height: "100%", minHeight: 0, padding: "28px 32px 0" }}>
       <FilesTree
         files={files}
         pinnedFiles={pinnedFiles}
@@ -56,7 +56,7 @@ export function FilesPage({ snapshot, actions }: PageProps) {
         onChange={setSection}
       />
 
-      <div style={{ minWidth: 0 }}>
+      <div style={{ minWidth: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
         <TopbarActions>
           <Button tone="ghost"><Icon name="filter" size={13} /></Button>
           <Segmented<ViewMode>
@@ -76,6 +76,7 @@ export function FilesPage({ snapshot, actions }: PageProps) {
           {visibleFiles.length} {visibleFiles.length === 1 ? "file" : "files"} · {formatBytes(totalBytes)}
         </p>
 
+        <div className="pane-scroll" style={{ paddingBottom: 40 }}>
         {pinnedFiles.length > 0 && section.kind === "all" && (
           <>
             <div className="section-label" style={{ marginBottom: 10 }}>Pinned</div>
@@ -115,6 +116,7 @@ export function FilesPage({ snapshot, actions }: PageProps) {
             onTogglePin={(file) => void actions.run(() => window.agentCompany.setFilePinned({ orgId, fileId: file.id, pinned: !file.pinned }))}
           />
         )}
+        </div>
       </div>
     </div>
   );
@@ -137,7 +139,7 @@ function FilesTree({
 }) {
   const recent = files.filter((file) => isRecent(file.createdAt));
   return (
-    <aside>
+    <aside style={{ overflowY: "auto", minHeight: 0, paddingBottom: 40 }}>
       <div className="section-label">Library</div>
       <TreeItem
         icon="folder"
