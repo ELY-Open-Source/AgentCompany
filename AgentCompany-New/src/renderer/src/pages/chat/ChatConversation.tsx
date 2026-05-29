@@ -27,10 +27,13 @@ export function ChatConversation({
   files,
   context,
   attachmentFileId,
+  currentEmployeeId,
   onAttachmentChange,
   onOpenThread,
   onApprove,
   onDecline,
+  onEditMessage,
+  onDeleteMessage,
   onSubmit,
   composerRef,
 }: {
@@ -46,10 +49,13 @@ export function ChatConversation({
   files: FileObjectRecord[];
   context: MessageContext;
   attachmentFileId: string;
+  currentEmployeeId: string;
   onAttachmentChange: (next: string) => void;
   onOpenThread: (threadId: string) => void;
   onApprove: (approvalId: string) => void;
   onDecline: (approvalId: string) => void;
+  onEditMessage: (messageId: string, bodyMd: string) => void;
+  onDeleteMessage: (messageId: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   composerRef: MutableRefObject<HTMLTextAreaElement | null>;
 }) {
@@ -73,9 +79,12 @@ export function ChatConversation({
             slashInvocations={slashInvocations}
             files={files}
             context={context}
+            currentEmployeeId={currentEmployeeId}
             onOpenThread={onOpenThread}
             onApprove={onApprove}
             onDecline={onDecline}
+            onEditMessage={onEditMessage}
+            onDeleteMessage={onDeleteMessage}
           />
         )}
       </div>

@@ -207,6 +207,23 @@ export function ChatPage({ snapshot, actions }: PageProps) {
       decidedByEmployeeId: employee.id,
     }));
 
+  const editChatMessage = (messageId: string, bodyMd: string) =>
+    void actions.run(() => window.agentCompany.editMessage({
+      orgId,
+      messageId,
+      actorType: "employee",
+      actorId: employee.id,
+      bodyMd,
+    }));
+
+  const deleteChatMessage = (messageId: string) =>
+    void actions.run(() => window.agentCompany.deleteMessage({
+      orgId,
+      messageId,
+      actorType: "employee",
+      actorId: employee.id,
+    }));
+
   return (
     <div className="split-main">
       <ChatSidebar
@@ -236,10 +253,13 @@ export function ChatPage({ snapshot, actions }: PageProps) {
         files={files}
         context={{ employees, agents }}
         attachmentFileId={attachmentFileId}
+        currentEmployeeId={employee.id}
         onAttachmentChange={setAttachmentFileId}
         onOpenThread={setOpenThreadId}
         onApprove={(approvalId) => decideApproval(approvalId, "approved")}
         onDecline={(approvalId) => decideApproval(approvalId, "declined")}
+        onEditMessage={editChatMessage}
+        onDeleteMessage={deleteChatMessage}
         onSubmit={sendInChannel}
         composerRef={composerRef}
       />

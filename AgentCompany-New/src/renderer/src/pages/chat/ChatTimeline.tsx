@@ -22,9 +22,12 @@ export function ChatTimeline({
   slashInvocations,
   files,
   context,
+  currentEmployeeId,
   onOpenThread,
   onApprove,
   onDecline,
+  onEditMessage,
+  onDeleteMessage,
 }: {
   rootMessages: ChatMessageRecord[];
   messagesInSpace: ChatMessageRecord[];
@@ -35,9 +38,12 @@ export function ChatTimeline({
   slashInvocations: ChatSlashInvocationRecord[];
   files: FileObjectRecord[];
   context: MessageContext;
+  currentEmployeeId: string;
   onOpenThread: (threadId: string) => void;
   onApprove: (approvalId: string) => void;
   onDecline: (approvalId: string) => void;
+  onEditMessage: (messageId: string, bodyMd: string) => void;
+  onDeleteMessage: (messageId: string) => void;
 }) {
   const elements: ReactNode[] = [];
   let lastDay = "";
@@ -62,6 +68,9 @@ export function ChatTimeline({
         replyCount={replyCount}
         onOpenThread={thread ? () => onOpenThread(thread.id) : null}
         context={context}
+        canModify={message.senderType === "employee" && message.senderId === currentEmployeeId && !message.deletedAt}
+        onEdit={(bodyMd) => onEditMessage(message.id, bodyMd)}
+        onDelete={() => onDeleteMessage(message.id)}
       />,
     );
   });

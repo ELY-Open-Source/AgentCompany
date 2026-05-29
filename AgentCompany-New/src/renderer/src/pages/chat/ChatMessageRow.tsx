@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { Avatar, Icon, IconButton } from "../../shared/ui";
+import { useState, type FormEvent, type ReactNode } from "react";
+import { Avatar, Button, Icon, IconButton } from "../../shared/ui";
 import type {
   ChatAttachmentRecord,
   ChatMentionRecord,
@@ -20,6 +20,9 @@ export function ChatMessageRow({
   onOpenThread,
   context,
   compact = false,
+  canModify = false,
+  onEdit,
+  onDelete,
 }: {
   message: ChatMessageRecord;
   attachments: ChatAttachmentRecord[];
@@ -30,12 +33,24 @@ export function ChatMessageRow({
   onOpenThread: (() => void) | null;
   context: MessageContext;
   compact?: boolean;
+  canModify?: boolean;
+  onEdit?: (bodyMd: string) => void;
+  onDelete?: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
   const name = senderName(message, context);
   const bot = message.senderType === "agent";
-  const messageFiles = messageAttachments(message.id, attachments, files);
+  const deleted = Boolean(message.deletedAt);
+  const messageFiles = deleted ? [] : messageAttachments(message.id, attachments, files);
   const messageMentions = mentions.filter((mention) => mention.messageId === message.id);
-  const slashInvocation = slashInvocations.find((invocation) => invocation.messageId === message.id) ?? null;
+  const slashInvocation = deleted ? null : slashInvocations.find((invocation) => invocation.messageId === message.id) ?? null;
+  const submitEdit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const next = new FormData(event.currentTarget).get("body");
+    const value = typeof next === "string" ? next.trim() : "";
+    if (value && onEdit) onEdit(value);
+    setEditing(false);
+  };
   return (
     <div style={{ display: "flex", gap: compact ? 10 : 12, marginBottom: compact ? 12 : 18 }}>
       <Avatar name={name} size={compact ? "sm" : ""} bot={bot} />
@@ -43,15 +58,41 @@ export function ChatMessageRow({
         <div className="row" style={{ alignItems: "baseline", gap: 8, marginBottom: 2 }}>
           <span style={{ fontSize: 13, fontWeight: 540 }}>{name}</span>
           <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>{formatTime(message.createdAt)}</span>
+          {message.editedAt && !deleted && <span style={{ fontSize: 11, color: "var(--text-3)" }}>(edited)</span>}
+          {canModify && !editing && (
+            <span style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
+              <IconButton icon="more" label="Edit message" size={13} onClick={() => setEditing(true)} />
+              <IconButton icon="x" label="Delete message" size={13} onClick={onDelete} />
+            </span>
+          )}
         </div>
         {slashInvocation && (
           <div className="pill mono" style={{ marginBottom: 6, width: "fit-content" }}>
             /{slashInvocation.command}
           </div>
         )}
-        <div style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-          {renderBody(message.bodyMd, messageMentions, context)}
-        </div>
+        {deleted ? (
+          <div style={{ fontSize: 13, color: "var(--text-3)", fontStyle: "italic" }}>Message deleted</div>
+        ) : editing ? (
+          <form onSubmit={submitEdit}>
+            <textarea
+              name="body"
+              defaultValue={message.bodyMd}
+              autoFocus
+              aria-label="Edit message"
+              className="input"
+              style={{ minHeight: 60, marginBottom: 6 }}
+            />
+            <div className="row" style={{ gap: 6 }}>
+              <Button tone="primary" size="small" type="submit">Save</Button>
+              <Button tone="ghost" size="small" onClick={() => setEditing(false)}>Cancel</Button>
+            </div>
+          </form>
+        ) : (
+          <div style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+            {renderBody(message.bodyMd, messageMentions, context)}
+          </div>
+        )}
         {messageFiles.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
             {messageFiles.map((file) => {
