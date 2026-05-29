@@ -17,6 +17,7 @@ function optional(form: FormData, key: string): string | null {
 export function TeamPage({ snapshot, actions }: PageProps) {
   const orgId = activeOrgId(snapshot);
   const [hireOpen, setHireOpen] = useState(false);
+  const [editAgentId, setEditAgentId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "human" | "agent">("all");
 
   const employees = useMemo(() => snapshot.employees.filter((item) => item.orgId === orgId), [snapshot.employees, orgId]);
@@ -44,6 +45,23 @@ export function TeamPage({ snapshot, actions }: PageProps) {
       heartbeatEnabled: false,
       heartbeatIntervalSec: 0,
     })).then((result) => { if (result) setHireOpen(false); });
+  };
+
+  const editingAgent = editAgentId ? agents.find((agent) => agent.id === editAgentId) ?? null : null;
+
+  const submitEdit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingAgent) return;
+    const form = new FormData(event.currentTarget);
+    void actions.run(() => window.agentCompany.updateAgent({
+      orgId,
+      agentId: editingAgent.id,
+      role: text(form, "role"),
+      title: text(form, "title") || text(form, "role"),
+      roleLevel: text(form, "roleLevel") || "staff",
+      modelProviderId: optional(form, "modelProviderId"),
+      modelId: optional(form, "modelId"),
+    })).then((result) => { if (result) setEditAgentId(null); });
   };
 
   const rosterRows = buildRoster(employees, agents, providers, filter);
@@ -95,7 +113,12 @@ export function TeamPage({ snapshot, actions }: PageProps) {
           <div>Member</div><div>Department</div><div>Model</div><div>Budget</div><div />
         </div>
         {rosterRows.map((row, index) => (
-          <RosterRow key={row.id} row={row} last={index === rosterRows.length - 1} />
+          <RosterRow
+            key={row.id}
+            row={row}
+            last={index === rosterRows.length - 1}
+            onEdit={row.human ? null : () => setEditAgentId(row.id)}
+          />
         ))}
       </div>
 
@@ -111,19 +134,8 @@ export function TeamPage({ snapshot, actions }: PageProps) {
           </select>
         </Field>
         <Field label="Model">
-          <input
-            className="input"
-            name="modelId"
-            list="agent-model-suggestions"
-          />
+          <input className="input" name="modelId" list="agent-model-suggestions" />
         </Field>
-        <datalist id="agent-model-suggestions">
-          {snapshot.providerCatalog.flatMap((entry) =>
-            entry.models.map((model) => (
-              <option key={`${entry.key}-${model.id}`} value={model.id}>{entry.label} · {model.name}</option>
-            )),
-          )}
-        </datalist>
         <Field label="Monthly budget"><input className="input" name="budget" type="number" min="0" step="1" defaultValue="250" /></Field>
         <Field label="Seniority">
           <select className="input" name="roleLevel" defaultValue="staff">
@@ -134,6 +146,38 @@ export function TeamPage({ snapshot, actions }: PageProps) {
           </select>
         </Field>
       </Dialog>
+
+      {editingAgent && (
+        <Dialog key={editingAgent.id} title={`Edit ${editingAgent.name}`} open submitLabel="Save" onClose={() => setEditAgentId(null)} onSubmit={submitEdit}>
+          <Field label="Role"><input className="input" name="role" defaultValue={editingAgent.role} required /></Field>
+          <Field label="Title"><input className="input" name="title" defaultValue={editingAgent.title} /></Field>
+          <Field label="Provider">
+            <select className="input" name="modelProviderId" defaultValue={editingAgent.modelProviderId ?? ""}>
+              <option value="">Unassigned</option>
+              {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Model">
+            <input className="input" name="modelId" defaultValue={editingAgent.modelId ?? ""} list="agent-model-suggestions" />
+          </Field>
+          <Field label="Seniority">
+            <select className="input" name="roleLevel" defaultValue={editingAgent.roleLevel}>
+              <option value="staff">Staff</option>
+              <option value="lead">Lead</option>
+              <option value="director">Director</option>
+              <option value="c_suite">Executive</option>
+            </select>
+          </Field>
+        </Dialog>
+      )}
+
+      <datalist id="agent-model-suggestions">
+        {snapshot.providerCatalog.flatMap((entry) =>
+          entry.models.map((model) => (
+            <option key={`${entry.key}-${model.id}`} value={model.id}>{entry.label} · {model.name}</option>
+          )),
+        )}
+      </datalist>
     </div>
   );
 }
@@ -244,7 +288,7 @@ function buildRoster(
   return rows;
 }
 
-function RosterRow({ row, last }: { row: RosterEntry; last: boolean }) {
+function RosterRow({ row, last, onEdit }: { row: RosterEntry; last: boolean; onEdit: (() => void) | null }) {
   return (
     <div
       className="table-row"
@@ -289,7 +333,7 @@ function RosterRow({ row, last }: { row: RosterEntry; last: boolean }) {
         )}
       </div>
       <div style={{ textAlign: "right" }}>
-        <IconButton icon="more" label="More" />
+        {onEdit && <IconButton icon="edit" label={`Edit ${row.name}`} onClick={onEdit} />}
       </div>
     </div>
   );

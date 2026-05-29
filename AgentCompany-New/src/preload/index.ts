@@ -13,6 +13,7 @@ const api: DesktopApi = {
   setActiveOrganization: (input) => invoke(IPC_CHANNELS.setActiveOrganization, input),
   deleteOrganization: (input) => invoke(IPC_CHANNELS.deleteOrganization, input),
   createAgent: (input) => invoke(IPC_CHANNELS.createAgent, input),
+  updateAgent: (input) => invoke(IPC_CHANNELS.updateAgent, input),
   createTask: (input) => invoke(IPC_CHANNELS.createTask, input),
   updateTaskStatus: (input) => invoke(IPC_CHANNELS.updateTaskStatus, input),
   runTask: (input) => invoke(IPC_CHANNELS.runTask, input),

@@ -6,6 +6,7 @@ import type {
   BootstrapOnboardingSummary,
   CancelProviderResponseInput,
   CreateAgentInput,
+  UpdateAgentInput,
   CreateApprovalInput,
   CreateAuditReplayInput,
   CreateChatSpaceInput,
@@ -68,6 +69,7 @@ export interface DesktopApi {
   deleteOrganization(input: DeleteOrganizationInput): Promise<DesktopResult<AppSnapshot>>;
   createOrganization(input: CreateOrganizationInput): Promise<DesktopResult<AppSnapshot>>;
   createAgent(input: CreateAgentInput): Promise<DesktopResult<AppSnapshot>>;
+  updateAgent(input: UpdateAgentInput): Promise<DesktopResult<AppSnapshot>>;
   createTask(input: CreateTaskInput): Promise<DesktopResult<AppSnapshot>>;
   updateTaskStatus(input: UpdateTaskStatusInput): Promise<DesktopResult<AppSnapshot>>;
   runTask(input: RunTaskInput): Promise<DesktopResult<AppSnapshot>>;

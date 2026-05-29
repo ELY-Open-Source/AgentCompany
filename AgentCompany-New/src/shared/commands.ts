@@ -36,6 +36,16 @@ export interface CreateOrganizationInput {
   reviewDeliverables?: boolean;
 }
 
+export interface UpdateAgentInput {
+  orgId: string;
+  agentId: string;
+  role: string;
+  title: string;
+  roleLevel: string;
+  modelProviderId: string | null;
+  modelId: string | null;
+}
+
 export interface CreateAgentInput {
   orgId: string;
   name: string;

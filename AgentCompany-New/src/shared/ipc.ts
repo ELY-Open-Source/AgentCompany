@@ -5,6 +5,7 @@ export const IPC_CHANNELS = {
   deleteOrganization: "agentcompany:delete-organization",
   createOrganization: "agentcompany:create-organization",
   createAgent: "agentcompany:create-agent",
+  updateAgent: "agentcompany:update-agent",
   createTask: "agentcompany:create-task",
   updateTaskStatus: "agentcompany:update-task-status",
   runTask: "agentcompany:run-task",

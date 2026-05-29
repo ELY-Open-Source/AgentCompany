@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { APPROVAL_STATE, RISK_LEVEL, TASK_STATUS } from "../../shared/domain";
 import { PROVIDER_CATALOG } from "../../shared/provider-catalog";
 import { createId } from "../../shared/ids";
-import type { CreateAgentInput, CreateOrganizationInput, CreateTaskInput } from "../../shared/commands";
+import type { CreateAgentInput, CreateOrganizationInput, CreateTaskInput, UpdateAgentInput } from "../../shared/commands";
 import { AuditService } from "./audit-service";
 import { PolicyService } from "./policy-service";
 import { IdentityAccessService } from "./identity-access-service";
@@ -211,6 +211,34 @@ export class OrganizationService {
       this.governance.routeApproval({ orgId: input.orgId, approvalId, kind: "agent_hire", risk: RISK_LEVEL.MEDIUM });
     }
     return id;
+  }
+
+  updateAgent(input: UpdateAgentInput): void {
+    const agent = this.db.prepare("select id from agents where id = ? and org_id = ?")
+      .get(input.agentId, input.orgId) as { id: string } | undefined;
+    if (!agent) throw new Error("Agent was not found.");
+    const role = input.role.trim();
+    if (!role) throw new Error("Agent role is required.");
+    if (input.modelProviderId) {
+      const provider = this.db.prepare("select id from providers where id = ? and org_id = ?")
+        .get(input.modelProviderId, input.orgId) as { id: string } | undefined;
+      if (!provider) throw new Error("Agent provider was not found.");
+    }
+    const result = this.db.prepare(`
+      update agents
+      set role = ?, title = ?, role_level = ?, model_provider_id = ?, model_id = ?
+      where id = ? and org_id = ?
+    `).run(role, input.title.trim() || role, input.roleLevel.trim() || "staff", input.modelProviderId, input.modelId, input.agentId, input.orgId);
+    if (result.changes === 0) throw new Error("Agent update failed.");
+    this.audit.record({
+      orgId: input.orgId,
+      entityType: "agent",
+      entityId: input.agentId,
+      actorType: "employee",
+      actorId: null,
+      action: "updated",
+      payload: { role, roleLevel: input.roleLevel.trim() || "staff" },
+    });
   }
 
   createTask(input: CreateTaskInput): string {
